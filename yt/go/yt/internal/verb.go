@@ -85,6 +85,9 @@ const (
 	VerbGetQueryResult  Verb = "get_query_result"
 	VerbReadQueryResult Verb = "read_query_result"
 	VerbAlterQuery      Verb = "alter_query"
+
+	VerbPartitionTables    Verb = "partition_tables"
+	VerbReadTablePartition Verb = "read_table_partition"
 )
 
 func (v Verb) hasInput() bool {
@@ -124,6 +127,9 @@ func (v Verb) IsHeavy() bool {
 
 	case VerbPullQueueConsumer:
 		return true
+
+	case VerbPartitionTables, VerbReadTablePartition:
+		return true
 	}
 
 	return false
@@ -150,6 +156,9 @@ func (v Verb) volatile() bool {
 		return false
 
 	case VerbPullQueueConsumer:
+		return false
+
+	case VerbPartitionTables, VerbReadTablePartition:
 		return false
 	}
 

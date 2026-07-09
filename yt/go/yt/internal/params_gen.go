@@ -993,6 +993,75 @@ func logReadTableOptions(o *yt.ReadTableOptions) []log.Field {
 	return fields
 }
 
+func writePartitionTablesOptions(w *yson.Writer, o *yt.PartitionTablesOptions) {
+	if o == nil {
+		return
+	}
+	w.MapKeyString("data_weight_per_partition")
+	w.Any(o.DataWeightPerPartition)
+	if o.MaxPartitionCount != nil {
+		w.MapKeyString("max_partition_count")
+		w.Any(o.MaxPartitionCount)
+	}
+	if o.PartitionMode != nil {
+		w.MapKeyString("partition_mode")
+		w.Any(o.PartitionMode)
+	}
+	if o.EnableCookies != nil {
+		w.MapKeyString("enable_cookies")
+		w.Any(o.EnableCookies)
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
+}
+
+func logPartitionTablesOptions(o *yt.PartitionTablesOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.DataWeightPerPartition != 0 {
+		fields = append(fields, log.Any("data_weight_per_partition", o.DataWeightPerPartition))
+	}
+	if o.MaxPartitionCount != nil {
+		fields = append(fields, log.Any("max_partition_count", o.MaxPartitionCount))
+	}
+	if o.PartitionMode != nil {
+		fields = append(fields, log.Any("partition_mode", o.PartitionMode))
+	}
+	if o.EnableCookies != nil {
+		fields = append(fields, log.Any("enable_cookies", o.EnableCookies))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	return fields
+}
+
+func writeReadTablePartitionOptions(w *yson.Writer, o *yt.ReadTablePartitionOptions) {
+	if o == nil {
+		return
+	}
+	if o.Format != nil {
+		w.MapKeyString("output_format")
+		w.Any(o.Format)
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
+}
+
+func logReadTablePartitionOptions(o *yt.ReadTablePartitionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Format != nil {
+		fields = append(fields, log.Any("output_format", o.Format))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	return fields
+}
+
 func writeStartOperationOptions(w *yson.Writer, o *yt.StartOperationOptions) {
 	if o == nil {
 		return
@@ -4288,6 +4357,104 @@ func (p *ReadTableParams) TransactionOptions() **yt.TransactionOptions {
 }
 
 func (p *ReadTableParams) AccessTrackingOptions() **yt.AccessTrackingOptions {
+	return &p.options.AccessTrackingOptions
+}
+
+type PartitionTablesParams struct {
+	verb    Verb
+	paths   []ypath.YPath
+	options *yt.PartitionTablesOptions
+}
+
+func NewPartitionTablesParams(
+	paths []ypath.YPath,
+	options *yt.PartitionTablesOptions,
+) *PartitionTablesParams {
+	if options == nil {
+		options = &yt.PartitionTablesOptions{}
+	}
+	optionsCopy := *options
+	return &PartitionTablesParams{
+		Verb("partition_tables"),
+		paths,
+		&optionsCopy,
+	}
+}
+
+func (p *PartitionTablesParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *PartitionTablesParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *PartitionTablesParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("paths", p.paths),
+	}
+	fields = append(fields, logPartitionTablesOptions(p.options)...)
+	return fields
+}
+
+func (p *PartitionTablesParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("paths")
+	w.Any(p.paths)
+	writePartitionTablesOptions(w, p.options)
+}
+
+func (p *PartitionTablesParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+func (p *PartitionTablesParams) AccessTrackingOptions() **yt.AccessTrackingOptions {
+	return &p.options.AccessTrackingOptions
+}
+
+type ReadTablePartitionParams struct {
+	verb    Verb
+	cookie  []byte
+	options *yt.ReadTablePartitionOptions
+}
+
+func NewReadTablePartitionParams(
+	cookie []byte,
+	options *yt.ReadTablePartitionOptions,
+) *ReadTablePartitionParams {
+	if options == nil {
+		options = &yt.ReadTablePartitionOptions{}
+	}
+	optionsCopy := *options
+	return &ReadTablePartitionParams{
+		Verb("read_table_partition"),
+		cookie,
+		&optionsCopy,
+	}
+}
+
+func (p *ReadTablePartitionParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ReadTablePartitionParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *ReadTablePartitionParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("cookie", p.cookie),
+	}
+	fields = append(fields, logReadTablePartitionOptions(p.options)...)
+	return fields
+}
+
+func (p *ReadTablePartitionParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("cookie")
+	w.Any(p.cookie)
+	writeReadTablePartitionOptions(w, p.options)
+}
+
+func (p *ReadTablePartitionParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+func (p *ReadTablePartitionParams) AccessTrackingOptions() **yt.AccessTrackingOptions {
 	return &p.options.AccessTrackingOptions
 }
 

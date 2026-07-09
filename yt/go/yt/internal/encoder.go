@@ -816,6 +816,30 @@ func (e *Encoder) ReadTable(
 	return e.InvokeReadRow(ctx, call)
 }
 
+func (e *Encoder) PartitionTables(
+	ctx context.Context,
+	paths []ypath.YPath,
+	options *yt.PartitionTablesOptions,
+) (partitions yt.MultiTablePartitions, err error) {
+	call := e.newCall(NewPartitionTablesParams(paths, options))
+	err = e.do(ctx, call, newValueResultDecoder()(&partitions))
+	return partitions, err
+}
+
+func (e *Encoder) ReadTablePartition(
+	ctx context.Context,
+	cookie []byte,
+	options *yt.ReadTablePartitionOptions,
+) (r yt.TablePartitionReader, err error) {
+	var format any
+	if options != nil && options.Format != nil {
+		format = options.Format
+	}
+	call := e.newCall(NewReadTablePartitionParams(cookie, options))
+	call.Format = format
+	return e.InvokeReadRow(ctx, call)
+}
+
 func (e *Encoder) tableSchema(ctx context.Context, path ypath.YPath) (*schema.Schema, error) {
 	var attrs struct {
 		Schema     schema.Schema `yson:"schema"`

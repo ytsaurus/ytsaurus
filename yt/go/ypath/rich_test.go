@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 func TestParse(t *testing.T) {
@@ -162,6 +164,62 @@ func TestParseInvalid(t *testing.T) {
 		_, err := Parse(testCase)
 		t.Logf("got error: %v", err)
 		assert.Error(t, err, "%q", testCase)
+	}
+}
+
+// TestRichUnmarshalYSONFromPartitionTables covers the shape of table_ranges
+// entries returned by the partition_tables driver command: an attributed YSON
+// value where the path lives in the primary value and the ranges are attached
+// as the "ranges" attribute.
+func TestRichUnmarshalYSONFromPartitionTables(t *testing.T) {
+	// Single Rich value.
+	{
+		raw := []byte(`<ranges=[{lower_limit={row_index=100};upper_limit={row_index=200}}]>"//home/foo/bar"`)
+		var r Rich
+		require.NoError(t, yson.Unmarshal(raw, &r))
+		require.Equal(t, Path("//home/foo/bar"), r.Path)
+		require.Len(t, r.Ranges, 1)
+		require.NotNil(t, r.Ranges[0].Lower)
+		require.NotNil(t, r.Ranges[0].Lower.RowIndex)
+		require.Equal(t, int64(100), *r.Ranges[0].Lower.RowIndex)
+		require.NotNil(t, r.Ranges[0].Upper)
+		require.NotNil(t, r.Ranges[0].Upper.RowIndex)
+		require.Equal(t, int64(200), *r.Ranges[0].Upper.RowIndex)
+	}
+	// List of Rich values, as embedded in the partition_tables response.
+	{
+		raw := []byte(`[` +
+			`<ranges=[{lower_limit={row_index=0};upper_limit={row_index=10}}]>"//tmp/t1";` +
+			`<ranges=[{lower_limit={row_index=10};upper_limit={row_index=20}}]>"//tmp/t2"` +
+			`]`)
+		var rr []Rich
+		require.NoError(t, yson.Unmarshal(raw, &rr))
+		require.Len(t, rr, 2)
+		require.Equal(t, Path("//tmp/t1"), rr[0].Path)
+		require.Equal(t, int64(0), *rr[0].Ranges[0].Lower.RowIndex)
+		require.Equal(t, int64(10), *rr[0].Ranges[0].Upper.RowIndex)
+		require.Equal(t, Path("//tmp/t2"), rr[1].Path)
+		require.Equal(t, int64(10), *rr[1].Ranges[0].Lower.RowIndex)
+		require.Equal(t, int64(20), *rr[1].Ranges[0].Upper.RowIndex)
+	}
+	// Path without ranges (partition_mode=unordered without cookies): make sure
+	// the absence of the "ranges" attribute doesn't break decoding.
+	{
+		raw := []byte(`"//home/foo/bar"`)
+		var r Rich
+		require.NoError(t, yson.Unmarshal(raw, &r))
+		require.Equal(t, Path("//home/foo/bar"), r.Path)
+		require.Empty(t, r.Ranges)
+	}
+	// Multi-table partition where one table contributes no rows to this
+	// partition: attribute is present but the list is empty. See YT integration
+	// test controller/test_partition_tables.py.
+	{
+		raw := []byte(`<ranges=[]>"//tmp/empty"`)
+		var r Rich
+		require.NoError(t, yson.Unmarshal(raw, &r))
+		require.Equal(t, Path("//tmp/empty"), r.Path)
+		require.Empty(t, r.Ranges)
 	}
 }
 

@@ -524,6 +524,22 @@ func (e *Encoder) ReadTable(
 	return nil, xerrors.New("implement me")
 }
 
+func (e *Encoder) PartitionTables(
+	ctx context.Context,
+	paths []ypath.YPath,
+	options *yt.PartitionTablesOptions,
+) (partitions yt.MultiTablePartitions, err error) {
+	return yt.MultiTablePartitions{}, xerrors.New("implement me")
+}
+
+func (e *Encoder) ReadTablePartition(
+	ctx context.Context,
+	cookie []byte,
+	options *yt.ReadTablePartitionOptions,
+) (r yt.TablePartitionReader, err error) {
+	return nil, xerrors.New("implement me")
+}
+
 var _ yt.DistributedWriteClient = (*client)(nil)
 
 func (e *Encoder) StartDistributedWriteSession(
