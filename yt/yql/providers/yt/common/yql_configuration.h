@@ -165,4 +165,6 @@ constexpr bool DEFAULT_ENABLE_QL_FILTER = false;
 
 constexpr TDuration DEFAULT_SECURE_TMP_TOKEN_USERS_ACCESS_PERIOD = TDuration::Days(10);
 
+constexpr bool DEFAULT_PARSE_EXPRESSION_COLUMNS = false;
+
 } // NYql
