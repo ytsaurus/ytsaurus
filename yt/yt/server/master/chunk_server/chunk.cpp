@@ -453,7 +453,10 @@ void TChunk::RemoveReplica(
             return;
         }
     }
-    YT_ABORT();
+    YT_LOG_ALERT(
+        "Failed to remove chunk replica from chunk (ChunkId: %v, Replica: %v)",
+        GetId(),
+        replica);
 }
 
 void TChunk::ApproveReplica(TAugmentedStoredChunkReplicaPtr replica)
