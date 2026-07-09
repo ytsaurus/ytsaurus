@@ -116,10 +116,10 @@ def build_buffers():
     )
 
 
-def build_flow_message_transfering():
+def build_flow_message_transfering(backend="monitoring"):
     def fill(d):
         d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
         d.add(build_buffers())
         d.add(build_message_distributor())
 
-    return create_dashboard("message-transfering", fill)
+    return create_dashboard("message-transfering", fill, backend=backend)
