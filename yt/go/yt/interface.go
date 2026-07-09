@@ -547,6 +547,48 @@ type ReadTableOptions struct {
 	*AccessTrackingOptions
 }
 
+type PartitionTablesOptions struct {
+	DataWeightPerPartition int64          `http:"data_weight_per_partition"`
+	MaxPartitionCount      *int           `http:"max_partition_count,omitnil"`
+	PartitionMode          *PartitionMode `http:"partition_mode,omitnil"`
+	EnableCookies          *bool          `http:"enable_cookies,omitnil"`
+
+	*TransactionOptions
+	*AccessTrackingOptions
+}
+
+type PartitionStatistics struct {
+	ChunkCount         int64 `yson:"chunk_count"`
+	DataWeight         int64 `yson:"data_weight"`
+	RowCount           int64 `yson:"row_count"`
+	ValueCount         int64 `yson:"value_count"`
+	CompressedDataSize int64 `yson:"compressed_data_size"`
+}
+
+type TablePartition struct {
+	TableRanges         []ypath.Rich        `yson:"table_ranges"`
+	Cookie              []byte              `yson:"cookie,omitempty"`
+	AggregateStatistics PartitionStatistics `yson:"aggregate_statistics"`
+}
+
+type MultiTablePartitions struct {
+	Partitions []TablePartition `yson:"partitions"`
+}
+
+type ReadTablePartitionOptions struct {
+	// Format is YSON-serializable output format. If not specified "yson" will be used.
+	Format any `http:"output_format,omitnil"`
+
+	*TransactionOptions
+	*AccessTrackingOptions
+}
+
+// TablePartitionReader is interface for reading a table partition.
+// It embeds TableReader for future extensibility.
+type TablePartitionReader interface {
+	TableReader
+}
+
 type TableClient interface {
 	// WriteTable opens low-level table writer. Use yt.WriteTable() function instead of calling this method directly.
 	//
@@ -569,6 +611,26 @@ type TableClient interface {
 		path ypath.YPath,
 		options *ReadTableOptions,
 	) (r TableReader, err error)
+
+	// PartitionTables splits a set of tables into partitions for distributed reading.
+	//
+	// http:verb:"partition_tables"
+	// http:params:"paths"
+	PartitionTables(
+		ctx context.Context,
+		paths []ypath.YPath,
+		options *PartitionTablesOptions,
+	) (partitions MultiTablePartitions, err error)
+
+	// ReadTablePartition reads a table partition by cookie obtained from PartitionTables.
+	//
+	// http:verb:"read_table_partition"
+	// http:params:"cookie"
+	ReadTablePartition(
+		ctx context.Context,
+		cookie []byte,
+		options *ReadTablePartitionOptions,
+	) (r TablePartitionReader, err error)
 }
 
 type StartOperationOptions struct {

@@ -394,6 +394,14 @@ func (id *MaintenanceID) UnmarshalYSON(data []byte) (err error) {
 	return
 }
 
+type PartitionMode string
+
+const (
+	PartitionModeSorted    PartitionMode = "sorted"
+	PartitionModeOrdered   PartitionMode = "ordered"
+	PartitionModeUnordered PartitionMode = "unordered"
+)
+
 type OrderedTableBackupMode string
 
 const (
