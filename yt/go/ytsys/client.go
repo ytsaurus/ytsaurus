@@ -56,6 +56,8 @@ const (
 	maintenanceRequestsAttr    = "maintenance_requests"
 	cmsMaintenanceRequestsAttr = "cms_maintenance_requests"
 
+	bundleControllerAnnotationsAttr = "bundle_controller_annotations"
+
 	userTagsAttr = "user_tags"
 
 	disableSchedulerJobsAttr = "disable_scheduler_jobs"
@@ -407,7 +409,7 @@ func (c *Client) GetNodes(ctx context.Context) (NodeMap, error) {
 			"id", nodeAnnotationsAttr, "rack",
 			bannedAttr, banMessageAttr, decommissionedAttr, decommissionMessageAttr,
 			maintenanceAttr, maintenanceMessageAttr, maintenanceRequestsAttr,
-			cmsMaintenanceRequestsAttr,
+			cmsMaintenanceRequestsAttr, bundleControllerAnnotationsAttr,
 			"disable_scheduler_jobs", "disable_write_sessions",
 			"state", "last_seen_time", "version", "statistics",
 			"tags", "flavors", "tablet_slots", "resource_limits", "resource_limits_overrides",
@@ -498,7 +500,7 @@ func (c *Client) GetRPCProxies(ctx context.Context) (RPCProxyMap, error) {
 			"id", "path", "annotations", "role",
 			bannedAttr, banMessageAttr,
 			maintenanceAttr, maintenanceMessageAttr, maintenanceRequestsAttr,
-			cmsMaintenanceRequestsAttr,
+			cmsMaintenanceRequestsAttr, bundleControllerAnnotationsAttr,
 		},
 		MaxSize: ptr.Int64(listResultMaxSize),
 		TransactionOptions: &yt.TransactionOptions{

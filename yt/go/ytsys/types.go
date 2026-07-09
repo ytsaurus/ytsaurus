@@ -260,6 +260,14 @@ const (
 	NodeStateOffline = "offline"
 )
 
+const DeallocationStrategyHulkRequest = "hulk_deallocation_request"
+
+type BundleControllerAnnotations struct {
+	Allocated            *YTBool    `yson:"allocated"`
+	DeallocationStrategy string     `yson:"deallocation_strategy"`
+	DeallocatedAt        *yson.Time `yson:"deallocated_at"`
+}
+
 // Node contains a state of a single node.
 type Node struct {
 	Addr *Addr `yson:",value"`
@@ -298,6 +306,8 @@ type Node struct {
 	MaintenanceMessage     string                      `yson:"maintenance_message,attr"`
 	MaintenanceRequests    SystemMaintenanceRequestMap `yson:"maintenance_requests,attr"`
 	CMSMaintenanceRequests MaintenanceRequestMap       `yson:"cms_maintenance_requests,attr"`
+
+	BundleControllerAnnotations *BundleControllerAnnotations `yson:"bundle_controller_annotations,attr"`
 }
 
 func (n *Node) UnmarshalYSON(data []byte) error {
@@ -473,6 +483,8 @@ type RPCProxy struct {
 	MaintenanceMessage     string                `yson:"maintenance_message,attr"`
 	MaintenanceRequests    MaintenanceRequestMap `yson:"maintenance_requests,attr"`
 	CMSMaintenanceRequests MaintenanceRequestMap `yson:"cms_maintenance_requests,attr"`
+
+	BundleControllerAnnotations *BundleControllerAnnotations `yson:"bundle_controller_annotations,attr"`
 
 	Alive *map[string]any `yson:"alive"`
 }
