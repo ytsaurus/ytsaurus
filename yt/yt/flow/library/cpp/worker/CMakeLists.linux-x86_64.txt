@@ -14,8 +14,8 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(benchmarks)
 add_subdirectory(unittests)
+add_subdirectory(benchmarks)
 
 add_library(library-cpp-worker)
 

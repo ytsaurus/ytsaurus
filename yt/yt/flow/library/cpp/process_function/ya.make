@@ -17,6 +17,11 @@ RECURSE(
 )
 
 RECURSE_FOR_TESTS(
-    benchmarks
     unittest
 )
+
+IF (NOT SANITIZER_TYPE)
+    RECURSE_FOR_TESTS(
+        benchmarks
+    )
+ENDIF()

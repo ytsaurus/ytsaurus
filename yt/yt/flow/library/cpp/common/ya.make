@@ -85,6 +85,11 @@ ENDIF()
 END()
 
 RECURSE_FOR_TESTS(
-    benchmarks
     unittests
 )
+
+IF (NOT SANITIZER_TYPE)
+    RECURSE_FOR_TESTS(
+        benchmarks
+    )
+ENDIF()
