@@ -10772,6 +10772,22 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->add_environment(Format("YT_OPERATION_ID=%v", OperationId_));
 
+    {
+        // Expose the primary operation transaction ID so jobs can use it as a
+        // prerequisite to ensure the operation is still alive (e.g. for locking).
+        // Prefer the output transaction (covers most operations with outputs);
+        // fall back to the async transaction for operations without outputs.
+        const NApi::ITransactionPtr* operationTransaction = nullptr;
+        if (OutputTransaction_) {
+            operationTransaction = &OutputTransaction_;
+        } else if (AsyncTransaction_) {
+            operationTransaction = &AsyncTransaction_;
+        }
+        if (operationTransaction) {
+            jobSpec->add_environment(Format("YT_OPERATION_TRANSACTION_ID=%v", (*operationTransaction)->GetId()));
+        }
+    }
+
     if (jobSpecConfig->ExtraEnvironment.contains(EExtraEnvironment::DiscoveryServerAddresses)) {
         auto addresses = ConvertToYsonString(Client_->GetNativeConnection()->GetDiscoveryServerAddresses(), EYsonFormat::Text);
         jobSpec->add_environment(Format("YT_DISCOVERY_ADDRESSES=%v", addresses));
