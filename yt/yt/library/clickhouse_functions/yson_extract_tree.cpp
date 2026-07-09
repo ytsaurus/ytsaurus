@@ -153,7 +153,7 @@ public:
 
             auto& chars = colStr.getChars();
             TStringColumnCharsOutput charsOutput(chars);
-            TExtendedYsonWriter writer(&charsOutput);
+            TExtendedYsonWriter writer(&charsOutput, EExtendedYsonFormat::Text);
             Serialize(*node.GetNode(), &writer);
             chars.push_back(0);
             colStr.getOffsets().push_back(chars.size());
