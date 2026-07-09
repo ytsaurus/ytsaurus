@@ -1,0 +1,15 @@
+#include "public.h"
+
+#include "yt_client_factory_detail.h"
+#include "yt_hedging_client_detail.h"
+
+namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_FLOW_DEFINE_RESOURCE(TYTClientFactory);
+YT_FLOW_DEFINE_RESOURCE(TYTHedgingClient);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow

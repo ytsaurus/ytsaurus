@@ -1,0 +1,145 @@
+{
+    "spec" = {
+        "computations" = {
+            "action_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["action"];
+                "watermark_strategy" = {
+                    "event_timestamp_assigner" = {
+                        "column" = "action_time";
+                    };
+                    "watermark_generator" = {
+                        "out_of_orderness_bound" = "10s";
+                    };
+                    "watermark_alignment" = {
+                        "drift_bound" = "1h";
+                    };
+                };
+                "source_streams" = {
+                    "action_queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "hit_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["hit"];
+                "watermark_strategy" = {
+                    "event_timestamp_assigner" = {
+                        "column" = "hit_time";
+                    };
+                    "watermark_generator" = {
+                        "out_of_orderness_bound" = "10s";
+                    };
+                };
+                "source_streams" = {
+                    "hit_queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "join" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(hit_id)"; "type" = "uint64"; required = %true;};
+                    {"name" = "hit_id"; "type" = "string";};
+                    {"name" = "hit_time"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["action"; "hit"];
+                "output_stream_ids" = ["joined_action";];
+                "external_state_managers" = {
+                    "/join-state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {
+                            "path" = "//path/to/state";
+                        };
+                    };
+                };
+                "parameters" = {
+                    "wait_for_actions" = "10s";
+                };
+                "timer_streams" = {
+                    "timer" = {};
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["joined_action"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "action" = {
+                "schema" = [
+                    {name = "hit_id"; type = "string";};
+                    {name = "hit_time"; type = "uint64";};
+                    {name = "is_click"; type = "boolean";};
+                    {name = "action_time"; type = "uint64";};
+                ];
+            };
+            "hit" = {
+                "schema" = [
+                    {name = "hit_id"; type = "string";};
+                    {name = "hit_time"; type = "uint64";};
+                    {name = "hit_payload"; type = "string";};
+                ];
+            };
+            "joined_action" = {
+                "schema" = [
+                    {name = "hit_id"; type = "string";};
+                    {name = "hit_time"; type = "uint64";};
+                    {name = "is_click"; type = "boolean";};
+                    {name = "show_time"; type = "uint64";};
+                    {name = "click_time"; type = "uint64";};
+                    {name = "hit_payload"; type = "string";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {
+                    "run_process" = %false;
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "action_reader" = {
+                "max_rows_per_batch" = 500;
+            };
+            "hit_reader" = {
+                "max_rows_per_batch" = 500;
+            };
+            "join" = {
+                "parameters" = {
+                    "desired_partition_count" = 5;
+                };
+                "state_manager" = {
+                    "format" = {
+                        "compress" = true;
+                    };
+                };
+            };
+        };
+    };
+}

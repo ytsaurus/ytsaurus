@@ -1,5 +1,7 @@
 LIBRARY()
 
+INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
+
 SRCS(
     pipeline_init.cpp
 )

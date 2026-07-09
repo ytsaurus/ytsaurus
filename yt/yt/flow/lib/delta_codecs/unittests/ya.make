@@ -1,6 +1,6 @@
 GTEST(unittester-flow-delta-codecs)
 
-INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     xdelta_ut.cpp

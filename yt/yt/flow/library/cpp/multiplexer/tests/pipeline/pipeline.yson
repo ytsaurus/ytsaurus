@@ -1,0 +1,61 @@
+{
+    "spec" = {
+        "computations" = {
+            "key_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["keys"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "multiplexer" = {
+                "computation_class_name" = "TTestMultiplexerComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["keys";];
+                "output_stream_ids" = ["rows"];
+                "timer_streams" = {
+                    "timer" = {
+                        "time_type" = "current_time";
+                    };
+                };
+                "streams_dependency" = {
+                    "timer" = ["timer"; "keys"];
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["rows"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+                "allow_timer_self_dependency" = %true;
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "key_reader" = {
+            };
+            "multiplexer" = {
+                "parameters" = {
+                    "timer_period" = 2000;
+                    "batch_size" = 50;
+                };
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

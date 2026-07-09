@@ -1,0 +1,20 @@
+PY3_PROGRAM()
+
+NO_CHECK_IMPORTS()
+
+PY_SRCS(
+    __init__.py
+    __main__.py
+    join_process_function.py
+)
+
+PEERDIR(
+    yt/yt/flow/library/python/companion
+)
+
+END()
+
+RECURSE_FOR_TESTS(
+    test
+    unit_test
+)

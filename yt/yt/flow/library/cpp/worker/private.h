@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/library/profiling/sensor.h>
+
+namespace NYT::NFlow::NWorker {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, WorkerProfiler, "", "yt.flow.worker");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NWorker

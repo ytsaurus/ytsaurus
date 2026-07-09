@@ -1,0 +1,41 @@
+SET(ROOT_DIR yt/yt/flow/tests/flow_execute)
+
+TEST_SRCS(
+    ${ROOT_DIR}/test_flow_execute.py
+)
+
+# Feature toggles: per-package ya.make overrides with SET(<NAME> 0) before this INCLUDE; default 1 = trunk (all on).
+# DEFAULT is a no-op when the variable is already SET, so a per-package SET-before-INCLUDE wins.
+DEFAULT(FLOW_EXECUTE_ENABLE_PROXY_SIGNATURES 1)
+DEFAULT(FLOW_EXECUTE_CHECK_PLAINTEXT 1)
+DEFAULT(FLOW_EXECUTE_CHECK_KNOWN_COMMANDS 1)
+DEFAULT(FLOW_EXECUTE_CHECK_SPEC_VERSIONS 1)
+DEFAULT(FLOW_EXECUTE_TEST_FLOW_CORE_TARGET 1)
+
+ENV(FLOW_EXECUTE_ENABLE_PROXY_SIGNATURES=${FLOW_EXECUTE_ENABLE_PROXY_SIGNATURES})
+ENV(FLOW_EXECUTE_CHECK_PLAINTEXT=${FLOW_EXECUTE_CHECK_PLAINTEXT})
+ENV(FLOW_EXECUTE_CHECK_KNOWN_COMMANDS=${FLOW_EXECUTE_CHECK_KNOWN_COMMANDS})
+ENV(FLOW_EXECUTE_CHECK_SPEC_VERSIONS=${FLOW_EXECUTE_CHECK_SPEC_VERSIONS})
+ENV(FLOW_EXECUTE_TEST_FLOW_CORE_TARGET=${FLOW_EXECUTE_TEST_FLOW_CORE_TARGET})
+
+INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/library/python/integration_test_base/recipe.inc)
+
+PEERDIR(
+    ${ROOT_DIR}/lib
+)
+
+DEPENDS(
+    ${ROOT_DIR}/pipeline
+    yt/python/yt/wrapper/bin/yt_make
+)
+
+DATA(arcadia/${ROOT_DIR}/pipeline/pipeline.yson)
+
+REQUIREMENTS(
+    cpu:4
+    ram:32
+)
+
+TAG(ya:huge_logs)
+
+SIZE(MEDIUM)

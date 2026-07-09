@@ -1,0 +1,69 @@
+{
+    "cluster_url" = "<to_be_overridden>";
+    "path" = "//<to_be_overridden>";
+    "spec" = {
+        "computations" = {
+            "Reader" = {
+                "computation_class_name" = "NExample::TReader";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["data"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                            "consumer_path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+            };
+            "Throttled" = {
+                "computation_class_name" = "NExample::TThrottledPassthrough";
+                "input_stream_ids" = ["data"];
+                "output_stream_ids" = ["out"];
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(value)"; "type" = "uint64"; required = %true;};
+                    {"name" = "value"; "type" = "int64";};
+                ];
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["out"];
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "data" = {
+                "schema" = [
+                    {"name" = "value"; "type" = "int64";};
+                ];
+            };
+            "out" = {
+                "schema" = [
+                    {"name" = "value"; "type" = "int64";};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "Reader" = {
+                "batch_duration" = 100;
+                "max_rows_per_batch" = 10;
+            };
+            "Throttled" = {
+                "parameters" = {"desired_partition_count" = 2;};
+            };
+        };
+        "throttlers" = {
+            "api" = {
+                "limit" = 50.0;
+                "period" = 1000;
+            };
+        };
+    };
+}

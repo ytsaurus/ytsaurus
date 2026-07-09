@@ -1,0 +1,88 @@
+{
+    "spec" = {
+        "computations" = {
+            "First" = {
+                "computation_class_name" = "TTableReader";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["first"];
+                "watermark_strategy" = {
+                    "watermark_generator" = {
+                        "out_of_orderness_bound" = 5000;
+                        "unavailable_partition_groups" = {
+                            "max_groups" = 1;
+                        };
+                    };
+                };
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "finite" = %true;
+                            "update_info_period" = 1000;
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "Second" = {
+                "computation_class_name" = "TTableWriter";
+                "group_by_schema" = [
+                    {"name" = "hash1"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "hash2"; "expression" = "farm_hash(key, 123)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["first"];
+                "output_stream_ids" = ["output"];
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["output"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "first" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string";};
+                    {"name" = "data"; "type" = "string";};
+                ];
+            };
+            "output" = {
+                "schema" = [
+                    {"name" = "data"; "type" = "string";};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "First" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 1;
+                };
+                "source_streams" = {
+                    "queue" = {
+                        "parameters" = {
+                            "unavailable_time_half_decay_period" = 3000;
+                        };
+                    };
+                };
+                "max_rows_per_batch" = 5;
+            };
+            "Second" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 5;
+                }
+            };
+        };
+        "message_distributor" = {
+            "send_queue_max_rows_per_batch" = 50;
+        };
+    };
+}

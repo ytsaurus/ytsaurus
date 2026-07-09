@@ -1,0 +1,65 @@
+{
+    "cluster_url" = "<to_be_overridden>";
+    "path" = "//<to_be_overridden>";
+    "spec" = {
+        "computations" = {
+            "Reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["event12345678901234567890"];
+                "source_streams" = {
+                    "random_source" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                        "parameters" = {
+                            "finite" = %true;
+                        };
+                    };
+                };
+            };
+            "Reducer" = {
+                "computation_class_name" = "NExample::TReducer";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["event12345678901234567890"];
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "event12345678901234567890" = {
+                "schema" = [
+                    {"name" = "key"; "type" = "string";};
+                    {"name" = "data"; "type" = "string";};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "Reader" = {
+                "batch_duration" = 100;
+                "max_rows_per_batch" = "50K";
+                "max_bytes_per_batch" = "1Gi";
+                "output_store_count_limit" = "150K";
+            };
+            "Reducer" = {
+                "batch_duration" = 10;
+                "max_rows_per_batch" = "1M";
+                "max_bytes_per_batch" = "1Gi";
+            };
+        };
+        "message_distributor" = {
+            "send_queue_max_rows_per_batch" = "50K";
+            "send_queue_max_bytes_per_batch" = "50Mi";
+            "push_messages_timeout" = "60s";
+        };
+        "job_tracker" = {
+            "job_threads" = 20;
+            "buffer_state_manager" = {
+                "input_buffer" = {"job_guarantee" = "50Mi"; "job_limit" = "500Mi";};
+                "output_buffer" = {"job_guarantee" = "50Mi"; "job_limit" = "500Mi";};
+            };
+        };
+    };
+}

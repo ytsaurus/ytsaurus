@@ -1,0 +1,12 @@
+package NYT.NFlow.NProto;
+
+message TVisit
+{
+    // VisitMeta fields.
+    required string message_id = 1;
+    required uint64 system_timestamp = 2;
+    optional uint64 event_timestamp = 3;
+    required bytes stream_id = 4;
+    // Visit fields.
+    required bytes key = 5;
+}

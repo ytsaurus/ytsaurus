@@ -1,0 +1,51 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "TReader";
+                "output_stream_ids" = ["data"];
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                    };
+                };
+                "parameters" = {};
+            };
+            "processor" = {
+                "computation_class_name" = "TProcessor";
+                "input_stream_ids" = ["data"];
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "data" = {
+                "schema" = [
+                    {name = "key"; type = "string"; required = %true;};
+                    {name = "data"; type = "string"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {};
+                "source_streams" = {
+                    "random" = {
+                        "partition_count" = 1;
+                        "message_size_mean" = 100;
+                        "message_count_mean" = 10;
+                        "message_key_range" = 1000;
+                    };
+                };
+            };
+            "processor" = {
+                "parameters" = {};
+            };
+        };
+    };
+}
