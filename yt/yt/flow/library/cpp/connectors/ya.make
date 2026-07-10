@@ -5,4 +5,5 @@ RECURSE(
     servicelog
     sorted_dynamic_table
     static_table
+    static_table_v2
 )
