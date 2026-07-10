@@ -451,9 +451,12 @@ class FlowTestBase:
 
         if leader_wait_timeout is None:
             # A vanilla controller pays the operation-startup latency (binary upload + cold
-            # flow_server boot, doubly slow under sanitizers) before it elects a leader; a
-            # host-launched controller comes up immediately. Mirror the java base's allowance.
+            # flow_server boot) before it elects a leader; a host-launched controller comes up
+            # immediately. Mirror the java base's allowance.
             leader_wait_timeout = 120 if use_vanilla_jobs else 30
+        if yatest.common.context.sanitize is not None:
+            # A sanitizer-instrumented flow_server boots much slower; give it the vanilla allowance.
+            leader_wait_timeout = max(leader_wait_timeout, 120)
 
         if use_vanilla_jobs:
             self._inject_vanilla_block(pipeline_binary_args, workers_count, vanilla_secret_env, vanilla_runtime_cluster)
