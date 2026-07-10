@@ -7,7 +7,7 @@ from .default_config import get_dynamic_master_config, get_dynamic_queue_agent_c
 from .helpers import (
     read_config, write_config, is_dead, OpenPortIterator,
     wait_for_removing_file_lock, get_value_from_config, WaitFailed,
-    is_port_opened, push_front_env_path, wait_for_dynamic_config_update)
+    is_port_opened, push_front_env_path, wait_for_dynamic_config_update, gdb_binary)
 from .porto_helpers import PortoSubprocess, porto_available
 from .watcher import ProcessWatcher
 from .init_cluster import _initialize_world_for_local_cluster
@@ -1388,9 +1388,7 @@ class YTInstance(object):
             return p
 
     def _dump_backtraces(self, pid):
-        from .arcadia_interop import get_gdb_path
-
-        gdb_path = get_gdb_path()
+        gdb_path = gdb_binary()
         if not shutil.which(gdb_path):
             logger.warning("Cannot dump backtraces of process %s: gdb is not available (path: %s)", pid, gdb_path)
             return
@@ -2351,7 +2349,14 @@ class YTInstance(object):
         self._run_builtin_yt_component("http-proxy", name="http_proxy")
 
         client = self._create_cluster_client()
-        expected_endpoints = set(self.get_http_proxy_addresses())
+
+        def _get_registered_endpoint(config):
+            public_fqdn = get_value(config.get("coordinator"), {}).get("public_fqdn")
+            if public_fqdn:
+                return public_fqdn
+            return "{0}:{1}".format(self.yt_config.fqdn, config["port"])
+
+        expected_endpoints = {_get_registered_endpoint(config) for config in self.configs["http_proxy"]}
 
         def proxy_ready():
             self._validate_processes_are_running("http_proxy")
