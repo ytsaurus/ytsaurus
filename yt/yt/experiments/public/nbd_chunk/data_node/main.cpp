@@ -2,7 +2,7 @@
 
 #include <yt/yt/ytlib/chunk_client/data_node_nbd_service_proxy.h>
 
-#include <yt/yt/server/lib/nbd/chunk_handler.h>
+#include <yt/yt/server/lib/nbd/chunk/chunk_handler.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
 

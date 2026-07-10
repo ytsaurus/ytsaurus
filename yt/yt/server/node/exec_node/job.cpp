@@ -47,9 +47,10 @@
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/server/lib/nbd/block_device.h>
-#include <yt/yt/server/lib/nbd/image_reader.h>
 #include <yt/yt/server/lib/nbd/profiler.h>
-#include <yt/yt/server/lib/nbd/random_access_file_reader.h>
+
+#include <yt/yt/server/lib/nbd/image/image_reader.h>
+#include <yt/yt/server/lib/nbd/image/random_access_file_reader.h>
 
 #include <yt/yt/server/lib/squash_fs/squash_fs_layout_builder.h>
 
@@ -160,6 +161,7 @@ using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NStatisticPath;
 using namespace NNbd;
+using namespace NNbd::NImage;
 using namespace NSquashFS;
 using namespace NServer;
 

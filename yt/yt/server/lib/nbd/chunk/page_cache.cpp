@@ -1,13 +1,13 @@
 #include "page_cache.h"
 
 #include "config.h"
-#include "profiler.h"
+#include <yt/yt/server/lib/nbd/profiler.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 
 #include <library/cpp/yt/memory/blob.h>
 
-namespace NYT::NNbd {
+namespace NYT::NNbd::NChunk {
 
 using namespace NConcurrency;
 using namespace NLogging;
@@ -639,4 +639,4 @@ DEFINE_REFCOUNTED_TYPE(TPageCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NChunk

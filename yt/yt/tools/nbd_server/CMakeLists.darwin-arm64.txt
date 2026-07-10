@@ -30,6 +30,10 @@ target_link_libraries(nbd_server_tool PUBLIC
   yt-library-program
   library-query-engine
   server-lib-nbd
+  lib-nbd-chunk
+  lib-nbd-dynamic_table
+  lib-nbd-image
+  lib-nbd-memory
 )
 
 target_allocator(nbd_server_tool

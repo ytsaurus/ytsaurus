@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include "block_device.h"
+#include <yt/yt/server/lib/nbd/block_device.h>
 
-#include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/core/actions/public.h>
 
-#include <yt/yt/core/concurrency/throughput_throttler.h>
+#include <library/cpp/yt/logging/public.h>
 
-namespace NYT::NNbd {
+namespace NYT::NNbd::NImage {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,4 +54,4 @@ IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NImage

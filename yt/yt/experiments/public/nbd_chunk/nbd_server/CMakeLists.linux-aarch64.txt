@@ -25,6 +25,7 @@ target_link_libraries(nbd_server PUBLIC
   yt-yt-core
   yt-library-program
   server-lib-nbd
+  lib-nbd-chunk
 )
 
 target_allocator(nbd_server

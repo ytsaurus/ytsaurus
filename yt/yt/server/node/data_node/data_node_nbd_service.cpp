@@ -6,7 +6,7 @@
 #include "session.h"
 #include "session_manager.h"
 
-#include <yt/yt/server/lib/nbd/chunk_block_device.h>
+#include <yt/yt/server/lib/nbd/config.h>
 
 #include <yt/yt/ytlib/chunk_client/data_node_nbd_service_proxy.h>
 

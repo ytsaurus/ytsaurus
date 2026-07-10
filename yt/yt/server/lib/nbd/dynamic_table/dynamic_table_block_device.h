@@ -1,11 +1,14 @@
 #pragma once
 
-#include "block_device.h"
-#include "config.h"
+#include "public.h"
+
+#include <yt/yt/server/lib/nbd/public.h>
 
 #include <yt/yt/client/api/public.h>
 
-namespace NYT::NNbd {
+#include <library/cpp/yt/logging/public.h>
+
+namespace NYT::NNbd::NDynamicTable {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,4 +20,4 @@ IBlockDevicePtr CreateDynamicTableBlockDevice(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NDynamicTable

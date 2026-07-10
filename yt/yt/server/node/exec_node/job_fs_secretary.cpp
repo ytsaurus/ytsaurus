@@ -847,7 +847,7 @@ const std::optional<TVirtualSandboxData>& TJobFSSecretary::GetVirtualSandboxData
     return VirtualSandboxData_;
 }
 
-void TJobFSSecretary::SetVirtualSandboxReader(NNbd::IImageReaderPtr reader)
+void TJobFSSecretary::SetVirtualSandboxReader(NNbd::NImage::IImageReaderPtr reader)
 {
     YT_VERIFY(VirtualSandboxData_);
     VirtualSandboxData_->Reader = std::move(reader);

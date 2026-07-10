@@ -1,10 +1,20 @@
 #pragma once
 
-#include "block_device.h"
-#include "chunk_handler.h"
-#include "config.h"
+#include "public.h"
 
-namespace NYT::NNbd {
+#include <yt/yt/server/lib/nbd/public.h>
+
+#include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/core/actions/public.h>
+
+#include <yt/yt/core/concurrency/public.h>
+
+#include <yt/yt/core/rpc/public.h>
+
+#include <library/cpp/yt/logging/public.h>
+
+namespace NYT::NNbd::NChunk {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,4 +30,4 @@ IBlockDevicePtr CreateChunkBlockDevice(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NChunk

@@ -2,15 +2,11 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/api/native/public.h>
-
-#include <yt/yt/ytlib/chunk_client/public.h>
-
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
-#include <library/cpp/yt/logging/logger.h>
+#include <library/cpp/yt/logging/public.h>
 
 namespace NYT::NNbd {
 

@@ -2,11 +2,11 @@
 
 #include "random_access_file_reader.h"
 
-#include "block_device.h"
+#include <yt/yt/server/lib/nbd/block_device.h>
 
 #include <yt/yt/server/lib/squash_fs/squash_fs_layout_builder.h>
 
-namespace NYT::NNbd {
+namespace NYT::NNbd::NImage {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,4 +54,4 @@ IImageReaderPtr CreateVirtualSquashFSImageReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NImage

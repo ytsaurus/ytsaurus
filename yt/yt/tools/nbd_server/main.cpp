@@ -1,11 +1,18 @@
-#include <yt/yt/server/lib/nbd/chunk_block_device.h>
+#include <yt/yt/server/lib/nbd/chunk/chunk_block_device.h>
+#include <yt/yt/server/lib/nbd/chunk/config.h>
 #include <yt/yt/server/lib/nbd/config.h>
-#include <yt/yt/server/lib/nbd/dynamic_table_block_device.h>
-#include <yt/yt/server/lib/nbd/file_system_block_device.h>
-#include <yt/yt/server/lib/nbd/image_reader.h>
-#include <yt/yt/server/lib/nbd/memory_block_device.h>
-#include <yt/yt/server/lib/nbd/random_access_file_reader.h>
 #include <yt/yt/server/lib/nbd/server.h>
+
+#include <yt/yt/server/lib/nbd/dynamic_table/config.h>
+#include <yt/yt/server/lib/nbd/dynamic_table/dynamic_table_block_device.h>
+
+#include <yt/yt/server/lib/nbd/image/config.h>
+#include <yt/yt/server/lib/nbd/image/image_block_device.h>
+#include <yt/yt/server/lib/nbd/image/image_reader.h>
+#include <yt/yt/server/lib/nbd/image/random_access_file_reader.h>
+
+#include <yt/yt/server/lib/nbd/memory/config.h>
+#include <yt/yt/server/lib/nbd/memory/memory_block_device.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -70,6 +77,11 @@ using namespace NObjectClient;
 using namespace NYPath;
 using namespace NYTree;
 
+using namespace NNbd::NChunk;
+using namespace NNbd::NMemory;
+using namespace NNbd::NDynamicTable;
+using namespace NNbd::NImage;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NApi::NNative::IClientPtr CreateNativeClient(
@@ -120,7 +132,7 @@ NApi::NNative::IClientPtr CreateNativeClient(
 DECLARE_REFCOUNTED_STRUCT(TCypressFileDeviceConfig)
 
 struct TCypressFileDeviceConfig
-    : public TFileSystemBlockDeviceConfig
+    : public TImageBlockDeviceConfig
 {
     TYPath Path;
 
@@ -300,7 +312,7 @@ IBlockDevicePtr CreateCypressFileDevice(
     auto imageReader = CreateCypressFileImageReader(
         std::move(fileReader),
         logger);
-    return CreateFileSystemBlockDevice(
+    return CreateImageBlockDevice(
         exportId,
         config,
         std::move(imageReader),

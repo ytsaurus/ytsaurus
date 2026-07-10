@@ -15,7 +15,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-namespace NYT::NNbd {
+namespace NYT::NNbd::NImage {
 
 using namespace NApi;
 using namespace NApi::NNative;
@@ -474,4 +474,4 @@ IRandomAccessFileReaderPtr CreateRandomAccessFileReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NImage

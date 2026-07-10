@@ -87,6 +87,8 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-lsm
   server-lib-misc
   server-lib-nbd
+  lib-nbd-chunk
+  lib-nbd-image
   server-lib-node
   server-lib-rpc
   server-lib-tablet_balancer

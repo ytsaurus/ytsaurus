@@ -13,9 +13,13 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
-#include <yt/yt/server/lib/nbd/chunk_block_device.h>
-#include <yt/yt/server/lib/nbd/file_system_block_device.h>
-#include <yt/yt/server/lib/nbd/image_reader.h>
+#include <yt/yt/server/lib/nbd/chunk/chunk_block_device.h>
+#include <yt/yt/server/lib/nbd/chunk/chunk_handler.h>
+#include <yt/yt/server/lib/nbd/chunk/config.h>
+
+#include <yt/yt/server/lib/nbd/image/config.h>
+#include <yt/yt/server/lib/nbd/image/image_block_device.h>
+#include <yt/yt/server/lib/nbd/image/image_reader.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -44,6 +48,8 @@ using namespace NControllerAgent;
 using namespace NDataNode;
 using namespace NLogging;
 using namespace NYT::NNbd;
+using namespace NYT::NNbd::NChunk;
+using namespace NYT::NNbd::NImage;
 using namespace NProfiling;
 using namespace NYTree;
 
@@ -634,9 +640,9 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRONbdDevice(
 
     YT_LOG_DEBUG("Creating NBD device");
 
-    auto device = CreateFileSystemBlockDevice(
+    auto device = CreateImageBlockDevice(
         deviceId,
-        New<TFileSystemBlockDeviceConfig>(),
+        New<TImageBlockDeviceConfig>(),
         options.ImageReader,
         Bootstrap_->GetNbdServer()->GetInvoker(),
         Bootstrap_->GetNbdServer()->GetLogger());

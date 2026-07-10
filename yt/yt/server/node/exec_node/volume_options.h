@@ -7,6 +7,7 @@
 
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/public.h>
+#include <yt/yt/server/lib/nbd/image/public.h>
 
 #include <yt/yt/ytlib/exec_node/public.h>
 
@@ -33,7 +34,7 @@ struct TPrepareRONbdVolumeOptions
 {
     TJobId JobId;
     TArtifactKey ArtifactKey;
-    NNbd::IImageReaderPtr ImageReader;
+    NNbd::NImage::IImageReaderPtr ImageReader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
