@@ -48,6 +48,9 @@
 #include <yt/yt/core/ytree/helpers.h>
 
 #include <yt/yt/core/misc/id_generator.h>
+#include <yt/yt/core/misc/finally.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
@@ -209,6 +212,7 @@ public:
         auto requestTimeout = context->GetTimeout();
         if (requestTimeout && timeAfter + GetDynamicConfig()->ExpectedDataNodeHeartbeatDuration >= timeBefore + *requestTimeout) {
             context->Reply(TError(NYT::EErrorCode::Timeout, "Full heartbeat semaphore acquisition took too long"));
+            ++FullHeartbeatsRejectedDueToSemaphoreTimeout_;
             return;
         }
 
@@ -335,6 +339,26 @@ public:
         auto locationUuid = FromProto<TChunkLocationUuid>(context->Request().location_uuid());
         auto* location = FindAndValidateLocation<true>(node, locationUuid);
 
+        // Not doing the same for generic full hbs, as they will soon be deprecated.
+        if (!LocationsWithOngoingFullHeartbeat_.insert(locationUuid).second) {
+            ++FullHeartbeatsRejectedDueToOngoingHeartbeat_;
+            if (GetDynamicConfig()->RejectSimultaneousFullHeartbeats) {
+                context->Reply(TError(
+                    NRpc::EErrorCode::TransientFailure,
+                    "Full heartbeat for location %v is already in progress",
+                    locationUuid));
+                return;
+            }
+        }
+        auto finallyGuard = Finally([&] {
+            LocationsWithOngoingFullHeartbeat_.erase(locationUuid);
+        });
+
+        if (auto delay = GetDynamicConfig()->Testing->FullHeartbeatDelay) {
+            WaitFor(TDelayedExecutor::MakeDelayed(*delay))
+                .ThrowOnError();
+        }
+
         DoProcessFullHeartbeat(node, context, {location->GetIndex()});
     }
 
@@ -459,6 +483,20 @@ public:
             return;
         }
 
+        if (!NodesWithOngoingIncrementalHeartbeat_.insert(nodeId).second) {
+            ++IncrementalHeartbeatsRejectedDueToOngoingHeartbeat_;
+            if (GetDynamicConfig()->RejectSimultaneousIncrementalHeartbeats) {
+                context->Reply(TError(
+                    NRpc::EErrorCode::TransientFailure,
+                    "Incremental heartbeat for node %v is already in progress",
+                    nodeId));
+                return;
+            }
+        }
+        auto finallyGuard = Finally([&] {
+            NodesWithOngoingIncrementalHeartbeat_.erase(nodeId);
+        });
+
         i64 slots = 1;
         if (enableChunkReplicasThrottling) {
             slots = originalRequest.added_chunks_size() + originalRequest.removed_chunks_size();
@@ -472,6 +510,7 @@ public:
         auto requestTimeout = context->GetTimeout();
         if (requestTimeout && timeAfter + GetDynamicConfig()->ExpectedDataNodeHeartbeatDuration >= timeBefore + *requestTimeout) {
             context->Reply(TError(NYT::EErrorCode::Timeout, "Incremental heartbeat semaphore acquisition took too long"));
+            ++IncrementalHeartbeatsRejectedDueToSemaphoreTimeout_;
             return;
         }
 
@@ -901,6 +940,14 @@ private:
 
     // Transient
     THashSet<TNodeId> NodesWithFailedPreviousIncrementalHeartbeat_;
+    THashSet<TNodeId> NodesWithOngoingIncrementalHeartbeat_;
+    THashSet<TChunkLocationUuid> LocationsWithOngoingFullHeartbeat_;
+
+    i64 FullHeartbeatsRejectedDueToOngoingHeartbeat_ = 0;
+    i64 IncrementalHeartbeatsRejectedDueToOngoingHeartbeat_ = 0;
+
+    i64 FullHeartbeatsRejectedDueToSemaphoreTimeout_ = 0;
+    i64 IncrementalHeartbeatsRejectedDueToSemaphoreTimeout_ = 0;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -988,6 +1035,15 @@ private:
     void OnProfiling(TSensorBuffer* buffer) const override
     {
         buffer->AddGauge("/nodes_with_failed_previous_incremental_heartbeat", NodesWithFailedPreviousIncrementalHeartbeat_.size());
+        buffer->AddGauge("/locations_with_ongoing_full_heartbeat", LocationsWithOngoingFullHeartbeat_.size());
+
+        buffer->AddGauge("/nodes_with_ongoing_full_heartbeat", NodesWithOngoingIncrementalHeartbeat_.size());
+
+        buffer->AddCounter("/full_heartbeats_rejected_due_to_ongoing_heartbeat", FullHeartbeatsRejectedDueToOngoingHeartbeat_);
+        buffer->AddCounter("/incremental_heartbeats_rejected_due_to_ongoing_heartbeat", IncrementalHeartbeatsRejectedDueToOngoingHeartbeat_);
+
+        buffer->AddCounter("/full_heartbeats_rejected_due_to_semaphore_timeout", FullHeartbeatsRejectedDueToSemaphoreTimeout_);
+        buffer->AddCounter("/incremental_heartbeats_rejected_due_to_semaphore_timeout", IncrementalHeartbeatsRejectedDueToSemaphoreTimeout_);
     }
 
     template <bool FullHeartbeat>

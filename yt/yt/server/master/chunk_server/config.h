@@ -298,6 +298,20 @@ DEFINE_REFCOUNTED_TYPE(TDanglingLocationCleanerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicDataNodeTrackerTestingConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<TDuration> FullHeartbeatDelay;
+
+    REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicDataNodeTrackerTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicDataNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
@@ -340,7 +354,13 @@ struct TDynamicDataNodeTrackerConfig
 
     bool VerifyAllLocationsAreReportedInFullHeartbeats;
 
+    // COMPAT(aleksandra-zh): these are just in case.
+    bool RejectSimultaneousFullHeartbeats;
+    bool RejectSimultaneousIncrementalHeartbeats;
+
     TDuration ExpectedDataNodeHeartbeatDuration;
+
+    TDynamicDataNodeTrackerTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);
 
