@@ -1519,6 +1519,63 @@ class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNod
 ##################################################################
 
 
+class TestFullHeartbeatLocationBackpressure(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_NODES = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "profiling_period": 100,
+        },
+        "chunk_manager": {
+            "data_node_tracker": {
+                "enable_per_location_full_heartbeats": True,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "master_connector": {
+                "heartbeat_period": 300,
+                "heartbeat_period_splay": 50,
+            },
+        },
+    }
+
+    @authors("aleksandra-zh")
+    def test_overlapping_full_heartbeat_for_location_rejected(self):
+        node = ls("//sys/cluster_nodes")[0]
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "master_connector": {
+                    "full_heartbeat_timeout": 1000,
+                    "location_full_heartbeat_timeout": 1000,
+                },
+            },
+        })
+
+        leader_address = get_active_primary_master_leader_address(self)
+        profiler = profiler_factory().at_primary_master(leader_address)
+
+        set("//sys/@config/chunk_manager/data_node_tracker/expected_data_node_heartbeat_duration", 100)
+        set("//sys/@config/chunk_manager/data_node_tracker/testing/full_heartbeat_delay", 5000)
+
+        self.Env.kill_nodes()
+        self.Env.start_nodes(sync=False)
+
+        wait(lambda: profiler.gauge("node_tracker/locations_with_ongoing_full_heartbeat").get() >= 1)
+        wait(lambda: profiler.counter("node_tracker/full_heartbeats_rejected_due_to_ongoing_heartbeat").get() >= 1)
+
+        set("//sys/@config/chunk_manager/data_node_tracker/testing/full_heartbeat_delay", 0)
+
+        wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "online")
+
+
+##################################################################
+
+
 class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
     ENABLE_MULTIDAEMON = False  # There are specific component kills.
     DELTA_NODE_CONFIG = {
