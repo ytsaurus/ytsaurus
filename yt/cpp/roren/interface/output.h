@@ -1,11 +1,10 @@
 #pragma once
 
 #include "fwd.h"
-
 #include "row.h"
 #include "type_tag.h"
 
-#include "private/raw_data_flow.h"
+#include <yt/cpp/roren/interface/private/raw_data_flow.h>
 
 namespace NRoren {
 

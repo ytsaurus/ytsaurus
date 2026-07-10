@@ -21,15 +21,14 @@
 ///  - @ref NRoren::TPCollection parallel collection central concept of Roren library representing collection of rows.
 
 #include "fwd.h"
-
 #include "co_gbk_result.h"
 #include "input.h"
 #include "key_value.h"
 #include "transforms.h"
 
-#include "private/tags.h"
-#include "private/raw_pipeline.h"
-#include "private/attributes.h"
+#include <yt/cpp/roren/interface/private/tags.h>
+#include <yt/cpp/roren/interface/private/raw_pipeline.h>
+#include <yt/cpp/roren/interface/private/attributes.h>
 
 #include <vector>
 

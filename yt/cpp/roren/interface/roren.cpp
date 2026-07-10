@@ -1,7 +1,7 @@
 #include "roren.h"
-
 #include "executor.h"
-#include "private/merge_par_dos.h"
+
+#include <yt/cpp/roren/interface/private/merge_par_dos.h>
 
 
 namespace NRoren {

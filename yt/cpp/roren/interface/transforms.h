@@ -15,21 +15,21 @@
 /// where `INPUT` is either `TPCollection` or `TPipeline<...>` and RESULT` is either `TPCollection<...>` or `void`.
 
 #include "fwd.h"
-#include "private/fwd.h"
-
 #include "fns.h"
 #include "key_value.h"
 #include "co_gbk_result.h"
-#include "private/attributes.h"
-#include "private/combine.h"
-#include "private/flatten.h"
-#include "private/fn_attributes_ops.h"
-#include "private/group_by_key.h"
-#include "private/raw_par_do.h"
-#include "private/raw_pipeline.h"
-#include "private/stateful_par_do.h"
-#include "private/stateful_timer_par_do.h"
-#include "private/flatten.h"
+
+#include <yt/cpp/roren/interface/private/fwd.h>
+#include <yt/cpp/roren/interface/private/attributes.h>
+#include <yt/cpp/roren/interface/private/combine.h>
+#include <yt/cpp/roren/interface/private/flatten.h>
+#include <yt/cpp/roren/interface/private/fn_attributes_ops.h>
+#include <yt/cpp/roren/interface/private/group_by_key.h>
+#include <yt/cpp/roren/interface/private/raw_par_do.h>
+#include <yt/cpp/roren/interface/private/raw_pipeline.h>
+#include <yt/cpp/roren/interface/private/stateful_par_do.h>
+#include <yt/cpp/roren/interface/private/stateful_timer_par_do.h>
+#include <yt/cpp/roren/interface/private/flatten.h>
 
 #include <yt/cpp/roren/library/bind/bind.h>
 

@@ -2,7 +2,8 @@
 
 #include "fwd.h"
 #include "noncodable.h"
-#include "private/hash.h"
+
+#include <yt/cpp/roren/interface/private/hash.h>
 
 #include <util/stream/str.h>
 #include <util/system/byteorder.h>

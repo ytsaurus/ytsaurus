@@ -2,7 +2,7 @@
 
 #include "fwd.h"
 
-#include "private/row_vtable.h"
+#include <yt/cpp/roren/interface/private/row_vtable.h>
 
 #include <util/generic/string.h>
 
