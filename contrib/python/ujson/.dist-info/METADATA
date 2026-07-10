@@ -1,23 +1,22 @@
 Metadata-Version: 2.4
 Name: ujson
-Version: 5.12.1
+Version: 5.13.0
 Summary: Ultra fast JSON encoder and decoder for Python
-Home-page: https://github.com/ultrajson/ultrajson
-Download-URL: https://github.com/ultrajson/ultrajson
 Author: Jonas Tarnstrom
-License: BSD-3-Clause AND TCL
+License-Expression: BSD-3-Clause AND TCL
+Project-URL: Download, https://github.com/ultrajson/ultrajson
+Project-URL: Homepage, https://github.com/ultrajson/ultrajson
 Project-URL: Source, https://github.com/ultrajson/ultrajson
-Platform: any
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
 Classifier: Programming Language :: C
-Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3 :: Only
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
 Classifier: Programming Language :: Python :: 3.14
+Classifier: Programming Language :: Python :: 3.15
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: GraalPy
 Classifier: Programming Language :: Python :: Implementation :: PyPy
@@ -25,7 +24,6 @@ Classifier: Typing :: Typed
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 License-File: LICENSE.txt
-Dynamic: download-url
 Dynamic: license-file
 
 # UltraJSON
@@ -167,6 +165,14 @@ Linux 5.15.0-1037-azure x86_64 #44-Ubuntu SMP Thu Apr 20 13:19:31 UTC 2023
 | decode                                                                        |        480 |        618 |        177 |        310 |
 
 Above metrics are in call/sec, larger is better.
+
+## Multi-threading/Free-threading support
+
+UltraJSON has no global state so using `ujson` functions between threads is
+organically thread safe and will produce consistent results with or without
+Python's global interpreter lock. What is is not supported nor safe is mutating
+an object in one thread whilst it's simultaneously being serialised by `ujson`
+in another. In such usage, all bugs are features.
 
 ## Build options
 
