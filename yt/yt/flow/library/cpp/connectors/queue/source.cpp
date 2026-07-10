@@ -338,6 +338,7 @@ auto TQueueSourceImpl::DoReadNextBatch(
 
         CurrentRequestFuture_ = InitialCommittedOffset_
             .ToFuture()
+            .ToUncancelable()
             .Apply(BIND([this, this_ = MakeStrong(this), offsetLimit, nextOffset, rowBatchReadOptions] (const i64& initialOffset) {
                 NApi::TPullQueueConsumerOptions options;
                 options.Timeout = GetDynamicParameters()->PullQueueTimeout;
