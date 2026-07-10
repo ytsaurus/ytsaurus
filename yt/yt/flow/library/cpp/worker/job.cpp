@@ -41,6 +41,7 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/nonblocking_queue.h>
+#include <yt/yt/core/concurrency/serialized_invoker.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -153,6 +154,7 @@ public:
         , EvaluatorCache_(JobContext_->EvaluatorCache)
         , MessageFilter_(CreateMessageFilter(DynamicJobSpec_->DynamicComputationSpec->SkipIfExpression))
         , SkippedByExpressionCounter_(Profiler.WithPrefix("/input_streams").Counter("/skipped_by_expression_count"))
+        , MetricsInvoker_(NConcurrency::CreateSerializedInvoker(JobContext_->PoolInvoker))
         , GlobalHeavyHittersCounter_(CreateGlobalHeavyHitterCounter(JobSpec_->ComputationSpec))
         , StreamHeavyHittersCounters_(CreateStreamHeavyHitterCounters(JobSpec_->ComputationSpec))
         , GlobalInputBytesCounter_(CreateGlobalInputBytesCounter(JobSpec_->ComputationSpec))
@@ -485,7 +487,14 @@ public:
                     if (this_->MessageFilter_->IsEnabled()) {
                         inputMessages = this_->DropSkippedMessages(std::move(inputMessages));
                     }
-                    this_->RegisterInputBatch(inputMessages);
+                    // Input metrics only drive repartition, so compute them off the fetch critical
+                    // path: the executor fiber must not block on the per-key sketch work.
+                    // TODO(pechatnov): hand the batch over as a shared range instead of copying the
+                    // vector, which bumps every message's ref-count just to pass it to the metrics task.
+                    this_->MetricsInvoker_->Invoke(
+                        BIND([this_, batch = inputMessages] {
+                            this_->RegisterInputBatch(batch);
+                        }));
                     return inputMessages;
                 } else {
                     THROW_ERROR_EXCEPTION(MakeExecutionInterruptedError());
@@ -604,6 +613,9 @@ private:
 
     TFuture<void> ExecutorFiberFuture_;
 
+    // Serializes RegisterInputBatch off the executor fiber. Every sketch field below through
+    // RemedianSplitter_ is mutated only under this invoker.
+    const IInvokerPtr MetricsInvoker_;
     TKeyHeavyHittersCounterPtr GlobalHeavyHittersCounter_;
     THashMap<TStreamId, TKeyHeavyHittersCounterPtr> StreamHeavyHittersCounters_;
     TEmaCounter<double, 1> GlobalInputBytesCounter_;
