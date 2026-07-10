@@ -21,9 +21,15 @@ IF (NOT MODDIR MATCHES "/yandex/")
             tools/
     )
 
-    # Give flow program/test binaries a path-derived cmake export target name so
-    # identically-named modules (e.g. PROGRAM(pipeline), G_BENCHMARK) don't collide.
+    # Programs get a path-derived cmake export target name so identically-named modules
+    # (e.g. PROGRAM(pipeline), G_BENCHMARK) don't collide in the export. A binary that needs
+    # a specific target name (e.g. deployables under bin/ and tools/) sets
+    # FLOW_CMAKE_TARGET_NAME before including this file.
     IF (MODULE_TYPE == "PROGRAM")
-        CMAKE_EXPORTED_TARGET_NAME_FROM_PATH(yt)
+        IF (FLOW_CMAKE_TARGET_NAME)
+            CMAKE_EXPORTED_TARGET_NAME($FLOW_CMAKE_TARGET_NAME)
+        ELSE()
+            CMAKE_EXPORTED_TARGET_NAME_FROM_PATH(yt)
+        ENDIF()
     ENDIF()
 ENDIF()

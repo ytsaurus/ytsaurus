@@ -1,5 +1,7 @@
 PROGRAM()
 
+SET(FLOW_CMAKE_TARGET_NAME flow_server)
+
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 IF (NOT OPENSOURCE)
