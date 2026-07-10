@@ -920,6 +920,51 @@
             "uri": "https://{canondata_backend}/1814674/a0da9301569fe4a8abf35c3cf6f04ab529143c66/resource.tar.gz#test.test_lineage-process-lineage2-Results_/Output.yqlrun.txt.attr"
         }
     ],
+    "test.test[materialize-column_multil_filter_with_prune-default.txt-Debug]": [
+        {
+            "checksum": "0e22b050f45078effeb35837ff33ef58",
+            "size": 2644,
+            "uri": "https://{canondata_backend}/1871182/13604a2fbd7f6691d26264b8992487a2e881b765/resource.tar.gz#test.test_materialize-column_multil_filter_with_prune-default.txt-Debug_/opt.yql"
+        }
+    ],
+    "test.test[materialize-column_multil_filter_with_prune-default.txt-Plan]": [
+        {
+            "checksum": "9c042e9631de905a355f4818fa369686",
+            "size": 7186,
+            "uri": "https://{canondata_backend}/1871182/13604a2fbd7f6691d26264b8992487a2e881b765/resource.tar.gz#test.test_materialize-column_multil_filter_with_prune-default.txt-Plan_/plan.txt"
+        }
+    ],
+    "test.test[materialize-column_multil_filter_with_prune-default.txt-Results]": [
+        {
+            "checksum": "81f74776ddca2305404f9981761b31e6",
+            "size": 1831,
+            "uri": "https://{canondata_backend}/1871182/13604a2fbd7f6691d26264b8992487a2e881b765/resource.tar.gz#test.test_materialize-column_multil_filter_with_prune-default.txt-Results_/results.txt"
+        }
+    ],
+    "test.test[materialize-unused_result-default.txt-Debug]": [
+        {
+            "checksum": "232e69c9489af530181507033d10a911",
+            "size": 1305,
+            "uri": "https://{canondata_backend}/1871182/13604a2fbd7f6691d26264b8992487a2e881b765/resource.tar.gz#test.test_materialize-unused_result-default.txt-Debug_/opt.yql"
+        }
+    ],
+    "test.test[materialize-unused_result-default.txt-Plan]": [
+        {
+            "checksum": "d24e408e96b63afbed7c58a9727bafc9",
+            "size": 3650,
+            "uri": "https://{canondata_backend}/1871182/13604a2fbd7f6691d26264b8992487a2e881b765/resource.tar.gz#test.test_materialize-unused_result-default.txt-Plan_/plan.txt"
+        }
+    ],
+    "test.test[materialize-unused_result-default.txt-Results]": [
+        {
+            "checksum": "fc8f190da2c19e9e518671bbba426a3c",
+            "size": 1654,
+            "uri": "https://{canondata_backend}/1871182/13604a2fbd7f6691d26264b8992487a2e881b765/resource.tar.gz#test.test_materialize-unused_result-default.txt-Results_/results.txt"
+        },
+        {
+            "uri": "file://test.test_materialize-unused_result-default.txt-Results_/extracted"
+        }
+    ],
     "test.test[multicluster-partition_by_key_force--Debug]": [
         {
             "checksum": "56512329e724df5b8c2fd954c7b4f589",

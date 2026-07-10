@@ -1,8 +1,0 @@
-<tmp_path>/program.sql:<main>: Warning: Optimization
-
-    <tmp_path>/program.sql:<main>:5:5: Warning: ORDER BY in subquery will be ignored
-    	    SELECT * FROM $tmp ORDER BY key;
-	    ^
-        <tmp_path>/program.sql:<main>:8:15: Warning: When used here
-        	SELECT * FROM $process();
-	              ^
