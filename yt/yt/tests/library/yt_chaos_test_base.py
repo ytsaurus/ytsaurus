@@ -99,7 +99,10 @@ class ChaosTestBase(DynamicTablesBase):
     def _get_table_orchids(self, path, driver=None):
         tablets = get("{0}/@tablets".format(path), driver=driver)
         tablet_ids = [tablet["tablet_id"] for tablet in tablets]
-        orchids = [get("#{0}/orchid".format(tablet_id), driver=driver) for tablet_id in tablet_ids]
+        orchids = map_in_parallel(
+            lambda tablet_id: get("#{0}/orchid".format(tablet_id), driver=driver),
+            tablet_ids,
+        )
         return orchids
 
     def _get_chaos_cell_orchid_path(self, cell_id, driver=None):
@@ -261,11 +264,14 @@ class ChaosTestBase(DynamicTablesBase):
 
         def _enabled(replica):
             return replica["enabled"] if "enabled" in replica else (replica["state"] in ["enabled", "enabling"])
-        for replica in replicas:
+
+        def _wait_for_replica(replica):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
             check_write = replica["mode"] == "sync" and _enabled(replica)
             self._wait_for_card_era(path, card_id, era=replication_card["era"], check_write=check_write, driver=driver)
+
+        map_in_parallel(_wait_for_replica, replicas)
 
     def _create_chaos_tables(
             self,
