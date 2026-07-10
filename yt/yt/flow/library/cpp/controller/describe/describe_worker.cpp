@@ -11,7 +11,7 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr std::string_view DefaultDeployAddress = NInternalUrls::DeployAddress;
+constexpr auto& DefaultDeployAddress = NInternalUrls::DeployAddress;
 
 void TExtendedWorkerDescription::Register(TRegistrar registrar)
 {
@@ -41,7 +41,7 @@ void TExtendedWorkerDescription::Register(TRegistrar registrar)
 
 namespace {
 
-constexpr std::string_view YtprofUrlPrefix = NInternalUrls::YtprofUrlPrefix;
+constexpr auto& YtprofUrlPrefix = NInternalUrls::YtprofUrlPrefix;
 
 bool HasJavaCompanionResource(const TFlowViewPtr& flowView)
 {

@@ -130,7 +130,7 @@ using namespace NYTree;
 
 constinit const auto Logger = NodeLogger;
 
-constexpr std::string_view JaegerCollectorAddressSuffix = NInternalUrls::JaegerCollectorAddressSuffix;
+constexpr auto& JaegerCollectorAddressSuffix = NInternalUrls::JaegerCollectorAddressSuffix;
 
 ////////////////////////////////////////////////////////////////////////////////
 

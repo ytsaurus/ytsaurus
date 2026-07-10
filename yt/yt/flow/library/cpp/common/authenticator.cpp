@@ -67,7 +67,7 @@ constexpr std::string_view ProxySignatureUser = "yt-proxy";
 constexpr std::string_view ProxySignatureRealm = "yt-proxy-signature";
 constexpr std::string_view ProxySignatureBypassRealm = "yt-proxy-signature-bypass";
 
-constexpr std::string_view TvmInfoUrlPrefix = NInternalUrls::TvmInfoUrlPrefix;
+constexpr auto& TvmInfoUrlPrefix = NInternalUrls::TvmInfoUrlPrefix;
 
 std::string FormatTvmInfoUrl(NAuth::TTvmId tvmId)
 {

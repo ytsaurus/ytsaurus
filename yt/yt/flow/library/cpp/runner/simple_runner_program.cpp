@@ -35,7 +35,7 @@ namespace {
 // cluster) or the UI prefix is not configured (open-source build).
 void PrintPipelineUiUrl(const std::string& clusterUrl, const NYPath::TYPath& path)
 {
-    constexpr std::string_view ytUrlPrefix = NInternalUrls::YtUrlPrefix;
+    const std::string_view ytUrlPrefix = NInternalUrls::YtUrlPrefix;
     auto clusterName = NNet::InferYTClusterFromClusterUrl(clusterUrl);
     if (ytUrlPrefix.empty() || !clusterName || clusterName->empty()) {
         return;

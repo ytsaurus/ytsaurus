@@ -10,7 +10,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr std::string_view DefaultTracingAddress = NInternalUrls::TracingAddress;
+constexpr auto& DefaultTracingAddress = NInternalUrls::TracingAddress;
 
 void TExtendedPartitionDescription::Register(TRegistrar registrar)
 {

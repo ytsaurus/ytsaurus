@@ -108,5 +108,6 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/yson_message.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/control_table.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/yt_connector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/internal_urls_opensource.cpp
 )
 

@@ -32,10 +32,10 @@ TSinkId MakeGlobalSinkId(const TComputationId& computationId, const TSinkId& loc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr std::string_view VcsCommitUrlPrefix = NInternalUrls::VcsCommitUrlPrefix;
-constexpr std::string_view VcsRevisionUrlPrefix = NInternalUrls::VcsRevisionUrlPrefix;
-constexpr std::string_view VcsBranchUrlPrefix = NInternalUrls::VcsBranchUrlPrefix;
-constexpr std::string_view FlowCoreTargetDocUrl = NInternalUrls::FlowCoreTargetDocUrl;
+constexpr auto& VcsCommitUrlPrefix = NInternalUrls::VcsCommitUrlPrefix;
+constexpr auto& VcsRevisionUrlPrefix = NInternalUrls::VcsRevisionUrlPrefix;
+constexpr auto& VcsBranchUrlPrefix = NInternalUrls::VcsBranchUrlPrefix;
+constexpr auto& FlowCoreTargetDocUrl = NInternalUrls::FlowCoreTargetDocUrl;
 
 TString CommitUrl(const TFlowCoreBuildInfo& buildInfo)
 {
