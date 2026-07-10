@@ -390,9 +390,9 @@
     ],
     "test.test[blocks-pg_to_strings--Peephole]": [
         {
-            "checksum": "0cb4f900f279abb2daa4775258718e7d",
-            "size": 2619,
-            "uri": "https://{canondata_backend}/1900335/87aaf9ae0c7caf28709bad35b4adf477d66b415a/resource.tar.gz#test.test_blocks-pg_to_strings--Peephole_/opt.yql"
+            "checksum": "4a41f92a70cbc7b4d21616ce5a7a3568",
+            "size": 2699,
+            "uri": "https://{canondata_backend}/212715/02157cad45006d3e4442fefb614b8fe9a06fd154/resource.tar.gz#test.test_blocks-pg_to_strings--Peephole_/opt.yql"
         }
     ],
     "test.test[blocks-pg_to_strings--Plan]": [
