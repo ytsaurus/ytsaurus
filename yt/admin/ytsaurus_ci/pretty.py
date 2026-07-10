@@ -54,14 +54,14 @@ def print_job_info(data, job_id):
     click.secho("  Duration:  ", nl=False, bold=True)
     click.echo(_format_duration(data))
 
-    logs = [url for url in data.get("logs_urls", []) if url]
+    artifacts = [url for url in data.get("logs_urls", []) if url]
     click.echo()
-    if logs:
-        click.secho("  Logs:", bold=True)
-        for url in logs:
+    if artifacts:
+        click.secho("  Artifacts:", bold=True)
+        for url in artifacts:
             click.secho(f"    • {url}", fg="blue")
     else:
-        click.secho("  No logs", fg="yellow")
+        click.secho("  No artifacts", fg="yellow")
 
     components = data.get("components", [])
     operator = data.get("operator", {})
