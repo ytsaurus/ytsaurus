@@ -88,7 +88,7 @@ protected:
     struct TDownload
     {
         TPendingDownloadsTracker::TPendingModification Handle;
-        int FullSize;
+        int FullSize = 0;
         int CurrentSize = 0;
         bool IsFinished = false;
         bool IsTombstone = false;
