@@ -215,6 +215,15 @@ def build_median_over_hosts(metric: str, group_labels: list, backend: str):
     return expr.query_transformation(f'quantile by ({", ".join(group_labels)}) (0.5, {{query}})')
 
 
+def build_series_sum(metric: str, group_labels: list, backend: str):
+    """Sum of a sensor's series, one line per group_labels combination."""
+    expr = MonitoringExpr(FlowWorker(metric))
+    if backend == "monitoring":
+        labels = ", ".join(f'"{label}"' for label in group_labels)
+        return expr.query_transformation(f'series_sum([{labels}], {{query}})')
+    return expr.series_sum(*group_labels)
+
+
 def build_resource_usage(component: str, add_component_to_title: bool):
     sensor = {
         "controller": FlowController,

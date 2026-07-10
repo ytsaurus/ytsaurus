@@ -5,7 +5,7 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from .common import create_dashboard
+from .common import build_series_sum, create_dashboard
 
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
@@ -65,7 +65,10 @@ def build_throttler_server():
 # Client-side consumption is collected by TMetricsTrackingThrottler wrapping
 # TPrefetchingThrottler on each job. The sensor path is /computation/throttlers
 # tagged with computation_id + throttler_id.
-def build_throttler_client():
+def build_throttler_client(backend="monitoring"):
+    def summed_by_throttler(sensor_name):
+        return build_series_sum(sensor_name, ["computation_id", "throttler_id"], backend)
+
     return (Rowset()
         .all("computation_id")
         .all("throttler_id")
@@ -73,8 +76,7 @@ def build_throttler_client():
         .row()
             .cell(
                 "Local quota consumed per computation",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.throttlers.consumed.rate"))
-                    .query_transformation('series_sum(["computation_id", "throttler_id"], {query})')
+                summed_by_throttler("yt.flow.worker.computation.throttlers.consumed.rate")
                     .alias("{{computation_id}} / {{throttler_id}}")
                     .unit("UNIT_COUNTS_PER_SECOND")
                     .stack(False)
@@ -85,8 +87,7 @@ def build_throttler_client():
                             "buffering + any tokens still sitting in the prefetch pool.")
             .cell(
                 "Local quota released per computation",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.throttlers.released.rate"))
-                    .query_transformation('series_sum(["computation_id", "throttler_id"], {query})')
+                summed_by_throttler("yt.flow.worker.computation.throttlers.released.rate")
                     .alias("{{computation_id}} / {{throttler_id}}")
                     .unit("UNIT_COUNTS_PER_SECOND")
                     .stack(False)
@@ -157,10 +158,10 @@ def build_throttler_rpc():
     )
 
 
-def build_flow_distributed_throttler():
+def build_flow_distributed_throttler(backend="monitoring"):
     def fill(d):
         d.add(build_throttler_server())
-        d.add(build_throttler_client())
+        d.add(build_throttler_client(backend))
         d.add(build_throttler_rpc())
 
-    return create_dashboard("distributed-throttler", fill)
+    return create_dashboard("distributed-throttler", fill, backend=backend)
