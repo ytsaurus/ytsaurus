@@ -1052,6 +1052,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("bypass_hunk_remote_copy_prohibition", &TThis::BypassHunkRemoteCopyProhibition)
         .Default();
 
+    registrar.Parameter("allow_unfrozen_input_tables", &TThis::AllowUnfrozenInputTables)
+        .Default(false);
+
     registrar.Parameter("cuda_profiler_layer_path", &TThis::CudaProfilerLayerPath)
         .Default();
 

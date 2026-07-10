@@ -1022,11 +1022,13 @@ void TInputManager::FetchInputTablesAttributes()
 
                 auto tabletState = attributes->Get<ETabletState>("tablet_state");
                 if (tabletState != ETabletState::Frozen && tabletState != ETabletState::Unmounted) {
-                    THROW_ERROR_EXCEPTION("Input table has tablet state %Qlv: expected %Qlv or %Qlv",
-                        tabletState,
-                        ETabletState::Frozen,
-                        ETabletState::Unmounted)
-                        << TErrorAttribute("table_path", table->Path);
+                    if (!Host_->GetSpec()->AllowUnfrozenInputTables) {
+                        THROW_ERROR_EXCEPTION("Input table has tablet state %Qlv: expected %Qlv or %Qlv",
+                            tabletState,
+                            ETabletState::Frozen,
+                            ETabletState::Unmounted)
+                            << TErrorAttribute("table_path", table->Path);
+                    }
                 }
             } else if (table->Schema->HasHunkColumns()) {
                 // NB: This is due to prohibition of remote copy of journal hunk chunks.
