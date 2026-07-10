@@ -1,0 +1,61 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "TReader";
+                "output_stream_ids" = ["data"];
+                "source_streams" = {
+                    "table" = {
+                        "source_class_name" = "NYT::NFlow::NStaticTableConnectorV2::TSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "writer" = {
+                "computation_class_name" = "NYT::NFlow::TPassthroughComputation";
+                "group_by_schema" = [
+                    {name = "hash"; expression = "farm_hash(data)"; type = "uint64"; required = %true;};
+                    {name = "data"; "type" = "string"; required = %true;};
+                ];
+                "input_stream_ids" = ["data"];
+                "output_stream_ids" = ["prepared"];
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["prepared"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "data" = {
+                "schema" = [
+                    {name = "data"; type = "string"; required = %true;};
+                    {name = "event_time"; type = "uint64"; required = %true;};
+                ];
+            };
+            "prepared" = {
+                "schema" = [
+                    {name = "data"; type = "string"; required = %true;};
+                    {name = "event_time"; type = "uint64"; required = %true;};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {};
+                "source_streams" = {"table" = {"parameters" = {}}};
+            };
+            "writer" = {
+                "parameters" = {};
+            };
+        };
+    };
+}

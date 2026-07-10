@@ -12,10 +12,4 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(common)
-add_subdirectory(queue)
-add_subdirectory(servicelog)
-add_subdirectory(sorted_dynamic_table)
-add_subdirectory(static_table)
-add_subdirectory(random)
-add_subdirectory(static_table_v2)
+add_subdirectory(pipeline)

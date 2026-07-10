@@ -32,6 +32,7 @@ RECURSE(
     start_stop_pipeline_stress
     state_joiner
     static_table
+    static_table_v2
     swift_map_batching
     swift_map_batching/pipeline
     table_injector
