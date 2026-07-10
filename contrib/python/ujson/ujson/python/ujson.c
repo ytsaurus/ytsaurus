@@ -37,7 +37,6 @@ http://www.opensource.apple.com/source/tcl/tcl-14/tcl/license.terms
 */
 
 #include <Python.h>
-#include "version.h"
 #include "ujson.h"
 
 /* objToJSON */
@@ -201,5 +200,8 @@ PyMODINIT_FUNC PyInit_ujson(void)
     return NULL;
   }
 
+#ifdef Py_GIL_DISABLED
+  PyUnstable_Module_SetGIL(module, Py_MOD_GIL_NOT_USED);
+#endif
   return module;
 }

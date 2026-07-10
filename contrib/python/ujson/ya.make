@@ -4,7 +4,7 @@ PY3_LIBRARY()
 
 PROVIDES(ujson)
 
-VERSION(5.12.1)
+VERSION(5.13.0)
 
 LICENSE(BSD-3-Clause)
 
@@ -23,6 +23,10 @@ NO_COMPILER_WARNINGS()
 NO_LINT()
 
 NO_UTIL()
+
+CFLAGS(
+    -DUJSON_VERSION=\"5.13.0\"
+)
 
 SRCS(
     ujson/lib/dconv_wrapper.cc
