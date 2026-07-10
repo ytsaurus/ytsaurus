@@ -258,14 +258,29 @@ public:
         std::vector<TStreamTraverseDataPtr> outputStreams;
         THashMap<TStreamId, TStreamTraverseDataPtr> streamsTraverseData;
         for (const auto& [computationId, nodes] : groupedTraverses) {
+            auto computationSpec = GetOrCrash(spec->Computations, computationId);
+            auto& current = traverseData->Computations[computationId];
             try {
-                auto computationSpec = GetOrCrash(spec->Computations, computationId);
                 auto processTraverseDataResult = GetOrCrash(ComputationControllers_, computationId)->ProcessPartitionTraverseData(nodes, flowView);
                 flowView->EphemeralState->StreamTraverseDataMetrics[computationId] = processTraverseDataResult->StreamMetrics;
-
-                auto& current = traverseData->Computations[computationId];
                 current = AdvanceNodeTraverseData(current, processTraverseDataResult->MergedTraverseData);
-
+            } catch (const std::exception& ex) {
+                // One failing computation must not abort the whole aggregation - that freezes the
+                // traverse (stream metrics, watermarks) of the entire pipeline. Reuse the previous
+                // node data: only this computation's streams stay behind.
+                if (!current) {
+                    THROW_ERROR_EXCEPTION(ex)
+                        << TErrorAttribute("computation_id", computationId);
+                }
+                YT_LOG_EVENT(
+                    PublicControllerLogger,
+                    NLogging::ELogLevel::Warning,
+                    "Failed to process partition traverse data, reusing the previous one "
+                    "(ComputationId: %v, Error: %v)",
+                    computationId,
+                    TError(ex));
+            }
+            try {
                 for (const auto& streamId : computationSpec->InputStreamIds) {
                     auto stream = GetOrCrash(current->Streams, streamId);
                     inputStreams.push_back(stream);
@@ -759,6 +774,19 @@ public:
         ssize_t createCount = 0;
         auto createJob = [&] (const auto& partitionId, const auto& worker) {
             createCount++;
+            // A partition without a dynamic partition spec never reaches the worker: the heartbeat
+            // response omits its job, which then dies by the status timeout with a misleading
+            // "worker is lost" error. Name the real problem instead.
+            const auto* partitionState = flowView->EphemeralState->Partitions.FindPtr(partitionId);
+            if (!partitionState || !(*partitionState)->DynamicPartitionSpec) {
+                YT_LOG_EVENT(
+                    PublicControllerLogger,
+                    NLogging::ELogLevel::Error,
+                    "Creating job for a partition without dynamic partition spec; the job cannot start "
+                    "until the spec appears (PartitionId: %v, ComputationId: %v)",
+                    partitionId,
+                    GetOrCrash(layout->Partitions, partitionId)->ComputationId);
+            }
             auto job = New<TJob>();
             job->JobId = TJobId(TGuid::Create());
             job->WorkerAddress = worker->RpcAddress;

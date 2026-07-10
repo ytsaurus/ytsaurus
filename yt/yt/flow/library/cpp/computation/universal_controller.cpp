@@ -401,7 +401,7 @@ void TUniversalComputationController::DoPartitioning(
                     // The vanished key gets no spec from the expected-keys branch, and the ephemeral
                     // dynamic partition specs do not survive a controller restart. Without one the
                     // worker never starts the retirement job - StartJob is driven by the dynamic spec
-                    // map - and the partition can never complete (YTFLOWSUPPORT-128).
+                    // map - and the partition can never complete.
                     UpdateDynamicPartitionSpec(
                         flowView,
                         partitionId,
