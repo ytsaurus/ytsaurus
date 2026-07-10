@@ -76,10 +76,10 @@ PEERDIR(
     library/cpp/string_utils/levenshtein_diff
 )
 
-IF (NOT OPENSOURCE)
-    PEERDIR(
-        yt/yt/flow/yandex/library/cpp/internal_urls
-    )
+IF (OPENSOURCE)
+    SRCS(internal_urls_opensource.cpp)
+ELSE()
+    INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
 END()

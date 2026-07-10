@@ -23,12 +23,6 @@ PEERDIR(
     yt/yt/flow/library/cpp/misc
 )
 
-IF (NOT OPENSOURCE)
-    PEERDIR(
-        yt/yt/flow/yandex/library/cpp/internal_urls
-    )
-ENDIF()
-
 END()
 
 RECURSE_FOR_TESTS(unittests)

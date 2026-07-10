@@ -19,10 +19,4 @@ PEERDIR(
     yt/yt/core/test_framework
 )
 
-IF (NOT OPENSOURCE)
-    PEERDIR(
-        yt/yt/flow/yandex/library/cpp/internal_urls
-    )
-ENDIF()
-
 END()

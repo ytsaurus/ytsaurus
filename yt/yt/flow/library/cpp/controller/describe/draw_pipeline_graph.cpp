@@ -287,7 +287,7 @@ struct TMermaidBuilder
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr std::string_view YtUrlPrefix = NInternalUrls::YtUrlPrefix;
+constexpr auto& YtUrlPrefix = NInternalUrls::YtUrlPrefix;
 
 // Returns the computation URL for clickable links, or empty string if options lack cluster/path.
 std::string MakeComputationUrl(const TDrawPipelineGraphOptions& options, const TComputationId& computationId)

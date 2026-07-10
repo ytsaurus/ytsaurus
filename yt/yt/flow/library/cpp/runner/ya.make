@@ -40,12 +40,6 @@ PEERDIR(
     library/cpp/yt/string/enable_enum_suggestions_on_enum_parse_error
 )
 
-IF (NOT OPENSOURCE)
-    PEERDIR(
-        yt/yt/flow/yandex/library/cpp/internal_urls
-    )
-ENDIF()
-
 END()
 
 RECURSE_FOR_TESTS(
