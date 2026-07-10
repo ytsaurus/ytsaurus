@@ -53,7 +53,6 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
 
         TProfiler LocalProfiler = Profiler.WithTag("availability_group", Key);
         TGauge UnavailablePartitions = LocalProfiler.Gauge("/unavailable_partitions");
-        TGauge UnavailableIdlePartitions = LocalProfiler.Gauge("/unavailable_idle_partitions");
         TGauge ConfirmedUnavailablePartitions = LocalProfiler.Gauge("/confirmed_unavailable_partitions");
     };
 
@@ -75,7 +74,6 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
     {
         i64 TotalPartitions = 0;
         i64 UnavailablePartitions = 0;
-        i64 UnavailableIdlePartitions = 0;
     };
 
     THashMap<std::string, TAvailabilityGroupStatistics> availabilityGroupStatistics;
@@ -87,7 +85,6 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
             const auto lastUnavailableTimestamp = GetPartitionLastUnavailableTimestamp(traverseData, spec, logger);
             if (lastUnavailableTimestamp.has_value()) {
                 statistics.UnavailablePartitions += 1;
-                statistics.UnavailableIdlePartitions += GetPartitionLastIdleTimestamp(traverseData, spec, /*relaxed*/ true).has_value();
 
                 auto& minTimestamp = availabilityGroupMinUpdateTimestamp.emplace(availabilityGroup, *lastUnavailableTimestamp).first->second;
                 minTimestamp = std::min(minTimestamp, *lastUnavailableTimestamp);
@@ -101,24 +98,14 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
     for (const auto& [availabilityGroup, statistics] : availabilityGroupStatistics) {
         auto& sensors = sensorsOwner.Get<TAvailabilityGroupSensors>(availabilityGroup);
         sensors.UnavailablePartitions.Update(statistics.UnavailablePartitions);
-        sensors.UnavailableIdlePartitions.Update(statistics.UnavailableIdlePartitions);
 
         bool hideUnavailableWatermarks = false;
-        if (statistics.UnavailableIdlePartitions == statistics.TotalPartitions) {
+        if (statistics.UnavailablePartitions == statistics.TotalPartitions) {
             YT_LOG_WARNING("Availability group is unavailable (all partitions of group are unavailable) "
                 "(AvailabilityGroup: %v, TotalPartitions: %v)",
                 availabilityGroup,
                 statistics.TotalPartitions);
             hideUnavailableWatermarks = true;
-            unavailableGroups += 1;
-        } else if (statistics.UnavailablePartitions == statistics.TotalPartitions) {
-            YT_LOG_ERROR("Availability group is unavailable and not idle (all partitions of group are unavailable) "
-                "(AvailabilityGroup: %v, TotalPartitions: %v, UnavailableIdlePartitions: %v, IgnoreNotIdlePartitions: %v)",
-                availabilityGroup,
-                statistics.TotalPartitions,
-                statistics.UnavailableIdlePartitions,
-                unavailableSpec->IgnoreNotIdlePartitions);
-            hideUnavailableWatermarks = unavailableSpec->IgnoreNotIdlePartitions;
             unavailableGroups += 1;
         }
 

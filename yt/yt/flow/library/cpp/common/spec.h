@@ -121,11 +121,6 @@ struct TUnavailablePartitionGroupsSpec
     // Advance watermark when number of unavailable availability groups is <= MaxGroups.
     int MaxGroups{};
 
-    // If one availability group is fully unavailable but some partitions of group have messages,
-    // ignore these partitions and advance watermark.
-    // TODO: add some threshold here.
-    bool IgnoreNotIdlePartitions{};
-
     REGISTER_YSON_STRUCT(TUnavailablePartitionGroupsSpec);
 
     static void Register(TRegistrar registrar);

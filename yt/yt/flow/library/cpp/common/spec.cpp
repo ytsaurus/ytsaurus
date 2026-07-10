@@ -83,8 +83,6 @@ void TUnavailablePartitionGroupsSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_groups", &TThis::MaxGroups)
         .Default(0);
-    registrar.Parameter("ignore_not_idle_partitions", &TThis::IgnoreNotIdlePartitions)
-        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
