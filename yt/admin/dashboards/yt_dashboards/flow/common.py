@@ -130,8 +130,16 @@ def build_versions(worker_host_aggr: bool = True, backend: str = "monitoring"):
             "?p[project]={{project}}&p[cluster]={{cluster}}"
             "&p[pipeline_cluster]={{pipeline_cluster}}&p[pipeline_path]={{pipeline_path}}")
 
+    def make_grafana_url(name):
+        # A host-relative link by dashboard uid; grafana interpolates the
+        # ${...} template variables inside text panel content.
+        return (f"/d/{name}"
+            "?var-project=${project}&var-cluster=${cluster}"
+            "&var-pipeline_cluster=${pipeline_cluster}&var-pipeline_path=${pipeline_path}")
+
+    url = make_url if backend == "monitoring" else make_grafana_url
     description_rows = ["&#128196; [Diagnosis and problem solving documentation](https://yt.yandex-team.ru/docs/flow/release/problems)"] + [
-        f"&#128200; [{dashboard_meta.title} dashboard]({make_url(dashboard_meta.name)})"
+        f"&#128200; [{dashboard_meta.title} dashboard]({url(dashboard_meta.name)})"
         for dashboard_meta in DASHBOARDS_META.values()
     ]
     description_text = "\n".join(description_rows)
@@ -167,8 +175,7 @@ def build_versions(worker_host_aggr: bool = True, backend: str = "monitoring"):
                         .sign()
                         .alias("Dynamic spec change")),
                 description="Spikes mean that [dynamic] spec has been changed")
-            # The links target internal Monitoring dashboards; hide them in Grafana.
-            .cell("", Text(description_text) if backend == "monitoring" else EmptyCell())
+            .cell("", Text(description_text))
     ).owner
 
 
