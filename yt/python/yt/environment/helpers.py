@@ -54,6 +54,14 @@ def cmp(a, b):
     return (a > b) - (a < b)
 
 
+def gdb_binary():
+    try:
+        from yt.environment.arcadia_interop import get_gdb_path
+        return get_gdb_path()
+    except ImportError:
+        return "gdb"
+
+
 def _dump_netstat(dump_file_path):
     logger.info("Dumping netstat to the file '{}'".format(dump_file_path))
     with open(dump_file_path, "wb") as dump_file:
