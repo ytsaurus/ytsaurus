@@ -667,6 +667,7 @@ public:
             error.print("error after ParseIR()", os);
             ythrow yexception() << what;
         }
+
         module->setTargetTriple(Triple_);
         module->setDataLayout(Engine_->getDataLayout().getStringRepresentation());
         if (uniqId) {
