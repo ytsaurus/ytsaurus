@@ -1198,6 +1198,21 @@ constraints, enabling table inheritance hierarchies in PostgreSQL.
 
     Table("some_table", metadata, ..., postgresql_inherits=("t1", "t2", ...))
 
+For schema-qualified parent table names, use :class:`.quoted_name` with
+``quote=False`` to prevent the dotted name from being quoted as a single
+identifier::
+
+    from sqlalchemy.sql import quoted_name
+
+    Table(
+        "some_table",
+        metadata,
+        ...,
+        postgresql_inherits=quoted_name(
+            "my_schema.some_supertable", quote=False
+        ),
+    )
+
 ``ON COMMIT``
 ^^^^^^^^^^^^^
 
@@ -3502,7 +3517,7 @@ class PGDialect(default.DefaultDialect):
 
     def do_prepare_twophase(self, connection, xid):
         connection.execute(
-            sql.text("PREPARE TRANSACTION :xid'").bindparams(
+            sql.text("PREPARE TRANSACTION :xid").bindparams(
                 sql.bindparam("xid", xid, literal_execute=True)
             )
         )
