@@ -86,7 +86,7 @@ public:
         i64 recordIndex = RecordIndex_.fetch_add(1);
         YT_LOG_DEBUG("Writing record (RecordIndex: %v, RecordSize: %v)", recordIndex, record.Size());
 
-        auto result = Writer_->WriteRecord(std::move(record));
+        auto result = Writer_->WriteRecord(std::move(record)).AsVoid();
         result.Subscribe(BIND_NO_PROPAGATE(
             &TDistributedChunkSessionSequencer::OnWriteFinished,
             MakeWeak(this),
