@@ -9,6 +9,8 @@
 #include "timestamp_statistics.h"
 #include "traverse.h"
 
+#include <yt/yt/flow/library/cpp/misc/indexed_yson_string.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -17,6 +19,8 @@
 #include <yt/yt/flow/library/cpp/misc/node_info.h>
 
 #include <yt/yt/core/compression/public.h>
+
+#include <yt/yt/core/actions/public.h>
 
 #include <library/cpp/yt/memory/intrusive_ptr.h>
 #include <library/cpp/yt/memory/ref.h>
@@ -400,7 +404,8 @@ public:
     void AttachToControl(TPersistedStateControlPtr<std::string> control);
     void SetAsSlave();
     TFlowLayoutPtr Clone() const;
-    NYTree::INodePtr CreateNode();
+    //! Serializes the layout's "partitions"/"jobs" maps in addition to the struct's own yson output.
+    void SerializeAsYson(NYson::IYsonConsumer* consumer);
     void Apply(const std::vector<TPersistedStateStorageRow<std::string>>& rows);
     std::vector<TPersistedStateStorageRow<std::string>> Follow(TSequenceId from) const;
 
@@ -517,7 +522,7 @@ struct TExecutionSpec
     void AttachToControl(TPersistedStateControlPtr<std::string> control);
     void SetAsSlave();
     TExecutionSpecPtr Clone() const;
-    NYTree::INodePtr CreateNode() const;
+    void SerializeAsYson(NYson::IYsonConsumer* consumer) const;
 
     void StartMutation(TFlowStateMutationNotifierPtr notifier = nullptr);
     void CreateSnapshot(bool committed = true);
@@ -764,7 +769,7 @@ struct TFlowState
     void AttachToControl(TPersistedStateControlPtr<std::string> control);
     void SetAsSlave();
     TFlowStatePtr Clone() const;
-    NYTree::INodePtr CreateNode() const;
+    void SerializeAsYson(NYson::IYsonConsumer* consumer) const;
 
     void StartMutation(TFlowStateMutationNotifierPtr notifier = nullptr);
     void CreateSnapshot(bool committed = true);
@@ -803,7 +808,8 @@ struct TFlowView
     : public NYTree::TYsonStruct
     , public TFlowViewBase
 {
-    NYTree::INodePtr CreateNode() const;
+    void SerializeAsYson(NYson::IYsonConsumer* consumer) const;
+    NYson::TYsonString SerializeAsYsonString() const;
 
     //! Deserializes a flow view from the serialized node and rebuilds its queryable layout
     //! (Partitions/Jobs) in one call, so consumers (e.g. describe) can resolve a partition or job by id.
@@ -835,6 +841,7 @@ class TFlowViewKeeper
 {
 public:
     TFlowViewKeeper();
+    ~TFlowViewKeeper() override;
 
     void Init(TFlowStatePtr state, TFlowEphemeralStatePtr ephemeralState, TVersionedPipelineSpecPtr spec, TVersionedDynamicPipelineSpecPtr dynamicSpec);
     void Reset();
@@ -850,19 +857,21 @@ public:
     void SetFlowCoreTarget(TVersionedFlowCoreTargetPtr flowCoreTarget);
 
     TFlowViewPtr GetFlowView() const;
-    NYTree::INodePtr GetNode(bool cache) const;
     NYson::TYsonString GetYsonString(bool cache) const;
+    //! Returns the subtree of the flow view at |path| (served from the by-path index for the cached view).
+    NYson::TYsonString GetYsonStringByPath(const NYPath::TYPath& path, bool cache) const;
     //! Returns the cached compressed full flow view (rebuilt by RebuildNodeCache) and its codec.
     TCompressedFlowView GetCompressedYsonString() const;
     //! Compresses arbitrary flow view YSON (e.g. a sub-path result) with the current dynamic-spec codec.
     TCompressedFlowView CompressYson(const NYson::TYsonString& yson) const;
-    void RebuildNodeCache();
+    //! |invoker| is a pool invoker used to build the by-path index in parallel with the compression.
+    void RebuildNodeCache(const IInvokerPtr& invoker);
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     TFlowViewPtr FlowView_ = nullptr;
-    NYTree::INodePtr CachedNode_ = nullptr;
     NYson::TYsonString CachedYsonString_;
+    TIndexedYsonStringPtr CachedYsonIndex_;
     TSharedRef CachedCompressedFlowView_;
     NCompression::ECodec CachedCompressionCodec_{};
 

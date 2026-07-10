@@ -10,11 +10,19 @@
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
+#include <yt/yt/core/ytree/ypath_resolver.h>
+
+#include <yt/yt/core/yson/forwarding_consumer.h>
+#include <yt/yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/writer.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/compression/codec.h>
+
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/yt/misc/variant.h>
 
@@ -24,6 +32,7 @@
 
 namespace NYT::NFlow {
 
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 
@@ -33,6 +42,131 @@ static const TPersistedStateName FlowViewLayoutPartitionsStateName = "layout_par
 static const TPersistedStateName FlowViewLayoutJobsStateName = "layout_jobs";
 static const TPersistedStateName FlowViewLayoutWorkerSpecsStateName = "layout_worker_specs";
 constinit const auto& Logger = FlowStateLogger;
+
+// Above a single partition's job status, so partitions stay unparsed while the big maps are navigable.
+static constexpr i64 FlowViewHybridLeafSizeThreshold = 64 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+// Streams |ysonStruct| as a map, but for the top-level key |childKey| emits |writeChild(consumer)|
+// instead of the struct's own value. Lets the flow view render its layout as "partitions"/"jobs"
+// while streaming (no node tree) and without changing the struct's default (persisted) serialization.
+class TChildOverridingConsumer
+    : public NYson::TForwardingYsonConsumer
+{
+public:
+    TChildOverridingConsumer(
+        NYson::IYsonConsumer* underlying,
+        TStringBuf childKey,
+        std::function<void(NYson::IYsonConsumer*)> writeChild)
+        : Underlying_(underlying)
+        , ChildKey_(childKey)
+        , WriteChild_(std::move(writeChild))
+    { }
+
+private:
+    NYson::IYsonConsumer* const Underlying_;
+    const std::string ChildKey_;
+    const std::function<void(NYson::IYsonConsumer*)> WriteChild_;
+    // Map-nesting depth; an attribute block adds 2, so attribute keys never sit at the struct's top
+    // level (Depth 1) where the child override matches.
+    int Depth_ = 0;
+
+    void OnMyStringScalar(TStringBuf value) override
+    {
+        Underlying_->OnStringScalar(value);
+    }
+
+    void OnMyInt64Scalar(i64 value) override
+    {
+        Underlying_->OnInt64Scalar(value);
+    }
+
+    void OnMyUint64Scalar(ui64 value) override
+    {
+        Underlying_->OnUint64Scalar(value);
+    }
+
+    void OnMyDoubleScalar(double value) override
+    {
+        Underlying_->OnDoubleScalar(value);
+    }
+
+    void OnMyBooleanScalar(bool value) override
+    {
+        Underlying_->OnBooleanScalar(value);
+    }
+
+    void OnMyEntity() override
+    {
+        Underlying_->OnEntity();
+    }
+
+    void OnMyBeginList() override
+    {
+        Underlying_->OnBeginList();
+    }
+
+    void OnMyListItem() override
+    {
+        Underlying_->OnListItem();
+    }
+
+    void OnMyEndList() override
+    {
+        Underlying_->OnEndList();
+    }
+
+    void OnMyBeginMap() override
+    {
+        ++Depth_;
+        Underlying_->OnBeginMap();
+    }
+
+    void OnMyEndMap() override
+    {
+        --Depth_;
+        Underlying_->OnEndMap();
+    }
+
+    void OnMyBeginAttributes() override
+    {
+        Depth_ += 2;
+        Underlying_->OnBeginAttributes();
+    }
+
+    void OnMyEndAttributes() override
+    {
+        Depth_ -= 2;
+        Underlying_->OnEndAttributes();
+    }
+
+    void OnMyKeyedItem(TStringBuf key) override
+    {
+        Underlying_->OnKeyedItem(key);
+        if (Depth_ == 1 && key == ChildKey_) {
+            // Drop the struct's own (empty) value for this key and emit the override instead.
+            Forward(NYson::GetNullYsonConsumer(), [this] {
+                WriteChild_(Underlying_);
+            },
+                NYson::EYsonType::Node);
+        }
+    }
+};
+
+void SerializeStructOverridingChild(
+    const NYTree::TYsonStructBase& ysonStruct,
+    TStringBuf childKey,
+    const std::function<void(NYson::IYsonConsumer*)>& writeChild,
+    NYson::IYsonConsumer* consumer)
+{
+    TChildOverridingConsumer overridingConsumer(consumer, childKey, writeChild);
+    Serialize(ysonStruct, &overridingConsumer);
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -460,22 +594,26 @@ TFlowLayoutPtr TFlowLayout::Clone() const
     return result;
 }
 
-NYTree::INodePtr TFlowLayout::CreateNode()
+void TFlowLayout::SerializeAsYson(NYson::IYsonConsumer* consumer)
 {
-    NYTree::INodePtr result = GetEphemeralNodeFactory()->CreateMap();
-    NYTree::INodePtr partitions = GetEphemeralNodeFactory()->CreateMap();
-
+    // Non-const because the transactional Partitions/Jobs expose only non-const iteration; this pass
+    // runs on the committed flow-view snapshot, so it is read-only in practice.
+    consumer->OnBeginMap();
+    consumer->OnKeyedItem("partitions");
+    consumer->OnBeginMap();
     for (const auto& [key, value] : Partitions) {
-        partitions->AsMap()->AddChild(ToString(key), ConvertToNode(value));
+        consumer->OnKeyedItem(ToString(key));
+        Serialize(value, consumer);
     }
-
-    NYTree::INodePtr jobs = GetEphemeralNodeFactory()->CreateMap();
+    consumer->OnEndMap();
+    consumer->OnKeyedItem("jobs");
+    consumer->OnBeginMap();
     for (const auto& [key, value] : Jobs) {
-        jobs->AsMap()->AddChild(ToString(key), ConvertToNode(value));
+        consumer->OnKeyedItem(ToString(key));
+        Serialize(value, consumer);
     }
-    result->AsMap()->AddChild("partitions", partitions);
-    result->AsMap()->AddChild("jobs", jobs);
-    return result;
+    consumer->OnEndMap();
+    consumer->OnEndMap();
 }
 
 void TFlowLayout::Apply(const std::vector<TPersistedStateStorageRow<std::string>>& rows)
@@ -780,12 +918,12 @@ TExecutionSpecPtr TExecutionSpec::Clone() const
     return result;
 }
 
-NYTree::INodePtr TExecutionSpec::CreateNode() const
+void TExecutionSpec::SerializeAsYson(NYson::IYsonConsumer* consumer) const
 {
-    auto result = ConvertToNode(this);
-    result->AsMap()->RemoveChild("layout");
-    result->AsMap()->AddChild("layout", Layout->CreateNode());
-    return result;
+    SerializeStructOverridingChild(*this, "layout", [this] (auto* c) {
+        Layout->SerializeAsYson(c);
+    },
+        consumer);
 }
 
 void TExecutionSpec::StartMutation(TFlowStateMutationNotifierPtr notifier)
@@ -1150,12 +1288,12 @@ TFlowStatePtr TFlowState::Clone() const
     return result;
 }
 
-NYTree::INodePtr TFlowState::CreateNode() const
+void TFlowState::SerializeAsYson(NYson::IYsonConsumer* consumer) const
 {
-    auto result = ConvertToNode(this);
-    result->AsMap()->RemoveChild("execution_spec");
-    result->AsMap()->AddChild("execution_spec", ExecutionSpec->CreateNode());
-    return result;
+    SerializeStructOverridingChild(*this, "execution_spec", [this] (auto* c) {
+        ExecutionSpec->SerializeAsYson(c);
+    },
+        consumer);
 }
 
 void TFlowState::StartMutation(TFlowStateMutationNotifierPtr notifier)
@@ -1201,19 +1339,29 @@ void TFlowState::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::INodePtr TFlowView::CreateNode() const
+void TFlowView::SerializeAsYson(NYson::IYsonConsumer* consumer) const
 {
-    auto result = ConvertToNode(this);
-    result->AsMap()->RemoveChild("state");
-    result->AsMap()->AddChild("state", State->CreateNode());
-    return result;
+    SerializeStructOverridingChild(*this, "state", [this] (auto* c) {
+        State->SerializeAsYson(c);
+    },
+        consumer);
+}
+
+TYsonString TFlowView::SerializeAsYsonString() const
+{
+    TString result;
+    TStringOutput out(result);
+    NYson::TBufferedBinaryYsonWriter writer(&out);
+    SerializeAsYson(&writer);
+    writer.Flush();
+    return TYsonString(result);
 }
 
 TFlowViewPtr TFlowView::LoadFromNode(const NYTree::INodePtr& node, TPersistedStateControlPtr<std::string> control)
 {
     auto flowView = ConvertTo<TFlowViewPtr>(node);
 
-    // CreateNode() serializes the layout as plain "partitions"/"jobs" maps that TFlowLayout does not
+    // SerializeAsYson renders the layout as plain "partitions"/"jobs" maps that TFlowLayout does not
     // deserialize back, so they are replayed here from the raw node.
     auto layoutNode = FindNodeByYPath(node, "/state/execution_spec/layout");
     if (!layoutNode) {
@@ -1297,6 +1445,8 @@ TFlowViewKeeper::TFlowViewKeeper()
     : FlowView_(New<TFlowView>())
 { }
 
+TFlowViewKeeper::~TFlowViewKeeper() = default;
+
 void TFlowViewKeeper::Init(TFlowStatePtr state, TFlowEphemeralStatePtr ephemeralState, TVersionedPipelineSpecPtr spec, TVersionedDynamicPipelineSpecPtr dynamicSpec)
 {
     YT_VERIFY(state);
@@ -1309,8 +1459,8 @@ void TFlowViewKeeper::Init(TFlowStatePtr state, TFlowEphemeralStatePtr ephemeral
     FlowView_->EphemeralState = std::move(ephemeralState);
     FlowView_->CurrentSpec = std::move(spec);
     FlowView_->CurrentDynamicSpec = std::move(dynamicSpec);
-    CachedNode_ = FlowView_->CreateNode();
-    CachedYsonString_ = ConvertToYsonString(CachedNode_);
+    CachedYsonString_ = FlowView_->SerializeAsYsonString();
+    CachedYsonIndex_ = TIndexedYsonString::Build(CachedYsonString_, FlowViewHybridLeafSizeThreshold);
     CachedCompressionCodec_ = GetFlowViewCacheCodec(FlowView_);
     CachedCompressedFlowView_ = CompressFlowViewYson(CachedYsonString_, CachedCompressionCodec_);
 }
@@ -1319,8 +1469,8 @@ void TFlowViewKeeper::Reset()
 {
     auto guard = Guard(Lock_);
     FlowView_ = nullptr;
-    CachedNode_ = nullptr;
     CachedYsonString_ = TYsonString();
+    CachedYsonIndex_ = nullptr;
     CachedCompressedFlowView_ = {};
 }
 
@@ -1398,14 +1548,23 @@ TFlowViewPtr TFlowViewKeeper::GetFlowView() const
     return FlowView_;
 }
 
-NYTree::INodePtr TFlowViewKeeper::GetNode(bool cache) const
+TYsonString TFlowViewKeeper::GetYsonStringByPath(const NYPath::TYPath& path, bool cache) const
 {
     if (cache) {
-        auto guard = Guard(Lock_);
-        EnsureInit(guard);
-        return CachedNode_;
+        TIndexedYsonStringPtr index;
+        {
+            auto guard = Guard(Lock_);
+            EnsureInit(guard);
+            index = CachedYsonIndex_;
+        }
+        return index->GetByPath(path);
     }
-    return GetFlowView()->CreateNode();
+    // Fresh (uncached) view: extract the sub-path by streaming, without an index.
+    auto result = NYTree::TryGetAny(GetYsonString(cache).AsStringBuf(), path);
+    if (!result) {
+        THROW_ERROR_EXCEPTION("Flow view has no node at %v", path);
+    }
+    return TYsonString(std::move(*result));
 }
 
 TYsonString TFlowViewKeeper::GetYsonString(bool cache) const
@@ -1415,7 +1574,7 @@ TYsonString TFlowViewKeeper::GetYsonString(bool cache) const
         EnsureInit(guard);
         return CachedYsonString_;
     }
-    return ConvertToYsonString(GetFlowView()->CreateNode());
+    return GetFlowView()->SerializeAsYsonString();
 }
 
 TCompressedFlowView TFlowViewKeeper::GetCompressedYsonString() const
@@ -1437,18 +1596,22 @@ TCompressedFlowView TFlowViewKeeper::CompressYson(const TYsonString& yson) const
     };
 }
 
-void TFlowViewKeeper::RebuildNodeCache()
+void TFlowViewKeeper::RebuildNodeCache(const IInvokerPtr& invoker)
 {
     auto flowView = GetFlowView();
-    auto node = flowView->CreateNode();
-    auto ysonString = ConvertToYsonString(node);
+    auto ysonString = flowView->SerializeAsYsonString();
     auto codec = GetFlowViewCacheCodec(flowView);
+    // Build the by-path index in parallel with the compression -- both are O(P*S) passes over the string.
+    auto indexFuture = BIND(&TIndexedYsonString::Build, ysonString, FlowViewHybridLeafSizeThreshold)
+        .AsyncVia(invoker)
+        .Run();
     auto compressed = CompressFlowViewYson(ysonString, codec);
+    auto ysonIndex = WaitForFast(indexFuture).ValueOrThrow();
     {
         auto guard = Guard(Lock_);
         if (FlowView_) {
-            std::swap(CachedNode_, node);
             std::swap(CachedYsonString_, ysonString);
+            std::swap(CachedYsonIndex_, ysonIndex);
             std::swap(CachedCompressedFlowView_, compressed);
             CachedCompressionCodec_ = codec;
         }
@@ -1457,7 +1620,7 @@ void TFlowViewKeeper::RebuildNodeCache()
 
 void TFlowViewKeeper::EnsureInit(TGuard<NThreading::TSpinLock>& /*guard*/) const
 {
-    if (!FlowView_ || !CachedNode_ || !CachedYsonString_ || !CachedCompressedFlowView_) {
+    if (!FlowView_ || !CachedYsonString_ || !CachedYsonIndex_ || !CachedCompressedFlowView_) {
         THROW_ERROR_EXCEPTION(EErrorCode::FlowViewKeeperIsNotInitialized, "FlowViewKeeper is not initialized");
     }
 }
