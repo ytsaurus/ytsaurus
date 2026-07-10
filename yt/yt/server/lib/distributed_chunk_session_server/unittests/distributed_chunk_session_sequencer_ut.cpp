@@ -40,7 +40,7 @@ public:
         return ClosePromise_.ToFuture();
     }
 
-    TFuture<void> WriteRecord(TSharedRef record) override
+    TFuture<i64> WriteRecord(TSharedRef record) override
     {
         Records_.push_back(std::move(record));
         return WritePromise_.ToFuture();
@@ -56,6 +56,8 @@ public:
         return false;
     }
 
+    DEFINE_SIGNAL_OVERRIDE(void(const TError&), Failed);
+
     void SetClosed()
     {
         ClosePromise_.Set();
@@ -68,7 +70,7 @@ public:
 
 private:
     const TPromise<void> ClosePromise_ = NewPromise<void>();
-    const TPromise<void> WritePromise_ = NewPromise<void>();
+    const TPromise<i64> WritePromise_ = NewPromise<i64>();
 
     std::vector<TSharedRef> Records_;
 };

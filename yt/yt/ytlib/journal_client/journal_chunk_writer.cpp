@@ -21,6 +21,7 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <yt/yt/core/actions/callback_list.h>
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -95,7 +96,7 @@ public:
             .ToUncancelable();
     }
 
-    TFuture<void> WriteRecord(TSharedRef record) override
+    TFuture<i64> WriteRecord(TSharedRef record) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -119,7 +120,8 @@ public:
             Passed(std::move(recordParts)),
             /*alreadyEncoded*/ true)
             .AsyncVia(Invoker_)
-            .Run();
+            .Run()
+            .AsVoid();
     }
 
     bool IsCloseDemanded() const override
@@ -129,8 +131,21 @@ public:
         return IsCloseDemanded_.load();
     }
 
+    void SubscribeFailed(const TCallback<void(const TError&)>& callback) override
+    {
+        // Single-shot: a subscriber added after the failure is invoked in situ.
+        Failed_.Subscribe(callback);
+    }
+
+    void UnsubscribeFailed(const TCallback<void(const TError&)>& callback) override
+    {
+        Failed_.Unsubscribe(callback);
+    }
+
 private:
     const NApi::NNative::IClientPtr Client_;
+
+    TSingleShotCallbackList<void(const TError&)> Failed_;
 
     const TSessionId SessionId_;
     const TChunkId ChunkId_;
@@ -455,24 +470,27 @@ private:
         }
     }
 
-    TFuture<void> DoWriteRecord(std::vector<TSharedRef> recordParts, bool alreadyEncoded)
+    TFuture<i64> DoWriteRecord(std::vector<TSharedRef> recordParts, bool alreadyEncoded)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (!Error_.IsOK()) {
-            return MakeFuture<void>(Error_);
+            return MakeFuture<i64>(Error_);
         }
 
         if (ClosingPromise_) {
             auto error = TError("Journal chunk writer was closed");
-            return MakeFuture<void>(error);
+            return MakeFuture<i64>(error);
         }
 
-        PendingRecords_.push_back(CreateRecord(std::move(recordParts), alreadyEncoded));
+        auto record = CreateRecord(std::move(recordParts), alreadyEncoded);
+        PendingRecords_.push_back(record);
 
         MaybeFlushNodes();
 
-        return PendingRecords_.back()->QuorumFlushedPromise.ToFuture();
+        return record->QuorumFlushedPromise.ToFuture().Apply(BIND([recordIndex = record->Index] {
+            return recordIndex;
+        }));
     }
 
     void MaybeFlushNodes()
@@ -718,6 +736,9 @@ private:
         }
 
         OnWriterFinished();
+
+        // Single-shot: fires once even if OnFailed is reached multiple times.
+        Failed_.Fire(error);
     }
 
     void OnCloseDemanded()

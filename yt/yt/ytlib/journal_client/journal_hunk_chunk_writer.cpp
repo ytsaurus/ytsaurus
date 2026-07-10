@@ -298,7 +298,7 @@ private:
         }
         YT_VERIFY(ptr == record.End());
 
-        return UnderlyingWriter_->WriteRecord(std::move(record));
+        return UnderlyingWriter_->WriteRecord(std::move(record)).AsVoid();
     }
 
     TFuture<void> FlushErasureRecord()
