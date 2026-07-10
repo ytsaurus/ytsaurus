@@ -311,6 +311,14 @@ void TDanglingLocationCleanerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicDataNodeTrackerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("full_heartbeat_delay", &TThis::FullHeartbeatDelay)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_concurrent_chunk_replicas_during_full_heartbeat", &TThis::MaxConcurrentChunkReplicasDuringFullHeartbeat)
@@ -357,8 +365,18 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("verify_all_locations_are_reported_in_full_heartbeats", &TThis::VerifyAllLocationsAreReportedInFullHeartbeats)
         .Default(false);
 
+    registrar.Parameter("reject_simultaneous_full_heartbeats", &TThis::RejectSimultaneousFullHeartbeats)
+        .Default(true)
+        .DontSerializeDefault();
+    registrar.Parameter("reject_simultaneous_incremental_heartbeats", &TThis::RejectSimultaneousIncrementalHeartbeats)
+        .Default(true)
+        .DontSerializeDefault();
+
     registrar.Parameter("expected_data_node_heartbeat_duration", &TThis::ExpectedDataNodeHeartbeatDuration)
         .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->EnableValidationFullHeartbeats && !config->EnablePerLocationFullHeartbeats) {
