@@ -347,7 +347,12 @@ dashboards = {
     },
     "flow-one-worker": {
         "func": flow.build_flow_one_worker,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-state-cache": {
         "func": flow.build_flow_state_cache,
