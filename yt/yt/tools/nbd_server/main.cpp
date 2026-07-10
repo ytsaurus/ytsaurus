@@ -237,7 +237,7 @@ IBlockDevicePtr CreateCypressFileDevice(
         logger,
         EPermission::Read);
     if (userObject.Type != EObjectType::File) {
-        THROW_ERROR_EXCEPTION("Invalid type of %Qv: expected %Qlv, but got %Qlv",
+        THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, but got %Qlv",
             config->Path,
             EObjectType::File,
             userObject.Type);
