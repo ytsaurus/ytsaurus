@@ -252,8 +252,8 @@ public:
     }
 
     TFuture<TReadFragmentsResponse> ReadFragments(
-        TClientChunkReadOptions options,
-        std::vector<TChunkFragmentRequest> requests) override
+        std::vector<TChunkFragmentRequest> requests,
+        TClientChunkReadOptions options) override
     {
         const auto& chunk = Guard_.GetChunk();
 

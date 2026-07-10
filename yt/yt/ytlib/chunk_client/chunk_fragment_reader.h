@@ -41,8 +41,8 @@ struct IChunkFragmentReader
 
     //! Asynchronously reads a given set of chunk fragments.
     virtual TFuture<TReadFragmentsResponse> ReadFragments(
-        TClientChunkReadOptions options,
-        std::vector<TChunkFragmentRequest> requests) = 0;
+        std::vector<TChunkFragmentRequest> requests,
+        TClientChunkReadOptions options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkFragmentReader)

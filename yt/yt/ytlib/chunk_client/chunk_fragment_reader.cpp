@@ -180,8 +180,8 @@ public:
     }
 
     TFuture<TReadFragmentsResponse> ReadFragments(
-        TClientChunkReadOptions options,
-        std::vector<TChunkFragmentRequest> requests) override;
+        std::vector<TChunkFragmentRequest> requests,
+        TClientChunkReadOptions options) override;
 
 private:
     class TProbingSessionBase;
@@ -2137,8 +2137,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<IChunkFragmentReader::TReadFragmentsResponse> TChunkFragmentReader::ReadFragments(
-    TClientChunkReadOptions options,
-    std::vector<TChunkFragmentRequest> requests)
+    std::vector<TChunkFragmentRequest> requests,
+    TClientChunkReadOptions options)
 {
     auto session = New<TRetryingReadFragmentsSession>(
         this,
