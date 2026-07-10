@@ -44,6 +44,37 @@ YT_FLOW_DEFINE_COMPUTATION(TSimpleComputation);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TThrowingTraverseComputationController
+    : public TTransformComputation::TComputationController
+{
+    using TTransformComputation::TComputationController::TComputationController;
+
+    TProcessPartitionTraverseDataResultPtr ProcessPartitionTraverseData(
+        const THashMap<TPartitionId, TNodeTraverseDataPtr>& /*traverseData*/,
+        const TFlowViewPtr& /*flowView*/) override
+    {
+        THROW_ERROR_EXCEPTION("Injected traverse failure");
+    }
+};
+
+struct TBrokenTraverseComputation
+    : public TTransformComputation
+{
+    using TTransformComputation::TTransformComputation;
+    using TComputationController = TThrowingTraverseComputationController;
+
+    std::vector<TMessage> DoTransform(const std::vector<TMessage>& /*messages*/)
+    {
+        return {};
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBrokenTraverseComputation);
+
+YT_FLOW_DEFINE_COMPUTATION(TBrokenTraverseComputation);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Fake storage handler. Enough for this test since there's no recovery after restart.
 class TStorageHandler : public TPersistedStateStorageHandlerBase<std::string>
 {
@@ -547,6 +578,79 @@ TEST_F(TJobManagerTest, PrepareNewComputation)
                 MakeUintKeyRange(0xE000000000000000, {}),
                            }}};
     ASSERT_EQ(ranges, expected);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTraverseIsolationTest
+    : public TJobManagerTest
+{
+public:
+    void PrepareTwoComputations()
+    {
+        auto spec = New<TPipelineSpec>();
+        spec->Computations["healthy"] = CreateGenericComputationSpec<TSimpleComputation>();
+        spec->Computations["broken"] = CreateGenericComputationSpec<TBrokenTraverseComputation>();
+
+        auto dynamicSpec = New<TDynamicPipelineSpec>();
+        dynamicSpec->JobManager->AsyncBalancing = false;
+        for (const auto& computationId : {TComputationId("healthy"), TComputationId("broken")}) {
+            dynamicSpec->Computations[computationId] = New<TDynamicComputationSpec>();
+            dynamicSpec->Computations[computationId]->Parameters->AddChild(
+                "desired_partition_count",
+                NYTree::ConvertToNode(1u));
+        }
+
+        Prepare(spec, dynamicSpec);
+        FlowView->State->StartMutation();
+        JobManager->DoPartitioning(FlowView);
+
+        for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+            auto traverseData = New<TFromPartitionTraverseData>();
+            traverseData->Node = MakeInputNode(/*epoch*/ 1, TSystemTimestamp(100));
+            auto status = New<TPartitionJobStatus>();
+            status->LastTraverseData = std::move(traverseData);
+            FlowView->Feedback->PartitionJobStatuses[partitionId] = std::move(status);
+        }
+    }
+
+    static TNodeTraverseDataPtr MakeInputNode(i64 epoch, TSystemTimestamp watermark)
+    {
+        auto stream = New<TStreamTraverseData>();
+        stream->Epoch = epoch;
+        stream->SystemWatermark = watermark;
+        stream->EventWatermark = watermark;
+        auto node = New<TNodeTraverseData>();
+        node->Streams[TStreamId("input")] = std::move(stream);
+        return node;
+    }
+
+    static TSystemTimestamp GetInputWatermark(const TFlowViewPtr& flowView, const TComputationId& computationId)
+    {
+        const auto& node = GetOrCrash(flowView->State->TraverseData->Computations, computationId);
+        return GetOrCrash(node->Streams, TStreamId("input"))->SystemWatermark;
+    }
+};
+
+TEST_F(TTraverseIsolationTest, FailingComputationDoesNotFreezeOthers)
+{
+    PrepareTwoComputations();
+    // The failing computation falls back to its previous node data, as after a controller
+    // restart, which recovers it from the persisted traverse data.
+    FlowView->State->TraverseData->Computations[TComputationId("broken")] =
+        MakeInputNode(/*epoch*/ 0, TSystemTimestamp(50));
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_EQ(GetInputWatermark(FlowView, TComputationId("healthy")), TSystemTimestamp(100));
+    EXPECT_EQ(GetInputWatermark(FlowView, TComputationId("broken")), TSystemTimestamp(50));
+}
+
+TEST_F(TTraverseIsolationTest, FailingComputationWithoutPreviousDataAborts)
+{
+    PrepareTwoComputations();
+
+    EXPECT_THROW(JobManager->AggregateTraverseData(FlowView), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
