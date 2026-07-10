@@ -91,7 +91,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/resource_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/select_literals.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/seq_no_provider.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/time_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/sink.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/source_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/source.cpp

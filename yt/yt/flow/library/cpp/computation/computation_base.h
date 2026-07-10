@@ -16,9 +16,9 @@
 #include <yt/yt/flow/library/cpp/common/output_collector.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 #include <yt/yt/flow/library/cpp/common/timer.h>
 #include <yt/yt/flow/library/cpp/common/visit.h>
 #include <yt/yt/flow/library/cpp/common/yson_message.h>
@@ -73,7 +73,7 @@ protected:
         TDynamicComputationContextPtr dynamicContext);
 
     const TComputationContextPtr& GetContext() const;
-    const IUniqueSeqNoProviderPtr& GetUniqueSeqNoProvider() const;
+    const ITimeProviderPtr& GetTimeProvider() const;
     const TComputationSpecPtr& GetSpec() const;
     TDynamicComputationSpecPtr GetDynamicSpec() const;
     TDynamicComputationContextPtr GetDynamicContext() const;
@@ -169,7 +169,7 @@ private:
     const IComputation::TParametersPtr Parameters_;
     const std::vector<TStreamId> TopologicalStreamOrder_;
     const IRetryableClientPtr RetryableClient_;
-    const IUniqueSeqNoProviderPtr UniqueSeqNoProvider_;
+    const ITimeProviderPtr TimeProvider_;
     const NTables::TTransactionManagerPtr TransactionManager_;
 
 
@@ -485,7 +485,7 @@ protected:
         bool emptyInput) const;
     void ValidateTimerStoreLimits(const TDynamicComputationSpecPtr& dynamicSpec) const;
 
-    IUniqueSeqNoProvider::TResult GenerateSeqNo();
+    ITimeProvider::TGlobalUniqueSeqNo GenerateGlobalUniqueSeqNo();
 
     template <class... T>
     void ClearAsynchronously(T&&... args) const

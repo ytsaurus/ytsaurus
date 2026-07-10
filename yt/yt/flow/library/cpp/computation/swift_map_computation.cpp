@@ -7,7 +7,7 @@
 #include "stores/output_store.h"
 #include "stores/timer_store.h"
 
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 #include <yt/yt/flow/library/cpp/common/visit.h>
 
 #include <library/cpp/containers/absl/flat_hash_map.h>
@@ -120,9 +120,9 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
     bool isFinished = true;
     {
         auto iterGuard = StartRunIteration(context);
-        auto generateReportTimeFuture = GetUniqueSeqNoProvider()->Generate();
+        auto generateReportTimeFuture = GetTimeProvider()->GetTimestamp(/*barrier*/ true);
         DoInit(StateManager_->CreateContext());
-        const auto now = WaitFor(generateReportTimeFuture).ValueOrThrow().Timestamp;
+        const auto now = WaitFor(generateReportTimeFuture).ValueOrThrow();
         isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights());
         FinishRunIteration();
     }
@@ -135,7 +135,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
         auto dynamicSpec = GetDynamicSpec();
         const auto allowBatchingWithRelaxedGuarantees = GetParameters()->AllowBatchingWithRelaxedGuarantees;
         // Generated timestamp can be less than timestamps of input messages of this epoch. This is OK.
-        auto generateReportTimeFuture = GetUniqueSeqNoProvider()->Generate();
+        auto generateReportTimeFuture = GetTimeProvider()->GenerateGlobalUniqueSeqNo();
 
         const auto outputLimitsCheckResult = CheckOutputLimits(dynamicSpec, GetDynamicPartitionSpec());
 

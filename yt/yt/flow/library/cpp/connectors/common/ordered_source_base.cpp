@@ -1,6 +1,6 @@
 #include "ordered_source_base.h"
 
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 #include <yt/yt/flow/library/cpp/misc/lexicographically_serialize.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -481,7 +481,7 @@ void TOrderedSourceBase::MarkMissingMessagesPersisted()
 
         TUniqueSeqNo seqNoWatermark = {};
         if (State_->OffsetMemory->empty()) {
-            seqNoWatermark = NConcurrency::WaitFor(GetContext()->UniqueSeqNoProvider->Generate()).ValueOrThrow().UniqueSeqNo;
+            seqNoWatermark = NConcurrency::WaitFor(GetContext()->TimeProvider->GenerateGlobalUniqueSeqNo()).ValueOrThrow().UniqueSeqNo;
         } else {
             seqNoWatermark = State_->OffsetMemory->front().second;
         }
@@ -676,7 +676,7 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
 
     const bool empty = records.empty();
 
-    auto seqNoProviderResult = NConcurrency::WaitFor(GetContext()->UniqueSeqNoProvider->Generate()).ValueOrThrow();
+    auto seqNoProviderResult = NConcurrency::WaitFor(GetContext()->TimeProvider->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
 
     auto minWriteTimestamp = InfinitySystemTimestamp;
     for (auto& record : records) {

@@ -1,6 +1,6 @@
 #include <yt/yt/flow/library/cpp/computation/stores/compact_output_store.h>
 
-#include <yt/yt/flow/library/cpp/common/unittests/mock/seq_no_provider.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/tables/unittests/mock/compact_output_messages.h>
 #include <yt/yt/flow/library/cpp/tables/unittests/mock/compact_partition_output_messages.h>
@@ -80,7 +80,7 @@ protected:
             partitionTable ? partitionTable : New<NTables::TInMemoryCompactPartitionOutputMessages>();
         context->CompactOutputMessagesTable =
             keyTable ? keyTable : New<NTables::TInMemoryCompactOutputMessages>();
-        context->SeqNoProvider = New<TMonotonicSeqNoProvider>();
+        context->TimeProvider = New<TFakeTimeProvider>();
         return context;
     }
 

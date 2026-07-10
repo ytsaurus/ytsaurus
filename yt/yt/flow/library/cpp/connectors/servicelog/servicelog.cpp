@@ -1,7 +1,7 @@
 #include "servicelog.h"
 
 #include <yt/yt/flow/library/cpp/common/resource.h>
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/resources/yt_client_factory.h>
 
@@ -148,7 +148,7 @@ void TServiceLogSourceController::ProcessPartitionStatuses(const THashMap<TKey, 
 
 std::optional<TStreamTraverseDataPtr> TServiceLogSourceController::GetFutureKeysStreamTraverseData()
 {
-    auto now = NConcurrency::WaitFor(GetContext()->UniqueSeqNoProvider->Generate()).ValueOrThrow().Timestamp;
+    auto now = NConcurrency::WaitFor(GetContext()->TimeProvider->GetTimestamp(/*barrier*/ false)).ValueOrThrow();
 
     auto sourceStream = New<TStreamTraverseData>();
     sourceStream->Epoch = -1; // Will be fixed in universal controller.
@@ -254,7 +254,7 @@ TFuture<std::vector<TServiceLogSource::TRecord>> TServiceLogSource::DoReadNextBa
 
     nextOffset = std::max(MinNextBatchOffset_, nextOffset);
     YT_LOG_INFO("Will be reading next batch (NextOffset: %v, OffsetLimit: %v)", nextOffset, offsetLimitExclusive);
-    const auto [now, uniqueSeqNo] = NConcurrency::WaitFor(GetContext()->UniqueSeqNoProvider->Generate()).ValueOrThrow();
+    const auto [now, uniqueSeqNo] = NConcurrency::WaitFor(GetContext()->TimeProvider->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
     i64 rowLimit = settings->MaxRowsPerBatch;
     auto schema = TableJoiner_->GetSchema();
     auto effectiveRange = CloneYsonStruct(Range_);

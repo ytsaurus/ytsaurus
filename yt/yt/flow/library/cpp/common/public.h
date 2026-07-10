@@ -65,8 +65,7 @@ YT_DEFINE_STRONG_TYPEDEF(TUniqueSeqNo, ui64);
 static constexpr auto InfinitySystemTimestamp = TSystemTimestamp(0xffffffffffffffff);
 static constexpr auto ZeroSystemTimestamp = TSystemTimestamp(0);
 
-DECLARE_REFCOUNTED_STRUCT(IUniqueSeqNoProvider);
-DECLARE_REFCOUNTED_STRUCT(ISeqNoProvider);
+DECLARE_REFCOUNTED_STRUCT(ITimeProvider);
 
 struct TMessageMeta;
 struct TMessage;

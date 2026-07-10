@@ -31,7 +31,7 @@ struct TSourceContextBase
     TStreamId SourceStreamId;
     TKey SourceKey;
     TSourceSpecPtr SourceSpec;
-    IUniqueSeqNoProviderPtr UniqueSeqNoProvider;
+    ITimeProviderPtr TimeProvider;
 };
 
 struct TSourceContext

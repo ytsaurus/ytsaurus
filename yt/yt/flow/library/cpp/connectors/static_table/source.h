@@ -279,7 +279,6 @@ private:
     bool CheckDistributingTable();
 
 private:
-    ISeqNoProviderPtr SeqNoProvider_;
     IStatusErrorStatePtr CheckDistributingTableErrorState_;
     TMutableStateClient<TSourceControllerState> State_;
     THashMap<TRangeId, i64> CommittedOffsetsExclusive_;

@@ -29,7 +29,7 @@ namespace {
 // Packed per-message handle into the in-memory chunk table: 44 bits of
 // LocalChunkId (process-local, dense; assigned from NextLocalChunkId_) plus
 // 20 bits of position within the chunk. Distinct from the YT chunk id (i64,
-// derived from SeqNoProvider) stored in TChunkState::ChunkId.
+// derived from TimeProvider) stored in TChunkState::ChunkId.
 struct TMessageLocation
 {
     static constexpr int LocalChunkIdBits = 44;
@@ -83,7 +83,7 @@ public:
         , DynamicSpec_(std::move(dynamicSpec))
         , KeyTable_(Context_->CompactOutputMessagesTable)
         , PartitionTable_(Context_->CompactPartitionOutputMessagesTable)
-        , SeqNoProvider_(Context_->SeqNoProvider)
+        , TimeProvider_(Context_->TimeProvider)
         , Logger(Context_->Logger)
         , InflightStore_(New<TMultiInflightTracker>(
             Context_->Profiler.WithPrefix("/output_streams"),
@@ -93,7 +93,7 @@ public:
     {
         YT_VERIFY(KeyTable_);
         YT_VERIFY(PartitionTable_);
-        YT_VERIFY(SeqNoProvider_);
+        YT_VERIFY(TimeProvider_);
         ValidateSpec();
         KeyTable_->Reconfigure(DynamicSpec_->TableRequest);
         PartitionTable_->Reconfigure(DynamicSpec_->TableRequest);
@@ -522,7 +522,7 @@ private:
 
     // Groups ToPersist_ by (key, stream_id) and splits each group into chunks
     // of <=maxChunkMessageCount messages / <=MaxChunkDataSize bytes. Each chunk
-    // reserves a fresh YT chunk_id from SeqNoProvider.
+    // reserves a fresh YT chunk_id from TimeProvider.
     void PackPendingMessages()
     {
         const auto maxChunkMessageCount = DynamicSpec_->MaxChunkMessageCount;
@@ -566,7 +566,7 @@ private:
             };
 
             auto openChunk = [&] {
-                ytChunkId = SeqNoProvider_->Generate();
+                ytChunkId = TimeProvider_->GenerateSeqNo();
                 localChunkId = NextLocalChunkId_++;
             };
 
@@ -607,7 +607,7 @@ private:
     TDynamicOutputStoreSpecPtr DynamicSpec_;
     const NTables::ICompactOutputMessagesPtr KeyTable_;
     const NTables::ICompactPartitionOutputMessagesPtr PartitionTable_;
-    const ISeqNoProviderPtr SeqNoProvider_;
+    const ITimeProviderPtr TimeProvider_;
     const NLogging::TLogger Logger;
     const TMultiInflightTrackerPtr InflightStore_;
 

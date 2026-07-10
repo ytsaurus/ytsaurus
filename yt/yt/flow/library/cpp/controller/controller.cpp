@@ -16,7 +16,7 @@
 #include <yt/yt/flow/library/cpp/common/checksum.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -54,7 +54,6 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 using NTransactionClient::ETransactionType;
-using NTransactionClient::UnixTimeFromTimestamp;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -397,7 +396,7 @@ public:
         IStatusProfilerPtr statusProfiler)
         : Connector_(std::move(connector))
         , PipelineAuthenticator_(std::move(authenticator))
-        , UniqueSeqNoProvider_(CreateRetryingUniqueSeqNoProvider(Connector_->GetClient(), clockClusterTag, invoker, statusProfiler, ControllerLogger()))
+        , TimeProvider_(CreateRetryingTimeProvider(Connector_->GetClient(), clockClusterTag, invoker, statusProfiler, ControllerLogger()))
         , Config_(std::move(config))
         , NodeInfo_(std::move(nodeInfo))
         , Profiler_(profiler)
@@ -412,7 +411,6 @@ public:
         , FlowCoreTargetMismatchWorkerCountGauge_(Profiler_.Gauge("/version_mismatch_worker_count"))
         , SpecVersion_(Profiler_.Gauge("/spec_version"))
         , DynamicSpecVersion_(Profiler_.Gauge("/dynamic_spec_version"))
-        , ClockClusterTag_(clockClusterTag)
         , StatusProfiler_(std::move(statusProfiler))
     { }
 
@@ -481,9 +479,8 @@ public:
         DynamicSpecVersion_.Update(dynamicSpec->GetVersion().Underlying());
 
         // TODO(mikari): revise order
-        flowState->CurrentTimestamp = TSystemTimestamp(UnixTimeFromTimestamp(
-            WaitFor(Connector_->GetClient()->GetTimestampProvider()->GenerateTimestamps(/*count*/ 1, ClockClusterTag_))
-                .ValueOrThrow()));
+        flowState->CurrentTimestamp = WaitFor(TimeProvider_->GetTimestamp(/*barrier*/ true))
+            .ValueOrThrow();
 
         if (!UpdateSpecs(flowState, spec, dynamicSpec)) {
             YT_LOG_WARNING("No job manager, fast stop");
@@ -492,7 +489,7 @@ public:
             context->PipelinePath = Connector_->GetPipelinePath();
             context->Invoker = Invoker_;
             context->MainCycleInvoker = MainCycleInvoker_;
-            context->UniqueSeqNoProvider = UniqueSeqNoProvider_;
+            context->TimeProvider = TimeProvider_;
             context->StatusProfiler = StatusProfiler_->WithPrefix("/job_manager");
             JobManager_ = CreateJobManager(std::move(context), New<TPipelineSpec>(), New<TDynamicPipelineSpec>(), New<TJobManagerState>(), /*authenticator*/ nullptr);
             try {
@@ -598,9 +595,8 @@ public:
         const auto& pipelineSpec = executionSpec->PipelineSpec->GetValue();
 
         {
-            auto now = TSystemTimestamp(UnixTimeFromTimestamp(
-                WaitFor(Connector_->GetClient()->GetTimestampProvider()->GenerateTimestamps(/*count*/ 1, ClockClusterTag_))
-                    .ValueOrThrow()));
+            auto now = WaitFor(TimeProvider_->GetTimestamp(/*barrier*/ false))
+                .ValueOrThrow();
 
             auto registerStream = [&] (const auto& streamId, const auto& stream) {
                 auto& metrics = StreamMetrics_
@@ -685,7 +681,7 @@ public:
 private:
     const IYTConnectorPtr Connector_;
     const IPipelineAuthenticatorPtr PipelineAuthenticator_;
-    const IUniqueSeqNoProviderPtr UniqueSeqNoProvider_;
+    const ITimeProviderPtr TimeProvider_;
     const TControllerConfigPtr Config_;
     const TNodeInfoPtr NodeInfo_;
     const TProfiler Profiler_;
@@ -710,7 +706,6 @@ private:
     TGauge DynamicSpecVersion_;
     TPipelineStateMetrics PipelineStateMetrics_;
 
-    const NObjectClient::TCellTag ClockClusterTag_;
     const IStatusProfilerPtr StatusProfiler_;
 
     bool FlowCoreTargetMatched_ = true;
@@ -721,14 +716,14 @@ private:
         if (executionSpec->PipelineSpec->GetVersion() != spec->GetVersion() || !JobManager_) {
             executionSpec->PipelineSpec = spec;
             executionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(executionSpec->PipelineSpec->GetValue()));
-            UpdateStreamSpecStorageState(executionSpec->StreamSpecStorageState, *spec->GetValue(), UniqueSeqNoProvider_);
+            UpdateStreamSpecStorageState(executionSpec->StreamSpecStorageState, *spec->GetValue(), TimeProvider_);
             try {
                 auto context = New<TJobManagerContext>();
                 context->ClientsCache = Connector_->GetClientsCache();
                 context->PipelinePath = Connector_->GetPipelinePath();
                 context->Invoker = Invoker_;
                 context->MainCycleInvoker = MainCycleInvoker_;
-                context->UniqueSeqNoProvider = UniqueSeqNoProvider_;
+                context->TimeProvider = TimeProvider_;
                 context->StatusProfiler = StatusProfiler_->WithPrefix("/job_manager");
                 JobManager_ = CreateJobManager(std::move(context), executionSpec->PipelineSpec->GetValue(), executionSpec->DynamicPipelineSpec->GetValue(), flowState->JobManagerState, PipelineAuthenticator_);
             } catch (const std::exception& ex) {
