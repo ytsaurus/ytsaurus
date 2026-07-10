@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/threading/public.h>
 
+#include <library/cpp/yt/containers/enum_indexed_array.h>
+
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #ifdef _linux_
@@ -120,10 +122,10 @@ struct TIOEngineSensors final
     NProfiling::TCounter KernelWrittenBytesCounter;
     NProfiling::TCounter KernelReadBytesCounter;
 
-    TRequestSensors ReadSensors;
-    TRequestSensors WriteSensors;
-    TRequestSensors SyncSensors;
-    TRequestSensors DataSyncSensors;
+    TEnumIndexedArray<EWorkloadCategory, TRequestSensors> ReadSensors;
+    TEnumIndexedArray<EWorkloadCategory, TRequestSensors> WriteSensors;
+    TEnumIndexedArray<EWorkloadCategory, TRequestSensors> SyncSensors;
+    TEnumIndexedArray<EWorkloadCategory, TRequestSensors> DataSyncSensors;
     TRequestSensors IOSubmitSensors;
 
     std::atomic<i64> TotalReadBytesCounter = 0;
@@ -223,7 +225,7 @@ protected:
     TIOEngineHandlePtr DoOpen(const TOpenRequest& request);
 
     TFlushDirectoryResponse DoFlushDirectory(const TFlushDirectoryRequest& request);
-    TCloseResponse DoClose(const TCloseRequest& request);
+    TCloseResponse DoClose(const TCloseRequest& request, EWorkloadCategory category);
     void DoAllocate(const TAllocateRequest& request);
     static int GetLockOp(ELockFileMode mode);
     void DoLock(const TLockRequest& request);
