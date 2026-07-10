@@ -6046,6 +6046,10 @@ class TestChaosMetaCluster(ChaosTestBase):
             for cell_id, driver in drivers.items()
         }
 
+        # Ensure cells are known by each other.
+        for cell_id, driver in drivers.items():
+            wait(lambda: len(self._get_chaos_cell_orchid(cell_id, "/chaos_manager/coordinators", driver=driver)) == 2)
+
         def retry_enabled_cell(func):
             for _ in range(5):
                 try:
