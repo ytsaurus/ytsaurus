@@ -4,7 +4,7 @@
 #include <yt/yt/flow/library/cpp/connectors/common/source_controller_base.h>
 
 #include <yt/yt/flow/library/cpp/common/registry.h>
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/state.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
@@ -174,25 +174,35 @@ YT_FLOW_DEFINE_SOURCE(TTestSource);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TTestSeqNoProvider);
+DECLARE_REFCOUNTED_STRUCT(TTestTimeProvider);
 
-struct TTestSeqNoProvider
-    : public IUniqueSeqNoProvider
+struct TTestTimeProvider
+    : public ITimeProvider
 {
     mutable std::atomic<TUniqueSeqNo::TUnderlying> CurrentSeqNo = 1ULL << 63;
 
-    TTestSeqNoProvider() = default;
+    TTestTimeProvider() = default;
 
-    TFuture<TResult> Generate() const override
+    TFuture<TGlobalUniqueSeqNo> GenerateGlobalUniqueSeqNo() const override
     {
-        return MakeFuture(TResult{
+        return MakeFuture(TGlobalUniqueSeqNo{
             .Timestamp = TSystemTimestamp(TInstant::Now().Seconds()),
             .UniqueSeqNo = TUniqueSeqNo{CurrentSeqNo.fetch_add(1)},
         });
     }
+
+    i64 GenerateSeqNo() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TFuture<TSystemTimestamp> GetTimestamp(bool /*barrier*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
 };
 
-DEFINE_REFCOUNTED_TYPE(TTestSeqNoProvider);
+DEFINE_REFCOUNTED_TYPE(TTestTimeProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -267,7 +277,7 @@ public:
         SourceContext->Logger = NLogging::TLogger("Test");
         SourceContext->StatusProfiler = CreateStatusProfiler();
 
-        SourceContext->UniqueSeqNoProvider = New<TTestSeqNoProvider>();
+        SourceContext->TimeProvider = New<TTestTimeProvider>();
 
         SourceSpec = ConvertTo<TSourceSpecPtr>(NYson::TYsonString(TStringBuf(R"""({
             "stream_id" = "test_input";

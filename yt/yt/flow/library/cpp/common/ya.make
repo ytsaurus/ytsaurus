@@ -32,7 +32,7 @@ SRCS(
     resource_manager.cpp
     schema.cpp
     select_literals.cpp
-    seq_no_provider.cpp
+    time_provider.cpp
     sink.cpp
     source_controller.cpp
     source.cpp

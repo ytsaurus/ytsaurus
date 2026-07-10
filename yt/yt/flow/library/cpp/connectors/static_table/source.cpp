@@ -2,7 +2,7 @@
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -557,7 +557,6 @@ TSourceController::TSourceController(
     TSourceControllerContextPtr context,
     TDynamicSourceControllerContextPtr dynamicContext)
     : TSourceControllerBase(std::move(context), std::move(dynamicContext))
-    , SeqNoProvider_(CreateSeqNoProvider(GetContext()->UniqueSeqNoProvider))
     , CheckDistributingTableErrorState_(GetContext()->StatusProfiler->ErrorState("/check_distributing_table"))
     , Metrics_(GetContext()->Profiler.WithPrefix("/static_table"))
 { }
@@ -1008,7 +1007,7 @@ std::optional<THashMap<TKey, IMapNodePtr>> TSourceController::ListKeys()
     double desiredRangeRowsPerSecond = GetDesiredRangeRowsPerSecond(GetDynamicParameters(), distributingTable);
 
     auto rangeIdGenerator = [&] {
-        return TRangeId(SeqNoProvider_->Generate());
+        return TRangeId(GetContext()->TimeProvider->GenerateSeqNo());
     };
     auto rangeDynamicSourcePartitionSpecs = DoDistributing(
         GetDynamicParameters(),
@@ -1030,7 +1029,7 @@ std::optional<TStreamTraverseDataPtr> TSourceController::GetFutureKeysStreamTrav
     i64 notDistributedCount = distributingTable->GetNotDistributedRows() + State_->PendingCount;
     bool noFuturePartitions = GetParameters()->Finite && State_->Inited && notDistributedCount == 0;
 
-    auto now = NConcurrency::WaitFor(GetContext()->UniqueSeqNoProvider->Generate()).ValueOrThrow().Timestamp;
+    auto now = NConcurrency::WaitFor(GetContext()->TimeProvider->GetTimestamp(/*barrier*/ false)).ValueOrThrow();
 
     bool isIdle = (State_->Inited && notDistributedCount == 0);
     auto eventWatermark = isIdle ? now : distributingTable->EventTimestamp;

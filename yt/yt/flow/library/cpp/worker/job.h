@@ -39,7 +39,6 @@ struct TJobContext
     IInvokerPtr SerializedInvoker;
     IInvokerPtr PoolInvoker;
     NObjectClient::TCellTag ClockClusterTag;
-    IUniqueSeqNoProviderPtr UniqueSeqNoProvider;
     TLoadThroughputThrottlerPtr LoadThroughputThrottler;
     TComputationStreamSpecStoragePtr StreamSpecStorage;
     TJobStateCachePtr JobStateCache;

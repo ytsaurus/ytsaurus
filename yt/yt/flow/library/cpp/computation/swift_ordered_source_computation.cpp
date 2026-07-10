@@ -11,9 +11,9 @@
 #include "job_state/state_manager.h"
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
 #include <yt/yt/flow/library/cpp/common/sink.h>
 #include <yt/yt/flow/library/cpp/common/source.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/connectors/common/ordered_source.h>
 #include <yt/yt/flow/library/cpp/misc/ordered_memory.h>
@@ -159,7 +159,7 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
     bool isFinished = true;
     {
         auto iterGuard = StartRunIteration(context);
-        const auto [now, uniqueSeqNo] = GenerateSeqNo();
+        const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
         DoInit(StateManager_->CreateContext());
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, applyTimestampMemory(WatermarkGenerator_->Apply(BuildInflights(), {*ActiveSourceStreamId_})));
         FinishRunIteration();
@@ -193,7 +193,7 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
                 sourceMessageCount);
         }
 
-        auto generateSeqNoFuture = GetUniqueSeqNoProvider()->Generate();
+        auto generateSeqNoFuture = GetTimeProvider()->GenerateGlobalUniqueSeqNo();
 
         auto inputWatermarks = THashMap<TStreamId, TSystemTimestamp>{{*ActiveSourceStreamId_, partitionReadWatermark}};
         for (const auto& messageBatch : sourceMessageBatches) {
@@ -202,7 +202,7 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
         ProcessSourceBatches(std::move(sourceMessageBatches));
 
         const auto [now, uniqueSeqNo] = [&] {
-            TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("GenerateSeqNo"));
+            TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("GenerateGlobalUniqueSeqNo"));
             return WaitFor(generateSeqNoFuture).ValueOrThrow();
         }();
 

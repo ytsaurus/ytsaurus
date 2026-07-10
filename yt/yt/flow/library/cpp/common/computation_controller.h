@@ -33,7 +33,7 @@ struct TComputationControllerContextBase
     NClient::NCache::IClientsCachePtr ClientsCache;
     NYPath::TRichYPath PipelinePath;
     TComputationId ComputationId;
-    IUniqueSeqNoProviderPtr UniqueSeqNoProvider;
+    ITimeProviderPtr TimeProvider;
     NProfiling::TProfiler Profiler;
     IStatusProfilerPtr StatusProfiler;
     NLogging::TLogger Logger;

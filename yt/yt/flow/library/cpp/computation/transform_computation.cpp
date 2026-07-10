@@ -9,8 +9,8 @@
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
 #include <yt/yt/flow/library/cpp/common/sink.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 #include <yt/yt/flow/library/cpp/common/visit.h>
 
 #include <library/cpp/iterator/zip.h>
@@ -82,7 +82,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
     bool isFinished = true;
     {
         auto iterGuard = StartRunIteration(context);
-        const auto [now, uniqueSeqNo] = GenerateSeqNo();
+        const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
         DoInit(StateManager_->CreateContext());
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights());
         FinishRunIteration();
@@ -129,7 +129,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
                 }
             }
         }
-        const auto [now, uniqueSeqNo] = GenerateSeqNo();
+        const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
         YT_LOG_INFO("Got batch (Inputs: %v, Timers: %v, Visits: %v)",
             inputs.size(),
             inputTimers.size(),

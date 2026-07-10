@@ -20,7 +20,7 @@ struct TJobManagerContext
     NYPath::TRichYPath PipelinePath;
     IInvokerPtr Invoker;
     IInvokerPtr MainCycleInvoker;
-    IUniqueSeqNoProviderPtr UniqueSeqNoProvider;
+    ITimeProviderPtr TimeProvider;
     IStatusProfilerPtr StatusProfiler;
 };
 

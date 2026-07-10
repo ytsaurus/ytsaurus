@@ -89,7 +89,7 @@ public:
             auto context = New<TComputationControllerContext>(computationControllerCommonContext);
             context->ComputationSpec = spec;
             context->ComputationId = computationId;
-            context->UniqueSeqNoProvider = Context_->UniqueSeqNoProvider;
+            context->TimeProvider = Context_->TimeProvider;
             context->Profiler = WithPipelineRelatedTags(
                 ControllerProfiler()
                     .WithPrefix("/computation")

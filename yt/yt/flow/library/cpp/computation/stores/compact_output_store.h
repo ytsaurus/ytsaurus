@@ -2,7 +2,7 @@
 
 #include "output_store.h"
 
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/tables/public.h>
 
@@ -15,7 +15,7 @@ struct TCompactOutputStoreContext
 {
     NTables::ICompactPartitionOutputMessagesPtr CompactPartitionOutputMessagesTable;
     NTables::ICompactOutputMessagesPtr CompactOutputMessagesTable;
-    ISeqNoProviderPtr SeqNoProvider;
+    ITimeProviderPtr TimeProvider;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompactOutputStoreContext);

@@ -1,9 +1,9 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/flow/library/cpp/common/key.h>
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/traverse.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/computation/key_visitor.h>
 
@@ -30,25 +30,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFakeUniqueSeqNoProvider
-    : public IUniqueSeqNoProvider
-{
-public:
-    TFuture<TResult> Generate() const override
-    {
-        const auto next = ++Counter_;
-        return MakeFuture<TResult>({
-            .Timestamp = TSystemTimestamp(next),
-            .UniqueSeqNo = TUniqueSeqNo(next),
-        });
-    }
-
-private:
-    mutable std::atomic<ui64> Counter_{0};
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TKeyVisitorTest
     : public ::testing::Test
 {
@@ -58,7 +39,7 @@ protected:
 
     NTables::TInMemoryKeyStatesPtr KeyStates_ = New<NTables::TInMemoryKeyStates>();
     NTables::TInMemoryKeyVisitorStatesPtr KeyVisitorStates_ = New<NTables::TInMemoryKeyVisitorStates>();
-    IUniqueSeqNoProviderPtr SeqNoProvider_ = New<TFakeUniqueSeqNoProvider>();
+    ITimeProviderPtr TimeProvider_ = New<TFakeTimeProvider>();
     TActionQueuePtr Queue_ = New<TActionQueue>("KeyVisitorTest");
 
     void SeedKeys(const std::vector<TKey>& keys, const std::string& name)
@@ -84,7 +65,7 @@ protected:
         ctx->PartitionRange = std::move(partitionRange);
         ctx->KeyStates = KeyStates_;
         ctx->KeyVisitorStates = KeyVisitorStates_;
-        ctx->UniqueSeqNoProvider = SeqNoProvider_;
+        ctx->TimeProvider = TimeProvider_;
         ctx->SerializedInvoker = Queue_->GetInvoker();
         ctx->Logger = NLogging::TLogger("KeyVisitorTest");
         ctx->StatusProfiler = CreateStatusProfiler();

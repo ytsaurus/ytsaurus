@@ -33,10 +33,10 @@
 #include <yt/yt/flow/library/cpp/common/input_context.h>
 #include <yt/yt/flow/library/cpp/common/message_batcher.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
 #include <yt/yt/flow/library/cpp/common/sink.h>
 #include <yt/yt/flow/library/cpp/common/source.h>
 #include <yt/yt/flow/library/cpp/common/state_cache.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
@@ -95,7 +95,7 @@ TComputationBase::TComputationBase(
         TRegistry::Get()->ParseComputationParameters(Context_->ComputationSpec)))
     , TopologicalStreamOrder_(BuildTopologicalStreamOrder(Context_->ComputationSpec))
     , RetryableClient_(CreateRetryableClient(Context_->GetClient(), Context_->SerializedInvoker, Context_->StatusProfiler->WithPrefix("/retryable_client"), Logger))
-    , UniqueSeqNoProvider_(CreateUniqueSeqNoProvider(RetryableClient_->GetTimestampProvider(), Context_->ClockClusterTag))
+    , TimeProvider_(CreateTimeProvider(RetryableClient_->GetTimestampProvider(), Context_->ClockClusterTag))
     , TransactionManager_(CreateTransactionManager())
     , DynamicContext_(std::move(dynamicContext))
     , DynamicParameters_(DynamicPointerCast<IComputation::TDynamicParameters>(
@@ -159,10 +159,10 @@ const TComputationContextPtr& TComputationBase::GetContext() const
     return Context_;
 }
 
-const IUniqueSeqNoProviderPtr& TComputationBase::GetUniqueSeqNoProvider() const
+const ITimeProviderPtr& TComputationBase::GetTimeProvider() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
-    return UniqueSeqNoProvider_;
+    return TimeProvider_;
 }
 
 const TComputationSpecPtr& TComputationBase::GetSpec() const
@@ -865,7 +865,7 @@ THashMap<TStreamId, TKeyVisitorPtr> TUniversalComputationBase::CreateKeyVisitors
         context->KeyStates = keyStates;
         context->StateManager = StateManager_;
         context->KeyVisitorStates = stateTable;
-        context->UniqueSeqNoProvider = GetUniqueSeqNoProvider();
+        context->TimeProvider = GetTimeProvider();
         context->SerializedInvoker = GetContext()->SerializedInvoker;
         context->Logger = Logger.WithTag("KeyVisitorStreamId: %v", streamId);
         context->Profiler = GetContext()->Profiler.WithPrefix("/key_visitor_streams").WithTag("stream_id", streamId.Underlying());
@@ -950,7 +950,7 @@ ISourcePtr TUniversalComputationBase::CreateActiveSource()
         context->SourceStreamId = streamId;
         context->SourceKey = sourceKey;
         context->SourceSpec = GetSpec()->SourceStreams.at(streamId);
-        context->UniqueSeqNoProvider = GetUniqueSeqNoProvider();
+        context->TimeProvider = GetTimeProvider();
         auto dynamicSourceContext = New<TDynamicSourceContext>();
         dynamicSourceContext->DynamicSourceSpec = GetPatchedDynamicSourceSpec(GetDynamicSpec(), *ActiveSourceStreamId_);
         dynamicSourceContext->DynamicPartitionSpec = GetDynamicPartitionSpec()->ActiveSource;
@@ -1055,7 +1055,7 @@ IOutputStorePtr TUniversalComputationBase::CreateOutputStore()
     context->CompactOutputMessagesTable = NTables::CreateCompactOutputMessages(
         createTableContext("compact_output_messages"),
         New<TDynamicTableRequestSpec>());
-    context->SeqNoProvider = CreateSeqNoProvider(GetUniqueSeqNoProvider());
+    context->TimeProvider = GetTimeProvider();
     return NFlow::CreateCompactOutputStore(context, GetDynamicSpec()->OutputStore);
 }
 
@@ -1559,10 +1559,10 @@ void TUniversalComputationBase::ValidateTimerStoreLimits(const TDynamicComputati
     }
 }
 
-IUniqueSeqNoProvider::TResult TUniversalComputationBase::GenerateSeqNo()
+ITimeProvider::TGlobalUniqueSeqNo TUniversalComputationBase::GenerateGlobalUniqueSeqNo()
 {
-    NTracing::TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("GenerateSeqNo"));
-    return WaitFor(GetUniqueSeqNoProvider()->Generate()).ValueOrThrow();
+    NTracing::TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("GenerateGlobalUniqueSeqNo"));
+    return WaitFor(GetTimeProvider()->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
 }
 
 void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRunContextPtr& context, bool allowOutputDuplicates)
@@ -1632,7 +1632,7 @@ void TUniversalComputationBase::DoInterrupt(const IComputationRunContextPtr& con
     bool isFinished = true;
     {
         auto iterGuard = StartRunIteration(context);
-        const auto [now, uniqueSeqNo] = GenerateSeqNo();
+        const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights());
         FinishRunIteration();
     }
@@ -1644,7 +1644,7 @@ void TUniversalComputationBase::DoInterrupt(const IComputationRunContextPtr& con
         auto iterGuard = StartRunIteration(context);
         auto dynamicSpec = GetDynamicSpec();
 
-        const auto [now, uniqueSeqNo] = GenerateSeqNo();
+        const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
 
         auto tx = PrepareTransaction(context);
         Commit(context, tx);

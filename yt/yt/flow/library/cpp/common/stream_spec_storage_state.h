@@ -1,8 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "seq_no_provider.h"
 #include "spec.h"
+#include "time_provider.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -36,7 +36,7 @@ DEFINE_REFCOUNTED_TYPE(TVersionedStreamSpecStorageState);
 void UpdateStreamSpecStorageState(
     const TVersionedStreamSpecStorageStatePtr& versionedStorageState,
     const TPipelineSpec& spec,
-    const IUniqueSeqNoProviderPtr& uniqueSeqNoProvider);
+    const ITimeProviderPtr& timeProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

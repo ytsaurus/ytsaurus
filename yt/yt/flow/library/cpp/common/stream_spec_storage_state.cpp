@@ -18,7 +18,7 @@ namespace {
 bool UpdateStreamSpecs(
     const TStreamSpecStorageStatePtr& storageState,
     const THashMap<TStreamId, TStreamSpecPtr>& streams,
-    const IUniqueSeqNoProviderPtr& uniqueSeqNoProvider)
+    const ITimeProviderPtr& timeProvider)
 {
     const auto initialNextStreamSpecId = storageState->NextStreamSpecId;
 
@@ -31,7 +31,7 @@ bool UpdateStreamSpecs(
             continue;
         }
 
-        const auto uniqueSeqNo = WaitFor(uniqueSeqNoProvider->Generate()).ValueOrThrow().UniqueSeqNo;
+        const auto uniqueSeqNo = WaitFor(timeProvider->GenerateGlobalUniqueSeqNo()).ValueOrThrow().UniqueSeqNo;
         const auto specId = TStreamSpecId(uniqueSeqNo.Underlying());
 
         YT_VERIFY(specId >= storageState->NextStreamSpecId);
@@ -93,13 +93,13 @@ void TStreamSpecStorageState::Register(TRegistrar registrar)
 void UpdateStreamSpecStorageState(
     const TVersionedStreamSpecStorageStatePtr& versionedStorageState,
     const TPipelineSpec& pipelineSpec,
-    const IUniqueSeqNoProviderPtr& uniqueSeqNoProvider)
+    const ITimeProviderPtr& timeProvider)
 {
     YT_VERIFY(versionedStorageState);
     const auto& storageState = versionedStorageState->GetValue();
 
     bool bumpVersion = false;
-    bumpVersion |= UpdateStreamSpecs(storageState, pipelineSpec.Streams, uniqueSeqNoProvider);
+    bumpVersion |= UpdateStreamSpecs(storageState, pipelineSpec.Streams, timeProvider);
     bumpVersion |= UpdateGroupBySchemas(storageState, pipelineSpec.Computations);
 
     if (bumpVersion) {

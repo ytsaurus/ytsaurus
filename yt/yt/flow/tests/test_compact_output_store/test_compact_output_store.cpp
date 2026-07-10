@@ -11,7 +11,7 @@
 #include <yt/yt/flow/library/cpp/tables/compact_partition_output_messages.h>
 #include <yt/yt/flow/library/cpp/tables/context.h>
 
-#include <yt/yt/flow/library/cpp/common/unittests/mock/seq_no_provider.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_client.h>
@@ -140,7 +140,7 @@ protected:
         context->CompactOutputMessagesTable = NTables::CreateCompactOutputMessages(
             tablesContext,
             New<TDynamicTableRequestSpec>());
-        context->SeqNoProvider = New<TMonotonicSeqNoProvider>();
+        context->TimeProvider = New<TFakeTimeProvider>();
         return context;
     }
 

@@ -7,7 +7,7 @@
 
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/public.h>
-#include <yt/yt/flow/library/cpp/common/seq_no_provider.h>
+#include <yt/yt/flow/library/cpp/common/time_provider.h>
 #include <yt/yt/flow/library/cpp/common/visit.h>
 
 #include <yt/yt/flow/library/cpp/misc/counter.h>
@@ -45,7 +45,7 @@ struct TKeyVisitorContext
     NTables::IKeyStatesPtr KeyStates;
     TJobStateManagerPtr StateManager;
     NTables::IKeyVisitorStatesPtr KeyVisitorStates;
-    IUniqueSeqNoProviderPtr UniqueSeqNoProvider;
+    ITimeProviderPtr TimeProvider;
     IInvokerPtr SerializedInvoker;
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;

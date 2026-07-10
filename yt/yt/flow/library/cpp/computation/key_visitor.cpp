@@ -413,16 +413,16 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
     }
     ScanCapStallError_->ClearError();
 
-    const auto seqNo = WaitFor(Context_->UniqueSeqNoProvider->Generate())
+    const auto [now, uniqueSeqNo] = WaitFor(Context_->TimeProvider->GenerateGlobalUniqueSeqNo())
         .ValueOrThrow();
-    Store_->MarkBuffered(readRange, seqNo.Timestamp);
+    Store_->MarkBuffered(readRange, now);
 
     // Snapshot schedule lag once: anchors both the per-visit EventTimestamp
     // stamp and the catch-up toggle. Sweep anchor = oldest non-Pending
     // interval's PassStartedAt (persisted in key_visitor_states, so it
     // survives restart/rebalance); on a fresh pass we fall back to "now".
     const auto period = DynamicContext_->DynamicSpec->Period;
-    const ui64 nowSeconds = seqNo.Timestamp.Underlying();
+    const ui64 nowSeconds = now.Underlying();
     const auto minPassStartedAt = Store_->GetMinPassStartedAt();
     const ui64 startSeconds = minPassStartedAt
         ? minPassStartedAt->Underlying()
@@ -448,12 +448,12 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
         for (const auto& key : sortedKeys) {
             TVisit visit;
             visit.MessageId = GenerateOrderedMessageId(
-                seqNo.UniqueSeqNo,
+                uniqueSeqNo,
                 Context_->StreamId,
                 LexicographicallySerialize(index));
-            visit.SystemTimestamp = seqNo.Timestamp;
+            visit.SystemTimestamp = now;
             visit.EventTimestamp = expectedEventTimestamp;
-            visit.AlignmentTimestamp = seqNo.Timestamp;
+            visit.AlignmentTimestamp = now;
             visit.StreamId = Context_->StreamId;
             visit.Key = key;
             entry.Visits.push_back(std::move(visit));
