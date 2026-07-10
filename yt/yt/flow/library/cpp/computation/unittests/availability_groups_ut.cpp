@@ -35,7 +35,6 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
                     "out_of_orderness_bound" = 1000;
                     "unavailable_partition_groups" = {
                         "max_groups" = 1;
-                        "ignore_not_idle_partitions" = %false;
                     };
                 }
             };
@@ -72,37 +71,30 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
 
     ASSERT_FALSE(GetPartitionLastUnavailableTimestamp(defaultNode, spec, TLogger("Test")));
 
-    const auto unavailableIdleNode = CloneYsonStruct(defaultNode);
-    unavailableIdleNode->Streams["bigb/profile-hit-log"]->InflightMetrics->UnavailableTimestamp = now;
-    unavailableIdleNode->Streams["bigb_profile_hit"]->EventWatermark = outdatedTimestamp;
-    ASSERT_TRUE(GetPartitionLastUnavailableTimestamp(unavailableIdleNode, spec, TLogger("Test")));
-    ASSERT_TRUE(GetPartitionLastIdleTimestamp(unavailableIdleNode, spec, /*relaxed*/ true));
+    const auto unavailableNode = CloneYsonStruct(defaultNode);
+    unavailableNode->Streams["bigb/profile-hit-log"]->InflightMetrics->UnavailableTimestamp = now;
+    unavailableNode->Streams["bigb_profile_hit"]->EventWatermark = outdatedTimestamp;
+    ASSERT_TRUE(GetPartitionLastUnavailableTimestamp(unavailableNode, spec, TLogger("Test")));
 
-    const auto unavailableNotIdleNode = CloneYsonStruct(unavailableIdleNode);
-    unavailableNotIdleNode->Streams["bigb/profile-hit-log"]->InflightMetrics->Count = 1;
-    unavailableNotIdleNode->Streams["bigb/profile-hit-log"]->InflightMetrics->IdleDuration = std::nullopt;
-    ASSERT_TRUE(GetPartitionLastUnavailableTimestamp(unavailableNotIdleNode, spec, TLogger("Test")));
-    ASSERT_FALSE(GetPartitionLastIdleTimestamp(unavailableNotIdleNode, spec, /*relaxed*/ true));
-
-    // One availability group. Everything is OK. Do nothing.
+    // One availability group, partially unavailable. Do nothing.
     {
         auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
             {
-                {"default", {defaultNode, unavailableNotIdleNode}},
+                {"default", {defaultNode, unavailableNode}},
             },
             spec,
             TSensorsOwner(),
             TLogger("Test"));
         ASSERT_EQ(availablePartitionNodes.size(), 2u);
         ASSERT_EQ(availablePartitionNodes[0], defaultNode);
-        ASSERT_EQ(availablePartitionNodes[1], unavailableNotIdleNode);
+        ASSERT_EQ(availablePartitionNodes[1], unavailableNode);
     }
 
     // One fully unavailable availability group. MaxUnavailableGroups = 1. Watermark should be hidden.
     {
         auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
             {
-                {"default", {unavailableIdleNode, unavailableIdleNode}},
+                {"default", {unavailableNode, unavailableNode}},
             },
             spec,
             TSensorsOwner(),
@@ -118,7 +110,7 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
         auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
             {
                 {"sas", {defaultNode, defaultNode}},
-                {"vla", {defaultNode, unavailableIdleNode}},
+                {"vla", {defaultNode, unavailableNode}},
             },
             spec,
             TSensorsOwner(),
@@ -131,48 +123,9 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
         auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
             {
                 {"sas", {defaultNode, defaultNode}},
-                {"vla", {unavailableIdleNode, unavailableIdleNode}},
+                {"vla", {unavailableNode, unavailableNode}},
             },
             spec,
-            TSensorsOwner(),
-            TLogger("Test"));
-        ASSERT_EQ(availablePartitionNodes.size(), 4u);
-        for (const auto& node : availablePartitionNodes) {
-            if (node != defaultNode) {
-                ASSERT_EQ(node->Streams["bigb_profile_hit"]->EventWatermark, hiddenWatermark);
-            }
-        }
-    }
-
-    // Two availability groups. One of them is fully unavailable, but not idle. Do nothing.
-    {
-        auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
-            {
-                {"sas", {defaultNode, defaultNode}},
-                {"vla", {unavailableIdleNode, unavailableNotIdleNode}},
-            },
-            spec,
-            TSensorsOwner(),
-            TLogger("Test"));
-        ASSERT_EQ(availablePartitionNodes.size(), 4u);
-        for (const auto& node : availablePartitionNodes) {
-            ASSERT_TRUE(ConvertToYsonString(node) == ConvertToYsonString(unavailableIdleNode) ||
-                ConvertToYsonString(node) == ConvertToYsonString(unavailableNotIdleNode) ||
-                ConvertToYsonString(node) == ConvertToYsonString(defaultNode));
-        }
-    }
-
-    // Two availability groups. One of them is fully unavailable, but not idle.
-    // Ignoring idle unavailable partitions is enabled. Watermark should be hidden.
-    {
-        auto ignoringSpec = CloneYsonStruct(spec);
-        ignoringSpec->WatermarkStrategy->WatermarkGenerator->UnavailablePartitionGroups->IgnoreNotIdlePartitions = true;
-        auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
-            {
-                {"sas", {defaultNode, defaultNode}},
-                {"vla", {unavailableIdleNode, unavailableNotIdleNode}},
-            },
-            ignoringSpec,
             TSensorsOwner(),
             TLogger("Test"));
         ASSERT_EQ(availablePartitionNodes.size(), 4u);
@@ -187,32 +140,15 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
     {
         auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
             {
-                {"sas", {unavailableIdleNode, unavailableIdleNode}},
-                {"vla", {unavailableIdleNode, unavailableIdleNode}},
+                {"sas", {unavailableNode, unavailableNode}},
+                {"vla", {unavailableNode, unavailableNode}},
             },
             spec,
             TSensorsOwner(),
             TLogger("Test"));
         ASSERT_EQ(availablePartitionNodes.size(), 4u);
         for (const auto& node : availablePartitionNodes) {
-            ASSERT_EQ(ConvertToYsonString(node), ConvertToYsonString(unavailableIdleNode));
-        }
-    }
-
-    // Two availability groups. All of them are fully unavailable. But they are unavailable in a different way. Do nothing.
-    {
-        auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
-            {
-                {"sas", {unavailableIdleNode, unavailableIdleNode}},
-                {"vla", {unavailableNotIdleNode, unavailableNotIdleNode}},
-            },
-            spec,
-            TSensorsOwner(),
-            TLogger("Test"));
-        ASSERT_EQ(availablePartitionNodes.size(), 4u);
-        for (const auto& node : availablePartitionNodes) {
-            ASSERT_TRUE(ConvertToYsonString(node) == ConvertToYsonString(unavailableIdleNode) ||
-                ConvertToYsonString(node) == ConvertToYsonString(unavailableNotIdleNode));
+            ASSERT_EQ(ConvertToYsonString(node), ConvertToYsonString(unavailableNode));
         }
     }
 }

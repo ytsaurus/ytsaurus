@@ -304,13 +304,10 @@ def build_watermark_heuristics():
                 build_availability_partitions("unavailable_partitions"),
                 description=description)
             .cell(
-                "Unavailable idle partitions",
-                build_availability_partitions("unavailable_idle_partitions"),
-                description=description)
-            .cell(
                 "Confirmed unavailable partitions",
                 build_availability_partitions("confirmed_unavailable_partitions"),
                 description=confirmed_unavailable_description)
+            .cell("", EmptyCell())
             .cell("", EmptyCell())
     )
 
