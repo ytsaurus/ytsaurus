@@ -1298,6 +1298,10 @@ struct TOperationSpecBase
     //! If explicitly true, allow remote copy of tables with hunk columns.
     std::optional<bool> BypassHunkRemoteCopyProhibition;
 
+    //! If true, allow best-effort remote copy of dynamic input tables whose
+    //! tablets are neither frozen nor unmounted.
+    bool AllowUnfrozenInputTables;
+
     //! Options for cuda profiler.
     std::optional<TString> CudaProfilerLayerPath;
 
