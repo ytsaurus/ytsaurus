@@ -70,7 +70,7 @@ std::vector<TSharedRef> TClient::DoReadHunks(
         });
     }
 
-    auto response = WaitFor(reader->ReadFragments(/*options*/ {}, readerRequests))
+    auto response = WaitFor(reader->ReadFragments(readerRequests, /*options*/ {}))
         .ValueOrThrow();
     const auto& fragments = response.Fragments;
     YT_VERIFY(fragments.size() == requests.size());

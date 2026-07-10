@@ -1671,7 +1671,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
         columnarStatisticsThunk->MergeTo(hunkChunkReaderStatistics);
     }
 
-    auto fragmentsFuture = chunkFragmentReader->ReadFragments(options, requests);
+    auto fragmentsFuture = chunkFragmentReader->ReadFragments(requests, options);
     return fragmentsFuture.AsUnique().Apply(BIND([
             =,
             requests = std::move(requests),

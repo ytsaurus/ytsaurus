@@ -118,8 +118,8 @@ public:
     { }
 
     TFuture<TReadFragmentsResponse> ReadFragments(
-        TClientChunkReadOptions options,
-        std::vector<TChunkFragmentRequest> requests) override
+        std::vector<TChunkFragmentRequest> requests,
+        TClientChunkReadOptions options) override
     {
         TReadFragmentsResponse response;
         for (const auto& request : requests) {

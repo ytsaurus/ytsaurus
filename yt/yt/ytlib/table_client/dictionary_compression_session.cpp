@@ -446,8 +446,8 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
         requests.size());
 
     return chunkFragmentReader->ReadFragments(
-        chunkReadOptions,
-        std::move(requests))
+        std::move(requests),
+        chunkReadOptions)
         .Apply(BIND(
             [
                 =,
