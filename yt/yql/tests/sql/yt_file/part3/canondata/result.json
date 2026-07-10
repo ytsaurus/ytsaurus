@@ -1562,25 +1562,25 @@
             "uri": "https://{canondata_backend}/1942100/2aa840c1adb4103d05b4af5ba2bfc8ae4b4c15a1/resource.tar.gz#test.test_lineage-select_join-default.txt-Results_/Output.yqlrun.txt.attr"
         }
     ],
-    "test.test[materialize-from_inline_select--Debug]": [
+    "test.test[materialize-chained-default.txt-Debug]": [
         {
-            "checksum": "47aa0c014f64537ed2086a5b5e9f8db8",
-            "size": 2094,
-            "uri": "https://{canondata_backend}/1942278/8196c0cfe492c91850196c11ee875a2a2117ec22/resource.tar.gz#test.test_materialize-from_inline_select--Debug_/opt.yql"
+            "checksum": "6ca6b52221dad7fa8dace74e0ba245c9",
+            "size": 2063,
+            "uri": "https://{canondata_backend}/1942671/38b986611002bc3661a272147f603f528910efbd/resource.tar.gz#test.test_materialize-chained-default.txt-Debug_/opt.yql"
         }
     ],
-    "test.test[materialize-from_inline_select--Plan]": [
+    "test.test[materialize-chained-default.txt-Plan]": [
         {
-            "checksum": "cb9b5e6819ba4639fb51567090a2e6db",
-            "size": 5584,
-            "uri": "https://{canondata_backend}/1942278/8196c0cfe492c91850196c11ee875a2a2117ec22/resource.tar.gz#test.test_materialize-from_inline_select--Plan_/plan.txt"
+            "checksum": "cbddc1e8fbe44016caa5cc150d3a96c8",
+            "size": 6650,
+            "uri": "https://{canondata_backend}/1942671/38b986611002bc3661a272147f603f528910efbd/resource.tar.gz#test.test_materialize-chained-default.txt-Plan_/plan.txt"
         }
     ],
-    "test.test[materialize-from_inline_select--Results]": [
+    "test.test[materialize-chained-default.txt-Results]": [
         {
-            "checksum": "993b7e0bd032b0ca6c245a3253a83302",
-            "size": 1170,
-            "uri": "https://{canondata_backend}/1942278/8196c0cfe492c91850196c11ee875a2a2117ec22/resource.tar.gz#test.test_materialize-from_inline_select--Results_/results.txt"
+            "checksum": "fc8f190da2c19e9e518671bbba426a3c",
+            "size": 1654,
+            "uri": "https://{canondata_backend}/1942671/38b986611002bc3661a272147f603f528910efbd/resource.tar.gz#test.test_materialize-chained-default.txt-Results_/results.txt"
         }
     ],
     "test.test[multicluster-insert_fill--Debug]": [
