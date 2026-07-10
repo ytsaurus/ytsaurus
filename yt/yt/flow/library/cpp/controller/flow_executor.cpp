@@ -192,7 +192,7 @@ TGetFlowViewResult TFlowExecutor::GetFlowView(const TGetFlowViewArg& argument)
     if (argument.Path.empty()) {
         return Controller_->GetFlowViewKeeper()->GetYsonString(argument.Cache);
     }
-    return ConvertToYsonString(NYTree::GetNodeByYPath(Controller_->GetFlowViewKeeper()->GetNode(argument.Cache), TYPath(argument.Path)));
+    return Controller_->GetFlowViewKeeper()->GetYsonStringByPath(TYPath(argument.Path), argument.Cache);
 }
 
 TYsonString TFlowExecutor::GetFlowView(const std::string& /*command*/, const TYsonString& serializedArgument)

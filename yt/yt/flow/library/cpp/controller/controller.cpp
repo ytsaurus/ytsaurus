@@ -1501,7 +1501,7 @@ private:
             "build_cache",
             Config_->CachePeriod,
             [this, this_ = MakeStrong(this)] {
-                FlowViewKeeper_->RebuildNodeCache();
+                FlowViewKeeper_->RebuildNodeCache(Invoker_);
             });
 
         startRegularActivity(

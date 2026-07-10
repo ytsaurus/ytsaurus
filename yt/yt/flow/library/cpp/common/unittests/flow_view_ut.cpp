@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_resolver.h>
 
 #include <thread>
 
@@ -58,6 +59,47 @@ TEST(TFlowLayoutMutationTest, CreatePartition)
     keeper->SetStates(flowState, {});
 
     EXPECT_EQ(keeper->GetFlowView()->State->ExecutionSpec->Layout->Partitions.size(), 1ull);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TFlowViewSerializeTest, RendersLayoutButKeepsDefaultEmpty)
+{
+    auto flowState = New<TFlowState>();
+    auto storageHandler = New<TStorageHandler>();
+    auto persistedControl = New<TPersistedStateControl<std::string>>(storageHandler);
+    flowState->AttachToControl(persistedControl);
+    persistedControl->Recover();
+    flowState->StartMutation();
+
+    auto partition = New<TPartition>();
+    partition->PartitionId = TPartitionId(TGuid::Create());
+    partition->ComputationId = "comp";
+    partition->State = EPartitionState::Executing;
+    partition->StateEpoch = 1;
+    partition->StateTimestamp = TInstant::Seconds(100);
+    flowState->ExecutionSpec->Layout->CreatePartition(partition);
+
+    auto job = New<TJob>();
+    job->JobId = TJobId(TGuid::Create());
+    job->WorkerAddress = "worker";
+    job->PartitionId = partition->PartitionId;
+    flowState->ExecutionSpec->Layout->CreateJob(job);
+    flowState->CommitMutation();
+
+    auto keeper = New<TFlowViewKeeper>();
+    keeper->Init(New<TFlowState>(), New<TFlowEphemeralState>(), New<TVersionedPipelineSpec>(), New<TVersionedDynamicPipelineSpec>());
+    keeper->SetStates(flowState, New<TFlowEphemeralState>());
+    auto flowView = keeper->GetFlowView();
+
+    // The rendered (UI) form streams the layout as partitions/jobs.
+    auto rendered = flowView->SerializeAsYsonString();
+    EXPECT_TRUE(TryGetAny(rendered.AsStringBuf(), "/state/execution_spec/layout/partitions/" + ToString(partition->PartitionId)));
+    EXPECT_TRUE(TryGetAny(rendered.AsStringBuf(), "/state/execution_spec/layout/jobs/" + ToString(job->JobId)));
+
+    // Invariant: the layout's default (persisted) serialization stays empty — the render above must
+    // not leak into how the state struct serializes by default.
+    EXPECT_FALSE(TryGetAny(ConvertToYsonString(flowView->State->ExecutionSpec->Layout).AsStringBuf(), "/partitions"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
