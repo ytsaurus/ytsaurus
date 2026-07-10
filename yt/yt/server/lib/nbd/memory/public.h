@@ -1,14 +1,13 @@
 #pragma once
 
-#include "block_device.h"
-#include "config.h"
+#include <library/cpp/yt/memory/ref_counted.h>
 
-namespace NYT::NNbd {
-
-////////////////////////////////////////////////////////////////////////////////
-
-IBlockDevicePtr CreateMemoryBlockDevice(TMemoryBlockDeviceConfigPtr config);
+namespace NYT::NNbd::NMemory {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+DECLARE_REFCOUNTED_STRUCT(TMemoryBlockDeviceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NNbd::NMemory

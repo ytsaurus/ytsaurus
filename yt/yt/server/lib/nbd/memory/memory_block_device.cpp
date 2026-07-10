@@ -1,8 +1,9 @@
 #include "memory_block_device.h"
-#include "block_device_detail.h"
 #include "config.h"
 
-namespace NYT::NNbd {
+#include <yt/yt/server/lib/nbd/block_device_detail.h>
+
+namespace NYT::NNbd::NMemory {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,4 +84,4 @@ IBlockDevicePtr CreateMemoryBlockDevice(TMemoryBlockDeviceConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NMemory

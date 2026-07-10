@@ -6,6 +6,7 @@
 
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/public.h>
+#include <yt/yt/server/lib/nbd/image/public.h>
 
 #include <yt/yt/ytlib/exec_node/public.h>
 
@@ -23,7 +24,7 @@ struct TVirtualSandboxData
 {
     std::string NbdDeviceId;
     TArtifactKey ArtifactKey;
-    NNbd::IImageReaderPtr Reader;
+    NNbd::NImage::IImageReaderPtr Reader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +32,7 @@ struct TVirtualSandboxData
 struct TOverlayLayerPreparationOptions
 {
     TArtifactKey ArtifactKey;
-    NNbd::IImageReaderPtr ImageReader;
+    NNbd::NImage::IImageReaderPtr ImageReader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

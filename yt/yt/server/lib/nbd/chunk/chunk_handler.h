@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "block_device.h"
+#include <yt/yt/server/lib/nbd/block_device.h>
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
@@ -12,7 +12,7 @@
 
 #include <library/cpp/yt/logging/public.h>
 
-namespace NYT::NNbd {
+namespace NYT::NNbd::NChunk {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,4 +44,4 @@ NChunkClient::TSessionId GenerateSessionId(int mediumIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NChunk

@@ -100,7 +100,7 @@ public:
     size_t GetTmpfsVolumeCount() const;
 
     const std::optional<TVirtualSandboxData>& GetVirtualSandboxData() const;
-    void SetVirtualSandboxReader(NNbd::IImageReaderPtr reader);
+    void SetVirtualSandboxReader(NNbd::NImage::IImageReaderPtr reader);
 
     const std::optional<i64>& GetRootVolumeDiskSpace() const;
     const std::optional<i64>& GetRootVolumeInodeLimit() const;

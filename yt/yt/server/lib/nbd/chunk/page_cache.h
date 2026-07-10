@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "block_device.h"
+#include <yt/yt/server/lib/nbd/block_device.h>
 #include "chunk_handler.h"
 #include "config.h"
 
@@ -16,7 +16,7 @@
 #include <list>
 #include <unordered_map>
 
-namespace NYT::NNbd {
+namespace NYT::NNbd::NChunk {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,4 +130,4 @@ DECLARE_REFCOUNTED_TYPE(TPageCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NChunk

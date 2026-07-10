@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/io/io_tracker.h>
 
-#include <yt/yt/server/lib/nbd/chunk_block_device.h>
+#include <yt/yt/server/lib/nbd/config.h>
 
 #include <yt/yt/server/node/data_node/location.h>
 

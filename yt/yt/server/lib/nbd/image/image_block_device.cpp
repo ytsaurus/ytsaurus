@@ -1,8 +1,9 @@
-#include "file_system_block_device.h"
-#include "block_device_detail.h"
+#include "image_block_device.h"
 #include "config.h"
 #include "image_reader.h"
-#include "profiler.h"
+
+#include <yt/yt/server/lib/nbd/block_device_detail.h>
+#include <yt/yt/server/lib/nbd/profiler.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -27,7 +28,7 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-namespace NYT::NNbd {
+namespace NYT::NNbd::NImage {
 
 using namespace NYTree;
 using namespace NChunkClient;
@@ -36,13 +37,13 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileSystemBlockDevice
+class TImageBlockDevice
     : public TBlockDeviceBase
 {
 public:
-    TFileSystemBlockDevice(
+    TImageBlockDevice(
         std::string exportId,
-        TFileSystemBlockDeviceConfigPtr config,
+        TImageBlockDeviceConfigPtr config,
         IImageReaderPtr reader,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger)
@@ -52,7 +53,7 @@ public:
         , Invoker_(std::move(invoker))
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
         , TagSet_(TNbdProfilerCounters::MakeTagSet(Reader_->GetPath()))
-        , TraceContext_(GetOrCreateTraceContext("FileSystemBlockDevice"))
+        , TraceContext_(GetOrCreateTraceContext("ImageBlockDevice"))
     {
         TNbdProfilerCounters::Get()->GetGauge(TagSet_, "/device/count")
             .Update(FileBlockDeviceCount().Increment(TagSet_));
@@ -60,7 +61,7 @@ public:
             .Increment(1);
     }
 
-    ~TFileSystemBlockDevice()
+    ~TImageBlockDevice()
     {
         TNbdProfilerCounters::Get()->GetGauge(TagSet_, "/device/count")
             .Update(FileBlockDeviceCount().Decrement(TagSet_));
@@ -128,7 +129,7 @@ public:
 
     TFuture<void> Initialize() override
     {
-        return BIND(&TFileSystemBlockDevice::DoInitialize, MakeStrong(this))
+        return BIND(&TImageBlockDevice::DoInitialize, MakeStrong(this))
             .AsyncVia(Invoker_)
             .Run();
     }
@@ -140,7 +141,7 @@ public:
 
 private:
     const std::string ExportId_;
-    const TFileSystemBlockDeviceConfigPtr Config_;
+    const TImageBlockDeviceConfigPtr Config_;
     const IImageReaderPtr Reader_;
     const IInvokerPtr Invoker_;
     const NLogging::TLogger Logger;
@@ -165,14 +166,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBlockDevicePtr CreateFileSystemBlockDevice(
+IBlockDevicePtr CreateImageBlockDevice(
     std::string exportId,
-    TFileSystemBlockDeviceConfigPtr config,
+    TImageBlockDeviceConfigPtr config,
     IImageReaderPtr reader,
     IInvokerPtr invoker,
     NLogging::TLogger logger)
 {
-    return New<TFileSystemBlockDevice>(
+    return New<TImageBlockDevice>(
         std::move(exportId),
         std::move(config),
         std::move(reader),
@@ -182,4 +183,4 @@ IBlockDevicePtr CreateFileSystemBlockDevice(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NImage

@@ -2,19 +2,23 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/server/lib/nbd/public.h>
 
-namespace NYT::NNbd {
+#include <yt/yt/core/actions/public.h>
+
+#include <library/cpp/yt/logging/public.h>
+
+namespace NYT::NNbd::NImage {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBlockDevicePtr CreateFileSystemBlockDevice(
+IBlockDevicePtr CreateImageBlockDevice(
     std::string exportId,
-    TFileSystemBlockDeviceConfigPtr config,
+    TImageBlockDeviceConfigPtr config,
     IImageReaderPtr reader,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NImage

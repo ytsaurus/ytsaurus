@@ -1,7 +1,6 @@
 #include "chunk_handler.h"
 
 #include "config.h"
-#include "public.h"
 
 #include <yt/yt/ytlib/chunk_client/data_node_nbd_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -9,7 +8,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-namespace NYT::NNbd {
+namespace NYT::NNbd::NChunk {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -340,4 +339,4 @@ TSessionId GenerateSessionId(int mediumIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NChunk

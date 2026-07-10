@@ -1,5 +1,7 @@
-#include <yt/yt/server/lib/nbd/chunk_handler.h>
 #include <yt/yt/server/lib/nbd/config.h>
+
+#include <yt/yt/server/lib/nbd/chunk/chunk_handler.h>
+#include <yt/yt/server/lib/nbd/chunk/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/client.h>
@@ -21,6 +23,7 @@ namespace NYT::NNbd {
 
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NNbd::NChunk;
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Test");
 YT_DEFINE_GLOBAL(const NProfiling::TProfiler, Profiler, "/test");
@@ -93,7 +96,7 @@ protected:
         deviceConfig->DataNodeNbdServiceRpcTimeout = config->DataNodeNbdServiceRpcTimeout;
         deviceConfig->DataNodeNbdServiceMakeTimeout = config->DataNodeNbdServiceMakeTimeout;
 
-        auto handler = NYT::NNbd::CreateChunkHandler(
+        auto handler = NYT::NNbd::NChunk::CreateChunkHandler(
             /*blockDevice*/ nullptr,
             std::move(deviceConfig),
             queue->GetInvoker(),

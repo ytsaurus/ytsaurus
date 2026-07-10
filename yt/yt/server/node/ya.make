@@ -257,6 +257,8 @@ PEERDIR(
     yt/yt/server/lib/lsm
     yt/yt/server/lib/misc
     yt/yt/server/lib/nbd
+    yt/yt/server/lib/nbd/chunk
+    yt/yt/server/lib/nbd/image
     yt/yt/server/lib/node
     yt/yt/server/lib/rpc
     yt/yt/server/lib/tablet_balancer

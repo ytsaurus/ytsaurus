@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
-namespace NYT::NNbd {
+namespace NYT::NNbd::NImage {
 
 using namespace NApi::NNative;
 using namespace NChunkClient;
@@ -293,4 +293,4 @@ IImageReaderPtr CreateVirtualSquashFSImageReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NImage

@@ -4,6 +4,7 @@ namespace NYT::NSquashFS {
 
 using namespace NConcurrency;
 using namespace NNbd;
+using namespace NNbd::NImage;
 
 ////////////////////////////////////////////////////////////////////////////////
 

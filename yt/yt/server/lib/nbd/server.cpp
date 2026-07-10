@@ -5,13 +5,6 @@
 #include "profiler.h"
 #include "protocol.h"
 
-#include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/connection.h>
-
-#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
-#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
-#include <yt/yt/ytlib/chunk_client/config.h>
-
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/connection.h>
 #include <yt/yt/core/net/listener.h>
@@ -24,7 +17,6 @@
 
 namespace NYT::NNbd {
 
-using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNet;
 using namespace NProfiling;

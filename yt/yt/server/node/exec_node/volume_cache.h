@@ -13,6 +13,7 @@
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/lib/nbd/public.h>
+#include <yt/yt/server/lib/nbd/image/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
@@ -185,7 +186,7 @@ private:
 
     // RO volumes start here.
 
-    NNbd::IImageReaderPtr CreateArtifactReader(
+    NNbd::NImage::IImageReaderPtr CreateArtifactReader(
         const NLogging::TLogger& Logger,
         const TArtifactKey& artifactKey);
 

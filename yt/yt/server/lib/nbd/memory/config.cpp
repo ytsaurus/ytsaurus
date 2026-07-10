@@ -1,0 +1,15 @@
+#include "config.h"
+
+namespace NYT::NNbd::NMemory {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMemoryBlockDeviceConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("size", &TThis::Size)
+        .GreaterThanOrEqual(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NNbd::NMemory

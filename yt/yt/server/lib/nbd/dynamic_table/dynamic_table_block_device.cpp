@@ -1,6 +1,7 @@
 #include "dynamic_table_block_device.h"
-#include "block_device_detail.h"
 #include "config.h"
+
+#include <yt/yt/server/lib/nbd/block_device_detail.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/rowset.h>
@@ -15,7 +16,7 @@
 
 #include <util/digest/city.h>
 
-namespace NYT::NNbd {
+namespace NYT::NNbd::NDynamicTable {
 
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -648,4 +649,4 @@ IBlockDevicePtr CreateDynamicTableBlockDevice(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NDynamicTable

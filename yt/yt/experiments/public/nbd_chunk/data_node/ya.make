@@ -10,6 +10,7 @@ SRCS(
 PEERDIR(
     yt/yt/core
     yt/yt/server/lib
+    yt/yt/server/lib/nbd/chunk
     yt/yt/server/node
     yt/yt/library/program
     yt/yt/ytlib

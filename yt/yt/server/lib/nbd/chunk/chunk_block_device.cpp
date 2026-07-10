@@ -1,10 +1,11 @@
 #include "chunk_block_device.h"
 
-#include "block_device_detail.h"
 #include "chunk_handler.h"
 #include "config.h"
+
+#include <yt/yt/server/lib/nbd/block_device_detail.h>
 #include "page_cache.h"
-#include "profiler.h"
+#include <yt/yt/server/lib/nbd/profiler.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -12,7 +13,7 @@
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
-namespace NYT::NNbd {
+namespace NYT::NNbd::NChunk {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -591,4 +592,4 @@ IBlockDevicePtr CreateChunkBlockDevice(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNbd
+} // namespace NYT::NNbd::NChunk
