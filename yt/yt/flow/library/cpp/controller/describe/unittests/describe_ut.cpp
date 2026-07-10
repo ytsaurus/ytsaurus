@@ -329,16 +329,14 @@ TEST_W(TDescribeTest, MakeComputationDescriptions)
 {
     Prepare();
 
+    Spec->Computations[TComputationId("Computation_1")]->ProcessingFunction = "MyProcessFunction";
+
     auto makeComputationDescriptions = [&] {
         return MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView));
     };
 
-    auto computations = makeComputationDescriptions();
-    EXPECT_EQ(computations.size(), 3u);
-    for (auto& [computationId, computationDescription] : computations) {
-        EXPECT_TRUE(computationDescription.PartitionsStats.Count == 3);
-        EXPECT_EQ(computationDescription.Status, ELogLevel::Info);
-        const auto expectedResult = ConvertTo<TNodePerformanceMetricsPtr>(
+    auto makeExpectedMetrics = [] (double cpuUsage10m, i64 memoryUsage10m) {
+        auto metrics = ConvertTo<TNodePerformanceMetricsPtr>(
             TYsonString(TStringBuf(R""""(
                 {
                     "cpu_usage_10m" = 9.;
@@ -349,17 +347,51 @@ TEST_W(TDescribeTest, MakeComputationDescriptions)
                     "memory_usage_current" = 3;
                 }
             )"""")));
-        if (computationId == "Computation_1") {
-            expectedResult->CpuUsage10m = 90;
-            expectedResult->MemoryUsage10m = 60;
-        }
-        EXPECT_TRUE(*computationDescription.Metrics == *expectedResult);
+        metrics->CpuUsage10m = cpuUsage10m;
+        metrics->MemoryUsage10m = memoryUsage10m;
+        return metrics;
+    };
 
-        EXPECT_DOUBLE_EQ(computationDescription.CpuUsage, *expectedResult->CpuUsage10m);
-        EXPECT_DOUBLE_EQ(computationDescription.MemoryUsage, expectedResult->MemoryUsage10m);
+    struct TExpectedComputation
+    {
+        std::string ClassName;
+        std::string ProcessFunction;
+        TNodePerformanceMetricsPtr Metrics;
+        bool Highlighted = false;
+    };
 
-        EXPECT_EQ(computationDescription.HighlightCpuUsage, computationId == "Computation_1");
-        EXPECT_EQ(computationDescription.HighlightMemoryUsage, computationId == "Computation_1");
+    THashMap<TComputationId, TExpectedComputation> expectedComputations;
+    expectedComputations[TComputationId("Computation_1")] = TExpectedComputation{
+        .ClassName = "NYT::NFlow::TPassthroughComputation",
+        .ProcessFunction = "MyProcessFunction",
+        .Metrics = makeExpectedMetrics(/*cpuUsage10m*/ 90, /*memoryUsage10m*/ 60),
+        .Highlighted = true,
+    };
+    expectedComputations[TComputationId("Computation_2")] = TExpectedComputation{
+        .ClassName = "NYT::NFlow::TPassthroughComputation",
+        .Metrics = makeExpectedMetrics(/*cpuUsage10m*/ 9, /*memoryUsage10m*/ 9),
+    };
+    expectedComputations[TComputationId("Computation_3")] = TExpectedComputation{
+        .ClassName = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation",
+        .Metrics = makeExpectedMetrics(/*cpuUsage10m*/ 9, /*memoryUsage10m*/ 9),
+    };
+
+    auto computations = makeComputationDescriptions();
+    EXPECT_EQ(computations.size(), expectedComputations.size());
+    for (const auto& [computationId, expected] : expectedComputations) {
+        const auto& computationDescription = GetOrCrash(computations, computationId);
+
+        EXPECT_EQ(computationDescription.PartitionsStats.Count, 3);
+        EXPECT_EQ(computationDescription.Status, ELogLevel::Info);
+        EXPECT_EQ(computationDescription.ClassName, expected.ClassName);
+        EXPECT_EQ(computationDescription.ProcessFunction, expected.ProcessFunction);
+
+        EXPECT_TRUE(*computationDescription.Metrics == *expected.Metrics);
+        EXPECT_DOUBLE_EQ(computationDescription.CpuUsage, *expected.Metrics->CpuUsage10m);
+        EXPECT_DOUBLE_EQ(computationDescription.MemoryUsage, expected.Metrics->MemoryUsage10m);
+
+        EXPECT_EQ(computationDescription.HighlightCpuUsage, expected.Highlighted);
+        EXPECT_EQ(computationDescription.HighlightMemoryUsage, expected.Highlighted);
     }
 
     {
