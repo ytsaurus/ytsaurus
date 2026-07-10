@@ -1247,7 +1247,13 @@ private:
         }
         YQL_LOG(DEBUG) << __FUNCTION__ << ": CompileLibraries ready";
 
-        dynamicConfig->ModuleResolver = std::make_shared<NYql::TModuleResolver>(translators, std::move(modulesTable), dynamicConfig->ExprContext.NextUniqueId, dynamicConfig->Clusters, THashSet<TString>{});
+        dynamicConfig->ModuleResolver = std::make_shared<NYql::TModuleResolver>(
+            translators,
+            std::move(modulesTable),
+            dynamicConfig->ExprContext.NextUniqueId,
+            dynamicConfig->Clusters,
+            NSQLTranslation::TExtendedSqlFlags{});
+
         YQL_LOG(DEBUG) << __FUNCTION__ << ": ModuleResolver ready";
 
         YQL_LOG(DEBUG) << __FUNCTION__ << ": done";
