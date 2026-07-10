@@ -39,6 +39,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/polymorphic_yson_struct.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -51,8 +52,6 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 
 #include <yt/yt/core/misc/configurable_singleton_def.h>
-
-#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/library/program/helpers.h>
 #include <yt/yt/library/program/program.h>
@@ -123,7 +122,7 @@ DECLARE_REFCOUNTED_STRUCT(TCypressFileDeviceConfig)
 struct TCypressFileDeviceConfig
     : public TFileSystemBlockDeviceConfig
 {
-    NYPath::TYPath Path;
+    TYPath Path;
 
     REGISTER_YSON_STRUCT(TCypressFileDeviceConfig);
 
@@ -273,7 +272,7 @@ IBlockDevicePtr CreateCypressFileDevice(
     auto filesystem = ConvertToAttributes(NYson::TYsonString(attributesRsp->value()))
         ->Get<std::string>("filesystem", /*defaultValue*/ "");
     if (filesystem != "ext4" && filesystem != "squashfs") {
-        THROW_ERROR_EXCEPTION("Invalid \"filesystem\" attribute %Qv of file %Qv: expected \"ext4\" or \"squashfs\"",
+        THROW_ERROR_EXCEPTION("Invalid \"filesystem\" attribute %Qv of file %v: expected \"ext4\" or \"squashfs\"",
             filesystem,
             config->Path);
     }
