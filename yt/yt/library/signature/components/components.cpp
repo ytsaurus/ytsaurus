@@ -25,6 +25,8 @@
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +34,7 @@ namespace NYT::NSignature {
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NThreading;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,6 +49,9 @@ TSignatureComponents::TSignatureComponents(
             ? TClientOptions::Root()
             : TClientOptions::FromUser(NSecurityClient::SignatureKeysmithUserName)))
     , RotateInvoker_(std::move(rotateInvoker))
+    , AppliedKeyReaderConfigNode_(config->Validation
+        ? ConvertToNode(config->Validation->CypressKeyReader)
+        : nullptr)
     , CypressKeyReader_(config->Validation
         ? New<TCypressKeyReader>(config->Validation->CypressKeyReader, Client_)
         : nullptr)
@@ -133,21 +139,25 @@ TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfig
     }
 
     if (config->Validation) {
+        auto newKeyReaderConfigNode = ConvertToNode(config->Validation->CypressKeyReader);
         if (CypressKeyReader_) {
-            CypressKeyReader_->Reconfigure(config->Validation->CypressKeyReader);
+            // NB: Reconfiguring the reader drops its key cache, so it is only done
+            // when the reader config has actually changed.
+            if (!AreNodesEqual(AppliedKeyReaderConfigNode_, newKeyReaderConfigNode)) {
+                CypressKeyReader_->Reconfigure(config->Validation->CypressKeyReader);
+            }
         } else {
             CypressKeyReader_ = New<TCypressKeyReader>(config->Validation->CypressKeyReader, Client_);
-        }
-
-        if (!UnderlyingValidator_) {
             UnderlyingValidator_ = New<TSignatureValidator>(CypressKeyReader_);
         }
+        AppliedKeyReaderConfigNode_ = std::move(newKeyReaderConfigNode);
 
         DynamicSignatureValidator_->SetUnderlying(UnderlyingValidator_);
     } else {
         DynamicSignatureValidator_->SetUnderlying(CreateAlwaysThrowingSignatureValidator());
         UnderlyingValidator_.Reset();
         CypressKeyReader_.Reset();
+        AppliedKeyReaderConfigNode_.Reset();
     }
 
     return returnFuture;

@@ -99,14 +99,21 @@ TEST_F(TCypressKeyReaderTest, FindKey)
 
 TEST_F(TCypressKeyReaderTest, FindKeyNotFound)
 {
+    // NB: A fresh future is minted per call: FindKey consumes its unique result.
     EXPECT_CALL(*Client, GetNode(_, _))
-        .WillOnce(Return(MakeFuture<TYsonString>(TError("Key not found"))));
+        .Times(2)
+        .WillRepeatedly([] (const auto& /*path*/, const auto& /*options*/) {
+            return MakeFuture<TYsonString>(TError("Key not found"));
+        });
 
     auto reader = New<TCypressKeyReader>(Config, Client);
 
-    auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
-    EXPECT_FALSE(keyInfo.IsOK());
-    EXPECT_THAT(keyInfo.GetMessage(), HasSubstr("Key not found"));
+    // Errors are not cached: every lookup fetches the key again.
+    for (int i = 0; i < 2; ++i) {
+        auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
+        EXPECT_FALSE(keyInfo.IsOK());
+        EXPECT_THAT(keyInfo.GetMessage(), HasSubstr("Key not found"));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,30 +141,17 @@ TEST_F(TCypressKeyReaderTest, ReconfigureDuringReadOperation)
     auto simpleKeyInfo = New<TKeyInfo>(key, Meta);
 
     // We want to test out the case that reconfigure happened during registration.
-    std::vector<TPromise<TYsonString>> barriers(10);
-    for (auto& barrier : barriers) {
-        barrier = NewPromise<TYsonString>();
-    }
+    // Concurrent reads of the same key are deduplicated, so a single fetch is expected.
+    auto barrier = NewPromise<TYsonString>();
 
-    // We can't return the same future over an over, so some nasty tricks are required.
-    {
-        InSequence seq;
-        for (auto& barrier : barriers) {
-            EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/4-3-2-1", _))
-                .WillOnce(Return(barrier));
-        }
-    }
+    EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/4-3-2-1", _))
+        .WillOnce(Return(barrier));
 
-    {
-        InSequence seq;
-        for (int i = 0; i < 10; ++i) {
-            EXPECT_CALL(*Client, GetNode("//sys/shmublic_keys/lawn_mower/test/4-3-2-1", _))
-                .WillOnce(Return(MakeFuture(ConvertToYsonString(*simpleKeyInfo))));
-        }
-    }
+    EXPECT_CALL(*Client, GetNode("//sys/shmublic_keys/lawn_mower/test/4-3-2-1", _))
+        .WillOnce(Return(MakeFuture(ConvertToYsonString(*simpleKeyInfo))));
 
     std::vector<TFuture<TKeyInfoPtr>> futures;
-    for (const auto& _ : barriers) {
+    for (int i = 0; i < 10; ++i) {
         futures.push_back(reader->FindKey(OwnerId, KeyId));
     }
 
@@ -165,10 +159,8 @@ TEST_F(TCypressKeyReaderTest, ReconfigureDuringReadOperation)
     newConfig->Path = "//sys/shmublic_keys/lawn_mower";
     reader->Reconfigure(newConfig);
 
-    // Release all the barriers after reconfigure.
-    for (auto& barrier : barriers) {
-        barrier.Set(ConvertToYsonString(simpleKeyInfo));
-    }
+    // Release the barrier after reconfigure.
+    barrier.Set(ConvertToYsonString(simpleKeyInfo));
 
     for (int i = 0; i < 10; ++i) {
         futures.push_back(reader->FindKey(OwnerId, KeyId));
@@ -178,6 +170,77 @@ TEST_F(TCypressKeyReaderTest, ReconfigureDuringReadOperation)
         auto result = WaitFor(future);
         EXPECT_EQ(*result.ValueOrThrow(), *simpleKeyInfo);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TCypressKeyReaderTest, FindKeyCached)
+{
+    TPublicKey key{};
+    auto simpleKeyInfo = New<TKeyInfo>(key, Meta);
+    EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/4-3-2-1", _))
+        .WillOnce(Return(MakeFuture(ConvertToYsonString(simpleKeyInfo))));
+
+    auto reader = New<TCypressKeyReader>(Config, Client);
+
+    auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
+    EXPECT_THAT(keyInfo.ValueOrThrow(), Pointee(*simpleKeyInfo));
+
+    // The second read is served from the cache.
+    auto cachedKeyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
+    EXPECT_THAT(cachedKeyInfo.ValueOrThrow(), Pointee(*simpleKeyInfo));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TCypressKeyReaderTest, ConcurrentFindKeyDeduplicated)
+{
+    TPublicKey key{};
+    auto simpleKeyInfo = New<TKeyInfo>(key, Meta);
+
+    auto barrier = NewPromise<TYsonString>();
+    EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/4-3-2-1", _))
+        .WillOnce(Return(barrier));
+
+    auto reader = New<TCypressKeyReader>(Config, Client);
+
+    auto firstFuture = reader->FindKey(OwnerId, KeyId);
+    auto secondFuture = reader->FindKey(OwnerId, KeyId);
+    EXPECT_FALSE(firstFuture.IsSet());
+    EXPECT_FALSE(secondFuture.IsSet());
+
+    barrier.Set(ConvertToYsonString(simpleKeyInfo));
+
+    EXPECT_THAT(WaitFor(firstFuture).ValueOrThrow(), Pointee(*simpleKeyInfo));
+    EXPECT_THAT(WaitFor(secondFuture).ValueOrThrow(), Pointee(*simpleKeyInfo));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TCypressKeyReaderTest, FindDifferentKeysNotDeduplicated)
+{
+    auto otherKeyId = TKeyId(TGuid(5, 6, 7, 8));
+    TKeyPairMetadata otherMeta = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
+        .OwnerId = OwnerId,
+        .KeyId = otherKeyId,
+        .CreatedAt = NowTime,
+        .ValidAfter = NowTime - TDuration::Hours(10),
+        .ExpiresAt = ExpiresAt,
+    };
+
+    TPublicKey key{};
+    auto simpleKeyInfo = New<TKeyInfo>(key, Meta);
+    auto otherKeyInfo = New<TKeyInfo>(key, otherMeta);
+
+    EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/4-3-2-1", _))
+        .WillOnce(Return(MakeFuture(ConvertToYsonString(simpleKeyInfo))));
+    EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/8-7-6-5", _))
+        .WillOnce(Return(MakeFuture(ConvertToYsonString(otherKeyInfo))));
+
+    auto reader = New<TCypressKeyReader>(Config, Client);
+
+    EXPECT_THAT(WaitFor(reader->FindKey(OwnerId, KeyId)).ValueOrThrow(), Pointee(*simpleKeyInfo));
+    EXPECT_THAT(WaitFor(reader->FindKey(OwnerId, otherKeyId)).ValueOrThrow(), Pointee(*otherKeyInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,42 +35,82 @@ TYPath MakeCypressKeyPath(const TYPath& prefixPath, const TOwnerId& ownerId, con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressKeyReader::TCypressKeyReader(TCypressKeyReaderConfigPtr config, IClientPtr client)
-    : Config_(std::move(config))
+TCypressKeyReader::TCachedKeyInfo::TCachedKeyInfo(const TKeyDescriptor& key, TKeyInfoPtr keyInfo)
+    : TAsyncCacheValueBase(key)
+    , KeyInfo_(std::move(keyInfo))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCypressKeyReader::TKeyCache::TKeyCache(TCypressKeyReaderConfigPtr config, IClientPtr client)
+    : TAsyncSlruCacheBase(config->KeyCache)
+    , Config_(std::move(config))
     , Client_(std::move(client))
 { }
+
+TFuture<TKeyInfoPtr> TCypressKeyReader::TKeyCache::FindKey(const TOwnerId& ownerId, const TKeyId& keyId)
+{
+    auto key = TKeyDescriptor(ownerId, keyId);
+    auto cookie = BeginInsert(key);
+    auto valueFuture = cookie.GetValue();
+
+    if (cookie.IsActive()) {
+        auto keyNodePath = MakeCypressKeyPath(Config_->Path, ownerId, keyId);
+
+        YT_LOG_DEBUG(
+            "Looking for public key in Cypress (OwnerId: %v, KeyId: %v, Path: %v)",
+            ownerId,
+            keyId,
+            keyNodePath);
+
+        TGetNodeOptions options;
+        static_cast<TMasterReadOptions&>(options) = *Config_->CypressReadOptions;
+
+        Client_->GetNode(keyNodePath, options).AsUnique()
+            .Apply(BIND([key = std::move(key)] (TYsonString&& str) {
+                auto keyInfo = ConvertTo<TKeyInfoPtr>(std::move(str));
+                auto [ownerId, keyId] = std::visit([] (const auto& meta) {
+                    return std::pair(meta.OwnerId, meta.KeyId);
+                }, keyInfo->Meta());
+                YT_LOG_DEBUG(
+                    "Found public key in Cypress (OwnerId: %v, KeyId: %v)",
+                    ownerId,
+                    keyId);
+                return New<TCachedKeyInfo>(key, std::move(keyInfo));
+            }))
+            .Subscribe(BIND([cookie = std::move(cookie)] (const TErrorOr<TCachedKeyInfoPtr>& result) mutable {
+                if (result.IsOK()) {
+                    cookie.EndInsert(result.Value());
+                } else {
+                    // NB: Fetch errors are not cached.
+                    cookie.Cancel(result);
+                }
+            }));
+    }
+
+    return valueFuture.Apply(BIND([] (const TCachedKeyInfoPtr& cachedKey) {
+        return cachedKey->KeyInfo();
+    }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCypressKeyReader::TCypressKeyReader(TCypressKeyReaderConfigPtr config, IClientPtr client)
+    : Client_(client)
+    , KeyCache_(New<TKeyCache>(std::move(config), std::move(client)))
+{ }
+
+TFuture<TKeyInfoPtr> TCypressKeyReader::FindKey(const TOwnerId& ownerId, const TKeyId& keyId) const
+{
+    return KeyCache_.Acquire()->FindKey(ownerId, keyId);
+}
 
 void TCypressKeyReader::Reconfigure(TCypressKeyReaderConfigPtr config)
 {
     YT_VERIFY(config);
-    Config_.Store(std::move(config));
+    // TODO(pogorelov): Recreate the cache only if its config has changed.
+    KeyCache_.Store(New<TKeyCache>(std::move(config), Client_));
     YT_LOG_INFO("Cypress key reader reconfigured");
-}
-
-TFuture<TKeyInfoPtr> TCypressKeyReader::FindKey(const TOwnerId& ownerId, const TKeyId& keyId) const
-{
-    auto config = Config_.Acquire();
-    auto keyNodePath = MakeCypressKeyPath(config->Path, ownerId, keyId);
-
-    YT_LOG_DEBUG("Looking for public key in Cypress (OwnerId: %v, KeyId: %v, Path: %v)",
-        ownerId,
-        keyId,
-        keyNodePath);
-
-    TGetNodeOptions options;
-    static_cast<TMasterReadOptions&>(options) = *config->CypressReadOptions;
-    auto result = Client_->GetNode(keyNodePath, options);
-
-    return result.AsUnique().Apply(BIND([] (TYsonString&& str) {
-        auto keyInfo = ConvertTo<TKeyInfoPtr>(std::move(str));
-        auto [ownerId, keyId] = std::visit([] (const auto& meta) {
-            return std::pair(meta.OwnerId, meta.KeyId);
-        }, keyInfo->Meta());
-        YT_LOG_DEBUG("Found public key in Cypress (OwnerId: %v, KeyId: %v)",
-            ownerId,
-            keyId);
-        return std::move(keyInfo);
-    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
