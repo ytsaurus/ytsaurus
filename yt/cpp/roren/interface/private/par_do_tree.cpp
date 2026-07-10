@@ -1,10 +1,8 @@
 #include "par_do_tree.h"
-
 #include "misc.h"
 #include "fn_attributes_ops.h"
 
-#include "../fns.h"
-
+#include <yt/cpp/roren/interface/fns.h>
 #include <yt/cpp/roren/interface/execution_context.h>
 #include <yt/cpp/roren/interface/roren.h>
 

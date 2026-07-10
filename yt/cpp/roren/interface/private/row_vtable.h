@@ -7,8 +7,8 @@
 #include "save_loadable_pointer_wrapper.h"
 #include "save_loadable_logicaltype_wrapper.h"
 
-#include "../coder.h"
-#include "../noncodable.h"
+#include <yt/cpp/roren/interface/coder.h>
+#include <yt/cpp/roren/interface/noncodable.h>
 
 #include <util/generic/buffer.h>
 #include <util/generic/string.h>

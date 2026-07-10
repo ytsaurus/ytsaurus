@@ -3,8 +3,7 @@
 #include "raw_transform.h"
 #include "save_loadable_pointer_wrapper.h"
 
-#include "../output.h"
-
+#include <yt/cpp/roren/interface/output.h>
 #include <yt/cpp/roren/interface/fns.h>
 #include <yt/cpp/roren/interface/fwd.h>
 #include <yt/cpp/roren/interface/private/fn_attributes_ops.h>

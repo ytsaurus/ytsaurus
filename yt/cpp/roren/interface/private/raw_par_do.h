@@ -1,12 +1,13 @@
 #pragma once
 
-#include "../fns.h"
-
 #include "fn_attributes_ops.h"
 #include "raw_data_flow.h"
 #include "raw_transform.h"
 #include "row_vtable.h"
 #include "save_loadable_pointer_wrapper.h"
+
+#include <yt/cpp/roren/interface/fns.h>
+
 #include <yt/cpp/roren/library/unordered_invoker/unordered_invoker.h>
 
 #include <type_traits>

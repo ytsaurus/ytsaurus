@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../fns.h"
+#include <yt/cpp/roren/interface/fns.h>
 
 #include <optional>
 
