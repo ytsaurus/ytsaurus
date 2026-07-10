@@ -91,6 +91,18 @@ std::string ReadKey(const TSharedRef& buffer, i64 offset, i64* keyEnd)
     return std::string(item.UncheckedAsString());
 }
 
+// Advances past yson whitespace so map iteration works on text (not just binary) yson, where tokens
+// may be separated by spaces/newlines. Binary yson has none, so this is a no-op there.
+i64 SkipWhitespace(const TSharedRef& buffer, i64 offset)
+{
+    const auto* data = buffer.Begin();
+    i64 size = std::ssize(buffer);
+    while (offset < size && (data[offset] == ' ' || data[offset] == '\t' || data[offset] == '\n' || data[offset] == '\r')) {
+        ++offset;
+    }
+    return offset;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,16 +142,17 @@ TIndexedYsonStringPtr TIndexedYsonString::BuildValue(
     }
 
     node->IsLeaf_ = false;
-    i64 pos = valueBegin + 1; // Past the '{'.
+    i64 pos = SkipWhitespace(buffer, SkipWhitespace(buffer, valueBegin) + 1); // Past the '{'.
     while (buffer.Begin()[pos] != NYson::NDetail::EndMapSymbol) {
         i64 keyEnd;
         auto key = ReadKey(buffer, pos, &keyEnd);
+        // Skip whitespace, the '=' separator and more whitespace to reach the value.
+        i64 childBegin = SkipWhitespace(buffer, SkipWhitespace(buffer, keyEnd) + 1);
         i64 childEnd;
-        // |keyEnd + 1| skips the '=' between the key and its value.
-        node->Children_.emplace(std::move(key), BuildValue(buffer, keyEnd + 1, leafSizeThreshold, &childEnd));
-        pos = childEnd;
+        node->Children_.emplace(std::move(key), BuildValue(buffer, childBegin, leafSizeThreshold, &childEnd));
+        pos = SkipWhitespace(buffer, childEnd);
         if (buffer.Begin()[pos] == NYson::NDetail::ItemSeparatorSymbol) {
-            ++pos;
+            pos = SkipWhitespace(buffer, pos + 1);
         }
     }
     *valueEnd = pos + 1; // Past the '}'.
