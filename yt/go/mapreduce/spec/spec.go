@@ -222,6 +222,10 @@ type Spec struct {
 	NetworkName    string `yson:"network_name,omitempty"`
 	CopyAttributes *bool  `yson:"copy_attributes,omitempty"`
 
+	// AllowUnfrozenInputTables enables best-effort remote copy of dynamic input
+	// tables whose tablets are neither frozen nor unmounted.
+	AllowUnfrozenInputTables bool `yson:"allow_unfrozen_input_tables,omitempty"`
+
 	IntermediateDataReplicationFactor int     `yson:"intermediate_data_replication_factor,omitempty"`
 	IntermediateDataAccount           string  `yson:"intermediate_data_account,omitempty"`
 	IntermediateDataMedium            string  `yson:"intermediate_data_medium,omitempty"`
