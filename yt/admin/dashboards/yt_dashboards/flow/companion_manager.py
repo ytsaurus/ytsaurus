@@ -14,7 +14,14 @@ from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import EmptyCell, MultiSensor
 
 
-def build_companion_manager():
+def build_companion_manager(backend="monitoring"):
+    # Restarts per minute; rate_to_delta is Solomon-only, on grafana scale
+    # the per-second rate instead.
+    if backend == "monitoring":
+        restarts_transformation = "sum(rate_to_delta({query})) by 1m"
+    else:
+        restarts_transformation = "({query}) * 60"
+
     return (
         Rowset()
         .stack(False)
@@ -23,7 +30,7 @@ def build_companion_manager():
         .cell(
             "Companion restarts rate",
             MonitoringExpr(FlowWorker("yt.flow.worker.resource.companion_manager.restarts.rate"))
-            .query_transformation("sum(rate_to_delta({query})) by 1m")
+            .query_transformation(restarts_transformation)
             .value("resource", "CompanionManager"),
             description="Rate of companion process restarts per minute. Check companion logs for errors in case of high restarts rate.",
         )
@@ -186,12 +193,12 @@ def build_companion_process():
     ).owner
 
 
-def build_flow_companion_manager():
+def build_flow_companion_manager(backend="monitoring"):
     def fill(d):
-        d.add(build_companion_manager())
+        d.add(build_companion_manager(backend))
         d.add(build_companion_jvm_memory())
         d.add(build_companion_jvm_gc())
         d.add(build_companion_jvm_threads_classes())
         d.add(build_companion_process())
 
-    return create_dashboard("companion-manager", fill)
+    return create_dashboard("companion-manager", fill, backend=backend)
