@@ -18,9 +18,10 @@ namespace NYT::NFlow {
 
 DECLARE_REFCOUNTED_CLASS(TIndexedYsonString)
 
-//! Read-only path lookup over a binary yson document: upper map levels are parsed into nodes, while
-//! subtrees no larger than |leafSizeThreshold| are kept as raw yson and parsed on demand. Bounds the
-//! live-node count (unlike a full DOM) and avoids the O(document) scan of a flat by-path extraction.
+//! Read-only path lookup over a yson document (binary or text): upper map levels are parsed into
+//! nodes, while subtrees no larger than |leafSizeThreshold| are kept as raw yson and parsed on demand.
+//! Bounds the live-node count (unlike a full DOM) and avoids the O(document) scan of a flat by-path
+//! extraction.
 class TIndexedYsonString
     : public TRefCounted
 {
