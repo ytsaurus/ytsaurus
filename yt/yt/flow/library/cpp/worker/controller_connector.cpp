@@ -600,7 +600,13 @@ private:
             HandleHeartbeatResponse(rspOrError.Value());
             YT_LOG_DEBUG("Heartbeat response handled");
         } else {
-            if (NRpc::IsRetriableError(rspOrError) && LastHeartbeatTime_ + GetControllerConnectorSpec()->ControllerWaitTimeout < TInstant::Now()) {
+            // Tolerate transient errors: keep retrying with backoff while we are within the controller
+            // wait window, and disconnect only once the error is non-retriable or the window is exhausted.
+            // The window is measured from the last successful heartbeat, or from the connection time for a
+            // freshly (re)connected worker that has not completed a heartbeat yet, so that a controller
+            // leadership change does not make the whole fleet disconnect and re-handshake on the first error.
+            auto lastProgressTime = std::max(LastHeartbeatTime_, ConnectionTime_);
+            if (NRpc::IsRetriableError(rspOrError) && TInstant::Now() < lastProgressTime + GetControllerConnectorSpec()->ControllerWaitTimeout) {
                 YT_LOG_WARNING(rspOrError, "Error reporting heartbeat to controller");
                 TDelayedExecutor::WaitForDuration(GetControllerConnectorSpec()->ControllerHeartbeatFailureBackoff);
             } else {
