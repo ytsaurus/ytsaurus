@@ -360,7 +360,12 @@ dashboards = {
     },
     "flow-companion-manager": {
         "func": flow.build_flow_companion_manager,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "flow-distributed-throttler": {
         "func": flow.build_flow_distributed_throttler,
