@@ -109,6 +109,8 @@ void TComputationDescription::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("class_name", &TThis::ClassName)
         .Default();
+    registrar.Parameter("process_function", &TThis::ProcessFunction)
+        .Default();
     registrar.Parameter("description", &TThis::Description)
         .Default();
     registrar.Parameter("status", &TThis::Status)
@@ -352,6 +354,7 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
         computationDescription.Id = MakeComputationGraphId(computationId);
         computationDescription.Name = computationId.Underlying();
         computationDescription.ClassName = computationSpec->ComputationClassName;
+        computationDescription.ProcessFunction = computationSpec->ProcessingFunction.value_or("");
 
         auto intermediatePartitions = GetOrDefault(intermediateDescriptions, computationId);
         for (const auto& intermediatePartition : intermediatePartitions) {

@@ -80,6 +80,7 @@ struct TComputationDescription
     TGraphEntityId Id; // Graph entity ID in the UI: ComputationPrefix + computationId, e.g. "cmp-Computation_3".
     std::string Name;
     std::string ClassName;
+    std::string ProcessFunction;
     std::string Description;
     NLogging::ELogLevel Status{};
     std::vector<TMessage> Messages;
