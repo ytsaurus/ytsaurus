@@ -88,6 +88,7 @@ public:
             Invoker_,
             BIND(&TBlockStore::OnMaintenanceTick, MakeWeak(this)),
             Config_->ChunkMaintenancePeriod))
+        , ChunkCreationBackoff_(Config_->ChunkCreationBackoff)
     { }
 
     void InitializeRefCounted()
@@ -237,6 +238,10 @@ private:
     //! Chunks currently accepting writes; retired when full or on writer failure.
     std::vector<TChunkEntryPtr> WritableChunks_;
     TError FatalWriteError_;
+
+    //! Bounds and paces chunk-creation retries. Reset after each successful creation.
+    TBackoffStrategy ChunkCreationBackoff_;
+    TInstant ChunkCreationRetryDeadline_;
 
     class TWriteSession
         : public TRefCounted
@@ -443,6 +448,12 @@ private:
         }
     }
 
+    bool HasNoWritableChunks()
+    {
+        auto guard = Guard(WriteLock_);
+        return WritableChunks_.empty();
+    }
+
     void RefillWritableChunks()
     {
         while (true) {
@@ -456,11 +467,33 @@ private:
                 }
             }
 
+            // Hold off until the backoff from a recent creation failure has elapsed.
+            if (TInstant::Now() < ChunkCreationRetryDeadline_) {
+                break;
+            }
+
             try {
                 CreateChunk();
+                ChunkCreationBackoff_.Restart();
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to create block store chunk");
-                // TODO(babenko): bound the number of retries, add backoffs
+                // Out of retries and no writable chunk left: give up so writes fail fast instead of
+                // blocking forever on a chunk that will never appear. While some writable chunk
+                // remains it can still serve writes, so keep retrying (capped at the max backoff).
+                if (!ChunkCreationBackoff_.Next() && HasNoWritableChunks()) {
+                    auto error = TError("Failed to create block store chunk, out of retries")
+                        << ex;
+                    YT_LOG_ERROR(error);
+                    {
+                        auto guard = Guard(WriteLock_);
+                        FatalWriteError_ = error;
+                    }
+                    return;
+                }
+
+                auto backoff = ChunkCreationBackoff_.GetBackoff();
+                YT_LOG_WARNING(ex, "Failed to create block store chunk, will retry (Backoff: %v)",
+                    backoff);
+                ChunkCreationRetryDeadline_ = TInstant::Now() + backoff;
                 break;
             }
         }
