@@ -19,7 +19,7 @@ DEFINE_ENUM_UNKNOWN_VALUE(EFilesystemType, Unknown);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBlockDeviceConfigBase
-    : public NYTree::TYsonStruct
+    : public virtual NYTree::TYsonStruct
 {
     REGISTER_YSON_STRUCT(TBlockDeviceConfigBase);
 

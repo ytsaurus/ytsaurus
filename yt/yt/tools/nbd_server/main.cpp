@@ -14,6 +14,9 @@
 #include <yt/yt/server/lib/nbd/memory/config.h>
 #include <yt/yt/server/lib/nbd/memory/memory_block_device.h>
 
+#include <yt/yt/server/lib/nbd/journal/config.h>
+#include <yt/yt/server/lib/nbd/journal/journal_block_device.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -40,6 +43,9 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/options.h>
+#include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/client/transaction_client/public.h>
 
 #include <yt/yt/client/api/rpc_proxy/config.h>
 #include <yt/yt/client/api/rpc_proxy/connection.h>
@@ -173,6 +179,22 @@ struct TCypressChunkDeviceConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressChunkDeviceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TJournalDeviceConfig)
+
+struct TJournalDeviceConfig
+    : public NJournal::TJournalBlockDeviceConfig
+    , public NJournal::TJournalBlockDeviceOptions
+{
+    REGISTER_YSON_STRUCT(TJournalDeviceConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TJournalDeviceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -327,51 +349,27 @@ DEFINE_POLYMORPHIC_YSON_STRUCT(BlockDeviceConfig, TBlockDeviceConfigBase,
     ((DynamicTable) (TDynamicTableBlockDeviceConfig))
     ((File)         (TCypressFileDeviceConfig))
     ((Chunk)        (TCypressChunkDeviceConfig))
+    ((Journal)      (TJournalDeviceConfig))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBlockDevicePtr CreateDevice(
+IBlockDevicePtr CreateJournalDevice(
     const std::string& deviceId,
-    const TBlockDeviceConfig& config,
+    const TJournalDeviceConfigPtr& config,
+    TTransactionId transactionId,
     const NApi::NNative::IClientPtr& client,
-    const IInvokerPtr& invoker,
     const NLogging::TLogger& logger)
 {
-    auto getClientOrThrow = [&] {
-        if (!client) {
-            THROW_ERROR_EXCEPTION("Device %Qv of type %Qlv requires a client, but none is configured",
-                deviceId,
-                config.GetCurrentType());
-        }
-        return client;
-    };
-
-    switch (config.GetCurrentType()) {
-        case EBlockDeviceConfigType::Memory:
-            return CreateMemoryBlockDevice(config.TryGetConcrete<TMemoryBlockDeviceConfig>());
-        case EBlockDeviceConfigType::DynamicTable:
-            return CreateDynamicTableBlockDevice(
-                deviceId,
-                config.TryGetConcrete<TDynamicTableBlockDeviceConfig>(),
-                getClientOrThrow(),
-                logger);
-        case EBlockDeviceConfigType::File:
-            return CreateCypressFileDevice(
-                deviceId,
-                config.TryGetConcrete<TCypressFileDeviceConfig>(),
-                getClientOrThrow(),
-                invoker,
-                logger);
-        case EBlockDeviceConfigType::Chunk:
-            return CreateCypressChunkDevice(
-                deviceId,
-                config.TryGetConcrete<TCypressChunkDeviceConfig>(),
-                client,
-                invoker,
-                logger);
-    }
-    YT_ABORT();
+    // The config is both the device config and its store options (see TJournalDeviceConfig).
+    return NJournal::CreateJournalBlockDevice(
+        deviceId,
+        config,
+        config,
+        transactionId,
+        NChunkClient::NullChunkListId,
+        client,
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,6 +424,10 @@ public:
     { }
 
 private:
+    // Journal devices stage their chunks under a master transaction that must outlive the device;
+    // the handles are kept here for the whole run (they self-ping).
+    std::vector<NApi::ITransactionPtr> Transactions_;
+
     void DoRun() override
     {
         auto config = GetConfig();
@@ -454,6 +456,65 @@ private:
         }
 
         Sleep(TDuration::Max());
+    }
+
+    IBlockDevicePtr CreateDevice(
+        const std::string& deviceId,
+        const TBlockDeviceConfig& config,
+        const NApi::NNative::IClientPtr& client,
+        const IInvokerPtr& invoker,
+        const NLogging::TLogger& logger)
+    {
+        auto getClientOrThrow = [&] {
+            if (!client) {
+                THROW_ERROR_EXCEPTION("Device %Qv of type %Qlv requires a client, but none is configured",
+                    deviceId,
+                    config.GetCurrentType());
+            }
+            return client;
+        };
+
+        switch (config.GetCurrentType()) {
+            case EBlockDeviceConfigType::Memory:
+                return CreateMemoryBlockDevice(config.TryGetConcrete<TMemoryBlockDeviceConfig>());
+            case EBlockDeviceConfigType::DynamicTable:
+                return CreateDynamicTableBlockDevice(
+                    deviceId,
+                    config.TryGetConcrete<TDynamicTableBlockDeviceConfig>(),
+                    getClientOrThrow(),
+                    logger);
+            case EBlockDeviceConfigType::File:
+                return CreateCypressFileDevice(
+                    deviceId,
+                    config.TryGetConcrete<TCypressFileDeviceConfig>(),
+                    getClientOrThrow(),
+                    invoker,
+                    logger);
+            case EBlockDeviceConfigType::Chunk:
+                return CreateCypressChunkDevice(
+                    deviceId,
+                    config.TryGetConcrete<TCypressChunkDeviceConfig>(),
+                    client,
+                    invoker,
+                    logger);
+            case EBlockDeviceConfigType::Journal:
+                return CreateJournalDevice(
+                    deviceId,
+                    config.TryGetConcrete<TJournalDeviceConfig>(),
+                    StartDeviceTransaction(getClientOrThrow()),
+                    getClientOrThrow(),
+                    logger);
+        }
+        YT_ABORT();
+    }
+
+    TTransactionId StartDeviceTransaction(const NApi::NNative::IClientPtr& client)
+    {
+        auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Master))
+            .ValueOrThrow();
+        auto transactionId = transaction->GetId();
+        Transactions_.push_back(std::move(transaction));
+        return transactionId;
     }
 };
 
