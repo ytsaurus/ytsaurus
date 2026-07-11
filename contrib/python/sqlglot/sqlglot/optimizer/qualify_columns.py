@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+import re
 import typing as t
 
 from sqlglot import alias, exp
@@ -323,6 +324,7 @@ def _expand_alias_refs(
         nonlocal replaced
         is_group_by = isinstance(node, exp.Group)
         is_having = isinstance(node, exp.Having)
+        is_qualify = isinstance(node, exp.Qualify)
         if not node or (expand_only_groupby and not is_group_by):
             return
 
@@ -352,12 +354,14 @@ def _expand_alias_refs(
                 # SELECT x.a, max(x.b) as x FROM x GROUP BY 1 HAVING x > 1;
                 # If "HAVING x" is expanded to "HAVING max(x.b)", BQ would blindly replace the "x" reference with the projection MAX(x.b)
                 # i.e HAVING MAX(MAX(x.b).b), resulting in the error: "Aggregations of aggregations are not allowed"
-                if is_having and dialect.PROJECTION_ALIASES_SHADOW_SOURCE_NAMES:
+                if (is_having or is_qualify) and dialect.PROJECTION_ALIASES_SHADOW_SOURCE_NAMES:
                     skip_replace = skip_replace or any(
                         node.parts[0].name in projections
                         for node in alias_expr.find_all(exp.Column)
                     )
-            elif dialect.PROJECTION_ALIASES_SHADOW_SOURCE_NAMES and (is_group_by or is_having):
+            elif dialect.PROJECTION_ALIASES_SHADOW_SOURCE_NAMES and (
+                is_group_by or is_having or is_qualify
+            ):
                 column_table = table.name if table else column.table
                 if column_table in projections:
                     # BigQuery's GROUP BY and HAVING clauses get confused if the column name
@@ -774,6 +778,7 @@ def _expand_stars(
     except_columns: dict[int, set[str]] = {}
     replace_columns: dict[int, dict[str, exp.Alias]] = {}
     rename_columns: dict[int, dict[str, str]] = {}
+    ilike_pattern: str | None = None
 
     coalesced_columns = set()
     dialect = resolver.dialect
@@ -798,12 +803,14 @@ def _expand_stars(
             _add_except_columns(expression, tables, except_columns)
             _add_replace_columns(expression, tables, replace_columns)
             _add_rename_columns(expression, tables, rename_columns)
+            ilike_pattern = _add_ilike_columns(expression)
         elif expression.is_star:
             if isinstance(expression, exp.Column):
                 tables.append(expression.table)
                 _add_except_columns(expression.this, tables, except_columns)
                 _add_replace_columns(expression.this, tables, replace_columns)
                 _add_rename_columns(expression.this, tables, rename_columns)
+                ilike_pattern = _add_ilike_columns(expression.this)
             elif isinstance(expression, exp.Dot):
                 if (
                     dialect.SUPPORTS_STRUCT_STAR_EXPANSION
@@ -846,7 +853,7 @@ def _expand_stars(
 
                 if pivot_columns:
                     new_selections.extend(
-                        alias(exp.column(name, table=pivot.alias), name, copy=False)
+                        alias(exp.column(name, table=pivot.alias or None), name, copy=False)
                         for name in pivot_columns
                         if name not in columns_to_exclude
                     )
@@ -854,6 +861,8 @@ def _expand_stars(
 
             for name in columns:
                 if name in columns_to_exclude or name in coalesced_columns:
+                    continue
+                if ilike_pattern and not re.fullmatch(ilike_pattern, name, re.IGNORECASE):
                     continue
                 if name in using_column_tables and table in using_column_tables[name]:
                     coalesced_columns.add(name)
@@ -876,6 +885,15 @@ def _expand_stars(
     # Ensures we don't overwrite the initial selections with an empty list
     if new_selections and isinstance(scope_expression, exp.Select):
         scope_expression.set("expressions", new_selections)
+
+
+def _add_ilike_columns(expression: exp.Expr) -> str | None:
+    ilike = expression.args.get("ilike")
+
+    if not ilike:
+        return None
+
+    return "".join(".*" if c == "%" else "." if c == "_" else re.escape(c) for c in ilike.name)
 
 
 def _add_except_columns(expression: exp.Expr, tables, except_columns: dict[int, set[str]]) -> None:

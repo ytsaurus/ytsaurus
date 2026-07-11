@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import typing as t
+from collections import defaultdict
 
 from sqlglot import exp, generator, transforms
 from sqlglot.dialects.dialect import (
@@ -34,7 +35,6 @@ from sqlglot.parsers.snowflake import (
     build_object_construct,
 )
 from sqlglot.tokens import TokenType
-from collections import defaultdict
 
 if t.TYPE_CHECKING:
     from sqlglot._typing import E
@@ -616,6 +616,13 @@ class SnowflakeGenerator(generator.Generator):
         ),
     }
 
+    def dynamicidentifier_sql(self, expression: exp.DynamicIdentifier) -> str:
+        this = self.func("IDENTIFIER", expression.this)
+        if "expressions" in expression.args:
+            # `IDENTIFIER(...)` invoked as a function, e.g. `IDENTIFIER('my_func')(1, 2)`
+            return self.func(this, *expression.expressions, normalize=False)
+        return this
+
     def sortarray_sql(self, expression: exp.SortArray) -> str:
         asc = expression.args.get("asc")
         nulls_first = expression.args.get("nulls_first")
@@ -836,6 +843,13 @@ class SnowflakeGenerator(generator.Generator):
         )
 
         return f"{value}{explode}{alias}"
+
+    def undrop_sql(self, expression: exp.Undrop) -> str:
+        this = self.sql(expression, "this")
+        kind = expression.kind
+        rename = self.sql(expression, "rename")
+        rename = f" RENAME TO {rename}" if rename else ""
+        return f"UNDROP {kind} {this}{rename}"
 
     def show_sql(self, expression: exp.Show) -> str:
         terse = "TERSE " if expression.args.get("terse") else ""

@@ -280,6 +280,7 @@ class ClickHouseGenerator(generator.Generator):
         exp.ArrayConcat: rename_func("arrayConcat"),
         exp.ArrayContains: rename_func("has"),
         exp.ArrayFilter: lambda self, e: self.func("arrayFilter", e.expression, e.this),
+        exp.Transform: lambda self, e: self.func("arrayMap", e.expression, e.this),
         exp.ArrayRemove: remove_from_array_using_filter,
         exp.ArrayReverse: rename_func("arrayReverse"),
         exp.ArraySlice: rename_func("arraySlice"),
@@ -377,7 +378,9 @@ class ClickHouseGenerator(generator.Generator):
         exp.Levenshtein: unsupported_args("ins_cost", "del_cost", "sub_cost", "max_dist")(
             rename_func("editDistance")
         ),
-        exp.ParseDatetime: rename_func("parseDateTime"),
+        exp.ParseDatetime: lambda self, e: self.func(
+            "parseDateTime", e.this, e.args.get("format"), e.args.get("zone")
+        ),
     }
 
     PROPERTIES_LOCATION = {
