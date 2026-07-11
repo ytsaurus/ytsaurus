@@ -437,9 +437,9 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
 }
 
 template <typename TFunction, typename ...TArgs>
-auto RunYsonPullParser(TStringBuf yson, TFunction function, TArgs&&... args)
+auto RunYsonPullParser(TYsonStringBuf yson, TFunction function, TArgs&&... args)
 {
-    TMemoryInput input(yson);
+    TMemoryInput input(yson.AsStringBuf());
     TYsonPullParser parser(&input, EYsonType::Node);
     TYsonPullParserCursor cursor(&parser);
     return function(&cursor, std::forward<TArgs>(args)...);
@@ -900,26 +900,26 @@ TListOperationsFilter::TParseResult TListOperationsFilter::ParseOperationsYson(T
     TListOperationsCountingFilter countingFilter(Options_);
     TFilteringConsumer filteringConsumer(&countingFilter, Options_, Context_);
 
-    TString singleOperationYson;
+    std::string singleOperationYsonString;
 
-    RunYsonPullParser(operationsYson.AsStringBuf(), [&operations, &filteringConsumer, &singleOperationYson] (TYsonPullParserCursor* cursor) {
+    RunYsonPullParser(operationsYson, [&operations, &filteringConsumer, &singleOperationYsonString] (TYsonPullParserCursor* cursor) {
         cursor->ParseList([&] (TYsonPullParserCursor* cursor) {
-            singleOperationYson.clear();
+            singleOperationYsonString.clear();
             {
-                TStringOutput output(singleOperationYson);
+                TStdStringOutput output(singleOperationYsonString);
                 TCheckedInDebugYsonTokenWriter writer(&output);
                 cursor->TransferComplexValue(&writer);
                 writer.Finish();
             }
+            auto singleOperationYson = TYsonString(singleOperationYsonString);
             RunYsonPullParser(
                 singleOperationYson,
                 ParseOperationToConsumer<TFilteringConsumer>,
                 &filteringConsumer);
             auto operation = filteringConsumer.ExtractCurrent();
             if (operation.FilterPassed) {
-                // Copy without COW (it is faster: otherwise on the next iteration
-                // |singleOperationYson| will be incrementally reallocated during |TransferComplexValue}).
-                operation.Yson = singleOperationYson.copy();
+                // Copy the buffer: it is reused (cleared and rewritten) on the next iteration.
+                operation.Yson = TYsonString(singleOperationYsonString);
                 operations.push_back(std::move(operation));
             }
         });

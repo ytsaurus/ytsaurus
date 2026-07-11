@@ -85,7 +85,7 @@ public:
         bool FilterPassed;
         NObjectClient::TOperationId Id;
         TInstant StartTime;
-        TString Yson;
+        NYson::TYsonString Yson;
     };
 
 public:

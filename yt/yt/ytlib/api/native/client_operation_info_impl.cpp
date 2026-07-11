@@ -927,7 +927,7 @@ void TClient::DoListOperationsFromCypress(
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 return;
             }
-            lightOperation.Yson = rspOrError.ValueOrThrow()->value();
+            lightOperation.Yson = TYsonString(rspOrError.ValueOrThrow()->value());
         });
     }
 
