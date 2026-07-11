@@ -70,6 +70,17 @@ TFuture<TBlock> TNbdSession::Read(i64 offset, i64 length, ui64 cookie)
     return NbdChunkHandler_->Read(offset, length, cookie);
 }
 
+TFuture<std::vector<TBlock>> TNbdSession::ReadBatch(
+    const std::vector<TNbdReadSubrequest>& subrequests,
+    ui64 cookie)
+{
+    YT_LOG_DEBUG("Batch reading from NBD session (SubrequestCount: %v, Cookie: %x)",
+        subrequests.size(),
+        cookie);
+
+    return NbdChunkHandler_->ReadBatch(subrequests, cookie);
+}
+
 TFuture<NIO::TIOCounters> TNbdSession::Write(i64 offset, const TBlock& block, ui64 cookie)
 {
     YT_LOG_DEBUG("Writing to NBD session (Offset: %v, Length: %v, Cookie: %x)",

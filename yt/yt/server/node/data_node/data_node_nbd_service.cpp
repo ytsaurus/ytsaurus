@@ -58,6 +58,14 @@ public:
             .SetQueueSizeLimit(500)
             .SetConcurrencyLimit(50)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadBatch)
+            .SetQueueSizeLimit(500)
+            .SetConcurrencyLimit(50)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteBatch)
+            .SetQueueSizeLimit(500)
+            .SetConcurrencyLimit(50)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(KeepSessionAlive));
     }
 
@@ -172,6 +180,76 @@ private:
             shouldCloseSession);
 
         context->ReplyFrom(future.AsVoid());
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, ReadBatch)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto cookie = FromProto<ui64>(request->cookie());
+
+        context->SetRequestInfo("SessionId: %v, Cookie: %x, SubrequestCount: %v",
+            sessionId,
+            cookie,
+            request->subrequests_size());
+
+        auto session = GetSessionOrThrow(sessionId);
+
+        // Build subrequests for batch IO.
+        std::vector<TNbdReadSubrequest> subrequests;
+        subrequests.reserve(request->subrequests_size());
+        for (const auto& sub : request->subrequests()) {
+            subrequests.push_back({.Offset = sub.offset(), .Length = sub.length()});
+        }
+
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_cookie(cookie);
+        response->set_should_close_session(shouldCloseSession);
+
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
+            sessionId,
+            cookie,
+            shouldCloseSession);
+
+        // Issue single batched read — one lock + one IOEngine_->Read call for all subrequests.
+        context->ReplyFrom(session->ReadBatch(subrequests, cookie).Apply(BIND([response] (const std::vector<NChunkClient::TBlock>& blocks) {
+            for (const auto& block : blocks) {
+                response->Attachments().push_back(block.Data);
+            }
+        })));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, WriteBatch)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto cookie = FromProto<ui64>(request->cookie());
+        const auto& attachments = request->Attachments();
+
+        YT_VERIFY(attachments.size() == static_cast<size_t>(request->subrequests_size()));
+
+        context->SetRequestInfo("SessionId: %v, Cookie: %x, SubrequestCount: %v",
+            sessionId,
+            cookie,
+            request->subrequests_size());
+
+        auto session = GetSessionOrThrow(sessionId);
+
+        // Issue all sub-writes in parallel.
+        std::vector<TFuture<NIO::TIOCounters>> writeFutures;
+        writeFutures.reserve(request->subrequests_size());
+        for (int i = 0; i < request->subrequests_size(); ++i) {
+            writeFutures.push_back(session->Write(request->subrequests(i).offset(), NChunkClient::TBlock{attachments[i]}, cookie));
+        }
+
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_cookie(cookie);
+        response->set_should_close_session(shouldCloseSession);
+
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
+            sessionId,
+            cookie,
+            shouldCloseSession);
+
+        context->ReplyFrom(AllSucceeded(writeFutures).AsVoid());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, KeepSessionAlive)

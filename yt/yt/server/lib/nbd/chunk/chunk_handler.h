@@ -16,6 +16,19 @@ namespace NYT::NNbd::NChunk {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A single sub-request for WriteBatch and ReadBatch.
+struct TReadBatchSubrequest
+{
+    i64 Offset;
+    i64 Length;
+};
+
+struct TWriteBatchSubrequest
+{
+    i64 Offset;
+    TSharedRef Data;
+};
+
 struct IChunkHandler
     : public virtual TRefCounted
 {
@@ -24,6 +37,16 @@ struct IChunkHandler
     virtual TFuture<void> Flush() = 0;
     virtual TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) = 0;
     virtual TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) = 0;
+
+    //! Read multiple non-contiguous ranges in a single RPC round-trip.
+    virtual TFuture<std::vector<TReadResponse>> ReadBatch(
+        const std::vector<TReadBatchSubrequest>& subrequests,
+        const TReadOptions& options) = 0;
+
+    //! Write multiple non-contiguous ranges in a single RPC round-trip.
+    virtual TFuture<TWriteResponse> WriteBatch(
+        const std::vector<TWriteBatchSubrequest>& subrequests,
+        const TWriteOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkHandler)

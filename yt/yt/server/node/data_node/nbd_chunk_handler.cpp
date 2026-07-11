@@ -271,6 +271,96 @@ public:
                 }));
     }
 
+    //! Read multiple non-contiguous ranges from NBD chunk in a single IO engine call.
+    TFuture<std::vector<TBlock>> ReadBatch(
+        const std::vector<TNbdReadSubrequest>& subrequests,
+        ui64 cookie) override
+    {
+        i64 totalLength = 0;
+        for (const auto& sub : subrequests) {
+            totalLength += sub.Length;
+        }
+
+        YT_LOG_DEBUG("Started batch reading from NBD chunk (ChunkId: %v, SubrequestCount: %v, TotalLength: %v, Cookie: %x)",
+            ChunkId_,
+            subrequests.size(),
+            totalLength,
+            cookie);
+
+        // Acquire a reader guard once for all subrequests.
+        TWallTimer lockWaitTimer;
+        return TAsyncLockReaderGuard::Acquire(&Lock_)
+            .AsUnique()
+            .Apply(
+                BIND([=, this, this_ = MakeStrong(this), lockWaitTimer = std::move(lockWaitTimer)] (TReadLockPtr&& guard) mutable {
+                    auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
+                    if (State_ != EState::Initialized) {
+                        THROW_ERROR_EXCEPTION("ReadBatch from uninitialized nbd chunk handler")
+                            << TErrorAttribute("chunk_id", ChunkId_)
+                            << TErrorAttribute("state", State_);
+                    }
+
+                    for (const auto& sub : subrequests) {
+                        if (sub.Offset + sub.Length > ChunkSize_) {
+                            THROW_ERROR_EXCEPTION("ReadBatch subrequest is out of range")
+                                << TErrorAttribute("chunk_id", ChunkId_)
+                                << TErrorAttribute("offset", sub.Offset)
+                                << TErrorAttribute("length", sub.Length)
+                                << TErrorAttribute("chunk_size", ChunkSize_);
+                        }
+                    }
+
+                    // Throttle once for total bytes.
+                    TWallTimer throttleTimer;
+                    auto throttleFuture = AllSucceeded(std::vector<TFuture<void>>{
+                        ReadNetThrottler_->Throttle(totalLength),
+                        ReadStoreThrottler_->Throttle(totalLength)
+                    });
+
+                    return throttleFuture.Apply(
+                        BIND([=, guard = std::move(guard), throttleTimer = std::move(throttleTimer), this, this_ = MakeStrong(this)] () mutable {
+                            auto throttleDuration = throttleTimer.GetElapsedTime();
+
+                            // Build one TReadRequest per subrequest.
+                            std::vector<NIO::TReadRequest> ioRequests;
+                            ioRequests.reserve(subrequests.size());
+                            for (const auto& sub : subrequests) {
+                                ioRequests.push_back({
+                                    .Handle = IOEngineHandle_,
+                                    .Offset = sub.Offset,
+                                    .Size = sub.Length,
+                                });
+                            }
+
+                            TWallTimer ioTimer;
+                            return IOEngine_->Read(
+                                std::move(ioRequests),
+                                WorkloadDescriptor_.Category,
+                                GetRefCountedTypeCookie<TNbdChunkReaderBufferTag>())
+                                .Apply(BIND([=, guard = std::move(guard), ioTimer = std::move(ioTimer), this, this_ = MakeStrong(this)] (const NIO::TReadResponse& response) {
+                                    auto ioDuration = ioTimer.GetElapsedTime();
+
+                                    YT_LOG_DEBUG("Finished batch reading from NBD chunk (ChunkId: %v, SubrequestCount: %v, TotalLength: %v, LockWaitDuration: %v, ThrottleDuration: %v, IODuration: %v, Cookie: %x)",
+                                        ChunkId_,
+                                        subrequests.size(),
+                                        totalLength,
+                                        lockWaitDuration,
+                                        throttleDuration,
+                                        ioDuration,
+                                        cookie);
+
+                                    YT_VERIFY(response.OutputBuffers.size() == subrequests.size());
+                                    std::vector<TBlock> blocks;
+                                    blocks.reserve(response.OutputBuffers.size());
+                                    for (const auto& buf : response.OutputBuffers) {
+                                        blocks.emplace_back(buf);
+                                    }
+                                    return blocks;
+                                }));
+                        }));
+                }));
+    }
+
     //! Write buffer to NBD chunk at offset.
     TFuture<NIO::TIOCounters> Write(i64 offset, const TBlock& block, ui64 cookie) override
     {
