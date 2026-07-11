@@ -11,7 +11,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef TEST_STRING = TSharedRef::FromString("Hello world!");
+TSharedRef TEST_STRING = TSharedRef::FromString(std::string("Hello world!"));
 
 TUnversionedOwningRow MakeTestRow()
 {
@@ -145,7 +145,7 @@ TEST(TMutableUnversionedOwningRowTest, Reserve)
                 row.Reserve(count);
             }
             for (int i = 0; i < count; ++i) {
-                row.PushBack(MakeUnversionedStringOwningValue(TSharedRef::FromString("Hello you!"), i));
+                row.PushBack(MakeUnversionedStringOwningValue(TSharedRef::FromString(std::string("Hello you!")), i));
             }
             return row;
         };

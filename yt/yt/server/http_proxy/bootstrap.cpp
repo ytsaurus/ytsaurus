@@ -478,7 +478,7 @@ void TBootstrap::HandleRequest(
                 .EndMap();
         });
     } else {
-        WaitFor(rsp->WriteBody(TSharedRef::FromString(GetVersion())))
+        WaitFor(rsp->WriteBody(TSharedRef::FromString(std::string(GetVersion()))))
             .ThrowOnError();
     }
 }

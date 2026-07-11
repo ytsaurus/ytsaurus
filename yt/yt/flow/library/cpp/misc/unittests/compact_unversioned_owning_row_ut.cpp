@@ -9,7 +9,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef TEST_STRING = TSharedRef::FromString("Hello world!");
+TSharedRef TEST_STRING = TSharedRef::FromString(std::string("Hello world!"));
 
 TUnversionedOwningRow MakeTestRow()
 {

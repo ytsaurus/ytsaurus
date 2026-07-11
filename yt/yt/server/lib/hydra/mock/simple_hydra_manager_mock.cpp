@@ -110,7 +110,7 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
             /*sequenceNumber*/ AppliedSequenceNumber_,
             /*stateHash*/ 0,
             /*term*/ 0,
-            /*localHostNameOverride*/ TSharedRef::FromString("<mock-host>"));
+            /*localHostNameOverride*/ TSharedRef::FromString(std::string("<mock-host>")));
 
         {
             TMutationContextGuard mutationContextGuard(&mutationContext);
@@ -186,7 +186,7 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
         TPhysicalVersion(),
         /*timestamp*/ TInstant::Zero(),
         /*randomSeed*/ 0,
-        /*localHostNameOverride*/ TSharedRef::FromString("<mock-host>"));
+        /*localHostNameOverride*/ TSharedRef::FromString(std::string("<mock-host>")));
     THydraContextGuard guard(&hydraContext);
 
     Automaton_->PrepareState();

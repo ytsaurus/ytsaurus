@@ -1074,7 +1074,7 @@ TEST_F(TQueryPrepareTest, AppendFunctionImplementationWithUdfObjectCodeCache)
         std::vector<TType>{EValueType::Int64}));
 
     auto implementationFiles = GetTestUdfImplementationFiles("test_udfs");
-    auto fingerprint = TSharedRef::FromString("append-function-implementation-test");
+    auto fingerprint = TSharedRef::FromString(std::string("append-function-implementation-test"));
 
     AppendFunctionImplementation(
         firstFunctionProfilers,

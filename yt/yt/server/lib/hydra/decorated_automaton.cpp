@@ -907,7 +907,7 @@ void TDecoratedAutomaton::ResetState()
             TPhysicalVersion(),
             TInstant::Zero(),
             /*randomSeed*/ 0,
-            /*localHostNameOverride*/ TSharedRef::FromString(UnknownHostName));
+            /*localHostNameOverride*/ TSharedRef::FromString(std::string(UnknownHostName)));
         THydraContextGuard hydraContextGuard(&hydraContext);
 
         ClearState();
@@ -1337,7 +1337,7 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
             localHost,
             UnknownHostName);
 
-        return TSharedRef::FromString(UnknownHostName);
+        return TSharedRef::FromString(std::string(UnknownHostName));
     }
 
     YT_LOG_INFO("Local host name sanitization disabled, using local host name as is (LocalHost: %v)", localHost);

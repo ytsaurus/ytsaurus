@@ -339,7 +339,7 @@ TEST(TParallelFileWriterTest, AutoFinish)
 
     {
         auto writer = CreateParallelFileWriter(client, path, TParallelFileWriterOptions().AutoFinish(false));
-        writer->Write(TSharedRef::FromString("foo"));
+        writer->Write(TSharedRef::FromString(std::string("foo")));
     }
 
     EXPECT_EQ(client->Exists(path.Path_), false);
