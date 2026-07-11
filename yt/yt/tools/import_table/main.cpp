@@ -50,7 +50,7 @@ struct TOpts
     std::string Proxy;
     std::string ResultTable;
     std::string Format;
-    std::optional<TString> Config;
+    std::optional<std::string> Config;
     std::optional<std::string> NetworkProject;
 };
 
@@ -104,11 +104,12 @@ struct TOptsS3
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TImportConfigPtr LoadConfig(const std::optional<TString>& configPath)
+TImportConfigPtr LoadConfig(const std::optional<std::string>& configPath)
 {
+    // TODO(babenko): drop TString cast once TUnbufferedFileInput accepts std::string.
     auto config = !configPath
         ? New<TImportConfig>()
-        : ConvertTo<TImportConfigPtr>(TYsonString(TUnbufferedFileInput(*configPath).ReadAll()));
+        : ConvertTo<TImportConfigPtr>(TYsonString(TUnbufferedFileInput(TString(*configPath)).ReadAll()));
     ConfigureSingletons(config->Singletons);
     return config;
 }

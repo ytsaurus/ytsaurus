@@ -351,11 +351,12 @@ private:
 
     void DoRun() override
     {
-        TString destinationTemp(Destination_ + ".tmp");
+        std::string destinationTemp = Destination_ + ".tmp";
 
         {
             auto input = TYsonInput(&Cin, NYT::NYson::EYsonType::ListFragment);
-            TUnbufferedFileOutput outputTemp(destinationTemp);
+            // TODO(babenko): drop cast once TUnbufferedFileOutput accepts std::string
+            TUnbufferedFileOutput outputTemp{TString(destinationTemp)};
             TStreamSaveContext context(&outputTemp);
             TYsonListExtractor<TOperationDescription> extractor(
                 [&] (const TOperationDescription& entry) { Save(context, entry); },
