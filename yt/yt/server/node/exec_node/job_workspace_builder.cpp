@@ -643,7 +643,15 @@ private:
                 this,
                 this_ = MakeStrong(this),
                 layerOptions = std::move(layerOptions)
-            ] (std::vector<TOverlayData>&& overlayDataArray) mutable {
+            ] (TErrorOr<std::vector<TOverlayData>>&& overlayDataArrayOrError) mutable {
+                if (!overlayDataArrayOrError.IsOK()) {
+                    YT_LOG_WARNING(overlayDataArrayOrError, "Failed to prepare overlay layers");
+
+                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::OverlayLayerPreparationFailed, "Failed to prepare overlay layers")
+                        << overlayDataArrayOrError;
+                }
+
+                auto& overlayDataArray = overlayDataArrayOrError.Value();
                 YT_VERIFY(overlayDataArray.size() == layerOptions.size());
                 TPreparedLayers preparedLayers;
                 for (int i = 0; i < std::ssize(layerOptions); ++i) {
