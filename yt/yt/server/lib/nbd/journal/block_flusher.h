@@ -13,9 +13,9 @@ namespace NYT::NNbd::NJournal {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Background component that moves dirty blocks from the pool to the store.
+//! Moves dirty blocks from the pool to the store.
 /*!
- *  It drains the dirty pool down to the configured resident fraction and writes the excess to the
+ *  Drains the dirty pool down to the configured resident fraction and writes the excess to the
  *  store, keeping several flushes in flight so their store round-trips overlap. Completed flushes
  *  are retired in reservation order.
  *

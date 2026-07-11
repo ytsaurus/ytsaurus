@@ -23,8 +23,8 @@ namespace NStoredBlockIdLayout {
 constexpr int ReservedBits = 4;
 constexpr int ChunkIndexBits = 20;
 constexpr int RecordIndexBits = 30;
-constexpr int FragmentIndexBits = 10;
-static_assert(ReservedBits + ChunkIndexBits + RecordIndexBits + FragmentIndexBits == 64);
+constexpr int BlockIndexBits = 10;
+static_assert(ReservedBits + ChunkIndexBits + RecordIndexBits + BlockIndexBits == 64);
 
 } // namespace NStoredBlockIdLayout
 
@@ -36,8 +36,8 @@ constexpr i64 MaxChunksPerDevice = 1LL << NStoredBlockIdLayout::ChunkIndexBits;
 //! Number of records that fit into a single chunk before it must be retired.
 constexpr i64 MaxRecordsPerChunk = 1LL << NStoredBlockIdLayout::RecordIndexBits;
 
-//! Number of blocks (fragments) that can be coalesced into a single record.
-constexpr i64 MaxFragmentsPerRecord = 1LL << NStoredBlockIdLayout::FragmentIndexBits;
+//! Number of blocks that can be coalesced into a single record.
+constexpr i64 MaxBlocksPerRecord = 1LL << NStoredBlockIdLayout::BlockIndexBits;
 
 DECLARE_REFCOUNTED_STRUCT(IBlockStore)
 

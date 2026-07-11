@@ -10,6 +10,7 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
+#include <algorithm>
 #include <deque>
 
 namespace NYT::NNbd::NJournal {
@@ -58,7 +59,7 @@ public:
         // Accept as many blocks as currently fit (the caller resubmits the rest). Only when
         // nothing fits do we wait for space; puts already waiting keep their place in line.
         if (PendingPuts_.empty()) {
-            int count = Min<int>(GetFreeCountLocked(), std::ssize(blocks));
+            int count = std::min<int>(GetFreeCountLocked(), std::ssize(blocks));
             if (count > 0) {
                 return MakeFuture(PutLocked(blocks.Slice(0, count)));
             }
@@ -84,7 +85,7 @@ public:
         auto guard = Guard(Lock_);
         // Hand out the oldest blocks without removing them; the paired EndDrain evicts them. Only
         // one drain is outstanding at a time, so this always returns the current head range.
-        int blockCount = Min(maxBlockCount, GetSizeLocked());
+        int blockCount = std::min(maxBlockCount, GetSizeLocked());
         TBeginDrainResult result;
         result.reserve(blockCount);
         for (int index = 0; index < blockCount; ++index) {
@@ -113,7 +114,7 @@ public:
             while (!PendingPuts_.empty() && GetFreeCountLocked() > 0) {
                 auto pendingPut = std::move(PendingPuts_.front());
                 PendingPuts_.pop_front();
-                int blockCount = Min<int>(GetFreeCountLocked(), std::ssize(pendingPut.Blocks));
+                int blockCount = std::min<int>(GetFreeCountLocked(), std::ssize(pendingPut.Blocks));
                 pendingPut.BlockIds = PutLocked(TRange(pendingPut.Blocks).Slice(0, blockCount));
                 readyPuts.push_back(std::move(pendingPut));
             }

@@ -110,13 +110,12 @@ public:
             return MakeFuture(std::vector<TStoredBlockId>{});
         }
 
-        // Coalesce the blocks into records of up to MaxFragmentsPerRecord and submit each as its
-        // own write session; the records are written concurrently. Each block is copied into its
-        // record buffer here, so |blocks| need not outlive the call.
+        // Coalesce the blocks into records of up to MaxBlocksPerRecord and submit each as its
+        // own write session; the records are written concurrently.
         auto blockSize = Geometry_.BlockSize;
         std::vector<TFuture<std::vector<TStoredBlockId>>> recordFutures;
-        for (int start = 0; start < blockCount; start += MaxFragmentsPerRecord) {
-            int perRecordBlockCount = Min<int>(MaxFragmentsPerRecord, blockCount - start);
+        for (int start = 0; start < blockCount; start += MaxBlocksPerRecord) {
+            int perRecordBlockCount = std::min<int>(MaxBlocksPerRecord, blockCount - start);
             struct TRecordTag
             { };
             auto buffer = TSharedMutableRef::Allocate<TRecordTag>(
@@ -235,6 +234,7 @@ private:
     std::vector<TChunkEntryPtr> IndexToChunk_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, WriteLock_);
+    //! Chunks currently accepting writes; retired when full or on writer failure.
     std::vector<TChunkEntryPtr> WritableChunks_;
     TError FatalWriteError_;
 
@@ -475,8 +475,6 @@ private:
             }
         }
 
-        // NB: Chunks are created strictly serially by the maintenance executor, so reading
-        // the chunk count here without a lock held through the append below is safe.
         int chunkCount;
         {
             auto guard = ReaderGuard(IndexToChunkLock_);

@@ -47,8 +47,6 @@ DEFINE_REFCOUNTED_TYPE(IBlockStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates a block store that keeps its blocks in journal chunks. The chunks are staged under
-//! |transactionId| and, if |chunkListId| is set, immediately attached to that chunk list.
 IBlockStorePtr CreateJournalBlockStore(
     TJournalBlockStoreConfigPtr config,
     TBlockDeviceGeometry geometry,

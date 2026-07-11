@@ -17,8 +17,6 @@ namespace NYT::NNbd::NJournal {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Per-device parameters of a journal-backed NBD device: its geometry and the journal chunks the
-//! block store creates for it.
 struct TJournalBlockDeviceOptions
     : public virtual NYTree::TYsonStruct
 {
@@ -35,7 +33,6 @@ DEFINE_REFCOUNTED_TYPE(TJournalBlockDeviceOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Configures the block store: the journal chunks backing the device.
 struct TJournalBlockStoreConfig
     : public NYTree::TYsonStruct
 {
@@ -69,7 +66,6 @@ DEFINE_REFCOUNTED_TYPE(TJournalBlockStoreConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Configures the flusher: the in-memory dirty-block pool and its background drain.
 struct TJournalBlockFlusherConfig
     : public NYTree::TYsonStruct
 {
@@ -93,7 +89,6 @@ DEFINE_REFCOUNTED_TYPE(TJournalBlockFlusherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Configures a journal-chunk-backed block device.
 struct TJournalBlockDeviceConfig
     : public TBlockDeviceConfigBase
 {
