@@ -556,12 +556,16 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareNbdVolume(
                         << errorOrDevice;
                 }
 
-                Bootstrap_->GetNbdServer()->RegisterDevice(options.DeviceId, errorOrDevice.Value());
+                const auto& device = errorOrDevice.Value();
+                Bootstrap_->GetNbdServer()->RegisterDevice(options.DeviceId, device);
+
+                auto adjustedOptions = options;
+                adjustedOptions.BlockSize = device->GetBlockSize();
 
                 return CreateNbdVolume(
                     tag,
                     std::move(tagSet),
-                    std::move(options),
+                    std::move(adjustedOptions),
                     std::move(volumeFactory));
             })
             .AsyncVia(nbdServer->GetInvoker()))

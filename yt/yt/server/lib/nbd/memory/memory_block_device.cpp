@@ -21,6 +21,12 @@ public:
         return Config_->Size;
     }
 
+    i64 GetBlockSize() const override
+    {
+        // Byte-addressable backend; advertise the conventional sector size.
+        return 512;
+    }
+
     bool IsReadOnly() const override
     {
         return false;

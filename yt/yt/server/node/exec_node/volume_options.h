@@ -23,9 +23,16 @@ namespace NYT::NExecNode {
 struct TCreateNbdVolumeOptions
 {
     TJobId JobId;
+
     std::string DeviceId;
     std::string Filesystem;
+
     bool IsReadOnly = true;
+
+    //! Block size (I/O alignment) reported to Porto so it configures the kernel NBD device's logical
+    //! block size accordingly (Porto defaults to 512 otherwise). For a block-granular backend this is
+    //! its block size, so the kernel aligns I/O and does any sub-block read-modify-write itself.
+    i64 BlockSize = 512;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

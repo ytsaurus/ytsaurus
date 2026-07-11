@@ -1138,6 +1138,7 @@ TVolumeMeta TLayerLocation::DoCreateNbdVolume(
     builder.AppendFormat("&num-connections=%v", nbdConfig->Client->ConnectionCount);
     builder.AppendFormat("&export=%v", options.DeviceId);
     builder.AppendFormat("&fs-type=%v", options.Filesystem);
+    builder.AppendFormat("&blocksize=%v", options.BlockSize);
     volumeProperties["storage"] = builder.Flush();
 
     TVolumeMeta volumeMeta;
