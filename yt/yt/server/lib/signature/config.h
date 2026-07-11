@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/concurrency/config.h>
 
+#include <yt/yt/core/misc/cache_config.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NSignature {
@@ -58,6 +60,10 @@ struct TCypressKeyReaderConfig
     NYPath::TYPath Path;
 
     NApi::TSerializableMasterReadOptionsPtr CypressReadOptions;
+
+    //! Cache of fetched keys with capacity measured in entries.
+    //! Also deduplicates concurrent fetches of the same key.
+    TSlruCacheConfigPtr KeyCache;
 
     REGISTER_YSON_STRUCT(TCypressKeyReaderConfig);
 

@@ -12,6 +12,7 @@ using namespace NYTree;
 using namespace NYPath;
 
 static constexpr TYPathBuf DefaultKeyPath = "//sys/public_keys/by_owner";
+static constexpr i64 DefaultKeyCacheCapacity = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +67,11 @@ void TCypressKeyReaderConfig::Register(TRegistrar registrar)
             options->ReadFrom = EMasterChannelKind::ClientSideCache;
             options->ExpireAfterSuccessfulUpdateTime = TDuration::Hours(12);
             return options;
+        });
+
+    registrar.Parameter("key_cache", &TThis::KeyCache)
+        .DefaultCtor([] {
+            return TSlruCacheConfig::CreateWithCapacity(DefaultKeyCacheCapacity);
         });
 }
 

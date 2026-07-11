@@ -109,7 +109,8 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature) cons
 
                 YT_LOG_DEBUG("Successfully validated (SignatureId: %v)", signatureId);
                 return true;
-            }));
+            })
+            .AsyncVia(GetCurrentInvoker()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

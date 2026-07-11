@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,6 +41,12 @@ private:
     TFuture<void> InitializeCryptographyFuture_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigureSpinLock_);
+
+    //! A YSON snapshot of the last applied key reader config, used to detect
+    //! config changes; null iff validation is disabled. A snapshot is required
+    //! since callers may mutate the config object in place.
+    //! Guarded by ReconfigureSpinLock_.
+    NYTree::INodePtr AppliedKeyReaderConfigNode_;
 
     TCypressKeyReaderPtr CypressKeyReader_;
     TSignatureValidatorPtr UnderlyingValidator_;
