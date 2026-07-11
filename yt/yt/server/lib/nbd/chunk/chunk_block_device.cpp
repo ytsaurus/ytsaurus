@@ -43,21 +43,13 @@ public:
         , WriteThrottler_(std::move(writeThrottler))
         , Invoker_(std::move(invoker))
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
-        , ChunkHandler_(CreateChunkHandler(
+        , ChunkHandler_(CreateRequestHandler(
             this,
             Config_,
             Invoker_,
             std::move(channel),
             sessionId,
             Logger))
-        , PageCache_(Config_->PageCache
-            ? New<TPageCache>(
-                Config_->PageCache,
-                ChunkHandler_,
-                Invoker_,
-                Logger)
-            : nullptr)
-        , RequestHandler_(PageCache_ ? PageCache_ : ChunkHandler_)
     {
         TNbdProfilerCounters::Get()->GetCounter(
             TNbdProfilerCounters::MakeTagSet(SensorTag_), "/device/created")
@@ -194,7 +186,7 @@ public:
                     auto throttleWaitDuration = pipeline.ThrottleWaitDuration;
 
                     TWallTimer rpcTimer;
-                    return RequestHandler_->Read(offset, length, options)
+                    return ChunkHandler_->Read(offset, length, options)
                         .Apply(BIND(
                             [=,
                                 pipeline = std::move(pipeline),
@@ -325,7 +317,7 @@ public:
                     auto throttleWaitDuration = pipeline.ThrottleWaitDuration;
 
                     TWallTimer rpcTimer;
-                    return RequestHandler_->Write(offset, data, options)
+                    return ChunkHandler_->Write(offset, data, options)
                         .Apply(BIND(
                             [=,
                                 pipeline = std::move(pipeline),
@@ -372,7 +364,7 @@ public:
             .AsUnique()
             .Apply(BIND(
                 [this, this_ = MakeStrong(this)] (TReaderGuardPtr&& readerGuard) mutable -> TFuture<void> {
-                    return RequestHandler_->Flush()
+                    return ChunkHandler_->Flush()
                         .Apply(BIND(
                             [this, this_ = MakeStrong(this), readerGuard = std::move(readerGuard)] (const TError& flushError) mutable -> TFuture<void> {
                                 // Wait for in-flight requests regardless of flush outcome:
@@ -398,7 +390,7 @@ public:
                     this_ = MakeStrong(this)
                 ] (TIntrusivePtr<TAsyncLockWriterGuard> writerGuard) -> TFuture<void>
             {
-                return RequestHandler_->Initialize()
+                return ChunkHandler_->Initialize()
                     .Apply(BIND(
                         [writerGuard = std::move(writerGuard)] () {
                             // writerGuard is destroyed here, releasing the writer lock.
@@ -417,7 +409,7 @@ public:
                     this_ = MakeStrong(this)
                 ] (TIntrusivePtr<TAsyncLockWriterGuard> writerGuard) -> TFuture<void>
             {
-                return RequestHandler_->Finalize()
+                return ChunkHandler_->Finalize()
                     .Apply(BIND(
                         [writerGuard = std::move(writerGuard)] () {
                             // writerGuard is destroyed here, releasing the writer lock.
@@ -426,6 +418,31 @@ public:
     }
 
 private:
+    static IChunkHandlerPtr CreateRequestHandler(
+        TChunkBlockDevice* blockDevice,
+        TChunkBlockDeviceConfigPtr config,
+        IInvokerPtr invoker,
+        IChannelPtr channel,
+        TSessionId sessionId,
+        const TLogger& logger)
+    {
+        auto chunkHandler = CreateChunkHandler(
+            blockDevice,
+            config,
+            invoker,
+            std::move(channel),
+            sessionId,
+            logger);
+        if (config->PageCache) {
+            return New<TPageCache>(
+                config->PageCache,
+                std::move(chunkHandler),
+                invoker,
+                logger);
+        }
+        return chunkHandler;
+    }
+
     const std::string ExportId_;
     const TChunkBlockDeviceConfigPtr Config_;
     const IThroughputThrottlerPtr ReadThrottler_;
@@ -434,8 +451,6 @@ private:
     static constexpr const char* SensorTag_ = "rw";
     const TLogger Logger;
     const IChunkHandlerPtr ChunkHandler_;
-    const TPageCachePtr PageCache_;
-    const IChunkHandlerPtr RequestHandler_;
 
     //! Async RW lock protecting Initialize/Finalize from concurrent Read/Write:
     //! Read and Write acquire reader locks; Initialize and Finalize acquire the writer lock.
