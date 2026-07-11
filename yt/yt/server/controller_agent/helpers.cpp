@@ -1022,7 +1022,7 @@ void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
     }
 
     if (hasNonRootNbdVolume) {
-        THROW_ERROR_EXCEPTION("Non-root nbd are not currently supported")
+        THROW_ERROR_EXCEPTION("Non-root NBD are not currently supported")
             << TErrorAttribute("volumes", spec->Volumes);
     }
 }
