@@ -26,7 +26,7 @@ public:
     using TCompactionHintFetchPipeline::TCompactionHintFetchPipeline;
 
 protected:
-    virtual NLsm::EStoreCompactionHintKind GetStoreCompactionHintKind() const override
+    NLsm::EStoreCompactionHintKind GetStoreCompactionHintKind() const override
     {
         return NLsm::EStoreCompactionHintKind::MinHashDigest;
     }
@@ -49,7 +49,7 @@ private:
         };
     }
 
-    virtual void DoFetch() override
+    void DoFetch() override
     {
         if (auto* cacheElement = Store_->GetTablet()->GetMinHashDigestCache()->Find(Store_->GetChunkId())) {
             FinishFetch(*cacheElement);

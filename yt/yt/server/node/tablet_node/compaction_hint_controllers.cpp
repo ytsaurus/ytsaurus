@@ -275,7 +275,7 @@ void TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::OnLsmF
     YT_VERIFY(lsmCompactionHint.IsRelevantLsmResponse());
     LsmCompactionHint_ = std::move(lsmCompactionHint);
 
-    YT_LOG_DEBUG("Got relevant compaction hint feedback from lsm "
+    YT_LOG_DEBUG("Got relevant compaction hint feedback from LSM "
         "(%v, OwnerId: %v, StoreCompactionHintKind: %v, PartitionCompactionHintKind: %v)",
         owner->GetTablet()->GetLoggingTag(),
         owner->GetId(),

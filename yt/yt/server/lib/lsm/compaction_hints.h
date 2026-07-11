@@ -96,7 +96,7 @@ public:
 
     operator bool() const;
 
-    // Lsm methods.
+    // LSM methods.
 
     bool IsRelevantLsmResponse() const;
 
@@ -244,7 +244,7 @@ void DoRecalculatePartitionCompactionHint(TPartition* partition) = delete;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manage interaction with all kinds of partition compaction hints.
-//! Lives temporarily in LSM partitionss created in interop.
+//! Lives temporarily in LSM partitions created in interop.
 class TPartitionCompactionHints
 {
 public:
@@ -255,7 +255,7 @@ public:
 
 public:
     TPartitionCompactionHints() = default;
-    TPartitionCompactionHints(THints hints);
+    explicit TPartitionCompactionHints(THints hints);
 
     std::pair<EStoreCompactionReason, std::vector<TStoreId>> GetStoresForCompaction(
         TInstant currentTime,
