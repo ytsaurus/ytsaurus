@@ -175,6 +175,86 @@ public:
         }));
     }
 
+    TFuture<std::vector<TReadResponse>> ReadBatch(
+        const std::vector<TReadBatchSubrequest>& subrequests,
+        const TReadOptions& options) override
+    {
+        if (State_ != EState::Initialized) {
+            THROW_ERROR_EXCEPTION("ReadBatch on uninitialized chunk handler")
+                << TErrorAttribute("chunk_id", SessionId_.ChunkId)
+                << TErrorAttribute("medium_index", SessionId_.MediumIndex)
+                << TErrorAttribute("state", State_);
+        }
+
+        auto req = Proxy_.ReadBatch();
+        req->SetRequestInfo("ChunkId: %v, SubrequestCount: %v, Cookie: %x",
+            SessionId_.ChunkId,
+            subrequests.size(),
+            options.Cookie);
+
+        req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
+        ToProto(req->mutable_session_id(), SessionId_);
+        req->SetMultiplexingBand(EMultiplexingBand::Interactive);
+        req->SetMultiplexingParallelism(Config_->MultiplexingParallelism);
+        req->set_cookie(options.Cookie);
+        for (const auto& sub : subrequests) {
+            auto* protoSub = req->add_subrequests();
+            protoSub->set_offset(sub.Offset);
+            protoSub->set_length(sub.Length);
+        }
+
+        return req->Invoke().Apply(BIND([] (const TErrorOr<TDataNodeNbdServiceProxy::TRspReadBatchPtr>& rspOrError) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+
+            const auto& response = rspOrError.Value();
+            const auto& attachments = response->Attachments();
+            bool shouldClose = response->should_close_session();
+            std::vector<TReadResponse> responses;
+            responses.reserve(attachments.size());
+            for (const auto& attachment : attachments) {
+                responses.emplace_back(attachment, shouldClose);
+            }
+            return responses;
+        }));
+    }
+
+    TFuture<TWriteResponse> WriteBatch(
+        const std::vector<TWriteBatchSubrequest>& subrequests,
+        const TWriteOptions& options) override
+    {
+        if (State_ != EState::Initialized) {
+            THROW_ERROR_EXCEPTION("WriteBatch on uninitialized chunk handler")
+                << TErrorAttribute("chunk_id", SessionId_.ChunkId)
+                << TErrorAttribute("medium_index", SessionId_.MediumIndex)
+                << TErrorAttribute("state", State_);
+        }
+
+        auto req = Proxy_.WriteBatch();
+        req->SetRequestInfo("ChunkId: %v, SubrequestCount: %v, Cookie: %x",
+            SessionId_.ChunkId,
+            subrequests.size(),
+            options.Cookie);
+
+        req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
+        ToProto(req->mutable_session_id(), SessionId_);
+        req->SetMultiplexingBand(EMultiplexingBand::Interactive);
+        req->SetMultiplexingParallelism(Config_->MultiplexingParallelism);
+        req->set_cookie(options.Cookie);
+
+        for (const auto& sub : subrequests) {
+            auto* protoSub = req->add_subrequests();
+            protoSub->set_offset(sub.Offset);
+            req->Attachments().push_back(sub.Data);
+        }
+
+        return req->Invoke().Apply(BIND([] (const TErrorOr<TDataNodeNbdServiceProxy::TRspWriteBatchPtr>& rspOrError) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+
+            const auto& response = rspOrError.Value();
+            return TWriteResponse(response->should_close_session());
+        }));
+    }
+
 private:
     IBlockDevice* const BlockDevice_;
     const TChunkBlockDeviceConfigPtr Config_;

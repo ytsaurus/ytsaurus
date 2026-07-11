@@ -64,6 +64,54 @@ message TRspWrite
 
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+
+// ReadBatch reads multiple non-contiguous ranges in a single round-trip.
+// The response attachments contain one block per sub-read in request order.
+message TReqReadBatch
+{
+    message TSubrequest
+    {
+        required int64 offset = 1;
+        required int64 length = 2;
+    }
+
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    optional uint64 cookie = 2;
+    repeated TSubrequest subrequests = 3;
+}
+
+message TRspReadBatch
+{
+    optional uint64 cookie = 1;
+    optional bool should_close_session = 2;
+    // Response data: one attachment per subrequest, in request order.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// WriteBatch writes multiple non-contiguous ranges in a single round-trip.
+// The request attachments contain one block per sub-request in request order.
+message TReqWriteBatch
+{
+    message TSubrequest
+    {
+        required int64 offset = 1;
+    }
+
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    optional uint64 cookie = 2;
+    repeated TSubrequest subrequests = 3;
+}
+
+message TRspWriteBatch
+{
+    optional uint64 cookie = 1;
+    optional bool should_close_session = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqKeepSessionAlive
 {
     required NYT.NChunkClient.NProto.TSessionId session_id = 1;

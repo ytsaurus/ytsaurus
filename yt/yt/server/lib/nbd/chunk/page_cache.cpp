@@ -42,7 +42,7 @@ TPageCache::TPageCache(
 TPageCache::~TPageCache()
 {
     YT_LOG_INFO("Destroying page cache (DirtyPages: %v, TotalPages: %v)",
-        std::count_if(Pages_.begin(), Pages_.end(), [] (const auto& p) { return p.second.Dirty; }),
+        DirtySet_.size(),
         TotalPages_);
 }
 
@@ -83,7 +83,7 @@ TFuture<void> TPageCache::Flush()
     return FlushBatch(std::numeric_limits<int>::max());
 }
 
-TFuture<void> TPageCache::FlushBatch(int maxPages)
+TFuture<void> TPageCache::FlushBatch(i64 maxPages)
 {
     YT_LOG_DEBUG("Flushing page cache (MaxPages: %v)", maxPages);
 
@@ -96,20 +96,28 @@ TFuture<void> TPageCache::FlushBatch(int maxPages)
         auto writerGuard = WaitFor(TAsyncLockWriterGuard::Acquire(&FlushLock_))
             .ValueOrThrow();
 
-        // Collect dirty pages and mark them clean. Because the writer lock is held for
-        // the whole flush, page.Data is stable and cannot be freed or modified
-        // concurrently, so we reference it directly without copying.
+        // Collect up to maxPages dirty pages from DirtySet_ (already in ascending
+        // page-index order — no sort pass needed). Mark each page clean and remove
+        // it from the dirty index atomically under Lock_.
+        // For incremental (batch) flushes only: skip early if there aren't enough
+        // dirty pages to justify the writer lock overhead.
+        // Full flushes via Flush() always proceed (maxPages == INT_MAX).
         std::vector<std::pair<i64, TSharedRef>> dirtyPages;
         {
             auto guard = Guard(Lock_);
-            for (auto& [pageIndex, page] : Pages_) {
-                if (page.Dirty) {
-                    page.Dirty = false;
-                    dirtyPages.emplace_back(pageIndex, TSharedRef(page.Data));
-                    if (std::ssize(dirtyPages) >= maxPages) {
-                        break;
-                    }
-                }
+            if (maxPages < std::numeric_limits<int>::max() && std::ssize(DirtySet_) < 2LL * maxPages) {
+                YT_LOG_DEBUG("Few dirty pages to flush, skipping (DirtyPages: %v)", DirtySet_.size());
+                return;
+            }
+
+            auto it = DirtySet_.begin();
+            while (it != DirtySet_.end() && std::ssize(dirtyPages) < maxPages) {
+                i64 pageIndex = *it;
+                it = DirtySet_.erase(it);
+                auto pageIt = Pages_.find(pageIndex);
+                YT_VERIFY(pageIt != Pages_.end());
+                pageIt->second.Dirty = false;
+                dirtyPages.emplace_back(pageIndex, TSharedRef(pageIt->second.Data));
             }
         }
 
@@ -118,44 +126,82 @@ TFuture<void> TPageCache::FlushBatch(int maxPages)
             return;
         }
 
+        // dirtyPages is already sorted by page index (DirtySet_ is a sorted set),
+        // so adjacent pages are automatically grouped for contiguous subrequest merging.
+
         YT_LOG_DEBUG("Flushing dirty pages (Count: %v, BatchSize: %v)", dirtyPages.size(), FlushBatchSize_);
 
-        // Write dirty pages to the data node in batches of FlushBatchSize_ to avoid
-        // overwhelming the data node's request queue (which has a per-method limit).
-        // Within each batch, pages are written in parallel; batches are sequential.
+        // Write dirty pages to the data node in batches of FlushBatchSize_ using a single
+        // WriteBatch RPC per batch. Adjacent (consecutive) pages within a batch are merged
+        // into a single contiguous subrequest, reducing the number of subrequests and the
+        // metadata overhead in the data node's WriteBatch handler.
         std::vector<TError> errors;
 
         for (i64 batchStart = 0; batchStart < std::ssize(dirtyPages); batchStart += FlushBatchSize_) {
             i64 batchEnd = std::min(batchStart + FlushBatchSize_, std::ssize(dirtyPages));
 
-            std::vector<TFuture<void>> writeFutures;
-            writeFutures.reserve(batchEnd - batchStart);
+            // Merge adjacent pages into contiguous ranges.
+            // Adjacent pages have consecutive page indices; their data is concatenated
+            // into a single allocation and sent as one WriteBatch subrequest.
+            std::vector<TWriteBatchSubrequest> subrequests;
 
-            for (i64 i = batchStart; i < batchEnd; ++i) {
-                const auto& [pageIndex, data] = dirtyPages[i];
-                i64 pageOffset = pageIndex * PageSize_;
-                writeFutures.push_back(
-                    ChunkHandler_->Write(pageOffset, data, {})
-                        .AsVoid());
+            i64 rangeStart = batchStart;
+            while (rangeStart < batchEnd) {
+                // Find the end of a run of consecutive page indices.
+                i64 rangeEnd = rangeStart + 1;
+                while (rangeEnd < batchEnd &&
+                       dirtyPages[rangeEnd].first == dirtyPages[rangeEnd - 1].first + 1)
+                {
+                    ++rangeEnd;
+                }
+
+                i64 numPagesInRange = rangeEnd - rangeStart;
+                if (numPagesInRange == 1) {
+                    // Single page — no merge needed; reference page data directly.
+                    const auto& [pageIndex, data] = dirtyPages[rangeStart];
+                    subrequests.push_back({pageIndex * PageSize_, data});
+                } else {
+                    // Multiple adjacent pages — allocate a merged buffer and copy all pages into it.
+                    i64 rangeBytes = numPagesInRange * PageSize_;
+                    auto merged = TSharedMutableRef::Allocate<TPageCacheBufferTag>(
+                        rangeBytes,
+                        {.InitializeStorage = false});
+                    for (i64 i = rangeStart; i < rangeEnd; ++i) {
+                        const auto& [pageIndex, data] = dirtyPages[i];
+                        i64 offsetInMerged = (i - rangeStart) * PageSize_;
+                        std::copy(data.Begin(), data.End(), merged.Begin() + offsetInMerged);
+                    }
+                    i64 rangeOffset = dirtyPages[rangeStart].first * PageSize_;
+                    subrequests.push_back({rangeOffset, TSharedRef(std::move(merged))});
+                }
+
+                rangeStart = rangeEnd;
             }
 
-            auto results = WaitFor(AllSet(writeFutures))
-                .ValueOrThrow();
+            YT_LOG_DEBUG("WriteBatch subrequests after merging (Pages: %v, Subrequests: %v)",
+                batchEnd - batchStart,
+                subrequests.size());
 
-            // On partial failure, re-mark only the pages whose writes failed as dirty so
-            // the next flush retries just those. results[j] corresponds to dirtyPages[batchStart + j].
-            {
-                auto guard = Guard(Lock_);
-                for (i64 j = 0; j < std::ssize(results); ++j) {
-                    if (!results[j].IsOK()) {
+            auto result = WaitFor(ChunkHandler_->WriteBatch(subrequests, {}));
+
+            // WriteBatch is all-or-nothing: if the RPC fails, all pages in the batch
+            // must be re-marked as dirty for the next flush to retry them.
+            if (!result.IsOK()) {
+                {
+                    auto guard = Guard(Lock_);
+                    for (i64 i = batchStart; i < batchEnd; ++i) {
                         // The writer lock is held for the whole flush, so no eviction could
                         // have run and the page must still exist.
-                        auto it = Pages_.find(dirtyPages[batchStart + j].first);
+                        i64 pageIndex = dirtyPages[i].first;
+                        auto it = Pages_.find(pageIndex);
                         YT_VERIFY(it != Pages_.end());
-                        it->second.Dirty = true;
-                        errors.push_back(results[j]);
+                        if (!it->second.Dirty) {
+                            it->second.Dirty = true;
+                            DirtySet_.insert(pageIndex);
+                        }
                     }
                 }
+                errors.push_back(result);
             }
         }
 
@@ -234,14 +280,9 @@ TFuture<TReadResponse> TPageCache::Read(i64 offset, i64 length, const TReadOptio
                     // A single O(N) pass through the LRU list instead of O(N * numMissing).
                     i64 numMissing = std::ssize(missingPages);
                     i64 toEvict = std::max<i64>(0, TotalPages_ + numMissing - MaxPages_);
-                    if (toEvict > 0) {
-                        i64 evicted = EvictPages(toEvict);
-                        if (evicted < toEvict) {
-                            // Could not evict enough pages (all remaining are dirty) —
-                            // trigger a background flush to free up space.
-                            needFlush = true;
-                        }
-                    }
+                    // Could not evict enough pages (all remaining are dirty) —
+                    // trigger a background flush to free up space.
+                    needFlush = toEvict > 0 && EvictPages(toEvict) < toEvict;
                 }
 
                 if (needFlush) {
@@ -325,6 +366,13 @@ TFuture<TReadResponse> TPageCache::Read(i64 offset, i64 length, const TReadOptio
             }));
 }
 
+TFuture<std::vector<TReadResponse>> TPageCache::ReadBatch(
+    const std::vector<TReadBatchSubrequest>& subrequests,
+    const TReadOptions& options)
+{
+    return ChunkHandler_->ReadBatch(subrequests, options);
+}
+
 TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, const TWriteOptions& options)
 {
     YT_LOG_DEBUG("Writing to page cache (Offset: %v, Length: %v, Cookie: %x, Flush: %v)",
@@ -358,6 +406,8 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                 };
                 std::vector<TPageWriteInfo> missingPages;
 
+                bool needFlush = false;
+                bool needEndFlush = false;
                 {
                     auto guard = Guard(Lock_);
                     for (i64 pageIndex = firstPageIndex; pageIndex <= lastPageIndex; ++pageIndex) {
@@ -375,7 +425,10 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                                 data.Begin() + dataOffset,
                                 data.Begin() + dataOffset + inPageLen,
                                 page.Data.Begin() + inPageOffset);
-                            page.Dirty = true;
+                            if (!page.Dirty) {
+                                page.Dirty = true;
+                                DirtySet_.insert(pageIndex);
+                            }
                             TouchPage(pageIndex);
                         } else {
                             missingPages.push_back({pageIndex, inPageOffset, inPageLen, dataOffset});
@@ -386,19 +439,15 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                     // A single O(N) pass through the LRU list instead of O(N * numMissing).
                     i64 numMissing = std::ssize(missingPages);
                     i64 toEvict = std::max<i64>(0, TotalPages_ + numMissing - MaxPages_);
-                    bool needFlush = false;
-                    if (toEvict > 0) {
-                        i64 evicted = EvictPages(toEvict);
-                        if (evicted < toEvict) {
-                            needFlush = true;
-                        }
-                    }
-                    guard.Release();
+                    // Could not evict enough pages (all remaining are dirty) —
+                    // trigger a background flush to free up space.
+                    needFlush = toEvict > 0 && EvictPages(toEvict) < toEvict;
+                    needEndFlush = std::ssize(DirtySet_) >= FlushBatchSize_;
+                }
 
-                    if (needFlush) {
-                        YT_LOG_DEBUG("Cache is full of dirty pages, triggering background flush");
-                        TriggerBackgroundFlush("Background flush triggered by cache pressure failed");
-                    }
+                if (needFlush) {
+                    YT_LOG_DEBUG("Cache is full of dirty pages, triggering background flush");
+                    TriggerBackgroundFlush("Background flush triggered by cache pressure failed");
                 }
 
                 // Second pass: process each missing page (full-page or partial-page write).
@@ -426,11 +475,11 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                         // while the spinlock was released.
                         auto [it, inserted] = Pages_.try_emplace(pageIndex);
                         if (inserted) {
-                            it->second.Data = std::move(pageData);
-                            it->second.Dirty = true;
+                            it->second = {.Data = std::move(pageData), .Dirty = true};
+                            DirtySet_.insert(pageIndex);
                             LruList_.push_back(pageIndex);
                             LruMap_[pageIndex] = std::prev(LruList_.end());
-                            TotalPages_++;
+                            ++TotalPages_;
                         } else {
                             // Another request raced and already inserted this page.
                             // Overwrite it with our data (inPageLen == PageSize_ here).
@@ -438,10 +487,16 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                                 data.Begin() + dataOffset,
                                 data.Begin() + dataOffset + inPageLen,
                                 it->second.Data.Begin() + inPageOffset);
-                            it->second.Dirty = true;
+
+                            if (!it->second.Dirty) {
+                                it->second.Dirty = true;
+                                DirtySet_.insert(pageIndex);
+                            }
                         }
                         TouchPage(pageIndex);
                     } else {
+                        YT_LOG_DEBUG("Partial page write");
+
                         // Partial page write — need read-before-write.
                         i64 pageStart = pageIndex * PageSize_;
                         auto readFuture = ChunkHandler_->Read(pageStart, PageSize_, {.Cookie = options.Cookie})
@@ -465,7 +520,7 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                                         rpcResponse.Data.Begin(),
                                         rpcResponse.Data.Begin() + PageSize_,
                                         it->second.Data.Begin());
-                                    it->second.Dirty = false;
+                                    // it->second.Dirty is false after default construction.
                                     LruList_.push_back(pageIndex);
                                     LruMap_[pageIndex] = std::prev(LruList_.end());
                                     TotalPages_++;
@@ -474,7 +529,10 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                                     data.Begin() + dataOffset,
                                     data.Begin() + dataOffset + inPageLen,
                                     it->second.Data.Begin() + inPageOffset);
-                                it->second.Dirty = true;
+                                if (!it->second.Dirty) {
+                                    it->second.Dirty = true;
+                                    DirtySet_.insert(pageIndex);
+                                }
                                 TouchPage(pageIndex);
                             }));
 
@@ -502,11 +560,21 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                 // AllSucceeded on an empty vector returns a ready future, so this
                 // also handles the all-cache-hits case (no missing pages).
                 return AllSucceeded(readBeforeWriteFutures)
-                    .Apply(BIND([readerGuard = std::move(readerGuard)] () {
-                        // readerGuard is released here, after all page.Data writes complete.
+                    .Apply(BIND([this, this_ = MakeStrong(this), readerGuard = std::move(readerGuard), needEndFlush] () mutable {
+                        if (needEndFlush) {
+                            TriggerBackgroundFlush("Background flush triggered by cache pressure failed");
+                        }
+                        // readerGuard is released here (end of lambda), after all page.Data writes complete.
                         return TWriteResponse{};
                     }));
             }));
+}
+
+TFuture<TWriteResponse> TPageCache::WriteBatch(
+    const std::vector<TWriteBatchSubrequest>& subrequests,
+    const TWriteOptions& options)
+{
+    return ChunkHandler_->WriteBatch(subrequests, options);
 }
 
 void TPageCache::Start()
@@ -578,6 +646,9 @@ i64 TPageCache::EvictPages(i64 count)
 void TPageCache::RemovePage(i64 pageIndex)
 {
     // Must be called under Lock_.
+    // DirtySet_ is NOT updated here: RemovePage is only called from EvictPages,
+    // which skips dirty pages (pageIt->second.Dirty == false), so the page is
+    // never in DirtySet_ at this point.
     Pages_.erase(pageIndex);
     auto lruIt = LruMap_.find(pageIndex);
     if (lruIt != LruMap_.end()) {
@@ -593,7 +664,7 @@ std::optional<TError> TPageCache::CheckHardLimit()
     // eviction is impossible), log a warning, trigger an emergency flush, and
     // return an error so the caller can fail fast and retry after the cache drains.
     auto guard = Guard(Lock_);
-    if (TotalPages_ <= 2 * MaxPages_) {
+    if (TotalPages_ <= 2LL * MaxPages_) {
         return std::nullopt;
     }
     auto totalPages = TotalPages_;
@@ -611,8 +682,6 @@ std::optional<TError> TPageCache::CheckHardLimit()
 void TPageCache::TriggerBackgroundFlush(TStringBuf failureLogMessage)
 {
     // Use FlushBatch instead of the full Flush() to limit the time the writer lock is held.
-    // Full Flush() can block all reads/writes for many seconds when the cache is full;
-    // FlushBatch(FlushBatchSize_) only holds the lock for one small batch (~10 ms).
     FlushBatch(FlushBatchSize_).Subscribe(BIND([Logger = Logger, failureLogMessage = TString(failureLogMessage)] (const TError& error) {
         if (!error.IsOK()) {
             YT_LOG_WARNING(error, "%v", failureLogMessage);

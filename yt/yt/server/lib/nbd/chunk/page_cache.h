@@ -14,6 +14,7 @@
 #include <library/cpp/yt/logging/logger.h>
 
 #include <list>
+#include <set>
 #include <unordered_map>
 
 namespace NYT::NNbd::NChunk {
@@ -51,8 +52,7 @@ public:
     TFuture<void> Flush() override;
 
     //! Flush up to |maxPages| dirty pages to the data node.
-    //! Used by the periodic flush to avoid holding the writer lock for too long.
-    TFuture<void> FlushBatch(int maxPages);
+    TFuture<void> FlushBatch(i64 maxPages);
 
     //! Read data from the cache or data node.
     //! On cache miss, reads the full page from data node and caches it.
@@ -63,6 +63,16 @@ public:
     //! For partial-page writes (rare unaligned requests), reads necessary pages
     //! from data node first (read-before-write).
     TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override;
+
+    //! Delegates ReadBatch to ChunkHandler_ (no caching for batch reads).
+    TFuture<std::vector<TReadResponse>> ReadBatch(
+        const std::vector<TReadBatchSubrequest>& subrequests,
+        const TReadOptions& options) override;
+
+    //! Delegates WriteBatch to ChunkHandler_ (used by flush path).
+    TFuture<TWriteResponse> WriteBatch(
+        const std::vector<TWriteBatchSubrequest>& subrequests,
+        const TWriteOptions& options) override;
 
 private:
     struct TPage
@@ -83,7 +93,7 @@ private:
     const IInvokerPtr Invoker_;
     const i64 PageSize_;
     const i64 MaxPages_;
-    const int FlushBatchSize_;
+    const i64 FlushBatchSize_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -91,6 +101,12 @@ private:
     TLruList LruList_;
     std::unordered_map<i64, TLruIter> LruMap_;
     i64 TotalPages_ = 0;
+
+    //! Sorted set of page indices with Dirty == true, maintained in sync with
+    //! page.Dirty. Enables O(FlushBatchSize) dirty-page collection in FlushBatch
+    //! (iterate from begin()) without scanning all pages, and pages are already in
+    //! ascending order so no std::sort pass is needed.
+    std::set<i64> DirtySet_;
 
     NConcurrency::TAsyncReaderWriterLock FlushLock_;
 

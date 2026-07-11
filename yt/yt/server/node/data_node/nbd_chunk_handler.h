@@ -14,6 +14,12 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNbdReadSubrequest
+{
+    i64 Offset;
+    i64 Length;
+};
+
 struct INbdChunkHandler
     : public virtual TRefCounted
 {
@@ -22,6 +28,10 @@ struct INbdChunkHandler
     virtual TFuture<void> Destroy() = 0;
 
     virtual TFuture<NChunkClient::TBlock> Read(i64 offset, i64 length, ui64 cookie) = 0;
+
+    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBatch(
+        const std::vector<TNbdReadSubrequest>& subrequests,
+        ui64 cookie) = 0;
 
     virtual TFuture<NIO::TIOCounters> Write(i64 offset, const NChunkClient::TBlock& block, ui64 cookie) = 0;
 };

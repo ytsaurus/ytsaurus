@@ -29,6 +29,11 @@ struct TNbdSession
     //! Read size bytes from NBD chunk at offset.
     TFuture<NChunkClient::TBlock> Read(i64 offset, i64 size, ui64 cookie);
 
+    //! Read multiple non-contiguous ranges from NBD chunk in a single IO call.
+    TFuture<std::vector<NChunkClient::TBlock>> ReadBatch(
+        const std::vector<TNbdReadSubrequest>& subrequests,
+        ui64 cookie);
+
     //! Write buffer to NBD chunk at offset.
     TFuture<NIO::TIOCounters> Write(i64 offset, const NChunkClient::TBlock& block, ui64 cookie);
 

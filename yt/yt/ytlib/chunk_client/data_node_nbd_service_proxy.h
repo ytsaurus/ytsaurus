@@ -15,12 +15,14 @@ class TDataNodeNbdServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TDataNodeNbdServiceProxy, DataNodeNbdService,
-        .SetProtocolVersion(0));
+        .SetProtocolVersion(1));
 
     DEFINE_RPC_PROXY_METHOD(NNbd::NProto, OpenSession);
     DEFINE_RPC_PROXY_METHOD(NNbd::NProto, CloseSession);
     DEFINE_RPC_PROXY_METHOD(NNbd::NProto, Read);
     DEFINE_RPC_PROXY_METHOD(NNbd::NProto, Write);
+    DEFINE_RPC_PROXY_METHOD(NNbd::NProto, ReadBatch);
+    DEFINE_RPC_PROXY_METHOD(NNbd::NProto, WriteBatch);
     DEFINE_RPC_PROXY_METHOD(NNbd::NProto, KeepSessionAlive);
 };
 
