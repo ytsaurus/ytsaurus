@@ -89,9 +89,9 @@ public:
         return false;
     }
 
-    std::string DebugString() const override
+    std::string GetDescription() const override
     {
-        return Format("{Size: %v}", GetTotalSize());
+        return Format("Chunk{Size: %v}", GetTotalSize());
     }
 
     std::string GetProfileSensorTag() const override

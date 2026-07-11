@@ -83,9 +83,9 @@ public:
         return true;
     }
 
-    std::string DebugString() const override
+    std::string GetDescription() const override
     {
-        return Format("{CypressPath: %v}", Reader_->GetPath());
+        return Format("Image{Path: %v}", Reader_->GetPath());
     }
 
     std::string GetProfileSensorTag() const override

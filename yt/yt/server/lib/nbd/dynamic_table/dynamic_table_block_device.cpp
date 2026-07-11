@@ -306,9 +306,9 @@ public:
         return false;
     }
 
-    std::string DebugString() const override
+    std::string GetDescription() const override
     {
-        return std::string();
+        return Format("DynamicTable{Path: %v}", DeviceConfig_->TablePath);
     }
 
     std::string GetProfileSensorTag() const override
