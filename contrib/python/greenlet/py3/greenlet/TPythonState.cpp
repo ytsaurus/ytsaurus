@@ -27,6 +27,7 @@ PythonState::PythonState()
 #endif
 #if GREENLET_PY313
     ,delete_later(nullptr)
+    ,critical_section(0)
 #else
     ,trash_delete_nesting(0)
 #endif
@@ -191,6 +192,7 @@ void PythonState::operator<<(const PyThreadState *const tstate) noexcept
     // ``greenlet.tests.test_greenlet_trash`` tries, but under 3.14,
     // at least, fails to do so.
     this->delete_later = Py_XNewRef(tstate->delete_later);
+    this->critical_section = tstate->critical_section;
   #elif GREENLET_PY312
     this->trash_delete_nesting = tstate->trash.delete_nesting;
   #else // not 312 or 3.13+
@@ -298,7 +300,7 @@ void PythonState::operator>>(PyThreadState *const tstate) noexcept
         tstate->delete_later = this->delete_later;
         Py_CLEAR(this->delete_later);
     }
-
+    tstate->critical_section = this->critical_section;
 
   #elif GREENLET_PY312
     tstate->trash.delete_nesting = this->trash_delete_nesting;
