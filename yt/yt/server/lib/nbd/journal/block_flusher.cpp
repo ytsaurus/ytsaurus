@@ -11,6 +11,8 @@
 
 #include <library/cpp/yt/logging/logger.h>
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NNbd::NJournal {
 
 using namespace NConcurrency;
@@ -106,8 +108,7 @@ private:
             NProfiling::TWallTimer timer;
             auto blockIdsOrError = WaitFor(BlockStore_->WriteBlocks(payloads));
             if (!blockIdsOrError.IsOK()) {
-                // Out of write retries — the store is persistently unwritable. Give up for good and
-                // leave the drained blocks resident in the pool (not EndDrained) so reads still find
+                // Leave the drained blocks resident in the pool (not EndDrained) so reads still find
                 // them; the Failed signal lets the device fail itself.
                 auto error = TError("Block flush failed") << blockIdsOrError;
                 YT_LOG_WARNING(error);
@@ -117,8 +118,8 @@ private:
 
             const auto& storedBlockIds = blockIdsOrError.Value();
             YT_VERIFY(std::ssize(storedBlockIds) == std::ssize(drainResult));
-            for (int index = 0; index < std::ssize(drainResult); ++index) {
-                BlockFlushed_.Fire(drainResult[index], storedBlockIds[index]);
+            for (const auto& [block, storedBlockId] : Zip(drainResult, storedBlockIds)) {
+                BlockFlushed_.Fire(block, storedBlockId);
             }
 
             DirtyPool_->EndDrain(drainResult);

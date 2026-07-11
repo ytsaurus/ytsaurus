@@ -59,7 +59,7 @@ struct IDirtyBlockPool
     virtual TDirtyBlockPtr Find(TDirtyBlockId blockId, int blockIndex) = 0;
 
     using TBeginDrainResult = std::vector<TDirtyBlockPtr>;
-    //! Returns up to |maxBlockCount| of the oldest blocks without removing them from the pool.
+    //! Returns up to |maxBlockCount| of the blocks without removing them from the pool.
     /*!
      *  The returned blocks stay in the pool (and findable via #Find) until the matching #EndDrain,
      *  so reads still see them while their flush is in flight. Meant to be paired with #EndDrain by

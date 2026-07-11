@@ -13,10 +13,6 @@ namespace NYT::NNbd::NJournal {
 
 //! Maps each block index to its state, kept in a vector of atomic 64-bit slots:
 //! the two high bits hold the state and the remaining 62 bits hold the id (if any).
-/*!
- *  Slots are accessed with acquire/release ordering so that a reader that observes a
- *  dirty/clean id also observes everything the writer published before installing it.
- */
 class TBlockMap
     : public IBlockMap
 {

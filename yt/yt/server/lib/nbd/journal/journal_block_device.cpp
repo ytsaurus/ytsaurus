@@ -37,7 +37,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A clean (flushed) block cached by its stored block id.
 class TCleanBlock
     : public TAsyncCacheValueBase<TStoredBlockId, TCleanBlock>
 {
@@ -141,9 +140,8 @@ public:
 
     std::string GetDescription() const final
     {
-        return Format("Journal{Size: %v, BlockSize: %v}",
-            Geometry_.GetByteSize(),
-            Geometry_.BlockSize);
+        return Format("Journal{Size: %v}",
+            Geometry_.GetByteSize());
     }
 
     std::string GetProfileSensorTag() const final

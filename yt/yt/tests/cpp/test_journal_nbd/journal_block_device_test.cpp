@@ -41,8 +41,6 @@ constexpr i64 BlockSize = 4_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Exercises the journal-backed IBlockDevice end-to-end against a real cluster: the same read/write
-//! surface the NBD server presents to jobs (empty/dirty/clean block resolution, flushing).
 class TJournalBlockDeviceTest
     : public TApiTestBase
 {
