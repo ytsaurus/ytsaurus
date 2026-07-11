@@ -26,9 +26,9 @@ public:
         return false;
     }
 
-    std::string DebugString() const override
+    std::string GetDescription() const override
     {
-        return Format("{Memory Size, %v}", GetTotalSize());
+        return Format("Memory{Size: %v}", GetTotalSize());
     }
 
     std::string GetProfileSensorTag() const override

@@ -102,14 +102,16 @@ public:
         const std::string& name,
         IBlockDevicePtr device) override
     {
-        YT_LOG_INFO("Registering device (Name: %v, Info: %v)", name, device->DebugString());
+        YT_LOG_INFO("Registering device (Name: %v, Description: %v)",
+            name,
+            device->GetDescription());
 
         auto guard = WriterGuard(NameToDeviceLock_);
         auto [it, inserted] = NameToDevice_.emplace(name, device);
         if (!inserted) {
             auto error = TError("Device %Qv with %Qv is already registered",
                 name,
-                device->DebugString());
+                device->GetDescription());
 
             YT_LOG_WARNING(error);
             THROW_ERROR_EXCEPTION(error);
@@ -117,7 +119,9 @@ public:
 
         TNbdProfilerCounters::Get()->GetCounter(TNbdProfilerCounters::MakeTagSet(device->GetProfileSensorTag()), "/device/registered").Increment(1);
 
-        YT_LOG_INFO("Registered device (Name: %v, Info: %v)", name, device->DebugString());
+        YT_LOG_INFO("Registered device (Name: %v, Description: %v)",
+            name,
+            device->GetDescription());
     }
 
     IBlockDevicePtr TryUnregisterDevice(const std::string& name) override
@@ -817,10 +821,9 @@ private:
                         strTagSet = Device_->GetProfileSensorTag();
                         tagSet = TNbdProfilerCounters::MakeTagSet(strTagSet);
 
-                        YT_LOG_DEBUG("Connection has been closed by the peer (Abort: %v, DeviceDebugString: %v, DeviceError: %v)",
+                        YT_LOG_DEBUG(Device_->GetError(), "Connection has been closed by the peer (Abort: %v, DeviceDescription: %v)",
                             Abort_,
-                            Device_->DebugString(),
-                            Device_->GetError());
+                            Device_->GetDescription());
                     }
                     TNbdProfilerCounters::Get()->GetCounter(tagSet, "/server/request/zero_read_buffer").Increment(1);
                     THROW_ERROR_EXCEPTION("Read returned zero bytes")
