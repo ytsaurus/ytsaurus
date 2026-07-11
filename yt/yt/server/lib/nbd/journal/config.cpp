@@ -49,6 +49,12 @@ void TJournalBlockStoreConfig::Register(TRegistrar registrar)
             .MinBackoff = TDuration::MilliSeconds(100),
             .MaxBackoff = TDuration::Seconds(3),
         });
+    registrar.Parameter("chunk_creation_backoff", &TThis::ChunkCreationBackoff)
+        .Default(TExponentialBackoffOptions{
+            .InvocationCount = 10,
+            .MinBackoff = TDuration::Seconds(1),
+            .MaxBackoff = TDuration::Seconds(30),
+        });
     registrar.Parameter("chunk_writer", &TThis::ChunkWriter)
         .DefaultNew();
     registrar.Parameter("chunk_reader", &TThis::ChunkReader)

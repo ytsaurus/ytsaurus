@@ -54,6 +54,10 @@ struct TJournalBlockStoreConfig
     //! Governs the per-record write retries (each attempt targets a random writer).
     TExponentialBackoffOptions WriteBackoff;
 
+    //! Governs the retries when creating (topping up) a writable journal chunk. Once these are
+    //! exhausted the store fails, so a persistent creation failure does not retry forever.
+    TExponentialBackoffOptions ChunkCreationBackoff;
+
     NApi::TJournalChunkWriterConfigPtr ChunkWriter;
     NChunkClient::TChunkFragmentReaderConfigPtr ChunkReader;
 
