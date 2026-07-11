@@ -71,7 +71,7 @@ bool TCompactionHintBase::IsSuitableTimeForCompaction(TInstant currentTime) cons
 
 void TCompactionHintBase::ApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason)
 {
-    // Revisions are not null and currect response is outdated.
+    // Revisions are not null and current response is outdated.
     YT_VERIFY(LsmResponseRevision_ < NodeObjectRevision_);
 
     LsmResponseRevision_ = NodeObjectRevision_;
