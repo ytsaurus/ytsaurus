@@ -133,7 +133,7 @@ private:
     const IInvokerPtr FinalizerPoolInvoker_;
     const IInvokerPtr SerializedInvoker_;
 
-    absl::flat_hash_map<TMessageId, TMessageState> MessageStatesMap_;
+    absl::flat_hash_map<TMessageId, TMessageState, ::THash<TMessageId>> MessageStatesMap_;
     THashMap<TStreamId, TStreamState> StreamStates_;
     ui64 NextSeqNo_ = 0;
 
