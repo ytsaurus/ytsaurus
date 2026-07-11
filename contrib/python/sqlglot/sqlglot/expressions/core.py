@@ -10,12 +10,14 @@ import re
 import sys
 import textwrap
 import typing as t
+from builtins import type as Type
 from collections import deque
+from collections.abc import Collection, Iterator, Mapping, MutableMapping, Sequence
 from copy import deepcopy
 from decimal import Decimal
 from functools import reduce
-from collections.abc import Iterator, Sequence, Collection, Mapping, MutableMapping
-from sqlglot._typing import E, T
+
+from sqlglot._typing import E, GeneratorNoDialectArgs, ParserNoDialectArgs, T
 from sqlglot.errors import ParseError
 from sqlglot.helper import (
     camel_to_snake_case,
@@ -24,17 +26,15 @@ from sqlglot.helper import (
     to_bool,
     trait,
 )
-
 from sqlglot.tokenizer_core import Token
-from builtins import type as Type
-from sqlglot._typing import GeneratorNoDialectArgs, ParserNoDialectArgs
 
 if t.TYPE_CHECKING:
-    from typing_extensions import Self, Unpack, Concatenate
+    from typing_extensions import Concatenate, Self, Unpack
+
+    from sqlglot._typing import P
     from sqlglot.dialects.dialect import DialectType
     from sqlglot.expressions.datatypes import DATA_TYPE, DataType, DType, Interval
     from sqlglot.expressions.query import Select
-    from sqlglot._typing import P
 
     R = t.TypeVar("R")
 
@@ -1789,7 +1789,12 @@ class JoinHint(Expression):
 
 
 class Identifier(Expression):
-    arg_types = {"this": True, "quoted": False, "global_": False, "temporary": False}
+    arg_types = {
+        "this": True,
+        "quoted": False,
+        "global_": False,
+        "temporary": False,
+    }
     is_primitive = True
     _hash_raw_args = True
 
@@ -1802,12 +1807,19 @@ class Identifier(Expression):
         return self.name
 
 
+# https://docs.snowflake.com/en/sql-reference/identifier-literal
+# "expressions" holds the arguments when the resolved identifier is invoked as a
+# function, e.g. `IDENTIFIER('my_func')(1, 2)`
+class DynamicIdentifier(Expression, Func):
+    arg_types = {"this": True, "expressions": False}
+
+
 class Opclass(Expression):
     arg_types = {"this": True, "expression": True}
 
 
 class Star(Expression):
-    arg_types = {"except_": False, "replace": False, "rename": False}
+    arg_types = {"except_": False, "replace": False, "rename": False, "ilike": False}
 
     @property
     def name(self) -> str:
@@ -2415,7 +2427,8 @@ def convert(value: t.Any, copy: bool = False) -> Expr:
 
         return _Array(expressions=[convert(v, copy=copy) for v in value])
     if isinstance(value, dict):
-        from sqlglot.expressions.array import Array as _Array, Map as _Map
+        from sqlglot.expressions.array import Array as _Array
+        from sqlglot.expressions.array import Map as _Map
 
         return _Map(
             keys=_Array(expressions=[convert(k, copy=copy) for k in value]),

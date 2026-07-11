@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: sqlglot
-Version: 30.11.0
+Version: 30.12.0
 Summary: An easily customizable SQL parser and transpiler
 Author-email: Toby Mao <toby.mao@gmail.com>
 License-Expression: MIT
@@ -19,7 +19,7 @@ Description-Content-Type: text/markdown
 License-File: LICENSE
 Provides-Extra: dev
 Requires-Dist: duckdb>=0.6; extra == "dev"
-Requires-Dist: sqlglot-mypy>=2.1.0.post2; python_version >= "3.10" and extra == "dev"
+Requires-Dist: sqlglot-mypy>=2.1.0.post3; python_version >= "3.10" and extra == "dev"
 Requires-Dist: mypy; python_version < "3.10" and extra == "dev"
 Requires-Dist: setuptools_scm; extra == "dev"
 Requires-Dist: pandas; extra == "dev"
@@ -34,10 +34,10 @@ Requires-Dist: types-pytz; extra == "dev"
 Requires-Dist: typing_extensions; extra == "dev"
 Requires-Dist: pyperf; extra == "dev"
 Provides-Extra: c
-Requires-Dist: sqlglotc==30.11.0; python_version >= "3.10" and extra == "c"
+Requires-Dist: sqlglotc==30.12.0; python_version >= "3.10" and extra == "c"
 Provides-Extra: rs
 Requires-Dist: sqlglotrs==0.13.0; extra == "rs"
-Requires-Dist: sqlglotc==30.11.0; python_version >= "3.10" and extra == "rs"
+Requires-Dist: sqlglotc==30.12.0; python_version >= "3.10" and extra == "rs"
 Dynamic: license-file
 Dynamic: provides-extra
 

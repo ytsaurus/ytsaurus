@@ -4,7 +4,9 @@ import itertools
 import logging
 import re
 import typing as t
+from builtins import type as Type
 from collections import defaultdict
+from collections.abc import Sequence
 
 from sqlglot import exp
 from sqlglot.errors import (
@@ -17,19 +19,16 @@ from sqlglot.errors import (
 )
 from sqlglot.expressions import apply_index_offset
 from sqlglot.helper import ensure_list, i64, seq_get
-from sqlglot.trie import new_trie
 from sqlglot.time import format_time
 from sqlglot.tokens import Token, Tokenizer, TokenType
-from sqlglot.trie import TrieResult, in_trie
-from collections.abc import Sequence
-from builtins import type as Type
+from sqlglot.trie import TrieResult, in_trie, new_trie
 
 if t.TYPE_CHECKING:
-    from sqlglot.expressions import ExpOrStr
-    from sqlglot._typing import E, BuilderArgs
-    from sqlglot.dialects.dialect import Dialect, DialectType
-
     from re import Pattern
+
+    from sqlglot._typing import BuilderArgs, E
+    from sqlglot.dialects.dialect import Dialect, DialectType
+    from sqlglot.expressions import ExpOrStr
 
     T = t.TypeVar("T")
     TCeilFloor = t.TypeVar("TCeilFloor", exp.Ceil, exp.Floor)
@@ -1192,7 +1191,7 @@ class Parser:
         TokenType.IRLIKE: binary_range_parser(exp.RegexpILike),
         TokenType.IS: lambda self, this: self._parse_is(this),
         TokenType.LIKE: binary_range_parser(exp.Like),
-        TokenType.LT_AT: binary_range_parser(exp.ArrayContainsAll, reverse_args=True),
+        TokenType.LT_AT: binary_range_parser(exp.ArrayContainedBy),
         TokenType.OVERLAPS: binary_range_parser(exp.Overlaps),
         TokenType.RLIKE: binary_range_parser(exp.RegexpLike),
         TokenType.SIMILAR_TO: binary_range_parser(exp.SimilarTo),
@@ -1200,6 +1199,7 @@ class Parser:
         TokenType.QMARK_AMP: binary_range_parser(exp.JSONBContainsAllTopKeys),
         TokenType.QMARK_PIPE: binary_range_parser(exp.JSONBContainsAnyTopKeys),
         TokenType.HASH_DASH: binary_range_parser(exp.JSONBDeleteAtPath),
+        TokenType.AT_QMARK: binary_range_parser(exp.JSONBPathExists),
         TokenType.ADJACENT: binary_range_parser(exp.Adjacent),
         TokenType.OPERATOR: lambda self, this: self._parse_operator(this),
         TokenType.AMP_LT: binary_range_parser(exp.ExtendsLeft),
@@ -1235,6 +1235,7 @@ class Parser:
             exp.BackupProperty(this=self._parse_var(any_token=True))
         ),
         "BLOCKCOMPRESSION": lambda self: self._parse_blockcompression(),
+        "CALLED": lambda self: self._parse_called_on_null_input_property(),
         "CHARSET": lambda self, **kwargs: self._parse_character_set(**kwargs),
         "CHARACTER SET": lambda self, **kwargs: self._parse_character_set(**kwargs),
         "CHECKSUM": lambda self: self._parse_checksum(),
@@ -1791,6 +1792,10 @@ class Parser:
     # Whether the `:` operator is used to extract a value from a VARIANT column
     COLON_IS_VARIANT_EXTRACT: t.ClassVar = False
 
+    # Whether a chain of colon extractions (x:y:z) is a single extraction with a merged
+    # path (x:y.z, e.g. Snowflake) or each colon extracts from the previous result (e.g. Databricks)
+    COLON_CHAIN_IS_SINGLE_EXTRACT: t.ClassVar = True
+
     # Whether or not a VALUES keyword needs to be followed by '(' to form a VALUES clause.
     # If this is True and '(' is not found, the keyword will be treated as an identifier
     VALUES_FOLLOWED_BY_PAREN: t.ClassVar = True
@@ -1841,6 +1846,10 @@ class Parser:
     # Whether INTERVAL spans with literal format '\d+ hh:[mm:[ss[.ff]]]'
     # can omit the span unit `DAY TO MINUTE` or `DAY TO SECOND`
     SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT: t.ClassVar = False
+
+    # Whether adjacent string literals like 'foo' 'bar' require a whitespace or comment between them
+    # to be considered valid syntactically. Such expressions evaluate to the strings' concatenation.
+    ADJACENT_STRINGS_CANNOT_BE_CONNECTED: t.ClassVar = False
 
     SHOW_TRIE: t.ClassVar[dict] = new_trie(key.split(" ") for key in SHOW_PARSERS)
     SET_TRIE: t.ClassVar[dict] = new_trie(key.split(" ") for key in SET_PARSERS)
@@ -2803,6 +2812,12 @@ class Parser:
             return seq_props
 
         self._retreat(index)
+        return self._parse_key_value_property()
+
+    def _parse_key_value_property(
+        self, parse_value: t.Callable[[], exp.Expr | None] | None = None
+    ) -> exp.Property | None:
+        index = self._index
         key = self._parse_column()
 
         if not self._match(TokenType.EQ):
@@ -2813,7 +2828,11 @@ class Parser:
         if isinstance(key, exp.Column):
             key = key.to_dot() if len(key.parts) > 1 else exp.var(key.name)
 
-        value = self._parse_bitwise() or self._parse_var(any_token=True)
+        value = (
+            parse_value()
+            if parse_value
+            else self._parse_bitwise() or self._parse_var(any_token=True)
+        )
 
         # Transform the value to exp.Var if it was parsed as exp.Column(exp.Identifier())
         if isinstance(value, exp.Column):
@@ -2890,6 +2909,13 @@ class Parser:
         return self.expression(
             exp.SettingsProperty(expressions=self._parse_csv(self._parse_assignment))
         )
+
+    def _parse_called_on_null_input_property(self) -> exp.CalledOnNullInputProperty | None:
+        if not self._match_text_seq("ON", "NULL", "INPUT"):
+            self._retreat(self._index - 1)
+            return None
+
+        return self.expression(exp.CalledOnNullInputProperty())
 
     def _parse_volatile_property(self) -> exp.VolatileProperty | exp.StabilityProperty:
         if self._index >= 2:
@@ -3540,7 +3566,7 @@ class Parser:
             if self._match_text_seq("ON", "CONSTRAINT"):
                 constraint = self._parse_id_var()
             elif self._match(TokenType.L_PAREN):
-                conflict_keys = self._parse_csv(self._parse_id_var)
+                conflict_keys = self._parse_csv(self._parse_indexed_column)
                 self._match_r_paren()
 
         index_predicate = self._parse_where()
@@ -6665,13 +6691,12 @@ class Parser:
         self,
         this: exp.Expr | None,
         path_parts: list[exp.JSONPathPart],
-        escape: bool | None,
     ) -> tuple[exp.Expr | None, list[exp.JSONPathPart]]:
         if len(path_parts) > 1:
             this = self.expression(
                 exp.JSONExtract(
                     this=this,
-                    expression=exp.JSONPath(expressions=path_parts, escape=escape),
+                    expression=exp.JSONPath(expressions=path_parts),
                     variant_extract=True,
                     requires_json=self.JSON_EXTRACT_REQUIRES_JSON_EXPRESSION,
                 )
@@ -6682,24 +6707,24 @@ class Parser:
 
     def _parse_colon_as_variant_extract(self, this: exp.Expr | None) -> exp.Expr | None:
         path_parts: list[exp.JSONPathPart] = [exp.JSONPathRoot()]
-        escape = None
 
         while self._match(TokenType.COLON):
+            if not self.COLON_CHAIN_IS_SINGLE_EXTRACT:
+                this, path_parts = self._build_json_extract(this, path_parts)
+
             key = self._parse_id_var(any_token=True, tokens=(TokenType.SELECT,))
 
             if key:
-                if isinstance(key, exp.Identifier) and key.quoted:
-                    escape = True
-                path_parts.append(exp.JSONPathKey(this=key.name))
+                quoted = isinstance(key, exp.Identifier) and key.quoted
+                path_parts.append(exp.JSONPathKey(this=key.name, quoted=quoted))
 
             while True:
                 if self._match(TokenType.DOT):
                     next_key = self._parse_id_var(any_token=True, tokens=(TokenType.SELECT,))
 
                     if next_key:
-                        if isinstance(next_key, exp.Identifier) and next_key.quoted:
-                            escape = True
-                        path_parts.append(exp.JSONPathKey(this=next_key.name))
+                        quoted = isinstance(next_key, exp.Identifier) and next_key.quoted
+                        path_parts.append(exp.JSONPathKey(this=next_key.name, quoted=quoted))
                 elif self._match(TokenType.L_BRACKET):
                     bracket_expr = self._parse_bracket_key_value()
 
@@ -6708,15 +6733,13 @@ class Parser:
 
                     if bracket_expr:
                         if bracket_expr.is_string:
-                            path_parts.append(exp.JSONPathKey(this=bracket_expr.name))
-                            escape = True
+                            path_parts.append(exp.JSONPathKey(this=bracket_expr.name, quoted=True))
                         elif bracket_expr.is_star:
                             path_parts.append(exp.JSONPathSubscript(this=exp.JSONPathWildcard()))
                         elif bracket_expr.is_number:
                             path_parts.append(exp.JSONPathSubscript(this=bracket_expr.to_py()))
                         else:
-                            this, path_parts = self._build_json_extract(this, path_parts, escape)
-                            escape = None
+                            this, path_parts = self._build_json_extract(this, path_parts)
 
                             this = self.expression(
                                 exp.Bracket(
@@ -6725,8 +6748,7 @@ class Parser:
                             )
 
                 elif self._match(TokenType.DCOLON):
-                    this, path_parts = self._build_json_extract(this, path_parts, escape)
-                    escape = None
+                    this, path_parts = self._build_json_extract(this, path_parts)
 
                     cast_type = self._parse_types()
                     if cast_type:
@@ -6736,7 +6758,7 @@ class Parser:
                 else:
                     break
 
-        this, _ = self._build_json_extract(this, path_parts, escape)
+        this, _ = self._build_json_extract(this, path_parts)
 
         return this
 
@@ -6848,7 +6870,13 @@ class Parser:
 
             if token_type == TokenType.STRING:
                 expressions = [primary]
-                while self._match(TokenType.STRING):
+                while self._match(TokenType.STRING, advance=False):
+                    if self._is_connected() and self.ADJACENT_STRINGS_CANNOT_BE_CONNECTED:
+                        self.raise_error(
+                            "Adjacent string literals need to be separated by whitespace or comments"
+                        )
+
+                    self._advance()
                     expressions.append(exp.Literal.string(self._prev.text))
 
                 if len(expressions) > 1:
@@ -9486,8 +9514,11 @@ class Parser:
             )
         )
 
+    def _parse_indexed_column(self) -> exp.Expr | None:
+        return self._parse_ordered(self._parse_opclass)
+
     def _parse_with_operator(self) -> exp.Expr | None:
-        this = self._parse_ordered(self._parse_opclass)
+        this = self._parse_indexed_column()
 
         if not self._match(TokenType.WITH):
             return this
@@ -9645,8 +9676,11 @@ class Parser:
                 this.set("unpack", True)
             return this
 
+        ilike = self._parse_string() if self._match(TokenType.ILIKE) else None
+
         return self.expression(
             exp.Star(
+                ilike=ilike,
                 except_=self._parse_star_op("EXCEPT", "EXCLUDE"),
                 replace=self._parse_star_op("REPLACE"),
                 rename=self._parse_star_op("RENAME"),
