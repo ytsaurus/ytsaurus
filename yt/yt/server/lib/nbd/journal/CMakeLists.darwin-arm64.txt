@@ -12,16 +12,10 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(chunk)
-add_subdirectory(image)
-add_subdirectory(dynamic_table)
-add_subdirectory(memory)
-add_subdirectory(journal)
-
-add_library(server-lib-nbd)
+add_library(lib-nbd-journal)
 
 
-target_compile_options(server-lib-nbd PRIVATE
+target_compile_options(lib-nbd-journal PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -31,20 +25,21 @@ target_compile_options(server-lib-nbd PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(server-lib-nbd PUBLIC
+target_link_libraries(lib-nbd-journal PUBLIC
   contrib-libs-cxxsupp
   yutil
+  server-lib-nbd
   yt-yt-client
-  yt-yt-core
   yt-yt-ytlib
-  yt_proto-yt-client
 )
 
-target_sources(server-lib-nbd PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/block_device_detail.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/profiler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/server.cpp
+target_sources(lib-nbd-journal PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/block_flusher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/block_map.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/block_store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/block_store_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/dirty_block_pool.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/journal_block_device.cpp
 )
 
