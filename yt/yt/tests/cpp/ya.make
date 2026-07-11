@@ -11,6 +11,7 @@ RECURSE(
     test_data_node_rpc
     test_distributed_chunk_sessions
     test_hydra
+    test_journal_nbd
     test_multiproxy
     test_native_api
     test_push_based_shuffle
