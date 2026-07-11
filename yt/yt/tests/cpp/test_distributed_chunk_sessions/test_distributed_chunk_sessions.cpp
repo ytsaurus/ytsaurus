@@ -939,8 +939,8 @@ TEST_F(TDistributedChunkSessionTest, FinalizeSlotEventuallySealsAllChunks)
         NativeConnection_,
         New<TDistributedChunkWriterConfig>());
 
-    WaitFor(firstWriter->WriteRecord(TSharedRef::FromString("row-1"))).ThrowOnError();
-    WaitFor(secondWriter->WriteRecord(TSharedRef::FromString("row-2"))).ThrowOnError();
+    WaitFor(firstWriter->WriteRecord(TSharedRef::FromString(std::string("row-1")))).ThrowOnError();
+    WaitFor(secondWriter->WriteRecord(TSharedRef::FromString(std::string("row-2")))).ThrowOnError();
     pool->FinalizeSlot(0);
 
     auto chunks = WaitFor(pool->GetSlotChunks(0))

@@ -86,10 +86,10 @@ TChunk WriteErasureChunk(
 TEST(TStripedErasureTest, WriterSimple)
 {
     std::vector<TSharedRef> blocks = {
-        TSharedRef::FromString("abc"),
-        TSharedRef::FromString(""),
-        TSharedRef::FromString("defg"),
-        TSharedRef::FromString("hijkl"),
+        TSharedRef::FromString(std::string("abc")),
+        TSharedRef::FromString(std::string("")),
+        TSharedRef::FromString(std::string("defg")),
+        TSharedRef::FromString(std::string("hijkl")),
     };
 
     auto chunk = WriteErasureChunk(NErasure::ECodec::ReedSolomon_3_3, blocks);
@@ -108,10 +108,10 @@ TEST(TStripedErasureTest, WriterSimple)
 TEST(TStripedErasureTest, SegmentsSimple)
 {
     std::vector<TSharedRef> blocks = {
-        TSharedRef::FromString("abc"),
-        TSharedRef::FromString("def"),
-        TSharedRef::FromString("ghi"),
-        TSharedRef::FromString("jkl"),
+        TSharedRef::FromString(std::string("abc")),
+        TSharedRef::FromString(std::string("def")),
+        TSharedRef::FromString(std::string("ghi")),
+        TSharedRef::FromString(std::string("jkl")),
     };
 
     auto config = New<TErasureWriterConfig>();
@@ -222,14 +222,14 @@ TEST(TStripedErasureTest, FailureWhileClosing)
     WaitFor(writer->Open())
         .ThrowOnError();
 
-    TSharedRef block = TSharedRef::FromString("abcd");
+    TSharedRef block = TSharedRef::FromString(std::string("abcd"));
     EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), TBlock(block)));
     // First ready event will always be successful regardless of intercepting writer malfunction.
     WaitFor(writer->GetReadyEvent())
         .ThrowOnError();
 
     // Longer string is used because the writer's window size accounting is imprecise.
-    block = TSharedRef::FromString("efghefghefghefghefgh");
+    block = TSharedRef::FromString(std::string("efghefghefghefghefgh"));
     EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), TBlock(block)));
     auto readyEvent = writer->GetReadyEvent();
     // This ready event is supposed to be blocked on intercepting writer's ready event.

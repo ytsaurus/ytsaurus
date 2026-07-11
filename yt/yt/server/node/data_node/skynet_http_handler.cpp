@@ -137,7 +137,7 @@ public:
             }
 
             rsp->SetStatus(EStatusCode::InternalServerError);
-            WaitFor(rsp->WriteBody(TSharedRef::FromString(ex.what())))
+            WaitFor(rsp->WriteBody(TSharedRef::FromString(std::string(ex.what()))))
                 .ThrowOnError();
 
             throw;

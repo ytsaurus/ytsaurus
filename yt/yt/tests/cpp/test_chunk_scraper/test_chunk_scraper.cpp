@@ -155,7 +155,7 @@ protected:
         auto writer = Client_->CreateFileWriter(Format("#%v", fileId));
         WaitFor(writer->Open())
             .ThrowOnError();
-        WaitFor(writer->Write(TSharedRef::FromString("Hello, World"))).ThrowOnError();
+        WaitFor(writer->Write(TSharedRef::FromString(std::string("Hello, World")))).ThrowOnError();
         WaitFor(writer->Close())
             .ThrowOnError();
     }

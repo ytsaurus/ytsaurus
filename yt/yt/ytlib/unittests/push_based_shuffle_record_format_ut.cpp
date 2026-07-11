@@ -162,7 +162,7 @@ TEST(ShuffleRecordFormat, CompositeNormalizesToAny)
 TEST(ShuffleRecordFormat, ReadHeaderRejectsShortRecord)
 {
     std::vector<TSharedRef> tooShort = {
-        TSharedRef::FromString("fifteen bytes!!"),  // 15 bytes < sizeof(TRecordHeader) == 16
+        TSharedRef::FromString(std::string("fifteen bytes!!")),  // 15 bytes < sizeof(TRecordHeader) == 16
     };
     EXPECT_THROW_WITH_SUBSTRING(
         ReadShuffleRecordHeader(tooShort),
@@ -235,7 +235,7 @@ TEST(ShuffleRecordFormat, ParseRejectsNegativeRowCount)
             .MapperId = 0,
             .StartRow = 0,
         },
-        .UncompressedPayload = {TSharedRef::FromString("")},
+        .UncompressedPayload = {TSharedRef::FromString(std::string(""))},
     };
 
     TChunkedMemoryPool pool;

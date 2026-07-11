@@ -69,7 +69,7 @@ TMutationContext::TMutationContext(TTestingTag)
         TPhysicalVersion(),
         /*timestamp*/ TInstant::Zero(),
         /*randomSeed*/ 0,
-        /*localHostNameOverride*/ TSharedRef::FromString("<unknown-testing>"))
+        /*localHostNameOverride*/ TSharedRef::FromString(std::string("<unknown-testing>")))
     , Parent_(nullptr)
     , Request_(nullptr)
     , PrevRandomSeed_(0)

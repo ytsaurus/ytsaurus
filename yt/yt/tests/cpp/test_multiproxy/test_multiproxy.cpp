@@ -172,7 +172,7 @@ protected:
 
         auto tokenSha = NCrypto::TSha1Hasher().Append(rootToken).GetHexDigestLowerCase();
         const auto url = Format("http://%v/api/v4/set?path=//sys/tokens/%v", proxy, tokenSha);
-        auto response = WaitFor(httpClient->Put(TString(url), TSharedRef::FromString("\"root\"")))
+        auto response = WaitFor(httpClient->Put(TString(url), TSharedRef::FromString(std::string("\"root\""))))
             .ValueOrThrow();
         if (response->GetStatusCode() != NHttp::EStatusCode::OK) {
             auto message = response->ReadAll();

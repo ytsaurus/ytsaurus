@@ -85,7 +85,7 @@ TEST(TDistributedChunkSessionSequencerTest, PendingWriteErrorIsPropagatedAfterSe
     WaitFor(sequencer->Open())
         .ThrowOnError();
 
-    auto writeFuture = sequencer->WriteRecord(TSharedRef::FromString("record"));
+    auto writeFuture = sequencer->WriteRecord(TSharedRef::FromString(std::string("record")));
     ASSERT_FALSE(writeFuture.IsSet());
 
     auto closeFuture = sequencer->Close();

@@ -47,7 +47,7 @@ public:
 
             if (!guard) {
                 rsp->SetStatus(EStatusCode::TooManyRequests);
-                WaitFor(rsp->WriteBody(TSharedRef::FromString("Profile fetch already running")))
+                WaitFor(rsp->WriteBody(TSharedRef::FromString(std::string("Profile fetch already running"))))
                     .ThrowOnError();
                 return;
             }
@@ -75,7 +75,7 @@ public:
             }
 
             rsp->SetStatus(EStatusCode::InternalServerError);
-            WaitFor(rsp->WriteBody(TSharedRef::FromString(ex.what())))
+            WaitFor(rsp->WriteBody(TSharedRef::FromString(std::string(ex.what()))))
                 .ThrowOnError();
 
             throw;
@@ -247,7 +247,7 @@ public:
             }
 
             rsp->SetStatus(EStatusCode::InternalServerError);
-            WaitFor(rsp->WriteBody(TSharedRef::FromString(ex.what())))
+            WaitFor(rsp->WriteBody(TSharedRef::FromString(std::string(ex.what()))))
                 .ThrowOnError();
 
             throw;
@@ -262,7 +262,7 @@ public:
     void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         rsp->SetStatus(EStatusCode::OK);
-        WaitFor(rsp->WriteBody(TSharedRef::FromString(GetVersion())))
+        WaitFor(rsp->WriteBody(TSharedRef::FromString(std::string(GetVersion()))))
             .ThrowOnError();
     }
 };
@@ -274,7 +274,7 @@ public:
     void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
         rsp->SetStatus(EStatusCode::OK);
-        WaitFor(rsp->WriteBody(TSharedRef::FromString(GetVersion())))
+        WaitFor(rsp->WriteBody(TSharedRef::FromString(std::string(GetVersion()))))
             .ThrowOnError();
     }
 };

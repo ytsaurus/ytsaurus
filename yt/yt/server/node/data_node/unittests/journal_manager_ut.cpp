@@ -202,8 +202,8 @@ TEST_F(TJournalTest, Write)
         auto changelog = WaitForFast(journalManager->CreateChangelog(journalId, multiplexed, TWorkloadDescriptor{}))
             .ValueOrThrow();
 
-        auto r0 = TSharedRef::FromString("r0");
-        auto r1 = TSharedRef::FromString("r1");
+        auto r0 = TSharedRef::FromString(std::string("r0"));
+        auto r1 = TSharedRef::FromString(std::string("r1"));
 
         WaitForFast(changelog->Append({r0, r1}))
             .ThrowOnError();
