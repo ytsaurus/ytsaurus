@@ -15,8 +15,8 @@
 add_subdirectory(chunk)
 add_subdirectory(image)
 add_subdirectory(dynamic_table)
-add_subdirectory(memory)
 add_subdirectory(journal)
+add_subdirectory(memory)
 
 add_library(server-lib-nbd)
 

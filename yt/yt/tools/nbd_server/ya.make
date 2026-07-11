@@ -17,6 +17,7 @@ PEERDIR(
     yt/yt/server/lib/nbd/chunk
     yt/yt/server/lib/nbd/dynamic_table
     yt/yt/server/lib/nbd/image
+    yt/yt/server/lib/nbd/journal
     yt/yt/server/lib/nbd/memory
 )
 

@@ -36,6 +36,7 @@ target_link_libraries(nbd_server_tool PUBLIC
   lib-nbd-chunk
   lib-nbd-dynamic_table
   lib-nbd-image
+  lib-nbd-journal
   lib-nbd-memory
 )
 
