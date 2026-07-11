@@ -1051,6 +1051,12 @@ private:
 
         buffer->AddCounter("/full_heartbeats_rejected_due_to_semaphore_timeout", FullHeartbeatsRejectedDueToSemaphoreTimeout_);
         buffer->AddCounter("/incremental_heartbeats_rejected_due_to_semaphore_timeout", IncrementalHeartbeatsRejectedDueToSemaphoreTimeout_);
+
+        buffer->AddGauge("/full_heartbeat_per_replicas_semaphore_waiter_count", FullHeartbeatPerReplicasSemaphore_->GetWaiterCount());
+        buffer->AddGauge("/incremental_heartbeat_per_replicas_semaphore_waiter_count", IncrementalHeartbeatPerReplicasSemaphore_->GetWaiterCount());
+        buffer->AddGauge("/full_heartbeat_semaphore_waiter_count", FullHeartbeatSemaphore_->GetWaiterCount());
+        buffer->AddGauge("/location_full_heartbeat_semaphore_waiter_count", LocationFullHeartbeatSemaphore_->GetWaiterCount());
+        buffer->AddGauge("/incremental_heartbeat_semaphore_waiter_count", IncrementalHeartbeatSemaphore_->GetWaiterCount());
     }
 
     template <bool FullHeartbeat>
