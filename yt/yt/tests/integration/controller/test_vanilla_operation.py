@@ -886,7 +886,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
     @authors("krasovav")
     def test_non_root_nbd_volumes(self):
-        with raises_yt_error('Non-root nbd are not currently supported'):
+        with raises_yt_error('Non-root NBD are not currently supported'):
             vanilla(
                 spec={
                     "tasks": {
