@@ -147,7 +147,8 @@ namespace greenlet
         int recursion_depth;
 #endif
 #if GREENLET_PY313
-        PyObject *delete_later;
+        PyObject* delete_later;
+        uintptr_t critical_section;
 #else
         int trash_delete_nesting;
 #endif
