@@ -248,7 +248,7 @@ private:
 
         THashMap<TStreamId, TStreamQueuedState> QueuedTasks;
         THashMap<TStreamId, TRoutedTaskSet> AcceptedTasks;
-        absl::flat_hash_map<TMessageId, std::pair<TStreamId, TTaskKey>> MessageIdToTaskInfo; // For all tasks.
+        absl::flat_hash_map<TMessageId, std::pair<TStreamId, TTaskKey>, ::THash<TMessageId>> MessageIdToTaskInfo; // For all tasks.
 
         void ResetAccepted() noexcept;
     };

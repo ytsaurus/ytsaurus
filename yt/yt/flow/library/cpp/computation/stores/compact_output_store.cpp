@@ -639,7 +639,7 @@ private:
     ui64 NextLocalChunkId_ = 0;
 
     // messageId -> packed (LocalChunkId, position-in-chunk) handle; 8 bytes per entry.
-    absl::flat_hash_map<TMessageId, TMessageLocation> MessageLocations_;
+    absl::flat_hash_map<TMessageId, TMessageLocation, ::THash<TMessageId>> MessageLocations_;
 
     // Freshly packed in PackPendingMessages, awaiting first full-row Write.
     absl::flat_hash_set<ui64> NewChunks_;
