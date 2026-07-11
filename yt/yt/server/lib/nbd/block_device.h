@@ -51,6 +51,10 @@ struct IBlockDevice
     : public virtual TRefCounted
 {
     virtual i64 GetTotalSize() const = 0;
+
+    //! Minimum I/O granularity (offset and length alignment), in bytes, that the device prefers.
+    virtual i64 GetBlockSize() const = 0;
+
     virtual bool IsReadOnly() const = 0;
     virtual std::string GetDescription() const = 0;
     virtual std::string GetProfileSensorTag() const = 0;
