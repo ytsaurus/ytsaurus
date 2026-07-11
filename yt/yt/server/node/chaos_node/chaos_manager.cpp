@@ -2463,9 +2463,9 @@ private:
         if (replicationCard->GetEra() != era) {
             YT_LOG_DEBUG("Will not commence new replication card era because of era mismatch "
                 "(ReplicationCardId: %v, ExpectedEra: %v, ActualEra: %v)",
+                replicationCardId,
                 era,
-                replicationCard->GetEra(),
-                replicationCardId);
+                replicationCard->GetEra());
             return;
         }
 
