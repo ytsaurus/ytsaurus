@@ -58,6 +58,7 @@ target_link_options(unittester-core-concurrency PRIVATE
 )
 
 target_sources(unittester-core-concurrency PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/action_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_barrier_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_looper_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_rw_lock_ut.cpp
@@ -87,6 +88,7 @@ target_sources(unittester-core-concurrency PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/quantized_executor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/scheduled_executor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/scheduler_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/serialized_invoker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/suspendable_action_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/suspendable_invoker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/thread_affinity_ut.cpp
@@ -94,6 +96,7 @@ target_sources(unittester-core-concurrency PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/thread_pool_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/throughput_throttler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/two_level_fair_share_thread_pool_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/watchdog_invoker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/fair_throttler_ipc_ut.cpp
 )
 
