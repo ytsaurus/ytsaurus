@@ -308,7 +308,7 @@ class TDownloadMapper
 public:
     TDownloadMapper() = default;
 
-    explicit TDownloadMapper(TSourceConfig sourceConfig, i64 maxMetadataRowWeight, TString serializedSingletonsConfig)
+    explicit TDownloadMapper(TSourceConfig sourceConfig, i64 maxMetadataRowWeight, NYson::TYsonString serializedSingletonsConfig)
         : SourceConfig_(std::move(sourceConfig))
         , MaxMetadataRowWeight_(maxMetadataRowWeight)
         , SerializedSingletonsConfig_(std::move(serializedSingletonsConfig))
@@ -316,7 +316,7 @@ public:
 
     void Start(TWriter* /*writer*/) override
     {
-        auto config = ConvertTo<TSingletonsConfigPtr>(NYson::TYsonString(SerializedSingletonsConfig_));
+        auto config = ConvertTo<TSingletonsConfigPtr>(SerializedSingletonsConfig_);
         ConfigureSingletons(config);
         Downloader_ = CreateDownloader(SourceConfig_);
     }
@@ -369,7 +369,7 @@ private:
     IFileWriterPtr BlobTableWriter_;
     TSourceConfig SourceConfig_;
     i64 MaxMetadataRowWeight_;
-    TString SerializedSingletonsConfig_;
+    NYson::TYsonString SerializedSingletonsConfig_;
     IDownloaderPtr Downloader_;
 
     int BufferPosition_;
@@ -937,7 +937,7 @@ void ImportFilesFromSource(
 
         ytClient->Map(
             spec.MapperSpec(jobSpec),
-            new TDownloadMapper(sourceConfig, config->MaxMetadataRowWeight, ConvertToYsonString(config->JobSingletons).ToString()),
+            new TDownloadMapper(sourceConfig, config->MaxMetadataRowWeight, ConvertToYsonString(config->JobSingletons)),
             operationOptions);
     }
 

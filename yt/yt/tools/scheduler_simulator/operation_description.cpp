@@ -25,7 +25,7 @@ public:
 
     static void Load(TStreamLoadContext& context, IMapNodePtr& node)
     {
-        TString str;
+        std::string str;
         NYT::Load(context, str);
         node = ConvertToNode(TYsonString(str))->AsMap();
     }

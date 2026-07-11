@@ -84,7 +84,7 @@ public:
 
         TSharedRefArrayBuilder builder(1);
 
-        TString decodedData;
+        std::string decodedData;
         decodedData.reserve(HexMessage_.size() / 2);
         for (auto i = 0; i < std::ssize(HexMessage_); i += 2) {
             ui8 ch = (ParseHex(HexMessage_[i]) << 4) | ParseHex(HexMessage_[i + 1]);
