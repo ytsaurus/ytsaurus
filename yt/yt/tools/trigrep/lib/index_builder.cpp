@@ -2,6 +2,7 @@
 
 #include "format.h"
 #include "line_reader.h"
+#include "posting_codec.h"
 #include "private.h"
 #include "reader.h"
 #include "helpers.h"
@@ -315,12 +316,26 @@ private:
 class TIndexSegmentBuilder
 {
 public:
-    explicit TIndexSegmentBuilder(i64 segmentSize)
-        // Rough upper estimate:
-        // <= segmentSize groups each taking 3 bytes (2 for header + 1 for terminator)
-        // <= segmentSize fingerprints each taking 1 byte
-        : Buffer_(segmentSize * 4)
+    TIndexSegmentBuilder(i64 segmentSize, IPostingCodec* codec)
+        : SegmentSize_(segmentSize)
+        , Codec_(codec)
     {
+        // A conservative default; PrepareForCompression grows this to fit the
+        // largest single posting list once it is known.
+        Buffer_.resize(segmentSize * 4);
+        Reset();
+    }
+
+    // Ensures the buffer can hold a full segment plus one maximal posting list,
+    // so a list is always emitted in one piece before the flush check.
+    void PrepareForCompression(int maxPostingListSize, ui32 postingUpperBound)
+    {
+        PostingUpperBound_ = postingUpperBound;
+        i64 maxListBytes = Codec_->GetMaxByteSize(maxPostingListSize, postingUpperBound);
+        i64 required = SegmentSize_ + maxListBytes;
+        if (std::ssize(Buffer_) < required) {
+            Buffer_.resize(required);
+        }
         Reset();
     }
 
@@ -333,82 +348,9 @@ public:
 
     void Add(TRange<TPosting> list)
     {
-        int listSize = std::ssize(list);
-
         TrigramCount_ += 1;
-        PostingCount_ += listSize;
-
-        int startIndex = 0;
-        while (startIndex < listSize) {
-            ui32 blockIndex = BlockIndexFromPosting(list[startIndex]);
-
-            YT_ASSERT(blockIndex < MaxBlocksPerChunk);
-            int maxFingerprintDiff = 0;
-            int endIndex = startIndex + 1;
-            while (endIndex < listSize && BlockIndexFromPosting(list[endIndex]) == blockIndex) {
-                maxFingerprintDiff = std::max(
-                    maxFingerprintDiff,
-                    static_cast<int>(LineFingerprintFromPosting(list[endIndex] - list[endIndex - 1])));
-                ++endIndex;
-            }
-
-            auto groupSize = static_cast<ui32>(endIndex - startIndex);
-            ui16 groupHeader = blockIndex << 6;
-
-            [&] {
-                if (groupSize == 1) {
-                    // Tag: 61 (== GroupSize1Tag)
-                    Write<ui16>(groupHeader | GroupSize1Tag);
-                    Write<ui8>(LineFingerprintFromPosting(list[startIndex]));
-                    return;
-                }
-
-                if (groupSize == 2) {
-                    // Tag: 62 (== GroupSize2Tag)
-                    Write<ui16>(groupHeader | GroupSize2Tag);
-                    Write<ui8>(LineFingerprintFromPosting(list[startIndex]));
-                    Write<ui8>(LineFingerprintFromPosting(list[startIndex + 1]));
-                    return;
-                }
-
-                if (/* groupSize >= 3 && */ groupSize <= 8) {
-                    ui32 bitsPerDiff = GetBitsPerDiff(maxFingerprintDiff - 1);
-                    auto bitpackedSize = GetBitpackedSize(groupSize - 1, bitsPerDiff);
-                    if (bitpackedSize + 1 < LineFingerprintBitmapByteSize) {
-                        // Tag: 0..47 (== MaxShortBitpackedTag)
-                        Write<ui16>(groupHeader | (bitsPerDiff - 1) | ((groupSize - 3) << 3));
-                        Write<ui8>(LineFingerprintFromPosting(list[startIndex]));
-                        ui64 packedValue = BitpackShort(&list[startIndex], groupSize, bitsPerDiff);
-                        Write(reinterpret_cast<const char*>(&packedValue), bitpackedSize);
-                        return;
-                    }
-                }
-
-                if (groupSize >= 8) {
-                    ui32 bitsPerDiff = GetBitsPerDiff(maxFingerprintDiff);
-                    int bitpackedSize = GetBitpackedSize(groupSize, bitsPerDiff);
-                    if (bitpackedSize + 1 < LineFingerprintBitmapByteSize) {
-                        // Tag: 48..55 (== MaxLongBitpackedTag)
-                        Write<ui16>(groupHeader | (47 + bitsPerDiff));
-                        Write<ui8>(LineFingerprintFromPosting(list[startIndex]));
-                        auto packedValue = BitpackLong(&list[startIndex], groupSize, bitsPerDiff);
-                        Write(reinterpret_cast<const char*>(packedValue.data()), bitpackedSize);
-                        return;
-                    }
-                }
-
-                {
-                    Write<ui16>(groupHeader | BitmapGroupTag);
-                    auto bitmap = BuildBitmap(&list[startIndex], groupSize);
-                    Write(bitmap);
-                }
-            }();
-
-            startIndex = endIndex;
-        }
-
-        // Tag: 63 (== GroupSize1Tag)
-        Write(TerminatorGroupTag);
+        PostingCount_ += std::ssize(list);
+        CurrentPtr_ = Codec_->Encode(CurrentPtr_, list, PostingUpperBound_);
     }
 
     TRange<char> GetBuffer() const
@@ -427,126 +369,13 @@ public:
     }
 
 private:
+    const i64 SegmentSize_;
+    IPostingCodec* const Codec_;
+    ui32 PostingUpperBound_ = 0;
     std::vector<char> Buffer_;
     char* __restrict__ CurrentPtr_;
     int TrigramCount_ = 0;
     int PostingCount_ = 0;
-
-    template <class T>
-    void Write(const T& value)
-    {
-        Write(reinterpret_cast<const char*>(&value), sizeof(value));
-    }
-
-    void Write(const char* __restrict__ data, size_t size)
-    {
-        memcpy(CurrentPtr_, data, size);
-        CurrentPtr_ += size;
-    }
-
-    static ui32 GetBitpackedSize(ui32 count, ui32 bitWidth)
-    {
-        return (count * bitWidth + 7) / 8;
-    }
-
-    static ui32 GetBitsPerDiff(int maxDiff)
-    {
-        if (maxDiff <= 1) {
-            return 1;
-        } else if (maxDiff <= 3) {
-            return 2;
-        } else if (maxDiff <= 7) {
-            return 3;
-        } else if (maxDiff <= 15) {
-            return 4;
-        } else if (maxDiff <= 31) {
-            return 5;
-        } else if (maxDiff <= 63) {
-            return 6;
-        } else if (maxDiff <= 127) {
-            return 7;
-        } else {
-            return 8;
-        }
-    }
-
-    static ui64 BitpackShort(
-        const TPosting* __restrict__ src,
-        ui32 groupSize,
-        ui32 bitWidth)
-    {
-        YT_ASSERT(groupSize >= 3 && groupSize <= 8);
-        YT_ASSERT((groupSize - 1) * bitWidth <= 64);
-        ui64 result = 0;
-        ui32 bitOffset = 0;
-
-#define PACK() \
-                result |= static_cast<ui64>(LineFingerprintFromPosting(src[1] - src[0]) - 1) << bitOffset; \
-                bitOffset += bitWidth; \
-                src += 1;
-#define PACK_CASE(n) \
-                case n: \
-                PACK() \
-                [[fallthrough]];
-
-        switch (groupSize) {
-            PACK_CASE(8)
-            PACK_CASE(7)
-            PACK_CASE(6)
-            PACK_CASE(5)
-            PACK_CASE(4)
-            default: break;
-        }
-        PACK()
-        PACK()
-
-#undef PACK
-#undef PACK_CASE
-
-        return result;
-    }
-
-    // BitmapByteSize plus some spare space at the end.
-    using TBitpackLongResult = std::array<ui32, 10>;
-
-    static TBitpackLongResult BitpackLong(
-        const TPosting* __restrict__ src,
-        ui32 groupSize,
-        ui32 bitWidth)
-    {
-        // NB: No need to zero-initialize, see the end.
-        TBitpackLongResult result;
-        auto* dst = result.data();
-        ui64 current = 0;
-        ui32 bitOffset = 0;
-        for (ui32 index = 0; index < groupSize - 1; ++index) {
-            current |= static_cast<ui64>(LineFingerprintFromPosting(src[1] - src[0])) << bitOffset;
-            src += 1;
-            bitOffset += bitWidth;
-            if (bitOffset >= 32) {
-                *dst++ = current & 0xffffffff;
-                current >>= 32;
-                bitOffset -= 32;
-            }
-        }
-        // Flush the tail and also ensure that group zero terminator is written.
-        *dst++ = current;
-        *dst = 0;
-        return result;
-    }
-
-    static TLineFingerprintBitmap BuildBitmap(
-        const TPosting* __restrict__ src,
-        ui32 groupSize)
-    {
-        // NB: Zero-initialize.
-        TLineFingerprintBitmap bitmap{};
-        for (ui32 index = 0; index < groupSize; ++index) {
-            auto fingerprint = src[index] & LineFingerprintMask;
-            bitmap[fingerprint >> 3] |= 1U << (fingerprint & 7);
-        }
-        return bitmap;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -566,7 +395,7 @@ public:
         , Options_(options)
         , Callbacks_(callbacks)
         , ChunkIndex_(chunkIndex)
-        , IndexSegmentBuilder_(Options_.IndexSegmentSize)
+        , IndexSegmentBuilder_(Options_.IndexSegmentSize, GetPostingCodec(Options_.Format))
         , PostingMap_(static_cast<i64>(Options_.ChunkSize / PostingsPerBucketExtent * /*overhead*/ 1.25))
     {
         if (Options_.ChunkSize <= 0) {
@@ -806,6 +635,11 @@ private:
         int maxPostingListSize = SortedTrigrams_.empty() ? 0 : PostingMap_.GetPostingCount(SortedTrigrams_.back());
         auto postingListBuffer = std::make_unique<TPosting[]>(maxPostingListSize);
 
+        // Postings are values in [0, BlockCount * 256); this bound is known to the
+        // matcher from the chunk header and drives the interpolative coder.
+        auto postingUpperBound = static_cast<ui32>(ChunkHeader_.BlockCount) * (LineFingerprintMask + 1) - 1;
+        IndexSegmentBuilder_.PrepareForCompression(maxPostingListSize, postingUpperBound);
+
         auto joinedIndexSegmentsLengthThreshold = static_cast<i64>(UncompressedInputSize_ * Options_.IndexSizeFactor);
 
         constexpr int BucketPrefetchAhead = 8;
@@ -931,7 +765,7 @@ private:
     void WriteHeader()
     {
         TIndexFileHeader header{
-            .Signature = TIndexFileHeader::V2Signature,
+            .Signature = GetIndexFormatSignature(Options_.Format),
         };
         Output_->Write(&header, sizeof(header));
     }

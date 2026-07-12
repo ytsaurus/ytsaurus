@@ -123,6 +123,12 @@ public:
             .StoreResult(&IndexSizeFactor_);
         Opts_
             .AddLongOption(
+                "format",
+                Format("Posting-list format to write (supported options are: v2, v3; defaults to %lv)",
+                    DefaultIndexFormat))
+            .StoreMappedResultT<TStringBuf>(&Format_, &ParseEnumArgMapper<EIndexFormat>);
+        Opts_
+            .AddLongOption(
                 "index-path",
                 Format("Path to index file (defaults to input with additional %v extension)", DefaultIndexExtension))
             .AddShortName('i')
@@ -144,6 +150,12 @@ public:
                 "no-terminal",
                 "Suppress terminal features (e.g. highlighting and progress reporting)")
             .StoreTrue(&NoTerminalFlag_);
+        Opts_
+            .AddLongOption(
+                "dry-run",
+                "Report index filtering power (candidate vs total frames/bytes, logged at "
+                "info level) without scanning the input")
+            .StoreTrue(&DryRunFlag_);
 
         Opts_.SetFreeArgsMin(0);
         Opts_.SetFreeArgsMax(NLastGetopt::TOpts::UNLIMITED_ARGS);
@@ -157,9 +169,11 @@ private:
     i64 BlockSizeMB_ = DefaultBlockSize / 1_MBs;
     i64 IndexSegmentSizeKB_ = DefaultIndexSegmentSize / 1_KBs;
     double IndexSizeFactor_ = DefaultIndexSizeFactor;
+    EIndexFormat Format_ = DefaultIndexFormat;
     bool PrintLineNumbersFlag_ = false;
     std::optional<ECompressionCodec> Codec_;
     bool NoTerminalFlag_ = !IsStdoutTerminal();
+    bool DryRunFlag_ = false;
 
     void DoRun() override
     {
@@ -287,6 +301,7 @@ private:
             .BlockSize = BlockSizeMB_ * 1_MBs,
             .IndexSegmentSize = IndexSegmentSizeKB_ * 1_KBs,
             .IndexSizeFactor = IndexSizeFactor_,
+            .Format = Format_,
         };
         TIndexBuilderCallbacks callbacks(this);
         auto finallyGuard = Finally([this] { ClearProgressLine(); });
@@ -355,7 +370,7 @@ private:
         std::vector<std::string> patterns(freeArgs.begin(), freeArgs.end() - 1);
 
         TMatcherCallbacks callbacks(this);
-        NTrigrep::RunMatcher(reader.get(), &indexFile, patterns, &callbacks);
+        NTrigrep::RunMatcher(reader.get(), &indexFile, patterns, &callbacks, {.DryRun = DryRunFlag_});
     }
 };
 

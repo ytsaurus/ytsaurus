@@ -1,8 +1,9 @@
-#include <library/cpp/testing/gtest/gtest.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/tools/trigrep/lib/format.h>
 #include <yt/yt/tools/trigrep/lib/index_builder.h>
 #include <yt/yt/tools/trigrep/lib/matcher.h>
+#include <yt/yt/tools/trigrep/lib/posting_codec.h>
 #include <yt/yt/tools/trigrep/lib/uncompressed_reader.h>
 
 #include <util/folder/tempdir.h>
@@ -98,7 +99,7 @@ std::vector<TMatch> GrepReference(TStringBuf input, const std::vector<std::strin
 ////////////////////////////////////////////////////////////////////////////////
 
 class TIndexBuilderTest
-    : public ::testing::Test
+    : public ::testing::TestWithParam<EIndexFormat>
 {
 protected:
     TTempDir TempDir_;
@@ -121,8 +122,9 @@ protected:
         output.Finish();
     }
 
-    void BuildIndexFile(const TBuildIndexOptions& options, i64 frameSize)
+    void BuildIndexFile(TBuildIndexOptions options, i64 frameSize)
     {
+        options.Format = GetParam();
         auto reader = CreateSequentialUncompressedReader(InputPath(), frameSize);
         TString path(IndexPath());
         TFileOutput output(path);
@@ -139,6 +141,14 @@ protected:
         RunMatcher(reader.get(), &indexFile, patterns, &callbacks);
         Sort(callbacks.Matches);
         return callbacks.Matches;
+    }
+
+    TMatchStatistics MatchStatistics(const std::vector<std::string>& patterns, bool dryRun)
+    {
+        auto reader = CreateRandomUncompressedReader(InputPath());
+        TFile indexFile(TString(IndexPath()), OpenExisting | RdOnly);
+        TCollectingMatcherCallbacks callbacks;
+        return RunMatcher(reader.get(), &indexFile, patterns, &callbacks, {.DryRun = dryRun});
     }
 
     // Full round trip: build an index for #input and run #patterns against it.
@@ -179,7 +189,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TIndexBuilderTest, Smoke)
+TEST_P(TIndexBuilderTest, Smoke)
 {
     auto input = TStringBuf(
         "the quick brown fox\n"
@@ -195,7 +205,7 @@ TEST_F(TIndexBuilderTest, Smoke)
         }));
 }
 
-TEST_F(TIndexBuilderTest, MultiplePatternsAreConjunctive)
+TEST_P(TIndexBuilderTest, MultiplePatternsAreConjunctive)
 {
     auto input = TStringBuf(
         "alpha beta gamma\n"
@@ -211,7 +221,7 @@ TEST_F(TIndexBuilderTest, MultiplePatternsAreConjunctive)
         }));
 }
 
-TEST_F(TIndexBuilderTest, AbsentPatternYieldsNoMatches)
+TEST_P(TIndexBuilderTest, AbsentPatternYieldsNoMatches)
 {
     auto input = TStringBuf("hello world\nfoo bar baz\n");
     EXPECT_TRUE(BuildAndMatch(input, {"qux"}).empty());
@@ -219,7 +229,7 @@ TEST_F(TIndexBuilderTest, AbsentPatternYieldsNoMatches)
     EXPECT_TRUE(BuildAndMatch(input, {"hello", "baz"}).empty());
 }
 
-TEST_F(TIndexBuilderTest, ShortPatterns)
+TEST_P(TIndexBuilderTest, ShortPatterns)
 {
     // Patterns shorter than a trigram cannot be filtered by the index and must
     // fall back to scanning candidate frames.
@@ -234,7 +244,7 @@ TEST_F(TIndexBuilderTest, ShortPatterns)
     ExpectMatchesReference(input, {"abc"});
 }
 
-TEST_F(TIndexBuilderTest, LineEdgeCases)
+TEST_P(TIndexBuilderTest, LineEdgeCases)
 {
     auto input = TStringBuf(
         "\n"               // empty line
@@ -248,7 +258,7 @@ TEST_F(TIndexBuilderTest, LineEdgeCases)
     ExpectMatchesReference(input, {"a"});
 }
 
-TEST_F(TIndexBuilderTest, NoTrailingNewline)
+TEST_P(TIndexBuilderTest, NoTrailingNewline)
 {
     auto input = TStringBuf("first line\nsecond line");
     EXPECT_EQ(
@@ -259,7 +269,7 @@ TEST_F(TIndexBuilderTest, NoTrailingNewline)
         }));
 }
 
-TEST_F(TIndexBuilderTest, DuplicateLinesAllMatch)
+TEST_P(TIndexBuilderTest, DuplicateLinesAllMatch)
 {
     // Identical lines share a fingerprint and are deduplicated inside a block,
     // yet every occurrence must still be reported.
@@ -274,7 +284,7 @@ TEST_F(TIndexBuilderTest, DuplicateLinesAllMatch)
     }
 }
 
-TEST_F(TIndexBuilderTest, PostingGroupEncodingSizes)
+TEST_P(TIndexBuilderTest, PostingGroupEncodingSizes)
 {
     // Drives every posting-list group-encoding branch (size 1, 2, 3..8, >=8,
     // bitmap fallback) by varying how many distinct lines contain one trigram.
@@ -293,7 +303,7 @@ TEST_F(TIndexBuilderTest, PostingGroupEncodingSizes)
     }
 }
 
-TEST_F(TIndexBuilderTest, MultipleSegments)
+TEST_P(TIndexBuilderTest, MultipleSegments)
 {
     // Tiny segment size forces the posting lists across many index segments.
     std::string input;
@@ -306,7 +316,7 @@ TEST_F(TIndexBuilderTest, MultipleSegments)
     ExpectMatchesReference(input, {"row"}, options);
 }
 
-TEST_F(TIndexBuilderTest, MultipleFrames)
+TEST_P(TIndexBuilderTest, MultipleFrames)
 {
     std::string input;
     for (int i = 0; i < 200; ++i) {
@@ -317,7 +327,7 @@ TEST_F(TIndexBuilderTest, MultipleFrames)
     ExpectMatchesReference(input, {"line 137"}, GetDefaultOptions(), /*frameSize*/ 64);
 }
 
-TEST_F(TIndexBuilderTest, MultipleBlocks)
+TEST_P(TIndexBuilderTest, MultipleBlocks)
 {
     // A block only finishes after BlockSize + 64 KB of slack, so emit > 256 KB.
     std::string input;
@@ -330,7 +340,7 @@ TEST_F(TIndexBuilderTest, MultipleBlocks)
     ExpectMatchesReference(input, {"payload"}, options);
 }
 
-TEST_F(TIndexBuilderTest, MultipleChunks)
+TEST_P(TIndexBuilderTest, MultipleChunks)
 {
     // Each chunk is indexed independently; line numbers must stay global.
     std::string input;
@@ -343,7 +353,7 @@ TEST_F(TIndexBuilderTest, MultipleChunks)
     ExpectMatchesReference(input, {"chunk row 9000"}, options, /*frameSize*/ 4_KB);
 }
 
-TEST_F(TIndexBuilderTest, LongLinesAroundPrefetchThreshold)
+TEST_P(TIndexBuilderTest, LongLinesAroundPrefetchThreshold)
 {
     // The builder switches between scalar and pipelined trigram processing
     // around ~40 trigrams per line; cover lengths straddling the threshold.
@@ -357,7 +367,7 @@ TEST_F(TIndexBuilderTest, LongLinesAroundPrefetchThreshold)
     }
 }
 
-TEST_F(TIndexBuilderTest, IndexSizeFactorTruncationStillCorrect)
+TEST_P(TIndexBuilderTest, IndexSizeFactorTruncationStillCorrect)
 {
     // A tiny IndexSizeFactor leaves most trigrams unindexed; the matcher must
     // fall back to scanning and still return exact results.
@@ -371,16 +381,16 @@ TEST_F(TIndexBuilderTest, IndexSizeFactorTruncationStillCorrect)
     ExpectMatchesReference(input, {"entry 250"}, options);
 }
 
-TEST_F(TIndexBuilderTest, IndexHeaderSignature)
+TEST_P(TIndexBuilderTest, IndexHeaderSignature)
 {
     BuildAndMatch("some indexable content here\n", {"content"});
     TFile indexFile(TString(IndexPath()), OpenExisting | RdOnly);
     TIndexFileHeader header{};
     indexFile.Load(&header, sizeof(header));
-    EXPECT_EQ(header.Signature, TIndexFileHeader::V2Signature);
+    EXPECT_EQ(header.Signature, GetIndexFormatSignature(GetParam()));
 }
 
-TEST_F(TIndexBuilderTest, BuildIsDeterministic)
+TEST_P(TIndexBuilderTest, BuildIsDeterministic)
 {
     auto input = TStringBuf(
         "deterministic builds produce identical bytes\n"
@@ -397,6 +407,68 @@ TEST_F(TIndexBuilderTest, BuildIsDeterministic)
     auto second = build();
     EXPECT_EQ(first, second);
     EXPECT_FALSE(first.empty());
+}
+
+TEST_P(TIndexBuilderTest, DryRunReportsCandidatesWithoutScanning)
+{
+    // One selective needle buried in a lot of filler, split into many small
+    // frames so the index can prune most of them.
+    std::string input;
+    for (int i = 0; i < 200; ++i) {
+        input += "filler line number " + std::to_string(i) + "\n";
+    }
+    input += "the UNIQUENEEDLE marker line\n";
+    for (int i = 0; i < 200; ++i) {
+        input += "more filler content " + std::to_string(i) + "\n";
+    }
+    WriteInput(input);
+    BuildIndexFile(GetDefaultOptions(), /*frameSize*/ 64);
+
+    auto dry = MatchStatistics({"UNIQUENEEDLE"}, /*dryRun*/ true);
+    auto real = MatchStatistics({"UNIQUENEEDLE"}, /*dryRun*/ false);
+
+    // The corpus spans many frames and the index prunes almost all of them.
+    EXPECT_GT(dry.FramesTotal, 1);
+    EXPECT_LT(dry.FramesSelected, dry.FramesTotal);
+    EXPECT_LE(dry.BytesSelected, dry.BytesTotal);
+
+    // The selection accounting is identical to a real run and depends only on
+    // the index, so a dry run computes it without scanning the input.
+    EXPECT_EQ(dry.FramesTotal, real.FramesTotal);
+    EXPECT_EQ(dry.BytesTotal, real.BytesTotal);
+    EXPECT_EQ(dry.FramesSelected, real.FramesSelected);
+    EXPECT_EQ(dry.BytesSelected, real.BytesSelected);
+    EXPECT_EQ(dry.FramesSelected, real.FramesChecked);
+    EXPECT_EQ(dry.FramesChecked, 0);
+    EXPECT_EQ(dry.LinesRead, 0);
+    EXPECT_GT(real.LinesRead, 0);
+
+    // A short pattern cannot be filtered: every frame is selected.
+    auto shortPattern = MatchStatistics({"in"}, /*dryRun*/ true);
+    EXPECT_EQ(shortPattern.FramesSelected, shortPattern.FramesTotal);
+
+    // An absent trigram prunes the whole chunk: nothing is selected.
+    auto absent = MatchStatistics({"QQQ_NOT_PRESENT_QQQ"}, /*dryRun*/ true);
+    EXPECT_EQ(absent.FramesSelected, 0);
+}
+
+TEST_P(TIndexBuilderTest, UnknownSignatureThrows)
+{
+    BuildAndMatch("some indexable content here\n", {"content"});
+
+    // Corrupt the format signature at the head of the index file.
+    {
+        TFile indexFile(TString(IndexPath()), OpenExisting | WrOnly);
+        ui64 badSignature = 0;
+        indexFile.Pwrite(&badSignature, sizeof(badSignature), 0);
+    }
+
+    auto reader = CreateRandomUncompressedReader(InputPath());
+    TFile indexFile(TString(IndexPath()), OpenExisting | RdOnly);
+    TCollectingMatcherCallbacks callbacks;
+    EXPECT_THROW_WITH_SUBSTRING(
+        RunMatcher(reader.get(), &indexFile, {"content"}, &callbacks),
+        "Invalid index file signature");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -449,7 +521,7 @@ std::vector<std::string> MakeRandomPatterns(ui32 seed, const std::string& log)
     return patterns;
 }
 
-TEST_F(TIndexBuilderTest, MatchesReferenceRandomized)
+TEST_P(TIndexBuilderTest, MatchesReferenceRandomized)
 {
     for (ui32 seed = 1; seed <= 100; ++seed) {
         auto log = MakeRandomLog(seed);
@@ -467,6 +539,11 @@ TEST_F(TIndexBuilderTest, MatchesReferenceRandomized)
         EXPECT_EQ(actual, expected) << "seed=" << seed;
     }
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Formats,
+    TIndexBuilderTest,
+    ::testing::Values(EIndexFormat::V2, EIndexFormat::V3));
 
 ////////////////////////////////////////////////////////////////////////////////
 

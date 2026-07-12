@@ -13,6 +13,7 @@ namespace NYT::NTrigrep {
 struct TIndexFileHeader
 {
     static constexpr ui64 V2Signature = 0x32'30'30'30'30'49'52'54; // TRI00002
+    static constexpr ui64 V3Signature = 0x33'30'30'30'30'49'52'54; // TRI00003
 
     ui64 Signature;
 };
