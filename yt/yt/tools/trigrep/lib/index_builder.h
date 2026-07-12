@@ -14,6 +14,7 @@ struct TBuildIndexOptions
     i64 BlockSize = DefaultBlockSize;
     i64 IndexSegmentSize = DefaultIndexSegmentSize;
     double IndexSizeFactor = DefaultIndexSizeFactor;
+    EIndexFormat Format = DefaultIndexFormat;
 };
 
 struct IIndexBuilderCallbacks

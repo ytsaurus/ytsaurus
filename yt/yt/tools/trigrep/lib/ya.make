@@ -8,6 +8,7 @@ SRCS(
     index_builder.cpp
     line_reader.cpp
     matcher.cpp
+    posting_codec.cpp
     helpers.cpp
 )
 
