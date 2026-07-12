@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(4.13.0)
+VERSION(4.14.0)
 
 LICENSE(MIT)
 
@@ -49,6 +49,7 @@ PY_SRCS(
     anyio/abc/_testing.py
     anyio/from_thread.py
     anyio/functools.py
+    anyio/itertools.py
     anyio/lowlevel.py
     anyio/pytest_plugin.py
     anyio/streams/__init__.py
