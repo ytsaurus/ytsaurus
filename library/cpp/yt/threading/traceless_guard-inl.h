@@ -3,7 +3,6 @@
 #ifndef TRACELESS_GUARD_INL_H_
 #error "Direct inclusion of this file is not allowed, include traceless_guard.h"
 #endif
-#undef TRACELESS_GUARD_INL_H_
 
 #include "rw_spin_lock.h"
 #include "spin_lock_count.h"
