@@ -3,6 +3,10 @@
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/server.h>
 
+#include <library/cpp/yt/threading/event_count.h>
+
+#include <yt/yt/library/signals/signal_registry.h>
+
 #include <yt/yt/server/lib/nbd/dynamic_table/config.h>
 #include <yt/yt/server/lib/nbd/dynamic_table/dynamic_table_block_device.h>
 
@@ -80,6 +84,8 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NFileClient;
 using namespace NObjectClient;
+using namespace NSignals;
+using namespace NThreading;
 using namespace NYPath;
 using namespace NYTree;
 
@@ -455,7 +461,41 @@ private:
             nbdServer->RegisterDevice(name, std::move(device));
         }
 
-        Sleep(TDuration::Max());
+        // Wait for a shutdown signal (SIGTERM or SIGINT), then perform
+        // graceful shutdown: deregister each device from the NBD server first
+        // (so no new requests are accepted), then finalize it (flush dirty
+        // pages, close sessions, release resources).
+        TEvent shutdownEvent;
+
+        auto signalHandler = [&shutdownEvent] {
+            shutdownEvent.NotifyOne();
+        };
+
+        TSignalRegistry::Get()->PushCallback(SIGTERM, signalHandler);
+        TSignalRegistry::Get()->PushCallback(SIGINT, signalHandler);
+
+        const auto& Logger = nbdServer->GetLogger();
+        YT_LOG_INFO("NBD server started, waiting for shutdown signal");
+
+        shutdownEvent.Wait();
+
+        YT_LOG_INFO("Shutdown signal received, deregistering and finalizing devices");
+
+        for (const auto& [name, deviceConfig] : config->Devices) {
+            // Deregister the device first so the NBD server stops accepting
+            // new requests for it, then finalize it (flush, close, release).
+            if (auto device = nbdServer->TryUnregisterDevice(name)) {
+                YT_LOG_INFO("Deregistered device (Device: %v)", name);
+                auto finalizeResult = WaitFor(device->Finalize());
+                if (!finalizeResult.IsOK()) {
+                    YT_LOG_ERROR(finalizeResult, "Failed to finalize device (Device: %v)", name);
+                } else {
+                    YT_LOG_INFO("Finalized device (Device: %v)", name);
+                }
+            }
+        }
+
+        YT_LOG_INFO("NBD server stopped");
     }
 
     IBlockDevicePtr CreateDevice(
