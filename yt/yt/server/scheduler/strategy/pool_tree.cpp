@@ -1243,7 +1243,7 @@ public:
     }
 
     static IYPathServicePtr FromProducer(
-        TExtendedYsonProducer<const TFieldFilter&> producer)
+        TParametricYsonProducer<const TFieldFilter&> producer)
     {
         return IYPathService::FromProducer(BIND(
             [producer{std::move(producer)}] (IYsonConsumer* consumer, const IAttributeDictionaryPtr& options) {
