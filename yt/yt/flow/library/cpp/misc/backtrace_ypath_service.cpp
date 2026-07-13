@@ -4,6 +4,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
@@ -45,7 +46,7 @@ IYPathServicePtr CreateIntrospectionService(TIntrospect introspect)
 
 IYPathServicePtr CreateBacktraceYPathService()
 {
-    return New<TCompositeMapService>()
+    return CreateCompositeMapService()
         ->AddChild("threads", CreateIntrospectionService(&IntrospectThreads))
         ->AddChild("fibers", CreateIntrospectionService(&IntrospectFibers));
 }

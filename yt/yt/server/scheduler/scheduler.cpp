@@ -81,6 +81,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -3810,7 +3811,7 @@ private:
 
     IYPathServicePtr GetNodesOrchidService()
     {
-        auto nodesService = New<TCompositeMapService>();
+        auto nodesService = CreateCompositeMapService();
 
         nodesService->AddChild("ongoing_heartbeat_count", IYPathService::FromProducer(BIND(
             [scheduler{this}] (IYsonConsumer* consumer) {
@@ -3827,7 +3828,7 @@ private:
 
     IYPathServicePtr GetDynamicOrchidService()
     {
-        auto dynamicOrchidService = New<TCompositeMapService>();
+        auto dynamicOrchidService = CreateCompositeMapService();
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
         dynamicOrchidService->AddChild("allocations", New<TAllocationsService>(this));
         dynamicOrchidService->AddChild("node_shards", GetNodesOrchidService());

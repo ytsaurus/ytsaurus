@@ -37,6 +37,7 @@
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/helpers.h>
 
@@ -370,7 +371,7 @@ public:
         SnapThreadTagsGuard_.Release();
     }
 
-    TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid) override
+    ICompositeMapServicePtr PopulateOrchidService(ICompositeMapServicePtr orchid) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 

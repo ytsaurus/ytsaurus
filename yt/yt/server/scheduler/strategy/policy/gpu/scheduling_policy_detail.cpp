@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
+
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -592,7 +594,7 @@ void TSchedulingPolicy::BuildElementLoggingStringAttributes(
         operationState.PreliminaryAssignmentCount);
 }
 
-void TSchedulingPolicy::PopulateOrchidService(const TCompositeMapServicePtr& orchidService) const
+void TSchedulingPolicy::PopulateOrchidService(const ICompositeMapServicePtr& orchidService) const
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -2015,7 +2017,7 @@ void TNoopSchedulingPolicy::BuildElementLoggingStringAttributes(
     TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
 { }
 
-void TNoopSchedulingPolicy::PopulateOrchidService(const TCompositeMapServicePtr& /*orchidService*/) const
+void TNoopSchedulingPolicy::PopulateOrchidService(const ICompositeMapServicePtr& /*orchidService*/) const
 { }
 
 void TNoopSchedulingPolicy::ProfileOperation(

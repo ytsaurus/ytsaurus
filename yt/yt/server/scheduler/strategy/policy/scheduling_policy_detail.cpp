@@ -14,6 +14,7 @@
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/string_builder.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
@@ -3157,7 +3158,7 @@ bool TSchedulingPolicy::IsGpuTree() const
     return IsGpuPoolTree(Config_);
 }
 
-void TSchedulingPolicy::PopulateOrchidService(const TCompositeMapServicePtr& orchidService) const
+void TSchedulingPolicy::PopulateOrchidService(const ICompositeMapServicePtr& orchidService) const
 {
     orchidService->AddChild("scheduling_segments", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
         YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::DynamicOrchid));

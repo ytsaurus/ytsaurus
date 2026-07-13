@@ -6,6 +6,7 @@
 #include "session_manager.h"
 #include "ytree_integration.h"
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NDataNode {
@@ -19,7 +20,7 @@ NYTree::IYPathServicePtr GetOrchidService(const IBootstrap* bootstrap)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto mapService = New<TCompositeMapService>();
+    auto mapService = CreateCompositeMapService();
 
     mapService->AddChild(
         "job_resource_manager",

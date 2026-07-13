@@ -45,8 +45,8 @@ struct ICellarOccupier
     virtual IInvokerPtr GetOccupierAutomatonInvoker() = 0;
     virtual IInvokerPtr GetMutationAutomatonInvoker() = 0;
 
-    virtual NYTree::TCompositeMapServicePtr PopulateOrchidService(
-        NYTree::TCompositeMapServicePtr orchidService) = 0;
+    virtual NYTree::ICompositeMapServicePtr PopulateOrchidService(
+        NYTree::ICompositeMapServicePtr orchidService) = 0;
 
     virtual void Stop() = 0;
     virtual void Finalize() = 0;

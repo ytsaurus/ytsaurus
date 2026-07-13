@@ -21,6 +21,7 @@
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -1209,7 +1210,7 @@ private:
     const TActionQueuePtr RttThread_;
     const IInvokerPtr RttInvoker_;
     const TProfiler Profiler_;
-    const TCompositeMapServicePtr OrchidService_;
+    const ICompositeMapServicePtr OrchidService_;
 
     std::atomic<bool> Initialized_ = false;
     std::atomic<bool> TrackingEnabled_ = false;
@@ -1966,9 +1967,9 @@ private:
         return OrchidService_;
     }
 
-    TCompositeMapServicePtr CreateOrchidService()
+    ICompositeMapServicePtr CreateOrchidService()
     {
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
                     BuildYsonFluently(consumer)
                         .Value(true);

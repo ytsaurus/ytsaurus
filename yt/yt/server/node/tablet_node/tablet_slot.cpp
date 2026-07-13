@@ -77,6 +77,7 @@
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/overload_controller.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/helpers.h>
 
@@ -596,7 +597,7 @@ public:
         return CellarType;
     }
 
-    TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid) override
+    ICompositeMapServicePtr PopulateOrchidService(ICompositeMapServicePtr orchid) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 

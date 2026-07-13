@@ -14,6 +14,7 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -152,7 +153,7 @@ public:
 private:
     void Initialize()
     {
-        auto service = New<TCompositeMapService>()
+        auto service = CreateCompositeMapService()
             // COMPAT(gritukan): Drop it in favour of job_data_statistics.
             ->AddChild("statistics", IYPathService::FromProducer(BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
                 if (auto this_ = weakThis.Lock()) {
@@ -280,7 +281,7 @@ private:
         using TLivePreviewListService = TCollectionBoundListService<TLivePreviewList>;
         auto livePreviewService = New<TLivePreviewListService>(std::weak_ptr<TLivePreviewList>(LivePreviews_));
 
-        auto service = New<TCompositeMapService>();
+        auto service = CreateCompositeMapService();
         service->AddChild("edges", edgeMapService);
         service->AddChild("live_previews", livePreviewService);
         service->SetOpaque(false);
@@ -331,7 +332,7 @@ public:
 
         auto vertexMapService = New<TVertexMapService>(std::weak_ptr<TVertexMap>(Vertices_));
         vertexMapService->SetOpaque(false);
-        auto service = New<TCompositeMapService>()
+        auto service = CreateCompositeMapService()
             ->AddChild("vertices", std::move(vertexMapService))
             ->AddChild("topological_ordering", IYPathService::FromProducer(BIND([this, weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
                 if (auto this_ = weakThis.Lock()) {

@@ -73,6 +73,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -1225,7 +1226,7 @@ private:
 
     IYPathServicePtr CreateOrchidService()
     {
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
                 BuildYsonFluently(consumer)
                     .Value(true);

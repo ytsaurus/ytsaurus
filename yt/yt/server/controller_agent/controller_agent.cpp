@@ -60,6 +60,7 @@
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -2376,14 +2377,14 @@ private:
 
     IYPathServicePtr GetDynamicOrchidService()
     {
-        auto dynamicOrchidService = New<TCompositeMapService>();
+        auto dynamicOrchidService = CreateCompositeMapService();
         dynamicOrchidService->AddChild("operations", New<TOperationsService>(this));
         return dynamicOrchidService;
     }
 
     IYPathServicePtr GetJobTrackerOrchidService()
     {
-        auto service = New<TCompositeMapService>();
+        auto service = CreateCompositeMapService();
         service->AddChild("job_tracker", JobTracker_->GetOrchidService());
         return service;
     }

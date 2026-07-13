@@ -46,6 +46,7 @@
 #include <yt/yt/core/misc/process_exit_profiler.h>
 #include <yt/yt/core/misc/statistics.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
@@ -2343,7 +2344,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddChild(
                 "active_jobs",
                 CreateActiveJobsService())

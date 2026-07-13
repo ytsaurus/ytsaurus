@@ -32,6 +32,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -805,7 +806,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        auto dynamicOrchidService = New<TCompositeMapService>();
+        auto dynamicOrchidService = CreateCompositeMapService();
         dynamicOrchidService->AddChild("pool_trees", New<TPoolTreeService>(this));
         return dynamicOrchidService;
     }
