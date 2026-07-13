@@ -48,6 +48,7 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NTabletNode {
@@ -210,7 +211,7 @@ private:
 
     IYPathServicePtr CreateOrchidService()
     {
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
                 NYTree::BuildYsonFluently(consumer)
                     .Value(true);

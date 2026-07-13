@@ -151,6 +151,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
 #include <yt/yt/core/ytree/yson_struct_update.h>
@@ -1118,7 +1119,7 @@ void TOperationControllerBase::InitializeOrchid()
 
     // NB: We may safely pass unretained this below as all the callbacks are wrapped with a createService helper
     // that takes care on checking the controller presence and properly replying in case it is already destroyed.
-    auto service = New<TCompositeMapService>()
+    auto service = CreateCompositeMapService()
         ->AddChild(
             "progress",
             createMapServiceWithInvoker(BIND(&TOperationControllerBase::BuildProgress, Unretained(this)), "progress"))

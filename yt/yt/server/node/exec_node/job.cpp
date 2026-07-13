@@ -109,6 +109,7 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -1599,7 +1600,7 @@ IYPathServicePtr TJob::CreateDynamicOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return New<TCompositeMapService>()
+    return CreateCompositeMapService()
         ->AddChild("job_proxy", CreateJobProxyOrchidService())
         ->AddChild("testing", CreateTestingOrchidService());
 }

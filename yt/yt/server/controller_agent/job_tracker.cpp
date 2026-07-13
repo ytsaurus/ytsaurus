@@ -20,6 +20,7 @@
 #include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -1558,7 +1559,7 @@ NYTree::IYPathServicePtr TJobTracker::CreateOrchidService() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto service = New<TCompositeMapService>();
+    auto service = CreateCompositeMapService();
 
     service->AddChild("nodes", New<TJobTrackerNodeOrchidService>(this));
 

@@ -44,6 +44,7 @@
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
@@ -1256,7 +1257,7 @@ public:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto dynamicOrchidService = New<TCompositeMapService>();
+        auto dynamicOrchidService = CreateCompositeMapService();
 
         dynamicOrchidService->AddChild("operations_by_pool", New<TOperationsByPoolOrchidService>(MakeStrong(this))
             ->Via(StrategyHost_->GetOrchidWorkerInvoker()));

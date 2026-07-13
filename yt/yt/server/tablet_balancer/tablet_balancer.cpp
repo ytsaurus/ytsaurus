@@ -35,6 +35,7 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <util/random/shuffle.h>
@@ -1193,7 +1194,7 @@ IYPathServicePtr TTabletBalancer::GetOrchidService()
         RemoveBundleErrorsByTtl(DynamicConfig_.Acquire()->BundleErrorsTtl);
     }
 
-    auto dynamicOrchidService = New<TCompositeMapService>();
+    auto dynamicOrchidService = CreateCompositeMapService();
 
     dynamicOrchidService->AddChild(
         "bundles",

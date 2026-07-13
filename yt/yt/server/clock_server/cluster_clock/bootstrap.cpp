@@ -59,6 +59,7 @@
 #include <yt/yt/core/rpc/bus/server.h>
 #include <yt/yt/core/rpc/server.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/tree_builder.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -336,7 +337,7 @@ void TBootstrap::DoLoadSnapshot(
 
 IYPathServicePtr TBootstrap::CreateCellOrchidService() const
 {
-    return New<TCompositeMapService>()
+    return CreateCompositeMapService()
         ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .Value(true);

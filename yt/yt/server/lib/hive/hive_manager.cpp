@@ -40,6 +40,7 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -2617,7 +2618,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto automatonInvoker = HydraManager_->CreateGuardedAutomatonInvoker(AutomatonInvoker_);
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddChild("cell_mailboxes", New<TMailboxOrchidService<TCellMailboxRuntimeData, &THiveRuntimeData::CellIdToCellRuntimeData>>(
                 MakeWeak(this))
                 ->Via(BackgroundInvoker_))

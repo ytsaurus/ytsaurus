@@ -24,6 +24,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTabletNode {
@@ -127,9 +128,9 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    TCompositeMapServicePtr CreateOrchidService()
+    ICompositeMapServicePtr CreateOrchidService()
     {
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddChild("dynamic_memory_pool_weights", IYPathService::FromMethod(
                 &TSlotManager::GetDynamicMemoryPoolWeightsOrchid,
                 MakeWeak(this)))

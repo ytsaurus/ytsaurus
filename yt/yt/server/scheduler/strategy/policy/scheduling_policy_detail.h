@@ -597,7 +597,7 @@ public:
         const TPoolTreeElement* element,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
 
-    void PopulateOrchidService(const NYTree::TCompositeMapServicePtr& orchidService) const override;
+    void PopulateOrchidService(const NYTree::ICompositeMapServicePtr& orchidService) const override;
 
     void ProfileOperation(
         const TPoolTreeOperationElement* element,

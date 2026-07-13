@@ -343,6 +343,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/list_verb_lazy_yson_consumer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/yson/attributes_stripper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/attribute_consumer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/composite_map.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/attributes.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/ytree/attribute_filter.cpp

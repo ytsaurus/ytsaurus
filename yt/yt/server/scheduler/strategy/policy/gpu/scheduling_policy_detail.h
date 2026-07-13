@@ -144,7 +144,7 @@ public:
         const TPoolTreeElement* element,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
 
-    void PopulateOrchidService(const TCompositeMapServicePtr& orchidService) const override;
+    void PopulateOrchidService(const ICompositeMapServicePtr& orchidService) const override;
 
     void ProfileOperation(
         const TPoolTreeOperationElement* element,
@@ -330,7 +330,7 @@ public:
     void EnableOperation(const TPoolTreeOperationElement* element) override;
     void DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive) override;
 
-    void PopulateOrchidService(const TCompositeMapServicePtr& orchidService) const override;
+    void PopulateOrchidService(const ICompositeMapServicePtr& orchidService) const override;
 
     void UpdateConfig(TStrategyTreeConfigPtr config) override;
 

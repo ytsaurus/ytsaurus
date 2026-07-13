@@ -17,6 +17,7 @@
 
 #include <yt/yt/client/chaos_client/helpers.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NChaosNode {
@@ -849,9 +850,9 @@ private:
         return MakeChaosLeaseId(Slot_->GenerateId(EObjectType::ChaosLease));
     }
 
-    TCompositeMapServicePtr CreateOrchidService()
+    ICompositeMapServicePtr CreateOrchidService()
     {
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddChild("internal", IYPathService::FromMethod(
                 &TChaosLeaseManager::BuildInternalOrchid,
                 MakeWeak(this))

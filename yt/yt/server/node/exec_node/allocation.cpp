@@ -14,6 +14,7 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
@@ -681,7 +682,7 @@ IYPathServicePtr TAllocation::GetOrchidService()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    auto jobService =  New<TCompositeMapService>();
+    auto jobService =  CreateCompositeMapService();
 
     if (Job_) {
         jobService->AddChild("job", Job_->GetOrchidService());

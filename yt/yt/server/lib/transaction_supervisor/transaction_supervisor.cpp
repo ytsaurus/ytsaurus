@@ -53,6 +53,7 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -1368,7 +1369,7 @@ private:
     IYPathServicePtr CreateOrchidService()
     {
         auto invoker = HydraManager_->CreateGuardedAutomatonInvoker(AutomatonInvoker_);
-        return New<TCompositeMapService>()
+        return CreateCompositeMapService()
             ->AddChild("transient_commits", New<TCommitOrchidService>(
                 MakeWeak(this),
                 &TTransactionSupervisor::TransientCommitMap_))
