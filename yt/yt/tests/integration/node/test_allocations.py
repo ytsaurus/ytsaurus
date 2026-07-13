@@ -5,7 +5,7 @@ from yt_commands import (
     get_allocation_id_from_job_id, run_test_vanilla, abort_job, create, write_file, write_table,
     update_nodes_dynamic_config, update_controller_agent_config, update_scheduler_config, wait,
     sync_create_cells, get, ls, exists,
-    disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
+    disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node, start_transaction, commit_transaction
 )
 
 import yt.environment.init_operations_archive as init_operations_archive
@@ -36,6 +36,11 @@ class TestSeveralJobsInAllocation(YTEnvSetup):
             "resource_limits": {
                 "cpu": 1,
                 "user_slots": 1,
+            },
+        },
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": False,
             },
         },
     }
@@ -258,6 +263,232 @@ class TestAllocationReuseWhenJobsDisabled(YTEnvSetup):
 
         # Release every job still waiting on this breakpoint name (covers rare extra waiters).
         release_breakpoint()
+        op.track()
+
+
+##################################################################
+
+
+class TestNbdInAllocation(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_TEST_PARTITIONS = 3
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/exec.tar.gz", attributes={"replication_factor": 1})
+        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+        create("file", "//tmp/rootfs.tar.gz", attributes={"replication_factor": 1})
+        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+    @authors("krasovav")
+    def test_root_volume_nbd_allocation_reuse(self):
+        self.setup_files()
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "volumes": {
+                            "root": {
+                                "layers": [
+                                    {
+                                        "path": "//tmp/exec.tar.gz",
+                                        "access_method": "nbd",
+                                    },
+                                    {
+                                        "path": "//tmp/rootfs.tar.gz",
+                                        "access_method": "nbd",
+                                    },
+                                ],
+                                "allow_reusing": True,
+                            },
+                        },
+                        "job_volumes_mounts": [
+                            {
+                                "volume_id": "root",
+                                "mount_path": "/",
+                            },
+                        ],
+                    },
+                },
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 0,
+            },
+        )
+
+        job_id1, = wait_breakpoint(job_count=1)
+        release_breakpoint(job_id=job_id1)
+
+        job_id2, = wait_breakpoint(job_count=1)
+
+        assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
+
+        release_breakpoint(job_id=job_id2)
+        op.track()
+
+
+##################################################################
+
+
+class TestGpuLayersInAllocation(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_TEST_PARTITIONS = 3
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+            "gpu_manager": {
+                "driver_layer_directory_path": "//tmp/drivers",
+                "driver_version": "test_version",
+                "testing": {
+                    "test_resource": True,
+                    "test_layers": True,
+                    "test_gpu_count": 1,
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "gpu_manager": {
+                    "driver_layer_fetching": {
+                        "period": 100,
+                        "splay": 100,
+                    }
+                },
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/exec.tar.gz", attributes={"replication_factor": 1})
+        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+        create("file", "//tmp/rootfs.tar.gz", attributes={"replication_factor": 1})
+        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+        tx = start_transaction()
+        create("map_node", "//tmp/drivers", tx=tx)
+        create(
+            "file",
+            "//tmp/drivers/test_version",
+            attributes={"replication_factor": 1},
+            tx=tx,
+        )
+
+        write_file(
+            "//tmp/drivers/test_version",
+            open("layers/static-bin.tar.gz", "rb").read(),
+            file_writer={"upload_replication_factor": 1},
+            tx=tx,
+        )
+        commit_transaction(tx)
+
+    @authors("krasovav")
+    def test_reuse_gpu_layers(self):
+        self.setup_files()
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "volumes": {
+                            "root": {
+                                "layers": [
+                                    {"path": "//tmp/exec.tar.gz"},
+                                    {"path": "//tmp/rootfs.tar.gz"},
+                                ],
+                            },
+                        },
+                        "job_volumes_mounts": [
+                            {"volume_id": "root", "mount_path": "/"},
+                        ],
+                        "enable_gpu_layers": True,
+                    },
+                },
+                "enable_multiple_jobs_in_allocation": True,
+                "max_failed_job_count": 1,
+            },
+        )
+
+        job_id1, = wait_breakpoint(job_count=1)
+        release_breakpoint(job_id=job_id1)
+
+        job_id2, = wait_breakpoint(job_count=1)
+
+        assert get_allocation_id_from_job_id(job_id1) == get_allocation_id_from_job_id(job_id2)
+
+        release_breakpoint(job_id=job_id2)
+
         op.track()
 
 
