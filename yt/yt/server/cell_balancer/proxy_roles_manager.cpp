@@ -11,7 +11,9 @@ constinit const auto Logger = BundleControllerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TProxyRoleToBundle = THashMap<std::string, std::string>;
+using TZoneName = std::string;
+using TRoleName = std::string;
+using TProxyRoleToBundle = THashMap<std::pair<TZoneName, TRoleName>, std::string>;
 
 TPerDataCenterSpareProxiesInfo GetSpareProxiesInfo(
     const std::string& zoneName,
@@ -40,7 +42,7 @@ TPerDataCenterSpareProxiesInfo GetSpareProxiesInfo(
 
             bool hasMaintenanceRequests = !proxyInfo->CmsMaintenanceRequests.empty();
 
-            if (auto it = proxyRoleToBundle.find(proxyInfo->Role); it != proxyRoleToBundle.end()) {
+            if (auto it = proxyRoleToBundle.find(std::pair{zoneIt->first, proxyInfo->Role}); it != proxyRoleToBundle.end()) {
                 const auto& bundleName = it->second;
                 YT_VERIFY(!bundleName.empty());
                 spareProxies.UsedByBundle[bundleName].push_back(spareProxy);
@@ -469,9 +471,9 @@ void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutatio
             continue;
         }
         if (bundleInfo->RpcProxyRole && !bundleInfo->RpcProxyRole->empty()) {
-            proxyRoleToBundle[*bundleInfo->RpcProxyRole] = bundleName;
+            proxyRoleToBundle[std::pair{bundleInfo->Zone, *bundleInfo->RpcProxyRole}] = bundleName;
         } else {
-            proxyRoleToBundle[bundleName] = bundleName;
+            proxyRoleToBundle[std::pair{bundleInfo->Zone, bundleName}] = bundleName;
         }
     }
 
