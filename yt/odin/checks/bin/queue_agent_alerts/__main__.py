@@ -1,5 +1,6 @@
 from yt_odin_checks.lib.check_runner import main
 from yt.wrapper import YtClient
+from yt.wrapper.config import set_command_param
 from yt.common import YtError, YtResponseError
 
 import yt.yson as yson
@@ -9,10 +10,13 @@ from collections import defaultdict
 
 BANNED_ATTRIBUTE_NAME = "banned"
 
+DEFAULT_GET_ALERTS_TIMEOUT = 15000
+
 
 def run_check(secrets, yt_client, logger, options, states):
     cluster_name = options["cluster_name"]
     queue_agent_stage_clusters = options["queue_agent_stage_clusters"]
+    get_alerts_timeout = options.get("get_alerts_timeout", DEFAULT_GET_ALERTS_TIMEOUT)
 
     all_errors = []
 
@@ -38,6 +42,7 @@ def run_check(secrets, yt_client, logger, options, states):
 
         config = deepcopy(yt_client.config)
         config["proxy"]["retries"] = {"count": 1, "enable": False}
+        config["batch_requests_retries"] = {"count": 1, "enable": False}
         queue_agent_stage_client = YtClient(proxy=queue_agent_stage_proxy, config=config)
 
         queue_agent_instances = run_method(lambda: queue_agent_stage_client.list("//sys/queue_agents/instances", attributes=[BANNED_ATTRIBUTE_NAME]),
@@ -49,6 +54,10 @@ def run_check(secrets, yt_client, logger, options, states):
         instances_errors = []
         has_non_transport_error = False
 
+        batch_client = queue_agent_stage_client.create_batch_client()
+        set_command_param("timeout", get_alerts_timeout, batch_client)
+
+        alerts_responses = {}
         for yson_instance in queue_agent_instances:
             instance = str(yson_instance)
             if yson_instance.has_attributes() and BANNED_ATTRIBUTE_NAME in yson_instance.attributes:
@@ -61,17 +70,28 @@ def run_check(secrets, yt_client, logger, options, states):
                     continue
 
             logger.info(f"Collecting alerts from {instance}")
+            alerts_responses[instance] = batch_client.get(f"//sys/queue_agents/instances/{instance}/orchid/alerts")
 
-            try:
-                alerts = run_method(lambda: queue_agent_stage_client.get(f"//sys/queue_agents/instances/{instance}/orchid/alerts"),
-                                    null_value=dict())
-            except YtResponseError as err:
-                if not err.is_transport_error():
+        def commit_alerts_batch():
+            batch_client.commit_batch()
+            return True
+
+        if not run_method(commit_alerts_batch, null_value=False):
+            continue
+
+        for instance, response in alerts_responses.items():
+            if not response.is_ok():
+                err = YtResponseError(response.get_error())
+                # NB(apachee): A transport error or a timed-out get means the instance is unreachable;
+                # tolerate it (like an unavailable instance) instead of treating it as a hard error.
+                if not (err.is_transport_error() or err.is_request_timed_out()):
                     has_non_transport_error = True
                 failed_instance_count += 1
                 wrapped_err = YtError(message=f"Failed to collect alerts from {instance}", inner_errors=[err])
                 instances_errors.append(wrapped_err)
                 continue
+
+            alerts = response.get_result()
 
             for alert, raw_error in alerts.items():
                 error = YtError.from_dict(raw_error)
