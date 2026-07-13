@@ -396,6 +396,21 @@ This strategy is possible when dictionary tables are subsequently appended to on
 2) all tables are sorted by `JOIN` keys
 3) dictionary tables are also unique in terms of `JOIN` keys
 
+The StarJoin strategy can be forced using an [SQL hint](lexer.md#sql-hints):
+
+```yql
+SELECT
+	...
+FROM T1 AS a
+    JOIN /*+ star() */ T2 AS b ON a.key = b.key
+    JOIN T3 AS c ON a.key = c.key
+```
+
+When you specify the hint:
+- as the main table the _left side_ of the JOIN is forced for which the hint is specified
+- an additional sorting by keys is inserted for all inputs where necessary
+- in cases where the StarJoin strategy is not applicable, a warning with the reason is issued
+
 
 (PRAGMA) settings for the strategy:
 
