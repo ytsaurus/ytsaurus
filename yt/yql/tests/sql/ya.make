@@ -13,6 +13,7 @@ ENDIF()
 
 IF (NOT OPENSOURCE)
     RECURSE(
+        runners
         ytflow
     )
 ENDIF()
