@@ -57,11 +57,12 @@ type TransactionOptions struct {
 	SuppressUpstreamSync               bool `http:"suppress_upstream_sync"`
 }
 
-// AccessTrackingOptions suppresses update of "modification_time", "access_time" and
-// "access_counter" cypress attributes.
+// AccessTrackingOptions suppresses update of "modification_time", "access_time",
+// "access_counter" cypress attributes and renewal of node's "expiration_timeout".
 type AccessTrackingOptions struct {
-	SuppressAccessTracking       bool `http:"suppress_access_tracking"`
-	SuppressModificationTracking bool `http:"suppress_modification_tracking"`
+	SuppressAccessTracking           bool `http:"suppress_access_tracking"`
+	SuppressModificationTracking     bool `http:"suppress_modification_tracking"`
+	SuppressExpirationTimeoutRenewal bool `http:"suppress_expiration_timeout_renewal"`
 }
 
 // MutatingOptions enable safe retries of cypress commands in the presence of network errors.
