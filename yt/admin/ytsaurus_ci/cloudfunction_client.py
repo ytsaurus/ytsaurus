@@ -52,8 +52,10 @@ class CloudFunctionClient:
 
         return response.json()
 
-    def run_task(self, job_id):
+    def run_task(self, job_id, patch=None):
         payload = {"job_id": job_id}
+        if patch:
+            payload["patch"] = patch
         req = self._prepare(payload, self.RUN_TASK_ID, "post")
         response = self._session.send(req)
         response.raise_for_status()

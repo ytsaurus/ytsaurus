@@ -164,6 +164,19 @@ def _make_upgrade_tasks(
     return _run_parallel(tasks_kwargs, _make_upgrade_task)
 
 
+def ResolveChecks(check_names: List[str]) -> List[models.Check]:
+    scenario_config = models.ScenarioConfig.from_dict(yaml.safe_load(resource.resfs_read(SCENARIOS_FILE_PATH)))
+    registry = check_registry.CheckRegistry(scenario_config.checks)
+    checks = []
+    for name in check_names:
+        try:
+            checks.append(registry.get_check(name))
+        except KeyError:
+            available = ", ".join(sorted(scenario_config.checks))
+            raise ValueError(f"unknown check {name!r}, available: {available}")
+    return checks
+
+
 def ProcessScenario(
     scenario_name: str,
     auth: ghcr.GitHubAuth,

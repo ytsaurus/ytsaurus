@@ -52,14 +52,22 @@ def cloud_function_token_option(f):
 @cli.command()
 @click.option("--job-id", type=str, required=True, help="job_id of interested test")
 @cloud_function_token_option
-def reproduce(job_id, cloud_function_token):
+@click.option("--check", "checks", type=str, multiple=True, help="Patch scenario checks, e.g. --check odin_latest")
+@click.option("--ttl", type=int, default=None, help="Patch scenario ttl in seconds")
+def reproduce(job_id, cloud_function_token, checks, ttl):
     client = cloudfunction_client.CloudFunctionClient(
         cloudfunction_client.YCFunctionAuth(
             cloud_function_token=cloud_function_token,
         )
     )
 
-    content = client.run_task(job_id)
+    patch = {}
+    if checks:
+        patch["checks"] = [check.dict() for check in scenario_processor.ResolveChecks(list(checks))]
+    if ttl is not None:
+        patch["ttl"] = ttl
+
+    content = client.run_task(job_id, patch or None)
     if content["status"]:
         color = "green"
     else:
