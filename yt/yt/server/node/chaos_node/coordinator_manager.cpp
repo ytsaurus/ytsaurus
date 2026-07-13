@@ -475,7 +475,12 @@ private:
                 << TErrorAttribute("replication_card_era", era);
         }
 
+        auto transactionId = transaction->GetId();
+
+        // TODO(osidorkin): Make chaos lease a usual transaction participant so we can drop this field.
         auto chaosLeaseIds = FromProto<std::vector<TChaosLeaseId>>(request->prerequisite_ids());
+        SortUnique(chaosLeaseIds);
+
         for (const auto& chaosLeaseId : chaosLeaseIds) {
             auto it = Shortcuts_.find(chaosLeaseId);
             if (it == Shortcuts_.end()) {
@@ -485,6 +490,7 @@ private:
                     << TErrorAttribute("chaos_object_type", TypeFromId(chaosLeaseId))
                     << TErrorAttribute("chaos_object_id", chaosLeaseId);
             }
+
             if (it->second.State != EShortcutState::Granted) {
                 THROW_ERROR_EXCEPTION(
                     NChaosClient::EErrorCode::ShortcutRevoked,
@@ -493,18 +499,25 @@ private:
                     << TErrorAttribute("chaos_object_id", chaosLeaseId)
                     << TErrorAttribute("shortcut_state", it->second.State);
             }
+
+            if (it->second.AliveTransactions.contains(transactionId)) {
+                THROW_ERROR_EXCEPTION(
+                    "Transaction already prepared for chaos lease")
+                    << TErrorAttribute("chaos_object_id", chaosLeaseId)
+                    << TErrorAttribute("transaction_id", transactionId);
+            }
         }
 
-        InsertOrCrash(it->second.AliveTransactions, transaction->GetId());
+        InsertOrCrash(it->second.AliveTransactions, transactionId);
 
         for (const auto& chaosLeaseId : chaosLeaseIds) {
             auto it = GetIteratorOrCrash(Shortcuts_, chaosLeaseId);
-            InsertOrCrash(it->second.AliveTransactions, transaction->GetId());
+            InsertOrCrash(it->second.AliveTransactions, transactionId);
         }
 
         YT_LOG_DEBUG("Replication batch prepared (ReplicationCardId: %v, TransactionId: %v, ChaosLeaseIds: %v)",
             replicationCardId,
-            transaction->GetId(),
+            transactionId,
             chaosLeaseIds);
     }
 
