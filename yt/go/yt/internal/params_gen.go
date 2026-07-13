@@ -61,6 +61,8 @@ func writeAccessTrackingOptions(w *yson.Writer, o *yt.AccessTrackingOptions) {
 	w.Any(o.SuppressAccessTracking)
 	w.MapKeyString("suppress_modification_tracking")
 	w.Any(o.SuppressModificationTracking)
+	w.MapKeyString("suppress_expiration_timeout_renewal")
+	w.Any(o.SuppressExpirationTimeoutRenewal)
 }
 
 func logAccessTrackingOptions(o *yt.AccessTrackingOptions) []log.Field {
@@ -73,6 +75,9 @@ func logAccessTrackingOptions(o *yt.AccessTrackingOptions) []log.Field {
 	}
 	if o.SuppressModificationTracking {
 		fields = append(fields, log.Any("suppress_modification_tracking", o.SuppressModificationTracking))
+	}
+	if o.SuppressExpirationTimeoutRenewal {
+		fields = append(fields, log.Any("suppress_expiration_timeout_renewal", o.SuppressExpirationTimeoutRenewal))
 	}
 	return fields
 }
