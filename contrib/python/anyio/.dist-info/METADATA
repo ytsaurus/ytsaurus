@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: anyio
-Version: 4.14.0
+Version: 4.14.1
 Summary: High-level concurrency and networking framework on top of asyncio or Trio
 Author-email: Alex Grönholm <alex.gronholm@nextday.fi>
 License-Expression: MIT
