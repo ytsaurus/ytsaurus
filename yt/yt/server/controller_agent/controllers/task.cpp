@@ -2206,7 +2206,7 @@ void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources)
     jobResources.SetFootprintMemory(TaskHost_->GetConfig()->FootprintMemory.value_or(GetFootprintMemorySize()));
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec) {
-        jobResources.SetUserJobMemory(userJobSpec->MemoryLimit);
+        jobResources.SetUserJobMemory(userJobSpec->MemoryLimit + TaskHost_->GetConfig()->ExecFootprintMemory.value_or(0L));
         jobResources.SetGpu(userJobSpec->GpuLimit);
     }
 }

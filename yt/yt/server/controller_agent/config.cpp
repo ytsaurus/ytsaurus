@@ -1348,6 +1348,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("footprint_memory", &TThis::FootprintMemory)
         .Default();
+    registrar.Parameter("exec_footprint_memory", &TThis::ExecFootprintMemory)
+        .Default();
 
     registrar.Parameter("enable_job_profiling", &TThis::EnableJobProfiling)
         .Default();

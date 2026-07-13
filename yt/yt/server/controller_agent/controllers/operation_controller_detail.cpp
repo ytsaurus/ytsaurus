@@ -10559,7 +10559,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_job_time_limit(ToProto(*jobSpecConfig->JobTimeLimit));
     }
     jobSpec->set_prepare_time_limit(ToProto(jobSpecConfig->PrepareTimeLimit));
-    jobSpec->set_memory_limit(jobSpecConfig->MemoryLimit);
+    jobSpec->set_memory_limit(jobSpecConfig->MemoryLimit + Config_->ExecFootprintMemory.value_or(0L));
     jobSpec->set_include_memory_mapped_files(jobSpecConfig->IncludeMemoryMappedFiles);
     jobSpec->set_use_yamr_descriptors(jobSpecConfig->UseYamrDescriptors);
     jobSpec->set_check_input_fully_consumed(jobSpecConfig->CheckInputFullyConsumed);

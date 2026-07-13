@@ -270,6 +270,14 @@ def parametrize_external(func):
     return pytest.mark.parametrize("external", [False, True])(decorator.decorate(func, wrapper))
 
 
+def _adjust_footprint_memory_for_asan():
+    # A gift from Asanta Klaus.
+    return {
+        "footprint_memory": 1024 ** 3,
+        "exec_footprint_memory": 1024 ** 3,
+    } if is_asan_build() else {}
+
+
 class Checker(Thread):
     def __init__(self, check_function):
         super(Checker, self).__init__()
@@ -389,6 +397,7 @@ class YTEnvSetup(object):
     DELTA_CONTROLLER_AGENT_CONFIG = {}
     _DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
+            **_adjust_footprint_memory_for_asan(),
             "enable_table_column_renaming": True,
         },
     }
