@@ -159,12 +159,12 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
 
     YT_LOG_INFO(
         "Making artifact symlinks (ArtifactCount: %v)",
-        std::size(Context_.FSSecretary->GetArtifacts()));
+        std::size(Context_.FSSecretary->GetArtifactDescriptors()));
 
-    for (const auto& artifact : Context_.FSSecretary->GetArtifacts()) {
+    for (const auto& artifact : Context_.FSSecretary->GetArtifactDescriptors()) {
         // Artifact is passed into the job via symlink.
         if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
-            YT_VERIFY(artifact.Artifact);
+            const auto& preparedArtifact = Context_.FSSecretary->GetArtifactByName(artifact.Name);
 
             YT_LOG_INFO(
                 "Making symlink for artifact (FileName: %v, Executable: "
@@ -181,7 +181,7 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
                 Context_.Job->GetId(),
                 artifact.Name,
                 artifact.SandboxKind,
-                artifact.Artifact->GetFileName(),
+                preparedArtifact->GetFileName(),
                 symlinkPath,
                 artifact.Executable))
                 .ThrowOnError();
@@ -205,7 +205,7 @@ void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
 {
     const auto& slot = Context_.Slot;
 
-    const auto& artifacts = Context_.FSSecretary->GetArtifacts();
+    const auto& artifacts = Context_.FSSecretary->GetArtifactDescriptors();
 
     YT_LOG_INFO(
         "Setting permissions for artifacts (ArtifactCount: %v)",
@@ -216,7 +216,7 @@ void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
 
     for (const auto& artifact : artifacts) {
         if (artifact.AccessedViaBind) {
-            YT_VERIFY(artifact.Artifact);
+            const auto& preparedArtifact = Context_.FSSecretary->GetArtifactByName(artifact.Name);
 
             auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
             auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
@@ -233,7 +233,7 @@ void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
                 Context_.Job->GetId(),
                 artifact.Name,
                 artifact.SandboxKind,
-                artifact.Artifact->GetFileName(),
+                preparedArtifact->GetFileName(),
                 artifactPath,
                 artifact.Executable));
         } else {

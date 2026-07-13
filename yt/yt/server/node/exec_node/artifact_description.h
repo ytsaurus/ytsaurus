@@ -17,7 +17,6 @@ struct TArtifactDescription
     bool BypassArtifactCache;
     bool CopyFile;
     TArtifactKey Key;
-    TArtifactPtr Artifact;
     bool AccessedViaBind = false;
     bool AccessedViaVirtualSandbox = false;
 

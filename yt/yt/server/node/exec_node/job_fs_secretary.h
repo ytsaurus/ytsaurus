@@ -19,7 +19,6 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 //! Prepared overlay layer data, indexed by artifact key.
 struct TPreparedLayers
 {
@@ -27,6 +26,7 @@ struct TPreparedLayers
 };
 
 struct TJobFSDescription
+    : public TRefCounted
 {
     std::vector<TArtifactDescription> Artifacts;
     THashMap<TString, int> UserArtifactNameToIndex;
@@ -41,6 +41,7 @@ struct TJobFSDescription
     THashMap<TString, std::vector<TVolumeMountPtr>> SidecarsVolumeMounts;
     std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
 };
+DEFINE_REFCOUNTED_TYPE(TJobFSDescription)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +65,7 @@ public:
         bool enableRootVolumeDiskQuota,
         bool needGpuLayers);
 
-    const std::vector<TArtifactDescription>& GetArtifacts() const;
+    const std::vector<TArtifactDescription>& GetArtifactDescriptors() const;
 
     const std::vector<TArtifactKey>& GetRootVolumeLayerArtifactKeys() const;
     const std::vector<TArtifactKey>& GetGpuCheckVolumeLayerArtifactKeys() const;
@@ -114,7 +115,9 @@ public:
 
     const THashMap<TString, std::vector<TVolumeMountPtr>>& GetSidecarsVolumeMounts() const;
 
-    const TArtifactDescription& GetUserArtifact(const TString& name) const;
+    const TArtifactPtr& GetArtifactByName(const TString& name) const;
+
+    const TArtifactDescription& GetUserArtifactDescriptor(const TString& name) const;
 
     //! Adds prepared overlay layers to the allocation-scoped cache.
     //! Crashes if any of the keys is already present.
@@ -133,7 +136,7 @@ public:
     std::vector<TArtifactDescription> GetArtifactsToCache() const;
 
     //! Sets cached artifact pointers. The size must match GetArtifactsToCache().
-    //! Uses the same filtering logic to find the right slots in Artifacts_.
+    //! Uses the same filtering logic to find the right slots in Artifacts.
     void SetCachedArtifacts(std::vector<TArtifactPtr> artifacts);
 
     void ReleaseArtifacts();
@@ -145,49 +148,39 @@ private:
     NLogging::TLogger Logger;
     bool RootVolumeDiskQuotaEnabled_ = false;
 
-    std::vector<TArtifactDescription> Artifacts_;
-    std::vector<TArtifactKey> RootVolumeLayerArtifactKeys_;
-    std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys_;
-    std::optional<TString> DockerImage_;
+    std::optional<TString> ActualDockerImage_;
     std::optional<TString> DockerImageId_;
     IVolumePtr RootVolume_;
     IVolumePtr GpuCheckVolume_;
+    std::vector<TArtifactKey> MergedRootVolumeLayerArtifactKeys_;
+    std::vector<TArtifactKey> MergedGpuCheckVolumeLayerArtifactKeys_;
     THashSet<TString> NbdDeviceIds_;
-    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData_;
-    THashMap<TString, int> UserArtifactNameToIndex_;
     THashMap<std::string, TVolumeResultPtr> NonRootVolumes_;
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
-    // COMPAT(krasovav)
-    std::optional<i64> RootVolumeDiskSpace_;
-    // COMPAT(krasovav)
-    std::optional<i64> RootVolumeInodeLimit_;
-    bool RootVolumeReusingAllowed_ = false;
-    std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams_;
-    std::vector<TVolumeMountPtr> JobVolumeMounts_;
-    THashMap<TString, std::vector<TVolumeMountPtr>> SidecarsVolumeMounts_;
+    THashMap<std::string, TArtifactPtr> NameToPreparedArtifacts_;
     bool HasVirtualSandboxArtifacts_ = false;
     bool ArtifactsCached_ = false;
 
+    TIntrusivePtr<const TJobFSDescription> Description_ = New<const TJobFSDescription>();
     TPreparedLayers PreparedLayers_;
 
     void ConfigureUserArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void ConfigureLayerArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void ConfigureDockerImage(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void ConfigureUdfArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TJobSpecExt& jobSpecExt);
-    void ConfigureNbdDeviceIds();
+    void ConfigureNbdDeviceIds(TNonNullPtr<TJobFSDescription> description);
     void ConfigureVolumes(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec, int userId);
-    void VerifyDescriptionMatchesApplied(const TJobFSDescription& current) const;
-    void ApplyDescription(TNonNullPtr<TJobFSDescription> description);
+    void AddGpuToppingLayersIfNeeded(const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
+    void VerifyDescriptionMatchesApplied(const TJobFSDescriptionPtr& current) const;
+    void ApplyDescription(TJobFSDescriptionPtr&& description);
     void CheckConfiguration(bool hasNbdServer) const;
 
-    void MarkArtifactsAccessedViaVirtualSandbox(const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
-    void MarkArtifactsAccessedViaBind();
+    void MarkArtifactsAccessedViaVirtualSandbox(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
+    void MarkArtifactsAccessedViaBind(TNonNullPtr<TJobFSDescription> description);
     bool CanBeAccessedViaVirtualSandbox(const TArtifactDescription& artifact, const NControllerAgent::NProto::TUserJobSpec* userJobSpec) const;
     bool CanBeAccessedViaBind(const TArtifactDescription& artifact) const;
 
     void OnNewJobStarted(TJobId jobId);
-
-    void AddGpuToppingLayersIfNeeded(const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
 
     std::vector<TOverlayData> GetPreparedOverlayData(const std::vector<TArtifactKey>& artifactKeys) const;
 };

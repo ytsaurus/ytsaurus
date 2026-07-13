@@ -643,7 +643,7 @@ void TJob::PrepareArtifact(
 
             ValidateJobPhase(EJobPhase::PreparingArtifacts);
 
-            const auto& artifact = FSSecretary_->GetUserArtifact(artifactName);
+            const auto& artifact = FSSecretary_->GetUserArtifactDescriptor(artifactName);
 
             YT_VERIFY(artifact.BypassArtifactCache || artifact.CopyFile);
 
@@ -675,7 +675,7 @@ void TJob::PrepareArtifact(
                         producer,
                         pipe));
             } else if (artifact.CopyFile) {
-                YT_VERIFY(artifact.Artifact);
+                const auto& preparedArtifact = FSSecretary_->GetArtifactByName(artifact.Name);
 
                 YT_LOG_INFO(
                     "Copy artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
@@ -689,9 +689,9 @@ void TJob::PrepareArtifact(
                         Id_,
                         artifact.Name,
                         artifact.SandboxKind,
-                        TString(artifact.Artifact->GetFileName()),
+                        TString(preparedArtifact->GetFileName()),
                         pipe,
-                        artifact.Artifact->GetLocation()));
+                        preparedArtifact->GetLocation()));
             }
         });
 }
@@ -3203,7 +3203,7 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
         validateTableSpecs(jobSpecExt.foreign_input_table_specs());
 
         // NB: No need to add these descriptors to the input node directory.
-        for (const auto& artifact : FSSecretary_->GetArtifacts()) {
+        for (const auto& artifact : FSSecretary_->GetArtifactDescriptors()) {
             validateNodeIds(artifact.Key.chunk_specs(), nodeDirectory);
         }
 
@@ -3369,10 +3369,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     if (FSSecretary_->GetRootVolume() || FSSecretary_->GetDockerImage()) {
         proxyInternalConfig->Binds = GetRootFSBindConfigs();
 
-        for (const auto& artifact : FSSecretary_->GetArtifacts()) {
+        for (const auto& artifact : FSSecretary_->GetArtifactDescriptors()) {
             // Artifact is passed into the job via bind.
             if (artifact.AccessedViaBind) {
-                YT_VERIFY(artifact.Artifact);
+                const auto& preparedArtifact = FSSecretary_->GetArtifactByName(artifact.Name);
 
                 YT_LOG_INFO(
                     "Make bind for artifact (FileName: %v, Executable: %v, "
@@ -3386,7 +3386,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
                 auto targetPath = NFS::CombinePaths(sandboxPath, artifact.Name);
 
                 auto bind = New<TBindConfig>();
-                bind->ExternalPath = artifact.Artifact->GetFileName();
+                bind->ExternalPath = preparedArtifact->GetFileName();
                 bind->InternalPath = targetPath;
                 bind->ReadOnly = true;
 
@@ -3580,7 +3580,7 @@ void TJob::BuildVirtualSandbox()
 
     std::vector<TArtifactMountOptions> mountOptions;
 
-    for (const auto& artifact : FSSecretary_->GetArtifacts()) {
+    for (const auto& artifact : FSSecretary_->GetArtifactDescriptors()) {
         if (!artifact.AccessedViaVirtualSandbox) {
             continue;
         }
@@ -3662,7 +3662,7 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
     const auto& artifactCache = Bootstrap_->GetArtifactCache();
 
     // Account for bypassed artifacts.
-    for (const auto& artifact : FSSecretary_->GetArtifacts()) {
+    for (const auto& artifact : FSSecretary_->GetArtifactDescriptors()) {
         if (artifact.BypassArtifactCache) {
             ArtifactCacheStatistics_.CacheBypassedArtifactsSize += artifact.Key.GetCompressedDataSize();
         }
