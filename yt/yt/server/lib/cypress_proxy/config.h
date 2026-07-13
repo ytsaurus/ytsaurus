@@ -174,6 +174,8 @@ struct TCypressProxyDynamicConfig
 
     THashMap<ETreeScope, int> VectorizedSubbatchSizeOverrides;
 
+    bool EnableAccessLog;
+
     constexpr static int DefaultThreadPoolSize = 2;
 
     REGISTER_YSON_STRUCT(TCypressProxyDynamicConfig);

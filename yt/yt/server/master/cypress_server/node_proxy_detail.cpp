@@ -99,25 +99,6 @@ constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAccessLoggedMethod(const std::string& method)
-{
-    static const THashSet<std::string> methodsForAccessLog = {
-        "Lock",
-        "Unlock",
-        "GetKey",
-        "Get",
-        "Set",
-        "Remove",
-        "List",
-        "Exists",
-        "GetBasicAttributes",
-        "CheckPermission",
-        "LockCopyDestination",
-        "LockCopySource",
-    };
-    return methodsForAccessLog.contains(method);
-}
-
 bool HasTrivialAcd(const TCypressNode* node)
 {
     const auto& acd = node->Acd();

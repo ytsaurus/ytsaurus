@@ -143,6 +143,8 @@ void TCypressProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(100);
     registrar.Parameter("vectorized_subbatch_size_overrides", &TThis::VectorizedSubbatchSizeOverrides)
         .Default();
+    registrar.Parameter("enable_access_log", &TThis::EnableAccessLog)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

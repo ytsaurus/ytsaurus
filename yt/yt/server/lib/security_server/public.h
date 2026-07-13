@@ -45,4 +45,9 @@ DEFINE_ENUM(EAccessDenialReason,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int TypicalAccessLogAttributeCount = 2;
+using TAccessLogAttributes = TCompactVector<std::pair<TStringBuf, TStringBuf>, TypicalAccessLogAttributeCount>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSecurityServer
