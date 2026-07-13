@@ -337,7 +337,7 @@ def build_alignment_timestamp():
 def build_flow_controller(backend="monitoring"):
     def fill(d):
         d.add(build_pipeline_state())
-        d.add(build_resource_usage("controller", add_component_to_title=False))
+        d.add(build_resource_usage("controller", add_component_to_title=False, backend=backend))
         d.add(build_flow_layout())
         d.add(build_flow_layout_mutations(backend))
         d.add(build_controller_iterations(backend))

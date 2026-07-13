@@ -173,8 +173,8 @@ def build_flow_general(backend="monitoring"):
     def fill(d):
         d.add(build_lags())
         d.add(COMPUTATION_CELL_GENERATOR.build_event_lag_rowset(backend))
-        d.add(build_resource_usage("controller", add_component_to_title=True))
-        d.add(build_resource_usage("worker", add_component_to_title=True))
+        d.add(build_resource_usage("controller", add_component_to_title=True, backend=backend))
+        d.add(build_resource_usage("worker", add_component_to_title=True, backend=backend))
         d.add(build_flow_status(backend))
         d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
         d.add(build_epoch_timings())
