@@ -127,15 +127,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchema ExtendSchema(const TTableSchema& schema, const std::vector<TColumnSchema>& extraColumns)
-{
-    auto columns = schema.Columns();
-    columns.insert(columns.end(), extraColumns.begin(), extraColumns.end());
-    return TTableSchema(std::move(columns), schema.IsStrict(), schema.IsUniqueKeys());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! An interface to enrich rows with extra columns before exporting to a cypress table.
 struct ITableExtender
     : public TRefCounted
@@ -344,146 +335,127 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSystemLogTableExporterSink
-    : public DB::SinkToStorage
+class TSystemLogExporter
+    : public TRefCounted
 {
 public:
-    TSystemLogTableExporterSink(
-        const DB::Block& header,
-        TCircularChunkBufferPtr storageBuffer,
-        std::shared_ptr<const std::vector<int>> columnIndexToId,
-        TConversionSettingsPtr conversionSettings,
-        IArchiveReporterPtr archiveReporter,
-        ITableExtenderPtr tableExtender,
-        TNameTablePtr nameTable,
-        TLogger logger)
-        : DB::SinkToStorage(header)
-        , StorageBuffer_(std::move(storageBuffer))
-        , ColumnIndexToId_(std::move(columnIndexToId))
-        , ConversionSettings_(std::move(conversionSettings))
-        , ArchiveReporter_(std::move(archiveReporter))
-        , TableExtender_(std::move(tableExtender))
-        , NameTable_(std::move(nameTable))
-        , Logger(std::move(logger))
-    { }
-
-    String getName() const override
-    {
-        return "SystemLogTableExporterSink";
-    }
-
-    void consume(DB::Chunk& chunk) override
-    {
-        NewChunks_.push_back(std::move(chunk));
-    }
-
-    void onFinish() override
-    {
-        if (ArchiveReporter_) {
-            auto extraRowBuffer = New<TRowBuffer>();
-
-            for (const auto& chunk : NewChunks_) {
-                try {
-                    auto block = getHeader().cloneWithColumns(chunk.getColumns());
-                    auto rowRange = ToMutableRowRange(
-                        block,
-                        block.getDataTypes(),
-                        *ColumnIndexToId_,
-                        ConversionSettings_,
-                        TableExtender_->GetColumns().size());
-
-                    TableExtender_->ExtendRows(rowRange, extraRowBuffer, NameTable_);
-
-                    for (const auto& row : rowRange) {
-                        ArchiveReporter_->Enqueue(std::make_unique<TCompletedRowlet>(TUnversionedOwningRow(row)));
-                    }
-                    extraRowBuffer->Clear();
-                } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to convert chunk to unverionsed rows; chunk skipped (RowCount: %v)", chunk.getNumRows());
-                }
-            }
-        }
-
-        StorageBuffer_->AddChunks(std::move(NewChunks_));
-    }
-
-private:
-    TCircularChunkBufferPtr StorageBuffer_;
-    const std::shared_ptr<const std::vector<int>> ColumnIndexToId_;
-
-    const TConversionSettingsPtr ConversionSettings_;
-    IArchiveReporterPtr ArchiveReporter_;
-    const ITableExtenderPtr TableExtender_;
-    const TNameTablePtr NameTable_;
-
-    const TLogger Logger;
-
-    DB::Chunks NewChunks_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TStorageSystemLogTableExporter
-    : public DB::IStorage
-{
-public:
-    explicit TStorageSystemLogTableExporter(
-        TSystemLogTableExporterConfigPtr config,
+    TSystemLogExporter(
+        DB::StorageID storageId,
         TYPath cypressTableDirectory,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
-        DB::StorageID storageId,
-        DB::ColumnsDescription columnsDescription,
-        ITableExtenderPtr tableExtender)
-        : DB::IStorage(std::move(storageId))
-        , Config_(std::move(config))
+        TSystemLogTableExporterConfigPtr config,
+        TConversionSettingsPtr conversionSettings,
+        TTableSchema schema,
+        ITableExtenderPtr tableExtender,
+        TLogger logger)
+        : StorageId_(std::move(storageId))
         , CypressTableDirectory_(std::move(cypressTableDirectory))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
-        , ConversionSettings_(TConversionSettings::Create(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true)))
-        , Schema_(ToTableSchema(columnsDescription, /*keyColumns*/ {}, ConversionSettings_))
-        , NameTable_(TNameTable::FromSchema(Schema_))
-        , ColumnIndexToId_(std::make_shared<const std::vector<int>>(
-            GetColumnIndexToId(NameTable_, Schema_.GetColumnNames())))
-        , Logger(SystemLogTableExporterLogger().WithTag("TableName: %v", getStorageID().getFullTableName()))
-        , Extender_(std::move(tableExtender))
-        , Data_(New<TCircularChunkBuffer>(Config_->MaxBytesToKeep, Config_->MaxRowsToKeep))
+        , Config_(std::move(config))
+        , ConversionSettings_(std::move(conversionSettings))
+        , InputSchema_(std::move(schema))
+        , NameTable_(TNameTable::FromSchema(InputSchema_))
+        , ColumnIndexToId_(GetColumnIndexToId(NameTable_, InputSchema_.GetColumnNames()))
+        , OutputSchema_(BuildOutputSchema(InputSchema_, tableExtender, NameTable_))
+        , TableExtender_(std::move(tableExtender))
+        , Logger(std::move(logger))
     {
-        DB::StorageInMemoryMetadata storageMetadata;
-        storageMetadata.setColumns(columnsDescription);
-        setInMemoryMetadata(storageMetadata);
+        auto tablePath = EnsureTableReady();
 
-        const auto& extraColumns = Extender_->GetColumns();
-        Schema_ = ExtendSchema(Schema_, extraColumns);
-        for (const auto& column : extraColumns) {
-            NameTable_->RegisterNameOrThrow(column.Name());
+        auto handlerConfig = New<TArchiveHandlerConfig>();
+        handlerConfig->MaxInProgressDataSize = Config_->MaxInProgressDataSize;
+        handlerConfig->Path = tablePath;
+
+        ArchiveReporter_ = CreateArchiveReporter(
+            New<TArchiveVersionHolder>(),
+            Config_,
+            std::move(handlerConfig),
+            NameTable_,
+            StorageId_.getFullTableName(),
+            Client_,
+            Invoker_,
+            SystemLogTableExporterProfiler().WithTag("table_name", StorageId_.table_name));
+    }
+
+    void ConvertAndEnqueue(const DB::Block& header, const DB::Chunks& chunks)
+    {
+        auto extraRowBuffer = New<TRowBuffer>();
+
+        for (const auto& chunk : chunks) {
+            try {
+                auto block = header.cloneWithColumns(chunk.getColumns());
+                auto rowRange = ToMutableRowRange(
+                    block,
+                    block.getDataTypes(),
+                    ColumnIndexToId_,
+                    ConversionSettings_,
+                    TableExtender_->GetColumns().size());
+
+                TableExtender_->ExtendRows(rowRange, extraRowBuffer, NameTable_);
+
+                for (const auto& row : rowRange) {
+                    ArchiveReporter_->Enqueue(std::make_unique<TCompletedRowlet>(TUnversionedOwningRow(row)));
+                }
+                extraRowBuffer->Clear();
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Failed to convert chunk to unverionsed rows; chunk skipped (RowCount: %v)", chunk.getNumRows());
+            }
         }
+    }
 
-        static const std::vector<TColumnSchema> QueueSystemColumns = {
+private:
+    const DB::StorageID StorageId_;
+    const TYPath CypressTableDirectory_;
+    const NNative::IClientPtr Client_;
+    const IInvokerPtr Invoker_;
+    const TSystemLogTableExporterConfigPtr Config_;
+    const TConversionSettingsPtr ConversionSettings_;
+
+    const TTableSchema InputSchema_;
+    const TNameTablePtr NameTable_;
+    const std::vector<int> ColumnIndexToId_;
+
+    const TTableSchema OutputSchema_;
+
+    const ITableExtenderPtr TableExtender_;
+
+    const TLogger Logger;
+
+    IArchiveReporterPtr ArchiveReporter_;
+
+    static TTableSchema BuildOutputSchema(
+        const TTableSchema& inputSchema,
+        const ITableExtenderPtr& tableExtender,
+        const TNameTablePtr& nameTable)
+    {
+        const std::vector<TColumnSchema> QueueSystemColumns = {
             TColumnSchema("$timestamp", ESimpleLogicalValueType::Uint64),
             TColumnSchema("$cumulative_data_weight", ESimpleLogicalValueType::Int64),
         };
-        TableCreationSchema_ = ExtendSchema(Schema_, QueueSystemColumns);
-    }
 
-    static constexpr auto Name = "SystemLogTableExporter";
+        const auto& extraColumns = tableExtender->GetColumns();
 
-    String getName() const override
-    {
-        return Name;
-    }
-
-    void startup() override
-    {
-        if (!Config_->Enabled) {
-            return;
+        for (const auto& column : extraColumns) {
+            nameTable->RegisterNameOrThrow(column.Name());
         }
 
+        auto columns = inputSchema.Columns();
+        columns.reserve(columns.size() + extraColumns.size() + QueueSystemColumns.size());
+        columns.insert(columns.end(), extraColumns.begin(), extraColumns.end());
+        columns.insert(columns.end(), QueueSystemColumns.begin(), QueueSystemColumns.end());
+
+        return TTableSchema(std::move(columns), inputSchema.IsStrict(), inputSchema.IsUniqueKeys());
+    }
+
+    TYPath EnsureTableReady()
+    {
         int lastVersion;
         while (true) {
             auto [currentVersion, schema, tabletCount, mounted] = GetLatestTableInfo();
 
-            if (currentVersion == -1 || schema != TableCreationSchema_ || tabletCount != Config_->CreateTableTabletCount) {
+            if (currentVersion == -1 || schema != OutputSchema_ || tabletCount != Config_->CreateTableTabletCount) {
                 ++currentVersion;
                 CreateVersionedTable(currentVersion);
                 mounted = MountVersionedTable(currentVersion);
@@ -500,68 +472,8 @@ public:
             break;
         }
 
-        auto handlerConfig = New<TArchiveHandlerConfig>();
-        handlerConfig->MaxInProgressDataSize = Config_->MaxInProgressDataSize;
-        handlerConfig->Path = GetVersionedTablePath(lastVersion);
-
-        ArchiveReporter_ = CreateArchiveReporter(
-            New<TArchiveVersionHolder>(),
-            Config_,
-            std::move(handlerConfig),
-            NameTable_,
-            getStorageID().getFullTableName(),
-            Client_,
-            Invoker_,
-            SystemLogTableExporterProfiler().WithTag("table_name", getStorageID().table_name));
+        return GetVersionedTablePath(lastVersion);
     }
-
-    DB::Pipe read(
-        const DB::Names& columnNames,
-        const DB::StorageSnapshotPtr& storageSnapshot,
-        DB::SelectQueryInfo& /*queryInfo*/,
-        DB::ContextPtr /*context*/,
-        DB::QueryProcessingStage::Enum /*processedStage*/,
-        size_t /*maxBlockSize*/,
-        size_t /*numStreams*/) override
-    {
-        storageSnapshot->check(columnNames);
-
-        return DB::Pipe(std::make_shared<DB::SourceFromChunks>(storageSnapshot->metadata->getSampleBlock(), Data_->GetChunks()));
-    }
-
-    DB::SinkToStoragePtr write(
-        const DB::ASTPtr& /*query*/,
-        const DB::StorageMetadataPtr& metadataSnapshot,
-        DB::ContextPtr /*context*/,
-        bool /*asyncInsert*/) override
-    {
-        return std::make_shared<TSystemLogTableExporterSink>(
-            metadataSnapshot->getSampleBlock(),
-            Data_,
-            ColumnIndexToId_,
-            ConversionSettings_,
-            ArchiveReporter_,
-            Extender_,
-            NameTable_,
-            Logger);
-    }
-
-private:
-    const TSystemLogTableExporterConfigPtr Config_;
-    const TYPath CypressTableDirectory_;
-    const NNative::IClientPtr Client_;
-    const IInvokerPtr Invoker_;
-    const TConversionSettingsPtr ConversionSettings_;
-    TTableSchema Schema_;
-    TTableSchema TableCreationSchema_;
-    TNameTablePtr NameTable_;
-    const std::shared_ptr<const std::vector<int>> ColumnIndexToId_;
-    const TLogger Logger;
-
-    ITableExtenderPtr Extender_;
-
-    TCircularChunkBufferPtr Data_;
-    IArchiveReporterPtr ArchiveReporter_;
 
     TYPath GetLatestTablePath() const
     {
@@ -626,7 +538,7 @@ private:
         auto attributes = ConvertToAttributes(Config_->CreateTableAttributes);
         attributes->Set("atomicity", NTransactionClient::EAtomicity::None);
         attributes->Set("dynamic", true);
-        attributes->Set("schema", TableCreationSchema_);
+        attributes->Set("schema", OutputSchema_);
         attributes->Set("tablet_count", Config_->CreateTableTabletCount);
 
         options = {};
@@ -671,6 +583,120 @@ private:
     }
 };
 
+DECLARE_REFCOUNTED_CLASS(TSystemLogExporter)
+DEFINE_REFCOUNTED_TYPE(TSystemLogExporter)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSystemLogTableExporterSink
+    : public DB::SinkToStorage
+{
+public:
+    TSystemLogTableExporterSink(
+        const DB::Block& header,
+        TCircularChunkBufferPtr storageBuffer,
+        TSystemLogExporterPtr logExporter,
+        TLogger logger)
+        : DB::SinkToStorage(header)
+        , StorageBuffer_(std::move(storageBuffer))
+        , LogExporter_(std::move(logExporter))
+        , Logger(std::move(logger))
+    { }
+
+    String getName() const override
+    {
+        return "SystemLogTableExporterSink";
+    }
+
+    void consume(DB::Chunk& chunk) override
+    {
+        NewChunks_.push_back(std::move(chunk));
+    }
+
+    void onFinish() override
+    {
+        if (LogExporter_) {
+            LogExporter_->ConvertAndEnqueue(getHeader(), NewChunks_);
+        }
+
+        StorageBuffer_->AddChunks(std::move(NewChunks_));
+    }
+
+private:
+    TCircularChunkBufferPtr StorageBuffer_;
+    TSystemLogExporterPtr LogExporter_;
+
+    const TLogger Logger;
+
+    DB::Chunks NewChunks_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStorageSystemLogTableExporter
+    : public DB::IStorage
+{
+public:
+    explicit TStorageSystemLogTableExporter(
+        DB::StorageID storageId,
+        DB::ColumnsDescription columnsDescription,
+        TSystemLogTableExporterConfigPtr config,
+        TSystemLogExporterPtr logExporter,
+        TLogger logger)
+        : DB::IStorage(std::move(storageId))
+        , Config_(std::move(config))
+        , Logger(std::move(logger))
+        , LogExporter_(std::move(logExporter))
+        , Data_(New<TCircularChunkBuffer>(Config_->MaxBytesToKeep, Config_->MaxRowsToKeep))
+    {
+        DB::StorageInMemoryMetadata storageMetadata;
+        storageMetadata.setColumns(columnsDescription);
+        setInMemoryMetadata(storageMetadata);
+    }
+
+    static constexpr auto Name = "SystemLogTableExporter";
+
+    String getName() const override
+    {
+        return Name;
+    }
+
+    DB::Pipe read(
+        const DB::Names& columnNames,
+        const DB::StorageSnapshotPtr& storageSnapshot,
+        DB::SelectQueryInfo& /*queryInfo*/,
+        DB::ContextPtr /*context*/,
+        DB::QueryProcessingStage::Enum /*processedStage*/,
+        size_t /*maxBlockSize*/,
+        size_t /*numStreams*/) override
+    {
+        storageSnapshot->check(columnNames);
+
+        return DB::Pipe(std::make_shared<DB::SourceFromChunks>(storageSnapshot->metadata->getSampleBlock(), Data_->GetChunks()));
+    }
+
+    DB::SinkToStoragePtr write(
+        const DB::ASTPtr& /*query*/,
+        const DB::StorageMetadataPtr& metadataSnapshot,
+        DB::ContextPtr /*context*/,
+        bool /*asyncInsert*/) override
+    {
+        return std::make_shared<TSystemLogTableExporterSink>(
+            metadataSnapshot->getSampleBlock(),
+            Data_,
+            LogExporter_,
+            Logger);
+    }
+
+private:
+    const TSystemLogTableExporterConfigPtr Config_;
+    const TLogger Logger;
+
+    TSystemLogExporterPtr LogExporter_;
+
+    TCircularChunkBufferPtr Data_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ITableExtenderPtr CreateTableExtender(TStringBuf tableName, const THost* host)
@@ -698,17 +724,36 @@ void RegisterStorageSystemLogTableExporter(
                 args.table_id.database_name);
         }
 
-        auto config = host->GetConfig()->SystemLogTableExporters;
-        auto tableExtender = CreateTableExtender(args.table_id.table_name, host);
+        auto exportersConfig = host->GetConfig()->SystemLogTableExporters;
+        auto config = GetOrDefault(exportersConfig->Tables, args.table_id.table_name, exportersConfig->Default);
+
+        auto logger = SystemLogTableExporterLogger().WithTag("TableName: %v", args.table_id.getFullTableName());
+
+        TSystemLogExporterPtr logExporter;
+        if (config->Enabled) {
+            auto conversionSettings = TConversionSettings::Create(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true));
+            auto inputSchema = ToTableSchema(args.columns, /*keyColumns*/ {}, conversionSettings);
+
+            auto tableExtender = CreateTableExtender(args.table_id.table_name, host);
+
+            logExporter = New<TSystemLogExporter>(
+                args.table_id,
+                Format("%v/%v", exportersConfig->CypressRootDirectory, ToYPathLiteral(args.table_id.table_name)),
+                client,
+                invoker,
+                config,
+                std::move(conversionSettings),
+                std::move(inputSchema),
+                std::move(tableExtender),
+                logger);
+        }
 
         return std::make_shared<TStorageSystemLogTableExporter>(
-            GetOrDefault(config->Tables, args.table_id.table_name, config->Default),
-            Format("%v/%v", config->CypressRootDirectory, ToYPathLiteral(args.table_id.table_name)),
-            client,
-            invoker,
             args.table_id,
             args.columns,
-            std::move(tableExtender));
+            config,
+            std::move(logExporter),
+            std::move(logger));
     });
 }
 
