@@ -95,6 +95,44 @@ connection_patch = {
 };
 ```
 
+## HTTP API
+
+Set `http_port` in the config to expose an HTTP server with a REST API for
+managing devices at runtime, plus a status endpoint.
+
+Devices are a REST resource under `/devices`, keyed by name:
+
+| Method & path          | Action                          | Success | On conflict/absence     |
+|------------------------|---------------------------------|---------|-------------------------|
+| `GET /devices`         | list all devices (orchid)       | 200     |                         |
+| `GET /devices/<name>`  | one device's orchid             | 200     | 404 if unknown          |
+| `PUT /devices/<name>`  | add a device; body is its config| 201     | 409 if it already exists|
+| `DELETE /devices/<name>`| remove a device                | 204     | 404 if unknown          |
+
+`GET /status` dumps the full server orchid (`server_id`, `address`, the
+`connections` submap and the `devices` submap); subpaths navigate into it, e.g.
+`GET /status/devices/<name>`.
+
+Both request and response bodies honor content negotiation, defaulting to YSON:
+a request body is parsed as JSON when its `Content-Type` mentions `json`, and the
+response is JSON when `Accept` mentions `json` (otherwise text YSON).
+
+```bash
+# Add a memory device from a JSON config.
+curl -X PUT http://localhost:9000/devices/ram_disk \
+    -H 'Content-Type: application/json' \
+    -d '{"type":"memory","size":1073741824}'
+
+# Inspect it (as YSON).
+curl http://localhost:9000/devices/ram_disk
+
+# Inspect the whole server (as JSON).
+curl -H 'Accept: application/json' http://localhost:9000/status
+
+# Remove it.
+curl -X DELETE http://localhost:9000/devices/ram_disk
+```
+
 ## Build and run
 
 ```bash

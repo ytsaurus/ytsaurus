@@ -56,8 +56,20 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/polymorphic_yson_struct.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <yt/yt/core/http/helpers.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/json/json_parser.h>
+
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/tree_builder.h>
+
+#include <util/stream/mem.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
@@ -76,6 +88,8 @@
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 
 #include <library/cpp/yt/system/env.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NNbd {
 
@@ -380,6 +394,301 @@ IBlockDevicePtr CreateJournalDevice(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TDeviceFactory)
+
+//! Builds block devices of any backend type. Journal devices stage their chunks under a per-device
+//! master transaction that must outlive the device; those handles are retained here for the whole
+//! run (they self-ping). Shared by the startup loop and the HTTP add-device handler, so it is
+//! thread-safe.
+class TDeviceFactory
+    : public TRefCounted
+{
+public:
+    TDeviceFactory(
+        NApi::NNative::IClientPtr client,
+        IInvokerPtr invoker,
+        NLogging::TLogger logger)
+        : Client_(std::move(client))
+        , Invoker_(std::move(invoker))
+        , Logger(std::move(logger))
+    { }
+
+    IBlockDevicePtr CreateDevice(const std::string& deviceId, const TBlockDeviceConfig& config)
+    {
+        auto getClientOrThrow = [&] {
+            if (!Client_) {
+                THROW_ERROR_EXCEPTION("Device %Qv of type %Qlv requires a client, but none is configured",
+                    deviceId,
+                    config.GetCurrentType());
+            }
+            return Client_;
+        };
+
+        switch (config.GetCurrentType()) {
+            case EBlockDeviceConfigType::Memory:
+                return CreateMemoryBlockDevice(config.TryGetConcrete<TMemoryBlockDeviceConfig>());
+            case EBlockDeviceConfigType::DynamicTable:
+                return CreateDynamicTableBlockDevice(
+                    deviceId,
+                    config.TryGetConcrete<TDynamicTableBlockDeviceConfig>(),
+                    getClientOrThrow(),
+                    Logger);
+            case EBlockDeviceConfigType::File:
+                return CreateCypressFileDevice(
+                    deviceId,
+                    config.TryGetConcrete<TCypressFileDeviceConfig>(),
+                    getClientOrThrow(),
+                    Invoker_,
+                    Logger);
+            case EBlockDeviceConfigType::Chunk:
+                return CreateCypressChunkDevice(
+                    deviceId,
+                    config.TryGetConcrete<TCypressChunkDeviceConfig>(),
+                    Client_,
+                    Invoker_,
+                    Logger);
+            case EBlockDeviceConfigType::Journal:
+                return CreateJournalDevice(
+                    deviceId,
+                    config.TryGetConcrete<TJournalDeviceConfig>(),
+                    StartDeviceTransaction(getClientOrThrow()),
+                    getClientOrThrow(),
+                    Logger);
+        }
+        YT_ABORT();
+    }
+
+private:
+    const NApi::NNative::IClientPtr Client_;
+    const IInvokerPtr Invoker_;
+    const NLogging::TLogger Logger;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TransactionsLock_);
+    // Retained for the whole run so the staged journal chunks stay pinned (the transaction self-pings).
+    std::vector<NApi::ITransactionPtr> Transactions_;
+
+    TTransactionId StartDeviceTransaction(const NApi::NNative::IClientPtr& client)
+    {
+        auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Master))
+            .ValueOrThrow();
+        auto transactionId = transaction->GetId();
+        {
+            auto guard = Guard(TransactionsLock_);
+            Transactions_.push_back(std::move(transaction));
+        }
+        return transactionId;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDeviceFactory)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Parses a request body into a node. The format follows the Content-Type header: JSON if it
+//! mentions "json", otherwise (the default) YSON.
+INodePtr ParseRequestBody(const NHttp::IRequestPtr& request)
+{
+    auto body = request->ReadAll();
+    if (auto contentType = request->GetHeaders()->Find("Content-Type"_sb);
+        contentType && TStringBuf(*contentType).Contains("json"_sb))
+    {
+        TMemoryInput input(body.Begin(), body.Size());
+        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        builder->BeginTree();
+        NJson::ParseJson(&input, builder.get());
+        return builder->EndTree();
+    }
+    return ConvertToNode(NYson::TYsonString(body.ToStringBuf()));
+}
+
+//! Writes #yson as the response body. The format follows the Accept header: JSON if it mentions
+//! "json", otherwise (the default) text YSON.
+void WriteResponseBody(
+    const NHttp::IRequestPtr& request,
+    const NHttp::IResponseWriterPtr& response,
+    const NYson::TYsonString& yson)
+{
+    response->SetStatus(NHttp::EStatusCode::OK);
+    if (auto accept = request->GetHeaders()->Find("Accept"_sb);
+        accept && TStringBuf(*accept).Contains("json"_sb))
+    {
+        NHttp::ReplyJson(response, [&] (NYson::IYsonConsumer* consumer) {
+            Serialize(yson, consumer);
+        });
+    } else {
+        response->GetHeaders()->Set("Content-Type", "application/x-yt-yson-text");
+        auto text = ConvertToYsonString(yson, NYson::EYsonFormat::Text);
+        WaitFor(response->WriteBody(TSharedRef::FromString(text.ToString())))
+            .ThrowOnError();
+    }
+}
+
+//! Replies with a bare status code and no body.
+void Reply(const NHttp::IResponseWriterPtr& response, NHttp::EStatusCode statusCode)
+{
+    response->SetStatus(statusCode);
+    WaitFor(response->Close())
+        .ThrowOnError();
+}
+
+//! Gets #path from #orchidService and writes it as the response body, mapping a missing path to 404.
+void ReplyOrchid(
+    const NHttp::IRequestPtr& request,
+    const NHttp::IResponseWriterPtr& response,
+    const IYPathServicePtr& orchidService,
+    const NYPath::TYPath& path)
+{
+    auto ysonOrError = WaitFor(AsyncYPathGet(orchidService, path));
+    if (ysonOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        Reply(response, NHttp::EStatusCode::NotFound);
+        return;
+    }
+    WriteResponseBody(request, response, ysonOrError.ValueOrThrow());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Serves the NBD server orchid at "/status"; the path after the mount is a ypath into the orchid,
+//! so both /status and /status/devices/<name> work. The response honors the Accept header.
+class TStatusHttpHandler
+    : public NHttp::IHttpHandler
+{
+public:
+    explicit TStatusHttpHandler(IYPathServicePtr orchidService)
+        : OrchidService_(std::move(orchidService))
+    { }
+
+    void HandleRequest(
+        const NHttp::IRequestPtr& request,
+        const NHttp::IResponseWriterPtr& response) override
+    {
+        auto path = request->GetUrl().Path;
+        path.SkipPrefix("/status"_sb);
+        ReplyOrchid(request, response, OrchidService_, NYPath::TYPath(path));
+    }
+
+private:
+    const IYPathServicePtr OrchidService_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A REST resource for devices, rooted at "/devices":
+//!   GET    /devices          -- list the devices (from the orchid);
+//!   GET    /devices/<name>   -- a single device's status;
+//!   PUT    /devices/<name>   -- create and register the device (body = device config YSON);
+//!   DELETE /devices/<name>   -- unregister and finalize the device.
+class TDeviceHttpHandler
+    : public NHttp::IHttpHandler
+{
+public:
+    TDeviceHttpHandler(
+        INbdServerPtr nbdServer,
+        IYPathServicePtr orchidService,
+        TDeviceFactoryPtr deviceFactory,
+        NLogging::TLogger logger)
+        : NbdServer_(std::move(nbdServer))
+        , OrchidService_(std::move(orchidService))
+        , DeviceFactory_(std::move(deviceFactory))
+        , Logger(std::move(logger))
+    { }
+
+    void HandleRequest(
+        const NHttp::IRequestPtr& request,
+        const NHttp::IResponseWriterPtr& response) override
+    {
+        // The URL path ("/devices" or "/devices/<name>") is also the path of the resource within
+        // the orchid, so reads are just a get on it.
+        auto path = request->GetUrl().Path;
+        auto method = request->GetMethod();
+
+        if (method == NHttp::EMethod::Get) {
+            ReplyOrchid(request, response, OrchidService_, NYPath::TYPath(path));
+            return;
+        }
+
+        // Mutations address a single device: /devices/<name>.
+        constexpr auto prefix = "/devices/"_sb;
+        auto tail = path;
+        if (!tail.SkipPrefix(prefix) || tail.empty()) {
+            THROW_ERROR_EXCEPTION("Method %Qlv requires a device name (%v<name>)",
+                method,
+                prefix);
+        }
+        auto name = std::string(tail);
+
+        switch (method) {
+            case NHttp::EMethod::Put:
+                AddDevice(name, request, response);
+                break;
+            case NHttp::EMethod::Delete:
+                RemoveDevice(name, response);
+                break;
+            default:
+                Reply(response, NHttp::EStatusCode::MethodNotAllowed);
+                break;
+        }
+    }
+
+private:
+    const INbdServerPtr NbdServer_;
+    const IYPathServicePtr OrchidService_;
+    const TDeviceFactoryPtr DeviceFactory_;
+    const NLogging::TLogger Logger;
+
+    void AddDevice(
+        const std::string& name,
+        const NHttp::IRequestPtr& request,
+        const NHttp::IResponseWriterPtr& response)
+    {
+        auto deviceConfig = ConvertTo<TBlockDeviceConfig>(ParseRequestBody(request));
+        auto device = DeviceFactory_->CreateDevice(name, deviceConfig);
+        WaitFor(device->Initialize())
+            .ThrowOnError();
+
+        try {
+            // RegisterDevice rejects a duplicate name atomically, so there is no point (and it would
+            // be racy) to check for one beforehand.
+            NbdServer_->RegisterDevice(name, device);
+        } catch (const std::exception&) {
+            YT_UNUSED_FUTURE(device->Finalize());
+            Reply(response, NHttp::EStatusCode::Conflict);
+            return;
+        }
+
+        YT_LOG_INFO("Device added via HTTP (Name: %v)", name);
+        Reply(response, NHttp::EStatusCode::Created);
+    }
+
+    void RemoveDevice(
+        const std::string& name,
+        const NHttp::IResponseWriterPtr& response)
+    {
+        auto device = NbdServer_->TryUnregisterDevice(name);
+        if (!device) {
+            Reply(response, NHttp::EStatusCode::NotFound);
+            return;
+        }
+        WaitFor(device->Finalize())
+            .ThrowOnError();
+
+        YT_LOG_INFO("Device removed via HTTP (Name: %v)", name);
+        Reply(response, NHttp::EStatusCode::NoContent);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Registers #handler both for the exact #path and for the subtree beneath it, so e.g. mounting
+//! "/status" serves both /status and /status/<subpath>.
+void AddHttpHandler(const NHttp::IServerPtr& server, const std::string& path, NHttp::IHttpHandlerPtr handler)
+{
+    server->AddHandler(path, handler);
+    server->AddHandler(path + "/", std::move(handler));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(TProgramConfig)
 
 //! Inherits TSingletonsConfig so the config file can carry singleton sections
@@ -430,10 +739,6 @@ public:
     { }
 
 private:
-    // Journal devices stage their chunks under a master transaction that must outlive the device;
-    // the handles are kept here for the whole run (they self-ping).
-    std::vector<NApi::ITransactionPtr> Transactions_;
-
     void DoRun() override
     {
         auto config = GetConfig();
@@ -454,11 +759,32 @@ private:
             client = CreateNativeClient(*ytProxy, config->ConnectionPatch, threadPool->GetInvoker());
         }
 
+        auto deviceFactory = New<TDeviceFactory>(client, threadPool->GetInvoker(), nbdServer->GetLogger());
+
         for (const auto& [name, deviceConfig] : config->Devices) {
-            auto device = CreateDevice(name, deviceConfig, client, threadPool->GetInvoker(), nbdServer->GetLogger());
+            auto device = deviceFactory->CreateDevice(name, deviceConfig);
             WaitFor(device->Initialize())
                 .ThrowOnError();
             nbdServer->RegisterDevice(name, std::move(device));
+        }
+
+        // Optionally expose an HTTP API.
+        NHttp::IServerPtr httpServer;
+        if (auto httpPort = config->NbdServer->HttpPort) {
+            httpServer = NHttp::CreateServer(*httpPort, poller);
+
+            auto orchidService = nbdServer->GetOrchidService();
+
+            AddHttpHandler(httpServer, "/status", NHttp::CreateErrorWrappingHttpHandler(
+                New<TStatusHttpHandler>(orchidService)));
+            AddHttpHandler(httpServer, "/devices", NHttp::CreateErrorWrappingHttpHandler(
+                New<TDeviceHttpHandler>(
+                    nbdServer,
+                    orchidService,
+                    deviceFactory,
+                    nbdServer->GetLogger())));
+
+            httpServer->Start();
         }
 
         // Wait for a shutdown signal (SIGTERM or SIGINT), then perform
@@ -496,65 +822,6 @@ private:
         }
 
         YT_LOG_INFO("NBD server stopped");
-    }
-
-    IBlockDevicePtr CreateDevice(
-        const std::string& deviceId,
-        const TBlockDeviceConfig& config,
-        const NApi::NNative::IClientPtr& client,
-        const IInvokerPtr& invoker,
-        const NLogging::TLogger& logger)
-    {
-        auto getClientOrThrow = [&] {
-            if (!client) {
-                THROW_ERROR_EXCEPTION("Device %Qv of type %Qlv requires a client, but none is configured",
-                    deviceId,
-                    config.GetCurrentType());
-            }
-            return client;
-        };
-
-        switch (config.GetCurrentType()) {
-            case EBlockDeviceConfigType::Memory:
-                return CreateMemoryBlockDevice(config.TryGetConcrete<TMemoryBlockDeviceConfig>());
-            case EBlockDeviceConfigType::DynamicTable:
-                return CreateDynamicTableBlockDevice(
-                    deviceId,
-                    config.TryGetConcrete<TDynamicTableBlockDeviceConfig>(),
-                    getClientOrThrow(),
-                    logger);
-            case EBlockDeviceConfigType::File:
-                return CreateCypressFileDevice(
-                    deviceId,
-                    config.TryGetConcrete<TCypressFileDeviceConfig>(),
-                    getClientOrThrow(),
-                    invoker,
-                    logger);
-            case EBlockDeviceConfigType::Chunk:
-                return CreateCypressChunkDevice(
-                    deviceId,
-                    config.TryGetConcrete<TCypressChunkDeviceConfig>(),
-                    client,
-                    invoker,
-                    logger);
-            case EBlockDeviceConfigType::Journal:
-                return CreateJournalDevice(
-                    deviceId,
-                    config.TryGetConcrete<TJournalDeviceConfig>(),
-                    StartDeviceTransaction(getClientOrThrow()),
-                    getClientOrThrow(),
-                    logger);
-        }
-        YT_ABORT();
-    }
-
-    TTransactionId StartDeviceTransaction(const NApi::NNative::IClientPtr& client)
-    {
-        auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Master))
-            .ValueOrThrow();
-        auto transactionId = transaction->GetId();
-        Transactions_.push_back(std::move(transaction));
-        return transactionId;
     }
 };
 

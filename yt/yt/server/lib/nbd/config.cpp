@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <library/cpp/yt/string/format.h>
+
 namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +59,8 @@ void TNbdServerConfig::Register(TRegistrar registrar)
         .Default(1);
     registrar.Parameter("test_options", &TThis::TestOptions)
         .DefaultNew();
+    registrar.Parameter("http_port", &TThis::HttpPort)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->InternetDomainSocket && config->UnixDomainSocket) {
@@ -67,6 +71,14 @@ void TNbdServerConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("\"internet_domain_socket\" and \"unix_domain_socket\" cannot be both missing");
         }
     });
+}
+
+std::string TNbdServerConfig::GetAddress() const
+{
+    // Exactly one of the sockets is set (see the postprocessor above).
+    return UnixDomainSocket
+        ? UnixDomainSocket->Path
+        : Format(":%v", InternetDomainSocket->Port);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

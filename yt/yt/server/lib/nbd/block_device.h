@@ -5,6 +5,8 @@
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/signal.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 #include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NNbd {
@@ -50,14 +52,17 @@ struct TWriteResponse
 struct IBlockDevice
     : public virtual TRefCounted
 {
+    //! Returns the total byte size of the device. Always devisible by block size.
     virtual i64 GetTotalSize() const = 0;
 
-    //! Minimum I/O granularity (offset and length alignment), in bytes, that the device prefers.
+    //! Returns the minimum I/O granularity (offset and length alignment) that
+    //! must be honored by the callers.
     virtual i64 GetBlockSize() const = 0;
 
     virtual bool IsReadOnly() const = 0;
     virtual std::string GetDescription() const = 0;
     virtual std::string GetProfileSensorTag() const = 0;
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     virtual TFuture<void> Initialize() = 0;
     virtual TFuture<void> Finalize() = 0;

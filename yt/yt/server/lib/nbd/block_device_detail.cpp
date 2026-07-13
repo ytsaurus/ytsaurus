@@ -1,6 +1,39 @@
 #include "block_device_detail.h"
 
+#include <yt/yt/core/ytree/ypath_service.h>
+
 namespace NYT::NNbd {
+
+using namespace NYTree;
+using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+IYPathServicePtr TBlockDeviceBase::GetOrchidService()
+{
+    return IYPathService::FromProducer(BIND(&TBlockDeviceBase::BuildOrchid, MakeWeak(this)));
+}
+
+void TBlockDeviceBase::BuildOrchid(IYsonConsumer* consumer) const
+{
+    auto error = GetError();
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("total_size").Value(GetTotalSize())
+            .Item("block_size").Value(GetBlockSize())
+            .Item("read_only").Value(IsReadOnly())
+            .Item("description").Value(GetDescription())
+            .DoIf(!error.IsOK(), [&] (TFluentMap fluent) {
+                fluent.Item("error").Value(error);
+            })
+            .Do([this] (TFluentMap fluent) {
+                DoBuildOrchid(fluent.GetConsumer());
+            })
+        .EndMap();
+}
+
+void TBlockDeviceBase::DoBuildOrchid(IYsonConsumer* /*consumer*/) const
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
