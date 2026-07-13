@@ -203,7 +203,11 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 /*profiler*/ {});
         }
 
-        auto wrapReader = [=] (ISchemalessChunkReaderPtr chunkReader) {
+        auto wrapReader = [=] (ISchemalessChunkReaderPtr chunkReader) -> ISchemalessChunkReaderPtr {
+            if (!options->DecodeHunks) {
+                return chunkReader;
+            }
+
             auto dictionaryCompressionFactory = CreateSimpleDictionaryCompressionFactory(
                 chunkFragmentReader,
                 config,
@@ -1531,6 +1535,10 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 nameTable,
                 chunkReadOptions,
                 adjustedColumnFilter);
+
+            if (!options->DecodeHunks) {
+                return reader;
+            }
 
             auto chunkFragmentReader = CreateChunkFragmentReader(
                 config,
