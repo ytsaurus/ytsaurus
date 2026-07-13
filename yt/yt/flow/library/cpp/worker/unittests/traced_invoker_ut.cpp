@@ -56,7 +56,7 @@ double ContextCpuUtilization(const TTraceContextPtr& traceContext)
 double MeasureCallbackUtilization(TExtendedCallback<void()> callback, IInvokerPtr invoker, std::string spanName = "testing")
 {
     auto traceContext = TTraceContext::NewRoot(spanName);
-    auto tracedInvoker = CreateTracedInvoker(invoker, traceContext);
+    auto tracedInvoker = CreateTracedInvoker(invoker, traceContext, New<TJobCpuTimeAccountant>());
 
     auto future = callback
         .AsyncVia(tracedInvoker)
@@ -74,6 +74,22 @@ double MeasureCallbackUtilization(TExtendedCallback<void()> callback, IInvokerPt
         .ThrowOnError();
 
     return ContextCpuUtilization(traceContext);
+}
+
+//! Real thread CPU time charged to the accountant for a single callback run through a traced
+//! invoker. The trailing empty callback flushes the previous #RunCallback so its final
+//! accounting has completed before we read the accountant.
+TDuration MeasureCallbackCpuTime(TExtendedCallback<void()> callback, IInvokerPtr invoker)
+{
+    auto accountant = New<TJobCpuTimeAccountant>();
+    auto tracedInvoker = CreateTracedInvoker(invoker, TTraceContext::NewRoot("testing"), accountant);
+
+    WaitFor(callback.AsyncVia(tracedInvoker).Run())
+        .ThrowOnError();
+    WaitFor(MakeTraceContextTimeFlushCallback().AsyncVia(tracedInvoker).Run())
+        .ThrowOnError();
+
+    return accountant->GetCpuTime();
 }
 
 class TTracedInvokerTest
@@ -107,9 +123,9 @@ TEST_F(TTracedInvokerTest, BasicThreadPool)
     auto threadPool = CreateThreadPool(4, "Test");
 
     auto traceContext1 = TTraceContext::NewRoot("testing1");
-    auto invoker1 = CreateTracedInvoker(threadPool->GetInvoker(), traceContext1);
+    auto invoker1 = CreateTracedInvoker(threadPool->GetInvoker(), traceContext1, New<TJobCpuTimeAccountant>());
     auto traceContext2 = TTraceContext::NewRoot("testing2");
-    auto invoker2 = CreateTracedInvoker(threadPool->GetInvoker(), traceContext2);
+    auto invoker2 = CreateTracedInvoker(threadPool->GetInvoker(), traceContext2, New<TJobCpuTimeAccountant>());
 
     std::vector<TFuture<void>> futures;
     for (int i = 0; i < threadPool->GetThreadCount(); ++i) {
@@ -129,7 +145,7 @@ TEST_F(TTracedInvokerTest, ThreadPoolMaxUtilization)
 {
     auto traceContext = TTraceContext::NewRoot("testing");
     auto threadPool = CreateThreadPool(4, "Test");
-    auto invoker = CreateTracedInvoker(threadPool->GetInvoker(), traceContext);
+    auto invoker = CreateTracedInvoker(threadPool->GetInvoker(), traceContext, New<TJobCpuTimeAccountant>());
 
     std::vector<TFuture<void>> futures;
     for (int i = 0; i < threadPool->GetThreadCount(); ++i) {
@@ -147,7 +163,7 @@ TEST_F(TTracedInvokerTest, ThreadPoolMaxUtilization)
 TEST_F(TTracedInvokerTest, InProgressUtilization)
 {
     auto traceContext = TTraceContext::NewRoot("testing");
-    auto invoker = CreateTracedInvoker(Queue->GetInvoker(), traceContext);
+    auto invoker = CreateTracedInvoker(Queue->GetInvoker(), traceContext, New<TJobCpuTimeAccountant>());
 
     EXPECT_EQ(ContextCpuUtilization(traceContext), 0);
 
@@ -208,6 +224,47 @@ TEST_F(TTracedInvokerTest, BindInsideBindIsTracked)
     auto defaultUtilization = MeasureCallbackUtilization(MakeCpuIntensiveCallback(), Queue->GetInvoker());
 
     EXPECT_LE(std::abs(bindInsideBindUtilization - defaultUtilization) / defaultUtilization, 0.1);
+}
+
+TEST_F(TTracedInvokerTest, AccountantCountsCpuWork)
+{
+    auto cpuTime = MeasureCallbackCpuTime(MakeCpuIntensiveCallback(), Queue->GetInvoker());
+    EXPECT_GT(cpuTime, TDuration::Zero());
+}
+
+TEST_F(TTracedInvokerTest, AccountantExcludesThreadSleep)
+{
+    // Sleep blocks the OS thread (off-CPU) — a proxy for preemption. Unlike the trace context's
+    // wall-based elapsed time (see ThreadSleepCountsAsUtilization), the accountant measures real
+    // thread CPU time, so almost nothing is charged.
+    auto sleepCpuTime = MeasureCallbackCpuTime(
+        BIND_NO_PROPAGATE([] {
+            Sleep(TDuration::Seconds(1));
+        }),
+        Queue->GetInvoker());
+    EXPECT_LT(sleepCpuTime, TDuration::MilliSeconds(100));
+}
+
+TEST_F(TTracedInvokerTest, AccountantExcludesIdleWait)
+{
+    // A fiber suspend (WaitForDuration) is not CPU time either.
+    auto idleCpuTime = MeasureCallbackCpuTime(MakeIdleCallback(TDuration::Seconds(1)), Queue->GetInvoker());
+    EXPECT_LT(idleCpuTime, TDuration::MilliSeconds(100));
+
+    auto cpuTime = MeasureCallbackCpuTime(MakeCpuIntensiveCallback(), Queue->GetInvoker());
+    EXPECT_GT(cpuTime, idleCpuTime);
+}
+
+TEST_F(TTracedInvokerTest, AccountantCountsCpuAfterContextSwitch)
+{
+    // CPU work performed after a fiber yield must still be charged.
+    auto callback = BIND_NO_PROPAGATE([] {
+        Yield();
+        MakeCpuIntensiveCallback().Run();
+    });
+    auto yieldCpuTime = MeasureCallbackCpuTime(callback, Queue->GetInvoker());
+    auto idleCpuTime = MeasureCallbackCpuTime(MakeIdleCallback(), Queue->GetInvoker());
+    EXPECT_GT(yieldCpuTime, idleCpuTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
