@@ -672,7 +672,7 @@ public:
                             return MakeFuture(result);
                         }
 
-                        auto placePath = NFS::JoinPaths(result->Volume->GetPath(), "place");
+                        auto placePath = "//" + NFS::JoinPaths(result->Volume->GetPath(), "place");
                         // TODO If an exception is thrown here, then all volumes must be properly cleaned up.
                         return DoCreateOverlayVolume(
                             tag,
