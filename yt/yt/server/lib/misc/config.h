@@ -38,6 +38,9 @@ struct TServerBootstrapConfig
     //! (disclosing less information about YT servers to a potential attacker).
     bool ExposeConfigInOrchid;
 
+    // For testing purposes.
+    bool SkipSequoiaInitialization;
+
     NHttp::TServerConfigPtr CreateMonitoringHttpServerConfig();
     NHttps::TServerConfigPtr CreateMonitoringHttpsServerConfig();
 
