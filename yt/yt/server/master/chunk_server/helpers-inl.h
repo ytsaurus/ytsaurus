@@ -112,7 +112,7 @@ void VisitAllAncestorsInHunkTree(TChunk* hunkChunk, F&& functor)
         for (const auto& chunkListParent : chunkList->Parents()) {
             const auto& rootChunkList = chunkListParent->AsChunkList();
 
-            if (!IsHunkRootChunkList(rootChunkList)) {
+            if (!rootChunkList->IsHunkRoot()) {
                 YT_LOG_ALERT("Root chunk list of unexpected kind was encountered upon visiting ancestors in hunk tree "
                     "(ChunkId: %v, ParentId: %v, ParentChunkListKind: %v)",
                     hunkChunk->GetId(),

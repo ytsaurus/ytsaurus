@@ -41,7 +41,7 @@ public:
         bool overlayed,
         NChunkClient::EChunkFormat chunkFormat = NChunkClient::EChunkFormat::JournalDefault);
 
-    TChunkList* CreateChunkList(EChunkListKind kind = EChunkListKind::Static);
+    TChunkList* CreateChunkList(NChunkClient::EChunkListKind kind = NChunkClient::EChunkListKind::Static);
 
     TChunkView* CreateChunkView(
         TChunk* underlyingChunk,

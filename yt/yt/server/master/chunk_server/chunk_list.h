@@ -97,6 +97,14 @@ public:
 
     bool IsSealed() const;
 
+    //! Whether the chunk list maintains and propagates tree statistics. False only for a scratch chunk
+    //! list, which is a mere holder of chunks.
+    bool HasStatistics() const;
+
+    bool IsHunkRoot() const;
+
+    bool IsHunkRelated() const;
+
     bool HasCumulativeStatistics() const;
     bool HasAppendableCumulativeStatistics() const;
     bool HasModifiableCumulativeStatistics() const;

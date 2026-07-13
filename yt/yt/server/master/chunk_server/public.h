@@ -87,6 +87,7 @@ using NChunkClient::TChunkReplicaWithLocationList;
 using NChunkClient::ChunkShardCount;
 using NChunkClient::TypicalChunkLocationCount;
 using NChunkClient::EChunkListContentType;
+using NChunkClient::EChunkListKind;
 using NChunkClient::EChunkReplicaState;
 
 using NJobTrackerClient::EJobType;
@@ -234,19 +235,6 @@ DEFINE_BIT_ENUM(EChunkScanKind,
     ((GlobalStatisticsCollector)    (0x0010))
 );
 
-DEFINE_ENUM(EChunkListKind,
-    ((Static)                 (0))
-    ((SortedDynamicRoot)      (1))
-    ((SortedDynamicTablet)    (2))
-    ((OrderedDynamicRoot)     (3))
-    ((OrderedDynamicTablet)   (4))
-    ((SortedDynamicSubtablet) (5))
-    ((JournalRoot)            (6))
-    ((HunkRoot)               (7))
-    ((Hunk)                   (8))
-    ((HunkStorageRoot)        (9))
-    ((HunkTablet)            (10))
-);
 
 DEFINE_ENUM(EChunkLocationState,
     // Belongs to a node that is not online.

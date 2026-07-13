@@ -5697,10 +5697,16 @@ private:
 
         std::vector<TChunkListId> chunkListIds;
         chunkListIds.reserve(count);
-        for (int index = 0; index < count; ++index) {
-            auto kind = subrequest->is_hunk_chunk_list()
+        auto kind = [&] {
+            if (subrequest->has_kind()) {
+                return FromProto<EChunkListKind>(subrequest->kind());
+            }
+            // COMPAT(babenko): the bool flag predates the explicit "kind" field.
+            return subrequest->is_hunk_chunk_list()
                 ? EChunkListKind::Hunk
                 : EChunkListKind::Static;
+        }();
+        for (int index = 0; index < count; ++index) {
             auto* chunkList = DoCreateChunkList(kind);
             StageChunkList(chunkList, transaction, nullptr);
             transactionManager->StageObject(transaction, chunkList);
@@ -5766,7 +5772,8 @@ private:
 
             if (IsJournalChunkType(child->GetType())) {
                 if (parent->GetKind() != EChunkListKind::Hunk &&
-                    parent->GetKind() != EChunkListKind::JournalRoot)
+                    parent->GetKind() != EChunkListKind::JournalRoot &&
+                    parent->GetKind() != EChunkListKind::Scratch)
                 {
                     YT_LOG_ALERT("Attempted to attach journal chunk to chunk list of unexpected kind "
                         "(ChunkTreeId: %v, Type: %v, ChunkListId: %v, ChunkListKind: %v)",
@@ -5832,7 +5839,7 @@ private:
         AttachToChunkList(parent, children);
 
         if (subrequest->request_statistics()) {
-            if (IsHunkRelatedChunkList(parent)) {
+            if (parent->IsHunkRelated()) {
                 ToProto(subresponse->mutable_statistics(), parent->HunkStatistics().ToDataStatistics());
             } else {
                 // NB: Referenced hunk data statistics (if any) are included here and not in hunk data statistics.
@@ -6476,7 +6483,7 @@ private:
 
     void RecomputeStatistics(TChunkList* chunkList)
     {
-        YT_VERIFY(!IsHunkRelatedChunkList(chunkList));
+        YT_VERIFY(!chunkList->IsHunkRelated());
         YT_VERIFY(chunkList->GetKind() != EChunkListKind::OrderedDynamicTablet);
 
         auto& statistics = chunkList->Statistics();
@@ -6611,7 +6618,7 @@ private:
 
         // Recompute statistics
         for (auto* chunkList : chunkLists) {
-            YT_VERIFY(!IsHunkRelatedChunkList(chunkList));
+            YT_VERIFY(!chunkList->IsHunkRelated());
             RecomputeStatistics(chunkList);
             auto& statistics = chunkList->Statistics();
             auto oldStatistics = statistics;
@@ -7425,7 +7432,13 @@ private:
                 parentCount);
             return;
         }
+
         auto* chunkList = GetUniqueParent(chunk)->As<TChunkList>();
+        // A scratch chunk list keeps no statistics, so a sealed child requires no propagation (and
+        // calling GetStatistics on a hunk-format chunk would even alert).
+        if (!chunkList->HasStatistics()) {
+            return;
+        }
 
         // Go upwards and apply delta.
         auto statisticsDelta = chunk->GetStatistics();

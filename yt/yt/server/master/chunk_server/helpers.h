@@ -225,9 +225,6 @@ struct TChunkSequoiaConfig
 
 TChunkSequoiaConfig GetChunkSequoiaConfig(TChunkId chunkId, const TDynamicSequoiaChunkReplicasConfigPtr& config);
 
-bool IsHunkRelatedChunkList(const TChunkList* chunkList);
-bool IsHunkRootChunkList(const TChunkList* chunkList);
-
 bool IsHunkChunkFormat(NChunkClient::EChunkFormat chunkFormat);
 
 i64 ComputeDiskSpaceFromDataSize(i64 dataSize, NErasure::ECodec erasureCodec);

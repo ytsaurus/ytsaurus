@@ -314,7 +314,9 @@ message TReqCreateChunkLists
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required int32 count = 2;
+    // COMPAT(babenko): superseded by "kind"; still honored when "kind" is omitted.
     optional bool is_hunk_chunk_list = 3;
+    optional int32 kind = 4; // EChunkListKind
 }
 
 message TRspCreateChunkLists

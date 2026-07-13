@@ -170,7 +170,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::Statistics: {
-                if (IsHunkRelatedChunkList(chunkList)) {
+                if (chunkList->IsHunkRelated()) {
                     Serialize(chunkList->HunkStatistics(), consumer);
                 } else {
                     Serialize(chunkList->Statistics(), consumer);

@@ -47,7 +47,7 @@ i64 GetChunkCountInChunkList(const TChunkList* chunkList)
     // NB: Within hunk tree statistics we count only sealed chunks and without repetitions.
     // However when traverseing we need to consider every chunk occurrence as a unique entry
     // so we rely on cumulative statistics.
-    if (IsHunkRelatedChunkList(chunkList)) {
+    if (chunkList->IsHunkRelated()) {
         YT_VERIFY(chunkList->HasCumulativeStatistics());
         return chunkList->CumulativeStatistics().Empty()
             ? 0
@@ -219,7 +219,7 @@ protected:
             auto child = chunkList->Children()[entry.ChildIndex];
 
             // YT-4840: Skip empty children since Get(Min|Max)Key will not work for them.
-            if (IsEmpty(child) && !IsHunkRelatedChunkList(chunkList.Get())) {
+            if (IsEmpty(child) && !chunkList->IsHunkRelated()) {
                 if (IsObjectAlive(child)) {
                     YT_LOG_TRACE("Child is empty (Index: %v, Id: %v, Kind: %v)",
                         entry.ChildIndex,

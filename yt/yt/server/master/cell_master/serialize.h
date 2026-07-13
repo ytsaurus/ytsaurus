@@ -203,6 +203,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaRevision_26_2)                                         (3330))  // kvk1920
     ((SecondaryIndexUnfoldedColumnsSerializationFix)                (3331))  // sabdenovch
     ((PrelockTracker_26_2)                                          (3332))  // kvk1920
+    ((ScratchChunkListKind)                                         (3333))  // babenko
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
