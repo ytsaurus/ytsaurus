@@ -480,8 +480,6 @@ class TestKafkaProxy(KafkaProxyBase):
             {"surname": "foo-0", "number": i, "$tablet_index": i} for i in range(row_count)
         ]
 
-        insert_rows(queue_path, rows)
-
         address = self.Env.get_kafka_proxy_address()
 
         consumers = []
@@ -494,6 +492,19 @@ class TestKafkaProxy(KafkaProxyBase):
             c = Consumer(consumer_config)
             c.subscribe([queue_path])
             consumers.append(c)
+
+        def is_assignments_balanced():
+            assert tablet_count % len(consumers) == 0, "Tablet count is not divisible by consumer count"
+            expected_partitions_per_consumer = tablet_count // len(consumers)
+
+            for consumer in consumers:
+                consumer.poll(0.1)
+
+            return all(len(consumer.assignment()) == expected_partitions_per_consumer for consumer in consumers)
+
+        wait(is_assignments_balanced)
+
+        insert_rows(queue_path, rows)
 
         none_message_count = 0
         error_count = 0
@@ -555,9 +566,7 @@ class TestKafkaProxy(KafkaProxyBase):
             consumers.append(c)
 
         # Wait rebalancing.
-        for _ in range(15):
-            for consumer_index, consumer in enumerate(consumers):
-                consumer.poll(0.1)
+        wait(is_assignments_balanced)
 
         consumer_count *= 2
         rows *= 2
