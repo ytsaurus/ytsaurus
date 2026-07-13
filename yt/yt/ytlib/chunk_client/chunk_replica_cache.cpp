@@ -602,7 +602,11 @@ private:
             std::vector<NSequoiaClient::NRecords::TChunkReplicasKey> recordKeys;
             recordKeys.reserve(chunkIds.size());
             for (auto chunkId : chunkIds) {
-                recordKeys.push_back({.ChunkId = chunkId});
+                recordKeys.push_back({
+                    .CellTag = CellTagFromId(chunkId),
+                    .ShardIndex = static_cast<i8>(GetShardIndex<ChunkShardCount>(chunkId)),
+                    .ChunkId = chunkId,
+                });
             }
 
             const auto& idMapping = NSequoiaClient::NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
