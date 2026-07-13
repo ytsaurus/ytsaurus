@@ -34,6 +34,12 @@ struct INbdChunkHandler
         ui64 cookie) = 0;
 
     virtual TFuture<NIO::TIOCounters> Write(i64 offset, const NChunkClient::TBlock& block, ui64 cookie) = 0;
+
+    //! Flush dirty data to disk (fsync).
+    virtual TFuture<void> Flush() = 0;
+
+    //! Flush a specific range of data to disk (sync_file_range).
+    virtual TFuture<void> FlushRange(i64 offset, i64 size) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INbdChunkHandler)

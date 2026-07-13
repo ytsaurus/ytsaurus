@@ -54,6 +54,9 @@ message TReqWrite
     // Might be empty, or contain NullChecksum.
     repeated fixed64 block_checksums = 4;
 
+    // If true, the data node flushes the written range to disk
+    // (via sync_file_range) before replying, providing FUA semantics.
+    optional bool flush = 5;
 }
 
 message TRspWrite
@@ -108,6 +111,18 @@ message TRspWriteBatch
 {
     optional uint64 cookie = 1;
     optional bool should_close_session = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFlush
+{
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+}
+
+message TRspFlush
+{
+    optional bool should_close_session = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

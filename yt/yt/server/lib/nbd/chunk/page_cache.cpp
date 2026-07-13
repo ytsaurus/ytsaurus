@@ -80,7 +80,12 @@ TFuture<void> TPageCache::Finalize()
 
 TFuture<void> TPageCache::Flush()
 {
-    return FlushBatch(std::numeric_limits<int>::max());
+    // First flush all dirty pages from the cache to the data node via WriteBatch,
+    // then ask the data node to fsync the data to disk via Flush RPC.
+    return FlushBatch(std::numeric_limits<int>::max())
+        .Apply(BIND([this, this_ = MakeStrong(this)] () {
+            return ChunkHandler_->Flush();
+        }));
 }
 
 TFuture<void> TPageCache::FlushBatch(i64 maxPages)
@@ -540,17 +545,21 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                     }
                 }
 
-                // If FUA (Force Unit Access) is requested, flush dirty pages after write.
+                // If FUA (Force Unit Access) is requested, write the data directly to the
+                // data node with flush=true (write + sync_file_range in a single RPC).
+                // This bypasses FlushBatch/WriteBatch and provides FUA semantics without
+                // needing a separate Flush RPC.
                 if (options.Flush) {
                     return AllSucceeded(readBeforeWriteFutures)
-                        .Apply(BIND([this, this_ = MakeStrong(this), readerGuard = std::move(readerGuard)] () mutable -> TFuture<TWriteResponse> {
-                            // Release FlushLock_ reader lock before calling Flush():
-                            // Flush() acquires the writer lock and waits for all readers.
-                            // Keeping the reader lock here would cause a deadlock.
+                        .Apply(BIND([this, this_ = MakeStrong(this), readerGuard = std::move(readerGuard), offset, data] () mutable -> TFuture<TWriteResponse> {
+                            // Release FlushLock_ reader lock before writing to the data node.
                             readerGuard.Reset();
-                            return Flush().Apply(BIND([] {
-                                return TWriteResponse{};
-                            }));
+                            // Write with FUA: the data node will write and sync_file_range
+                            // the written data to disk in a single RPC.
+                            return ChunkHandler_->Write(offset, data, {.Flush = true})
+                                .Apply(BIND([] (const TWriteResponse&) {
+                                    return TWriteResponse{};
+                                }));
                         })
                         .AsyncVia(Invoker_));
                 }

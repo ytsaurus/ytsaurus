@@ -23,6 +23,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NNbd::NProto, Write);
     DEFINE_RPC_PROXY_METHOD(NNbd::NProto, ReadBatch);
     DEFINE_RPC_PROXY_METHOD(NNbd::NProto, WriteBatch);
+    DEFINE_RPC_PROXY_METHOD(NNbd::NProto, Flush);
     DEFINE_RPC_PROXY_METHOD(NNbd::NProto, KeepSessionAlive);
 };
 
