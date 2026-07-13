@@ -44,7 +44,11 @@
 
 #include <yt/yt/client/tablet_client/public.h>
 
+#include <yt/yt/client/misc/workload.h>
+
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
+
+#include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 
@@ -1625,6 +1629,17 @@ private:
 
         if (Bootstrap_->IsReadOnly()) {
             return false;
+        }
+
+        const auto& dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode;
+        if (dynamicConfig->EnableInThrottlerQueueWritableCheck.value_or(false)) {
+            auto netThrottling = Bootstrap_->CheckNetInThrottling(
+                NBus::DefaultNetworkName,
+                TWorkloadDescriptor{},
+                /*incrementCounter*/ false);
+            if (netThrottling.Enabled) {
+                return false;
+            }
         }
 
         return true;

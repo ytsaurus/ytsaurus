@@ -12,6 +12,12 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNetThrottlingResult
+{
+    bool Enabled = false;
+    i64 QueueSize = 0;
+};
+
 struct IBootstrap
     : public virtual NClusterNode::IBootstrapBase
 {
@@ -41,6 +47,17 @@ struct IBootstrap
     virtual const NConcurrency::IThroughputThrottlerPtr& GetThrottler(EDataNodeThrottlerKind kind) const = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor& descriptor) const = 0;
+
+    virtual TNetThrottlingResult CheckNetOutThrottling(
+        i64 pendingOutBytes,
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const = 0;
+
+    virtual TNetThrottlingResult CheckNetInThrottling(
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const = 0;
 
     // Journal stuff.
     virtual const IJournalDispatcherPtr& GetJournalDispatcher() const = 0;

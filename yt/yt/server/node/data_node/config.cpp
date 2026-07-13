@@ -919,6 +919,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .Default(4_GB);
     registrar.Parameter("net_out_throttling_duration", &TThis::NetOutThrottlingDuration)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("net_in_throttling_limit", &TThis::NetInThrottlingLimit)
+        .GreaterThan(0)
+        .Default(4_GB);
     registrar.Parameter("enable_send_blocks_net_throttling", &TThis::EnableSendBlocksNetThrottling)
         .Default(false);
 
@@ -1198,6 +1201,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)
         .Default();
 
+    registrar.Parameter("net_in_throttling_limit", &TThis::NetInThrottlingLimit)
+        .Default();
+
     registrar.Parameter("enable_send_blocks_net_throttling", &TThis::EnableSendBlocksNetThrottling)
         .Optional();
 
@@ -1213,6 +1219,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("enable_write_throttling_writable_check", &TThis::EnableWriteThrottlingWritableCheck)
+        .Default();
+
+    registrar.Parameter("enable_in_throttler_queue_writable_check", &TThis::EnableInThrottlerQueueWritableCheck)
         .Default();
 
     registrar.Parameter("enable_sequential_io_requests", &TThis::EnableSequentialIORequests)

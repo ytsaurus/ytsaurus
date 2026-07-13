@@ -471,6 +471,23 @@ public:
         return OutThrottler_;
     }
 
+    NDataNode::TNetThrottlingResult CheckNetOutThrottling(
+        i64,
+        const std::string&,
+        const TWorkloadDescriptor&,
+        bool = true) const override
+    {
+        return {};
+    }
+
+    NDataNode::TNetThrottlingResult CheckNetInThrottling(
+        const std::string&,
+        const TWorkloadDescriptor&,
+        bool = true) const override
+    {
+        return {};
+    }
+
     const NYT::NDataNode::IJournalDispatcherPtr& GetJournalDispatcher() const override
     {
         return JournalDispatcher_;
