@@ -1,10 +1,12 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt_env_setup import is_sanitizer_build
+from yt.sequoia_tools.descriptors import DESCRIPTORS
+
+from yt_env_setup import is_sanitizer_build, Restarter, NODES_SERVICE
 
 from yt_helpers import profiler_factory
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
+from yt_sequoia_helpers import not_implemented_in_sequoia, select_rows_from_ground
 
 from yt_commands import (
     authors, print_debug, select_rows, wait, create, ls, get, set, remove, exists, copy, insert_rows,
@@ -2632,6 +2634,155 @@ class TestLookupSequoia(TestLookup):
             },
         },
     }
+
+    @authors("aleksandra-zh")
+    def test_sequoia_chunk_replica_cache(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        def replicas_stored_in_sequoia():
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            chunk_replicas_rows = select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")
+            stored_chunk_ids = {row["chunk_id"] for row in chunk_replicas_rows}
+            return all(chunk_id in stored_chunk_ids for chunk_id in chunk_ids)
+
+        wait(replicas_stored_in_sequoia)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health") == "good")
+
+        keys = [{"key": i} for i in range(10)]
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+    @authors("aleksandra-zh")
+    def test_chunk_replica_cache_switch_to_sequoia1(self):
+        def set_sequoia_locate_enabled(enabled):
+            update_nodes_dynamic_config({
+                "cluster_connection": {
+                    "chunk_replica_cache": {
+                        "enable_sequoia_replicas_locate": enabled,
+                        "enable_sequoia_replicas_refresh": enabled,
+                    },
+                },
+            })
+
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        set_sequoia_locate_enabled(False)
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(10)]
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        set_sequoia_locate_enabled(True)
+
+        more_rows = [{"key": i, "value": str(i)} for i in range(10, 20)]
+        insert_rows("//tmp/t", more_rows)
+        sync_flush_table("//tmp/t")
+
+        all_rows = rows + more_rows
+        all_keys = [{"key": i} for i in range(20)]
+        assert_items_equal(lookup_rows("//tmp/t", all_keys), all_rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), all_rows)
+
+        set_sequoia_locate_enabled(False)
+
+        even_more_rows = [{"key": i, "value": str(i)} for i in range(20, 30)]
+        insert_rows("//tmp/t", even_more_rows)
+        sync_flush_table("//tmp/t")
+
+        all_rows += even_more_rows
+        all_keys = [{"key": i} for i in range(30)]
+        assert_items_equal(lookup_rows("//tmp/t", all_keys), all_rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), all_rows)
+
+    @authors("aleksandra-zh")
+    def test_chunk_replica_cache_switch_to_sequoia2(self):
+        replication_factor = 3
+
+        def set_sequoia_locate_enabled(enabled):
+            update_nodes_dynamic_config({
+                "cluster_connection": {
+                    "chunk_replica_cache": {
+                        "enable_sequoia_replicas_locate": enabled,
+                        "enable_sequoia_replicas_refresh": enabled,
+                    },
+                },
+            })
+
+        def replica_addresses(chunk_id):
+            return sorted(str(r) for r in get(f"#{chunk_id}/@stored_replicas"))
+
+        def replicas_stored_in_sequoia(chunk_id):
+            for row in select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]"):
+                if row["chunk_id"] == chunk_id:
+                    return len(row["stored_replicas"]) == replication_factor
+            return False
+
+        def force_replica_change(chunk_id):
+            replicas_before = replica_addresses(chunk_id)
+            banned_node = replicas_before[0]
+            set_node_banned(banned_node, True)
+
+            def replicated():
+                current = replica_addresses(chunk_id)
+                return len(current) == replication_factor and banned_node not in current
+
+            wait(replicated)
+            assert replica_addresses(chunk_id) != replicas_before
+            # Banning a node may unseat the tablet cell leader; wait for the cell
+            # to recover before serving lookups.
+            wait(lambda: get("//sys/tablet_cell_bundles/default/@health") == "good")
+            return banned_node
+
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", replication_factor=replication_factor)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        chunk_id = get("//tmp/t/@chunk_ids/0")
+        wait(lambda: len(replica_addresses(chunk_id)) == replication_factor)
+
+        keys = [{"key": i} for i in range(10)]
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+        set_sequoia_locate_enabled(False)
+
+        banned_node = force_replica_change(chunk_id)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        set_node_banned(banned_node, False)
+
+        set_sequoia_locate_enabled(True)
+        wait(lambda: replicas_stored_in_sequoia(chunk_id))
+
+        banned_node = force_replica_change(chunk_id)
+        wait(lambda: replicas_stored_in_sequoia(chunk_id))
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        set_node_banned(banned_node, False)
+
+        set_sequoia_locate_enabled(False)
+
+        banned_node = force_replica_change(chunk_id)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        set_node_banned(banned_node, False)
 
 
 ################################################################################
