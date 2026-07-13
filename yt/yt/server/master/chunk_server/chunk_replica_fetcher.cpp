@@ -606,7 +606,9 @@ private:
                     .ReplicaIndex = masterReplica.GetReplicaIndex(),
                     .NodeId = masterReplica.GetNodeId(),
                     .ReplicaState = masterReplica.GetReplicaState(),
-                    // For offshore media, -1 for domestic for correct validation.
+                    // For offshore media, -1 for domestic for correct Sequoia replica validation.
+                    // (Sequoia validation will consider replicas with -1 and normal medium index different,
+                    // but there is no way to set normal medium index for replicas fetched from Sequoia now).
                     .MediumIndex = mediumIndex
                 };
                 if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {

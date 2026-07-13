@@ -554,7 +554,7 @@ class TestS3Medium(TestS3MediumBase):
         print_debug(t_media)
 
         t_media["default"] = {"replication_factor": 3, "data_parts_only": False}
-        with pytest.raises(YtError, match='Cannot set replication with offshore media'):
+        with pytest.raises(YtError, match='Cannot change media if offshore media is involved'):
             set("//tmp/t/@media", t_media)
 
     @authors("achulkov2")
@@ -562,7 +562,7 @@ class TestS3Medium(TestS3MediumBase):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
         write_table("//tmp/t", {"a": "b"})
 
-        with pytest.raises(YtError, match='Cannot set replication with offshore media'):
+        with pytest.raises(YtError, match='Cannot change media if offshore media is involved'):
             set("//tmp/t/@primary_medium", "default")
 
     @authors("achulkov2")
