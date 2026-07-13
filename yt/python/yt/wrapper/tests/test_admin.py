@@ -73,9 +73,14 @@ class TestHydraCommands(object):
                 suppress_upstream_sync=True,
                 suppress_transaction_coordinator_sync=True)
 
-        follower_addrs = [addr for addr in addrs if get_hydra_monitoring(addr)["active_follower"]]
+        def get_active_followers():
+            return [addr for addr in addrs if get_hydra_monitoring(addr)["active_follower"]]
+
+        # Wait for the peer quorum to settle: one leader and the rest active followers.
+        wait(lambda: len(get_active_followers()) + 1 == len(addrs), "peer quorum did not stabilize")
+
+        follower_addrs = get_active_followers()
         leader_addr = [addr for addr in addrs if addr not in follower_addrs][0]
-        assert len(follower_addrs) + 1 == len(addrs)
 
         term = get_hydra_monitoring(addrs[0])["term"]
 
