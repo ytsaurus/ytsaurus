@@ -2022,7 +2022,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                             if (oldMainChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
                                 for (int tabletIndex = 0; tabletIndex < ssize(oldMainChunkList->Children()); ++tabletIndex) {
                                     auto* newTabletChunkList = chunkManager->CreateChunkList(appendChunkListKind);
-                                    if (!IsHunkRelatedChunkList(newTabletChunkList)) {
+                                    if (!newTabletChunkList->IsHunkRelated()) {
                                         newTabletChunkList->SetPivotKey(
                                             oldMainChunkList->Children()[tabletIndex]->AsChunkList()->GetPivotKey());
                                     }

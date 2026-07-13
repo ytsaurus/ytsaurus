@@ -27,7 +27,7 @@ bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root, EChunkTreeBalancerM
         return false;
     }
 
-    if (IsHunkRelatedChunkList(root)) {
+    if (root->GetKind() != EChunkListKind::Static) {
         return false;
     }
 
@@ -59,7 +59,6 @@ bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root, EChunkTreeBalancerM
 TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::Rebalance(TChunkList* root)
 {
     YT_VERIFY(root->GetKind() == EChunkListKind::Static);
-    YT_VERIFY(!IsHunkRelatedChunkList(root));
 
     auto oldStatistics = root->Statistics();
 
@@ -163,7 +162,7 @@ TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::AppendChunkTree(
         auto& currentEntry = stack.top();
         auto* currentChunkTree = currentEntry.ChunkTree;
         YT_VERIFY(currentChunkTree->GetType() != EObjectType::ChunkList ||
-            !IsHunkRelatedChunkList(currentChunkTree->AsChunkList()));
+            !currentChunkTree->AsChunkList()->IsHunkRelated());
 
         if (currentChunkTree->GetType() == EObjectType::ChunkList &&
             currentChunkTree->AsChunkList()->GetRank() > 1)

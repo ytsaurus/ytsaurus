@@ -1980,7 +1980,7 @@ void TOperationControllerBase::InitChunkListPools()
                         CancelableInvokerPool_,
                         OperationId_,
                         OutputTransaction_->GetId(),
-                        /*isHunk*/ true);
+                        EChunkListKind::Hunk);
 
                     CellTagToRequiredOutputHunkChunkListCount_.clear();
                 }

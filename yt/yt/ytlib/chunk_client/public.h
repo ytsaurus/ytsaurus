@@ -168,6 +168,23 @@ DEFINE_ENUM(EChunkListContentType,
     ((Hunk)                   (1))
 );
 
+DEFINE_ENUM(EChunkListKind,
+    ((Static)                 (0))
+    ((SortedDynamicRoot)      (1))
+    ((SortedDynamicTablet)    (2))
+    ((OrderedDynamicRoot)     (3))
+    ((OrderedDynamicTablet)   (4))
+    ((SortedDynamicSubtablet) (5))
+    ((JournalRoot)            (6))
+    ((HunkRoot)               (7))
+    ((Hunk)                   (8))
+    ((HunkStorageRoot)        (9))
+    ((HunkTablet)            (10))
+    // A mere holder of chunks: any chunk (sealed or not, of any format) may be attached, and no
+    // statistics are maintained or propagated.
+    ((Scratch)               (11))
+);
+
 //! Chunk availability is determined by `TChunkScraperAvailabilityPolicy`.
 //! - If the policy is `TMetadataAvailable`: a chunk is unavailable when it has no replicas.
 //! - Otherwise: a chunk is unavailable when `IsUnavailable()` returns true for the given policy and erasure codec.
