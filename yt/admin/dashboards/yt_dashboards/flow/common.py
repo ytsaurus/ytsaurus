@@ -231,7 +231,7 @@ def build_series_sum(metric: str, group_labels: list, backend: str):
     return expr.series_sum(*group_labels)
 
 
-def build_resource_usage(component: str, add_component_to_title: bool):
+def build_resource_usage(component: str, add_component_to_title: bool, backend: str = "monitoring"):
     sensor = {
         "controller": FlowController,
         "worker": FlowWorker,
@@ -246,6 +246,16 @@ def build_resource_usage(component: str, add_component_to_title: bool):
     retransmits_description = (
         "If you see significant increase on this graph, check that network limits are not exceeded"
     )
+
+    # An unlimited cgroup exports HierarchicalMemoryLimit as PAGE_COUNTER_MAX
+    # (~9.2e18); such points would flatten the RSS line, so drop everything
+    # above 1e18 (real limits are TBs at most).
+    memory_limit = MonitoringExpr(sensor("yt.memory.cgroup.memory_limit"))
+    if backend == "monitoring":
+        memory_limit = memory_limit.query_transformation("drop_above({query}, 1e18)")
+    else:
+        memory_limit = memory_limit.query_transformation("({query}) < 1e18")
+    memory_limit = memory_limit.alias("Limit")
 
     return (Rowset()
         .stack(False)
@@ -265,7 +275,13 @@ def build_resource_usage(component: str, add_component_to_title: bool):
                     .group_by_labels("host", "v -> group_lines(\"sum\", top_avg(1, v))")
                     .alias("{{thread}} - {{host}}")
                     .top(10))
-            .cell("Memory" + title_suffix, sensor("yt.resource_tracker.memory_usage.rss").unit("UNIT_BYTES_SI"))
+            .cell(
+                "Memory" + title_suffix,
+                MultiSensor(
+                    MonitoringExpr(sensor("yt.resource_tracker.memory_usage.rss"))
+                        .alias("RSS"),
+                    memory_limit)
+                    .unit("UNIT_BYTES_SI"))
             .cell(
                 "Network retransmits" + title_suffix,
                 sensor("yt.bus.retransmits.rate")
