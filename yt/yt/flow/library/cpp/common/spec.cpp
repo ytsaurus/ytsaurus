@@ -82,7 +82,9 @@ void TIdlePartitionsSpec::Register(TRegistrar registrar)
 void TUnavailablePartitionGroupsSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_groups", &TThis::MaxGroups)
-        .Default(0);
+        .Default(1);
+    registrar.Parameter("min_available_groups", &TThis::MinAvailableGroups)
+        .Default(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,7 +109,7 @@ void TWatermarkGeneratorSpec::Register(TRegistrar registrar)
     registrar.Parameter("idle_partitions", &TThis::IdlePartitions)
         .Default();
     registrar.Parameter("unavailable_partition_groups", &TThis::UnavailablePartitionGroups)
-        .Default();
+        .DefaultNew();
     registrar.Parameter("late_data_partitions", &TThis::LateDataPartitions)
         .Default();
 }
