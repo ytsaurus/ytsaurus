@@ -1191,6 +1191,7 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         .PrepareDuration = sumOptionals(getDuration(PreparationStartTime_, ExecStartTime_), fakePrepareDuration),
         .ArtifactsCachingDuration = getDuration(ArtifactsDownloadStartTime_, ArtifactsDownloadedTime_),
         .PrepareLayersDuration = getDuration(PrepareLayersStartTime_, PrepareLayersFinishTime_),
+        .PrepareRootFSDuration = getDuration(PrepareRootVolumeStartTime_, PrepareRootVolumeFinishTime_),
         .PrepareNonRootVolumesDuration = getDuration(PrepareNonRootVolumesStartTime_, PrepareNonRootVolumesFinishTime_),
         .LinkVolumesDuration = getDuration(LinkVolumesStartTime_, LinkVolumesFinishTime_),
         .PrepareGpuCheckFSDuration = getDuration(PrepareGpuCheckVolumeStartTime_, PrepareGpuCheckVolumeFinishTime_),
