@@ -91,6 +91,22 @@ TFuture<NIO::TIOCounters> TNbdSession::Write(i64 offset, const TBlock& block, ui
     return NbdChunkHandler_->Write(offset, block, cookie);
 }
 
+TFuture<void> TNbdSession::Flush()
+{
+    YT_LOG_DEBUG("Flushing NBD session");
+
+    return NbdChunkHandler_->Flush();
+}
+
+TFuture<void> TNbdSession::FlushRange(i64 offset, i64 size)
+{
+    YT_LOG_DEBUG("Flushing NBD session range (Offset: %v, Size: %v)",
+        offset,
+        size);
+
+    return NbdChunkHandler_->FlushRange(offset, size);
+}
+
 //! Create NBD chunk and make filesystem on it.
 TFuture<void> TNbdSession::Create()
 {

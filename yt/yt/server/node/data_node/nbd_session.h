@@ -37,6 +37,12 @@ struct TNbdSession
     //! Write buffer to NBD chunk at offset.
     TFuture<NIO::TIOCounters> Write(i64 offset, const NChunkClient::TBlock& block, ui64 cookie);
 
+    //! Flush dirty data to disk (fsync).
+    TFuture<void> Flush();
+
+    //! Flush a specific range of data to disk (sync_file_range).
+    TFuture<void> FlushRange(i64 offset, i64 size);
+
     //! Create NBD chunk and make filesystem on it.
     TFuture<void> Create();
 

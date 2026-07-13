@@ -66,6 +66,10 @@ public:
             .SetQueueSizeLimit(500)
             .SetConcurrencyLimit(50)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Flush)
+            .SetQueueSizeLimit(500)
+            .SetConcurrencyLimit(50)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(KeepSessionAlive));
     }
 
@@ -158,17 +162,26 @@ private:
         auto offset = FromProto<i64>(request->offset());
         auto blocks = GetRpcAttachedBlocks(request, false);
         auto cookie = FromProto<ui64>(request->cookie());
+        auto flush = request->has_flush() ? request->flush() : false;
 
         YT_VERIFY(blocks.size() == 1);
 
-        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %x",
+        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %x, Flush: %v",
             sessionId,
             offset,
             blocks[0].Size(),
-            cookie);
+            cookie,
+            flush);
 
         auto session = GetSessionOrThrow(sessionId);
-        auto future = session->Write(offset, blocks[0], cookie);
+        auto writeFuture = session->Write(offset, blocks[0], cookie);
+
+        // If FUA (flush) is requested, flush the written range to disk after the write.
+        TFuture<void> future = flush
+            ? writeFuture.AsVoid().Apply(BIND([=] () {
+                return session->FlushRange(offset, blocks[0].Size());
+            }))
+            : writeFuture.AsVoid();
 
         response->set_cookie(cookie);
         auto shouldCloseSession = ShouldCloseSession(session);
@@ -179,7 +192,7 @@ private:
             cookie,
             shouldCloseSession);
 
-        context->ReplyFrom(future.AsVoid());
+        context->ReplyFrom(future);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, ReadBatch)
@@ -250,6 +263,25 @@ private:
             shouldCloseSession);
 
         context->ReplyFrom(AllSucceeded(writeFutures).AsVoid());
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, Flush)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+
+        context->SetRequestInfo("SessionId: %v",
+            sessionId);
+
+        auto session = GetSessionOrThrow(sessionId);
+
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_should_close_session(shouldCloseSession);
+
+        context->SetResponseInfo("SessionId: %v, ShouldCloseSession: %v",
+            sessionId,
+            shouldCloseSession);
+
+        context->ReplyFrom(session->Flush());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, KeepSessionAlive)

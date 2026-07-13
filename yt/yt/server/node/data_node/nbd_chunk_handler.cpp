@@ -446,6 +446,84 @@ public:
                 }));
     }
 
+    //! Flush dirty data to disk (fsync).
+    TFuture<void> Flush() override
+    {
+        YT_LOG_DEBUG("Started flushing NBD chunk (ChunkId: %v)",
+            ChunkId_);
+
+        // Acquire a reader guard so that Destroy() (which acquires the writer lock)
+        // cannot close the file handle while a flush is in flight.
+        TWallTimer lockWaitTimer;
+        return TAsyncLockReaderGuard::Acquire(&Lock_)
+            .AsUnique()
+            .Apply(
+                BIND([=, this, this_ = MakeStrong(this), lockWaitTimer = std::move(lockWaitTimer)] (TReadLockPtr&& guard) {
+                    auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
+                    if (State_ != EState::Initialized) {
+                        THROW_ERROR_EXCEPTION("Flush on uninitialized nbd chunk handler")
+                            << TErrorAttribute("chunk_id", ChunkId_)
+                            << TErrorAttribute("state", State_);
+                    }
+
+                    TWallTimer ioTimer;
+                    auto flushFuture = IOEngine_->FlushFile(
+                        {.Handle = IOEngineHandle_, .Mode = NIO::EFlushFileMode::All},
+                        WorkloadDescriptor_.Category);
+
+                    return flushFuture.Apply(
+                        BIND([=, guard = std::move(guard), ioTimer = std::move(ioTimer), this, this_ = MakeStrong(this)] (const NIO::TFlushFileResponse&) {
+                            auto ioDuration = ioTimer.GetElapsedTime();
+
+                            YT_LOG_DEBUG("Finished flushing NBD chunk (ChunkId: %v, LockWaitDuration: %v, IODuration: %v)",
+                                ChunkId_,
+                                lockWaitDuration,
+                                ioDuration);
+                        }));
+                }));
+    }
+
+    //! Flush a specific range of data to disk (sync_file_range).
+    TFuture<void> FlushRange(i64 offset, i64 size) override
+    {
+        YT_LOG_DEBUG("Started flushing NBD chunk range (ChunkId: %v, Offset: %v, Size: %v)",
+            ChunkId_,
+            offset,
+            size);
+
+        // Acquire a reader guard so that Destroy() (which acquires the writer lock)
+        // cannot close the file handle while a flush is in flight.
+        TWallTimer lockWaitTimer;
+        return TAsyncLockReaderGuard::Acquire(&Lock_)
+            .AsUnique()
+            .Apply(
+                BIND([=, this, this_ = MakeStrong(this), lockWaitTimer = std::move(lockWaitTimer)] (TReadLockPtr&& guard) {
+                    auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
+                    if (State_ != EState::Initialized) {
+                        THROW_ERROR_EXCEPTION("FlushRange on uninitialized nbd chunk handler")
+                            << TErrorAttribute("chunk_id", ChunkId_)
+                            << TErrorAttribute("state", State_);
+                    }
+
+                    TWallTimer ioTimer;
+                    auto flushFuture = IOEngine_->FlushFileRange(
+                        {.Handle = IOEngineHandle_, .Offset = offset, .Size = size},
+                        WorkloadDescriptor_.Category);
+
+                    return flushFuture.Apply(
+                        BIND([=, guard = std::move(guard), ioTimer = std::move(ioTimer), this, this_ = MakeStrong(this)] (const NIO::TFlushFileRangeResponse&) {
+                            auto ioDuration = ioTimer.GetElapsedTime();
+
+                            YT_LOG_DEBUG("Finished flushing NBD chunk range (ChunkId: %v, Offset: %v, Size: %v, LockWaitDuration: %v, IODuration: %v)",
+                                ChunkId_,
+                                offset,
+                                size,
+                                lockWaitDuration,
+                                ioDuration);
+                        }));
+                }));
+    }
+
 private:
     using TReadLockPtr = TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockReaderTraits>>;
     using TWriteLockPtr = TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>;

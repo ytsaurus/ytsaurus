@@ -91,7 +91,24 @@ public:
 
     TFuture<void> Flush() override
     {
-        return OKFuture;
+        if (State_ != EState::Initialized) {
+            YT_LOG_DEBUG("Can not flush uninitialized chunk handler");
+            return OKFuture;
+        }
+
+        YT_LOG_DEBUG("Flushing chunk handler");
+
+        auto req = Proxy_.Flush();
+        req->SetRequestInfo("ChunkId: %v", SessionId_.ChunkId);
+
+        req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
+        ToProto(req->mutable_session_id(), SessionId_);
+        req->SetMultiplexingBand(EMultiplexingBand::Interactive);
+        req->SetMultiplexingParallelism(Config_->MultiplexingParallelism);
+
+        return req->Invoke().Apply(BIND([] (const TErrorOr<TDataNodeNbdServiceProxy::TRspFlushPtr>& rspOrError) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+        }));
     }
 
     TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) override
@@ -154,11 +171,12 @@ public:
         }
 
         auto req = Proxy_.Write();
-        req->SetRequestInfo("ChunkId: %v, Offset: %v, Length: %v, Cookie: %x",
+        req->SetRequestInfo("ChunkId: %v, Offset: %v, Length: %v, Cookie: %x, Flush: %v",
             SessionId_.ChunkId,
             offset,
             data.size(),
-            options.Cookie);
+            options.Cookie,
+            options.Flush);
 
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
@@ -166,6 +184,7 @@ public:
         req->SetMultiplexingParallelism(Config_->MultiplexingParallelism);
         req->set_offset(offset);
         req->set_cookie(options.Cookie);
+        req->set_flush(options.Flush);
         SetRpcAttachedBlocks(req, {TBlock(data)});
         return req->Invoke().Apply(BIND([] (const TErrorOr<TDataNodeNbdServiceProxy::TRspWritePtr>& rspOrError) {
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
