@@ -93,6 +93,9 @@ const TTableSchemaPtr& {{type.type_name}}Descriptor::GetPrimaryTableSchema() con
 {%- if field.required is not none %}
                 .SetRequired({{"true" if field.required else "false"}})
 {%- endif %}
+{%- if field.max_inline_hunk_size is not none %}
+                .SetMaxInlineHunkSize({{field.max_inline_hunk_size}})
+{%- endif %}
             ,
 {%- endfor %}
 {%- if type.add_empty_field %}
@@ -128,6 +131,9 @@ const TTableSchemaPtr& {{type.type_name}}Descriptor::GetPrimaryTableSchema() con
 {%- endif %}
 {%- if field.expression is not none %}
                 .SetExpression("{{field.expression}}")
+{%- endif %}
+{%- if field.max_inline_hunk_size is not none %}
+                .SetMaxInlineHunkSize({{field.max_inline_hunk_size}})
 {%- endif %},
 {%- endfor %}
 {%- if type.add_empty_field %}
