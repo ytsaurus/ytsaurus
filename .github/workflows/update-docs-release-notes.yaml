@@ -47,28 +47,20 @@ jobs:
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check if PR already exists
-        id: pr_exists
+      # Шаг "Check if PR already exists" удалён намеренно: он искал открытый PR
+      # ПО ЗАГОЛОВКУ ("in:title [docs] Update Release Notes") и при любом совпадении
+      # (exists=true) полностью пропускал создание/обновление PR. Из-за этого
+      # воркфлоу находил свой же вчерашний ежедневный PR (или посторонний PR с
+      # похожим заголовком, в т.ч. от релизных пайплайнов) и блокировал публикацию.
+      # Отдельная проверка не нужна: peter-evans/create-pull-request идемпотентен
+      # ПО ВЕТКЕ (branch: ci/update-documentation-release-notes/daily) — если PR
+      # на этой ветке уже открыт, он обновляет его свежим содержимым, иначе создаёт
+      # новый. Дубликаты исключены, релизные ветки на ежедневный запуск не влияют.
+      #
+      # Проверка "Check for changes" выше СОХРАНЕНА — она защищает от создания
+      # пустых PR, когда релиз-ноты не изменились.
+      - name: Create or update Pull Request
         if: steps.changes.outputs.has_changes == 'true'
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-        run: |
-          TITLE="[docs] Update Release Notes"
-          COUNT=$(gh pr list \
-            --state open \
-            --base main \
-            --search "in:title $TITLE" \
-            --json number \
-            --jq 'length')
-
-          if [ "$COUNT" -gt 0 ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Create Pull Request
-        if: steps.changes.outputs.has_changes == 'true' && steps.pr_exists.outputs.exists == 'false'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ steps.generate-token.outputs.token }}
