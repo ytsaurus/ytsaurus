@@ -5900,6 +5900,37 @@ class TestChaosMetaCluster(ChaosTestBase):
         with pytest.raises(YtError):
             commit_transaction(tx)
 
+    @authors("osidorkin")
+    def test_chaos_lease_two_tables(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+
+        replicas0 = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t0"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r00"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r01"}
+        ]
+
+        replicas1 = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t1"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r10"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r11"}
+        ]
+
+        self._create_chaos_tables(alpha_cell, replicas0)
+        self._create_chaos_tables(alpha_cell, replicas1)
+
+        lease_id = create_chaos_lease(alpha_cell)
+        tx = start_transaction(type="tablet", prerequisite_transaction_ids=[lease_id])
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t0", values, tx=tx)
+        insert_rows("//tmp/t1", values, tx=tx)
+
+        commit_transaction(tx)
+
+        assert lookup_rows("//tmp/t0", [{"key": 0}]) == values
+        assert lookup_rows("//tmp/t1", [{"key": 0}]) == values
+
     @authors("gryzlov-ad")
     def test_chaos_lease_two_coordinators(self):
         [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
