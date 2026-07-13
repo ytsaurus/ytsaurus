@@ -227,6 +227,9 @@ struct TVolumeManagerDynamicConfig
     //! For testing purpuses.
     bool ThrowOnPrepareVolume;
 
+    //! For testing purposes.
+    bool ThrowOnPrepareLayers;
+
     REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);

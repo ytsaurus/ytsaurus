@@ -3856,6 +3856,10 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         return EAbortReason::RootVolumePreparationFailed;
     }
 
+    if (resultError.FindMatching(NExecNode::EErrorCode::OverlayLayerPreparationFailed)) {
+        return EAbortReason::OverlayLayerPreparationFailed;
+    }
+
     if (resultError.FindMatching(NJobProxy::EErrorCode::UserJobPortoApiError)) {
         return EAbortReason::Other;
     }

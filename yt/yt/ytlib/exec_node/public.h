@@ -58,6 +58,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NonRootVolumePreparationFailed)        (1147))
     ((NonRootVolumeLinkingFailed)            (1148))
     ((NbdServerDisabledOnNode)               (1149))
+    ((OverlayLayerPreparationFailed)         (1150))
 );
 
 DEFINE_ENUM(EJobPhase,

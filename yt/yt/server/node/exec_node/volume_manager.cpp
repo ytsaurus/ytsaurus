@@ -492,6 +492,17 @@ public:
             jobId,
             layerOptions.size());
 
+        if (DynamicConfig_.Acquire()->ThrowOnPrepareLayers) {
+            std::vector<TFuture<TOverlayData>> errorFutures;
+            errorFutures.reserve(layerOptions.size());
+            for (const auto& layerOption : layerOptions) {
+                errorFutures.push_back(MakeFuture<TOverlayData>(TError(
+                    "Throw on prepare layers (ArtifactKey: %v)",
+                    layerOption.ArtifactKey)));
+            }
+            return errorFutures;
+        }
+
         std::vector<TFuture<TOverlayData>> overlayDataFutures;
         overlayDataFutures.reserve(layerOptions.size());
 

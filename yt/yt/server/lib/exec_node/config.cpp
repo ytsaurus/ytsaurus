@@ -250,6 +250,9 @@ void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("throw_on_prepare_volume", &TThis::ThrowOnPrepareVolume)
         .Default(false);
 
+    registrar.Parameter("throw_on_prepare_layers", &TThis::ThrowOnPrepareLayers)
+        .Default(false);
+
     registrar.Parameter("layer_cache", &TThis::LayerCache)
         .DefaultNew();
 }
