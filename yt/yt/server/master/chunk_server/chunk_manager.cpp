@@ -4027,7 +4027,8 @@ private:
 
     TFuture<void> ModifySequoiaReplicas(
         ESequoiaTransactionType transactionType,
-        std::unique_ptr<TReqModifyReplicas> request) override
+        std::unique_ptr<TReqModifyReplicas> request,
+        bool allowBatching) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -4042,7 +4043,8 @@ private:
             transactionType);
 
         const auto& config = GetDynamicConfig();
-        if (transactionType == ESequoiaTransactionType::IncrementalHeartbeat &&
+        if (allowBatching &&
+            transactionType == ESequoiaTransactionType::IncrementalHeartbeat &&
             config->SequoiaChunkReplicas->BatchIncrementalHeartbeat)
         {
             try {

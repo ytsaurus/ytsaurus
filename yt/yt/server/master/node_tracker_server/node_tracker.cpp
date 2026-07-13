@@ -2822,6 +2822,9 @@ private:
         TSensorBuffer buffer;
         NodeDisposalManager_->OnProfiling(&buffer);
 
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        dataNodeTracker->OnProfiling(&buffer);
+
         const auto& localStateToNodeCount = GetLocalStateToNodeCount();
         for (auto state : TEnumTraits<ENodeState>::GetDomainValues()) {
             TWithTagGuard tagGuard(&buffer, "state", FormatEnum(state));
