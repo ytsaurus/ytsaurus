@@ -597,7 +597,6 @@ private:
             prerequisiteRevision->set_path(targetPath);
             prerequisiteRevision->set_revision(revisions.back().Underlying());
 
-            // TODO(danilalexeev): YT-24752. Support TExpirationExt in Sequoia.
             SetCausedByNodeExpiration(&req->Header(), true);
 
             batchReq->AddRequest(req);

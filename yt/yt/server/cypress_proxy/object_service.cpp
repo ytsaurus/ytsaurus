@@ -422,12 +422,22 @@ private:
                 header.set_retry(true);
             }
 
-            const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-            auto mutatingSubrequest = ypathExt.mutating();
+            auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+
+            // Store original path.
+            if (!ypathExt->has_original_target_path()) {
+                ypathExt->set_original_target_path(ypathExt->target_path());
+            }
+
+            if (ypathExt->original_additional_paths_size() == 0) {
+                *ypathExt->mutable_original_additional_paths() = ypathExt->additional_paths();
+            }
+
+            auto mutatingSubrequest = ypathExt->mutating();
 
             YT_LOG_DEBUG("Parsed subrequest (Method: %v, TargetPath: %v, TransactionId: %v, Mutating: %v%v, Retry: %v)",
                 header.method(),
-                ypathExt.target_path(),
+                ypathExt->target_path(),
                 GetTransactionId(header),
                 mutatingSubrequest,
                 MakeFormatterWrapper([&] (TStringBuilderBase* builder) {

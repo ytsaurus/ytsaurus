@@ -17,6 +17,7 @@ import yt.yson as yson
 from copy import deepcopy
 import json
 import os
+from time import sleep
 
 ##################################################################
 
@@ -356,11 +357,19 @@ class TestAccessLog(YTEnvSetup):
         create("table", "//tmp/access_log/enabled")
         enabled_logs.append({"method": "Create", "path": "//tmp/access_log/enabled", "type": "table"})
 
+        if self.USE_SEQUOIA:
+            set("//sys/cypress_proxies/@config/enable_access_log", False)
+            sleep(0.5)
+
         set("//sys/@config/security_manager/enable_access_log", False)
 
         ts = str(generate_timestamp())
         create("table", "//tmp/access_log/{}".format(ts))
         disabled_logs.append({"method": "Create", "path": "//tmp/access_log/{}".format(ts), "type": "table"})
+
+        if self.USE_SEQUOIA:
+            set("//sys/cypress_proxies/@config/enable_access_log", True)
+            sleep(0.5)
 
         set("//sys/@config/security_manager/enable_access_log", True)
 
@@ -465,7 +474,9 @@ class TestAccessLog(YTEnvSetup):
 
         wait(lambda: not exists("//tmp/access_log/table"))
 
-        log_list.append({"path": "//tmp/access_log/table", "method": "TtlRemove"})
+        log_list.append({
+            "path": "//tmp/access_log/table",
+            "method": "TtlRemove"})
         self._validate_entries_against_log(log_list)
 
     def test_write_table(self):
@@ -677,7 +688,7 @@ class TestAccessLog(YTEnvSetup):
 
         create("map_node", "//tmp/access_log")
 
-        attributes = {"external_cell_tag": 11} if self.NUM_SECONDARY_MASTER_CELLS > 1 else {}
+        attributes = {"external_cell_tag": 12} if self.NUM_SECONDARY_MASTER_CELLS > 0 else {}
         attributes["dynamic_store_auto_flush_period"] = yson.YsonEntity()
 
         schema = [
@@ -688,7 +699,7 @@ class TestAccessLog(YTEnvSetup):
         create_dynamic_table("//tmp/access_log/table", schema=schema, **attributes)
         sync_mount_table("//tmp/access_log/table")
 
-        driver = get_driver(1 if self.NUM_SECONDARY_MASTER_CELLS > 0 else 0)
+        driver = get_driver(2 if self.NUM_SECONDARY_MASTER_CELLS > 0 else 0)
         table_id = get("//tmp/access_log/table/@id")
 
         # Reads new logs and adds them to LOADED_LOGS.
@@ -703,14 +714,19 @@ class TestAccessLog(YTEnvSetup):
         wait(lambda: get(f"#{table_id}/@content_revision", driver=driver) != old_content_revision)
 
         log_list = [{
-            "path": "//tmp/access_log/table",
+            "path": f"#{table_id}" if self.NUM_SECONDARY_MASTER_CELLS > 0 else "//tmp/access_log/table",
             "type": "table",
             "id": table_id,
             "method": "Revise",
-            "revision_type": "content"
+            "revision_type": "content",
         }]
 
-        self._validate_entries_against_log(log_list)
+        cell_tag_to_log_filter = (
+            {12: {"prefix_path": f"#{table_id}", "tx_methods": False}}
+            if self.NUM_SECONDARY_MASTER_CELLS > 0
+            else None)
+
+        self._validate_entries_against_log(log_list, cell_tag_to_log_filter=cell_tag_to_log_filter)
 
 
 ##################################################################
@@ -769,3 +785,79 @@ class TestAccessLogPortal(TestAccessLog):
         self._validate_entries_against_log(log_list, cell_tag_to_log_filter={
             11: {"prefix_path": "//tmp/access_log", "tx_methods": False},
             12: {"prefix_path": "//portals/p1", "tx_methods": False}})
+
+
+##################################################################
+
+
+@authors("danilalexeev")
+class TestAccessLogSequoia(TestAccessLog):
+    ENABLE_MULTIDAEMON = False  # Checks structured logs.
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_NODES = 3
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "enable_access_log": True,
+    }
+
+    CELL_TAG_TO_LOG_FILTER = {
+        10: {"prefix_path": "//tmp/access_log", "tx_methods": False},
+        11: {"prefix_path": "//tmp/access_log", "tx_methods": False},
+    }
+
+    @classmethod
+    def modify_cypress_proxy_config(cls, config, cluster_index):
+        if "logging" not in config:
+            config["logging"] = {"flush_period": 100, "rules": [], "writers": {}}
+        config["logging"]["flush_period"] = 100
+        config["logging"]["rules"].append(
+            {
+                "min_level": "debug",
+                "writers": ["access"],
+                "include_categories": ["Access"],
+                "message_format": "structured",
+            }
+        )
+        config["logging"]["writers"]["access"] = {
+            "type": "file",
+            "file_name": os.path.join(cls.path_to_run, "logs/cypress-proxy.access.json.log"),
+            "accepted_message_format": "structured",
+        }
+
+    def _filtered_log_lines(self, cell_tag, path_prefix=None, tx_methods=False):
+        def filter_predicate(parsed_line):
+            if path_prefix is not None and parsed_line.get("path", "").startswith(path_prefix):
+                return True
+            if tx_methods and parsed_line.get("method", "") in self.TRANSACTION_METHODS:
+                return True
+            return False
+
+        for peer_index in range(0, self.NUM_MASTERS):
+            cell_index = self.master_cell_index_from_cell_tag(cell_tag)
+            path = os.path.join(
+                self.path_to_run,
+                "logs/master-{}-{}.access.json.log".format(cell_index, peer_index),
+            )
+            self._load_log(path)
+            for line in self.LOADED_LOGS[path].get("lines", []):
+                if filter_predicate(line):
+                    yield line
+
+        # Bind Cypress proxy to the primary cell to avoid duplicates.
+        if cell_tag == 10:
+            proxy_log_path = os.path.join(self.path_to_run, "logs/cypress-proxy.access.json.log")
+            self._load_log(proxy_log_path)
+            for line in self.LOADED_LOGS[proxy_log_path].get("lines", []):
+                if filter_predicate(line):
+                    yield line
+
+    def test_mutation_id(self):
+        pass  # Proxy emits a random mutation_id per entry; master-peer dedup semantics do not apply.
