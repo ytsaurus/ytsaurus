@@ -47,6 +47,9 @@ def print_job_info(data, job_id):
     click.secho("  Namespace: ", nl=False, bold=True)
     click.echo(data.get("namespace", "—"))
 
+    click.secho("  Scenario:  ", nl=False, bold=True)
+    click.echo(data.get("scenario", "—"))
+
     priority, priority_color = _format_priority(data.get("priority", ""))
     click.secho("  Priority:  ", nl=False, bold=True)
     click.secho(priority, fg=priority_color, bold=True)
