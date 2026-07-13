@@ -10,6 +10,8 @@
 #include <yt/yt/flow/library/cpp/common/time_provider.h>
 #include <yt/yt/flow/library/cpp/common/visit.h>
 
+#include <yt/yt/flow/library/cpp/misc/prefetch.h>
+
 #include <library/cpp/containers/absl/flat_hash_map.h>
 
 #include <library/cpp/iterator/zip.h>
@@ -326,10 +328,14 @@ TSystemTimestamp TSwiftMapComputation::GetInputSystemWatermark()
 void TSwiftMapComputation::ProcessDistributedMessages(const IComputationRunContextPtr& context, std::deque<TOutputMessageConstPtr>&& messages)
 {
     OutputStore_->TryUnregisterBatch(messages);
-    for (const auto& outputMessage : messages) {
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
-        static_cast<TSwiftMapComputationOutputMessage*>(const_cast<TOutputMessage*>(outputMessage.Get()))->OnDistributedCallback();
-    }
+    MakePrefetcher()
+        .Add([] (const TOutputMessageConstPtr& message) {
+            Y_PREFETCH_READ(message.Get(), 3);
+        })
+        .ForEach(messages, [] (const TOutputMessageConstPtr& message) {
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+            static_cast<TSwiftMapComputationOutputMessage*>(const_cast<TOutputMessage*>(message.Get()))->OnDistributedCallback();
+        });
     context->MarkPersisted(std::exchange(PersistedInputMessageIds_, {}));
 }
 
@@ -351,9 +357,16 @@ void TSwiftMapComputation::DoProcess(IInputContextPtr input, IOutputCollectorPtr
     };
 
     THashMap<TKey, TKeyGroup> groups;
-    for (const auto& message : input->GetMessages()) {
-        groups[message->Key].Messages.push_back(message);
-    }
+    MakePrefetcher()
+        .Add([] (const TInputMessageConstPtr& message) {
+            Y_PREFETCH_READ(message.Get(), 3);
+        })
+        .Add([] (const TInputMessageConstPtr& message) {
+            message->Key.Underlying().Prefetch();
+        })
+        .ForEach(input->GetMessages(), [&] (const TInputMessageConstPtr& message) {
+            groups[message->Key].Messages.push_back(message);
+        });
     for (const auto& timer : input->GetTimers()) {
         groups[timer->Key].Timers.push_back(timer);
     }
@@ -372,9 +385,16 @@ void TSwiftMapComputation::DoProcessKey(IInputContextPtr input, IOutputCollector
     for (const auto& timer : input->GetTimers()) {
         DoProcessTimer(timer, output->SetParents({}, {timer}, {}));
     }
-    for (const auto& message : input->GetMessages()) {
-        DoProcessMessage(message, output->SetParents({message}, {}, {}));
-    }
+    MakePrefetcher()
+        .Add([] (const TInputMessageConstPtr& message) {
+            Y_PREFETCH_READ(message.Get(), 3);
+        })
+        .Add([] (const TInputMessageConstPtr& message) {
+            message->Payload.Underlying().Prefetch();
+        })
+        .ForEach(input->GetMessages(), [&] (const TInputMessageConstPtr& message) {
+            DoProcessMessage(message, output->SetParents({message}, {}, {}));
+        });
     for (const auto& visit : input->GetVisits()) {
         DoProcessVisit(visit, output->SetParents({}, {}, {visit}));
     }

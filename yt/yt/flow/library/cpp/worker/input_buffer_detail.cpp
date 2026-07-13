@@ -1,5 +1,7 @@
 #include "input_buffer_detail.h"
 
+#include <yt/yt/flow/library/cpp/misc/prefetch.h>
+
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/serialized_invoker.h>
@@ -232,54 +234,64 @@ std::vector<EMessageDeliveryState> TInputBuffer::DoAddMessages(
     deliveryStates.reserve(messages.size());
     THashSet<TStreamId> congestionDeclinedStreams;
 
-    for (auto& message : messages) {
-        auto messageStateIt = MessageStatesMap_.find(message->MessageId);
-        if (messageStateIt != MessageStatesMap_.end()) {
-            deliveryStates.push_back(messageStateIt->second.CurrentDeliveryState);
-            messageStateIt->second.Subscribers.push_back(onProcessed);
-            continue;
-        }
+    MakePrefetcher()
+        .Add([] (const TInputMessageConstPtr& message) {
+            Y_PREFETCH_READ(message.Get(), 3);
+        })
+        .Add([] (const TInputMessageConstPtr& message) {
+            message->MessageId.Prefetch();
+        })
+        .Add([this] (const TInputMessageConstPtr& message) {
+            MessageStatesMap_.prefetch(message->MessageId);
+        })
+        .ForEach(messages, [&] (TInputMessageConstPtr& message) {
+            auto messageStateIt = MessageStatesMap_.find(message->MessageId);
+            if (messageStateIt != MessageStatesMap_.end()) {
+                deliveryStates.push_back(messageStateIt->second.CurrentDeliveryState);
+                messageStateIt->second.Subscribers.push_back(onProcessed);
+                return;
+            }
 
-        if (congestionDeclinedStreams.contains(message->StreamId)) {
-            deliveryStates.push_back(EMessageDeliveryState::CongestionDeclined);
-            continue;
-        }
+            if (congestionDeclinedStreams.contains(message->StreamId)) {
+                deliveryStates.push_back(EMessageDeliveryState::CongestionDeclined);
+                return;
+            }
 
-        auto& streamState = GetOrCrash(StreamStates_, message->StreamId);
-        auto& streamConnectionState = streamState.ConnectionStates[connectionId];
+            auto& streamState = GetOrCrash(StreamStates_, message->StreamId);
+            auto& streamConnectionState = streamState.ConnectionStates[connectionId];
 
-        // Pre-accept check: a stream with room admits one message even if it alone exceeds the limit.
-        if (!streamState.LimitUsageState->IsUsageWithinLimits(streamState.Usage)) {
-            congestionDeclinedStreams.insert(message->StreamId);
-            deliveryStates.push_back(EMessageDeliveryState::CongestionDeclined);
-            continue;
-        }
-        streamConnectionState.Acquire(InflatedByteSize(message->ByteSize));
-        streamState.Usage.CumulativeByteIn += message->ByteSize;
-        ++streamState.Usage.CumulativeCountIn;
+            // Pre-accept check: a stream with room admits one message even if it alone exceeds the limit.
+            if (!streamState.LimitUsageState->IsUsageWithinLimits(streamState.Usage)) {
+                congestionDeclinedStreams.insert(message->StreamId);
+                deliveryStates.push_back(EMessageDeliveryState::CongestionDeclined);
+                return;
+            }
+            streamConnectionState.Acquire(InflatedByteSize(message->ByteSize));
+            streamState.Usage.CumulativeByteIn += message->ByteSize;
+            ++streamState.Usage.CumulativeCountIn;
 
-        messageStateIt = EmplaceOrCrash(
-            MessageStatesMap_,
-            message->MessageId,
-            TMessageState{
-                .StreamId = message->StreamId,
-                .ByteSize = message->ByteSize,
-                .CurrentDeliveryState = EMessageDeliveryState::Accepted,
-                .Subscribers = {onProcessed},
-                .RegisterTime = now,
+            messageStateIt = EmplaceOrCrash(
+                MessageStatesMap_,
+                message->MessageId,
+                TMessageState{
+                    .StreamId = message->StreamId,
+                    .ByteSize = message->ByteSize,
+                    .CurrentDeliveryState = EMessageDeliveryState::Accepted,
+                    .Subscribers = {onProcessed},
+                    .RegisterTime = now,
+                });
+
+            streamState.Messages.push(TOrderedMessage{
+                .AlignmentTimestamp = message->AlignmentTimestamp,
+                .SeqNo = NextSeqNo_++,
+                .Message = std::move(message),
             });
 
-        streamState.Messages.push(TOrderedMessage{
-            .AlignmentTimestamp = message->AlignmentTimestamp,
-            .SeqNo = NextSeqNo_++,
-            .Message = std::move(message),
+            ++streamState.NotPersistedMessageCount;
+            streamState.NotPersistedMessageGauge.Update(streamState.NotPersistedMessageCount);
+
+            deliveryStates.push_back(EMessageDeliveryState::Accepted);
         });
-
-        ++streamState.NotPersistedMessageCount;
-        streamState.NotPersistedMessageGauge.Update(streamState.NotPersistedMessageCount);
-
-        deliveryStates.push_back(EMessageDeliveryState::Accepted);
-    }
 
     YT_VERIFY(deliveryStates.size() == messages.size());
 
@@ -370,24 +382,31 @@ void TInputBuffer::DoMarkPersisted(std::deque<TMessageId> messageIds, TInstant n
         TOnProcessedCallbackHash>
         messageIdsByCallback;
 
-    for (const auto& messageId : messageIds) {
-        auto it = GetIteratorOrCrash(MessageStatesMap_, messageId);
-        auto& messageState = it->second;
+    MakePrefetcher()
+        .Add([] (const TMessageId& messageId) {
+            messageId.Prefetch();
+        })
+        .Add([this] (const TMessageId& messageId) {
+            MessageStatesMap_.prefetch(messageId);
+        })
+        .ForEach(messageIds, [&] (const TMessageId& messageId) {
+            auto it = GetIteratorOrCrash(MessageStatesMap_, messageId);
+            auto& messageState = it->second;
 
-        for (auto& callback : messageState.Subscribers) {
-            messageIdsByCallback.try_emplace(std::move(callback)).first->second.push_back(messageId);
-        }
-        MessageProcessingTimer_.Record(now - messageState.RegisterTime);
+            for (auto& callback : messageState.Subscribers) {
+                messageIdsByCallback.try_emplace(std::move(callback)).first->second.push_back(messageId);
+            }
+            MessageProcessingTimer_.Record(now - messageState.RegisterTime);
 
-        auto& streamState = GetOrCrash(StreamStates_, messageState.StreamId);
-        streamState.PersistedMessagesCounter.Increment(1);
-        streamState.PersistedBytesCounter.Increment(messageState.ByteSize);
+            auto& streamState = GetOrCrash(StreamStates_, messageState.StreamId);
+            streamState.PersistedMessagesCounter.Increment(1);
+            streamState.PersistedBytesCounter.Increment(messageState.ByteSize);
 
-        --streamState.NotPersistedMessageCount;
-        streamState.NotPersistedMessageGauge.Update(streamState.NotPersistedMessageCount);
+            --streamState.NotPersistedMessageCount;
+            streamState.NotPersistedMessageGauge.Update(streamState.NotPersistedMessageCount);
 
-        MessageStatesMap_.erase(it);
-    }
+            MessageStatesMap_.erase(it);
+        });
 
     FinalizerPoolInvoker_->Invoke(BIND([jobId = JobId_, messageIdsByCallback = std::move(messageIdsByCallback)] () mutable {
         for (auto& [callback, callbackMessageIds] : messageIdsByCallback) {

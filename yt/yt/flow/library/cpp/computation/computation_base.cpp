@@ -16,6 +16,7 @@
 
 #include <yt/yt/flow/library/cpp/distributed_throttler/factory.h>
 
+#include <yt/yt/flow/library/cpp/misc/prefetch.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_client.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
@@ -1218,16 +1219,20 @@ void TUniversalComputationBase::RegisterInputBeforeProcessing(
         }
     };
 
-    for (auto& message : inputMessages) {
-        YT_LOG_DEBUG("MessageLifeCycle.Computation: message was taken to be processed in epoch "
-            "(MessageId: %v, Key: %v, StreamId: %v, SystemTimestamp: %v, EventTimestamp: %v)",
-            message->MessageId,
-            message->Key,
-            message->StreamId,
-            message->SystemTimestamp,
-            message->EventTimestamp);
-        checkWatermark(*message);
-    }
+    MakePrefetcher()
+        .Add([] (const TInputMessageConstPtr& message) {
+            Y_PREFETCH_READ(message.Get(), 3);
+        })
+        .ForEach(inputMessages, [&] (const TInputMessageConstPtr& message) {
+            YT_LOG_DEBUG("MessageLifeCycle.Computation: message was taken to be processed in epoch "
+                "(MessageId: %v, Key: %v, StreamId: %v, SystemTimestamp: %v, EventTimestamp: %v)",
+                message->MessageId,
+                message->Key,
+                message->StreamId,
+                message->SystemTimestamp,
+                message->EventTimestamp);
+            checkWatermark(*message);
+        });
     for (auto& timer : inputTimers) {
         YT_LOG_DEBUG("MessageLifeCycle.Computation: timer was taken to be processed in epoch "
             "(MessageId: %v, Key: %v, StreamId: %v, SystemTimestamp: %v, EventTimestamp: %v, TriggerTimestamp: %v)",

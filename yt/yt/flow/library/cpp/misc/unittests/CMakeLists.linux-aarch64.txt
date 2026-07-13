@@ -73,6 +73,7 @@ target_sources(yt-flow-library-cpp-misc-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/lexicographically_serialize_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/mutable_unversioned_row_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/ordered_memory_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/prefetch_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/retryable_client_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/retryable_transaction_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/status_profiler_ut.cpp

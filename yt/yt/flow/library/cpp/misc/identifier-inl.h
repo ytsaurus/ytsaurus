@@ -133,6 +133,12 @@ constexpr std::string_view TStrongIdentifierTypedef<TTag>::Underlying() const& n
 }
 
 template <class TTag>
+void TStrongIdentifierTypedef<TTag>::Prefetch() const noexcept
+{
+    Y_PREFETCH_READ(Value_.Get(), 3);
+}
+
+template <class TTag>
 size_t TStrongIdentifierTypedef<TTag>::Capacity() const noexcept
 {
     return Value_ ? Value_->ByteSize() : 0;

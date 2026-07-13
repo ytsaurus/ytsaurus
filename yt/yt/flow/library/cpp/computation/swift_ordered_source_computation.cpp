@@ -17,6 +17,7 @@
 
 #include <yt/yt/flow/library/cpp/connectors/common/ordered_source.h>
 #include <yt/yt/flow/library/cpp/misc/ordered_memory.h>
+#include <yt/yt/flow/library/cpp/misc/prefetch.h>
 
 #include <library/cpp/containers/absl/flat_hash_map.h>
 #include <library/cpp/iterator/zip.h>
@@ -485,10 +486,14 @@ bool TSwiftOrderedSourceComputation::CheckDelayedMessages(
 void TSwiftOrderedSourceComputation::ProcessDistributedMessages(const IComputationRunContextPtr& /*context*/, std::deque<TOutputMessageConstPtr>&& messages)
 {
     OutputStore_->TryUnregisterBatch(messages);
-    for (const auto& outputMessage : messages) {
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
-        static_cast<TSwiftOrderedSourceComputationOutputMessage*>(const_cast<TOutputMessage*>(outputMessage.Get()))->OnDistributedCallback();
-    }
+    MakePrefetcher()
+        .Add([] (const TOutputMessageConstPtr& message) {
+            Y_PREFETCH_READ(message.Get(), 3);
+        })
+        .ForEach(messages, [] (const TOutputMessageConstPtr& message) {
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+            static_cast<TSwiftOrderedSourceComputationOutputMessage*>(const_cast<TOutputMessage*>(message.Get()))->OnDistributedCallback();
+        });
 }
 
 THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> TSwiftOrderedSourceComputation::GetExtraInputLimits()
