@@ -10,6 +10,7 @@
                         "out_of_orderness_bound" = 5000;
                         "unavailable_partition_groups" = {
                             "max_groups" = 1;
+                            "min_available_groups" = 0;
                         };
                     };
                 };

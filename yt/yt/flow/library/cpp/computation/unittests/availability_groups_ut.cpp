@@ -90,13 +90,31 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
         ASSERT_EQ(availablePartitionNodes[1], unavailableNode);
     }
 
-    // One fully unavailable availability group. MaxUnavailableGroups = 1. Watermark should be hidden.
+    // One fully unavailable availability group. Default min_available_groups = 1 requires at least
+    // one available group, so the watermark must NOT be hidden.
     {
         auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
             {
                 {"default", {unavailableNode, unavailableNode}},
             },
             spec,
+            TSensorsOwner(),
+            TLogger("Test"));
+        ASSERT_EQ(availablePartitionNodes.size(), 2u);
+        for (const auto& node : availablePartitionNodes) {
+            ASSERT_EQ(ConvertToYsonString(node), ConvertToYsonString(unavailableNode));
+        }
+    }
+
+    // One fully unavailable availability group with min_available_groups = 0. Watermark should be hidden.
+    {
+        auto zeroMinSpec = CloneYsonStruct(spec);
+        zeroMinSpec->WatermarkStrategy->WatermarkGenerator->UnavailablePartitionGroups->MinAvailableGroups = 0;
+        auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
+            {
+                {"default", {unavailableNode, unavailableNode}},
+            },
+            zeroMinSpec,
             TSensorsOwner(),
             TLogger("Test"));
         ASSERT_EQ(availablePartitionNodes.size(), 2u);
@@ -147,6 +165,64 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
             TSensorsOwner(),
             TLogger("Test"));
         ASSERT_EQ(availablePartitionNodes.size(), 4u);
+        for (const auto& node : availablePartitionNodes) {
+            ASSERT_EQ(ConvertToYsonString(node), ConvertToYsonString(unavailableNode));
+        }
+    }
+
+    // watermark_generator without an explicit unavailable_partition_groups block must default to
+    // max_groups = 1, min_available_groups = 1.
+    const TComputationSpecPtr defaultedSpec = ConvertTo<TComputationSpecPtr>(TYsonString(TStringBuf(R"""(
+        {
+            "computation_class_name" = "NColibri::TBigbProfileHitReader";
+            "group_by_schema" = [];
+            "input_stream_ids" = [];
+            "output_stream_ids" = ["bigb_profile_hit";];
+            "parameters" = {};
+            "source_streams" = {
+                "bigb/profile-hit-log" = {
+                };
+            };
+            "streams_dependency" = {
+                "bigb_profile_hit" = ["bigb/profile-hit-log";];
+            };
+            "watermark_strategy" = {
+                "watermark_generator" = {
+                    "out_of_orderness_bound" = 1000;
+                }
+            };
+        }
+    )""")));
+
+    // Three availability groups, one fully unavailable. Watermark should be hidden (default max_groups = 1).
+    {
+        auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
+            {
+                {"sas", {defaultNode, defaultNode}},
+                {"vla", {defaultNode, defaultNode}},
+                {"klg", {unavailableNode, unavailableNode}},
+            },
+            defaultedSpec,
+            TSensorsOwner(),
+            TLogger("Test"));
+        ASSERT_EQ(availablePartitionNodes.size(), 6u);
+        for (const auto& node : availablePartitionNodes) {
+            if (node != defaultNode) {
+                ASSERT_EQ(node->Streams["bigb_profile_hit"]->EventWatermark, hiddenWatermark);
+            }
+        }
+    }
+
+    // Single fully unavailable availability group. Watermark must NOT be hidden (default min_available_groups = 1).
+    {
+        auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
+            {
+                {"default", {unavailableNode, unavailableNode}},
+            },
+            defaultedSpec,
+            TSensorsOwner(),
+            TLogger("Test"));
+        ASSERT_EQ(availablePartitionNodes.size(), 2u);
         for (const auto& node : availablePartitionNodes) {
             ASSERT_EQ(ConvertToYsonString(node), ConvertToYsonString(unavailableNode));
         }

@@ -118,8 +118,11 @@ DEFINE_REFCOUNTED_TYPE(TIdlePartitionsSpec);
 struct TUnavailablePartitionGroupsSpec
     : public NYTree::TYsonStruct
 {
-    // Advance watermark when number of unavailable availability groups is <= MaxGroups.
+    // Advance the watermark past unavailable groups only while unavailable groups <= MaxGroups
+    // and available groups >= MinAvailableGroups. The latter keeps a single-group source (lbkx,
+    // non-LB) from advancing when its only group is down.
     int MaxGroups{};
+    int MinAvailableGroups{};
 
     REGISTER_YSON_STRUCT(TUnavailablePartitionGroupsSpec);
 
