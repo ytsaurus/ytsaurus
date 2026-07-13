@@ -17,6 +17,7 @@ SRCS(
     lexicographically_serialize_ut.cpp
     mutable_unversioned_row_ut.cpp
     ordered_memory_ut.cpp
+    prefetch_ut.cpp
     retryable_client_ut.cpp
     retryable_transaction_ut.cpp
     status_profiler_ut.cpp

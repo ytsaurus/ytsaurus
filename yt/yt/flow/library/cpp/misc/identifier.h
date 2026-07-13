@@ -72,6 +72,9 @@ public:
 
     constexpr std::string_view Underlying() const& noexcept;
 
+    // Prefetches the scattered underlying string data into cache.
+    void Prefetch() const noexcept;
+
     size_t Capacity() const noexcept;
 
     template <typename TArgument>

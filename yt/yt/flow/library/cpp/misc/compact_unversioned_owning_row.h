@@ -75,6 +75,9 @@ public:
 
     size_t GetSpaceUsed() const;
 
+    // Prefetches the single scattered row allocation into cache.
+    void Prefetch() const noexcept;
+
     // Comparison operators (lexicographic, same as TUnversionedRow).
     friend bool operator==(const TCompactUnversionedOwningRow& lhs, const TCompactUnversionedOwningRow& rhs);
     friend bool operator<(const TCompactUnversionedOwningRow& lhs, const TCompactUnversionedOwningRow& rhs);

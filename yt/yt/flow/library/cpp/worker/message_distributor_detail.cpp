@@ -6,6 +6,8 @@
 
 #include <yt/yt/flow/library/cpp/common/worker/message_id_batch.h>
 
+#include <yt/yt/flow/library/cpp/misc/prefetch.h>
+
 #include <library/cpp/iterator/zip.h>
 
 #include <util/digest/multi.h>
@@ -375,10 +377,17 @@ bool TWorkerConnection::DoRequest()
                 continue;
             }
             jobData.set_message_count(tasksIt->second.size());
-            for (const auto* task : tasksIt->second) {
-                batchSerializer.AddMessage(task->Task.Message);
-                sentTaskInfos.emplace_back(jobId, task->Task.Message->StreamId, task->Task.GetKey());
-            }
+            MakePrefetcher()
+                .Add([] (const auto* task) {
+                    Y_PREFETCH_READ(task, 3);
+                })
+                .Add([] (const auto* task) {
+                    Y_PREFETCH_READ(task->Task.Message.Get(), 3);
+                })
+                .ForEach(tasksIt->second, [&] (const auto* task) {
+                    batchSerializer.AddMessage(task->Task.Message);
+                    sentTaskInfos.emplace_back(jobId, task->Task.Message->StreamId, task->Task.GetKey());
+                });
         }
         req->Attachments().push_back(batchSerializer.Finish());
     }

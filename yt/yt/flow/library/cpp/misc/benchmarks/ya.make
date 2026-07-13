@@ -10,9 +10,11 @@ SRCS(
     indexed_yson_string_bench.cpp
     identifier_bench.cpp
     keyed_heap_bench.cpp
+    prefetch_bench.cpp
 )
 
 PEERDIR(
+    library/cpp/containers/absl
     yt/yt/core
     yt/yt/core/test_framework
     yt/yt/flow/library/cpp/misc

@@ -8,6 +8,13 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline void TCompactUnversionedOwningRow::Prefetch() const noexcept
+{
+    Y_PREFETCH_READ(Data_.Get(), 3);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TFunctor>
 TCompactUnversionedOwningRow::TCompactUnversionedOwningRow(
     int count,
