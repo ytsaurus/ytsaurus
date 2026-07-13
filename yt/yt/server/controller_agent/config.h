@@ -1290,6 +1290,8 @@ struct TControllerAgentConfig
 
     // Supposed to be used in tests.
     std::optional<i64> FootprintMemory;
+    // Supposed to be set for asan builds to account for ytserver-exec's memory.
+    std::optional<i64> ExecFootprintMemory;
 
     //! Enables job profiling.
     bool EnableJobProfiling;
