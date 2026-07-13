@@ -138,13 +138,23 @@ public:
                 {
                     EProfilerScope::ObjectPass,
                     profiler
-                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Queue>(row, /*enablePathAggregation*/ true, /*addObjectType*/ true, leading))
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Queue>(
+                            row,
+                            NDetail::TProfilingOptions{
+                                .EnablePathAggregation = true,
+                                .AddObjectType = true,
+                                .Leading = leading,
+                            }))
                         .WithPrefix("/queue/controller"),
                 },
                 {
                     EProfilerScope::AlertManager,
                     profiler
-                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Queue>(row, /*enablePathAggregation*/ true))
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Queue>(
+                            row,
+                            NDetail::TProfilingOptions{
+                                .EnablePathAggregation = true,
+                            }))
                         .WithGlobal()
                         .WithPrefix("/queue/controller"),
                 },
@@ -293,6 +303,7 @@ public:
     TConsumerProfileManager(
         const TProfiler& profiler,
         const TLogger& logger,
+        const std::optional<std::string>& consumerName,
         const TConsumerTableRow& row,
         bool leading)
         : TProfileManagerBase(
@@ -300,21 +311,36 @@ public:
                 {
                     EProfilerScope::Object,
                     profiler
-                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Consumer>(row))
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Consumer>(
+                            row,
+                            NDetail::TProfilingOptions{
+                                .Name = consumerName,
+                            }))
                         .WithGlobal()
                         .WithPrefix("/consumer"),
                 },
                 {
                     EProfilerScope::ObjectPartition,
                     profiler
-                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Consumer>(row))
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Consumer>(
+                            row,
+                            NDetail::TProfilingOptions{
+                                .Name = consumerName,
+                            }))
                         .WithGlobal()
                         .WithPrefix("/consumer_partition"),
                 },
                 {
                     EProfilerScope::ObjectPass,
                     profiler
-                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Consumer>(row, /*enablePathAggregation*/ true, /*addObjectType*/ true, leading))
+                        .WithTags(NDetail::CreateObjectProfilingTags<EObjectKind::Consumer>(
+                            row,
+                            NDetail::TProfilingOptions{
+                                .EnablePathAggregation = true,
+                                .AddObjectType = true,
+                                .Leading = leading,
+                                .Name = consumerName,
+                            }))
                         .WithPrefix("/consumer/controller"),
                 },
                 {EProfilerScope::AlertManager, profiler},
@@ -528,10 +554,11 @@ IQueueProfileManagerPtr CreateQueueProfileManager(
 IConsumerProfileManagerPtr CreateConsumerProfileManager(
     const TProfiler& profiler,
     const TLogger& logger,
+    const std::optional<std::string>& consumerName,
     const TConsumerTableRow& row,
     bool leading)
 {
-    return New<TConsumerProfileManager>(profiler, logger, row, leading);
+    return New<TConsumerProfileManager>(profiler, logger, consumerName, row, leading);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

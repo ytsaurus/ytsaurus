@@ -484,7 +484,7 @@ public:
             BIND(&TConsumerController::Pass, MakeWeak(this)),
             dynamicConfig->PassPeriod))
         , BaseProfiler_(profiler)
-        , ProfileManager_(CreateConsumerProfileManager(profiler, Logger, *row, leading))
+        , ProfileManager_(CreateConsumerProfileManager(profiler, Logger, ConsumerRef_.GetQueueConsumerName(), *row, leading))
         , PassProfiler_(New<TPassProfiler>(ProfileManager_.Acquire()->GetProfiler(EProfilerScope::ObjectPass)))
     {
         // Prepare initial erroneous snapshot.
@@ -509,7 +509,7 @@ public:
 
         auto oldRow = ConsumerRow_.Exchange(consumerRow);
         if (oldRow->QueueConsumerProfilingTag != consumerRow->QueueConsumerProfilingTag) {
-            ProfileManager_.Store(CreateConsumerProfileManager(BaseProfiler_, Logger, *consumerRow, Leading_));
+            ProfileManager_.Store(CreateConsumerProfileManager(BaseProfiler_, Logger, ConsumerRef_.GetQueueConsumerName(), *consumerRow, Leading_));
             PassProfiler_.Store(New<TPassProfiler>(ProfileManager_.Acquire()->GetProfiler(EProfilerScope::ObjectPass)));
         }
     }
