@@ -322,15 +322,18 @@ auto TQueueSourceImpl::DoReadNextBatch(
     auto nextOffset = OffsetToInt(nextOffsetAsKey);
     auto offsetLimit = offsetLimitAsKey ? std::optional(OffsetToInt(*offsetLimitAsKey)) : std::nullopt;
 
-    const auto actualParameters = std::pair(settings, nextOffset);
-
-    if (CurrentRequestFuture_ && actualParameters != CurrentRequestParameters_) {
+    const auto& [currentSettings, currentNextOffset] = CurrentRequestParameters_;
+    auto batcherSettingsChanged = [&] {
+        return settings != currentSettings &&
+            *ConvertTo<TMessageBatcherSettingsPtr>(settings) != *ConvertTo<TMessageBatcherSettingsPtr>(currentSettings);
+    };
+    if (CurrentRequestFuture_ && (nextOffset != currentNextOffset || batcherSettingsChanged())) {
         CurrentRequestFuture_.Cancel(TError("Reading batch parameters have changed, so result of current request is useless"));
         CurrentRequestFuture_ = {};
     }
 
     if (!CurrentRequestFuture_) {
-        CurrentRequestParameters_ = actualParameters;
+        CurrentRequestParameters_ = std::pair(settings, nextOffset);
 
         NQueueClient::TQueueRowBatchReadOptions rowBatchReadOptions;
         rowBatchReadOptions.MaxRowCount = settings->MaxRowsPerBatch;
