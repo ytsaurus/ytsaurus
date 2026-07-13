@@ -99,6 +99,12 @@ def prepend_hash(schema):
 
     return [hash_column] + schema
 
+
+class TAny:
+    def __eq__(self, other):
+        return True
+
+
 ##################################################################
 
 
@@ -1757,25 +1763,31 @@ class TestChaosMetadata(TestSecondaryIndexChaosBase):
             "type": "replication",
             "table_paths": [table_path, index_path]
         })
-        alter_replication_card(self.table_to_replication_card[table_path], create_secondary_index=attributes)
 
-        assert self._get_replication_card(table_path)["secondary_indices"] == {
+        alter_replication_card(self.table_to_replication_card[table_path], create_secondary_index=attributes)
+        wait(lambda: self._get_replication_card(table_path)["state"] == "normal")
+
+        rc = self._get_replication_card(table_path)
+        assert rc["secondary_indices"] == {
             self.table_to_replication_card[index_path] : {
                 "kind": "full_sync",
                 "correspondence": "bijective",
                 "index_object_id": self.table_to_replication_card[index_path],
+                "backfill_timestamp": TAny()
             }
         }
+        assert "secondary_index_pending_transition" not in rc
 
-        with raises_yt_error("Cannot update replication card collocation, because replication card has secondary indices"):
+        with raises_yt_error("Cannot update replication card collocation, because replication card has present or pending secondary indices"):
             alter_replication_card(self.table_to_replication_card[table_path], replication_card_collocation_id="0-0-0-0")
 
-        with raises_yt_error("Cannot update replication card collocation, because replication card has secondary indices"):
+        with raises_yt_error("Cannot update replication card collocation, because replication card has present or pending secondary indices"):
             alter_replication_card(self.table_to_replication_card[index_path], replication_card_collocation_id="0-0-0-0")
 
         alter_replication_card(
             self.table_to_replication_card[table_path],
             destroy_secondary_index=self.table_to_replication_card[index_path])
+        wait(lambda: self._get_replication_card(table_path)["state"] == "normal")
 
         assert "secondary_indices" not in self._get_replication_card(table_path)
 

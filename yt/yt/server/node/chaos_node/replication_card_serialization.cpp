@@ -1,3 +1,5 @@
+#include "replication_card_serialization.h"
+
 #include "replication_card.h"
 #include "replication_card_collocation.h"
 #include "serialize.h"
@@ -14,6 +16,7 @@ using namespace NChaosClient;
 using namespace NChaosNode;
 using namespace NElection;
 using namespace NYson;
+using namespace NTabletClient;
 
 using NYT::ToProto;
 
@@ -94,6 +97,26 @@ void ToProto(
     for (const auto& secondaryIndex : replicationCard.SecondaryIndices()) {
         ToProto(protoReplicationCard->add_secondary_indices(), secondaryIndex);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NChaosNode::NProto::TSecondaryIndexPendingTransition* serialized, const TSecondaryIndexPendingTransitionPtr& original)
+{
+    serialized->set_state(ToProto(original->State));
+    ToProto(serialized->mutable_index_replication_card_id(), original->IndexReplicationCardId);
+    YT_OPTIONAL_SET_PROTO(serialized, new_correspondence, original->NewCorrespondence);
+}
+
+void FromProto(TSecondaryIndexPendingTransitionPtr* original, const NChaosNode::NProto::TSecondaryIndexPendingTransition& serialized)
+{
+    auto secondaryIndexPendingTransition = New<TSecondaryIndexPendingTransition>();
+
+    FromProto(&secondaryIndexPendingTransition->State, serialized.state());
+    FromProto(&secondaryIndexPendingTransition->IndexReplicationCardId, serialized.index_replication_card_id());
+    secondaryIndexPendingTransition->NewCorrespondence = YT_OPTIONAL_FROM_PROTO(serialized, new_correspondence, ETableToIndexCorrespondence);
+
+    *original = std::move(secondaryIndexPendingTransition);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

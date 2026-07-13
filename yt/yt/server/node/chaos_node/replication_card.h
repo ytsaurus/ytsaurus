@@ -30,6 +30,33 @@ struct TReplicaCounters
     const NProfiling::TTimeGauge LagTime;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+// Until pending changes are committed on era change, they are not visible to proxies.
+// For example, proxies do not see indices in PendingCreation state at all.
+DEFINE_ENUM(ESecondaryIndexTransitionState,
+    ((PendingCreation)                  (0))
+    ((PendingRemoval)                   (1))
+    ((PendingCorrespondenceChange)      (2))
+);
+
+// Only used for internal bookkeeping between chaos cells.
+struct TSecondaryIndexPendingTransition
+    : public NYTree::TYsonStruct
+{
+    ESecondaryIndexTransitionState State;
+    NChaosClient::TReplicationCardId IndexReplicationCardId;
+    std::optional<NTabletClient::ETableToIndexCorrespondence> NewCorrespondence;
+
+    REGISTER_YSON_STRUCT(TSecondaryIndexPendingTransition);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSecondaryIndexPendingTransition)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TReplicationCard
     : public TChaosObjectBase
     , public TRefTracked<TReplicationCard>
@@ -56,11 +83,12 @@ public:
     using TSecondaryIndices = std::vector<NTabletClient::TIndexInfo>;
     DEFINE_BYREF_RW_PROPERTY(TSecondaryIndices, SecondaryIndices);
     DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationCardId, IndexTo);
+    DEFINE_BYREF_RW_PROPERTY(TSecondaryIndexPendingTransitionPtr, SecondaryIndexPendingTransition);
 
     NChaosClient::TReplicaInfo* FindReplica(NChaosClient::TReplicaId replicaId);
     NChaosClient::TReplicaInfo* GetReplicaOrThrow(NChaosClient::TReplicaId replicaId);
 
-    TReplicationCard::TSecondaryIndices::iterator FindSecondaryIndex(TReplicationCardId indexCardId);
+    TReplicationCard::TSecondaryIndices::iterator FindSecondaryIndex(NChaosClient::TReplicationCardId indexCardId);
 
 public:
     TReplicationCard(NObjectClient::TObjectId id);
@@ -72,6 +100,7 @@ public:
     bool IsMigrated() const;
     bool IsCollocationMigrating() const;
     void ValidateCollocationNotMigrating() const;
+    void ValidateNoPendingSecondaryIndexChanges() const;
     NChaosClient::TReplicationCardPtr ConvertToClientCard(const NChaosClient::TReplicationCardFetchOptions& options);
 };
 
@@ -80,4 +109,3 @@ void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicatio
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosNode
-

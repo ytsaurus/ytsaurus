@@ -75,6 +75,13 @@ message TReqRemoveExpiredReplicaHistory
     repeated TExpiredReplicaHistory expired_replica_histories = 1;
 }
 
+message TSecondaryIndexPendingTransition
+{
+    required int32 state = 1;
+    required NYT.NProto.TGuid index_replication_card_id = 2;
+    optional int32 new_correspondence = 3;
+}
+
 message TReqMigrateReplicationCards
 {
     message TMigrationCard
@@ -84,6 +91,7 @@ message TReqMigrateReplicationCards
         required NYT.NChaosClient.NProto.TReplicationCard replication_card = 3;
         optional int32 replication_card_collocation_size = 4;
         optional string replication_card_collocation_options = 5;
+        optional TSecondaryIndexPendingTransition secondary_index_pending_transition = 6;
     }
 
     required NYT.NProto.TGuid emigrated_from_cell_id = 1;

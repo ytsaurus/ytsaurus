@@ -2071,6 +2071,9 @@ private:
                 FromProto(&indexInfo, protoSecondaryIndex);
                 replicationCard->SecondaryIndices().emplace_back(std::move(indexInfo));
             }
+            if (protoMigrationCard.has_secondary_index_pending_transition()) {
+                FromProto(&replicationCard->SecondaryIndexPendingTransition(), protoMigrationCard.secondary_index_pending_transition());
+            }
 
             auto& migration = replicationCard->Migration();
             if (IsDomesticReplicationCard(replicationCardId)) {
@@ -2194,6 +2197,10 @@ private:
                 ConvertToYsonString(collocation->Options()).ToString());
         } else if (replicationCard->GetAwaitingCollocationId()) {
             ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), replicationCard->GetAwaitingCollocationId());
+        }
+
+        if (replicationCard->SecondaryIndexPendingTransition()) {
+            ToProto(protoMigrationCard->mutable_secondary_index_pending_transition(), replicationCard->SecondaryIndexPendingTransition());
         }
 
         TReplicationCardFetchOptions fetchOptions{
@@ -2516,6 +2523,8 @@ private:
 
         auto newEra = replicationCard->GetEra() + 1;
         replicationCard->SetEra(newEra);
+
+        MaybeApplyPendingSecondaryIndexAlteration(replicationCard, timestamp);
 
         for (auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
             bool updated = false;
@@ -2976,6 +2985,8 @@ private:
         tableCollocation->ValidateNotMigrating();
         ValidateInNormalState(replicationCard);
         ValidateInNormalState(indexTableReplicationCard);
+        replicationCard->ValidateNoPendingSecondaryIndexChanges();
+        indexTableReplicationCard->ValidateNoPendingSecondaryIndexChanges();
 
         THROW_ERROR_EXCEPTION_UNLESS(indexTableReplicationCard->SecondaryIndices().empty(),
             "Cannot use a table with indices as an index");
@@ -3007,6 +3018,13 @@ private:
         replicationCard->SecondaryIndices().emplace_back(std::move(secondaryIndexInfo));
 
         indexTableReplicationCard->IndexTo() = replicationCard->GetId();
+
+        auto pending = New<TSecondaryIndexPendingTransition>();
+        pending->IndexReplicationCardId = alteration->IndexReplicationCardId;
+        pending->State = ESecondaryIndexTransitionState::PendingCreation;
+        replicationCard->SecondaryIndexPendingTransition() = std::move(pending);
+
+        UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForAlter);
     }
 
     void ProgressSecondaryIndexCorrespondence(
@@ -3015,6 +3033,7 @@ private:
     {
         replicationCard->ValidateCollocationNotMigrating();
         ValidateInNormalState(replicationCard);
+        replicationCard->ValidateNoPendingSecondaryIndexChanges();
 
         auto secondaryIndexIt = replicationCard->FindSecondaryIndex(alteration->IndexReplicationCardId);
 
@@ -3023,14 +3042,21 @@ private:
             replicationCard->GetId(),
             alteration->IndexReplicationCardId);
 
-        YT_LOG_DEBUG("Progressing secondary index (ReplicationCardId: %v, IndexReplicationCardId: %v, "
-            "OldCorrespondence: %Qlv, NewCorrespondence: %Qlv)",
+        YT_LOG_DEBUG("Staging secondary index correspondence progress, to be applied once the new era "
+            "commences (ReplicationCardId: %v, IndexReplicationCardId: %v, OldCorrespondence: %Qlv, "
+            "NewCorrespondence: %Qlv)",
             replicationCard->GetId(),
             alteration->IndexReplicationCardId,
             secondaryIndexIt->Correspondence,
             alteration->NewCorrespondence);
 
-        secondaryIndexIt->Correspondence = alteration->NewCorrespondence;
+        auto pending = New<TSecondaryIndexPendingTransition>();
+        pending->IndexReplicationCardId = alteration->IndexReplicationCardId;
+        pending->State = ESecondaryIndexTransitionState::PendingCorrespondenceChange;
+        pending->NewCorrespondence = alteration->NewCorrespondence;
+        replicationCard->SecondaryIndexPendingTransition() = std::move(pending);
+
+        UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForAlter);
     }
 
     void RemoveSecondaryIndex(
@@ -3038,6 +3064,7 @@ private:
         TReplicationCardId indexReplicationCardId)
     {
         replicationCard->ValidateCollocationNotMigrating();
+        replicationCard->ValidateNoPendingSecondaryIndexChanges();
 
         auto secondaryIndexIt = replicationCard->FindSecondaryIndex(indexReplicationCardId);
 
@@ -3050,37 +3077,88 @@ private:
 
         auto* indexTableReplicationCard = FindReplicationCard(indexReplicationCardId);
         if (!indexTableReplicationCard) {
-            // This state MUST be unreachable.
-            YT_LOG_ALERT("Index replication card is missing during secondary index removal, proceeding "
+            YT_LOG_DEBUG("Index replication card is missing during secondary index removal, proceeding "
                 "(ReplicationCardId: %v, IndexReplicationCardId: %v)",
                 replicationCard->GetId(),
                 indexReplicationCardId);
 
-            replicationCard->SecondaryIndices().erase(secondaryIndexIt);
+            return;
+        } else {
+            indexTableReplicationCard->ValidateCollocationNotMigrating();
+            ValidateInNormalState(indexTableReplicationCard);
+        }
+
+        YT_LOG_DEBUG("Staging secondary index removal, to be applied once the new era commences "
+            "(ReplicationCardId: %v, IndexReplicationCardId: %v)",
+            replicationCard->GetId(),
+            indexReplicationCardId);
+
+        auto pending = New<TSecondaryIndexPendingTransition>();
+        pending->IndexReplicationCardId = indexReplicationCardId;
+        pending->State = ESecondaryIndexTransitionState::PendingRemoval;
+        replicationCard->SecondaryIndexPendingTransition() = std::move(pending);
+
+        UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForAlter);
+    }
+
+    void MaybeApplyPendingSecondaryIndexAlteration(TReplicationCard* replicationCard, TTimestamp eraTimestamp)
+    {
+        auto& pending = replicationCard->SecondaryIndexPendingTransition();
+        if (!pending) {
+            return;
+        }
+
+        auto it = replicationCard->FindSecondaryIndex(pending->IndexReplicationCardId);
+        if (it == replicationCard->SecondaryIndices().end()) {
+            YT_LOG_ALERT("Pending secondary index alteration target is missing "
+                "(ReplicationCardId: %v, MissingIndexReplicationCardId: %v, Alteration: %Qlv)",
+                replicationCard->GetId(),
+                pending->IndexReplicationCardId,
+                pending->State);
+
+            pending.Reset();
 
             return;
         }
 
-        indexTableReplicationCard->ValidateCollocationNotMigrating();
-        ValidateInNormalState(indexTableReplicationCard);
+        switch (pending->State) {
+            case ESecondaryIndexTransitionState::PendingCreation: {
+                it->BackfillTimestamp = eraTimestamp;
+                // Only need to clear pending transition marker now, index is already in the list.
+                break;
+            }
 
-        YT_LOG_DEBUG("Removing secondary index (ReplicationCardId: %v, IndexReplicationCardId: %v)",
-            replicationCard->GetId(),
-            indexReplicationCardId);
+            case ESecondaryIndexTransitionState::PendingCorrespondenceChange: {
+                it->Correspondence = *pending->NewCorrespondence;
+                break;
+            }
 
-        replicationCard->SecondaryIndices().erase(secondaryIndexIt);
+            case ESecondaryIndexTransitionState::PendingRemoval: {
+                replicationCard->SecondaryIndices().erase(it);
 
-        auto& indexTo = indexTableReplicationCard->IndexTo();
-
-        if (indexTo == replicationCard->GetId()) {
-            indexTo = NullObjectId;
-        } else {
-            YT_LOG_ALERT("Encountered broken index replication card state during secondary index removal "
-                "(ReplicationCardId: %v, ExpectedIndexReplicationCardId: %v, EncounteredReplicationCardId: %v)",
-                replicationCard->GetId(),
-                indexReplicationCardId,
-                indexTo);
+                if (auto* indexTableReplicationCard = FindReplicationCard(pending->IndexReplicationCardId)) {
+                    auto& indexTo = indexTableReplicationCard->IndexTo();
+                    if (indexTo == replicationCard->GetId()) {
+                        indexTo = NullObjectId;
+                    } else {
+                        YT_LOG_ALERT("Encountered broken index replication card state during secondary "
+                            "index removal (ReplicationCardId: %v, ExpectedIndexReplicationCardId: %v, "
+                            "EncounteredReplicationCardId: %v)",
+                            replicationCard->GetId(),
+                            pending->IndexReplicationCardId,
+                            indexTo);
+                    }
+                } else {
+                    YT_LOG_ALERT("Index replication card is missing during secondary "
+                        "index removal (ReplicationCardId: %v, IndexReplicationCardId: %v)",
+                        replicationCard->GetId(),
+                        pending->IndexReplicationCardId);
+                }
+                break;
+            }
         }
+
+        pending.Reset();
     }
 
     void UpdateReplicationCardCollocation(
@@ -3092,8 +3170,11 @@ private:
             return;
         }
 
-        THROW_ERROR_EXCEPTION_IF(replicationCard->IndexTo() || !replicationCard->SecondaryIndices().empty(),
-            "Cannot update replication card collocation, because replication card has secondary indices "
+        THROW_ERROR_EXCEPTION_IF(
+            replicationCard->IndexTo() ||
+            !replicationCard->SecondaryIndices().empty() ||
+            replicationCard->SecondaryIndexPendingTransition(),
+            "Cannot update replication card collocation, because replication card has present or pending secondary indices "
             "(ReplicationCardId: %v, CollocationId: %v, Migration: %v)",
             replicationCard->GetId(),
             collocation ? collocation->GetId() : NullObjectId,
@@ -3401,6 +3482,10 @@ private:
                                 fluent
                                     .Item(ToString(secondaryIndex.IndexObjectId)).Value(secondaryIndex);
                             });
+                })
+                .DoIf(static_cast<bool>(card->SecondaryIndexPendingTransition()), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("secondary_index_pending_transition").Value(card->SecondaryIndexPendingTransition());
                 })
             .EndMap();
     }
