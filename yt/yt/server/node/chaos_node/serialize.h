@@ -49,6 +49,7 @@ DEFINE_ENUM(EChaosReign,
     // 26.2 starts here.
     ((Start_26_2)                               (300500)) // sabdenovch
     ((SecondaryIndices)                         (300501)) // sabdenovch
+    ((SecondaryIndexTransitionStates)           (300502)) // sabdenovch
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");
