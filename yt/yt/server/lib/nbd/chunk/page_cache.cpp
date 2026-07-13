@@ -78,21 +78,21 @@ TFuture<void> TPageCache::Finalize()
         .Run();
 }
 
-TFuture<void> TPageCache::Flush()
+TFuture<void> TPageCache::Flush(const TFlushOptions& options)
 {
     // First flush all dirty pages from the cache to the data node via WriteBatch,
     // then ask the data node to fsync the data to disk via Flush RPC.
-    return FlushBatch(std::numeric_limits<int>::max())
-        .Apply(BIND([this, this_ = MakeStrong(this)] () {
-            return ChunkHandler_->Flush();
+    return FlushBatch(std::numeric_limits<int>::max(), options.Cookie)
+        .Apply(BIND([this, this_ = MakeStrong(this), cookie = options.Cookie] () {
+            return ChunkHandler_->Flush({.Cookie = cookie});
         }));
 }
 
-TFuture<void> TPageCache::FlushBatch(i64 maxPages)
+TFuture<void> TPageCache::FlushBatch(i64 maxPages, ui64 cookie)
 {
-    YT_LOG_DEBUG("Flushing page cache (MaxPages: %v)", maxPages);
+    YT_LOG_DEBUG("Flushing page cache (MaxPages: %v, Cookie: %x)", maxPages, cookie);
 
-    return BIND([this, this_ = MakeStrong(this), maxPages] {
+    return BIND([this, this_ = MakeStrong(this), maxPages, cookie] {
         // Acquire the writer lock and HOLD it (via RAII on this scope) for the entire
         // flush — through the Write-RPCs and until they complete. While the writer lock
         // is held, no Read()/Write()/Flush() can run, so page data cannot be modified,
@@ -187,7 +187,7 @@ TFuture<void> TPageCache::FlushBatch(i64 maxPages)
                 batchEnd - batchStart,
                 subrequests.size());
 
-            auto result = WaitFor(ChunkHandler_->WriteBatch(subrequests, {}));
+            auto result = WaitFor(ChunkHandler_->WriteBatch(subrequests, {.Cookie = cookie}));
 
             // WriteBatch is all-or-nothing: if the RPC fails, all pages in the batch
             // must be re-marked as dirty for the next flush to retry them.

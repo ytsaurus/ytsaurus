@@ -118,11 +118,13 @@ message TRspWriteBatch
 message TReqFlush
 {
     required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    optional uint64 cookie = 2;
 }
 
 message TRspFlush
 {
-    optional bool should_close_session = 1;
+    optional uint64 cookie = 1;
+    optional bool should_close_session = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

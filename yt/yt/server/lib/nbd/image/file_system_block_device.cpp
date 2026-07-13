@@ -127,7 +127,7 @@ public:
         return MakeFuture<TWriteResponse>(TError("Writes are not supported"));
     }
 
-    TFuture<void> Flush() override
+    TFuture<void> Flush(const TFlushOptions& /*options*/) override
     {
         return OKFuture;
     }

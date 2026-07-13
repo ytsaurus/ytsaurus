@@ -89,20 +89,25 @@ public:
         return FinalizeFuture_;
     }
 
-    TFuture<void> Flush() override
+    TFuture<void> Flush(const TFlushOptions& options) override
     {
         if (State_ != EState::Initialized) {
-            YT_LOG_DEBUG("Can not flush uninitialized chunk handler");
+            YT_LOG_DEBUG("Can not flush uninitialized chunk handler (Cookie: %x)",
+                options.Cookie);
             return OKFuture;
         }
 
-        YT_LOG_DEBUG("Flushing chunk handler");
+        YT_LOG_DEBUG("Flushing chunk handler (Cookie: %x)",
+            options.Cookie);
 
         auto req = Proxy_.Flush();
-        req->SetRequestInfo("ChunkId: %v", SessionId_.ChunkId);
+        req->SetRequestInfo("ChunkId: %v, Cookie: %x",
+            SessionId_.ChunkId,
+            options.Cookie);
 
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
+        req->set_cookie(options.Cookie);
         req->SetMultiplexingBand(EMultiplexingBand::Interactive);
         req->SetMultiplexingParallelism(Config_->MultiplexingParallelism);
 

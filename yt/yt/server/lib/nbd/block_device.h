@@ -48,6 +48,14 @@ struct TWriteResponse
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFlushOptions
+{
+    //! Request id issued by linux kernel (NBD module).
+    ui64 Cookie = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Represents a block device that can be exposed via the NBD protocol.
 struct IBlockDevice
     : public virtual TRefCounted
@@ -77,7 +85,7 @@ struct IBlockDevice
         const TSharedRef& data,
         const TWriteOptions& options = {}) = 0;
 
-    virtual TFuture<void> Flush() = 0;
+    virtual TFuture<void> Flush(const TFlushOptions& options = {}) = 0;
 
     //! Get the latest error set for device.
     virtual TError GetError() const = 0;

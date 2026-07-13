@@ -356,15 +356,15 @@ public:
                 }));
     }
 
-    TFuture<void> Flush() override
+    TFuture<void> Flush(const TFlushOptions& options) override
     {
         // Acquire reader lock so that Finalize() (which acquires the writer lock) cannot
         // tear down the chunk handler while an in-flight Flush() is still issuing RPCs.
         return TAsyncLockReaderGuard::Acquire(&InitLock_)
             .AsUnique()
             .Apply(BIND(
-                [this, this_ = MakeStrong(this)] (TReaderGuardPtr&& readerGuard) mutable -> TFuture<void> {
-                    return ChunkHandler_->Flush()
+                [this, this_ = MakeStrong(this), cookie = options.Cookie] (TReaderGuardPtr&& readerGuard) mutable -> TFuture<void> {
+                    return ChunkHandler_->Flush({.Cookie = cookie})
                         .Apply(BIND(
                             [this, this_ = MakeStrong(this), readerGuard = std::move(readerGuard)] (const TError& flushError) mutable -> TFuture<void> {
                                 // Wait for in-flight requests regardless of flush outcome:
