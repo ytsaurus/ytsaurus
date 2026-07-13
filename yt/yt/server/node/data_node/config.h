@@ -955,6 +955,10 @@ struct TDataNodeConfig
     //! Smoothing interval for net out limit throttling.
     TDuration NetOutThrottlingDuration;
 
+    //! Write requests are throttled when the number of bytes queued at in_throttler exceeds this limit.
+    //! This is a global limit.
+    i64 NetInThrottlingLimit;
+
     //! If |true| data node will reply instantly when network is throttling.
     bool EnableSendBlocksNetThrottling;
 
@@ -1146,6 +1150,8 @@ struct TDataNodeDynamicConfig
 
     std::optional<i64> NetOutThrottlingLimit;
 
+    std::optional<i64> NetInThrottlingLimit;
+
     std::optional<i64> DiskWriteThrottlingLimit;
     std::optional<i64> DiskReadThrottlingLimit;
 
@@ -1155,6 +1161,9 @@ struct TDataNodeDynamicConfig
 
     //! If |true|, write throttling is reflected in CheckWritable / GetIOWeight.
     std::optional<bool> EnableWriteThrottlingWritableCheck;
+
+    //! if |true|, network in_throttler queue size is checked on StartChunk.
+    std::optional<bool> EnableInThrottlerQueueWritableCheck;
 
     std::optional<bool> EnableSequentialIORequests;
 

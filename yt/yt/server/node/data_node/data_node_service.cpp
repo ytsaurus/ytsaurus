@@ -324,6 +324,16 @@ private:
 
         ValidateOnline();
 
+        if (GetDynamicConfig()->EnableInThrottlerQueueWritableCheck.value_or(false)) {
+            auto netThrottling = CheckNetInThrottling(context, options.WorkloadDescriptor);
+            if (netThrottling.Enabled) {
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::WriteThrottlingActive,
+                    "Pending network in throttling queue size exceeds throttling limit")
+                    << TErrorAttribute("net_queue_size", netThrottling.QueueSize);
+            }
+        }
+
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
         response->set_use_probe_put_blocks(session->ShouldUseProbePutBlocks());
@@ -2935,30 +2945,29 @@ private:
         }
     }
 
-    struct TNetThrottlingResult
-    {
-        bool Enabled;
-        i64 QueueSize;
-    };
-
     template <class TContextPtr>
     TNetThrottlingResult CheckNetOutThrottling(
         const TContextPtr& context,
         const TWorkloadDescriptor& workloadDescriptor,
-        bool incrementCounter = true)
+        bool incrementCounter = true) const
     {
-        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-        auto netQueueSize =
-            netThrottler->GetQueueTotalAmount() +
-            context->GetBusNetworkStatistics().PendingOutBytes;
-        auto netQueueLimit = GetDynamicConfig()->NetOutThrottlingLimit.value_or(
-            Config_->NetOutThrottlingLimit);
-        bool throttle = netQueueSize > netQueueLimit;
-        if (throttle && incrementCounter) {
-            Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
-                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
-        }
-        return TNetThrottlingResult{.Enabled = throttle, .QueueSize = netQueueSize};
+        return Bootstrap_->CheckNetOutThrottling(
+            context->GetBusNetworkStatistics().PendingOutBytes,
+            context->GetEndpointAttributes().Get("network", NBus::DefaultNetworkName),
+            workloadDescriptor,
+            incrementCounter);
+    }
+
+    template <class TContextPtr>
+    TNetThrottlingResult CheckNetInThrottling(
+        const TContextPtr& context,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const
+    {
+        return Bootstrap_->CheckNetInThrottling(
+            context->GetEndpointAttributes().Get("network", NBus::DefaultNetworkName),
+            workloadDescriptor,
+            incrementCounter);
     }
 };
 

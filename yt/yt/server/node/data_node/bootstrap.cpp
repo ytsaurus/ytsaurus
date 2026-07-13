@@ -16,6 +16,7 @@
 #include "master_connector.h"
 #include "medium_directory_manager.h"
 #include "medium_updater.h"
+#include "network_statistics.h"
 #include "orchid.h"
 #include "p2p.h"
 #include "private.h"
@@ -40,6 +41,8 @@
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
+#include <yt/yt/core/bus/public.h>
+
 #include <yt/yt/core/concurrency/poller.h>
 
 #include <yt/yt/core/http/server.h>
@@ -59,6 +62,7 @@ using namespace NQueryClient;
 using namespace NDiskManager;
 using namespace NYTree;
 using namespace NServer;
+using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -520,6 +524,39 @@ public:
     void SetLocationIndexesInHeartbeatsEnabled(bool value) override
     {
         MasterConnector_->SetLocationIndexesInHeartbeatsEnabled(value);
+    }
+
+    TNetThrottlingResult CheckNetOutThrottling(
+        i64 pendingOutBytes,
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const override
+    {
+        const auto& netThrottler = GetOutThrottler(workloadDescriptor);
+        auto netQueueSize = netThrottler->GetQueueTotalAmount() + pendingOutBytes;
+        auto netQueueLimit = GetDynamicConfigManager()->GetConfig()->DataNode->NetOutThrottlingLimit.value_or(
+            GetConfig()->DataNode->NetOutThrottlingLimit);
+        bool throttle = netQueueSize > netQueueLimit;
+        if (throttle && incrementCounter) {
+            GetNetworkStatistics().IncrementReadThrottlingCounter(networkName);
+        }
+        return TNetThrottlingResult{.Enabled = throttle, .QueueSize = netQueueSize};
+    }
+
+    TNetThrottlingResult CheckNetInThrottling(
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const override
+    {
+        const auto& netThrottler = GetInThrottler(workloadDescriptor);
+        auto netQueueSize = netThrottler->GetQueueTotalAmount();
+        auto netQueueLimit = GetDynamicConfigManager()->GetConfig()->DataNode->NetInThrottlingLimit.value_or(
+            GetConfig()->DataNode->NetInThrottlingLimit);
+        bool throttle = netQueueSize > netQueueLimit;
+        if (throttle && incrementCounter) {
+            GetNetworkStatistics().IncrementReadThrottlingCounter(networkName);
+        }
+        return TNetThrottlingResult{.Enabled = throttle, .QueueSize = netQueueSize};
     }
 
 private:

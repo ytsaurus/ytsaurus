@@ -29,6 +29,9 @@
 #include <yt/yt/client/rpc/helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/config.h>
+
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/test_framework/test_proxy_service.h>
@@ -217,6 +220,30 @@ public:
     const NConcurrency::IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor& descriptor) const override
     {
         return Bootstrap_->GetOutThrottler(descriptor);
+    }
+
+    TNetThrottlingResult CheckNetOutThrottling(
+        i64 pendingOutBytes,
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const override
+    {
+        return Bootstrap_->CheckNetOutThrottling(
+            pendingOutBytes,
+            networkName,
+            workloadDescriptor,
+            incrementCounter);
+    }
+
+    TNetThrottlingResult CheckNetInThrottling(
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const override
+    {
+        return Bootstrap_->CheckNetInThrottling(
+            networkName,
+            workloadDescriptor,
+            incrementCounter);
     }
 
     const IJournalDispatcherPtr& GetJournalDispatcher() const override
@@ -459,6 +486,7 @@ public:
         bool SkipWriteThrottlingLocations = false;
         bool AlwaysThrottleLocation = false;
         bool EnableWriteThrottlingWritableCheck = false;
+        bool EnableInThrottlerQueueWritableCheck = false;
         bool PreallocateDiskSpace = false;
         bool UseDirectIO = false;
         bool WaitPrecedingBlocksReceived = true;
@@ -630,6 +658,7 @@ public:
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = TestParams_.UseProbePutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation = TestParams_.AlwaysThrottleLocation;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->EnableWriteThrottlingWritableCheck = TestParams_.EnableWriteThrottlingWritableCheck;
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->EnableInThrottlerQueueWritableCheck = TestParams_.EnableInThrottlerQueueWritableCheck;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks = TestParams_.DelayBeforePerformPutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->PreallocateDiskSpace = TestParams_.PreallocateDiskSpace;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseDirectIO = TestParams_.UseDirectIO;
@@ -1509,6 +1538,48 @@ INSTANTIATE_TEST_SUITE_P(
         }
     )
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TDataNodeTest, StartChunkReflectsNetInThrottlerQueueSize)
+{
+    auto bootstrap = GetDataNodeBootstrap();
+    bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->EnableInThrottlerQueueWritableCheck = true;
+    bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->NetInThrottlingLimit = 0;
+
+    TWorkloadDescriptor workloadDescriptor{EWorkloadCategory::SystemReplication};
+    auto inThrottler = bootstrap->GetInThrottler(workloadDescriptor);
+    auto throttleFuture = inThrottler->Throttle(2_GB);
+
+    EXPECT_GT(inThrottler->GetQueueTotalAmount(), 0);
+
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    auto rspOrError = WaitFor(StartChunk(sessionId, false, false, false, workloadDescriptor));
+    EXPECT_FALSE(rspOrError.IsOK());
+
+    inThrottler->Release(2_GB);
+    Y_UNUSED(throttleFuture);
+}
+
+TEST_F(TDataNodeTest, StartChunkIgnoresNetInThrottlerQueueSizeWhenFlagDisabled)
+{
+    auto bootstrap = GetDataNodeBootstrap();
+    bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->EnableInThrottlerQueueWritableCheck = false;
+    bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->NetInThrottlingLimit = 0;
+
+    TWorkloadDescriptor workloadDescriptor{EWorkloadCategory::SystemReplication};
+    auto inThrottler = bootstrap->GetInThrottler(workloadDescriptor);
+    auto throttleFuture = inThrottler->Throttle(2_GB);
+
+    EXPECT_GT(inThrottler->GetQueueTotalAmount(), 0);
+
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    auto rspOrError = WaitFor(StartChunk(sessionId, false, false, false, workloadDescriptor));
+    EXPECT_TRUE(rspOrError.IsOK());
+
+    inThrottler->Release(2_GB);
+    Y_UNUSED(throttleFuture);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
