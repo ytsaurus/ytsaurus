@@ -260,7 +260,9 @@ private:
 
     void DoInitialize()
     {
-        ITableDescriptor::ScheduleInitialization();
+        if (!Config_->SkipSequoiaInitialization) {
+            ITableDescriptor::ScheduleInitialization();
+        }
 
         BusServer_ = NBus::NTcp::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);

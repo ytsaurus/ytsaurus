@@ -60,6 +60,8 @@ void TServerBootstrapConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("expose_config_in_orchid", &TThis::ExposeConfigInOrchid)
         .Default(true);
+    registrar.Parameter("skip_sequoia_initialization", &TThis::SkipSequoiaInitialization)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->RpcPort > 0) {

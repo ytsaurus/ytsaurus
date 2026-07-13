@@ -743,7 +743,9 @@ void TBootstrap::DoRun()
 
 void TBootstrap::DoInitialize()
 {
-    ITableDescriptor::ScheduleInitialization();
+    if (!Config_->SkipSequoiaInitialization) {
+        ITableDescriptor::ScheduleInitialization();
+    }
 
     Config_->PrimaryMaster->ValidateAllPeersPresent();
     for (auto cellConfig : Config_->SecondaryMasters) {

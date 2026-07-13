@@ -1235,6 +1235,8 @@ class YTEnvSetup(object):
         for cell_index, cell_tag in enumerate([configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]):
             for peer_index, config in enumerate(configs["master"][cell_tag]):
                 cls._apply_effective_config_patch(config, "DELTA_MASTER_CONFIG", cluster_index)
+                if not cls.get_param("USE_SEQUOIA", cluster_index):
+                    config["skip_sequoia_initialization"] = True
                 cls.update_timestamp_provider_config(config, cluster_index)
                 cls.update_sequoia_connection_config(config, cluster_index)
                 cls.update_transaction_supervisor_config(config, cluster_index)
@@ -1399,6 +1401,8 @@ class YTEnvSetup(object):
                 })
 
             cls._apply_effective_config_patch(config, "DELTA_CYPRESS_PROXY_CONFIG", cluster_index)
+            if not cls.get_param("USE_SEQUOIA", cluster_index):
+                config["skip_sequoia_initialization"] = True
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.update_sequoia_connection_config(config, cluster_index)
             cls.modify_cypress_proxy_config(config, cluster_index)
