@@ -122,38 +122,26 @@ static void PopulateChunkSpecWithReplicas(
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
 {
-    TNodePtrWithReplicaAndMediumIndexList replicas;
-    replicas.reserve(chunkReplicas.size());
-
     auto erasureCodecId = FromProto<NErasure::ECodec>(chunkSpec->erasure_codec());
     auto firstInfeasibleReplicaIndex = (erasureCodecId == NErasure::ECodec::None || fetchParityReplicas)
         ? std::numeric_limits<int>::max() // all replicas are feasible
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
-    auto addReplica = [&] (const TAugmentedStoredChunkReplicaPtr& replica)  {
-        if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
-            return false;
-        }
-        if (auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>()) {
-            const auto* location = locationReplica->AsChunkLocationPtr();
-            replicas.emplace_back(location->GetNode(), replica.GetReplicaIndex(), replica.GetEffectiveMediumIndex());
-            nodeDirectoryBuilder->Add(replica);
-            return true;
-        }
-        return false;
-    };
-
-    for (auto replica : chunkReplicas) {
-        addReplica(replica);
-    }
-
-    ToProto(chunkSpec->mutable_replicas(), replicas);
-
-    // TODO(aleksandra-zh): refactor that.
     for (auto replica : chunkReplicas) {
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
             continue;
         }
+
+        if (auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>()) {
+            const auto* location = locationReplica->AsChunkLocationPtr();
+            TNodePtrWithReplicaAndMediumIndex nodeReplica(
+                location->GetNode(),
+                replica.GetReplicaIndex(),
+                replica.GetEffectiveMediumIndex());
+            chunkSpec->add_replicas(ToProto<ui64>(nodeReplica));
+            nodeDirectoryBuilder->Add(nodeReplica);
+        }
+
         if (replica.As<EStoredReplicaType::OffshoreMedia>()) {
             NChunkClient::TChunkReplicaWithMedium offshoreReplica(
                 OffshoreNodeId,

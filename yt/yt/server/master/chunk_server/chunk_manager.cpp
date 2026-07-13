@@ -2371,7 +2371,7 @@ public:
         TObjectId hintId) override
     {
         if (!GetDynamicConfig()->AllowOffshoreMedia) {
-            THROW_ERROR_EXCEPTION("Offshore media creation is not allowed");
+            THROW_ERROR_EXCEPTION("S3 media creation is not allowed");
         }
 
         CreateMediumPrologue(name);

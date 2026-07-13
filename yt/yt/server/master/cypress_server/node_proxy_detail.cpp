@@ -1606,17 +1606,16 @@ void TNontemplateCypressNodeProxyBase::ValidateMediaChange(
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     auto checkOffshore = [&] (const TChunkReplication& replication) {
-        for (auto& entry : replication) {
+        for (const auto& entry : replication) {
             auto* medium = chunkManager->FindMediumByIndex(entry.GetMediumIndex());
             if (!IsObjectAlive(medium)) {
-                YT_LOG_ALERT("Dead medium found in replication (MediumIndex: %v)",
+                YT_LOG_ALERT("Non-alive medium found in replication (MediumIndex: %v)",
                     entry.GetMediumIndex());
                 continue;
             }
 
-
             if (medium->IsOffshore()) {
-                THROW_ERROR_EXCEPTION("Cannot set replication with offshore media");
+                THROW_ERROR_EXCEPTION("Cannot change media if offshore media is involved");
             }
         }
     };
@@ -1649,17 +1648,18 @@ bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
 {
     YT_VERIFY(newReplication);
 
+    ValidateNoTransaction();
+
     if (newPrimaryMedium.IsOffshore()) {
-        THROW_ERROR_EXCEPTION("Cannot set replication with offshore media");
+        THROW_ERROR_EXCEPTION("Cannot change media to offshore");
     }
+
     if (oldPrimaryMediumIndex) {
         const auto* oldPrimaryMedium = Bootstrap_->GetChunkManager()->FindMediumByIndex(*oldPrimaryMediumIndex);
         if (IsObjectAlive(oldPrimaryMedium) && oldPrimaryMedium->IsOffshore()) {
-            THROW_ERROR_EXCEPTION("Cannot set replication with offshore media");
+            THROW_ERROR_EXCEPTION("Cannot change media if offshore media is involved");
         }
     }
-
-    ValidateNoTransaction();
 
     auto tweakReplicationOnPrimaryMediumChange = [] (
         int newPrimaryMediumIndex,
