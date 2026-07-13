@@ -397,10 +397,7 @@ private:
 
         // NB: This is not a real QueryLog, it is needed only to create a table with proper query log structure.
         auto queryLog = std::make_shared<DB::QueryLog>(ServerContext_, settings);
-
-        // prepareTable is public in ISystemLog interface, but is overwritten as private in QueryLog.
-        auto* systemLog = static_cast<DB::ISystemLog*>(queryLog.get());
-        systemLog->prepareTable();
+        queryLog->prepareTable();
 
         YT_LOG_DEBUG("Query log table prepared");
     }
