@@ -447,10 +447,11 @@ public:
     }
 
     //! Flush dirty data to disk (fsync).
-    TFuture<void> Flush() override
+    TFuture<void> Flush(ui64 cookie) override
     {
-        YT_LOG_DEBUG("Started flushing NBD chunk (ChunkId: %v)",
-            ChunkId_);
+        YT_LOG_DEBUG("Started flushing NBD chunk (ChunkId: %v, Cookie: %x)",
+            ChunkId_,
+            cookie);
 
         // Acquire a reader guard so that Destroy() (which acquires the writer lock)
         // cannot close the file handle while a flush is in flight.

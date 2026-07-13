@@ -818,7 +818,7 @@ private:
                 "/device/flush_count")
                 .Increment(1);
 
-            Device_->Flush()
+            Device_->Flush({.Cookie = cookie})
                 .Subscribe(
                     BIND([=, flushTimeGuard = std::move(flushTimeGuard), this, this_ = MakeStrong(this)] (const TError& error) mutable {
                         auto duration = flushTimeGuard.GetElapsedTime().SecondsFloat();

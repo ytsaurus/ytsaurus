@@ -49,10 +49,10 @@ public:
     TFuture<void> Finalize() override;
 
     //! Flush dirty pages to data node.
-    TFuture<void> Flush() override;
+    TFuture<void> Flush(const TFlushOptions& options = {}) override;
 
     //! Flush up to |maxPages| dirty pages to the data node.
-    TFuture<void> FlushBatch(i64 maxPages);
+    TFuture<void> FlushBatch(i64 maxPages, ui64 cookie = 0);
 
     //! Read data from the cache or data node.
     //! On cache miss, reads the full page from data node and caches it.

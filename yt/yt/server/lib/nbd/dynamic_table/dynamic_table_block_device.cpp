@@ -411,10 +411,11 @@ public:
         return MakeFuture<TWriteResponse>({});
     }
 
-    TFuture<void> Flush() override
+    TFuture<void> Flush(const TFlushOptions& options) override
     {
-        YT_LOG_INFO("Start flush (TablePath: %v)",
-            DeviceConfig_->TablePath);
+        YT_LOG_INFO("Start flush (TablePath: %v, Cookie: %x)",
+            DeviceConfig_->TablePath,
+            options.Cookie);
 
         auto future = BlockCache_->FlushDirtyBlocks();
         WaitFor(future).ThrowOnError();

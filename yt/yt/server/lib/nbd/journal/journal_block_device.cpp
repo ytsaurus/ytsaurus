@@ -184,7 +184,7 @@ public:
         const TSharedRef& data,
         const TWriteOptions& options) final;
 
-    TFuture<void> Flush() final
+    TFuture<void> Flush(const TFlushOptions& /*options*/) final
     {
         return OKFuture;
     }

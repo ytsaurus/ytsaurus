@@ -91,11 +91,12 @@ TFuture<NIO::TIOCounters> TNbdSession::Write(i64 offset, const TBlock& block, ui
     return NbdChunkHandler_->Write(offset, block, cookie);
 }
 
-TFuture<void> TNbdSession::Flush()
+TFuture<void> TNbdSession::Flush(ui64 cookie)
 {
-    YT_LOG_DEBUG("Flushing NBD session");
+    YT_LOG_DEBUG("Flushing NBD session (Cookie: %x)",
+        cookie);
 
-    return NbdChunkHandler_->Flush();
+    return NbdChunkHandler_->Flush(cookie);
 }
 
 TFuture<void> TNbdSession::FlushRange(i64 offset, i64 size)

@@ -38,7 +38,7 @@ struct TNbdSession
     TFuture<NIO::TIOCounters> Write(i64 offset, const NChunkClient::TBlock& block, ui64 cookie);
 
     //! Flush dirty data to disk (fsync).
-    TFuture<void> Flush();
+    TFuture<void> Flush(ui64 cookie);
 
     //! Flush a specific range of data to disk (sync_file_range).
     TFuture<void> FlushRange(i64 offset, i64 size);

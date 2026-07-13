@@ -268,20 +268,24 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, Flush)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto cookie = request->cookie();
 
-        context->SetRequestInfo("SessionId: %v",
-            sessionId);
+        context->SetRequestInfo("SessionId: %v, Cookie: %x",
+            sessionId,
+            cookie);
 
         auto session = GetSessionOrThrow(sessionId);
 
         auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_cookie(cookie);
         response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, ShouldCloseSession: %v",
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
             sessionId,
+            cookie,
             shouldCloseSession);
 
-        context->ReplyFrom(session->Flush());
+        context->ReplyFrom(session->Flush(cookie));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, KeepSessionAlive)
