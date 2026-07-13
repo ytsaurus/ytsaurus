@@ -1130,6 +1130,22 @@ TUntypedExpression TExpressionBuilderV1::OnUnaryOp(const NAst::TUnaryOpExpressio
     return TUntypedExpression{.FeasibleTypes = resultTypes, .Generator = std::move(generator), .IsConstant = false};
 }
 
+void ThrowOnCompositeScalarMismatch(
+    EBinaryOp op,
+    const TConstExpressionPtr& lhsExpr,
+    const TConstExpressionPtr& rhsExpr,
+    TStringBuf lhsSource,
+    TStringBuf rhsSource)
+{
+    if (IsRelationalBinaryOp(op) &&
+        (IsV3Composite(lhsExpr->LogicalType) ^ IsV3Composite(rhsExpr->LogicalType)))
+    {
+        THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv", op)
+            << TErrorAttribute("lhs_source", lhsSource)
+            << TErrorAttribute("rhs_source", rhsSource);
+    }
+}
+
 TUntypedExpression TExpressionBuilderV1::MakeBinaryExpr(
     const NAst::TBinaryOpExpression* binaryExpr,
     EBinaryOp op,
@@ -1182,11 +1198,12 @@ TUntypedExpression TExpressionBuilderV1::MakeBinaryExpr(
             rhsSource,
             source);
 
-        return New<TBinaryOpExpression>(
-            type,
-            op,
-            lhs.Generator(argTypes.first),
-            rhs.Generator(argTypes.second));
+        auto lhsExpr = lhs.Generator(argTypes.first);
+        auto rhsExpr = rhs.Generator(argTypes.second);
+
+        ThrowOnCompositeScalarMismatch(op, lhsExpr, rhsExpr, lhsSource, rhsSource);
+
+        return New<TBinaryOpExpression>(type, op, lhsExpr, rhsExpr);
     };
     return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
 }
