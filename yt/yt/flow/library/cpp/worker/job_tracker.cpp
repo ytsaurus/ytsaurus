@@ -532,7 +532,7 @@ private:
     {
         IJobPtr Job;
         TJobPerformanceCounters PerformanceCounters;
-        NTracing::TTraceContextPtr TraceContext;
+        TJobCpuTimeAccountantPtr CpuTimeAccountant;
         TExternalPerformanceMetricsReporterPtr ExternalMetricsReporter;
     };
 
@@ -569,7 +569,7 @@ private:
             auto memoryUsage = snapshot->GetUsage(JobIdTag, ToString(jobId)) + state.ExternalMetricsReporter->GetMemoryUsage();
             // The maximum node CPU load is generally same in terms of VCPU load, but might be very different in CPU load.
             // Thus, to balance the load evenly on a diverse set of workers, we should recalculate to VCPU in performance counters.
-            auto cpuTime = (state.TraceContext->GetElapsedTime() + state.ExternalMetricsReporter->GetElapsedCpuTime()) * Context_->WorkerNodeInfo->VcpuFactor.value_or(1);
+            auto cpuTime = (state.CpuTimeAccountant->GetCpuTime() + state.ExternalMetricsReporter->GetElapsedCpuTime()) * Context_->WorkerNodeInfo->VcpuFactor.value_or(1);
             state.PerformanceCounters.Update(cpuTime, memoryUsage);
         }
     }
@@ -607,8 +607,9 @@ private:
         auto loggingTag = Format("JobPropagatingTag: %v/%v", partition->ComputationId, partition->PartitionId);
         traceContext->SetLoggingTag(loggingTag);
 
+        auto cpuTimeAccountant = New<TJobCpuTimeAccountant>();
         auto wrapInvoker = [&] (const auto& underlying) {
-            auto tracedInvoker = CreateTracedInvoker(underlying, traceContext);
+            auto tracedInvoker = CreateTracedInvoker(underlying, traceContext, cpuTimeAccountant);
             auto codicil = Format("ComputationId: %v, PartitionId: %v, JobId: %v, %v",
                 partition->ComputationId,
                 partition->PartitionId,
@@ -675,7 +676,7 @@ private:
                     WorkerProfiler()
                         .WithTag("computation_id", jobSpec->Partition->ComputationId.Underlying())
                         .WithPrefix("/computation")},
-                .TraceContext = std::move(traceContext),
+                .CpuTimeAccountant = std::move(cpuTimeAccountant),
                 .ExternalMetricsReporter = externalMetricsReporter,
             });
         EmplaceOrCrash(JobStopTimes_, jobId, std::pair{MakeWeak(preparedJob), TInstant::Max()});
