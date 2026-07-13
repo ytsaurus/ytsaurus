@@ -218,41 +218,6 @@ DEFINE_ENUM(EMasterReign,
     ((NewWayToStoreHunkChunkListStatistics_26_1)                    (3263))  // akozhikhov
     ((SequoiaRevision_26_1)                                         (3264))  // kvk1920
     ((PrelockTracker_26_1)                                          (3265))  // kvk1920
-
-    // 26.2 starts here.
-    ((Start_26_2)                                                   (3300))  // ermolovd
-    ((RemoveStagedNodesInTransactions_26_2)                         (3301))  // theevilbird
-    ((AbortStuckTransactions_26_2)                                  (3302))  // h0pless
-    ((DisableModificationTimeUpdateInChunkMerger)                   (3303))  // h0pless
-    ((DontValidateTransactionPermissionsOnPartitipants)             (3304))  // kvk1920
-    ((IntroduceLogicalMountRevision_26_2)                           (3305))  // alexelexa
-    ((SendTableTabletBalancerConfigToTablet_26_2)                   (3306))  // navasardianna
-    ((ChunkMergerUsageAttributeInAccount_26_2)                      (3307))  // cherepashka
-    ((DefaultUserClusterwideLimitToCellLimit)                       (3308))  // shakurov
-    ((DropMulticellIndex_26_2)                                      (3309))  // cherepashka
-    ((HandleOptimizeForInBeginUpload_26_2)                          (3310))  // h0pless
-    ((KulenovClockPart2_26_2)                                       (3311))  // aleksandra-zh
-    ((StrongOrderingTags_26_2)                                      (3312))  // h0pless
-    ((NativeClientUnfoldedIndexPartialBackCompat_26_2)              (3313))  // sabdenovch
-    ((ExpectedPrepareSignature)                                     (3314))  // atalmenev
-    ((TableBackupAttributes_26_2)                                   (3315))  // grphil
-    ((FixStuckTransactionAbortForBannedUsers_26_2)                  (3316))  // kvk1920
-    ((HunkChunkTreeStatisticsOverhaul_26_2)                         (3317))  // akozhikhov
-    ((InferrumUdfs)                                                 (3318))  // babenko
-    ((AbortNodeCreationInSequoiaTransaction_26_2)                   (3319))  // theevilbird
-    ((SendTabletOriginatorsWhenMountTable_26_2)                     (3320))  // dave11ar
-    ((PrerequisiteTransactionsHeldFor2PCViaLeases_26_2)             (3321))  // shakurov
-    ((DropOngoingStatisticsUpdateRequestMapping_26_2)               (3322))  // danilalexeev
-    ((FixReferencedHunkErasureDiskSpace)                            (3323))  // akozhikhov
-    ((RecomputeHunkRelatedChunkStatisticsAgain_26_2)                (3324))  // akozhikhov
-    ((FixHunkStorageRemovalError)                                   (3325))  // akozhikhov
-    ((DeadSequoiaReplicasRemovalHydraTermCheck_26_2)                (3326))  // grphil
-    ((ValidateChaosReplicationProgressOnTableMount)                 (3327))  // osidorkin
-    ((FixHunkChunkWeightStatisticsHistogram_26_2)                   (3328))  // akozhikhov
-    ((NewWayToStoreHunkChunkListStatistics)                         (3329))  // akozhikhov
-    ((SequoiaRevision_26_2)                                         (3330))  // kvk1920
-    ((SecondaryIndexUnfoldedColumnsSerializationFix)                (3331))  // sabdenovch
-    ((PrelockTracker_26_2)                                          (3332))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
