@@ -1583,8 +1583,8 @@ void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRu
 
     std::vector<TOutputMessageConstPtr> outputMessages;
     outputMessages.reserve(outputs.size());
-    for (const auto& [msg, key] : outputs) {
-        outputMessages.push_back(msg);
+    for (auto& [msg, key] : outputs) {
+        outputMessages.push_back(std::move(msg));
     }
 
     // Each tracker enqueues to the init queue so DrainDistributedOutputs can unregister them.
