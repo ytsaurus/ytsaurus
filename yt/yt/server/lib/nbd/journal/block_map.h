@@ -36,6 +36,9 @@ struct IBlockMap
      *  clobber it with the older, already-flushed content.
      */
     virtual bool TryMakeClean(int blockIndex, TDirtyBlockId expectedBlockId, TStoredBlockId storedBlockId) = 0;
+
+    //! Returns the number of blocks that have ever been written, i.e. are no longer empty.
+    virtual int GetUsedBlockCount() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockMap)

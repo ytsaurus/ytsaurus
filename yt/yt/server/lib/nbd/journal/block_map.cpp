@@ -25,7 +25,7 @@ public:
 
     std::variant<TEmptyBlock, TStoredBlockId, TDirtyBlockId> Find(int blockIndex) override
     {
-        auto slot = GetSlot(blockIndex).load(std::memory_order::acquire);
+        auto slot = GetSlot(blockIndex).load();
         switch (slot >> IdBitCount) {
             case EmptyState:
                 return TEmptyBlock{};
@@ -39,7 +39,11 @@ public:
 
     void PutDirty(int blockIndex, TDirtyBlockId blockId) override
     {
-        GetSlot(blockIndex).store(MakeSlot(DirtyState, blockId.Underlying()), std::memory_order::release);
+        auto oldSlot = GetSlot(blockIndex).exchange(MakeSlot(DirtyState, blockId.Underlying()));
+        // The first write to a block takes it out of the empty state for good.
+        if ((oldSlot >> IdBitCount) == EmptyState) {
+            UsedBlockCount_.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
     bool TryMakeClean(int blockIndex, TDirtyBlockId expectedBlockId, TStoredBlockId storedBlockId) override
@@ -49,8 +53,14 @@ public:
         return GetSlot(blockIndex).compare_exchange_strong(expectedSlot, desiredSlot);
     }
 
+    int GetUsedBlockCount() const override
+    {
+        return UsedBlockCount_.load(std::memory_order_relaxed);
+    }
+
 private:
     std::vector<std::atomic<ui64>> Slots_;
+    std::atomic<int> UsedBlockCount_ = 0;
 
     static constexpr int IdBitCount = 62;
     static constexpr ui64 IdMask = (1ULL << IdBitCount) - 1;

@@ -25,6 +25,8 @@
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NNbd::NJournal {
@@ -205,6 +207,15 @@ private:
     const TSharedRef EmptyBlock_;
     const IBlockStorePtr BlockStore_;
     const IBlockFlusherPtr BlockFlusher_;
+
+    void DoBuildOrchid(NYson::IYsonConsumer* consumer) const override
+    {
+        NYTree::BuildYsonMapFragmentFluently(consumer)
+            .Item("block_count").Value(Geometry_.BlockCount)
+            .Item("used_block_count").Value(BlockMap_->GetUsedBlockCount())
+            .Item("dirty_pool_size").Value(DirtyPool_->GetSize())
+            .Item("dirty_pool_capacity").Value(DirtyPool_->GetCapacity());
+    }
 
     struct TEmptyBlockTag
     { };

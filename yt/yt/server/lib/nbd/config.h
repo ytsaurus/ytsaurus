@@ -90,6 +90,13 @@ struct TNbdServerConfig
     // For testing purposes.
     TNbdTestOptionsPtr TestOptions;
 
+    //! When set, an HTTP server is exposed on this port: a REST API for managing devices, plus a
+    //! status endpoint dumping the server orchid.
+    std::optional<int> HttpPort;
+
+    //! The listen address: the unix domain socket path or ":<port>".
+    std::string GetAddress() const;
+
     REGISTER_YSON_STRUCT(TNbdServerConfig);
 
     static void Register(TRegistrar registrar);

@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 #include <library/cpp/yt/logging/public.h>
 
 namespace NYT::NNbd {
@@ -27,14 +29,13 @@ struct INbdServer
     virtual IBlockDevicePtr TryUnregisterDevice(const std::string& name) = 0;
 
     virtual bool IsDeviceRegistered(const std::string& name) const = 0;
-
     virtual IBlockDevicePtr GetDeviceOrThrow(const std::string& name) const = 0;
-
     virtual IBlockDevicePtr FindDevice(const std::string& name) const = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
-
     virtual IInvokerPtr GetInvoker() const = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INbdServer)

@@ -11,6 +11,16 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
+#include <yt/yt/core/ytree/composite_map.h>
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_service.h>
+
+#include <library/cpp/yt/misc/guid.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/system/byteorder.h>
@@ -21,6 +31,21 @@ using namespace NConcurrency;
 using namespace NNet;
 using namespace NProfiling;
 using namespace NThreading;
+using namespace NYson;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TConnectionId = TGuid;
+
+DEFINE_ENUM(EConnectionState,
+    (Handshake)
+    (Transmission)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,6 +201,11 @@ public:
         return Invoker_;
     }
 
+    IYPathServicePtr GetOrchidService() const override
+    {
+        return OrchidService_;
+    }
+
     const TNbdServerConfigPtr& GetConfig() const
     {
         return Config_;
@@ -184,17 +214,28 @@ public:
 private:
     static std::atomic<int> NbdServerCount_;
 
+    const TGuid ServerId_ = TGuid::Create();
+
     const NLogging::TLogger Logger = NbdLogger()
-        .WithTag("ServerId: %v", TGuid::Create());
+        .WithTag("ServerId: %v", ServerId_);
 
     const TNbdServerConfigPtr Config_;
     const IPollerPtr Poller_;
     const IInvokerPtr Invoker_;
 
+    const std::string Address_ = Config_->GetAddress();
+    const IYPathServicePtr OrchidService_ = CreateOrchidService();
+
     IListenerPtr Listener_;
 
     mutable YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, NameToDeviceLock_);
     THashMap<std::string, IBlockDevicePtr> NameToDevice_;
+
+    class TConnectionHandler;
+    using TConnectionHandlerPtr = TIntrusivePtr<TConnectionHandler>;
+
+    YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, IdToConnectionLock_);
+    THashMap<TConnectionId, TWeakPtr<TConnectionHandler>> IdToConnection_;
 
     std::vector<std::pair<std::string, IBlockDevicePtr>> ListDevices()
     {
@@ -211,7 +252,7 @@ private:
             IConnectionPtr connection)
             : Server_(std::move(server))
             , Connection_(std::move(connection))
-            , Logger(Server_->GetLogger().WithTag("ConnectionId: %v", TGuid::Create()))
+            , Logger(Server_->GetLogger().WithTag("ConnectionId: %v", ConnectionId_))
             , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->GetInvoker(), /*maxConcurrentInvocations*/ 1))
         { }
 
@@ -222,9 +263,20 @@ private:
                 .Run());
         }
 
+        TConnectionId GetConnectionId() const
+        {
+            return ConnectionId_;
+        }
+
+        IYPathServicePtr GetOrchidService()
+        {
+            return IYPathService::FromProducer(BIND(&TConnectionHandler::BuildOrchid, MakeWeak(this)));
+        }
+
     private:
         const TNbdServerPtr Server_;
         const IConnectionPtr Connection_;
+        const TConnectionId ConnectionId_ = TConnectionId::Create();
 
         NLogging::TLogger Logger;
         const IInvokerPtr ResponseInvoker_;
@@ -232,9 +284,35 @@ private:
         IBlockDevicePtr Device_;
         std::atomic<bool> Abort_ = false;
 
+        struct TStatus
+        {
+            EConnectionState State = EConnectionState::Handshake;
+            //! The export the client selected; unset until #NBD_OPT_EXPORT_NAME.
+            std::optional<std::string> ExportName;
+        };
+
+        //! Written from the handler fiber, read by the orchid.
+        TAtomicObject<TStatus> Status_;
+
+        void BuildOrchid(NYson::IYsonConsumer* consumer) const
+        {
+            auto status = Status_.Load();
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("remote_address").Value(ToString(Connection_->GetRemoteAddress()))
+                    .DoIf(status.ExportName.has_value(), [&] (TFluentMap fluent) {
+                        fluent.Item("export").Value(*status.ExportName);
+                    })
+                    .Item("state").Value(status.State)
+                .EndMap();
+        }
 
         void FiberMain()
         {
+            auto unregisterGuard = Finally([&] {
+                Server_->UnregisterConnection(ConnectionId_);
+            });
+
             YT_LOG_INFO("Connection accepted (RemoteAddress: %v)",
                 Connection_->GetRemoteAddress());
 
@@ -305,6 +383,10 @@ private:
 
         void DoTransmission()
         {
+            Status_.Transform([] (TStatus& status) {
+                status.State = EConnectionState::Transmission;
+            });
+
             YT_LOG_INFO("Transmission phase entered");
 
             while (!Abort_) {
@@ -395,6 +477,9 @@ private:
                 name);
 
             Device_ = Server_->GetDeviceOrThrow(name);
+            Status_.Transform([&] (TStatus& status) {
+                status.ExportName = name;
+            });
 
             Logger.AddTag("DeviceName: %v", name);
 
@@ -866,7 +951,148 @@ private:
 
         const auto& connection = connectionOrError.Value();
         auto handler = New<TConnectionHandler>(this, connection);
+        RegisterConnection(handler);
         handler->Run();
+    }
+
+    void RegisterConnection(const TConnectionHandlerPtr& handler)
+    {
+        auto guard = WriterGuard(IdToConnectionLock_);
+        EmplaceOrCrash(IdToConnection_, handler->GetConnectionId(), MakeWeak(handler));
+    }
+
+    void UnregisterConnection(TConnectionId connectionId)
+    {
+        auto guard = WriterGuard(IdToConnectionLock_);
+        EraseOrCrash(IdToConnection_, connectionId);
+    }
+
+    class TConnectionOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TConnectionOrchidService(TWeakPtr<TNbdServer> owner)
+            : Owner_(std::move(owner))
+        { }
+
+        std::vector<std::string> GetKeys(i64 limit) const override
+        {
+            std::vector<std::string> keys;
+            if (auto owner = Owner_.Lock()) {
+                auto guard = ReaderGuard(owner->IdToConnectionLock_);
+                for (const auto& [id, _] : owner->IdToConnection_) {
+                    if (std::ssize(keys) >= limit) {
+                        break;
+                    }
+                    keys.push_back(ToString(id));
+                }
+            }
+            return keys;
+        }
+
+        i64 GetSize() const override
+        {
+            if (auto owner = Owner_.Lock()) {
+                auto guard = ReaderGuard(owner->IdToConnectionLock_);
+                return std::ssize(owner->IdToConnection_);
+            }
+            return 0;
+        }
+
+        IYPathServicePtr FindItemService(const std::string& key) const override
+        {
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return nullptr;
+            }
+
+            auto connectionId = TConnectionId::FromString(key);
+
+            TConnectionHandlerPtr handler;
+            {
+                auto guard = ReaderGuard(owner->IdToConnectionLock_);
+                auto it = owner->IdToConnection_.find(connectionId);
+                if (it == owner->IdToConnection_.end()) {
+                    return nullptr;
+                }
+                handler = it->second.Lock();
+            }
+            return handler ? handler->GetOrchidService() : nullptr;
+        }
+
+    private:
+        const TWeakPtr<TNbdServer> Owner_;
+    };
+
+    class TDeviceOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        explicit TDeviceOrchidService(TWeakPtr<TNbdServer> owner)
+            : Owner_(std::move(owner))
+        { }
+
+        std::vector<std::string> GetKeys(i64 limit) const override
+        {
+            std::vector<std::string> keys;
+            if (auto owner = Owner_.Lock()) {
+                auto guard = ReaderGuard(owner->NameToDeviceLock_);
+                for (const auto& [name, _] : owner->NameToDevice_) {
+                    if (std::ssize(keys) >= limit) {
+                        break;
+                    }
+                    keys.push_back(name);
+                }
+            }
+            return keys;
+        }
+
+        i64 GetSize() const override
+        {
+            if (auto owner = Owner_.Lock()) {
+                auto guard = ReaderGuard(owner->NameToDeviceLock_);
+                return std::ssize(owner->NameToDevice_);
+            }
+            return 0;
+        }
+
+        IYPathServicePtr FindItemService(const std::string& key) const override
+        {
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                return nullptr;
+            }
+            auto device = owner->FindDevice(key);
+            return device ? device->GetOrchidService() : nullptr;
+        }
+
+    private:
+        const TWeakPtr<TNbdServer> Owner_;
+    };
+
+    IYPathServicePtr CreateOrchidService()
+    {
+        // Non-opaque so a wholesale get (e.g. /status) expands the whole tree.
+        auto connections = New<TConnectionOrchidService>(MakeWeak(this));
+        connections->SetOpaque(false);
+
+        auto devices = New<TDeviceOrchidService>(MakeWeak(this));
+        devices->SetOpaque(false);
+
+        return CreateCompositeMapService()
+            ->SetOpaque(false)
+            ->AddChildren(BIND(&TNbdServer::BuildInfoOrchid, MakeWeak(this)))
+            ->AddChild("connections", std::move(connections))
+            ->AddChild("devices", std::move(devices));
+    }
+
+    void BuildInfoOrchid(IYsonConsumer* consumer) const
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("server_id").Value(ServerId_)
+                .Item("address").Value(Address_)
+            .EndMap();
     }
 };
 
@@ -875,6 +1101,10 @@ DEFINE_REFCOUNTED_TYPE(TNbdServer)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::atomic<int> TNbdServer::NbdServerCount_;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

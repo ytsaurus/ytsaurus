@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/actions/callback_list.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NNbd {
@@ -23,9 +25,20 @@ public:
     void SubscribeError(const TCallback<void(const TError&)>& callback) override;
     void UnsubscribeError(const TCallback<void(const TError&)>& callback) override;
 
+    //! Exposes the common device status (size, block size, read-only, description, error).
+    //! Subclasses add device-specific fields by overriding #DoBuildOrchid.
+    NYTree::IYPathServicePtr GetOrchidService() override;
+
+protected:
+    //! Called with the status map open; writes additional map items to #consumer. The default adds
+    //! nothing. Must be thread-safe.
+    virtual void DoBuildOrchid(NYson::IYsonConsumer* consumer) const;
+
 private:
     NThreading::TAtomicObject<TError> Error_;
     TSingleShotCallbackList<void(const TError&)> ErrorList_;
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

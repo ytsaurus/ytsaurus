@@ -76,6 +76,30 @@ TEST(TBlockMapTest, StateTransitions)
     EXPECT_EQ(std::get<TDirtyBlockId>(blockMap->Find(0)), TDirtyBlockId(9));
 }
 
+TEST(TBlockMapTest, GetUsedBlockCount)
+{
+    auto blockMap = CreateBlockMap(4);
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 0);
+
+    // The first write to a block makes it used.
+    blockMap->PutDirty(1, TDirtyBlockId(1));
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 1);
+
+    // Writing a distinct block bumps the count again.
+    blockMap->PutDirty(3, TDirtyBlockId(2));
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 2);
+
+    // Rewriting an already-used block does not.
+    blockMap->PutDirty(1, TDirtyBlockId(3));
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 2);
+
+    // Neither does flushing it clean, nor a subsequent rewrite.
+    EXPECT_TRUE(blockMap->TryMakeClean(1, TDirtyBlockId(3), TStoredBlockId(4)));
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 2);
+    blockMap->PutDirty(1, TDirtyBlockId(5));
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 2);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
