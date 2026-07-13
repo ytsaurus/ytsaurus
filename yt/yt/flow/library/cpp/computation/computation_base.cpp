@@ -1944,7 +1944,9 @@ void TUniversalComputationBase::DrainDistributedOutputs(const IComputationRunCon
     if (!initPending.empty()) {
         YT_VERIFY(AllowOutputDuplicates_.has_value());
         const bool allowOutputDuplicates = *AllowOutputDuplicates_;
-        std::vector<TOutputMessageConstPtr> initMessages(initPending.begin(), initPending.end());
+        std::vector<TOutputMessageConstPtr> initMessages(
+            std::make_move_iterator(initPending.begin()),
+            std::make_move_iterator(initPending.end()));
         if (allowOutputDuplicates) {
             OutputStore_->AsyncUnregisterBatch(initMessages);
         } else {
