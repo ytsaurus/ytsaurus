@@ -938,8 +938,8 @@ private:
             "EnableReplicatedTableTracker: %v, HasSecondaryIndexAlteration: %v)",
             replicationCardId,
             options
-                ? TStringBuf("null")
-                : ConvertToYsonString(options, EYsonFormat::Text).AsStringBuf(),
+                ? ConvertToYsonString(options, EYsonFormat::Text).AsStringBuf()
+                : TStringBuf("null"),
             enableTracker,
             secondaryIndexAlterationCount > 0);
 
