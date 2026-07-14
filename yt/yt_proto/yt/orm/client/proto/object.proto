@@ -466,6 +466,21 @@ message TEtcOptions
     optional uint64 max_inline_hunk_size = 3;
 }
 
+// Options for options! Set an |edition_flag| field option on a boolean file option to have the flag
+// automatically flip on a future codegen run.
+// Marking a flag |deprecated| will ask clients to stop using it in codegen output.
+message TEditionFlagOptions
+{
+    // Edition at/after which the flag defaults to |edition_value|. Must be in [1, TRUNK_EDITION].
+    optional int32 at_edition = 1;
+    // Value applied at/after |at_edition| (the forward default). Usually true.
+    optional bool edition_value = 2 [default = true];
+    // Value applied below |at_edition| (the legacy baseline). Usually false.
+    optional bool initial_value = 3 [default = false];
+    // Human-readable summary for self-describing code and automated reports/nudges.
+    optional string description = 4;
+}
+
 // Next field 30062.
 extend google.protobuf.FileOptions
 {
@@ -583,12 +598,20 @@ extend google.protobuf.FileOptions
     // If true, treats default value and field absence as equal.
     optional bool compare_absent_value_as_default = 30056;
 
-    // Exposes the /control/partition_objects method on the schema object. Off by default during
-    // rollout: the codegen drops the schema control field unless this is set.
-    optional bool enable_schema_partition_objects = 30062;
-    // Exposes the /control/watch_log_info method on the schema object. Off by default during
-    // rollout: the codegen drops the schema control field unless this is set.
-    optional bool enable_schema_watch_log_info = 30060;
+    // Exposes the /control/partition_objects method on the schema object. Edition flag: defaults on
+    // at edition 1+; an installation below edition 1 (or pinning it |= false|) keeps the control
+    // field dropped. The codegen drops the schema control field unless the effective value is set.
+    optional bool enable_schema_partition_objects = 30062 [(edition_flag) = {
+        at_edition: 1
+        description: "Expose /control/partition_objects on the schema object."
+    }];
+    // Exposes the /control/watch_log_info method on the schema object. Edition flag: defaults on at
+    // edition 1+; an installation below edition 1 (or pinning it |= false|) keeps the control field
+    // dropped. The codegen drops the schema control field unless the effective value is set.
+    optional bool enable_schema_watch_log_info = 30060 [(edition_flag) = {
+        at_edition: 1
+        description: "Expose /control/watch_log_info on the schema object."
+    }];
 
     // Enables the |multi_consumer| system table and native multi-consumer support.
     // When enabled, ORM generates the |multi_consumer| table and allows
@@ -900,7 +923,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31063.
+// Next field 31064.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -1079,6 +1102,13 @@ extend google.protobuf.FieldOptions
     // Saves the attribute value only within the transaction.
     // Triggers history and watch logs, if they are enabled for field's path.
     optional bool ephemeral = 31060;
+
+    // Marks the annotated FileOptions boolean flag as an edition flag: it gets flipped from
+    // |initial_value| to |edition_value| when codegen edition advances to the specified number.
+    // Set only on flag declarations in the FileOptions extension block above.
+    // Explicitly setting the flag in an ORM instance disables edition control over that flag.
+    optional TEditionFlagOptions edition_flag = 31063;
+
 }
 
 // Next field 32017.
