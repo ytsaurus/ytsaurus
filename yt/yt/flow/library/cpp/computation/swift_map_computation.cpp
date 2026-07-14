@@ -7,6 +7,7 @@
 #include "stores/output_store.h"
 #include "stores/timer_store.h"
 
+#include <yt/yt/flow/library/cpp/common/key_error.h>
 #include <yt/yt/flow/library/cpp/common/time_provider.h>
 #include <yt/yt/flow/library/cpp/common/visit.h>
 
@@ -373,10 +374,12 @@ void TSwiftMapComputation::DoProcess(IInputContextPtr input, IOutputCollectorPtr
     for (const auto& visit : input->GetVisits()) {
         groups[visit->Key].Visits.push_back(visit);
     }
-    for (const auto& data : GetValues(groups)) {
-        DoProcessKey(
-            New<TInputContext>(data.Messages, data.Timers, data.Visits),
-            output->SetParents(data.Messages, data.Timers, data.Visits));
+    for (const auto& [key, data] : groups) {
+        TagErrorWithKey("key", key, [&] {
+            DoProcessKey(
+                New<TInputContext>(data.Messages, data.Timers, data.Visits),
+                output->SetParents(data.Messages, data.Timers, data.Visits));
+        });
     }
 }
 

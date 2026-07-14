@@ -8,6 +8,7 @@
 #include "stores/timer_store.h"
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
+#include <yt/yt/flow/library/cpp/common/key_error.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/sink.h>
 #include <yt/yt/flow/library/cpp/common/time_provider.h>
@@ -246,10 +247,12 @@ void TTransformComputation::DoProcess(IInputContextPtr input, IOutputCollectorPt
     for (const auto& visit : input->GetVisits()) {
         groups[visit->Key].Visits.push_back(visit);
     }
-    for (const auto& data : GetValues(groups)) {
-        DoProcessKey(
-            New<TInputContext>(data.Messages, data.Timers, data.Visits),
-            output->SetParents(data.Messages, data.Timers, data.Visits));
+    for (const auto& [key, data] : groups) {
+        TagErrorWithKey("key", key, [&] {
+            DoProcessKey(
+                New<TInputContext>(data.Messages, data.Timers, data.Visits),
+                output->SetParents(data.Messages, data.Timers, data.Visits));
+        });
     }
 }
 
