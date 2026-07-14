@@ -180,6 +180,7 @@ public:
     static constexpr std::string_view TypeFieldName = TMapping::TypeFieldName;
     using TKey = typename TMapping::TKey;
     using TBase = typename TMapping::TBaseClass;
+    using TMappingType = TMapping;
     template <TKey key>
     using TEnumToDerived = typename TMapping::template TDerivedToEnum<key>;
 
