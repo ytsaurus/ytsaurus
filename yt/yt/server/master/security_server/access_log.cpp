@@ -2,40 +2,22 @@
 #include "private.h"
 #include "public.h"
 
-#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/server/lib/security_server/access_log.h>
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/logging/public.h>
-#include <yt/yt/core/logging/fluent_log.h>
-
-#include <yt/yt/client/object_client/public.h>
-
-#include <yt/yt/server/master/cell_master/config_manager.h>
-#include <yt/yt/server/master/cell_master/hydra_facade.h>
-#include <yt/yt/server/master/cell_master/config.h>
-
-#include <yt/yt/server/master/transaction_server/transaction.h>
-
-#include <library/cpp/yt/string/raw_formatter.h>
-
 namespace NYT::NSecurityServer {
 
-using namespace NCypressClient;
-using namespace NCypressServer;
 using namespace NObjectClient;
-using namespace NLogging;
+using namespace NRpc;
 using namespace NTransactionServer;
-using namespace NYPath;
 using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constinit const auto Logger = SecurityServerLogger;
-
-static constexpr int AccessLogStackBufferSize = 1024;
-
-////////////////////////////////////////////////////////////////////////////////
+namespace {
 
 void TraverseTransactionAncestors(
     const TTransaction* transaction,
@@ -72,20 +54,41 @@ void TraverseTransactionAncestors(
         });
 }
 
-namespace {
-
-TOneShotFluentLogEvent LogStructuredEventFluently(ELogLevel level)
+class TMasterTransactionAccessLogInfo
+    : public ITransactionAccessLogInfo
 {
-    const auto& identity = NRpc::GetCurrentAuthenticationIdentity();
-    return NLogging::LogStructuredEventFluently(AccessLogger(), level)
-        .Item("user").Value(identity.User)
-        .DoIf(identity.UserTag != identity.User && !identity.UserTag.empty(), [&] (auto fluent) {
-            fluent
-                .Item("user_tag").Value(identity.UserTag);
-        });
+public:
+    explicit TMasterTransactionAccessLogInfo(const TTransaction* transaction)
+        : Transaction_(transaction)
+    { }
+
+    void WriteTransactionInfo(NYson::IYsonConsumer* consumer) const override
+    {
+        if (!Transaction_) {
+            return;
+        }
+        auto fluent = BuildYsonMapFragmentFluently(consumer);
+        TraverseTransactionAncestors(Transaction_, fluent);
+    }
+
+    TTransactionId GetTransactionId() const override
+    {
+        return GetObjectId(Transaction_);
+    }
+
+private:
+    const TTransaction* const Transaction_;
+};
+
+NRpc::TMutationId GetCurrentMutationId()
+{
+    auto* context = NHydra::TryGetCurrentMutationContext();
+    return context ? context->Request().MutationId : NullMutationId;
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 void LogAccess(
     NCellMaster::TBootstrap* bootstrap,
@@ -107,137 +110,22 @@ void LogAccess(
 
     YT_ASSERT(IsAccessLogEnabled(bootstrap));
 
-    const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-
-    auto maybeAlert = [&] (const TErrorOr<TYPath>& ypathOrError, const auto& unparsedYPath, TStringBuf ypathType) {
-        if (!ypathOrError.IsOK()) {
-            YT_LOG_ALERT(ypathOrError,
-                "Failed to parse YPath while logging access "
-                "(NodeId: %v, Path: %v, TransactionId: %v, UnparsedYPathType: %v, UnparsedYPath: %v)",
-                id,
-                path,
-                GetObjectId(transaction),
-                ypathType,
-                unparsedYPath);
-            return true;
-        }
-        return false;
-    };
-
-    const auto& unparsedTargetSuffix = GetRequestTargetYPath(context->RequestHeader());
-    auto targetSuffixOrError = TryEscapeNonAsciiYPathLiterals(unparsedTargetSuffix);
-    const auto* targetSuffix = maybeAlert(targetSuffixOrError, unparsedTargetSuffix, "target_suffix")
-        ? nullptr
-        : &targetSuffixOrError.Value();
-
-    auto targetSuffixIsForDestinationPath =
-        context->GetMethod() == "Move" ||
-        context->GetMethod() == "Copy" ||
-        context->GetMethod() == "LockCopyDestination" ||
-        context->GetMethod() == "AssembleTreeCopy";
-
-    auto doPath = [&] (auto fluent, TYPathBuf path, bool appendTargetSuffix) {
-        if (!appendTargetSuffix || !targetSuffix || targetSuffix->empty()) {
-            fluent.Value(path);
-            return;
-        }
-
-        // Try to avoid allocation.
-        if (path.size() + targetSuffix->size() <= AccessLogStackBufferSize) {
-            TRawFormatter<AccessLogStackBufferSize> fullPath;
-            fullPath.AppendString(path);
-            fullPath.AppendString(*targetSuffix);
-            fluent.Value(TStringBuf(fullPath.GetData(), fullPath.GetBytesWritten()));
-        } else {
-            fluent.Value(path + *targetSuffix);
-        }
-    };
-
-    LogStructuredEventFluently(ELogLevel::Info)
-        .Item("method").Value(methodOverride.value_or(context->GetMethod()))
-        .Item("type").Value(TypeFromId(id))
-        .Item("id").Value(id)
-        .Item("path").Do([&] (auto fluent) {
-            doPath(fluent, *path, !targetSuffixIsForDestinationPath);
-        })
-        .DoIf(NHydra::HasMutationContext(), [&] (auto fluent) {
-            fluent.Item("mutation_id").Value(NHydra::GetCurrentMutationContext()->Request().MutationId);
-        })
-        .Do([&] (auto fluent) {
-            const TProtobufString* originalPath = nullptr;
-            if (targetSuffixIsForDestinationPath) {
-                // COMPAT(shakurov)
-                if (ypathExt.original_additional_paths_size() == 1) {
-                    originalPath = &ypathExt.original_additional_paths(0);
-                }
-            } else if (ypathExt.has_original_target_path()) {
-                originalPath = &ypathExt.original_target_path();
-            }
-
-            if (originalPath && !originalPath->empty()) {
-                const auto& unparsedOriginalPath = ::NYT::FromProto<TYPath>(*originalPath);
-                auto originalPathOrError = TryEscapeNonAsciiYPathLiterals(unparsedOriginalPath);
-                if (!maybeAlert(originalPathOrError, unparsedOriginalPath, "original_path")) {
-                    fluent.Item("original_path").Value(originalPathOrError.Value());
-                }
-            }
-        })
-        .Do([&] (auto fluent) {
-            for (const auto& pair : additionalAttributes) {
-                const auto& attrName = pair.first;
-                const auto& attrValue = pair.second;
-                if (attrName == "destination_path") {
-                    fluent.Item(attrName).Do([&] (auto fluent) {
-                        doPath(fluent, attrValue, targetSuffixIsForDestinationPath);
-                    });
-                    // COMPAT(shakurov)
-                    if (targetSuffixIsForDestinationPath && ypathExt.has_original_target_path()) {
-                        const auto& unparsedOriginalDestinationPath = ::NYT::FromProto<TYPath>(ypathExt.original_target_path());
-                        auto originalDestinationPathOrError = TryEscapeNonAsciiYPathLiterals(unparsedOriginalDestinationPath);
-                        if (!maybeAlert(originalDestinationPathOrError, unparsedOriginalDestinationPath, "original_destination_path")) {
-                            fluent.Item("original_destination_path").Value(originalDestinationPathOrError.Value());
-                        }
-                    }
-                } else {
-                    fluent.Item(attrName).Value(attrValue);
-                }
-            }
-        })
-        .DoIf(transaction, [&] (auto fluent) {
-            fluent.Item("transaction_info").DoMap([&] (auto fluent) {
-                TraverseTransactionAncestors(transaction, fluent);
-            });
-        });
+    TMasterTransactionAccessLogInfo txInfo(transaction);
+    NSecurityServer::LogAccess(context, id, *path, txInfo, GetCurrentMutationId(), additionalAttributes, methodOverride);
 }
 
 void LogAccess(
     NCellMaster::TBootstrap* bootstrap,
-    TNodeId id,
+    NCypressServer::TNodeId id,
     TYPathBuf path,
-    const TTransaction* transaction,
+    const NTransactionServer::TTransaction* transaction,
     const std::string& method,
     const TAccessLogAttributes& additionalAttributes)
 {
     YT_ASSERT(IsAccessLogEnabled(bootstrap));
 
-    LogStructuredEventFluently(ELogLevel::Info)
-        .Item("method").Value(method)
-        .Item("type").Value(TypeFromId(id))
-        .Item("id").Value(id)
-        .Item("path").Value(path)
-        .DoIf(NHydra::HasMutationContext(), [&] (auto fluent) {
-            fluent.Item("mutation_id").Value(NHydra::GetCurrentMutationContext()->Request().MutationId);
-        })
-        .DoIf(transaction, [&] (auto fluent) {
-            fluent.Item("transaction_info").DoMap([&] (auto fluent) {
-                TraverseTransactionAncestors(transaction, fluent);
-            });
-        })
-        .Do([&] (auto fluent) {
-            for (const auto& [key, value] : additionalAttributes) {
-                fluent.Item(key).Value(value);
-            }
-        });
+    TMasterTransactionAccessLogInfo txInfo(transaction);
+    NSecurityServer::LogAccess(id, path, method, txInfo, GetCurrentMutationId(), additionalAttributes);
 }
 
 void LogAccess(
@@ -248,25 +136,8 @@ void LogAccess(
     YT_ASSERT(IsAccessLogEnabled(bootstrap));
     YT_ASSERT(transaction);
 
-    LogStructuredEventFluently(ELogLevel::Info)
-        .Item("method").Value(method)
-        .Item("path").Value("")
-        .Item("transaction_info").DoMap([&] (auto fluent) {
-            TraverseTransactionAncestors(transaction, fluent);
-        });
-}
-
-bool IsAccessLoggedType(const EObjectType type)
-{
-    static const THashSet<EObjectType> typesForAccessLog = {
-        EObjectType::File,
-        EObjectType::Journal,
-        EObjectType::Table,
-        EObjectType::Document,
-        EObjectType::MapNode,
-        EObjectType::Link
-    };
-    return typesForAccessLog.contains(type);
+    TMasterTransactionAccessLogInfo txInfo(transaction);
+    NSecurityServer::LogAccess(method, txInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

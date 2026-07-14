@@ -95,7 +95,9 @@ public:
             }
 
             builder.AppendChar(TAbsolutePath::Separator);
-            builder.AppendString(tokenizer.GetToken());
+            // NB: ToYPathLiteral escapes non-ASCII bytes to \xNN sequences, so every
+            // TAbsolutePath built here has YPath-literal-escaped components.
+            builder.AppendString(ToYPathLiteral(tokenizer.GetLiteralValue()));
             recordPrefixAndSuffix();
             tokenizer.Advance();
 

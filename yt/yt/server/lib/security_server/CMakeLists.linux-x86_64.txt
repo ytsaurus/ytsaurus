@@ -55,6 +55,7 @@ target_link_libraries(server-lib-security_server PUBLIC
 )
 
 target_sources(server-lib-security_server PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/security_server/access_log.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/security_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/security_server/permission_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/security_server/user_access_validator.cpp
