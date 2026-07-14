@@ -165,9 +165,10 @@ public:
             for (auto blockId : blockIds) {
                 auto parsedBlockId = ParseStoredBlockId(blockId);
                 if (parsedBlockId.ChunkIndex < 0 || parsedBlockId.ChunkIndex >= std::ssize(IndexToChunk_)) {
-                    THROW_ERROR_EXCEPTION("Invalid stored block id: chunk index %v is out of range [0, %v)",
+                    return MakeFuture<std::vector<TSharedRef>>(TError(
+                        "Invalid stored block id: chunk index %v is out of range [0, %v)",
                         parsedBlockId.ChunkIndex,
-                        std::ssize(IndexToChunk_));
+                        std::ssize(IndexToChunk_)));
                 }
 
                 const auto& chunk = IndexToChunk_[parsedBlockId.ChunkIndex];
