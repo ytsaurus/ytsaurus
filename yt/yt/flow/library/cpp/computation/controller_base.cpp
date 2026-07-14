@@ -129,13 +129,13 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
 
     const int totalGroups = availabilityGroupStatistics.size();
     const int availableGroups = totalGroups - unavailableGroups;
-    if (unavailableGroups > unavailableSpec->MaxGroups || availableGroups < unavailableSpec->MinAvailableGroups) {
+    if (unavailableGroups > unavailableSpec->MaxUnavailableGroups || availableGroups < unavailableSpec->MinAvailableGroups) {
         YT_LOG_ERROR("Cannot advance the watermark past unavailable availability groups "
-            "(UnavailableGroups: %v, AvailableGroups: %v, TotalGroups: %v, MaxGroups: %v, MinAvailableGroups: %v)",
+            "(UnavailableGroups: %v, AvailableGroups: %v, TotalGroups: %v, MaxUnavailableGroups: %v, MinAvailableGroups: %v)",
             unavailableGroups,
             availableGroups,
             totalGroups,
-            unavailableSpec->MaxGroups,
+            unavailableSpec->MaxUnavailableGroups,
             unavailableSpec->MinAvailableGroups);
         return allNodes;
     }

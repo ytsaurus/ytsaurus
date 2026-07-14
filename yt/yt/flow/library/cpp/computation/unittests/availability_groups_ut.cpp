@@ -34,7 +34,7 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
                 "watermark_generator" = {
                     "out_of_orderness_bound" = 1000;
                     "unavailable_partition_groups" = {
-                        "max_groups" = 1;
+                        "max_unavailable_groups" = 1;
                     };
                 }
             };
@@ -171,7 +171,7 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
     }
 
     // watermark_generator without an explicit unavailable_partition_groups block must default to
-    // max_groups = 1, min_available_groups = 1.
+    // max_unavailable_groups = 1, min_available_groups = 1.
     const TComputationSpecPtr defaultedSpec = ConvertTo<TComputationSpecPtr>(TYsonString(TStringBuf(R"""(
         {
             "computation_class_name" = "NColibri::TBigbProfileHitReader";
@@ -194,7 +194,7 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
         }
     )""")));
 
-    // Three availability groups, one fully unavailable. Watermark should be hidden (default max_groups = 1).
+    // Three availability groups, one fully unavailable. Watermark should be hidden (default max_unavailable_groups = 1).
     {
         auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
             {
