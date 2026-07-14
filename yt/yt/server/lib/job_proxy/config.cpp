@@ -343,6 +343,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("input_pipe_blinker_period", &TThis::InputPipeBlinkerPeriod)
         .Default(TDuration::Seconds(1));
 
+    registrar.Parameter("job_io_meter_max_history_duration", &TThis::JobIoMeterMaxHistoryDuration)
+        .Default(TDuration::Hours(1));
+
     registrar.Parameter("job_environment", &TThis::JobEnvironment);
 
     registrar.Parameter("addresses", &TThis::Addresses)

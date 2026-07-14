@@ -399,6 +399,7 @@ TFuture<TSessionBase::TSendBlocksResult> TSessionBase::SendBlocks(
     int startBlockIndex,
     int blockCount,
     i64 cumulativeBlockSize,
+    i64 ioConsumed,
     TDuration requestTimeout,
     bool instantReplyOnThrottling,
     const TNodeDescriptor& targetDescriptor)
@@ -412,7 +413,7 @@ TFuture<TSessionBase::TSendBlocksResult> TSessionBase::SendBlocks(
             ValidateActive();
             Ping();
 
-            return DoSendBlocks(startBlockIndex, blockCount, cumulativeBlockSize, requestTimeout, instantReplyOnThrottling, targetDescriptor);
+            return DoSendBlocks(startBlockIndex, blockCount, cumulativeBlockSize, ioConsumed, requestTimeout, instantReplyOnThrottling, targetDescriptor);
         })
         .AsyncVia(SessionInvoker_)
         .Run();

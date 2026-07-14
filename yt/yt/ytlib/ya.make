@@ -181,6 +181,7 @@ SRCS(
     chunk_client/helpers.cpp
     chunk_client/input_chunk_slice.cpp
     chunk_client/input_chunk.cpp
+    chunk_client/job_io_meter.cpp
     GLOBAL chunk_client/job_spec_extensions.cpp
     chunk_client/legacy_data_slice.cpp
     chunk_client/medium_directory_synchronizer.cpp

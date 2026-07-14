@@ -79,6 +79,7 @@ public:
     std::string AdjustPath(const std::string& path) const override;
 
     NChunkClient::TTrafficMeterPtr GetTrafficMeter() const override;
+    NChunkClient::TJobIoMeterPtr GetJobIoMeter() const override;
 
     NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler(const NScheduler::TClusterName& clusterName) const override;
     NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const override;
@@ -177,6 +178,7 @@ private:
     std::optional<int> JobProxyRpcServerPort_;
 
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
+    NChunkClient::TJobIoMeterPtr JobIoMeter_;
 
     mutable THashMap<NScheduler::TClusterName, NConcurrency::IThroughputThrottlerPtr> InBandwidthThrottlers_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InBandwidthThrottlersSpinLock_);

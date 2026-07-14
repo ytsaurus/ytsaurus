@@ -526,6 +526,7 @@ private:
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
         i64 cumulativeBlockSize = request->cumulative_block_size();
+        i64 ioConsumed = request->io_consumed();
 
         ValidateOnline();
 
@@ -539,7 +540,7 @@ private:
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, PopulateCache: %v, "
             "FlushBlocks: %v, Medium: %v, "
-            "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v",
+            "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v, IoConsumed: %v",
             chunkId,
             FormatBlocks(firstBlockIndex, lastBlockIndex),
             populateCache,
@@ -547,7 +548,8 @@ private:
             location->GetMediumName(),
             options.DisableSendBlocks,
             cumulativeBlockSize,
-            blocksWindowShifted);
+            blocksWindowShifted,
+            ioConsumed);
 
         auto throttlingResult = location->CheckWriteThrottling(
             session->GetChunkId(),
@@ -627,14 +629,16 @@ private:
         int blockCount = request->block_count();
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
         i64 cumulativeBlockSize = request->cumulative_block_size();
+        i64 ioConsumed = request->io_consumed();
         auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
 
         context->SetRequestInfo(
-            "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v",
+            "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v, IoConsumed: %v",
             chunkId,
             FormatBlocks(firstBlockIndex, lastBlockIndex),
             cumulativeBlockSize,
-            targetDescriptor);
+            targetDescriptor,
+            ioConsumed);
 
         ValidateOnline();
 
@@ -663,7 +667,7 @@ private:
 
         auto fraction = GetFallbackTimeoutFraction().value_or(1);
         auto timeout = *context->GetTimeout() * fraction;
-        context->ReplyFrom(session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, timeout, enableSendBlocksNetThrottling, targetDescriptor)
+        context->ReplyFrom(session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, ioConsumed, timeout, enableSendBlocksNetThrottling, targetDescriptor)
             .Apply(BIND([=] (const TErrorOr<ISession::TSendBlocksResult>& rspOrError) {
                 if (rspOrError.IsOK()) {
                     const auto& rsp = rspOrError.Value();
@@ -956,11 +960,12 @@ private:
         bool enableP2P = request->enable_p2p();
         bool fetchNodeDescriptors = request->fetch_node_descriptors();
 
-        context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
+        context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v, IoConsumed: %v",
             chunkId,
             MakeCompactIntervalView(blockIndexes),
             blockIndexes.size(),
-            workloadDescriptor);
+            workloadDescriptor,
+            request->io_consumed());
 
         ValidateOnline();
 
@@ -1252,13 +1257,14 @@ private:
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, "
             "PopulateCache: %v, FetchFromCache: %v, "
-            "FetchFromDisk: %v, Workload: %v",
+            "FetchFromDisk: %v, Workload: %v, IoConsumed: %v",
             chunkId,
             MakeCompactIntervalView(blockIndexes),
             populateCache,
             fetchFromCache,
             fetchFromDisk,
-            workloadDescriptor);
+            workloadDescriptor,
+            request->io_consumed());
 
         ValidateOnline();
 
@@ -1394,11 +1400,12 @@ private:
         bool populateCache = request->populate_cache();
 
         context->SetRequestInfo(
-            "ChunkId: %v, Blocks: %v, PopulateCache: %v, Workload: %v",
+            "ChunkId: %v, Blocks: %v, PopulateCache: %v, Workload: %v, IoConsumed: %v",
             chunkId,
             FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
             populateCache,
-            workloadDescriptor);
+            workloadDescriptor,
+            request->io_consumed());
 
         ValidateOnline();
 
@@ -1974,13 +1981,14 @@ private:
         const auto& schemaData = request->schema_data();
 
         context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, "
-            "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v",
+            "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v, IoConsumed: %v",
             chunkId,
             readSessionId,
             workloadDescriptor,
             populateCache,
             enableHashChunkIndex,
-            schemaData.has_schema());
+            schemaData.has_schema(),
+            request->io_consumed());
 
         ValidateOnline();
 
@@ -2104,12 +2112,13 @@ private:
         bool enableThrottling = request->enable_throttling();
         auto supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
 
-        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTags: %v, Workload: %v, EnableThrottling: %v",
+        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTags: %v, Workload: %v, EnableThrottling: %v, IoConsumed: %v",
             chunkId,
             extensionTags,
             partitionTags,
             workloadDescriptor,
-            enableThrottling);
+            enableThrottling,
+            request->io_consumed());
 
         ValidateOnline();
 

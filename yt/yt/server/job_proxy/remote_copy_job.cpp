@@ -101,6 +101,8 @@ public:
         YT_VERIFY(JobSpecExt_.input_table_specs_size() == 1);
         YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
 
+        WriteBlocksOptions_.ClientOptions.JobIoMeter = Host_->GetJobIoMeter();
+
         DataSliceDescriptors_ = Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors();
 
         for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
@@ -113,6 +115,7 @@ public:
         ReadBlocksOptions_.ClientOptions.WorkloadDescriptor = ReaderConfig_->WorkloadDescriptor;
         ReadBlocksOptions_.ClientOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         ReadBlocksOptions_.ClientOptions.ReadSessionId = TReadSessionId::Create();
+        ReadBlocksOptions_.ClientOptions.JobIoMeter = Host_->GetJobIoMeter();
 
         // We are not ready for reordering here.
         WriterConfig_->EnableBlockReordering = false;

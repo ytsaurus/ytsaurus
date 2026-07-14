@@ -74,6 +74,7 @@ public:
         , OutputFinishGuard_(OutputTraceContext_)
     {
         YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
+        WriteBlocksOptions_.ClientOptions.JobIoMeter = Host_->GetJobIoMeter();
     }
 
     void Initialize() override
@@ -85,6 +86,7 @@ public:
         ChunkReadOptions_.WorkloadDescriptor = ReaderConfig_->WorkloadDescriptor;
         ChunkReadOptions_.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
         ChunkReadOptions_.ReadSessionId = TReadSessionId::Create();
+        ChunkReadOptions_.JobIoMeter = Host_->GetJobIoMeter();
 
         ReaderOptions_ = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
             JobSpecExt_.table_reader_options()));

@@ -456,6 +456,9 @@ struct TJobProxyInternalConfig
     TDuration HeartbeatPeriod;
     TDuration InputPipeBlinkerPeriod;
 
+    //! Time span over which the job I/O meter retains accounted I/O history.
+    TDuration JobIoMeterMaxHistoryDuration;
+
     TJobEnvironmentConfig JobEnvironment;
 
     //! Addresses derived from node local descriptor to leverage locality.
