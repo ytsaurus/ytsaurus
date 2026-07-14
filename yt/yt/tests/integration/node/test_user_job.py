@@ -71,6 +71,66 @@ def find_operation_by_mutation_id(mutation_id):
 ##################################################################
 
 
+class TestSandboxPath(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_PORTO = True
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": False,
+            },
+        },
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/exec.tar.gz", attributes={"replication_factor": 1})
+        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+        create("file", "//tmp/rootfs.tar.gz", attributes={"replication_factor": 1})
+        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+    @authors("krasovav")
+    @pytest.mark.parametrize("has_root_fs", [False, True])
+    def test_sandbox_path(self, has_root_fs):
+        self.setup_files()
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            command="[ -d tmpfs ] && findmnt -o FSTYPE -T tmpfs | grep tmpfs >&2",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": "tmpfs",
+                    "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"] if has_root_fs else [],
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        content = op.read_stderr(job_ids[0]).decode("ascii")
+
+        words = content.strip().split()
+        assert ["tmpfs"] == words
+
+
+##################################################################
+
+
 class TestSandboxTmpfs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
