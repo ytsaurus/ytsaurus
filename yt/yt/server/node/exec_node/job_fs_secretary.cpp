@@ -494,10 +494,23 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
         return;
     }
 
+    bool hasRootVolumeForUserJob = [&] () {
+        if (Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS) {
+            return false;
+        }
+
+        for (const auto& volumeMount : userJobSpec->job_volume_mounts()) {
+            if (volumeMount.mount_path() == "/") {
+                return !userJobSpec->volumes().at(volumeMount.volume_id()).layers().empty();
+            }
+        }
+        return false;
+    }();
+
     auto fromProtoVolumeMount = [&] (const TVolumeMountPtr& volumeMount, const NControllerAgent::NProto::TVolumeMount& protoVolumeMount) {
         std::filesystem::path mountPath(std::string(protoVolumeMount.mount_path()));
         if (!mountPath.is_absolute()) {
-            if (description->RootVolumeLayerArtifactKeys.empty() || Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS) {
+            if (!hasRootVolumeForUserJob) {
                 volumeMount->MountPath = NFS::JoinPaths("/sandbox/", mountPath.string());
             } else {
                 volumeMount->MountPath = NFS::JoinPaths("/slot/sandbox/", mountPath.string());
