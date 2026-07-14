@@ -8,6 +8,57 @@ Available as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.52**" %}
+
+**Release date:** 2026-07-08
+
+
+**Release page:** [0.13.52](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.52)
+
+
+**PyPI package:** [0.13.52](https://pypi.org/project/ytsaurus-client/0.13.52/)
+
+
+#### Features
+- Warn when a short cluster alias is used without `proxy/default_suffix` configured, and raise an informative `YtError` on DNS resolution failure instead of an opaque connection error [5677a1bceebbf064b5e0dc234d411ac8f0a0c82e]
+- Add experimental (interface may change) `yt devtools image` CLI commands (`get-cluster-env`, `prepare`, `run`, `list`, `install`) to build and run Docker images matching the target cluster's OS/Python environment [7320a23fe95a982ac0bbb6442cca957a968066bc]
+
+#### Fixes
+- Redact auth headers (including `request_headers`) in HTTP error responses and logs [98fdfad3f8561fc4cb9a932cc0e645189895891f, 6f9fde83692386df25e285223ff0d625c1a0e040]
+- Fix `yt` CLI path autocompletion when a Cypress path `prefix` is configured [1ca058a74d91dc21991d6d125f629f6c5609f60f]
+- Fix `YPath.join()`/`ypath_join()` silently dropping attributes when joining paths; add a `with_attributes` parameter to control merging [82b104d3f3e4e70aba4c995e221f56d31411af40]
+
+
+{% endcut %}
+
+
+{% cut "**0.13.51**" %}
+
+**Release date:** 2026-06-26
+
+
+**Release page:** [0.13.51](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.51)
+
+
+**PyPI package:** [0.13.51](https://pypi.org/project/ytsaurus-client/0.13.51/)
+
+
+#### Features
+- Add `yt-admin` CLI commands `get-user-banned`, `set-user-banned`, and `list-banned-users` for managing user bans [4a19859b389eb1668fb4f14396aab7d96801cfb6]
+- Add `yt admin remove-master-unrecognized-options` command to remove unrecognized options from the master dynamic config after update [7beacb9aed028a9cf961a9e18cf43f28d95c453a]
+- Add `check_cluster_liveness` method to `YtClient` (and module-level `yt.check_cluster_liveness`) with `check_cypress_root`, `check_secondary_master_cells`, and `check_tablet_cell_bundle` options [9286c63af6bee36ccd40d17f3d856da4cd0cfa11]
+
+#### Fixes
+- Add `--timestamp` flag to the `lookup-rows` CLI command [973bea764d9c8038dc8727ea75c94f0bb43ea3da]
+- Fix `YT_DRIVER_CONFIG` environment variable crashing with `TypeError` on Python 3 [9118cf7dc5a0f66cd042cc07f60ffd5e0108dad3]
+
+#### Breaking changes
+- Removed the `TzDate`, `TzDatetime`, `TzTimestamp`, `TzDate32`, `TzDatetime64`, `TzTimestamp64` typed-API classes from `yt.wrapper.schema` [e12b3891d56424113226d891995706fb09da93f7]
+
+
+{% endcut %}
+
+
 {% cut "**0.13.50**" %}
 
 **Release date:** 2026-05-29

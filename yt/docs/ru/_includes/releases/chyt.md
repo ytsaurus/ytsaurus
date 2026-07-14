@@ -8,6 +8,56 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.18.6**" %}
+
+**Release date:** 2026-06-22
+
+
+**Release page:** [2.18.6](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.6)
+
+
+**Docker image:** [ghcr.io/ytsaurus/chyt:2.18.6](https://github.com/orgs/ytsaurus/packages/container/chyt/967753290?tag=2.18.6)
+
+
+**Fixes:**
+
+* Fix usage of `enable_distinct_read_optimization` and `enable_min_max_optimization` features with dictionaries over YTsaurus tables(ea82d76ea5beedc7405a30275ae37e8426953f85)
+* Fix read range inference over complex filters (cdb1a6c84ee02e9ee1e65cc878c3f5ba288d592b, 03fdd7e3a2785702604419df0d3ef5e9ac305d57)
+
+
+**Notes:**
+
+If you are using the `enable_read_range_inferring` flag since version 2.18, we strongly recommend that you upgrade to this version to avoid potential data loss due to the mentioned bugs.
+
+{% endcut %}
+
+
+{% cut "**2.18.5**" %}
+
+**Release date:** 2026-06-09
+
+
+**Release page:** [2.18.5](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.5)
+
+
+**Docker image:** [ghcr.io/ytsaurus/chyt:2.18.5](https://github.com/orgs/ytsaurus/packages/container/chyt/939459874?tag=2.18.5)
+
+
+**Features:**
+
+* Support omit_inaccessible_rows (90b6b7ae985f849f63b876ae3d60b79217e65a03)
+* Separate thread pool for pull task routine (fa4c50776aed759301acf4ebc20fa6934d7ffe3f)
+
+**Fixes:**
+
+* Fix error on ytTables(<empty_arr>) (7787c0803dd9d654722f199220761f8aa857302a)
+* Use UTC timezone for ytListLogTables arguments (ab598fffbf0ce97f3a5c36e349edcfa09b9edc1a)
+
+
+
+{% endcut %}
+
+
 {% cut "**2.18.4**" %}
 
 **Release date:** 2026-05-15
