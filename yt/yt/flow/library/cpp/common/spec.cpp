@@ -81,7 +81,7 @@ void TIdlePartitionsSpec::Register(TRegistrar registrar)
 
 void TUnavailablePartitionGroupsSpec::Register(TRegistrar registrar)
 {
-    registrar.Parameter("max_groups", &TThis::MaxGroups)
+    registrar.Parameter("max_unavailable_groups", &TThis::MaxUnavailableGroups)
         .Default(1);
     registrar.Parameter("min_available_groups", &TThis::MinAvailableGroups)
         .Default(1);
