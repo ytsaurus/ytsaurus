@@ -105,7 +105,7 @@ The Gregorian calendar should be used for all of the temporal types. When dealin
 
 Types `tz_timestamp64`, `tz_datetime64`, `tz_date32`, `tz_timestamp`, `tz_datetime`, and `tz_date` store time information incorporating time zone details. Logically, these types store the pair:
   - A timestamp, an integer from the corresponding "no time zone" type, representing a point in time in [UTC](https://en.wikipedia.org/wiki/Coordinated_Universal_Time).
-  - The name of the time zone from the [IANA time zone database](https://en.wikipedia.org/wiki/Tz_database).
+  - The time zone id, an unsigned 16-bit number (see the [list of time zones](https://github.com/ytsaurus/ytsaurus/blob/main/library/cpp/type_info/tz/tz_gen.h); numbering is zero-based: `"GMT"` = 0, `"Europe/Moscow"` = 1).
 
 The internal representation of values for these types is described below. Certain higher-level tools offer a convenient way to work with these types.
 
@@ -120,20 +120,22 @@ The internal representation of values for these types is described below. Certai
 |#
 
 This pair is serialized into a string as follows:
-  - The integer is written in presorted representation (see below).
-  - The time zone name is written in full, for example, `Europe/Moscow`.
+  - The timestamp is written in presorted representation (see below).
+  - The time zone id is written in presorted representation (see below).
 
-The presorted representation of the integer is obtained as follows:
+The presorted representation of an integer is obtained as follows:
 
-1. Write the number in big-endian format.
-2. If the underlying integer type is signed (types `tz_date32`, `tz_datetime64`, and `tz_timestamp64`), invert the most significant (sign) bit. Skip this step for unsigned underlying types.
+1. The number is written in big-endian format.
+2. If the number has a signed type, the most significant (sign) bit is inverted. Otherwise, this step is skipped.
 
 *Example:* you want to save the time point 2025-01-01T00:00:00 in Moscow time zone using type tz_datetime64. To do this, follow the steps below:
     1. Convert the time point to UTC: `2024-12-31T21:00:00Z`.
     2. Convert UTC to Unix timestamp: `1735678800`.
     3. Write the timestamp in big-endian format: `"\x00\x00\x00\x00\x67\x74\x5b\x50"`.
     4. Since tz_datetime64 is based on the signed Int64 type, invert the most significant bit: `"\x80\x00\x00\x00\x67\x74\x5b\x50"`.
-    5. Append time zone information: `"\x80\x00\x00\x00\x67\x74\x5b\x50Europe/Moscow"`.
+    5. Convert the time zone name "Europe/Moscow" to its id: `1`.
+    6. Write the id in big-endian format: `"\x00\x01"`.
+    7. Append the time zone information: `"\x80\x00\x00\x00\x67\x74\x5b\x50\x00\x01"`.
 
 ### Decimal { #schema_decimal }
 
