@@ -64,6 +64,7 @@ target_sources(essentials-parser-pg_catalog.global PRIVATE
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/bfbc6465d574a2434902d00b6874f6cc.cpp
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/658b33cae1889a0a522d39b63f5d2aa6.cpp
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/5f016a7e7b32dad0e20b010417065f05.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/f309dccbb810ece52c7d35a88e0acd3f.cpp
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/f41a4ff090be691c0f2abbc2ff548c3b.cpp
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/8a1be1169b28b6342bae4c008c8d338c.cpp
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/b79638b23f2f48d31915bdbb7de5cb49.cpp
@@ -157,6 +158,15 @@ resources(essentials-parser-pg_catalog.global
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_am.dat
   KEYS
   pg_am.dat
+  OPTS
+)
+
+resources(essentials-parser-pg_catalog.global
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/f309dccbb810ece52c7d35a88e0acd3f.cpp
+  INPUTS
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_collation.dat
+  KEYS
+  pg_collation.dat
   OPTS
 )
 
