@@ -298,7 +298,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
         writer,
         context.Logger,
         // NB: Do not yield in sync part.
-        EWaitForStrategy::Get,
+        EWaitForStrategy::BlockThread,
         [&] (TSaveContext& context) {
             using NYT::Save;
 
@@ -364,7 +364,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
                 writer,
                 context.Logger,
                 // NB: Can yield in async part.
-                EWaitForStrategy::WaitFor,
+                EWaitForStrategy::SuspendFiber,
                 [&] (TSaveContext& context) {
                     const auto& Logger = context.GetLogger();
                     for (int index = 0; index < std::ssize(asyncSavers); ++index) {
@@ -595,7 +595,7 @@ void TCompositeAutomaton::DoLoadSnapshot(
 {
     auto prefetchingReader = CreatePrefetchingAdapter(context.Reader, SnapshotPrefetchWindowSize);
     auto copyingReader = CreateCopyingAdapter(prefetchingReader);
-    auto syncReader = CreateSyncAdapter(copyingReader, EWaitForStrategy::Get);
+    auto syncReader = CreateSyncAdapter(copyingReader, EWaitForStrategy::BlockThread);
     TBufferedInput bufferedInput(syncReader.get(), SnapshotLoadBufferSize);
     auto checkpointableInput = CreateCheckpointableInputStream(&bufferedInput);
     auto persistenceContext = CreateLoadContext(checkpointableInput.get());

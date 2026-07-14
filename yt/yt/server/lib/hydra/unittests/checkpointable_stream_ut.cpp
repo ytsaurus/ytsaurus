@@ -134,7 +134,7 @@ TEST(TCheckpointableStreamTest, BufferedAsync)
     TString str;
     TStringOutput stringOutput(str);
     auto asyncOutput = CreateAsyncAdapter(&stringOutput);
-    auto checkpointableOutput = CreateBufferedCheckpointableSyncAdapter(asyncOutput, EWaitForStrategy::Get, 10);
+    auto checkpointableOutput = CreateBufferedCheckpointableSyncAdapter(asyncOutput, EWaitForStrategy::BlockThread, 10);
 
     auto write = [&] (const std::string& str) {
         const char* srcPtr = str.data();
