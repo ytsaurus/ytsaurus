@@ -256,7 +256,7 @@ TFuture<TCloseResponse>
 TIOEngineBase::Close(TCloseRequest request, EWorkloadCategory category)
 {
     auto invoker = (request.Flush || request.Size) ? FsyncInvoker_ : AuxInvoker_;
-    return BIND(&TIOEngineBase::DoClose, MakeStrong(this), std::move(request))
+    return BIND(&TIOEngineBase::DoClose, MakeStrong(this), std::move(request), category)
         .AsyncVia(NConcurrency::CreateFixedPriorityInvoker(invoker, GetBasicPriority(category)))
         .Run();
 }
@@ -414,7 +414,7 @@ TFlushDirectoryResponse TIOEngineBase::DoFlushDirectory(const TFlushDirectoryReq
     return response;
 }
 
-TCloseResponse TIOEngineBase::DoClose(const TCloseRequest& request)
+TCloseResponse TIOEngineBase::DoClose(const TCloseRequest& request, EWorkloadCategory category)
 {
     TCloseResponse response;
 
@@ -425,7 +425,7 @@ TCloseResponse TIOEngineBase::DoClose(const TCloseRequest& request)
             request.Handle->Resize(*request.Size);
         }
         if (request.Flush && StaticConfig_->EnableSync) {
-            TRequestStatsGuard statsGuard(Sensors_->SyncSensors);
+            TRequestStatsGuard statsGuard(Sensors_->SyncSensors[category]);
             request.Handle->Flush();
             response.IOSyncRequests = 1;
         }
@@ -620,10 +620,21 @@ void TIOEngineBase::InitProfilerSensors()
         return sensors;
     };
 
-    Sensors_->ReadSensors = makeRequestSensors(Profiler.WithPrefix("/read"));
-    Sensors_->WriteSensors = makeRequestSensors(Profiler.WithPrefix("/write"));
-    Sensors_->SyncSensors = makeRequestSensors(Profiler.WithPrefix("/sync"));
-    Sensors_->DataSyncSensors = makeRequestSensors(Profiler.WithPrefix("/datasync"));
+    auto makePerWorkloadRequestSensors = [&] (
+        TEnumIndexedArray<EWorkloadCategory, TIOEngineSensors::TRequestSensors>& sensors,
+        const TProfiler& profiler)
+    {
+        auto aggregateSensors = makeRequestSensors(profiler);
+        for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+            sensors[category] = makeRequestSensors(
+                    profiler.WithTag("category", FormatEnum(category)));
+        }
+    };
+
+    makePerWorkloadRequestSensors(Sensors_->ReadSensors, Profiler.WithPrefix("/read"));
+    makePerWorkloadRequestSensors(Sensors_->WriteSensors, Profiler.WithPrefix("/write"));
+    makePerWorkloadRequestSensors(Sensors_->SyncSensors, Profiler.WithPrefix("/sync"));
+    makePerWorkloadRequestSensors(Sensors_->DataSyncSensors, Profiler.WithPrefix("/datasync"));
     Sensors_->IOSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"));
 }
 
