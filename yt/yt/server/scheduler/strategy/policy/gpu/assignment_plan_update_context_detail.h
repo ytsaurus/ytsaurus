@@ -75,6 +75,8 @@ public:
 
     TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const override;
     std::optional<TString> FindLimitViolatingParentId(const TPoolTreeElement* element) const;
+    bool IsDetailedLoggingEnabled(const TOperationPtr& operation) const override;
+
 
     bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const override;
 

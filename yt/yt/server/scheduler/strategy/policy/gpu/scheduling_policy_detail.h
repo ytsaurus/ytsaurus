@@ -68,8 +68,8 @@ struct TGpuSchedulingProfilingCounters
     NProfiling::TProfiler PlanUpdateProfiler;
     NProfiling::TProfiler SchedulingHeartbeatProfiler;
 
-    NProfiling::TCounter PlannedAssignments;
-    NProfiling::TCounter PreemptedAssignments;
+    TEnumIndexedArray<EGpuAssignmentPlanningStage, NProfiling::TCounter> PlannedAssignmentsByStage;
+    TEnumIndexedArray<EGpuAssignmentPlanningStage, NProfiling::TCounter> PreemptedAssignmentsByStage;
     NProfiling::TGauge Assignments;
 
     NProfiling::TEventTimer TotalPlanningTime;
