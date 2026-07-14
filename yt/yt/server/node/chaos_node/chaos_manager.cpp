@@ -893,8 +893,8 @@ private:
             "(ReplicationCardId: %v, ReplicatedTableOptions: %v, EnableReplicatedTableTracker: %v)",
             replicationCardId,
             options
-                ? TStringBuf("null")
-                : ConvertToYsonString(options, EYsonFormat::Text).AsStringBuf(),
+                ? ConvertToYsonString(options, EYsonFormat::Text).AsStringBuf()
+                : TStringBuf("null"),
             enableTracker);
 
         if (options) {
