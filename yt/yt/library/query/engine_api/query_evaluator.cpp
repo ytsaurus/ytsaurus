@@ -4,6 +4,8 @@
 
 namespace NYT::NQueryClient {
 
+using namespace NTableClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryEvaluationContext::~TQueryEvaluationContext()

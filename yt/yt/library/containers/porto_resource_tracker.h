@@ -13,8 +13,6 @@
 
 namespace NYT::NContainers {
 
-using namespace NProfiling;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
@@ -135,19 +133,19 @@ DEFINE_REFCOUNTED_TYPE(TPortoResourceTracker)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPortoResourceProfiler
-    : public TBufferedProducer
+    : public NProfiling::TBufferedProducer
 {
 public:
     TPortoResourceProfiler(
         TPortoResourceTrackerPtr tracker,
         TPodSpecConfigPtr podSpec,
-        const TProfiler& profiler = TProfiler{"/porto"});
+        const NProfiling::TProfiler& profiler = NProfiling::TProfiler{"/porto"});
 
     void InitializeRefCounted();
 
     ~TPortoResourceProfiler();
 
-    void CollectSensors(ISensorWriter* writer) override;
+    void CollectSensors(NProfiling::ISensorWriter* writer) override;
 
 private:
     const TPortoResourceTrackerPtr ResourceTracker_;
@@ -156,42 +154,42 @@ private:
     const NConcurrency::TPeriodicExecutorPtr UpdateBufferPeriodicExecutor_;
 
     void WriteCpuMetrics(
-        ISensorWriter* writer,
+        NProfiling::ISensorWriter* writer,
         TTotalStatistics& totalStatistics,
         i64 timeDeltaUsec);
 
     void WriteMemoryMetrics(
-        ISensorWriter* writer,
+        NProfiling::ISensorWriter* writer,
         TTotalStatistics& totalStatistics,
         i64 timeDeltaUsec);
 
     void WriteBlockingIOMetrics(
-        ISensorWriter* writer,
+        NProfiling::ISensorWriter* writer,
         TTotalStatistics& totalStatistics,
         i64 timeDeltaUsec);
 
     void WriteBlockingIOPerDeviceMetrics(
-        ISensorWriter* writer,
+        NProfiling::ISensorWriter* writer,
         TTotalStatistics& totalStatistics,
         i64 timeDeltaUsec);
 
     void WriteNetworkMetrics(
-        ISensorWriter* writer,
+        NProfiling::ISensorWriter* writer,
         TTotalStatistics& totalStatistics,
         i64 timeDeltaUsec);
 
     void WriteVolumeMetrics(
-        ISensorWriter* writer,
+        NProfiling::ISensorWriter* writer,
         TTotalStatistics& totalStatistics,
         i64 timeDeltaUsec);
 
     void WriteLayerMetrics(
-        ISensorWriter* writer,
+        NProfiling::ISensorWriter* writer,
         TTotalStatistics& totalStatistics,
         i64 timeDeltaUsec);
 
     void WriteBlockingIOMetrics(
-        ISensorWriter* writer,
+        NProfiling::ISensorWriter* writer,
         const TBlockIOStatistics::TIOStatistics& blockIOStatistics,
         i64 timeDeltaUsec);
 

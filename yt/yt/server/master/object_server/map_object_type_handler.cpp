@@ -45,7 +45,7 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const st
     }
 
     static NRe2::TRe2Ptr regex = New<NRe2::TRe2>(NameRegex_);
-    if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(name), *regex)) {
+    if (!NRe2::TRe2::FullMatch(re2::StringPiece(name), *regex)) {
         THROW_ERROR_EXCEPTION("Name must match regular expression %Qv", NameRegex_);
     }
 }

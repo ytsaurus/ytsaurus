@@ -6,6 +6,7 @@
 namespace NYT::NDataNode {
 
 using namespace NConcurrency;
+using namespace NNode;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////

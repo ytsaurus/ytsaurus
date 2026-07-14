@@ -20,6 +20,7 @@ namespace NYT::NContainers {
 namespace {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 

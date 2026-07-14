@@ -14,6 +14,12 @@
 
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
+using namespace NConcurrency;
+using namespace NLogging;
+using namespace NNodeTrackerClient;
+using namespace NYTree;
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {

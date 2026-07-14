@@ -36,8 +36,6 @@
 
 namespace NYT::NDataNode {
 
-using namespace NNode;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TP2PConfig
@@ -85,7 +83,7 @@ DEFINE_REFCOUNTED_TYPE(TP2PConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkLocationConfig
-    : public TChunkLocationConfigBase
+    : public NNode::TChunkLocationConfigBase
 {
     static constexpr bool EnableHazard = true;
 

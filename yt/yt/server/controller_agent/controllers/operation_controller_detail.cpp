@@ -6406,7 +6406,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         // We should check if user is not in legacy live preview blacklist in order to inform him
         // if he is in a blacklist.
         if (NRe2::TRe2::FullMatch(
-            NRe2::StringPiece(AuthenticatedUser_),
+            re2::StringPiece(AuthenticatedUser_),
             *Config_->LegacyLivePreviewUserBlacklist))
         {
             suppressionErrors.push_back(TError(

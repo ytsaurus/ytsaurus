@@ -36,6 +36,7 @@ namespace NYT::NSequoiaClient {
 using namespace NApi::NNative;
 using namespace NConcurrency;
 using namespace NQueryClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

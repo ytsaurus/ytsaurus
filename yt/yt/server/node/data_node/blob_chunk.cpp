@@ -39,6 +39,7 @@ using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NIO;
+using namespace NNode;
 using namespace NNodeTrackerClient;
 using namespace NProfiling;
 using namespace NThreading;

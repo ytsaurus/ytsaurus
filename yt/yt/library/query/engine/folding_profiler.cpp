@@ -25,6 +25,8 @@ namespace {
 using NCodegen::EExecutionBackend;
 using NCodegen::EOptimizationLevel;
 
+using namespace NTableClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESubqueryProfileMode,
