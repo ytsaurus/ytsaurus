@@ -113,7 +113,7 @@ std::optional<TVirtualCompositeNodeReadOffloadParams> TVirtualSinglecellMapBase:
     return TVirtualCompositeNodeReadOffloadParams{
         // NB: Must not release LocalRead thread.
         .OffloadInvoker = objectService->GetLocalReadOffloadInvoker(),
-        .WaitForStrategy = EWaitForStrategy::Get,
+        .WaitForStrategy = EWaitForStrategy::BlockThread,
         .BatchSize = *config->CypressManager->VirtualMapReadOffloadBatchSize,
         .CreateReadOffloadGuard = std::move(createReadOffloadGuard),
     };
