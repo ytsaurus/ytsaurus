@@ -17,6 +17,7 @@ import yt.mcp as yt_mcp
 
 class YTToolRunnerMCP:
     _PUBLIC_CLUSTERS = ()
+    _DISALLOWED_CLUSTERS: set = set()
 
     def helper_get_public_clusters(self, delimeter: Optional[str] = None, template: Optional[str] = None) -> Union[List[str], str]:
         if delimeter:
@@ -29,7 +30,17 @@ class YTToolRunnerMCP:
         else:
             return self._PUBLIC_CLUSTERS
 
+    def helper_get_disallowed_clusters(self) -> List[str]:
+        return list(self._DISALLOWED_CLUSTERS)
+
+    def helper_check_cluster_allowed(self, cluster: str):
+        if cluster and cluster.strip().lower() in self._DISALLOWED_CLUSTERS:
+            raise ValueError(
+                "Access to cluster '{}' is forbidden by MCP server policy.".format(cluster)
+            )
+
     def helper_get_yt_client(self, cluster, request_context: Context) -> yt.YtClient:
+        self.helper_check_cluster_allowed(cluster)
         if self._yt_token:
             yt_client = yt.YtClient(cluster, token=self._yt_token)
         else:
@@ -45,6 +56,16 @@ class YTToolRunnerMCP:
 
     def configure_server(self, rw_mode=False):
         self._rw_mode = rw_mode
+
+    def configure_disallowed_clusters_from_env(self, disabled_clusters: Optional[List[str]] = None):
+        if disabled_clusters is not None:
+            self._DISALLOWED_CLUSTERS = {c.strip().lower() for c in disabled_clusters if c.strip()}
+            return
+        raw = os.environ.get("YT_MCP_DISALLOWED_CLUSTERS", "")
+        if raw.strip():
+            self._DISALLOWED_CLUSTERS = {
+                c.strip().lower() for c in raw.split(",") if c.strip()
+            }
 
     def attach_tools(self, tools: List["yt_mcp.lib.tools.helpers.YTToolBase"], variants: List[Dict[str, Any]] = None):
         for tool in tools:
