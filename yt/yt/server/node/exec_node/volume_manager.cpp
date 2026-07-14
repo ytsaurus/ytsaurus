@@ -712,6 +712,7 @@ public:
             future = future
                 .Apply(
                     BIND([tag, volume, target] {
+                        NFS::MakeDirRecursive(target);
                         return volume->Volume->Link(tag, target);
                     })
                     .AsyncVia(GetCurrentInvoker())
