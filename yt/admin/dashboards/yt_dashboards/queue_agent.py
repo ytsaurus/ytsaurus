@@ -90,16 +90,16 @@ def _build_ram_rowset(has_porto, config: QueueAgentDashboardConfig):
     if has_porto:
         (
             row.cell(
-                "Porto RAM usage",
+                "Porto RAM utilization",
                 (
                     100
                     * (
-                        MonitoringExpr(QueueAgentPorto("yt.porto.memory.memory_usage"))
+                        MonitoringExpr(QueueAgentPorto("yt.porto.memory.anon_usage"))
                         .all(MonitoringTag("host"))
                         .value("container_category", "pod")
                     )
                     / (
-                        MonitoringExpr(QueueAgentPorto("yt.porto.memory.memory_limit"))
+                        MonitoringExpr(QueueAgentPorto("yt.porto.memory.anon_limit"))
                         .all(MonitoringTag("host"))
                         .value("container_category", "pod")
                     )
