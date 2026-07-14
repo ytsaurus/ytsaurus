@@ -110,9 +110,9 @@ void TProgressMerger::MergeWith(const NYql::NProto::TTaskProgress& taskProgress,
             changed |= in.first->second.MergeWith(node);
         }
 
-        LastRevision_ = revision;
         HasChanges_ |= changed;
     }
+    LastRevision_ = revision;
 }
 
 void TProgressMerger::AbortAllUnfinishedNodes()
