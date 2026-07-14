@@ -14,6 +14,7 @@
 #include <library/cpp/yt/logging/logger.h>
 
 #include <list>
+#include <optional>
 #include <set>
 #include <unordered_map>
 
@@ -51,8 +52,10 @@ public:
     //! Flush dirty pages to data node.
     TFuture<void> Flush(const TFlushOptions& options = {}) override;
 
-    //! Flush up to |maxPages| dirty pages to the data node.
-    TFuture<void> FlushBatch(i64 maxPages, ui64 cookie = 0);
+    //! Flush dirty pages to the data node. If |maxDirtyPagesPerFlush| is set, flushes
+    //! up to that many pages (an incremental flush); if std::nullopt, flushes all dirty
+    //! pages (a full flush).
+    TFuture<void> TryFlushDirtyPages(std::optional<i64> maxDirtyPagesPerFlush, ui64 cookie = 0);
 
     //! Read data from the cache or data node.
     //! On cache miss, reads the full page from data node and caches it.
@@ -93,7 +96,15 @@ private:
     const IInvokerPtr Invoker_;
     const i64 PageSize_;
     const i64 MaxPages_;
-    const i64 FlushBatchSize_;
+    //! Number of dirty pages a single flush processes (MaxDirtyDataPerFlush / PageSize),
+    //! and the granularity of one WriteBatch flush range. The dirty-page watermark that triggers
+    //! a background flush is IncrementalFlushHysteresisFactor times this value, matching
+    //! the threshold TryFlushDirtyPages actually acts on.
+    const i64 MaxDirtyPagesPerFlush_;
+    //! Upper bound in bytes on the size of a single merged WriteBatch subrequest.
+    const i64 MaxDirtyDataPerWrite_;
+    //! Maximum number of WriteBatch RPCs in flight concurrently during a flush.
+    const int MaxInflightWriteRequests_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -103,9 +114,9 @@ private:
     i64 TotalPages_ = 0;
 
     //! Sorted set of page indices with Dirty == true, maintained in sync with
-    //! page.Dirty. Enables O(FlushBatchSize) dirty-page collection in FlushBatch
-    //! (iterate from begin()) without scanning all pages, and pages are already in
-    //! ascending order so no std::sort pass is needed.
+    //! page.Dirty. Enables O(MaxDirtyPagesPerFlush) dirty-page collection in
+    //! TryFlushDirtyPages (iterate from begin()) without scanning all pages, and pages
+    //! are already in ascending order so no std::sort pass is needed.
     std::set<i64> DirtySet_;
 
     NConcurrency::TAsyncReaderWriterLock FlushLock_;

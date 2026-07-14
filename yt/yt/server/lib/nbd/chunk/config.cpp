@@ -11,12 +11,18 @@ void TPageCacheConfig::Register(TRegistrar registrar)
     registrar.Parameter("page_size", &TThis::PageSize)
         .Default(4_KB)
         .GreaterThan(0);
-    registrar.Parameter("size", &TThis::Size)
+    registrar.Parameter("capacity", &TThis::Capacity)
         .GreaterThan(0);
     registrar.Parameter("flush_period", &TThis::FlushPeriod)
         .Default(TDuration::Seconds(10));
-    registrar.Parameter("flush_batch_size", &TThis::FlushBatchSize)
-        .Default(50)
+    registrar.Parameter("max_dirty_data_per_flush", &TThis::MaxDirtyDataPerFlush)
+        .Default(4_MB)
+        .GreaterThan(0);
+    registrar.Parameter("max_dirty_data_per_write", &TThis::MaxDirtyDataPerWrite)
+        .Default(1_MB)
+        .GreaterThan(0);
+    registrar.Parameter("max_inflight_write_requests", &TThis::MaxInflightWriteRequests)
+        .Default(4)
         .GreaterThan(0);
 
     registrar.Postprocessor([] (TThis* config) {
@@ -28,12 +34,38 @@ void TPageCacheConfig::Register(TRegistrar registrar)
                 MinPageSize,
                 config->PageSize);
         }
-        // Size must be a positive multiple of PageSize.
-        if (config->Size % config->PageSize != 0) {
+        // Capacity must be a positive multiple of PageSize.
+        if (config->Capacity % config->PageSize != 0) {
             THROW_ERROR_EXCEPTION(
-                "\"size\" must be a positive multiple of \"page_size\" (%v), got %v",
+                "\"capacity\" must be a positive multiple of \"page_size\" (%v), got %v",
                 config->PageSize,
-                config->Size);
+                config->Capacity);
+        }
+        // MaxDirtyDataPerWrite must be a positive multiple of PageSize so a merged
+        // subrequest always covers a whole number of pages.
+        if (config->MaxDirtyDataPerWrite % config->PageSize != 0) {
+            THROW_ERROR_EXCEPTION(
+                "\"max_dirty_data_per_write\" must be a positive multiple of \"page_size\" (%v), got %v",
+                config->PageSize,
+                config->MaxDirtyDataPerWrite);
+        }
+        // MaxDirtyDataPerFlush must be a positive multiple of PageSize so it maps to a
+        // whole number of pages per flush.
+        if (config->MaxDirtyDataPerFlush % config->PageSize != 0) {
+            THROW_ERROR_EXCEPTION(
+                "\"max_dirty_data_per_flush\" must be a positive multiple of \"page_size\" (%v), got %v",
+                config->PageSize,
+                config->MaxDirtyDataPerFlush);
+        }
+        // A single merged write must not exceed what one flush processes: the merge cap
+        // (MaxDirtyDataPerWrite) is applied within a flush task that itself covers at most
+        // MaxDirtyDataPerFlush bytes, so a larger per-write cap could never be reached and
+        // would be misleading.
+        if (config->MaxDirtyDataPerWrite > config->MaxDirtyDataPerFlush) {
+            THROW_ERROR_EXCEPTION(
+                "\"max_dirty_data_per_write\" (%v) must not exceed \"max_dirty_data_per_flush\" (%v)",
+                config->MaxDirtyDataPerWrite,
+                config->MaxDirtyDataPerFlush);
         }
     });
 }
