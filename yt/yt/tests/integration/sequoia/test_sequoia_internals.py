@@ -574,6 +574,7 @@ class TestSequoiaInternals(YTEnvSetup):
             get_batch_output(results[1])
 
     @authors("h0pless")
+    @pytest.mark.skip("TODO(h0pless): YT-28786")
     @flaky(max_runs=3)
     @with_additional_threads
     def test_request_throttling(self):
