@@ -50,10 +50,7 @@
 1. В списке доступных версий выберите нужную версию CHYT или симлинку.
 1. Скопируйте название версии (например, `ytserver-clickhouse-2.17`).
 1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-1. Нажмите кнопку **Edit speclet** ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24}. Она находится:
-
-   - в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu);
-   - на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui), или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
 
 1. Слева выберите раздел **Advanced**.
 1. В поле *Chyt version* вставьте скопированное название версии (например, `ytserver-clickhouse-2.17`).

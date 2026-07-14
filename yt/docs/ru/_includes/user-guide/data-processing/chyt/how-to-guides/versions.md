@@ -19,7 +19,7 @@
 
 - Запрос в клику
 
-    1. Перейдите в веб-интерфейс Query Tracker: нажмите кнопку ![sql](../../../../../../images/sql-btn.png){width=24 height=24} в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu).
+    1. Перейдите в веб-интерфейс Query Tracker: нажмите ![sql](../../../../../../images/sql-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu).
     1. Убедитесь, что вверху на панели выбран движок CHYT.
     1. В открывшемся окне введите и выполните SQL-запрос:
 

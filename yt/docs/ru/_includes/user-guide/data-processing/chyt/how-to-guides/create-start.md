@@ -91,7 +91,7 @@
 - Веб-интерфейс
 
   1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-  1. Нажмите кнопку ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui), или **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
+  1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui), или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
   1. В открывшемся окне настроек, в поле _Pool_ введите название вычислительного пула.
   1. Для завершения нажмите кнопку **Confirm**.
 
@@ -150,7 +150,7 @@
 - Веб-интерфейс
 
   1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-  1. Нажмите кнопку ![start](../../../../../../images/start-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu).
+  1. Нажмите ![start](../../../../../../images/start-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu).
   1. Убедитесь, что:
 
       - параметр `Health` перешёл в состояние `Pending` и через некоторое время сменился на `Good`,
@@ -159,7 +159,7 @@
       Посмотреть статусы этих параметров можно в интерфейсе клики — в блоке с [характеристиками](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
   1. Проверьте работоспособность клики. Для этого сделайте тестовый запрос в интерфейсе **Query Tracker**:
 
-      - нажмите кнопку ![sql](../../../../../../images/sql-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu);
+      - нажмите ![sql](../../../../../../images/sql-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu);
       - в открывшемся окне введите и выполните SQL-запрос.
 
 - CLI
@@ -216,7 +216,7 @@
   1. Убедитесь, что клика работает. Для этого сделайте тестовый запрос, например:
   
       ```bash
-      yt clickhouse execute --proxy <cluster_name> --alias chyt_example_clique 'select 42'
+      yt clickhouse execute --alias chyt_example_clique 'select 42'
       ```
 
 {% endlist %}
@@ -233,7 +233,7 @@
 {% endif %}
 
 {% if audience == "internal" %}
-Если самостоятельно разобраться не удалось, обратитесь за помощью в [наш чат в Мессенджере](https://messenger.360.yandex.ru/#/join/88474949-b58d-4086-a04c-70915fae34fc) или [архивный чат в Telegram](https://nda.ya.ru/t/Dqb57xyQ5psK3X).
+Если самостоятельно разобраться не удалось, обратитесь за помощью в [наш чат в Мессенджере](https://nda.ya.ru/t/bRGOsLUy7hWZiX) или [архивный чат в Telegram](https://nda.ya.ru/t/Dqb57xyQ5psK3X).
 {% endif %}
 
 {% endnote %}
@@ -247,7 +247,7 @@
 - Веб-интерфейс
 
   1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-  1. Нажмите кнопку ![stop](../../../../../../images/stop-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu).
+  1. Нажмите ![stop](../../../../../../images/stop-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu).
   1. Убедитесь, что:
 
       - параметр `Health` перешёл в состояние `Pending` и через некоторое время сменился на `Failed`,

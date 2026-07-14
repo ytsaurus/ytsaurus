@@ -16,7 +16,7 @@
 - Через веб-интерфейс
 
     1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-    1. Нажмите кнопку ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+    1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Выберите слева вкладку **Resources**.
     1. В поле _Instances_ введите количество инстансов для клики от 1 до 100.
 
@@ -94,7 +94,7 @@
 - Веб-интерфейс
 
     1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-    1. Нажмите кнопку ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+    1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Выберите слева вкладку **Resources**.
     1. В поле _Instance CPU_ укажите количество ядер CPU на инстанс.
     1. В поле _Instance Total Memory_ укажите объём оперативной памяти RAM на инстанс.
