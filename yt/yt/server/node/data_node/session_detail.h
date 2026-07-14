@@ -64,6 +64,7 @@ public:
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        i64 ioConsumed,
         TDuration requestTimeout,
         bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
@@ -124,6 +125,7 @@ protected:
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        i64 ioConsumed,
         TDuration requestTimeout,
         bool enableThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;

@@ -8,10 +8,12 @@
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/job_io_meter.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/chunk_writer_statistics.pb.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -180,6 +182,9 @@ public:
         SessionId_ = std::nullopt;
 
         *response->mutable_chunk_info() = {};
+        if (ReportChunkWriterStatistics_) {
+            FillChunkWriterStatistics(response->mutable_chunk_writer_statistics(), /*dataBytes*/ 0, MetaBytesPerFinish_);
+        }
         context->Reply();
     }
 
@@ -330,6 +335,10 @@ public:
             it->second = true;
         }
 
+        if (ReportChunkWriterStatistics_) {
+            FillChunkWriterStatistics(response->mutable_chunk_writer_statistics(), DataBytesPerFlush_, /*metaBytes*/ 0);
+        }
+
         context->Reply();
     }
 
@@ -372,6 +381,18 @@ public:
         return SendBlocksCounter_;
     }
 
+    void SetReportChunkWriterStatistics(i64 dataBytesPerFlush, i64 metaBytesPerFinish)
+    {
+        ReportChunkWriterStatistics_ = true;
+        DataBytesPerFlush_ = dataBytesPerFlush;
+        MetaBytesPerFinish_ = metaBytesPerFinish;
+    }
+
+    i64 GetReportedWriterBytes() const
+    {
+        return ReportedWriterBytes_.load();
+    }
+
 private:
     const int ThrottledBlockCount_;
     const bool AlwaysFail_;
@@ -388,10 +409,25 @@ private:
     bool UseErrorOnNetThrottling_ = true;
     i64 MaxCumulativeBlockSize_ = 0;
 
+    bool ReportChunkWriterStatistics_ = false;
+    i64 DataBytesPerFlush_ = 0;
+    i64 MetaBytesPerFinish_ = 0;
+    std::atomic<i64> ReportedWriterBytes_ = 0;
+
     // Weak Pointer because of circular dependency
     TWeakPtr<IChannelFactory> ChannelFactory_ = nullptr;
     THashMap<int, TBlock> LocalBlocks_;
     THashMap<int, bool> IsBlockFlushed_;
+
+    void FillChunkWriterStatistics(NProto::TChunkWriterStatistics* statistics, i64 dataBytes, i64 metaBytes)
+    {
+        statistics->set_data_bytes_written_to_disk(dataBytes);
+        statistics->set_data_io_write_requests(0);
+        statistics->set_meta_bytes_written_to_disk(metaBytes);
+        statistics->set_meta_io_write_requests(0);
+        statistics->set_meta_io_sync_requests(0);
+        ReportedWriterBytes_.fetch_add(dataBytes + metaBytes);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -756,6 +792,67 @@ INSTANTIATE_TEST_SUITE_P(
             .BlockCount = 1024,
         }
     ));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobIoMeterWriterTest
+    : public TReplicationWriterTest
+{ };
+
+TEST_P(TJobIoMeterWriterTest, AccountsWrittenBytes)
+{
+    constexpr i64 DataBytesPerFlush = 100;
+    constexpr i64 MetaBytesPerFinish = 50;
+
+    for (const auto& service : Services) {
+        service->SetReportChunkWriterStatistics(DataBytesPerFlush, MetaBytesPerFinish);
+    }
+
+    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1));
+
+    IChunkWriter::TWriteBlocksOptions writeOptions;
+    writeOptions.ClientOptions.JobIoMeter = jobIoMeter;
+    TWorkloadDescriptor workloadDescriptor;
+
+    Writer->Open()
+        .Apply(BIND([&] {
+            EXPECT_TRUE(Writer->WriteBlocks(writeOptions, workloadDescriptor, GeneratedBlocks));
+            return Writer->GetReadyEvent();
+        }))
+        .Apply(BIND([&] {
+            auto deferredMeta = New<TDeferredChunkMeta>();
+            deferredMeta->set_type(0);
+            deferredMeta->set_format(0);
+            *deferredMeta->mutable_extensions() = {};
+            return Writer->Close(writeOptions, {}, deferredMeta);
+        }))
+        .BlockingWait(TDuration::Seconds(120));
+
+    // The meter must accumulate exactly the disk-write bytes reported by the data
+    // nodes across all FlushBlocks (data) and FinishChunk (meta) responses.
+    i64 expectedBytes = 0;
+    for (const auto& service : Services) {
+        expectedBytes += service->GetReportedWriterBytes();
+    }
+
+    EXPECT_GT(expectedBytes, 0);
+    EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(TDuration::Hours(1)), expectedBytes);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TJobIoMeterWriterTest,
+    TJobIoMeterWriterTest,
+    ::testing::Values(
+        TWriterTestCase{
+            .ReplicationFactor = 1,
+            .NodeCount = 1,
+            .BlockCount = 16,
+        },
+        TWriterTestCase{
+            .ReplicationFactor = 3,
+            .NodeCount = 3,
+            .BlockCount = 16,
+        }));
 
 ////////////////////////////////////////////////////////////////////////////////
 

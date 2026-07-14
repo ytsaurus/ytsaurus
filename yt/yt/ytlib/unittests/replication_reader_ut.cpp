@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/job_io_meter.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
@@ -544,6 +545,8 @@ TEST_P(TReplicationReaderTest, ReadTest)
     std::vector<bool> requestedBlockMask(blockCount);
 
     IChunkReader::TReadBlocksOptions readBlockOptions;
+    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1));
+    readBlockOptions.ClientOptions.JobIoMeter = jobIoMeter;
     for (int batchIndex = 0; batchIndex < batchCount; batchIndex++) {
         std::vector<TFuture<std::vector<TBlock>>> futures;
 
@@ -609,6 +612,11 @@ TEST_P(TReplicationReaderTest, ReadTest)
 
     EXPECT_GE(statistics->DataBytesReadFromDisk, minBytesToRead);
     EXPECT_LE(statistics->DataBytesReadFromDisk, maxBytesToRead);
+
+    // The job I/O meter accounts disk-read bytes in the same place chunk reader
+    // statistics are handled; since the mock reports only data_bytes_read_from_disk,
+    // the meter must match DataBytesReadFromDisk exactly.
+    EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(TDuration::Hours(1)), statistics->DataBytesReadFromDisk.load());
 
     pool->Shutdown();
     memoryTracker->ClearTrackers();

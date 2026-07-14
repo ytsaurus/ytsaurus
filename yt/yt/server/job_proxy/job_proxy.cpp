@@ -46,6 +46,7 @@
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/job_io_meter.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 
@@ -342,6 +343,11 @@ IServerPtr TJobProxy::GetRpcServer() const
 TTrafficMeterPtr TJobProxy::GetTrafficMeter() const
 {
     return TrafficMeter_;
+}
+
+TJobIoMeterPtr TJobProxy::GetJobIoMeter() const
+{
+    return JobIoMeter_;
 }
 
 IThroughputThrottlerPtr TJobProxy::GetInBandwidthThrottler(const TClusterName& clusterName) const
@@ -905,6 +911,8 @@ TJobResult TJobProxy::RunJob()
 
         TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());
         TrafficMeter_->Start();
+
+        JobIoMeter_ = New<TJobIoMeter>(Config_->JobIoMeterMaxHistoryDuration);
 
         YT_VERIFY(Config_->BusServer->UnixDomainSocketPath);
         YT_VERIFY(Config_->GrpcServer->Addresses.size() == 1);

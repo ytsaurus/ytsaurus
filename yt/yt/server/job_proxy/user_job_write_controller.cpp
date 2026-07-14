@@ -250,6 +250,11 @@ void TUserJobWriteController::Init(TCpuInstant ioStartTime)
         DeserializeFromWireProto(&schema, outputSpec.table_schema());
         auto schemaId = FromProto<TMasterTableSchemaId>(outputSpec.schema_id());
 
+        auto& writeBlocksOptions = OutputWriteBlocksOptions_.emplace_back(
+            TClientChunkWriteOptions{
+                .ChunkWriterStatistics = New<NChunkClient::TChunkWriterStatistics>(),
+                .JobIoMeter = Host_->GetJobIoMeter(),});
+
         // ToDo(psushin): open writers in parallel.
         auto writer = userJobIOFactory->CreateWriter(
             Host_->GetClient(),
@@ -261,7 +266,7 @@ void TUserJobWriteController::Init(TCpuInstant ioStartTime)
             schemaId,
             TChunkTimestamps{timestamp, timestamp},
             dataSink,
-            OutputWriteBlocksOptions_.emplace_back());
+            writeBlocksOptions);
 
         Writers_.push_back(CreateProfilingMultiChunkWriter(std::move(writer), ioStartTime));
 

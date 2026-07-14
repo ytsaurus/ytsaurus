@@ -898,6 +898,7 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
     int firstBlockIndex,
     int blockCount,
     i64 cumulativeBlockSize,
+    i64 ioConsumed,
     TDuration requestTimeout,
     bool instantReplyOnThrottling,
     const TNodeDescriptor& targetDescriptor)
@@ -918,6 +919,7 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
     ToProto(req->mutable_session_id(), SessionId_);
     req->set_first_block_index(firstBlockIndex);
     req->set_cumulative_block_size(cumulativeBlockSize);
+    req->set_io_consumed(ioConsumed);
 
     i64 requestSize = 0;
 

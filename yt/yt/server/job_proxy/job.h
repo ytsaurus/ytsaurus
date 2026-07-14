@@ -106,6 +106,7 @@ struct IJobHost
     virtual std::string GetJobProxyHttpUnixDomainSocketPath() const = 0;
 
     virtual NChunkClient::TTrafficMeterPtr GetTrafficMeter() const = 0;
+    virtual NChunkClient::TJobIoMeterPtr GetJobIoMeter() const = 0;
 
     virtual NConcurrency::IThroughputThrottlerPtr GetInBandwidthThrottler(const NScheduler::TClusterName& clusterName) const = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetOutBandwidthThrottler() const = 0;

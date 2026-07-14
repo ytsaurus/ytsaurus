@@ -40,6 +40,7 @@ private:
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
+        i64 ioConsumed,
         TDuration requestTimeout,
         bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) override;

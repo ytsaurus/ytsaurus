@@ -256,6 +256,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/input_chunk_slice.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/input_chunk.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/job_io_meter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/legacy_data_slice.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/medium_directory.cpp

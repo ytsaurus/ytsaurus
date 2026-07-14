@@ -9,6 +9,7 @@
 #include "config.h"
 #include "data_node_service_proxy.h"
 #include "helpers.h"
+#include "job_io_meter.h"
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_reader_options.h"
 #include "chunk_replica_cache.h"
@@ -91,6 +92,16 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const double MaxBackoffMultiplier = 1000.0;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRequestPtr>
+void SetRequestIoConsumed(const TRequestPtr& req, const TClientChunkReadOptions& options, TDuration window)
+{
+    if (const auto& jobIoMeter = options.JobIoMeter) {
+        req->set_io_consumed(jobIoMeter->GetIoConsumedInWindow(window));
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1065,6 +1076,10 @@ protected:
             protoChunkReaderStatistics.wasted_data_bytes_read_from_disk() +
             protoChunkReaderStatistics.meta_bytes_read_from_disk();
         TotalBytesReadFromDisk_.fetch_add(bytesReadFromDisk, std::memory_order::relaxed);
+
+        if (const auto& jobIoMeter = SessionOptions_.JobIoMeter) {
+            jobIoMeter->AccountRead(bytesReadFromDisk);
+        }
     }
 
     void AccountExtraMediumBandwidth(i64 throttledBytes)
@@ -3512,6 +3527,7 @@ private:
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
+        SetRequestIoConsumed(req, SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(BlockCount_);
@@ -3819,6 +3835,7 @@ private:
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
+        SetRequestIoConsumed(req, SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
@@ -4321,6 +4338,7 @@ private:
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
+        SetRequestIoConsumed(req, SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_read_session_id(), SessionOptions_.ReadSessionId);
         req->set_timestamp(Options_->Timestamp);
@@ -4841,6 +4859,7 @@ private:
         auto req = proxy.ProbeBlockSet();
         auto blockIndexes = std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
+        SetRequestIoConsumed(req, queuedBatch.Session->SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
         req->SetResponseHeavy(true);
         req->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v, Cookie: %x",
             ChunkId_,
@@ -4870,6 +4889,7 @@ private:
         req->SetMultiplexingBand(queuedBatch.Session->SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(queuedBatch.Session->SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
+        SetRequestIoConsumed(req, queuedBatch.Session->SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
         ToProto(req->mutable_chunk_id(), ChunkId_);
 
         auto blockIndexes = std::vector(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());

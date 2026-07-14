@@ -75,6 +75,7 @@ TJob::TJob(IJobHostPtr host)
     ChunkReadOptions_.WorkloadDescriptor = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->WorkloadDescriptor;
     ChunkReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
     ChunkReadOptions_.ReadSessionId = TReadSessionId::Create();
+    ChunkReadOptions_.JobIoMeter = Host_->GetJobIoMeter();
 }
 
 void TJob::Initialize()
@@ -201,7 +202,9 @@ TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
     : TJob(host)
     , JobSpec_(host->GetJobSpecHelper()->GetJobSpec())
     , JobSpecExt_(host->GetJobSpecHelper()->GetJobSpecExt())
-{ }
+{
+    WriteBlocksOptions_.ClientOptions.JobIoMeter = host->GetJobIoMeter();
+}
 
 void TSimpleJobBase::Initialize()
 {

@@ -10,6 +10,7 @@
 #include "deferred_chunk_meta.h"
 #include "dispatcher.h"
 #include "helpers.h"
+#include "job_io_meter.h"
 #include "private.h"
 #include "traffic_meter.h"
 
@@ -69,6 +70,18 @@ using NProto::TChunkInfo;
 using NProto::TDataStatistics;
 using NYT::FromProto;
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Reports the job's recently consumed I/O over #window to the data node via the
+// io_consumed request field. No-op when no meter is attached.
+template <class TRequestPtr>
+void SetRequestIoConsumed(const TRequestPtr& req, const TClientChunkWriteOptions& options, TDuration window)
+{
+    if (const auto& jobIoMeter = options.JobIoMeter) {
+        req->set_io_consumed(jobIoMeter->GetIoConsumedInWindow(window));
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -904,6 +917,20 @@ private:
         }
     }
 
+    void HandleChunkWriterStatistics(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const NProto::TChunkWriterStatistics& protoChunkWriterStatistics)
+    {
+        UpdateFromProto(&options.ClientOptions.ChunkWriterStatistics, protoChunkWriterStatistics);
+
+        if (const auto& jobIoMeter = options.ClientOptions.JobIoMeter) {
+            auto bytesWrittenToDisk =
+                protoChunkWriterStatistics.data_bytes_written_to_disk() +
+                protoChunkWriterStatistics.meta_bytes_written_to_disk();
+            jobIoMeter->AccountWrite(bytesWrittenToDisk);
+        }
+    }
+
     void FlushBlocks(const IChunkWriter::TWriteBlocksOptions& options, const TNodePtr& node, int blockIndex)
     {
         YT_ASSERT_THREAD_AFFINITY(WriterThread);
@@ -941,7 +968,7 @@ private:
             DemandClose();
         }
 
-        UpdateFromProto(&options.ClientOptions.ChunkWriterStatistics, rsp->chunk_writer_statistics());
+        HandleChunkWriterStatistics(options, rsp->chunk_writer_statistics());
 
         if (CloseRequested_ && blockIndex + 1 == BlockCount_) {
             // We flushed the last block in chunk.
@@ -1168,7 +1195,7 @@ private:
             node->GetDefaultAddress(),
             chunkInfo.disk_space());
 
-        UpdateFromProto(&options.ClientOptions.ChunkWriterStatistics, rsp->chunk_writer_statistics());
+        HandleChunkWriterStatistics(options, rsp->chunk_writer_statistics());
 
         node->SetFinished();
         YT_UNUSED_FUTURE(node->StopPing());
@@ -1449,6 +1476,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
         req->set_first_block_index(FirstBlockIndex_);
         req->set_populate_cache(writer->Config_->PopulateCache);
         req->set_cumulative_block_size(CumulativeBlockSize_);
+        SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
 
         SetRpcAttachedBlocks(req, Blocks_);
 
@@ -1549,6 +1577,7 @@ void TGroup::SendGroup(
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(Blocks_.size());
         req->set_cumulative_block_size(CumulativeBlockSize_);
+        SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
         ToProto(req->mutable_target_descriptor(), dstNode->GetDescriptor());
 
         sendBlocksFutures.push_back(req->Invoke());
