@@ -42,6 +42,13 @@ TConstExpressionPtr ApplyRewriters(TConstExpressionPtr expr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Reinterpret a "table.column[accessor]" reference as "column.member[accessor]".
+//! Return nullopt if the reference has no table part.
+std::optional<NAst::TReference> TryReinterpretAsMemberAccess(
+    const NAst::TReference& reference);
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::optional<TValue> FoldConstants(
     EUnaryOp opcode,
     const TConstExpressionPtr& operand);
