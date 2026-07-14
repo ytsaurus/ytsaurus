@@ -145,8 +145,6 @@ public:
 private:
     const NApi::NNative::IClientPtr Client_;
 
-    TSingleShotCallbackList<void(const TError&)> Failed_;
-
     const TSessionId SessionId_;
     const TChunkId ChunkId_;
     const EChunkFormat ChunkFormat_;
@@ -203,6 +201,8 @@ private:
     TError Error_;
 
     std::atomic<bool> IsCloseDemanded_ = false;
+
+    TSingleShotCallbackList<void(const TError&)> Failed_;
 
     struct TRecord
         : public TRefCounted
