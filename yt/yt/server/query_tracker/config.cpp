@@ -91,8 +91,9 @@ void TSpytEngineConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Postprocessor([&] (TSpytEngineConfig* config) {
-        if (!(config->SparkVersion.empty() || config->SparkVersion.starts_with("3.5"))) {
-            THROW_ERROR_EXCEPTION("Incompatible Spark version: only 3.5.x is supported");
+        const auto& sparkVersion = config->SparkVersion;
+        if (!(sparkVersion.empty() || sparkVersion.starts_with("3.5") || sparkVersion.starts_with("4."))) {
+            THROW_ERROR_EXCEPTION("Incompatible Spark version: only 3.5.x and 4.x are supported");
         }
     });
 }

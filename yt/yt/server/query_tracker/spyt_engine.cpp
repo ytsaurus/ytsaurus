@@ -384,7 +384,6 @@ private:
     {
         std::string sparkHome = Config_->UseSquashfs ? "/usr/lib/spark" : "$HOME/spark";
         std::string sparkDistr = Format("spark-%v-bin-hadoop3", Config_->SparkVersion);
-        std::string sparkConnectJar = Format("spark-connect_2.12-%v.jar", Config_->SparkVersion);
         std::string command = CreateCommand(sparkHome, sparkDistr);
 
         std::string versionPath{Config_->SparkVersion};
@@ -424,7 +423,9 @@ private:
 
             filePaths.reserve(2);
             filePaths.push_back(Format("//home/spark/distrib/%v/%v.tgz", versionPath, sparkDistr));
-            filePaths.push_back(Format("//home/spark/distrib/%v/spark-connect_2.12-%v.jar", versionPath, Config_->SparkVersion));
+            if (Config_->SparkVersion.starts_with("3.5")) {
+                filePaths.push_back(Format("//home/spark/distrib/%v/spark-connect_2.12-%v.jar", versionPath, Config_->SparkVersion));
+            }
         }
 
         auto confFilePaths = releaseConfigNode->GetChildValueOrThrow<std::vector<std::string>>("file_paths");
@@ -1006,8 +1007,10 @@ public:
 
     IQueryHandlerPtr StartOrAttachQuery(TActiveQuery activeQuery) override
     {
-        if (Config_->SparkVersion.empty() || !Config_->SparkVersion.starts_with("3.5")) {
-            THROW_ERROR_EXCEPTION("Spark version should not be empty, and only 3.5.x is supported");
+        const auto& sparkVersion = Config_->SparkVersion;
+        bool sparkVersionSupported = sparkVersion.starts_with("3.5") || sparkVersion.starts_with("4.");
+        if (sparkVersion.empty() || !sparkVersionSupported) {
+            THROW_ERROR_EXCEPTION("Spark version should not be empty, and only 3.5.x and 4.x are supported");
         }
         if (Config_->SpytVersion.empty()) {
             THROW_ERROR_EXCEPTION("SPYT version should not be empty");
