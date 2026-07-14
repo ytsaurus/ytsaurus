@@ -78,18 +78,20 @@ public:
         const TWriteOptions& options) override;
 
 private:
+    // LRU list: front = least recently used, back = most recently used.
+    using TLruList = std::list<i64>;
+    using TLruIter = TLruList::iterator;
+
     struct TPage
     {
         TSharedMutableRef Data;
         //! Page needs to be flushed.
         bool Dirty = false;
+        //! Position of this page in LruList_ (its own LRU node).
+        TLruIter LruIter;
     };
 
     using TPageMap = std::unordered_map<i64, TPage>;
-
-    // LRU list: front = least recently used, back = most recently used.
-    using TLruList = std::list<i64>;
-    using TLruIter = TLruList::iterator;
 
     const TPageCacheConfigPtr Config_;
     const IChunkHandlerPtr ChunkHandler_;
@@ -110,8 +112,6 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     TPageMap Pages_;
     TLruList LruList_;
-    std::unordered_map<i64, TLruIter> LruMap_;
-    i64 TotalPages_ = 0;
 
     //! Sorted set of page indices with Dirty == true, maintained in sync with
     //! page.Dirty. Enables O(MaxDirtyPagesPerFlush) dirty-page collection in
@@ -130,15 +130,35 @@ private:
     TFuture<void> Stop();
 
     //! Move page to the most-recently-used end of the LRU list.
-    void TouchPage(i64 pageIndex);
+    void TouchPage(TPage& page);
+
+    //! Mark a page dirty and add it to DirtySet_ (no-op if already dirty).
+    //! Keeps page.Dirty and DirtySet_ in sync. Must be called under Lock_.
+    void MarkPageDirty(TPage& page, i64 pageIndex);
+
+    //! Mark a page clean and remove it from DirtySet_ (no-op if already clean).
+    //! Keeps page.Dirty and DirtySet_ in sync. Must be called under Lock_.
+    void MarkPageClean(TPage& page, i64 pageIndex);
 
     //! Evict up to |count| clean pages from the cache in a single pass.
     //! Returns the number of pages actually evicted.
     //! Single O(N) pass through the LRU list regardless of count.
     i64 EvictPages(i64 count);
 
+    //! Evict enough clean pages to make room for |numMissing| new pages.
+    //! Returns true if not enough clean pages could be evicted (the remaining
+    //! pages are all dirty), signaling the caller to trigger a background flush.
+    //! Must be called under Lock_.
+    bool NeedFlushToFitMissing(i64 numMissing);
+
+    //! Re-mark the given write-through pages dirty (used to recover from a failed
+    //! FUA path): if the durable write never reached the data node, the pages
+    //! that were inserted clean must be flushed later instead of being lost.
+    //! Only pages that still exist and are still clean are re-dirtied.
+    void RedirtyWriteThroughPages(const std::vector<i64>& pageIndexes);
+
     //! Remove a page from the cache (both map and LRU structures).
-    void RemovePage(i64 pageIndex);
+    void RemovePage(TPageMap::iterator it);
 
     //! Trigger a background flush and log any resulting error.
     //! Fire-and-forget: does not block the caller.
