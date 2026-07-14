@@ -785,7 +785,7 @@ TError CheckPoolName(const std::string& poolName, const re2::RE2& regex)
             << TErrorAttribute("max_length", PoolNameMaxLength);
     }
 
-    if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(poolName), regex)) {
+    if (!NRe2::TRe2::FullMatch(re2::StringPiece(poolName), regex)) {
         return TError("Pool name %Qv must match regular expression %Qv", poolName, regex.pattern());
     }
 

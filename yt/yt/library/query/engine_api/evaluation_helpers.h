@@ -127,7 +127,7 @@ struct TExecutionContext;
 struct TArrayJoinParameters
 {
     bool IsLeft;
-    std::vector<EValueType> FlattenedTypes;
+    std::vector<NTableClient::EValueType> FlattenedTypes;
     std::vector<int> SelfJoinedColumns;
     std::vector<int> ArrayJoinedColumns;
 };
@@ -239,7 +239,7 @@ struct TWriteOpClosure
 
 struct TSubqueryParameters
 {
-    std::vector<EValueType> FromTypes;
+    std::vector<NTableClient::EValueType> FromTypes;
 };
 
 struct TSubqueryWriteOpClosure

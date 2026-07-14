@@ -54,7 +54,7 @@ using namespace NYPath;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
-using namespace NRecords;
+using namespace NQueryTrackerClient::NRecords;
 using namespace NComponentStateChecker;
 using namespace NTableClient;
 using namespace NLogging;

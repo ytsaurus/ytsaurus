@@ -10,6 +10,8 @@
 
 namespace NYT::NDataNode {
 
+using namespace NNode;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TProbePutBlocksRequestSupplier::TProbePutBlocksRequestSupplier(TSessionId sessionId)

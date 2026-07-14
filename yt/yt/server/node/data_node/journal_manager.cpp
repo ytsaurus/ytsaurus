@@ -35,6 +35,7 @@ namespace NYT::NDataNode {
 using namespace NHydra;
 using namespace NHydra::NProto;
 using namespace NConcurrency;
+using namespace NNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

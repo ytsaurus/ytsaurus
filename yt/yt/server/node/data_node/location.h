@@ -340,7 +340,7 @@ protected:
 private:
     friend class TLocationMemoryGuard;
     friend class TPendingIOGuard;
-    friend class TLockedChunkGuard;
+    friend class NNode::TLockedChunkGuard;
 
     TAtomicPtr<TChunkLocationConfig, /*EnableAcquireHazard*/ true> RuntimeConfig_;
 

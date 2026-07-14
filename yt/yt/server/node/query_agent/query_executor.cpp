@@ -95,6 +95,7 @@ namespace NYT::NQueryClient {
 
 using namespace NServer;
 using namespace NTracing;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

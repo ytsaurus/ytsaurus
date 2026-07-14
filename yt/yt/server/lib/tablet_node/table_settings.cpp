@@ -163,15 +163,15 @@ bool TTableConfigExperiment::Matches(const TTableDescriptor& descriptor) const
         return false;
     }
 
-    if (PathRe && !NRe2::TRe2::FullMatch(NRe2::StringPiece(descriptor.TablePath), *PathRe)) {
+    if (PathRe && !NRe2::TRe2::FullMatch(re2::StringPiece(descriptor.TablePath), *PathRe)) {
         return false;
     }
 
-    if (TabletCellBundle && !NRe2::TRe2::FullMatch(NRe2::StringPiece(descriptor.TabletCellBundle), *TabletCellBundle)) {
+    if (TabletCellBundle && !NRe2::TRe2::FullMatch(re2::StringPiece(descriptor.TabletCellBundle), *TabletCellBundle)) {
         return false;
     }
 
-    if (InMemoryMode && !NRe2::TRe2::FullMatch(NRe2::StringPiece(FormatEnum(descriptor.InMemoryMode)), *InMemoryMode)) {
+    if (InMemoryMode && !NRe2::TRe2::FullMatch(re2::StringPiece(FormatEnum(descriptor.InMemoryMode)), *InMemoryMode)) {
         return false;
     }
 

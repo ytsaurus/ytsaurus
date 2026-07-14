@@ -14,6 +14,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NYson;
+using namespace NQueryTrackerClient::NRecords;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,7 +165,7 @@ public:
         , StateRoot_(std::move(stateRoot))
     { }
 
-    IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
+    IQueryHandlerPtr StartOrAttachQuery(NQueryTrackerClient::NRecords::TActiveQuery activeQuery) override
     {
         return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker(), NotIndexedQueriesTTL_);
     }

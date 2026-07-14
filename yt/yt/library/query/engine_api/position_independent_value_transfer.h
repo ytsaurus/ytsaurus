@@ -22,19 +22,19 @@ void CapturePIValue(
     TPIValue* value);
 
 TSharedRange<TRange<TPIValue>> CopyAndConvertToPI(
-    const TSharedRange<TUnversionedRow>& rows,
+    const TSharedRange<NTableClient::TUnversionedRow>& rows,
     bool captureValues = true);
 TSharedRange<TPIRowRange> CopyAndConvertToPI(
-    const TSharedRange<TRowRange>& range,
+    const TSharedRange<NTableClient::TRowRange>& range,
     bool captureValues = true);
 
-TMutableUnversionedRow CopyAndConvertFromPI(
+NTableClient::TMutableUnversionedRow CopyAndConvertFromPI(
     NWebAssembly::IWebAssemblyCompartment* compartment,
     TExpressionContext* context,
     TPIValueRange values,
     bool captureValues = true);
 
-std::vector<TUnversionedRow> CopyAndConvertFromPI(
+std::vector<NTableClient::TUnversionedRow> CopyAndConvertFromPI(
     NWebAssembly::IWebAssemblyCompartment* compartment,
     TExpressionContext* context,
     const std::vector<TPIValueRange>& rows,
@@ -44,10 +44,10 @@ TMutablePIValueRange CaptureUnversionedValueRange(
     TExpressionContext* context,
     TRange<TValue> range);
 
-TMutablePIValueRange InplaceConvertToPI(TMutableUnversionedValueRange range);
-TMutablePIValueRange InplaceConvertToPI(const TUnversionedRow& row);
+TMutablePIValueRange InplaceConvertToPI(NTableClient::TMutableUnversionedValueRange range);
+TMutablePIValueRange InplaceConvertToPI(const NTableClient::TUnversionedRow& row);
 
-TMutableUnversionedValueRange InplaceConvertFromPI(TMutablePIValueRange range);
+NTableClient::TMutableUnversionedValueRange InplaceConvertFromPI(TMutablePIValueRange range);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,26 +66,26 @@ TBorrowingNonPIValueGuard<TPI> BorrowFromPI(TPI value);
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-class TBorrowingPIValueGuard<TUnversionedValue*>
+class TBorrowingPIValueGuard<NTableClient::TUnversionedValue*>
     : public TNonCopyable
 {
 public:
-    explicit TBorrowingPIValueGuard(TUnversionedValue* value);
+    explicit TBorrowingPIValueGuard(NTableClient::TUnversionedValue* value);
     ~TBorrowingPIValueGuard();
 
     TPIValue* GetPIValue();
 
 private:
-    TUnversionedValue* Value_ = nullptr;
+    NTableClient::TUnversionedValue* Value_ = nullptr;
     TPIValue* PIValue_ = nullptr;
 };
 
 template <>
-class TBorrowingPIValueGuard<TUnversionedValueRange>
+class TBorrowingPIValueGuard<NTableClient::TUnversionedValueRange>
     : public TNonCopyable
 {
 public:
-    explicit TBorrowingPIValueGuard(TUnversionedValueRange valueRange);
+    explicit TBorrowingPIValueGuard(NTableClient::TUnversionedValueRange valueRange);
     ~TBorrowingPIValueGuard();
 
     TPIValue* Begin();
@@ -93,7 +93,7 @@ public:
     size_t Size();
 
 private:
-    TMutableUnversionedValueRange ValueRange_{};
+    NTableClient::TMutableUnversionedValueRange ValueRange_{};
     TMutablePIValueRange PIValueRange_{};
 };
 
@@ -107,10 +107,10 @@ public:
     explicit TBorrowingNonPIValueGuard(TPIValue* piValue);
     ~TBorrowingNonPIValueGuard();
 
-    TUnversionedValue* GetValue();
+    NTableClient::TUnversionedValue* GetValue();
 
 private:
-    TUnversionedValue* Value_ = nullptr;
+    NTableClient::TUnversionedValue* Value_ = nullptr;
     TPIValue* PIValue_ = nullptr;
 };
 
@@ -122,11 +122,11 @@ public:
     explicit TBorrowingNonPIValueGuard(TPIValueRange valueRange);
     ~TBorrowingNonPIValueGuard();
 
-    TUnversionedValue* Begin();
+    NTableClient::TUnversionedValue* Begin();
     size_t Size();
 
 private:
-    TMutableUnversionedValueRange ValueRange_{};
+    NTableClient::TMutableUnversionedValueRange ValueRange_{};
     TMutablePIValueRange PIValueRange_{};
 };
 

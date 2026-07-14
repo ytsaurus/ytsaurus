@@ -2584,7 +2584,7 @@ std::optional<std::string> TPoolTreeOperationElement::GetCustomProfilingTag() co
 
     if (allowedProfilingTags.find(*tagName) == allowedProfilingTags.end() ||
         (TreeConfig_->CustomProfilingTagFilter &&
-            NRe2::TRe2::FullMatch(NRe2::StringPiece(*tagName), *TreeConfig_->CustomProfilingTagFilter)))
+            NRe2::TRe2::FullMatch(re2::StringPiece(*tagName), *TreeConfig_->CustomProfilingTagFilter)))
     {
         tagName = InvalidCustomProfilingTag;
     }

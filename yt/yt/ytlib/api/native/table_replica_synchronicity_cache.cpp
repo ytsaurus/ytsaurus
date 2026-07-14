@@ -21,6 +21,7 @@ using namespace NHiveClient;
 using namespace NLogging;
 using namespace NTabletClient;
 using namespace NQueryClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

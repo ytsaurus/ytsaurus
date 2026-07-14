@@ -12,8 +12,6 @@
 
 namespace NYT::NQueryClient {
 
-using namespace NYT::NTableClient;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 union TPositionIndependentValueData
@@ -43,10 +41,10 @@ struct TPositionIndependentValue
     ui16 Id;
 
     //! Column type.
-    EValueType Type;
+    NTableClient::EValueType Type;
 
     //! Various bit-packed flags.
-    EValueFlags Flags;
+    NTableClient::EValueFlags Flags;
 
     //! Length of a variable-sized value (only meaningful for string-like types).
     ui32 Length;
@@ -94,29 +92,29 @@ void FormatValue(TStringBuilderBase* builder, const TPIValue& value, TStringBuf 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MakeUnversionedFromPositionIndependent(TUnversionedValue* destination, const TPIValue& source);
+void MakeUnversionedFromPositionIndependent(NTableClient::TUnversionedValue* destination, const TPIValue& source);
 
-void MakePositionIndependentFromUnversioned(TPIValue* destination, const TUnversionedValue& source);
+void MakePositionIndependentFromUnversioned(TPIValue* destination, const NTableClient::TUnversionedValue& source);
 
 void CopyPositionIndependent(TPIValue* destination, const TPIValue& source);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MakePositionIndependentSentinelValue(TPIValue* result, EValueType type, int id = 0, EValueFlags flags = EValueFlags::None);
+void MakePositionIndependentSentinelValue(TPIValue* result, NTableClient::EValueType type, int id = 0, NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
 
-void MakePositionIndependentNullValue(TPIValue* result, int id = 0, EValueFlags flags = EValueFlags::None);
+void MakePositionIndependentNullValue(TPIValue* result, int id = 0, NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
 
-void MakePositionIndependentInt64Value(TPIValue* result, i64 value, int id = 0, EValueFlags flags = EValueFlags::None);
+void MakePositionIndependentInt64Value(TPIValue* result, i64 value, int id = 0, NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
 
-void MakePositionIndependentUint64Value(TPIValue* result, ui64 value, int id = 0, EValueFlags flags = EValueFlags::None);
+void MakePositionIndependentUint64Value(TPIValue* result, ui64 value, int id = 0, NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
 
-void MakePositionIndependentDoubleValue(TPIValue* result, double value, int id = 0, EValueFlags flags = EValueFlags::None);
+void MakePositionIndependentDoubleValue(TPIValue* result, double value, int id = 0, NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
 
-void MakePositionIndependentBooleanValue(TPIValue* result, bool value, int id = 0, EValueFlags flags = EValueFlags::None);
+void MakePositionIndependentBooleanValue(TPIValue* result, bool value, int id = 0, NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
 
-void MakePositionIndependentStringLikeValue(TPIValue* result, EValueType valueType, TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None);
+void MakePositionIndependentStringLikeValue(TPIValue* result, NTableClient::EValueType valueType, TStringBuf value, int id = 0, NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
 
-void MakePositionIndependentValueHeader(TPIValue* result, EValueType type, int id = 0, EValueFlags flags = EValueFlags::None);
+void MakePositionIndependentValueHeader(TPIValue* result, NTableClient::EValueType type, int id = 0, NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -41,6 +41,9 @@ using namespace NYson;
 
 using NYT::ToProto;
 
+using namespace NTableClient;
+using namespace NTransactionClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string TrimCommandForBriefSpec(const std::string& command)

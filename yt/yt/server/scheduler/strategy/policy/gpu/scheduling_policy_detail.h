@@ -20,12 +20,6 @@
 
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
-using namespace NConcurrency;
-using namespace NNodeTrackerClient;
-using namespace NYTree;
-using namespace NYson;
-using namespace NLogging;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TAllocationInfo
@@ -103,8 +97,8 @@ public:
 
     void Initialize() override;
 
-    void RegisterNode(TNodeId nodeId, const std::string& nodeAddress) override;
-    void UnregisterNode(TNodeId nodeId) override;
+    void RegisterNode(NNodeTrackerClient::TNodeId nodeId, const std::string& nodeAddress) override;
+    void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) override;
 
     TFuture<void> ProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
@@ -128,10 +122,10 @@ public:
 
     void BuildSchedulingAttributesStringForNode(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        TNodeId nodeId,
+        NNodeTrackerClient::TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
 
-    void BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const override;
+    void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const override;
 
     // TODO(yaishenka): implement these methods in YT-27633.
     void BuildSchedulingAttributesStringForOngoingAllocations(
@@ -144,7 +138,7 @@ public:
         const TPoolTreeElement* element,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
 
-    void PopulateOrchidService(const ICompositeMapServicePtr& orchidService) const override;
+    void PopulateOrchidService(const NYTree::ICompositeMapServicePtr& orchidService) const override;
 
     void ProfileOperation(
         const TPoolTreeOperationElement* element,
@@ -164,8 +158,8 @@ public:
 
     void UpdateConfig(TStrategyTreeConfigPtr treeConfig) override;
 
-    void InitPersistentState(INodePtr persistentState) override;
-    INodePtr BuildPersistentState() const override;
+    void InitPersistentState(NYTree::INodePtr persistentState) override;
+    NYTree::INodePtr BuildPersistentState() const override;
 
 private:
     const TWeakPtr<ISchedulingPolicyHost> Host_;
@@ -175,7 +169,7 @@ private:
 
     TGpuSchedulingPolicyConfigPtr Config_;
 
-    TPeriodicExecutorPtr PlanUpdateExecutor_;
+    NConcurrency::TPeriodicExecutorPtr PlanUpdateExecutor_;
     TAssignmentHandler AssignmentHandler_;
 
     TNodeMap Nodes_;
@@ -184,7 +178,7 @@ private:
 
     using TPendingRevivedAllocations =
         TCompactFlatMap<TAllocationId, TPendingRevivedAllocation, MaxNodeGpuCount>;
-    THashMap<TNodeId, TPendingRevivedAllocations> PendingRevivedAllocations_;
+    THashMap<NNodeTrackerClient::TNodeId, TPendingRevivedAllocations> PendingRevivedAllocations_;
 
     TInstant InitializationFromPersistentStateDeadline_;
     TPersistentStatePtr InitialPersistentState_ = New<TPersistentState>();
@@ -240,7 +234,7 @@ private:
     //! Returns true otherwise
     bool CheckInitializationTimeout();
 
-    std::optional<TPersistentNodeState> FindInitialNodePersistentState(TNodeId nodeId);
+    std::optional<TPersistentNodeState> FindInitialNodePersistentState(NNodeTrackerClient::TNodeId nodeId);
 
     std::optional<TPersistentOperationState> FindInitialOperationPersistentState(TOperationId operationId);
 
@@ -252,7 +246,7 @@ private:
 
     void ProfileSchedulingHeartbeat(const TGpuScheduleAllocationsStatisticsPtr& statistics);
 
-    TLogger MakeNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor);
+    NLogging::TLogger MakeNodeLogger(const TExecNodeDescriptorPtr& nodeDescriptor);
 
     void DoProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
@@ -300,13 +294,13 @@ private:
         const TAssignmentPtr& assignment,
         const TAllocationStatePtr& allocation);
 
-    void DoBuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const;
+    void DoBuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const;
     void DoBuildSchedulingAttributesStringForNode(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        TNodeId nodeId,
+        NNodeTrackerClient::TNodeId nodeId,
         TDelimitedStringBuilderWrapper* builderWrapper) const;
 
-    void RemovePendingRevivedAllocation(TNodeId nodeId, TAllocationId allocationId);
+    void RemovePendingRevivedAllocation(NNodeTrackerClient::TNodeId nodeId, TAllocationId allocationId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulingPolicy)
@@ -321,8 +315,8 @@ public:
 
     void Initialize() override;
 
-    void RegisterNode(TNodeId nodeId, const std::string& nodeAddress) override;
-    void UnregisterNode(TNodeId nodeId) override;
+    void RegisterNode(NNodeTrackerClient::TNodeId nodeId, const std::string& nodeAddress) override;
+    void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) override;
 
     void RegisterOperation(const TPoolTreeOperationElement* element) override;
     void UnregisterOperation(const TPoolTreeOperationElement* element) override;
@@ -330,12 +324,12 @@ public:
     void EnableOperation(const TPoolTreeOperationElement* element) override;
     void DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive) override;
 
-    void PopulateOrchidService(const ICompositeMapServicePtr& orchidService) const override;
+    void PopulateOrchidService(const NYTree::ICompositeMapServicePtr& orchidService) const override;
 
     void UpdateConfig(TStrategyTreeConfigPtr config) override;
 
-    void InitPersistentState(INodePtr persistentState) override;
-    INodePtr BuildPersistentState() const override;
+    void InitPersistentState(NYTree::INodePtr persistentState) override;
+    NYTree::INodePtr BuildPersistentState() const override;
 
     TPostUpdateContextPtr CreatePostUpdateContext(TPoolTreeRootElement* rootElement) override;
     void PostUpdate(
@@ -365,10 +359,10 @@ public:
 
     void BuildSchedulingAttributesStringForNode(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        TNodeId nodeId,
+        NNodeTrackerClient::TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
 
-    void BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const override;
+    void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const override;
 
     void BuildSchedulingAttributesStringForOngoingAllocations(
         const TPoolTreeSnapshotPtr& treeSnapshot,
@@ -387,7 +381,7 @@ public:
         NProfiling::ISensorWriter* writer) const override;
 
 private:
-    const TLogger Logger;
+    const NLogging::TLogger Logger;
 };
 
 DEFINE_REFCOUNTED_TYPE(TNoopSchedulingPolicy)

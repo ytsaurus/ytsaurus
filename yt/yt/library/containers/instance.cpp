@@ -100,7 +100,7 @@ std::vector<TResourceUsage::TTaggedStat> ExtractIOStatsPerDevice(
     const std::string& input)
 {
     // Example of input: 'hw: 34843530298; sdb: 618096087; sdi: 9284833908'.
-    static const NRe2::RE2 regex("([a-z]+) *: *([0-9]+)");
+    static const re2::RE2 regex("([a-z]+) *: *([0-9]+)");
 
     std::vector<TResourceUsage::TTaggedStat> result;
     std::string_view inputView{input.c_str(), input.length()};
@@ -108,7 +108,7 @@ std::vector<TResourceUsage::TTaggedStat> ExtractIOStatsPerDevice(
     std::string deviceName;
     int statisticsValue;
 
-    while (NRe2::RE2::FindAndConsume(&inputView, regex, &deviceName, &statisticsValue)) {
+    while (re2::RE2::FindAndConsume(&inputView, regex, &deviceName, &statisticsValue)) {
         // hw - total statistic for all devices.
         // In that function we extract only per device statistic, because of that we skip hw.
         if (deviceName != "hw") {

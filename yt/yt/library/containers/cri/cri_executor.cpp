@@ -750,7 +750,7 @@ private:
                     }
                 }
                 if (config->RetryErrorPattern) {
-                    return NRe2::RE2::PartialMatch(message, *config->RetryErrorPattern);
+                    return re2::RE2::PartialMatch(message, *config->RetryErrorPattern);
                 }
             }
             return false;
