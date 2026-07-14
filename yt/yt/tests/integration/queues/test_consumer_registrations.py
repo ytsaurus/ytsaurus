@@ -1030,8 +1030,8 @@ class TestDataApiBase(TestQueueConsumerApiBase, TestQueueAgentBase):
         TestQueueAgentBase._create_consumer(path, mount, without_meta, driver, **kwargs)
 
     @staticmethod
-    def _create_symlink_queue(path):
-        TestDataApiBase._create_queue(f"{path}-original")
+    def _create_symlink_queue(path, **kwargs):
+        TestDataApiBase._create_queue(f"{path}-original", **kwargs)
         link(f"{path}-original", path)
 
     @staticmethod
@@ -1142,7 +1142,8 @@ class TestDataApiSingleCluster(TestDataApiBase):
         TestDataApiBase._create_symlink_queue,
     ])
     def test_pull_queue(self, create_queue):
-        create_queue("//tmp/q")
+        # NB: Disable auto-flush so both rows stay in one store; a single pull reads only one store.
+        create_queue("//tmp/q", dynamic_store_auto_flush_period=YsonEntity())
 
         insert_rows("//tmp/q", [{"data": "foo"}])
         insert_rows("//tmp/q", [{"data": "bar"}])
@@ -1170,7 +1171,8 @@ class TestDataApiSingleCluster(TestDataApiBase):
         TestDataApiBase._create_symlink_consumer,
     ])
     def test_pull_consumer(self, create_consumer):
-        self._create_queue("//tmp/q")
+        # NB: Disable auto-flush so both rows stay in one store; a single pull reads only one store.
+        self._create_queue("//tmp/q", dynamic_store_auto_flush_period=YsonEntity())
         create_consumer("//tmp/c")
 
         insert_rows("//tmp/q", [{"data": "foo"}])
