@@ -60,7 +60,7 @@ struct TFlushOptions
 struct IBlockDevice
     : public virtual TRefCounted
 {
-    //! Returns the total byte size of the device. Always devisible by block size.
+    //! Returns the total byte size of the device. Always divisible by block size.
     virtual i64 GetTotalSize() const = 0;
 
     //! Returns the minimum I/O granularity (offset and length alignment) that
