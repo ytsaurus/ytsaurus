@@ -160,22 +160,29 @@ protected:
             /*priority*/ 0,
             mediumConfig);
 
-        TCreateObjectOptions options;
-        auto attrs = CreateEphemeralAttributes();
-        attrs->Set("name", "test_s3_medium");
-        attrs->Set("index", 15);
-        attrs->Set("priority", 0);
-        attrs->Set("config", mediumConfig);
-        options.Attributes = attrs;
+        // The medium is shared across tests, so it
+        // may have already been created in a previous one.
+        bool mediumExists = WaitFor(Client_->NodeExists("//sys/media/test_s3_medium"))
+            .ValueOrThrow();
 
-        WaitFor(Client_->CreateObject(EObjectType::S3Medium, options))
-            .ThrowOnError();
-        WaitUntil(
-            [&] {
-                return WaitFor(Client_->NodeExists("//sys/media/test_s3_medium"))
-                    .ValueOrThrow();
-            },
-            "The S3 medium was not created");
+        if (!mediumExists) {
+            TCreateObjectOptions options;
+            auto attrs = CreateEphemeralAttributes();
+            attrs->Set("name", "test_s3_medium");
+            attrs->Set("index", 15);
+            attrs->Set("priority", 0);
+            attrs->Set("config", mediumConfig);
+            options.Attributes = attrs;
+
+            WaitFor(Client_->CreateObject(EObjectType::S3Medium, options))
+                .ThrowOnError();
+            WaitUntil(
+                [&] {
+                    return WaitFor(Client_->NodeExists("//sys/media/test_s3_medium"))
+                        .ValueOrThrow();
+                },
+                "The S3 medium was not created");
+        }
     }
 
     void SetUpS3Writer()
@@ -194,9 +201,15 @@ protected:
     void SetUpReplicationReader()
     {
         NativeClient_ = DynamicPointerCast<NNative::IClient>(Client_);
+
+        // The chunk is written directly to S3 and is never registered on
+        // master, so the reader must stick to the seeds we give it explicitly.
+        auto readerOptions = New<TRemoteReaderOptions>();
+        readerOptions->AllowFetchingSeedsFromMaster = false;
+
         ReplicationReader_ = CreateReplicationReader(
             New<TReplicationReaderConfig>(),
-            New<TRemoteReaderOptions>(),
+            readerOptions,
             New<TChunkReaderHost>(NativeClient_),
             ChunkId_,
             TChunkReplicaWithMediumList{TChunkReplicaWithMedium(
@@ -290,7 +303,7 @@ std::vector<TBlock> ReadBlocksWithRetries(
         bool isMediumNotFound = readResult.FindMatching([] (const TError& error) {
             return error.GetMessage().contains("is not an S3 medium") ||
                    error.GetMessage().contains("No such medium");
-        });
+        }).has_value();
         if (!isMediumNotFound) {
             readResult.ThrowOnError();
         }
@@ -383,7 +396,7 @@ TEST_F(TS3DataTest, TestReplicationWriterRoundtrip)
         bool isMediumNotFound = writeError.FindMatching([] (const TError& error) {
             return error.GetMessage().contains("is not an S3 medium") ||
                    error.GetMessage().contains("No such medium");
-        });
+        }).has_value();
         if (!isMediumNotFound) {
             break;
         }
@@ -415,9 +428,14 @@ TEST_F(TS3DataTest, TestReplicationWriterRoundtrip)
     ASSERT_TRUE(writeError.IsOK()) << writeError.GetMessage();
 
     // Read back using the replication reader (offshore read path).
+    // The chunk is never registered on master, so the reader must stick
+    // to the seeds we give it explicitly.
+    auto readReaderOptions = New<TRemoteReaderOptions>();
+    readReaderOptions->AllowFetchingSeedsFromMaster = false;
+
     auto readReader = CreateReplicationReader(
         New<TReplicationReaderConfig>(),
-        New<TRemoteReaderOptions>(),
+        readReaderOptions,
         New<TChunkReaderHost>(nativeClient),
         writeChunkId,
         TChunkReplicaWithMediumList{TChunkReplicaWithMedium(

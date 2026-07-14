@@ -3,8 +3,8 @@ GTEST(cpp-integration-test-s3-data)
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    test_s3_data.cpp
 )
-INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/cpp/common_tests.make.inc)
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
