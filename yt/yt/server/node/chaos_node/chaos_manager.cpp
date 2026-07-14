@@ -150,20 +150,20 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateCoordinatorCells, Unretained(this)));
         RegisterMethod(
             BIND_NO_PROPAGATE(&TChaosManager::HydraCreateTableReplica, Unretained(this)),
-            /*alases*/ {},
+            /*aliases*/ {},
             /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(
             BIND_NO_PROPAGATE(&TChaosManager::HydraAlterTableReplica, Unretained(this)),
-            /*alases*/ {},
+            /*aliases*/ {},
             /*exceptionsAreNormal*/ true);
         RegisterMethod(
             BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateTableReplicaProgress, Unretained(this)),
-            /*alases*/ {},
+            /*aliases*/ {},
             /*exceptionsAreNormal*/ true);
         RegisterMethod(
             BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateTableProgress, Unretained(this)),
-            /*alases*/ {},
+            /*aliases*/ {},
             /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateMultipleTableProgresses, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCommenceNewReplicationEra, Unretained(this)));
@@ -174,19 +174,19 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraResumeCoordinator, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveExpiredReplicaHistory, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraMigrateReplicationCards, Unretained(this)),
-            /*alases*/ {},
+            /*aliases*/ {},
             /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraResumeChaosCell, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeMigrateReplicationCards, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeConfirmReplicationCardMigration, Unretained(this)));
         RegisterMethod(
             BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)),
-            /*alases*/ {},
+            /*aliases*/ {},
             /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraChaosNodeRemoveMigratedReplicationCards, Unretained(this)));
         RegisterMethod(
             BIND_NO_PROPAGATE(&TChaosManager::HydraForsakeCoordinator, Unretained(this)),
-            /*alases*/ {},
+            /*aliases*/ {},
             /*exceptionsAreNormal*/ true);
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveCellMailbox, Unretained(this)));
     }
@@ -1021,7 +1021,7 @@ private:
             collocation->SetState(EReplicationCardCollocationState::Immigrating);
             collocation->SetSize(collocation->GetSize() + 1);
         } else {
-            THROW_ERROR_EXCEPTION("Unexpected chaos cell: neigther replication card nor collocation")
+            THROW_ERROR_EXCEPTION("Unexpected chaos cell: neither replication card nor collocation")
                 << TErrorAttribute("replication_card_cell_id", replicationCardCellId)
                 << TErrorAttribute("replication_card_collocation_cell_id", collocationCellId)
                 << TErrorAttribute("chaos_cell_id", Slot_->GetCellId());
@@ -1648,7 +1648,7 @@ private:
 
             if (auto it = chaosObject->Coordinators().find(coordinatorCellId); it && it->second.State != EShortcutState::Revoking) {
                 YT_LOG_WARNING("Got revoke shortcut response but shortcut is not waiting for it "
-                    "(ChaosObjectId: %v, Type: %v, Era: %v CoordinatorCellId: %v, ShortcutState: %v)",
+                    "(ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v, ShortcutState: %v)",
                     chaosObjectId,
                     TypeFromId(chaosObjectId),
                     chaosObject->GetEra(),
@@ -1700,7 +1700,7 @@ private:
             for (auto [cellId, coordinator] : coordinators) {
                 if (coordinator->State == EShortcutState::Revoking) {
                     YT_LOG_DEBUG("Will not revoke shortcut since it already is revoking "
-                        "(ChaosObjectId: %v, Type: %v, Era: %v CoordinatorCellId: %v)",
+                        "(ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v)",
                         chaosObject->GetId(),
                         TypeFromId(chaosObject->GetId()),
                         chaosObject->GetEra(),
@@ -1720,7 +1720,7 @@ private:
                 ToProto(shortcut->mutable_chaos_object_id(), chaosObject->GetId());
                 shortcut->set_era(chaosObject->GetEra());
 
-                YT_LOG_DEBUG("Preparing to revoke shortcut (ChaosObjectId: %v, Type: %v, Era: %v CoordinatorCellId: %v)",
+                YT_LOG_DEBUG("Preparing to revoke shortcut (ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v)",
                     chaosObject->GetId(),
                     TypeFromId(chaosObject->GetId()),
                     chaosObject->GetEra(),
@@ -1796,7 +1796,7 @@ private:
             auto mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
             hiveManager->PostMessage(mailbox, req);
 
-            YT_LOG_DEBUG("Granting shortcut to coordinator (ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v",
+            YT_LOG_DEBUG("Granting shortcut to coordinator (ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v)",
                 chaosObject->GetId(),
                 TypeFromId(chaosObject->GetId()),
                 chaosObject->GetEra(),
