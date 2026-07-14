@@ -46,6 +46,11 @@ inline std::string_view TIdentifierStringData::Data() const noexcept
     return std::string_view(buf + NDetail::LongHeaderSize, static_cast<size_t>(longLen));
 }
 
+inline size_t TIdentifierStringData::Hash() const noexcept
+{
+    return Hash_;
+}
+
 inline size_t TIdentifierStringData::ByteSize() const noexcept
 {
     const char* buf = ExtraPtr();
@@ -144,6 +149,17 @@ size_t TStrongIdentifierTypedef<TTag>::Capacity() const noexcept
     return Value_ ? Value_->ByteSize() : 0;
 }
 
+// Hash of the empty/null identifier. Kept transparent with THash<std::string_view>{}("") so a
+// container keyed by identifiers can be probed by a string_view. Initialized once at startup (not a
+// function-local static, so no per-call guard); THash is not constexpr, hence not constinit.
+inline const size_t EmptyIdentifierHash = THash<std::string_view>{}(std::string_view());
+
+template <class TTag>
+size_t TStrongIdentifierTypedef<TTag>::GetHash() const noexcept
+{
+    return Value_ ? Value_->Hash() : EmptyIdentifierHash;
+}
+
 template <class TTag>
 template <typename TArgument>
 bool TStrongIdentifierTypedef<TTag>::operator==(TArgument&& argument) const
@@ -179,7 +195,7 @@ bool TStrongIdentifierTypedef<TTag>::operator>=(const TStrongIdentifierTypedef& 
 template <class TTag>
 bool TStrongIdentifierTypedef<TTag>::operator==(const TStrongIdentifierTypedef& rhs) const
 {
-    return Underlying() == rhs.Underlying();
+    return Value_ == rhs.Value_ || Underlying() == rhs.Underlying();
 }
 
 template <class TTag>
@@ -268,13 +284,13 @@ struct TAssociativeContainerKeyHelper<NYT::NFlow::TStrongIdentifierTypedef<TTag>
 
 namespace std {
 
+// std::hash is deleted for identifiers: the cached hash is THash-based, and std::hash uses a
+// different algorithm, so providing it would silently diverge from THash and break transparent
+// std::string_view lookups. Use THash-based containers (THashMap, THashSet, or an absl map with THash).
 template <class TTag>
 struct hash<NYT::NFlow::TStrongIdentifierTypedef<TTag>>
 {
-    size_t operator()(const NYT::NFlow::TStrongIdentifierTypedef<TTag>& value) const
-    {
-        return std::hash<std::string_view>{}(value.Underlying());
-    }
+    size_t operator()(const NYT::NFlow::TStrongIdentifierTypedef<TTag>&) const = delete;
 };
 
 } // namespace std
@@ -331,6 +347,6 @@ struct THash<NYT::NFlow::TStrongIdentifierTypedef<TTag>>
 {
     size_t operator()(const NYT::NFlow::TStrongIdentifierTypedef<TTag>& value) const
     {
-        return THash<std::string_view>{}(value.Underlying());
+        return value.GetHash();
     }
 };

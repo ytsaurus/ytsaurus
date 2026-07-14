@@ -146,8 +146,10 @@ TEST(TIdentifierHashTest, HashConsistency)
 {
     const std::string_view s = "some-id";
     TTestId id(s);
+    // The hash is cached at construction as THash of the underlying string, so it stays transparent
+    // with THash<std::string_view>. std::hash is intentionally not provided (would diverge).
     EXPECT_EQ(THash<TTestId>{}(id), THash<std::string_view>{}(s));
-    EXPECT_EQ(std::hash<TTestId>{}(id), std::hash<std::string_view>{}(s));
+    EXPECT_EQ(THash<TTestId>{}(TTestId()), THash<std::string_view>{}(std::string_view()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
