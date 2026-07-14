@@ -53,9 +53,9 @@ TPageCache::TPageCache(
 
 TPageCache::~TPageCache()
 {
-    YT_LOG_INFO("Destroying page cache (DirtyPages: %v, TotalPages: %v)",
+    YT_LOG_INFO("Destroying page cache (DirtyPages: %v, CachedPages: %v)",
         DirtySet_.size(),
-        TotalPages_);
+        std::ssize(Pages_));
 }
 
 TFuture<void> TPageCache::Initialize()
@@ -233,10 +233,7 @@ TFuture<void> TPageCache::TryFlushDirtyPages(std::optional<i64> maxDirtyPagesPer
                 i64 pageIndex = dirtyPages[i].PageIndex;
                 auto it = Pages_.find(pageIndex);
                 YT_VERIFY(it != Pages_.end());
-                if (!it->second.Dirty) {
-                    it->second.Dirty = true;
-                    DirtySet_.insert(pageIndex);
-                }
+                MarkPageDirty(it->second, pageIndex);
             }
         };
 
@@ -270,12 +267,12 @@ TFuture<void> TPageCache::TryFlushDirtyPages(std::optional<i64> maxDirtyPagesPer
         }
 
         if (!errors.empty()) {
-            int failedCount = errors.size();
+            auto failedCount = std::ssize(errors);
             THROW_ERROR_EXCEPTION("Failed to flush some dirty pages")
                 << TErrorAttribute("failed_writes", failedCount)
                 << std::move(errors);
         }
-        YT_LOG_DEBUG("Flushed dirty pages (Count: %v)", dirtyPages.size());
+        YT_LOG_DEBUG("Flushed dirty pages (Count: %v)", std::ssize(dirtyPages));
     })
         .AsyncVia(Invoker_)
         .Run();
@@ -306,7 +303,8 @@ TFuture<TReadResponse> TPageCache::Read(i64 offset, i64 length, const TReadOptio
                 i64 lastPageIndex = (offset + length - 1) / PageSize_;
 
                 // Per-page info needed later in the RPC callback.
-                struct TPageReadInfo {
+                struct TPageReadInfo
+                {
                     i64 PageIndex;
                     i64 InPageOffset;
                     i64 InPageLen;
@@ -329,28 +327,22 @@ TFuture<TReadResponse> TPageCache::Read(i64 offset, i64 length, const TReadOptio
                         auto it = Pages_.find(pageIndex);
                         if (it != Pages_.end()) {
                             // Cache hit — copy data directly into result buffer.
-                            const auto& page = it->second;
+                            auto& page = it->second;
                             std::copy(
                                 page.Data.Begin() + inPageOffset,
                                 page.Data.Begin() + inPageOffset + inPageLen,
                                 resultMutable.Begin() + pageResultOffset);
-                            TouchPage(pageIndex);
+                            TouchPage(page);
                         } else {
                             missingPages.push_back({pageIndex, inPageOffset, inPageLen, pageResultOffset});
                         }
                     }
 
-                    // Evict enough clean pages to make room for all missing pages.
-                    // A single O(N) pass through the LRU list instead of O(N * numMissing).
-                    i64 numMissing = std::ssize(missingPages);
-                    i64 toEvict = std::max<i64>(0, TotalPages_ + numMissing - MaxPages_);
-                    // Could not evict enough pages (all remaining are dirty) —
-                    // trigger a background flush to free up space.
-                    needCachePressureFlush = toEvict > 0 && EvictPages(toEvict) < toEvict;
+                    needCachePressureFlush = NeedFlushToFitMissing(std::ssize(missingPages));
                 }
 
                 if (needCachePressureFlush) {
-                    YT_LOG_DEBUG("Cache is full of dirty pages, triggering background flush");
+                    YT_LOG_DEBUG("Cannot evict enough clean pages, triggering background flush");
                     TriggerBackgroundFlush("Background flush triggered by cache pressure failed");
                 }
 
@@ -408,12 +400,12 @@ TFuture<TReadResponse> TPageCache::Read(i64 offset, i64 length, const TReadOptio
                             // try_emplace inserts a default TPage if absent and returns the iterator in one lookup.
                             auto [it, inserted] = Pages_.try_emplace(info.PageIndex);
                             if (inserted) {
-                                it->second = {.Data = std::move(prebuiltData[i]), .Dirty = false};
+                                it->second.Data = std::move(prebuiltData[i]);
+                                // it->second.Dirty is false after default construction.
                                 LruList_.push_back(info.PageIndex);
-                                LruMap_[info.PageIndex] = std::prev(LruList_.end());
-                                TotalPages_++;
+                                it->second.LruIter = std::prev(LruList_.end());
                             }
-                            TouchPage(info.PageIndex);
+                            TouchPage(it->second);
 
                             // Copy the relevant portion of the (now-cached) page to the result buffer.
                             const auto& cachedPage = it->second;
@@ -461,8 +453,18 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                 // Collect read-before-write futures for partial pages.
                 std::vector<TFuture<void>> readBeforeWriteFutures;
 
-                // First pass under Lock_: serve cache hits, collect misses for bulk eviction.
-                struct TPageWriteInfo {
+                // For FUA (options.Flush) writes, fully-covered pages are written through:
+                // inserted/updated as clean (not dirty), since the FUA RPC below makes the
+                // whole page durable. We remember them here so that, if the FUA RPC (or a
+                // preceding read-before-write) fails, we can re-dirty the ones still clean
+                // (a concurrent write may have already re-dirtied some) so a later flush
+                // persists the data instead of losing it. See RedirtyWriteThroughPages.
+                std::vector<i64> writeThroughPages;
+
+                // First pass under Lock_: serve cache hits, collect misses for the second
+                // (write) pass below.
+                struct TPageWriteInfo
+                {
                     i64 PageIndex;
                     i64 InPageOffset;
                     i64 InPageLen;
@@ -489,23 +491,23 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                                 data.Begin() + dataOffset,
                                 data.Begin() + dataOffset + inPageLen,
                                 page.Data.Begin() + inPageOffset);
-                            if (!page.Dirty) {
-                                page.Dirty = true;
-                                DirtySet_.insert(pageIndex);
+                            bool coversEntirePage = (inPageOffset == 0 && inPageLen == PageSize_);
+                            if (options.Flush && coversEntirePage) {
+                                // Write-through: the FUA RPC makes the whole page durable,
+                                // so keep it clean (drop any stale dirty flag — the full
+                                // page is overwritten, so previously dirty bytes are gone).
+                                MarkPageClean(page, pageIndex);
+                                writeThroughPages.push_back(pageIndex);
+                            } else {
+                                MarkPageDirty(page, pageIndex);
                             }
-                            TouchPage(pageIndex);
+                            TouchPage(page);
                         } else {
                             missingPages.push_back({pageIndex, inPageOffset, inPageLen, dataOffset});
                         }
                     }
 
-                    // Evict enough clean pages to make room for all missing pages.
-                    // A single O(N) pass through the LRU list instead of O(N * numMissing).
-                    i64 numMissing = std::ssize(missingPages);
-                    i64 toEvict = std::max<i64>(0, TotalPages_ + numMissing - MaxPages_);
-                    // Could not evict enough pages (all remaining are dirty) —
-                    // trigger a background flush to free up space.
-                    needCachePressureFlush = toEvict > 0 && EvictPages(toEvict) < toEvict;
+                    needCachePressureFlush = NeedFlushToFitMissing(std::ssize(missingPages));
                     // Trigger a background flush once the dirty set reaches the same
                     // watermark TryFlushDirtyPages actually acts on (see
                     // IncrementalFlushHysteresisFactor); triggering earlier would only
@@ -514,7 +516,7 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                 }
 
                 if (needCachePressureFlush) {
-                    YT_LOG_DEBUG("Cache is full of dirty pages, triggering background flush");
+                    YT_LOG_DEBUG("Cannot evict enough clean pages, triggering background flush");
                     TriggerBackgroundFlush("Background flush triggered by cache pressure failed");
                 }
 
@@ -542,30 +544,38 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                         // Re-check: a concurrent request might have populated this page
                         // while the spinlock was released.
                         auto [it, inserted] = Pages_.try_emplace(pageIndex);
+                        auto& page = it->second;
                         if (inserted) {
-                            it->second = {.Data = std::move(pageData), .Dirty = true};
-                            DirtySet_.insert(pageIndex);
+                            page.Data = std::move(pageData);
                             LruList_.push_back(pageIndex);
-                            LruMap_[pageIndex] = std::prev(LruList_.end());
-                            ++TotalPages_;
+                            page.LruIter = std::prev(LruList_.end());
                         } else {
                             // Another request raced and already inserted this page.
                             // Overwrite it with our data (inPageLen == PageSize_ here).
                             std::copy(
                                 data.Begin() + dataOffset,
                                 data.Begin() + dataOffset + inPageLen,
-                                it->second.Data.Begin() + inPageOffset);
-
-                            if (!it->second.Dirty) {
-                                it->second.Dirty = true;
-                                DirtySet_.insert(pageIndex);
-                            }
+                                page.Data.Begin() + inPageOffset);
                         }
-                        TouchPage(pageIndex);
+                        // The page is fully covered here, so apply the same dirty/
+                        // write-through decision regardless of whether it was just
+                        // inserted or already present: FUA writes through (clean),
+                        // otherwise the page is dirty and flushed later.
+                        if (options.Flush) {
+                            MarkPageClean(page, pageIndex);
+                            writeThroughPages.push_back(pageIndex);
+                        } else {
+                            MarkPageDirty(page, pageIndex);
+                        }
+                        TouchPage(page);
                     } else {
                         YT_LOG_DEBUG("Partial page write");
 
                         // Partial page write — need read-before-write.
+                        // Unlike fully-covered pages, a partial page is always marked dirty,
+                        // even under FUA: the FUA RPC still makes the written bytes durable,
+                        // but the page is not written through (it is not fully covered, so it
+                        // is not added to writeThroughPages) and is simply reflushed later.
                         i64 pageStart = pageIndex * PageSize_;
                         auto readFuture = ChunkHandler_->Read(pageStart, PageSize_, {.Cookie = options.Cookie})
                             .Apply(BIND([
@@ -590,18 +600,14 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                                         it->second.Data.Begin());
                                     // it->second.Dirty is false after default construction.
                                     LruList_.push_back(pageIndex);
-                                    LruMap_[pageIndex] = std::prev(LruList_.end());
-                                    TotalPages_++;
+                                    it->second.LruIter = std::prev(LruList_.end());
                                 }
                                 std::copy(
                                     data.Begin() + dataOffset,
                                     data.Begin() + dataOffset + inPageLen,
                                     it->second.Data.Begin() + inPageOffset);
-                                if (!it->second.Dirty) {
-                                    it->second.Dirty = true;
-                                    DirtySet_.insert(pageIndex);
-                                }
-                                TouchPage(pageIndex);
+                                MarkPageDirty(it->second, pageIndex);
+                                TouchPage(it->second);
                             }));
 
                         readBeforeWriteFutures.push_back(std::move(readFuture));
@@ -610,17 +616,36 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
 
                 // If FUA (Force Unit Access) is requested, write the data directly to the
                 // data node with flush=true (write + sync_file_range in a single RPC).
-                // This bypasses TryFlushDirtyPages/WriteBatch and provides FUA semantics without
-                // needing a separate Flush RPC.
+                // This bypasses TryFlushDirtyPages/WriteBatch and provides FUA semantics
+                // without a separate Flush RPC. See the writeThroughPages declaration above
+                // for how fully-covered pages and the failure paths are handled.
                 if (options.Flush) {
                     return AllSucceeded(readBeforeWriteFutures)
-                        .Apply(BIND([this, this_ = MakeStrong(this), readerGuard = std::move(readerGuard), offset, data] () mutable -> TFuture<TWriteResponse> {
+                        .Apply(BIND([this, this_ = MakeStrong(this), readerGuard = std::move(readerGuard), offset, data, writeThroughPages = std::move(writeThroughPages)] (const TError& readError) mutable -> TFuture<TWriteResponse> {
                             // Release FlushLock_ reader lock before writing to the data node.
                             readerGuard.Reset();
+                            if (!readError.IsOK()) {
+                                // A read-before-write failed, so the FUA RPC never runs and the
+                                // fully-covered pages inserted clean (write-through) above would
+                                // never reach the data node. Re-dirty them so a later flush
+                                // persists the data instead of silently losing it.
+                                RedirtyWriteThroughPages(writeThroughPages);
+                                THROW_ERROR readError;
+                            }
                             // Write with FUA: the data node will write and sync_file_range
                             // the written data to disk in a single RPC.
                             return ChunkHandler_->Write(offset, data, {.Flush = true})
-                                .Apply(BIND([] (const TWriteResponse&) {
+                                .Apply(BIND([this, this_ = MakeStrong(this), writeThroughPages = std::move(writeThroughPages)] (const TErrorOr<TWriteResponse>& resultOrError) {
+                                    if (!resultOrError.IsOK()) {
+                                        // The durable write failed: the write-through pages hold
+                                        // data the data node never received. Re-dirty those still
+                                        // clean (a concurrent write may have already re-dirtied
+                                        // some — leave those) so the data is flushed later rather
+                                        // than lost. Evicting instead would drop already-ACKed
+                                        // writes and diverge from the data node.
+                                        RedirtyWriteThroughPages(writeThroughPages);
+                                        THROW_ERROR resultOrError;
+                                    }
                                     return TWriteResponse{};
                                 }));
                         })
@@ -673,12 +698,29 @@ TFuture<void> TPageCache::Stop()
     return FlushExecutor_->Stop();
 }
 
-void TPageCache::TouchPage(i64 pageIndex)
+void TPageCache::TouchPage(TPage& page)
 {
     // Must be called under Lock_.
-    auto lruIt = LruMap_.find(pageIndex);
-    if (lruIt != LruMap_.end()) {
-        LruList_.splice(LruList_.end(), LruList_, lruIt->second);
+    // Every cached page owns a valid LruIter (set on insertion), so no lookup
+    // or presence check is needed — splice its node to the MRU end in O(1).
+    LruList_.splice(LruList_.end(), LruList_, page.LruIter);
+}
+
+void TPageCache::MarkPageDirty(TPage& page, i64 pageIndex)
+{
+    // Must be called under Lock_. Keeps page.Dirty and DirtySet_ in sync.
+    if (!page.Dirty) {
+        page.Dirty = true;
+        DirtySet_.insert(pageIndex);
+    }
+}
+
+void TPageCache::MarkPageClean(TPage& page, i64 pageIndex)
+{
+    // Must be called under Lock_. Keeps page.Dirty and DirtySet_ in sync.
+    if (page.Dirty) {
+        page.Dirty = false;
+        DirtySet_.erase(pageIndex);
     }
 }
 
@@ -696,7 +738,7 @@ i64 TPageCache::EvictPages(i64 count)
         if (pageIt != Pages_.end() && !pageIt->second.Dirty) {
             // RemovePage erases the LRU iterator, so advance before removing.
             ++it;
-            RemovePage(pageIndex);
+            RemovePage(pageIt);
             YT_LOG_DEBUG("Evicted clean page (PageIndex: %v)", pageIndex);
             ++evicted;
         } else {
@@ -715,19 +757,38 @@ i64 TPageCache::EvictPages(i64 count)
     return evicted;
 }
 
-void TPageCache::RemovePage(i64 pageIndex)
+void TPageCache::RemovePage(TPageMap::iterator it)
 {
     // Must be called under Lock_.
     // DirtySet_ is NOT updated here: RemovePage is only called from EvictPages,
-    // which skips dirty pages (pageIt->second.Dirty == false), so the page is
+    // which skips dirty pages (it->second.Dirty == false), so the page is
     // never in DirtySet_ at this point.
-    Pages_.erase(pageIndex);
-    auto lruIt = LruMap_.find(pageIndex);
-    if (lruIt != LruMap_.end()) {
-        LruList_.erase(lruIt->second);
-        LruMap_.erase(pageIndex);
+    LruList_.erase(it->second.LruIter);
+    Pages_.erase(it);
+}
+
+bool TPageCache::NeedFlushToFitMissing(i64 numMissing)
+{
+    // Must be called under Lock_.
+    // Evict enough clean pages to make room for all missing pages.
+    // A single O(N) pass through the LRU list instead of O(N * numMissing).
+    i64 toEvict = std::max<i64>(0, std::ssize(Pages_) + numMissing - MaxPages_);
+    // Could not evict enough pages (all remaining are dirty) —
+    // the caller should trigger a background flush to free up space.
+    return toEvict > 0 && EvictPages(toEvict) < toEvict;
+}
+
+void TPageCache::RedirtyWriteThroughPages(const std::vector<i64>& pageIndexes)
+{
+    auto guard = Guard(Lock_);
+    for (i64 pageIndex : pageIndexes) {
+        auto it = Pages_.find(pageIndex);
+        // Only re-dirty pages that still exist. A concurrent write may have already
+        // re-dirtied some; MarkPageDirty is a no-op in that case.
+        if (it != Pages_.end()) {
+            MarkPageDirty(it->second, pageIndex);
+        }
     }
-    TotalPages_--;
 }
 
 std::optional<TError> TPageCache::CheckHardLimit()
@@ -736,18 +797,18 @@ std::optional<TError> TPageCache::CheckHardLimit()
     // eviction is impossible), log a warning, trigger an emergency flush, and
     // return an error so the caller can fail fast and retry after the cache drains.
     auto guard = Guard(Lock_);
-    if (TotalPages_ <= 2LL * MaxPages_) {
+    if (std::ssize(Pages_) <= 2LL * MaxPages_) {
         return std::nullopt;
     }
-    auto totalPages = TotalPages_;
+    auto cachedPages = std::ssize(Pages_);
     guard.Release();
     YT_LOG_WARNING("Page cache exceeded hard size limit, triggering emergency flush "
-        "(TotalPages: %v, MaxPages: %v)",
-        totalPages,
+        "(CachedPages: %v, MaxPages: %v)",
+        cachedPages,
         MaxPages_);
     TriggerBackgroundFlush("Emergency flush triggered by hard limit failed");
     return TError("Page cache exceeded hard size limit; retry after flush")
-        << TErrorAttribute("total_pages", totalPages)
+        << TErrorAttribute("cached_pages", cachedPages)
         << TErrorAttribute("max_pages", MaxPages_);
 }
 
