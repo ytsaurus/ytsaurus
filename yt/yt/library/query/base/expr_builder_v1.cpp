@@ -946,6 +946,12 @@ TUntypedExpression TExpressionBuilderV1::OnReference(const NAst::TReference& ref
         if (auto type = ResolveColumn(reference)) {
             return UnwrapCompositeMemberAccessor(reference, type);
         }
+
+        if (auto reinterpreted = TryReinterpretAsMemberAccess(reference);
+            reinterpreted && ResolveColumn(*reinterpreted))
+        {
+            return OnReference(*reinterpreted);
+        }
     }
 
     THROW_ERROR_EXCEPTION("Undefined reference %Qv",

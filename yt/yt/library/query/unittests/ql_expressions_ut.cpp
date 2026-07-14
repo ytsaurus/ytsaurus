@@ -3280,6 +3280,12 @@ TEST_P(TEvaluateExpressionTest, Basic)
         TColumnSchema("any", EValueType::Any),
         TColumnSchema("b", EValueType::Boolean),
         TColumnSchema("l", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))),
+        TColumnSchema("composite", OptionalLogicalType(
+            StructLogicalType(
+                {
+                    TStructField{"nested", "nested", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                },
+                /*removedFieldStableNames*/ {}))),
     });
 
     auto expr = ParseAndPrepareExpression(exprString, *schema);
@@ -3492,6 +3498,10 @@ INSTANTIATE_TEST_SUITE_P(
             "l=[12;-2;3]",
             "l",
             MakeComposite("[12;-2;3]")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "composite={nested=\"value\"}",
+            "composite.nested",
+            MakeString("value")),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "l=[12;-2;3]",
             "to_any(l)",
