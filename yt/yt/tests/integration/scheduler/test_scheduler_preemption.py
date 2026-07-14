@@ -623,9 +623,11 @@ class TestSchedulerPreemption(YTEnvSetup):
         wait(lambda: op1.get_job_count(state="aborted") == 1)
 
         # NB(eshcherbin): Previous check doesn't guarantee that job's state in the archive is "aborted".
+        # The abort error (carrying abort_reason/preemption_reason) is attached later than the state
+        # transition, so we must also wait for it to avoid reading a job without an "error" key.
         def get_aborted_job(op_id, job_id):
             j = get_job(op_id, job_id, verbose_error=False)
-            if j["state"] != "aborted":
+            if j["state"] != "aborted" or "error" not in j:
                 raise YtError()
             return j
 
