@@ -37,6 +37,7 @@ void TIdentifierStringData::operator delete(void* ptr) noexcept
 
     void* raw = ::operator new(allocSize);
     auto* obj = ::new (raw) TIdentifierStringData();
+    obj->Hash_ = THash<std::string_view>{}(str);
     char* buf = obj->ExtraPtr();
 
     if (strLen <= NDetail::ShortLengthMax) {

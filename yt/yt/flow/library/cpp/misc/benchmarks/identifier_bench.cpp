@@ -2,6 +2,10 @@
 
 #include <yt/yt/flow/library/cpp/misc/identifier.h>
 
+#include <library/cpp/containers/absl/flat_hash_map.h>
+
+#include <util/string/builder.h>
+
 #include <thread>
 #include <vector>
 
@@ -19,6 +23,55 @@ YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TBenchId);
 const TBenchId SharedId("some-identifier-string");
 // An empty identifier shared across threads.
 const TBenchId EmptyId;
+
+////////////////////////////////////////////////////////////////////////////////
+// Hashing.
+
+std::vector<TBenchId> MakeMessageLikeIds(int count)
+{
+    std::vector<TBenchId> ids;
+    ids.reserve(count);
+    for (int i = 0; i < count; ++i) {
+        ids.emplace_back(std::string_view(::TStringBuilder() << "000000000004d9e6-event12345678901234567890:" << 1000000000 + i));
+    }
+    return ids;
+}
+
+void BM_BenchIdentifierHash(benchmark::State& state)
+{
+    const auto ids = MakeMessageLikeIds(1024);
+    i64 total = 0;
+    size_t index = 0;
+    for (auto _ : state) {
+        auto hash = THash<TBenchId>{}(ids[index]);
+        benchmark::DoNotOptimize(hash);
+        index = (index + 1) & 1023;
+        ++total;
+    }
+    state.SetItemsProcessed(total);
+}
+
+BENCHMARK(BM_BenchIdentifierHash)->Threads(1);
+
+void BM_BenchIdentifierHashMapFind(benchmark::State& state)
+{
+    const auto ids = MakeMessageLikeIds(65536);
+    absl::flat_hash_map<TBenchId, i64, THash<TBenchId>> map;
+    for (const auto& id : ids) {
+        map[id] = 1;
+    }
+    i64 total = 0;
+    size_t index = 0;
+    for (auto _ : state) {
+        auto it = map.find(ids[index]);
+        benchmark::DoNotOptimize(it);
+        index = (index + 1) & 65535;
+        ++total;
+    }
+    state.SetItemsProcessed(total);
+}
+
+BENCHMARK(BM_BenchIdentifierHashMapFind)->Threads(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Construction.

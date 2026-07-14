@@ -38,11 +38,15 @@ public:
 
     size_t ByteSize() const noexcept;
 
+    size_t Hash() const noexcept;
+
     static ::TIntrusivePtr<TIdentifierStringData> Make(std::string_view str);
 
     void operator delete(void* ptr) noexcept;
 
 private:
+    size_t Hash_ = 0;
+
     char* ExtraPtr() noexcept;
     const char* ExtraPtr() const noexcept;
 };
@@ -76,6 +80,8 @@ public:
     void Prefetch() const noexcept;
 
     size_t Capacity() const noexcept;
+
+    size_t GetHash() const noexcept;
 
     template <typename TArgument>
     bool operator==(TArgument&& argument) const
