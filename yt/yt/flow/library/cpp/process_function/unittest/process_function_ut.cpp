@@ -31,6 +31,7 @@
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>
 
+#include <util/generic/yexception.h>
 #include <util/string/split.h>
 #include <util/system/type_name.h>
 
@@ -167,6 +168,74 @@ public:
         auto summary = New<TWordMessage>();
         summary->Word = Format("%v:%v", input->GetMessages().size(), input->GetTimers().size());
         output->AddMessage(context->ConvertToMessage(summary));
+    }
+};
+
+//! Throws only for a chosen key, so a test can assert the reported key is the failing one.
+class TThrowForKeyFunction
+    : public IKeyedBatchProcessFunction
+{
+public:
+    explicit TThrowForKeyFunction(ui64 badKey)
+        : BadKey_(badKey)
+    { }
+
+    void ProcessKey(
+        const IInputContextPtr& input,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    {
+        auto key = ExtractFirstUintFromKey(input->GetMessages()[0]->Key);
+        if (key == BadKey_) {
+            THROW_ERROR_EXCEPTION("Boom for key %v", BadKey_);
+        }
+    }
+
+private:
+    const ui64 BadKey_;
+};
+
+//! Throws from every per-element hook, for the tagging tests.
+class TThrowingElementFunction
+    : public IProcessFunction
+{
+public:
+    void ProcessMessage(
+        const TInputMessageConstPtr& /*message*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    {
+        THROW_ERROR_EXCEPTION("Boom in message");
+    }
+
+    void ProcessTimer(
+        const TInputTimerConstPtr& /*timer*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    {
+        THROW_ERROR_EXCEPTION("Boom in timer");
+    }
+
+    void ProcessVisit(
+        const TInputVisitConstPtr& /*visit*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    {
+        THROW_ERROR_EXCEPTION("Boom in visit");
+    }
+};
+
+//! Throws via Y_THROW_UNLESS, exercising the non-TError exception path.
+class TYThrowUnlessKeyFunction
+    : public IKeyedBatchProcessFunction
+{
+public:
+    void ProcessKey(
+        const IInputContextPtr& /*input*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    {
+        Y_THROW_UNLESS(false, "Y_THROW_UNLESS boom");
     }
 };
 
@@ -600,6 +669,173 @@ TEST(TProcessFunctionTest, KeyedFunctionProcessGroupsByKey)
     std::sort(summaries.begin(), summaries.end());
     EXPECT_EQ(summaries[0], "1:0");
     EXPECT_EQ(summaries[1], "2:0");
+}
+
+TEST(TProcessFunctionTest, KeyedAdapterTagsFailureWithKey)
+{
+    // A failing key hook is tagged with its key instead of escaping anonymously.
+    auto context = TTestRuntimeContextBuilder().Build();
+    auto output = New<TRecordingOutputCollector>();
+
+    auto emptySchema = New<TTableSchema>();
+    auto key = MakeKey<ui64>(7);
+    std::vector<TInputMessageConstPtr> messages{MakeTestMessage("input", key, emptySchema)};
+
+    auto function = New<TThrowForKeyFunction>(/*badKey*/ 7);
+
+    try {
+        WrapAsBatch(function)->Process(
+            New<TInputContext>(messages, std::vector<TInputTimerConstPtr>{}),
+            output,
+            context);
+        ADD_FAILURE() << "Process was expected to throw";
+    } catch (const std::exception& ex) {
+        TError error(ex);
+        auto keyAttribute = error.Attributes().Find<TKey>("key");
+        ASSERT_TRUE(keyAttribute.has_value());
+        EXPECT_EQ(*keyAttribute, key);
+        EXPECT_TRUE(ToString(error).Contains("Failed to process key"));
+        // Original error is preserved.
+        EXPECT_TRUE(ToString(error).Contains("Boom for key"));
+    }
+}
+
+TEST(TProcessFunctionTest, KeyedAdapterAttachesTheFailingKey)
+{
+    // With several keys batched, the key attached is the one that actually failed.
+    auto context = TTestRuntimeContextBuilder().Build();
+    auto output = New<TRecordingOutputCollector>();
+
+    auto emptySchema = New<TTableSchema>();
+    std::vector<TInputMessageConstPtr> messages{
+        MakeTestMessage("input", MakeKey<ui64>(1), emptySchema),
+        MakeTestMessage("input", MakeKey<ui64>(2), emptySchema),
+        MakeTestMessage("input", MakeKey<ui64>(3), emptySchema),
+    };
+
+    auto function = New<TThrowForKeyFunction>(/*badKey*/ 2);
+
+    try {
+        WrapAsBatch(function)->Process(
+            New<TInputContext>(messages, std::vector<TInputTimerConstPtr>{}),
+            output,
+            context);
+        ADD_FAILURE() << "Process was expected to throw";
+    } catch (const std::exception& ex) {
+        TError error(ex);
+        auto keyAttribute = error.Attributes().Find<TKey>("key");
+        ASSERT_TRUE(keyAttribute.has_value());
+        EXPECT_EQ(*keyAttribute, MakeKey<ui64>(2));
+    }
+}
+
+TEST(TProcessFunctionTest, KeyedAdapterTagsYThrowUnlessWithKey)
+{
+    // The key is attached even for a non-TError exception, preserving its message.
+    auto context = TTestRuntimeContextBuilder().Build();
+    auto output = New<TRecordingOutputCollector>();
+
+    auto emptySchema = New<TTableSchema>();
+    auto key = MakeKey<ui64>(99);
+    std::vector<TInputMessageConstPtr> messages{MakeTestMessage("input", key, emptySchema)};
+
+    auto function = New<TYThrowUnlessKeyFunction>();
+
+    try {
+        WrapAsBatch(function)->Process(
+            New<TInputContext>(messages, std::vector<TInputTimerConstPtr>{}),
+            output,
+            context);
+        ADD_FAILURE() << "Process was expected to throw";
+    } catch (const std::exception& ex) {
+        TError error(ex);
+        auto keyAttribute = error.Attributes().Find<TKey>("key");
+        ASSERT_TRUE(keyAttribute.has_value());
+        EXPECT_EQ(*keyAttribute, key);
+        EXPECT_TRUE(ToString(error).Contains("Failed to process key"));
+        EXPECT_TRUE(ToString(error).Contains("Y_THROW_UNLESS boom"));
+    }
+}
+
+TEST(TProcessFunctionTest, ElementAdapterTagsMessageFailureWithKey)
+{
+    // A failing message hook is tagged with the message's key.
+    auto context = TTestRuntimeContextBuilder().Build();
+    auto output = New<TRecordingOutputCollector>();
+
+    auto key = MakeKey<ui64>(11);
+    std::vector<TInputMessageConstPtr> messages{MakeTestMessage("input", key, New<TTableSchema>())};
+
+    auto function = New<TThrowingElementFunction>();
+
+    try {
+        WrapAsBatch(function)->Process(
+            New<TInputContext>(messages, std::vector<TInputTimerConstPtr>{}),
+            output,
+            context);
+        ADD_FAILURE() << "Process was expected to throw";
+    } catch (const std::exception& ex) {
+        TError error(ex);
+        auto keyAttribute = error.Attributes().Find<TKey>("key");
+        ASSERT_TRUE(keyAttribute.has_value());
+        EXPECT_EQ(*keyAttribute, key);
+        EXPECT_TRUE(ToString(error).Contains("Failed to process message"));
+        EXPECT_TRUE(ToString(error).Contains("Boom in message"));
+    }
+}
+
+TEST(TProcessFunctionTest, ElementAdapterTagsTimerFailureWithKey)
+{
+    // A failing timer hook is tagged with the timer's key.
+    auto context = TTestRuntimeContextBuilder().Build();
+    auto output = New<TRecordingOutputCollector>();
+
+    auto key = MakeKey<ui64>(22);
+    std::vector<TInputTimerConstPtr> timers{MakeTestTimer(key, TSystemTimestamp(1))};
+
+    auto function = New<TThrowingElementFunction>();
+
+    try {
+        WrapAsBatch(function)->Process(
+            New<TInputContext>(std::vector<TInputMessageConstPtr>{}, timers),
+            output,
+            context);
+        ADD_FAILURE() << "Process was expected to throw";
+    } catch (const std::exception& ex) {
+        TError error(ex);
+        auto keyAttribute = error.Attributes().Find<TKey>("key");
+        ASSERT_TRUE(keyAttribute.has_value());
+        EXPECT_EQ(*keyAttribute, key);
+        EXPECT_TRUE(ToString(error).Contains("Failed to process timer"));
+        EXPECT_TRUE(ToString(error).Contains("Boom in timer"));
+    }
+}
+
+TEST(TProcessFunctionTest, ElementAdapterTagsVisitFailureWithKey)
+{
+    // A failing visit hook is tagged with the visit's key.
+    auto context = TTestRuntimeContextBuilder().Build();
+    auto output = New<TRecordingOutputCollector>();
+
+    auto key = MakeKey<ui64>(33);
+    std::vector<TInputVisitConstPtr> visits{MakeTestVisit(key, "input")};
+
+    auto function = New<TThrowingElementFunction>();
+
+    try {
+        WrapAsBatch(function)->Process(
+            New<TInputContext>(std::vector<TInputMessageConstPtr>{}, std::vector<TInputTimerConstPtr>{}, visits),
+            output,
+            context);
+        ADD_FAILURE() << "Process was expected to throw";
+    } catch (const std::exception& ex) {
+        TError error(ex);
+        auto keyAttribute = error.Attributes().Find<TKey>("key");
+        ASSERT_TRUE(keyAttribute.has_value());
+        EXPECT_EQ(*keyAttribute, key);
+        EXPECT_TRUE(ToString(error).Contains("Failed to process visit"));
+        EXPECT_TRUE(ToString(error).Contains("Boom in visit"));
+    }
 }
 
 TEST(TProcessFunctionTest, SyncIsInvoked)

@@ -1,5 +1,6 @@
 #include "process_function.h"
 
+#include "key_error.h"
 #include "runtime_context.h"
 #include "runtime_init_context.h"
 
@@ -50,13 +51,19 @@ public:
     void Process(const IInputContextPtr& input, const IOutputCollectorPtr& output, const IRuntimeContextPtr& context) override
     {
         for (const auto& timer : input->GetTimers()) {
-            Function_->ProcessTimer(timer, output->SetParents({}, {timer}, {}), context);
+            TagErrorWithKey("timer", timer->Key, [&] {
+                Function_->ProcessTimer(timer, output->SetParents({}, {timer}, {}), context);
+            });
         }
         for (const auto& message : input->GetMessages()) {
-            Function_->ProcessMessage(message, output->SetParents({message}, {}, {}), context);
+            TagErrorWithKey("message", message->Key, [&] {
+                Function_->ProcessMessage(message, output->SetParents({message}, {}, {}), context);
+            });
         }
         for (const auto& visit : input->GetVisits()) {
-            Function_->ProcessVisit(visit, output->SetParents({}, {}, {visit}), context);
+            TagErrorWithKey("visit", visit->Key, [&] {
+                Function_->ProcessVisit(visit, output->SetParents({}, {}, {visit}), context);
+            });
         }
     }
 
@@ -93,10 +100,12 @@ public:
             groups[visit->Key].Visits.push_back(visit);
         }
         for (const auto& [key, group] : groups) {
-            Function_->ProcessKey(
-                New<TInputContext>(group.Messages, group.Timers, group.Visits),
-                output->SetParents(group.Messages, group.Timers, group.Visits),
-                context);
+            TagErrorWithKey("key", key, [&] {
+                Function_->ProcessKey(
+                    New<TInputContext>(group.Messages, group.Timers, group.Visits),
+                    output->SetParents(group.Messages, group.Timers, group.Visits),
+                    context);
+            });
         }
     }
 
