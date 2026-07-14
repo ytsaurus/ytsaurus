@@ -48,6 +48,7 @@ def main():
     )
 
     mcp_runner.configure_server(rw_mode=app_args.rw_mode)
+    mcp_runner.configure_disallowed_clusters_from_env()
 
     tools_groups = get_tools_groups()
 

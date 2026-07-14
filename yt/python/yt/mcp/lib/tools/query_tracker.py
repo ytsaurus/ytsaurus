@@ -1,7 +1,29 @@
+import re
+
 from .helpers import YTToolBase
 from .security import check_system_paths, check_truncate, check_write_keywords
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
+
+
+_USE_CLUSTER_RE = re.compile(r"\bUSE\s+[`\"']?(\w+)[`\"']?\s*;", re.IGNORECASE)
+_QUALIFIED_TABLE_RE = re.compile(r"(?<![\w/])[`\"']?(\w+)[`\"']?\s*\.\s*[`\"']//", re.IGNORECASE)
+
+_YQL_ENGINES = {"yql"}
+
+
+def _check_query_clusters_yql(query: str, disallowed: Set[str], check_fn):
+    for match in _USE_CLUSTER_RE.finditer(query):
+        check_fn(match.group(1))
+    for match in _QUALIFIED_TABLE_RE.finditer(query):
+        check_fn(match.group(1))
+
+
+def _check_query_clusters_substring(query: str, disallowed: Set[str], check_fn):
+    query_lower = query.lower()
+    for cluster in disallowed:
+        if cluster in query_lower:
+            check_fn(cluster)
 
 
 class StartQuery(YTToolBase):
@@ -106,6 +128,19 @@ NOTE: Query runs asynchronously. Must check status before retrieving results.
         check_system_paths(query)
         check_truncate(query)
         check_write_keywords(query, self.runner._rw_mode)
+
+        if settings and isinstance(settings, dict):
+            settings_cluster = settings.get("cluster")
+            if settings_cluster:
+                self.runner.helper_check_cluster_allowed(settings_cluster)
+
+        disallowed = self.runner._DISALLOWED_CLUSTERS
+        if disallowed:
+            if engine and engine.lower() in _YQL_ENGINES:
+                _check_query_clusters_yql(query, disallowed, self.runner.helper_check_cluster_allowed)
+            else:
+                _check_query_clusters_substring(query, disallowed, self.runner.helper_check_cluster_allowed)
+
         yt_client = self.runner.helper_get_yt_client(cluster, request_context)
         try:
             query_id = yt_client.start_query(
