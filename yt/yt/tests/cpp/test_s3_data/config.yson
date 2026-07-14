@@ -9,6 +9,11 @@
             timeout_backoff_lead_time = 100;
         };
     };
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        chunk_manager = {
+            allow_offshore_media = %true;
+        };
+    };
     DELTA_DRIVER_CONFIG = {
         transaction_manager = {
             ping_batcher = {
