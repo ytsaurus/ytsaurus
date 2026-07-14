@@ -16,18 +16,35 @@ struct TPageCacheConfig
     //! Must be a positive multiple of 4096.
     i64 PageSize;
 
-    //! Total size of the page cache in bytes.
+    //! Total capacity of the page cache in bytes.
     //! Must be a positive multiple of PageSize.
-    i64 Size;
+    i64 Capacity;
 
     //! Period for background flush of dirty pages.
     //! When not set (nullopt), periodic flush is disabled.
     std::optional<TDuration> FlushPeriod;
 
-    //! Maximum number of concurrent Write RPCs issued during a single flush.
-    //! Dirty pages are flushed in batches of this size to avoid overwhelming
-    //! the data node's request queue.
-    int FlushBatchSize;
+    //! Amount of dirty data (in bytes) that a single background or periodic flush
+    //! attempts to write out, expressed in bytes and used internally as a page count
+    //! (MaxDirtyDataPerFlush / PageSize). This value plays three roles:
+    //!   - the granularity of one WriteBatch task (RPC) when a flush is split;
+    //!   - the dirty-data watermark that triggers a background flush after a write;
+    //!   - the per-invocation budget of background/periodic flushes.
+    //! Must be a positive multiple of PageSize.
+    i64 MaxDirtyDataPerFlush;
+
+    //! Upper bound in bytes on the size of a single merged WriteBatch subrequest.
+    //! A run of adjacent dirty pages larger than this is split into several
+    //! subrequests so one long contiguous dirty region does not become a single
+    //! unbounded allocation and RPC payload.
+    //! Must be a positive multiple of PageSize.
+    i64 MaxDirtyDataPerWrite;
+
+    //! Maximum number of WriteBatch RPCs that may be in flight concurrently
+    //! during a single flush. Batches are issued in a sliding window of this
+    //! width instead of strictly one-at-a-time, reducing flush wall-time.
+    //! Must be positive.
+    int MaxInflightWriteRequests;
 
     REGISTER_YSON_STRUCT(TPageCacheConfig);
 
