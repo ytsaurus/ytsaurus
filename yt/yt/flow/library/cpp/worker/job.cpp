@@ -138,7 +138,7 @@ public:
             WorkerProfiler()
                 .WithTag("computation_id", JobSpec_->Partition->ComputationId.Underlying())
                 .WithPrefix("/computation"))
-        , JobRootStatusProfiler_(CreateStatusProfiler())
+        , JobRootStatusProfiler_(CreateStatusProfiler(JobContext_->ControlSerializedInvoker, Logger, {}, WorkerProfiler()))
         , Distributor_(JobContext_->MessageDistributor)
         , InputBuffer_(
             CreateInputBuffer(

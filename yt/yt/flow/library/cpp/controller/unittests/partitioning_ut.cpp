@@ -176,7 +176,7 @@ public:
         context->Invoker = GetCurrentInvoker();
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
-        context->StatusProfiler = CreateStatusProfiler();
+        context->StatusProfiler = CreateSyncStatusProfiler();
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
         FlowView->CurrentSpec->SetValue(Spec);
 
@@ -200,7 +200,7 @@ public:
         context->Invoker = GetCurrentInvoker();
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
-        context->StatusProfiler = CreateStatusProfiler();
+        context->StatusProfiler = CreateSyncStatusProfiler();
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
     }
 

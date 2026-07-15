@@ -76,7 +76,6 @@ void TQueueInfoController::TryUpdatePartitionCount()
         ErrorState_->ClearError();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to update partition count") << ex;
-        YT_LOG_ERROR(error);
         ErrorState_->SetError(error);
     }
 }

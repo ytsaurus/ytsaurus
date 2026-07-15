@@ -148,7 +148,7 @@ public:
         context->Invoker = ThreadPool->GetInvoker("Balancer");
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
-        context->StatusProfiler = CreateStatusProfiler();
+        context->StatusProfiler = CreateSyncStatusProfiler();
         JobManager = CreateJobManager(context, spec, dynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
     }
 

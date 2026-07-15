@@ -385,7 +385,6 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
             << TErrorAttribute("current_offset", CurrentOffset_)
             << TErrorAttribute("max_offset_exclusive", maxOffsetExclusive);
         GetReadErrorState()->SetError(error);
-        YT_LOG_WARNING(error);
         ReaderFuture_ = {};
         return MakeFuture(std::vector<TSource::TRecord>{});
     }
@@ -395,7 +394,6 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
             auto error = NYT::TError(NYT::EErrorCode::Timeout, "Timeout of table reader; receiving empty batches for too long")
                 << TErrorAttribute("read_timeout", GetDynamicParameters()->ReadTimeout);
             GetReadErrorState()->SetError(error);
-            YT_LOG_WARNING(error);
             ReaderFuture_ = {};
         }
         return MakeFuture(std::vector<TSource::TRecord>{});

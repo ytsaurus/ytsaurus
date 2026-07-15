@@ -336,6 +336,15 @@ dashboards = {
             "args": ["grafana"],
         },
     },
+    "flow-key-visitor": {
+        "func": flow.build_flow_key_visitor,
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
+    },
     "flow-message-transfering": {
         "func": flow.build_flow_message_transfering,
         "monitoring": {

@@ -176,7 +176,6 @@ void TSinkController::TryUpdatePartitionCount()
         UpdatePartitionCountErrorState_->ClearError();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to update partition count") << ex;
-        YT_LOG_ERROR(error);
         UpdatePartitionCountErrorState_->SetError(error);
     }
 }

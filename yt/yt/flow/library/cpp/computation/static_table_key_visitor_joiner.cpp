@@ -62,10 +62,13 @@ TStaticTableKeyVisitorJoiner::TStaticTableKeyVisitorJoiner(
     , Logger(context->Logger)
     , ListedSizeGauge_(context->Profiler.Gauge("/static_table_key_visitor_joiner/listed_size"))
     , ReaderOpensCounter_(context->Profiler.Counter("/static_table_key_visitor_joiner/reader_opens"))
+    , SourceUnavailableGauge_(context->Profiler.Gauge("/static_table_key_visitor_joiner/source_unavailable"))
+    , FailedReadsCounter_(context->Profiler.Counter("/static_table_key_visitor_joiner/failed_reads"))
 {
     THROW_ERROR_EXCEPTION_IF(
         HasKeySchemaOverride(),
         "Key-visitor joiner does not support key_schema_override");
+    SourceUnavailableGauge_.Update(0);
 }
 
 bool TStaticTableKeyVisitorJoiner::IsVisitorDriven() const
@@ -360,6 +363,7 @@ TFuture<IExternalStateJoiner::TListResult> TStaticTableKeyVisitorJoiner::List(
             YT_VERIFY(std::ssize(listed.Keys) == std::ssize(listed.Payloads));
             NextAttemptTime_ = TInstant::Zero();
             LastSourceError_ = {};
+            SourceUnavailableGauge_.Update(0);
             for (int i = 0; i < std::ssize(listed.Keys); ++i) {
                 Listed_[listed.Keys[i]] = TListedRow{
                     .Payload = std::move(listed.Payloads[i]),
@@ -388,6 +392,8 @@ TFuture<IExternalStateJoiner::TListResult> TStaticTableKeyVisitorJoiner::List(
                 auto guard = Guard(Lock_);
                 NextAttemptTime_ = TInstant::Now() + backoff;
                 LastSourceError_ = TError(result);
+                FailedReadsCounter_.Increment();
+                SourceUnavailableGauge_.Update(1);
             }
             YT_LOG_WARNING(result, "Failed to list states; source marked unavailable (Backoff: %v)", backoff);
             return HandleFailedList(TError(result), lower, upper);

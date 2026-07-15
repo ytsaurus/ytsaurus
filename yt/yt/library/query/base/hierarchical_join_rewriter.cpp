@@ -308,8 +308,10 @@ TQueryPtr InsertHierarchicalJoins(
     }
 
     THROW_ERROR_EXCEPTION_IF(
-        query->GroupClause && !subqueriesToRewrite.InProjectClause.empty(),
-        "Subquery with JOIN in projection would be evaluated after GROUP BY, which is not supported");
+        query->GroupClause &&
+            query->GroupClause->TotalsMode != ETotalsMode::None &&
+            !subqueriesToRewrite.InProjectClause.empty(),
+        "Subquery with JOIN in projection after GROUP BY WITH TOTALS is not supported");
 
     ThrowOnUnimplementedSubqueryType(subqueriesToRewrite);
 
@@ -318,7 +320,11 @@ TQueryPtr InsertHierarchicalJoins(
         auto columnName = Format("hierarchical_join_result_%v", hierarchicalJoinIndex++);
         auto hierarchicalJoin = BuildHierarchicalJoinFromSubquery(subquery, columnName, Logger);
 
-        query->HierarchicalJoinsBeforeGroupBy.push_back(hierarchicalJoin);
+        if (query->GroupClause) {
+            query->HierarchicalJoinsAfterGroupBy.push_back(hierarchicalJoin);
+        } else {
+            query->HierarchicalJoinsBeforeGroupBy.push_back(hierarchicalJoin);
+        }
 
         auto newProjectClause = New<TProjectClause>();
         for (const auto& projection : query->ProjectClause->Projections) {

@@ -82,6 +82,34 @@ def build_flow_status(backend):
     ).owner
 
 
+def build_status_profiler():
+    broken_description = dedent("""\
+        Number of status-profiler components (queue/table connectors, key visitors, companion,
+        controller activities, ...) currently reporting an error, broken down by path.
+
+        **Expect an empty panel when the pipeline is healthy.** The stack total is the number of
+        problematic places right now.
+    """)
+
+    return (Rowset()
+        .stack(True)
+        .row()
+            .cell(
+                "Components in error state",
+                MultiSensor(
+                    MonitoringExpr(FlowWorker("yt.flow.worker.status_profiler.broken"))
+                        .aggr("host")
+                        .all("path")
+                        .alias("worker {{path}}"),
+                    MonitoringExpr(FlowController("yt.flow.controller.status_profiler.broken"))
+                        .aggr("host")
+                        .all("path")
+                        .alias("controller {{path}}"))
+                    .unit("UNIT_COUNT"),
+                description=broken_description)
+    )
+
+
 def build_lags():
     return (Rowset()
         .stack(False)
@@ -176,6 +204,7 @@ def build_flow_general(backend="monitoring"):
         d.add(build_resource_usage("controller", add_component_to_title=True, backend=backend))
         d.add(build_resource_usage("worker", add_component_to_title=True, backend=backend))
         d.add(build_flow_status(backend))
+        d.add(build_status_profiler())
         d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
         d.add(build_epoch_timings())
         d.add(COMPUTATION_CELL_GENERATOR.build_resources_rowset())

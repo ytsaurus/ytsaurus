@@ -42,7 +42,7 @@ TIntrusivePtr<TTestJavaProcessManager> CreateManager(int companionProcessCount, 
         /*metricsCollectionInterval*/ TDuration::Seconds(1),
         NLogging::TLogger("Test"),
         NProfiling::TProfiler{},
-        CreateStatusProfiler(),
+        CreateSyncStatusProfiler(),
         std::string(jdkBinPath),
         /*classpath*/ "/opt/app/*",
         /*mainClass*/ "com.example.Main");

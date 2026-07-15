@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +48,25 @@ struct IStatusProfiler
     virtual TUnitedProfilerStatus GetStatus() const = 0;
 };
 
-IStatusProfilerPtr CreateStatusProfiler();
+struct TStatusProfilerLoggingOptions
+{
+    //! Zero logs every change.
+    TDuration LogThrottle = TDuration::Minutes(1);
+    //! Zero disables the background report.
+    TDuration ReportPeriod = TDuration::Minutes(1);
+    TDuration StatusWindow = TDuration::Minutes(10);
+};
+
+//! Each registered component exports a #profiler gauge "/status_profiler/broken" tagged by its
+//! path, 1 while the component is broken and 0 otherwise.
+IStatusProfilerPtr CreateStatusProfiler(
+    const IInvokerPtr& invoker,
+    const NLogging::TLogger& logger,
+    const TStatusProfilerLoggingOptions& options = {},
+    const NProfiling::TProfiler& profiler = {});
+
+//! Logs every change and runs no background report; for tests.
+IStatusProfilerPtr CreateSyncStatusProfiler(const NLogging::TLogger& logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -648,6 +648,10 @@ std::pair<TQueryPtr, TQueryStatistics> TQueryEvaluateTest::DoEvaluate(
             if (!found) {
                 found = findHierarchicalJoin(primaryQuery->HierarchicalJoinsBeforeGroupBy);
             }
+
+            if (!found) {
+                found = findHierarchicalJoin(primaryQuery->HierarchicalJoinsAfterGroupBy);
+            }
         }
 
         YT_VERIFY(found && sourceIndex < std::ssize(owningSources));

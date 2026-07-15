@@ -904,7 +904,7 @@ void TInputManager::FetchInputTablesAttributes()
         for (const auto& [table, attributes] : tableAttributes) {
             auto mediumName = attributes->Get<std::string>("primary_medium");
             auto mediumDescriptor = mediumDirectory->FindByName(mediumName);
-            if (!mediumDescriptor || mediumDescriptor->IsOffshore()) {
+            if (mediumDescriptor && mediumDescriptor->IsOffshore()) {
                 THROW_ERROR_EXCEPTION(
                     "Operations on tables with offshore medium are forbidden by controller agent configuration")
                     << TErrorAttribute("table_path", table->GetPath())

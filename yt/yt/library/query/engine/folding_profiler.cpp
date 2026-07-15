@@ -1733,7 +1733,8 @@ public:
         size_t* slotCount,
         size_t inputSlot,
         TTableSchemaPtr schema,
-        bool mergeMode);
+        bool mergeMode,
+        const TJoinProfilerRegistry& joinProfilerRegistry);
 
     void Profile(
         TCodegenSource* codegenSource,
@@ -1744,7 +1745,8 @@ public:
     void Profile(
         TCodegenSource* codegenSource,
         const TConstFrontQueryPtr& query,
-        size_t* slotCount);
+        size_t* slotCount,
+        const TJoinProfilerRegistry& joinProfilerRegistry);
 
 private:
     void ProfileHierarchicalJoin(
@@ -2038,7 +2040,8 @@ void TQueryProfiler::Profile(
     size_t* slotCount,
     size_t inputSlot,
     TTableSchemaPtr schema,
-    bool mergeMode)
+    bool mergeMode,
+    const TJoinProfilerRegistry& joinProfilerRegistry)
 {
     Fold(ExecutionBackend_);
     Fold(OptimizationLevel_);
@@ -2313,6 +2316,28 @@ void TQueryProfiler::Profile(
             std::move(isDesc),
             ComparerManager_);
         MakeCodegenFragmentBodies(codegenSource, orderFragmentsInfos);
+    }
+
+    if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
+        for (const auto& hierarchicalJoin : derivedQuery->HierarchicalJoinsAfterGroupBy) {
+            ProfileHierarchicalJoin(
+                codegenSource,
+                slotCount,
+                aggregatedSlot,
+                schema,
+                hierarchicalJoin,
+                joinProfilerRegistry);
+        }
+    } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
+        for (const auto& hierarchicalJoin : derivedQuery->HierarchicalJoinsAfterGroupBy) {
+            ProfileHierarchicalJoin(
+                codegenSource,
+                slotCount,
+                aggregatedSlot,
+                schema,
+                hierarchicalJoin,
+                joinProfilerRegistry);
+        }
     }
 
     if (auto projectClause = query->ProjectClause.Get()) {
@@ -2817,13 +2842,14 @@ void TQueryProfiler::Profile(
         ProfileHierarchicalJoin(codegenSource, slotCount, currentSlot, schema, hierarchicalJoin, joinProfilerRegistry);
     }
 
-    Profile(codegenSource, query, slotCount, currentSlot, schema, /*mergeMode*/ false);
+    Profile(codegenSource, query, slotCount, currentSlot, schema, /*mergeMode*/ false, joinProfilerRegistry);
 }
 
 void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
     const TConstFrontQueryPtr& query,
-    size_t* slotCount)
+    size_t* slotCount,
+    const TJoinProfilerRegistry& joinProfilerRegistry)
 {
     Fold(ExecutionBackend_);
     Fold(OptimizationLevel_);
@@ -2850,7 +2876,7 @@ void TQueryProfiler::Profile(
         ExecutionBackend_);
 
     // Front query always perform merge.
-    Profile(codegenSource, query, slotCount, currentSlot, schema, /*mergeMode*/ true);
+    Profile(codegenSource, query, slotCount, currentSlot, schema, /*mergeMode*/ true, joinProfilerRegistry);
 }
 
 } // namespace
@@ -2928,7 +2954,7 @@ TCGQueryGenerator Profile(
     if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
         profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfilerRegistry);
     } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
-        profiler.Profile(&codegenSource, derivedQuery, &slotCount);
+        profiler.Profile(&codegenSource, derivedQuery, &slotCount, joinProfilerRegistry);
     } else {
         YT_ABORT();
     }

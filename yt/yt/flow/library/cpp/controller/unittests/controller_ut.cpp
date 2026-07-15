@@ -344,7 +344,7 @@ public:
             authenticator,
             /*ignoreSingletonsDynamicConfig*/ false,
             /*clockClusterTag*/ NObjectClient::InvalidCellTag,
-            CreateStatusProfiler());
+            CreateSyncStatusProfiler());
 
         LocalServer = NRpc::CreateLocalServer();
 
@@ -354,7 +354,7 @@ public:
             YTConnector,
             New<TControllerServiceConfig>(),
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
         const auto service = CreateControllerService(
             flowExecutor,
@@ -615,7 +615,7 @@ TEST_F(TControllerTest, SetSpecDoesNotRetryOnFlowCoreTargetMismatch)
             YTConnector,
             serviceConfig,
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
 
         TSetPipelineSpecsArg arg;
@@ -986,7 +986,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetFailsOnSpecVersionMismatch)
             YTConnector,
             New<TControllerServiceConfig>(),
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
 
         EXPECT_THROW_WITH_ERROR_CODE(
@@ -1027,7 +1027,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetFailsOnFlowCoreTargetVersionMismatch)
             YTConnector,
             New<TControllerServiceConfig>(),
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
 
         EXPECT_THROW_WITH_ERROR_CODE(
@@ -1072,7 +1072,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetIsIdempotentForSameValue)
             YTConnector,
             New<TControllerServiceConfig>(),
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
 
         TSetFlowCoreTargetArg arg;
@@ -1130,7 +1130,7 @@ TEST_F(TControllerTest, StartPipelineFailsOnFlowCoreTargetMismatch)
             YTConnector,
             New<TControllerServiceConfig>(),
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
 
         TSetTargetPipelineStateArg arg;
