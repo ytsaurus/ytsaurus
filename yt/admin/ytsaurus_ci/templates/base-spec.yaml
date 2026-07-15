@@ -355,3 +355,35 @@ spec:
     name:
       {{ cluster_name }}
   image: {{ images.spyt }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: custom-yt-init
+spec:
+  template:
+    spec:
+      containers:
+        - name: custom-yt-init
+          image: {{ images.ytsaurus }}
+          env:
+            - name: YT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ytadminsec
+                  key: token
+            - name: YT_PROXY
+              value: http-proxies
+            - name: CLUSTER
+              value: {{ cluster_name }}
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              yt link //sys/http_proxies //sys/proxies
+              yt create -r document //sys/client_config/default
+              yt set //sys/client_config/default '{"file_cache_replication_factor" = 3}'
+              echo "Initialization completed successfully"
+      restartPolicy: Never
+  backoffLimit: 100
