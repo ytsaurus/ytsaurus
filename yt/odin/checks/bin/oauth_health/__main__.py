@@ -21,19 +21,22 @@ CRITICAL = 2
 
 
 class Worker(Thread):
-    def __init__(self, token, proxies, is_testing_environment, logger):
+    def __init__(self, token, proxies, scheme, is_testing_environment, logger):
         super(Worker, self).__init__()
         self.token = token
         self.proxies = proxies
+        self.scheme = scheme
         self.is_testing_environment = is_testing_environment
         self.results = dict([(proxy, CRITICAL) for proxy in self.proxies])
         self.logger = logger
 
     def run_impl(self):
         s = requests.Session()
-        s.mount('http://', HTTPAdapter(max_retries=3))
+        adapter = HTTPAdapter(max_retries=3)
+        s.mount('http://', adapter)
+        s.mount('https://', adapter)
         for proxy in self.proxies:
-            url = "http://{}/auth/whoami".format(proxy)
+            url = "{}://{}/auth/whoami".format(self.scheme, proxy)
             check_result = CRITICAL
             try:
                 headers = {}
@@ -69,7 +72,9 @@ def get_active_proxies(cluster_url, test_url):
     url = "{}/hosts/all".format(cluster_url)
     proxies = []
     s = requests.Session()
-    s.mount('http://', HTTPAdapter(max_retries=3))
+    adapter = HTTPAdapter(max_retries=3)
+    s.mount('http://', adapter)
+    s.mount('https://', adapter)
     resp = s.get(url, timeout=TIMEOUT)
     for proxy in resp.json():
         if proxy["dead"]:
@@ -83,6 +88,7 @@ def get_active_proxies(cluster_url, test_url):
 
 def run_check(secrets, yt_client, logger, options, states):
     cluster_url = get_proxy_address_url(client=yt_client)
+    scheme = cluster_url.split("://")[0]
     is_testing_environment = options.get("is_testing_environment", False)
 
     try:
@@ -97,6 +103,7 @@ def run_check(secrets, yt_client, logger, options, states):
         worker = Worker(
             get_token(client=yt_client),
             proxies[i:i + MAX_REQUESTS_PER_WORKER],
+            scheme,
             is_testing_environment,
             logger)
         workers.append(worker)
