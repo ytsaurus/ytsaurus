@@ -237,6 +237,10 @@ def get_driver_instance(client):
                     "(driver_connection_type: {0}, client_backend: {1})"
                     .format(driver_config["connection_type"], client_backend))
 
+            # Abandon master transactions on a failed commit so the SDK's own retry can
+            # re-commit them; honored only by the RPC proxy client.
+            driver_config["abandon_master_transactions_on_failed_commit"] = True
+
         if client_config["proxy"]["rpc_proxy_role"] is not None:
             driver_config.setdefault("proxy_role", client_config["proxy"]["rpc_proxy_role"])
 
