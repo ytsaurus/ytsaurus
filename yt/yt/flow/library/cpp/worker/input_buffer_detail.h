@@ -76,7 +76,8 @@ public:
 
         TConnectionStates ConnectionStates;
         i64 RecalculateCounter = 0;
-        i64 Epoch = 0; // How many recalculations (~ updates of all connections) were done.
+        i64 Epoch = 0; // How many offer-driven recalculations (~ updates of all connections) were done.
+        i64 LastRecalculatedLimitBytes = -1;
 
         TMessagesPriorityQueue Messages;
 
@@ -119,7 +120,10 @@ public:
 
     TSystemTimestamp GetMinStabilizedEventTimestamp() override;
 
-    static void RecalculateStreamLimits(TStreamState& streamState);
+    // |collectStaleConnections| must be set only on the offer-driven cadence: connection GC is
+    // measured in recalculation epochs, so high-frequency extraction regrants would otherwise
+    // erase live connections between their offers.
+    static void RecalculateStreamLimits(TStreamState& streamState, bool collectStaleConnections = true);
     static i64 GetPendingSize(const TStreamState& streamState);
 
     double ComputeStreamBias(TStreamId streamId, const TInputMessageConstPtr& frontMessage) const;

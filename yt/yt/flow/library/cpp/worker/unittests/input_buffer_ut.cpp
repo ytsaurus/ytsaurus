@@ -167,6 +167,40 @@ TEST(TInputBufferRecalculateStreamLimitsTest, Cleanup)
     EXPECT_EQ(0, streamState.ConnectionStates.at(connectionId1).InflatedByteLimit);
 }
 
+TEST(TInputBufferRecalculateStreamLimitsTest, RegrantKeepsStaleConnections)
+{
+    auto staleConnectionId = TGuid::Create();
+    auto freshConnectionId = TGuid::Create();
+    TStreamState streamState = {
+        .ConnectionStates = {
+            {
+                staleConnectionId,
+                TConnectionState{
+                    .UpdateEpoch = 0,
+                    .Offer = {{TSystemTimestamp(12), 100}, {TSystemTimestamp(5), 200}},
+                    .InflatedByteLimit = 100500,
+                },
+            },
+            {
+                freshConnectionId,
+                TConnectionState{
+                    .UpdateEpoch = 100,
+                    .Offer = {{TSystemTimestamp(10), 800}, {TSystemTimestamp(9), 400}},
+                },
+            },
+        },
+        .RecalculateCounter = 42,
+        .Epoch = 101,
+        .LimitUsageState = MakeLimitState(1000),
+    };
+    TInputBuffer::RecalculateStreamLimits(streamState, /*collectStaleConnections*/ false);
+    ASSERT_TRUE(streamState.ConnectionStates.contains(staleConnectionId));
+    EXPECT_EQ(200, streamState.ConnectionStates.at(staleConnectionId).InflatedByteLimit);
+    EXPECT_EQ(400, streamState.ConnectionStates.at(freshConnectionId).InflatedByteLimit);
+    EXPECT_EQ(101, streamState.Epoch);
+    EXPECT_EQ(42, streamState.RecalculateCounter);
+}
+
 TEST(TInputBufferGetPendingSizeTest, Simple)
 {
     auto connectionId1 = TGuid::Create();
