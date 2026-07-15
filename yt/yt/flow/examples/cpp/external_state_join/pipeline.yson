@@ -14,7 +14,8 @@
                 "parameters" = {};
             };
             "lookup_join" = {
-                "computation_class_name" = "TLookupJoin";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NExample::TLookupJoinFunction";
                 "group_by_schema" = [
                     {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
                     {"name" = "key"; "type" = "uint64";};

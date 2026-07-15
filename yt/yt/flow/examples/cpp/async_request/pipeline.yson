@@ -15,7 +15,8 @@
                 "parameters" = {};
             };
             "state" = {
-                "computation_class_name" = "TStateKeeper";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NExample::TStateKeeper";
                 "group_by_schema" = [
                     {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
                     {"name" = "key"; "type" = "uint64";};
@@ -33,7 +34,8 @@
                 };
             };
             "processor" = {
-                "computation_class_name" = "TRequestProcessor";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSwiftMapComputation";
+                "processing_function" = "NYT::NFlow::NExample::TRequestProcessor";
                 "group_by_schema" = [
                     {"name" = "hash"; "expression" = "farm_hash(request_id)"; "type" = "uint64"; required = %true;};
                     {"name" = "request_id"; "type" = "uint64";};

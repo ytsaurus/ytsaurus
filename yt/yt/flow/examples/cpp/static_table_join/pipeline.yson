@@ -2,7 +2,8 @@
     "spec" = {
         "computations" = {
             "reference_reader" = {
-                "computation_class_name" = "TReferenceReader";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+                "processing_function" = "NYT::NFlow::NExample::TReferenceReader";
                 "output_stream_ids" = ["reference"];
                 "source_streams" = {
                     "reference_table" = {
@@ -26,7 +27,8 @@
                 "parameters" = {};
             };
             "reference_loader" = {
-                "computation_class_name" = "TReferenceLoader";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NExample::TReferenceLoader";
                 "group_by_schema" = [
                     {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
                     {"name" = "key"; "type" = "uint64";};
@@ -43,7 +45,8 @@
                 "parameters" = {};
             };
             "enricher" = {
-                "computation_class_name" = "TEnricher";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NExample::TEnricher";
                 "group_by_schema" = [
                     {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
                     {"name" = "key"; "type" = "uint64";};

@@ -2,7 +2,8 @@
     "spec" = {
         "computations" = {
             "reader" = {
-                "computation_class_name" = "TQueueReader";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+                "processing_function" = "NYT::NFlow::NExample::TQueueReader";
                 "output_stream_ids" = ["event"];
                 "source_streams" = {
                     "queue" = {
@@ -14,7 +15,6 @@
                         };
                     };
                 };
-                "parameters" = {};
             };
             "shuffle_a" = {
                 "computation_class_name" = "NYT::NFlow::TSwiftPassthroughComputation";
@@ -53,7 +53,8 @@
                 "output_stream_ids" = ["event_d"];
             };
             "reducer" = {
-                "computation_class_name" = "TReducer";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NExample::TReducer";
                 "group_by_schema" = [
                     {"name" = "hash"; "expression" = "farm_hash(value)"; "type" = "uint64"; required = %true;};
                     {"name" = "value"; "type" = "string";};
