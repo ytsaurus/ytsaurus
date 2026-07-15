@@ -3081,8 +3081,6 @@ private:
                 "(ReplicationCardId: %v, IndexReplicationCardId: %v)",
                 replicationCard->GetId(),
                 indexReplicationCardId);
-
-            return;
         } else {
             indexTableReplicationCard->ValidateCollocationNotMigrating();
             ValidateInNormalState(indexTableReplicationCard);
@@ -3149,7 +3147,7 @@ private:
                             indexTo);
                     }
                 } else {
-                    YT_LOG_ALERT("Index replication card is missing during secondary "
+                    YT_LOG_DEBUG("Index replication card is missing during secondary "
                         "index removal (ReplicationCardId: %v, IndexReplicationCardId: %v)",
                         replicationCard->GetId(),
                         pending->IndexReplicationCardId);
