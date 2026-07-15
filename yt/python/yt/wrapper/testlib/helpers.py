@@ -27,7 +27,7 @@ import threading
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from unittest.mock import patch
 try:
     import collections.abc as collections_abc
@@ -314,6 +314,7 @@ def inject_http_error(
     raise_connection_reset: bool = False,
     raise_custom_exception: Optional[requests.exceptions.RequestException] = None,
     response: Optional[requests.Response] = None,
+    response_data: Optional[Dict[str, Any]] = None,
 ):
     """Raises RuntimeError or ConnectionError("Connection aborted.") every N http request.
        NB: Modifies client.config retries, patches client's requests.Session object
@@ -349,7 +350,7 @@ def inject_http_error(
             cnt.filtered_total_calls += 1
             if cnt.filtered_total_calls > interrupt_from \
                     and interrupt_every and not (cnt.filtered_total_calls - interrupt_from - 1) % interrupt_every \
-                    and cnt.filtered_total_calls < interrupt_till:
+                    and cnt.filtered_total_calls <= interrupt_till:
                 cnt.filtered_raises += 1
                 logger.debug("Simulate network error for url \"{}\".".format(args[0].url))
                 if raise_custom_exception:
@@ -360,6 +361,12 @@ def inject_http_error(
                     raise requests.ConnectionError("Connection aborted.")
                 elif response is not None:
                     return response
+                elif response_data is not None:
+                    http_response = requests.Response()
+                    http_response.status_code = 200
+                    http_response.trailers = lambda: None
+                    http_response._content = yt.yson.dumps(response_data, yson_format="binary")
+                    return http_response
                 else:
                     raise RuntimeError()
             else:
@@ -403,7 +410,7 @@ def inject_http_read_error(
             cnt.filtered_total_calls += 1
             if cnt.filtered_total_calls > interrupt_from \
                     and interrupt_every and not (cnt.filtered_total_calls - interrupt_from - 1) % interrupt_every \
-                    and cnt.filtered_total_calls < interrupt_till:
+                    and cnt.filtered_total_calls <= interrupt_till:
                 response = reqeust_session_send_orig(self, request, *args, **kwargs)
                 all_data = response.content
 

@@ -112,7 +112,7 @@ class TestCypressCommands(object):
                 inject_http_read_error(
                     filter_url="read_table_partition",
                     interrupt_from=0,
-                    interrupt_till=2,
+                    interrupt_till=1,
                     interrupt_every=1,
                     interrupt_read_iteration=3,
                 ) as cnt:
