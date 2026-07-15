@@ -1,5 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, KAFKA_PROXIES_SERVICE, with_additional_threads
 
+from yt_helpers import profiler_factory
+
 from yt_queue_agent_test_base import TestQueueAgentBase
 
 from yt_commands import (
@@ -702,6 +704,72 @@ class TestKafkaProxy(KafkaProxyBase):
 
         wait(lambda: get("//tmp/queue/foo/@tablet_count_by_state/mounted") == 2)
         wait(lambda: get("//tmp/queue/bar/@tablet_count_by_state/mounted") == 1)
+
+    @authors("panesher")
+    def test_request_metrics(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        queue_path = "primary://tmp/queue"
+
+        TestKafkaProxy._create_kafka_queue(queue_path)
+
+        address = self.Env.get_kafka_proxy_address()
+        proxy_name = ls("//sys/kafka_proxies/instances")[0]
+        profiler = profiler_factory().at_kafka_proxy(proxy_name, fixed_tags={"request_type": "produce"})
+
+        request_count = profiler.counter("kafka_proxy/requests/count")
+        failed_request_count = profiler.counter("kafka_proxy/requests/failed_count")
+        error_count = profiler.counter(
+            "kafka_proxy/requests/error_count",
+            tags={"error_code": "topic_authorization_failed"})
+        unknown_error_count = profiler.counter(
+            "kafka_proxy/requests/error_count",
+            tags={"error_code": "unknown_server_error"})
+        request_time = profiler.histogram("kafka_proxy/requests/time")
+
+        p = Producer(get_producer_config(address, token))
+        serializer = StringSerializer("utf_8")
+
+        p.produce(topic=queue_path,
+                  key=serializer("key_0"),
+                  value=serializer("value_0"),
+                  on_delivery=_fail_on_error)
+        p.flush()
+
+        wait(lambda: request_count.get_delta() > 0)
+        wait(lambda: sum(bin["count"] for bin in request_time.get_bins()) > 0)
+        assert failed_request_count.get_delta() == 0
+        assert error_count.get_delta() == 0
+
+        # No write permission.
+        set(f"{queue_path}/@inherit_acl", False)
+
+        p.produce(topic=queue_path,
+                  key=serializer("key_1"),
+                  value=serializer("value_1"),
+                  on_delivery=functools.partial(_check_error, KafkaError.TOPIC_AUTHORIZATION_FAILED))
+        p.flush()
+
+        wait(lambda: failed_request_count.get_delta() > 0)
+        wait(lambda: error_count.get_delta() > 0)
+
+        set(f"{queue_path}/@inherit_acl", True)
+
+        sync_unmount_table(queue_path)
+
+        p.produce(topic=queue_path,
+                  key=serializer("key_2"),
+                  value=serializer("value_2"),
+                  on_delivery=functools.partial(_check_error, KafkaError.UNKNOWN))
+        p.flush()
+
+        wait(lambda: unknown_error_count.get_delta() > 0)
+
+        sync_mount_table(queue_path)
 
     @authors("panesher")
     @with_additional_threads
