@@ -930,10 +930,7 @@ protected:
         } else {
             TAsyncYsonWriter writer;
             writer.OnBeginMap();
-            // TODO(danilalexeev): YT-26172. Do not copy attributes.
-            auto node = CreateEphemeralNodeFactory()->CreateEntity();
-            node->MutableAttributes()->MergeFrom(*attributes);
-            node->WriteAttributesFragment(&writer, attributeFilter, /*stable*/ true);
+            WriteAttributeDictionaryFragment(&writer, *attributes, attributeFilter, /*stable*/ true);
             writer.OnEndMap();
             result = WaitForFast(writer.Finish())
                 .ValueOrThrow();
@@ -2857,10 +2854,11 @@ private:
                 writer.OnListItem();
 
                 if (accessGranted) {
-                    // TODO(danilalexeev): YT-26172. Do not copy attributes.
-                    auto node = CreateEphemeralNodeFactory()->CreateEntity();
-                    node->MutableAttributes()->MergeFrom(*std::get<IAttributeDictionaryPtr>(attributes));
-                    node->WriteAttributes(&writer, attributeFilter, /*stable*/ true);
+                    WriteAttributeDictionary(
+                        &writer,
+                        *std::get<IAttributeDictionaryPtr>(attributes),
+                        attributeFilter,
+                        /*stable*/ true);
                 }
             } else {
                 writer.OnListItem();
