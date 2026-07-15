@@ -239,7 +239,7 @@ template<typename T> class arr
 #endif
 
   public:
-    arr() : p(0), sz(0) {}
+    arr() : p(nullptr), sz(0) {}
     explicit arr(size_t n) : p(ralloc(n)), sz(n) {}
     arr(arr &&other) noexcept
       : p(other.p), sz(other.sz)
