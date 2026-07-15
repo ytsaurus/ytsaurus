@@ -498,6 +498,14 @@ TConstExpressionPtr TExpressionBuilderV2::OnColumnReference(const NAst::TColumnR
 
 TConstExpressionPtr TExpressionBuilderV2::OnReference(const NAst::TReference& reference)
 {
+    if (reference.TableName && !ResolveColumn(reference)) {
+        if (auto reinterpreted = TryReinterpretAsMemberAccess(reference);
+            reinterpreted && ResolveColumn(*reinterpreted))
+        {
+            return OnReference(*reinterpreted);
+        }
+    }
+
     auto referenceExpr = OnColumnReference(reference);
 
     if (reference.CompositeTypeAccessor.IsEmpty()) {

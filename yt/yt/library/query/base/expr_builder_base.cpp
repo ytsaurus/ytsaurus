@@ -301,6 +301,29 @@ TConstExpressionPtr ApplyRewriters(TConstExpressionPtr expr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<NAst::TReference> TryReinterpretAsMemberAccess(
+    const NAst::TReference& reference)
+{
+    if (!reference.TableName) {
+        return std::nullopt;
+    }
+
+    NAst::TReference result(*reference.TableName);
+
+    auto& accessor = result.CompositeTypeAccessor.NestedStructOrTupleItemAccessor;
+    accessor.reserve(reference.CompositeTypeAccessor.NestedStructOrTupleItemAccessor.size() + 1);
+
+    accessor.push_back(TStructMemberAccessor(reference.ColumnName));
+    accessor.insert(
+        accessor.end(),
+        reference.CompositeTypeAccessor.NestedStructOrTupleItemAccessor.begin(),
+        reference.CompositeTypeAccessor.NestedStructOrTupleItemAccessor.end());
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::optional<TValue> FoldConstants(
     EUnaryOp opcode,
     const TConstExpressionPtr& operand)
