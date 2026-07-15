@@ -985,9 +985,9 @@ void TDynamicBufferStateManagerSpec::Register(TRegistrar registrar)
 void TDynamicMessageDistributorSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("send_queue_max_rows_per_batch", &TThis::SendQueueMaxRowsPerBatch)
-        .Default(NYTree::TSize(1000));
+        .Default(NYTree::TSize(10'000));
     registrar.Parameter("send_queue_max_bytes_per_batch", &TThis::SendQueueMaxBytesPerBatch)
-        .Default(NYTree::TSize(1_MB));
+        .Default(NYTree::TSize(10_MB));
     registrar.Parameter("send_queue_batch_duration", &TThis::SendQueueBatchDuration)
         .Default(TDuration::MilliSeconds(100));
 

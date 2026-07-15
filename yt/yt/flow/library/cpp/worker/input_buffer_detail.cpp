@@ -325,9 +325,15 @@ void TInputBuffer::DoAddConnectionOffer(TGuid connectionId, TConnectionOffer off
             connectionState.UpdateEpoch = streamState.Epoch;
         }
 
-        // Just double function amortized complexity.
-        if (--streamState.RecalculateCounter <= 0) {
-            RecalculateStreamLimits(streamState);
+        // Just double function amortized complexity. A manager-side limit change bypasses the
+        // amortization so the raised limit turns into grants on the first offer, not the Nth;
+        // the bypass must not advance the connection-GC epoch: the recomputed limit jitters on
+        // every manage tick, and the GC horizon must stay measured in offer rounds.
+        const bool offerRoundElapsed = --streamState.RecalculateCounter <= 0;
+        if (offerRoundElapsed ||
+            streamState.LimitUsageState->GetLimitBytes() != streamState.LastRecalculatedLimitBytes)
+        {
+            RecalculateStreamLimits(streamState, /*collectStaleConnections*/ offerRoundElapsed);
             streamState.Usage.PendingInflatedBytes = GetPendingSize(streamState);
             streamState.LimitUsageState->Update(streamState.Usage);
         }
@@ -445,6 +451,7 @@ TFuture<std::vector<TInputMessageConstPtr>> TInputBuffer::DoGetInputBatch(THashS
 
     using TPriority = std::pair<TSystemTimestamp, ui64>;
     std::vector<std::pair<TMessagesPriorityQueue*, std::function<TPriority()>>> queues;
+    std::vector<TStreamState*> extractionStreamStates;
     size_t queuedMessageCount = 0;
     for (auto& [streamId, streamState] : StreamStates_) {
         if (!streamState.Messages.empty() && allowedStreams.contains(streamId)) {
@@ -454,6 +461,7 @@ TFuture<std::vector<TInputMessageConstPtr>> TInputBuffer::DoGetInputBatch(THashS
                 const auto& front = messagesPtr->front();
                 return {TSystemTimestamp(front.AlignmentTimestamp.Underlying() + bias), front.SeqNo};
             });
+            extractionStreamStates.push_back(&streamState);
             queuedMessageCount += streamState.Messages.size();
         }
     }
@@ -480,6 +488,15 @@ TFuture<std::vector<TInputMessageConstPtr>> TInputBuffer::DoGetInputBatch(THashS
         LastNotFullBatchInstant_ = TInstant::Now();
     }
 
+    // Extraction freed buffer space; regrant connection windows right away so the next
+    // PushMessages response carries fresh limits instead of waiting out the offer amortization.
+    if (!batch.empty()) {
+        for (auto* streamState : extractionStreamStates) {
+            RecalculateStreamLimits(*streamState, /*collectStaleConnections*/ false);
+            streamState->Usage.PendingInflatedBytes = GetPendingSize(*streamState);
+        }
+    }
+
     for (auto& [streamId, streamState] : StreamStates_) {
         streamState.LimitUsageState->Update(streamState.Usage);
     }
@@ -487,7 +504,7 @@ TFuture<std::vector<TInputMessageConstPtr>> TInputBuffer::DoGetInputBatch(THashS
     return MakeFuture<std::vector<TInputMessageConstPtr>>(std::move(batch));
 }
 
-void TInputBuffer::RecalculateStreamLimits(TStreamState& streamState)
+void TInputBuffer::RecalculateStreamLimits(TStreamState& streamState, bool collectStaleConnections)
 {
     using THeapElement = std::pair<TConnectionState*, i64>; // (it, currentBucketIndex).
 
@@ -495,7 +512,7 @@ void TInputBuffer::RecalculateStreamLimits(TStreamState& streamState)
 
     // Cleanup.
     for (auto it = streamState.ConnectionStates.begin(); it != streamState.ConnectionStates.end();) {
-        if (it->second.UpdateEpoch + lastEpochStoreCount < streamState.Epoch) {
+        if (collectStaleConnections && it->second.UpdateEpoch + lastEpochStoreCount < streamState.Epoch) {
             streamState.ConnectionStates.erase(it++);
         } else {
             it->second.InflatedByteLimit = 0;
@@ -520,6 +537,7 @@ void TInputBuffer::RecalculateStreamLimits(TStreamState& streamState)
     // Match the manager's accounting: limit is inflated, so used must be inflated too.
     i64 inflatedUsedBytes = streamState.Usage.GetInflatedInflightBytes(streamState.LimitUsageState->GetInflationPerMessage());
     i64 inflatedLimitBytes = streamState.LimitUsageState->GetLimitBytes();
+    streamState.LastRecalculatedLimitBytes = inflatedLimitBytes;
     // Do not allocate small share of buffer to reduce retransmits.
     i64 inflatedFreeBytes = std::max<i64>(inflatedLimitBytes * 0.9 - inflatedUsedBytes, 0);
 
@@ -547,8 +565,10 @@ void TInputBuffer::RecalculateStreamLimits(TStreamState& streamState)
         }
     }
 
-    streamState.Epoch += 1;
-    streamState.RecalculateCounter = std::ssize(streamState.ConnectionStates);
+    if (collectStaleConnections) {
+        streamState.Epoch += 1;
+        streamState.RecalculateCounter = std::ssize(streamState.ConnectionStates);
+    }
 }
 
 i64 TInputBuffer::GetPendingSize(const TStreamState& streamState)
