@@ -160,7 +160,7 @@ protected:
     }
 
 private:
-    EFlowRunMode Mode_;
+    EFlowRunMode Mode_ = {};
     TFlowNodeConfigPtr Config_;
     NYTree::INodePtr ConfigNode_;
     TNodeInfoPtr NodeInfo_;
@@ -433,7 +433,16 @@ private:
         }
         TSingletonManager::Configure(patchedSingletonsConfig);
 
-        RootStatusProfiler_ = CreateStatusProfiler();
+        // A combined controller+worker node shares one status profiler; its components report
+        // under the controller namespace. The general dashboard sums both roles, so the
+        // problematic-places total stays correct regardless of the namespace picked here.
+        RootStatusProfiler_ = CreateStatusProfiler(
+            ControlQueue_->GetInvoker(NController::EControlQueue::Default),
+            Logger(),
+            {},
+            NProfiling::TProfiler(
+                /*prefix*/ "",
+                Any(Mode_ & EFlowRunMode::Controller) ? "yt.flow.controller" : "yt.flow.worker"));
 
         SetNodeByYPath(
             OrchidRoot_,

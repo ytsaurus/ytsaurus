@@ -275,7 +275,7 @@ public:
         })""")));
 
         SourceContext->Logger = NLogging::TLogger("Test");
-        SourceContext->StatusProfiler = CreateStatusProfiler();
+        SourceContext->StatusProfiler = CreateSyncStatusProfiler();
 
         SourceContext->TimeProvider = New<TTestTimeProvider>();
 

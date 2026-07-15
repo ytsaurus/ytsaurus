@@ -46,7 +46,7 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
     if (ace.Columns) {
         for (const auto& column : *ace.Columns) {
             // NB: Multiple occurrences are possible.
-            ColumnToResult_.emplace(column, TPermissionCheckResult{.ObjectId = objectId});
+            ColumnToResult_.emplace(column, TPermissionCheckResult{});
         }
     }
 

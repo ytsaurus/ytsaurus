@@ -97,7 +97,7 @@ TEST_F(TResourceBaseTest, ReconfigureBasic)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("res"))
@@ -134,7 +134,7 @@ TEST_F(TResourceBaseTest, ReconfigureWithFailedAndReconfigurableResources)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("good_res"))
@@ -168,7 +168,7 @@ TEST_F(TResourceBaseTest, ReconfigureSkipsUnchangedSpec)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("res"))

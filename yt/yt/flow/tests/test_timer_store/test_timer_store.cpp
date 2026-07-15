@@ -160,7 +160,7 @@ protected:
 
     IRetryableClientPtr PrepareRetryableClient()
     {
-        return CreateRetryableClient(Client_, ActionQueue_->GetInvoker(), CreateStatusProfiler(), TLogger("retryable_client_test"));
+        return CreateRetryableClient(Client_, ActionQueue_->GetInvoker(), CreateSyncStatusProfiler(), TLogger("retryable_client_test"));
     }
 
     TTableSchemaPtr PrepareDefaultPayloadSchema()

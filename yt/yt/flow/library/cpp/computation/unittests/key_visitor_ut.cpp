@@ -68,7 +68,7 @@ protected:
         ctx->TimeProvider = TimeProvider_;
         ctx->SerializedInvoker = Queue_->GetInvoker();
         ctx->Logger = NLogging::TLogger("KeyVisitorTest");
-        ctx->StatusProfiler = CreateStatusProfiler();
+        ctx->StatusProfiler = CreateSyncStatusProfiler();
         return ctx;
     }
 

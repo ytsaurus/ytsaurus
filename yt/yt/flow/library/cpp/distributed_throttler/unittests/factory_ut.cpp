@@ -29,7 +29,7 @@ protected:
     {
         ActionQueue_ = New<TActionQueue>("Test");
         LocalServer_ = NRpc::CreateLocalServer();
-        StatusProfiler_ = CreateStatusProfiler();
+        StatusProfiler_ = CreateSyncStatusProfiler();
     }
 
     void TearDown() override

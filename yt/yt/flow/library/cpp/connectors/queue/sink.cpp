@@ -237,8 +237,7 @@ bool TAsyncQueueWriter::TryExecuteIteration(const std::string& producerId, const
         ErrorState_->ClearError();
         return true;
     } catch (const std::exception& ex) {
-        ErrorState_->SetError(TError(ex));
-        YT_LOG_ERROR(ex, "Failed to write to the queue, reinit session");
+        ErrorState_->SetError(TError("Failed to write to the queue") << ex);
         ResetSession();
         NConcurrency::TDelayedExecutor::WaitForDuration(DynamicParameters_.Acquire()->BackoffDuration);
         return false;
@@ -326,7 +325,6 @@ bool TAsyncMultiClusterQueueWriter::TryExecuteIteration(const std::string& produ
         }
     }
     ErrorState_->SetError(error);
-    YT_LOG_ERROR("Failed to write to the queue on all clusters!");
     NConcurrency::TDelayedExecutor::WaitForDuration(DynamicParameters_.Acquire()->BackoffDuration);
     return false;
 }
@@ -582,7 +580,6 @@ void TQueueSinkController::WriteFlowQueueMeta()
     } catch (const std::exception& ex) {
         auto error = TError("Failed to write flow queue meta heartbeat") << ex;
         // TODO: pass to public controller log.
-        YT_LOG_WARNING(error);
         WriteMetaErrorState_->SetError(error);
     }
 }
@@ -718,7 +715,6 @@ void TMultiClusterQueueSinkController::WriteFlowQueueMeta()
     } catch (const std::exception& ex) {
         auto error = TError("Failed to write flow queue meta heartbeat") << ex;
         // TODO: pass to public controller log.
-        YT_LOG_WARNING(error);
         WriteMetaErrorState_->SetError(error);
     }
 }

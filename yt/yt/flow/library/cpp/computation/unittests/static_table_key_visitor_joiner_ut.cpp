@@ -148,7 +148,7 @@ protected:
         context->KeySchema = KeySchema_;
         context->ClientsCache = New<TStubClientsCache>();
         context->SerializedInvoker = Queue_->GetInvoker();
-        context->StatusProfiler = CreateStatusProfiler();
+        context->StatusProfiler = CreateSyncStatusProfiler();
         context->PipelinePath = NYPath::TRichYPath("//pipeline");
         context->PipelinePath.SetCluster("test");
         context->Logger = NLogging::TLogger("Test");
@@ -616,7 +616,7 @@ protected:
         context->KeySchema = KeySchema_;
         context->ClientsCache = New<TFixedClientsCache>(Mock_);
         context->SerializedInvoker = Queue_->GetInvoker();
-        context->StatusProfiler = CreateStatusProfiler();
+        context->StatusProfiler = CreateSyncStatusProfiler();
         context->PipelinePath = NYPath::TRichYPath("//pipeline");
         context->PipelinePath.SetCluster("test");
         context->Logger = NLogging::TLogger("Test");

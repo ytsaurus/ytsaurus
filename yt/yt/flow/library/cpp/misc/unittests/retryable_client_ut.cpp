@@ -64,7 +64,7 @@ TEST(TRetryableClientTest, SimpleSuccess)
             return NYT::MakeFuture<TUnversionedLookupRowsResult>(TUnversionedLookupRowsResult{.Rowset = rowset});
         }));
 
-    auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateStatusProfiler(), TLogger("test"));
+    auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateSyncStatusProfiler(), TLogger("test"));
     auto result = WaitFor(retryableClient->LookupRows("//path", {}, {}, {})).ValueOrThrow();
     EXPECT_EQ(result.Rowset, rowset);
 }
@@ -81,7 +81,7 @@ TEST(TRetryableClientTest, RetryAndSuccess)
             return NYT::MakeFuture<TUnversionedLookupRowsResult>(TUnversionedLookupRowsResult{.Rowset = rowset});
         }));
 
-    auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateStatusProfiler(), TLogger("test"));
+    auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateSyncStatusProfiler(), TLogger("test"));
     auto result = WaitFor(retryableClient->LookupRows("//path", {}, {}, {})).ValueOrThrow();
     EXPECT_EQ(result.Rowset, rowset);
 }
@@ -96,7 +96,7 @@ TEST(TRetryableClientTest, Timeout)
             return NYT::MakeFuture<TUnversionedLookupRowsResult>(TError(NYT::EErrorCode::Timeout, "Fake timeout"));
         }));
 
-    auto retryableClient = CreateRetryableClient(client, aqueue->GetInvoker(), CreateStatusProfiler(), TLogger("test"));
+    auto retryableClient = CreateRetryableClient(client, aqueue->GetInvoker(), CreateSyncStatusProfiler(), TLogger("test"));
     auto spec = New<TDynamicRetryableClientSpec>();
     spec->Timeout = TDuration::MilliSeconds(100);
     retryableClient->Reconfigure(spec);
@@ -115,7 +115,7 @@ TEST(TRetryableClientTest, RetryableErrors)
             return NYT::MakeFuture<TUnversionedLookupRowsResult>(TError(NYT::EErrorCode::Timeout, "Fake timeout"));
         }));
 
-    auto statusProfiler = CreateStatusProfiler();
+    auto statusProfiler = CreateSyncStatusProfiler();
     auto retryableClient = CreateRetryableClient(client, aqueue->GetInvoker(), statusProfiler, TLogger("test"));
     auto spec = New<TDynamicRetryableClientSpec>();
     retryableClient->Reconfigure(spec);
@@ -151,7 +151,7 @@ TEST(TRetryableClientTest, PrerequisiteCheckFailedIsNotRetriable)
                 << TError(NObjectClient::EErrorCode::PrerequisiteCheckFailed, "Prerequisite check failed"));
         }));
 
-    auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateStatusProfiler(), TLogger("test"));
+    auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateSyncStatusProfiler(), TLogger("test"));
     auto result = WaitFor(retryableClient->LookupRows("//path", {}, {}, {}));
     ASSERT_FALSE(result.IsOK());
     EXPECT_TRUE(result.FindMatching(NObjectClient::EErrorCode::PrerequisiteCheckFailed).has_value());
@@ -181,7 +181,7 @@ TEST(TRetryableTimestampProviderTest, RetryAndSuccess)
         .WillOnce(Return(MakeFuture<TTimestamp>(TError(NYT::EErrorCode::Timeout, "Fake timeout"))))
         .WillOnce(Return(MakeFuture<TTimestamp>(TTimestamp(42))));
 
-    auto statusProfiler = CreateStatusProfiler();
+    auto statusProfiler = CreateSyncStatusProfiler();
     auto retryableClient = MakeRetryableClientOverTimestampProvider(
         underlying,
         aqueue->GetInvoker(),
@@ -201,7 +201,7 @@ TEST(TRetryableTimestampProviderTest, NonRetriableErrorPropagates)
         .WillOnce(Return(MakeFuture<TTimestamp>(
             TError(NObjectClient::EErrorCode::PrerequisiteCheckFailed, "Prerequisite check failed"))));
 
-    auto statusProfiler = CreateStatusProfiler();
+    auto statusProfiler = CreateSyncStatusProfiler();
     auto retryableClient = MakeRetryableClientOverTimestampProvider(
         underlying,
         GetSyncInvoker(),
@@ -230,7 +230,7 @@ TEST(TRetryableTimestampProviderTest, BudgetExhausted)
         .BackoffMultiplier = 2.0,
     };
 
-    auto statusProfiler = CreateStatusProfiler();
+    auto statusProfiler = CreateSyncStatusProfiler();
     auto retryableClient = MakeRetryableClientOverTimestampProvider(
         underlying,
         aqueue->GetInvoker(),

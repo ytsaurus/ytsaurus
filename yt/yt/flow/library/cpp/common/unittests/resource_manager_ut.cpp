@@ -344,7 +344,7 @@ public:
         auto context = New<TResourceManagerContext>();
         context->Invoker = invoker ? invoker : GetCurrentInvoker();
         context->Logger = Logger();
-        context->StatusProfiler = CreateStatusProfiler();
+        context->StatusProfiler = CreateSyncStatusProfiler();
         return CreateResourceManager(std::move(context), resources, {});
     }
 };
@@ -364,7 +364,7 @@ TEST_F(TResourceManagerTest, BasicBamboo)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("base_global")).ThrowOnError();
@@ -394,7 +394,7 @@ TEST_F(TResourceManagerTest, MultipleDependencies)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("fourth")).ThrowOnError();
@@ -426,7 +426,7 @@ TEST_F(TResourceManagerTest, ReconfigureBasic)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("res")).ThrowOnError();
@@ -451,7 +451,7 @@ TEST_F(TResourceManagerTest, ReconfigureSkipsUnchangedSpec)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("res")).ThrowOnError();
@@ -484,7 +484,7 @@ TEST_F(TResourceManagerTest, ReconfigureSkipsUnknownResource)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("res")).ThrowOnError();
@@ -509,7 +509,7 @@ TEST_F(TResourceManagerTest, ReconfigureMultipleResources)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("res1")).ThrowOnError();
@@ -539,7 +539,7 @@ TEST_F(TResourceManagerTest, ReconfigureTriggersOnChangedSpec)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("res")).ThrowOnError();
@@ -583,7 +583,7 @@ TEST_F(TResourceManagerTest, ReconfigurePartialUpdate)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("res1")).ThrowOnError();
@@ -624,7 +624,7 @@ TEST_F(TResourceManagerTest, ReconfigureWithFailedResource)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     // Reconfigure with a dynamic spec for the failed resource — should not throw.
@@ -647,7 +647,7 @@ TEST_F(TResourceManagerTest, ReconfigureWithFailedAndReconfigurableResources)
     auto context = New<TResourceManagerContext>();
     context->Invoker = GetCurrentInvoker();
     context->Logger = Logger();
-    context->StatusProfiler = CreateStatusProfiler();
+    context->StatusProfiler = CreateSyncStatusProfiler();
     auto resourceManager = CreateResourceManager(std::move(context), resources, {});
 
     WaitFor(resourceManager->Load("good_res")).ThrowOnError();

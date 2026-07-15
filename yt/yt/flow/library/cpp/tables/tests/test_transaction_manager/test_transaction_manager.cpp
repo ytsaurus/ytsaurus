@@ -102,7 +102,7 @@ protected:
         context->Profiler = NProfiling::TProfiler();
         context->LeaseId = LeaseTransaction_->GetId();
         context->PartitionId = TPartitionId(TGuid::Create());
-        context->StatusProfiler = CreateStatusProfiler();
+        context->StatusProfiler = CreateSyncStatusProfiler();
         return context;
     }
 

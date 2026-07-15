@@ -16,6 +16,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/tablet_client/public.h>
+
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NCypressProxy {
@@ -79,6 +81,21 @@ static const TSequoiaTransactionOptions SequoiaTransactionOptionsTemplate = {
     .SequenceTabletCommitSessions = true,
 };
 
+TErrorOr<std::vector<NRecords::TPathToNodeId>> WrapSelectSubtreeError(
+    const TAbsolutePath& rootPath,
+    TErrorOr<std::vector<NRecords::TPathToNodeId>>&& result)
+{
+    if (result.IsOK() || !result.FindMatching(NTabletClient::EErrorCode::QueryOutputRowCountLimitExceeded)) {
+        return std::move(result);
+    }
+
+    return TError(
+        NSequoiaClient::EErrorCode::SequoiaSubtreeTooLarge,
+        "Sequoia subtree %v is too large to process in a single request",
+        rootPath)
+        << TError(std::move(result));
+}
+
 } // namespace
 
 TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
@@ -119,7 +136,9 @@ TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
         .WhereConjuncts = std::move(whereConjuncts),
         .OrderBy = {"path"},
         .Limit = limit,
-    });
+    })
+        .AsUnique()
+        .Apply(BIND(&WrapSelectSubtreeError, rootPath));
 }
 
 TNodeId CreateIntermediateMapNodes(

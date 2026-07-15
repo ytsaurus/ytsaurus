@@ -565,6 +565,8 @@ struct TFrontQuery
 
     TTableSchemaPtr Schema;
 
+    std::vector<TConstHierarchicalJoinClausePtr> HierarchicalJoinsAfterGroupBy;
+
     TTableSchemaPtr GetReadSchema() const override;
 
     TTableSchemaPtr GetRenamedSchema() const;

@@ -198,8 +198,7 @@ void TProcessManagerBase::CheckCompanionAvailability()
         ErrorState_->SetError(resultOrError);
         if (backoffStrategy.Next()) {
             auto backoff = backoffStrategy.GetBackoff();
-            YT_LOG_WARNING(resultOrError,
-                "Failed to connect to companion. Restarting companion process (Attempt: %v, MaxRestarts: %v, SleepDuration: %v)",
+            YT_LOG_WARNING("Restarting companion process after a failed health check (Attempt: %v, MaxRestarts: %v, SleepDuration: %v)",
                 backoffStrategy.GetInvocationIndex(),
                 backoffStrategy.GetInvocationCount(),
                 backoff);
@@ -287,8 +286,7 @@ void TProcessManagerBase::OnProcessStopped(const TError& error, const std::strin
 
     ErrorState_->SetError(stopError);
 
-    YT_LOG_WARNING(stopError,
-        "Companion process was stopped, scheduling restart (ExitCode: %v, CommandLine: %v)",
+    YT_LOG_WARNING("Companion process was stopped, scheduling restart (ExitCode: %v, CommandLine: %v)",
         exitCode,
         commandLine);
 

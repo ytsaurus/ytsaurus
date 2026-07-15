@@ -296,7 +296,6 @@ void TQueueSourceImpl::TryUpdatePartitionInfo()
         UpdatePartitionInfoErrorState_->ClearError();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to update partition info") << TError(ex);
-        YT_LOG_ERROR(error);
         UpdatePartitionInfoErrorState_->SetError(error);
     }
 }
@@ -378,7 +377,6 @@ auto TQueueSourceImpl::DoReadNextBatch(
                         return future;
                     } else {
                         auto error = TError("Failed to read from partition") << future.GetOrCrash();
-                        YT_LOG_ERROR(error);
                         GetReadErrorState()->SetError(error);
                     }
                 }
