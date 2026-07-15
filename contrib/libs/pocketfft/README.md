@@ -211,7 +211,7 @@ template<typename T> void r2r_fftpack(const shape_t &shape,
 
    NOTE: this function inadvertently follows an unusual convention
    for real and imaginary parts and is only kept for backwards compatibility.
-   Please use  r2r_separable_fht() instead. */
+   Please use r2r_separable_fht() instead. */
 template<typename T> void r2r_separable_hartley(const shape_t &shape,
   const stride_t &stride_in, const stride_t &stride_out, const shape_t &axes,
   const T *data_in, T *data_out, T fct, size_t nthreads=1);
@@ -227,7 +227,7 @@ template<typename T> void r2r_separable_hartley(const shape_t &shape,
 
    NOTE: this function inadvertently follows an unusual convention
    for real and imaginary parts and is only kept for backwards compatibility.
-   Please use  r2r_genuine_fht() instead. */
+   Please use r2r_genuine_fht() instead. */
 template<typename T> void r2r_genuine_hartley(const shape_t &shape,
   const stride_t &stride_in, const stride_t &stride_out, const shape_t &axes,
   const T *data_in, T *data_out, T fct, size_t nthreads=1);
