@@ -17,7 +17,8 @@ struct TSubqueryDiscoveryResult
     std::vector<TConstSubqueryExpressionPtr> InProjectClause;
     std::vector<TConstSubqueryExpressionPtr> InHavingClause;
     std::vector<TConstSubqueryExpressionPtr> InOrderClause;
-    std::vector<TConstSubqueryExpressionPtr> InGroupClause;
+    std::vector<TConstSubqueryExpressionPtr> InGroupItems;
+    std::vector<TConstSubqueryExpressionPtr> InAggregateArguments;
     std::vector<TConstSubqueryExpressionPtr> InJoinClauses;
 };
 
@@ -32,10 +33,6 @@ void ThrowOnUnimplementedSubqueryType(const TSubqueryDiscoveryResult& subqueries
         "Subquery with JOIN in ORDER BY clause is not supported");
 
     THROW_ERROR_EXCEPTION_IF(
-        !subqueries.InGroupClause.empty(),
-        "Subquery with JOIN in GROUP BY clause is not supported");
-
-    THROW_ERROR_EXCEPTION_IF(
         !subqueries.InJoinClauses.empty(),
         "Subquery with JOIN in JOIN clause is not supported");
 }
@@ -46,7 +43,8 @@ bool IsEmpty(const TSubqueryDiscoveryResult& subqueries)
         subqueries.InProjectClause.empty() &&
         subqueries.InHavingClause.empty() &&
         subqueries.InOrderClause.empty() &&
-        subqueries.InGroupClause.empty() &&
+        subqueries.InGroupItems.empty() &&
+        subqueries.InAggregateArguments.empty() &&
         subqueries.InJoinClauses.empty();
 }
 
@@ -121,12 +119,12 @@ TSubqueryDiscoveryResult DiscoverSubqueries(const TQueryPtr& query)
 
     if (query->GroupClause) {
         for (const auto& groupItem : query->GroupClause->GroupItems) {
-            collect(groupItem.Expression, &result.InGroupClause);
+            collect(groupItem.Expression, &result.InGroupItems);
         }
 
         for (const auto& aggregateItem : query->GroupClause->AggregateItems) {
             for (const auto& argument : aggregateItem.Arguments) {
-                collect(argument, &result.InGroupClause);
+                collect(argument, &result.InAggregateArguments);
             }
         }
     }
@@ -310,8 +308,8 @@ TQueryPtr InsertHierarchicalJoins(
     }
 
     THROW_ERROR_EXCEPTION_IF(
-        query->GroupClause,
-        "Subquery with JOIN with GROUP BY in parent query is not supported");
+        query->GroupClause && !subqueriesToRewrite.InProjectClause.empty(),
+        "Subquery with JOIN in projection would be evaluated after GROUP BY, which is not supported");
 
     ThrowOnUnimplementedSubqueryType(subqueriesToRewrite);
 
@@ -329,6 +327,34 @@ TQueryPtr InsertHierarchicalJoins(
         }
 
         query->ProjectClause = newProjectClause;
+    }
+
+    for (const auto& subquery : subqueriesToRewrite.InGroupItems) {
+        auto columnName = Format("hierarchical_join_result_%v", hierarchicalJoinIndex++);
+        auto hierarchicalJoin = BuildHierarchicalJoinFromSubquery(subquery, columnName, Logger);
+
+        query->HierarchicalJoinsBeforeGroupBy.push_back(hierarchicalJoin);
+
+        auto newGroupClause = New<TGroupClause>(*query->GroupClause);
+        for (auto& groupItem : newGroupClause->GroupItems) {
+            groupItem.Expression = ReplaceSubqueryWithReference(groupItem.Expression, subquery, columnName);
+        }
+        query->GroupClause = newGroupClause;
+    }
+
+    for (const auto& subquery : subqueriesToRewrite.InAggregateArguments) {
+        auto columnName = Format("hierarchical_join_result_%v", hierarchicalJoinIndex++);
+        auto hierarchicalJoin = BuildHierarchicalJoinFromSubquery(subquery, columnName, Logger);
+
+        query->HierarchicalJoinsBeforeGroupBy.push_back(hierarchicalJoin);
+
+        auto newGroupClause = New<TGroupClause>(*query->GroupClause);
+        for (auto& aggregateItem : newGroupClause->AggregateItems) {
+            for (auto& argument : aggregateItem.Arguments) {
+                argument = ReplaceSubqueryWithReference(argument, subquery, columnName);
+            }
+        }
+        query->GroupClause = newGroupClause;
     }
 
     for (const auto& subquery : subqueriesToRewrite.InWhereClause) {

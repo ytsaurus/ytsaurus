@@ -5,7 +5,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TQueryEvaluateTest, HierarchicalJoinWithGroupByInParentQueryThrows)
+TEST_F(TQueryEvaluateTest, HierarchicalJoinInProjectClauseWithGroupByThrows)
 {
     TSplitMap splits;
 
@@ -33,7 +33,7 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinWithGroupByInParentQueryThrows)
             splits,
             {},
             TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
-        testing::HasSubstr("Subquery with JOIN with GROUP BY in parent query is not supported"));
+        testing::HasSubstr("Subquery with JOIN in projection would be evaluated after GROUP BY, which is not supported"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -811,7 +811,7 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinInHavingClauseWithGroupByThrows)
             splits,
             {},
             TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
-        testing::HasSubstr("Subquery with JOIN with GROUP BY in parent query is not supported"));
+        testing::HasSubstr("Subquery with JOIN in HAVING clause is not supported"));
 }
 
 TEST_F(TQueryEvaluateTest, HierarchicalJoinInnerJoinMatchesRowsByKey)
@@ -2116,6 +2116,299 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinGroupByQualifiedForeignColumnThrows)
             {},
             TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
         testing::HasSubstr("Expression or its parts are not in GROUP BY keys"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TQueryEvaluateTest, HierarchicalJoinMultipleBeforeGroupByPositionsEvaluates)
+{
+    auto splits = MakeSplitsWithListColumn();
+    splits["//foreign_a"] = MakeSplit({
+        {"x", EValueType::Int64},
+        {"c", EValueType::Int64},
+    });
+    splits["//foreign_w"] = MakeSplit({
+        {"x", EValueType::Int64},
+        {"c", EValueType::Int64},
+    });
+    splits["//foreign_k"] = MakeSplit({
+        {"x", EValueType::Int64},
+        {"c", EValueType::Int64},
+    });
+
+    auto outerRows = std::vector<std::string>{
+        "a=1;arr=[10;20]",
+        "a=2;arr=[99]",
+        "a=3;arr=[10]",
+        "a=4;arr=[20;30]",
+    };
+
+    auto foreignRows = std::vector<std::string>{
+        "x=10;c=100",
+        "x=20;c=200",
+        "x=30;c=300",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"k", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"total", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto result = YsonToRows({
+        "k=1;total=1",
+        "k=2;total=4",
+    }, resultSplit);
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        R"(
+            select k, sum(yson_length(
+                (select li_a, fa.c
+                    from (t.arr as li_a)
+                    join `//foreign_a` as fa on li_a = fa.x
+                )
+            )) as total
+            from `//t` as t
+            where yson_length(
+                (select fw.c
+                    from (t.arr as li_w)
+                    join `//foreign_w` as fw on li_w = fw.x
+                )
+            ) > 0
+            group by yson_length(
+                (select li_k, fk.c
+                    from (t.arr as li_k)
+                    join `//foreign_k` as fk on li_k = fk.x
+                )
+            ) as k
+            order by k
+            limit 100
+        )",
+        splits,
+        {outerRows, foreignRows, foreignRows, foreignRows},
+        ResultMatcher(result, resultSplit.TableSchema),
+        {.SyntaxVersion = 2});
+}
+
+TEST_F(TQueryEvaluateTest, HierarchicalJoinInOrderByWithGroupByThrows)
+{
+    TSplitMap splits;
+    splits["//t"] = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"arr", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+    splits["//foreign"] = MakeSplit({
+        {"x", EValueType::Int64},
+        {"c", EValueType::Int64},
+    });
+
+    EXPECT_THROW_THAT(
+        Prepare(
+            R"(
+                select t.a as a, sum(1) as cnt
+                from `//t` as t
+                group by a, t.arr as arr
+                order by yson_length(
+                    (select li, foreign_t.c
+                        from (arr as li)
+                        join `//foreign` as foreign_t on li = foreign_t.x
+                    )
+                )
+                limit 1
+            )",
+            splits,
+            {},
+            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
+        testing::HasSubstr("Subquery with JOIN in ORDER BY clause is not supported"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TQueryEvaluateTest, HierarchicalJoinSubqueryAsAggregateFunctionArgumentEvaluates)
+{
+    auto splits = MakeSplitsWithListColumn();
+
+    auto outerRows = std::vector<std::string>{
+        "a=1;arr=[10;20]",
+        "a=1;arr=[99]",
+        "a=2;arr=[10]",
+    };
+
+    auto foreignRows = std::vector<std::string>{
+        "x=10;c=100",
+        "x=20;c=200",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"total_matches", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"row_count", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"total_a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto result = YsonToRows({
+        "a=1;total_matches=2;row_count=2;total_a=2",
+        "a=2;total_matches=1;row_count=1;total_a=2",
+    }, resultSplit);
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        R"(
+            select t.a as a,
+                sum(yson_length(
+                    (select li, foreign_t.c
+                        from (t.arr as li)
+                        join `//foreign` as foreign_t on li = foreign_t.x
+                    )
+                )) as total_matches,
+                sum(1) as row_count,
+                sum(t.a) as total_a
+            from `//t` as t
+            group by a
+            order by a
+            limit 100
+        )",
+        splits,
+        {outerRows, foreignRows},
+        ResultMatcher(result, resultSplit.TableSchema),
+        {.SyntaxVersion = 2});
+}
+
+TEST_F(TQueryEvaluateTest, HierarchicalJoinSubqueryReferencesOuterAggregateInWhereClauseThrows)
+{
+    TSplitMap splits;
+    splits["//t"] = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"arr", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+    splits["//foreign"] = MakeSplit({
+        {"x", EValueType::Int64},
+        {"c", EValueType::Int64},
+    });
+
+    EXPECT_THROW_THAT(
+        Prepare(
+            R"(
+                select a,
+                    sum(yson_length(
+                        (select li, foreign_t.c
+                            from (t.arr as li)
+                            join `//foreign` as foreign_t on li = foreign_t.x
+                            where foreign_t.c < sum(t.a)
+                        )
+                    )) as total
+                from `//t` as t
+                group by t.a as a
+            )",
+            splits,
+            {},
+            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
+        testing::HasSubstr("Misuse of aggregate function"));
+}
+
+TEST_F(TQueryEvaluateTest, HierarchicalJoinSubqueryFromUsesOuterAggregateInsideAggregateArgumentThrows)
+{
+    TSplitMap splits;
+    splits["//t"] = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    });
+    splits["//foreign"] = MakeSplit({
+        {"x", EValueType::Int64},
+        {"c", EValueType::Int64},
+    });
+
+    EXPECT_THROW_THAT(
+        Prepare(
+            R"(
+                select a,
+                    sum(yson_length(
+                        (select li, foreign_t.c
+                            from (array_agg(t.b, true) as li)
+                            join `//foreign` as foreign_t on li = foreign_t.x
+                        )
+                    )) as total
+                from `//t` as t
+                group by t.a as a
+            )",
+            splits,
+            {},
+            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
+        testing::HasSubstr("Misuse of aggregate function"));
+}
+
+TEST_F(TQueryEvaluateTest, HierarchicalJoinSubqueryCoexistsWithAggregateInProjectionThrows)
+{
+    TSplitMap splits;
+    splits["//t"] = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+    });
+    splits["//foreign"] = MakeSplit({
+        {"x", EValueType::Int64},
+        {"c", EValueType::Int64},
+    });
+
+    EXPECT_THROW_THAT(
+        Prepare(
+            R"(
+                select a,
+                    yson_length(
+                        (select li, foreign_t.c
+                            from (array_agg(t.b, true) as li)
+                            join `//foreign` as foreign_t on li = foreign_t.x
+                        )
+                    ) + sum(t.b) as combined
+                from `//t` as t
+                group by t.a as a
+            )",
+            splits,
+            {},
+            TPreparePlanFragmentOptions{.SyntaxVersion = 2, .BuilderVersion = DefaultExpressionBuilderVersion}),
+        testing::HasSubstr("Subquery with JOIN in projection would be evaluated after GROUP BY, which is not supported"));
+}
+
+TEST_F(TQueryEvaluateTest, HierarchicalJoinSubqueryCoexistsWithAggregateInsideAggregateArgumentEvaluates)
+{
+    auto splits = MakeSplitsWithListColumn();
+
+    auto outerRows = std::vector<std::string>{
+        "a=1;arr=[10;20]",
+        "a=1;arr=[99]",
+        "a=2;arr=[10]",
+    };
+
+    auto foreignRows = std::vector<std::string>{
+        "x=10;c=100",
+        "x=20;c=200",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"combined", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    auto result = YsonToRows({
+        "a=1;combined=4",
+        "a=2;combined=2",
+    }, resultSplit);
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        R"(
+            select t.a as a,
+                sum(yson_length(
+                    (select li, foreign_t.c
+                        from (t.arr as li)
+                        join `//foreign` as foreign_t on li = foreign_t.x
+                    )
+                )) + sum(1) as combined
+            from `//t` as t
+            group by a
+            order by a
+            limit 100
+        )",
+        splits,
+        {outerRows, foreignRows},
+        ResultMatcher(result, resultSplit.TableSchema),
+        {.SyntaxVersion = 2});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
