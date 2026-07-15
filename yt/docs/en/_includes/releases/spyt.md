@@ -32,6 +32,27 @@ Major release that enables support for Spark 4.0.x and 4.1.x.
 {% endcut %}
 
 
+{% cut "**2.9.3**" %}
+
+**Release date:** 2026-07-13
+
+
+**Release page:** [2.9.3](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.3)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.9.3](https://github.com/orgs/ytsaurus/packages/container/spyt/1028609465?tag=2.9.3)
+
+
+Maintenance release with minor enhancements
+
+- Enable YTsaurus shuffle service per application instead of globally on standalone clusters
+- Fix operation_alias and enable_multi_operation_mode compatibility
+- Fix driver hangs for distributed writes in case of errors
+- Other minor fixes and improvements
+
+{% endcut %}
+
+
 {% cut "**2.9.2**" %}
 
 **Release date:** 2026-05-22
