@@ -1378,10 +1378,18 @@ private:
         {
             auto random = mutationContext->RandomGenerator()->Generate<ui64>();
 
-            node->SetNextValidationFullHeartbeatTime(
-                mutationContext->GetTimestamp() +
-                GetDynamicConfig()->ValidationFullHeartbeatPeriod +
-                TDuration::MilliSeconds(random % GetDynamicConfig()->ValidationFullHeartbeatSplay.MilliSeconds()));
+            TDuration timeBeforeNextValidationHeartbeat;
+            if (time.has_value()) {
+                timeBeforeNextValidationHeartbeat =
+                    GetDynamicConfig()->ValidationFullHeartbeatPeriod +
+                    TDuration::MilliSeconds(random % GetDynamicConfig()->ValidationFullHeartbeatSplay.MilliSeconds());
+            } else {
+                timeBeforeNextValidationHeartbeat = TDuration::MilliSeconds(random % (
+                    GetDynamicConfig()->ValidationFullHeartbeatPeriod.MilliSeconds() +
+                    GetDynamicConfig()->ValidationFullHeartbeatSplay.MilliSeconds()));
+            }
+
+            node->SetNextValidationFullHeartbeatTime(mutationContext->GetTimestamp() + timeBeforeNextValidationHeartbeat);
 
             YT_LOG_DEBUG(
                 "%v validation full heartbeat session for node (NodeId: %v, Address: %v, Time: %v)",
@@ -1694,7 +1702,7 @@ private:
         }
 
         if (oldConfig->ChunkManager->DataNodeTracker->EnableValidationFullHeartbeats &&
-            !GetDynamicConfig()->EnablePerLocationFullHeartbeats)
+            (!GetDynamicConfig()->EnablePerLocationFullHeartbeats || !GetDynamicConfig()->EnableValidationFullHeartbeats))
         {
             ResetScheduledValidationFullHeartbeats();
         }
