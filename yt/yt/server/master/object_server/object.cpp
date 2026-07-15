@@ -391,7 +391,7 @@ void TObject::SetModified(EModificationType modificationType)
         if (auto sequoiaRevision = GetCurrentSequoiaRevision()) {
             bool postponed = false;
             Visit(*sequoiaRevision,
-                [&] (TSequoiaRevisionPrepare prepareRevision) {
+                [&] (const TSequoiaRevisionPrepare& prepareRevision) {
                     prepareRevision.PrepareNodeModification(As<TCypressNode>()->GetVersionedId(), modificationType);
                     postponed = true;
                 },

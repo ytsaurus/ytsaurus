@@ -13,7 +13,6 @@ using namespace NHydra;
 
 TSequoiaActionsExecutorState::TSequoiaActionsExecutorState(TBootstrap* bootstrap)
     : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::SequoiaActionExecutor)
-
 {
     RegisterLoader("SequoiaActionsExecutor.Values", BIND_NO_PROPAGATE(&TSequoiaActionsExecutorState::LoadValues, Unretained(this)));
     RegisterSaver(
