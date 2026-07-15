@@ -133,7 +133,7 @@ $ kubectl describe ytsaurus -n <namespace>
 
 4. После обновления кластера в конфигах мастер-серверов могли остаться unrecognized опции (так происходит в случае, когда в новой версии `{{product-name}}` мы перестаем пользоваться какими-то полями конфига, при мажорных обновлениях это частая ситуация). Если это произойдет, загорится вот такой алерт:
 ```Found unrecognized options in dynamic cluster config```
-Удалить unrecognized опции мастера можно вручную или запустив скрипт, который живет [здесь](https://github.com/ytsaurus/ytsaurus/tree/main/yt/yt/scripts/remove_master_unrecognized_options)
+Удалить unrecognized опции мастера можно вручную, [командой CLI `yt admin remove-master-unrecognized-options`](../../admin-guide/cli-admin.md#remove-master-unrecognized-options) или запустив [одноимённый standalone-скрипт](https://github.com/ytsaurus/ytsaurus/tree/main/yt/yt/scripts/remove_master_unrecognized_options).
 
 ### Возможное автоматическое обновление кластера
 
