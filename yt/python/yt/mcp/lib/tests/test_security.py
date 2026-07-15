@@ -180,13 +180,14 @@ class TestDisallowedClusters:
             runner.helper_check_cluster_allowed("restricted")
         runner.helper_check_cluster_allowed("production")
 
-    def test_explicit_parameter_takes_priority_over_env(self):
+    def test_explicit_parameter_merges_with_env(self):
         runner = YTToolRunnerMCP()
         with patch.dict(os.environ, {"YT_MCP_DISALLOWED_CLUSTERS": "from_env"}):
             runner.configure_disallowed_clusters_from_env(disabled_clusters=["from_param"])
         with pytest.raises(ValueError):
             runner.helper_check_cluster_allowed("from_param")
-        runner.helper_check_cluster_allowed("from_env")
+        with pytest.raises(ValueError):
+            runner.helper_check_cluster_allowed("from_env")
 
 
 class TestDisallowedClustersIntegration:

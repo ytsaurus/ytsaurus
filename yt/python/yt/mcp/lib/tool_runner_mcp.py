@@ -58,14 +58,13 @@ class YTToolRunnerMCP:
         self._rw_mode = rw_mode
 
     def configure_disallowed_clusters_from_env(self, disabled_clusters: Optional[List[str]] = None):
+        result = set()
         if disabled_clusters is not None:
-            self._DISALLOWED_CLUSTERS = {c.strip().lower() for c in disabled_clusters if c.strip()}
-            return
+            result.update(c.strip().lower() for c in disabled_clusters if c.strip())
         raw = os.environ.get("YT_MCP_DISALLOWED_CLUSTERS", "")
         if raw.strip():
-            self._DISALLOWED_CLUSTERS = {
-                c.strip().lower() for c in raw.split(",") if c.strip()
-            }
+            result.update(c.strip().lower() for c in raw.split(",") if c.strip())
+        self._DISALLOWED_CLUSTERS = result
 
     def attach_tools(self, tools: List["yt_mcp.lib.tools.helpers.YTToolBase"], variants: List[Dict[str, Any]] = None):
         for tool in tools:
