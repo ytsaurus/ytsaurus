@@ -596,6 +596,8 @@ items:
         href: admin-guide/update-volumes.md
       - name: Эксплуатация кластера
         href: admin-guide/cluster-operations.md
+      - name: Административные команды CLI (yt admin)
+        href: admin-guide/cli-admin.md
           #      - name: Как построить production-инсталляцию
           #        href: admin-guide/production.md
       - name: Администрирование нод
