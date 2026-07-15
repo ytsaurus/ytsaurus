@@ -3093,6 +3093,7 @@ TExprBase DqBuildJoin(
     const TParentsMap& parentsMap,
     bool allowStageMultiUsage,
     bool pushLeftStage,
+    TTypeAnnotationContext& typeCtx,
     EHashJoinMode hashJoin,
     bool shuffleMapJoin,
     bool useGraceCoreForMap,
@@ -3143,7 +3144,7 @@ TExprBase DqBuildJoin(
     }
 
     if (useHashJoin && (hashJoin == EHashJoinMode::GraceAndSelf || hashJoin == EHashJoinMode::Grace || shuffleMapJoin)) {
-        return DqBuildHashJoin(join, hashJoin, ctx, optCtx, shuffleElimination, shuffleEliminationWithMap, useBlockHashJoin, blockHashJoinBuildSideLeft);
+        return DqBuildHashJoin(join, hashJoin, ctx, optCtx, typeCtx, shuffleElimination, shuffleEliminationWithMap, useBlockHashJoin, blockHashJoinBuildSideLeft);
     }
 
     if (joinType == "Full"sv || joinType == "Exclusion"sv) {
