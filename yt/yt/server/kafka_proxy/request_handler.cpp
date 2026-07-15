@@ -8,17 +8,18 @@
 
 #include <yt/yt/server/kafka_proxy/records/kafka_message.record.h>
 
-#include <yt/yt/ytlib/hive/cluster_directory.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/yt/client/kafka/protocol.h>
 #include <yt/yt/client/kafka/error.h>
+#include <yt/yt/client/kafka/helpers.h>
+#include <yt/yt/client/kafka/protocol.h>
 
 #include <yt/yt/client/queue_client/consumer_client.h>
 
@@ -31,6 +32,8 @@
 #include <yt/yt/library/auth_server/authentication_manager.h>
 #include <yt/yt/library/auth_server/credentials.h>
 #include <yt/yt/library/auth_server/token_authenticator.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/library/re2/re2.h>
 
@@ -46,6 +49,8 @@
 #include <yt/yt/core/net/listener.h>
 #include <yt/yt/core/net/local_address.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <util/string/split.h>
 
 namespace NYT::NKafkaProxy {
@@ -56,6 +61,7 @@ using namespace NConcurrency;
 using namespace NKafka;
 using namespace NNet;
 using namespace NObjectClient;
+using namespace NProfiling;
 using namespace NTableClient;
 using namespace NThreading;
 using namespace NTransactionClient;
@@ -75,12 +81,57 @@ using namespace NYTree;
 
 constinit const auto Logger = KafkaProxyLogger;
 
+namespace {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const std::string OAuthBearerSaslMechanism = "OAUTHBEARER";
 static const std::string PlainSaslMechanism = "PLAIN";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TMethodCounters
+{
+    TMethodCounters() = default;
+
+    explicit TMethodCounters(const TProfiler& profiler)
+        : RequestCount(profiler.Counter("/count"))
+        , FailedRequestCount(profiler.Counter("/failed_count"))
+        , RequestTime(profiler.TimeHistogram("/time", TDuration::MilliSeconds(1), TDuration::Seconds(60)))
+    {
+        for (auto code : TEnumTraits<NKafka::EErrorCode>::GetDomainValues()) {
+            ErrorCodeToCounter[code] = profiler
+                .WithTag("error_code", FormatEnum(code))
+                .Counter("/error_count");
+        }
+    }
+
+    void OnStart() const
+    {
+        RequestCount.Increment();
+    }
+
+    void OnFinish(const TWallTimer& timer, const std::vector<NKafka::EErrorCode>& errorCodes) const
+    {
+        RequestTime.Record(timer.GetElapsedTime());
+        if (!errorCodes.empty()) {
+            FailedRequestCount.Increment();
+        }
+        for (auto code : errorCodes) {
+            YT_VERIFY(ErrorCodeToCounter.IsValidIndex(code));
+            ErrorCodeToCounter[code].Increment();
+        }
+    }
+
+    TCounter RequestCount;
+    TCounter FailedRequestCount;
+    TEventTimer RequestTime;
+    TEnumIndexedArray<NKafka::EErrorCode, TCounter> ErrorCodeToCounter;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 class TRequestHandler
     : public IRequestHandler
@@ -94,6 +145,7 @@ public:
         : Config_(std::move(config))
         , NativeConnection_(std::move(connection))
         , AuthenticationManager_(std::move(authenticationManager))
+        , Profiler_(KafkaProxyProfiler().WithPrefix("/requests"))
         , DynamicConfig_(New<TProxyDynamicConfig>())
         , GroupCoordinatorManager_(std::move(groupCoordinatorManager))
     {
@@ -197,7 +249,8 @@ public:
         }();
 
         if (auto handler = Handlers_[header.RequestType]; handler) {
-            auto responseMessage = handler(connectionState, reader.get(), header, Logger);
+            YT_VERIFY(MethodCounters_.IsValidIndex(header.RequestType));
+            auto responseMessage = handler(connectionState, reader.get(), header, Logger, MethodCounters_[header.RequestType]);
 
             YT_LOG_DEBUG("Response sent (RequestType: %v, CorrelationId: %v, ClientId: %v, HeaderSize: %v, MessageSize: %v)",
                 header.RequestType,
@@ -221,13 +274,20 @@ private:
     const TProxyBootstrapConfigPtr Config_;
     const NNative::IConnectionPtr NativeConnection_;
     const IAuthenticationManagerPtr AuthenticationManager_;
+    const TProfiler Profiler_;
 
     template <class TRequest, class TResponse>
     using TTypedHandler = TCallback<TResponse(TConnectionStatePtr, TRequest, const NLogging::TLogger&)>;
 
-    using THandler = TCallback<TSharedRef(TConnectionStatePtr, NKafka::IKafkaProtocolReader*, const NKafka::TRequestHeader&, const NLogging::TLogger&)>;
+    using THandler = TCallback<TSharedRef(
+        TConnectionStatePtr,
+        NKafka::IKafkaProtocolReader*,
+        const NKafka::TRequestHeader&,
+        const NLogging::TLogger&,
+        const TMethodCounters&)>;
 
     TEnumIndexedArray<ERequestType, THandler> Handlers_;
+    TEnumIndexedArray<ERequestType, TMethodCounters> MethodCounters_;
     TAtomicIntrusivePtr<TProxyDynamicConfig> DynamicConfig_;
 
     IGroupCoordinatorManagerPtr GroupCoordinatorManager_;
@@ -246,16 +306,33 @@ private:
     template <class TRequest, class TResponse>
     void RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler)
     {
-        auto typedHandler = [handler] (TConnectionStatePtr connectionState, NKafka::IKafkaProtocolReader* requestReader, const NKafka::TRequestHeader& requestHeader, const NLogging::TLogger& logger) -> TSharedRef {
+        auto typedHandler = [handler] (
+            TConnectionStatePtr connectionState,
+            NKafka::IKafkaProtocolReader* requestReader,
+            const NKafka::TRequestHeader& requestHeader,
+            const NLogging::TLogger& logger,
+            const TMethodCounters& metrics) -> TSharedRef
+        {
             TRequest typedRequest;
-
             typedRequest.Deserialize(requestReader, requestHeader.ApiVersion);
 
-            auto handlerLogger = logger
+            auto Logger = logger
                 .WithTag("RequestType: %v", typedRequest.RequestType)
                 .WithTag("CorrelationId: %v", requestHeader.CorrelationId)
                 .WithTag("ClientId: %v", requestHeader.ClientId);
-            auto typedResponse = handler(connectionState, std::move(typedRequest), handlerLogger);
+
+            metrics.OnStart();
+            TWallTimer timer;
+            TResponse typedResponse;
+            try {
+                typedResponse = handler(connectionState, std::move(typedRequest), Logger);
+            } catch (const std::exception& error) {
+                metrics.OnFinish(timer, {NKafka::EErrorCode::UnknownServerError});
+                YT_LOG_WARNING(error, "Failed to handle Kafka request");
+                throw;
+            }
+
+            metrics.OnFinish(timer, CollectErrorCodes(typedResponse));
 
             auto protocolWriter = NKafka::CreateKafkaProtocolWriter();
             typedResponse.Serialize(protocolWriter.get(), requestHeader.ApiVersion);
@@ -269,6 +346,10 @@ private:
     void RegisterHandler(ERequestType requestType, THandler handler)
     {
         YT_VERIFY(!Handlers_[requestType]);
+        MethodCounters_[requestType] = TMethodCounters(
+            Profiler_
+                .WithSparse()
+                .WithTag("request_type", FormatEnum(requestType)));
         Handlers_[requestType] = std::move(handler);
     }
 
@@ -388,18 +469,17 @@ private:
                 .MinVersion = 2,
                 .MaxVersion = 4,
             },
-            /*
             // TODO(nadya73): Support it later.
-            TRspApiKey{
-                .ApiKey = static_cast<int>(ERequestType::UpdateMetadata),
-                .MinVersion = 0,
-                .MaxVersion = 0,
-            },
-            TRspApiKey{
-                .ApiKey = static_cast<int>(ERequestType::DescribeGroups),
-                .MinVersion = 0,
-                .MaxVersion = 0,
-            },*/
+            // TRspApiKey{
+            //     .ApiKey = static_cast<int>(ERequestType::UpdateMetadata),
+            //     .MinVersion = 0,
+            //     .MaxVersion = 0,
+            // },
+            // TRspApiKey{
+            //     .ApiKey = static_cast<int>(ERequestType::DescribeGroups),
+            //     .MinVersion = 0,
+            //     .MaxVersion = 0,
+            // },
         };
 
         return response;
@@ -819,7 +899,7 @@ private:
                 for (auto partitionIndex : topic.PartitionIndexes) {
                     topicResponse.Partitions.push_back(TRspOffsetFetchTopicPartition{
                         // TODO(nadya73): add type check.
-                        .PartitionIndex = static_cast<int32_t>(partitionIndex),
+                        .PartitionIndex = static_cast<i32>(partitionIndex),
                         .ErrorCode = NKafka::EErrorCode::GroupAuthorizationFailed,
                     });
                 }
@@ -827,7 +907,7 @@ private:
                 for (const auto& partition : partitionsOrError.Value()) {
                     topicResponse.Partitions.push_back(TRspOffsetFetchTopicPartition{
                         // TODO(nadya73): add type check.
-                        .PartitionIndex = static_cast<int32_t>(partition.PartitionIndex),
+                        .PartitionIndex = static_cast<i32>(partition.PartitionIndex),
                         .CommittedOffset = partition.NextRowIndex,
                     });
                 }

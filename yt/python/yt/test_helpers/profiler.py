@@ -250,3 +250,6 @@ class ProfilerFactory(object):
 
     def at_queue_agent(self, queue_agent_instance, **kwargs):
         return Profiler(self.yt_client, "//sys/queue_agents/instances/{0}/orchid/sensors".format(queue_agent_instance), **kwargs)
+
+    def at_kafka_proxy(self, proxy, **kwargs):
+        return Profiler(self.yt_client, "//sys/kafka_proxies/instances/{0}/orchid/sensors".format(proxy), **kwargs)
