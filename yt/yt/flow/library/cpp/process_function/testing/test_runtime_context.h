@@ -30,6 +30,8 @@ public:
     //! Sets a stream's event watermark. The input watermark mins over the spec's input_stream_ids,
     //! so declare them via SetSpec to exercise it.
     TTestRuntimeContextBuilder& SetWatermark(const TStreamId& streamId, TSystemTimestamp value);
+    //! Sets the timestamp returned by IRuntimeContext::GetCurrentTimestamp().
+    TTestRuntimeContextBuilder& SetCurrentTimestamp(TSystemTimestamp value);
     TTestRuntimeContextBuilder& SetKeySchema(NTableClient::TTableSchemaPtr schema);
     TTestRuntimeContextBuilder& SetSpec(TComputationSpecPtr spec);
 
@@ -49,6 +51,7 @@ public:
 private:
     THashMap<TStreamId, TStreamSpecPtr> Streams_;
     THashMap<TStreamId, TSystemTimestamp> Watermarks_;
+    TSystemTimestamp CurrentTimestamp_;
     NTableClient::TTableSchemaPtr KeySchema_;
     TComputationSpecPtr Spec_;
     NYTree::IMapNodePtr DynamicParametersNode_;

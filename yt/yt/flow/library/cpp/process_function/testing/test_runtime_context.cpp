@@ -43,9 +43,12 @@ public:
     { }
 };
 
-TWatermarkStatePtr MakeWatermarkState(const THashMap<TStreamId, TSystemTimestamp>& watermarks)
+TWatermarkStatePtr MakeWatermarkState(
+    const THashMap<TStreamId, TSystemTimestamp>& watermarks,
+    TSystemTimestamp currentTimestamp)
 {
     auto watermarkState = New<TWatermarkState>();
+    watermarkState->CurrentTimestamp = currentTimestamp;
     for (const auto& [streamId, eventWatermark] : watermarks) {
         auto streamWatermarks = New<TWatermarks>();
         streamWatermarks->EventWatermark = eventWatermark;
@@ -61,6 +64,12 @@ TWatermarkStatePtr MakeWatermarkState(const THashMap<TStreamId, TSystemTimestamp
 TTestRuntimeContextBuilder& TTestRuntimeContextBuilder::SetWatermark(const TStreamId& streamId, TSystemTimestamp value)
 {
     Watermarks_[streamId] = value;
+    return *this;
+}
+
+TTestRuntimeContextBuilder& TTestRuntimeContextBuilder::SetCurrentTimestamp(TSystemTimestamp value)
+{
+    CurrentTimestamp_ = value;
     return *this;
 }
 
@@ -115,7 +124,7 @@ IRuntimeContextPtr TTestRuntimeContextBuilder::Build() const
         std::move(keySchema),
         std::move(converterCache),
         New<TUnlimitedThrottlerFactory>());
-    context->RefreshEpochState(MakeWatermarkState(Watermarks_), DynamicParametersNode_);
+    context->RefreshEpochState(MakeWatermarkState(Watermarks_, CurrentTimestamp_), DynamicParametersNode_);
     return context;
 }
 

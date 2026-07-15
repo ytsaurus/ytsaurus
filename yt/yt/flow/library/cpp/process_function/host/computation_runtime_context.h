@@ -25,13 +25,14 @@ public:
         IPayloadConverterCachePtr converterCache,
         NDistributedThrottler::IDistributedThrottlerFactoryPtr throttlerFactory);
 
-    //! Installs the state for the upcoming dispatch: |watermarkState| is the current watermark
-    //! snapshot, |dynamicParametersNode| the latest dynamic `function_parameters` node (empty
-    //! if absent).
+    //! Installs the per-batch state: the watermark snapshot and the latest dynamic
+    //! `function_parameters` node (empty if absent).
     void RefreshEpochState(TWatermarkStatePtr watermarkState, NYTree::IMapNodePtr dynamicParametersNode);
 
     TSystemTimestamp GetWatermark(const TStreamId& streamId) const override;
     TSystemTimestamp GetInputEventWatermark() const override;
+    TWatermarkStatePtr GetEpochWatermarkState() const override;
+    TSystemTimestamp GetCurrentTimestamp() const override;
 
     const TComputationSpecPtr& GetSpec() const override;
     const TComputationStreamSpecStoragePtr& GetStreamSpecs() const override;

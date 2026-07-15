@@ -34,6 +34,10 @@ struct IRuntimeContext
     virtual TSystemTimestamp GetWatermark(const TStreamId& streamId) const = 0;
     //! Minimal event-time watermark across all input streams.
     virtual TSystemTimestamp GetInputEventWatermark() const = 0;
+    //! Watermark state of the epoch being processed.
+    virtual TWatermarkStatePtr GetEpochWatermarkState() const = 0;
+    //! YT timestamp the controller acquired for the current epoch; trails real time by controller/heartbeat lag.
+    virtual TSystemTimestamp GetCurrentTimestamp() const = 0;
 
     virtual const TComputationSpecPtr& GetSpec() const = 0;
     virtual const TComputationStreamSpecStoragePtr& GetStreamSpecs() const = 0;
@@ -65,31 +69,16 @@ struct IRuntimeContext
     //! Deserializes the dynamic ``function_parameters`` block into the YSON struct |T| (defaults
     //! applied if absent). Memoized: reparsed only when the parameters node or |T| changes.
     template <class T>
-    TIntrusivePtr<T> GetDynamicParameters() const
-    {
-        auto node = GetDynamicParametersNode();
-        if (DynamicParametersCache_.Node != node || DynamicParametersCache_.Type != std::type_index(typeid(T))) {
-            DynamicParametersCache_.Node = node;
-            DynamicParametersCache_.Type = std::type_index(typeid(T));
-            DynamicParametersCache_.Value = NYTree::ConvertTo<TIntrusivePtr<T>>(std::move(node));
-        }
-        return StaticPointerCast<T>(DynamicParametersCache_.Value);
-    }
+    TIntrusivePtr<T> GetDynamicParameters() const;
 
     //! Typed deserialization of an input message into a YSON struct. Context-free
     //! convenience over the free ::NYT::NFlow::ConvertToYsonMessage<T> helper.
     template <class T>
-    TIntrusivePtr<T> ConvertToYsonMessage(const TInputMessageConstPtr& message) const
-    {
-        return ::NYT::NFlow::ConvertToYsonMessage<T>(message);
-    }
+    TIntrusivePtr<T> ConvertToYsonMessage(const TInputMessageConstPtr& message) const;
 
     //! Typed deserialization of a message/timer key into a YSON struct, using GetKeySchema().
     template <class T>
-    TIntrusivePtr<T> ConvertToYsonKey(const TKey& key) const
-    {
-        return NYsonSerializer::Deserialize<T>(key.Underlying(), GetKeySchema());
-    }
+    TIntrusivePtr<T> ConvertToYsonKey(const TKey& key) const;
 
 private:
     //! Single-slot memo for the typed parameters parse: last node and type, type-erased result.
@@ -108,3 +97,7 @@ DEFINE_REFCOUNTED_TYPE(IRuntimeContext)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
+
+#define RUNTIME_CONTEXT_INL_H_
+#include "runtime_context-inl.h"
+#undef RUNTIME_CONTEXT_INL_H_

@@ -57,6 +57,16 @@ TSystemTimestamp TComputationRuntimeContext::GetInputEventWatermark() const
     return watermark;
 }
 
+TWatermarkStatePtr TComputationRuntimeContext::GetEpochWatermarkState() const
+{
+    return WatermarkState_;
+}
+
+TSystemTimestamp TComputationRuntimeContext::GetCurrentTimestamp() const
+{
+    return GetEpochWatermarkState()->GetCurrentTimestamp();
+}
+
 const TComputationSpecPtr& TComputationRuntimeContext::GetSpec() const
 {
     return Spec_;

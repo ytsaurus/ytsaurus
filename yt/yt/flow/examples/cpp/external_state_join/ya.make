@@ -7,6 +7,8 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/flow/examples/cpp/external_state_join/lib
+    yt/yt/flow/library/cpp/process_function/host
     yt/yt/flow/library/cpp/computation
     yt/yt/flow/library/cpp/connectors/queue
     yt/yt/flow/library/cpp/resources
@@ -15,6 +17,11 @@ PEERDIR(
 
 END()
 
+RECURSE(
+    lib
+)
+
 RECURSE_FOR_TESTS(
     test
+    unittest
 )

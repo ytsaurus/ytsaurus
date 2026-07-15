@@ -15,7 +15,8 @@
                 "parameters" = {};
             };
             "url_downloader" = {
-                "computation_class_name" = "TLimitedUrlDownloadComputation";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NExample::TLimitedUrlDownloadFunction";
                 "group_by_schema" = [
                     {"name" = "hash"; "expression" = "farm_hash(host)"; "type" = "uint64"; required = %true;};
                     {"name" = "host"; "type" = "string";};
@@ -49,6 +50,10 @@
             };
             "url_downloader" = {
                 "parameters" = {};
+                "processing_function_parameters" = {
+                    "check_host_period" = 5000;
+                    "persist_limit" = 1000;
+                };
             };
         };
         "job_tracker" = {
