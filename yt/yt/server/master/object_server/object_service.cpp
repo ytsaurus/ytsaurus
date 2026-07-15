@@ -391,7 +391,7 @@ private:
     std::atomic<bool> MinimizeExecuteLatency_ = false;
     static constexpr double NullPrematureBackoffAlarmProbability = -1.0;
     std::atomic<double> PrematureBackoffAlarmProbability_ = NullPrematureBackoffAlarmProbability;
-    std::atomic<bool> WrapRequestsIntoSequoiaTransactions_;
+    std::atomic<bool> WrapRequestsIntoSequoiaTransactions_ = false;
 
     static IInvokerPtr GetRpcInvoker()
     {

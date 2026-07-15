@@ -402,7 +402,8 @@ TTransactionReplicationSessionBase::DoInvokeReplicationRequests()
     TFuture<void> mirroredResult = OKFuture;
     if (MirroringToSequoiaEnabled_) {
         // NB: if wrapping of every ObjectService::Execute is requested then
-        // Sequoia transaction with boomerang mutation
+        // Sequoia transaction with boomerang mutation has to be the last
+        // boomerang.
         if (SequoiaNodeIdToLock_ && !asyncResults.empty()) {
             mirroredResult = AllSucceeded(asyncResults).AsVoid().Apply(BIND([
                 bootstrap = Bootstrap_,
@@ -821,7 +822,7 @@ void RunTransactionReplicationSessionAndReply(
             std::move(transactionIds),
             std::move(requestInfo),
             enableMirroringToSequoia);
-        replicationSession->SetMutation(std::move(mutation), /*resolvedSequoiaNodeId*/ NullObjectId);
+        replicationSession->SetMutation(std::move(mutation), /*sequoiaNodeIdToLock*/ NullObjectId);
         YT_UNUSED_FUTURE(replicationSession->Run(context));
     } else {
         auto automatonInvoker = bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionManager);

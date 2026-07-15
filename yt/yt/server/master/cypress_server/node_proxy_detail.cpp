@@ -578,7 +578,6 @@ void TNontemplateCypressNodeProxyBase::LogAcdUpdate(TInternedAttributeKey key, c
 
     const auto* impl = GetThisImpl();
 
-
     bool isBeingCreated = [&] {
         if (impl->IsSequoia() && impl->MutableSequoiaProperties()) {
             return impl->MutableSequoiaProperties()->BeingCreated;

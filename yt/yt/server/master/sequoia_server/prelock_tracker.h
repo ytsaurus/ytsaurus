@@ -36,4 +36,4 @@ IPrelockTrackerPtr CreatePrelockTracker(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCypressServer
+} // namespace NYT::NSequoiaServer
