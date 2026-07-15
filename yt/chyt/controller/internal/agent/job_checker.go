@@ -104,30 +104,45 @@ func (c *jobChecker) start(ctx context.Context, cfg *JobCheckerConfig) (chan<- [
 	period := time.Duration(cfg.CheckPeriodOrDefault())
 	c.l.Debug("jobs checking started", log.Duration("period", period))
 
-	inputCh := make(chan []OperationStatus, 1)
-	outputCh := make(chan JobCheckerResultBatch, 1)
-
 	ticker := time.NewTicker(period)
 
+	checkInputCh, checkOutputCh := c.startBackgroundWorker(ctx)
+	opsInputCh := make(chan []OperationStatus, 1)
+	opsOutputCh := make(chan JobCheckerResultBatch, 1)
+
 	go func() {
+		defer ticker.Stop()
+
+		activeCheck := false
+
 		for {
 			select {
 			case <-ctx.Done():
+				close(checkInputCh)
+				<-checkOutputCh
+
 				c.l.Debug("jobs checking finished")
-				ticker.Stop()
 				return
 
-			case inputTasks := <-inputCh:
+			case inputTasks := <-opsInputCh:
 				c.processRunningOperations(inputTasks)
 
 			case <-ticker.C:
-				outputCh <- c.checkJobsRoutine(ctx)
+				if activeCheck {
+					c.l.Warn("skipping jobs check tick: previous check is still running")
+					continue
+				}
+				activeCheck = true
+				checkInputCh <- c.scheduleTasks()
 
+			case result := <-checkOutputCh:
+				opsOutputCh <- c.processResults(result)
+				activeCheck = false
 			}
 		}
 	}()
 
-	return inputCh, outputCh
+	return opsInputCh, opsOutputCh
 }
 
 func (c *jobChecker) processRunningOperations(ops []OperationStatus) {
@@ -160,9 +175,8 @@ func buildAggrError(errs []error) error {
 	)
 }
 
-func (c *jobChecker) checkJobsRoutine(ctx context.Context) JobCheckerResultBatch {
+func (c *jobChecker) scheduleTasks() []jobsCheckWorkerTask {
 	c.l.Debug("starting jobs checking routine", log.Int("tracked_ops_cnt", len(c.opInfos)))
-
 	expiredCnt := 0
 	for _, opID := range c.expireCandidates {
 		if c.opInfos[opID].targetFailedJobCounter == nil {
@@ -171,6 +185,7 @@ func (c *jobChecker) checkJobsRoutine(ctx context.Context) JobCheckerResultBatch
 		}
 	}
 	c.expireCandidates = c.expireCandidates[:0]
+	c.l.Debug("delete expired operation infos", log.Int("expired_cnt", expiredCnt))
 
 	skippedCnt := 0
 	tasks := make([]jobsCheckWorkerTask, 0, len(c.opInfos))
@@ -202,22 +217,43 @@ func (c *jobChecker) checkJobsRoutine(ctx context.Context) JobCheckerResultBatch
 		})
 	}
 
-	workerResults := make([][]jobsCheckWorkerResultOrError, c.workerNumber)
+	return tasks
+}
 
-	var wg sync.WaitGroup
-	wg.Add(c.workerNumber)
-	for i := 0; i < c.workerNumber; i++ {
-		go func(workerIdx int) {
-			defer wg.Done()
+func (c *jobChecker) startBackgroundWorker(ctx context.Context) (chan<- []jobsCheckWorkerTask, <-chan [][]jobsCheckWorkerResultOrError) {
+	checkInputCh := make(chan []jobsCheckWorkerTask, 1)
+	checkOutputCh := make(chan [][]jobsCheckWorkerResultOrError)
 
-			for taskIdx := workerIdx; taskIdx < len(tasks); taskIdx += c.workerNumber {
-				resultOrErr := c.runTask(ctx, tasks[taskIdx])
-				workerResults[workerIdx] = append(workerResults[workerIdx], resultOrErr)
+	go func() {
+		for tasks := range checkInputCh {
+			if len(tasks) == 0 {
+				checkOutputCh <- nil
+				continue
 			}
-		}(i)
-	}
-	wg.Wait()
 
+			workerResults := make([][]jobsCheckWorkerResultOrError, c.workerNumber)
+			var wg sync.WaitGroup
+			wg.Add(c.workerNumber)
+			for i := range c.workerNumber {
+				go func(workerIdx int) {
+					defer wg.Done()
+
+					for taskIdx := workerIdx; taskIdx < len(tasks); taskIdx += c.workerNumber {
+						resultOrErr := c.runTask(ctx, tasks[taskIdx])
+						workerResults[workerIdx] = append(workerResults[workerIdx], resultOrErr)
+					}
+				}(i)
+			}
+			wg.Wait()
+			checkOutputCh <- workerResults
+		}
+		close(checkOutputCh)
+	}()
+
+	return checkInputCh, checkOutputCh
+}
+
+func (c *jobChecker) processResults(workerResults [][]jobsCheckWorkerResultOrError) JobCheckerResultBatch {
 	results := make([]JobCheckerResult, 0)
 	errs := make([]error, 0)
 	for _, workerResult := range workerResults {
@@ -249,9 +285,8 @@ func (c *jobChecker) checkJobsRoutine(ctx context.Context) JobCheckerResultBatch
 	}
 
 	c.l.Debug("jobs checking routine completed",
-		log.Int("checked_ops_cnt", len(tasks)),
-		log.Int("skipped_ops_cnt", skippedCnt),
-		log.Int("expired_ops_cnt", expiredCnt),
+		log.Int("registered_ops_cnt", len(c.opInfos)),
+		log.Int("checked_ops_cnt", len(results)+len(errs)),
 		log.Int("expire_candidate_ops_cnt", len(c.expireCandidates)))
 
 	return JobCheckerResultBatch{
