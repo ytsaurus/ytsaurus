@@ -1037,7 +1037,7 @@ private:
         buffer->AddGauge("/nodes_with_failed_previous_incremental_heartbeat", NodesWithFailedPreviousIncrementalHeartbeat_.size());
         buffer->AddGauge("/locations_with_ongoing_full_heartbeat", LocationsWithOngoingFullHeartbeat_.size());
 
-        buffer->AddGauge("/nodes_with_ongoing_full_heartbeat", NodesWithOngoingIncrementalHeartbeat_.size());
+        buffer->AddGauge("/nodes_with_ongoing_incremental_heartbeat", NodesWithOngoingIncrementalHeartbeat_.size());
 
         buffer->AddCounter("/full_heartbeats_rejected_due_to_ongoing_heartbeat", FullHeartbeatsRejectedDueToOngoingHeartbeat_);
         buffer->AddCounter("/incremental_heartbeats_rejected_due_to_ongoing_heartbeat", IncrementalHeartbeatsRejectedDueToOngoingHeartbeat_);
