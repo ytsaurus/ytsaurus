@@ -28,6 +28,7 @@ target_link_libraries(string_udf PUBLIC
   build-cow-on
   essentials-public-udf
   public-udf-support
+  essentials-core-langver
   essentials-public-langver
   public-udf-arrow
   cpp-deprecated-split
@@ -75,6 +76,7 @@ target_link_libraries(string_udf.global PUBLIC
   build-cow-on
   essentials-public-udf
   public-udf-support
+  essentials-core-langver
   essentials-public-langver
   public-udf-arrow
   cpp-deprecated-split

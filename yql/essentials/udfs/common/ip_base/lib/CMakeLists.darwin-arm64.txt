@@ -25,6 +25,7 @@ target_link_libraries(common-ip_base-lib PUBLIC
   contrib-libs-cxxsupp
   yutil
   essentials-public-udf
+  essentials-core-langver
   library-cpp-ipmath
   library-cpp-ipv6_address
 )

@@ -31,6 +31,7 @@ target_link_libraries(reservoir_sampling_udf INTERFACE
   yutil
   essentials-public-udf
   public-udf-support
+  essentials-core-langver
   common-reservoir_sampling-lib
 )
 
@@ -51,6 +52,7 @@ target_link_libraries(reservoir_sampling_udf.global PUBLIC
   yutil
   essentials-public-udf
   public-udf-support
+  essentials-core-langver
   common-reservoir_sampling-lib
 )
 

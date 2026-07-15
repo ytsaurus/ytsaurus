@@ -31,6 +31,7 @@ target_link_libraries(re2_udf PUBLIC
   build-cow-on
   essentials-public-udf
   public-udf-support
+  essentials-core-langver
   contrib-libs-re2
   cpp-deprecated-enum_codegen
 )
@@ -75,6 +76,7 @@ target_link_libraries(re2_udf.global PUBLIC
   build-cow-on
   essentials-public-udf
   public-udf-support
+  essentials-core-langver
   contrib-libs-re2
   cpp-deprecated-enum_codegen
 )

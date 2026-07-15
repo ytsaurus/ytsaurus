@@ -34,6 +34,7 @@ target_link_libraries(math_udf PUBLIC
   build-cow-on
   essentials-public-udf
   public-udf-support
+  essentials-core-langver
   common-math-lib
 )
 
@@ -78,6 +79,7 @@ target_link_libraries(math_udf.global PUBLIC
   build-cow-on
   essentials-public-udf
   public-udf-support
+  essentials-core-langver
   common-math-lib
 )
 

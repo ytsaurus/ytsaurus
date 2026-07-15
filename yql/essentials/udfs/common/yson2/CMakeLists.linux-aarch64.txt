@@ -35,6 +35,7 @@ target_link_libraries(yson2_udf PUBLIC
   yson_pull
   essentials-minikql-dom
   essentials-public-langver
+  essentials-core-langver
 )
 
 target_link_options(yson2_udf PRIVATE
@@ -81,6 +82,7 @@ target_link_libraries(yson2_udf.global PUBLIC
   yson_pull
   essentials-minikql-dom
   essentials-public-langver
+  essentials-core-langver
 )
 
 target_sources(yson2_udf.global PRIVATE

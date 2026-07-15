@@ -35,6 +35,7 @@ target_link_libraries(datetime2_udf PUBLIC
   cpp-type_info-tz
   public-udf-arrow
   essentials-public-langver
+  essentials-core-langver
   yql-essentials-minikql
   essentials-minikql-datetime
 )
@@ -83,6 +84,7 @@ target_link_libraries(datetime2_udf.global PUBLIC
   cpp-type_info-tz
   public-udf-arrow
   essentials-public-langver
+  essentials-core-langver
   yql-essentials-minikql
   essentials-minikql-datetime
 )

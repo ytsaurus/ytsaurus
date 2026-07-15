@@ -32,6 +32,7 @@ target_link_libraries(digest_udf PUBLIC
   build-cow-on
   essentials-public-udf
   public-udf-support
+  essentials-core-langver
   contrib-libs-farmhash
   contrib-libs-highwayhash
   contrib-libs-openssl
@@ -84,6 +85,7 @@ target_link_libraries(digest_udf.global PUBLIC
   build-cow-on
   essentials-public-udf
   public-udf-support
+  essentials-core-langver
   contrib-libs-farmhash
   contrib-libs-highwayhash
   contrib-libs-openssl
