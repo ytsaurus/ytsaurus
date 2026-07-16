@@ -104,18 +104,18 @@ void TJoinFunction::ProcessMessage(
 
     // All messages out of the wait range are dropped.
     if (eventTimestamp >= windowEnd) {
-        YT_LOG_WARNING("Message is out of wait range, skip (HitId: %v, WindowEnd: %v)",
-            ysonKey->HitId,
-            windowEnd);
+        YT_TLOG_WARNING("Message is out of wait range, skip")
+            .With("HitId", ysonKey->HitId)
+            .With("WindowEnd", windowEnd);
         return;
     }
 
     // Drop late data.
     auto inputEventWatermark = context->GetInputEventWatermark();
     if (eventTimestamp < inputEventWatermark) {
-        YT_LOG_WARNING("Late message, skip (HitId: %v, InputEventWatermark: %v)",
-            ysonKey->HitId,
-            inputEventWatermark);
+        YT_TLOG_WARNING("Late message, skip")
+            .With("HitId", ysonKey->HitId)
+            .With("InputEventWatermark", inputEventWatermark);
         return;
     }
 

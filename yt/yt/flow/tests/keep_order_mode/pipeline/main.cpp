@@ -25,11 +25,10 @@ using namespace NYT::NYson;
 
 void LogMessage(const TLogger& Logger, const TMessage& message)
 {
-    YT_LOG_INFO("MessageLifeCycle.KeepOrderModeTest: message processing "
-        "(MessageId: %v, ReduceId: %v, EventId: %v)",
-        message.MessageId,
-        GetColumnValue<ui64>(message, "reduce_id"),
-        GetColumnValue<i64>(message, "event_id"));
+    YT_TLOG_INFO("MessageLifeCycle.KeepOrderModeTest: message processing")
+        .With("MessageId", message.MessageId)
+        .With("ReduceId", GetColumnValue<ui64>(message, "reduce_id"))
+        .With("EventId", GetColumnValue<i64>(message, "event_id"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
