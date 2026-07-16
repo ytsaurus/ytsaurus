@@ -83,6 +83,8 @@ public:
         UpdatePartitionInfo(TPartitionInfoUpdate{.MaxOffsetExclusive = IntToOffset(MaxOffsetExclusive_)});
     }
 
+    using TOrderedSourceBase::GetSourceTotalBytes;
+    using TOrderedSourceBase::GetSourceTotalCount;
     using TOrderedSourceBase::UpdatePartitionInfo;
 
     void SetMaxOffset(i64 offset, std::optional<TInstant> updateTime = std::nullopt)
@@ -395,6 +397,29 @@ TEST_F(TOrderedSourceTest, Simple)
         ASSERT_EQ(OffsetToInt(persistedState->PersistedOffsetExclusive), 3LL);
         ASSERT_EQ(OffsetToInt(persistedState->PublishedOffsetExclusive), 3LL);
     }
+}
+
+TEST_F(TOrderedSourceTest, SourceTotalCounters)
+{
+    const auto advanceMaxOffset = [&] (i64 maxOffset) {
+        return RunInInvoker([&] () {
+            Source->SetMaxOffset(maxOffset);
+            Y_UNUSED(Source->BuildInflight());
+            return std::pair(Source->GetSourceTotalCount(), Source->GetSourceTotalBytes());
+        });
+    };
+
+    const auto [count, bytes] = advanceMaxOffset(2);
+    EXPECT_DOUBLE_EQ(count, 2.0);
+    EXPECT_DOUBLE_EQ(bytes, 2.0);
+
+    const auto [increasedCount, increasedBytes] = advanceMaxOffset(5);
+    EXPECT_DOUBLE_EQ(increasedCount, 5.0);
+    EXPECT_DOUBLE_EQ(increasedBytes, 5.0);
+
+    const auto [unchangedCount, unchangedBytes] = advanceMaxOffset(5);
+    EXPECT_DOUBLE_EQ(unchangedCount, 5.0);
+    EXPECT_DOUBLE_EQ(unchangedBytes, 5.0);
 }
 
 TEST_F(TOrderedSourceTest, EmptyPartition)
