@@ -946,6 +946,8 @@ private:
         context->Invoker = Context_->MainCycleInvoker;
         context->Profiler = WithPipelineRelatedTags(ControllerProfiler());
         context->StatusProfiler = Context_->StatusProfiler->WithPrefix("/resource_manager");
+        context->IsController = true;
+        context->Computations = Spec_->Computations;
         return context;
     }
 

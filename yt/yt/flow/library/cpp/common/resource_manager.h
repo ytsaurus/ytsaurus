@@ -20,6 +20,12 @@ struct TResourceManagerContext
     NProfiling::TProfiler Profiler;
     IStatusProfilerPtr StatusProfiler;
     IInvokerPtr Invoker;
+    //! Whether this manager runs on the controller (as opposed to a worker). Together with
+    //! #Computations it scopes which always_on resources are eagerly loaded on this unit.
+    bool IsController = false;
+    //! The pipeline's computations. Used at construction to decide which always_on resources this
+    //! unit requires -- a resource may be needed only on the worker or only on the controller.
+    THashMap<TComputationId, TComputationSpecPtr> Computations;
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceManagerContext);
