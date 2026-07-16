@@ -15,6 +15,8 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <yt/yt/client/ypath/rich.h>
+
 #include <yt/yt/core/ypath/helpers.h>
 
 #include <util/system/env.h>
@@ -161,7 +163,10 @@ static void WaitPipelineState(
                 break;
             } catch (const std::exception& ex) {
                 attempt += 1;
-                YT_LOG_WARNING(ex, "Failed to get pipeline state (Attempt: %v, MaxRetries: %v)", attempt, retries);
+                YT_TLOG_WARNING("Failed to get pipeline state")
+                    .With("Attempt", attempt)
+                    .With("MaxRetries", retries)
+                    .With(ex);
                 if (attempt == retries) {
                     throw;
                 }
@@ -176,13 +181,13 @@ static void WaitPipelineState(
                 targetState);
         }
         if (!targetStates.contains(currentState)) {
-            YT_LOG_INFO("Still waiting (CurrentState: %v, TargetState: %v)",
-                currentState,
-                targetState);
+            YT_TLOG_INFO("Still waiting")
+                .With("CurrentState", currentState)
+                .With("TargetState", targetState);
         } else {
-            YT_LOG_INFO("Wait finished (CurrentState: %v, TargetState: %v)",
-                currentState,
-                targetState);
+            YT_TLOG_INFO("Wait finished")
+                .With("CurrentState", currentState)
+                .With("TargetState", targetState);
             return;
         }
         if (logReader) {
@@ -301,11 +306,11 @@ void RunPipeline(
                     if (*graceful) {
                         WaitFor(client->StopPipeline(root))
                             .ThrowOnError();
-                        YT_LOG_INFO("Sent stop");
+                        YT_TLOG_INFO("Sent stop");
                     } else {
                         WaitFor(client->PausePipeline(root))
                             .ThrowOnError();
-                        YT_LOG_INFO("Sent pause");
+                        YT_TLOG_INFO("Sent pause");
                     }
 
                     WaitPipelineState(
@@ -315,7 +320,7 @@ void RunPipeline(
                         waitTimeout,
                         &controllerLogReader);
 
-                    YT_LOG_INFO("Stopped");
+                    YT_TLOG_INFO("Stopped");
                 }
             }
 
@@ -324,17 +329,17 @@ void RunPipeline(
                 arg.FlowCoreTarget = TFlowCoreTarget(ResolveFlowCoreVersion());
                 arg.AllowUpdateOnPause = true;
 
-                YT_LOG_INFO("Setting flow core target to Controller (FlowCoreTarget: %v)",
-                    arg.FlowCoreTarget.Underlying());
+                YT_TLOG_INFO("Setting flow core target to Controller")
+                    .With("FlowCoreTarget", arg.FlowCoreTarget.Underlying());
 
                 auto resultYson = WaitFor(client->FlowExecute(root, "set-flow-core-target", NYson::ConvertToYsonString(arg)))
                     .ValueOrThrow();
 
                 auto result = NYTree::ConvertTo<TSetFlowCoreTargetResult>(resultYson.Result);
 
-                YT_LOG_INFO("Updated flow core target (NewVersion: %v, FlowCoreTarget: %v)",
-                    result.Version,
-                    arg.FlowCoreTarget.Underlying());
+                YT_TLOG_INFO("Updated flow core target")
+                    .With("NewVersion", result.Version)
+                    .With("FlowCoreTarget", arg.FlowCoreTarget.Underlying());
             }
 
             {
@@ -351,12 +356,14 @@ void RunPipeline(
 
                 auto result = NYTree::ConvertTo<TSetPipelineSpecsResult>(resultYson.Result);
 
-                YT_LOG_INFO("Updated pipeline specs (NewSpecVersion: %v, NewDynamicSpecVersion: %v)", result.SpecVersion, result.DynamicSpecVersion);
+                YT_TLOG_INFO("Updated pipeline specs")
+                    .With("NewSpecVersion", result.SpecVersion)
+                    .With("NewDynamicSpecVersion", result.DynamicSpecVersion);
             }
 
             WaitFor(client->StartPipeline(root))
                 .ThrowOnError();
-            YT_LOG_INFO("Sent start");
+            YT_TLOG_INFO("Sent start");
 
             WaitPipelineState(
                 client,
@@ -367,14 +374,16 @@ void RunPipeline(
 
             break;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to update pipeline");
+            YT_TLOG_ERROR("Failed to update pipeline")
+                .With(ex);
 
             // Drain everything the controller has produced, so the user sees the public log lines that explain the failure.
             if (controllerLogReader.IsOpen()) {
                 try {
                     controllerLogReader.ReadAll();
                 } catch (const std::exception& readEx) {
-                    YT_LOG_WARNING(readEx, "Failed to read controller log");
+                    YT_TLOG_WARNING("Failed to read controller log")
+                        .With(readEx);
                 }
             }
 
@@ -392,7 +401,11 @@ void WaitPipeline(
     const std::optional<std::string>& proxyRole,
     const TYPath& root)
 {
-    YT_LOG_INFO("Wait for pipeline %v:%v to complete", clusterUrl, root);
+    auto pipelinePath = TRichYPath(root);
+    pipelinePath.SetCluster(clusterUrl);
+
+    YT_TLOG_INFO("Wait for pipeline to complete")
+        .With("Pipeline", pipelinePath);
 
     auto connection = NApi::NRpcProxy::CreateConnection(
         NApi::NRpcProxy::TConnectionConfig::CreateFromClusterUrl(clusterUrl, proxyRole));
@@ -415,17 +428,21 @@ void WaitPipeline(
                     break;
                 }
 
-                YT_LOG_INFO("Current state: %v", status.State);
+                YT_TLOG_INFO("Waiting pipeline to complete")
+                    .With("CurrentState", status.State)
+                    .With("Pipeline", pipelinePath);
 
                 controllerLogReader.Read();
 
                 WaitRelativelySmallTime(startWaitingInstant, TDuration::MilliSeconds(50), TDuration::Seconds(3));
             }
 
-            YT_LOG_INFO("Pipeline %v:%v completed", clusterUrl, root);
+            YT_TLOG_INFO("Pipeline completed")
+                .With("Pipeline", pipelinePath);
             break;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to check pipeline");
+            YT_TLOG_ERROR("Failed to check pipeline")
+                .With(ex);
             WaitRelativelySmallTime(startWaitingInstant, TDuration::MilliSeconds(250), TDuration::Seconds(5));
         }
     }
