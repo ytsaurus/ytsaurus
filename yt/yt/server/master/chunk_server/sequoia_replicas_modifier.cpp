@@ -86,7 +86,7 @@ public:
 
     TFuture<void> ModifyReplicas() override
     {
-        return Bootstrap_
+        auto result = Bootstrap_
             ->GetSequoiaConnection()
             ->CreateClient(NRpc::GetRootAuthenticationIdentity())
             ->StartTransaction(
@@ -94,6 +94,13 @@ public:
                 {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND(&TSequoiaReplicasModifier::DoModifyReplicas, MakeStrong(this))
                 .AsyncVia(TDispatcher::Get()->GetHeavyInvoker()));
+
+        if (Config_->EnableInGhostMode) {
+            YT_VERIFY(!Config_->Enable);
+            return MakeFuture<void>(TError());
+        } else {
+            return result;
+        }
     }
 
 private:
@@ -469,6 +476,9 @@ private:
         if (!ReplaceLocationRequest_->is_validation()) {
             return false;
         }
+        if (Config_->EnableInGhostMode) {
+            return false;
+        }
 
         auto nodeId = FromProto<TNodeId>(ReplaceLocationRequest_->node_id());
 
@@ -579,6 +589,7 @@ private:
             }
         }
 
+
         for (auto& request : Requests_) {
             // We always clean master request to avoid additional work in automaton thread.
             auto addedChunksEndIt = std::remove_if(
@@ -606,20 +617,22 @@ private:
             }
         }
 
-        if (Requests_.size() == 1) {
-            // COMPAT(grphil)
-            Transaction_->AddTransactionAction(
-                Bootstrap_->GetCellTag(),
-                NTransactionClient::MakeTransactionActionData(*Requests_[0]));
-        } else {
-            TReqModifyReplicasBatch batchRequest;
-            for (auto& request : Requests_) {
-                *batchRequest.add_requests() = std::move(*request);
-            }
+        if (Config_->Enable) {
+            if (Requests_.size() == 1) {
+                // COMPAT(grphil)
+                Transaction_->AddTransactionAction(
+                    Bootstrap_->GetCellTag(),
+                    NTransactionClient::MakeTransactionActionData(*Requests_[0]));
+            } else {
+                TReqModifyReplicasBatch batchRequest;
+                for (auto& request : Requests_) {
+                    *batchRequest.add_requests() = std::move(*request);
+                }
 
-            Transaction_->AddTransactionAction(
-                Bootstrap_->GetCellTag(),
-                NTransactionClient::MakeTransactionActionData(batchRequest));
+                Transaction_->AddTransactionAction(
+                    Bootstrap_->GetCellTag(),
+                    NTransactionClient::MakeTransactionActionData(batchRequest));
+            }
         }
 
         Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::WriteRowsAndAddTransactionActions].Add(Timer_.GetElapsedTime());

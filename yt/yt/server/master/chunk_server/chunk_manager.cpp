@@ -3739,6 +3739,11 @@ private:
 
     void DoValidatePrepareModifyReplicas(const TReqModifyReplicas& request)
     {
+        const auto& sequoiaReplicasConfig = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (!sequoiaReplicasConfig->Enable) {
+            YT_LOG_ALERT_AND_THROW("Sequoia replicas modification is called while Sequoia chunk replicas are disabled");
+        }
+
         auto nodeId = FromProto<TNodeId>(request.node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
