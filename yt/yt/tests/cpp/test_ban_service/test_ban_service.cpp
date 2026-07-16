@@ -1,47 +1,14 @@
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 #include <yt/yt/tests/cpp/test_base/private.h>
 
-#include <yt/yt/client/api/transaction.h>
-
-#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/server/lib/cross_cluster_replicated_state/cross_cluster_client_detail.h>
 #include <yt/yt/server/lib/cross_cluster_replicated_state/config.h>
-#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/yt/ytlib/object_client/config.h>
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
-
-#include <yt/yt/ytlib/transaction_client/config.h>
 
 #include <yt/yt/ytlib/ban_client/ban_service_proxy.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
-
-#include <yt/yt/client/api/internal_client.h>
-
-#include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/scheduler.h>
-#include <yt/yt/core/concurrency/thread_pool.h>
-
-#include <yt/yt/core/logging/config.h>
-#include <yt/yt/core/logging/log_manager.h>
-
-#include <yt/yt/core/test_framework/framework.h>
-
-#include <yt/yt/core/ypath/helpers.h>
-
-#include <yt/yt/core/yson/string.h>
-#include <yt/yt/core/yson/protobuf_helpers.h>
-
-#include <util/datetime/base.h>
-
-#include <util/random/random.h>
-
-#include <thread>
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,17 +17,8 @@ namespace NYT::NCppTests {
 namespace {
 
 using namespace NApi;
-using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NCypressClient;
-using namespace NObjectClient;
-using namespace NRpc;
-using namespace NSecurityClient;
-using namespace NSignature;
-using namespace NTableClient;
-using namespace NTabletClient;
-using namespace NTransactionClient;
-using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
@@ -118,7 +76,7 @@ public:
     }
 };
 
-TEST_F(TBanServiceTest, BanService)
+TEST_F(TBanServiceTest, TestBanService)
 {
     auto nativeClient = DynamicPointerCast<NApi::NNative::IClient>(Client_);
     auto isBanned = WaitFor(nativeClient->GetUserBanned("user"))
