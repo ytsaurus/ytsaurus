@@ -2781,6 +2781,8 @@ private:
                     "(ReplicationCardId: %v, ReplicaId: %v)",
                     replicationCardProgressUpdate.ReplicationCardId,
                     replicaProgressUpdate.ReplicaId);
+
+                continue;
             }
 
             if (replicaInfo->History.empty()) {
