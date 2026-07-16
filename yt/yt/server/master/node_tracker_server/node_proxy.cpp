@@ -405,6 +405,7 @@ private:
                                 fluent.Item(statistics.network())
                                     .BeginMap()
                                         .Item("throttling_reads").Value(statistics.throttling_reads())
+                                        .Item("throttling_writes").Value(statistics.throttling_writes())
                                     .EndMap();
                             })
                         .EndMap()
