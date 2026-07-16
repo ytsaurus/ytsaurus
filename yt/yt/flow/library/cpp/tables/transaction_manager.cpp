@@ -156,11 +156,11 @@ TError TTransactionManager::DoCommitWithRetriesSync(TDynamicRetryableRequestSpec
 
                 auto backoff = backoffStrategy.GetBackoff();
                 innerTimeout = std::max(spec->MinInnerTimeout, backoff);
-                YT_LOG_WARNING(lastError,
-                    "Commit attempt failed with retryable error (Attempt: %v, SleepDuration: %v, NextInnerTimeout: %v)",
-                    attempt,
-                    backoff,
-                    innerTimeout);
+                YT_TLOG_WARNING("Commit attempt failed with retryable error")
+                    .With("Attempt", attempt)
+                    .With("SleepDuration", backoff)
+                    .With("NextInnerTimeout", innerTimeout)
+                    .With(lastError);
                 TDelayedExecutor::WaitForDuration(backoff);
             }
         }
@@ -181,7 +181,7 @@ TFuture<void> TTransactionManager::CommitTransactionImpl(IRetryableTransactionPt
     if (emptyTransaction && TInstant::Now() < SkipEmptyTransactionsDeadline_.load()) {
         CommitTotalCounter_.Increment();
         CommitSkippedEmptyCounter_.Increment();
-        YT_LOG_INFO("Skip committing because transaction is empty");
+        YT_TLOG_INFO("Skip committing because transaction is empty");
         return OKFuture;
     }
 
@@ -190,11 +190,11 @@ TFuture<void> TTransactionManager::CommitTransactionImpl(IRetryableTransactionPt
             auto ordinaryTransaction = CreateOrdinaryTransactionSync(innerTimeout);
             // Main action. Write initial "empty" transaction with transaction start timestamp.
             PersistTransactionStartTimestamp(ordinaryTransaction);
-            YT_LOG_INFO("Committing initial empty transaction (TransactionStartTimestamp: %v)",
-                ordinaryTransaction->GetStartTimestamp());
+            YT_TLOG_INFO("Committing initial empty transaction")
+                .With("TransactionStartTimestamp", ordinaryTransaction->GetStartTimestamp());
             CommitOrdinaryTransactionSync(ordinaryTransaction, innerTimeout);
-            YT_LOG_INFO("Committed empty initial transaction (TransactionStartTimestamp: %v)",
-                ordinaryTransaction->GetStartTimestamp());
+            YT_TLOG_INFO("Committed empty initial transaction")
+                .With("TransactionStartTimestamp", ordinaryTransaction->GetStartTimestamp());
             return TError();
         };
         if (auto error = DoCommitWithRetriesSync(spec, committer); !error.IsOK()) {
@@ -217,8 +217,8 @@ TFuture<void> TTransactionManager::CommitTransactionImpl(IRetryableTransactionPt
                     // It is a rare case because of commiting empty initial transaction.
                     return TError("Commit attempt failed, it impossible to verify if it really failed, so error is not retryable");
                 } else if (previousTransactionStartTimestamps.contains(*lastSuccessTransactionStartTimestamp)) {
-                    YT_LOG_INFO("Commit returned error, but transaction was committed (TransactionStartTimestamp: %v)",
-                        *lastSuccessTransactionStartTimestamp);
+                    YT_TLOG_INFO("Commit returned error, but transaction was committed")
+                        .With("TransactionStartTimestamp", *lastSuccessTransactionStartTimestamp);
                     return TError();
                 }
             }
@@ -227,16 +227,17 @@ TFuture<void> TTransactionManager::CommitTransactionImpl(IRetryableTransactionPt
             PersistTransactionStartTimestamp(ordinaryTransaction);
             previousTransactionStartTimestamps.insert(ordinaryTransaction->GetStartTimestamp());
 
-            YT_LOG_INFO("Committing transaction (TransactionStartTimestamp: %v, PreviousTransactionStartTimestamps: %v)",
-                ordinaryTransaction->GetStartTimestamp(),
-                previousTransactionStartTimestamps);
+            YT_TLOG_INFO("Committing transaction")
+                .With("TransactionStartTimestamp", ordinaryTransaction->GetStartTimestamp())
+                .With("PreviousTransactionStartTimestamps", previousTransactionStartTimestamps);
             try {
                 auto commitResult = CommitOrdinaryTransactionSync(ordinaryTransaction, innerTimeout);
                 retryableTransaction->OnAttemptResult(TCommitAttemptResult{
                     .Transaction = ordinaryTransaction,
                     .CommitResult = commitResult,
                 });
-                YT_LOG_INFO("Committed transaction (TransactionStartTimestamp: %v)", ordinaryTransaction->GetStartTimestamp());
+                YT_TLOG_INFO("Committed transaction")
+                    .With("TransactionStartTimestamp", ordinaryTransaction->GetStartTimestamp());
                 return TError();
             } catch (const TErrorException& exception) {
                 retryableTransaction->OnAttemptResult(TCommitAttemptResult{
@@ -358,11 +359,11 @@ TFuture<void> TTransactionManager::Cleanup()
         auto committer = [&] (TDuration innerTimeout) {
             auto ordinaryTransaction = CreateOrdinaryTransactionSync(innerTimeout);
             ClearTransactionStartTimestamp(ordinaryTransaction);
-            YT_LOG_INFO("Committing finalizing clearing transaction (TransactionStartTimestamp: %v)",
-                ordinaryTransaction->GetStartTimestamp());
+            YT_TLOG_INFO("Committing finalizing clearing transaction")
+                .With("TransactionStartTimestamp", ordinaryTransaction->GetStartTimestamp());
             CommitOrdinaryTransactionSync(ordinaryTransaction, innerTimeout);
-            YT_LOG_INFO("Committed finalizing clearing transaction (TransactionStartTimestamp: %v)",
-                ordinaryTransaction->GetStartTimestamp());
+            YT_TLOG_INFO("Committed finalizing clearing transaction")
+                .With("TransactionStartTimestamp", ordinaryTransaction->GetStartTimestamp());
             return TError();
         };
         if (auto error = DoCommitWithRetriesSync(Spec_.Acquire(), committer); !error.IsOK()) {
