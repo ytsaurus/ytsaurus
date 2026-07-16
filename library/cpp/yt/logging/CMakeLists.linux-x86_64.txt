@@ -43,5 +43,7 @@ target_link_libraries(cpp-yt-logging PUBLIC
 
 target_sources(cpp-yt-logging PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/logging/logger.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/logging/tagged_payload.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/yt/logging/structured_payload.cpp
 )
 
