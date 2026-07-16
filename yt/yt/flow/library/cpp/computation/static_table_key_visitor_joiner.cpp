@@ -376,9 +376,9 @@ TFuture<IExternalStateJoiner::TListResult> TStaticTableKeyVisitorJoiner::List(
                 ? listed.Keys.back()
                 : upper;
             AddListedRange(TKeyRange{.Lower = lower, .Upper = covered});
-            YT_LOG_DEBUG("Listed states (Count: %v, ListedSize: %v)",
-                listed.Keys.size(),
-                Listed_.size());
+            YT_TLOG_DEBUG("Listed states")
+                .With("Count", listed.Keys.size())
+                .With("ListedSize", Listed_.size());
             return TListResult{
                 .Keys = std::move(listed.Keys),
             };
@@ -395,7 +395,9 @@ TFuture<IExternalStateJoiner::TListResult> TStaticTableKeyVisitorJoiner::List(
                 FailedReadsCounter_.Increment();
                 SourceUnavailableGauge_.Update(1);
             }
-            YT_LOG_WARNING(result, "Failed to list states; source marked unavailable (Backoff: %v)", backoff);
+            YT_TLOG_WARNING("Failed to list states; source marked unavailable")
+                .With("Backoff", backoff)
+                .With(result);
             return HandleFailedList(TError(result), lower, upper);
         }));
 }
@@ -426,8 +428,8 @@ void TStaticTableKeyVisitorJoiner::AddListedRange(const TKeyRange& range)
 TFuture<void> TStaticTableKeyVisitorJoiner::PreloadKeyStates(const THashSet<TKey>& keys)
 {
     auto guard = Guard(Lock_);
-    YT_LOG_DEBUG("Preloading visit keys (Count: %v)",
-        keys.size());
+    YT_TLOG_DEBUG("Preloading visit keys")
+        .With("Count", keys.size());
 
     for (const auto& key : keys) {
         if (auto it = Listed_.find(key); it != Listed_.end()) {
@@ -465,8 +467,8 @@ void TStaticTableKeyVisitorJoiner::Reset()
     States_.clear();
 
     ListedSizeGauge_.Update(std::ssize(Listed_));
-    YT_LOG_DEBUG("Reset key-visitor joiner (ListedSize: %v)",
-        Listed_.size());
+    YT_TLOG_DEBUG("Reset key-visitor joiner")
+        .With("ListedSize", Listed_.size());
 
     // The forward reader, the cached schema and #ListedRanges_ deliberately survive: Reset runs
     // once per epoch, whereas a sweep spans many epochs. Dropping the reader or the schema here

@@ -358,9 +358,10 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
             }
             if (!joiner->IsVisitorDriven()) {
                 if (NonVisitorJoinerWarned_.insert(name).second) {
-                    YT_LOG_WARNING("Joiner %Qv referenced by key_visitor_stream external_names is "
-                        "not visitor-driven and will not be swept",
-                        name);
+                    YT_TLOG_WARNING(
+                        "Joiner referenced by key_visitor_stream external_names is "
+                        "not visitor-driven and will not be swept")
+                        .With("Joiner", name, "%Qv");
                 }
                 continue;
             }

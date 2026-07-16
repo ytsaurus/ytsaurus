@@ -152,9 +152,9 @@ public:
     void AsyncUnregisterBatch(std::span<const TMessageMeta* const> metas) override
     {
         for (const auto* meta : metas) {
-            YT_LOG_DEBUG("MessageLifeCycle.CompactOutputStore: message was asynchronously unregistered (MessageId: %v, StreamId: %v)",
-                meta->MessageId,
-                meta->StreamId);
+            YT_TLOG_DEBUG("MessageLifeCycle.CompactOutputStore: message was asynchronously unregistered")
+                .With("MessageId", meta->MessageId)
+                .With("StreamId", meta->StreamId);
             AsyncEraseQueue_.push_back(*meta);
         }
     }
@@ -179,9 +179,9 @@ public:
 
             const auto& Logger = strongThis->Logger;
             NConcurrency::TForbidContextSwitchGuard contextSwitchGuard;
-            YT_LOG_DEBUG("Compact output messages loaded (PartitionChunks: %v, KeyedChunks: %v)",
-                partitionChunks.size(),
-                keyedChunks.size());
+            YT_TLOG_DEBUG("Compact output messages loaded")
+                .With("PartitionChunks", partitionChunks.size())
+                .With("KeyedChunks", keyedChunks.size());
 
             const auto& specs = strongThis->Context_->StreamSpecStorage->GetStreamSpecs();
 
@@ -239,7 +239,8 @@ public:
             }
 
             YT_VERIFY(strongThis->ToPersist_.empty());
-            YT_LOG_DEBUG("Compact output store init completed");
+            YT_TLOG_DEBUG("Compact output store init completed")
+                .With("MessageCount", std::ssize(messages));
             return messages;
         })
             .AsyncVia(GetCurrentInvoker())
@@ -408,10 +409,10 @@ private:
         } else if (key) {
             Keys_.emplace(message, *key);
         }
-        YT_LOG_DEBUG("MessageLifeCycle.CompactOutputStore: message was registered (Key: %v, MessageId: %v, StreamId: %v)",
-            key,
-            message->MessageId,
-            message->StreamId);
+        YT_TLOG_DEBUG("MessageLifeCycle.CompactOutputStore: message was registered")
+            .With("Key", key)
+            .With("MessageId", message->MessageId)
+            .With("StreamId", message->StreamId);
     }
 
     void UnregisterImpl(const TMessageMeta& messageMeta, bool ensure)
@@ -453,10 +454,10 @@ private:
                 }
             }
         }
-        YT_LOG_DEBUG("MessageLifeCycle.CompactOutputStore: message was unregistered (Key: %v, MessageId: %v, StreamId: %v)",
-            key,
-            messageMeta.MessageId,
-            messageMeta.StreamId);
+        YT_TLOG_DEBUG("MessageLifeCycle.CompactOutputStore: message was unregistered")
+            .With("Key", key)
+            .With("MessageId", messageMeta.MessageId)
+            .With("StreamId", messageMeta.StreamId);
     }
 
     void LoadChunk(

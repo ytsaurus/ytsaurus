@@ -46,11 +46,10 @@ void TBlockedStreamComputer::AddInterruptingPartition(const TPartitionId& partit
         return;
     }
 
-    YT_LOG_TRACE("TBlockedStreamComputer: adding not trivial interrupting partition "
-        "(ComputationId: %v, PartitionId: %v, BlockingStreams: %v)",
-        partition->ComputationId,
-        partitionId,
-        ConvertToYsonString(blockingStreams, NYson::EYsonFormat::Text));
+    YT_TLOG_TRACE("TBlockedStreamComputer: adding not trivial interrupting partition")
+        .With("ComputationId", partition->ComputationId)
+        .With("PartitionId", partitionId)
+        .With("BlockingStreams", ConvertToYsonString(blockingStreams, NYson::EYsonFormat::Text));
 
     if (partition->SourceKey.has_value()) {
         BlockingKeys_[*partition->SourceKey].insert(blockingStreams.begin(), blockingStreams.end());
@@ -103,7 +102,8 @@ THashSet<TStreamId> TBlockedStreamComputer::GetBlockedStreams(const TKey& lower,
         ++it;
     }
 
-    YT_LOG_TRACE("TBlockedStreamComputer: blocked streams computed (BlockedStreams: %v)", ConvertToYsonString(blockedStreams, NYson::EYsonFormat::Text));
+    YT_TLOG_TRACE("TBlockedStreamComputer: blocked streams computed")
+        .With("BlockedStreams", ConvertToYsonString(blockedStreams, NYson::EYsonFormat::Text));
 
     return blockedStreams;
 }

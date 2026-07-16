@@ -332,11 +332,10 @@ void TUniversalComputationController::DoPartitioning(
         for (const auto& [sinkId, channelCount] : context.SinkChannelCounts) {
             auto it = PartitioningState_->LastSinkChannelCounts.find(sinkId);
             if (it != PartitioningState_->LastSinkChannelCounts.end() && it->second != channelCount) {
-                YT_LOG_INFO("Partitioning: sink target-queue partition count changed, forcing recreation to regenerate producer ids "
-                    "(SinkId: %v, PreviousChannelCount: %v, NewChannelCount: %v)",
-                    sinkId,
-                    it->second,
-                    channelCount);
+                YT_TLOG_INFO("Partitioning: sink target-queue partition count changed, forcing recreation to regenerate producer ids")
+                    .With("SinkId", sinkId)
+                    .With("PreviousChannelCount", it->second)
+                    .With("NewChannelCount", channelCount);
                 context.RecreateNow = true;
             }
         }
@@ -391,11 +390,9 @@ void TUniversalComputationController::DoPartitioning(
                 }
                 auto partition = GetOrCrash(flowView->State->ExecutionSpec->Layout->Partitions, partitionId);
                 if (partition->State == EPartitionState::Completed) {
-                    YT_LOG_EVENT(GetContext()->PublicLogger, NLogging::ELogLevel::Info,
-                        "Removing completed source partition "
-                        "(PartitionId: %v, Partition: %v)",
-                        partitionId,
-                        NYson::ConvertToYsonString(partition, EYsonFormat::Text));
+                    YT_TLOG_EVENT_FLUENT(GetContext()->PublicLogger, NLogging::ELogLevel::Info, "Removing completed source partition")
+                        .With("PartitionId", partitionId)
+                        .With("Partition", NYson::ConvertToYsonString(partition, EYsonFormat::Text));
                     flowView->State->ExecutionSpec->Layout->RemovePartition(partitionId);
                 } else {
                     // The vanished key gets no spec from the expected-keys branch, and the ephemeral
@@ -601,11 +598,11 @@ void TUniversalComputationController::InputAutoPartitioningCollectData(TInputAut
     const auto& pipelineState = context.FlowView->State->ExecutionSpec->PipelineState;
     if (pipelineState->GetValue() != EPipelineState::Working) {
         context.NormalFlightDuration = TDuration::Zero();
-        YT_LOG_INFO("Partitioning: wait for working state (PipelineState: %v, LastRepartitionTime: %v, PipelineStateUpdate: %v, NormalFlightDuration: %v)",
-            pipelineState->GetValue(),
-            LastRepartitionTime_,
-            pipelineState->GetLastUpdate(),
-            context.NormalFlightDuration);
+        YT_TLOG_INFO("Partitioning: wait for working state")
+            .With("PipelineState", pipelineState->GetValue())
+            .With("LastRepartitionTime", LastRepartitionTime_)
+            .With("PipelineStateUpdate", pipelineState->GetLastUpdate())
+            .With("NormalFlightDuration", context.NormalFlightDuration);
     } else {
         TInstant baseInstant = std::max(LastRepartitionTime_, pipelineState->GetLastUpdate());
         context.AnotherComputationRecentlyRepartitioned = GetContext()->CommonContext->LastRepartitioningInstant > LastCommonRepartitioningInstant_;
@@ -613,11 +610,11 @@ void TUniversalComputationController::InputAutoPartitioningCollectData(TInputAut
             baseInstant = std::max(baseInstant, GetContext()->CommonContext->LastRepartitioningInstant);
         }
         context.NormalFlightDuration = TInstant::Now() - baseInstant;
-        YT_LOG_INFO("Partitioning: calculating normal flight duration (PipelineState: %v, LastRepartitionTime: %v, PipelineStateUpdate: %v, NormalFlightDuration: %v)",
-            pipelineState->GetValue(),
-            LastRepartitionTime_,
-            pipelineState->GetLastUpdate(),
-            context.NormalFlightDuration);
+        YT_TLOG_INFO("Partitioning: calculating normal flight duration")
+            .With("PipelineState", pipelineState->GetValue())
+            .With("LastRepartitionTime", LastRepartitionTime_)
+            .With("PipelineStateUpdate", pipelineState->GetLastUpdate())
+            .With("NormalFlightDuration", context.NormalFlightDuration);
     }
 }
 
@@ -693,10 +690,10 @@ void TUniversalComputationController::InputAutoPartitioningCalculateOptimalCount
             i64 count = *channels * sinkChannelMultiplier;
             count = std::max(count, workerCount);
             suggestions.emplace_back(count, "sink channels");
-            YT_LOG_INFO("Partitioning: collected sink channels (SinkId: %v, ChannelCount: %v, ProposedPartitionCount: %v)",
-                widestStreamId,
-                *channels,
-                count);
+            YT_TLOG_INFO("Partitioning: collected sink channels")
+                .With("SinkId", widestStreamId)
+                .With("ChannelCount", *channels)
+                .With("ProposedPartitionCount", count);
         }
     }
 
@@ -736,12 +733,12 @@ void TUniversalComputationController::InputAutoPartitioningCalculateOptimalCount
                 averageTimerCount.Add(partitionId, timerCount);
             }
         }
-        YT_LOG_INFO("Partitioning: collected metrics (AverageCpuUsage: %v, AverageMemoryUsage: %v, AverageMessagesPerSecond: %v, AverageBytesPerSecond: %v, AverageTimerCount: %v",
-            averageCpuUsage.Get(),
-            averageMemoryUsage.Get(),
-            averageMessagesPerSecond.Get(),
-            averageBytesPerSecond.Get(),
-            averageTimerCount.Get());
+        YT_TLOG_INFO("Partitioning: collected metrics")
+            .With("AverageCpuUsage", averageCpuUsage.Get())
+            .With("AverageMemoryUsage", averageMemoryUsage.Get())
+            .With("AverageMessagesPerSecond", averageMessagesPerSecond.Get())
+            .With("AverageBytesPerSecond", averageBytesPerSecond.Get())
+            .With("AverageTimerCount", averageTimerCount.Get());
 
         ssize_t minStatusCount = static_cast<ssize_t>(currentPartitionCount / allowedPartitionCountDeviation);
         TInstant now = TInstant::Now();
@@ -769,8 +766,8 @@ void TUniversalComputationController::InputAutoPartitioningCalculateOptimalCount
             suggestions.emplace_back(static_cast<ssize_t>(std::llround(it->second.ProposedCount)), averageMetric->Name, std::move(averageMetric->Weights));
         }
         if (smoothingReport.GetLength() > 0) {
-            YT_LOG_INFO("Partitioning: peak-hold smoothed criterion proposals (RawToSmoothed: {%v})",
-                smoothingReport.Flush());
+            YT_TLOG_INFO("Partitioning: peak-hold smoothed criterion proposals")
+                .With("RawToSmoothed", smoothingReport.Flush());
         }
         for (auto& suggestion : suggestions) {
             if (suggestion.Count < std::ssize(context.PartitionRanges)) {
@@ -830,9 +827,9 @@ void TUniversalComputationController::InputAutoPartitioningCalculateOptimalCount
                     // Approximate linearly from 0.5 to 1.
                     double coefficient = 0.5 + 0.5 * (timeSinceAnyRepartitioning / crossComputationAffectDuration);
                     delay *= coefficient;
-                    YT_LOG_INFO("Partitioning: delay decreased due to cross computation affect (Coefficient: %v, NewDelay: %vs)",
-                        coefficient,
-                        delay.Seconds());
+                    YT_TLOG_INFO("Partitioning: delay decreased due to cross computation affect")
+                        .With("Coefficient", coefficient)
+                        .With("NewDelay", delay.Seconds());
                 }
             }
         } else {
@@ -851,12 +848,12 @@ void TUniversalComputationController::InputAutoPartitioningCalculateOptimalCount
         context.ProposedCount = std::clamp(workerCount, minInputPartitionCount, maxInputPartitionCount);
         context.RecreateNow = shouldRecreate(context.ProposedCount);
         finalizeWeights();
-        YT_LOG_INFO("Partitioning: no suggestions for optimal partition count, use reasonable minimum (ProposedCount: %v, RecreateNow: %v, CurrentCount: %v, Criteria: %v, NormalFlightDuration: %vs)",
-            context.ProposedCount,
-            context.RecreateNow,
-            currentPartitionCount,
-            workerCount ? "minimum" : "worker count",
-            context.NormalFlightDuration.Seconds());
+        YT_TLOG_INFO("Partitioning: no suggestions for optimal partition count, use reasonable minimum")
+            .With("ProposedCount", context.ProposedCount)
+            .With("RecreateNow", context.RecreateNow)
+            .With("CurrentCount", currentPartitionCount)
+            .With("Criteria", workerCount ? "minimum" : "worker count")
+            .With("NormalFlightDuration", context.NormalFlightDuration.Seconds());
         return;
     }
 
@@ -881,12 +878,12 @@ void TUniversalComputationController::InputAutoPartitioningCalculateOptimalCount
     context.Weights = std::move(suggestions[kMax].Weights);
     finalizeWeights();
 
-    YT_LOG_INFO("Partitioning: calculated optimal partition count (ProposedCount: %v, RecreateNow: %v, CurrentCount: %v, Criteria: %v, NormalFlightDuration: %vs)",
-        context.ProposedCount,
-        context.RecreateNow,
-        currentPartitionCount,
-        suggestions[kMax].Criteria,
-        context.NormalFlightDuration.Seconds());
+    YT_TLOG_INFO("Partitioning: calculated optimal partition count")
+        .With("ProposedCount", context.ProposedCount)
+        .With("RecreateNow", context.RecreateNow)
+        .With("CurrentCount", currentPartitionCount)
+        .With("Criteria", suggestions[kMax].Criteria)
+        .With("NormalFlightDuration", context.NormalFlightDuration.Seconds());
 }
 
 void TUniversalComputationController::InputAutoPartitioningBuildRanges(TInputAutoPartitioningContext& context) const
@@ -979,18 +976,18 @@ void TUniversalComputationController::InputAutoPartitioningBuildRanges(TInputAut
     context.NewRanges.back().Upper = splittedRanges.back().Upper;
     if ((std::ssize(context.NewRanges) != context.ProposedCount || !context.AllPartitionsHavePivots)) {
         if (isUint) {
-            YT_LOG_INFO("Partitioning: fall back to uniform uint split (ResultSize: %v, PartitionCount: %v, AllPartitionsHaveSplitters: %v, SubrangeCount: %v)",
-                std::ssize(context.NewRanges),
-                context.ProposedCount,
-                context.AllPartitionsHavePivots,
-                std::ssize(splittedRanges));
+            YT_TLOG_INFO("Partitioning: fall back to uniform uint split")
+                .With("ResultSize", std::ssize(context.NewRanges))
+                .With("PartitionCount", context.ProposedCount)
+                .With("AllPartitionsHaveSplitters", context.AllPartitionsHavePivots)
+                .With("SubrangeCount", std::ssize(splittedRanges));
             context.NewRanges = SplitUintKeyRange(UniversalKeyRange(), context.ProposedCount);
         } else {
-            YT_LOG_INFO("Partitioning: cannot recreate now, must wait for partition pivots (ResultSize: %v, PartitionCount: %v, AllPartitionsHaveSplitters: %v, SubrangeCount: %v)",
-                std::ssize(context.NewRanges),
-                context.ProposedCount,
-                context.AllPartitionsHavePivots,
-                std::ssize(splittedRanges));
+            YT_TLOG_INFO("Partitioning: cannot recreate now, must wait for partition pivots")
+                .With("ResultSize", std::ssize(context.NewRanges))
+                .With("PartitionCount", context.ProposedCount)
+                .With("AllPartitionsHaveSplitters", context.AllPartitionsHavePivots)
+                .With("SubrangeCount", std::ssize(splittedRanges));
             context.RecreateNow = false;
         }
         // Calculated NewWeights are invalid. Clear the vector to yield this fact.
@@ -1023,9 +1020,9 @@ void TUniversalComputationController::InputAutoPartitioningTryRebalance(TInputAu
             auto delay = std::max(partitionCountDoubleDelay / log(multiple) * log(2), partitionCountDoubleDelay);
             if (context.NormalFlightDuration > delay) {
                 context.RecreateNow = true;
-                YT_LOG_INFO("Partitioning: decided to rebuild partitions to make more uniform distribution (OldDeviation: %v, NewDeviation: %v)",
-                    oldDeviation,
-                    newDeviation);
+                YT_TLOG_INFO("Partitioning: decided to rebuild partitions to make more uniform distribution")
+                    .With("OldDeviation", oldDeviation)
+                    .With("NewDeviation", newDeviation);
             }
         }
     }
@@ -1037,8 +1034,8 @@ std::optional<THashMap<TKey, NYTree::IMapNodePtr>> TUniversalComputationControll
     for (const auto& [streamId, source] : Sources_) {
         auto sourceKeys = source->ListKeys();
         if (!sourceKeys) {
-            YT_LOG_WARNING("No info about source keys for stream %v",
-                streamId);
+            YT_TLOG_WARNING("No info about source keys for stream")
+                .With("Stream", streamId);
             return std::nullopt;
         }
         for (const auto& [key, dynamicSourcePartitionSpec] : *sourceKeys) {

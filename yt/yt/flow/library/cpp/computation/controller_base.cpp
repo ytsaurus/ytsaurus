@@ -101,10 +101,9 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
 
         bool hideUnavailableWatermarks = false;
         if (statistics.UnavailablePartitions == statistics.TotalPartitions) {
-            YT_LOG_WARNING("Availability group is unavailable (all partitions of group are unavailable) "
-                "(AvailabilityGroup: %v, TotalPartitions: %v)",
-                availabilityGroup,
-                statistics.TotalPartitions);
+            YT_TLOG_WARNING("Availability group is unavailable (all partitions of group are unavailable)")
+                .With("AvailabilityGroup", availabilityGroup)
+                .With("TotalPartitions", statistics.TotalPartitions);
             hideUnavailableWatermarks = true;
             unavailableGroups += 1;
         }
@@ -130,13 +129,12 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
     const int totalGroups = availabilityGroupStatistics.size();
     const int availableGroups = totalGroups - unavailableGroups;
     if (unavailableGroups > unavailableSpec->MaxUnavailableGroups || availableGroups < unavailableSpec->MinAvailableGroups) {
-        YT_LOG_ERROR("Cannot advance the watermark past unavailable availability groups "
-            "(UnavailableGroups: %v, AvailableGroups: %v, TotalGroups: %v, MaxUnavailableGroups: %v, MinAvailableGroups: %v)",
-            unavailableGroups,
-            availableGroups,
-            totalGroups,
-            unavailableSpec->MaxUnavailableGroups,
-            unavailableSpec->MinAvailableGroups);
+        YT_TLOG_ERROR("Cannot advance the watermark past unavailable availability groups")
+            .With("UnavailableGroups", unavailableGroups)
+            .With("AvailableGroups", availableGroups)
+            .With("TotalGroups", totalGroups)
+            .With("MaxUnavailableGroups", unavailableSpec->MaxUnavailableGroups)
+            .With("MinAvailableGroups", unavailableSpec->MinAvailableGroups);
         return allNodes;
     }
 
@@ -218,17 +216,15 @@ std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
     }
 
     if (statistics.Detected != 0) {
-        YT_LOG_DEBUG("IdlePartitions rule summary "
-            "(Enabled: %v, TotalPartitions: %v, Detected: %v, Ignored: %v, Limit: %v, "
-            "MaxRatio: %v, IdleDuration: %v, Result: %v)",
-            true,
-            statistics.TotalPartitions,
-            statistics.Detected,
-            statistics.Ignored,
-            statistics.IgnoreLimit,
-            idleSpec->MaxRatio,
-            idleSpec->Duration,
-            result);
+        YT_TLOG_DEBUG("IdlePartitions rule summary")
+            .With("Enabled", true)
+            .With("TotalPartitions", statistics.TotalPartitions)
+            .With("Detected", statistics.Detected)
+            .With("Ignored", statistics.Ignored)
+            .With("Limit", statistics.IgnoreLimit)
+            .With("MaxRatio", idleSpec->MaxRatio)
+            .With("IdleDuration", idleSpec->Duration)
+            .With("Result", result);
     }
     return preparedNodes;
 }
@@ -297,10 +293,12 @@ std::vector<TNodeTraverseDataPtr> ApplyLateDataPartitionsRule(
     if (statistics.PercentileIndex == statistics.TotalPartitions) {
         sensors.Detected.Update(0);
         sensors.Ignored.Update(0);
-        YT_LOG_DEBUG("LateDataPartitions rule summary "
-            "(Enabled: %v, TotalPartitions: %v, Detected: 0, Ignored: 0, Result: all_ignored_by_percentile)",
-            true,
-            statistics.TotalPartitions);
+        YT_TLOG_DEBUG("LateDataPartitions rule summary")
+            .With("Enabled", true)
+            .With("TotalPartitions", statistics.TotalPartitions)
+            .With("Detected", 0)
+            .With("Ignored", 0)
+            .With("Result", "all_ignored_by_percentile");
         return nodes;
     }
 
@@ -330,24 +328,20 @@ std::vector<TNodeTraverseDataPtr> ApplyLateDataPartitionsRule(
     std::string result = statistics.Ignored > 0 ? "applied" : "no_late_partitions";
 
     if (statistics.Detected != 0) {
-        YT_LOG_DEBUG("LateDataPartitions rule summary "
-            "(TotalPartitions: %v, Detected: %v, Ignored: %v, "
-            "Value: %v, Delay: %v, PercentileIndex: %v, "
-            "MinWatermark: %v, PercentileWatermark: %v, ThresholdWatermark: %v, EffectiveWatermark: %v, "
-            "MaxWatermark: %v, MaxDelay: %v, Result: %v)",
-            statistics.TotalPartitions,
-            statistics.Detected,
-            statistics.Ignored,
-            lateDataSpec->Value,
-            lateDataSpec->Delay,
-            statistics.PercentileIndex,
-            statistics.MinWatermark,
-            statistics.PercentileWatermark,
-            statistics.ThresholdWatermark,
-            statistics.EffectiveWatermark,
-            statistics.MaxWatermark,
-            statistics.MaxDelay,
-            result);
+        YT_TLOG_DEBUG("LateDataPartitions rule summary")
+            .With("TotalPartitions", statistics.TotalPartitions)
+            .With("Detected", statistics.Detected)
+            .With("Ignored", statistics.Ignored)
+            .With("Value", lateDataSpec->Value)
+            .With("Delay", lateDataSpec->Delay)
+            .With("PercentileIndex", statistics.PercentileIndex)
+            .With("MinWatermark", statistics.MinWatermark)
+            .With("PercentileWatermark", statistics.PercentileWatermark)
+            .With("ThresholdWatermark", statistics.ThresholdWatermark)
+            .With("EffectiveWatermark", statistics.EffectiveWatermark)
+            .With("MaxWatermark", statistics.MaxWatermark)
+            .With("MaxDelay", statistics.MaxDelay)
+            .With("Result", result);
     }
 
     return preparedNodes;
@@ -437,7 +431,8 @@ std::optional<TSystemTimestamp> GetPartitionLastUnavailableTimestamp(
     }
 
     const auto& Logger = logger;
-    YT_LOG_FATAL("Unreachable point reached in GetPartitionLastUnavailableTimestamp()");
+    YT_TLOG_FATAL("Unreachable point reached in GetPartitionLastUnavailableTimestamp()");
+    Y_UNREACHABLE();
 }
 
 THashMap<TStreamId, TStreamTraverseDataMetricsPtr> ComputeStreamMetrics(
@@ -616,9 +611,9 @@ void TComputationControllerBase::UpdateDynamicPartitionSpec(
     if (oldDynamicPartitionSpec && (oldDynamicPartitionSpec == dynamicPartitionSpec || AreNodesEqual(oldDynamicPartitionSpec, dynamicPartitionSpec))) {
         return;
     }
-    YT_LOG_INFO("Update dynamic partition spec (PartitionId: %v, NewDynamicPartitionSpec: %v)",
-        partitionId,
-        ConvertToYsonString(dynamicPartitionSpec, NYson::EYsonFormat::Text));
+    YT_TLOG_INFO("Update dynamic partition spec")
+        .With("PartitionId", partitionId)
+        .With("NewDynamicPartitionSpec", ConvertToYsonString(dynamicPartitionSpec, NYson::EYsonFormat::Text));
     oldDynamicPartitionSpec = dynamicPartitionSpec;
 }
 
