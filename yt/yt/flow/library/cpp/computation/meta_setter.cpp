@@ -10,6 +10,9 @@
 
 #include <library/cpp/containers/absl/flat_hash_map.h>
 
+#include <util/digest/city.h>
+#include <util/string/hex.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -317,10 +320,11 @@ class TSwiftMergeMetaSetter
 public:
     TSwiftMergeMetaSetter(
         TComputationSpecPtr spec,
-        const TUniqueSeqNo& uniqueSeqNo,
+        // Deliberately unused: the merged MessageId is derived deterministically from the parents, not
+        // from this per-epoch (non-deterministic) seq no. Kept for signature compatibility.
+        [[maybe_unused]] const TUniqueSeqNo& uniqueSeqNo,
         IEventTimestampAssignerPtr eventTimestampAssigner)
         : TMetaSetterBase(std::move(spec), std::move(eventTimestampAssigner))
-        , UniqueSeqNo_(uniqueSeqNo)
     { }
 
     void FillMetaImpl(TMessageMeta& meta, const TMessageParentsConstPtr& parents) override
@@ -348,13 +352,18 @@ public:
             return;
         }
 
-        // Merged-parents path. The MessageId no longer derives from any single parent, so the per-key
-        // MessageId order between successive messages of the same downstream key is not preserved by the
-        // merge step. Downstream computations that rely on MessageId ordering within a key must tolerate
-        // this — see the AllowBatchingWithRelaxedGuarantees parameter of TSwiftMapComputation.
-        auto& index = OrderedIndices_[meta.StreamId];
-        meta.MessageId = GenerateOrderedMessageId(UniqueSeqNo_, meta.StreamId, LexicographicallySerialize(index));
-        const auto& merged = GetMergedTimestamps(parents);
+        // Merged-parents path. The MessageId is derived DETERMINISTICALLY from the parent MessageIds
+        // (the lexicographically minimal parent id followed by a 128-bit digest of all parent ids), NOT
+        // from the per-epoch UniqueSeqNo. A merged output that is replayed after a job restart must get
+        // the SAME MessageId: otherwise the message distributor cannot match the replay to the in-flight
+        // task, drops the dead predecessor's task on re-route, and loses the OnDistributed
+        // (merge-tracker) callback — so the merged message's parents would never be marked persisted (a
+        // deadlock, amplified up the graph by fan-in). As before, the per-key MessageId order across the
+        // merge is not preserved; downstream must tolerate this (see the
+        // AllowBatchingWithRelaxedGuarantees parameter of TSwiftMapComputation).
+        const auto& merged = GetMergedInfo(parents);
+        auto& index = MergedIndices_[std::pair(parents.Get(), meta.StreamId)];
+        meta.MessageId = GenerateInheritedMessageId(merged.Digest, meta.StreamId, LexicographicallySerialize(index));
         if (meta.EventTimestamp == ZeroSystemTimestamp) {
             meta.EventTimestamp = merged.EventTimestamp;
         }
@@ -364,26 +373,31 @@ public:
     }
 
 private:
-    struct TMergedTimestamps
+    struct TMergedInfo
     {
         TSystemTimestamp SystemTimestamp{};
         TSystemTimestamp EventTimestamp{};
         TSystemTimestamp AlignmentTimestamp{};
+        // Merged MessageId base: "<min parent id>-<hex of a deterministic 128-bit digest of the parent
+        // MessageIds>". The min-parent prefix keeps merged ids starting with a UniqueSeqNo like all
+        // other ids.
+        TMessageId Digest;
     };
 
-    const TUniqueSeqNo UniqueSeqNo_;
     absl::flat_hash_map<std::pair<TInputMessageConstPtr, TStreamId>, i64, ::THash<std::pair<TInputMessageConstPtr, TStreamId>>> InheritedIndices_;
-    absl::flat_hash_map<TStreamId, i64, ::THash<TStreamId>> OrderedIndices_;
-    absl::flat_hash_map<TMessageParentsConstPtr, TMergedTimestamps, ::THash<TMessageParentsConstPtr>> MergedTimestamps_;
+    absl::flat_hash_map<std::pair<const TMessageParents*, TStreamId>, i64, ::THash<std::pair<const TMessageParents*, TStreamId>>> MergedIndices_;
+    absl::flat_hash_map<TMessageParentsConstPtr, TMergedInfo, ::THash<TMessageParentsConstPtr>> MergedInfos_;
 
-    const TMergedTimestamps& GetMergedTimestamps(const TMessageParentsConstPtr& parents)
+    const TMergedInfo& GetMergedInfo(const TMessageParentsConstPtr& parents)
     {
-        auto [it, inserted] = MergedTimestamps_.emplace(parents, TMergedTimestamps{});
+        auto [it, inserted] = MergedInfos_.emplace(parents, TMergedInfo{});
         if (inserted) {
             auto& merged = it->second;
             merged.SystemTimestamp = ZeroSystemTimestamp;
             merged.AlignmentTimestamp = InfinitySystemTimestamp;
             merged.EventTimestamp = InfinitySystemTimestamp;
+            uint128 digestHash{0, 0};
+            std::string_view minParentId;
             for (const auto& parent : parents->ParentMessages) {
                 // SystemTimestamp: max — if any parent has dropped below the downstream system watermark,
                 // picking the min would let the watermark filter drop the whole merged aggregate.
@@ -392,9 +406,27 @@ private:
                 // no faster than the slowest parent that has been absorbed into the merged message.
                 merged.AlignmentTimestamp = std::min(merged.AlignmentTimestamp, parent->AlignmentTimestamp);
                 merged.EventTimestamp = std::min(merged.EventTimestamp, parent->EventTimestamp);
+                // Order-sensitive 128-bit digest over the parent MessageIds. Deterministic across epoch
+                // re-runs because the parents arrive in a deterministic order with stable MessageIds.
+                const auto idView = parent->MessageId.Underlying();
+                if (minParentId.empty() || idView < minParentId) {
+                    minParentId = idView;
+                }
+                digestHash = CityHash128WithSeed(idView.data(), idView.size(), digestHash);
             }
             YT_VERIFY(merged.EventTimestamp != InfinitySystemTimestamp);
             YT_VERIFY(merged.EventTimestamp != ZeroSystemTimestamp);
+            const ui64 digestRaw[2] = {Uint128Low64(digestHash), Uint128High64(digestHash)};
+            auto digestHex = HexEncode(digestRaw, sizeof(digestRaw));
+            // Prefix the digest with the lexicographically minimal parent id: every other id starts with
+            // a UniqueSeqNo prefix (generated ids by construction, swift ids by inheriting the parent
+            // prefix), so keep merged ids in the same family and lexicographically >= that parent.
+            std::string base;
+            base.reserve(minParentId.size() + 1 + digestHex.size());
+            base.append(minParentId);
+            base.push_back('-');
+            base.append(digestHex.data(), digestHex.size());
+            merged.Digest = TMessageId(std::move(base));
         }
         return it->second;
     }
