@@ -24,8 +24,8 @@ SRCS(
     interconnect.h
     interconnect_handshake.cpp
     interconnect_handshake.h
-    interconnect_host_metrics_aggregator.cpp
-    interconnect_host_metrics_aggregator.h
+    interconnect_metrics_aggregator.cpp
+    interconnect_metrics_aggregator.h
     interconnect_impl.h
     interconnect_mon.cpp
     interconnect_mon.h
@@ -68,6 +68,7 @@ PEERDIR(
     contrib/ydb/library/actors/helpers
     contrib/ydb/library/actors/interconnect/address
     contrib/ydb/library/actors/interconnect/poller
+    contrib/ydb/library/actors/interconnect/retro_tracing
     contrib/ydb/library/actors/interconnect/rdma
     contrib/ydb/library/actors/interconnect/rdma/cq_actor
     contrib/ydb/library/actors/prof
