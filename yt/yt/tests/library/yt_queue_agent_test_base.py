@@ -1302,26 +1302,32 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
     @staticmethod
     def _create_consumer(path, mount=True, without_meta=False, driver=None, multi_consumer=False, **kwargs):
-        if without_meta or not mount or multi_consumer:
+        if mount:
             if multi_consumer:
-                schema = init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA
-            elif without_meta:
-                schema = init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META
-            else:
-                schema = init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA
+                assert not without_meta
+                create("queue_multi_consumer", path, driver=driver, attributes=kwargs)
+                return
 
-            attributes = {
-                "dynamic": True,
-                "schema": schema,
-                "treat_as_queue_consumer": True,
-            }
-            attributes.update(kwargs)
-            create("table", path, attributes=attributes, driver=driver)
-            if mount:
-                sync_mount_table(path, driver=driver)
-            return
+            if not without_meta:
+                create("queue_consumer", path, driver=driver, attributes=kwargs)
+                return
 
-        create("queue_consumer", path, driver=driver, attributes=kwargs)
+        if multi_consumer:
+            schema = init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA
+        elif without_meta:
+            schema = init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META
+        else:
+            schema = init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA
+
+        attributes = {
+            "dynamic": True,
+            "schema": schema,
+            "treat_as_queue_consumer": True,
+        }
+        attributes.update(kwargs)
+        create("table", path, attributes=attributes, driver=driver)
+        if mount:
+            sync_mount_table(path, driver=driver)
 
     def _create_registered_consumer(
         self,
