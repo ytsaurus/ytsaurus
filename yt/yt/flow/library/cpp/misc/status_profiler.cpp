@@ -257,15 +257,20 @@ private:
         const auto& Logger = LoggingContext_->Logger;
         switch (pending.Kind) {
             case TPendingLog::EKind::Break:
-                YT_LOG_WARNING(pending.Error, "Component became broken (Component: %v)", Prefix_);
+                YT_TLOG_WARNING("Component became broken")
+                    .With("Component", Prefix_)
+                    .With(pending.Error);
                 break;
             case TPendingLog::EKind::StillBroken:
-                YT_LOG_WARNING(pending.Error, "Component is still broken (Component: %v, BrokenFor: %v)", Prefix_, pending.BrokenFor);
+                YT_TLOG_WARNING("Component is still broken")
+                    .With("Component", Prefix_)
+                    .With("BrokenFor", pending.BrokenFor)
+                    .With(pending.Error);
                 break;
             case TPendingLog::EKind::Recover:
-                YT_LOG_INFO("Component recovered (Component: %v, WasBrokenFor: %v)",
-                    Prefix_,
-                    pending.BrokenFor);
+                YT_TLOG_INFO("Component recovered")
+                    .With("Component", Prefix_)
+                    .With("WasBrokenFor", pending.BrokenFor);
                 break;
             case TPendingLog::EKind::None:
                 break;
@@ -279,21 +284,21 @@ private:
         }
         const auto& Logger = LoggingContext_->Logger;
         if (report.Broken) {
-            YT_LOG_WARNING(report.Error,
-                "Component status report (Component: %v, Status: Broken, TimeSinceLastOK: %v, "
-                "ErrorTimeInWindow: %v, BreakCountInWindow: %v, Window: %v)",
-                Prefix_,
-                report.TimeSinceLastOK,
-                report.ErrorTimeInWindow,
-                report.BreakCountInWindow,
-                report.Window);
+            YT_TLOG_WARNING("Component status report")
+                .With("Component", Prefix_)
+                .With("Status", "Broken")
+                .With("TimeSinceLastOK", report.TimeSinceLastOK)
+                .With("ErrorTimeInWindow", report.ErrorTimeInWindow)
+                .With("BreakCountInWindow", report.BreakCountInWindow)
+                .With("Window", report.Window)
+                .With(report.Error);
         } else {
-            YT_LOG_INFO("Component status report (Component: %v, Status: Recovered, "
-                "ErrorTimeInWindow: %v, BreakCountInWindow: %v, Window: %v)",
-                Prefix_,
-                report.ErrorTimeInWindow,
-                report.BreakCountInWindow,
-                report.Window);
+            YT_TLOG_INFO("Component status report")
+                .With("Component", Prefix_)
+                .With("Status", "Recovered")
+                .With("ErrorTimeInWindow", report.ErrorTimeInWindow)
+                .With("BreakCountInWindow", report.BreakCountInWindow)
+                .With("Window", report.Window);
         }
     }
 };

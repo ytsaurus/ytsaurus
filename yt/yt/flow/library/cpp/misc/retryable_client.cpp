@@ -73,14 +73,17 @@ TFuture<TResult> ExecuteWithRetriesSyncImpl(
             }
 
             auto backoff = backoffStrategy.GetBackoff();
-            YT_LOG_WARNING(lastError, "Request attempt failed with retryable error (SleepDuration: %v, NextInnerTimeout: %v)", backoff, innerTimeout);
+            YT_TLOG_WARNING("Request attempt failed with retryable error")
+                .With("SleepDuration", backoff)
+                .With("NextInnerTimeout", innerTimeout)
+                .With(lastError);
             innerTimeout = std::max(dynamicSpec->MinInnerTimeout, backoff);
             TDelayedExecutor::WaitForDuration(backoff);
         }
     } catch (const TFiberCanceledException&) {
         return makeNoMoreRetriesErrorFuture();
     }
-    YT_LOG_FATAL("Unreachable point reached");
+    YT_TLOG_FATAL("Unreachable point reached");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

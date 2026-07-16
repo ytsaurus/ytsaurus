@@ -177,10 +177,10 @@ std::string ReanimateVanillaOperation(
         .ValueOrThrow();
     auto operationIdString = Format("%v", operationId);
 
-    YT_LOG_INFO("Reanimated pipeline (Path: %v, Cluster: %v, OperationId: %v)",
-        pipelinePath,
-        target,
-        operationIdString);
+    YT_TLOG_INFO("Reanimated pipeline")
+        .With("Path", pipelinePath)
+        .With("Cluster", target)
+        .With("OperationId", operationIdString);
 
     return operationIdString;
 }
