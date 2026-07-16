@@ -439,8 +439,8 @@ TSimpleExternalStateManager::TSimpleExternalStateManager(
 
 TFuture<void> TSimpleExternalStateManager::PreloadKeyStates(const THashSet<TKey>& keys)
 {
-    YT_LOG_DEBUG("Preloading keys (Count: %v)",
-        keys.size());
+    YT_TLOG_DEBUG("Preloading keys")
+        .With("Count", keys.size());
 
     auto guard = Guard(Lock_);
     YT_VERIFY(!EpochState_);
@@ -462,21 +462,21 @@ TFuture<void> TSimpleExternalStateManager::PreloadKeyStates(const THashSet<TKey>
     }
 
     if (keysToLoad.empty()) {
-        YT_LOG_DEBUG("All keys served from cache (CachedCount: %v)",
-            keys.size());
+        YT_TLOG_DEBUG("All keys served from cache")
+            .With("CachedCount", keys.size());
         return OKFuture;
     }
 
-    YT_LOG_DEBUG("Loading keys from YT (CachedCount: %v, LoadCount: %v)",
-        keys.size() - keysToLoad.size(),
-        keysToLoad.size());
+    YT_TLOG_DEBUG("Loading keys from YT")
+        .With("CachedCount", keys.size() - keysToLoad.size())
+        .With("LoadCount", keysToLoad.size());
 
     return Operator_.Lookup(keysToLoad, EpochState_->StateSchema)
         .AsUnique()
         .Apply(BIND([this, strongThis = MakeStrong(this), keys = std::move(keysToLoad)] (NSimpleExternalState::TLoadedStates&& loaded) {
             auto guard = Guard(Lock_);
-            YT_LOG_DEBUG("Preloaded keys (Count: %v)",
-                keys.size());
+            YT_TLOG_DEBUG("Preloaded keys")
+                .With("Count", keys.size());
             YT_VERIFY(EpochState_);
             YT_VERIFY(std::ssize(keys) == std::ssize(loaded.Payloads));
             NSimpleExternalState::EnsureSchema(EpochState_->StateSchema, loaded.StateSchema, keys.front());
@@ -495,12 +495,12 @@ void TSimpleExternalStateManager::Sync(IRetryableTransactionPtr transaction)
 {
     auto guard = Guard(Lock_);
     if (!EpochState_ || EpochState_->OldStates.empty()) {
-        YT_LOG_DEBUG("Nothing to sync");
+        YT_TLOG_DEBUG("Nothing to sync");
         EpochState_ = std::nullopt;
         return;
     }
-    YT_LOG_DEBUG("Syncing (Count: %v)",
-        EpochState_->OldStates.size());
+    YT_TLOG_DEBUG("Syncing")
+        .With("Count", EpochState_->OldStates.size());
     YT_VERIFY(EpochState_->StateSchema);
 
     THashMap<TKey, TPayload> newPayloads;
@@ -521,8 +521,8 @@ void TSimpleExternalStateManager::Sync(IRetryableTransactionPtr transaction)
 IStateHolderPtr TSimpleExternalStateManager::GetState(const TKey& key)
 {
     auto guard = Guard(Lock_);
-    YT_LOG_DEBUG("GetState (Key: %v)",
-        key);
+    YT_TLOG_DEBUG("GetState")
+        .With("Key", key);
     YT_VERIFY(EpochState_);
     return GetOrCrash(EpochState_->States, key);
 }
@@ -603,8 +603,8 @@ TSimpleExternalStateJoiner::TSimpleExternalStateJoiner(
 
 TFuture<void> TSimpleExternalStateJoiner::PreloadKeyStates(const THashSet<TKey>& keys)
 {
-    YT_LOG_DEBUG("Preloading keys (Count: %v)",
-        keys.size());
+    YT_TLOG_DEBUG("Preloading keys")
+        .With("Count", keys.size());
 
     auto guard = Guard(Lock_);
 
@@ -627,21 +627,21 @@ TFuture<void> TSimpleExternalStateJoiner::PreloadKeyStates(const THashSet<TKey>&
     }
 
     if (keysToLoad.empty()) {
-        YT_LOG_DEBUG("All keys served from cache (CachedCount: %v)",
-            keys.size());
+        YT_TLOG_DEBUG("All keys served from cache")
+            .With("CachedCount", keys.size());
         return OKFuture;
     }
 
-    YT_LOG_DEBUG("Loading keys from YT (CachedCount: %v, LoadCount: %v)",
-        keys.size() - keysToLoad.size(),
-        keysToLoad.size());
+    YT_TLOG_DEBUG("Loading keys from YT")
+        .With("CachedCount", keys.size() - keysToLoad.size())
+        .With("LoadCount", keysToLoad.size());
 
     return Operator_.Lookup(keysToLoad, StateSchema_)
         .AsUnique()
         .Apply(BIND([this, strongThis = MakeStrong(this), keys = std::move(keysToLoad)] (NSimpleExternalState::TLoadedStates&& loaded) {
             auto guard = Guard(Lock_);
-            YT_LOG_DEBUG("Preloaded keys (Count: %v)",
-                keys.size());
+            YT_TLOG_DEBUG("Preloaded keys")
+                .With("Count", keys.size());
             YT_VERIFY(std::ssize(keys) == std::ssize(loaded.Payloads));
             NSimpleExternalState::EnsureSchema(StateSchema_, loaded.StateSchema, keys.front());
             for (int i = 0; i < std::ssize(keys); ++i) {
@@ -657,8 +657,8 @@ TFuture<void> TSimpleExternalStateJoiner::PreloadKeyStates(const THashSet<TKey>&
 void TSimpleExternalStateJoiner::Reset()
 {
     auto guard = Guard(Lock_);
-    YT_LOG_DEBUG("Resetting (Count: %v)",
-        States_.size());
+    YT_TLOG_DEBUG("Resetting")
+        .With("Count", States_.size());
 
     for (const auto& [key, state] : States_) {
         std::optional<TCacheCookie> cookie;
@@ -674,8 +674,8 @@ void TSimpleExternalStateJoiner::Reset()
 IStateHolderPtr TSimpleExternalStateJoiner::GetState(const TKey& key)
 {
     auto guard = Guard(Lock_);
-    YT_LOG_DEBUG("GetState (Key: %v)",
-        key);
+    YT_TLOG_DEBUG("GetState")
+        .With("Key", key);
     return GetOrCrash(States_, key);
 }
 

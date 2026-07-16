@@ -162,9 +162,9 @@ public:
 
             SortedTimers_[inputTimer->StreamId].insert(inputTimer);
 
-            YT_LOG_DEBUG("MessageLifeCycle.TimerStore: timer was registered (MessageId: %v, StreamId: %v)",
-                inputTimer->MessageId,
-                inputTimer->StreamId);
+            YT_TLOG_DEBUG("MessageLifeCycle.TimerStore: timer was registered")
+                .With("MessageId", inputTimer->MessageId)
+                .With("StreamId", inputTimer->StreamId);
             ModificationQueue_.emplace_back(inputTimer, true);
 
             RegisterTimerKeyIndex(inputTimer);
@@ -188,9 +188,9 @@ public:
             UnregisterTimerKeyIndex(timer);
             SortedTimers_[timer->StreamId].erase(timer);
             TriggeredTimers_[timer->StreamId].erase(timer);
-            YT_LOG_DEBUG("MessageLifeCycle.TimerStore: timer was unregistered (MessageId: %v, StreamId: %v)",
-                timer->MessageId,
-                timer->StreamId);
+            YT_TLOG_DEBUG("MessageLifeCycle.TimerStore: timer was unregistered")
+                .With("MessageId", timer->MessageId)
+                .With("StreamId", timer->StreamId);
         }
         InflightStore_->SyncCounters();
     }
@@ -201,11 +201,11 @@ public:
         for (auto& timer : timers) {
             timer.KeySchema = Context_->KeySchema;
         }
-        YT_LOG_DEBUG("Timers loaded (Count: %v)",
-            timers.size());
+        YT_TLOG_DEBUG("Timers loaded")
+            .With("Count", timers.size());
         Register(std::move(timers));
         ModificationQueue_.clear();
-        YT_LOG_DEBUG("Timer store init completed");
+        YT_TLOG_DEBUG("Timer store init completed");
     }
 
     TFuture<void> Init() override
@@ -318,9 +318,9 @@ private:
             auto& triggeredTimers = TriggeredTimers_[timerStreamId];
             while (!timers.empty() && (*timers.begin())->TriggerTimestamp <= watermark) {
                 const auto& timer = *timers.begin();
-                YT_LOG_DEBUG("MessageLifeCycle.TimerStore: timer was triggered (MessageId: %v, StreamId: %v)",
-                    timer->MessageId,
-                    timer->StreamId);
+                YT_TLOG_DEBUG("MessageLifeCycle.TimerStore: timer was triggered")
+                    .With("MessageId", timer->MessageId)
+                    .With("StreamId", timer->StreamId);
                 triggeredTimers.insert(timer);
                 timers.erase(timers.begin());
             }

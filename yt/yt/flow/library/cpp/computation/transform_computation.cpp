@@ -71,7 +71,7 @@ void TTransformComputation::DoPrepare(const IComputationRunContextPtr& context)
 
 void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, TTraceContextGuard&& initTraceContextGuard)
 {
-    YT_LOG_INFO("Started DoExecute");
+    YT_TLOG_INFO("Started DoExecute");
     YT_VERIFY(TimerStore_);
     YT_VERIFY(InputStore_);
     WaitFor(TimerStore_->Init()).ThrowOnError();
@@ -90,7 +90,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
     }
 
     initTraceContextGuard.Release();
-    YT_LOG_INFO("Init completed");
+    YT_TLOG_INFO("Init completed");
     while (!isFinished) {
         auto iterGuard = StartRunIteration(context);
         auto dynamicSpec = GetDynamicSpec();
@@ -131,16 +131,16 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             }
         }
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
-        YT_LOG_INFO("Got batch (Inputs: %v, Timers: %v, Visits: %v)",
-            inputs.size(),
-            inputTimers.size(),
-            inputVisits.size());
+        YT_TLOG_INFO("Got batch")
+            .With("Inputs", inputs.size())
+            .With("Timers", inputTimers.size())
+            .With("Visits", inputVisits.size());
 
         auto unprocessedInputs = [&] () {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Deduplicate"));
             auto [processedInput, unprocessedInputs] = InputStore_->Filter(inputs, deduplicateInput);
-            YT_LOG_INFO("Filtered already processed (Inputs: %v)",
-                processedInput.size());
+            YT_TLOG_INFO("Filtered already processed")
+                .With("Inputs", processedInput.size());
             context->MarkPersisted(processedInput);
             return unprocessedInputs;
         }();
@@ -159,9 +159,9 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             processResult = outputCollector->CollectResult();
         }
 
-        YT_LOG_INFO("Process completed (OutputTimers: %v, OutputMessages: %v)",
-            processResult.OutputTimers.size(),
-            processResult.OutputMessages.size());
+        YT_TLOG_INFO("Process completed")
+            .With("OutputTimers", processResult.OutputTimers.size())
+            .With("OutputMessages", processResult.OutputMessages.size());
 
         if (deduplicateInput) {
             InputStore_->Register(unprocessedInputs);
@@ -192,7 +192,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
         {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Sync"));
             DoSync(tx);
-            YT_LOG_INFO("Transaction prepared");
+            YT_TLOG_INFO("Transaction prepared");
         }
         Commit(context, tx);
 
@@ -212,7 +212,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             std::move(unprocessedInputs),
             std::move(processResult));
     }
-    YT_LOG_INFO("Completed DoExecute");
+    YT_TLOG_INFO("Completed DoExecute");
 }
 
 void TTransformComputation::ProcessDistributedMessages(const IComputationRunContextPtr& /*context*/, std::deque<TOutputMessageConstPtr>&& messages)

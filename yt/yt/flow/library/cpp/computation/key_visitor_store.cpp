@@ -193,7 +193,10 @@ TFuture<void> TKeyVisitorStore::Init()
             try {
                 parsed = ConvertTo<TKeyVisitorIntervalPtr>(value);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to parse persisted key_visitor interval row, skipping (Key: %v, IsLower: %v)", tableKey.Key, tableKey.IsLower);
+                YT_TLOG_WARNING("Failed to parse persisted key_visitor interval row, skipping")
+                    .With("Key", tableKey.Key)
+                    .With("IsLower", tableKey.IsLower)
+                    .With(ex);
                 continue;
             }
             RemoteIntervals_.emplace(std::pair(tableKey.Key, tableKey.IsLower), std::move(parsed));

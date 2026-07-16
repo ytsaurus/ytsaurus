@@ -103,7 +103,8 @@ TSwiftMapComputation::TSwiftMapComputation(
 void TSwiftMapComputation::DoPrepare(const IComputationRunContextPtr& context)
 {
     if (GetParameters()->AllowBatchingWithRelaxedGuarantees) {
-        YT_LOG_WARNING("AllowBatchingWithRelaxedGuarantees is enabled: outputs may merge several parents, per-key MessageId order "
+        YT_TLOG_WARNING(
+            "AllowBatchingWithRelaxedGuarantees is enabled: outputs may merge several parents, per-key MessageId order "
             "is not preserved and downstream must tolerate at-least-once delivery");
     }
     InitOutputStoreDistribution(context, /*allowOutputDuplicates*/ true);
@@ -111,7 +112,7 @@ void TSwiftMapComputation::DoPrepare(const IComputationRunContextPtr& context)
 
 void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, TTraceContextGuard&& initTraceContextGuard)
 {
-    YT_LOG_INFO("Started DoExecute");
+    YT_TLOG_INFO("Started DoExecute");
     YT_VERIFY(InputStore_);
     YT_VERIFY(TimerStore_);
     WaitFor(InputStore_->Init()).ThrowOnError();
@@ -131,7 +132,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
     }
 
     initTraceContextGuard.Release();
-    YT_LOG_INFO("Init completed");
+    YT_TLOG_INFO("Init completed");
 
     while (!isFinished) {
         auto iterGuard = StartRunIteration(context);
@@ -167,16 +168,16 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
                 }
             }
         }
-        YT_LOG_INFO("Got batch (Inputs: %v, Timers: %v, Visits: %v)",
-            inputs.size(),
-            inputTimers.size(),
-            inputVisits.size());
+        YT_TLOG_INFO("Got batch")
+            .With("Inputs", inputs.size())
+            .With("Timers", inputTimers.size())
+            .With("Visits", inputVisits.size());
 
         auto unprocessedInputs = [&] () {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Deduplicate"));
             auto [processedInput, unprocessedInputs] = InputStore_->Filter(inputs, /*checkState*/ false);
-            YT_LOG_INFO("Filtered already processed (Inputs: %v)",
-                processedInput.size());
+            YT_TLOG_INFO("Filtered already processed")
+                .With("Inputs", processedInput.size());
             context->MarkPersisted(processedInput);
             return unprocessedInputs;
         }();
@@ -294,8 +295,8 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             OutputStore_->TryRegisterBatch(outputMessagesBase, /*persist=*/false);
             RegisterOutputMessages(context, outputMessagesBase, std::nullopt, dynamicSpec);
 
-            YT_LOG_INFO("Process completed (OutputMessages: %v)",
-                outputMessages.size());
+            YT_TLOG_INFO("Process completed")
+                .With("OutputMessages", outputMessages.size());
         }
 
         ValidateTimerStoreLimits(dynamicSpec);

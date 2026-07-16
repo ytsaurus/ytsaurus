@@ -58,11 +58,11 @@ public:
             result.Unprocessed.reserve(messages.size());
             for (const auto& message : messages) {
                 if (message->SystemTimestamp < systemWatermark) {
-                    YT_LOG_DEBUG("MessageLifeCycle.PartitionStore: filtered by SystemTimestamp (MessageId: %v, StreamId: %v, SystemTimestamp: %v, InputSystemWatermark: %v)",
-                        message->MessageId,
-                        message->StreamId,
-                        message->SystemTimestamp,
-                        systemWatermark);
+                    YT_TLOG_DEBUG("MessageLifeCycle.PartitionStore: filtered by SystemTimestamp")
+                        .With("MessageId", message->MessageId)
+                        .With("StreamId", message->StreamId)
+                        .With("SystemTimestamp", message->SystemTimestamp)
+                        .With("InputSystemWatermark", systemWatermark);
                     result.Processed.push_back(message);
                 } else {
                     result.Unprocessed.push_back(message);
@@ -85,16 +85,16 @@ public:
         TFilterResult result;
         for (int i = 0; i < std::ssize(messages); ++i) {
             if (isProcessed[i]) {
-                YT_LOG_DEBUG("MessageLifeCycle.PartitionStore: filtered by InputMessages (MessageId: %v, StreamId: %v)",
-                    messages[i]->MessageId,
-                    messages[i]->StreamId);
+                YT_TLOG_DEBUG("MessageLifeCycle.PartitionStore: filtered by InputMessages")
+                    .With("MessageId", messages[i]->MessageId)
+                    .With("StreamId", messages[i]->StreamId);
                 result.Processed.push_back(messages[i]);
             } else if (messages[i]->SystemTimestamp < systemWatermark) {
-                YT_LOG_DEBUG("MessageLifeCycle.PartitionStore: filtered by SystemTimestamp (MessageId: %v, StreamId: %v, SystemTimestamp: %v, InputSystemWatermark: %v)",
-                    messages[i]->MessageId,
-                    messages[i]->StreamId,
-                    messages[i]->SystemTimestamp,
-                    systemWatermark);
+                YT_TLOG_DEBUG("MessageLifeCycle.PartitionStore: filtered by SystemTimestamp")
+                    .With("MessageId", messages[i]->MessageId)
+                    .With("StreamId", messages[i]->StreamId)
+                    .With("SystemTimestamp", messages[i]->SystemTimestamp)
+                    .With("InputSystemWatermark", systemWatermark);
                 result.Processed.push_back(messages[i]);
             } else {
                 result.Unprocessed.push_back(messages[i]);
@@ -115,9 +115,9 @@ public:
                     message->StreamId);
             }
 
-            YT_LOG_DEBUG("MessageLifeCycle.InputStore: message was registered (MessageId: %v, StreamId: %v)",
-                message->MessageId,
-                message->StreamId);
+            YT_TLOG_DEBUG("MessageLifeCycle.InputStore: message was registered")
+                .With("MessageId", message->MessageId)
+                .With("StreamId", message->StreamId);
 
             ConfirmedMessages_.push_back({
                 .Key = message->Key,
