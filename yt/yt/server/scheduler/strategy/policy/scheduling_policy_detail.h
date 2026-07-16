@@ -690,6 +690,8 @@ private:
     TPersistentNodeSchedulingSegmentStateMap InitialPersistentSchedulingSegmentNodeStates_;
     TPersistentOperationSchedulingSegmentStateMap InitialPersistentSchedulingSegmentOperationStates_;
 
+    THashMap<std::string, TInstant> NodeToResourceLimitsViolationStartTime_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     //! Applies a single allocation update. Called in a loop by ProcessAllocationUpdates.
