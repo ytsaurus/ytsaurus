@@ -554,7 +554,7 @@ public:
             GetConfig()->DataNode->NetInThrottlingLimit);
         bool throttle = netQueueSize > netQueueLimit;
         if (throttle && incrementCounter) {
-            GetNetworkStatistics().IncrementReadThrottlingCounter(networkName);
+            GetNetworkStatistics().IncrementWriteThrottlingCounter(networkName);
         }
         return TNetThrottlingResult{.Enabled = throttle, .QueueSize = netQueueSize};
     }

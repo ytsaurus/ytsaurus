@@ -6,6 +6,7 @@
 #include <yt/yt/server/node/data_node/data_node_service.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/master_connector.h>
+#include <yt/yt/server/node/data_node/network_statistics.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -1559,6 +1560,41 @@ TEST_F(TDataNodeTest, StartChunkReflectsNetInThrottlerQueueSize)
 
     inThrottler->Release(2_GB);
     Y_UNUSED(throttleFuture);
+}
+
+TEST_F(TDataNodeTest, NetInThrottlingIsReportedAsWriteThrottling)
+{
+    auto bootstrap = GetDataNodeBootstrap();
+    bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->NetInThrottlingLimit = 0;
+
+    TWorkloadDescriptor workloadDescriptor{EWorkloadCategory::SystemReplication};
+    auto inThrottler = bootstrap->GetInThrottler(workloadDescriptor);
+    auto throttleFuture = inThrottler->Throttle(2_GB);
+
+    EXPECT_GT(inThrottler->GetQueueTotalAmount(), 0);
+
+    const std::string networkName = "test_network";
+    auto result = bootstrap->CheckNetInThrottling(networkName, workloadDescriptor);
+    EXPECT_TRUE(result.Enabled);
+
+    NNodeTrackerClient::NProto::TClusterNodeStatistics statistics;
+    bootstrap->GetNetworkStatistics().UpdateStatistics(&statistics);
+
+    const NNodeTrackerClient::NProto::TNetworkStatistics* networkStatistics = nullptr;
+    for (const auto& network : statistics.network()) {
+        if (network.network() == networkName) {
+            networkStatistics = &network;
+            break;
+        }
+    }
+
+    ASSERT_NE(networkStatistics, nullptr);
+    EXPECT_FALSE(networkStatistics->throttling_reads());
+    EXPECT_TRUE(networkStatistics->throttling_writes());
+
+    inThrottler->Release(2_GB);
+    WaitFor(throttleFuture)
+        .ThrowOnError();
 }
 
 TEST_F(TDataNodeTest, StartChunkIgnoresNetInThrottlerQueueSizeWhenFlagDisabled)
