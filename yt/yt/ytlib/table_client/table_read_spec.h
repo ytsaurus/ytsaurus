@@ -29,13 +29,9 @@ struct TTableReadSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! All fields are optional; the table and client are passed to FetchSingleTableReadSpec directly.
 struct TFetchSingleTableReadSpecOptions
 {
-    // Required arguments.
-    NYPath::TRichYPath RichPath;
-    NApi::NNative::IClientPtr Client;
-
-    // Optional arguments.
     NTransactionClient::TTransactionId TransactionId;
     NChunkClient::TReadSessionId ReadSessionId = NChunkClient::TReadSessionId::Create();
     NChunkClient::TGetUserObjectBasicAttributesOptions GetUserObjectBasicAttributesOptions;
@@ -50,7 +46,10 @@ struct TFetchSingleTableReadSpecOptions
 //! Helper for fetching single table identified by TRichYPath.
 //! By the moment this comment is written, it is used in NApi::TTableReader
 //! and in CHYT YT-based external dictionaries.
-TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& options);
+TTableReadSpec FetchSingleTableReadSpec(
+    const NYPath::TRichYPath& path,
+    const NApi::NNative::IClientPtr& client,
+    const TFetchSingleTableReadSpecOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
