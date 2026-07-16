@@ -245,6 +245,7 @@ std::vector<EMessageDeliveryState> TInputBuffer::DoAddMessages(
             MessageStatesMap_.prefetch(message->MessageId);
         })
         .ForEach(messages, [&] (TInputMessageConstPtr& message) {
+            TryFulfillPendingFetchCheckpoint();
             auto messageStateIt = MessageStatesMap_.find(message->MessageId);
             if (messageStateIt != MessageStatesMap_.end()) {
                 deliveryStates.push_back(messageStateIt->second.CurrentDeliveryState);
@@ -294,6 +295,8 @@ std::vector<EMessageDeliveryState> TInputBuffer::DoAddMessages(
         });
 
     YT_VERIFY(deliveryStates.size() == messages.size());
+
+    FulfillPendingFetch();
 
     for (auto& [streamId, streamState] : StreamStates_) {
         streamState.LimitUsageState->Update(streamState.Usage);
@@ -396,6 +399,7 @@ void TInputBuffer::DoMarkPersisted(std::deque<TMessageId> messageIds, TInstant n
             MessageStatesMap_.prefetch(messageId);
         })
         .ForEach(messageIds, [&] (const TMessageId& messageId) {
+            TryFulfillPendingFetchCheckpoint();
             auto it = GetIteratorOrCrash(MessageStatesMap_, messageId);
             auto& messageState = it->second;
 
@@ -432,22 +436,57 @@ double TInputBuffer::ComputeStreamBias(TStreamId streamId, const TInputMessageCo
 
 TFuture<std::vector<TInputMessageConstPtr>> TInputBuffer::GetInputBatch(const THashSet<TStreamId>& allowedStreams)
 {
-    return BIND(&TInputBuffer::DoGetInputBatch, MakeStrong(this), allowedStreams)
-        .AsyncVia(SerializedInvoker_)
-        .Run();
+    auto now = TInstant::Now();
+    auto deadline = NotFullBatchDeadline_.load();
+    if (now < deadline) {
+        return TDelayedExecutor::MakeDelayed(deadline - now)
+            .Apply(BIND(&TInputBuffer::PublishPendingFetch, MakeStrong(this), allowedStreams));
+    }
+    return PublishPendingFetch(allowedStreams);
 }
 
-TFuture<std::vector<TInputMessageConstPtr>> TInputBuffer::DoGetInputBatch(THashSet<TStreamId> allowedStreams)
+TFuture<std::vector<TInputMessageConstPtr>> TInputBuffer::PublishPendingFetch(THashSet<TStreamId> allowedStreams)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto pendingFetch = New<TPendingFetch>();
+    pendingFetch->Promise = NewPromise<std::vector<TInputMessageConstPtr>>();
+    pendingFetch->AllowedStreams = std::move(allowedStreams);
+    auto future = pendingFetch->Promise.ToFuture();
+
+    auto previous = PendingFetch_.Exchange(pendingFetch);
+    YT_VERIFY(!previous);
+
+    SerializedInvoker_->Invoke(BIND(&TInputBuffer::FulfillPendingFetch, MakeStrong(this)));
+
+    return future;
+}
+
+void TInputBuffer::FulfillPendingFetch()
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
 
-    auto now = TInstant::Now();
-
-    if (now < LastNotFullBatchInstant_ + BatchDuration_) {
-        auto sleepTime = LastNotFullBatchInstant_ + BatchDuration_ - now;
-        return TDelayedExecutor::MakeDelayed(sleepTime, SerializedInvoker_)
-            .Apply(BIND(&TInputBuffer::DoGetInputBatch, MakeStrong(this), std::move(allowedStreams)));
+    auto pendingFetch = PendingFetch_.Exchange(TPendingFetchPtr());
+    if (!pendingFetch) {
+        // The add path has already served it.
+        return;
     }
+    pendingFetch->Promise.Set(ExtractBatch(pendingFetch->AllowedStreams));
+}
+
+void TInputBuffer::TryFulfillPendingFetchCheckpoint()
+{
+    // Deliberately no affinity assert before the counter: this is called per message on the
+    // hot insert/persist loops and must stay branch-cheap.
+    if ((FulfillCheckpointCounter_++ % FulfillCheckpointPeriod) != 0) {
+        return;
+    }
+    FulfillPendingFetch();
+}
+
+std::vector<TInputMessageConstPtr> TInputBuffer::ExtractBatch(const THashSet<TStreamId>& allowedStreams)
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
 
     using TPriority = std::pair<TSystemTimestamp, ui64>;
     std::vector<std::pair<TMessagesPriorityQueue*, std::function<TPriority()>>> queues;
@@ -485,7 +524,7 @@ TFuture<std::vector<TInputMessageConstPtr>> TInputBuffer::DoGetInputBatch(THashS
         });
 
     if (!batchLimiter.IsFull()) {
-        LastNotFullBatchInstant_ = TInstant::Now();
+        NotFullBatchDeadline_.store(TInstant::Now() + BatchDuration_);
     }
 
     // Extraction freed buffer space; regrant connection windows right away so the next
@@ -501,7 +540,7 @@ TFuture<std::vector<TInputMessageConstPtr>> TInputBuffer::DoGetInputBatch(THashS
         streamState.LimitUsageState->Update(streamState.Usage);
     }
 
-    return MakeFuture<std::vector<TInputMessageConstPtr>>(std::move(batch));
+    return batch;
 }
 
 void TInputBuffer::RecalculateStreamLimits(TStreamState& streamState, bool collectStaleConnections)
