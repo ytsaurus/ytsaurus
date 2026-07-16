@@ -13,6 +13,8 @@
 
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <util/random/shuffle.h>
 
 #include <limits>
@@ -143,7 +145,25 @@ private:
 
     TMessageBatchLimiter BatchLimiter_;
     TDuration BatchDuration_;
-    TInstant LastNotFullBatchInstant_;
+
+    // A consumer fetch. Published by the (single, serial) consumer after the batch-duration delay
+    // has already been slept through; completed unconditionally by the scheduled fulfill, or
+    // earlier by the message-add path once matching messages appear.
+    struct TPendingFetch final
+    {
+        TPromise<std::vector<TInputMessageConstPtr>> Promise;
+        THashSet<TStreamId> AllowedStreams;
+    };
+
+    using TPendingFetchPtr = TIntrusivePtr<TPendingFetch>;
+
+    TAtomicIntrusivePtr<TPendingFetch> PendingFetch_;
+    // Serialized-invoker-affine budget of items processed by the long insert/persist loops;
+    // every FulfillCheckpointPeriod-th item attempts to serve the pending fetch.
+    static constexpr i64 FulfillCheckpointPeriod = 1024;
+    i64 FulfillCheckpointCounter_ = 0;
+    // Instant until which the next fetch must be delayed after a non-full batch.
+    std::atomic<TInstant> NotFullBatchDeadline_ = TInstant::Zero();
 
     TMessageTransferingInfoPtr MessageTransferingInfo_;
 
@@ -159,7 +179,10 @@ private:
     void DoAddConnectionOffer(TGuid connectionId, TConnectionOffer offer);
     THashMap<TStreamId, i64> DoGetConnectionLimits(TGuid connectionId);
     void DoMarkPersisted(std::deque<TMessageId> messageIds, TInstant now);
-    TFuture<std::vector<TInputMessageConstPtr>> DoGetInputBatch(THashSet<TStreamId> allowedStreams);
+    TFuture<std::vector<TInputMessageConstPtr>> PublishPendingFetch(THashSet<TStreamId> allowedStreams);
+    void FulfillPendingFetch();
+    void TryFulfillPendingFetchCheckpoint();
+    std::vector<TInputMessageConstPtr> ExtractBatch(const THashSet<TStreamId>& allowedStreams);
     TSystemTimestamp DoGetMinStabilizedEventTimestamp();
 };
 
