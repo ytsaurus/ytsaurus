@@ -1,9 +1,8 @@
-import pytest
-
 from yt_queue_agent_test_base import TestQueueAgentBase, GenericObjectPath
 
 from yt_commands import (
     authors,
+    get,
     insert_rows,
     ls,
     pull_consumer,
@@ -17,7 +16,13 @@ from yt_commands import (
 from yt_helpers import profiler_factory
 from yt.test_helpers.profiler import Profiler
 
+from yt_type_helpers import normalize_schema, make_schema
+
+import yt.environment.init_queue_agent_state as init_queue_agent_state
+
 import yt_error_codes
+
+import pytest
 
 from collections import defaultdict
 
@@ -30,11 +35,15 @@ NONE_TAG = "none"
 
 
 def get_profiler() -> Profiler:
-    original_host = ls('//sys/queue_agents/instances')[0]
+    original_host = ls("//sys/queue_agents/instances")[0]
     return profiler_factory().at_queue_agent(original_host)
 
 
-def advance_consumer_partitions(queue: GenericObjectPath, consumer: GenericObjectPath, partition_index_to_offset: dict[str, int]):
+def advance_consumer_partitions(
+    queue: GenericObjectPath,
+    consumer: GenericObjectPath,
+    partition_index_to_offset: dict[str, int],
+) -> None:
     for partition_index, offset in partition_index_to_offset.items():
         advance_consumer(str(consumer), str(queue), partition_index=partition_index, old_offset=None, new_offset=offset)
 
@@ -65,13 +74,26 @@ class TestQueueApi(TestQueueAgentBase):
         other_consumer_name = "other_1"
 
         self._create_consumer(consumer_path, multi_consumer=True)
+
+        assert get(f"{consumer_path}/@type") == "table"
+        assert get(f"{consumer_path}/@treat_as_queue_consumer")
+        expected_schema = make_schema(
+            init_queue_agent_state.MULTI_CONSUMER_OBJECT_TABLE_SCHEMA,
+            strict=True,
+            unique_keys=True,
+        )
+        assert normalize_schema(get(f"{consumer_path}/@schema")) == expected_schema
+
         queue_path = "//tmp/queue"
         queue_ref = GenericObjectPath(queue_path, "primary")
         consumer_ref = GenericObjectPath(consumer_path, "primary", consumer_name)
         other_consumer_ref = GenericObjectPath(consumer_path, "primary", other_consumer_name)
         partition_count = 3
         self._create_queue(queue_path, partition_count=partition_count)
-        insert_rows(queue_path, [{"$tablet_index": partition_to_insert, "data": f"hello world {insert_index}"} for insert_index in range(3)])
+        insert_rows(queue_path, [{
+            "$tablet_index": partition_to_insert,
+            "data": f"hello world {insert_index}",
+        } for insert_index in range(3)])
 
         with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
             pull_consumer(str(consumer_ref), str(queue_ref), partition_index=partition_to_insert)
@@ -158,7 +180,9 @@ class TestQueueApi(TestQueueAgentBase):
                     assert len(pulled_data) == len(expected_data) - offsets[partition_index]
                     for i, expected_entry in enumerate(expected_data[offsets[partition_index]:]):
                         for key, value in expected_entry.items():
-                            assert pulled_data[i][key] == value, f"For {i} element expected {key} to be {value} but got {pulled_data[i][key]}"
+                            assert pulled_data[i][key] == value, (
+                                f"For {i} element expected {key} to be {value} but got {pulled_data[i][key]}"
+                            )
 
         # Validate initial state
         validate_consumer_table(consumer_path, offsets_by_name)
@@ -184,7 +208,10 @@ class TestQueueApi(TestQueueAgentBase):
         multi_consumer_ref = GenericObjectPath(multi_consumer_path, "primary")
         single_consumer_ref_with_name = GenericObjectPath(signle_consumer_path, "primary", "some_name")
         self._create_queue(queue_path, partition_count=3)
-        insert_rows(queue_path, [{"$tablet_index": 0, "data": f"hello world {insert_index}"} for insert_index in range(3)])
+        insert_rows(queue_path, [{
+            "$tablet_index": 0,
+            "data": f"hello world {insert_index}",
+        } for insert_index in range(3)])
 
         with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
             pull_consumer(multi_consumer_ref, str(queue_ref), partition_index=0)

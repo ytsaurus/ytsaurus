@@ -104,10 +104,10 @@ class TestMultiConsumerController(TestQueueAgentBase):
 
         orchid.wait_fresh_pass()
 
-        assert_yt_error(YtError.from_dict(orchid.get_status()["error"]), "is in \"unmounted\" state")
+        assert_yt_error(YtError.from_dict(orchid.get_status()["error"]), 'is in "unmounted" state')
         wait(lambda: orchid.get_alerts().check_matching(
             "queue_agent_multi_consumer_controller_pass_failed",
-            text="is in \"unmounted\" state",
+            text='is in "unmounted" state',
         ), timeout=5, ignore_exceptions=True)
 
         # No rows should be written to multi_consumer_names table for an invalid consumer.
@@ -228,8 +228,14 @@ class TestNamedConsumerController(TestQueueAgentBase):
         self._advance_consumers(consumer_ref, queue_ref, partition_index_to_offset)
 
         self._wait_for_component_passes()
+        orchid = QueueAgentOrchid()
+        multi_consumer_orchid = orchid.get_multi_consumer_orchid(GenericObjectPath(consumer_path, "primary"))
+        multi_consumer_orchid.wait_fresh_pass()
 
-        consumer_orch_id = QueueAgentOrchid().get_consumer_orchid(consumer_ref)
+        self._wait_for_component_passes(skip_cypress_synchronizer=True)
+        consumer_orch_id = orchid.get_consumer_orchid(consumer_ref)
+        consumer_orch_id.wait_fresh_pass()
+
         row = consumer_orch_id.get_row()
         assert GenericObjectPath(row["consumer"]) == consumer_ref
 
