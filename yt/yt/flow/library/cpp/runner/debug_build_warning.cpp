@@ -40,7 +40,7 @@ void MaybeLogSlowBuild(const NLogging::TLogger& logger)
 {
     if (auto message = SlowBuildWarningMessageIfAny(); !message.empty()) {
         const auto& Logger = logger;
-        YT_LOG_WARNING("%v", message);
+        YT_TLOG_WARNING(message);
     }
 }
 

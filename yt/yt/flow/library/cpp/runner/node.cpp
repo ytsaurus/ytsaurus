@@ -154,7 +154,8 @@ protected:
             DoRunNode();
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            YT_LOG_ERROR(error, "Flow node failed");
+            YT_TLOG_ERROR("Flow node failed")
+                .With(error);
             THROW_ERROR_EXCEPTION("Flow node failed") << error;
         }
     }
@@ -299,17 +300,19 @@ private:
             PrepareController();
         }
 
-        YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
 
-        YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+        YT_TLOG_INFO("Listening for RPC requests")
+            .With("Port", Config_->RpcPort);
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->Start();
 
         // Start the connector after all preparations to guarantee that
         // SubscribeLeadingStarted callbacks are initialized before the Controller election.
         if (ControllerYTConnector_) {
-            YT_LOG_INFO("Starting Controller-to-YT connector");
+            YT_TLOG_INFO("Starting Controller-to-YT connector");
             ControllerYTConnector_->Start();
         }
     }
@@ -648,22 +651,20 @@ private:
                     auto value = FromString<ssize_t>(keyValue[1]);
                     capabilities[std::string(keyValue[0])] = value;
                 } catch (...) {
-                    YT_LOG_FATAL(TError(std::string(CurrentExceptionMessage()), TError::DisableFormat),
-                        "Failed to parse worker capability value "
-                        "(EnvVar: %v, Pair: %v, Key: %v, Value: %v)",
-                        envName,
-                        pair,
-                        keyValue[0],
-                        keyValue[1]);
+                    YT_TLOG_FATAL("Failed to parse worker capability value")
+                        .With("EnvVar", envName)
+                        .With("Pair", pair)
+                        .With("Key", keyValue[0])
+                        .With("Value", keyValue[1])
+                        .With(TError(std::string(CurrentExceptionMessage()), TError::DisableFormat));
                 }
             } else if (keyValue.size() == 1) {
                 // Treat "key1,key2,key3" as "key1:0,key2:0,key3:0".
                 capabilities[std::string(keyValue[0])] = 0;
             } else {
-                YT_LOG_FATAL("Malformed worker capability entry "
-                    "(EnvVar: %v, Pair: %v)",
-                    envName,
-                    pair);
+                YT_TLOG_FATAL("Malformed worker capability entry")
+                    .With("EnvVar", envName)
+                    .With("Pair", pair);
             }
         }
 
@@ -680,13 +681,16 @@ private:
         while (true) {
             try {
                 auto bundleInfo = WaitFor(CommonYTConnector_->GetFlowTablesBundle()).ValueOrThrow();
-                YT_LOG_INFO("Found flow tables bundle clock cluster tag (Bundle: %v, ClockClusterTag: %v)",
-                    bundleInfo.Bundle,
-                    bundleInfo.ClockClusterTag);
+                YT_TLOG_INFO("Found flow tables bundle clock cluster tag")
+                    .With("Bundle", bundleInfo.Bundle)
+                    .With("ClockClusterTag", bundleInfo.ClockClusterTag);
                 return bundleInfo.ClockClusterTag.value_or(NObjectClient::InvalidCellTag);
             } catch (const TErrorException& ex) {
                 backoffStrategy.Next();
-                YT_LOG_ERROR(ex, "Unable to confirm bundles clock cell tag (Attempt: %v, RetryAfter: %v)", backoffStrategy.GetInvocationIndex() - 1, backoffStrategy.GetBackoff());
+                YT_TLOG_ERROR("Unable to confirm bundles clock cell tag")
+                    .With("Attempt", backoffStrategy.GetInvocationIndex() - 1)
+                    .With("RetryAfter", backoffStrategy.GetBackoff())
+                    .With(ex);
                 TDelayedExecutor::WaitForDuration(backoffStrategy.GetBackoff());
             }
         }
@@ -704,7 +708,10 @@ private:
                 return WaitFor(ytConnector->GetPipelineAttributes()).ValueOrThrow();
             } catch (const TErrorException& ex) {
                 backoffStrategy.Next();
-                YT_LOG_ERROR(ex, "Unable to get pipeline attributes (Attempt: %v, RetryAfter: %v)", backoffStrategy.GetInvocationIndex() - 1, backoffStrategy.GetBackoff());
+                YT_TLOG_ERROR("Unable to get pipeline attributes")
+                    .With("Attempt", backoffStrategy.GetInvocationIndex() - 1)
+                    .With("RetryAfter", backoffStrategy.GetBackoff())
+                    .With(ex);
                 TDelayedExecutor::WaitForDuration(backoffStrategy.GetBackoff());
             }
         }
@@ -713,7 +720,7 @@ private:
     TJaegerTracerConfigPtr GetTracerConfig(TFlowNodeConfigPtr config, IPipelineAuthenticatorPtr authenticator, ICommonYTConnectorPtr ytConnector)
     {
         if (!authenticator->GetTvmService()) {
-            YT_LOG_INFO("Tracing can not be automatically configured, because TVM is not configured");
+            YT_TLOG_INFO("Tracing can not be automatically configured, because TVM is not configured");
             return nullptr; // If tvm is not configured, tracer can not be initialized.
         }
 
