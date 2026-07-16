@@ -13,6 +13,7 @@
 # changes in this file.
 
 add_subdirectory(mock)
+add_subdirectory(binary_checksum_override)
 
 add_executable(yt-flow-library-cpp-common-unittests)
 

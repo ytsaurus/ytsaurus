@@ -274,6 +274,13 @@ class FlowSimpleProcessFederation:
         dump_yson_config(node_config, self._node_config_path)
 
         self._env = dict(env if env is not None else os.environ)
+        # Every flow process hashes its own binary at startup to identify it, which reads all
+        # of it — hundreds of megabytes under relwithdebinfo and the sanitizers. With the whole
+        # test machine starting federations at once that turns into an IO storm, and processes
+        # stall long enough to miss the leader election wait. Tests do not compare binaries
+        # across builds, so a fixed value does; a test that checks the checksum itself unsets
+        # this to get the real one back.
+        self._env.setdefault("YT_FLOW_BINARY_CHECKSUM_OVERRIDE", "test")
 
         seed = os.getenv("RANDOM_SEED")
         if seed is None:
