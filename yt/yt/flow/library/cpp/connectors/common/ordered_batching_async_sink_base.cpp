@@ -59,12 +59,12 @@ void TOrderedBatchingAsyncSinkBase::Init(IInitContextPtr initContext)
 void TOrderedBatchingAsyncSinkBase::Distribute(const TOutputMessageConstPtr& message, TOnDistributedCallback onDistributed)
 {
     const auto byteSize = message->ByteSize;
-    YT_LOG_DEBUG("MessageLifeCycle.Sink: message was registered (MessageId: %v, StreamId: %v, SystemTimestamp: %v, EventTimestamp: %v, ByteSize: %v)",
-        message->MessageId,
-        message->StreamId,
-        message->SystemTimestamp,
-        message->EventTimestamp,
-        byteSize);
+    YT_TLOG_DEBUG("MessageLifeCycle.Sink: message was registered")
+        .With("MessageId", message->MessageId)
+        .With("StreamId", message->StreamId)
+        .With("SystemTimestamp", message->SystemTimestamp)
+        .With("EventTimestamp", message->EventTimestamp)
+        .With("ByteSize", byteSize);
     auto guard = Guard(Lock_);
     if (message->MessageId <= State_->MaxPersistedMessageId) {
         // Already persisted — call callback immediately.
@@ -98,12 +98,12 @@ void TOrderedBatchingAsyncSinkBase::Sync(NApi::IDynamicTableTransactionPtr /*tra
 
         const auto minMessageId = request.Batch.front()->MessageId;
         const auto maxMessageId = request.Batch.back()->MessageId;
-        YT_LOG_DEBUG("Distributing batch (SeqNo: %v, MinMessageId: %v, MaxMessageId: %v, Count: %v, ByteSize: %v)",
-            request.SeqNo,
-            minMessageId,
-            maxMessageId,
-            request.Batch.size(),
-            request.ByteSize);
+        YT_TLOG_DEBUG("Distributing batch")
+            .With("SeqNo", request.SeqNo)
+            .With("MinMessageId", minMessageId)
+            .With("MaxMessageId", maxMessageId)
+            .With("Count", request.Batch.size())
+            .With("ByteSize", request.ByteSize);
 
         YT_VERIFY(minMessageId <= maxMessageId);
         YT_VERIFY(State_->MaxPersistedMessageId < minMessageId);
@@ -137,12 +137,12 @@ void TOrderedBatchingAsyncSinkBase::Commit()
         YT_VERIFY(request.Batch.size() > 0);
         const auto minMessageId = request.Batch.front()->MessageId;
         const auto maxMessageId = request.Batch.back()->MessageId;
-        YT_LOG_DEBUG("Distributed batch (SeqNo: %v, MinMessageId: %v, MaxMessageId: %v, Count: %v, ByteSize: %v)",
-            request.SeqNo,
-            minMessageId,
-            maxMessageId,
-            request.Batch.size(),
-            request.ByteSize);
+        YT_TLOG_DEBUG("Distributed batch")
+            .With("SeqNo", request.SeqNo)
+            .With("MinMessageId", minMessageId)
+            .With("MaxMessageId", maxMessageId)
+            .With("Count", request.Batch.size())
+            .With("ByteSize", request.ByteSize);
         auto future = DoDistribute(request.Batch, request.SeqNo);
         future.Subscribe(BIND([weakThis = MakeWeak(this), request = std::move(request)] (const TError& error) mutable {
             if (auto strongThis = weakThis.Lock(); strongThis && error.IsOK()) {

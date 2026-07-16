@@ -109,10 +109,10 @@ void TSyncSink::DoInit()
 
 void TSyncSink::DoDistribute(NApi::IDynamicTableTransactionPtr transaction, const std::deque<TOutputMessageConstPtr>& messages)
 {
-    YT_LOG_INFO("Synchronously modifying rows in table (MessagesCount: %v, AggregateColumns: %v, DeleteRows: %v)",
-        std::ssize(messages),
-        GetParameters()->AggregateColumns,
-        GetParameters()->DeleteRows);
+    YT_TLOG_INFO("Synchronously modifying rows in table")
+        .With("MessagesCount", std::ssize(messages))
+        .With("AggregateColumns", GetParameters()->AggregateColumns)
+        .With("DeleteRows", GetParameters()->DeleteRows);
     auto modifications = PackRowModifications(
         messages,
         NameTable_,
@@ -171,8 +171,8 @@ void TSinkController::TryUpdatePartitionCount()
         }
         auto guard = Guard(StateLock_);
         State_->CachedPartitionCount = attributes.Get<int>("tablet_count");
-        YT_LOG_INFO("Table partition count was updated (CurrentPartitionCount: %v)",
-            State_->CachedPartitionCount);
+        YT_TLOG_INFO("Table partition count was updated")
+            .With("CurrentPartitionCount", State_->CachedPartitionCount);
         UpdatePartitionCountErrorState_->ClearError();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to update partition count") << ex;

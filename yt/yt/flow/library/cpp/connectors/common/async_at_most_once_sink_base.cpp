@@ -43,11 +43,11 @@ void TAsyncAtMostOnceSinkBase::Init(IInitContextPtr /*initContext*/)
 
 void TAsyncAtMostOnceSinkBase::Distribute(const TOutputMessageConstPtr& message, TOnDistributedCallback onDistributed)
 {
-    YT_LOG_DEBUG("MessageLifeCycle.Sink: message was registered (MessageId: %v, StreamId: %v, SystemTimestamp: %v, EventTimestamp: %v)",
-        message->MessageId,
-        message->StreamId,
-        message->SystemTimestamp,
-        message->EventTimestamp);
+    YT_TLOG_DEBUG("MessageLifeCycle.Sink: message was registered")
+        .With("MessageId", message->MessageId)
+        .With("StreamId", message->StreamId)
+        .With("SystemTimestamp", message->SystemTimestamp)
+        .With("EventTimestamp", message->EventTimestamp);
     ObserveEventLag(message->StreamId, message->EventTimestamp);
     // The at-most-once sink is fire-and-forget: it does not hold the output buffer.
     // Signal distribution immediately.
@@ -69,10 +69,10 @@ void TAsyncAtMostOnceSinkBase::Commit()
         std::swap(requests, RegisteredRequests_);
     }
     if (!QueueSizeSemaphore_->IsReady()) {
-        YT_LOG_WARNING("Async sink queue is full, dropping %v messages (UsedBytes: %v, TotalBytes: %v)",
-            requests.size(),
-            QueueSizeSemaphore_->GetUsed(),
-            QueueSizeSemaphore_->GetTotal());
+        YT_TLOG_WARNING("Async sink queue is full, dropping messages")
+            .With("MessageCount", requests.size())
+            .With("UsedBytes", QueueSizeSemaphore_->GetUsed())
+            .With("TotalBytes", QueueSizeSemaphore_->GetTotal());
         return;
     }
     ui64 rowsSize = 0;
@@ -86,11 +86,11 @@ void TAsyncAtMostOnceSinkBase::Commit()
         }
     }
     if (futures.size() < requests.size()) {
-        YT_LOG_WARNING("Async sink queue size limit exceeded, %v out of %v messages will be dropped (UsedBytes: %v, TotalBytes: %v)",
-            requests.size() - futures.size(),
-            requests.size(),
-            QueueSizeSemaphore_->GetUsed(),
-            QueueSizeSemaphore_->GetTotal());
+        YT_TLOG_WARNING("Async sink queue size limit exceeded, some messages will be dropped")
+            .With("DroppedMessageCount", requests.size() - futures.size())
+            .With("TotalMessageCount", requests.size())
+            .With("UsedBytes", QueueSizeSemaphore_->GetUsed())
+            .With("TotalBytes", QueueSizeSemaphore_->GetTotal());
     }
     TFuture<void> combinedFuture = AllSucceeded(
         std::move(futures),
@@ -126,9 +126,9 @@ void TAsyncAtMostOnceSinkBase::SuspendDestructionGuarded(std::vector<TIntrusiveP
         return;
     }
 
-    YT_LOG_INFO("Called SuspendDestructionGuarded (SuspendDuration: %v ms, UsedBytes: %v)",
-        suspendDuration.MilliSeconds(),
-        QueueSizeSemaphore_->GetUsed());
+    YT_TLOG_INFO("Called SuspendDestructionGuarded")
+        .With("SuspendDurationMs", suspendDuration.MilliSeconds())
+        .With("UsedBytes", QueueSizeSemaphore_->GetUsed());
 
     // AsyncAcquire(totalSlots) returns a future that becomes set when all slots
     // are free (FreeSlots_ >= TotalSlots_), which is equivalent to IsFree().
@@ -143,10 +143,12 @@ void TAsyncAtMostOnceSinkBase::SuspendDestructionGuarded(std::vector<TIntrusiveP
         })
         .Subscribe(BIND([Logger = Logger, acquireFuture, timeoutFuture, prevent = std::move(prevent)] (const TError& error) {
             if (!error.IsOK()) {
-                YT_LOG_WARNING(error, "Error while waiting for in-flight distribute futures during destruction");
+                YT_TLOG_WARNING("Error while waiting for in-flight distribute futures during destruction")
+                    .With(error);
             }
             if (!acquireFuture.IsSet()) {
-                YT_LOG_WARNING("Destructor timeout expired, some distribute futures are still in-flight");
+                YT_TLOG_WARNING("Destructor timeout expired, some distribute futures are still in-flight")
+                    .With(error);
             }
         }).Via(GetContext()->SerializedInvoker));
 }

@@ -294,9 +294,9 @@ void TOrderedSourceBase::Commit()
 {
     YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
 
-    YT_LOG_INFO("Persisted state (State: %v, NextOffset: %v)",
-        NYson::ConvertToYsonString(State_, NYson::EYsonFormat::Text),
-        NextReadOffset_);
+    YT_TLOG_INFO("Persisted state")
+        .With("State", NYson::ConvertToYsonString(State_, NYson::EYsonFormat::Text))
+        .With("NextOffset", NextReadOffset_);
 
     DoReportPersistedOffset(State_->PersistedOffsetExclusive);
 }
@@ -345,9 +345,9 @@ void TOrderedSourceBase::FlushDelayedPartitionInfoUpdates()
         try {
             YT_VERIFY(update.UpdateInstant.has_value());
 
-            YT_LOG_DEBUG("Apply partition info update (CommittedOffsetExclusive: %v, MaxOffsetExclusive: %v)",
-                update.CommittedOffsetExclusive,
-                update.MaxOffsetExclusive);
+            YT_TLOG_DEBUG("Apply partition info update")
+                .With("CommittedOffsetExclusive", update.CommittedOffsetExclusive)
+                .With("MaxOffsetExclusive", update.MaxOffsetExclusive);
 
             if (update.CommittedOffsetExclusive) {
                 CommittedOffsetExclusive_ = std::max(CommittedOffsetExclusive_, *update.CommittedOffsetExclusive);
@@ -355,10 +355,9 @@ void TOrderedSourceBase::FlushDelayedPartitionInfoUpdates()
             }
             if (CommittedOffsetExclusive_ > NextReadOffset_) {
                 if (!CanCommittedOffsetExceedNextReadOffset()) {
-                    YT_LOG_ERROR("Rewind NextReadOffset up to CommittedOffsetExclusive. Probably some input data was trimmed before reading "
-                        "(NewNextReadOffset: %v, OldNextReadOffset: %v)",
-                        CommittedOffsetExclusive_,
-                        NextReadOffset_);
+                    YT_TLOG_ERROR("Rewind NextReadOffset up to CommittedOffsetExclusive. Probably some input data was trimmed before reading")
+                        .With("NewNextReadOffset", CommittedOffsetExclusive_)
+                        .With("OldNextReadOffset", NextReadOffset_);
                 }
                 NextReadOffset_ = CommittedOffsetExclusive_;
                 MarkMissingMessagesPersisted();
@@ -378,7 +377,8 @@ void TOrderedSourceBase::FlushDelayedPartitionInfoUpdates()
             }
             State_->EnsureInvariants();
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Fatal error in updating partition info");
+            YT_TLOG_FATAL("Fatal error in updating partition info")
+                .With(ex);
         }
     }
     if (CommittedOffsetExclusive_ > State_->CommittedOffsetExclusive) {
@@ -442,11 +442,10 @@ void TOrderedSourceBase::CleanUpInflightOffsets()
             offsetInfo.NextMessageSeqNo,
             GetContext()->SourceStreamId,
             ConvertOffsetToLexicographicallyComparableString(offsetInfo.NextOffset));
-        YT_LOG_FATAL_UNLESS(persistedMessageIdExclusive >= State_->PersistedMessageIdExclusive,
-            "Expected that new persisted message id is greater than persisted in state "
-            "(NewPersistedMessageIdExclusive: %v, StatePersistedMessageIdExclusive: %v)",
-            persistedMessageIdExclusive,
-            State_->PersistedMessageIdExclusive);
+        YT_TLOG_FATAL_UNLESS(persistedMessageIdExclusive >= State_->PersistedMessageIdExclusive,
+            "Expected that new persisted message id is greater than persisted in state")
+            .With("NewPersistedMessageIdExclusive", persistedMessageIdExclusive)
+            .With("StatePersistedMessageIdExclusive", State_->PersistedMessageIdExclusive);
         State_->PersistedMessageIdExclusive = std::move(persistedMessageIdExclusive);
         TryIncrease(State_->PersistedOffsetExclusive, offsetInfo.NextOffset);
         TryIncrease(State_->PublishedOffsetExclusive, offsetInfo.NextOffset);
@@ -473,17 +472,15 @@ void TOrderedSourceBase::MarkMissingMessagesPersisted()
 
     const auto& firstNotPersistedMessageOffset = InflightOffsets_.empty() ? NextReadOffset_ : InflightOffsets_.front().Offset;
 
-    YT_LOG_FATAL_UNLESS(firstNotPersistedMessageOffset >= State_->PersistedOffsetExclusive,
-        "Expected increasing of offsets (NewPersistedOffsetExclusive: %v, OldPersistedOffsetExclusive: %v)",
-        firstNotPersistedMessageOffset,
-        State_->PersistedOffsetExclusive);
+    YT_TLOG_FATAL_UNLESS(firstNotPersistedMessageOffset >= State_->PersistedOffsetExclusive,
+        "Expected increasing of offsets")
+        .With("NewPersistedOffsetExclusive", firstNotPersistedMessageOffset)
+        .With("OldPersistedOffsetExclusive", State_->PersistedOffsetExclusive);
     if (firstNotPersistedMessageOffset > State_->PersistedOffsetExclusive) {
         if (AreOffsetsConsecutive()) {
-            YT_LOG_ERROR("Rewind PersistedOffsetExclusive up to first not persisted message offset. "
-                "Probably some input data was trimmed before reading "
-                "(OldPersistedOffsetExclusive: %v, FirstNotPersistedMessageOffset: %v)",
-                State_->PersistedOffsetExclusive,
-                firstNotPersistedMessageOffset);
+            YT_TLOG_ERROR("Rewind PersistedOffsetExclusive up to first not persisted message offset. Probably some input data was trimmed before reading")
+                .With("OldPersistedOffsetExclusive", State_->PersistedOffsetExclusive)
+                .With("FirstNotPersistedMessageOffset", firstNotPersistedMessageOffset);
         }
         State_->PersistedOffsetExclusive = firstNotPersistedMessageOffset;
         State_->PublishedOffsetExclusive = std::max(State_->PublishedOffsetExclusive, State_->PersistedOffsetExclusive);
@@ -501,10 +498,10 @@ void TOrderedSourceBase::MarkMissingMessagesPersisted()
             seqNoWatermark,
             GetContext()->SourceStreamId,
             ConvertOffsetToLexicographicallyComparableString(firstNotPersistedMessageOffset));
-        YT_LOG_FATAL_UNLESS(newPersistedMessageIdExclusive >= State_->PersistedMessageIdExclusive,
-            "Expected increasing of message ids (NewPersistedMessageId: %v, OldPersistedMessageId: %v)",
-            newPersistedMessageIdExclusive,
-            State_->PersistedMessageIdExclusive);
+        YT_TLOG_FATAL_UNLESS(newPersistedMessageIdExclusive >= State_->PersistedMessageIdExclusive,
+            "Expected increasing of message ids")
+            .With("NewPersistedMessageId", newPersistedMessageIdExclusive)
+            .With("OldPersistedMessageId", State_->PersistedMessageIdExclusive);
         State_->PersistedMessageIdExclusive = newPersistedMessageIdExclusive;
     }
 
@@ -619,21 +616,20 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
         const auto halfDecayPeriod = GetDynamicParameters()->UnavailableTimeHalfDecayPeriod;
         // Maximum value of DecayedUnavailableDuration is halfDecayPeriod / ln(2) ~ 1.44 * halfDecayPeriod.
         const bool isStablyUnavailable = (State_->DecayedUnavailableDuration / halfDecayPeriod > 0.5);
-        YT_LOG_DEBUG("Source is unavailable right now (LastUnavailableInstant: %v, "
-            "HalfDecayPeriod: %v, DecayedUnavailableDuration: %v, IsStablyUnavailable: %v)",
-            State_->LastUnavailableInstant,
-            halfDecayPeriod.SecondsFloat(),
-            State_->DecayedUnavailableDuration.SecondsFloat(),
-            isStablyUnavailable);
+        YT_TLOG_DEBUG("Source is unavailable right now")
+            .With("LastUnavailableInstant", State_->LastUnavailableInstant)
+            .With("HalfDecayPeriod", halfDecayPeriod.SecondsFloat())
+            .With("DecayedUnavailableDuration", State_->DecayedUnavailableDuration.SecondsFloat())
+            .With("IsStablyUnavailable", isStablyUnavailable);
         if (isStablyUnavailable) {
             inflight->InflightMetrics->UnavailableTimestamp = TSystemTimestamp(State_->LastUnavailableInstant.Seconds());
         }
     }
 
     YT_VERIFY(inflight->InflightMetrics->Count >= 0);
-    YT_LOG_INFO("Built source inflight (Inflight: %v, State: %v)",
-        NYson::ConvertToYsonString(inflight, NYson::EYsonFormat::Text),
-        NYson::ConvertToYsonString(State_, NYson::EYsonFormat::Text));
+    YT_TLOG_INFO("Built source inflight")
+        .With("Inflight", NYson::ConvertToYsonString(inflight, NYson::EYsonFormat::Text))
+        .With("State", NYson::ConvertToYsonString(State_, NYson::EYsonFormat::Text));
     return inflight;
 }
 
@@ -712,10 +708,10 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
 
         State_->OffsetMemory->Register(record.Offset, seqNoProviderResult.UniqueSeqNo);
         auto extractedUniqueSeqNo = State_->OffsetMemory->Extract(record.Offset);
-        YT_LOG_FATAL_UNLESS(seqNoProviderResult.UniqueSeqNo >= extractedUniqueSeqNo,
-            "Expected that new generated unique seq no is greater than persisted (NewGeneratedUniqueSeqNo: %v, PersistedUniqueSeqNo: %v)",
-            seqNoProviderResult.UniqueSeqNo,
-            extractedUniqueSeqNo);
+        YT_TLOG_FATAL_UNLESS(seqNoProviderResult.UniqueSeqNo >= extractedUniqueSeqNo,
+            "Expected that new generated unique seq no is greater than persisted")
+            .With("NewGeneratedUniqueSeqNo", seqNoProviderResult.UniqueSeqNo)
+            .With("PersistedUniqueSeqNo", extractedUniqueSeqNo);
         auto alignmentTimestamp = [&] {
             if (State_->AlignmentTimestampMemory->IsRegistered(extractedUniqueSeqNo)) {
                 return State_->AlignmentTimestampMemory->Extract(extractedUniqueSeqNo);
@@ -788,12 +784,12 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
                 message.PayloadSchema = record.PayloadSchema;
                 message.Payload = payload;
 
-                YT_LOG_DEBUG("MessageLifeCycle.Source: message was received (MessageId: %v, StreamId: %v, SystemTimestamp: %v, EventTimestamp: %v, Offset: %v)",
-                    message.MessageId,
-                    message.StreamId,
-                    message.SystemTimestamp,
-                    message.EventTimestamp,
-                    record.Offset);
+                YT_TLOG_DEBUG("MessageLifeCycle.Source: message was received")
+                    .With("MessageId", message.MessageId)
+                    .With("StreamId", message.StreamId)
+                    .With("SystemTimestamp", message.SystemTimestamp)
+                    .With("EventTimestamp", message.EventTimestamp)
+                    .With("Offset", record.Offset);
 
                 auto inputMessage = New<TInputMessage>(std::move(message), GetContext()->SourceKey);
                 offsetInfoIt->ByteSize += inputMessage->ByteSize;
