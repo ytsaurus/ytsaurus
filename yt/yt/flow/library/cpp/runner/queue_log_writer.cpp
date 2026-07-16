@@ -120,9 +120,9 @@ private:
         auto client = TQueueLogWriterGlobalState::Get()->Client.Acquire();
         if (!client) {
             if (!LogRows_.empty()) {
-                YT_LOG_WARNING("Can not write log to YT because YT client is not provided yet (Table: %v, PendingRows: %v)",
-                    QueuePath_,
-                    LogRows_.size());
+                YT_TLOG_WARNING("Can not write log to YT because YT client is not provided yet")
+                    .With("Table", QueuePath_)
+                    .With("PendingRows", LogRows_.size());
             }
             return;
         }
@@ -180,7 +180,9 @@ private:
 
     void OnException(const std::exception& ex) override
     {
-        YT_LOG_ERROR(ex, "Queue %Qv write failed", Stream_->QueuePath());
+        YT_TLOG_ERROR("Queue write failed")
+            .With("Queue", Stream_->QueuePath(), "%Qv")
+            .With(ex);
 
         Stream_->Truncate();
     }

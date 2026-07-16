@@ -122,7 +122,8 @@ void TSimpleRunnerProgram::DoRun()
         auto specErrors = TRegistry::Get()->ValidatePipelineSpecParseability(ConvertTo<IMapNodePtr>(config->Spec));
         auto dynamicSpecErrors = TRegistry::Get()->ValidateDynamicPipelineSpecParseability(config->Spec, ConvertTo<IMapNodePtr>(config->DynamicSpec));
         for (const auto& error : Concatenate(specErrors, dynamicSpecErrors)) {
-            YT_LOG_ERROR(error, "Found specs parseability error");
+            YT_TLOG_ERROR("Found specs parseability error")
+                .With(error);
         }
         if (config->AbortOnSpecsParseabilityErrors && specErrors.size() + dynamicSpecErrors.size() > 0) {
             YT_ABORT(Format("Found specs parseability errors (ErrorCount: %v)", specErrors.size() + dynamicSpecErrors.size()));
@@ -139,7 +140,7 @@ void TSimpleRunnerProgram::DoRun()
     ValidateDynamicPipelineSpec(config->DynamicSpec);
 
     if (ValidateOnly_) {
-        YT_LOG_INFO("Pipeline spec is valid; exiting without side effects (Reason: --validate-only)");
+        YT_TLOG_INFO("Pipeline spec is valid; exiting without side effects because run with --validate-only");
         return;
     }
 
@@ -151,11 +152,13 @@ void TSimpleRunnerProgram::DoRun()
 
     bool setFlowCoreTarget = true;
     if (!config->SetFlowCoreTarget) {
-        YT_LOG_WARNING("FlowCoreTarget will not be updated (Reason: set_flow_core_target=%%false in runner config); "
+        YT_TLOG_WARNING(
+            "FlowCoreTarget will not be updated because set_flow_core_target=%false in runner config; "
             "the pipeline is left without zombie-process protection");
         setFlowCoreTarget = false;
     } else if (SkipSetFlowCoreTarget_) {
-        YT_LOG_WARNING("FlowCoreTarget will not be updated (Reason: --skip-set-flow-core-target); "
+        YT_TLOG_WARNING(
+            "FlowCoreTarget will not be updated because --skip-set-flow-core-target was passed; "
             "the pipeline is left without zombie-process protection");
         setFlowCoreTarget = false;
     }

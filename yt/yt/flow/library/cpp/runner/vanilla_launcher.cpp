@@ -95,18 +95,20 @@ void ShutdownPriorVanillaOperation(
     try {
         opInfo = WaitFor(opClient->GetOperation(opIdOrAlias, getOpts)).ValueOrThrow();
     } catch (const std::exception& ex) {
-        YT_LOG_INFO(ex, "Prior vanilla operation lookup failed (Alias: %v)", prior->Alias);
+        YT_TLOG_INFO("Prior vanilla operation lookup failed")
+            .With("Alias", prior->Alias)
+            .With(ex);
         return;
     }
     if (!opInfo.State || IsVanillaOperationStateTerminal(*opInfo.State)) {
         return;
     }
     bool graceful = IsGracefulUpdateFromEnv();
-    YT_LOG_INFO("Shutting down prior vanilla operation (Alias: %v, OperationId: %v, State: %v, Graceful: %v)",
-        prior->Alias,
-        opInfo.Id,
-        *opInfo.State,
-        graceful);
+    YT_TLOG_INFO("Shutting down prior vanilla operation")
+        .With("Alias", prior->Alias)
+        .With("OperationId", opInfo.Id)
+        .With("State", *opInfo.State)
+        .With("Graceful", graceful);
     if (graceful) {
         WaitFor(pipelineClient->StopPipeline(pipelinePath)).ThrowOnError();
         WaitPipelineState(pipelineClient, pipelinePath, EPipelineState::Stopped, waitTimeout);
@@ -499,10 +501,10 @@ void LaunchInVanillaJob(
         NScheduler::EOperationType::Vanilla,
         ConvertToYsonString(launchSpec)))
         .ValueOrThrow();
-    YT_LOG_INFO("Started vanilla operation (Alias: %v, Cluster: %v, OperationId: %v)",
-        alias,
-        runtimeCluster,
-        operationId);
+    YT_TLOG_INFO("Started vanilla operation")
+        .With("Alias", alias)
+        .With("Cluster", runtimeCluster)
+        .With("OperationId", operationId);
 
     // Commit: only now refresh the durable canon, persist the spec, and prune stale files. A failure
     // before this point leaves the pipeline reanimatable on the previous version, since the old
