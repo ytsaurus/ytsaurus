@@ -592,6 +592,8 @@ private:
     THashMap<TReplicaId, TReplicaCounters> ReplicaCounters_;
     bool Suspended_ = false;
 
+    THashSet<TReplicationCardId> BlockedByAlterCardIds_;
+
     // COMPAT(gryzlov-ad)
     bool MoveChaosLeasesToChaosLeaseManager_ = false;
 
@@ -621,6 +623,7 @@ private:
         Save(context, CoordinatorCellIds_);
         Save(context, SuspendedCoordinators_);
         Save(context, Suspended_);
+        Save(context, BlockedByAlterCardIds_);
         MigratedReplicationCardRemover_->Save(context);
     }
 
@@ -652,6 +655,15 @@ private:
         Load(context, CoordinatorCellIds_);
         Load(context, SuspendedCoordinators_);
         Load(context, Suspended_);
+        // COMPAT(osidorkin)
+        if (auto contextVersion = context.GetVersion();
+            contextVersion >= EChaosReign::BlockCardPropagationOnAlter ||
+            (contextVersion >= EChaosReign::BlockCardPropagationOnAlter_26_1 && contextVersion < EChaosReign::Start_26_2) ||
+            (contextVersion >= EChaosReign::BlockCardPropagationOnAlter_25_4 && contextVersion < EChaosReign::Start_26_1))
+        {
+            Load(context, BlockedByAlterCardIds_);
+        }
+
         MigratedReplicationCardRemover_->Load(context);
 
         // COMPAT(gryzlov-ad)
@@ -669,6 +681,7 @@ private:
         ChaosLeaseMap_.Clear();
         CoordinatorCellIds_.clear();
         SuspendedCoordinators_.clear();
+        BlockedByAlterCardIds_.clear();
         MigratedReplicationCardRemover_->Clear();
     }
 
@@ -2317,8 +2330,12 @@ private:
 
         NChaosNode::NProto::TReqPropagateCurrentTimestamp request;
         request.set_timestamp(timestamp);
-        YT_UNUSED_FUTURE(CreateMutation(HydraManager_, request)
+        auto result = WaitFor(CreateMutation(HydraManager_, request)
             ->CommitAndLog(Logger));
+
+        if (!result.IsOK()) {
+            YT_LOG_DEBUG(result, "Error propagating current timestamp");
+        }
     }
 
     void HydraPropagateCurrentTimestamps(NChaosNode::NProto::TReqPropagateCurrentTimestamp* request)
@@ -2333,7 +2350,22 @@ private:
                 continue;
             }
 
+            if (replicationCard->GetState() == EReplicationCardState::GeneratingTimestampForNewEra &&
+                BlockedByAlterCardIds_.contains(replicationCard->GetId()))
+            {
+                YT_LOG_DEBUG("Replication card is blocked by alter, skipping timestamp propagation "
+                    "(ReplicationCardId: %v, State: %v)",
+                    replicationCard->GetId(),
+                    replicationCard->GetState());
+
+                continue;
+            }
+
             MaybeCommenceNewReplicationEra(replicationCard, timestamp);
+        }
+
+        if (!BlockedByAlterCardIds_.empty()) {
+            BlockedByAlterCardIds_ = THashSet<TReplicationCardId>();
         }
 
         YT_LOG_DEBUG("Finished periodic current timestamp propagation (Timestamp: %v)",
@@ -2405,6 +2437,14 @@ private:
 
     void GenerateTimestampForNewEra(TReplicationCard* replicationCard)
     {
+        auto replicationCardId = replicationCard->GetId();
+        // Timestamp for current propagation might have been generated already and waiting for mutation to apply
+        // so block propagation for two iterations to guarantee that propagation timestamp affecting current card
+        // is greater than timestamp requested for era change here.
+        // Timestamp provider call can fail so we can not just block propagation forever.
+        // Multiple insertions are ok.
+        BlockedByAlterCardIds_.insert(replicationCardId);
+
         if (!IsLeader()) {
             return;
         }
@@ -2413,7 +2453,7 @@ private:
             .Subscribe(BIND(
                 &TChaosManager::OnNewReplicationEraTimestampGenerated,
                 MakeWeak(this),
-                replicationCard->GetId(),
+                replicationCardId,
                 replicationCard->GetEra())
                 .Via(AutomatonInvoker_));
     }
@@ -2454,6 +2494,8 @@ private:
         auto replicationCardId = FromProto<NChaosClient::TReplicationCardId>(request->replication_card_id());
         auto era = static_cast<TReplicationEra>(request->replication_era());
 
+        BlockedByAlterCardIds_.erase(replicationCardId);
+
         auto* replicationCard = FindReplicationCard(replicationCardId);
         if (!replicationCard) {
             YT_LOG_DEBUG("Will not commence new replication era because replication card is not found (ReplicationCardId: %v)",
@@ -2485,11 +2527,12 @@ private:
         YT_VERIFY(HasMutationContext());
 
         bool willUpdate = timestamp > replicationCard->GetCurrentTimestamp();
+        auto replicationCardState = replicationCard->GetState();
         YT_LOG_DEBUG("Updating replication card current timestamp "
             "(ReplicationCardId: %v, Era: %v, State: %v, CurrentTimestamp: %v, NewTimestamp: %v, WillUpdate: %v)",
             replicationCard->GetId(),
             replicationCard->GetEra(),
-            replicationCard->GetState(),
+            replicationCardState,
             replicationCard->GetCurrentTimestamp(),
             timestamp,
             willUpdate);
@@ -2500,7 +2543,7 @@ private:
 
         replicationCard->SetCurrentTimestamp(timestamp);
 
-        if (replicationCard->GetState() != EReplicationCardState::GeneratingTimestampForNewEra) {
+        if (replicationCardState != EReplicationCardState::GeneratingTimestampForNewEra) {
             return;
         }
 
