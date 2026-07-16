@@ -446,6 +446,7 @@ public:
         i64 MinRequestSizeToUseHugePages = 2_MB;
         bool EnableSequentialIORequests = true;
         i64 CoalescedReadMaxGapSize = 10_MB;
+        i64 BlockCacheCapacity = 0;
         int ClusterConnectionThreadPoolSize = 4;
         int ReadThreadCount = 1;
         int WriteThreadCount = 1;
@@ -525,7 +526,7 @@ public:
 
         bootstrapConfig->DataNode->BlockCache = New<TBlockCacheConfig>();
         auto cacheConfig = New<TSlruCacheConfig>();
-        cacheConfig->Capacity = 0;
+        cacheConfig->Capacity = TestParams_.BlockCacheCapacity;
         bootstrapConfig->DataNode->BlockCache->CompressedData = cacheConfig;
         bootstrapConfig->DataNode->BlockCache->UncompressedData = cacheConfig;
         bootstrapConfig->DataNode->ChooseLocationBasedOnIOWeight = TestParams_.ChooseLocationBasedOnIOWeight;
@@ -1586,7 +1587,7 @@ TEST_P(TReadBlocksDeadlineTest, GetBlockSet)
     auto rspOrError = WaitFor(GetBlockSet(
         sessionId.ChunkId,
         /*blockIndices*/ std::vector<int>{0, 2, 4, 6},
-        /*populateCache*/ false,
+        /*populateCache*/ true,
         /*fetchFromCache*/ false,
         /*fetchFromDisk*/ true,
         /*workloadDescriptor*/ {},
@@ -1627,6 +1628,78 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple(true, false),
         std::tuple(true, true))
 );
+
+class TReadBlocksDeadlineCancellationTest
+    : public TDataNodeTest
+{
+public:
+    static constexpr i64 BlockCacheCapacity = 16_KB;
+
+    TReadBlocksDeadlineCancellationTest()
+        : TDataNodeTest(
+            TDataNodeTest::TDataNodeTestParams {
+                .CoalescedReadMaxGapSize = 0,
+                .BlockCacheCapacity = BlockCacheCapacity,
+            })
+    { }
+};
+
+TEST_F(TReadBlocksDeadlineCancellationTest, SessionDeadlineCancelledOnFastComplete)
+{
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    auto blocks = FillWithRandomBlocks(sessionId, /*blockCount*/ 64, /*blockSize*/ 4_KB);
+
+    auto dyn = GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode;
+    dyn->FailSessionAtReadBlocksDeadline = true;
+    dyn->ReturnBlocksIfSessionFails = false;
+    dyn->TestingOptions->BlockReadTimeoutFraction = 0.75;
+    dyn->TestingOptions->DelayBeforeBlobChunkRead.reset();
+
+    for (int blockIndex = 0; blockIndex < std::ssize(blocks); ++blockIndex) {
+        auto rspOrError = WaitFor(GetBlockSet(
+            sessionId.ChunkId,
+            /*blockIndices*/ std::vector{blockIndex},
+            /*populateCache*/ true,
+            /*fetchFromCache*/ false,
+            /*fetchFromDisk*/ true,
+            /*workloadDescriptor*/ {},
+            /*requestTimeout*/ TDuration::Seconds(30)));
+
+        ASSERT_TRUE(rspOrError.IsOK());
+        auto gotBlocks = GetRpcAttachedBlocks(rspOrError.Value());
+        ASSERT_EQ(gotBlocks.size(), 1u);
+        EXPECT_EQ(gotBlocks[0].GetOrComputeChecksum(), blocks[blockIndex].GetOrComputeChecksum());
+    }
+
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
+
+    auto blockCacheMemoryUsed = GetDataNodeBootstrap()->GetNodeMemoryUsageTracker()->GetUsed(
+        EMemoryCategory::BlockCache);
+    EXPECT_LE(blockCacheMemoryUsed, BlockCacheCapacity);
+}
+
+TEST_F(TReadBlocksDeadlineCancellationTest, SessionDeadlineStillFailsOnSlowRead)
+{
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    FillWithRandomBlocks(sessionId, /*blockCount*/ 16, /*blockSize*/ 4_KB);
+
+    auto dyn = GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode;
+    dyn->FailSessionAtReadBlocksDeadline = true;
+    dyn->ReturnBlocksIfSessionFails = false;
+    dyn->TestingOptions->BlockReadTimeoutFraction = 0.75;
+    dyn->TestingOptions->DelayBeforeBlobChunkRead = TDuration::Seconds(2);
+
+    auto rspOrError = WaitFor(GetBlockSet(
+        sessionId.ChunkId,
+        /*blockIndices*/ std::vector<int>{0, 2, 4, 6},
+        /*populateCache*/ true,
+        /*fetchFromCache*/ false,
+        /*fetchFromDisk*/ true,
+        /*workloadDescriptor*/ {},
+        /*requestTimeout*/ TDuration::Seconds(4)));
+
+    EXPECT_FALSE(rspOrError.IsOK());
+}
 
 TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
 {

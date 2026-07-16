@@ -248,6 +248,9 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
         Location_->GetIndex());
 
     session->SessionAliveCheckFuture.Cancel(TError("Session completed"));
+    if (session->SessionDeadlineFuture) {
+        session->SessionDeadlineFuture.Cancel(TError("Session completed"));
+    }
 
     ProfileReadBlockSetLatency(session);
 
@@ -270,6 +273,9 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
         Location_->GetIndex());
 
     session->SessionAliveCheckFuture.Cancel(TError("Session failed"));
+    if (session->SessionDeadlineFuture) {
+        session->SessionDeadlineFuture.Cancel(TError("Session failed"));
+    }
 
     for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
@@ -502,9 +508,25 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     }
 
     if (session->Options.FailSessionAtReadBlocksDeadline) {
-        TDelayedExecutor::Submit(BIND([=, this, this_ = MakeStrong(this)] {
-            FailSession(session, TError(NYT::EErrorCode::Timeout, "Session timeouted"));
-        }).Via(session->Invoker), session->Options.ReadBlocksDeadline - TInstant::Now());
+        session->SessionDeadlineFuture = TDelayedExecutor::MakeDelayed(
+            session->Options.ReadBlocksDeadline - TInstant::Now(),
+            session->Invoker)
+            .Apply(BIND([
+                weakSession = MakeWeak(session),
+                weakThis = MakeWeak(this)
+            ] (const TError& error) {
+                if (!error.IsOK()) {
+                    return;
+                }
+
+                auto session = weakSession.Lock();
+                auto this_ = weakThis.Lock();
+                if (!session || !this_) {
+                    return;
+                }
+
+                this_->FailSession(session, TError(NYT::EErrorCode::Timeout, "Session timeouted"));
+            }));
     }
 
     AllSucceeded(session->Futures)

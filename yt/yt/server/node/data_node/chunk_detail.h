@@ -93,6 +93,7 @@ protected:
         std::optional<TChunkReadGuard> ChunkReadGuard;
         TChunkReadOptions Options;
         TFuture<void> SessionAliveCheckFuture;
+        TFuture<void> SessionDeadlineFuture;
     };
 
     using TReadSessionBasePtr = TIntrusivePtr<TReadSessionBase>;
