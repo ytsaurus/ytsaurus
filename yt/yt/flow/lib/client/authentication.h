@@ -13,7 +13,7 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// See yt/docs/ru/yandex-specific/flow/contributor/internal-authentication.md
+// See yt/docs/ru/flow/contributor/internal-authentication.md
 // for the request signing scheme and threat model.
 
 //! Method tag embedded in the controller request metadata; guards against replay

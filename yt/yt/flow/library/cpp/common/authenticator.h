@@ -45,7 +45,7 @@ DEFINE_REFCOUNTED_TYPE(TAuthenticatorConfig);
 //! Supports TVM (https://nda.ya.ru/t/EDKtwJBv7a3itW) and OAuth authentication methods.
 //! Provides internal (flow controller <-> flow workers)
 //! and external (YT -> flow, flow -> YT, flow -> other systems) authentication.
-//! See yt/docs/ru/yandex-specific/flow/contributor/internal-authentication.md for the authentication algorithm.
+//! See yt/docs/ru/flow/contributor/internal-authentication.md for the authentication algorithm.
 struct IPipelineAuthenticator
     : public TRefCounted
 {
