@@ -337,14 +337,31 @@ public:
         return spec;
     }
 
+    // A single computation that requires |resourceIds| on the worker, so a worker resource manager
+    // eagerly loads the corresponding always_on resources.
+    THashMap<TComputationId, TComputationSpecPtr> WorkerComputationRequiring(std::vector<TResourceId> resourceIds)
+    {
+        auto computationSpec = New<TComputationSpec>();
+        for (const auto& resourceId : resourceIds) {
+            auto description = New<TResourceDescription>();
+            description->Worker = true;
+            computationSpec->RequiredResourceIds[resourceId] = std::move(description);
+        }
+        return {{"comp", std::move(computationSpec)}};
+    }
+
     IResourceManagerPtr CreateManager(
         const THashMap<TResourceId, TResourceSpecPtr>& resources,
-        IInvokerPtr invoker = nullptr)
+        IInvokerPtr invoker = nullptr,
+        bool isController = false,
+        THashMap<TComputationId, TComputationSpecPtr> computations = {})
     {
         auto context = New<TResourceManagerContext>();
         context->Invoker = invoker ? invoker : GetCurrentInvoker();
         context->Logger = Logger();
         context->StatusProfiler = CreateSyncStatusProfiler();
+        context->IsController = isController;
+        context->Computations = std::move(computations);
         return CreateResourceManager(std::move(context), resources, {});
     }
 };
@@ -942,9 +959,8 @@ TEST_F(TResourceManagerTest, LoadSuccessForPreloadRequiredNotLoaded)
     EXPECT_FALSE(future.IsSet());
 }
 
-//! An always-on resource is Load'ed eagerly at manager construction, without anyone calling Load()
-//! or scheduling a preload. This is what keeps node-wide singletons (e.g. a REX server) alive
-//! independent of jobs.
+//! An always-on resource required by a computation is Load'ed eagerly at manager construction,
+//! without anyone calling Load() or scheduling a preload -- it stays loaded independent of jobs.
 TEST_F(TResourceManagerTest, AlwaysOnResourceIsLoadedEagerly)
 {
     THashMap<TResourceId, TResourceSpecPtr> resources;
@@ -952,7 +968,11 @@ TEST_F(TResourceManagerTest, AlwaysOnResourceIsLoadedEagerly)
     spec->AlwaysOn = true;
     resources["always"] = spec;
 
-    auto resourceManager = CreateManager(resources);
+    auto resourceManager = CreateManager(
+        resources,
+        /*invoker*/ nullptr,
+        /*isController*/ false,
+        WorkerComputationRequiring({"always"}));
 
     // Pump the current invoker so the eagerly-scheduled load actually runs.
     WaitFor(BIND([] {
@@ -965,6 +985,92 @@ TEST_F(TResourceManagerTest, AlwaysOnResourceIsLoadedEagerly)
     EXPECT_TRUE(resource->IsLoadStarted());
 }
 
+//! An always_on resource's eager-load is scoped by the units on which some computation requires it
+//! (derived from the computations' required_resource_ids, not from the resource spec):
+//!  - "worker_only": required by a computation on the worker only -> loads on a worker manager but
+//!    NOT on a controller manager;
+//!  - "both": required on both units -> loads on both;
+//!  - "unreferenced": referenced by no computation -> loads on neither unit.
+TEST_F(TResourceManagerTest, AlwaysOnRespectsUnitScope)
+{
+    auto buildResources = [] {
+        auto makeAlwaysOn = [] {
+            auto spec = New<TResourceSpec>();
+            spec->ResourceClassName = TypeName<TSlowResource>();
+            spec->AlwaysOn = true;
+            return spec;
+        };
+        THashMap<TResourceId, TResourceSpecPtr> resources;
+        resources["worker_only"] = makeAlwaysOn();
+        resources["both"] = makeAlwaysOn();
+        resources["unreferenced"] = makeAlwaysOn();
+        return resources;
+    };
+
+    // One computation requires "worker_only" on the worker only and "both" on both units;
+    // "unreferenced" is required by no computation.
+    THashMap<TComputationId, TComputationSpecPtr> computations;
+    {
+        auto computationSpec = New<TComputationSpec>();
+
+        auto workerOnly = New<TResourceDescription>();
+        workerOnly->Worker = true;
+        workerOnly->Controller = false;
+        computationSpec->RequiredResourceIds["worker_only"] = workerOnly;
+
+        auto both = New<TResourceDescription>();
+        both->Worker = true;
+        both->Controller = true;
+        computationSpec->RequiredResourceIds["both"] = both;
+
+        computations["comp"] = computationSpec;
+    }
+
+    // Worker manager: worker_only and both load (required on the worker); unreferenced does not
+    // (no computation requires it).
+    {
+        auto actionQueue = New<TActionQueue>();
+        auto resourceManager = CreateManager(
+            buildResources(),
+            actionQueue->GetInvoker(),
+            /*isController*/ false,
+            computations);
+        DrainInvoker(actionQueue->GetInvoker());
+
+        auto workerOnly = TSlowResource::GetById("worker_only");
+        auto both = TSlowResource::GetById("both");
+        auto unreferenced = TSlowResource::GetById("unreferenced");
+        ASSERT_TRUE(workerOnly);
+        ASSERT_TRUE(both);
+        ASSERT_TRUE(unreferenced);
+        EXPECT_TRUE(workerOnly->IsLoadStarted());
+        EXPECT_TRUE(both->IsLoadStarted());
+        EXPECT_FALSE(unreferenced->IsLoadStarted());
+    }
+
+    // Controller manager: only both loads -- worker_only is required only on the worker and
+    // unreferenced by no computation.
+    {
+        auto actionQueue = New<TActionQueue>();
+        auto resourceManager = CreateManager(
+            buildResources(),
+            actionQueue->GetInvoker(),
+            /*isController*/ true,
+            computations);
+        DrainInvoker(actionQueue->GetInvoker());
+
+        auto workerOnly = TSlowResource::GetById("worker_only");
+        auto both = TSlowResource::GetById("both");
+        auto unreferenced = TSlowResource::GetById("unreferenced");
+        ASSERT_TRUE(workerOnly);
+        ASSERT_TRUE(both);
+        ASSERT_TRUE(unreferenced);
+        EXPECT_FALSE(workerOnly->IsLoadStarted());
+        EXPECT_TRUE(both->IsLoadStarted());
+        EXPECT_FALSE(unreferenced->IsLoadStarted());
+    }
+}
+
 //! LoadRequiredResources({}) resolves only once every always-on resource has finished loading.
 TEST_F(TResourceManagerTest, ReadyFutureAwaitsAllAlwaysOnLoads)
 {
@@ -974,7 +1080,11 @@ TEST_F(TResourceManagerTest, ReadyFutureAwaitsAllAlwaysOnLoads)
     resources["a"] = BuildSlowResourceSpec(/*dependencies*/ {}, /*alwaysOn*/ true);
     resources["b"] = BuildSlowResourceSpec(/*dependencies*/ {}, /*alwaysOn*/ true);
 
-    auto resourceManager = CreateManager(resources, actionQueue->GetInvoker());
+    auto resourceManager = CreateManager(
+        resources,
+        actionQueue->GetInvoker(),
+        /*isController*/ false,
+        WorkerComputationRequiring({"a", "b"}));
     auto ready = resourceManager->LoadRequiredResources({});
 
     // Both always-on resources start loading eagerly, but neither has completed.
@@ -1008,7 +1118,11 @@ TEST_F(TResourceManagerTest, ReadyFutureAwaitsDependentAlwaysOnLoads)
     resources["dep"] = BuildSlowResourceSpec(/*dependencies*/ {}, /*alwaysOn*/ true);
     resources["main"] = BuildSlowResourceSpec(/*dependencies*/ {"dep"}, /*alwaysOn*/ true);
 
-    auto resourceManager = CreateManager(resources, actionQueue->GetInvoker());
+    auto resourceManager = CreateManager(
+        resources,
+        actionQueue->GetInvoker(),
+        /*isController*/ false,
+        WorkerComputationRequiring({"dep", "main"}));
     auto ready = resourceManager->LoadRequiredResources({});
 
     // The dependency starts loading; the dependent must wait for it.

@@ -232,7 +232,8 @@ public:
     {
         ResourceManager_ = CreateResourceManagerForPipelineSpec(
             ExecutionSpec_->PipelineSpec->GetValue()->Resources,
-            ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources);
+            ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
+            ExecutionSpec_->PipelineSpec->GetValue()->Computations);
 
         PerformanceCountersUpdater_->Start();
     }
@@ -330,7 +331,8 @@ public:
             DropAllJobs();
             ResourceManager_ = CreateResourceManagerForPipelineSpec(
                 ExecutionSpec_->PipelineSpec->GetValue()->Resources,
-                ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources);
+                ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
+                ExecutionSpec_->PipelineSpec->GetValue()->Computations);
         } else {
             for (const auto& jobId : GetKeys(JobIdToRuntimeState_)) {
                 if (!ExecutionSpec_->Layout->Jobs.contains(jobId)) {
@@ -548,7 +550,8 @@ private:
 
     IResourceManagerPtr CreateResourceManagerForPipelineSpec(
         const THashMap<TResourceId, TResourceSpecPtr>& resources,
-        const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs)
+        const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs,
+        const THashMap<TComputationId, TComputationSpecPtr>& computations)
     {
         auto context = New<TResourceManagerContext>();
         context->PipelineAuthenticator = Context_->PipelineAuthenticator;
@@ -556,6 +559,8 @@ private:
         context->Invoker = JobThreadPool_->GetInvoker("ResourceManager");
         context->Profiler = WorkerProfiler();
         context->StatusProfiler = Context_->StatusProfiler->WithPrefix("/resource_manager");
+        context->IsController = false;
+        context->Computations = computations;
         return CreateResourceManager(std::move(context), resources, dynamicResourceSpecs);
     }
 

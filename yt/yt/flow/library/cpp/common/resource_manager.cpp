@@ -134,15 +134,37 @@ public:
 
         // Always-on resources are loaded eagerly and kept for the manager's whole lifetime,
         // independent of jobs and of the balancer: a regular Load is never undone (only preloaded
-        // resources are dropped, via UpdatePreloadedResources). This keeps node-wide singletons alive.
+        // resources are dropped, via UpdatePreloadedResources). Only resources that some computation
+        // requires on this unit are loaded here.
         {
             auto guard = Guard(Lock_);
             std::vector<TFuture<void>> alwaysOnFutures;
-            for (const auto& [resourceId, resourceSpec] : resourceSpecs) {
-                if (resourceSpec->AlwaysOn) {
-                    YT_LOG_INFO("Loading always-on resource (ResourceId: %v)", resourceId);
-                    alwaysOnFutures.push_back(LoadGuarded(resourceId, guard, /*isPreload*/ false));
+
+            // For each resource referenced by some computation, whether this unit requires it: a
+            // resource may be needed only on the worker or only on the controller.
+            THashMap<TResourceId, bool> requiredOnThisUnit;
+            for (const auto& [computationId, computationSpec] : ManagerContext_->Computations) {
+                for (const auto& [resourceId, resourceDescription] : computationSpec->RequiredResourceIds) {
+                    requiredOnThisUnit[resourceId] |= ManagerContext_->IsController
+                        ? resourceDescription->Controller
+                        : resourceDescription->Worker;
                 }
+            }
+
+            for (const auto& [resourceId, resourceSpec] : resourceSpecs) {
+                if (!resourceSpec->AlwaysOn) {
+                    continue;
+                }
+                // Load the resource only where some computation requires it. A resource that no
+                // computation requires on this unit (including one referenced by none) is skipped.
+                if (!GetOrDefault(requiredOnThisUnit, resourceId)) {
+                    YT_LOG_INFO("Skipping always-on resource out of unit scope (ResourceId: %v, IsController: %v)",
+                        resourceId,
+                        ManagerContext_->IsController);
+                    continue;
+                }
+                YT_LOG_INFO("Loading always-on resource (ResourceId: %v)", resourceId);
+                alwaysOnFutures.push_back(LoadGuarded(resourceId, guard, /*isPreload*/ false));
             }
             // Collect the load futures so callers can await readiness via LoadRequiredResources().
             // AllSucceeded over an empty vector resolves immediately.

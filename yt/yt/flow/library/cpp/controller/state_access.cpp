@@ -165,6 +165,8 @@ TControllerExternalStateBundle BuildControllerExternalStateBundle(
     resourceManagerContext->Profiler = NProfiling::TProfiler{};
     resourceManagerContext->StatusProfiler = statusProfiler;
     resourceManagerContext->Invoker = perRequestInvoker;
+    resourceManagerContext->IsController = true;
+    resourceManagerContext->Computations = pipelineSpec->Computations;
     bundle.ResourceManager = CreateResourceManager(
         std::move(resourceManagerContext),
         pipelineSpec->Resources,

@@ -70,9 +70,11 @@ struct TResourceSpec
     THashMap<TResourceId, TResourceDescriptionPtr> Dependencies;
     THashMap<std::string, ssize_t> RequiredCapabilities;
     bool PreloadRequired{};
-    //! When true, the resource is deployed on every unit regardless of which jobs are present,
-    //! and is never deallocated. Mutually exclusive with preload_required. Intended for node-wide singletons,
-    //! e.g. a resource exposing /reload and /ping for REX.
+    //! When true, the resource is loaded eagerly at unit startup and kept resident for the unit's
+    //! whole lifetime (never deallocated), rather than lazily on first use. It is loaded only on the
+    //! units where some computation requires it (see TResourceDescription::Worker / ::Controller):
+    //! a resource required only on the worker is not loaded on the controller, and a resource that
+    //! no computation requires is not loaded at all. Mutually exclusive with preload_required.
     bool AlwaysOn{};
 
     REGISTER_YSON_STRUCT(TResourceSpec);
