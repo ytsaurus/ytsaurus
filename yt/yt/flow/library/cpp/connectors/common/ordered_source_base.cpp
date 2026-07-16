@@ -201,9 +201,10 @@ void TOrderedSourceBase::TExtendedDynamicParameters::Register(TRegistrar registr
 void TOrderedSourceBase::TryIncreaseMaxOffsetExclusive(TOffset newMaxOffsetExclusive, bool confirmed)
 {
     if (newMaxOffsetExclusive > State_->MaxOffsetExclusive) {
+        const TOffset oldMaxOffsetExclusive = State_->MaxOffsetExclusive;
         State_->MaxOffsetExclusive = newMaxOffsetExclusive;
         State_->MaxOffsetIsConfirmed = confirmed;
-        i64 deltaRows = DoGetEstimatedRowsAtOffset(newMaxOffsetExclusive) - DoGetEstimatedRowsAtOffset(State_->MaxOffsetExclusive);
+        i64 deltaRows = DoGetEstimatedRowsAtOffset(newMaxOffsetExclusive) - DoGetEstimatedRowsAtOffset(oldMaxOffsetExclusive);
         SourceTotalCount_.Inc(deltaRows * State_->AvgOffsetCountSize);
         SourceTotalBytes_.Inc(deltaRows * State_->AvgOffsetByteSize);
     } else if (newMaxOffsetExclusive == State_->MaxOffsetExclusive) {
@@ -317,6 +318,16 @@ IStatusErrorStatePtr TOrderedSourceBase::GetReadErrorState() const
 const NProfiling::TProfiler& TOrderedSourceBase::GetProfiler() const
 {
     return Profiler_;
+}
+
+double TOrderedSourceBase::GetSourceTotalCount() const
+{
+    return SourceTotalCount_.GetTotal();
+}
+
+double TOrderedSourceBase::GetSourceTotalBytes() const
+{
+    return SourceTotalBytes_.GetTotal();
 }
 
 void TOrderedSourceBase::FlushDelayedPartitionInfoUpdates()
