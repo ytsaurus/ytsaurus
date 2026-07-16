@@ -395,6 +395,8 @@ items:
               href: user-guide/data-processing/spyt/spark-sql.md
             - name: Spark UI
               href: user-guide/data-processing/spyt/spark-ui.md
+            - name: Сборка offline Docker-образа
+              href: user-guide/data-processing/spyt/offline-image.md
             - name: Использование {{product-name}} Shuffle сервиса
               href: user-guide/data-processing/spyt/shuffle.md
             - name: API
