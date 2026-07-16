@@ -352,8 +352,8 @@ using TTestYsonStructWithProtoPtr = TIntrusivePtr<TTestYsonStructWithProto>;
 TEST(TYsonSerializeTest, ProtoSerialize)
 {
     NProto::TTestMessage proto;
-    proto.SetInt32(234);
-    proto.SetString("abcdef");
+    proto.set_int32(234);
+    proto.set_string("abcdef");
     auto ysonStruct = New<TTestYsonStructWithProto>();
     ysonStruct->YsonProto.CopyFrom(proto);
     ysonStruct->StringProto.CopyFrom(proto);
@@ -367,7 +367,8 @@ TEST(TYsonSerializeTest, ProtoSerialize)
     EXPECT_EQ(*schema, *expectedSchema);
     const auto row = Serialize(ysonStruct, schema);
     NProto::TTestMessage parsedProto;
-    parsedProto.ParseFromStringOrThrow(FromUnversionedValue<TStringBuf>(row[0]));
+    const auto serializedProto = FromUnversionedValue<TStringBuf>(row[0]);
+    ASSERT_TRUE(parsedProto.ParseFromArray(serializedProto.data(), serializedProto.size()));
     EXPECT_TRUE(MessageDifferencer::Equals(parsedProto, proto));
     const auto parsedNode = ConvertToNode(FromUnversionedValue<TYsonString>(row[1]));
     const auto expectedNode = BuildYsonNodeFluently()
