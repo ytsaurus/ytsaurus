@@ -822,6 +822,45 @@ TEST_W(TDescribeTest, DescribePipelineNoFlowView)
     EXPECT_THROW(DescribePipeline({.FlowView = nullptr, .Logger = TLogger("test")}), TErrorException);
 }
 
+TEST_W(TDescribeTest, DescribePipelineWarnsOnTooFewWorkers)
+{
+    Prepare();
+
+    // Prepare() registers one worker (WorkerCount == 1) with no declared groups, so it belongs to
+    // the default (empty) worker group, which is also the group used by all computations.
+
+    // Requiring more workers than are available surfaces a top-level error message.
+    DynamicSpec->JobManager->MinimumWorkerCount = 5;
+    FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(DynamicSpec);
+    auto description = DescribeStatus();
+    EXPECT_TRUE(MessagesContain(description.Messages, "Too few workers (Count: 1, Required: 5)"))
+        << "Messages:" << ConvertToYsonString(description.Messages).ToString();
+
+    // When the requirement is met, no such message is emitted.
+    DynamicSpec->JobManager->MinimumWorkerCount = 1;
+    FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(DynamicSpec);
+    description = DescribeStatus();
+    EXPECT_FALSE(MessagesContain(description.Messages, "Too few workers"))
+        << "Messages:" << ConvertToYsonString(description.Messages).ToString();
+
+    // The minimum is enforced per used worker group: pointing a computation at a group with no
+    // workers warns about that group even though the overall worker count is sufficient.
+    Spec->Computations["Computation_1"]->WorkerGroup = TWorkerGroupId("gpu");
+    FlowView->State->ExecutionSpec->PipelineSpec->SetValue(Spec);
+    description = DescribeStatus();
+    EXPECT_TRUE(MessagesContain(description.Messages, "Too few workers in worker group \"gpu\" (Count: 0, Required: 1)"))
+        << "Messages:" << ConvertToYsonString(description.Messages).ToString();
+
+    // A per-group override sets the required count for that group independently of the top-level one.
+    auto gpuOverride = New<TDynamicJobManagerSpec>();
+    gpuOverride->MinimumWorkerCount = 3;
+    DynamicSpec->JobManager->WorkerGroupOverride[TWorkerGroupId("gpu")] = gpuOverride;
+    FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(DynamicSpec);
+    description = DescribeStatus();
+    EXPECT_TRUE(MessagesContain(description.Messages, "Too few workers in worker group \"gpu\" (Count: 0, Required: 3)"))
+        << "Messages:" << ConvertToYsonString(description.Messages).ToString();
+}
+
 TEST_W(TDescribeTest, DescribeComputations)
 {
     Prepare();

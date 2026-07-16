@@ -1,6 +1,7 @@
 #include "private.h"
 
 #include "job_balancer.h"
+#include "job_balancer_common.h"
 #include "job_manager.h"
 #include "state_manager.h"
 #include "yt_connector.h"
@@ -735,9 +736,27 @@ public:
             completing,
             interrupting);
 
-        if (flowView->State->Workers.size() < DynamicSpec_->JobManager->MinimumWorkerCount) {
-            YT_LOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Too few workers (Count: %v, Required: %v)", flowView->State->Workers.size(), DynamicSpec_->JobManager->MinimumWorkerCount);
-            return StopAllJobs(flowView);
+        // The minimum-worker requirement must hold for each used worker group independently:
+        // counting all workers misses the case where a group has no workers of its own (its
+        // computations cannot run) while the overall worker count looks healthy. The required count
+        // is taken from the group's override when present, so it can be tuned per worker group (set
+        // it to 0 for a group that is allowed to run with no workers).
+        for (const auto& [workerGroup, balanceSynchronizer] : BalanceSynchronizers_) {
+            const TDynamicJobManagerGroupSpec* groupJobManagerSpec = DynamicSpec_->JobManager.Get();
+            if (auto* overrideSpec = DynamicSpec_->JobManager->WorkerGroupOverride.FindPtr(workerGroup)) {
+                groupJobManagerSpec = overrideSpec->Get();
+            }
+            const auto minimumWorkerCount = groupJobManagerSpec->MinimumWorkerCount;
+            ui64 workersInGroup = 0;
+            for (const auto& [_, worker] : flowView->State->Workers) {
+                if (NBalancer::WorkerBelongsToGroup(worker, workerGroup)) {
+                    ++workersInGroup;
+                }
+            }
+            if (workersInGroup < minimumWorkerCount) {
+                YT_LOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Too few workers in worker group (WorkerGroup: %v, Count: %v, Required: %v)", workerGroup, workersInGroup, minimumWorkerCount);
+                return StopAllJobs(flowView);
+            }
         }
 
         ssize_t stopCount = 0;
