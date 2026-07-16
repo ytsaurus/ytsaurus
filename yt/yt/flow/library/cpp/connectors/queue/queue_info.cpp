@@ -71,8 +71,8 @@ void TQueueInfoController::TryUpdatePartitionCount()
                 << TErrorAttribute("queue_path", Spec_->QueuePath);
         }
         State_->CachedPartitionCount = attributes.Get<int>("tablet_count");
-        YT_LOG_INFO("Queue topic partition count was updated (CurrentPartitionCount: %v)",
-            State_->CachedPartitionCount);
+        YT_TLOG_INFO("Queue topic partition count was updated")
+            .With("CurrentPartitionCount", State_->CachedPartitionCount);
         ErrorState_->ClearError();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to update partition count") << ex;

@@ -33,11 +33,11 @@ void TSyncSinkBase::Init(IInitContextPtr initContext)
 
 void TSyncSinkBase::Distribute(const TOutputMessageConstPtr& message, TOnDistributedCallback onDistributed)
 {
-    YT_LOG_DEBUG("MessageLifeCycle.Sink: message was registered (MessageId: %v, StreamId: %v, SystemTimestamp: %v, EventTimestamp: %v)",
-        message->MessageId,
-        message->StreamId,
-        message->SystemTimestamp,
-        message->EventTimestamp);
+    YT_TLOG_DEBUG("MessageLifeCycle.Sink: message was registered")
+        .With("MessageId", message->MessageId)
+        .With("StreamId", message->StreamId)
+        .With("SystemTimestamp", message->SystemTimestamp)
+        .With("EventTimestamp", message->EventTimestamp);
     ObserveEventLag(message->StreamId, message->EventTimestamp);
     auto guard = Guard(Lock_);
     if (message->MessageId <= State_->MaxPersistedMessageId) {

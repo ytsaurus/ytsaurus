@@ -152,8 +152,8 @@ TSource::TSource(
         BIND([=, this] (const TDynamicSourceContextPtr& /*dynamicContext*/) mutable {
             // Sanity check. These parameters are not changed during partition life.
             auto newDynamicPartitionSpec = GetDynamicPartitionSpec();
-            YT_LOG_INFO("Source got new dynamic source partition spec (newDynamicPartitionSpec: %v)",
-                ConvertToYsonString(newDynamicPartitionSpec, EYsonFormat::Text));
+            YT_TLOG_INFO("Source got new dynamic source partition spec")
+                .With("newDynamicPartitionSpec", ConvertToYsonString(newDynamicPartitionSpec, EYsonFormat::Text));
             if (previousDynamicPartitionSpec) {
                 YT_VERIFY(newDynamicPartitionSpec->Table.GetPath() == previousDynamicPartitionSpec->Table.GetPath());
                 YT_VERIFY(newDynamicPartitionSpec->EventTimestamp == previousDynamicPartitionSpec->EventTimestamp);
@@ -346,7 +346,8 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
         auto table = dynamicSourcePartitionSpec->Table;
         SetRowIndexRange(table, nextOffset, maxOffsetExclusive);
 
-        YT_LOG_DEBUG("Create table reader (RichPath: %v)", table);
+        YT_TLOG_DEBUG("Create table reader")
+            .With("RichPath", table);
         auto readerConfig = NYT::New<NYT::NTableClient::TTableReaderConfig>();
         ReaderFuture_ = Client_->CreateTableReader(
             table,
@@ -394,7 +395,8 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
             << TErrorAttribute("current_offset", CurrentOffset_)
             << TErrorAttribute("max_offset_exclusive", maxOffsetExclusive);
         GetReadErrorState()->SetError(error);
-        YT_LOG_WARNING(error);
+        YT_TLOG_WARNING("Got null batch from table reader, but more rows are expected")
+            .With(error);
         ReaderFuture_ = {};
         return MakeFuture(std::vector<TSource::TRecord>{});
     }
@@ -404,7 +406,8 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
             auto error = NYT::TError(NYT::EErrorCode::Timeout, "Timeout of table reader; receiving empty batches for too long")
                 << TErrorAttribute("read_timeout", GetDynamicParameters()->ReadTimeout);
             GetReadErrorState()->SetError(error);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Timeout of table reader; receiving empty batches for too long")
+                .With(error);
             ReaderFuture_ = {};
         }
         return MakeFuture(std::vector<TSource::TRecord>{});
@@ -841,7 +844,9 @@ TListedTables TSourceController::GetMultiClusterTables(
             perClusterTables.push_back(
                 ListClusterTables(cluster, sourceParameters, dynamicSourceParameters, era, lastProcessingTable, nameOrder));
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to list tables on cluster (Cluster: %v)", cluster);
+            YT_TLOG_WARNING("Failed to list tables on cluster")
+                .With("Cluster", cluster)
+                .With(ex);
             perClusterTables.emplace_back();
             unavailableClusters.insert(cluster);
         }
@@ -968,13 +973,11 @@ void TSourceController::ReconcileDistributingTable(TListedTables listed)
         serving->Path.GetCluster() == current->Path.GetCluster() &&
         serving->Path.GetPath() != current->Path.GetPath())
     {
-        YT_LOG_EVENT(GetContext()->PublicLogger, ELogLevel::Warning,
-            "Current table was recreated under a new object id; rereading from scratch "
-            "(Cluster: %v, EventTimestamp: %v, OldId: %v, NewId: %v)",
-            activeCluster,
-            current->EventTimestamp,
-            current->Path.GetPath(),
-            serving->Path.GetPath());
+        YT_TLOG_EVENT_FLUENT(GetContext()->PublicLogger, ELogLevel::Warning, "Current table was recreated under a new object id; rereading from scratch")
+            .With("Cluster", activeCluster)
+            .With("EventTimestamp", current->EventTimestamp)
+            .With("OldId", current->Path.GetPath())
+            .With("NewId", serving->Path.GetPath());
         StashRangesForCleanup(state, current);
         current->Path = serving->Path;
         current->RowCount = serving->RowCount;
@@ -996,16 +999,15 @@ void TSourceController::ReconcileDistributingTable(TListedTables listed)
     state->ClusterProgress->ByCluster[decision->StashedCluster] = NYTree::CloneYsonStruct(current);
     state->ClusterProgress->ByCluster.erase(toCluster);
 
-    YT_LOG_EVENT(
+    YT_TLOG_EVENT_FLUENT(
         GetContext()->PublicLogger,
         ELogLevel::Info,
-        "Failing over current table to another cluster "
-        "(EventTimestamp: %v, FromCluster: %v, ToCluster: %v, ResumedDistributedRows: %v, RowCount: %v)",
-        current->EventTimestamp,
-        decision->StashedCluster,
-        toCluster,
-        newTable->DistributedRows,
-        newTable->RowCount);
+        "Failing over current table to another cluster")
+        .With("EventTimestamp", current->EventTimestamp)
+        .With("FromCluster", decision->StashedCluster)
+        .With("ToCluster", toCluster)
+        .With("ResumedDistributedRows", newTable->DistributedRows)
+        .With("RowCount", newTable->RowCount);
 
     state->DistributingTable = newTable;
     CommittedOffsetsExclusive_.clear();
@@ -1102,13 +1104,11 @@ std::optional<TFailoverDecision> TSourceController::DecideFailover(
     if (auto it = stash.find(*servingReplica->Path.GetCluster()); it != stash.end()) {
         resumeFrom = it->second;
         if (resumeFrom->Path.GetPath() != servingReplica->Path.GetPath()) {
-            YT_LOG_EVENT(publicLogger, ELogLevel::Warning,
-                "Stashed table was recreated on the target cluster; rereading from scratch "
-                "(Cluster: %v, EventTimestamp: %v, StashedId: %v, LiveId: %v)",
-                *servingReplica->Path.GetCluster(),
-                current->EventTimestamp,
-                resumeFrom->Path.GetPath(),
-                servingReplica->Path.GetPath());
+            YT_TLOG_EVENT_FLUENT(publicLogger, ELogLevel::Warning, "Stashed table was recreated on the target cluster; rereading from scratch")
+                .With("Cluster", *servingReplica->Path.GetCluster())
+                .With("EventTimestamp", current->EventTimestamp)
+                .With("StashedId", resumeFrom->Path.GetPath())
+                .With("LiveId", servingReplica->Path.GetPath());
             resumeFrom = nullptr;
         }
     }
@@ -1210,14 +1210,13 @@ void TSourceController::UpdateControllerState(
         ++it;
     } else {
         if (state->DistributingTable->GetNotDistributedRows() != 0) {
-            YT_LOG_EVENT(
+            YT_TLOG_EVENT_FLUENT(
                 publicLogger,
                 ELogLevel::Error,
-                "Data loss was detected, table was removed before it is fully read "
-                "(Table: %v, RowsLost: %v, RowsTotal: %v)",
-                state->DistributingTable->Path,
-                state->DistributingTable->GetNotDistributedRows(),
-                state->DistributingTable->RowCount);
+                "Data loss was detected, table was removed before it is fully read")
+                .With("Table", state->DistributingTable->Path)
+                .With("RowsLost", state->DistributingTable->GetNotDistributedRows())
+                .With("RowsTotal", state->DistributingTable->RowCount);
             state->LostTables += 1;
         } else if (!state->DistributionFinished) {
             state->ProcessedTables += 1;
@@ -1241,19 +1240,17 @@ void TSourceController::UpdateControllerState(
     }
 
     if (needStartNewTable) {
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT_FLUENT(
             publicLogger,
             ELogLevel::Info,
-            "Starting to read new table"
-            "(Table: %v, TableRows: %v, TableBytes: %v, TableEventTimestamp: %v, TableSystemTimestamp: %v, "
-            "QueuedTablesRows: %v, QueuedTablesBytes: %v)",
-            state->DistributingTable->Path,
-            state->DistributingTable->RowCount,
-            state->DistributingTable->ByteSize,
-            state->DistributingTable->EventTimestamp,
-            state->DistributingTable->SystemTimestamp,
-            state->PendingCount,
-            state->PendingBytes);
+            "Starting to read new table")
+            .With("Table", state->DistributingTable->Path)
+            .With("TableRows", state->DistributingTable->RowCount)
+            .With("TableBytes", state->DistributingTable->ByteSize)
+            .With("TableEventTimestamp", state->DistributingTable->EventTimestamp)
+            .With("TableSystemTimestamp", state->DistributingTable->SystemTimestamp)
+            .With("QueuedTablesRows", state->PendingCount)
+            .With("QueuedTablesBytes", state->PendingBytes);
     }
 }
 
@@ -1264,24 +1261,24 @@ void TSourceController::ApplyRestartInstantLogic(
 {
     auto now = TInstant::Now();
     if (restartInstant > now) {
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT_FLUENT(
             publicLogger,
             ELogLevel::Warning,
-            "Misconfiguration: restart instant in dynamic parameters is greater than now (RestartInstant: %v, Now: %v)",
-            restartInstant,
-            now);
+            "Misconfiguration: restart instant in dynamic parameters is greater than now")
+            .With("RestartInstant", restartInstant)
+            .With("Now", now);
     }
     if (restartInstant > state->EraStartInstant) {
         state->DistributingTable->SkipRemainingRows();
 
         state->Era += 1;
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT_FLUENT(
             publicLogger,
             ELogLevel::Warning,
-            "Starting new era (Era: %v, LastEraStartInstant: %v, NewEraStartInstant: %v)",
-            state->Era,
-            state->EraStartInstant,
-            now);
+            "Starting new era")
+            .With("Era", state->Era)
+            .With("LastEraStartInstant", state->EraStartInstant)
+            .With("NewEraStartInstant", now);
         state->EraStartInstant = now;
     }
 }
@@ -1310,18 +1307,20 @@ bool TSourceController::CheckDistributingTable()
                 CheckDistributingTableErrorState_->ClearError();
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to update distributing table") << ex;
-                YT_LOG_EVENT(
+                YT_TLOG_EVENT_FLUENT(
                     GetContext()->PublicLogger,
                     ELogLevel::Error,
-                    error);
+                    "Failed to update distributing table")
+                    .With(error);
                 CheckDistributingTableErrorState_->SetError(error);
             }
         } else {
             auto error = TError("Failed to get tables") << TablesFuture_.GetOrCrash();
-            YT_LOG_EVENT(
+            YT_TLOG_EVENT_FLUENT(
                 GetContext()->PublicLogger,
                 ELogLevel::Error,
-                error);
+                "Failed to get tables")
+                .With(error);
             CheckDistributingTableErrorState_->SetError(error);
         }
         TablesFuture_ = {};
@@ -1387,11 +1386,11 @@ void TSourceController::CheckDistributionFinished()
 
     state->DistributionFinished = true;
     state->ProcessedTables += 1;
-    YT_LOG_EVENT(
+    YT_TLOG_EVENT_FLUENT(
         GetContext()->PublicLogger,
         ELogLevel::Info,
-        "Table was processed (Table: %v)",
-        distributingTable->Path);
+        "Table was processed")
+        .With("Table", distributingTable->Path);
 }
 
 double TSourceController::GetDesiredRowsPerSecond(

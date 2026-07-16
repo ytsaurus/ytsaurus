@@ -78,8 +78,8 @@ void TSyncQueueSink::DoInit()
 
 void TSyncQueueSink::DoDistribute(NApi::IDynamicTableTransactionPtr transaction, const std::deque<TOutputMessageConstPtr>& messages)
 {
-    YT_LOG_INFO("Synchronously writing messages to queue (MessagesCount: %v)",
-        std::ssize(messages));
+    YT_TLOG_INFO("Synchronously writing messages to queue")
+        .With("MessagesCount", std::ssize(messages));
     auto range = PackRows(messages, NameTable_, FlowMetaColumn_);
     transaction->WriteRows(GetParameters()->QueuePath.GetPath(), NameTable_, std::move(range));
 }
@@ -149,7 +149,8 @@ TAsyncQueueWriterBase::TAsyncQueueWriterBase(
 
 void TAsyncQueueWriterBase::InitSession(const std::string& producerId)
 {
-    YT_LOG_INFO("Initializing async queue writer (ProducerId: %v)", producerId);
+    YT_TLOG_INFO("Initializing async queue writer")
+        .With("ProducerId", producerId);
     Executor_ = BIND(&TAsyncQueueWriterBase::Execute, MakeWeak(this), producerId)
         .AsyncVia(Context_->SerializedInvoker)
         .Run();
@@ -232,8 +233,8 @@ bool TAsyncQueueWriter::TryExecuteIteration(const std::string& producerId, const
         for (auto& request : requests) {
             std::get<TPromise<void>>(request).TrySet();
         }
-        YT_LOG_INFO("Asynchronously wrote messages to the queue (Count: %v)",
-            std::ssize(requests));
+        YT_TLOG_INFO("Asynchronously wrote messages to the queue")
+            .With("Count", std::ssize(requests));
         ErrorState_->ClearError();
         return true;
     } catch (const std::exception& ex) {
@@ -347,11 +348,13 @@ TError TAsyncMultiClusterQueueWriter::TryExecuteIterationOnCluster(
         for (auto& request : requests) {
             std::get<TPromise<void>>(request).TrySet();
         }
-        YT_LOG_INFO("Asynchronously wrote messages to the queue (Count: %v)",
-            std::ssize(requests));
+        YT_TLOG_INFO("Asynchronously wrote messages to the queue")
+            .With("Count", std::ssize(requests));
         return TError();
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to write to the queue on cluster %v, reinit session", it->first);
+        YT_TLOG_WARNING("Failed to write to the queue on cluster, reinit session")
+            .With("Cluster", it->first)
+            .With(ex);
         clusterData.Session = {};
         return TError(ex);
     }
@@ -539,13 +542,13 @@ void TQueueSinkController::WriteFlowQueueMeta()
     try {
         auto watermarkState = GetWatermarkState();
         if (!watermarkState) {
-            YT_LOG_WARNING("Watermark state is not available, skipping heartbeat");
+            YT_TLOG_WARNING("Watermark state is not available, skipping heartbeat");
             return;
         }
 
         auto partitions = Info_->GetPartitionCount();
         if (!partitions) {
-            YT_LOG_WARNING("Partition count is not available, skipping heartbeat");
+            YT_TLOG_WARNING("Partition count is not available, skipping heartbeat");
             return;
         }
 
@@ -559,8 +562,8 @@ void TQueueSinkController::WriteFlowQueueMeta()
         meta.EventWatermark = watermark;
         meta.PureHeartbeat = true;
         auto serializedMeta = NYson::ConvertToYsonString(meta, NYson::EYsonFormat::Binary);
-        YT_LOG_INFO("Writing flow queue meta heartbeat (EventWatermark: %v)",
-            meta.EventWatermark);
+        YT_TLOG_INFO("Writing flow queue meta heartbeat")
+            .With("EventWatermark", meta.EventWatermark);
 
         auto nameTable = New<NTableClient::TNameTable>();
         auto metaField = nameTable->RegisterNameOrThrow(GetParameters()->FlowQueueMetaColumn);
@@ -669,7 +672,7 @@ void TMultiClusterQueueSinkController::WriteFlowQueueMeta()
     try {
         auto watermarkState = GetWatermarkState();
         if (!watermarkState) {
-            YT_LOG_WARNING("Watermark state is not available, skipping heartbeat");
+            YT_TLOG_WARNING("Watermark state is not available, skipping heartbeat");
             return;
         }
 
@@ -681,8 +684,8 @@ void TMultiClusterQueueSinkController::WriteFlowQueueMeta()
         meta.EventWatermark = watermark;
         meta.PureHeartbeat = true;
         auto serializedMeta = NYson::ConvertToYsonString(meta, NYson::EYsonFormat::Binary);
-        YT_LOG_INFO("Writing flow queue meta heartbeat (EventWatermark: %v)",
-            meta.EventWatermark);
+        YT_TLOG_INFO("Writing flow queue meta heartbeat")
+            .With("EventWatermark", meta.EventWatermark);
 
         auto nameTable = New<NTableClient::TNameTable>();
         auto metaField = nameTable->RegisterNameOrThrow(GetParameters()->FlowQueueMetaColumn);
@@ -691,7 +694,8 @@ void TMultiClusterQueueSinkController::WriteFlowQueueMeta()
         for (const auto& [cluster, info] : InfoByCluster_) {
             auto partitions = info->GetPartitionCount();
             if (!partitions) {
-                YT_LOG_WARNING("Partition count is not available for cluster %v, skipping heartbeat on this cluster", cluster);
+                YT_TLOG_WARNING("Partition count is not available for cluster, skipping heartbeat on this cluster")
+                    .With("Cluster", cluster);
                 continue;
             }
 

@@ -128,7 +128,9 @@ std::optional<THashMap<TKey, NYTree::IMapNodePtr>> TQueueSourceController::ListK
         keys[GenerateQueueKey(sourceIdentity, i)] = trivialSpec;
     }
     if (skipped != 0) {
-        YT_LOG_DEBUG("Skipped some partitions due to filter (Skipped: %v, Left: %v)", skipped, std::size(keys));
+        YT_TLOG_DEBUG("Skipped some partitions due to filter")
+            .With("Skipped", skipped)
+            .With("Left", std::size(keys));
     }
     return keys;
 }
@@ -405,17 +407,15 @@ auto TQueueSourceImpl::ParseData(
     for (auto row : rowset->GetRows()) {
         auto rowOffset = FromUnversionedValue<i64>(row[offsetColumnId]);
         if (rowOffset < initialOffset) {
-            YT_LOG_WARNING("Got offset less than initial committed, skipped. "
-                "Probably it is a start of reading old queue with empty yt flow state "
-                "(Offset: %v, InitialOffset: %v)",
-                rowOffset,
-                initialOffset);
+            YT_TLOG_WARNING("Got offset less than initial committed, skipped. Probably it is a start of reading old queue with empty yt flow state")
+                .With("Offset", rowOffset)
+                .With("InitialOffset", initialOffset);
             continue;
         }
         if (offsetLimit && rowOffset >= *offsetLimit) {
-            YT_LOG_WARNING("Got offset bigger than limit, skipped (Offset: %v, OffsetLimit: %v)",
-                rowOffset,
-                *offsetLimit);
+            YT_TLOG_WARNING("Got offset bigger than limit, skipped")
+                .With("Offset", rowOffset)
+                .With("OffsetLimit", *offsetLimit);
             continue;
         }
 
@@ -432,7 +432,9 @@ auto TQueueSourceImpl::ParseData(
                     meta = ConvertTo<TFlowQueueMeta>(*raw);
                 } catch (const std::exception& ex) {
                     if (GetParameters()->IgnoreMalformedFlowQueueMeta) {
-                        YT_LOG_WARNING(ex, "Failed to parse flow queue meta from %Qv", *raw);
+                        YT_TLOG_WARNING("Failed to parse flow queue meta")
+                            .With("RawMeta", *raw, "%Qv")
+                            .With(ex);
                     } else {
                         THROW_ERROR_EXCEPTION("Failed to parse flow queue meta from %Qv", *raw)
                             << TError(ex);

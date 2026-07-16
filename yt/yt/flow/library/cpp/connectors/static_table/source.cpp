@@ -143,8 +143,8 @@ TSource::TSource(
         BIND([=, this] (const TDynamicSourceContextPtr& /*dynamicContext*/) mutable {
             // Sanity check. These parameters are not changed during partition life.
             auto newDynamicPartitionSpec = GetDynamicPartitionSpec();
-            YT_LOG_INFO("Source got new dynamic source partition spec (newDynamicPartitionSpec: %v)",
-                ConvertToYsonString(newDynamicPartitionSpec, EYsonFormat::Text));
+            YT_TLOG_INFO("Source got new dynamic source partition spec")
+                .With("newDynamicPartitionSpec", ConvertToYsonString(newDynamicPartitionSpec, EYsonFormat::Text));
             if (previousDynamicPartitionSpec) {
                 YT_VERIFY(newDynamicPartitionSpec->Table.GetPath() == previousDynamicPartitionSpec->Table.GetPath());
                 YT_VERIFY(newDynamicPartitionSpec->EventTimestamp == previousDynamicPartitionSpec->EventTimestamp);
@@ -337,7 +337,8 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
         auto table = dynamicSourcePartitionSpec->Table;
         SetRowIndexRange(table, nextOffset, maxOffsetExclusive);
 
-        YT_LOG_DEBUG("Create table reader (RichPath: %v)", table);
+        YT_TLOG_DEBUG("Create table reader")
+            .With("RichPath", table);
         auto readerConfig = NYT::New<NYT::NTableClient::TTableReaderConfig>();
         ReaderFuture_ = Client_->CreateTableReader(
             table,
@@ -749,14 +750,13 @@ void TSourceController::UpdateControllerState(
         ++it;
     } else {
         if (state->DistributingTable->GetNotDistributedRows() != 0) {
-            YT_LOG_EVENT(
+            YT_TLOG_EVENT_FLUENT(
                 publicLogger,
                 ELogLevel::Error,
-                "Data loss was detected, table was removed before it is fully read "
-                "(Table: %v, RowsLost: %v, RowsTotal: %v)",
-                state->DistributingTable->Path,
-                state->DistributingTable->GetNotDistributedRows(),
-                state->DistributingTable->RowCount);
+                "Data loss was detected, table was removed before it is fully read")
+                .With("Table", state->DistributingTable->Path)
+                .With("RowsLost", state->DistributingTable->GetNotDistributedRows())
+                .With("RowsTotal", state->DistributingTable->RowCount);
             state->LostTables += 1;
         } else if (!state->DistributionFinished) {
             state->ProcessedTables += 1;
@@ -780,19 +780,17 @@ void TSourceController::UpdateControllerState(
     }
 
     if (needStartNewTable) {
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT_FLUENT(
             publicLogger,
             ELogLevel::Info,
-            "Starting to read new table"
-            "(Table: %v, TableRows: %v, TableBytes: %v, TableEventTimestamp: %v, TableSystemTimestamp: %v, "
-            "QueuedTablesRows: %v, QueuedTablesBytes: %v)",
-            state->DistributingTable->Path,
-            state->DistributingTable->RowCount,
-            state->DistributingTable->ByteSize,
-            state->DistributingTable->EventTimestamp,
-            state->DistributingTable->SystemTimestamp,
-            state->PendingCount,
-            state->PendingBytes);
+            "Starting to read new table")
+            .With("Table", state->DistributingTable->Path)
+            .With("TableRows", state->DistributingTable->RowCount)
+            .With("TableBytes", state->DistributingTable->ByteSize)
+            .With("TableEventTimestamp", state->DistributingTable->EventTimestamp)
+            .With("TableSystemTimestamp", state->DistributingTable->SystemTimestamp)
+            .With("QueuedTablesRows", state->PendingCount)
+            .With("QueuedTablesBytes", state->PendingBytes);
     }
 }
 
@@ -803,24 +801,24 @@ void TSourceController::ApplyRestartInstantLogic(
 {
     auto now = TInstant::Now();
     if (restartInstant > now) {
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT_FLUENT(
             publicLogger,
             ELogLevel::Warning,
-            "Misconfiguration: restart instant in dynamic parameters is greater than now (RestartInstant: %v, Now: %v)",
-            restartInstant,
-            now);
+            "Misconfiguration: restart instant in dynamic parameters is greater than now")
+            .With("RestartInstant", restartInstant)
+            .With("Now", now);
     }
     if (restartInstant > state->EraStartInstant) {
         state->DistributingTable->SkipRemainingRows();
 
         state->Era += 1;
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT_FLUENT(
             publicLogger,
             ELogLevel::Warning,
-            "Starting new era (Era: %v, LastEraStartInstant: %v, NewEraStartInstant: %v)",
-            state->Era,
-            state->EraStartInstant,
-            now);
+            "Starting new era")
+            .With("Era", state->Era)
+            .With("LastEraStartInstant", state->EraStartInstant)
+            .With("NewEraStartInstant", now);
         state->EraStartInstant = now;
     }
 }
@@ -848,18 +846,20 @@ bool TSourceController::CheckDistributingTable()
                 CheckDistributingTableErrorState_->ClearError();
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to update distributing table") << ex;
-                YT_LOG_EVENT(
+                YT_TLOG_EVENT_FLUENT(
                     GetContext()->PublicLogger,
                     ELogLevel::Error,
-                    error);
+                    "Failed to update distributing table")
+                    .With(error);
                 CheckDistributingTableErrorState_->SetError(error);
             }
         } else {
             auto error = TError("Failed to get tables") << TablesFuture_.GetOrCrash();
-            YT_LOG_EVENT(
+            YT_TLOG_EVENT_FLUENT(
                 GetContext()->PublicLogger,
                 ELogLevel::Error,
-                error);
+                "Failed to get tables")
+                .With(error);
             CheckDistributingTableErrorState_->SetError(error);
         }
         TablesFuture_ = {};
@@ -903,11 +903,11 @@ void TSourceController::CheckDistributionFinished()
     } else if (distributingTable->GetNotDistributedRows() == 0 && distributingTable->DistributingRanges.empty()) {
         State_->DistributionFinished = true;
         State_->ProcessedTables += 1;
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT_FLUENT(
             GetContext()->PublicLogger,
             ELogLevel::Info,
-            "Table was processed (Table: %v)",
-            distributingTable->Path);
+            "Table was processed")
+            .With("Table", distributingTable->Path);
     }
 }
 
