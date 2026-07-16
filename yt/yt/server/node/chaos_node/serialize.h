@@ -42,6 +42,7 @@ DEFINE_ENUM(EChaosReign,
     ((ChaosLeaseRemoveLeaseOnlyAfterChildren)   (300308)) // gryzlov-ad
     ((FixParentIdDuringChaosLeaseMigration)     (300309)) // gryzlov-ad
     ((FixChaosLeasePersist)                     (300310)) // gryzlov-ad
+    ((BlockCardPropagationOnAlter_25_4)         (300311)) // osidorkin
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");
