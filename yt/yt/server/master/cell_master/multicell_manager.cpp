@@ -73,6 +73,7 @@ using namespace NHiveClient;
 using namespace NHiveClient::NProto;
 using namespace NHydra;
 using namespace NCellMaster::NProto;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,6 +129,24 @@ public:
 
         const auto& alertManager = Bootstrap_->GetAlertManager();
         alertManager->RegisterAlertSource(BIND_NO_PROPAGATE(&TMulticellManager::GetAlerts, MakeWeak(this)));
+    }
+
+        IYPathServicePtr GetOrchidService() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromProducer(BIND(&TMulticellManager::BuildOrchid, MakeStrong(this)))
+            ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::MulticellManager));
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer) const
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("dynamically_propagated_master_cells").Value(DynamicallyPropagatedMasterCellTags_)
+            .EndMap();
     }
 
     bool IsPrimaryMaster() const override

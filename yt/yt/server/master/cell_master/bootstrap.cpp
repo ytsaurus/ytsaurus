@@ -1249,6 +1249,10 @@ void TBootstrap::DoStart()
         CreateVirtualNode(GroundUpdateQueueManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
+        "/multicell_manager",
+        CreateVirtualNode(MulticellManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
         "/reign",
         ConvertTo<INodePtr>(GetCurrentReign()));
     SetNodeByYPath(
