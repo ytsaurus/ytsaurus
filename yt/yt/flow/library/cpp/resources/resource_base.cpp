@@ -65,7 +65,7 @@ void TResourceBase::FeedStatus(i64 morePushedToQueue, i64 moreFetchedFromQueue)
 {
     auto resourceManager = Context_->ResourceManager.Lock();
     if (!resourceManager) {
-        YT_LOG_WARNING("Resource manager is not available, skipping FeedStatus");
+        YT_TLOG_WARNING("Resource manager is not available, skipping FeedStatus");
         return;
     }
     resourceManager->FeedStatus(Context_->ResourceId, morePushedToQueue, moreFetchedFromQueue);

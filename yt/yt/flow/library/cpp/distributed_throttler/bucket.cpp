@@ -111,7 +111,8 @@ void TDistributedThrottlerBucket::DrainLoop(TWeakPtr<TDistributedThrottlerBucket
         } catch (const std::exception& ex) {
             if (auto strongThis = weakThis.Lock()) {
                 auto& Logger = strongThis->Logger;
-                YT_LOG_ERROR(ex, "Throttler drain loop failed");
+                YT_TLOG_ERROR("Throttler drain loop failed")
+                    .With(ex);
             } else {
                 return;
             }
