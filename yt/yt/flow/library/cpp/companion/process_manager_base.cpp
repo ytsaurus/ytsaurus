@@ -97,7 +97,7 @@ void TProcessManagerBase::Start()
     {
         auto guard = Guard(Lock_);
         if (Started_) {
-            YT_LOG_DEBUG("Auto-restartable companion process already started");
+            YT_TLOG_DEBUG("Auto-restartable companion process already started");
             return;
         }
         Started_ = true;
@@ -107,14 +107,14 @@ void TProcessManagerBase::Start()
     // Check if the companion port is already in use and kill any zombie process.
     KillZombieProcessesOnPort();
 
-    YT_LOG_DEBUG("Starting auto-restartable companion process");
+    YT_TLOG_DEBUG("Starting auto-restartable companion process");
     DoStart();
 
     // Start async health checks without waiting for the first response.
     HealthCheckExecutor_->Start();
     // Start async metrics collection.
     MetricsCollectionExecutor_->Start();
-    YT_LOG_DEBUG("Started successfully");
+    YT_TLOG_DEBUG("Started successfully");
 }
 
 void TProcessManagerBase::Restart()
@@ -122,7 +122,7 @@ void TProcessManagerBase::Restart()
     {
         auto guard = Guard(Lock_);
         if (!Started_) {
-            YT_LOG_DEBUG("Auto-restartable companion process not started");
+            YT_TLOG_DEBUG("Auto-restartable companion process not started");
             return;
         }
         RestartOnStop_ = true;
@@ -148,7 +148,8 @@ void TProcessManagerBase::Shutdown()
         Y_UNUSED(NConcurrency::WaitFor(HealthCheckExecutor_->Stop()));
         Y_UNUSED(NConcurrency::WaitFor(MetricsCollectionExecutor_->Stop()));
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to shutdown auto-restartable companion process");
+        YT_TLOG_ERROR("Failed to shutdown auto-restartable companion process")
+            .With(ex);
     }
 }
 
@@ -175,13 +176,13 @@ void TProcessManagerBase::CheckCompanionAvailability()
     while (IsStarted() && IsWithinStartupGracePeriod()) {
         auto resultOrError = NConcurrency::WaitFor(HealthCheck());
         if (resultOrError.IsOK()) {
-            YT_LOG_DEBUG("Received heartbeat from companion");
+            YT_TLOG_DEBUG("Received heartbeat from companion");
             ErrorState_->ClearError();
             return;
         }
-        YT_LOG_DEBUG(resultOrError,
-            "Health check failed within startup grace period, waiting for companion to start (StartupGracePeriod: %v)",
-            StartupGracePeriod_);
+        YT_TLOG_DEBUG("Health check failed within startup grace period, waiting for companion to start")
+            .With("StartupGracePeriod", StartupGracePeriod_)
+            .With(resultOrError);
         NConcurrency::TDelayedExecutor::WaitForDuration(BackoffOptions_.MinBackoff);
     }
 
@@ -191,21 +192,22 @@ void TProcessManagerBase::CheckCompanionAvailability()
     while (IsStarted()) {
         auto resultOrError = NConcurrency::WaitFor(HealthCheck());
         if (resultOrError.IsOK()) {
-            YT_LOG_DEBUG("Received heartbeat from companion");
+            YT_TLOG_DEBUG("Received heartbeat from companion");
             ErrorState_->ClearError();
             return;
         }
         ErrorState_->SetError(resultOrError);
         if (backoffStrategy.Next()) {
             auto backoff = backoffStrategy.GetBackoff();
-            YT_LOG_WARNING("Restarting companion process after a failed health check (Attempt: %v, MaxRestarts: %v, SleepDuration: %v)",
-                backoffStrategy.GetInvocationIndex(),
-                backoffStrategy.GetInvocationCount(),
-                backoff);
+            YT_TLOG_WARNING("Restarting companion process after a failed health check")
+                .With("Attempt", backoffStrategy.GetInvocationIndex())
+                .With("MaxRestarts", backoffStrategy.GetInvocationCount())
+                .With("SleepDuration", backoff);
             Restart();
             NConcurrency::TDelayedExecutor::WaitForDuration(backoff);
         } else {
-            YT_LOG_FATAL(resultOrError, "Failed to connect to companion process");
+            YT_TLOG_FATAL("Failed to connect to companion process")
+                .With(resultOrError);
         }
     }
 }
@@ -235,9 +237,9 @@ void TProcessManagerBase::DoStart()
         auto guard = Guard(Lock_);
         // Check if we should still start the process.
         if (!Started_ || !RestartOnStop_) {
-            YT_LOG_DEBUG("Skipping process start (Started: %v, RestartOnStop: %v)",
-                Started_,
-                RestartOnStop_);
+            YT_TLOG_DEBUG("Skipping process start")
+                .With("Started", Started_)
+                .With("RestartOnStop", RestartOnStop_);
             return;
         }
         try {
@@ -271,7 +273,8 @@ void TProcessManagerBase::OnProcessStopped(const TError& error, const std::strin
     {
         auto guard = Guard(Lock_);
         if (!Started_ || !RestartOnStop_) {
-            YT_LOG_INFO(error, "Companion process stopped during shutdown");
+            YT_TLOG_INFO("Companion process stopped during shutdown")
+                .With(error);
             return;
         }
     }
@@ -286,9 +289,9 @@ void TProcessManagerBase::OnProcessStopped(const TError& error, const std::strin
 
     ErrorState_->SetError(stopError);
 
-    YT_LOG_WARNING("Companion process was stopped, scheduling restart (ExitCode: %v, CommandLine: %v)",
-        exitCode,
-        commandLine);
+    YT_TLOG_WARNING("Companion process was stopped, scheduling restart")
+        .With("ExitCode", exitCode)
+        .With("CommandLine", commandLine);
 
     // Schedule companion start even if it fails to avoid crashing worker.
     // User might be scared of worker coredump, instead we show error status in
@@ -339,7 +342,9 @@ void TProcessManagerBase::StopIncarnation()
         try {
             processToKill->Kill(SIGKILL);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(TError(ex), "Failed to kill process properly (Pid: %v)", processToKill->GetProcessId());
+            YT_TLOG_WARNING("Failed to kill process properly")
+                .With("Pid", processToKill->GetProcessId())
+                .With(TError(ex));
             KillProcessWithChildren(processToKill->GetProcessId());
         }
     }
@@ -377,7 +382,8 @@ void TProcessManagerBase::KillZombieProcessesOnPort()
     if (zombiePids.empty()) {
         return;
     }
-    YT_LOG_DEBUG("Zombie processes found. Going to kill them (Pids: %v)", zombiePids);
+    YT_TLOG_DEBUG("Zombie processes found. Going to kill them")
+        .With("Pids", zombiePids);
     for (auto pid : zombiePids) {
         KillProcessWithChildren(pid);
     }
@@ -386,25 +392,31 @@ void TProcessManagerBase::KillZombieProcessesOnPort()
 void TProcessManagerBase::KillProcessWithChildren(int pid)
 {
     // Stop the main process for preventing new child processes spawning.
-    YT_LOG_DEBUG("Stopping process (Pid: %v)", pid);
+    YT_TLOG_DEBUG("Stopping process")
+        .With("Pid", pid);
     if (!TryKillProcessByPid(pid, SIGSTOP)) {
-        YT_LOG_WARNING("Failed to stop parent process (Pid: %v)", pid);
+        YT_TLOG_WARNING("Failed to stop parent process")
+            .With("Pid", pid);
     }
     // Get all child processes.
     auto childPids = GetPidsUnderParent(pid);
     // Kill all child processes one by one.
     for (auto childPid : childPids) {
         if (childPid != pid) {
-            YT_LOG_DEBUG("Killing child job process (Pid: %v)", childPid);
+            YT_TLOG_DEBUG("Killing child job process")
+                .With("Pid", childPid);
             if (!TryKillProcessByPid(childPid, SIGKILL)) {
-                YT_LOG_DEBUG("Failed to kill child job process (Pid: %v)", childPid);
+                YT_TLOG_DEBUG("Failed to kill child job process")
+                    .With("Pid", childPid);
             }
         }
     }
     // Kill the main process.
-    YT_LOG_DEBUG("Killing process (Pid: %v)", pid);
+    YT_TLOG_DEBUG("Killing process")
+        .With("Pid", pid);
     if (!TryKillProcessByPid(pid, SIGKILL)) {
-        YT_LOG_DEBUG("Failed to kill companion process (Pid: %v)", pid);
+        YT_TLOG_DEBUG("Failed to kill companion process")
+            .With("Pid", pid);
     }
 }
 
@@ -435,12 +447,13 @@ void TProcessManagerBase::CollectCompanionMetrics()
             threadCount = std::stoi(threadCountStr);
             ThreadCountGauge_.Update(threadCount);
         }
-        YT_LOG_DEBUG("Collected companion process metrics (Pid: %v, RSS: %v, ThreadCount: %v)",
-            pid,
-            totalRss,
-            threadCount);
+        YT_TLOG_DEBUG("Collected companion process metrics")
+            .With("Pid", pid)
+            .With("RSS", totalRss)
+            .With("ThreadCount", threadCount);
     } catch (const std::exception& ex) {
-        YT_LOG_DEBUG(ex, "Failed to collect companion process metrics");
+        YT_TLOG_DEBUG("Failed to collect companion process metrics")
+            .With(ex);
     }
 }
 
