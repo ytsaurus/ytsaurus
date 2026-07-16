@@ -164,7 +164,8 @@ TFlowCoreBuildInfoPtr ComputeFlowCoreBuildInfo()
     appendFieldIfNotEmpty("BuildHost", info->BuildHost);
     appendNumericFieldIfPositive("BuildTimestamp", "", info->BuildTimestamp);
     logMessage.AppendChar(')');
-    YT_LOG_INFO("%v", logMessage);
+    YT_TLOG_INFO("Flow core build info")
+        .With("BuildInfo", logMessage);
 
     return info;
 }

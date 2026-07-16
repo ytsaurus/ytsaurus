@@ -670,12 +670,12 @@ void TFlowLayout::CreatePartition(TPartitionPtr partition)
     Y_ENSURE(!partition->ComputationId.Underlying().empty());
     Y_ENSURE(partition->StateTimestamp);
     Y_ENSURE(!partition->CurrentJobId);
-    YT_LOG_INFO("CreatePartition (PartitionId: %v, ComputationId: %v, LowerKey: %Qv, UpperKey: %Qv, SourceKey: %Qv)",
-        partition->PartitionId,
-        partition->ComputationId,
-        partition->LowerKey,
-        partition->UpperKey,
-        partition->SourceKey);
+    YT_TLOG_INFO("CreatePartition")
+        .With("PartitionId", partition->PartitionId)
+        .With("ComputationId", partition->ComputationId)
+        .With("LowerKey", partition->LowerKey, "%Qv")
+        .With("UpperKey", partition->UpperKey, "%Qv")
+        .With("SourceKey", partition->SourceKey, "%Qv");
     THROW_ERROR_EXCEPTION_UNLESS(Partitions.emplace(partition->PartitionId, partition).second == true, "PartitionId duplicate");
     ++Updated_;
     if (MutationNotifier_) {
@@ -694,18 +694,18 @@ void TFlowLayout::UpdatePartition(TPartitionPtr partition)
     if (oldPartition->CurrentJobId) {
         auto job = GetOrCrash(Jobs, *oldPartition->CurrentJobId);
         EraseOrCrash(Jobs, job->JobId);
-        YT_LOG_INFO("RemoveJob during UpdatePartition (JobId: %v, PartitionId: %v, ComputationId: %v)",
-            job->JobId,
-            partition->PartitionId,
-            partition->ComputationId);
+        YT_TLOG_INFO("RemoveJob during UpdatePartition")
+            .With("JobId", job->JobId)
+            .With("PartitionId", partition->PartitionId)
+            .With("ComputationId", partition->ComputationId);
         if (MutationNotifier_) {
             MutationNotifier_->OnRemoveJob(job, EJobFinishReason::PartitionUpdated);
         }
     }
-    YT_LOG_INFO("UpdatePartition (PartitionId: %v, OldState: %v, NewState: %v)",
-        partition->PartitionId,
-        oldPartition->State,
-        partition->State);
+    YT_TLOG_INFO("UpdatePartition")
+        .With("PartitionId", partition->PartitionId)
+        .With("OldState", oldPartition->State)
+        .With("NewState", partition->State);
     Partitions.insert_or_assign(partition->PartitionId, partition);
     ++Updated_;
     if (MutationNotifier_) {
@@ -730,15 +730,16 @@ void TFlowLayout::RemovePartition(const TPartitionId& id)
     if (oldPartition->CurrentJobId) {
         auto job = GetOrCrash(Jobs, *oldPartition->CurrentJobId);
         EraseOrCrash(Jobs, job->JobId);
-        YT_LOG_INFO("RemoveJob during RemovePartition (JobId: %v, PartitionId: %v, ComputationId: %v)",
-            job->JobId,
-            oldPartition->PartitionId,
-            oldPartition->ComputationId);
+        YT_TLOG_INFO("RemoveJob during RemovePartition")
+            .With("JobId", job->JobId)
+            .With("PartitionId", oldPartition->PartitionId)
+            .With("ComputationId", oldPartition->ComputationId);
         if (MutationNotifier_) {
             MutationNotifier_->OnRemoveJob(job, EJobFinishReason::PartitionUpdated);
         }
     }
-    YT_LOG_INFO("RemovePartition (PartitionId: %v)", id);
+    YT_TLOG_INFO("RemovePartition")
+        .With("PartitionId", id);
     Partitions.erase(id);
     ++Updated_;
     if (MutationNotifier_) {
@@ -752,11 +753,11 @@ void TFlowLayout::CreateJob(TJobPtr job)
     Y_ENSURE(!oldPartition->CurrentJobId);
     auto newPartition = CloneYsonStruct(oldPartition);
     newPartition->CurrentJobId = job->JobId;
-    YT_LOG_INFO("CreateJob (JobId: %v, PartitionId: %v, ComputationId: %v, WorkerAddress: %v)",
-        job->JobId,
-        job->PartitionId,
-        newPartition->ComputationId,
-        job->WorkerAddress);
+    YT_TLOG_INFO("CreateJob")
+        .With("JobId", job->JobId)
+        .With("PartitionId", job->PartitionId)
+        .With("ComputationId", newPartition->ComputationId)
+        .With("WorkerAddress", job->WorkerAddress);
     Partitions.insert_or_assign(newPartition->PartitionId, std::move(newPartition));
     THROW_ERROR_EXCEPTION_UNLESS(Jobs.emplace(job->JobId, job).second == true, "JobId duplicate");
     ++Updated_;
@@ -767,11 +768,11 @@ void TFlowLayout::CreateJob(TJobPtr job)
 
 void TFlowLayout::UpdateJob(TJobPtr job)
 {
-    YT_LOG_INFO("UpdateJob (JobId: %v, PartitionId: %v, ComputationId: %v, WorkerAddress: %v)",
-        job->JobId,
-        job->PartitionId,
-        GetOrCrash(Partitions, job->PartitionId)->ComputationId,
-        job->WorkerAddress);
+    YT_TLOG_INFO("UpdateJob")
+        .With("JobId", job->JobId)
+        .With("PartitionId", job->PartitionId)
+        .With("ComputationId", GetOrCrash(Partitions, job->PartitionId)->ComputationId)
+        .With("WorkerAddress", job->WorkerAddress);
     // TODO: check GetOrCrash
     auto oldJob = GetOrCrash(Jobs, job->JobId);
     Jobs.insert_or_assign(job->JobId, job);
@@ -783,9 +784,9 @@ void TFlowLayout::UpdateJob(TJobPtr job)
 
 void TFlowLayout::UpdateJob(TJobId id, TLeaseId leaseId)
 {
-    YT_LOG_INFO("UpdateJobLease (JobId: %v, LeaseId: %v)",
-        id,
-        leaseId);
+    YT_TLOG_INFO("UpdateJobLease")
+        .With("JobId", id)
+        .With("LeaseId", leaseId);
     const auto& oldJob = GetOrCrash(Jobs, id);
     Y_ENSURE(oldJob->LeaseId == NullLeaseId);
     auto newJob = CloneYsonStruct(oldJob);
@@ -799,12 +800,12 @@ void TFlowLayout::RemoveJob(const TJobId& id, EJobFinishReason jobFinishReason)
     auto oldPartition = GetOrCrash(Partitions, job->PartitionId);
     auto newPartition = CloneYsonStruct(oldPartition);
     newPartition->CurrentJobId = {};
-    YT_LOG_INFO("RemoveJob (JobId: %v, PartitionId: %v, ComputationId: %v, WorkerAddress: %v, Reason: %v)",
-        job->JobId,
-        job->PartitionId,
-        oldPartition->ComputationId,
-        job->WorkerAddress,
-        jobFinishReason);
+    YT_TLOG_INFO("RemoveJob")
+        .With("JobId", job->JobId)
+        .With("PartitionId", job->PartitionId)
+        .With("ComputationId", oldPartition->ComputationId)
+        .With("WorkerAddress", job->WorkerAddress)
+        .With("Reason", jobFinishReason);
     Partitions.insert_or_assign(newPartition->PartitionId, std::move(newPartition));
     EraseOrCrash(Jobs, id);
     ++Updated_;
@@ -975,21 +976,21 @@ void TExecutionSpec::Register(TRegistrar registrar)
 bool CheckFlowCoreTarget(const TFlowCoreTarget& flowCoreTarget, const std::string& actualFlowCoreVersion)
 {
     if (flowCoreTarget.Underlying().empty()) {
-        YT_LOG_DEBUG("Skipping CheckFlowCoreTarget: flow core target is not set");
+        YT_TLOG_DEBUG("Skipping CheckFlowCoreTarget: flow core target is not set");
         return true;
     }
 
     if (flowCoreTarget.Underlying() == actualFlowCoreVersion) {
-        YT_LOG_DEBUG("Flow core version matches target (FlowCoreVersion: %v, FlowCoreTarget: %v)",
-            actualFlowCoreVersion,
-            flowCoreTarget);
+        YT_TLOG_DEBUG("Flow core version matches target")
+            .With("FlowCoreVersion", actualFlowCoreVersion)
+            .With("FlowCoreTarget", flowCoreTarget);
 
         return true;
     }
 
-    YT_LOG_INFO("Flow core version mismatches target (FlowCoreVersion: %v, FlowCoreTarget: %v)",
-        actualFlowCoreVersion,
-        flowCoreTarget);
+    YT_TLOG_INFO("Flow core version mismatches target")
+        .With("FlowCoreVersion", actualFlowCoreVersion)
+        .With("FlowCoreTarget", flowCoreTarget);
 
     return false;
 }

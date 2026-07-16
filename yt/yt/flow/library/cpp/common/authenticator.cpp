@@ -240,10 +240,12 @@ public:
             const auto& ticket = ext.entries().at(std::string(THmacTicketAuth::MetadataKey));
 
             ticketWithoutSignature = HmacTicketAuth_->RemoveTicketSignature(ticket);
-            YT_LOG_DEBUG("Validating hmac ticket (TicketWithoutSignature: %v)", ticketWithoutSignature);
+            YT_TLOG_DEBUG("Validating hmac ticket")
+                .With("TicketWithoutSignature", ticketWithoutSignature);
 
             HmacTicketAuth_->ValidateTicket(ticket);
-            YT_LOG_DEBUG("Hmac ticket authentication successful (TicketWithoutSignature: %v)", ticketWithoutSignature);
+            YT_TLOG_DEBUG("Hmac ticket authentication successful")
+                .With("TicketWithoutSignature", ticketWithoutSignature);
 
             NRpc::TAuthenticationResult rpcResult;
             rpcResult.User = "root"; // It is important for admin service.
@@ -251,7 +253,9 @@ public:
             return MakeFuture(rpcResult);
         } catch (const std::exception& ex) {
             TError error(ex);
-            YT_LOG_DEBUG(error, "Parsing hmac ticket failed (TicketWithoutSignature: %v)", ticketWithoutSignature);
+            YT_TLOG_DEBUG("Parsing hmac ticket failed")
+                .With("TicketWithoutSignature", ticketWithoutSignature)
+                .With(error);
             return MakeFuture<NRpc::TAuthenticationResult>(error);
         }
     }
@@ -380,15 +384,15 @@ private:
         if (!Required_) {
             // During rollout: do not block the request, but explicitly mark it as
             // unauthenticated by upstream proxy signature.
-            YT_LOG_TRACE("Proxy signature authentication bypassed (Reason: %v)",
-                reason);
+            YT_TLOG_TRACE("Proxy signature authentication bypassed")
+                .With("Reason", reason);
             NRpc::TAuthenticationResult result;
             result.User = std::string(ProxySignatureUser);
             result.Realm = std::string(ProxySignatureBypassRealm);
             return result;
         }
-        YT_LOG_ERROR("Proxy signature authentication failed (Reason: %v)",
-            reason);
+        YT_TLOG_ERROR("Proxy signature authentication failed")
+            .With("Reason", reason);
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::AuthenticationError,
             "Proxy signature authentication failed");
@@ -428,21 +432,21 @@ public:
         if (tvmConfig->GetClientSelfId()) {
             TvmService_ = CreateDynamicTvmService(tvmConfig, TProfiler("", "yt.flow"));
         } else {
-            YT_LOG_INFO("TVM is not configured");
+            YT_TLOG_INFO("TVM is not configured");
             TvmService_ = nullptr;
         }
 
         ClientOptions_ = NApi::GetClientOptionsFromEnvStatic();
         if (ClientOptions_.Token.has_value()) {
-            YT_LOG_INFO("Using OAUTH for interacting with YT");
+            YT_TLOG_INFO("Using OAUTH for interacting with YT");
             HmacTicketAuth_ = New<THmacTicketAuth>(Format("%v,%v", PipelinePath_, *ClientOptions_.Token));
         } else {
             THROW_ERROR_EXCEPTION_UNLESS(TvmService_, "TVM or OAUTH authentication must be configured");
             ClientOptions_ = NApi::TClientOptions::FromServiceTicketAuth(NAuth::CreateServiceTicketAuth(TvmService_, std::string{YTTvmAlias}));
             ClientOptions_.UserTag = Format("%v:%v", PipelinePath_.GetCluster().value(), PipelinePath_.GetPath());
-            YT_LOG_INFO("Using TVM for interacting with YT (SelfTvmId: %v, YTTvmId: %v)",
-                TvmService_->TryGetSelfTvmId(),
-                tvmConfig->ClientDstMap.at(std::string{YTTvmAlias}));
+            YT_TLOG_INFO("Using TVM for interacting with YT")
+                .With("SelfTvmId", TvmService_->TryGetSelfTvmId())
+                .With("YTTvmId", tvmConfig->ClientDstMap.at(std::string{YTTvmAlias}));
 
             HmacTicketAuth_ = New<THmacTicketAuth>(Format("%v,%v", PipelinePath_, tvmConfig->GetClientSelfSecret().value()));
         }
@@ -508,11 +512,10 @@ public:
             controllerAddress,
             Config_->RequireProxySignature);
 
-        YT_LOG_INFO("Proxy signature validation enabled "
-            "(PipelineObjectId: %v, ControllerAddress: %v, Required: %v)",
-            pipelineObjectId,
-            controllerAddress,
-            Config_->RequireProxySignature);
+        YT_TLOG_INFO("Proxy signature validation enabled")
+            .With("PipelineObjectId", pipelineObjectId)
+            .With("ControllerAddress", controllerAddress)
+            .With("Required", Config_->RequireProxySignature);
 
         ProxySignatureAuthenticator_.Store(std::move(authenticator));
     }
@@ -558,7 +561,8 @@ public:
             auto name = RequestHttpJson(url)->GetChildValueOrThrow<std::string>("name");
             return Format("%v (%v)", name, tvmId);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get TVM name by token");
+            YT_TLOG_WARNING("Failed to get TVM name by token")
+                .With(ex);
             return Format("%v", tvmId);
         }
     }
@@ -573,7 +577,8 @@ public:
             options.Timeout = AuthInfoRequestTimeout;
             return WaitFor(client->GetCurrentUser(options)).ValueOrThrow().User;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get user login by token");
+            YT_TLOG_WARNING("Failed to get user login by token")
+                .With(ex);
             return "unknown-user";
         }
     }
@@ -617,14 +622,15 @@ public:
                     client->GetNode(PipelinePath_.GetPath(), options))
                         .ValueOrThrow());
                 auto objectId = node->Attributes().Get<NObjectClient::TObjectId>(IdAttribute);
-                YT_LOG_INFO("Found pipeline object id (PipelineObjectId: %v)", objectId);
+                YT_TLOG_INFO("Found pipeline object id")
+                    .With("PipelineObjectId", objectId);
                 return objectId;
             } catch (const TErrorException& ex) {
                 backoffStrategy.Next();
-                YT_LOG_ERROR(ex,
-                    "Unable to read pipeline object id (Attempt: %v, RetryAfter: %v)",
-                    backoffStrategy.GetInvocationIndex() - 1,
-                    backoffStrategy.GetBackoff());
+                YT_TLOG_ERROR("Unable to read pipeline object id")
+                    .With("Attempt", backoffStrategy.GetInvocationIndex() - 1)
+                    .With("RetryAfter", backoffStrategy.GetBackoff())
+                    .With(ex);
                 TDelayedExecutor::WaitForDuration(backoffStrategy.GetBackoff());
             }
         }
