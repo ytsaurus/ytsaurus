@@ -191,21 +191,24 @@ public:
 
         StartTime_ = TInstant::Now();
         IsRunning_.store(true);
-        YT_LOG_INFO("Job execution started");
+        YT_TLOG_INFO("Job execution started");
         ExecutorFiberFuture_ = BIND(&TJob::ExecutorFiber, MakeStrong(this))
             .AsyncVia(JobSerializedInvoker_)
             .Run()
             .ToImmediatelyCancelable();
         ExecutorFiberFuture_.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
             if (result.IsOK()) {
-                YT_LOG_INFO("Job execution completed");
+                YT_TLOG_INFO("Job execution completed")
+                    .With(result);
             } else if (result.FindMatching(EErrorCode::GracefulShutdown)) {
                 // Graceful rebalance signals job completion via a typed error (the controller then
                 // recreates the job on the target worker). This is a normal lifecycle event, not a
                 // failure, so log it at Info like an ordinary completion rather than at Error.
-                YT_LOG_INFO(result, "Job finished by graceful shutdown signal");
+                YT_TLOG_INFO("Job finished by graceful shutdown signal")
+                    .With(result);
             } else {
-                YT_LOG_ERROR(result, "Job execution failed");
+                YT_TLOG_ERROR("Job execution failed")
+                    .With(result);
             }
             IsFinished_ = true;
             FinishTime_ = TInstant::Now();
@@ -217,7 +220,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Scheduled job reconfigure");
+        YT_TLOG_DEBUG("Scheduled job reconfigure");
 
         ReconfigureFuture_ = ReconfigureFuture_
             .Apply(BIND_NO_PROPAGATE(&TJob::ReconfigureSync, MakeWeak(this), specGeneration, dynamicJobSpec)
@@ -231,10 +234,10 @@ public:
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlSerializedInvoker_);
 
-        YT_LOG_DEBUG("Job reconfiguration started (OldSpecGeneration: %v, NewSpecGeneration: %v, Draining: %v)",
-            SpecGeneration_,
-            specGeneration,
-            dynamicJobSpec->DynamicComputationSpec->Draining);
+        YT_TLOG_DEBUG("Job reconfiguration started")
+            .With("OldSpecGeneration", SpecGeneration_)
+            .With("NewSpecGeneration", specGeneration)
+            .With("Draining", dynamicJobSpec->DynamicComputationSpec->Draining);
 
         SpecGeneration_ = specGeneration;
         DynamicJobSpec_ = std::move(dynamicJobSpec);
@@ -252,8 +255,8 @@ public:
 
         MessageFilter_->Reconfigure(DynamicJobSpec_->DynamicComputationSpec->SkipIfExpression);
 
-        YT_LOG_DEBUG("Job reconfiguration completed (Draining: %v)",
-            DynamicJobSpec_->DynamicComputationSpec->Draining);
+        YT_TLOG_DEBUG("Job reconfiguration completed")
+            .With("Draining", DynamicJobSpec_->DynamicComputationSpec->Draining);
     }
 
     TFuture<void> UpdateWatermarkState(TWatermarkStatePtr watermarkState) override
@@ -272,7 +275,7 @@ public:
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlSerializedInvoker_);
 
-        YT_LOG_DEBUG("Watermark state updated");
+        YT_TLOG_DEBUG("Watermark state updated");
         WatermarkState_ = std::move(watermarkState);
         YT_VERIFY(InitializePromise_.IsSet());
         Computation_->UpdateWatermarkState(WatermarkState_);
@@ -297,7 +300,7 @@ public:
         TraverseData_ = std::move(traverse);
         YT_VERIFY(InitializePromise_.IsSet());
         Computation_->SetInputTraverse(TraverseData_->InputStreams);
-        YT_LOG_DEBUG("Traverse data updated");
+        YT_TLOG_DEBUG("Traverse data updated");
     }
 
     void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo) override
@@ -337,8 +340,8 @@ public:
         if (!ExecutorFiberFuture_ || IsFinished_) {
             return;
         }
-        YT_LOG_INFO("Job stopping (Error: %v)",
-            error);
+        YT_TLOG_INFO("Job stopping")
+            .With("Error", error);
         ExecutorFiberFuture_.Cancel(error);
     }
 
@@ -408,8 +411,8 @@ public:
                     }
                     status->InitedTime = GotFirstTraverseDataTime_;
 
-                    YT_LOG_INFO("Report status (TraverseData: %v)",
-                        ConvertToYsonString(status->FromPartitionTraverseData, NYson::EYsonFormat::Text));
+                    YT_TLOG_INFO("Report status")
+                        .With("TraverseData", ConvertToYsonString(status->FromPartitionTraverseData, NYson::EYsonFormat::Text));
 
                     if (!JobSpec_->ComputationSpec->InputStreamIds.empty()) {
                         auto guard = Guard(Lock_);
@@ -644,7 +647,7 @@ private:
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(JobSerializedInvoker_);
 
-        YT_LOG_INFO("Computation construction started");
+        YT_TLOG_INFO("Computation construction started");
         YT_VERIFY(IsRunning_.load() == true);
         YT_VERIFY(InitializePromise_.IsSet() == false);
         Computation_ = CreateComputation(
@@ -661,10 +664,10 @@ private:
             Profiler,
             JobRootStatusProfiler_);
         InitializePromise_.Set();
-        YT_LOG_INFO("Computation::Run started");
+        YT_TLOG_INFO("Computation::Run started");
         auto context = New<TComputationRunContext>(MakeWeak(this));
         Computation_->Run(context);
-        YT_LOG_INFO("Computation::Run completed");
+        YT_TLOG_INFO("Computation::Run completed");
     }
 
     std::vector<TInputMessageConstPtr> DropSkippedMessages(std::vector<TInputMessageConstPtr> messages)
@@ -678,9 +681,9 @@ private:
                 skippedMessageIds.push_back(message->MessageId);
             }
             SkippedByExpressionCounter_.Increment(skippedMessageIds.size());
-            YT_LOG_INFO("Skipped input messages by expression (Skipped: %v, Kept: %v)",
-                skippedMessageIds.size(),
-                kept.size());
+            YT_TLOG_INFO("Skipped input messages by expression")
+                .With("Skipped", skippedMessageIds.size())
+                .With("Kept", kept.size());
             MarkPersisted(skippedMessageIds);
         }
 

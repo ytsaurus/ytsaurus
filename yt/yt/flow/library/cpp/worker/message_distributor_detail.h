@@ -498,7 +498,9 @@ bool SelectTasksToSend(
 
         const auto messageKey = std::pair(it->Task.Message->MessageId, jobId);
         auto [messageIdsIt, messageIdWasEmplaced] = messageIds.emplace(messageKey);
-        YT_LOG_FATAL_UNLESS(messageIdWasEmplaced, "There is duplicate of message in batch (MessageId: %v, JobId: %v)", it->Task.Message->MessageId, jobId);
+        YT_TLOG_FATAL_UNLESS(messageIdWasEmplaced, "There is duplicate of message in batch")
+            .With("MessageId", it->Task.Message->MessageId)
+            .With("JobId", jobId);
 
         selectedCallback(jobId, *it);
 

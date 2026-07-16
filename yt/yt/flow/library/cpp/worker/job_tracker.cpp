@@ -254,8 +254,8 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        YT_LOG_INFO("Cancelling all jobs (JobCount: %v)",
-            JobIdToRuntimeState_.size());
+        YT_TLOG_INFO("Cancelling all jobs")
+            .With("JobCount", JobIdToRuntimeState_.size());
 
         for (const auto& [jobId, state] : JobIdToRuntimeState_) {
             YT_UNUSED_FUTURE(state.Job->Stop(error));
@@ -383,12 +383,12 @@ public:
                 continue;
             }
             auto job = jobIt->second;
-            YT_LOG_FATAL_UNLESS(
+            YT_TLOG_FATAL_UNLESS(
                 job->WorkerAddress == Context_->WorkerNodeInfo->RpcAddress && job->WorkerIncarnationId == Context_->WorkerNodeInfo->IncarnationId,
-                "Worker received invalid dynamic computation partition specs (WrongJobId: %v, ActualIncarnationId: %v, JobAssignedIncarnationId: %v)",
-                jobId,
-                Context_->WorkerNodeInfo->IncarnationId,
-                job->WorkerIncarnationId);
+                "Worker received invalid dynamic computation partition specs")
+                .With("WrongJobId", jobId)
+                .With("ActualIncarnationId", Context_->WorkerNodeInfo->IncarnationId)
+                .With("JobAssignedIncarnationId", job->WorkerIncarnationId);
             YT_UNUSED_FUTURE(StartJob(jobId));
         }
     }
@@ -425,7 +425,9 @@ public:
                 auto lag = now - stopTime;
                 if (lag > TDuration::Minutes(1)) {
                     ++hungStoppingJobs;
-                    YT_LOG_ERROR("Job can not stop in time (JobId: %v, StoppingLag: %v)", it->first, lag);
+                    YT_TLOG_ERROR("Job can not stop in time")
+                        .With("JobId", it->first)
+                        .With("StoppingLag", lag);
                 }
             }
             ++it;
@@ -588,10 +590,10 @@ private:
         const auto& job = GetOrCrash(ExecutionSpec_->Layout->Jobs, jobId);
         const auto& partition = GetOrCrash(ExecutionSpec_->Layout->Partitions, job->PartitionId);
 
-        YT_LOG_INFO("Executing start job (JobId: %v, PartitionId: %v, ComputationId: %v)",
-            jobId,
-            partition->PartitionId,
-            partition->ComputationId);
+        YT_TLOG_INFO("Executing start job")
+            .With("JobId", jobId)
+            .With("PartitionId", partition->PartitionId)
+            .With("ComputationId", partition->ComputationId);
 
         auto jobSpec = BuildJobSpec(jobId);
 
@@ -664,7 +666,8 @@ private:
                     traverseData,
                     watermarkState);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Job creation failed");
+                YT_TLOG_ERROR("Job creation failed")
+                    .With(ex);
                 return New<TFailedJob>(jobId, jobSpec->Partition->ComputationId, TError(ex));
             }
         }();
@@ -704,8 +707,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(Control);
 
-        YT_LOG_INFO("Executing drop job (JobId: %v)",
-            jobId);
+        YT_TLOG_INFO("Executing drop job")
+            .With("JobId", jobId);
 
         if (auto it = JobIdToRuntimeState_.find(jobId); it != JobIdToRuntimeState_.end()) {
             auto job = it->second.Job;
@@ -715,8 +718,8 @@ private:
             Context_->InputManager->RemoveJob(jobId);
             BufferStateManager_->RemoveJob(jobId);
         } else {
-            YT_LOG_WARNING("Unknown job (JobId: %v)",
-                jobId);
+            YT_TLOG_WARNING("Unknown job")
+                .With("JobId", jobId);
         }
     }
 
@@ -809,7 +812,8 @@ private:
                     streamTraverse->Epoch,
                     streamTraverse->SystemWatermark);
             } else {
-                YT_LOG_FATAL("Unexpected partition state (PartitionState: %v)", state);
+                YT_TLOG_FATAL("Unexpected partition state")
+                    .With("PartitionState", state);
             }
         }
         return traverse;
