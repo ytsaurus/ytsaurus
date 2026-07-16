@@ -158,12 +158,13 @@ public:
                 // Load the resource only where some computation requires it. A resource that no
                 // computation requires on this unit (including one referenced by none) is skipped.
                 if (!GetOrDefault(requiredOnThisUnit, resourceId)) {
-                    YT_LOG_INFO("Skipping always-on resource out of unit scope (ResourceId: %v, IsController: %v)",
-                        resourceId,
-                        ManagerContext_->IsController);
+                    YT_TLOG_INFO("Skipping always-on resource out of unit scope")
+                        .With("ResourceId", resourceId)
+                        .With("IsController", ManagerContext_->IsController);
                     continue;
                 }
-                YT_LOG_INFO("Loading always-on resource (ResourceId: %v)", resourceId);
+                YT_TLOG_INFO("Loading always-on resource")
+                    .With("ResourceId", resourceId);
                 alwaysOnFutures.push_back(LoadGuarded(resourceId, guard, /*isPreload*/ false));
             }
             // Collect the load futures so callers can await readiness via LoadRequiredResources().
@@ -227,7 +228,8 @@ public:
 
                 if (specChanged) {
                     DynamicResourceSpecs_[resourceId] = newDynamicSpec;
-                    YT_LOG_INFO("Reconfiguring resource (ResourceId: %v)", resourceId);
+                    YT_TLOG_INFO("Reconfiguring resource")
+                        .With("ResourceId", resourceId);
                     toReconfigure.emplace_back(resourceIt->second, newDynamicSpec);
                 }
             }
@@ -296,7 +298,8 @@ public:
             auto preloadState = New<TResourcePreloadState>();
             EmplaceOrCrash(PreloadStatus_, resourceId, preloadState);
 
-            YT_LOG_INFO("Starting preload for resource (ResourceId: %v)", resourceId);
+            YT_TLOG_INFO("Starting preload for resource")
+                .With("ResourceId", resourceId);
 
             // LoadGuarded is called while already holding Lock_.
             // isPreload=true bypasses the preload-required check since we are the ones initiating it.
@@ -321,10 +324,13 @@ public:
                     }
 
                     if (error.IsOK()) {
-                        YT_LOG_INFO("Resource preloaded successfully (ResourceId: %v)", resourceId);
+                        YT_TLOG_INFO("Resource preloaded successfully")
+                            .With("ResourceId", resourceId);
                         strongPreloadState->State = EPreloadedResourceState::Preloaded;
                     } else {
-                        YT_LOG_ERROR(error, "Resource preload failed (ResourceId: %v)", resourceId);
+                        YT_TLOG_ERROR("Resource preload failed")
+                            .With("ResourceId", resourceId)
+                            .With(error);
                         // Drop status in order to enable retry.
                         strongThis->PreloadStatus_.erase(resourceId);
                     }
@@ -414,8 +420,8 @@ private:
 
                     const auto& Logger = strongThis->Logger;
 
-                    YT_LOG_INFO("Loading resource (ResourceId: %v)",
-                        resourceId);
+                    YT_TLOG_INFO("Loading resource")
+                        .With("ResourceId", resourceId);
                     return resource->Load(readyDependencies);
                 })
                     .AsyncVia(Invoker_))
