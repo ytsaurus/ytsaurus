@@ -1,0 +1,262 @@
+title: Flow
+items:
+  - name: Обзор
+    href: about.md
+  - name: С чего начать
+    href: start.md
+  - name: Быстрый старт
+    href: quickstart.md
+  - name: Плагин AI-агента
+    href: ../yandex-specific/flow/ai-agent.md
+    when: audience == "internal"
+  - name: Основные понятия
+    items:
+      - name: Глоссарий
+        href: concepts/glossary.md
+      - name: Объект Pipeline
+        href: concepts/pipeline-object.md
+      - name: Вычисления (Computation)
+        href: concepts/computation.md
+      - name: Swift
+        href: concepts/swift.md
+      - name: Stateful-обработка
+        href: concepts/stateful.md
+      - name: Вотермарки (Watermarks)
+        href: concepts/watermarks.md
+      - name: Таймеры (Timers)
+        href: concepts/timers.md
+      - name: Key Visitor Streams
+        href: concepts/key_visitor.md
+      - name: Гарантии обработки
+        href: concepts/guarantees.md
+      - name: Порядок обработки сообщений
+        href: concepts/ordering.md
+      - name: Lineage
+        href: concepts/lineage.md
+      - name: Компаньон (Companion)
+        href: concepts/companion.md
+      - name: Worker groups
+        href: concepts/worker_groups.md
+      - name: Distributed Throttler
+        href: concepts/distributed_throttler.md
+      - name: Spec, DynamicSpec и Config
+        href: concepts/spec.md
+  - name: C++
+    items:
+      - name: Быстрый старт
+        href: cpp/getting-started.md
+      - name: Computation
+        href: cpp/computation.md
+      - name: Работа со стейтами
+        href: cpp/state.md
+      - name: Тестирование
+        href: cpp/testing.md
+      - name: Process function
+        href: cpp/process-functions.md
+      - name: Примеры
+        items:
+          - name: Word Count
+            href: cpp/examples/word_count.md
+          - name: Shuffle
+            href: cpp/examples/shuffle.md
+          - name: Async Request
+            href: cpp/examples/async_request.md
+          - name: Retryable Async Request
+            href: cpp/examples/retryable_async_request.md
+          - name: Wait Click Join
+            href: cpp/examples/wait_click_join.md
+          - name: URL Downloader
+            href: cpp/examples/url_downloader.md
+          - name: Logbroker Wait Click Join
+            href: ../yandex-specific/flow/cpp/examples/lb_wait_click_join.md
+            when: audience == "internal"
+          - name: YQL protobuf-вариант
+            href: ../yandex-specific/flow/cpp/examples/yql_protobuf.md
+            when: audience == "internal"
+          - name: YQL YSON-вариант (spec-only)
+            href: ../yandex-specific/flow/cpp/examples/yql_yson.md
+            when: audience == "internal"
+          - name: Multiplexer
+            href: cpp/examples/multiplexer.md
+  - name: Java
+    items:
+      - name: Быстрый старт
+        href: java/getting-started.md
+      - name: Computation
+        href: java/computation.md
+      - name: Флаг distribute
+        href: java/distribute.md
+      - name: Typed Streams
+        href: java/typed-streams.md
+      - name: Работа со стейтами
+        href: java/state.md
+      - name: State Accessor
+        href: java/state-accessor.md
+      - name: Internal State
+        href: java/internal-state.md
+      - name: External State
+        href: java/external-state.md
+      - name: Spring Boot интеграция
+        href: java/spring.md
+      - name: Тестирование
+        href: java/testing.md
+      - name: Профилирование
+        href: java/profiling.md
+      - name: Переменные окружения
+        href: java/env-variables.md
+      - name: Примеры
+        items:
+          - name: Word Count
+            href: java/examples/wordcount.md
+          - name: Shuffle
+            href: java/examples/shuffle.md
+          - name: Async Request
+            href: java/examples/async_request.md
+          - name: Retryable Async Request
+            href: java/examples/retryable_async_request.md
+          - name: Wait Click Join
+            href: java/examples/wait_click_join.md
+          - name: URL Downloader
+            href: java/examples/url_downloader.md
+          - name: Logbroker Wait Click Join
+            href: ../yandex-specific/flow/java/examples/lb_wait_click_join.md
+            when: audience == "internal"
+  - name: Python
+    items:
+      - name: Быстрый старт
+        href: python/getting-started.md
+      - name: Computation
+        href: python/computation.md
+      - name: Флаг distribute
+        href: python/distribute.md
+      - name: Работа со стейтами
+        href: python/state.md
+      - name: State Accessor
+        href: python/state-accessor.md
+      - name: Internal State
+        href: python/internal-state.md
+      - name: External State
+        href: python/external-state.md
+      - name: Тестирование
+        href: python/testing.md
+      - name: Примеры
+        items:
+          - name: Word Count
+            href: python/examples/wordcount.md
+          - name: Shuffle
+            href: python/examples/shuffle.md
+          - name: Async Request
+            href: python/examples/async_request.md
+          - name: Retryable Async Request
+            href: python/examples/retryable_async_request.md
+          - name: Wait Click Join
+            href: python/examples/wait_click_join.md
+          - name: URL Downloader
+            href: python/examples/url_downloader.md
+          - name: Logbroker Wait Click Join
+            href: ../yandex-specific/flow/python/examples/lb_wait_click_join.md
+            when: audience == "internal"
+  - name: YQL
+    items:
+      - name: Быстрый старт
+        href: yql/getting-started.md
+      - name: Поддержанные конструкции
+        href: yql/features.md
+      - name: Аутентификация внешних провайдеров
+        href: yql/external-provider-auth.md
+        when: audience == "internal"
+  - name: Коннекторы
+    items:
+      - name: Обзор
+        href: connectors/about.md
+      - name: Queue (ordered dynamic table)
+        href: connectors/queue.md
+      - name: Static table
+        href: connectors/static-table.md
+      - name: Sorted Dynamic Table
+        href: connectors/sorted-dynamic-table.md
+      - name: Сервис-лог
+        href: connectors/servicelog.md
+  - name: Расширения
+    when: audience == "internal"
+    items:
+      - name: Обзор
+        href: ../yandex-specific/flow/extensions/about.md
+      - name: Logbroker
+        href: ../yandex-specific/flow/extensions/logbroker.md
+      - name: ClickHouse
+        href: ../yandex-specific/flow/extensions/clickhouse.md
+      - name: GrUT WatchLog
+        href: ../yandex-specific/flow/extensions/grut-watchlog.md
+      - name: BigRT Queue
+        href: ../yandex-specific/flow/extensions/bigrt.md
+      - name: Monium
+        href: ../yandex-specific/flow/extensions/monium.md
+      - name: Serializable Profile
+        href: ../yandex-specific/flow/extensions/serializable-profile.md
+      - name: YQL Computation
+        href: ../yandex-specific/flow/extensions/yql.md
+  - name: Релизы и управление пайплайном
+    items:
+      - name: Базовые правила выкатки пайплайна
+        href: release/basic-rules.md
+      - name: Запуск в Vanilla-операции
+        href: release/launch-vanilla.md
+      - name: Запуск через Infractl
+        href: release/launch-infractl.md
+        when: audience == "internal"
+      - name: UI
+        href: ../yandex-specific/flow/release/ui.md
+        when: audience == "internal"
+      - name: CLI
+        href: release/cli.md
+      - name: Деплой в YP
+        href: ../yandex-specific/flow/release/yp.md
+        when: audience == "internal"
+      - name: Интеграция с Monitoring
+        href: release/monitoring.md
+        when: audience == "internal"
+      - name: Защита от зомби-процессов
+        href: release/flow-core-target.md
+      - name: Диагностика и решение проблем
+        href: release/problems.md
+        when: audience == "internal"
+  - name: Примеры задач
+    href: tasks.md
+  - name: FAQ
+    href: faq.md
+  - name: Справочник конфигураций
+    href: generated_docs/all_yson_structs.md
+  - name: Инструменты
+    when: audience == "internal"
+    items:
+      - name: Draw pipeline graph
+        href: tools/draw-pipeline-graph.md
+      - name: Job investigation
+        href: tools/job-investigation.md
+      - name: Pipeline chaos monkey
+        href: tools/pipeline-chaos-monkey.md
+  - name: Для контрибьюторов
+    items:
+      - name: Style guide
+        href: contributor/style-guide.md
+      - name: Внутренняя аутентификация
+        href: contributor/internal-authentication.md
+      - name: Фреймворк для тестирования пайплайнов
+        href: contributor/testing-framework.md
+      - name: Генератор документации по YSON-структурам
+        href: contributor/generate-yson-struct-doc.md
+  - name: Прочее
+    items:
+      - name: Пользователи фреймворка
+        href: ../yandex-specific/flow/other/framework_users.md
+        when: audience == "internal"
+      - name: История развития фреймворка
+        href: ../yandex-specific/flow/other/history.md
+        when: audience == "internal"
+      - name: Выступления на мероприятиях, публикации и семинары
+        href: ../yandex-specific/flow/other/video-posts.md
+        when: audience == "internal"
+      - name: Сравнение с альтернативными технологиями
+        href: ../yandex-specific/flow/other/comparison.md
+        when: audience == "internal"
