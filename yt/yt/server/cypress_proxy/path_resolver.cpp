@@ -331,6 +331,10 @@ TResolveIterationResult ResolveByObjectId(
             };
         }
 
+        if (TypeFromId(rootDesignator) == EObjectType::Scion && StartsWithAmpersand(pathSuffix)) {
+            pathSuffix.SkipPrefix("&"_sb);
+        }
+
         if (resolvedNode->IsSnapshot) {
             auto resolvedPath = ResolveByPath(
                 session,

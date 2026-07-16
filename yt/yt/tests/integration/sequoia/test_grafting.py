@@ -99,6 +99,10 @@ class TestGrafting(YTEnvSetup):
         scion_id = get(f"#{rootstock_id}&/@scion_id")
         assert get("//tmp/r/@id") == scion_id
 
+        assert get(f"#{rootstock_id}/@id") == scion_id
+        assert get(f"#{rootstock_id}&/@id") == rootstock_id
+        assert get(f"#{scion_id}&/@id") == scion_id
+
     @authors("kvk1920")
     def test_scion_removal(self):
         rootstock_id = create("rootstock", "//tmp/sequoia")
