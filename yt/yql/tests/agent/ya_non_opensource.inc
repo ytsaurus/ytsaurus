@@ -27,6 +27,7 @@ DEPENDS(
     yt/yql/tools/qtworker
     yql/essentials/tools/udf_resolver
     yql/essentials/tools/udf_dep_stub
+    yql/essentials/udfs/common/datetime2
 )
 
 DATA(

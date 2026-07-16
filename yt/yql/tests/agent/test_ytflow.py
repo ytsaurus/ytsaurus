@@ -20,6 +20,7 @@ from logbroker.public.api.admin import config_manager_admin_pb2
 from library.python.port_manager import PortManager
 
 from contextlib import closing
+from datetime import datetime, timezone
 
 from yt.environment import init_operations_archive
 from yt.environment.helpers import (
@@ -299,7 +300,7 @@ class TestYtflowBase(TestQueueAgentBase):
 
     COPY_YTSERVER = False
 
-    MAX_YQL_VERSION = '2025.04'
+    MAX_YQL_VERSION = '2025.05'
     DEFAULT_YQL_UI_VERSION = '2025.01'
 
     PIPELINE_PATH = '//tmp/pipeline'
@@ -591,7 +592,7 @@ class TestYtflowBase(TestQueueAgentBase):
                     controller_retry_delay=5,
                     flow_command_timeout=600)
 
-        def impl(query_text):
+        def impl(query_text, yql_version=self.MAX_YQL_VERSION):
             with PortManager() as port_manager:
                 pipeline_path = self.PIPELINE_PATH
 
@@ -642,7 +643,7 @@ pragma Ytflow.LogbrokerWriteCompressionLevel = "{self.LOGBROKER_COMPRESSION_LEVE
                     yt_client=client)
 
                 with controller_logs_replicator, worker_logs_replicator:
-                    query = start_query("yql", query_text)
+                    query = start_query("yql", query_text, settings={"yql_version": yql_version})
                     query.track()
 
                     wait_if_flow_debug_requested(client, port_manager)
@@ -1047,6 +1048,37 @@ select * from $add_two_stream;
 
         expected_data = [{"value": value} for value in [3, 4, 7]]
         self._assert_yt_table_content(out_table_paths[2], expected_data)
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("yql_version", ["2025.01", "2025.05"])
+    def test_datetime_udf_with_different_langver(self, query_tracker, yql_agent, run_query, yql_version):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "value", "type": "uint32"},
+            ]),
+        ))
+
+        datetime_format = "%Y-%m-%d %H:%M:%S"
+
+        test_timestamp = int(datetime.strptime("2026-07-14 19:11:35", datetime_format).timestamp())
+        input_timestamps = [test_timestamp + i for i in range(5)]
+        input_data = [{"value": timestamp} for timestamp in input_timestamps]
+        self._write_yt_table(input_table_path, input_data)
+
+        out_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "time", "type": "string"},
+            ]),
+        ))
+
+        run_query(f"""
+insert into `{out_table_path}`
+select DateTime::Format('{datetime_format}')(DateTime::FromSeconds(value)) as time from `{input_table_path}`;
+""", yql_version)
+
+        expected_data = [{"time": datetime.fromtimestamp(timestamp, timezone.utc).strftime(datetime_format)} for timestamp in input_timestamps]
+        self._assert_yt_table_content(out_table_path, expected_data)
 
 
 class TestYtflowLogbroker(TestYtflowBase):
