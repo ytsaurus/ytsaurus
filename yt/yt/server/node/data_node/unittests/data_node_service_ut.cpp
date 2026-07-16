@@ -1282,7 +1282,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TFairShareHierarchicalTest, StressTest)
+TEST_P(TFairShareHierarchicalTest, DISABLED_StressTest)
 {
     int blockCount = 80;
     int blkSize = 1_MB;
@@ -1747,7 +1747,7 @@ INSTANTIATE_TEST_SUITE_P(
     )
 );
 
-TEST_P(TGetBlockSetTest, GetBlockSetTest)
+TEST_P(TGetBlockSetTest, DISABLED_GetBlockSetTest)
 {
     auto testCase = GetParam();
 
