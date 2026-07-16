@@ -3357,7 +3357,7 @@ private:
             if (IsReplicationCardMigrated(replicationCard)) {
                 YT_LOG_DEBUG("Replication card migrated (ReplicationCardId: %v)",
                     replicationCardId);
-                return;
+                continue;
             }
 
             auto cardTimestamp = std::max(timestamp, replicationCard->GetCurrentTimestamp());
