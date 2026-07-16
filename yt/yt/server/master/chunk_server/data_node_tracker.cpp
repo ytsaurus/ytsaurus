@@ -217,7 +217,8 @@ public:
         }
 
         const auto& sequoiaReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
-        if (sequoiaReplicasConfig->Enable) {
+
+        if (sequoiaReplicasConfig->Enable || sequoiaReplicasConfig->EnableInGhostMode) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
 
             if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>) {
@@ -235,11 +236,28 @@ public:
                         sequoiaReplicasConfig->EnableLocationRefresh);
                 }
 
-                auto useLocationReplacement = sequoiaReplicasConfig->UseLocationReplacementForLocationFullHeartbeat;
-                if ((preparedRequest->NonSequoiaRequest.is_validation() && GetDynamicConfig()->ValidateSequoiaReplicas) ||
-                    isLocationRestarted ||
-                    (!preparedRequest->NonSequoiaRequest.is_validation() && useLocationReplacement))
-                {
+                auto useLocationReplacement = false;
+                if (isLocationRestarted) {
+                    // We will ignore ghost sequoia replicas for normal location replacements.
+                    useLocationReplacement = sequoiaReplicasConfig->Enable;
+                } else if (preparedRequest->NonSequoiaRequest.is_validation()) {
+                    if (!GetDynamicConfig()->ValidateSequoiaReplicas) {
+                        useLocationReplacement = false;
+                    } else if (sequoiaReplicasConfig->Enable) {
+                        useLocationReplacement = true;
+                    } else if (sequoiaReplicasConfig->EnableInGhostMode) {
+                        useLocationReplacement =
+                            sequoiaReplicasConfig->GhostValidationHeartbeats ||
+                            sequoiaReplicasConfig->GhostEmptyValidationHeartbeats;
+                    } else {
+                        useLocationReplacement = false;
+                    }
+                } else if (sequoiaReplicasConfig->UseLocationReplacementForLocationFullHeartbeat) {
+                    // We will ignore ghost sequoia replicas for normal location replacements.
+                    useLocationReplacement = sequoiaReplicasConfig->Enable;
+                }
+
+                if (useLocationReplacement) {
                     auto replaceLocationRequest = std::make_unique<TReqReplaceLocationReplicas>();
                     replaceLocationRequest->set_node_id(ToProto(node->GetId()));
                     replaceLocationRequest->set_location_index(ToProto(location->GetIndex()));
@@ -1267,9 +1285,10 @@ private:
 
         const auto& sequoiaReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
         auto isSequoiaEnabled = sequoiaReplicasConfig->Enable;
+        auto isGhostSequoiaEnabled = sequoiaReplicasConfig->EnableInGhostMode;
 
         TDynamicSequoiaChunkReplicasConfigPtr sequoiaChunkReplicasConfig;
-        if (isSequoiaEnabled) {
+        if (isSequoiaEnabled || isGhostSequoiaEnabled) {
             sequoiaChunkReplicasConfig = CopySequoiaChunkReplicasConfig(sequoiaReplicasConfig);
         }
 
@@ -1296,18 +1315,48 @@ private:
                     }
 
                     auto isSequoiaChunk = false;
+                    auto isMasterOnlyChunk = true;
                     if (isSequoiaEnabled) {
                         auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkIdWithIndex.Id, sequoiaChunkReplicasConfig);
                         isSequoiaChunk = chunkSequoiaConfig.StoreInSequoia;
+                        isMasterOnlyChunk = !isSequoiaChunk;
+                    } else if (isGhostSequoiaEnabled) {
+                        if constexpr (std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>) {
+                            if (sequoiaChunkReplicasConfig->GhostIncrementalHeartbeats) {
+                                isSequoiaChunk = true;
+                            }
+                        } else {
+                            auto isValidationHeartbeat = false;
+                            if constexpr (std::is_same_v<THeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>) {
+                                if (preparedRequest->NonSequoiaRequest.is_validation()) {
+                                    isValidationHeartbeat = true;
+                                }
+                            }
+                            if (isValidationHeartbeat) {
+                                isSequoiaChunk = sequoiaChunkReplicasConfig->GhostValidationHeartbeats;
+                            } else {
+                                isSequoiaChunk = sequoiaChunkReplicasConfig->GhostFullHeartbeats;
+                            }
+                        }
+
                     }
 
                     if (isSequoiaChunk) {
                         if constexpr (std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo>) {
-                            *sequoiaRequest->add_added_chunks() = std::move(chunkInfo);
+                            if (isMasterOnlyChunk) {
+                                sequoiaRequest->add_added_chunks()->CopyFrom(chunkInfo);
+                            } else {
+                                *sequoiaRequest->add_added_chunks() = std::move(chunkInfo);
+                            }
                         } else {
-                            *sequoiaRequest->add_removed_chunks() = std::move(chunkInfo);
+                            if (isMasterOnlyChunk) {
+                                sequoiaRequest->add_removed_chunks()->CopyFrom(chunkInfo);
+                            } else {
+                                *sequoiaRequest->add_removed_chunks() = std::move(chunkInfo);
+                            }
                         }
-                    } else {
+                    }
+                    if (isMasterOnlyChunk) {
                         if constexpr (std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>) {
                             if constexpr (std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo>) {
                                 *preparedRequest->NonSequoiaRequest.add_added_chunks() = std::move(chunkInfo);

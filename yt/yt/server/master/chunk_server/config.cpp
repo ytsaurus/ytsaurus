@@ -599,6 +599,17 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("schedule_chunk_seal_in_sequoia_refresh", &TThis::ScheduleChunkSealInSequoiaChunkRefresh)
         .Default(false);
 
+    registrar.Parameter("enable_in_ghost_mode", &TThis::EnableInGhostMode)
+        .Default(false);
+    registrar.Parameter("ghost_full_heartbeats", &TThis::GhostFullHeartbeats)
+        .Default(false);
+    registrar.Parameter("ghost_incremental_heartbeats", &TThis::GhostIncrementalHeartbeats)
+        .Default(false);
+    registrar.Parameter("ghost_validation_heartbeats", &TThis::GhostValidationHeartbeats)
+        .Default(false);
+    registrar.Parameter("ghost_empty_validation_heartbeats", &TThis::GhostEmptyValidationHeartbeats)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(grphil).
         if (!config->BlobReplicasStoreConfig) {
@@ -611,6 +622,10 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
             regularStoreConfig->ValidateSequoiaReplicasFetch = config->CompatValidateSequoiaReplicasFetch;
             regularStoreConfig->AllowExtraMasterReplicasDuringValidation = config->CompatAllowExtraMasterReplicasDuringValidation;
             config->BlobReplicasStoreConfig = regularStoreConfig;
+        }
+
+        if (config->Enable && config->EnableInGhostMode) {
+            THROW_ERROR_EXCEPTION("Can not have both enable and enable_in_ghost_mode for Sequoia chunk replicas");
         }
     });
 }
