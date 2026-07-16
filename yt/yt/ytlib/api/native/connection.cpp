@@ -2,7 +2,6 @@
 
 #include "client.h"
 #include "config.h"
-#include "helpers.h"
 #include "private.h"
 #include "sync_replica_cache.h"
 #include "table_replica_synchronicity_cache.h"
