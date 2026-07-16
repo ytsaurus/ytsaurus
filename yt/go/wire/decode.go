@@ -721,6 +721,20 @@ func (d *WireDecoder) decodeValueAny(value Value, v any) (err error) {
 		return
 	}
 
+	// TypeBytes value is never YSON-encoded (see convertValue in encode.go).
+	// In this case Binary and Text unmarshalers are preferable over yson.Unmarshaler.
+	// On the other hand TypeAny/TypeComposite is always YSON-encoded.
+	// In this case yson.Unmarshaler is preferable.
+	if value.Type == TypeBytes {
+		if u, ok := v.(encoding.BinaryUnmarshaler); ok {
+			return u.UnmarshalBinary(value.Bytes())
+		}
+
+		if u, ok := v.(encoding.TextUnmarshaler); ok {
+			return u.UnmarshalText(value.Bytes())
+		}
+	}
+
 	switch vv := v.(type) {
 	case *int:
 		if err := validateWireType(TypeInt64, value.Type); err != nil {
