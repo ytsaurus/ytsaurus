@@ -196,6 +196,17 @@ std::optional<std::string> BuildProxyUrlAliasingConfig(const THashMap<std::strin
     return std::nullopt;
 }
 
+//! The forced binary checksum to propagate into the job environment. The launcher writes the
+//! pipeline's flow core target from its own version, so jobs that resolved a different checksum
+//! would never match that target: whoever forces the value must force the same one downstream.
+std::optional<std::string> GetBinaryChecksumOverride()
+{
+    if (auto fromEnv = GetEnv("YT_FLOW_BINARY_CHECKSUM_OVERRIDE"); !fromEnv.empty()) {
+        return std::string(fromEnv.data(), fromEnv.size());
+    }
+    return std::nullopt;
+}
+
 //! Builds one task of the operation spec; shared by the pipeline launcher and the external entry
 //! point. `resolveFile` maps an uploadable local file (the binary, the node config, user local
 //! files) to the Cypress path the running operation reads it from. When `localBinaryPath` is set
@@ -387,6 +398,7 @@ void LaunchInVanillaJob(
 
     auto filesDir = GetVanillaFilesDir(pipelinePath.GetPath());
     auto aliasingConfig = BuildProxyUrlAliasingConfig(vanillaConfig->ProxyUrlAliasingRules);
+    auto binaryChecksumOverride = GetBinaryChecksumOverride();
 
     // The cache-backed files keyed by in-job name (binary + node config + user local files), so the
     // commit phase can stamp the durable vanilla/files copy from the shared cache. The md5 is
@@ -412,6 +424,9 @@ void LaunchInVanillaJob(
         task.SystemLayerPath = config->SystemLayerPath;
         if (aliasingConfig) {
             task.Environment["YT_PROXY_URL_ALIASING_CONFIG"] = *aliasingConfig;
+        }
+        if (binaryChecksumOverride) {
+            task.Environment["YT_FLOW_BINARY_CHECKSUM_OVERRIDE"] = *binaryChecksumOverride;
         }
         return task;
     };
@@ -531,6 +546,7 @@ std::string StartFlowVanillaOperation(const TFlowVanillaOptions& options)
     auto client = NClient::NCache::CreateClient(runtimeCluster, proxyRole);
     auto cacheDir = options.CachePath.empty() ? NYPath::TYPath(VanillaFileCachePath) : options.CachePath;
     auto aliasingConfig = BuildProxyUrlAliasingConfig(options.ProxyUrlAliasingRules);
+    auto binaryChecksumOverride = GetBinaryChecksumOverride();
 
     // On a local (test) cluster the exec node shares this host's filesystem, so each job runs the
     // launcher binary straight from its on-disk path instead of receiving an uploaded multi-GB copy.
@@ -564,6 +580,9 @@ std::string StartFlowVanillaOperation(const TFlowVanillaOptions& options)
     auto buildTask = [&] (const std::string& name, const std::string& flowMode, TFlowVanillaTask task) {
         if (aliasingConfig) {
             task.Environment.emplace("YT_PROXY_URL_ALIASING_CONFIG", *aliasingConfig);
+        }
+        if (binaryChecksumOverride) {
+            task.Environment.emplace("YT_FLOW_BINARY_CHECKSUM_OVERRIDE", *binaryChecksumOverride);
         }
         return BuildTaskSpec(
             name,
