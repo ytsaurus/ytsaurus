@@ -190,16 +190,16 @@ public:
         ExecutionSpecEpoch_ = newExecutionSpec->GetEpoch();
 
         if (StreamSpecStorage_->GetVersion() != ExecutionSpec_->StreamSpecStorageState->GetVersion()) {
-            YT_LOG_INFO("Reconfigure stream spec storage (CurrentVersion: %v, NewVersion: %v)",
-                StreamSpecStorage_->GetVersion(),
-                ExecutionSpec_->StreamSpecStorageState->GetVersion());
+            YT_TLOG_INFO("Reconfigure stream spec storage")
+                .With("CurrentVersion", StreamSpecStorage_->GetVersion())
+                .With("NewVersion", ExecutionSpec_->StreamSpecStorageState->GetVersion());
             StreamSpecStorage_->Reconfigure(ExecutionSpec_->StreamSpecStorageState);
         }
 
         if (oldExecutionSpecEpoch != ExecutionSpecEpoch_) {
-            YT_LOG_INFO("Reconfigure dynamic worker spec (CurrentEpoch: %v, NewEpoch: %v)",
-                oldExecutionSpecEpoch,
-                ExecutionSpecEpoch_);
+            YT_TLOG_INFO("Reconfigure dynamic worker spec")
+                .With("CurrentEpoch", oldExecutionSpecEpoch)
+                .With("NewEpoch", ExecutionSpecEpoch_);
 
             const auto& dynamicSpec = ExecutionSpec_->DynamicPipelineSpec->GetValue();
 
@@ -306,7 +306,8 @@ private:
             PerformHandshake();
             OnConnected();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error connecting to Controller");
+            YT_TLOG_WARNING("Error connecting to Controller")
+                .With(ex);
             ControllerDisconnected_.Fire();
             DoCleanup();
             ScheduleConnect(false);
@@ -321,7 +322,7 @@ private:
         // fiber cancelation.
         DoCleanup();
 
-        YT_LOG_INFO("Connecting to controller");
+        YT_TLOG_INFO("Connecting to controller");
 
         YT_VERIFY(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
@@ -336,7 +337,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Discovering controller");
+        YT_TLOG_INFO("Discovering controller");
 
         ControllerAddress_ = WaitFor(YTConnector_->GetPipelineAttributes())
             .ValueOrThrow()
@@ -350,21 +351,22 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Checking that controller address was not changed");
+        YT_TLOG_INFO("Checking that controller address was not changed");
 
         try {
             const auto newAddress = WaitFor(YTConnector_->GetPipelineAttributes())
                 .ValueOrThrow()
                 .LeaderControllerAddress;
             if (newAddress == ControllerAddress_) {
-                YT_LOG_INFO("Controller address was not changed");
+                YT_TLOG_INFO("Controller address was not changed");
                 return;
             }
             Disconnect(TError("Controller address was changed")
                 << TErrorAttribute("old_address", ControllerAddress_)
                 << TErrorAttribute("new_address", newAddress));
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to check that controller address was not changed");
+            YT_TLOG_ERROR("Failed to check that controller address was not changed")
+                .With(ex);
         }
     }
 
@@ -372,7 +374,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Sending handshake");
+        YT_TLOG_INFO("Sending handshake");
 
         TWorkerTrackerServiceProxy proxy(ControllerChannel_);
         auto req = proxy.Handshake();
@@ -390,7 +392,7 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Handshake succeeded");
+        YT_TLOG_DEBUG("Handshake succeeded");
 
         ConnectionIncarnationId_ = FromProto<TIncarnationId>(rsp->connection_incarnation_id());
         HeartbeatSeqNo_ = 0;
@@ -403,10 +405,10 @@ private:
         Connected_ = true;
         ConnectionTime_ = TInstant::Now();
 
-        YT_LOG_INFO("Worker connected (RpcAddress: %v, IncarnationId: %v, ConnectionIncarnationId: %v)",
-            NodeInfo_->RpcAddress,
-            NodeInfo_->IncarnationId,
-            ConnectionIncarnationId_);
+        YT_TLOG_INFO("Worker connected")
+            .With("RpcAddress", NodeInfo_->RpcAddress)
+            .With("IncarnationId", NodeInfo_->IncarnationId)
+            .With("ConnectionIncarnationId", ConnectionIncarnationId_);
 
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
@@ -430,11 +432,12 @@ private:
         TForbidContextSwitchGuard contextSwitchGuard;
 
         if (Connected_) {
-            YT_LOG_WARNING(error, "Disconnecting controller");
+            YT_TLOG_WARNING("Disconnecting controller")
+                .With(error);
 
             ControllerDisconnected_.Fire();
 
-            YT_LOG_WARNING("Controller disconnected");
+            YT_TLOG_WARNING("Controller disconnected");
         }
 
         DoCleanup();
@@ -460,9 +463,9 @@ private:
             CheckControllerExecutor_.Reset();
         }
         if (LastHeartbeatTime_ && (LastHeartbeatTime_ + GetControllerConnectorSpec()->ControllerWaitTimeout < TInstant::Now())) {
-            YT_LOG_WARNING("Cancelling all jobs, too long without successful heartbeats (LastHeartbeatTime: %v, ControllerWaitTimeout: %v)",
-                LastHeartbeatTime_,
-                GetControllerConnectorSpec()->ControllerWaitTimeout);
+            YT_TLOG_WARNING("Cancelling all jobs, too long without successful heartbeats")
+                .With("LastHeartbeatTime", LastHeartbeatTime_)
+                .With("ControllerWaitTimeout", GetControllerConnectorSpec()->ControllerWaitTimeout);
             JobTracker_->CancelAllJobs(TError(EErrorCode::AbandonedJob,
                 "Job is abandoned: too long without successful controller heartbeats")
                 << TErrorAttribute("last_heartbeat_time", LastHeartbeatTime_)
@@ -526,16 +529,14 @@ private:
         if (response->has_flow_core_target_mismatch()) {
             const auto& target = response->flow_core_target_mismatch();
             if (LoggedFlowCoreTargetMismatch_ != target) {
-                YT_LOG_WARNING("Worker is excluded from scheduling: FlowCoreVersion does not match FlowCoreTarget "
-                    "(FlowCoreTarget: %v, FlowCoreVersion: %v)",
-                    target,
-                    NodeInfo_->FlowCoreVersion);
+                YT_TLOG_WARNING("Worker is excluded from scheduling: FlowCoreVersion does not match FlowCoreTarget")
+                    .With("FlowCoreTarget", target)
+                    .With("FlowCoreVersion", NodeInfo_->FlowCoreVersion);
                 LoggedFlowCoreTargetMismatch_ = target;
             }
         } else if (LoggedFlowCoreTargetMismatch_.has_value()) {
-            YT_LOG_INFO("Worker FlowCoreVersion now matches FlowCoreTarget, exclusion cleared "
-                "(FlowCoreVersion: %v)",
-                NodeInfo_->FlowCoreVersion);
+            YT_TLOG_INFO("Worker FlowCoreVersion now matches FlowCoreTarget, exclusion cleared")
+                .With("FlowCoreVersion", NodeInfo_->FlowCoreVersion);
             LoggedFlowCoreTargetMismatch_.reset();
         }
 
@@ -576,7 +577,7 @@ private:
         auto traceContext = TTraceContext::NewRoot("YTFlow.Worker.SendHeartbeat");
         TTraceContextGuard traceGuard(traceContext);
 
-        YT_LOG_DEBUG("Preparing heartbeat request");
+        YT_TLOG_DEBUG("Preparing heartbeat request");
         auto incarnationId = ConnectionIncarnationId_;
         HeartbeatSeqNo_ += 1;
         auto heartbeatSeqNo = HeartbeatSeqNo_;
@@ -588,7 +589,7 @@ private:
         WaitHeartbeatResponseTimer_.Record(TInstant::Now() - start);
 
         if (ConnectionIncarnationId_ != incarnationId || heartbeatSeqNo != HeartbeatSeqNo_) {
-            YT_LOG_DEBUG("Heartbeat is not actual anymore");
+            YT_TLOG_DEBUG("Heartbeat is not actual anymore");
             return;
         }
 
@@ -596,9 +597,9 @@ private:
             TForbidContextSwitchGuard contextSwitchGuard;
 
             LastHeartbeatTime_ = TInstant::Now();
-            YT_LOG_DEBUG("Heartbeat succeeded");
+            YT_TLOG_DEBUG("Heartbeat succeeded");
             HandleHeartbeatResponse(rspOrError.Value());
-            YT_LOG_DEBUG("Heartbeat response handled");
+            YT_TLOG_DEBUG("Heartbeat response handled");
         } else {
             // Tolerate transient errors: keep retrying with backoff while we are within the controller
             // wait window, and disconnect only once the error is non-retriable or the window is exhausted.
@@ -607,7 +608,8 @@ private:
             // leadership change does not make the whole fleet disconnect and re-handshake on the first error.
             auto lastProgressTime = std::max(LastHeartbeatTime_, ConnectionTime_);
             if (NRpc::IsRetriableError(rspOrError) && TInstant::Now() < lastProgressTime + GetControllerConnectorSpec()->ControllerWaitTimeout) {
-                YT_LOG_WARNING(rspOrError, "Error reporting heartbeat to controller");
+                YT_TLOG_WARNING("Error reporting heartbeat to controller")
+                    .With(rspOrError);
                 TDelayedExecutor::WaitForDuration(GetControllerConnectorSpec()->ControllerHeartbeatFailureBackoff);
             } else {
                 Disconnect(rspOrError);

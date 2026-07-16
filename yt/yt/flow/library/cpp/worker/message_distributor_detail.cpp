@@ -179,7 +179,8 @@ std::vector<TTask> TWorkerConnection::DoStopJob(const TJobId& jobId) noexcept
     YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
     TForbidContextSwitchGuard contextSwitchGuard;
 
-    YT_LOG_DEBUG("Stopping job in worker connection (JobId: %v)", jobId);
+    YT_TLOG_DEBUG("Stopping job in worker connection")
+        .With("JobId", jobId);
 
     std::vector<TTask> tasks;
 
@@ -204,7 +205,8 @@ void TWorkerConnection::CheckJobsStopped() noexcept
 {
     YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
     if (!JobStates_.empty()) {
-        YT_LOG_FATAL("Some job states of connection are not stopped before stopping connection (ExampleJobId: %v)", JobStates_.begin()->first);
+        YT_TLOG_FATAL("Some job states of connection are not stopped before stopping connection")
+            .With("ExampleJobId", JobStates_.begin()->first);
     }
 }
 
@@ -215,8 +217,8 @@ void TWorkerConnection::Reset() noexcept
 
     YT_VERIFY(ConnectionId_.has_value());
 
-    YT_LOG_DEBUG("Resetting connection (ConnectionId: %v)",
-        ConnectionId_);
+    YT_TLOG_DEBUG("Resetting connection")
+        .With("ConnectionId", ConnectionId_);
 
     for (auto& [jobId, jobState] : JobStates_) {
         jobState.ResetAccepted();
@@ -240,7 +242,8 @@ void TWorkerConnection::PushMessagesUntilCanceled()
                 WaitUntilSet(delayedFuture);
             }
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Unexpected exception in worker connection");
+            YT_TLOG_FATAL("Unexpected exception in worker connection")
+                .With(ex);
         }
     }
 }
@@ -397,7 +400,8 @@ bool TWorkerConnection::DoRequest()
     auto rspOrError = WaitFor(reqFuture); // Some jobs may be stopped during this yield.
 
     if (!rspOrError.IsOK()) {
-        YT_LOG_ERROR(rspOrError, "PushMessages request failed");
+        YT_TLOG_ERROR("PushMessages request failed")
+            .With(rspOrError);
         PushMessagesTimeoutCounter_.Increment();
         return false;
     }
@@ -422,8 +426,8 @@ bool TWorkerConnection::DoRequest()
     } else {
         ConnectionId_ = responseConnectionId;
 
-        YT_LOG_DEBUG("Initialized connection (ConnectionId: %v)",
-            ConnectionId_);
+        YT_TLOG_DEBUG("Initialized connection")
+            .With("ConnectionId", ConnectionId_);
     }
 
     for (const auto& [protoState, sentTaskInfo] : Zip(rsp->message_states(), sentTaskInfos)) {
@@ -441,12 +445,11 @@ bool TWorkerConnection::DoRequest()
         auto streamQueuedTasksIt = GetIteratorOrCrash(jobState.QueuedTasks, streamId);
         auto taskIt = GetIteratorOrCrash(streamQueuedTasksIt->second.Tasks, taskKey);
 
-        YT_LOG_DEBUG("MessageLifeCycle.Distributor: message was pushed to destination worker "
-            "(MessageId: %v, DestinationJobId: %v, DeliveryState: %v, ConnectionId: %v)",
-            taskIt->Task.Message->MessageId,
-            jobId,
-            deliveryState,
-            ConnectionId_);
+        YT_TLOG_DEBUG("MessageLifeCycle.Distributor: message was pushed to destination worker")
+            .With("MessageId", taskIt->Task.Message->MessageId)
+            .With("DestinationJobId", jobId)
+            .With("DeliveryState", deliveryState)
+            .With("ConnectionId", ConnectionId_);
 
         switch (deliveryState) {
             case EMessageDeliveryState::Accepted: {
@@ -493,11 +496,10 @@ bool TWorkerConnection::DoRequest()
             }
             auto& jobState = jobStateIt->second;
 
-            YT_LOG_DEBUG("MessageLifeCycle.Distributor: message processing finished "
-                "(MessageId: %v, DestinationJobId: %v, ConnectionId: %v)",
-                messageId,
-                jobId,
-                ConnectionId_);
+            YT_TLOG_DEBUG("MessageLifeCycle.Distributor: message processing finished")
+                .With("MessageId", messageId)
+                .With("DestinationJobId", jobId)
+                .With("ConnectionId", ConnectionId_);
 
             const auto taskIdIt = jobState.MessageIdToTaskInfo.find(messageId);
             if (taskIdIt == jobState.MessageIdToTaskInfo.end()) {
@@ -548,9 +550,9 @@ bool TWorkerConnection::DoRequest()
 
     for (const auto& streamLimit : rsp->stream_limits()) {
         if (streamLimit.job_ids_size() != streamLimit.inflated_next_batch_byte_limits_size()) {
-            YT_LOG_ERROR("Got invalid limits (JobIdSize: %v, InflatedNextBatchByteLimit_Size: %v)",
-                streamLimit.job_ids_size(),
-                streamLimit.inflated_next_batch_byte_limits_size());
+            YT_TLOG_ERROR("Got invalid limits")
+                .With("JobIdSize", streamLimit.job_ids_size())
+                .With("InflatedNextBatchByteLimit_Size", streamLimit.inflated_next_batch_byte_limits_size());
             continue;
         }
         for (const auto& [jobId, inflatedNextBatchByteLimit] : Zip(streamLimit.job_ids(), streamLimit.inflated_next_batch_byte_limits())) {
@@ -579,8 +581,8 @@ bool TWorkerConnection::DoRequest()
             sensors.InflightMessagesGauge.Update(queuedAndInflightCount.second);
         }
 
-        YT_LOG_DEBUG("Worker connection gauges were updated (QueuedAndInflightMessagesCount: %v)",
-            NYson::ConvertToYsonString(queuedAndInflightMessages, NYson::EYsonFormat::Text));
+        YT_TLOG_DEBUG("Worker connection gauges were updated")
+            .With("QueuedAndInflightMessagesCount", NYson::ConvertToYsonString(queuedAndInflightMessages, NYson::EYsonFormat::Text));
 
         // Debug code.
         const TInstant threshold = TInstant::Now() - dynamicSpec->HungTaskThreshold;
@@ -601,20 +603,18 @@ bool TWorkerConnection::DoRequest()
                     if (task.Task.CreateTime > threshold) {
                         continue;
                     }
-                    YT_LOG_DEBUG("Hung task (Type: %v, SrcJobId: %v, DstJobId: %v, DstComputationId: %v, "
-                        "StreamId: %v, JobStreamNextBatchByteLimit: %v, ByteSize: %v, "
-                        "TaskId: %v, MessageId: %v, AlignmentInstant: %v, CreateInstant: %v)",
-                        type,
-                        task.Task.SourceJobId,
-                        jobId,
-                        task.Task.ComputationId,
-                        streamId,
-                        InflatedNextBatchByteLimit_[std::pair{jobId, streamId}],
-                        task.Task.Message->ByteSize,
-                        task.Task.Id,
-                        task.Task.Message->MessageId,
-                        TInstant::Seconds(task.Task.Message->AlignmentTimestamp.Underlying()),
-                        task.Task.CreateTime);
+                    YT_TLOG_DEBUG("Hung task")
+                        .With("Type", type)
+                        .With("SrcJobId", task.Task.SourceJobId)
+                        .With("DstJobId", jobId)
+                        .With("DstComputationId", task.Task.ComputationId)
+                        .With("StreamId", streamId)
+                        .With("JobStreamNextBatchByteLimit", InflatedNextBatchByteLimit_[std::pair{jobId, streamId}])
+                        .With("ByteSize", task.Task.Message->ByteSize)
+                        .With("TaskId", task.Task.Id)
+                        .With("MessageId", task.Task.Message->MessageId)
+                        .With("AlignmentInstant", TInstant::Seconds(task.Task.Message->AlignmentTimestamp.Underlying()))
+                        .With("CreateInstant", task.Task.CreateTime);
                 }
             };
             process(jobState.AcceptedTasks, "AcceptedTasks");
@@ -631,7 +631,8 @@ bool TWorkerConnection::DoRequest()
         reqFuture = {};
     }));
 
-    YT_LOG_DEBUG("PushMessages iteration is complete (SentMessagesCount: %v)", sentTaskInfos.size());
+    YT_TLOG_DEBUG("PushMessages iteration is complete")
+        .With("SentMessagesCount", sentTaskInfos.size());
     return batchIsFull;
 }
 
@@ -865,9 +866,9 @@ bool TMessageDistributor::DoProcessUnknownTasks() noexcept
 
         for (auto& task : chain) {
             if (!latestSnapshot->IsJobAlive(task.SourceJobId)) {
-                YT_LOG_DEBUG("MessageLifeCycle.Distributor: message was dropped because source job has been removed (MessageId: %v, JobId: %v)",
-                    task.Message->MessageId,
-                    task.SourceJobId);
+                YT_TLOG_DEBUG("MessageLifeCycle.Distributor: message was dropped because source job has been removed")
+                    .With("MessageId", task.Message->MessageId)
+                    .With("JobId", task.SourceJobId);
                 --UnknownTaskCount_; // Callback dropped without calling.
                 continue;
             }
@@ -912,9 +913,9 @@ bool TMessageDistributor::TryRouteTask(
 
     const auto* messageRoute = routingSnapshot->FindRouteByKey(task.ComputationId, *key);
     if (!messageRoute) {
-        YT_LOG_DEBUG("MessageLifeCycle.Distributor: could not find route for message. Will try later (MessageId: %v, SourceJobId: %v)",
-            task.Message->MessageId,
-            task.SourceJobId);
+        YT_TLOG_DEBUG("MessageLifeCycle.Distributor: could not find route for message. Will try later")
+            .With("MessageId", task.Message->MessageId)
+            .With("SourceJobId", task.SourceJobId);
         return false;
     }
 
@@ -923,21 +924,19 @@ bool TMessageDistributor::TryRouteTask(
         destinationJobState.CanRouteFuture = CanRouteToNewJobsFuture_;
     }
     if (!destinationJobState.CanRouteFuture.IsSet()) {
-        YT_LOG_DEBUG("MessageLifeCycle.Distributor: could not route message before revision of messages in old connections is completed "
-            "(MessageId: %v, SourceJobId: %v, DestinationJobId: %v, DestinationAddress: %v)",
-            task.Message->MessageId,
-            task.SourceJobId,
-            messageRoute->JobId,
-            messageRoute->WorkerAddress);
+        YT_TLOG_DEBUG("MessageLifeCycle.Distributor: could not route message before revision of messages in old connections is completed")
+            .With("MessageId", task.Message->MessageId)
+            .With("SourceJobId", task.SourceJobId)
+            .With("DestinationJobId", messageRoute->JobId)
+            .With("DestinationAddress", messageRoute->WorkerAddress);
         return false;
     }
 
-    YT_LOG_DEBUG("MessageLifeCycle.Distributor: found message route for message "
-        "(MessageId: %v, SourceJobId: %v, DestinationJobId: %v, DestinationAddress: %v)",
-        task.Message->MessageId,
-        task.SourceJobId,
-        messageRoute->JobId,
-        messageRoute->WorkerAddress);
+    YT_TLOG_DEBUG("MessageLifeCycle.Distributor: found message route for message")
+        .With("MessageId", task.Message->MessageId)
+        .With("SourceJobId", task.SourceJobId)
+        .With("DestinationJobId", messageRoute->JobId)
+        .With("DestinationAddress", messageRoute->WorkerAddress);
 
     if (!destinationJobState.Connection) {
         auto connectionIt = WorkerAddressToConnection_.find(messageRoute->WorkerAddress);
@@ -958,8 +957,8 @@ bool TMessageDistributor::TryRouteTask(
                 messageRoute->WorkerAddress,
                 connection);
 
-            YT_LOG_DEBUG("Created new worker connection (Address: %v)",
-                messageRoute->WorkerAddress);
+            YT_TLOG_DEBUG("Created new worker connection")
+                .With("Address", messageRoute->WorkerAddress);
         }
         destinationJobState.Connection = connectionIt->second;
     }
@@ -994,7 +993,8 @@ void TMessageDistributor::DoOnWorkerRemoved(const std::string& workerAddress) no
     TForbidContextSwitchGuard contextSwitchGuard;
 
     if (const auto it = WorkerAddressToConnection_.find(workerAddress); it != WorkerAddressToConnection_.end()) {
-        YT_LOG_DEBUG("Remove destination worker from Distributor (Address: %v)", workerAddress);
+        YT_TLOG_DEBUG("Remove destination worker from Distributor")
+            .With("Address", workerAddress);
         it->second->Stop();
         WorkerAddressToConnection_.erase(it);
     }
@@ -1017,7 +1017,8 @@ void TMessageDistributor::DoOnSnapshotPublished(const TJobDirectorySnapshotPtr& 
         if (it == DestinationJobStates_.end()) {
             continue;
         }
-        YT_LOG_DEBUG("Remove destination job from Distributor (JobId: %v)", jobId);
+        YT_TLOG_DEBUG("Remove destination job from Distributor")
+            .With("JobId", jobId);
         // Connection is null if no messages were routed to this job yet.
         if (it->second.Connection) {
             auto gateFuture = it->second.Connection->StopJob(jobId)
