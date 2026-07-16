@@ -985,6 +985,17 @@ TEST_F(TJobBalancerTest, WorkerGroupBrokenGroup)
             }
         }
         PrepareBalancerTest(workerGroupDescriptions, computationDescriptions, 1, TDuration::MilliSeconds(50), cpuAwareBalancer);
+        // The even-indexed computations target a deliberately empty "wrong group". Exempt it from the
+        // per-group minimum-worker check (set the minimum to 0) so the pipeline is not paused; those
+        // computations simply get no jobs.
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        for (int i = 0; i < std::ssize(workerCounts); ++i) {
+            if (i % 2 == 0) {
+                auto groupOverride = New<TDynamicJobManagerSpec>();
+                groupOverride->MinimumWorkerCount = 0;
+                dynamicSpec->JobManager->WorkerGroupOverride[TWorkerGroupId(Format("wrong group %v", i))] = groupOverride;
+            }
+        }
         SetCpuLoadUniform();
         FlowView->State->StartMutation();
         JobManager->DistributeJobs(FlowView);
@@ -1096,9 +1107,9 @@ TEST_F(TJobBalancerTest, WorkerGroupDifferentSpec)
     computationDescriptions.push_back(TComputationDescription{partCount, {}, GetWorkerGroupId(1)});
     PrepareBalancerTest(workerGroupDescriptions, computationDescriptions, 1, TDuration::MilliSeconds(50), false);
     auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
-    auto override0 = ConvertTo<TDynamicJobBalancerSpecPtr>(NYson::ConvertToYsonString(dynamicSpec->JobManager));
+    auto override0 = ConvertTo<TDynamicJobManagerSpecPtr>(NYson::ConvertToYsonString(dynamicSpec->JobManager));
     override0->BalancerType = EJobBalancerType::Greedy;
-    auto override1 = ConvertTo<TDynamicJobBalancerSpecPtr>(NYson::ConvertToYsonString(dynamicSpec->JobManager));
+    auto override1 = ConvertTo<TDynamicJobManagerSpecPtr>(NYson::ConvertToYsonString(dynamicSpec->JobManager));
     override1->BalancerType = EJobBalancerType::CpuAware;
     EmplaceOrCrash(dynamicSpec->JobManager->WorkerGroupOverride, GetWorkerGroupId(0), override0);
     EmplaceOrCrash(dynamicSpec->JobManager->WorkerGroupOverride, GetWorkerGroupId(1), override1);

@@ -221,6 +221,71 @@ void FillFlowCoreTargetMessage(
     message.MarkdownText = markdownText.Flush();
 }
 
+//! Mirrors NBalancer::WorkerBelongsToGroup (job_balancer_common.cpp); duplicated here because the
+//! describe library cannot depend on the controller library (that edge would be circular). A worker
+//! that declares no groups belongs to the default (empty) group only.
+bool WorkerBelongsToGroup(const TWorkerPtr& worker, const TWorkerGroupId& workerGroup)
+{
+    if (worker->Groups.empty()) {
+        return workerGroup.Underlying().empty();
+    }
+    for (const auto& group : worker->Groups) {
+        if (group == workerGroup) {
+            return true;
+        }
+    }
+    return false;
+}
+
+//! Emits an error message for each used worker group that has fewer workers than the configured
+//! minimum. The minimum (TDynamicJobManagerSpec::MinimumWorkerCount) is global, but it must hold per
+//! used group: a group with no workers cannot run its computations even when the overall worker count
+//! looks healthy. Mirrors the controller-side guard in TJobManager::DistributeJobs.
+void FillWorkerCountMessages(
+    const TFlowViewPtr& flowView,
+    const TPipelineSpecPtr& pipelineSpec,
+    const TDynamicPipelineSpecPtr& dynamicPipelineSpec,
+    std::vector<TMessage>& messages)
+{
+    const auto& jobManagerSpec = dynamicPipelineSpec->JobManager;
+
+    THashSet<TWorkerGroupId> usedWorkerGroups;
+    for (const auto& [computationId, computationSpec] : pipelineSpec->Computations) {
+        usedWorkerGroups.insert(computationSpec->WorkerGroup);
+    }
+
+    for (const auto& workerGroup : usedWorkerGroups) {
+        // The required count comes from the group's override when present (mirrors the controller).
+        const TDynamicJobManagerGroupSpec* groupJobManagerSpec = jobManagerSpec.Get();
+        if (auto* overrideSpec = jobManagerSpec->WorkerGroupOverride.FindPtr(workerGroup)) {
+            groupJobManagerSpec = overrideSpec->Get();
+        }
+        const auto minimumWorkerCount = groupJobManagerSpec->MinimumWorkerCount;
+        if (minimumWorkerCount == 0) {
+            continue;
+        }
+        ui64 workersInGroup = 0;
+        for (const auto& [_, worker] : flowView->State->Workers) {
+            if (WorkerBelongsToGroup(worker, workerGroup)) {
+                ++workersInGroup;
+            }
+        }
+        if (workersInGroup >= minimumWorkerCount) {
+            continue;
+        }
+        auto& message = messages.emplace_back();
+        message.Text = workerGroup.Underlying().empty()
+            ? Format("Too few workers (Count: %v, Required: %v)",
+            workersInGroup,
+            minimumWorkerCount)
+            : Format("Too few workers in worker group %Qv (Count: %v, Required: %v)",
+            workerGroup.Underlying(),
+            workersInGroup,
+            minimumWorkerCount);
+        message.Level = ELogLevel::Error;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
@@ -708,6 +773,8 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
     }
 
     FillFlowCoreTargetMessage(flowView, arguments.ControllerFlowCoreVersion, pipeline.Messages);
+
+    FillWorkerCountMessages(flowView, pipelineSpec, pipelineDynamicSpec, pipeline.Messages);
 
     auto intermediateDescriptions = GetComputationPartitionIntermediateDescriptions(flowView);
     auto computationBaseDescriptions = MakeComputationDescriptions(flowView, intermediateDescriptions);

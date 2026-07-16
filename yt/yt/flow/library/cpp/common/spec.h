@@ -976,14 +976,30 @@ DEFINE_REFCOUNTED_TYPE(TDynamicJobBalancerSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDynamicJobManagerSpec
+struct TDynamicJobManagerGroupSpec
     : public TDynamicJobBalancerSpec
 {
     ui64 MinimumWorkerCount{};
     TDuration LostJobTimeout;
     TDuration FaultyAddressWindow;
     ui64 FaultyAddressAttempts{};
-    THashMap<TWorkerGroupId, TDynamicJobBalancerSpecPtr> WorkerGroupOverride;
+
+    REGISTER_YSON_STRUCT(TDynamicJobManagerGroupSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicJobManagerGroupSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicJobManagerSpec
+    : public TDynamicJobManagerGroupSpec
+{
+    // Per-worker-group overrides of the settings above. The value type deliberately excludes
+    // WorkerGroupOverride itself, so the spec is not self-referential (nested overrides make no
+    // sense and would make the YSON schema infinitely recursive).
+    THashMap<TWorkerGroupId, TDynamicJobManagerGroupSpecPtr> WorkerGroupOverride;
 
     REGISTER_YSON_STRUCT(TDynamicJobManagerSpec);
 

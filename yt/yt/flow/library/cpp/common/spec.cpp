@@ -934,7 +934,7 @@ void TDynamicJobBalancerSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDynamicJobManagerSpec::Register(TRegistrar registrar)
+void TDynamicJobManagerGroupSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("minimum_worker_count", &TThis::MinimumWorkerCount)
         .Default(1);
@@ -944,6 +944,12 @@ void TDynamicJobManagerSpec::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("faulty_address_attempts", &TThis::FaultyAddressAttempts)
         .Default(5);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicJobManagerSpec::Register(TRegistrar registrar)
+{
     registrar.Parameter("worker_group_override", &TThis::WorkerGroupOverride)
         .Default();
 }
