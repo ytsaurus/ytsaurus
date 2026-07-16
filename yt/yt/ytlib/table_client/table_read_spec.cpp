@@ -38,6 +38,8 @@ using NChunkClient::NProto::TChunkSpec;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableReadSpec FetchRegularTableReadSpec(
+    const NYPath::TRichYPath& path,
+    const NNative::IClientPtr& client,
     const TFetchSingleTableReadSpecOptions& options,
     const TUserObject* userObject,
     const TLogger& logger)
@@ -45,7 +47,7 @@ TTableReadSpec FetchRegularTableReadSpec(
     const auto& Logger = logger;
     YT_LOG_INFO("Fetching regular table");
 
-    const auto& path = options.RichPath.GetPath();
+    auto tablePath = path.GetPath();
     auto suppressAccessTracking = options.GetUserObjectBasicAttributesOptions.SuppressAccessTracking;
     auto suppressExpirationTimeoutRenewal = options.GetUserObjectBasicAttributesOptions.SuppressExpirationTimeoutRenewal;
 
@@ -58,7 +60,7 @@ TTableReadSpec FetchRegularTableReadSpec(
         YT_LOG_INFO("Requesting extended table attributes");
 
         auto proxy = CreateObjectServiceReadProxy(
-            options.Client,
+            client,
             EMasterChannelKind::Follower,
             userObject->ExternalCellTag);
 
@@ -85,7 +87,7 @@ TTableReadSpec FetchRegularTableReadSpec(
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting extended attributes of table %v",
-            path);
+            tablePath);
 
         const auto& rsp = rspOrError.Value();
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
@@ -94,13 +96,13 @@ TTableReadSpec FetchRegularTableReadSpec(
         dynamic = attributes->Get<bool>("dynamic");
         schema = attributes->Get<TTableSchemaPtr>("schema");
         // NB: Works only for read_table, map-reduce operations do not pass rich path options.
-        if (options.RichPath.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp) {
+        if (path.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp) {
             schema = ToLatestTimestampSchema(schema);
         }
         fetchFromTablets = attributes->Get<bool>("fetch_from_tablets", false);
         account = attributes->Get<std::string>("account", "");
 
-        ValidateDynamicTableTimestamp(options.RichPath, dynamic, *schema, *attributes);
+        ValidateDynamicTableTimestamp(path, dynamic, *schema, *attributes);
     }
 
     std::vector<TChunkSpec> chunkSpecs;
@@ -109,19 +111,19 @@ TTableReadSpec FetchRegularTableReadSpec(
         if (fetchFromTablets) {
             YT_LOG_INFO("Fetching table chunks from tablets");
             chunkSpecs = FetchTabletStores(
-                options.Client,
+                client,
                 *userObject,
-                options.RichPath.GetNewRanges(schema->ToComparator(), schema->GetKeyColumnTypes()),
+                path.GetNewRanges(schema->ToComparator(), schema->GetKeyColumnTypes()),
                 logger);
         } else {
             YT_LOG_INFO("Fetching table chunks (ChunkCount: %v)",
                 chunkCount);
 
             chunkSpecs = FetchChunkSpecs(
-                options.Client,
-                options.Client->GetNativeConnection()->GetNodeDirectory(),
+                client,
+                client->GetNativeConnection()->GetNodeDirectory(),
                 *userObject,
-                options.RichPath.GetNewRanges(schema->ToComparator(), schema->GetKeyColumnTypes()),
+                path.GetNewRanges(schema->ToComparator(), schema->GetKeyColumnTypes()),
                 // XXX(babenko): YT-11825
                 dynamic && !schema->IsSorted() ? -1 : chunkCount,
                 options.FetchChunkSpecConfig->MaxChunksPerFetch,
@@ -150,21 +152,21 @@ TTableReadSpec FetchRegularTableReadSpec(
     std::vector<TDataSliceDescriptor> dataSliceDescriptors;
     if (dynamic && schema->IsSorted()) {
         dataSource = MakeVersionedDataSource(
-            path,
+            tablePath,
             schema,
-            options.RichPath.GetColumns(),
+            path.GetColumns(),
             userObject->OmittedInaccessibleColumns,
-            options.RichPath.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
-            options.RichPath.GetRetentionTimestamp().value_or(NullTimestamp),
+            path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
+            path.GetRetentionTimestamp().value_or(NullTimestamp),
             /*columnRenameDescriptors*/ {});
         dataSource->SetObjectId(userObject->ObjectId);
         dataSource->SetAccount(account);
         dataSliceDescriptors.emplace_back(std::move(chunkSpecs));
     } else {
         dataSource = MakeUnversionedDataSource(
-            path,
+            tablePath,
             schema,
-            options.RichPath.GetColumns(),
+            path.GetColumns(),
             userObject->OmittedInaccessibleColumns,
             /*columnRenameDescriptors*/ {});
         dataSource->SetObjectId(userObject->ObjectId);
@@ -190,21 +192,24 @@ TTableReadSpec FetchRegularTableReadSpec(
     };
 }
 
-TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& options)
+TTableReadSpec FetchSingleTableReadSpec(
+    const NYPath::TRichYPath& path,
+    const NNative::IClientPtr& client,
+    const TFetchSingleTableReadSpecOptions& options)
 {
-    const auto& path = options.RichPath.GetPath();
+    auto tablePath = path.GetPath();
 
     auto Logger = TableClientLogger().WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
-        path,
+        tablePath,
         options.TransactionId,
         options.ReadSessionId);
 
-    YT_LOG_INFO("Opening table reader");
+    YT_LOG_INFO("Fetching table read spec");
 
-    auto userObject = std::make_unique<TUserObject>(options.RichPath);
+    auto userObject = std::make_unique<TUserObject>(path);
 
     GetUserObjectBasicAttributes(
-        options.Client,
+        client,
         {userObject.get()},
         options.TransactionId,
         Logger,
@@ -223,11 +228,11 @@ TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& 
 
     switch (type) {
         case EObjectType::Table:
-            return FetchRegularTableReadSpec(options, userObject.get(), Logger);
+            return FetchRegularTableReadSpec(path, client, options, userObject.get(), Logger);
         default:
-            THROW_ERROR_EXCEPTION("Invalid type of %v: expected any of %Qlv, actual %Qlv",
-                path,
-                std::vector<EObjectType>{EObjectType::Table},
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                tablePath,
+                EObjectType::Table,
                 userObject->Type);
     }
 }
