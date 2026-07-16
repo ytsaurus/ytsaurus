@@ -46,16 +46,17 @@ void TCompanionProcessManager::ValidateParameters() const
 
 TIntrusivePtr<TProcessBase> TCompanionProcessManager::CreateProcessIncarnation()
 {
-    YT_LOG_INFO("Spawning companion process (Executable: %v, Args: %v, CompanionPort: %v)",
-        Entrypoint_->Executable,
-        Entrypoint_->Args,
-        CompanionConfig_->Port);
+    YT_TLOG_INFO("Spawning companion process")
+        .With("Executable", Entrypoint_->Executable)
+        .With("Args", Entrypoint_->Args)
+        .With("CompanionPort", CompanionConfig_->Port);
 
     auto process = New<TSimpleProcess>(TString(Entrypoint_->Executable), /*copyEnv*/ true);
     process->AddArguments(Entrypoint_->Args);
 
     auto configTxt = NYson::ConvertToYsonString(CompanionConfig_, NYson::EYsonFormat::Text);
-    YT_LOG_INFO("Set companion config environment variable (Config: %v)", configTxt);
+    YT_TLOG_INFO("Set companion config environment variable")
+        .With("Config", configTxt);
     process->AddEnvVar(Format("YT_FLOW_COMPANION_CONFIG=%v", configTxt));
 
     for (const auto& [name, value] : Entrypoint_->Env) {

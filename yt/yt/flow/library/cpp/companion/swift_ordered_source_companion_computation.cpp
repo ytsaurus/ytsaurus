@@ -46,14 +46,15 @@ void TSwiftOrderedSourceCompanionComputation::DoInit(IJobInitContextPtr /*initCo
 
     PutJobInfoToCompanionWithReconfigure();
 
-    YT_LOG_INFO("Computation initialized");
+    YT_TLOG_INFO("Computation initialized");
 }
 
 void TSwiftOrderedSourceCompanionComputation::DoProcess(IInputContextPtr input, IOutputCollectorPtr output)
 {
-    YT_LOG_DEBUG("Starting DoProcess (Messages Size: %v)", input->GetMessages().size());
+    YT_TLOG_DEBUG("Starting DoProcess")
+        .With("MessagesSize", input->GetMessages().size());
     if (input->GetMessages().size() == 0) {
-        YT_LOG_DEBUG("Empty inputs. Returning.");
+        YT_TLOG_DEBUG("Empty inputs. Returning.");
         return;
     }
     auto request = CreateCompanionRequest<TCompanionProcessRequest>();
@@ -93,7 +94,7 @@ void TSwiftOrderedSourceCompanionComputation::DoProcess(IInputContextPtr input, 
         }
     }
 
-    YT_LOG_DEBUG("DoProcess finished");
+    YT_TLOG_DEBUG("DoProcess finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

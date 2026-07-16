@@ -21,9 +21,10 @@ void TSwiftMapCompanionComputation::DoInit(IJobInitContextPtr /*initContext*/)
 
 void TSwiftMapCompanionComputation::DoProcess(IInputContextPtr input, IOutputCollectorPtr output)
 {
-    YT_LOG_DEBUG("Starting DoProcess (Messages Size: %v)", input->GetMessages().size());
+    YT_TLOG_DEBUG("Starting DoProcess")
+        .With("MessagesSize", input->GetMessages().size());
     if (input->GetMessages().size() == 0) {
-        YT_LOG_DEBUG("Empty inputs. Returning.");
+        YT_TLOG_DEBUG("Empty inputs. Returning.");
         return;
     }
     auto request = CreateCompanionRequest<TCompanionProcessRequest>();
@@ -51,7 +52,7 @@ void TSwiftMapCompanionComputation::DoProcess(IInputContextPtr input, IOutputCol
         }
     }
 
-    YT_LOG_DEBUG("DoProcess finished");
+    YT_TLOG_DEBUG("DoProcess finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
