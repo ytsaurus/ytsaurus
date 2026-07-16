@@ -76,7 +76,9 @@ public:
 
         i64 prevCount = state->GetColumnValue<std::optional<i64>>("count").value_or(0);
         builder.Set(prevCount + 1, "count");
-        YT_LOG_INFO("Setting count to %v while key is %v", prevCount + 1, key);
+        YT_TLOG_INFO("Setting count")
+            .With("Count", prevCount + 1)
+            .With("Key", key);
         state->Payload = builder.Finish();
     }
 

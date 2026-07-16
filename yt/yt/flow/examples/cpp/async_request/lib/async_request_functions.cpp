@@ -61,8 +61,9 @@ void TRequestProcessor::ProcessMessage(
     response->Key = request->Key;
     response->Length = std::ssize(request->Request);
     output->AddMessage(context->ConvertToMessage(response));
-    YT_LOG_DEBUG("Processed request (RequestId: %v, FailedAttempts: 0)",
-        request->RequestId);
+    YT_TLOG_DEBUG("Processed request")
+        .With("RequestId", request->RequestId)
+        .With("FailedAttempts", 0);
 }
 
 // [END request_processor]
@@ -87,10 +88,12 @@ void TStateKeeper::ProcessMessage(
         request->Key = event->Key;
         request->Request = event->Data;
         output->AddMessage(context->ConvertToMessage(request));
-        YT_LOG_DEBUG("Send request (RequestId: %v)", request->RequestId);
+        YT_TLOG_DEBUG("Send request")
+            .With("RequestId", request->RequestId);
     } else if (message->StreamId == "response") {
         auto response = context->ConvertToYsonMessage<TResponseMessage>(message);
-        YT_LOG_DEBUG("Received response (RequestId: %v)", response->RequestId);
+        YT_TLOG_DEBUG("Received response")
+            .With("RequestId", response->RequestId);
         auto state = StateClient_.GetState(message->Key);
         i64 totalLength = state->GetColumnValue<std::optional<i64>>("total_length").value_or(0);
         totalLength += response->Length;
