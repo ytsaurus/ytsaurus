@@ -155,7 +155,7 @@
     1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Выберите слева раздел **Advanced**.
     1. Найдите раздел **Clickhouse config**.
-    1. В поле *Use JSON syntax* введите параметры и их значения в виде JSON конфигурации.
+    1. В поле *Use JSON syntax* введите параметры и их значения в виде JSON-конфигурации.
         Пример конфигурации простого словаря и установки [**Query settings**](#query-settings) в `settings` части:
 
         ```json
@@ -237,7 +237,7 @@ YT-часть конфигурации инстанса задаётся в оп
     1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Выберите слева раздел **Advanced**.
     1. Найдите раздел **YT config**.
-    1. В поле *Use JSON syntax* введите параметры и их значения в виде JSON конфигурации, например:
+    1. В поле *Use JSON syntax* введите параметры и их значения в виде JSON-конфигурации, например:
 
         ```json
         {
@@ -352,7 +352,7 @@ YT-часть конфигурации инстанса задаётся в оп
 1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
 1. Выберите слева раздел **Advanced**.
 1. Найдите раздел **Instance memory**.
-1. В поле *Use JSON syntax* введите параметры и их значения в виде JSON конфигурации. В качестве шаблона можно использовать пример конфигурации:
+1. В поле *Use JSON syntax* введите параметры и их значения в виде JSON-конфигурации. В качестве шаблона можно использовать пример конфигурации:
 
     ```json
     {
