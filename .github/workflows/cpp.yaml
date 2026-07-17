@@ -55,7 +55,7 @@ jobs:
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Checkout ytsaurus
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: ytsaurus
           fetch-depth: 256
