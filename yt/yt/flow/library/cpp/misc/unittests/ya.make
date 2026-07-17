@@ -15,6 +15,7 @@ SRCS(
     indexed_yson_string_ut.cpp
     keyed_heap_ut.cpp
     lexicographically_serialize_ut.cpp
+    load_throughput_throttler_ut.cpp
     mutable_unversioned_row_ut.cpp
     ordered_memory_ut.cpp
     prefetch_ut.cpp
