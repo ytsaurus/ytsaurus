@@ -548,6 +548,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("aux_poller_thread_count", &TThis::AuxPollerThreadCount)
         .Default();
+    registrar.Parameter("solomon_exporter", &TThis::SolomonExporter)
+        .DefaultNew();
 
     registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
         .DefaultNew();
