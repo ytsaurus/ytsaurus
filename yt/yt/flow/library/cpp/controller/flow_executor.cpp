@@ -1547,7 +1547,9 @@ TYsonString TFlowExecutor::Execute(const std::string& command, const TYsonString
         return command;
     });
 
-    YT_LOG_DEBUG("Got flow-execute request (Command: %v, User: %v)", command, user);
+    YT_TLOG_DEBUG("Got flow-execute request")
+        .With("Command", command)
+        .With("User", user);
 
     Controller_->EnsureIsLeader();
 

@@ -114,8 +114,8 @@ public:
                 EmplaceOrCrash(context->StaticResources, aliasResourceId, ResourceManager_->Get(resourceId));
             }
 
-            YT_LOG_INFO("Creating controller (ComputationId: %v)",
-                computationId);
+            YT_TLOG_INFO("Creating controller")
+                .With("ComputationId", computationId);
             try {
                 auto controller = TRegistry::Get()->CreateComputationController(context, dynamicContext);
                 controller->Init(StateManager_->CreateContext(computationId));
@@ -186,9 +186,9 @@ public:
             } else if (partition->State == EPartitionState::Executing || partition->State == EPartitionState::Completing || partition->State == EPartitionState::Interrupting) {
                 auto partitionJobStatusIt = currentPartitionJobStatuses.find(partitionId);
                 if (partitionJobStatusIt == currentPartitionJobStatuses.end() || !partitionJobStatusIt->second->LastTraverseData) {
-                    YT_LOG_WARNING("Not all partitions has traverse data (PartitionId: %v, ComputationId: %v)",
-                        partitionId,
-                        partition->ComputationId);
+                    YT_TLOG_WARNING("Not all partitions has traverse data")
+                        .With("PartitionId", partitionId)
+                        .With("ComputationId", partition->ComputationId);
                     return;
                 }
                 groupedPartitions[partition->ComputationId].push_back(partitionId);
@@ -198,22 +198,22 @@ public:
             THashSet<TComputationId> uncoveredComputations;
             for (const auto& [computationId, controller] : ComputationControllers_) {
                 if (!controller->IsFullCoverage(groupedPartitions[computationId], flowView)) {
-                    YT_LOG_INFO("Computation does not have full coverage (ComputationId: %v)",
-                        computationId);
+                    YT_TLOG_INFO("Computation does not have full coverage")
+                        .With("ComputationId", computationId);
                     uncoveredComputations.insert(computationId);
                 } else {
-                    YT_LOG_INFO("Computation has full coverage (ComputationId: %v)",
-                        computationId);
+                    YT_TLOG_INFO("Computation has full coverage")
+                        .With("ComputationId", computationId);
                 }
             }
             flowView->EphemeralState->TraverseUncoveredComputations = std::move(uncoveredComputations);
         }
         if (!flowView->EphemeralState->TraverseUncoveredComputations.empty()) {
-            YT_LOG_INFO("Not all computations have full coverage, interrupted traverse data aggregation");
+            YT_TLOG_INFO("Not all computations have full coverage, interrupted traverse data aggregation");
             return;
         }
 
-        YT_LOG_INFO("Aggregating traverse data");
+        YT_TLOG_INFO("Aggregating traverse data");
 
         THashMap<TComputationId, THashMap<TPartitionId, TNodeTraverseDataPtr>> groupedTraverses;
         for (const auto& [computationId, controller] : ComputationControllers_) {
@@ -273,13 +273,9 @@ public:
                     THROW_ERROR_EXCEPTION(ex)
                         << TErrorAttribute("computation_id", computationId);
                 }
-                YT_LOG_EVENT(
-                    PublicControllerLogger,
-                    NLogging::ELogLevel::Warning,
-                    "Failed to process partition traverse data, reusing the previous one "
-                    "(ComputationId: %v, Error: %v)",
-                    computationId,
-                    TError(ex));
+                YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Failed to process partition traverse data, reusing the previous one")
+                    .With("ComputationId", computationId)
+                    .With("Error", TError(ex));
             }
             try {
                 for (const auto& streamId : computationSpec->InputStreamIds) {
@@ -316,8 +312,8 @@ public:
         }
         traverseData->Streams = std::move(streamsTraverseData);
 
-        YT_LOG_INFO("TraverseData: %v",
-            NYson::ConvertToYsonString(traverseData, NYson::EYsonFormat::Text));
+        YT_TLOG_INFO("TraverseData")
+            .With("TraverseData", NYson::ConvertToYsonString(traverseData, NYson::EYsonFormat::Text));
         std::vector<TStreamTraverseDataPtr> completedStream = {MakeCompletedStreamTraverseData(flowView->State->ExecutionSpec->GetEpoch(), flowView->State->CurrentTimestamp)};
 
         traverseData->UnitedSourceStream = MergeStreamTraverseData(ConcatVectors(sourceStreams, completedStream), EInflightMerge::Sum, /*allowPartial*/ true);
@@ -329,9 +325,9 @@ public:
         if (unitedInputStream->Epoch == flowView->State->ExecutionSpec->GetEpoch() && traverseData->UnitedOutputStream->Epoch == flowView->State->ExecutionSpec->GetEpoch()) {
             auto newWatermark = std::min(traverseData->UnitedOutputStream->SystemWatermark, unitedInputStream->SystemWatermark);
             if (traverseData->InputSystemWatermark > newWatermark) {
-                YT_LOG_WARNING("Possible data loss: system has events below InputSystemWatermark. (InputSystemWatermark: %v, ComputedWatermark: %v)",
-                    traverseData->InputSystemWatermark,
-                    newWatermark);
+                YT_TLOG_WARNING("Possible data loss: system has events below InputSystemWatermark.")
+                    .With("InputSystemWatermark", traverseData->InputSystemWatermark)
+                    .With("ComputedWatermark", newWatermark);
             }
             traverseData->InputSystemWatermark = std::max(newWatermark, traverseData->InputSystemWatermark);
         }
@@ -388,8 +384,8 @@ public:
 
     void CheckCompletedPartitions(const TFlowViewPtr& flowView) override
     {
-        YT_LOG_INFO("Looking for new completed partitions (PartitionCount: %v)",
-            flowView->Feedback->PartitionJobStatuses.size());
+        YT_TLOG_INFO("Looking for new completed partitions")
+            .With("PartitionCount", flowView->Feedback->PartitionJobStatuses.size());
         ui64 foundOk = 0;
         ui64 foundGracefulRebalance = 0;
         const auto& layout = flowView->State->ExecutionSpec->Layout;
@@ -426,12 +422,11 @@ public:
                     (*eph)->DynamicPartitionSpec = ConvertToNode(spec)->AsMap();
                 }
 
-                YT_LOG_INFO("Graceful rebalance: recreating job on target worker "
-                    "(JobId: %v, PartitionId: %v, ComputationId: %v, TargetWorkerAddress: %v)",
-                    currentJobStatus->JobId,
-                    partition->PartitionId,
-                    partition->ComputationId,
-                    targetWorkerIt->second->RpcAddress);
+                YT_TLOG_INFO("Graceful rebalance: recreating job on target worker")
+                    .With("JobId", currentJobStatus->JobId)
+                    .With("PartitionId", partition->PartitionId)
+                    .With("ComputationId", partition->ComputationId)
+                    .With("TargetWorkerAddress", targetWorkerIt->second->RpcAddress);
 
                 layout->RemoveJob(currentJobStatus->JobId, EJobFinishReason::Rebalanced);
 
@@ -468,26 +463,25 @@ public:
                             partition->ComputationId,
                             partition->State);
                     }
-                    YT_LOG_EVENT(
-                        PublicControllerLogger,
-                        NLogging::ELogLevel::Info,
-                        "Job completed (JobId: %v, PartitionId: %v, ComputationId: %v)",
-                        currentJobStatus->JobId,
-                        partitionId,
-                        partition->ComputationId);
+                    YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Info, "Job completed")
+                        .With("JobId", currentJobStatus->JobId)
+                        .With("PartitionId", partitionId)
+                        .With("ComputationId", partition->ComputationId);
                     layout->UpdatePartition(job->PartitionId, newState, currentJobStatus->Epoch, currentJobStatus->UpdateTime);
                 }
             }
         }
 
-        YT_LOG_INFO("Check completed partitions (New: %v, GracefulRebalance: %v)", foundOk, foundGracefulRebalance);
+        YT_TLOG_INFO("Check completed partitions")
+            .With("New", foundOk)
+            .With("GracefulRebalance", foundGracefulRebalance);
         SucceededJobsCounter_.Increment(foundOk);
     }
 
     void RemoveFailedJobs(const TFlowViewPtr& flowView) override
     {
-        YT_LOG_INFO("Looking for failed jobs (CheckedPartitionsCount: %v)",
-            flowView->Feedback->PartitionJobStatuses.size());
+        YT_TLOG_INFO("Looking for failed jobs")
+            .With("CheckedPartitionsCount", flowView->Feedback->PartitionJobStatuses.size());
         ui64 foundError = 0;
         const auto& layout = flowView->State->ExecutionSpec->Layout;
 
@@ -502,22 +496,19 @@ public:
                     // (e.g. the move target is gone, or the pending target was already cleared).
                     // This is not a failure: drop the finished job so the balancer reschedules it,
                     // without logging an error, counting a failure or applying the failure backoff.
-                    YT_LOG_INFO("Removing gracefully finished job (JobId: %v, PartitionId: %v, ComputationId: %v)",
-                        currentJobStatus->JobId,
-                        partitionId,
-                        GetOrCrash(layout->Partitions, partitionId)->ComputationId);
+                    YT_TLOG_INFO("Removing gracefully finished job")
+                        .With("JobId", currentJobStatus->JobId)
+                        .With("PartitionId", partitionId)
+                        .With("ComputationId", GetOrCrash(layout->Partitions, partitionId)->ComputationId);
                     layout->RemoveJob(currentJobStatus->JobId, EJobFinishReason::Rebalanced);
                     continue;
                 }
                 foundError += 1;
-                YT_LOG_EVENT(
-                    PublicControllerLogger,
-                    NLogging::ELogLevel::Error,
-                    currentJobStatus->Error,
-                    "Job failed (JobId: %v, PartitionId: %v, ComputationId: %v)",
-                    currentJobStatus->JobId,
-                    partitionId,
-                    GetOrCrash(layout->Partitions, partitionId)->ComputationId);
+                YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Job failed")
+                    .With("JobId", currentJobStatus->JobId)
+                    .With("PartitionId", partitionId)
+                    .With("ComputationId", GetOrCrash(layout->Partitions, partitionId)->ComputationId)
+                    .With(currentJobStatus->Error);
                 layout->RemoveJob(currentJobStatus->JobId, EJobFinishReason::Failed);
 
                 auto partitionState = flowView->EphemeralState->GetPartitionState(partitionId);
@@ -526,9 +517,9 @@ public:
             }
         }
 
-        YT_LOG_INFO("Finished removing failed jobs (Failed: %v, CheckedPartitionsCount: %v)",
-            foundError,
-            flowView->Feedback->PartitionJobStatuses.size());
+        YT_TLOG_INFO("Finished removing failed jobs")
+            .With("Failed", foundError)
+            .With("CheckedPartitionsCount", flowView->Feedback->PartitionJobStatuses.size());
         FailedJobsCounter_.Increment(foundError);
     }
 
@@ -570,8 +561,8 @@ public:
 
     void RemoveLostJobs(const TFlowViewPtr& flowView) override
     {
-        YT_LOG_INFO("Looking for lost jobs (CheckedPartitionsCount: %v)",
-            flowView->Feedback->PartitionJobStatuses.size());
+        YT_TLOG_INFO("Looking for lost jobs")
+            .With("CheckedPartitionsCount", flowView->Feedback->PartitionJobStatuses.size());
 
         ui64 removed = 0;
         const auto& layout = flowView->State->ExecutionSpec->Layout;
@@ -588,7 +579,8 @@ public:
                 partition->PartitionId,
                 partition->ComputationId,
                 lostReasonTags);
-            YT_LOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, error);
+            YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "")
+                .With(error);
             removed++;
             layout->RemoveJob(jobId, EJobFinishReason::LostWorker);
 
@@ -604,8 +596,8 @@ public:
             const auto& jobId = *partitionJobStatus->CurrentJobId;
             auto jobIt = layout->Jobs.find(jobId);
             if (jobIt == layout->Jobs.end()) {
-                YT_LOG_WARNING("Unknown jobId in PartitionJobStatuses (JobId: %v)",
-                    jobId);
+                YT_TLOG_WARNING("Unknown jobId in PartitionJobStatuses")
+                    .With("JobId", jobId);
                 continue;
             }
             if (partitionJobStatus->CurrentJobStatusUpdateTime + DynamicSpec_->JobManager->LostJobTimeout < flowView->Feedback->UpdateTime) {
@@ -631,9 +623,9 @@ public:
             }
         }
 
-        YT_LOG_INFO("Finished removing lost jobs (Removed: %v, CheckedPartitionsCount: %v)",
-            removed,
-            flowView->Feedback->PartitionJobStatuses.size());
+        YT_TLOG_INFO("Finished removing lost jobs")
+            .With("Removed", removed)
+            .With("CheckedPartitionsCount", flowView->Feedback->PartitionJobStatuses.size());
         LostJobsCounter_.Increment(removed);
     }
 
@@ -656,13 +648,13 @@ public:
                 interrupting += 1;
             }
         }
-        YT_LOG_INFO("Started partitioning (Workers: %v, ComputationControllers: %v, Partitions: %v, Executing: %v, Completing: %v, Interrupting: %v)",
-            flowView->State->Workers.size(),
-            ComputationControllers_.size(),
-            total,
-            executing,
-            completing,
-            interrupting);
+        YT_TLOG_INFO("Started partitioning")
+            .With("Workers", flowView->State->Workers.size())
+            .With("ComputationControllers", ComputationControllers_.size())
+            .With("Partitions", total)
+            .With("Executing", executing)
+            .With("Completing", completing)
+            .With("Interrupting", interrupting);
 
 
         ssize_t oldUpdated = layout->GetUpdated();
@@ -706,7 +698,8 @@ public:
         maxTimeSinceOk = std::min(maxTimeSinceOk, LastPartitionOkTimeInf);
         MaxTimeSincePartitionOkGauge_.Update(maxTimeSinceOk.Seconds());
 
-        YT_LOG_INFO("Finished partitioning (Mutations: %v)", updated);
+        YT_TLOG_INFO("Finished partitioning")
+            .With("Mutations", updated);
         PartitioningMutationsCounter_.Increment(updated);
     }
 
@@ -729,12 +722,12 @@ public:
                 interrupting += 1;
             }
         }
-        YT_LOG_INFO("Started job distributions (Workers: %v, Partitions: %v, Executing: %v, Completing: %v, Interrupting: %v)",
-            flowView->State->Workers.size(),
-            total,
-            executing,
-            completing,
-            interrupting);
+        YT_TLOG_INFO("Started job distributions")
+            .With("Workers", flowView->State->Workers.size())
+            .With("Partitions", total)
+            .With("Executing", executing)
+            .With("Completing", completing)
+            .With("Interrupting", interrupting);
 
         // The minimum-worker requirement must hold for each used worker group independently:
         // counting all workers misses the case where a group has no workers of its own (its
@@ -754,7 +747,10 @@ public:
                 }
             }
             if (workersInGroup < minimumWorkerCount) {
-                YT_LOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Too few workers in worker group (WorkerGroup: %v, Count: %v, Required: %v)", workerGroup, workersInGroup, minimumWorkerCount);
+                YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Too few workers in worker group")
+                    .With("WorkerGroup", workerGroup)
+                    .With("Count", workersInGroup)
+                    .With("Required", minimumWorkerCount);
                 return StopAllJobs(flowView);
             }
         }
@@ -786,9 +782,9 @@ public:
             }
             partitionState->DynamicPartitionSpec = ConvertToNode(newSpec)->AsMap();
 
-            YT_LOG_INFO("Graceful rebalance initiated (PartitionId: %v, TargetWorkerAddress: %v)",
-                partition->PartitionId,
-                targetWorkerAddress);
+            YT_TLOG_INFO("Graceful rebalance initiated")
+                .With("PartitionId", partition->PartitionId)
+                .With("TargetWorkerAddress", targetWorkerAddress);
         };
         ssize_t createCount = 0;
         auto createJob = [&] (const auto& partitionId, const auto& worker) {
@@ -798,13 +794,9 @@ public:
             // "worker is lost" error. Name the real problem instead.
             const auto* partitionState = flowView->EphemeralState->Partitions.FindPtr(partitionId);
             if (!partitionState || !(*partitionState)->DynamicPartitionSpec) {
-                YT_LOG_EVENT(
-                    PublicControllerLogger,
-                    NLogging::ELogLevel::Error,
-                    "Creating job for a partition without dynamic partition spec; the job cannot start "
-                    "until the spec appears (PartitionId: %v, ComputationId: %v)",
-                    partitionId,
-                    GetOrCrash(layout->Partitions, partitionId)->ComputationId);
+                YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Creating job for a partition without dynamic partition spec; the job cannot start until the spec appears")
+                    .With("PartitionId", partitionId)
+                    .With("ComputationId", GetOrCrash(layout->Partitions, partitionId)->ComputationId);
             }
             auto job = New<TJob>();
             job->JobId = TJobId(TGuid::Create());
@@ -894,7 +886,9 @@ public:
             }
         }
 
-        YT_LOG_INFO("Finished job distributions (Mutations: %v, GracefulStops: %v)", createCount + stopCount + gracefulStopCount, gracefulStopCount);
+        YT_TLOG_INFO("Finished job distributions")
+            .With("Mutations", createCount + stopCount + gracefulStopCount)
+            .With("GracefulStops", gracefulStopCount);
         DistributingMutationsCounter_.Increment(createCount + stopCount + gracefulStopCount);
     }
 

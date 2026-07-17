@@ -225,7 +225,7 @@ private:
         ElectionManager_->SubscribeLeadingEnded(BIND(&TYTConnector::DoLeadingEnded, MakeWeak(this)));
         ElectionManager_->Start();
         State_.store(EYTConnectorState::Follower);
-        YT_LOG_INFO("YTConnector following started");
+        YT_TLOG_INFO("YTConnector following started");
     }
 
     void DoDisconnect()
@@ -240,7 +240,7 @@ private:
         YT_VERIFY(State_ == EYTConnectorState::Follower);
         ElectionManager_.Reset();
         State_.store(EYTConnectorState::Disconnected);
-        YT_LOG_INFO("YTConnector following stopped");
+        YT_TLOG_INFO("YTConnector following stopped");
     }
 
     // Checks that controller node incarnation id available from YT is the same as provided.
@@ -281,17 +281,21 @@ private:
                 setOptions))
                 .ThrowOnError();
             WaitFor(transaction->Commit()).ThrowOnError();
-            YT_LOG_INFO("Published leader controller address (Address: %v)", NodeInfo_->RpcAddress);
+            YT_TLOG_INFO("Published leader controller address")
+                .With("Address", NodeInfo_->RpcAddress);
         } catch (const std::exception& ex) {
-            YT_LOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, ex, "Failed to publish leader_controller_address");
+            YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Failed to publish leader_controller_address")
+                .With(ex);
             return false;
         }
 
         try {
             WaitFor(CheckControllerLeaderNodeIncarnationIdExternally(NodeInfo_->IncarnationId)).ThrowOnError();
-            YT_LOG_INFO("Confirmed published leader controller address (Address: %v)", NodeInfo_->RpcAddress);
+            YT_TLOG_INFO("Confirmed published leader controller address")
+                .With("Address", NodeInfo_->RpcAddress);
         } catch (const std::exception& ex) {
-            YT_LOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, ex, "Failed to confirm leader_controller_address");
+            YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Failed to confirm leader_controller_address")
+                .With(ex);
             return false;
         }
 
@@ -308,9 +312,11 @@ private:
                 LeaderControllerKey,
                 ConvertToYsonString(NodeInfo_));
             WaitFor(transaction->Commit()).ThrowOnError();
-            YT_LOG_INFO("Published leader controller address to flow_control table (Address: %v)", NodeInfo_->RpcAddress);
+            YT_TLOG_INFO("Published leader controller address to flow_control table")
+                .With("Address", NodeInfo_->RpcAddress);
         } catch (const std::exception& ex) {
-            YT_LOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, ex, "Failed to publish leader_controller to flow_control table");
+            YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Failed to publish leader_controller to flow_control table")
+                .With(ex);
             return false;
         }
 
@@ -356,7 +362,7 @@ private:
             .Run();
 
         LeadingStarted_.Fire();
-        YT_LOG_INFO("YTConnector leading started");
+        YT_TLOG_INFO("YTConnector leading started");
     }
 
     void DoLeadingEnded()
@@ -373,7 +379,7 @@ private:
         PublisherFuture_.Cancel(TError("Leading ended"));
 
         LeadingEnded_.Fire();
-        YT_LOG_INFO("YTConnector leading ended");
+        YT_TLOG_INFO("YTConnector leading ended");
     }
 
     void DoCleanUp()

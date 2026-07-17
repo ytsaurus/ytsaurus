@@ -136,7 +136,8 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             if (error.FindMatching(NFlow::EErrorCode::FlowViewKeeperIsNotInitialized)) {
-                YT_LOG_WARNING(ex, "Sending empty heartbeat response since flow view keeper is not initialized yet");
+                YT_TLOG_WARNING("Sending empty heartbeat response since flow view keeper is not initialized yet")
+                    .With(ex);
                 context->Reply();
                 return;
             } else {
@@ -178,13 +179,10 @@ private:
                     statuses[jobId] = jobStatus;
                 } catch (const std::exception& ex) {
                     // Job would be dropped anyway after LostJobTimeout.
-                    YT_LOG_EVENT(
-                        PublicControllerLogger,
-                        NLogging::ELogLevel::Error,
-                        ex,
-                        "Job sent invalid status, ignored (WorkerIdentifyingString: %v, JobId: %v)",
-                        workerInfo.GetIdentifyingString(),
-                        jobId);
+                    YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Job sent invalid status, ignored")
+                        .With("WorkerIdentifyingString", workerInfo.GetIdentifyingString())
+                        .With("JobId", jobId)
+                        .With(ex);
                 }
             }
             TDuration gatherStatusesDuration = TInstant::Now() - gatherStatusesStart;
@@ -215,23 +213,27 @@ private:
                     Controller_->RegisterJobStatus(jobId, jobStatus);
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to register job statuses after responding to worker heartbeat (WorkerAddress: %v)", workerAddress);
+                YT_TLOG_ERROR("Failed to register job statuses after responding to worker heartbeat")
+                    .With("WorkerAddress", workerAddress)
+                    .With(ex);
             }
             TDuration registerStatusesDuration = TInstant::Now() - registerStatusesStart;
 
-            YT_LOG_INFO("Worker heartbeat timings, milliseconds (PrepareDuration: %Qv, CollectSpecUpdateDuration: %Qv, StateUpdateSize: %Qv, GatherStatusesDuration: %Qv, StatusesSize: %Qv, SetDynamicSpecDuration: %Qv ms, RegisterStatusesDuration: %Qv)",
-                prepareDuration.MilliSeconds(),
-                collectSpecUpdateDuration.MilliSeconds(),
-                stateUpdateSize,
-                gatherStatusesDuration.MilliSeconds(),
-                statusesSize,
-                setDynamicSpecDuration.MilliSeconds(),
-                registerStatusesDuration.MilliSeconds());
+            YT_TLOG_INFO("Worker heartbeat timings, milliseconds")
+                .With("PrepareDuration", prepareDuration.MilliSeconds(), "%Qv")
+                .With("CollectSpecUpdateDuration", collectSpecUpdateDuration.MilliSeconds(), "%Qv")
+                .With("StateUpdateSize", stateUpdateSize, "%Qv")
+                .With("GatherStatusesDuration", gatherStatusesDuration.MilliSeconds(), "%Qv")
+                .With("StatusesSize", statusesSize, "%Qv")
+                .With("SetDynamicSpecDuration", setDynamicSpecDuration.MilliSeconds(), "%Qv")
+                .With("RegisterStatusesDuration", registerStatusesDuration.MilliSeconds(), "%Qv");
 
             try {
                 Controller_->RegisterWorkerStatus(workerAddress, workerStatus);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to register worker status after responding to worker heartbeat (WorkerAddress: %v)", workerAddress);
+                YT_TLOG_ERROR("Failed to register worker status after responding to worker heartbeat")
+                    .With("WorkerAddress", workerAddress)
+                    .With(ex);
             }
         } else {
             context->Reply();

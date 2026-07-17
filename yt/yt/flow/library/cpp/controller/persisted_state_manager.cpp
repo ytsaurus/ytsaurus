@@ -75,9 +75,9 @@ public:
     {
         MaxSelectSize_ = Config_->MaxReadsPerTransaction;
         MaxExecuteSize_ = Config_->MaxWritesPerTransaction;
-        YT_LOG_INFO("Persisted state storage handler created (ReadLimit: %v, WriteLimit: %v)",
-            Config_->MaxReadsPerTransaction,
-            Config_->MaxWritesPerTransaction);
+        YT_TLOG_INFO("Persisted state storage handler created")
+            .With("ReadLimit", Config_->MaxReadsPerTransaction)
+            .With("WriteLimit", Config_->MaxWritesPerTransaction);
     }
 
     template <typename TBody>
@@ -115,9 +115,9 @@ public:
         const auto& value = ConvertToYsonString(object);
         const auto& valueBuf = value.AsStringBuf();
         if (valueBuf.size() > 50_MB) {
-            YT_LOG_WARNING("Too big object (Size: %v, Name: %v)",
-                valueBuf.size(),
-                name);
+            YT_TLOG_WARNING("Too big object")
+                .With("Size", valueBuf.size())
+                .With("Name", name);
         }
 
         auto rowBuffer = New<TRowBuffer>();
@@ -128,10 +128,10 @@ public:
         rows.push_back(NRowModifications::TWriteRow(row));
 
         transaction->ModifyRows(path, nameTable, MakeSharedRange(std::move(rows), std::move(rowBuffer)));
-        YT_LOG_INFO("Write obsolete object completed (Type: %v, Table: %v, Key: %v)",
-            TypeName<T>(),
-            FlowStateObsoleteTableName,
-            name);
+        YT_TLOG_INFO("Write obsolete object completed")
+            .With("Type", TypeName<T>())
+            .With("Table", FlowStateObsoleteTableName)
+            .With("Key", name);
     }
 
 private:
@@ -174,10 +174,10 @@ private:
             return New<T>();
         }
         auto res = ConvertTo<TIntrusivePtr<T>>(*str);
-        YT_LOG_INFO("Read obsolete object completed (Type: %v, Table: %v, Key: %v)",
-            TypeName<T>(),
-            FlowStateObsoleteTableName,
-            name);
+        YT_TLOG_INFO("Read obsolete object completed")
+            .With("Type", TypeName<T>())
+            .With("Table", FlowStateObsoleteTableName)
+            .With("Key", name);
         return res;
     }
 
@@ -230,8 +230,8 @@ public:
             result.push_back(std::move(row));
         }
 
-        YT_LOG_INFO("FlowState rows selected from YT (RowCount: %v)",
-            result.size());
+        YT_TLOG_INFO("FlowState rows selected from YT")
+            .With("RowCount", result.size());
     }
 
     //! Execute given statements in one transactions.
@@ -241,8 +241,8 @@ public:
         bool isFinal,
         const std::vector<TPersistedStateCommitContext*>& commitContextsBase) override
     {
-        YT_LOG_INFO("FlowState persist started (RowCount: %v)",
-            insertRows.size() + deleteRows.size());
+        YT_TLOG_INFO("FlowState persist started")
+            .With("RowCount", insertRows.size() + deleteRows.size());
 
         bool hasStatements = !insertRows.empty() || !deleteRows.empty();
         if (isFinal) {
@@ -319,8 +319,8 @@ public:
 
             transaction->ModifyRows(path, nameTable, MakeSharedRange(std::move(rows), std::move(rowBuffer)));
 
-            YT_LOG_INFO("FlowState row written to YT (RowCount: %v)",
-                rowCount);
+            YT_TLOG_INFO("FlowState row written to YT")
+                .With("RowCount", rowCount);
         });
     }
 
@@ -377,7 +377,7 @@ public:
 
     void PersistFlowState(const TFlowStatePtr& flowState, const TPipelineImportantVersionsPtr& expectedVersions) override
     {
-        YT_LOG_INFO("Flow state persist started");
+        YT_TLOG_INFO("Flow state persist started");
         auto newVersions = CloneYsonStruct(expectedVersions);
         newVersions->PipelineStateVersion = flowState->ExecutionSpec->PipelineState->GetVersion();
         THROW_ERROR_EXCEPTION_UNLESS(
@@ -396,17 +396,17 @@ public:
         };
         flowState->CommitMutation(&context);
         flowState->Epoch = flowState->ExecutionSpec->GetEpoch();
-        YT_LOG_INFO("Flow state persist completed");
+        YT_TLOG_INFO("Flow state persist completed");
     }
 
     TFlowStatePtr RecoverFlowState() override
     {
-        YT_LOG_INFO("Flow state recover started");
+        YT_TLOG_INFO("Flow state recover started");
         auto flowState = PersistedStateStorageHandler_->ReadObsoleteObject<TFlowState>(FlowStateKey);
         auto control = New<TPersistedStateControl<std::string>>(PersistedStateStorageHandler_);
         flowState->AttachToControl(control);
         control->Recover();
-        YT_LOG_INFO("Flow state recover completed");
+        YT_TLOG_INFO("Flow state recover completed");
         return flowState;
     }
 
@@ -416,7 +416,9 @@ public:
         const std::optional<TVersionedDynamicPipelineSpecPtr>& dynamicSpec,
         const std::optional<TVersion>& expectedDynamicSpecVersion) override
     {
-        YT_LOG_INFO("PersistSpecs started (HasSpec: %v, HasDynamicSpec: %v)", spec.has_value(), dynamicSpec.has_value());
+        YT_TLOG_INFO("PersistSpecs started")
+            .With("HasSpec", spec.has_value())
+            .With("HasDynamicSpec", dynamicSpec.has_value());
         THROW_ERROR_EXCEPTION_IF(!spec.has_value() && !dynamicSpec.has_value(), "At least one spec must be provided");
 
         PersistedStateStorageHandler_->RunInTransaction("Persisting specs", [&] (const NApi::ITransactionPtr& transaction) {
@@ -445,26 +447,26 @@ public:
             }
         });
 
-        YT_LOG_INFO("PersistSpecs finished (SpecPersistedVersion: %v, DynamicSpecPersistedVersion: %v)",
-            spec.has_value() ? std::make_optional(spec.value()->GetVersion()) : std::nullopt,
-            dynamicSpec.has_value() ? std::make_optional(dynamicSpec.value()->GetVersion()) : std::nullopt);
+        YT_TLOG_INFO("PersistSpecs finished")
+            .With("SpecPersistedVersion", spec.has_value() ? std::make_optional(spec.value()->GetVersion()) : std::nullopt)
+            .With("DynamicSpecPersistedVersion", dynamicSpec.has_value() ? std::make_optional(dynamicSpec.value()->GetVersion()) : std::nullopt);
     }
 
     TVersionedPipelineSpecPtr RecoverSpec() override
     {
-        YT_LOG_INFO("RecoverSpec started");
+        YT_TLOG_INFO("RecoverSpec started");
         auto result = PersistedStateStorageHandler_->ReadObsoleteObject<TVersionedPipelineSpec>(SpecKey);
-        YT_LOG_INFO("RecoverSpec finished (Version: %v)",
-            result->GetVersion());
+        YT_TLOG_INFO("RecoverSpec finished")
+            .With("Version", result->GetVersion());
         return result;
     }
 
     TVersionedDynamicPipelineSpecPtr RecoverDynamicSpec() override
     {
-        YT_LOG_INFO("RecoverDynamicSpec started");
+        YT_TLOG_INFO("RecoverDynamicSpec started");
         auto result = PersistedStateStorageHandler_->ReadObsoleteObject<TVersionedDynamicPipelineSpec>(DynamicSpecKey);
-        YT_LOG_INFO("RecoverDynamicSpec finished (Version: %v)",
-            result->GetVersion());
+        YT_TLOG_INFO("RecoverDynamicSpec finished")
+            .With("Version", result->GetVersion());
         return result;
     }
 
@@ -525,18 +527,18 @@ public:
                 PersistedStateStorageHandler_->WriteObsoleteObject(transaction, FlowCoreTargetKey, flowCoreTarget);
             });
 
-        YT_LOG_DEBUG("FlowCoreTarget persisted (FlowCoreTarget: %v, Version: %v)",
-            flowCoreTarget->GetValue(),
-            flowCoreTarget->GetVersion());
+        YT_TLOG_DEBUG("FlowCoreTarget persisted")
+            .With("FlowCoreTarget", flowCoreTarget->GetValue())
+            .With("Version", flowCoreTarget->GetVersion());
     }
 
     TVersionedFlowCoreTargetPtr RecoverFlowCoreTarget() override
     {
-        YT_LOG_DEBUG("RecoverFlowCoreTarget started");
+        YT_TLOG_DEBUG("RecoverFlowCoreTarget started");
         auto result = PersistedStateStorageHandler_->ReadObsoleteObject<TVersionedFlowCoreTarget>(FlowCoreTargetKey);
-        YT_LOG_DEBUG("RecoverFlowCoreTarget finished (FlowCoreTarget: %v, Version: %v)",
-            result->GetValue(),
-            result->GetVersion());
+        YT_TLOG_DEBUG("RecoverFlowCoreTarget finished")
+            .With("FlowCoreTarget", result->GetValue())
+            .With("Version", result->GetVersion());
         return result;
     }
 
