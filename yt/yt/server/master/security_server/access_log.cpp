@@ -5,6 +5,8 @@
 #include <yt/yt/server/lib/security_server/access_log.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NSecurityServer {
@@ -99,6 +101,10 @@ void LogAccess(
     const TAccessLogAttributes& additionalAttributes,
     const std::optional<std::string>& methodOverride)
 {
+    if (NCypressClient::GetSuppressAccessLogging(context->RequestHeader())) {
+        return;
+    }
+
     // Seeing as it has come to actually logging something, surely everything
     // has been actually evaluated by YT_EVALUATE_FOR_ACCESS_LOG, right? (Because
     // it checks for the same conditions YT_LOG_ACCESS does.) Wrong. Setting the
