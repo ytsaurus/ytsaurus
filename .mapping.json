@@ -39,6 +39,8 @@
   ".github/workflows/query_tracker_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/query_tracker_release.yaml",
   ".github/workflows/sidecars-nightly.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/sidecars-nightly.yaml",
   ".github/workflows/sidecars-release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/sidecars-release.yaml",
+  ".github/workflows/strawberry-action.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/strawberry-action.yaml",
+  ".github/workflows/strawberry-nightly.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/strawberry-nightly.yaml",
   ".github/workflows/strawberry_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/strawberry_release.yaml",
   ".github/workflows/tutorial-release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/tutorial-release.yaml",
   ".github/workflows/update-docs-release-notes.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/update-docs-release-notes.yaml",

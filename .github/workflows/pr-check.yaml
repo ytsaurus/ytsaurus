@@ -98,17 +98,9 @@ jobs:
 
   build-strawberry:
     name: Build Strawberry controller
-    needs:
-      - start-vm
-      - checkout
     with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-strawberry: true
-      build-types: '["release"]'
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
+      runs-on-value: ubuntu-latest
+    uses: ./.github/workflows/strawberry-action.yaml
 
   build-cmake:
     name: Build with cmake
@@ -150,7 +142,6 @@ jobs:
     name: PR tests
     needs:
       - start-vm
-      - build-strawberry
       - build-ya-make
       - notify-start
       - checkout
