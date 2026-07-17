@@ -2252,8 +2252,11 @@ public:
         Visit(time,
             [&] (TInstant time) {
                 auto* user = Bootstrap_->GetSecurityManager()->GetAuthenticatedUser();
+                auto* context = GetCurrentMutationContext();
+                auto armingTime = context->GetTimestamp();
+
                 auto expirationTimeProperties = TCypressNode::TExpirationTimePropertiesPtr(
-                    std::in_place, TUserPtr(user), time);
+                    std::in_place, TUserPtr(user), time, armingTime);
                 node->SetExpirationTimeProperties(std::move(expirationTimeProperties));
             },
             [&] (TSetExpirationResetTime) {
@@ -2270,7 +2273,7 @@ public:
 
         if (node->IsTrunk()) {
             Bootstrap_->GetExpirationTracker()
-                ->OnNodeExpirationTimeUpdated(node, oldExpirationTimeProperties);
+                ->OnNodeExpirationTimeUpdated(node, std::move(oldExpirationTimeProperties));
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
@@ -2283,7 +2286,7 @@ public:
 
 
         if (originatingNode->IsTrunk()) {
-            Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeUpdated(originatingNode, oldExpirationTime);
+            Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeUpdated(originatingNode, std::move(oldExpirationTime));
         }
     }
 
@@ -2297,8 +2300,11 @@ public:
         Visit(timeout,
             [&] (TDuration timeout) {
                 auto* user = Bootstrap_->GetSecurityManager()->GetAuthenticatedUser();
+                auto* context = GetCurrentMutationContext();
+                auto armingTime = context->GetTimestamp();
+
                 auto expirationTimeoutProperties = TCypressNode::TExpirationTimeoutPropertiesPtr(
-                    std::in_place, TUserPtr(user), timeout);
+                    std::in_place, TUserPtr(user), timeout, armingTime);
 
                 node->SetExpirationTimeoutProperties(std::move(expirationTimeoutProperties));
 
@@ -2333,7 +2339,7 @@ public:
 
         if (node->IsTrunk()) {
             Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeoutUpdated(
-                node, oldExpirationTimeoutProperties);
+                node, std::move(oldExpirationTimeoutProperties));
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
@@ -2360,7 +2366,7 @@ public:
 
         if (originatingNode->IsTrunk()) {
             Bootstrap_->GetExpirationTracker()
-                ->OnNodeExpirationTimeoutUpdated(originatingNode, oldExpirationTimeoutProperties);
+                ->OnNodeExpirationTimeoutUpdated(originatingNode, std::move(oldExpirationTimeoutProperties));
         }
     }
 

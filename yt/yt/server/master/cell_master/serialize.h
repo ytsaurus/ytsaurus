@@ -219,6 +219,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaRevision_26_1)                                         (3264))  // kvk1920
     ((PrelockTracker_26_1)                                          (3265))  // kvk1920
     ((FixValidationHeartbeatSchedulingAndClearing)                  (3266))  // grphil
+    ((ExpirationArmingTime_26_1)                                    (3267))  // theevilbird
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
