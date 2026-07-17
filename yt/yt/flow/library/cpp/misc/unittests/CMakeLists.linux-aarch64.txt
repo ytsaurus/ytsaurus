@@ -71,6 +71,7 @@ target_sources(yt-flow-library-cpp-misc-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/indexed_yson_string_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/keyed_heap_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/lexicographically_serialize_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/load_throughput_throttler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/mutable_unversioned_row_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/ordered_memory_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/prefetch_ut.cpp
