@@ -742,7 +742,7 @@ public:
         return req->Invoke();
     }
 
-    auto CancelChunk(const TSessionId& sessionId)
+    auto CancelChunk(const TSessionId& sessionId, bool waitForCancelation = false)
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
         TDataNodeServiceProxy proxy(channel);
@@ -750,6 +750,7 @@ public:
         auto req = proxy.CancelChunk();
         req->SetTimeout(RequestTimeout_);
         ToProto(req->mutable_session_id(), sessionId);
+        req->set_wait_for_cancelation(waitForCancelation);
 
         return req->Invoke();
     }
@@ -1918,6 +1919,29 @@ TEST_F(TJournalSessionTest, PutBlocksDuplicatesAndGaps)
 
     WaitFor(CancelChunk(sessionId))
         .ThrowOnError();
+}
+
+TEST_F(TDataNodeTest, DuplicatePutBlocksDoNotMakeUsedSpaceNegative)
+{
+    const auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
+    ASSERT_EQ(locations.size(), 1u);
+    const auto& location = locations.front();
+    const auto initialUsedSpace = location->GetUsedSpace();
+    ASSERT_EQ(initialUsedSpace, 0);
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    WaitFor(StartChunk(sessionId, /*useProbePutBlocks*/ false, /*preallocateDiskSpace*/ false, /*useDirectIo*/ false))
+        .ThrowOnError();
+    TRandomGenerator generator{RandomNumber<ui64>()};
+    auto blocks = CreateBlocks(/*blockCount*/ 1, /*blockSize*/ 1_KB, generator);
+    auto cumulativeBlockSize = CalculateCummulativeBlockSize(blocks);
+    WaitFor(PutBlocks(sessionId, blocks, /*firstBlockIndex*/ 0, cumulativeBlockSize))
+        .ThrowOnError();
+    WaitFor(PutBlocks(sessionId, blocks, /*firstBlockIndex*/ 0, cumulativeBlockSize))
+        .ThrowOnError();
+    WaitFor(CancelChunk(sessionId, /*waitForCancelation*/ true))
+        .ThrowOnError();
+    EXPECT_GE(location->GetUsedSpace(), 0);
+    EXPECT_EQ(location->GetUsedSpace(), initialUsedSpace);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
