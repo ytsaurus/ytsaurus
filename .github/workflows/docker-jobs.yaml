@@ -117,7 +117,7 @@ jobs:
         if: ${{ inputs.publish-ytsaurus }}
         run: |
           source docker-jobs-retry.sh
-          output_path=../docker-${{ inputs.component }}-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
+          output_path=../docker-ytsaurus-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
           retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component ytsaurus --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --install-nvidia-packages true
@@ -200,7 +200,7 @@ jobs:
       - name: Clear workspace
         if: ${{ always() }}
         run: |
-          rm -rf ../docker-${{ inputs.component }}-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
+          rm -rf ../docker-ytsaurus-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           rm -rf ../docker-query-tracker-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           rm -rf ../docker-chyt-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           rm -rf ../docker-strawberry-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}

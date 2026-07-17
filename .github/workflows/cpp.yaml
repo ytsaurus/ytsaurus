@@ -218,12 +218,13 @@ jobs:
           || startsWith(github.ref_name, 'query-tracker/')
           || startsWith(github.ref_name, 'chyt/') }}
     needs:
+      - tag
       - docker-ya-make
     uses: ./.github/workflows/ytsaurus-ci-runner.yaml
     with:
       scenario: release-tests
       ref_name: ${{ github.ref_name }}
-      image_tag: ${{ needs.docker-ya-make.outputs.image-tag }}
+      image_tag: ${{ needs.tag.outputs.image-tag }}
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}
