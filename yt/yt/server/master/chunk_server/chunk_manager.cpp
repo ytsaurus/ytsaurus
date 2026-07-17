@@ -1504,6 +1504,7 @@ public:
             Bootstrap_->GetObjectManager());
 
         UnregisterChunk(chunk);
+        DetailedLoggingChunks_.erase(chunk->GetId());
 
         if (auto* location = chunk->GetLocationWithEndorsement()) {
             RemoveEndorsement(chunk, location);
@@ -2716,6 +2717,26 @@ public:
         return DynamicStoreMap_;
     }
 
+    void SetDetailedChunkLogging(const TChunk* chunk, bool enable) override
+    {
+        auto chunkId = chunk->GetId();
+        if (enable) {
+            if (DetailedLoggingChunks_.size() >= GetDynamicConfig()->MaxChunksWithDetailedLoggingEnabled) {
+                THROW_ERROR_EXCEPTION("Too many chunks with detailed logging enabled")
+                    << TErrorAttribute("limit", GetDynamicConfig()->MaxChunksWithDetailedLoggingEnabled);
+            }
+
+            DetailedLoggingChunks_.emplace(chunkId, GetCurrentMutationContext()->GetTimestamp());
+        } else {
+            DetailedLoggingChunks_.erase(chunkId);
+        }
+    }
+
+    bool IsDetailedChunkLoggingEnabled(const TChunk* chunk) const override
+    {
+        return DetailedLoggingChunks_.contains(chunk->GetId());
+    }
+
 private:
     template <class T>
     class TEntityMapTypeTraits
@@ -2835,6 +2856,11 @@ private:
 
     TPeriodicExecutorPtr SequoiaReplicaRemovalExecutor_;
     THashMap<TChunkId, int> SequoiaChunkPurgatory_;
+
+    // Chunks with detailed logging enabled, mapped to the (deterministic)
+    // mutation timestamp at which logging was enabled.
+    THashMap<TChunkId, TInstant> DetailedLoggingChunks_;
+
     // Transient.
     bool ChunksBeingPurged_ = false;
     bool IsFirstSequoiaReplicaRemovalIteration_ = true;
@@ -5898,6 +5924,7 @@ private:
         SaveHistogramValues(context, ChunkDataWeightHistogram_.GetSnapshot());
 
         Save(context, SequoiaChunkPurgatory_);
+        Save(context, DetailedLoggingChunks_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -5974,6 +6001,10 @@ private:
             }
         } else {
             Load(context, SequoiaChunkPurgatory_);
+        }
+
+        if (context.GetVersion() >= EMasterReign::DetailedChunkLogging) {
+            Load(context, DetailedLoggingChunks_);
         }
 
         RecomputeHistoricallyNonVital_ = context.GetVersion() < EMasterReign::IncreaseVitalReplicationFactor;
@@ -6422,6 +6453,8 @@ private:
         RecomputeHistoricallyNonVital_ = false;
 
         LastSequoiaReplicasCommitTimestamp_ = NullTimestamp;
+
+        DetailedLoggingChunks_.clear();
 
         RecomputeHunkRelatedChunkStatistics_ = false;
         RecomputeHunkRelatedChunkStatisticsAgain_ = false;
@@ -7120,9 +7153,12 @@ private:
             reason == EAddReplicaReason::IncrementalHeartbeat;
         chunk->AddReplica(chunkLocationWithReplicaInfo, medium, approved);
 
+        auto logLevel = (reason != EAddReplicaReason::FullHeartbeat || IsDetailedChunkLoggingEnabled(chunk)) ?
+            NLogging::ELogLevel::Debug :
+            NLogging::ELogLevel::Trace;
         YT_LOG_EVENT(
             Logger(),
-            reason == EAddReplicaReason::FullHeartbeat ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
+            logLevel,
             "Chunk replica added (ChunkId: %v, NodeId: %v, Address: %v, Reason: %v)",
             TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()),
             nodeId,
@@ -7203,12 +7239,15 @@ private:
                 YT_ABORT();
         }
 
+        auto logLevel = (IsDetailedChunkLoggingEnabled(chunk) || !(
+                reason == ERemoveReplicaReason::NodeDisposed ||
+                reason == ERemoveReplicaReason::ChunkDestroyed ||
+                reason == ERemoveReplicaReason::SequoiaNodeDisposed)) ?
+            NLogging::ELogLevel::Debug :
+            NLogging::ELogLevel::Trace;
         YT_LOG_EVENT(
             Logger(),
-            reason == ERemoveReplicaReason::NodeDisposed ||
-            reason == ERemoveReplicaReason::ChunkDestroyed ||
-            reason == ERemoveReplicaReason::SequoiaNodeDisposed
-            ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
+            logLevel,
             "Chunk replica removed "
             "(ChunkId: %v, Reason: %v, NodeId: %v, Address: %v, Approved: %v, TemporarilyUnavailable: %v)",
             TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()),
@@ -7589,6 +7628,7 @@ private:
             buffer.AddGauge("/sequoia_chunks_awaiting_confirm", WaitingConfirmRequests_.size());
             buffer.AddGauge("/sequoia_waiting_incremental_heartbeats_count", WaitingSequoiaIncrementalHeartbeatRequests_.size());
             buffer.AddGauge("/sequoia_waiting_incremental_heartbeats_replica_count", ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_);
+            buffer.AddGauge("/detailed_logging_chunks_count", DetailedLoggingChunks_.size());
 
             {
                 TWithTagGuard guard(&buffer, "mode", "immediate");
@@ -7890,6 +7930,17 @@ private:
         {
             auto chunkPlacementAlerts = ChunkPlacement_->GetAlerts();
             alerts.insert(alerts.end(), chunkPlacementAlerts.begin(), chunkPlacementAlerts.end());
+        }
+
+        auto now = TInstant::Now();
+        auto threshold = GetDynamicConfig()->DetailedLoggingEnabledAlertTime;
+        for (const auto& [chunkId, enabledAt] : DetailedLoggingChunks_) {
+            if (enabledAt + threshold < now) {
+                alerts.push_back(TError("Chunk stays in detailed logging set for too long")
+                    << TErrorAttribute("chunk_id", chunkId)
+                    << TErrorAttribute("enabled_at", enabledAt)
+                    << TErrorAttribute("threshold", threshold));
+            }
         }
 
         return alerts;

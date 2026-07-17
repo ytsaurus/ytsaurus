@@ -365,19 +365,24 @@ TChunkReplicator::TChunkReplicator(
         ChunkPlacement_,
         New<TChunkStatisticsCalculatorCallbacks>(bootstrap)))
     , BlobRefreshScanner_(std::make_unique<TChunkRefreshScanner>(
+        Bootstrap_,
         EChunkScanKind::Refresh,
         /*journal*/ false))
     , JournalRefreshScanner_(std::make_unique<TChunkRefreshScanner>(
+        Bootstrap_,
         EChunkScanKind::Refresh,
         /*journal*/ true))
     , SequoiaChunkRefresher_(CreateSequoiaChunkRefresher(bootstrap))
     , BlobRequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
+        Bootstrap_,
         EChunkScanKind::RequisitionUpdate,
         /*journal*/ false))
     , JournalRequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
+        Bootstrap_,
         EChunkScanKind::RequisitionUpdate,
         /*journal*/ true))
     , ChunksAwaitingRequisitionUpdateScheduling_(std::make_unique<TChunkScanQueue>(
+        Bootstrap_,
         EChunkScanKind::RequisitionUpdate))
     , MissingPartChunkRepairQueueBalancer_(
         Config_->RepairQueueBalancerWeightDecayFactor,
@@ -716,6 +721,11 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     auto mediumIndex = targetMedium->GetIndex();
     TJobPtr job;
 
+    auto chunkManager = Bootstrap_->GetChunkManager();
+    auto logLevel = chunkManager->IsDetailedChunkLoggingEnabled(chunk) ?
+        NLogging::ELogLevel::Debug :
+        NLogging::ELogLevel::Trace;
+
     auto isPullReplicationJob = targetNodeId != InvalidNodeId;
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -809,7 +819,10 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
         mediumStatistics.UnsafelyPlacedReplica);
 
     if (targetNodes.empty()) {
-        YT_LOG_TRACE("No target nodes were allocated while trying to replicate chunk (ChunkId: %v)",
+        YT_LOG_EVENT(
+            Logger(),
+            logLevel,
+            "No target nodes were allocated while trying to replicate chunk (ChunkId: %v)",
             chunk->GetId());
         return EMisscheduleReason::NoTargetNodes;
     }
@@ -822,7 +835,10 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     }
 
     if (targetReplicas.empty()) {
-        YT_LOG_TRACE("All target nodes allocated are dead while trying to replicate chunk (ChunkId: %v)",
+        YT_LOG_EVENT(
+            Logger(),
+            logLevel,
+            "All target nodes allocated are dead while trying to replicate chunk (ChunkId: %v)",
             chunk->GetId());
         return EMisscheduleReason::NoTargetReplicas;
     }
@@ -850,7 +866,10 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     }
 
     if (std::ssize(targetNodes) != replicasNeeded) {
-        YT_LOG_TRACE("Insufficient nodes allocated while trying to replicate chunk (ChunkId: %v, ReplicasNeeded: %v, NodesAllocated: %v)",
+        YT_LOG_EVENT(
+            Logger(),
+            logLevel,
+            "Insufficient nodes allocated while trying to replicate chunk (ChunkId: %v, ReplicasNeeded: %v, NodesAllocated: %v)",
             replicasNeeded,
             std::ssize(targetNodes),
             chunk->GetId());
@@ -1329,13 +1348,19 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                     auto nodeId = node->GetTargetReplicationNodeId(chunkId, mediumIndex);
                     node->RemoveTargetReplicationNodeId(chunkId, mediumIndex);
 
+                    auto logLevel = chunkManager->IsDetailedChunkLoggingEnabled(chunk.Get()) ?
+                        NLogging::ELogLevel::Debug :
+                        NLogging::ELogLevel::Trace;
                     auto misscheduleReason = TryScheduleReplicationJob(
                         context,
                         {chunk.Get(), chunkIdWithIndex.ReplicaIndex},
                         medium->AsDomestic(),
                         nodeId,
                         replicas);
-                    YT_LOG_TRACE("Misschedule reason when scheduling a job (ChunkId: %v, Reason: %v)",
+                    YT_LOG_EVENT(
+                        Logger(),
+                        logLevel,
+                        "Misschedule reason when scheduling a job (ChunkId: %v, Reason: %v)",
                         chunkIdWithIndex,
                         misscheduleReason);
                     if (misscheduleReason == EMisscheduleReason::None) {
@@ -1643,10 +1668,17 @@ void TChunkReplicator::RefreshChunk(
     auto* chunk = ephemeralChunk.Get();
     auto chunkId = chunk->GetId();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto logLevel = chunkManager->IsDetailedChunkLoggingEnabled(chunk) ?
+        NLogging::ELogLevel::Debug :
+        NLogging::ELogLevel::Trace;
 
     auto wasLostVital = LostVitalChunks_.contains(chunk);
 
-    YT_LOG_TRACE("Refreshing chunk (ChunkId: %v)", chunkId);
+    YT_LOG_EVENT(
+        Logger(),
+        logLevel,
+        "Refreshing chunk (ChunkId: %v)",
+        chunkId);
 
     chunk->OnRefresh();
 
@@ -1659,7 +1691,10 @@ void TChunkReplicator::RefreshChunk(
 
     auto allMediaStatistics = ChunkStatisticsCalculator_->ComputeChunkStatistics(chunk, chunkReplicas);
 
-    YT_LOG_TRACE("Computed chunk statistics on refresh (ChunkId: %v, Status: %v)",
+    YT_LOG_EVENT(
+        Logger(),
+        logLevel,
+        "Computed chunk statistics on refresh (ChunkId: %v, Status: %v)",
         chunk->GetId(),
         allMediaStatistics.Status);
 
@@ -2014,7 +2049,14 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDurati
         : std::nullopt;
     auto enqueued = GetChunkRefreshScanner(chunk)->EnqueueChunk({chunk, /*errorCount*/ 0}, adjustedDelay);
 
-    YT_LOG_TRACE("Chunk refresh scheduled (ChunkId: %v, Delay: %v, Enqueued: %v)",
+    auto chunkManager = Bootstrap_->GetChunkManager();
+    auto logLevel = chunkManager->IsDetailedChunkLoggingEnabled(chunk) ?
+        NLogging::ELogLevel::Debug :
+        NLogging::ELogLevel::Trace;
+    YT_LOG_EVENT(
+        Logger(),
+        logLevel,
+        "Chunk refresh scheduled (ChunkId: %v, Delay: %v, Enqueued: %v)",
         chunk->GetId(),
         delay,
         enqueued);
@@ -2160,10 +2202,16 @@ void TChunkReplicator::OnRefresh()
                         waitTime,
                         allowedWaitTime);
                 } else {
-                    YT_LOG_TRACE("Chunk has been dequeued from refresh queue (ChunkId: %v, WaitTime: %v, AllowedWaitTime: %v)",
-                    chunk->GetId(),
-                    waitTime,
-                    allowedWaitTime);
+                    auto logLevel = chunkManager->IsDetailedChunkLoggingEnabled(chunk) ?
+                        NLogging::ELogLevel::Debug :
+                        NLogging::ELogLevel::Trace;
+                    YT_LOG_EVENT(
+                        Logger(),
+                        logLevel,
+                        "Chunk has been dequeued from refresh queue (ChunkId: %v, WaitTime: %v, AllowedWaitTime: %v)",
+                        chunk->GetId(),
+                        waitTime,
+                        allowedWaitTime);
                 }
             }
 
