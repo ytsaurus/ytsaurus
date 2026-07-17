@@ -808,8 +808,6 @@ private:
         YT_LOG_INFO("Shutdown signal received, deregistering and finalizing devices");
 
         for (const auto& [name, deviceConfig] : config->Devices) {
-            // Deregister the device first so the NBD server stops accepting
-            // new requests for it, then finalize it (flush, close, release).
             if (auto device = nbdServer->TryUnregisterDevice(name)) {
                 YT_LOG_INFO("Deregistered device (Device: %v)", name);
                 auto finalizeResult = WaitFor(device->Finalize());

@@ -20,29 +20,34 @@ struct TPageCacheConfig
     //! Must be a positive multiple of PageSize.
     i64 Capacity;
 
-    //! Period for background flush of dirty pages.
-    //! When not set (nullopt), periodic flush is disabled.
-    std::optional<TDuration> FlushPeriod;
+    //! Period for periodic background writeback of dirty pages.
+    //! When not set (nullopt), periodic writeback is disabled.
+    //! This does not imply issuing NBD_CMD_FLUSH; it only writes dirty pages
+    //! to the backend with WRITE requests.
+    std::optional<TDuration> WritebackPeriod;
 
-    //! Amount of dirty data (in bytes) that a single background or periodic flush
-    //! attempts to write out, expressed in bytes and used internally as a page count
-    //! (MaxDirtyDataPerFlush / PageSize). This value plays three roles:
-    //!   - the granularity of one WriteBatch task (RPC) when a flush is split;
-    //!   - the dirty-data watermark that triggers a background flush after a write;
-    //!   - the per-invocation budget of background/periodic flushes.
+    //! Dirty-data threshold in bytes that schedules asynchronous writeback.
+    //! Must be a positive multiple of PageSize and <= DirtyDataHardLimit.
+    i64 DirtyDataSoftLimit;
+
+    //! Dirty-data threshold in bytes that throttles writes and performs synchronous
+    //! writeback. Must be a positive multiple of PageSize and <= Capacity.
+    i64 DirtyDataHardLimit;
+
+    //! Maximum amount of dirty data in bytes that one background/periodic writeback
+    //! invocation attempts to write. This is a per-run budget.
     //! Must be a positive multiple of PageSize.
-    i64 MaxDirtyDataPerFlush;
+    i64 MaxDirtyDataPerWriteback;
 
-    //! Upper bound in bytes on the size of a single merged WriteBatch subrequest.
-    //! A run of adjacent dirty pages larger than this is split into several
-    //! subrequests so one long contiguous dirty region does not become a single
-    //! unbounded allocation and RPC payload.
+    //! Upper bound in bytes on a single merged WRITE request payload.
+    //! A run of adjacent dirty pages larger than this is split into several WRITE
+    //! requests so one long contiguous dirty region does not become a single
+    //! unbounded allocation/RPC payload.
     //! Must be a positive multiple of PageSize.
     i64 MaxDirtyDataPerWrite;
 
-    //! Maximum number of WriteBatch RPCs that may be in flight concurrently
-    //! during a single flush. Batches are issued in a sliding window of this
-    //! width instead of strictly one-at-a-time, reducing flush wall-time.
+    //! Maximum number of WRITE requests that may be in flight concurrently during
+    //! one writeback run. Requests are issued in a sliding window of this width.
     //! Must be positive.
     int MaxInflightWriteRequests;
 

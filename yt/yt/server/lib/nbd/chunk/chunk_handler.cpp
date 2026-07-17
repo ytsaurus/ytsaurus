@@ -111,8 +111,10 @@ public:
         req->SetMultiplexingBand(EMultiplexingBand::Interactive);
         req->SetMultiplexingParallelism(Config_->MultiplexingParallelism);
 
-        return req->Invoke().Apply(BIND([] (const TErrorOr<TDataNodeNbdServiceProxy::TRspFlushPtr>& rspOrError) {
+        auto startTime = TInstant::Now();
+        return req->Invoke().Apply(BIND([startTime, Logger = Logger] (const TErrorOr<TDataNodeNbdServiceProxy::TRspFlushPtr>& rspOrError) {
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+            YT_LOG_DEBUG("Flushed chunk handler (Duration: %v)", TInstant::Now() - startTime);
         }));
     }
 

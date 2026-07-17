@@ -12,10 +12,17 @@ void TPageCacheConfig::Register(TRegistrar registrar)
         .Default(4_KB)
         .GreaterThan(0);
     registrar.Parameter("capacity", &TThis::Capacity)
+        .Default(64_MB)
         .GreaterThan(0);
-    registrar.Parameter("flush_period", &TThis::FlushPeriod)
-        .Default(TDuration::Seconds(10));
-    registrar.Parameter("max_dirty_data_per_flush", &TThis::MaxDirtyDataPerFlush)
+    registrar.Parameter("writeback_period", &TThis::WritebackPeriod)
+        .Default(TDuration::Seconds(2));
+    registrar.Parameter("dirty_data_soft_limit", &TThis::DirtyDataSoftLimit)
+        .Default(16_MB)
+        .GreaterThan(0);
+    registrar.Parameter("dirty_data_hard_limit", &TThis::DirtyDataHardLimit)
+        .Default(32_MB)
+        .GreaterThan(0);
+    registrar.Parameter("max_dirty_data_per_writeback", &TThis::MaxDirtyDataPerWriteback)
         .Default(4_MB)
         .GreaterThan(0);
     registrar.Parameter("max_dirty_data_per_write", &TThis::MaxDirtyDataPerWrite)
@@ -49,23 +56,51 @@ void TPageCacheConfig::Register(TRegistrar registrar)
                 config->PageSize,
                 config->MaxDirtyDataPerWrite);
         }
-        // MaxDirtyDataPerFlush must be a positive multiple of PageSize so it maps to a
-        // whole number of pages per flush.
-        if (config->MaxDirtyDataPerFlush % config->PageSize != 0) {
+        // MaxDirtyDataPerWriteback must be a positive multiple of PageSize so it maps to a
+        // whole number of pages per writeback.
+        if (config->MaxDirtyDataPerWriteback % config->PageSize != 0) {
             THROW_ERROR_EXCEPTION(
-                "\"max_dirty_data_per_flush\" must be a positive multiple of \"page_size\" (%v), got %v",
+                "\"max_dirty_data_per_writeback\" must be a positive multiple of \"page_size\" (%v), got %v",
                 config->PageSize,
-                config->MaxDirtyDataPerFlush);
+                config->MaxDirtyDataPerWriteback);
         }
-        // A single merged write must not exceed what one flush processes: the merge cap
-        // (MaxDirtyDataPerWrite) is applied within a flush task that itself covers at most
-        // MaxDirtyDataPerFlush bytes, so a larger per-write cap could never be reached and
-        // would be misleading.
-        if (config->MaxDirtyDataPerWrite > config->MaxDirtyDataPerFlush) {
+        // DirtyDataSoftLimit must be a positive multiple of PageSize.
+        if (config->DirtyDataSoftLimit % config->PageSize != 0) {
             THROW_ERROR_EXCEPTION(
-                "\"max_dirty_data_per_write\" (%v) must not exceed \"max_dirty_data_per_flush\" (%v)",
+                "\"dirty_data_soft_limit\" must be a positive multiple of \"page_size\" (%v), got %v",
+                config->PageSize,
+                config->DirtyDataSoftLimit);
+        }
+        // DirtyDataHardLimit must be a positive multiple of PageSize.
+        if (config->DirtyDataHardLimit % config->PageSize != 0) {
+            THROW_ERROR_EXCEPTION(
+                "\"dirty_data_hard_limit\" must be a positive multiple of \"page_size\" (%v), got %v",
+                config->PageSize,
+                config->DirtyDataHardLimit);
+        }
+        // A single merged write must not exceed what one writeback processes: the merge cap
+        // (MaxDirtyDataPerWrite) is applied within a writeback task that itself covers at most
+        // MaxDirtyDataPerWriteback bytes, so a larger per-write cap could never be reached and
+        // would be misleading.
+        if (config->MaxDirtyDataPerWrite > config->MaxDirtyDataPerWriteback) {
+            THROW_ERROR_EXCEPTION(
+                "\"max_dirty_data_per_write\" (%v) must not exceed \"max_dirty_data_per_writeback\" (%v)",
                 config->MaxDirtyDataPerWrite,
-                config->MaxDirtyDataPerFlush);
+                config->MaxDirtyDataPerWriteback);
+        }
+        // DirtyDataSoftLimit must not exceed DirtyDataHardLimit.
+        if (config->DirtyDataSoftLimit > config->DirtyDataHardLimit) {
+            THROW_ERROR_EXCEPTION(
+                "\"dirty_data_soft_limit\" (%v) must not exceed \"dirty_data_hard_limit\" (%v)",
+                config->DirtyDataSoftLimit,
+                config->DirtyDataHardLimit);
+        }
+        // DirtyDataHardLimit must not exceed Capacity.
+        if (config->DirtyDataHardLimit > config->Capacity) {
+            THROW_ERROR_EXCEPTION(
+                "\"dirty_data_hard_limit\" (%v) must not exceed \"capacity\" (%v)",
+                config->DirtyDataHardLimit,
+                config->Capacity);
         }
     });
 }
