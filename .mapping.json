@@ -111,12 +111,9 @@
   "yt/python/yt/wrapper/tests/pytest.ini":"yt/opensource/repos/ytsaurus/github_toplevel/yt/python/yt/wrapper/tests/pytest.ini",
   "yt/yt/gpuagent/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/gpuagent/go.mod",
   "yt/yt/gpuagent/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/gpuagent/go.sum",
-  "yt/yt/scripts/prepare_pytest_environment.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/prepare_pytest_environment.sh",
   "yt/yt/scripts/pytest_requirements.txt":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/pytest_requirements.txt",
   "yt/yt/scripts/python_libraries_requirements.txt":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/python_libraries_requirements.txt",
-  "yt/yt/scripts/run_integration_tests.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/run_integration_tests.sh",
-  "yt/yt/scripts/run_python_tests.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/run_python_tests.sh",
-  "yt/yt/scripts/run_unittests.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/run_unittests.sh",
+  "yt/yt/scripts/run_tests.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/run_tests.sh",
   "yt/yt/tests/integration/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/tests/integration/README.md",
   "yt/yt/tests/integration/pytest.ini":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/tests/integration/pytest.ini",
   "yt/yt/tests/integration/run_tests.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/tests/integration/run_tests.sh"
