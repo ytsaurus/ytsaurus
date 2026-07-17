@@ -471,6 +471,29 @@ class TestIoEngine(YTEnvSetup):
             }
         }, False)
 
+    def _run_send_blocks_writes(self, need_send_blocks):
+        nodes = ls("//sys/cluster_nodes")
+        send_blocks_tags = {"yt_service": "DataNodeService", "method": "SendBlocks"}
+        counters = [
+            profiler_factory().at_node(node).counter(
+                "rpc/server/request_count", tags=send_blocks_tags)
+            for node in nodes
+        ]
+
+        table = "//tmp/test" if need_send_blocks else "//tmp/test2"
+        responses = []
+        for i in range(10):
+            responses.append(write_table(table, [{"key": "x"}], return_response=True))
+
+        if need_send_blocks:
+            wait(lambda: any(c.get_delta() > 0 for c in counters))
+            for response in responses:
+                response.wait()
+        else:
+            for response in responses:
+                response.wait()
+            assert all(c.get_delta() == 0 for c in counters)
+
     @authors("vvshlyaga")
     def test_write_without_send_blocks(self):
         update_nodes_dynamic_config({
@@ -513,6 +536,37 @@ class TestIoEngine(YTEnvSetup):
                 }
             }
         }, False, False)
+
+    @authors("jmvssnovikov")
+    def test_use_send_blocks(self):
+        REPLICATION_FACTOR = self.NUM_NODES
+
+        update_nodes_dynamic_config({}, replace=True)
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
+        create(
+            "table",
+            "//tmp/test2",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+                "chunk_writer": {
+                    "use_send_blocks": False,
+                },
+            })
+
+        self._run_send_blocks_writes(need_send_blocks=True)
+
+        time.sleep(2.0)
+
+        self._run_send_blocks_writes(need_send_blocks=False)
 
     @authors("don-dron")
     @pytest.mark.parametrize(

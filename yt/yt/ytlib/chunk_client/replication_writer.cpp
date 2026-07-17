@@ -588,14 +588,25 @@ private:
         return result;
     }
 
+    bool ShouldUseSendBlocks() const
+    {
+        if (!Config_->UseSendBlocks) {
+            return false;
+        }
+        if (InitialTargets_.size() <= 1 && (UploadReplicationFactor_ == 1 || !Options_->AllowAllocatingNewTargetNodes)) {
+            return false;
+        }
+        return true;
+    }
+
     void DoOpen()
     {
         try {
-            bool disableSendBlocks = InitialTargets_.size() <= 1 && (UploadReplicationFactor_ == 1 || !Options_->AllowAllocatingNewTargetNodes);
-            StartSessions(InitialTargets_, disableSendBlocks);
+            bool useSendBlocks = ShouldUseSendBlocks();
+            StartSessions(InitialTargets_, !useSendBlocks);
 
             while (std::ssize(Nodes_) < UploadReplicationFactor_) {
-                StartSessions(AllocateTargets(), disableSendBlocks);
+                StartSessions(AllocateTargets(), !useSendBlocks);
             }
 
             YT_LOG_INFO("Writer opened (Addresses: %v, PopulateCache: %v, Workload: %v, Networks: %v)",
@@ -1453,6 +1464,7 @@ void TGroup::SendGroup(
     const std::vector<TNodePtr>& srcNodes)
 {
     YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
+    YT_VERIFY(writer->ShouldUseSendBlocks());
 
     std::vector<TNodePtr> dstNodes;
     for (int index = 0; index < std::ssize(SentTo_); ++index) {
@@ -1641,7 +1653,7 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
         }
         TDelayedExecutor::Submit(BIND(&TGroup::ScheduleProcess, MakeWeak(this), options),
             writer->Config_->NodePingPeriod);
-    } else if (nodesWithPossibleToSendBlocks.empty()) {
+    } else if (nodesWithPossibleToSendBlocks.empty() || !writer->ShouldUseSendBlocks()) {
         PutGroup(writer, options);
     } else {
         SendGroup(writer, options, nodesWithPossibleToSendBlocks);

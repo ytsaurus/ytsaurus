@@ -158,6 +158,8 @@ public:
         UseProbePutBlocks_ = request->use_probe_put_blocks();
         response->set_use_probe_put_blocks(request->use_probe_put_blocks());
 
+        UseSendBlocks_ = !request->disable_send_blocks();
+
         context->Reply();
     }
 
@@ -248,6 +250,8 @@ public:
     {
         YT_VERIFY(SessionId_.has_value());
         YT_VERIFY(*SessionId_ == FromProto<TSessionId>(request->session_id()));
+
+        ++SendBlocksCounter_;
 
         auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
         int firstBlockIndex = request->first_block_index();
@@ -357,12 +361,25 @@ public:
     {
         return SessionStarted_;
     }
+
+    bool GetUseSendBlocks() const
+    {
+        return UseSendBlocks_;
+    }
+
+    int GetSendBlocksCount() const
+    {
+        return SendBlocksCounter_;
+    }
+
 private:
     const int ThrottledBlockCount_;
     const bool AlwaysFail_;
     const bool NetThrottling_;
 
     int PutBlocksCounter_ = 0;
+    int SendBlocksCounter_ = 0;
+    bool UseSendBlocks_ = true;
 
     std::optional<TSessionId> SessionId_;
     bool SessionStarted_ = false;
@@ -382,6 +399,7 @@ private:
 struct TWriterTestCase
 {
     bool UseProbePutBlocks = false;
+    bool UseSendBlocks = true;
     int ReplicationFactor = 3;
     int NodeCount = 3;
     int BlockCount = 10;
@@ -495,6 +513,7 @@ public:
         config->UseProbePutBlocks = useProbePutBlocks;
         config->MinUploadReplicationFactor = replicationFactor;
         config->UploadReplicationFactor = nodeCount;
+        config->UseSendBlocks = testCase.UseSendBlocks;
         config->NodeChannel = New<TRetryingChannelConfig>();
         config->NodeChannel->RetryAttempts = 5;
 
@@ -681,6 +700,61 @@ INSTANTIATE_TEST_SUITE_P(
         //     .BlockCount = 1024,
         //     .FailedNodes = {2, 3, 4},
         // }
+    ));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUseSendBlocksWriterTest
+    : public TReplicationWriterTest
+{ };
+
+TEST_P(TUseSendBlocksWriterTest, WriteTest)
+{
+    auto blockChecksums = BlocksToChecksums(GeneratedBlocks);
+
+    IChunkWriter::TWriteBlocksOptions writeOptions;
+    TWorkloadDescriptor workloadDescriptor;
+
+    Writer->Open()
+        .Apply(BIND([&] {
+            EXPECT_TRUE(Writer->WriteBlocks(writeOptions, workloadDescriptor, GeneratedBlocks));
+            return Writer->GetReadyEvent();
+        }))
+        .Apply(BIND([&] {
+            auto deferredMeta = New<TDeferredChunkMeta>();
+            deferredMeta->set_type(0);
+            deferredMeta->set_format(0);
+            *deferredMeta->mutable_extensions() = {};
+            return Writer->Close({}, {}, deferredMeta);
+        }))
+        .BlockingWait(TDuration::Seconds(120));
+
+    for (const auto& service : Services) {
+        EXPECT_FALSE(service->GetUseSendBlocks())
+            << "use_send_blocks=false must be propagated to every node session via StartChunk RPC";
+        EXPECT_EQ(service->GetSendBlocksCount(), 0)
+            << "SendBlocks must not be called when UseSendBlocks is false";
+        EXPECT_EQ(service->GetBlockChecksums(), blockChecksums)
+            << "all blocks must be delivered correctly via PutBlocks";
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TUseSendBlocksWriterTest,
+    TUseSendBlocksWriterTest,
+    ::testing::Values(
+        TWriterTestCase{
+            .UseSendBlocks = false,
+            .ReplicationFactor = 3,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+        },
+        TWriterTestCase{
+            .UseSendBlocks = false,
+            .ReplicationFactor = 1,
+            .NodeCount = 1,
+            .BlockCount = 1024,
+        }
     ));
 
 ////////////////////////////////////////////////////////////////////////////////
