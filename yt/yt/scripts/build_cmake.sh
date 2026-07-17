@@ -1,14 +1,15 @@
 #!/bin/bash -ex
 # Usage:
 #   build_cmake.sh configure     --source-path P --build-path P --build-type T \
-#                                --ccache-remote-storage S [--ccache-base-dir P] [--read-only-cache]
+#                                --ccache-remote-storage S [--ccache-base-dir P] \
+#                                [--cxx-flags-init F] [--read-only-cache]
 #   build_cmake.sh build-python  --source-path P --build-path P --venv-path P --commit-hash H
 #   build_cmake.sh build         --build-path P [--targets "t1 t2 ..."]
 #   build_cmake.sh move-binaries --build-path P --output-build-path P
 
 cmd_configure() {
     local source_path="" build_path="" build_type="" ccache_remote_storage=""
-    local ccache_base_dir="" read_only_cache="false"
+    local ccache_base_dir="" read_only_cache="false" cxx_flags_init=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --source-path)           source_path="$2"; shift 2;;
@@ -16,6 +17,7 @@ cmd_configure() {
             --build-type)            build_type="$2"; shift 2;;
             --ccache-remote-storage) ccache_remote_storage="$2"; shift 2;;
             --ccache-base-dir)       ccache_base_dir="$2"; shift 2;;
+            --cxx-flags-init)        cxx_flags_init="$2"; shift 2;;
             --read-only-cache)       read_only_cache="true"; shift;;
             *) echo "configure: unknown arg $1" >&2; exit 1;;
         esac
@@ -32,6 +34,9 @@ core.net.http:timeout=5
 core.sources:download_urls=["origin", "https://c3i.jfrog.io/artifactory/conan-center-backup-sources"]
 EOF
 
+    local extra_cmake_args=()
+    [ -n "${cxx_flags_init}" ] && extra_cmake_args+=(-DCMAKE_CXX_FLAGS_INIT="${cxx_flags_init}")
+
     cd "${build_path}"
     cmake \
         -G Ninja \
@@ -41,6 +46,7 @@ EOF
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
         -DREQUIRED_LLVM_TOOLING_VERSION=18 \
         -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES="${source_path}/cmake/conan_provider.cmake" \
+        "${extra_cmake_args[@]}" \
         "${source_path}"
 
     ccache --set-config base_dir="${ccache_base_dir}"
