@@ -233,6 +233,11 @@ void AccumulateNewlyReferencedHunkStatistics(TChunk* hunkChunk, i64 dataWeightDe
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsReplicaDecommissioned(TChunkLocation* replica);
+bool IsReplicaOnPendingRestartNode(TChunkLocation* replica);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkServer
 
 #define HELPERS_INL_H_

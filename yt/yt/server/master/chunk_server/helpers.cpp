@@ -1828,4 +1828,18 @@ TChunkSequoiaConfig GetChunkSequoiaConfig(TChunkId chunkId, const TDynamicSequoi
     return result;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsReplicaDecommissioned(TChunkLocation* replica)
+{
+    return replica->GetNode()->IsDecommissioned();
+}
+
+bool IsReplicaOnPendingRestartNode(TChunkLocation* replica)
+{
+    return replica->GetNode()->IsPendingRestart();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkServer

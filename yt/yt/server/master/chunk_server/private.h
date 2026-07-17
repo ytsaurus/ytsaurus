@@ -31,10 +31,13 @@ DECLARE_REFCOUNTED_STRUCT(IChunkVisitor)
 DECLARE_REFCOUNTED_STRUCT(IChunkTraverserContext)
 DECLARE_REFCOUNTED_STRUCT(IChunkTreeBalancerCallbacks)
 DECLARE_REFCOUNTED_STRUCT(IChunkReplacerCallbacks)
+DECLARE_REFCOUNTED_STRUCT(IChunkStatisticsCalculatorCallbacks)
 DECLARE_REFCOUNTED_STRUCT(IDataNodeTrackerInternal)
 DECLARE_REFCOUNTED_STRUCT(IChunkReplicaFetcher)
 
 DECLARE_REFCOUNTED_CLASS(TJobRegistry)
+
+class TChunkStatisticsCalculator;
 
 DECLARE_REFCOUNTED_STRUCT(ISequoiaReplicasModifier)
 DECLARE_REFCOUNTED_STRUCT(ISequoiaChunkRefresher)
