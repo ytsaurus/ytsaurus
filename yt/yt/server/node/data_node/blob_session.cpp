@@ -682,6 +682,7 @@ void TBlobSession::PreparePutBlocks(
     const auto& memoryTracker = Location_->GetWriteMemoryTracker();
 
     std::vector<int> receivedBlockIndexes;
+    i64 totalSize = 0;
     for (int localIndex = 0; localIndex < std::ssize(blocks); ++localIndex) {
         int blockIndex = startBlockIndex + localIndex;
         auto& block = blocks[localIndex];
@@ -772,11 +773,11 @@ void TBlobSession::PreparePutBlocks(
             }
 
             Location_->UpdateUsedSpace(block.Size());
+            totalSize += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
         }
     }
 
-    auto totalSize = GetByteSize(blocks);
     TotalByteSize_.fetch_add(totalSize);
 
     YT_LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v, TotalSize: %v)",
