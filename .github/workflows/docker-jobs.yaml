@@ -10,10 +10,6 @@ on:
         # cmake or ya-make
         type: string
         default: cmake
-      publish-strawberry:
-        required: false
-        default: false
-        type: boolean
       publish-ytsaurus:
         required: false
         default: false
@@ -157,21 +153,6 @@ jobs:
           fi
           docker tag ghcr.io/ytsaurus/chyt:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/chyt-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
           retry docker push ghcr.io/ytsaurus/chyt-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
-
-      - name: Strawberry image
-        if: ${{ inputs.publish-strawberry }}
-        run: |
-          source docker-jobs-retry.sh
-          output_path=../docker-strawberry-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
-          mkdir -p $output_path
-
-          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component strawberry --ytsaurus-source-path $(pwd)/ytsaurus --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
-
-          if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
-            retry docker push ghcr.io/ytsaurus/strawberry:${{ steps.vars.outputs.IMAGE_TAG }}
-          fi
-          docker tag ghcr.io/ytsaurus/strawberry:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/strawberry-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
-          retry docker push ghcr.io/ytsaurus/strawberry-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
 
       - name: Local image (${{ inputs.cpp-build-system }}, ${{ matrix.build-type }})
         if: ${{ inputs.publish-local }}

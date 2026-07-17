@@ -128,7 +128,6 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-python: true
-      build-strawberry: true
       build-ytsaurus: true
       build-types: ${{ needs.tag.outputs.build-types }}
       version-patch: ${{ needs.tag.outputs.version-patch }}

@@ -112,28 +112,11 @@ jobs:
           VERSION_PATCH=$(printf "%s%03d" "$LAST_COMMIT_DATE" "$COMMITS_THIS_DAY")
           echo "VERSION_PATCH=$VERSION_PATCH" >> "$GITHUB_OUTPUT"
 
-  build-strawberry:
-    name: Build Strawberry controller
-    needs:
-      - start-vm
-      - checkout
-      - tag
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-strawberry: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
-      build-types: ${{ needs.tag.outputs.build-types }}
-      version-patch: ${{ needs.tag.outputs.version-patch }}
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
-
   build-cmake:
     name: Build with cmake
     needs:
       - start-vm
       - checkout
-      - build-strawberry
       - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
@@ -155,11 +138,9 @@ jobs:
       - start-vm
       - tag
       - build-cmake
-      - build-strawberry
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
-      publish-strawberry: ${{ github.ref_name == 'main' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
       build-types: ${{ needs.tag.outputs.build-types }}
@@ -173,7 +154,6 @@ jobs:
     needs:
       - start-vm
       - checkout
-      - build-strawberry
       - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
@@ -265,7 +245,6 @@ jobs:
       - build-ya-make
       - docker-ya-make
       - docker-cmake
-      - build-strawberry
     if: always()
     uses: ./.github/workflows/check-status-and-send-alert.yaml
     with:

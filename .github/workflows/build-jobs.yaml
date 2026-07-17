@@ -10,10 +10,6 @@ on:
         # cmake or ya-make
         type: string
         default: ''
-      build-strawberry:
-        default: false
-        required: false
-        type: boolean
       build-ytsaurus:
         default: false
         required: false
@@ -75,18 +71,6 @@ jobs:
       - name: Prepare python virtual environment
         run: |
           python3.11 -m venv ../venv
-
-  strawberry:
-    needs: venv
-    runs-on: ${{ inputs.runs-on-value }}
-    if: ${{ inputs.build-strawberry }}
-    timeout-minutes: 480
-    steps:
-      - name: Build strawberry controller
-        run: |
-          cd ../ytsaurus/ytsaurus/yt/chyt/controller/cmd/chyt-controller
-          export HOME=${RUNNER_WORKSPACE}
-          /opt/go/bin/go build
 
   gpuagent:
     needs: venv

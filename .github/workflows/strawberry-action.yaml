@@ -1,0 +1,72 @@
+name: Strawberry image
+
+on:
+  workflow_call:
+    inputs:
+      runs-on-value:
+        required: false
+        default: ubuntu-latest
+        type: string
+      push-release-tag:
+        required: false
+        default: ''
+        type: string
+      push-nightly-tag:
+        required: false
+        default: ''
+        type: string
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN:
+        required: false
+      GH_USERNAME:
+        required: false
+
+jobs:
+  strawberry:
+    name: Build, test and publish strawberry
+    runs-on: ${{ inputs.runs-on-value }}
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: ytsaurus
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.8'
+
+      - name: Build chyt-controller
+        working-directory: ytsaurus/yt/chyt/controller/cmd/chyt-controller
+        run: go build
+
+      - name: Unit test
+        working-directory: ytsaurus/yt/chyt/controller
+        run: go test ./test/unittest -run TestAuthorizationHeader -v
+
+      - name: Build strawberry image
+        run: |
+          ./ytsaurus/yt/docker/ytsaurus/build.sh \
+            --component strawberry \
+            --ytsaurus-source-path $(pwd)/ytsaurus \
+            --output-path ../docker-strawberry \
+            --image-tag dev-${{ github.sha }} \
+            --image-cr ghcr.io/
+
+      - name: Docker login
+        if: ${{ inputs.push-release-tag != '' || inputs.push-nightly-tag != '' }}
+        run: |
+          echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+
+      - name: Push release image
+        if: ${{ inputs.push-release-tag != '' }}
+        run: |
+          docker tag ghcr.io/ytsaurus/strawberry:dev-${{ github.sha }} ghcr.io/ytsaurus/strawberry:${{ inputs.push-release-tag }}
+          docker push ghcr.io/ytsaurus/strawberry:${{ inputs.push-release-tag }}
+
+      - name: Push nightly image
+        if: ${{ inputs.push-nightly-tag != '' }}
+        run: |
+          docker tag ghcr.io/ytsaurus/strawberry:dev-${{ github.sha }} ghcr.io/ytsaurus/strawberry-nightly:${{ inputs.push-nightly-tag }}
+          docker push ghcr.io/ytsaurus/strawberry-nightly:${{ inputs.push-nightly-tag }}
