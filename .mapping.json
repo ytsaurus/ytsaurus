@@ -111,6 +111,7 @@
   "yt/python/yt/wrapper/tests/pytest.ini":"yt/opensource/repos/ytsaurus/github_toplevel/yt/python/yt/wrapper/tests/pytest.ini",
   "yt/yt/gpuagent/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/gpuagent/go.mod",
   "yt/yt/gpuagent/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/gpuagent/go.sum",
+  "yt/yt/scripts/build_cmake.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/build_cmake.sh",
   "yt/yt/scripts/pytest_requirements.txt":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/pytest_requirements.txt",
   "yt/yt/scripts/python_libraries_requirements.txt":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/python_libraries_requirements.txt",
   "yt/yt/scripts/run_tests.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/run_tests.sh",

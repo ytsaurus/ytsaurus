@@ -109,61 +109,40 @@ jobs:
       - name: Configure ytsaurus (${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
         run: |
-          mkdir -p ~/.conan2/
-          cat > ~/.conan2/global.conf <<EOF
-          core.net.http:timeout=5
-          core.sources:download_urls=["origin", "https://c3i.jfrog.io/artifactory/conan-center-backup-sources"]
-          EOF
-
           CMAKE_BUILD_TYPE="RelWithDebInfo"
           if [ "${{ matrix.build-type }}" = "release" ]; then
             CMAKE_BUILD_TYPE="Release"
           fi
-
-          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
-          cmake \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
-            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DREQUIRED_LLVM_TOOLING_VERSION=18 \
-            -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=./cmake/conan_provider.cmake \
-            ../ytsaurus/ytsaurus
-
-          ccache --set-config base_dir="$(realpath ..)"
-          ccache --set-config remote_only=true
-          ccache --set-config remote_storage="http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel"
-
+          READ_ONLY=""
           if [ "${{ inputs.update-remote-cache }}" == "false" ]; then
-            ccache --set-config read_only=true
+            READ_ONLY="--read-only-cache"
           fi
+          ./ytsaurus/yt/yt/scripts/build_cmake.sh configure \
+            --source-path ../ytsaurus/ytsaurus \
+            --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+            --build-type "${CMAKE_BUILD_TYPE}" \
+            --ccache-remote-storage "http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel" \
+            ${READ_ONLY}
 
       - name: Build Python packages (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-python }}
         run: |
-          build_dir=../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
-          cd ${build_dir}
-          ninja yson_lib driver_lib driver_rpc_lib
-
-          strip yt/yt/python/yson_shared/libyson_lib.so
-          strip yt/yt/python/driver/native_shared/libdriver_lib.so
-          strip yt/yt/python/driver/rpc_shared/libdriver_rpc_lib.so
-
-          cd ../ytsaurus
-
-          source ../venv/bin/activate
-          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
+          ./ytsaurus/yt/yt/scripts/build_cmake.sh build-python \
+            --source-path ../ytsaurus/ytsaurus \
+            --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+            --venv-path ../venv \
+            --commit-hash ${GITHUB_SHA}
 
       - name: Build ytsaurus (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
         run: |
-          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type}}
-          if [ "${{ matrix.build-type }}" == "release" ]; then
-            ninja
-          else
-            ninja ytserver-all ytserver-clickhouse
+          TARGETS=""
+          if [ "${{ matrix.build-type }}" == "relwithdebinfo" ]; then
+            TARGETS="ytserver-all ytserver-clickhouse"
           fi
+          ./ytsaurus/yt/yt/scripts/build_cmake.sh build \
+            --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+            --targets "${TARGETS}"
 
       - name: Build YQL agent (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
