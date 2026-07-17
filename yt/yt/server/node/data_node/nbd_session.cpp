@@ -271,6 +271,7 @@ TFuture<TNbdSession::TSendBlocksResult> TNbdSession::SendBlocks(
     int /* blockCount */,
     i64 /* cumulativeBlockSize */,
     i64 /* ioConsumed */,
+    std::optional<double> /* ioFairShareWeight */,
     TDuration /* requestTimeout */,
     bool /* instantReplyOnThrottling */,
     const NNodeTrackerClient::TNodeDescriptor& /* target */)
