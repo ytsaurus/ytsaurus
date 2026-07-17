@@ -6119,6 +6119,7 @@
   "yt/yt/python/yson_shared/CMakeLists.linux-x86_64.txt":"",
   "yt/yt/python/yson_shared/CMakeLists.txt":"",
   "yt/yt/scripts/CMakeLists.txt":"",
+  "yt/yt/scripts/build_cmake.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/build_cmake.sh",
   "yt/yt/scripts/gdb_plugin/CMakeLists.txt":"",
   "yt/yt/scripts/gdb_plugin/tests/CMakeLists.txt":"",
   "yt/yt/scripts/gdb_plugin/tests/fixture/CMakeLists.darwin-arm64.txt":"",
