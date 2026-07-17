@@ -5,38 +5,57 @@ on:
       runs-on-value:
         required: true
         type: string
+      build-dir:
+        required: true
+        type: string
+      run-unittests:
+        default: false
+        required: false
+        type: boolean
+      run-integration-tests:
+        default: false
+        required: false
+        type: boolean
+      run-python-tests:
+        default: false
+        required: false
+        type: boolean
+      run-odin-tests:
+        default: false
+        required: false
+        type: boolean
 
 jobs:
   check:
     runs-on: ${{ inputs.runs-on-value }}
     steps:
-      - name: Unittests (cmake)
+      - name: Unittests
+        if: ${{ inputs.run-unittests }}
         shell: bash
         run: |
-          ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../build_cmake_release
-
-      - name: Unittests (ya-make)
-        shell: bash
-        run: |
-          ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../build_ya-make_release
+          ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../${{ inputs.build-dir }}
 
       - name: Setup build symlink
+        if: ${{ inputs.run-integration-tests || inputs.run-python-tests || inputs.run-odin-tests }}
         shell: bash
         run: |
           rm -rf "$(pwd)/../build"
-          ln -sfn "$(pwd)/../build_ya-make_release" "$(pwd)/../build"
+          ln -sfn "$(pwd)/../${{ inputs.build-dir }}" "$(pwd)/../build"
 
       - name: Integration tests
+        if: ${{ inputs.run-integration-tests }}
         shell: bash
         run: |
           ./ytsaurus/yt/yt/scripts/run_tests.sh integration
 
       - name: Python tests
+        if: ${{ inputs.run-python-tests }}
         shell: bash
         run: |
           ./ytsaurus/yt/yt/scripts/run_tests.sh python
 
       - name: Odin tests
+        if: ${{ inputs.run-odin-tests }}
         shell: bash
         run: |
           ytsaurus/yt/odin/tests/run_tests.sh

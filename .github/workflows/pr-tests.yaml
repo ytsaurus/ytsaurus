@@ -22,28 +22,13 @@ env:
 jobs:
   fast-test:
     name: Fast tests
-    runs-on: ${{ inputs.runs-on-value }}
-    steps:
-      - name: Unittests (ya-make)
-        shell: bash
-        run: |
-          ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../build_ya-make_release
-
-      - name: Setup build symlink
-        shell: bash
-        run: |
-          rm -rf "$(pwd)/../build"
-          ln -sfn "$(pwd)/../build_ya-make_release" "$(pwd)/../build"
-
-      - name: Python tests
-        shell: bash
-        run: |
-          ./ytsaurus/yt/yt/scripts/run_tests.sh python
-
-      - name: Odin tests
-        shell: bash
-        run: |
-          ytsaurus/yt/odin/tests/run_tests.sh
+    with:
+      runs-on-value: ${{ inputs.runs-on-value }}
+      build-dir: build_ya-make_release
+      run-unittests: true
+      run-python-tests: true
+      run-odin-tests: true
+    uses: ./.github/workflows/check-jobs.yaml
 
   notify-pr-tests-start:
     name: Notify PR integration tests started
