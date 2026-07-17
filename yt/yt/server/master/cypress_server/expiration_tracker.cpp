@@ -196,14 +196,14 @@ public:
         // that created it. In this case the node might end up unregistered from the expiration maps.
         // See TExpirationTracker::OnNodeRemovalFailed().
         if (expirationTimeProperties) {
-            const auto& [user, expirationTime] = *expirationTimeProperties;
+            const auto& [user, expirationTime, armingTime] = *expirationTimeProperties;
 
             YT_LOG_DEBUG("Node expiration time set (NodeId: %v, ExpirationTime: %v)",
                 trunkNode->GetId(),
                 expirationTime);
             RegisterNodeExpirationTime(trunkNode, expirationTime);
             if (oldExpirationTimeProperties) {
-                auto oldUser = oldExpirationTimeProperties->first;
+                auto oldUser = std::get<TUserRawPtr>(*oldExpirationTimeProperties);
                 if (user != oldUser) {
                     FailedExpirationAttempts_.erase(TFailedAttemptDescriptorView(trunkNode, oldUser));
                     PersistentFailedExpirationAttempts_.erase(TFailedAttemptDescriptorView(trunkNode, oldUser));
@@ -213,7 +213,7 @@ public:
             YT_LOG_DEBUG("Node expiration time reset (NodeId: %v)",
                 trunkNode->GetId());
 
-            auto oldUser = oldExpirationTimeProperties->first;
+            auto oldUser = std::get<TUserRawPtr>(*oldExpirationTimeProperties);
             FailedExpirationAttempts_.erase(TFailedAttemptDescriptorView(trunkNode, oldUser));
             PersistentFailedExpirationAttempts_.erase(TFailedAttemptDescriptorView(trunkNode, oldUser));
         }
@@ -242,7 +242,7 @@ public:
 
         // See TExpirationTracker::OnNodeExpirationTimeUpdated().
         if (expirationTimeoutProperties) {
-            const auto& [user, expirationTimeout] = *expirationTimeoutProperties;
+            const auto& [user, expirationTimeout, armingTime] = *expirationTimeoutProperties;
 
             YT_LOG_DEBUG("Node expiration timeout set (NodeId: %v, ExpirationTimeout: %v)",
                 trunkNode->GetId(),
@@ -252,7 +252,7 @@ public:
             }
 
             if (oldExpirationTimeoutProperties) {
-                auto oldUser = oldExpirationTimeoutProperties->first;
+                auto oldUser = std::get<TUserRawPtr>(*oldExpirationTimeoutProperties);
                 if (user != oldUser) {
                     FailedExpirationAttempts_.erase(TFailedAttemptDescriptorView(trunkNode, oldUser));
                     PersistentFailedExpirationAttempts_.erase(TFailedAttemptDescriptorView(trunkNode, oldUser));
@@ -262,7 +262,7 @@ public:
             YT_LOG_DEBUG("Node expiration timeout reset (NodeId: %v)",
                 trunkNode->GetId());
 
-            auto oldUser = oldExpirationTimeoutProperties->first;
+            auto oldUser = std::get<TUserRawPtr>(*oldExpirationTimeoutProperties);
             FailedExpirationAttempts_.erase(TFailedAttemptDescriptorView(trunkNode, oldUser));
             PersistentFailedExpirationAttempts_.erase(TFailedAttemptDescriptorView(trunkNode, oldUser));
         }

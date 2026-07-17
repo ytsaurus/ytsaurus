@@ -280,10 +280,10 @@ public:
     class TExpirationProperties
     {
     public:
-        using TView = std::pair<NSecurityServer::TUserRawPtr, TTime>;
+        using TView = std::tuple<NSecurityServer::TUserRawPtr, TTime, TInstant>;
 
         TExpirationProperties() = default;
-        TExpirationProperties(NSecurityServer::TUserPtr user, TTime time);
+        TExpirationProperties(NSecurityServer::TUserPtr user, TTime time, TInstant armingTime);
         explicit TExpirationProperties(TInstant lastReset);
 
         TExpirationProperties Clone() const;
@@ -297,10 +297,20 @@ public:
         std::optional<TInstant> GetLastResetTime() const;
         std::optional<NSecurityServer::TUserRawPtr> GetUser() const;
         std::optional<TTime> GetExpiration() const;
+        std::optional<TInstant> GetArmingTime() const;
 
     private:
         using TLastResetInstant = TInstant;
-        using TValue = std::pair<NSecurityServer::TUserPtr, TTime>;
+
+        struct TValue {
+            NSecurityServer::TUserPtr User;
+            TTime Expiration;
+            TInstant ArmingTime;
+
+            void Save(NCellMaster::TSaveContext& context) const;
+            void Load(NCellMaster::TLoadContext& context);
+        };
+
         // NB: Don't reorder the types; tags are used for persistence.
         std::variant<TValue, TLastResetInstant> ExpirationValue_;
     };
@@ -379,11 +389,13 @@ public:
     std::optional<TExpirationTimeProperties::TView> GetExpirationTimePropertiesView() const;
     std::optional<TInstant> GetExpirationTime() const;
     std::optional<NSecurityServer::TUserRawPtr> GetExpirationTimeUser() const;
+    std::optional<TInstant> GetExpirationTimeArmingTime() const;
     std::optional<TInstant> GetExpirationTimeLastResetTime() const;
 
     std::optional<TExpirationTimeoutProperties::TView> GetExpirationTimeoutPropertiesView() const;
     std::optional<TDuration> GetExpirationTimeout() const;
     std::optional<NSecurityServer::TUserRawPtr> GetExpirationTimeoutUser() const;
+    std::optional<TInstant> GetExpirationTimeoutArmingTime() const;
     std::optional<TInstant> GetExpirationTimeoutLastResetTime() const;
 
     //! Returns the static type of the node.

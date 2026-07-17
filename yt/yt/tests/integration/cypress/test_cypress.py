@@ -16,7 +16,7 @@ from yt_commands import (
     get_active_primary_master_follower_address, sync_mount_table, sync_create_cells, check_permission,
     get_driver, create_access_control_object_namespace, create_chaos_cell_bundle)
 
-from yt_helpers import get_current_time, profiler_factory, account_usage_all_zero
+from yt_helpers import parse_yt_time, get_current_time, profiler_factory, account_usage_all_zero
 
 from yt.common import YtError, YtResponseError, WaitFailed
 from yt.environment.helpers import assert_items_equal
@@ -2293,6 +2293,40 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t/@expiration_timeout_user")
         assert not exists("//tmp/t/@expiration_timeout")
         assert exists("//tmp/t/@expiration_timeout_last_reset_time")
+
+    @authors("theevilbird")
+    def test_expiration_arming_time(self):
+        create("table", "//tmp/t1")
+        assert not exists("//tmp/t1/@expiration_time_arming_time")
+        assert not exists("//tmp/t1/@expiration_timeout_arming_time")
+
+        current_time1 = get_current_time()
+        set("//tmp/t1/@expiration_time", str(get_current_time() + timedelta(seconds=20)))
+        assert current_time1 < parse_yt_time(get("//tmp/t1/@expiration_time_arming_time")) < current_time1 + timedelta(seconds=2)
+
+        create("table", "//tmp/t2")
+        current_time2 = get_current_time()
+        set("//tmp/t2/@expiration_timeout", 20000)
+        assert current_time2 < parse_yt_time(get("//tmp/t2/@expiration_timeout_arming_time")) < current_time2 + timedelta(seconds=2)
+
+        current_time3 = get_current_time()
+        create("table", "//tmp/t3", attributes={"expiration_time": str(get_current_time() + timedelta(seconds=20000))})
+        assert current_time3 < parse_yt_time(get("//tmp/t3/@expiration_time_arming_time")) < current_time3 + timedelta(seconds=2)
+
+        current_time4 = get_current_time()
+        create("table", "//tmp/t4", attributes={"expiration_timeout": 20000})
+        assert current_time4 < parse_yt_time(get("//tmp/t4/@expiration_timeout_arming_time")) < current_time4 + timedelta(seconds=2)
+
+        time.sleep(3)
+        current_time1_2 = get_current_time()
+        set("//tmp/t1/@expiration_timeout", 10000)
+        assert current_time1 < parse_yt_time(get("//tmp/t1/@expiration_time_arming_time")) < current_time1 + timedelta(seconds=2)
+        assert current_time1_2 < parse_yt_time(get("//tmp/t1/@expiration_timeout_arming_time")) < current_time1_2 + timedelta(seconds=2)
+
+        current_time2_2 = get_current_time()
+        set("//tmp/t2/@expiration_time", str(get_current_time() + timedelta(seconds=10)))
+        assert current_time2 < parse_yt_time(get("//tmp/t2/@expiration_timeout_arming_time")) < current_time2 + timedelta(seconds=2)
+        assert current_time2_2 < parse_yt_time(get("//tmp/t2/@expiration_time_arming_time")) < current_time2_2 + timedelta(seconds=2)
 
     @authors("shakurov")
     @pytest.mark.parametrize("authorized", [False, True])
