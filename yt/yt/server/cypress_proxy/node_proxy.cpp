@@ -1688,15 +1688,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     // TODO(cherepashka): add response for `Lock` into sequoia response keeper via dataless write rows.
     SequoiaSession_->Commit(CellIdFromObjectId(Id_));
 
-    const auto& client = SequoiaSession_->GetNativeAuthenticatedClient();
-
     const auto& stateAttribute = EInternedAttributeKey::State.Unintern();
     auto asyncLockAcquired = waitable
-        ? FetchSingleObjectAttributes(
-            client,
-            TVersionedObjectId{lockId},
+        ? SequoiaSession_->FetchSingleObjectAttributes(
+            lockId,
             TAttributeFilter({stateAttribute}))
-            .Apply(BIND([&] (const IAttributeDictionaryPtr& attributes) {
+            .Apply(BIND([&] (const IConstAttributeDictionaryPtr& attributes) {
                 return attributes->Get<ELockState>(stateAttribute) == ELockState::Acquired;
             }))
         : MakeFuture(true);
@@ -1704,9 +1701,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     const auto& externalCellTagAttribute = EInternedAttributeKey::ExternalCellTag.Unintern();
     const auto& revisionAttribute = EInternedAttributeKey::Revision.Unintern();
 
-    auto asyncNodeAttributes = FetchSingleObjectAttributes(
-        client,
-        MakeVersionedNodeId(Id_),
+    auto asyncNodeAttributes = SequoiaSession_->FetchSingleObjectAttributes(
+        Id_,
         TAttributeFilter({externalCellTagAttribute, revisionAttribute}));
 
     auto nodeLocked = WaitForFast(asyncLockAcquired)
@@ -1836,14 +1832,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
             nodeAncestry,
             /*duringCopy*/ true));
 
-    const auto& client = SequoiaSession_->GetNativeAuthenticatedClient();
     const auto& accountIdAttribute = EInternedAttributeKey::AccountId.Unintern();
 
-    auto asyncAccoundId = FetchSingleObjectAttributes(
-        client,
-        MakeVersionedNodeId(parentNodeId),
+    auto asyncAccoundId = SequoiaSession_->FetchSingleObjectAttributes(
+        parentNodeId,
         TAttributeFilter({accountIdAttribute}))
-        .Apply(BIND([&] (const IAttributeDictionaryPtr& attributes) {
+        .Apply(BIND([&] (const IConstAttributeDictionaryPtr& attributes) {
             return attributes->Get<TAccountId>(accountIdAttribute);
         }));
 
