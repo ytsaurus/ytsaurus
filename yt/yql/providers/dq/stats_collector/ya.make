@@ -1,12 +1,7 @@
 LIBRARY()
 
-SET(
-    SOURCE
-    pool_stats_collector.cpp
-)
-
 SRCS(
-    ${SOURCE}
+    pool_stats_collector.cpp
 )
 
 PEERDIR(

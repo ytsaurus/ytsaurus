@@ -1,6 +1,6 @@
 package NYql.NProto;
 option java_package = "ru.yandex.yql.proto";
-option go_package = "go.ytsaurus.tech/contrib/ydb/library/yql/providers/dq/config;config_pb";
+option go_package = "go.ytsaurus.tech/yt/yql/providers/dq/config;config_pb";
 
 message TDqConfig {
     optional uint32 NodeId = 1; // autofilled by yqlworker

@@ -7,6 +7,7 @@ RECURSE(
 IF (NOT OPENSOURCE)
     RECURSE(
         dq
+        dqrun
         qt_stress
         query_replay
         ytfilerun

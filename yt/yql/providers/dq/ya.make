@@ -1,7 +1,13 @@
 RECURSE(
     actors
+    control
+    gateway
     global_worker_manager
+    local_gateway
     metrics
+    provider
     runtime
     scheduler
+    service
+    stats_collector
 )

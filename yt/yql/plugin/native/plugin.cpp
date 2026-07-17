@@ -32,6 +32,7 @@
 #include <yql/essentials/providers/common/udf_resolve/yql_simple_udf_resolver.h>
 
 #include <contrib/ydb/library/yql/providers/dq/provider/yql_dq_gateway.h>
+#include <yt/yql/providers/dq/gateway/yql_dq_gateway_factory.h>
 #include <contrib/ydb/library/yql/providers/dq/provider/yql_dq_provider.h>
 #include <contrib/ydb/library/yql/providers/dq/provider/yql_dq_state.h>
 #include <contrib/ydb/library/yql/providers/dq/provider/exec/yql_dq_exectransformer.h>

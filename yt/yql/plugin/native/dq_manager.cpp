@@ -3,9 +3,9 @@
 #include <yt/yql/providers/dq/actors/yt/resource_manager.h>
 #include <yt/yql/providers/dq/actors/dynamic_nameserver.h>
 #include <yt/yql/providers/dq/metrics/metrics_printer.h>
-#include <contrib/ydb/library/yql/providers/dq/provider/yql_dq_control.h>
-#include <contrib/ydb/library/yql/providers/dq/service/interconnect_helpers.h>
-#include <contrib/ydb/library/yql/providers/dq/stats_collector/pool_stats_collector.h>
+#include <yt/yql/providers/dq/control/yql_dq_control.h>
+#include <yt/yql/providers/dq/service/interconnect_helpers.h>
+#include <yt/yql/providers/dq/stats_collector/pool_stats_collector.h>
 #include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
 
 #include <contrib/ydb/library/yql/providers/yt/dq_task_preprocessor/yql_yt_dq_task_preprocessor.h>

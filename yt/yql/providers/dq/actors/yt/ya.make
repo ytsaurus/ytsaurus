@@ -6,12 +6,12 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/api/grpc
     contrib/ydb/library/yql/providers/dq/api/protos
     contrib/ydb/library/yql/providers/dq/common
-    contrib/ydb/library/yql/providers/dq/config
     contrib/ydb/library/yql/providers/dq/task_runner
     contrib/ydb/public/sdk/cpp/src/library/grpc/client
     yql/essentials/core/issue
     yql/essentials/providers/common/metrics
     yt/cpp/mapreduce/interface
+    yt/yql/providers/dq/config
     yt/yql/providers/yt/lib/log
 )
 
