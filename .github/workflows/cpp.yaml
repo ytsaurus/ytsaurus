@@ -209,6 +209,17 @@ jobs:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}
 
+  check-cmake:
+    name: Check (cmake)
+    needs:
+      - start-vm
+      - build-cmake
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      build-dir: build_cmake_release
+      run-unittests: true
+    uses: ./.github/workflows/check-jobs.yaml
+
   check:
     name: Check
     needs:
@@ -217,12 +228,18 @@ jobs:
       - build-ya-make
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
+      build-dir: build_ya-make_release
+      run-unittests: true
+      run-integration-tests: true
+      run-python-tests: true
+      run-odin-tests: true
     uses: ./.github/workflows/check-jobs.yaml
 
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
+      - check-cmake
       - check
       - docker-cmake
       - docker-ya-make
@@ -240,6 +257,7 @@ jobs:
 
   send-alert:
     needs:
+      - check-cmake
       - check
       - build-cmake
       - build-ya-make
