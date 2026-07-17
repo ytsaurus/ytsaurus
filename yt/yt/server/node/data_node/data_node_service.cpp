@@ -526,7 +526,7 @@ private:
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
         i64 cumulativeBlockSize = request->cumulative_block_size();
-        i64 ioConsumed = request->io_consumed();
+        auto ioConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed);
         auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
 
         ValidateOnline();
@@ -631,8 +631,8 @@ private:
         int blockCount = request->block_count();
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
         i64 cumulativeBlockSize = request->cumulative_block_size();
-        i64 ioConsumed = request->io_consumed();
         auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
+        auto ioConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed);
         auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
 
         context->SetRequestInfo(

@@ -104,7 +104,7 @@ private:
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
-        i64 ioConsumed,
+        std::optional<i64> ioConsumed,
         std::optional<double> ioFairShareWeight,
         TDuration requestTimeout,
         bool instantReplyOnThrottling,

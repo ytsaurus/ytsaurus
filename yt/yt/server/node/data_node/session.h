@@ -185,15 +185,11 @@ struct ISession
         bool enableCaching) = 0;
 
     //! Sends a range of blocks (from the current window) to another data node.
-    //! #ioConsumed is the requesting job's recently consumed I/O, forwarded to
-    //! the target node via the inner PutBlocks request.
-    //! #ioFairShareWeight is the requesting job's I/O fair-share weight, likewise
-    //! forwarded to the target node via the inner PutBlocks request.
     virtual TFuture<TSendBlocksResult> SendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
-        i64 ioConsumed,
+        std::optional<i64> ioConsumed,
         std::optional<double> ioFairShareWeight,
         TDuration requestTimeout,
         bool instantReplyOnThrottling,
