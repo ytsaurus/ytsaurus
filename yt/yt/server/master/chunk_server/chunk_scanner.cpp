@@ -1,4 +1,5 @@
 #include "chunk_scanner.h"
+#include "chunk_manager.h"
 
 #include "chunk.h"
 #include "private.h"
@@ -9,6 +10,7 @@
 
 namespace NYT::NChunkServer {
 
+using namespace NCellMaster;
 using namespace NLogging;
 using namespace NObjectServer;
 
@@ -200,8 +202,9 @@ bool TChunkScannerBase::IsRelevant(TChunk* chunk) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkScanQueueBase::TChunkScanQueueBase(EChunkScanKind kind)
-    : Kind_(kind)
+TChunkScanQueueBase::TChunkScanQueueBase(TBootstrap* bootstrap, EChunkScanKind kind)
+    : Bootstrap_(bootstrap)
+    , Kind_(kind)
 { }
 
 bool TChunkScanQueueBase::IsObjectAlive(TChunk* chunk)
@@ -216,11 +219,29 @@ bool TChunkScanQueueBase::GetScanFlag(TChunk* chunk) const
 
 void TChunkScanQueueBase::ClearScanFlag(TChunk* chunk)
 {
+    auto logLevel = Bootstrap_->GetChunkManager()->IsDetailedChunkLoggingEnabled(chunk) ?
+        NLogging::ELogLevel::Debug :
+        NLogging::ELogLevel::Trace;
+    YT_LOG_EVENT(
+        ChunkServerLogger(),
+        logLevel,
+        "Scan flag is cleared for chunk (ChunkId: %v, Kind: %v)",
+        chunk->GetId(),
+        Kind_);
     chunk->ClearScanFlag(Kind_);
 }
 
 void TChunkScanQueueBase::SetScanFlag(TChunk* chunk)
 {
+    auto logLevel = Bootstrap_->GetChunkManager()->IsDetailedChunkLoggingEnabled(chunk) ?
+        NLogging::ELogLevel::Debug :
+        NLogging::ELogLevel::Trace;
+    YT_LOG_EVENT(
+        ChunkServerLogger(),
+        logLevel,
+        "Scan flag is set for chunk (ChunkId: %v, Kind: %v)",
+        chunk->GetId(),
+        Kind_);
     chunk->SetScanFlag(Kind_);
 }
 

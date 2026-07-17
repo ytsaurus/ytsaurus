@@ -911,6 +911,9 @@ struct TDynamicChunkManagerConfig
 
     bool AllowOffshoreMedia;
 
+    ui64 MaxChunksWithDetailedLoggingEnabled;
+    TDuration DetailedLoggingEnabledAlertTime;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

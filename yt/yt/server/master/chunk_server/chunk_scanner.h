@@ -3,6 +3,8 @@
 #include "public.h"
 #include "private.h"
 
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+
 #include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/core/profiling/public.h>
@@ -114,9 +116,10 @@ protected:
 class TChunkScanQueueBase
 {
 public:
-    explicit TChunkScanQueueBase(EChunkScanKind kind);
+    explicit TChunkScanQueueBase(NCellMaster::TBootstrap* bootstrap, EChunkScanKind kind);
 
 protected:
+    const NCellMaster::TBootstrap* Bootstrap_;
     const EChunkScanKind Kind_;
 
     static bool IsObjectAlive(TChunk* chunk);
@@ -249,6 +252,7 @@ public:
     using TQueuedChunk = TChunkQueue::TQueuedChunk;
 
     TChunkScannerWithPayload(
+        NCellMaster::TBootstrap* bootstrap,
         EChunkScanKind kind,
         bool journal);
 

@@ -2810,6 +2810,127 @@ class TestChunkWeightStatisticsHistogram(YTEnvSetup):
         with pytest.raises(StopIteration):
             next(checker_state)
 
+    def _get_detailed_logging_chunk_count(self):
+        leader_address = get_active_primary_master_leader_address(self)
+        profiler = profiler_factory().at_primary_master(leader_address)
+        return profiler.gauge("chunk_server/detailed_logging_chunks_count").get()
+
+    @authors("evanevannnn")
+    def test_detailed_chunk_logging_attribute(self):
+        set("//sys/@config/chunk_manager/max_chunks_with_detailed_logging_enabled", 10)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        # Default value must be false.
+        assert not get(f"#{chunk_id}/@enable_detailed_chunk_logs")
+
+        set(f"#{chunk_id}/@enable_detailed_chunk_logs", True)
+        assert get(f"#{chunk_id}/@enable_detailed_chunk_logs")
+
+        set(f"#{chunk_id}/@enable_detailed_chunk_logs", False)
+        assert not get(f"#{chunk_id}/@enable_detailed_chunk_logs")
+
+    @authors("evanevannnn")
+    def test_detailed_chunk_logging_limit(self):
+        set("//sys/@config/chunk_manager/max_chunks_with_detailed_logging_enabled", 2)
+
+        chunk_ids = []
+        for i in range(3):
+            create("table", f"//tmp/t{i}")
+            write_table(f"//tmp/t{i}", {"a": "b"})
+            chunk_ids.append(get_singular_chunk_id(f"//tmp/t{i}"))
+
+        set(f"#{chunk_ids[0]}/@enable_detailed_chunk_logs", True)
+        set(f"#{chunk_ids[1]}/@enable_detailed_chunk_logs", True)
+
+        with raises_yt_error("Too many chunks with detailed logging enabled"):
+            set(f"#{chunk_ids[2]}/@enable_detailed_chunk_logs", True)
+
+        # Disabling logging for one chunk should free up a slot.
+        set(f"#{chunk_ids[0]}/@enable_detailed_chunk_logs", False)
+        set(f"#{chunk_ids[2]}/@enable_detailed_chunk_logs", True)
+        assert get(f"#{chunk_ids[2]}/@enable_detailed_chunk_logs")
+
+    @authors("evanevannnn")
+    def test_detailed_chunk_logging_superuser_only(self):
+        set("//sys/@config/chunk_manager/max_chunks_with_detailed_logging_enabled", 10)
+
+        create_user("u")
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        with raises_yt_error("Access denied"):
+            set(f"#{chunk_id}/@enable_detailed_chunk_logs", True, authenticated_user="u")
+
+        assert not get(f"#{chunk_id}/@enable_detailed_chunk_logs")
+
+    @authors("evanevannnn")
+    def test_detailed_chunk_logging_cleanup_on_destroy(self):
+        set("//sys/@config/chunk_manager/max_chunks_with_detailed_logging_enabled", 10)
+
+        wait(lambda: self._get_detailed_logging_chunk_count() is not None)
+        initial_count = self._get_detailed_logging_chunk_count()
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        set(f"#{chunk_id}/@enable_detailed_chunk_logs", True)
+        wait(lambda: self._get_detailed_logging_chunk_count() == initial_count + 1)
+
+        # Removing the table destroys the chunk and must free its slot.
+        remove("//tmp/t")
+        gc_collect()
+        wait(lambda: self._get_detailed_logging_chunk_count() == initial_count)
+
+    @authors("evanevannnn")
+    def test_detailed_chunk_logging_persistence(self):
+        set("//sys/@config/chunk_manager/max_chunks_with_detailed_logging_enabled", 10)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        set(f"#{chunk_id}/@enable_detailed_chunk_logs", True)
+        assert get(f"#{chunk_id}/@enable_detailed_chunk_logs")
+
+        build_snapshot(cell_id=get("//sys/@cell_id"))
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        assert get(f"#{chunk_id}/@enable_detailed_chunk_logs")
+
+    @authors("evanevannnn")
+    def test_detailed_chunk_logging_alert(self):
+        def has_alert(msg):
+            for alert in get("//sys/@master_alerts"):
+                if msg in str(alert):
+                    return True
+            return False
+
+        set("//sys/@config/chunk_manager/max_chunks_with_detailed_logging_enabled", 10)
+        set("//sys/@config/chunk_manager/detailed_logging_enabled_alert_time", 1000)
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        assert not has_alert("Chunk stays in detailed logging set for too long")
+
+        set(f"#{chunk_id}/@enable_detailed_chunk_logs", True)
+
+        # The alert must eventually fire once the chunk stays in the set past the threshold.
+        wait(lambda: has_alert("Chunk stays in detailed logging set for too long"))
+
+        # Disabling logging must clear the alert (the alert source is self-clearing).
+        set(f"#{chunk_id}/@enable_detailed_chunk_logs", False)
+        wait(lambda: not has_alert("Chunk stays in detailed logging set for too long"))
+
 
 ##################################################################
 

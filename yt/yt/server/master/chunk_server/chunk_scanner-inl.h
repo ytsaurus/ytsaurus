@@ -195,10 +195,11 @@ constexpr TChunk* TChunkScanQueueWithPayload<TPayload>::GetChunk(const TQueuedCh
 
 template <class TPayload>
 TChunkScannerWithPayload<TPayload>::TChunkScannerWithPayload(
+    NCellMaster::TBootstrap* bootstrap,
     EChunkScanKind kind,
     bool journal)
     : TBase(kind, journal)
-    , TChunkQueue(kind)
+    , TChunkQueue(bootstrap, kind)
 { }
 
 template <class TPayload>

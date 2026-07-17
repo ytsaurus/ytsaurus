@@ -278,6 +278,9 @@ private:
         descriptors->emplace_back(EInternedAttributeKey::ScheduleReincarnation)
             .SetWritable(!isForeign)
             .SetPresent(false);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableDetailedChunkLogs)
+            .SetWritable(!chunk->IsForeign())
+            .SetPresent(!chunk->IsForeign()));
     }
 
     void SerializeReplica(
@@ -962,6 +965,16 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::EnableDetailedChunkLogs: {
+                if (isForeign) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(chunkManager->IsDetailedChunkLoggingEnabled(chunk));
+                return true;
+            }
+
             default:
                 break;
         }
@@ -1290,6 +1303,20 @@ private:
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 const auto& chunkReincarnator = chunkManager->GetChunkReincarnator();
                 chunkReincarnator->ScheduleReincarnation(chunk, ConvertTo<TChunkReincarnationOptions>(value));
+
+                return true;
+            }
+
+            case EInternedAttributeKey::EnableDetailedChunkLogs: {
+                auto* chunk = GetThisImpl<TChunk>();
+                if (chunk->IsForeign()) {
+                    THROW_ERROR_EXCEPTION("Detailed chunk logging can be enabled for native chunks only");
+                }
+
+                ValidateSuperuserOnAttributeModification(Bootstrap_->GetSecurityManager(), key.Unintern());
+
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                chunkManager->SetDetailedChunkLogging(chunk, ConvertTo<bool>(value));
 
                 return true;
             }

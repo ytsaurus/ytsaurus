@@ -179,6 +179,7 @@
     XX(EnableByUserProfiling, enable_by_user_profiling) \
     XX(EnableChunkReincarnation, enable_chunk_reincarnation) \
     XX(EnableConsistentChunkReplicaPlacement, enable_consistent_chunk_replica_placement) \
+    XX(EnableDetailedChunkLogs, enable_detailed_chunk_logs) \
     XX(EnableDetailedLogs, enable_detailed_logs) \
     XX(EnableDetailedProfiling, enable_detailed_profiling) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
