@@ -2443,8 +2443,12 @@ private:
             NodeUnregistered_.Fire(node);
 
             if (propagate) {
-                if (IsLeader()) {
-                    NodeDisposalManager_->DisposeNodeWithSemaphore(node);
+                if (node->Flavors().contains(ENodeFlavor::Data)) {
+                    if (IsLeader()) {
+                        NodeDisposalManager_->DisposeNodeWithSemaphore(node);
+                    }
+                } else {
+                    NodeDisposalManager_->DisposeNodeCompletely(node);
                 }
 
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
