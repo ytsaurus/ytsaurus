@@ -665,6 +665,10 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeoutUser)
         .SetPresent(node->GetExpirationTimeoutUser().value_or(nullptr) != nullptr)
         .SetWritable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeArmingTime)
+        .SetPresent(node->GetExpirationTime().has_value()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeoutArmingTime)
+        .SetPresent(node->GetExpirationTimeout().has_value()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeLastResetTime)
         .SetPresent(node->GetExpirationTimeLastResetTime().has_value()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeoutLastResetTime)
@@ -975,6 +979,26 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
             BuildYsonFluently(consumer)
                 .Value(expirationTimeoutUser->GetName());
+            return true;
+        }
+
+        case EInternedAttributeKey::ExpirationTimeArmingTime: {
+            auto optionalExpirationTimeArmingTime = node->GetExpirationTimeArmingTime();
+            if (!optionalExpirationTimeArmingTime) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*optionalExpirationTimeArmingTime);
+            return true;
+        }
+
+        case EInternedAttributeKey::ExpirationTimeoutArmingTime: {
+            auto optionalExpirationTimeoutArmingTime = node->GetExpirationTimeoutArmingTime();
+            if (!optionalExpirationTimeoutArmingTime) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*optionalExpirationTimeoutArmingTime);
             return true;
         }
 
