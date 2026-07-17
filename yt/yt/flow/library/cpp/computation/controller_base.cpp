@@ -3,6 +3,8 @@
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
 
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+
 #include <library/cpp/iterator/concatenate.h>
 
 namespace NYT::NFlow {
@@ -151,7 +153,8 @@ std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
     const std::vector<TNodeTraverseDataPtr>& nodes,
     const TComputationSpecPtr& spec,
     const TSensorsOwner& sensorsOwner,
-    const NLogging::TLogger& logger)
+    const NLogging::TLogger& logger,
+    const IStatusErrorStatePtr& watermarkStallErrorState)
 {
     struct TIdlePartitionsSensors
     {
@@ -175,6 +178,7 @@ std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
     if (!idleSpec) {
         sensors.Detected.Update(0);
         sensors.Ignored.Update(0);
+        watermarkStallErrorState->ClearError();
         return nodes;
     }
 
@@ -226,6 +230,23 @@ std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
             .With("IdleDuration", idleSpec->Duration)
             .With("Result", result);
     }
+
+    // When the idle fraction exceeds |MaxRatio| (so some idle partitions cannot be ignored) but stays
+    // below 100%, the remaining idle partitions gate the watermark. The all-idle case is handled
+    // elsewhere, so warn the pipeline owner only about this partial-idle stall. The status-profiler
+    // error state is a persistent leaf: it is raised while the stall holds and cleared otherwise, and
+    // its own break/recover logging (wired to the public logger) surfaces the message to the owner.
+    if (statistics.Detected > statistics.IgnoreLimit && statistics.Detected < statistics.TotalPartitions) {
+        watermarkStallErrorState->SetError(TError(
+            "Watermark cannot advance because too many source partitions are idle")
+            << TErrorAttribute("idle_partitions", statistics.Detected)
+            << TErrorAttribute("total_partitions", statistics.TotalPartitions)
+            << TErrorAttribute("watermark_gating_partitions", statistics.Detected - statistics.Ignored)
+            << TErrorAttribute("max_ratio", idleSpec->MaxRatio));
+    } else {
+        watermarkStallErrorState->ClearError();
+    }
+
     return preparedNodes;
 }
 
@@ -351,7 +372,8 @@ std::vector<TNodeTraverseDataPtr> ApplyEventWatermarkComputeRule(
     const THashMap<std::string, std::vector<TNodeTraverseDataPtr>>& nodesByAvailabilityGroup,
     const TComputationSpecPtr& spec,
     const TSensorsOwner& sensorsOwner,
-    const NLogging::TLogger& logger)
+    const NLogging::TLogger& logger,
+    const IStatusErrorStatePtr& watermarkStallErrorState)
 {
     if (!spec->WatermarkStrategy->WatermarkGenerator) {
         std::vector<TNodeTraverseDataPtr> allNodes;
@@ -362,7 +384,7 @@ std::vector<TNodeTraverseDataPtr> ApplyEventWatermarkComputeRule(
     }
 
     const auto nodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(nodesByAvailabilityGroup, spec, sensorsOwner, logger);
-    const auto afterIdle = ApplyIdlePartitionsRule(nodes, spec, sensorsOwner, logger);
+    const auto afterIdle = ApplyIdlePartitionsRule(nodes, spec, sensorsOwner, logger, watermarkStallErrorState);
     auto preparedNodes = ApplyLateDataPartitionsRule(afterIdle, spec, sensorsOwner, logger);
 
     return preparedNodes;
@@ -509,6 +531,9 @@ TComputationControllerBase::TComputationControllerBase(
     , Context_(std::move(context))
     , Parameters_(DynamicPointerCast<IComputationController::TParameters>(TRegistry::Get()->ParseComputationParameters(Context_->ComputationSpec)))
     , SensorsOwner_(Context_->Profiler)
+    // On a controller node the root status profiler is wired to the public logger, so raising or
+    // clearing this error state also emits a public break/recover log line for the pipeline owner.
+    , IdlePartitionsWatermarkStallErrorState_(Context_->StatusProfiler->ErrorState("/idle_partitions_watermark_stall"))
     , DynamicContext_(std::move(dynamicContext))
     , DynamicParameters_(DynamicPointerCast<IComputationController::TDynamicParameters>(
         TRegistry::Get()->ParseDynamicComputationParameters(Context_->ComputationSpec, DynamicContext_.Acquire()->DynamicComputationSpec)))
@@ -633,7 +658,8 @@ TProcessPartitionTraverseDataResultPtr TComputationControllerBase::ProcessPartit
         nodesByAvailabilityGroup,
         GetSpec(),
         SensorsOwner_,
-        Logger);
+        Logger,
+        IdlePartitionsWatermarkStallErrorState_);
     if (futurePartitionsTraverse.has_value()) {
         preparedTraverseData.push_back(*futurePartitionsTraverse);
     }

@@ -3,11 +3,15 @@
 #include <yt/yt/flow/library/cpp/common/public.h>
 #include <yt/yt/flow/library/cpp/common/worker/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NFlow::NWorker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, WorkerLogger, "FlowWorker");
+// Lives here (not private.h) so cross-role code such as the runner can reach it.
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, WorkerProfiler, "", "yt.flow.worker");
 
 DECLARE_REFCOUNTED_STRUCT(TJobContext)
 DECLARE_REFCOUNTED_STRUCT(TJobOrchidState)
