@@ -1179,6 +1179,16 @@ const TJobStatusPtr& TFlowFeedback::GetCurrentJobStatus(const TPartitionId& part
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicPartitionSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("finish_after_current_epoch", &TThis::FinishAfterCurrentEpoch)
+        .Default(false);
+    registrar.Parameter("computation_partition_spec", &TThis::ComputationPartitionSpec)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TPartitionEphemeralState::Register(TRegistrar registrar)
 {
     registrar.Parameter("previous_job_finish_reason", &TThis::PreviousJobFinishReason)
@@ -1195,7 +1205,7 @@ void TPartitionEphemeralState::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("dynamic_partition_spec", &TThis::DynamicPartitionSpec)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("pending_graceful_rebalance_worker_address", &TThis::PendingGracefulRebalanceWorkerAddress)
         .Default();

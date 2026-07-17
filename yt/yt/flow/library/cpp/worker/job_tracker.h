@@ -65,7 +65,7 @@ struct IJobTracker
 
     virtual void Reconfigure(
         TExecutionSpecPtr executionSpec,
-        const THashMap<TJobId, NYTree::IMapNodePtr>& dynamicComputationPartitionSpecs) = 0;
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& dynamicComputationPartitionSpecs) = 0;
 
     virtual void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo) = 0;
 

@@ -12,8 +12,6 @@
 #include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
 
-#include <yt/yt/flow/library/cpp/computation/computation_base.h>
-
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/flow/lib/client/public.h>
@@ -416,11 +414,7 @@ public:
                 }
 
                 (*eph)->PendingGracefulRebalanceWorkerAddress = std::nullopt;
-                if ((*eph)->DynamicPartitionSpec) {
-                    auto spec = ConvertTo<TUniversalComputationDynamicPartitionSpecPtr>((*eph)->DynamicPartitionSpec);
-                    spec->FinishAfterCurrentEpoch = false;
-                    (*eph)->DynamicPartitionSpec = ConvertToNode(spec)->AsMap();
-                }
+                (*eph)->DynamicPartitionSpec->FinishAfterCurrentEpoch = false;
 
                 YT_TLOG_INFO("Graceful rebalance: recreating job on target worker")
                     .With("JobId", currentJobStatus->JobId)
@@ -772,15 +766,7 @@ public:
             partitionState->PendingGracefulRebalanceWorkerAddress = targetWorkerAddress;
             partitionState->PreviousRebalancingInstant = TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying());
 
-            // Build a new DynamicPartitionSpec with FinishAfterCurrentEpoch=true, preserving existing fields.
-            auto newSpec = New<TUniversalComputationDynamicPartitionSpec>();
-            newSpec->FinishAfterCurrentEpoch = true;
-            if (partitionState->DynamicPartitionSpec) {
-                auto existing = ConvertTo<TUniversalComputationDynamicPartitionSpecPtr>(partitionState->DynamicPartitionSpec);
-                newSpec->ActiveSource = existing->ActiveSource;
-                newSpec->BlockedOutputStreams = existing->BlockedOutputStreams;
-            }
-            partitionState->DynamicPartitionSpec = ConvertToNode(newSpec)->AsMap();
+            partitionState->DynamicPartitionSpec->FinishAfterCurrentEpoch = true;
 
             YT_TLOG_INFO("Graceful rebalance initiated")
                 .With("PartitionId", partition->PartitionId)
@@ -793,7 +779,7 @@ public:
             // response omits its job, which then dies by the status timeout with a misleading
             // "worker is lost" error. Name the real problem instead.
             const auto* partitionState = flowView->EphemeralState->Partitions.FindPtr(partitionId);
-            if (!partitionState || !(*partitionState)->DynamicPartitionSpec) {
+            if (!partitionState || !(*partitionState)->DynamicPartitionSpec->ComputationPartitionSpec) {
                 YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Creating job for a partition without dynamic partition spec; the job cannot start until the spec appears")
                     .With("PartitionId", partitionId)
                     .With("ComputationId", GetOrCrash(layout->Partitions, partitionId)->ComputationId);

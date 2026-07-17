@@ -299,7 +299,7 @@ public:
 
     void Reconfigure(
         TExecutionSpecPtr newExecutionSpec,
-        const THashMap<TJobId, NYTree::IMapNodePtr>& newDynamicComputationPartitionSpecs) override
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& newDynamicComputationPartitionSpecs) override
     {
         YT_ASSERT_THREAD_AFFINITY(Control);
 
@@ -747,7 +747,7 @@ private:
 
     static THashMap<TJobId, TDynamicJobSpecPtr> BuildNewJobSpecs(
         const THashMap<TJobId, TDynamicJobSpecPtr>& oldDynamicJobSpecs,
-        const THashMap<TJobId, NYTree::IMapNodePtr>& newDynamicComputationPartitionSpecs,
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& newDynamicComputationPartitionSpecs,
         const TExecutionSpecPtr& oldExecutionSpec,
         const TExecutionSpecPtr& newExecutionSpec)
     {
@@ -777,7 +777,11 @@ private:
                 }
             }
 
-            if (oldDynamicJobSpec && AreNodesEqual(oldDynamicJobSpec->DynamicComputationPartitionSpec, newDynamicComputationPartitionSpec)) {
+            if (oldDynamicJobSpec &&
+                AreNodesEqual(
+                    ConvertToNode(oldDynamicJobSpec->DynamicComputationPartitionSpec),
+                    ConvertToNode(newDynamicComputationPartitionSpec)))
+            {
                 newDynamicJobSpec->DynamicComputationPartitionSpec = oldDynamicJobSpec->DynamicComputationPartitionSpec;
             } else {
                 newDynamicJobSpec->DynamicComputationPartitionSpec = newDynamicComputationPartitionSpec;

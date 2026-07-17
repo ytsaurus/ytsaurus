@@ -629,17 +629,22 @@ void TComputationControllerBase::CreateRangePartition(
 void TComputationControllerBase::UpdateDynamicPartitionSpec(
     const TFlowViewPtr& flowView,
     const TPartitionId& partitionId,
-    const NYTree::IMapNodePtr& dynamicPartitionSpec)
+    const NYTree::IMapNodePtr& dynamicComputationPartitionSpec)
 {
-    auto& oldDynamicPartitionSpec = flowView->EphemeralState->GetPartitionState(partitionId)->DynamicPartitionSpec;
+    // The iteration owns a deep clone of the ephemeral state, so in-place
+    // mutation is safe; the job-manager-owned fields are left untouched.
+    const auto& spec = flowView->EphemeralState->GetPartitionState(partitionId)->DynamicPartitionSpec;
     // TODO: Improve perf.
-    if (oldDynamicPartitionSpec && (oldDynamicPartitionSpec == dynamicPartitionSpec || AreNodesEqual(oldDynamicPartitionSpec, dynamicPartitionSpec))) {
+    if (spec->ComputationPartitionSpec &&
+        (spec->ComputationPartitionSpec == dynamicComputationPartitionSpec ||
+            AreNodesEqual(spec->ComputationPartitionSpec, dynamicComputationPartitionSpec)))
+    {
         return;
     }
+    spec->ComputationPartitionSpec = dynamicComputationPartitionSpec;
     YT_TLOG_INFO("Update dynamic partition spec")
         .With("PartitionId", partitionId)
-        .With("NewDynamicPartitionSpec", ConvertToYsonString(dynamicPartitionSpec, NYson::EYsonFormat::Text));
-    oldDynamicPartitionSpec = dynamicPartitionSpec;
+        .With("NewDynamicPartitionSpec", ConvertToYsonString(spec, NYson::EYsonFormat::Text));
 }
 
 TProcessPartitionTraverseDataResultPtr TComputationControllerBase::ProcessPartitionTraverseData(
