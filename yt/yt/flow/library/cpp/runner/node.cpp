@@ -169,7 +169,8 @@ private:
     TRichYPath PipelinePath_;
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NYTree::IMapNodePtr OrchidRoot_;
-    IStatusProfilerPtr RootStatusProfiler_;
+    IStatusProfilerPtr ControllerStatusProfiler_;
+    IStatusProfilerPtr WorkerStatusProfiler_;
     NConcurrency::IEnumIndexedFairShareActionQueuePtr<NController::EControlQueue> ControlQueue_;
 
     NBus::IBusServerPtr BusServer_;
@@ -436,27 +437,23 @@ private:
         }
         TSingletonManager::Configure(patchedSingletonsConfig);
 
-        // A combined controller+worker node shares one status profiler; its components report
-        // under the controller namespace. The general dashboard sums both roles, so the
-        // problematic-places total stays correct regardless of the namespace picked here.
-        RootStatusProfiler_ = CreateStatusProfiler(
-            ControlQueue_->GetInvoker(NController::EControlQueue::Default),
-            Logger(),
-            {},
-            NProfiling::TProfiler(
-                /*prefix*/ "",
-                Any(Mode_ & EFlowRunMode::Controller) ? "yt.flow.controller" : "yt.flow.worker"));
-
         SetNodeByYPath(
             OrchidRoot_,
             "/status_profiler",
             CreateVirtualNode(
-                IYPathService::FromProducer(BIND([profiler = RootStatusProfiler_] (IYsonConsumer* consumer) {
-                    auto status = profiler->GetStatus();
+                IYPathService::FromProducer(BIND([this] (IYsonConsumer* consumer) {
+                    THashMap<std::string, TError> errors;
+                    if (ControllerStatusProfiler_) {
+                        errors = ControllerStatusProfiler_->GetStatus().Errors;
+                    }
+                    if (WorkerStatusProfiler_) {
+                        auto workerErrors = WorkerStatusProfiler_->GetStatus().Errors;
+                        errors.insert(workerErrors.begin(), workerErrors.end());
+                    }
                     // clang-format off
                     BuildYsonFluently(consumer)
                         .BeginMap()
-                            .Item("errors").Value(status.Errors)
+                            .Item("errors").Value(errors)
                         .EndMap();
                     // clang-format on
                 }))));
@@ -465,6 +462,12 @@ private:
     void PrepareWorker()
     {
         ChannelFactory_ = NRpc::NBus::CreateTcpBusChannelFactory(Config_->Worker->Bus);
+
+        WorkerStatusProfiler_ = CreateStatusProfiler(
+            ControlQueue_->GetInvoker(NController::EControlQueue::Default),
+            NWorker::WorkerLogger(),
+            {},
+            NWorker::WorkerProfiler());
 
         const auto converterCache = CreatePayloadConverterCache(CreateFastColumnEvaluatorCache());
 
@@ -499,7 +502,7 @@ private:
         jobTrackerContext->HttpClient = HttpClient_;
         jobTrackerContext->HttpsClient = HttpsClient_;
         jobTrackerContext->Poller = HttpPoller_;
-        jobTrackerContext->StatusProfiler = RootStatusProfiler_;
+        jobTrackerContext->StatusProfiler = WorkerStatusProfiler_;
         // ControllerConnector_ is created just below; at call time it is always
         // initialized (jobs start running only after worker setup is complete).
         jobTrackerContext->DistributedThrottlerChannel = [this] () -> NRpc::IChannelPtr {
@@ -519,7 +522,7 @@ private:
             JobTracker_,
             streamSpecStorage,
             Config_->IgnoreSingletonsDynamicConfig,
-            RootStatusProfiler_);
+            WorkerStatusProfiler_);
         ControllerConnector_->Initialize();
 
         SetNodeByYPath(
@@ -546,6 +549,12 @@ private:
         ChannelFactory_ = NRpc::NBus::CreateTcpBusChannelFactory(Config_->Controller->Bus);
         ControllerYTConnector_ = CreateYTConnector(Config_->Controller, NodeInfo_, CommonYTConnector_, ControlQueue_);
 
+        ControllerStatusProfiler_ = CreateStatusProfiler(
+            ControlQueue_->GetInvoker(NController::EControlQueue::Default),
+            NController::PublicControllerLogger(),
+            {},
+            NController::ControllerProfiler());
+
         WorkerTracker_ = CreateWorkerTracker(ControlQueue_, ControllerYTConnector_, NodeInfo_);
         ControllerThreadPool_ = NConcurrency::CreateFairShareThreadPool(Config_->Controller->ControllerThreads, "Controller");
         PersistedStateManager_ = NController::CreatePersistedStateManager(ControllerYTConnector_, Config_->Controller->PersistedStateManager);
@@ -563,14 +572,14 @@ private:
             PipelineAuthenticator_,
             Config_->IgnoreSingletonsDynamicConfig,
             GetFlowTablesCellTag(),
-            RootStatusProfiler_);
+            ControllerStatusProfiler_);
         FlowExecutor_ = CreateFlowExecutor(
             Controller_,
             PersistedStateManager_,
             ControllerYTConnector_,
             Config_->Controller->ControllerService,
             OrchidRoot_,
-            RootStatusProfiler_,
+            ControllerStatusProfiler_,
             ControllerThreadPool_->GetInvoker("FlowExecutor"),
             HttpClient_,
             ChannelFactory_,

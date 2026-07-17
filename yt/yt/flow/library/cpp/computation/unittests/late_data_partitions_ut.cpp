@@ -2,6 +2,8 @@
 
 #include <yt/yt/flow/library/cpp/computation/controller_base.h>
 
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+
 namespace NYT::NFlow {
 namespace {
 
@@ -115,7 +117,8 @@ protected:
             {{"default", nodes}},
             spec,
             TSensorsOwner(),
-            TLogger("Test"));
+            TLogger("Test"),
+            CreateSyncStatusProfiler()->ErrorState("/idle_partitions_watermark_stall"));
     }
 
     i32 CountNodesWithWatermark(
