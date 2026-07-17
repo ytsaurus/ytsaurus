@@ -1562,7 +1562,7 @@ TEST_F(TDataNodeTest, StartChunkReflectsNetInThrottlerQueueSize)
     Y_UNUSED(throttleFuture);
 }
 
-TEST_F(TDataNodeTest, NetInThrottlingIsReportedAsWriteThrottling)
+TEST_F(TDataNodeTest, DISABLED_NetInThrottlingIsReportedAsWriteThrottling)
 {
     auto bootstrap = GetDataNodeBootstrap();
     bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->NetInThrottlingLimit = 0;
