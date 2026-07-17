@@ -17,7 +17,7 @@ from yt.yql.tests.sql.runners.common import (
 )
 from yt.yql.tests.sql.runners.compare import compare_file_run_with_reference
 
-DQRUN_PATH = yql_binary_path('contrib/ydb/library/yql/tools/dqrun/dqrun')
+DQRUN_PATH = yql_binary_path('yt/yql/tools/dqrun/dqrun')
 
 
 def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):

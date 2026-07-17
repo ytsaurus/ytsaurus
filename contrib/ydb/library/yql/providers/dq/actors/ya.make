@@ -29,7 +29,6 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/api/grpc
     contrib/ydb/library/yql/providers/dq/api/protos
     contrib/ydb/library/yql/providers/dq/common
-    contrib/ydb/library/yql/providers/dq/config
     contrib/ydb/library/yql/providers/dq/counters
     contrib/ydb/library/yql/providers/dq/interface
     contrib/ydb/library/yql/providers/dq/planner

@@ -1,4 +1,6 @@
-#include "yql_dq_gateway.h"
+#include "yql_dq_gateway_factory.h"
+
+#include <yt/yql/providers/dq/config/config.pb.h>
 
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <contrib/ydb/library/yql/providers/dq/api/grpc/api.grpc.pb.h>
@@ -7,7 +9,6 @@
 #include <yql/essentials/utils/backtrace/backtrace.h>
 #include <yql/essentials/utils/failure_injector/failure_injector.h>
 #include <yql/essentials/public/issue/yql_issue_message.h>
-#include <contrib/ydb/library/yql/providers/dq/config/config.pb.h>
 #include <yql/essentials/utils/log/log.h>
 
 #include <contrib/ydb/public/lib/yson_value/ydb_yson_value.h>
@@ -101,7 +102,7 @@ public:
             }
         }
     }
- 
+
     TString Print(const NDqs::TPlan& plan) {
         b.clear();
         b << "digraph G {\n";

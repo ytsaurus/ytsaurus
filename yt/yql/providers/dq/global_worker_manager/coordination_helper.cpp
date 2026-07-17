@@ -8,7 +8,7 @@
 #include <yt/yql/providers/dq/actors/yt/lock.h>
 #include <yt/yql/providers/dq/actors/yt/yt_wrapper.h>
 #include <yt/yql/providers/dq/actors/dummy_lock.h>
-#include <contrib/ydb/library/yql/providers/dq/service/interconnect_helpers.h>
+#include <yt/yql/providers/dq/service/interconnect_helpers.h>
 #include <contrib/ydb/library/yql/providers/dq/task_runner/file_cache.h>
 #include <contrib/ydb/library/yql/providers/dq/runtime/runtime_data.h>
 

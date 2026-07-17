@@ -58,9 +58,11 @@ PEERDIR(
     contrib/ydb/library/yql/providers/dq/helper
     contrib/ydb/library/yql/providers/dq/provider
     contrib/ydb/library/yql/providers/dq/provider/exec
-    contrib/ydb/library/yql/providers/dq/service
-    contrib/ydb/library/yql/providers/dq/stats_collector
     contrib/ydb/library/yql/providers/dq/worker_manager/interface
+    yt/yql/providers/dq/control
+    yt/yql/providers/dq/gateway
+    yt/yql/providers/dq/service
+    yt/yql/providers/dq/stats_collector
     yt/yql/providers/yt/gateway/native
     yt/yql/providers/yt/codec
     yt/yql/providers/yt/codec/codegen
