@@ -2419,6 +2419,15 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuff
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/journal_requisition_update_queue_size", JournalRequisitionUpdateScanner_->GetQueueSize());
 
+    for (auto queueKind : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
+        i64 repairQueueSize = 0;
+        for (const auto& queue : ChunkRepairQueues(queueKind)) {
+            repairQueueSize += queue.size();
+        }
+        TWithTagGuard tagGuard(buffer, "repair_queue", FormatEnum(queueKind));
+        buffer->AddGauge("/repair_queue_size", repairQueueSize);
+    }
+
     buffer->AddGauge("/awaiting_requisition_update_scheduling_chunk_count", ChunksAwaitingRequisitionUpdateScheduling_->GetQueueSize());
 
     buffer->AddGauge("/lost_chunk_count", LostChunks_.size());
@@ -2466,6 +2475,12 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuff
                 pullReplicationQueueSize += queue.size();
             }
             crpBuffer->AddGauge("/pull_replication_queue_size", pullReplicationQueueSize);
+
+            const auto& pushReplicationQueues = node->ChunkPushReplicationQueues();
+            for (int priority = 0; priority < std::ssize(pushReplicationQueues); ++priority) {
+                TWithTagGuard priorityTagGuard(crpBuffer, "priority", ToString(priority));
+                crpBuffer->AddGauge("/push_replication_queue_size", pushReplicationQueues[priority].size());
+            }
             crpBuffer->AddGauge("/crp_chunks_being_pulled_count", node->ChunksBeingPulled().size());
             crpBuffer->AddGauge("/crp_push_replication_target_node_id_count", node->PushReplicationTargetNodeIds().size());
 

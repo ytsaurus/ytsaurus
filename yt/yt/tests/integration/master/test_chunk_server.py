@@ -194,6 +194,75 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: get(f"//sys/cluster_nodes/{nodes[0]}/@decommissioned"))
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
 
+    def _get_chunk_replicator_profiler(self, chunk_id):
+        replicator_address = get(f"#{chunk_id}/@chunk_replicator_address")
+        if self.is_multicell():
+            cell_tag = get(f"#{chunk_id}/@native_cell_tag")
+            return profiler_factory().at_secondary_master(cell_tag, replicator_address)
+        else:
+            return profiler_factory().at_primary_master(replicator_address)
+
+    @authors("aleksandra-zh")
+    def test_repair_queue_size_profiling(self):
+        create("table", "//tmp/t")
+        set("//tmp/t/@erasure_codec", "reed_solomon_3_3")
+        write_table("//tmp/t", {"a": "b"})
+
+        sync_control_chunk_replicator(False)
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        nodes = get(f"#{chunk_id}/@stored_replicas")
+
+        profiler = self._get_chunk_replicator_profiler(chunk_id)
+
+        def get_missing_repair_queue_size():
+            return profiler.gauge(
+                "chunk_server/repair_queue_size",
+                fixed_tags={"repair_queue": "missing"},
+            ).get(default=0) or 0
+
+        set_node_banned(nodes[0], True, wait_for_master=False)
+
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 5)
+        wait(lambda: get_missing_repair_queue_size() > 0)
+
+        sync_control_chunk_replicator(True)
+
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
+        wait(lambda: get_missing_repair_queue_size() == 0)
+
+    @authors("aleksandra-zh")
+    def test_replication_queue_size_profiling(self):
+        set("//sys/@config/chunk_manager/destroyed_replicas_profiling_period", 100)
+
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", {"a": "b"})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        sync_control_chunk_replicator(False)
+
+        nodes = get(f"#{chunk_id}/@stored_replicas")
+        set_node_banned(nodes[0], True, wait_for_master=False)
+
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 2)
+
+        profiler = self._get_chunk_replicator_profiler(chunk_id)
+
+        def get_total_push_replication_queue_size():
+            return sum(
+                projection["value"]
+                for projection in profiler.get_all("chunk_server/push_replication_queue_size", tags={})
+            )
+
+        wait(lambda: get_total_push_replication_queue_size() > 0)
+
+        sync_control_chunk_replicator(True)
+
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+        wait(lambda: get_total_push_replication_queue_size() == 0)
+
     @authors("aleksandra-zh")
     def test_decommission_erasure_via_replication(self):
         set("//sys/@config/chunk_manager/enable_repair_via_replication", True)
