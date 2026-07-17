@@ -899,6 +899,7 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
     int blockCount,
     i64 cumulativeBlockSize,
     i64 ioConsumed,
+    std::optional<double> ioFairShareWeight,
     TDuration requestTimeout,
     bool instantReplyOnThrottling,
     const TNodeDescriptor& targetDescriptor)
@@ -920,6 +921,9 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
     req->set_first_block_index(firstBlockIndex);
     req->set_cumulative_block_size(cumulativeBlockSize);
     req->set_io_consumed(ioConsumed);
+    if (ioFairShareWeight) {
+        req->set_io_fair_share_weight(*ioFairShareWeight);
+    }
 
     i64 requestSize = 0;
 

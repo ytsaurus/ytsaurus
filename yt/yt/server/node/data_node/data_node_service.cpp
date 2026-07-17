@@ -527,6 +527,7 @@ private:
         bool flushBlocks = request->flush_blocks();
         i64 cumulativeBlockSize = request->cumulative_block_size();
         i64 ioConsumed = request->io_consumed();
+        auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
 
         ValidateOnline();
 
@@ -540,7 +541,7 @@ private:
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, PopulateCache: %v, "
             "FlushBlocks: %v, Medium: %v, "
-            "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v, IoConsumed: %v",
+            "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
             FormatBlocks(firstBlockIndex, lastBlockIndex),
             populateCache,
@@ -549,7 +550,8 @@ private:
             options.DisableSendBlocks,
             cumulativeBlockSize,
             blocksWindowShifted,
-            ioConsumed);
+            ioConsumed,
+            ioFairShareWeight);
 
         auto throttlingResult = location->CheckWriteThrottling(
             session->GetChunkId(),
@@ -631,14 +633,16 @@ private:
         i64 cumulativeBlockSize = request->cumulative_block_size();
         i64 ioConsumed = request->io_consumed();
         auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
+        auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
 
         context->SetRequestInfo(
-            "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v, IoConsumed: %v",
+            "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
             FormatBlocks(firstBlockIndex, lastBlockIndex),
             cumulativeBlockSize,
             targetDescriptor,
-            ioConsumed);
+            ioConsumed,
+            ioFairShareWeight);
 
         ValidateOnline();
 
@@ -667,7 +671,7 @@ private:
 
         auto fraction = GetFallbackTimeoutFraction().value_or(1);
         auto timeout = *context->GetTimeout() * fraction;
-        context->ReplyFrom(session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, ioConsumed, timeout, enableSendBlocksNetThrottling, targetDescriptor)
+        context->ReplyFrom(session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, ioConsumed, ioFairShareWeight, timeout, enableSendBlocksNetThrottling, targetDescriptor)
             .Apply(BIND([=] (const TErrorOr<ISession::TSendBlocksResult>& rspOrError) {
                 if (rspOrError.IsOK()) {
                     const auto& rsp = rspOrError.Value();
@@ -960,12 +964,13 @@ private:
         bool enableP2P = request->enable_p2p();
         bool fetchNodeDescriptors = request->fetch_node_descriptors();
 
-        context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v, IoConsumed: %v",
+        context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
             MakeCompactIntervalView(blockIndexes),
             blockIndexes.size(),
             workloadDescriptor,
-            request->io_consumed());
+            request->io_consumed(),
+            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
 
         ValidateOnline();
 
@@ -1257,14 +1262,15 @@ private:
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, "
             "PopulateCache: %v, FetchFromCache: %v, "
-            "FetchFromDisk: %v, Workload: %v, IoConsumed: %v",
+            "FetchFromDisk: %v, Workload: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
             MakeCompactIntervalView(blockIndexes),
             populateCache,
             fetchFromCache,
             fetchFromDisk,
             workloadDescriptor,
-            request->io_consumed());
+            request->io_consumed(),
+            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
 
         ValidateOnline();
 
@@ -1400,12 +1406,13 @@ private:
         bool populateCache = request->populate_cache();
 
         context->SetRequestInfo(
-            "ChunkId: %v, Blocks: %v, PopulateCache: %v, Workload: %v, IoConsumed: %v",
+            "ChunkId: %v, Blocks: %v, PopulateCache: %v, Workload: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
             FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
             populateCache,
             workloadDescriptor,
-            request->io_consumed());
+            request->io_consumed(),
+            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
 
         ValidateOnline();
 
@@ -1981,14 +1988,15 @@ private:
         const auto& schemaData = request->schema_data();
 
         context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, "
-            "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v, IoConsumed: %v",
+            "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
             readSessionId,
             workloadDescriptor,
             populateCache,
             enableHashChunkIndex,
             schemaData.has_schema(),
-            request->io_consumed());
+            request->io_consumed(),
+            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
 
         ValidateOnline();
 
@@ -2112,13 +2120,14 @@ private:
         bool enableThrottling = request->enable_throttling();
         auto supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
 
-        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTags: %v, Workload: %v, EnableThrottling: %v, IoConsumed: %v",
+        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTags: %v, Workload: %v, EnableThrottling: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
             extensionTags,
             partitionTags,
             workloadDescriptor,
             enableThrottling,
-            request->io_consumed());
+            request->io_consumed(),
+            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
 
         ValidateOnline();
 

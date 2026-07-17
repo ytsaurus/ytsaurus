@@ -105,6 +105,7 @@ private:
         int blockCount,
         i64 cumulativeBlockSize,
         i64 ioConsumed,
+        std::optional<double> ioFairShareWeight,
         TDuration requestTimeout,
         bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;

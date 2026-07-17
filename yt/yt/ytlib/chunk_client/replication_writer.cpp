@@ -85,6 +85,18 @@ void SetRequestIoConsumed(const TRequestPtr& req, const TClientChunkWriteOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Reports the configured I/O fair-share weight to the data node via the
+// io_fair_share_weight request field. No-op when the weight is not set.
+template <class TRequestPtr>
+void SetRequestIoFairShareWeight(const TRequestPtr& req, std::optional<double> weight)
+{
+    if (weight) {
+        req->set_io_fair_share_weight(*weight);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TReplicationWriter)
 DECLARE_REFCOUNTED_CLASS(TNode)
 DECLARE_REFCOUNTED_CLASS(TGroup)
@@ -1477,6 +1489,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
         req->set_populate_cache(writer->Config_->PopulateCache);
         req->set_cumulative_block_size(CumulativeBlockSize_);
         SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
+        SetRequestIoFairShareWeight(req, writer->Config_->IoFairShareWeight);
 
         SetRpcAttachedBlocks(req, Blocks_);
 
@@ -1578,6 +1591,7 @@ void TGroup::SendGroup(
         req->set_block_count(Blocks_.size());
         req->set_cumulative_block_size(CumulativeBlockSize_);
         SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
+        SetRequestIoFairShareWeight(req, writer->Config_->IoFairShareWeight);
         ToProto(req->mutable_target_descriptor(), dstNode->GetDescriptor());
 
         sendBlocksFutures.push_back(req->Invoke());

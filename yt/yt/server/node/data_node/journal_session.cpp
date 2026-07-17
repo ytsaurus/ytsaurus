@@ -199,6 +199,7 @@ TFuture<TJournalSession::TSendBlocksResult> TJournalSession::DoSendBlocks(
     int /*blockCount*/,
     i64 /*cumulativeBlockSize*/,
     i64 /*ioConsumed*/,
+    std::optional<double> /*ioFairShareWeight*/,
     TDuration /*requestTimeout*/,
     bool /*instantReplyOnThrottling*/,
     const TNodeDescriptor& /*target*/)
