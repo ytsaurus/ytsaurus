@@ -13,33 +13,28 @@ jobs:
       - name: Unittests (cmake)
         shell: bash
         run: |
-          cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_cmake_release
-          ln -s $(pwd)/../build_cmake_release $(pwd)/../build
-          cd ../build
-          ./run_unittests.sh
+          ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../build_cmake_release
 
       - name: Unittests (ya-make)
         shell: bash
         run: |
-          cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_ya-make_release
-          ln -s $(pwd)/../build_ya-make_release $(pwd)/../build
-          cd ../build
-          ./run_unittests.sh
+          ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../build_ya-make_release
 
-      - name: Prepare pytest environment
+      - name: Setup build symlink
         shell: bash
         run: |
-          ytsaurus/yt/yt/scripts/prepare_pytest_environment.sh
+          rm -rf "$(pwd)/../build"
+          ln -sfn "$(pwd)/../build_ya-make_release" "$(pwd)/../build"
 
       - name: Integration tests
         shell: bash
         run: |
-          ytsaurus/yt/yt/scripts/run_integration_tests.sh
+          ./ytsaurus/yt/yt/scripts/run_tests.sh integration
 
       - name: Python tests
         shell: bash
         run: |
-          ytsaurus/yt/yt/scripts/run_python_tests.sh
+          ./ytsaurus/yt/yt/scripts/run_tests.sh python
 
       - name: Odin tests
         shell: bash
