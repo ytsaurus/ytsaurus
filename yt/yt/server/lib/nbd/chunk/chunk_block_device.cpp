@@ -113,7 +113,7 @@ public:
             return MakeFuture<TReadResponse>({});
         }
 
-        // Acquire reader lock to prevent concurrent Initialize/Finalize.
+        // Acquire reader lock to prevent concurrent Initialize/Finalize/Flush.
         return TAsyncLockReaderGuard::Acquire(&InitLock_)
             .AsUnique()
             .Apply(BIND(
@@ -243,7 +243,7 @@ public:
             return MakeFuture<TWriteResponse>({});
         }
 
-        // Acquire reader lock to prevent concurrent Initialize/Finalize.
+        // Acquire reader lock to prevent concurrent Initialize/Finalize/Flush.
         return TAsyncLockReaderGuard::Acquire(&InitLock_)
             .AsUnique()
             .Apply(BIND(
@@ -358,23 +358,19 @@ public:
 
     TFuture<void> Flush(const TFlushOptions& options) override
     {
-        // Acquire reader lock so that Finalize() (which acquires the writer lock) cannot
-        // tear down the chunk handler while an in-flight Flush() is still issuing RPCs.
-        return TAsyncLockReaderGuard::Acquire(&InitLock_)
-            .AsUnique()
+        // Acquire writer lock so that all in-flight Read/Write operations complete before
+        // the flush starts. With only a reader lock, concurrent writes could dirty new pages
+        // after the dirty-page snapshot is taken inside ChunkHandler_->Flush(), making
+        // those bytes miss the flush. The writer lock turns Flush into a true IO barrier:
+        // all writes before Flush are guaranteed durable before Flush returns.
+        return TAsyncLockWriterGuard::Acquire(&InitLock_)
             .Apply(BIND(
-                [this, this_ = MakeStrong(this), cookie = options.Cookie] (TReaderGuardPtr&& readerGuard) mutable -> TFuture<void> {
+                [this, this_ = MakeStrong(this), cookie = options.Cookie]
+                (TIntrusivePtr<TAsyncLockWriterGuard> writerGuard) -> TFuture<void> {
                     return ChunkHandler_->Flush({.Cookie = cookie})
                         .Apply(BIND(
-                            [this, this_ = MakeStrong(this), readerGuard = std::move(readerGuard)] (const TError& flushError) mutable -> TFuture<void> {
-                                // Wait for in-flight requests regardless of flush outcome:
-                                // the barrier must hold even if the handler flush failed.
-                                return AllSet(CollectAllInflightFutures()).AsVoid()
-                                    .Apply(BIND([flushError] () {
-                                        if (!flushError.IsOK()) {
-                                            THROW_ERROR flushError;
-                                        }
-                                    }));
+                            [writerGuard = std::move(writerGuard)] () {
+                                // writerGuard is destroyed here, releasing the writer lock.
                             }));
                 }));
     }
@@ -418,31 +414,6 @@ public:
     }
 
 private:
-    static IChunkHandlerPtr CreateRequestHandler(
-        TChunkBlockDevice* blockDevice,
-        TChunkBlockDeviceConfigPtr config,
-        IInvokerPtr invoker,
-        IChannelPtr channel,
-        TSessionId sessionId,
-        const TLogger& logger)
-    {
-        auto chunkHandler = CreateChunkHandler(
-            blockDevice,
-            config,
-            invoker,
-            std::move(channel),
-            sessionId,
-            logger);
-        if (config->PageCache) {
-            return New<TPageCache>(
-                config->PageCache,
-                std::move(chunkHandler),
-                invoker,
-                logger);
-        }
-        return chunkHandler;
-    }
-
     const std::string ExportId_;
     const TChunkBlockDeviceConfigPtr Config_;
     const IThroughputThrottlerPtr ReadThrottler_;
@@ -452,8 +423,8 @@ private:
     const TLogger Logger;
     const IChunkHandlerPtr ChunkHandler_;
 
-    //! Async RW lock protecting Initialize/Finalize from concurrent Read/Write:
-    //! Read and Write acquire reader locks; Initialize and Finalize acquire the writer lock.
+    //! Async RW lock protecting lifecycle operations and Flush barriers from concurrent IO:
+    //! Read and Write acquire reader locks; Initialize, Finalize and Flush acquire writer locks.
     TAsyncReaderWriterLock InitLock_;
 
     struct TInflightRequest
@@ -495,13 +466,17 @@ private:
                 return;
             }
 
-            // Signal Done with the request outcome so that conflict waiters
-            // can distinguish a failed request from a successful one.
-            It_->Done.TrySet(Error_);
-
-            // Unregister from the inflight list.
-            auto guard = Guard(*Lock_);
-            List_->erase(It_);
+            // Unregister from the inflight list first, then signal Done.
+            // If Done were signalled while the request was still in the list,
+            // a waiter that wakes up immediately could register a new request
+            // and observe this completed entry as a conflict.
+            TPromise<void> done;
+            {
+                auto guard = Guard(*Lock_);
+                done = It_->Done;
+                List_->erase(It_);
+            }
+            done.TrySet(Error_);
         }
 
         //! Record the request error so the destructor can propagate it to
@@ -536,6 +511,31 @@ private:
         TDuration ConflictWaitDuration;
         TDuration ThrottleWaitDuration;
     };
+
+    static IChunkHandlerPtr CreateRequestHandler(
+        TChunkBlockDevice* blockDevice,
+        TChunkBlockDeviceConfigPtr config,
+        IInvokerPtr invoker,
+        IChannelPtr channel,
+        TSessionId sessionId,
+        const TLogger& logger)
+    {
+        auto chunkHandler = CreateChunkHandler(
+            blockDevice,
+            config,
+            invoker,
+            std::move(channel),
+            sessionId,
+            logger);
+        if (config->PageCache) {
+            return New<TPageCache>(
+                config->PageCache,
+                std::move(chunkHandler),
+                invoker,
+                logger);
+        }
+        return chunkHandler;
+    }
 
     static bool Overlaps(i64 offset1, i64 length1, i64 offset2, i64 length2)
     {
@@ -575,17 +575,6 @@ private:
         return {TInflightRequestGuard(&InflightRequests_, &InflightLock_, it), std::move(conflicts)};
     }
 
-    //! Collects futures of all currently inflight requests.
-    std::vector<TFuture<void>> CollectAllInflightFutures() const
-    {
-        auto guard = Guard(InflightLock_);
-        std::vector<TFuture<void>> futures;
-        futures.reserve(InflightRequests_.size());
-        for (const auto& req : InflightRequests_) {
-            futures.push_back(req.Done.ToFuture());
-        }
-        return futures;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
