@@ -1540,14 +1540,16 @@ private:
                 continue;
             }
 
-            if (auto it = chaosObject->Coordinators().find(coordinatorCellId); !it || it->second.State != EShortcutState::Granting) {
+            if (auto it = chaosObject->Coordinators().find(coordinatorCellId);
+                it == chaosObject->Coordinators().end() || it->second.State != EShortcutState::Granting)
+            {
                 YT_LOG_WARNING("Got grant shortcut response but shortcut is not waiting for it "
                     "(ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v, ShortcutState: %v)",
                     chaosObjectId,
                     TypeFromId(chaosObjectId),
                     era,
                     coordinatorCellId,
-                    it ? std::make_optional(it->second.State) : std::nullopt);
+                    it != chaosObject->Coordinators().end() ? std::make_optional(it->second.State) : std::nullopt);
 
                 continue;
             }
@@ -1626,7 +1628,19 @@ private:
                 continue;
             }
 
-            if (auto it = chaosObject->Coordinators().find(coordinatorCellId); it && it->second.State != EShortcutState::Revoking) {
+            auto it = chaosObject->Coordinators().find(coordinatorCellId);
+            if (it == chaosObject->Coordinators().end()) {
+                YT_LOG_WARNING("Got revoke shortcut response but no shortcut is found "
+                    "(ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v)",
+                    chaosObjectId,
+                    TypeFromId(chaosObjectId),
+                    chaosObject->GetEra(),
+                    coordinatorCellId);
+
+                continue;
+            }
+
+            if (it->second.State != EShortcutState::Revoking) {
                 YT_LOG_WARNING("Got revoke shortcut response but shortcut is not waiting for it "
                     "(ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v, ShortcutState: %v)",
                     chaosObjectId,
