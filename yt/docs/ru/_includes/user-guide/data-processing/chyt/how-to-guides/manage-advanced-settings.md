@@ -370,6 +370,8 @@ YT-часть конфигурации инстанса задаётся в оп
 
 1. Чтобы применить изменения, нажмите кнопку **Confirm**.
 
+{% include [memory-usage-warning](./_includes/memory-usage-warning.md) %}
+
 ## Sticky query distribution { #sticky-query }
 
 Продвинутые опции **Enable sticky query distribution** и **Query sticky group size** управляют распределением запросов по инстансам с учётом кеширования.
