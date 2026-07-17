@@ -524,7 +524,7 @@ private:
 
             // We need 2 messages to be able to override some of them to debug.
             if (IsIncrementalHeartbeat_) {
-                YT_LOG_TRACE(
+                YT_LOG_DEBUG(
                     "Sequoia chunk replicas changed during incremental heartbeat (ChunkId: %v, StoredReplicasDiff: %v, LastSeenReplicasDiff: %v)",
                     chunkId,
                     MakeFormattableView(chunkModifiedReplicas.AddedReplicas, TChunkReplicaWithLocationIndexAndStateFormatter()),
