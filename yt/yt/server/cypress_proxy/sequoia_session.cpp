@@ -916,6 +916,23 @@ TFuture<TNodeIdToConstAttributes> TSequoiaSession::FetchNodeAttributesFromMaster
         }));
 }
 
+TFuture<IConstAttributeDictionaryPtr> TSequoiaSession::FetchSingleObjectAttributes(
+    TObjectId objectId,
+    const TAttributeFilter& attributeFilter) const
+{
+    auto requestTemplate = TYPathProxy::Get("&/@");
+    if (attributeFilter) {
+        ToProto(requestTemplate->mutable_attributes(), attributeFilter);
+    }
+
+    auto batcher = CreateGetBatcher(requestTemplate, {objectId});
+    return batcher.Invoke()
+        .Apply(BIND([=] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& rsp) -> IConstAttributeDictionaryPtr {
+            const auto& value = GetOrCrash(rsp, objectId).ValueOrThrow();
+            return ConvertToAttributes(TYsonString(value->value()));
+        }));
+}
+
 const NNative::IClientPtr& TSequoiaSession::GetNativeAuthenticatedClient() const
 {
     return NativeAuthenticatedClient_;
@@ -935,6 +952,10 @@ TMasterYPathProxy::TVectorizedGetBatcher TSequoiaSession::CreateGetBatcher(
             subbatchSize = it->second;
         }
     }
+
+    SetSuppressAccessLogging(requestTemplate, true);
+    SetSuppressAccessTracking(requestTemplate, true);
+    SetSuppressExpirationTimeoutRenewal(requestTemplate, true);
 
     return TMasterYPathProxy::CreateGetBatcher(
         GetNativeAuthenticatedClient(),

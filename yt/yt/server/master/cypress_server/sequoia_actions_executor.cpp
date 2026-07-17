@@ -15,6 +15,7 @@
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
@@ -910,6 +911,7 @@ private:
                 nodeId);
             SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), FromProto<TYsonString>(request->effective_acl()));
         }
+        SetSuppressAccessLogging(innerRequest, true);
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
@@ -968,6 +970,7 @@ private:
         if (request->has_effective_acl()) {
             SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), FromProto<TYsonString>(request->effective_acl()));
         }
+        SetSuppressAccessLogging(innerRequest, true);
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
@@ -1032,6 +1035,7 @@ private:
         auto innerRequest = TCypressYPathProxy::Remove(path);
         innerRequest->set_force(force);
         SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), FromProto<TYsonString>(request->effective_acl()));
+        SetSuppressAccessLogging(innerRequest, true);
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),

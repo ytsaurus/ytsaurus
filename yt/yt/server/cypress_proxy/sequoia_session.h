@@ -395,6 +395,10 @@ public:
         TRange<NCypressClient::TNodeId> nodeIds,
         const NYTree::TAttributeFilter& attributeFilter) const;
 
+    TFuture<NYTree::IConstAttributeDictionaryPtr> FetchSingleObjectAttributes(
+        NCypressClient::TObjectId objectId,
+        const NYTree::TAttributeFilter& attributeFilter) const;
+
     const NApi::NNative::IClientPtr& GetNativeAuthenticatedClient() const;
 
     NObjectClient::TMasterYPathProxy::TVectorizedGetBatcher CreateGetBatcher(
