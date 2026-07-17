@@ -102,7 +102,7 @@ TComputationBase::TComputationBase(
     , DynamicParameters_(DynamicPointerCast<IComputation::TDynamicParameters>(
         TRegistry::Get()->ParseDynamicComputationParameters(Context_->ComputationSpec, DynamicContext_->DynamicComputationSpec)))
     , DynamicPartitionSpec_(DynamicPointerCast<IComputation::TDynamicPartitionSpec>(
-        TRegistry::Get()->ParseDynamicComputationPartitionSpec(Context_->ComputationSpec, DynamicContext_->DynamicPartitionSpec)))
+        TRegistry::Get()->ParseDynamicComputationPartitionSpec(Context_->ComputationSpec, DynamicContext_->DynamicPartitionSpec->ComputationPartitionSpec)))
     , ThrottlerFactory_(NDistributedThrottler::CreateDistributedThrottlerFactory(
         Context_->DistributedThrottlerControllerChannelProvider,
         ToString(Context_->Job->JobId),
@@ -352,7 +352,7 @@ void TComputationBase::ApplyPendingStates()
         if (pending->DynamicPartitionSpec != DynamicContext_->DynamicPartitionSpec) {
             mask |= EWatchReconfigure::DynamicPartitionSpec;
             DynamicPartitionSpec_ = DynamicPointerCast<IComputation::TDynamicPartitionSpec>(
-                TRegistry::Get()->ParseDynamicComputationPartitionSpec(GetSpec(), pending->DynamicPartitionSpec));
+                TRegistry::Get()->ParseDynamicComputationPartitionSpec(GetSpec(), pending->DynamicPartitionSpec->ComputationPartitionSpec));
             YT_VERIFY(DynamicPartitionSpec_);
         }
 
@@ -607,8 +607,6 @@ void TUniversalComputationDynamicPartitionSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("blocked_output_streams", &TThis::BlockedOutputStreams)
         .Default();
-    registrar.Parameter("finish_after_current_epoch", &TThis::FinishAfterCurrentEpoch)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1470,7 +1468,7 @@ void TUniversalComputationBase::FinishRunIteration()
     // the current iteration's commit is already done, exit the run loop via
     // a typed exception so the controller can distinguish this from a real
     // partition completion in job feedback.
-    if (GetDynamicPartitionSpec()->FinishAfterCurrentEpoch) {
+    if (GetDynamicContext()->DynamicPartitionSpec->FinishAfterCurrentEpoch) {
         THROW_ERROR_EXCEPTION(
             EErrorCode::GracefulShutdown,
             "Job finished by graceful shutdown signal");

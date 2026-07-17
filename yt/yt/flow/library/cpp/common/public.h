@@ -66,6 +66,7 @@ static constexpr auto InfinitySystemTimestamp = TSystemTimestamp(0xfffffffffffff
 static constexpr auto ZeroSystemTimestamp = TSystemTimestamp(0);
 
 DECLARE_REFCOUNTED_STRUCT(ITimeProvider);
+DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionSpec);
 
 struct TMessageMeta;
 struct TMessage;

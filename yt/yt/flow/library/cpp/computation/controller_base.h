@@ -112,6 +112,8 @@ public:
         const TKey& upperKey,
         const NYTree::IMapNodePtr& dynamicComputationPartitionSpec);
 
+    //! Replaces the computation-owned part of the partition's dynamic spec; the
+    //! job-manager-owned fields (e.g. FinishAfterCurrentEpoch) are carried over.
     void UpdateDynamicPartitionSpec(
         const TFlowViewPtr& flowView,
         const TPartitionId& partitionId,

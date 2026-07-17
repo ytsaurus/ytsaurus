@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/flow/library/cpp/common/flow_view.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NFlow::NWorker {
@@ -30,7 +32,7 @@ struct TDynamicJobSpec
     : public NYTree::TYsonStruct
 {
     TDynamicComputationSpecPtr DynamicComputationSpec;
-    NYTree::IMapNodePtr DynamicComputationPartitionSpec;
+    TDynamicPartitionSpecPtr DynamicComputationPartitionSpec;
 
     //! Snapshot of dynamic pipeline spec's throttlers. Not registered —
     //! assigned by direct pointer-copy, never serialized.

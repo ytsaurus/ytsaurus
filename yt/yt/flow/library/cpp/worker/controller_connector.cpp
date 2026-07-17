@@ -178,7 +178,7 @@ public:
 
     void Reconfigure(
         const TExecutionSpecPtr& newExecutionSpec,
-        const THashMap<TJobId, NYTree::IMapNodePtr>& dynamicComputationPartitionSpecs)
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& dynamicComputationPartitionSpecs)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -553,10 +553,10 @@ private:
                 stateUpdate[i].Value = response->state_update(i).value();
             }
 
-            THashMap<TJobId, NYTree::IMapNodePtr> dynamicComputationPartitionSpecs(response->jobs_dynamic_computation_partition_specs_size());
+            THashMap<TJobId, TDynamicPartitionSpecPtr> dynamicComputationPartitionSpecs(response->jobs_dynamic_computation_partition_specs_size());
             for (int i = 0; i < response->jobs_dynamic_computation_partition_specs_size(); ++i) {
                 const auto& item = response->jobs_dynamic_computation_partition_specs(i);
-                dynamicComputationPartitionSpecs[FromProto<TJobId>(item.job_id())] = ConvertTo<IMapNodePtr>(TYsonStringBuf(item.spec()));
+                dynamicComputationPartitionSpecs[FromProto<TJobId>(item.job_id())] = ConvertTo<TDynamicPartitionSpecPtr>(TYsonStringBuf(item.spec()));
             }
 
             auto newExecutionSpec = ApplyExecutionSpecUpdate(ExecutionSpec_, executionSpecUpdate, stateUpdate);

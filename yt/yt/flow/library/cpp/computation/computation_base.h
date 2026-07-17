@@ -305,9 +305,6 @@ struct TUniversalComputationDynamicPartitionSpec
 public:
     NYTree::IMapNodePtr ActiveSource;
     THashSet<TStreamId> BlockedOutputStreams;
-    //! If set, the computation should finish after completing the current epoch
-    //! and report success. Used for graceful partition migration between workers.
-    bool FinishAfterCurrentEpoch{};
 
     REGISTER_YSON_STRUCT(TUniversalComputationDynamicPartitionSpec);
 

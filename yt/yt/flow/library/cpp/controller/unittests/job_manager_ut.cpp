@@ -1327,8 +1327,7 @@ TEST_F(TJobBalancerTest, GracefulShutdownErrorJobCompletesOnTargetWorker)
         EXPECT_FALSE((*ephemeralStatePtr)->PendingGracefulRebalanceWorkerAddress.has_value());
 
         if ((*ephemeralStatePtr)->DynamicPartitionSpec) {
-            auto spec = NYTree::ConvertTo<TUniversalComputationDynamicPartitionSpecPtr>((*ephemeralStatePtr)->DynamicPartitionSpec);
-            EXPECT_FALSE(spec->FinishAfterCurrentEpoch);
+            EXPECT_FALSE((*ephemeralStatePtr)->DynamicPartitionSpec->FinishAfterCurrentEpoch);
         }
 
         const auto& partition = layout->Partitions.at(partitionId);

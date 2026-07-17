@@ -192,7 +192,9 @@ private:
             if (const auto* jobIds = flowView->EphemeralState->WorkerIncarnationsJobs.FindPtr(flowWorker->IncarnationId)) {
                 for (const auto& jobId : *jobIds) {
                     const auto& partitionId = GetOrCrash(flowView->State->ExecutionSpec->Layout->Jobs, jobId)->PartitionId;
-                    if (const auto* partitionState = flowView->EphemeralState->Partitions.FindPtr(partitionId); partitionState && (*partitionState)->DynamicPartitionSpec) {
+                    if (const auto* partitionState = flowView->EphemeralState->Partitions.FindPtr(partitionId);
+                        partitionState && (*partitionState)->DynamicPartitionSpec->ComputationPartitionSpec)
+                    {
                         auto* jobDynamicComputationPartitionSpec = response->add_jobs_dynamic_computation_partition_specs();
                         ToProto(jobDynamicComputationPartitionSpec->mutable_job_id(), jobId);
                         jobDynamicComputationPartitionSpec->set_spec(ToProto(ConvertToYsonString((*partitionState)->DynamicPartitionSpec)));
