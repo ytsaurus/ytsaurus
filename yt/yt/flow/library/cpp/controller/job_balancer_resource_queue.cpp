@@ -247,15 +247,13 @@ TResourceBalanceContext CollectResourceContext(
 
             tmpWorkerInfo.ResourceStats[resourceId] = stat;
 
-            YT_LOG_DEBUG("ResourceQueue: Worker resource feedback "
-                "(Worker: %v, Resource: %v, PutRate: %v, FetchRate: %v, "
-                "QueueSize: %v, QueueGrowthRate: %v)",
-                workerAddress,
-                resourceId,
-                stat.PutRate,
-                stat.FetchRate,
-                stat.QueueSize,
-                stat.QueueGrowthRate);
+            YT_TLOG_DEBUG("ResourceQueue: Worker resource feedback")
+                .With("Worker", workerAddress)
+                .With("Resource", resourceId)
+                .With("PutRate", stat.PutRate)
+                .With("FetchRate", stat.FetchRate)
+                .With("QueueSize", stat.QueueSize)
+                .With("QueueGrowthRate", stat.QueueGrowthRate);
         }
         // Fill PreloadResourceIssued from worker feedback.
         for (const auto& [resourceId, preloadState] : workerStatus->PreloadedResourceStates) {
@@ -707,64 +705,55 @@ TResourceBalanceContext CollectResourceContext(
     // -------------------------------------------------------------------------
     // Log collected context summary.
     // -------------------------------------------------------------------------
-    YT_LOG_INFO("ResourceQueue: context collected "
-        "(WorkerGroup: %v, Workers: %v, Partitions: %v, Computations: %v, Resources: %v)",
-        workerGroup,
-        context.Workers.size(),
-        context.Partitions.size(),
-        context.Computations.size(),
-        context.Resources.size());
+    YT_TLOG_INFO("ResourceQueue: context collected")
+        .With("WorkerGroup", workerGroup)
+        .With("Workers", context.Workers.size())
+        .With("Partitions", context.Partitions.size())
+        .With("Computations", context.Computations.size())
+        .With("Resources", context.Resources.size());
 
     for (const auto& [workerAddress, workerInfo] : context.Workers) {
-        YT_LOG_DEBUG("ResourceQueue: Worker state "
-            "(Worker: %v, TotalCapacity: %v, TotalLoad: %v, Underloaded: %v, "
-            "DeployedResources: %v, Computations: %v)",
-            workerAddress,
-            workerInfo.TotalCapacity,
-            workerInfo.TotalLoad,
-            workerInfo.Underloaded,
-            workerInfo.DeployedResources.size(),
-            workerInfo.ComputationLoad.size());
+        YT_TLOG_DEBUG("ResourceQueue: Worker state")
+            .With("Worker", workerAddress)
+            .With("TotalCapacity", workerInfo.TotalCapacity)
+            .With("TotalLoad", workerInfo.TotalLoad)
+            .With("Underloaded", workerInfo.Underloaded)
+            .With("DeployedResources", workerInfo.DeployedResources.size())
+            .With("Computations", workerInfo.ComputationLoad.size());
 
         if (const auto* tmp = tmpWorkerInfoSet.FindPtr(workerAddress)) {
-            YT_LOG_DEBUG("ResourceQueue: Worker resource totals "
-                "(Worker: %v, TotalPutRate: %v, TotalFetchRate: %v, "
-                "TotalQueueSize: %v, TotalQueueGrowthRate: %v)",
-                workerAddress,
-                tmp->TotalResourceStats.PutRate,
-                tmp->TotalResourceStats.FetchRate,
-                tmp->TotalResourceStats.QueueSize,
-                tmp->TotalResourceStats.QueueGrowthRate);
+            YT_TLOG_DEBUG("ResourceQueue: Worker resource totals")
+                .With("Worker", workerAddress)
+                .With("TotalPutRate", tmp->TotalResourceStats.PutRate)
+                .With("TotalFetchRate", tmp->TotalResourceStats.FetchRate)
+                .With("TotalQueueSize", tmp->TotalResourceStats.QueueSize)
+                .With("TotalQueueGrowthRate", tmp->TotalResourceStats.QueueGrowthRate);
         }
     }
 
     for (const auto& [computationId, computationInfo] : context.Computations) {
-        YT_LOG_DEBUG("ResourceQueue: Computation state "
-            "(Computation: %v, Consumption: %v, TotalConsumptionMultiplier: %v, "
-            "Workers: %v, TechnicallyPossibleWorkers: %v, StrayPartitions: %v)",
-            computationId,
-            computationInfo.Consumption,
-            computationInfo.TotalConsumptionMultiplier,
-            computationInfo.Workers.size(),
-            computationInfo.TechnicallyPossibleWorkers.size(),
-            computationInfo.StrayPartitions.size());
+        YT_TLOG_DEBUG("ResourceQueue: Computation state")
+            .With("Computation", computationId)
+            .With("Consumption", computationInfo.Consumption)
+            .With("TotalConsumptionMultiplier", computationInfo.TotalConsumptionMultiplier)
+            .With("Workers", computationInfo.Workers.size())
+            .With("TechnicallyPossibleWorkers", computationInfo.TechnicallyPossibleWorkers.size())
+            .With("StrayPartitions", computationInfo.StrayPartitions.size());
         for (const auto& [resourceId, multiplier] : computationInfo.ResourceConsumptionMultiplier) {
-            YT_LOG_DEBUG("ResourceQueue: Computation resource multiplier "
-                "(Computation: %v, Resource: %v, Multiplier: %v)",
-                computationId,
-                resourceId,
-                multiplier);
+            YT_TLOG_DEBUG("ResourceQueue: Computation resource multiplier")
+                .With("Computation", computationId)
+                .With("Resource", resourceId)
+                .With("Multiplier", multiplier);
         }
     }
 
     for (const auto& [partitionId, partitionInfo] : context.Partitions) {
-        YT_LOG_DEBUG("ResourceQueue: Partition state "
-            "(Partition: %v, Computation: %v, Rps: %v, Worker: %v, TimeSinceStart: %v)",
-            partitionId,
-            partitionInfo.ComputationId,
-            partitionInfo.Rps,
-            partitionInfo.WorkerId.value_or("<none>"),
-            partitionInfo.TimeSinceStart);
+        YT_TLOG_DEBUG("ResourceQueue: Partition state")
+            .With("Partition", partitionId)
+            .With("Computation", partitionInfo.ComputationId)
+            .With("Rps", partitionInfo.Rps)
+            .With("Worker", partitionInfo.WorkerId.value_or("<none>"))
+            .With("TimeSinceStart", partitionInfo.TimeSinceStart);
     }
 
     return context;
@@ -1042,11 +1031,10 @@ TRebalanceResult DoBalanceResourceQueue(
     // Computations with no workers are unconditionally starving (starvation = 1.0).
     for (auto& [computationId, computationInfo] : context.Computations) {
         if (computationInfo.Workers.empty()) {
-            YT_LOG_DEBUG("ResourceQueue: Step 1 computation has no workers, unconditionally starving "
-                "(Computation: %v, StrayPartitions: %v, TechnicallyPossibleWorkers: %v)",
-                computationId,
-                computationInfo.StrayPartitions.size(),
-                computationInfo.TechnicallyPossibleWorkers.size());
+            YT_TLOG_DEBUG("ResourceQueue: Step 1 computation has no workers, unconditionally starving")
+                .With("Computation", computationId)
+                .With("StrayPartitions", computationInfo.StrayPartitions.size())
+                .With("TechnicallyPossibleWorkers", computationInfo.TechnicallyPossibleWorkers.size());
             starvingQueue.emplace(1.0, computationId);
             continue;
         }
@@ -1055,33 +1043,28 @@ TRebalanceResult DoBalanceResourceQueue(
         }
         double allocated = recomputeAllocatedCapacity(computationId);
         double maxPossible = GetOrDefault(computationMaxPossibleCapacity, computationId, 0.);
-        YT_LOG_DEBUG("ResourceQueue: Step 1 computation capacity check "
-            "(Computation: %v, Consumption: %v, AllocatedCapacity: %v, MaxPossibleCapacity: %v, "
-            "CurrentWorkers: %v, TechnicallyPossibleWorkers: %v)",
-            computationId,
-            computationInfo.Consumption,
-            allocated,
-            maxPossible,
-            computationInfo.Workers.size(),
-            computationInfo.TechnicallyPossibleWorkers.size());
+        YT_TLOG_DEBUG("ResourceQueue: Step 1 computation capacity check")
+            .With("Computation", computationId)
+            .With("Consumption", computationInfo.Consumption)
+            .With("AllocatedCapacity", allocated)
+            .With("MaxPossibleCapacity", maxPossible)
+            .With("CurrentWorkers", computationInfo.Workers.size())
+            .With("TechnicallyPossibleWorkers", computationInfo.TechnicallyPossibleWorkers.size());
         if (maxPossible >= computationInfo.Consumption) {
-            YT_LOG_DEBUG("ResourceQueue: Step 1 computation satisfied by existing workers, skipping Step 2 "
-                "(Computation: %v)",
-                computationId);
+            YT_TLOG_DEBUG("ResourceQueue: Step 1 computation satisfied by existing workers, skipping Step 2")
+                .With("Computation", computationId);
             continue; // Can be satisfied by existing workers — skip Step 2 for this computation.
         }
         double starvation = std::clamp(1. - allocated / computationInfo.Consumption, 0., 1.);
-        YT_LOG_DEBUG("ResourceQueue: Step 1 computation seeded into starvation queue "
-            "(Computation: %v, Starvation: %v)",
-            computationId,
-            starvation);
+        YT_TLOG_DEBUG("ResourceQueue: Step 1 computation seeded into starvation queue")
+            .With("Computation", computationId)
+            .With("Starvation", starvation);
         starvingQueue.emplace(starvation, computationId);
     }
 
-    YT_LOG_DEBUG("ResourceQueue: Step 2 starting "
-        "(WorkerGroup: %v, StarvingComputations: %v)",
-        workerGroup,
-        starvingQueue.size());
+    YT_TLOG_DEBUG("ResourceQueue: Step 2 starting")
+        .With("WorkerGroup", workerGroup)
+        .With("StarvingComputations", starvingQueue.size());
 
     while (!starvingQueue.empty()) {
         auto [starvation, computationId] = starvingQueue.top();
@@ -1101,9 +1084,8 @@ TRebalanceResult DoBalanceResourceQueue(
             double currentAllocated = recomputeAllocatedCapacity(computationId);
             currentStarvation = std::clamp(1. - currentAllocated / computationInfo.Consumption, 0., 1.);
             if (currentStarvation <= 0.) {
-                YT_LOG_DEBUG("ResourceQueue: Step 2 computation no longer starving, skipping "
-                    "(Computation: %v)",
-                    computationId);
+                YT_TLOG_DEBUG("ResourceQueue: Step 2 computation no longer starving, skipping")
+                    .With("Computation", computationId);
                 continue; // No longer starving.
             }
         }
@@ -1130,12 +1112,11 @@ TRebalanceResult DoBalanceResourceQueue(
         }
 
         if (!bestWorker) {
-            YT_LOG_DEBUG("ResourceQueue: Step 2 no feasible worker found for starving computation "
-                "(Computation: %v, Starvation: %v, CurrentWorkers: %v, TechnicallyPossibleWorkers: %v)",
-                computationId,
-                currentStarvation,
-                computationInfo.Workers.size(),
-                computationInfo.TechnicallyPossibleWorkers.size());
+            YT_TLOG_DEBUG("ResourceQueue: Step 2 no feasible worker found for starving computation")
+                .With("Computation", computationId)
+                .With("Starvation", currentStarvation)
+                .With("CurrentWorkers", computationInfo.Workers.size())
+                .With("TechnicallyPossibleWorkers", computationInfo.TechnicallyPossibleWorkers.size());
             continue; // No feasible worker found — skip this computation.
         }
 
@@ -1151,14 +1132,12 @@ TRebalanceResult DoBalanceResourceQueue(
             newStarvation = std::clamp(1. - newAllocated / computationInfo.Consumption, 0., 1.);
         }
 
-        YT_LOG_DEBUG("ResourceQueue: Step 2 added worker to starving computation "
-            "(Computation: %v, Worker: %v, BestRelativeLoad: %v, "
-            "StarvationBefore: %v, StarvationAfter: %v)",
-            computationId,
-            *bestWorker,
-            bestRelativeLoad,
-            currentStarvation,
-            newStarvation);
+        YT_TLOG_DEBUG("ResourceQueue: Step 2 added worker to starving computation")
+            .With("Computation", computationId)
+            .With("Worker", *bestWorker)
+            .With("BestRelativeLoad", bestRelativeLoad)
+            .With("StarvationBefore", currentStarvation)
+            .With("StarvationAfter", newStarvation);
 
         if (newStarvation > 0.) {
             starvingQueue.emplace(newStarvation, computationId);
@@ -1182,11 +1161,10 @@ TRebalanceResult DoBalanceResourceQueue(
     // Rebuild the starvation queue for Step 3: all computations where AllocatedCapacity < Consumption.
     starvingQueue = buildStarvingQueue();
 
-    YT_LOG_DEBUG("ResourceQueue: Step 3 starting "
-        "(WorkerGroup: %v, StarvingComputations: %v, MaxMoves: %v)",
-        workerGroup,
-        starvingQueue.size(),
-        context.Workers.size());
+    YT_TLOG_DEBUG("ResourceQueue: Step 3 starting")
+        .With("WorkerGroup", workerGroup)
+        .With("StarvingComputations", starvingQueue.size())
+        .With("MaxMoves", context.Workers.size());
 
     {
         int maxMoves = static_cast<int>(context.Workers.size());
@@ -1254,21 +1232,18 @@ TRebalanceResult DoBalanceResourceQueue(
             }
 
             if (!bestWorker || !bestSurplus) {
-                YT_LOG_DEBUG("ResourceQueue: Step 3 no viable steal found for starving computation "
-                    "(Computation: %v, Starvation: %v)",
-                    cStarving,
-                    starvingStarvation);
+                YT_TLOG_DEBUG("ResourceQueue: Step 3 no viable steal found for starving computation")
+                    .With("Computation", cStarving)
+                    .With("Starvation", starvingStarvation);
                 continue; // No viable steal found.
             }
 
-            YT_LOG_DEBUG("ResourceQueue: Step 3 stealing worker from surplus computation "
-                "(StarvingComputation: %v, StarvingStarvation: %v, "
-                "SurplusComputation: %v, Worker: %v, SurplusLoadOnWorker: %v)",
-                cStarving,
-                starvingStarvation,
-                *bestSurplus,
-                *bestWorker,
-                bestSurplusLoad);
+            YT_TLOG_DEBUG("ResourceQueue: Step 3 stealing worker from surplus computation")
+                .With("StarvingComputation", cStarving)
+                .With("StarvingStarvation", starvingStarvation)
+                .With("SurplusComputation", *bestSurplus)
+                .With("Worker", *bestWorker)
+                .With("SurplusLoadOnWorker", bestSurplusLoad);
 
             // Remove w from cSurplus (no replacement).
             removeComputationFromWorker(*bestWorker, *bestSurplus);
@@ -1280,9 +1255,9 @@ TRebalanceResult DoBalanceResourceQueue(
             ++movesDone;
         }
 
-        YT_LOG_DEBUG("ResourceQueue: Step 3 finished (MovesDone: %v, MaxMoves: %v)",
-            movesDone,
-            maxMoves);
+        YT_TLOG_DEBUG("ResourceQueue: Step 3 finished")
+            .With("MovesDone", movesDone)
+            .With("MaxMoves", maxMoves);
     }
 
     // =========================================================================
@@ -1302,11 +1277,10 @@ TRebalanceResult DoBalanceResourceQueue(
 
     starvingQueue = buildStarvingQueue();
 
-    YT_LOG_DEBUG("ResourceQueue: Step 4 starting "
-        "(WorkerGroup: %v, StarvingComputations: %v, MaxMoves: %v)",
-        workerGroup,
-        starvingQueue.size(),
-        context.Workers.size());
+    YT_TLOG_DEBUG("ResourceQueue: Step 4 starting")
+        .With("WorkerGroup", workerGroup)
+        .With("StarvingComputations", starvingQueue.size())
+        .With("MaxMoves", context.Workers.size());
 
     {
         int maxMoves = static_cast<int>(context.Workers.size());
@@ -1378,21 +1352,18 @@ TRebalanceResult DoBalanceResourceQueue(
             }
 
             if (!bestWorker || !bestSurplus || !bestAltWorker) {
-                YT_LOG_DEBUG("ResourceQueue: Step 4 no viable redistribution found for starving computation "
-                    "(Computation: %v, Starvation: %v)",
-                    cStarving,
-                    starvation);
+                YT_TLOG_DEBUG("ResourceQueue: Step 4 no viable redistribution found for starving computation")
+                    .With("Computation", cStarving)
+                    .With("Starvation", starvation);
                 continue; // No viable redistribution found.
             }
 
-            YT_LOG_DEBUG("ResourceQueue: Step 4 stealing worker with replacement "
-                "(StarvingComputation: %v, SurplusComputation: %v, "
-                "Worker: %v, AltWorker: %v, SurplusLoadOnWorker: %v)",
-                cStarving,
-                *bestSurplus,
-                *bestWorker,
-                *bestAltWorker,
-                bestSurplusLoad);
+            YT_TLOG_DEBUG("ResourceQueue: Step 4 stealing worker with replacement")
+                .With("StarvingComputation", cStarving)
+                .With("SurplusComputation", *bestSurplus)
+                .With("Worker", *bestWorker)
+                .With("AltWorker", *bestAltWorker)
+                .With("SurplusLoadOnWorker", bestSurplusLoad);
 
             // Move cSurplus from bestWorker to bestAltWorker.
             removeComputationFromWorker(*bestWorker, *bestSurplus);
@@ -1405,9 +1376,9 @@ TRebalanceResult DoBalanceResourceQueue(
             ++movesDone;
         }
 
-        YT_LOG_DEBUG("ResourceQueue: Step 4 finished (MovesDone: %v, MaxMoves: %v)",
-            movesDone,
-            maxMoves);
+        YT_TLOG_DEBUG("ResourceQueue: Step 4 finished")
+            .With("MovesDone", movesDone)
+            .With("MaxMoves", maxMoves);
     }
 
     // =========================================================================
@@ -1476,15 +1447,13 @@ TRebalanceResult DoBalanceResourceQueue(
                     continue; // Imbalance too small (relative to the busiest worker) to justify spreading.
                 }
 
-                YT_LOG_DEBUG("ResourceQueue: Step 4.5 spreading computation onto idle worker "
-                    "(Computation: %v, Worker: %v, WorkerQueue: %v, MaxHostQueue: %v, "
-                    "Partitions: %v, WorkersBefore: %v)",
-                    computationId,
-                    workerAddress,
-                    candidateInfo.TotalQueueSize,
-                    maxHostQueue,
-                    partitionCount,
-                    computationInfo.Workers.size());
+                YT_TLOG_DEBUG("ResourceQueue: Step 4.5 spreading computation onto idle worker")
+                    .With("Computation", computationId)
+                    .With("Worker", workerAddress)
+                    .With("WorkerQueue", candidateInfo.TotalQueueSize)
+                    .With("MaxHostQueue", maxHostQueue)
+                    .With("Partitions", partitionCount)
+                    .With("WorkersBefore", computationInfo.Workers.size());
 
                 addComputationToWorker(workerAddress, computationId);
             }
@@ -1549,10 +1518,9 @@ TRebalanceResult DoBalanceResourceQueue(
             {
                 continue; // Already issued or completed.
             }
-            YT_LOG_DEBUG("ResourceQueue: Step 5 emitting preload Add "
-                "(Worker: %v, Resource: %v)",
-                workerAddress,
-                resourceId);
+            YT_TLOG_DEBUG("ResourceQueue: Step 5 emitting preload Add")
+                .With("Worker", workerAddress)
+                .With("Resource", resourceId);
             rebalanceResult.PreloadResourceActions.push_back(TWorkerPreloadResultAction{
                 .Type = ERebalanceActionType::Add,
                 .ResourceId = resourceId,
@@ -1569,10 +1537,9 @@ TRebalanceResult DoBalanceResourceQueue(
             if (desired.contains(resourceId)) {
                 continue; // Still desired.
             }
-            YT_LOG_DEBUG("ResourceQueue: Step 5 emitting preload Del "
-                "(Worker: %v, Resource: %v)",
-                workerAddress,
-                resourceId);
+            YT_TLOG_DEBUG("ResourceQueue: Step 5 emitting preload Del")
+                .With("Worker", workerAddress)
+                .With("Resource", resourceId);
             rebalanceResult.PreloadResourceActions.push_back(TWorkerPreloadResultAction{
                 .Type = ERebalanceActionType::Del,
                 .ResourceId = resourceId,
@@ -1650,29 +1617,26 @@ TRebalanceResult DoBalanceResourceQueue(
 
         for (const auto& workerAddress : assignedWorkers) {
             if (!isPreloadReady(workerAddress, computationId)) {
-                YT_LOG_DEBUG("ResourceQueue: Step 6 worker not preload-ready, skipping "
-                    "(Computation: %v, Worker: %v)",
-                    computationId,
-                    workerAddress);
+                YT_TLOG_DEBUG("ResourceQueue: Step 6 worker not preload-ready, skipping")
+                    .With("Computation", computationId)
+                    .With("Worker", workerAddress);
                 continue; // Preload not yet completed — skip.
             }
             workerHeap.emplace(GetOrCrash(context.Workers, workerAddress).TotalLoad, workerAddress);
         }
 
         if (workerHeap.empty()) {
-            YT_LOG_DEBUG("ResourceQueue: Step 6 no eligible workers for stray partitions "
-                "(Computation: %v, StrayPartitions: %v, AssignedWorkers: %v)",
-                computationId,
-                partitions.size(),
-                assignedWorkers.size());
+            YT_TLOG_DEBUG("ResourceQueue: Step 6 no eligible workers for stray partitions")
+                .With("Computation", computationId)
+                .With("StrayPartitions", partitions.size())
+                .With("AssignedWorkers", assignedWorkers.size());
             continue; // No eligible workers — leave partitions stray for next round.
         }
 
-        YT_LOG_DEBUG("ResourceQueue: Step 6 distributing stray partitions "
-            "(Computation: %v, StrayPartitions: %v, EligibleWorkers: %v)",
-            computationId,
-            partitions.size(),
-            workerHeap.size());
+        YT_TLOG_DEBUG("ResourceQueue: Step 6 distributing stray partitions")
+            .With("Computation", computationId)
+            .With("StrayPartitions", partitions.size())
+            .With("EligibleWorkers", workerHeap.size());
 
         // Sort stray partitions by Rps descending (assign heavy partitions first).
         std::sort(partitions.begin(), partitions.end(), [&] (const TPartitionId& a, const TPartitionId& b) {
@@ -1695,13 +1659,12 @@ TRebalanceResult DoBalanceResourceQueue(
             const auto& partitionInfo = context.Partitions.at(partitionId);
             double addedLoad = partitionInfo.Rps * computationInfo.TotalConsumptionMultiplier;
 
-            YT_LOG_DEBUG("ResourceQueue: Step 6 assigning stray partition "
-                "(Computation: %v, Partition: %v, Worker: %v, Rps: %v, AddedLoad: %v)",
-                computationId,
-                partitionId,
-                workerAddress,
-                partitionInfo.Rps,
-                addedLoad);
+            YT_TLOG_DEBUG("ResourceQueue: Step 6 assigning stray partition")
+                .With("Computation", computationId)
+                .With("Partition", partitionId)
+                .With("Worker", workerAddress)
+                .With("Rps", partitionInfo.Rps)
+                .With("AddedLoad", addedLoad);
 
             GetOrCrash(context.Workers, workerAddress).TotalLoad += addedLoad;
 
@@ -1797,10 +1760,9 @@ TRebalanceResult DoBalanceResourceQueue(
     }
     double baselineMetric = computeQueueMetric(workerTotalLoadMap);
 
-    YT_LOG_DEBUG("ResourceQueue: Step 7 baseline queue metric computed "
-        "(WorkerGroup: %v, BaselineMetric: %v)",
-        workerGroup,
-        baselineMetric);
+    YT_TLOG_DEBUG("ResourceQueue: Step 7 baseline queue metric computed")
+        .With("WorkerGroup", workerGroup)
+        .With("BaselineMetric", baselineMetric);
 
     // =========================================================================
     // Step 8: Greedy queue equalization by moving partitions.
@@ -1919,30 +1881,26 @@ TRebalanceResult DoBalanceResourceQueue(
             double oldSpread = highQueue - lowQueue; // highQueue >= lowQueue by construction.
 
             if (newSpread >= oldSpread) {
-                YT_LOG_DEBUG("ResourceQueue: Step 8 move does not reduce spread, stopping "
-                    "(Computation: %v, wHigh: %v, wLow: %v, "
-                    "OldSpread: %v, NewSpread: %v, Partition: %v, MovedLoad: %v)",
-                    computationId,
-                    *wHigh,
-                    *wLow,
-                    oldSpread,
-                    newSpread,
-                    *bestPartition,
-                    movedLoad);
+                YT_TLOG_DEBUG("ResourceQueue: Step 8 move does not reduce spread, stopping")
+                    .With("Computation", computationId)
+                    .With("wHigh", *wHigh)
+                    .With("wLow", *wLow)
+                    .With("OldSpread", oldSpread)
+                    .With("NewSpread", newSpread)
+                    .With("Partition", *bestPartition)
+                    .With("MovedLoad", movedLoad);
                 break; // Move doesn't reduce the spread — stop for this computation.
             }
 
-            YT_LOG_DEBUG("ResourceQueue: Step 8 equalization move "
-                "(Computation: %v, Partition: %v, From: %v, To: %v, "
-                "MovedLoad: %v, IdealTransferLoad: %v, OldSpread: %v, NewSpread: %v)",
-                computationId,
-                *bestPartition,
-                *wHigh,
-                *wLow,
-                movedLoad,
-                idealTransferLoad,
-                oldSpread,
-                newSpread);
+            YT_TLOG_DEBUG("ResourceQueue: Step 8 equalization move")
+                .With("Computation", computationId)
+                .With("Partition", *bestPartition)
+                .With("From", *wHigh)
+                .With("To", *wLow)
+                .With("MovedLoad", movedLoad)
+                .With("IdealTransferLoad", idealTransferLoad)
+                .With("OldSpread", oldSpread)
+                .With("NewSpread", newSpread);
 
             equalizationLoads[*wHigh] -= movedLoad;
             equalizationLoads[*wLow] += movedLoad;
@@ -1985,16 +1943,14 @@ TRebalanceResult DoBalanceResourceQueue(
     bool equalizationAccepted = !tentativeMoves.empty() &&
         (baselineMetric - newMetric) >= balancerSpec->RebalanceTargetDeviation;
 
-    YT_LOG_DEBUG("ResourceQueue: Step 9 equalization evaluation "
-        "(WorkerGroup: %v, TentativeMoves: %v, BaselineMetric: %v, NewMetric: %v, "
-        "RelativeImprovement: %v, Threshold: %v, Accepted: %v)",
-        workerGroup,
-        tentativeMoves.size(),
-        baselineMetric,
-        newMetric,
-        baselineMetric > kEpsilon ? (baselineMetric - newMetric) / baselineMetric : 0.,
-        balancerSpec->RebalanceTargetDeviation,
-        equalizationAccepted);
+    YT_TLOG_DEBUG("ResourceQueue: Step 9 equalization evaluation")
+        .With("WorkerGroup", workerGroup)
+        .With("TentativeMoves", tentativeMoves.size())
+        .With("BaselineMetric", baselineMetric)
+        .With("NewMetric", newMetric)
+        .With("RelativeImprovement", baselineMetric > kEpsilon ? (baselineMetric - newMetric) / baselineMetric : 0.)
+        .With("Threshold", balancerSpec->RebalanceTargetDeviation)
+        .With("Accepted", equalizationAccepted);
 
     if (equalizationAccepted) {
         for (auto& action : tentativeMoves) {
@@ -2012,11 +1968,10 @@ TRebalanceResult DoBalanceResourceQueue(
     // Well done.
     // =========================================================================
 
-    YT_LOG_INFO("ResourceQueue: balancing complete "
-        "(WorkerGroup: %v, PartitionActions: %v, PreloadActions: %v)",
-        workerGroup,
-        rebalanceResult.Actions.size(),
-        rebalanceResult.PreloadResourceActions.size());
+    YT_TLOG_INFO("ResourceQueue: balancing complete")
+        .With("WorkerGroup", workerGroup)
+        .With("PartitionActions", rebalanceResult.Actions.size())
+        .With("PreloadActions", rebalanceResult.PreloadResourceActions.size());
 
     return rebalanceResult;
 }

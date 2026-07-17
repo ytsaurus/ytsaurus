@@ -302,7 +302,8 @@ public:
                 Y_UNUSED(Controller->GetFlowViewKeeper()->GetFlowView());
                 break;
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Still wait until controller starts leading");
+                YT_TLOG_INFO("Still wait until controller starts leading")
+                    .With(ex);
                 NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
             }
         }
@@ -395,7 +396,7 @@ public:
 TEST_F(TControllerTest, WaitPersist)
 {
     Prepare();
-    YT_LOG_INFO("Start");
+    YT_TLOG_INFO("Start");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -426,7 +427,7 @@ TEST_F(TControllerTest, WaitPersist)
 
             NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
             while (getDynamicVersion() != setRsp->version()) {
-                YT_LOG_INFO("Still wait until update of dynamic spec will be available in flow view.");
+                YT_TLOG_INFO("Still wait until update of dynamic spec will be available in flow view.");
                 NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
             }
         }
@@ -469,7 +470,7 @@ TEST_F(TControllerTest, WaitPersist)
 
             NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
             while (getVersion() != targetVersion) {
-                YT_LOG_INFO("Still wait until update of spec will be available in flow view.");
+                YT_TLOG_INFO("Still wait until update of spec will be available in flow view.");
                 NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
             }
         }
@@ -495,7 +496,7 @@ TEST_F(TControllerTest, RecoverFlowCoreTargetIsReloadedOnEachIteration)
             return New<TVersionedFlowCoreTarget>();
         });
 
-    YT_LOG_INFO("Start RecoverFlowCoreTargetIsReloadedOnEachIteration");
+    YT_TLOG_INFO("Start RecoverFlowCoreTargetIsReloadedOnEachIteration");
 
     ExecuteViaControlQueue([&] {
         StartLeading();
@@ -529,7 +530,7 @@ TEST_F(TControllerTest, SetSpecFailsWhenFlowCoreTargetMismatches)
             return target;
         });
 
-    YT_LOG_INFO("Start SetSpecFailsWhenFlowCoreTargetMismatches");
+    YT_TLOG_INFO("Start SetSpecFailsWhenFlowCoreTargetMismatches");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -572,7 +573,7 @@ TEST_F(TControllerTest, SetSpecDoesNotRetryOnFlowCoreTargetMismatch)
 
     Prepare();
 
-    YT_LOG_INFO("Start SetSpecDoesNotRetryOnFlowCoreTargetMismatch");
+    YT_TLOG_INFO("Start SetSpecDoesNotRetryOnFlowCoreTargetMismatch");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -668,7 +669,7 @@ TEST_F(TControllerTest, WorkerExcludedFromSchedulingWhenFlowCoreTargetMismatches
     EXPECT_CALL(*WorkerTracker, GetWorkers())
         .WillRepeatedly(Return(std::vector<TWorkerInfo>{matchingWorker, mismatchingWorker}));
 
-    YT_LOG_INFO("Start WorkerExcludedFromSchedulingWhenFlowCoreTargetMismatches");
+    YT_TLOG_INFO("Start WorkerExcludedFromSchedulingWhenFlowCoreTargetMismatches");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -725,7 +726,7 @@ TEST_F(TControllerTest, WorkerIncludedWhenFlowCoreTargetEmpty)
     EXPECT_CALL(*WorkerTracker, GetWorkers())
         .WillRepeatedly(Return(std::vector<TWorkerInfo>{worker1, worker2}));
 
-    YT_LOG_INFO("Start WorkerIncludedWhenFlowCoreTargetEmpty");
+    YT_TLOG_INFO("Start WorkerIncludedWhenFlowCoreTargetEmpty");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -772,7 +773,7 @@ TEST_F(TControllerTest, WorkerWithEmptyFlowCoreVersionExcludedWhenTargetSet)
     EXPECT_CALL(*WorkerTracker, GetWorkers())
         .WillRepeatedly(Return(std::vector<TWorkerInfo>{oldWorker}));
 
-    YT_LOG_INFO("Start WorkerWithEmptyFlowCoreVersionExcludedWhenTargetSet");
+    YT_TLOG_INFO("Start WorkerWithEmptyFlowCoreVersionExcludedWhenTargetSet");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -838,9 +839,9 @@ TEST_P(TFlowCoreTargetMismatchTest, PipelineIsPausedOnMismatch)
     PersistedStateManagerLocalState->FlowCoreTarget
         ->SetValue(TFlowCoreTarget(std::string("mismatch_version")));
 
-    YT_LOG_INFO("Start PipelineIsPausedOnMismatch (PipelineState: %v, TargetState: %v)",
-        param.PipelineState,
-        param.TargetState);
+    YT_TLOG_INFO("Start PipelineIsPausedOnMismatch")
+        .With("PipelineState", param.PipelineState)
+        .With("TargetState", param.TargetState);
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -851,7 +852,8 @@ TEST_P(TFlowCoreTargetMismatchTest, PipelineIsPausedOnMismatch)
         };
 
         while (getPipelineState() != EPipelineState::Paused) {
-            YT_LOG_INFO("Waiting for pipeline to reach Paused after mismatch (CurrentState: %v)", getPipelineState());
+            YT_TLOG_INFO("Waiting for pipeline to reach Paused after mismatch")
+                .With("CurrentState", getPipelineState());
             NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
         }
 
@@ -972,7 +974,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetFailsOnSpecVersionMismatch)
                 "Spec version mismatch (simulated)");
         });
 
-    YT_LOG_INFO("Start SetFlowCoreTargetFailsOnSpecVersionMismatch");
+    YT_TLOG_INFO("Start SetFlowCoreTargetFailsOnSpecVersionMismatch");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -1013,7 +1015,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetFailsOnFlowCoreTargetVersionMismatch)
                 "Flow core target mismatches");
         });
 
-    YT_LOG_INFO("Start SetFlowCoreTargetFailsOnFlowCoreTargetVersionMismatch");
+    YT_TLOG_INFO("Start SetFlowCoreTargetFailsOnFlowCoreTargetVersionMismatch");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -1061,7 +1063,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetIsIdempotentForSameValue)
                 persistCallCount->fetch_add(1);
             });
 
-    YT_LOG_INFO("Start SetFlowCoreTargetIsIdempotentForSameValue");
+    YT_TLOG_INFO("Start SetFlowCoreTargetIsIdempotentForSameValue");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -1119,7 +1121,7 @@ TEST_F(TControllerTest, StartPipelineFailsOnFlowCoreTargetMismatch)
             return target;
         });
 
-    YT_LOG_INFO("Start StartPipelineFailsOnFlowCoreTargetMismatch");
+    YT_TLOG_INFO("Start StartPipelineFailsOnFlowCoreTargetMismatch");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();

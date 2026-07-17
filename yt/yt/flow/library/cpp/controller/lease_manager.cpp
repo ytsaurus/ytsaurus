@@ -78,7 +78,8 @@ public:
 
         flush();
 
-        YT_LOG_INFO("Terminated %v leases", terminatedLeases);
+        YT_TLOG_INFO("Terminated leases")
+            .With("LeaseCount", terminatedLeases);
     }
 
     void CheckLeases(const TFlowViewPtr& flowView) override
@@ -116,17 +117,18 @@ public:
                 job->PartitionId,
                 partition->ComputationId,
                 job->LeaseId);
-            YT_LOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, error);
+            YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "")
+                .With(error);
 
             auto partitionState = flowView->EphemeralState->GetPartitionState(job->PartitionId);
             partitionState->PreviousJobFailInstant = TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying());
             partitionState->PreviousJobFailError = std::move(error);
         }
 
-        YT_LOG_INFO("Check leases (Attached: %v, Expired: %v, Total: %v)",
-            attachedLeases,
-            expiredLeaseJobs.size(),
-            totalLeases);
+        YT_TLOG_INFO("Check leases")
+            .With("Attached", attachedLeases)
+            .With("Expired", expiredLeaseJobs.size())
+            .With("Total", totalLeases);
     }
 
     void PrepareLeases(const TFlowViewPtr& flowView) override
@@ -179,7 +181,8 @@ public:
         }
 
         flush();
-        YT_LOG_INFO("Prepared %v leases", createdLeases);
+        YT_TLOG_INFO("Prepared leases")
+            .With("LeaseCount", createdLeases);
     }
 
 private:
