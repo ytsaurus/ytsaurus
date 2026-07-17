@@ -402,7 +402,7 @@ TQuerySettingsPtr ParseCustomSettings(
         }
 
         YT_LOG_TRACE("Patch node (Node: %v)", ConvertToYsonString(patchNode, EYsonFormat::Text));
-        SetNodeByYPath(node, ypath, patchNode);
+        SetNodeByYPath(node, ypath, patchNode, /*force*/ true);
     }
 
     YT_LOG_TRACE("Resulting node (Node: %v)", ConvertToYsonString(node, EYsonFormat::Text));
