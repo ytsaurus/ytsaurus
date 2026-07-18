@@ -234,7 +234,7 @@ TEST(TYsonSerializeTest, YsonSerialize)
     EXPECT_EQ(schema->Columns()[2].Name(), "pair");
     {
         const auto parsedPair = ConvertTo<std::pair<std::string, i64>>(FromUnversionedValue<TYsonString>(row[2]));
-        const auto expectedPair = std::pair{"abra", 345};
+        const auto expectedPair = std::pair<std::string, i64>{"abra", 345};
         EXPECT_EQ(parsedPair, expectedPair);
     }
     EXPECT_EQ(schema->Columns()[3].Name(), "sub");
