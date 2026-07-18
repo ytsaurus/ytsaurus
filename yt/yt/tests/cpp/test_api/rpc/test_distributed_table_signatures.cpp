@@ -1,4 +1,4 @@
-#include <yt/yt/tests/cpp/distributed_table_api_test.h>
+#include <yt/yt/tests/cpp/test_api/common/distributed_table_api_test.h>
 
 #include <yt/yt/client/signature/signature.h>
 #include <yt/yt/client/signature/generator.h>

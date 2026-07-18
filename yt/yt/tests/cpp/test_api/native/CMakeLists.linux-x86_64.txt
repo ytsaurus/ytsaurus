@@ -12,10 +12,12 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(cpp-integration-test-rpc-api)
+find_package(linux-headers-generic REQUIRED)
+
+add_executable(cpp-integration-test-native-api)
 
 
-target_compile_options(cpp-integration-test-rpc-api PRIVATE
+target_compile_options(cpp-integration-test-native-api PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -25,71 +27,76 @@ target_compile_options(cpp-integration-test-rpc-api PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(cpp-integration-test-rpc-api PUBLIC
+target_link_libraries(cpp-integration-test-native-api PUBLIC
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   build-cow-on
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  library-query-engine
   tests-cpp-test_base
   yt-yt-ytlib
   yt-core-test_framework
   yt-library-named_value
-  libs-apache-arrow
+  library-signature-components
 )
 
-target_allocator(cpp-integration-test-rpc-api
-  system_allocator
+target_allocator(cpp-integration-test-native-api
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(cpp-integration-test-rpc-api PRIVATE
-  -Wl,-platform_version,macos,11.0,11.0
+target_link_options(cpp-integration-test-native-api PRIVATE
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -framework
-  CoreFoundation
+  -lrt
+  -ldl
+  -lutil
 )
 
-target_sources(cpp-integration-test-rpc-api PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_rpc_api/test_distributed_table_signatures.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_rpc_api/test_rpc_api.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_type_v3.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_queues.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/modify_rows_test.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/distributed_table_api_test.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/distributed_file_api_test.cpp
+target_sources(cpp-integration-test-native-api PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/native/test_native_api.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/test_type_v3.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/test_api.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/test_queues.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/modify_rows_test.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/distributed_table_api_test.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/distributed_file_api_test.cpp
 )
 
 
 add_test(
   NAME
-  cpp-integration-test-rpc-api
+  cpp-integration-test-native-api
   COMMAND
-  cpp-integration-test-rpc-api
+  cpp-integration-test-native-api
 )
 
 set_property(
   TEST
-  cpp-integration-test-rpc-api
+  cpp-integration-test-native-api
   PROPERTY
   LABELS
-  MEDIUM
+  LARGE
 )
 
 set_property(
   TEST
-  cpp-integration-test-rpc-api
+  cpp-integration-test-native-api
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(cpp-integration-test-rpc-api)
+vcs_info(cpp-integration-test-native-api)
 
 set_property(
   TEST
-  cpp-integration-test-rpc-api
+  cpp-integration-test-native-api
   PROPERTY
   PROCESSORS
   1

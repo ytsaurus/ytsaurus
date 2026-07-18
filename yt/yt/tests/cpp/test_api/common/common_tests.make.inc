@@ -1,10 +1,10 @@
 #
-# This file contains common sources for test_native_api/ and test_rpc_api/.
+# This file contains common sources for native/ and rpc/.
 #
 # NB. we don't make separate library from these files because gtest doesn't discover tests defined in libraries.
 #
 
-SET(THIS_DIR "${ARCADIA_ROOT}/yt/yt/tests/cpp")
+SET(THIS_DIR "${ARCADIA_ROOT}/yt/yt/tests/cpp/test_api/common")
 
 SRCS(
     ${THIS_DIR}/test_type_v3.cpp

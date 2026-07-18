@@ -7,10 +7,10 @@ SRCS(
     test_rpc_api.cpp
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/cpp/common_tests.make.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/cpp/test_api/common/common_tests.make.inc)
 
 EXPLICIT_DATA()
-DATA(arcadia/yt/yt/tests/cpp/test_rpc_api/config.yson)
+DATA(arcadia/yt/yt/tests/cpp/test_api/rpc/config.yson)
 
 IF(NOT OPENSOURCE)
     INCLUDE(ya_non_opensource.inc)

@@ -12,6 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(linux-headers-generic REQUIRED)
+
 add_executable(cpp-integration-test-rpc-api)
 
 
@@ -26,9 +28,11 @@ target_compile_options(cpp-integration-test-rpc-api PRIVATE
 )
 
 target_link_libraries(cpp-integration-test-rpc-api PUBLIC
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   build-cow-on
+  library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
   tests-cpp-test_base
@@ -39,26 +43,30 @@ target_link_libraries(cpp-integration-test-rpc-api PUBLIC
 )
 
 target_allocator(cpp-integration-test-rpc-api
-  system_allocator
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(cpp-integration-test-rpc-api PRIVATE
-  -Wl,-platform_version,macos,11.0,11.0
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -framework
-  CoreFoundation
+  -lrt
+  -ldl
+  -lutil
 )
 
 target_sources(cpp-integration-test-rpc-api PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_rpc_api/test_distributed_table_signatures.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_rpc_api/test_rpc_api.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_type_v3.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_queues.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/modify_rows_test.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/distributed_table_api_test.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/distributed_file_api_test.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/rpc/test_distributed_table_signatures.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/rpc/test_rpc_api.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/test_type_v3.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/test_api.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/test_queues.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/modify_rows_test.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/distributed_table_api_test.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api/common/distributed_file_api_test.cpp
 )
 
 
