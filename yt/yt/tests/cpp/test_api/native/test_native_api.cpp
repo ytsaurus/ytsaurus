@@ -1,7 +1,7 @@
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 #include <yt/yt/tests/cpp/test_base/private.h>
 
-#include <yt/yt/tests/cpp/modify_rows_test.h>
+#include <yt/yt/tests/cpp/test_api/common/modify_rows_test.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
@@ -1465,7 +1465,7 @@ TEST_F(TPingTransactionsTest, MaxBatchSize)
     WaitFor(AllSet(std::vector{future1, future2}))
         .ThrowOnError();
 
-    // Batch size is set to 2 in yt/yt/tests/cpp/test_native_api/config.yson, so last ping should go into another batch.
+    // Batch size is set to 2 in yt/yt/tests/cpp/test_api/native/config.yson, so last ping should go into another batch.
     ASSERT_FALSE(future3.IsSet());
 
     auto future4 = tx1->Ping();

@@ -1,4 +1,4 @@
-#include <yt/yt/tests/cpp/modify_rows_test.h>
+#include <yt/yt/tests/cpp/test_api/common/modify_rows_test.h>
 
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 
