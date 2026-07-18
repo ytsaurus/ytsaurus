@@ -213,7 +213,7 @@ public:
     MOCK_METHOD(ILockPtr, Lock, (const TYPath& path, ELockMode mode, const TLockOptions& options), (override));
     MOCK_METHOD(void, Unlock, (const TYPath& path, const TUnlockOptions& options), (override));
 
-    MOCK_METHOD(void, Commit, (), (override));
+    MOCK_METHOD(void, Commit, (const TCommitTransactionOptions& options), (override));
     MOCK_METHOD(void, Abort, (), (override));
     MOCK_METHOD(void, Ping, (), (override));
 
