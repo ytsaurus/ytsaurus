@@ -356,7 +356,7 @@ bool TWorkerConnection::DoRequest()
         auto queuedTaskIterateFunction = [&] (auto&& callback) {
             for (auto& [jobId, jobState] : JobStates_) {
                 for (auto& [streamId, state] : jobState.QueuedTasks) {
-                    callback(jobId, state.Tasks);
+                    callback(jobId, streamId, state.Tasks);
                 }
             }
         };
