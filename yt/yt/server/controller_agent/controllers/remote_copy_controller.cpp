@@ -602,7 +602,13 @@ private:
         }
 
         const auto& chunk = dataSlice->GetSingleUnversionedChunk();
-        YT_VERIFY(!chunk->IsDynamicStore());
+        if (chunk->IsDynamicStore()) {
+            THROW_ERROR_EXCEPTION(
+                errorCode,
+                "Remote copy operation does not support dynamic stores; "
+                "flush the input table or set \"enable_dynamic_store_read\" = %%false in the operation spec")
+                << TErrorAttribute("chunk_id", chunk->GetChunkId());
+        }
         if ((chunk->LowerLimit() && !IsTrivial(*chunk->LowerLimit())) ||
             (chunk->UpperLimit() && !IsTrivial(*chunk->UpperLimit())))
         {
