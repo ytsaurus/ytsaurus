@@ -46,7 +46,6 @@ DEFINE_ENUM(EChaosReign,
     // 26.1 starts here.
     ((Start_26_1)                               (300400)) // atalmenev
     ((ExpectedPrepareSignature)                 (300401)) // atalmenev
-    ((SecondaryIndices_26_1)                    (300402)) // sabdenovch
     ((BlockCardPropagationOnAlter_26_1)         (300403)) // osidorkin
     // 26.2 starts here.
     ((Start_26_2)                               (300500)) // sabdenovch
