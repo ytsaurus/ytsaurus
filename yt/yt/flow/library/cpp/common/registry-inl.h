@@ -108,10 +108,11 @@ void TRegistry::EmplaceDescriptorOrCrash(THashMap<std::string, TDescriptor>& des
 {
     auto [it, success] = descriptorMap.try_emplace(TypeName<T>(), std::move(descriptor));
     if (!success) {
-        YT_LOG_FATAL("Can not emplace %Qv for type %Qv because it is already present in descriptor map. "
-            "Check that YT_FLOW_DEFINE_* macro is not called in header file. Or in two source files.",
-            TypeName<TDescriptor>(),
-            TypeName<T>());
+        YT_TLOG_FATAL(
+            "Can not emplace descriptor because it is already present in descriptor map. "
+            "Check that YT_FLOW_DEFINE_* macro is not called in header file. Or in two source files.")
+            .With("Descriptor", TypeName<TDescriptor>(), "%Qv")
+            .With("Type", TypeName<T>(), "%Qv");
     }
 }
 
@@ -144,9 +145,10 @@ void TRegistry::RegisterComputation()
             .InvokesProcessFunctionSync = TComputationInvokesProcessFunctionSync<T>::value,
         });
     if (!success) {
-        YT_LOG_FATAL("Can not emplace computation %Qv because it is already present in descriptor map. "
-            "Check that a YT_FLOW_DEFINE_* macro is not called in a header file or in two source files.",
-            TypeName<T>());
+        YT_TLOG_FATAL(
+            "Can not emplace computation because it is already present in descriptor map. "
+            "Check that a YT_FLOW_DEFINE_* macro is not called in a header file or in two source files.")
+            .With("Computation", TypeName<T>(), "%Qv");
     }
 }
 

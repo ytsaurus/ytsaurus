@@ -969,7 +969,8 @@ void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::Apply(const T
     if (it != States_.end()) {
         it->second->Apply(row.SequenceId, row.KeyLeft, row.KeyRight, row.Value, droppedIds);
     } else {
-        YT_LOG_EVENT(PersistedStateLogger, NLogging::ELogLevel::Warning, "State row not applied: state name '%v' is unknown", row.Name);
+        YT_TLOG_EVENT_FLUENT(PersistedStateLogger, NLogging::ELogLevel::Warning, "State row not applied: state name is unknown")
+            .With("StateName", row.Name);
     }
 }
 
@@ -987,7 +988,8 @@ std::vector<TPersistedStateStorageRow<TDBKey, TDBValue>> TPersistedStateControl<
     TSequenceId sequenceIdFrom,
     ssize_t limit)
 {
-    YT_LOG_EVENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow begin (sequenceIdFrom: %v)", sequenceIdFrom);
+    YT_TLOG_EVENT_FLUENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow begin")
+        .With("SequenceIdFrom", sequenceIdFrom);
 
     auto guard = Guard(TransactionalLock_);
     if (sequenceIdFrom == ConfirmedId_) {
@@ -1003,7 +1005,9 @@ std::vector<TPersistedStateStorageRow<TDBKey, TDBValue>> TPersistedStateControl<
     }
     guard.Release();
 
-    YT_LOG_EVENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow found (sequenceIdFrom: %v, foundRecords: %v)", sequenceIdFrom, std::ssize(foundRecords));
+    YT_TLOG_EVENT_FLUENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow found")
+        .With("SequenceIdFrom", sequenceIdFrom)
+        .With("FoundRecords", std::ssize(foundRecords));
 
     std::vector<TStorageRow> result;
     for (const auto& knownRecord : foundRecords) {
@@ -1012,7 +1016,9 @@ std::vector<TPersistedStateStorageRow<TDBKey, TDBValue>> TPersistedStateControl<
         result.emplace_back(state->RecordToRow(*knownRecord.Record));
     }
 
-    YT_LOG_EVENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow converted (sequenceIdFrom: %v, foundRecords: %v)", sequenceIdFrom, std::ssize(result));
+    YT_TLOG_EVENT_FLUENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow converted")
+        .With("SequenceIdFrom", sequenceIdFrom)
+        .With("FoundRecords", std::ssize(result));
 
     return result;
 }
