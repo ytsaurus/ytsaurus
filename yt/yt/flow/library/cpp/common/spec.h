@@ -11,8 +11,8 @@
 #include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/flow/lib/client/public.h>
-#include <yt/yt/flow/lib/serializer/state.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
+#include <yt/yt/flow/library/cpp/serializer/state.h>
 
 #include <yt/yt/core/ytree/size.h>
 #include <yt/yt/core/ytree/yson_struct.h>

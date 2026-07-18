@@ -860,8 +860,8 @@ PEERDIR(
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client
     yt/yt_proto/yt/client
-    yt/yt/flow/lib/client
-    yt/yt/flow/lib/native_client
+    yt/yt/flow/library/cpp/client
+    yt/yt/flow/library/cpp/native_client
 )
 
 END()

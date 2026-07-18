@@ -6,7 +6,7 @@
 #include <yt/yt/flow/library/cpp/misc/retryable_client.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
 
-#include <yt/yt/flow/lib/native_client/public.h>
+#include <yt/yt/flow/library/cpp/native_client/public.h>
 
 #include <yt/yt/client/api/transaction.h>
 

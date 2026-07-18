@@ -12,9 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(lib)
-add_subdirectory(bin)
 add_subdirectory(library)
+add_subdirectory(bin)
 add_subdirectory(tests)
 add_subdirectory(tools)
 add_subdirectory(examples)

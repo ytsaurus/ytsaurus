@@ -32,7 +32,7 @@ target_link_libraries(library-cpp-tables PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-yt-misc
-  flow-lib-serializer
+  library-cpp-serializer
   library-cpp-common
   library-cpp-misc
   library-profiling-sensors_owner

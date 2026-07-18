@@ -106,8 +106,8 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
-  flow-lib-client
-  flow-lib-native_client
+  library-cpp-client
+  library-cpp-native_client
 )
 
 target_sources(yt-yt-ytlib PRIVATE
@@ -1940,8 +1940,8 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
-  flow-lib-client
-  flow-lib-native_client
+  library-cpp-client
+  library-cpp-native_client
 )
 
 target_sources(yt-yt-ytlib.global PRIVATE

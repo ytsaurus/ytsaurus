@@ -36,7 +36,7 @@ PEERDIR(
     yt/yt/client
     yt/yt/core
     yt/yt/flow/library/cpp/misc/proto
-    yt/yt/flow/lib/client
+    yt/yt/flow/library/cpp/client
     yt/yt/library/backtrace_introspector
 )
 

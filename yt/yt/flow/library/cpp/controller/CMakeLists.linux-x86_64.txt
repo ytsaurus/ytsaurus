@@ -39,13 +39,13 @@ target_link_libraries(library-cpp-controller PUBLIC
   cpp-yson-node
   cpp-yt-memory
   yt-yt-core
-  cpp-client-flow_execute
+  cpp-pipeline_helpers-flow_execute
   library-cpp-common
   cpp-controller-describe
   library-cpp-distributed_throttler
   library-cpp-misc
   library-cpp-tables
-  flow-lib-client
+  library-cpp-client
   yt-library-cypress_election
   yt-library-lock_election
   yt-library-orchid

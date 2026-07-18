@@ -37,8 +37,8 @@ target_link_libraries(library-cpp-common PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  flow-lib-client
-  flow-lib-serializer
+  library-cpp-client
+  library-cpp-serializer
   cpp-common-proto
   common-controller-proto
   common-worker-proto

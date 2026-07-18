@@ -10,8 +10,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/transaction_client/public.h>
 
-#include <yt/yt/flow/lib/client/public.h>
-#include <yt/yt/flow/lib/native_client/public.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
+#include <yt/yt/flow/library/cpp/native_client/public.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 

@@ -2,8 +2,8 @@
 
 #include <yt/yt/flow/library/cpp/common/public.h>
 
-#include <yt/yt/flow/lib/native_client/public.h>
-#include <yt/yt/flow/lib/serializer/public.h>
+#include <yt/yt/flow/library/cpp/native_client/public.h>
+#include <yt/yt/flow/library/cpp/serializer/public.h>
 
 #include <yt/yt/client/api/public.h>
 #include <yt/yt/client/ypath/public.h>

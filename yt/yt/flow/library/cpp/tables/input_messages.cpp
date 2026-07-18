@@ -7,7 +7,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 
-#include <yt/yt/flow/lib/native_client/public.h>
+#include <yt/yt/flow/library/cpp/native_client/public.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/dynamic_table_client.h>

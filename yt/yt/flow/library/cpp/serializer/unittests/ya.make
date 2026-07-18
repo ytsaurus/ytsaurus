@@ -1,0 +1,17 @@
+GTEST(unittester-flow-serializer)
+
+INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
+
+SRCS(
+    serializer_ut.cpp
+    state_ut.cpp
+    proto/test.proto
+)
+
+PEERDIR(
+    yt/yt/client
+    yt/yt/core/test_framework
+    yt/yt/flow/library/cpp/serializer
+)
+
+END()

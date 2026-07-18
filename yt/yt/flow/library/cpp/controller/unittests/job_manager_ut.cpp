@@ -9,7 +9,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
-#include <yt/yt/flow/lib/client/public.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>

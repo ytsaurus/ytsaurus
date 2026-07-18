@@ -31,7 +31,7 @@ target_link_libraries(library-cpp-vanilla PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  flow-lib-native_client
+  library-cpp-native_client
   yt-yt-client
   yt-client-cache
   yt-library-auth
