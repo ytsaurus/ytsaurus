@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: tqdm
-Version: 4.67.3
+Version: 4.68.1
 Summary: Fast, Extensible Progress Meter
 Maintainer-email: tqdm developers <devs@tqdm.ml>
 License: MPL-2.0 AND MIT
@@ -76,10 +76,13 @@ Requires-Dist: pytest-asyncio>=0.24; extra == "dev"
 Requires-Dist: nbval; extra == "dev"
 Provides-Extra: discord
 Requires-Dist: requests; extra == "discord"
+Requires-Dist: envwrap; extra == "discord"
 Provides-Extra: slack
 Requires-Dist: slack-sdk; extra == "slack"
+Requires-Dist: envwrap; extra == "slack"
 Provides-Extra: telegram
 Requires-Dist: requests; extra == "telegram"
+Requires-Dist: envwrap; extra == "telegram"
 Provides-Extra: notebook
 Requires-Dist: ipywidgets>=6; extra == "notebook"
 Dynamic: license-file
@@ -443,7 +446,7 @@ Documentation
       progressbar every time a value is requested.
       """
 
-      @envwrap("TQDM_")  # override defaults via env vars
+      @envwrap("tqdm")  # override defaults via env vars
       def __init__(self, iterable=None, desc=None, total=None, leave=True,
                    file=None, ncols=None, mininterval=0.1,
                    maxinterval=10.0, miniters=None, ascii=None, disable=False,
@@ -1541,7 +1544,7 @@ Citation information: |DOI|
 .. |Branch-Coverage-Status| image:: https://codecov.io/gh/tqdm/tqdm/branch/master/graph/badge.svg
    :target: https://codecov.io/gh/tqdm/tqdm
 .. |Codacy-Grade| image:: https://app.codacy.com/project/badge/Grade/3f965571598f44549c7818f29cdcf177
-   :target: https://www.codacy.com/gh/tqdm/tqdm/dashboard
+   :target: https://app.codacy.com/gh/tqdm/tqdm/dashboard
 .. |CII Best Practices| image:: https://bestpractices.coreinfrastructure.org/projects/3264/badge
    :target: https://bestpractices.coreinfrastructure.org/projects/3264
 .. |GitHub-Status| image:: https://img.shields.io/github/tag/tqdm/tqdm.svg?maxAge=86400&logo=github&logoColor=white
