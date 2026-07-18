@@ -11,7 +11,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 PEERDIR(
     yt/yt/client/unittests/mock
     yt/yt/core/test_framework
-    yt/yt/flow/lib/native_client
+    yt/yt/flow/library/cpp/native_client
 )
 
 SIZE(SMALL)

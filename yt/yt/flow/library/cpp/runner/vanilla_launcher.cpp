@@ -6,9 +6,9 @@
 #include <yt/yt/flow/library/cpp/vanilla/files.h>
 #include <yt/yt/flow/library/cpp/vanilla/spec.h>
 
-#include <yt/yt/flow/library/cpp/client/pipeline.h>
+#include <yt/yt/flow/library/cpp/pipeline_helpers/pipeline.h>
 
-#include <yt/yt/flow/lib/native_client/public.h>
+#include <yt/yt/flow/library/cpp/native_client/public.h>
 
 #include <yt/yt/client/api/client.h>
 

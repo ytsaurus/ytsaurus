@@ -29,7 +29,7 @@ PEERDIR(
     yt/yt/library/ytprof
     yt/yt/core
     yt/yt/client
-    yt/yt/flow/lib/client
+    yt/yt/flow/library/cpp/client
 
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/common/worker

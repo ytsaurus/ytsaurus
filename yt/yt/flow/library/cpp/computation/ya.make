@@ -35,7 +35,7 @@ PEERDIR(
     library/cpp/containers/insert_only_concurrent_cache
     library/cpp/iterator
     library/cpp/yt/misc
-    yt/yt/flow/lib/serializer
+    yt/yt/flow/library/cpp/serializer
     yt/yt/library/query/base
     yt/yt/library/query/engine_api
     yt/yt/flow/library/cpp/common

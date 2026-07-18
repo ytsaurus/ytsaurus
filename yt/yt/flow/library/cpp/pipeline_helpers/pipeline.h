@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/yt/flow/library/cpp/client/flow_execute/flow_execute.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
+#include <yt/yt/flow/library/cpp/pipeline_helpers/flow_execute/flow_execute.h>
 
 #include <yt/yt/client/api/public.h>
 

@@ -2,8 +2,8 @@
 #include "internal_urls.h"
 #include "private.h"
 
-#include <yt/yt/flow/lib/client/authentication.h>
-#include <yt/yt/flow/lib/client/public.h>
+#include <yt/yt/flow/library/cpp/client/authentication.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
 
 #include <yt/yt/library/tvm/service/config.h>
 #include <yt/yt/library/tvm/service/tvm_service.h>

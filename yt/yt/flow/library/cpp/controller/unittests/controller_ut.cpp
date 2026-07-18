@@ -19,7 +19,7 @@
 #include <yt/yt/client/unittests/mock/timestamp_provider.h>
 #include <yt/yt/client/unittests/mock/transaction.h>
 
-#include <yt/yt/flow/lib/client/controller/controller_service_proxy.h>
+#include <yt/yt/flow/library/cpp/client/controller/controller_service_proxy.h>
 
 #include <yt/yt/core/actions/invoker_util.h>
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>

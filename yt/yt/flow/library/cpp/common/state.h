@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/yson/pull_parser.h>
 
-#include <yt/yt/flow/lib/serializer/validate.h>
+#include <yt/yt/flow/library/cpp/serializer/validate.h>
 
 #include <util/stream/mem.h>
 

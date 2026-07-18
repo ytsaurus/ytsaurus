@@ -27,7 +27,7 @@
 
 #include <yt/yt/flow/library/cpp/tables/transaction_manager.h>
 
-#include <yt/yt/flow/lib/serializer/serializer.h>
+#include <yt/yt/flow/library/cpp/serializer/serializer.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/rowset.h>

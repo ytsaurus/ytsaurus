@@ -14,7 +14,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
-#include <yt/yt/flow/lib/client/public.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 

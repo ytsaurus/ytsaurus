@@ -5,8 +5,8 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/yt/flow/lib/client/authentication.h>
-#include <yt/yt/flow/lib/client/public.h>
+#include <yt/yt/flow/library/cpp/client/authentication.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -44,7 +44,7 @@ namespace {
 //! Signs each request with the cluster key so the Flow Controller can verify it was
 //! forwarded by an authorized RPC proxy and is addressed to this exact pipeline and
 //! controller. Guards against source spoofing / direct endpoint access (SSRF).
-//! See yt/yt/flow/lib/client/authentication.md for the signing scheme and threat model.
+//! See yt/yt/flow/library/cpp/client/authentication.md for the signing scheme and threat model.
 class TFlowSignatureInjectingChannel
     : public TChannelWrapper
 {

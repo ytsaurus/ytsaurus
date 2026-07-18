@@ -1,4 +1,4 @@
-#include <yt/yt/flow/lib/native_client/pipeline_init.h>
+#include <yt/yt/flow/library/cpp/native_client/pipeline_init.h>
 
 #include <yt/yt/client/unittests/mock/client.h>
 #include <yt/yt/client/unittests/mock/transaction.h>

@@ -1,7 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/flow/lib/delta_codecs/codec.h>
-#include <yt/yt/flow/lib/delta_codecs/state.h>
+#include <yt/yt/flow/library/cpp/delta_codecs/codec.h>
+#include <yt/yt/flow/library/cpp/delta_codecs/state.h>
 
 namespace NYT::NFlow::NDeltaCodecs {
 namespace {

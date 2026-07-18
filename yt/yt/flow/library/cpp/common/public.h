@@ -5,7 +5,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/versioned_value.h>
 
-#include <yt/yt/flow/lib/client/public.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
 
 #include <yt/yt/client/transaction_client/public.h>
 

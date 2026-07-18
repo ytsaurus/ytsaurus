@@ -1,5 +1,9 @@
 RECURSE(
+    pipeline_helpers
     client
+    delta_codecs
+    native_client
+    serializer
     common
     common/worker
     companion

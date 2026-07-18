@@ -9,7 +9,7 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/flow/lib/native_client
+    yt/yt/flow/library/cpp/native_client
     yt/yt/client
     yt/yt/client/cache
     yt/yt/library/auth

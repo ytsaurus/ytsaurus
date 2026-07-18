@@ -11,7 +11,7 @@ SRCS(
 PEERDIR(
     library/cpp/yt/yson
     yt/yt/client
-    yt/yt/flow/lib/delta_codecs
+    yt/yt/flow/library/cpp/delta_codecs
 )
 
 END()

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/flow/lib/delta_codecs/public.h>
+#include <yt/yt/flow/library/cpp/delta_codecs/public.h>
 
 #include <yt/yt/core/ytree/public.h>
 

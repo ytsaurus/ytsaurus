@@ -1,6 +1,6 @@
-#include <yt/yt/flow/lib/serializer/serializer.h>
+#include <yt/yt/flow/library/cpp/serializer/serializer.h>
 
-#include <yt/yt/flow/lib/serializer/unittests/proto/test.pb.h>
+#include <yt/yt/flow/library/cpp/serializer/unittests/proto/test.pb.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>

@@ -11,7 +11,7 @@ SRCS(
 PEERDIR(
     yt/yt/client
     yt/yt/core/test_framework
-    yt/yt/flow/lib/serializer
+    yt/yt/flow/library/cpp/serializer
 )
 
 END()

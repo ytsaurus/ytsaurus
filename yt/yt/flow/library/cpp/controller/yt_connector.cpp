@@ -8,7 +8,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/node_info.h>
 
-#include <yt/yt/flow/lib/native_client/public.h>
+#include <yt/yt/flow/library/cpp/native_client/public.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>

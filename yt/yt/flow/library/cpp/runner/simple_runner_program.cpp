@@ -4,11 +4,11 @@
 #include "init.h"
 #include "public.h"
 
-#include <yt/yt/flow/library/cpp/client/pipeline.h>
 #include <yt/yt/flow/library/cpp/common/internal_urls.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/yson_message.h>
+#include <yt/yt/flow/library/cpp/pipeline_helpers/pipeline.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/net/address.h>

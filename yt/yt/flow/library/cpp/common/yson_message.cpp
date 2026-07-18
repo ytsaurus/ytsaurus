@@ -3,7 +3,7 @@
 #include "message.h"
 #include "timer.h"
 
-#include <yt/yt/flow/lib/serializer/serializer.h>
+#include <yt/yt/flow/library/cpp/serializer/serializer.h>
 
 namespace NYT::NFlow {
 

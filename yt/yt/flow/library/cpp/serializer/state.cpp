@@ -6,8 +6,8 @@
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
 
-#include <yt/yt/flow/lib/delta_codecs/codec.h>
-#include <yt/yt/flow/lib/delta_codecs/state.h>
+#include <yt/yt/flow/library/cpp/delta_codecs/codec.h>
+#include <yt/yt/flow/library/cpp/delta_codecs/state.h>
 
 #include <yt/yt/core/logging/log.h>
 

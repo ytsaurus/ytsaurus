@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/flow/lib/client/public.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
 

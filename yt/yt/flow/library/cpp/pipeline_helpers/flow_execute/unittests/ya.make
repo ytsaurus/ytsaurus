@@ -7,7 +7,7 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/flow/library/cpp/client/flow_execute
+    yt/yt/flow/library/cpp/pipeline_helpers/flow_execute
 )
 
 SIZE(SMALL)

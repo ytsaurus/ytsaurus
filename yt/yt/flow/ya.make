@@ -1,7 +1,6 @@
 RECURSE(
     bin
     examples
-    lib
     library
     tests
     tools

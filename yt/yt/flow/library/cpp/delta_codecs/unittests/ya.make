@@ -7,7 +7,7 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/flow/lib/delta_codecs
+    yt/yt/flow/library/cpp/delta_codecs
 )
 
 SIZE(SMALL)

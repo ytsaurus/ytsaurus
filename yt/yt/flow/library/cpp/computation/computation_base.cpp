@@ -47,7 +47,7 @@
 #include <yt/yt/flow/library/cpp/tables/key_visitor_states.h>
 #include <yt/yt/flow/library/cpp/tables/partition_states.h>
 
-#include <yt/yt/flow/lib/client/public.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
