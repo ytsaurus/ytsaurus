@@ -18,6 +18,8 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <yt/yt/core/misc/heap.h>
+
 #include <yt/yt/core/rpc/channel.h>
 
 #include <yt/yt/library/profiling/sensors_owner/sensors_owner.h>
@@ -27,6 +29,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <deque>
 #include <list>
 
 namespace NYT::NFlow::NWorker {
@@ -457,32 +460,70 @@ bool SelectTasksToSend(
 {
     using TSet = TRoutedTaskSet;
     using TSetIterator = TSet::iterator;
-    using THeapElement = std::tuple<TTaskKey, TJobId, TSetIterator, TSet*>;
 
+    struct TState
+    {
+        TJobId JobId;
+        TSetIterator It;
+        TSet* Set = nullptr;
+        double Bias = 0;
+        i64* InflatedLimit = nullptr;
+    };
+
+    struct THeapElement
+    {
+        TTaskKey TaskKey;
+        TState* State = nullptr;
+
+        bool operator<(const THeapElement& other) const
+        {
+            return TaskKey < other.TaskKey;
+        }
+    };
+
+#ifndef NDEBUG
     const auto& Logger = WorkerLogger();
+#endif
 
-    auto getTaskPriority = [&] (const TRoutedTask& routedTask) {
-        double bias = GetOrDefault(orderingTimestampBiases, std::pair<TStreamId, TComputationId>(routedTask.Task.Message->StreamId, routedTask.Task.ComputationId));
+    auto getTaskPriority = [] (const TRoutedTask& routedTask, double bias) {
         return TTaskKey(TSystemTimestamp(routedTask.Task.Message->AlignmentTimestamp.Underlying() + bias), routedTask.Task.Id);
     };
 
-    static const auto comparator = [] (const THeapElement& lhs, const THeapElement& rhs) {
-        return std::get<0>(lhs) > std::get<0>(rhs);
-    };
-
-    std::priority_queue<THeapElement, std::vector<THeapElement>, decltype(comparator)> heap(comparator);
-    queuedTaskIterateFunction([&] (const auto& jobId, auto& tasks) {
+    std::deque<TState> states;
+    std::vector<THeapElement> heap;
+    queuedTaskIterateFunction([&] (const auto& jobId, const auto& streamId, auto& tasks) {
         if (!tasks.empty()) {
             const auto it = tasks.begin();
-            heap.push(THeapElement(getTaskPriority(*it), jobId, it, &tasks));
+            const double bias = GetOrDefault(orderingTimestampBiases, std::pair<TStreamId, TComputationId>(it->Task.Message->StreamId, it->Task.ComputationId));
+            // THashMap is node-based, so this slot reference stays valid as more queues insert below.
+            auto& inflatedLimit = inflatedNextBatchByteLimit[std::pair{jobId, streamId}];
+            auto& state = states.emplace_back(TState{.JobId = jobId, .It = it, .Set = &tasks, .Bias = bias, .InflatedLimit = &inflatedLimit});
+            heap.push_back(THeapElement{.TaskKey = getTaskPriority(*it, bias), .State = &state});
         }
     });
 
+    MakeHeap(heap.begin(), heap.end());
+    auto dropFront = [&] {
+        ExtractHeap(heap.begin(), heap.end());
+        heap.pop_back();
+    };
+    auto advanceFront = [&] {
+        auto* state = heap.front().State;
+        if (++state->It != state->Set->end()) {
+            heap.front().TaskKey = getTaskPriority(*state->It, state->Bias);
+            AdjustHeapFront(heap.begin(), heap.end());
+        } else {
+            dropFront();
+        }
+    };
+
+#ifndef NDEBUG
     absl::flat_hash_set<std::pair<TMessageId, TJobId>, ::THash<std::pair<TMessageId, TJobId>>> messageIds;
+#endif
 
     while (!heap.empty()) {
-        auto [taskKey, jobId, it, queue] = std::move(heap.top());
-        heap.pop();
+        auto* state = heap.front().State;
+        const auto it = state->It;
 
         // Charge the destination buffer's per-message inflation against the limit:
         // the input buffer accounts every accepted message as #InflatedByteSize() inflated bytes,
@@ -490,28 +531,29 @@ bool SelectTasksToSend(
         // (TInputBuffer::RecalculateStreamLimits). Mirroring the inflation here keeps the source
         // and destination accounting in the same units.
         const i64 inflatedChargedSize = InflatedByteSize(it->Task.Message->ByteSize);
-        auto& inflatedCurrentLimit = inflatedNextBatchByteLimit[std::pair{jobId, it->Task.Message->StreamId}];
+        auto& inflatedCurrentLimit = *state->InflatedLimit;
         if (inflatedCurrentLimit < inflatedChargedSize) {
+            dropFront();
             continue;
         }
         inflatedCurrentLimit -= inflatedChargedSize;
 
-        const auto messageKey = std::pair(it->Task.Message->MessageId, jobId);
-        auto [messageIdsIt, messageIdWasEmplaced] = messageIds.emplace(messageKey);
-        YT_TLOG_FATAL_UNLESS(messageIdWasEmplaced, "There is duplicate of message in batch")
+#ifndef NDEBUG
+        const auto messageKey = std::pair(it->Task.Message->MessageId, state->JobId);
+        auto [messageIdsIt, ok] = messageIds.emplace(messageKey);
+        YT_TLOG_FATAL_UNLESS(ok, "There is duplicate of message in batch")
             .With("MessageId", it->Task.Message->MessageId)
-            .With("JobId", jobId);
+            .With("JobId", state->JobId);
+#endif
 
-        selectedCallback(jobId, *it);
+        selectedCallback(state->JobId, *it);
 
         batchTotalLimiter.Add(*it);
         if (batchTotalLimiter.IsFull()) {
             return true;
         }
 
-        if (++it != queue->end()) {
-            heap.push(THeapElement(getTaskPriority(*it), jobId, it, queue));
-        }
+        advanceFront();
     }
 
     return false;

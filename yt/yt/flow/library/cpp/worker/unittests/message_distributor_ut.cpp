@@ -70,7 +70,7 @@ auto MakeQueuedTaskIterateFunction(const TSourceJobTaskQueues& queues)
     return [&] (auto&& callback) {
         for (auto& [jobId, jobQueues] : queues) {
             for (auto& [streamId, tasks] : jobQueues) {
-                callback(jobId, *tasks);
+                callback(jobId, streamId, *tasks);
             }
         }
     };
@@ -249,6 +249,9 @@ TEST(TMessageDistributorTest, SelectTasksToSendTrivialCases)
 
 TEST(TMessageDistributorTest, SelectTasksToSendDuplicate)
 {
+#ifdef NDEBUG
+    GTEST_SKIP() << "Duplicate detection is compiled in only under NDEBUG-less builds.";
+#else
     // Tasks with the same MessageId but different keys — duplicate detection is by MessageId.
     TRoutedTaskSet tasks;
     tasks.insert(MakeRoutedTask({.MessageId = TMessageId("1")}, {DefaultSystemTimestamp, 0}));
@@ -263,6 +266,7 @@ TEST(TMessageDistributorTest, SelectTasksToSendDuplicate)
     ASSERT_DEATH(
         SelectTasksToSend(MakeQueuedTaskIterateFunction(queues), {}, MakeUnlimitedNextBatchByteLimit(queues), batcher, MakeSelectedCallback(result)),
         "duplicate");
+#endif
 }
 
 TEST(TMessageDistributorTest, SelectTasksToSendNextBatchLimit)
