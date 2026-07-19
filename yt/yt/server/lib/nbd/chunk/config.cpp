@@ -16,15 +16,18 @@ void TPageCacheConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
     registrar.Parameter("writeback_period", &TThis::WritebackPeriod)
         .Default(TDuration::Seconds(2));
-    registrar.Parameter("dirty_data_soft_limit", &TThis::DirtyDataSoftLimit)
-        .Default(16_MB)
-        .GreaterThan(0);
-    registrar.Parameter("dirty_data_hard_limit", &TThis::DirtyDataHardLimit)
-        .Default(32_MB)
-        .GreaterThan(0);
-    registrar.Parameter("max_dirty_data_per_writeback", &TThis::MaxDirtyDataPerWriteback)
-        .Default(4_MB)
-        .GreaterThan(0);
+    registrar.Parameter("dirty_data_soft_limit_capacity_fraction", &TThis::DirtyDataSoftLimitCapacityFraction)
+        .Default(0.25)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0);
+    registrar.Parameter("dirty_data_hard_limit_capacity_fraction", &TThis::DirtyDataHardLimitCapacityFraction)
+        .Default(0.5)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0);
+    registrar.Parameter("max_dirty_data_per_writeback_capacity_fraction", &TThis::MaxDirtyDataPerWritebackCapacityFraction)
+        .Default(0.0625)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0);
     registrar.Parameter("max_dirty_data_per_write", &TThis::MaxDirtyDataPerWrite)
         .Default(1_MB)
         .GreaterThan(0);
@@ -56,50 +59,43 @@ void TPageCacheConfig::Register(TRegistrar registrar)
                 config->PageSize,
                 config->MaxDirtyDataPerWrite);
         }
-        // MaxDirtyDataPerWriteback must be a positive multiple of PageSize so it maps to a
-        // whole number of pages per writeback.
-        if (config->MaxDirtyDataPerWriteback % config->PageSize != 0) {
+        // MaxDirtyDataPerWritebackCapacityFraction * Capacity is rounded down to a page
+        // multiple in TPageCache, so the effective budget always maps to a whole number of pages.
+        i64 maxDirtyDataPerWriteback = static_cast<i64>(config->MaxDirtyDataPerWritebackCapacityFraction * config->Capacity) / config->PageSize * config->PageSize;
+        if (maxDirtyDataPerWriteback <= 0) {
             THROW_ERROR_EXCEPTION(
-                "\"max_dirty_data_per_writeback\" must be a positive multiple of \"page_size\" (%v), got %v",
-                config->PageSize,
-                config->MaxDirtyDataPerWriteback);
+                "\"max_dirty_data_per_writeback_capacity_fraction\" (%v) is too small for \"capacity\" (%v) and \"page_size\" (%v): effective budget is 0",
+                config->MaxDirtyDataPerWritebackCapacityFraction,
+                config->Capacity,
+                config->PageSize);
         }
-        // DirtyDataSoftLimit must be a positive multiple of PageSize.
-        if (config->DirtyDataSoftLimit % config->PageSize != 0) {
+        // DirtyDataSoftLimitCapacityFraction must not exceed DirtyDataHardLimitCapacityFraction.
+        if (config->DirtyDataSoftLimitCapacityFraction > config->DirtyDataHardLimitCapacityFraction) {
             THROW_ERROR_EXCEPTION(
-                "\"dirty_data_soft_limit\" must be a positive multiple of \"page_size\" (%v), got %v",
-                config->PageSize,
-                config->DirtyDataSoftLimit);
-        }
-        // DirtyDataHardLimit must be a positive multiple of PageSize.
-        if (config->DirtyDataHardLimit % config->PageSize != 0) {
-            THROW_ERROR_EXCEPTION(
-                "\"dirty_data_hard_limit\" must be a positive multiple of \"page_size\" (%v), got %v",
-                config->PageSize,
-                config->DirtyDataHardLimit);
+                "\"dirty_data_soft_limit_capacity_fraction\" (%v) must not exceed \"dirty_data_hard_limit_capacity_fraction\" (%v)",
+                config->DirtyDataSoftLimitCapacityFraction,
+                config->DirtyDataHardLimitCapacityFraction);
         }
         // A single merged write must not exceed what one writeback processes: the merge cap
         // (MaxDirtyDataPerWrite) is applied within a writeback task that itself covers at most
-        // MaxDirtyDataPerWriteback bytes, so a larger per-write cap could never be reached and
+        // maxDirtyDataPerWriteback bytes, so a larger per-write cap could never be reached and
         // would be misleading.
-        if (config->MaxDirtyDataPerWrite > config->MaxDirtyDataPerWriteback) {
+        if (config->MaxDirtyDataPerWrite > maxDirtyDataPerWriteback) {
             THROW_ERROR_EXCEPTION(
-                "\"max_dirty_data_per_write\" (%v) must not exceed \"max_dirty_data_per_writeback\" (%v)",
+                "\"max_dirty_data_per_write\" (%v) must not exceed the effective max dirty data per writeback (%v, from \"max_dirty_data_per_writeback_capacity_fraction\" %v of \"capacity\" %v)",
                 config->MaxDirtyDataPerWrite,
-                config->MaxDirtyDataPerWriteback);
+                maxDirtyDataPerWriteback,
+                config->MaxDirtyDataPerWritebackCapacityFraction,
+                config->Capacity);
         }
-        // DirtyDataSoftLimit must not exceed DirtyDataHardLimit.
-        if (config->DirtyDataSoftLimit > config->DirtyDataHardLimit) {
+        // MaxDirtyDataPerWriteback must not exceed Capacity. The fraction is already
+        // constrained to (0, 1] by the parameter validator, so this is a structural
+        // invariant, but we check the effective byte value explicitly for a clear
+        // error message in case of rounding edge cases.
+        if (maxDirtyDataPerWriteback > config->Capacity) {
             THROW_ERROR_EXCEPTION(
-                "\"dirty_data_soft_limit\" (%v) must not exceed \"dirty_data_hard_limit\" (%v)",
-                config->DirtyDataSoftLimit,
-                config->DirtyDataHardLimit);
-        }
-        // DirtyDataHardLimit must not exceed Capacity.
-        if (config->DirtyDataHardLimit > config->Capacity) {
-            THROW_ERROR_EXCEPTION(
-                "\"dirty_data_hard_limit\" (%v) must not exceed \"capacity\" (%v)",
-                config->DirtyDataHardLimit,
+                "\"max_dirty_data_per_writeback_capacity_fraction\" (%v) must not exceed \"capacity\" (%v)",
+                config->MaxDirtyDataPerWritebackCapacityFraction,
                 config->Capacity);
         }
     });
