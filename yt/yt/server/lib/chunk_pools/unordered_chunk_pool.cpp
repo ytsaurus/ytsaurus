@@ -68,7 +68,7 @@ public:
         const TUnorderedChunkPoolOptions& options,
         TInputStreamDirectory directory)
         : JobSizeConstraints_(options.JobSizeConstraints)
-        , Sampler_(JobSizeConstraints_->GetSamplingRate())
+        , Sampler_(JobSizeConstraints_->GetSamplingRate(), JobSizeConstraints_->GetSamplingSeed())
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , MinTeleportChunkDataWeight_(options.MinTeleportChunkDataWeight)
         , SliceErasureChunksByParts_(options.SliceErasureChunksByParts)

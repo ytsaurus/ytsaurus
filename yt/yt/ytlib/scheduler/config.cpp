@@ -543,6 +543,9 @@ void TSamplingConfig::Register(TRegistrar registrar)
     registrar.Parameter("io_block_size", &TThis::IOBlockSize)
         .Default(16_MB);
 
+    registrar.Parameter("sampling_seed", &TThis::SamplingSeed)
+        .Default();
+
     registrar.Postprocessor([] (TSamplingConfig* config) {
         if (config->SamplingRate && (*config->SamplingRate < 0.0 || *config->SamplingRate > 1.0)) {
             THROW_ERROR_EXCEPTION("Sampling rate should be in range [0.0, 1.0]")
