@@ -58,6 +58,20 @@ struct TJournalBlockStoreConfig
     //! exhausted the store fails, so a persistent creation failure does not retry forever.
     TExponentialBackoffOptions ChunkCreationBackoff;
 
+    //! Paces the retries when sealing an abandoned chunk. Sealing must eventually succeed -- a snapshot
+    //! cannot reference an unsealed chunk -- so these retries are unbounded.
+    TExponentialBackoffOptions SealBackoff;
+
+    //! Timeouts for the per-replica requests backing a seal (session abort and quorum probe).
+    TDuration SealRpcTimeout;
+    TDuration SealQuorumSessionDelay;
+
+    //! How long a snapshot waits for the chunks it references to be sealed.
+    TDuration SnapshotSealTimeout;
+
+    //! How long a snapshot waits for its pre-snapshot dirty blocks to reach the store.
+    TDuration SnapshotFlushTimeout;
+
     NApi::TJournalChunkWriterConfigPtr ChunkWriter;
     NChunkClient::TChunkFragmentReaderConfigPtr ChunkReader;
 

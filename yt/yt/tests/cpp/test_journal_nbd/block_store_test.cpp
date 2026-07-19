@@ -8,6 +8,9 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 
@@ -63,6 +66,18 @@ std::vector<TSharedRef> MakeRandomBlocks(int count, i64 blockSize)
     return blocks;
 }
 
+ITransactionPtr StartDeviceTransaction(const NNative::IClientPtr& client)
+{
+    const auto& connection = client->GetNativeConnection();
+    WaitFor(connection->GetMasterCellDirectorySynchronizer()->RecentSync())
+        .ThrowOnError();
+    TTransactionStartOptions options;
+    options.CoordinatorMasterCellTag = connection->GetRandomMasterCellTagWithRoleOrThrow(
+        NCellMasterClient::EMasterCellRole::ChunkHost);
+    return WaitFor(client->StartTransaction(ETransactionType::Master, options))
+        .ValueOrThrow();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockStoreTest
@@ -77,8 +92,7 @@ protected:
     {
         NativeClient_ = DynamicPointerCast<NNative::IClient>(Client_);
         ActionQueue_ = New<TActionQueue>("BlockStoreTest");
-        Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master))
-            .ValueOrThrow();
+        Transaction_ = StartDeviceTransaction(NativeClient_);
     }
 
     void TearDown() override

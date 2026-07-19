@@ -60,6 +60,21 @@ public:
         YT_ABORT();
     }
 
+    TFuture<void> SealChunks(TRange<NChunkClient::TChunkId> /*chunkIds*/) override
+    {
+        YT_ABORT();
+    }
+
+    std::vector<TStoredBlockRef> GetBlockRefs(TRange<TStoredBlockId> /*blockIds*/) override
+    {
+        YT_ABORT();
+    }
+
+    TFuture<std::vector<TStoredBlockId>> RestoreBlocks(TRange<TStoredBlockRef> /*blockRefs*/) override
+    {
+        YT_ABORT();
+    }
+
     void SetFailing(bool failing)
     {
         auto guard = Guard(Lock_);
@@ -272,6 +287,61 @@ TEST_F(TBlockFlusherTest, FlushesNewBlocksAcrossRounds)
         EXPECT_EQ(flushed[index].first, index);
         EXPECT_EQ(flushed[index].second, TStoredBlockId(index + 1));
     }
+}
+
+TEST_F(TBlockFlusherTest, RequestFlushAllDrainsBelowResidentFraction)
+{
+    CreateFlusher(/*poolCapacity*/ 16, /*threshold*/ 0.5); // resident target = 8
+    PutBlocks(12);
+    ASSERT_EQ(Pool_->GetSize(), 12);
+
+    Flusher_->Start();
+
+    // A plain flush keeps the resident fraction: only the 4 above the target of 8 go out.
+    Flusher_->RequestFlush();
+    ASSERT_TRUE(WaitUntil([&] { return Pool_->GetSize() == 8; }));
+    EXPECT_EQ(Observer_->GetFlushedCount(), 4);
+
+    // An eager flush ignores the target and drains everything enqueued so far.
+    Flusher_->RequestFlushAll();
+    ASSERT_TRUE(WaitUntil([&] { return Pool_->GetSize() == 0; }));
+    EXPECT_EQ(Observer_->GetFlushedCount(), 12);
+    EXPECT_FALSE(Observer_->HasFailed());
+
+    // FIFO order preserved across both rounds.
+    auto flushed = Observer_->GetFlushed();
+    for (int index = 0; index < 12; ++index) {
+        EXPECT_EQ(flushed[index].first, index);
+        EXPECT_EQ(flushed[index].second, TStoredBlockId(index + 1));
+    }
+
+    // The watermark is spent: the flusher reverts to keeping the resident fraction. Refill below the
+    // target and confirm a plain flush leaves it untouched.
+    PutBlocks(4, /*baseIndex*/ 12);
+    Flusher_->RequestFlush();
+    Sleep(TDuration::MilliSeconds(300));
+    EXPECT_EQ(Pool_->GetSize(), 4);
+    EXPECT_EQ(Observer_->GetFlushedCount(), 12);
+}
+
+TEST_F(TBlockFlusherTest, RequestFlushAllIsBoundedToTheLatchedTail)
+{
+    CreateFlusher(/*poolCapacity*/ 64, /*threshold*/ 0.25); // resident target = 16
+    PutBlocks(8); // below the target: a plain flush would drain nothing
+
+    Flusher_->Start();
+
+    // Eagerly flush the 8 enqueued so far; the pool empties despite being below the resident target.
+    Flusher_->RequestFlushAll();
+    ASSERT_TRUE(WaitUntil([&] { return Observer_->GetFlushedCount() == 8; }));
+    EXPECT_EQ(Pool_->GetSize(), 0);
+
+    // Blocks enqueued after the latched tail are not chased by that eager flush: still below the
+    // target, they stay resident until an explicit flush.
+    PutBlocks(8, /*baseIndex*/ 8);
+    Sleep(TDuration::MilliSeconds(300));
+    EXPECT_EQ(Pool_->GetSize(), 8);
+    EXPECT_EQ(Observer_->GetFlushedCount(), 8);
 }
 
 TEST_F(TBlockFlusherTest, PersistentFailureFiresFailedAndKeepsBlocks)
