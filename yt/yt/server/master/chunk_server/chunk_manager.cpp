@@ -3121,7 +3121,9 @@ private:
             auto isRemoteCopyResult = transaction && transaction->FindAttribute("operation_id");
 
             auto doAlert = [&] {
-                YT_LOG_ALERT("Encountered hunk chunk in unexpected state upon updating chunk weight statistics histogram "
+                YT_LOG_ALERT_UNLESS(
+                    FixHunkChunkWeightStatisticsHistogram_ && Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery(),
+                    "Encountered hunk chunk in unexpected state upon updating chunk weight statistics histogram "
                     "(Add: %v, ChunkId: %v, IsDictionary: %v, TransactionId: %v, IsRemoteCopyResult: %v, "
                     "DataWeight: %v, UncompressedDataSize: %v, CompressedDataSize: %v, RefCount: %v)",
                     add,
