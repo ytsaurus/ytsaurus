@@ -419,38 +419,38 @@ public:
             if (!Client_) {
                 THROW_ERROR_EXCEPTION("Device %Qv of type %Qlv requires a client, but none is configured",
                     deviceId,
-                    config.GetCurrentType());
+                    config.GetType());
             }
             return Client_;
         };
 
-        switch (config.GetCurrentType()) {
+        switch (config.GetType()) {
             case EBlockDeviceConfigType::Memory:
-                return CreateMemoryBlockDevice(config.TryGetConcrete<TMemoryBlockDeviceConfig>());
+                return CreateMemoryBlockDevice(config.GetConcrete<TMemoryBlockDeviceConfig>());
             case EBlockDeviceConfigType::DynamicTable:
                 return CreateDynamicTableBlockDevice(
                     deviceId,
-                    config.TryGetConcrete<TDynamicTableBlockDeviceConfig>(),
+                    config.GetConcrete<TDynamicTableBlockDeviceConfig>(),
                     getClientOrThrow(),
                     Logger);
             case EBlockDeviceConfigType::File:
                 return CreateCypressFileDevice(
                     deviceId,
-                    config.TryGetConcrete<TCypressFileDeviceConfig>(),
+                    config.GetConcrete<TCypressFileDeviceConfig>(),
                     getClientOrThrow(),
                     Invoker_,
                     Logger);
             case EBlockDeviceConfigType::Chunk:
                 return CreateCypressChunkDevice(
                     deviceId,
-                    config.TryGetConcrete<TCypressChunkDeviceConfig>(),
+                    config.GetConcrete<TCypressChunkDeviceConfig>(),
                     Client_,
                     Invoker_,
                     Logger);
             case EBlockDeviceConfigType::Journal:
                 return CreateJournalDevice(
                     deviceId,
-                    config.TryGetConcrete<TJournalDeviceConfig>(),
+                    config.GetConcrete<TJournalDeviceConfig>(),
                     StartDeviceTransaction(getClientOrThrow()),
                     getClientOrThrow(),
                     Logger);

@@ -974,19 +974,19 @@ void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeP
         case TProtoMessage::kLocalDiskRequest:
             volume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
             FromProto(
-                &(*volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()),
+                &(*volume->DiskRequest->GetConcrete<TLocalDiskRequest>()),
                 volumeProto.local_disk_request());
             break;
         case TProtoMessage::kNbdDiskRequest:
             volume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
             FromProto(
-                &(*volume->DiskRequest->TryGetConcrete<TNbdDiskRequest>()),
+                &(*volume->DiskRequest->GetConcrete<TNbdDiskRequest>()),
                 volumeProto.nbd_disk_request());
             break;
         case TProtoMessage::kTmpfsStorageRequest:
             volume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Tmpfs);
             FromProto(
-                &(*volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()),
+                &(*volume->DiskRequest->GetConcrete<TTmpfsStorageRequest>()),
                 volumeProto.tmpfs_storage_request());
             break;
         case TProtoMessage::DISK_REQUEST_NOT_SET:
@@ -1032,11 +1032,11 @@ void FromProto(TStorageRequestConfig* diskRequestConfig, const NProto::TDeprecat
     switch (static_cast<NExecNode::EVolumeType>(protoDiskRequestConfig.type())) {
         case NExecNode::EVolumeType::Nbd:
             *diskRequestConfig = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
-            FromProto(&(*diskRequestConfig->TryGetConcrete<TNbdDiskRequest>()), protoDiskRequestConfig);
+            FromProto(&(*diskRequestConfig->GetConcrete<TNbdDiskRequest>()), protoDiskRequestConfig);
             break;
         case NExecNode::EVolumeType::LocalDisk:
             *diskRequestConfig = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
-            FromProto(&(*diskRequestConfig->TryGetConcrete<TLocalDiskRequest>()), protoDiskRequestConfig);
+            FromProto(&(*diskRequestConfig->GetConcrete<TLocalDiskRequest>()), protoDiskRequestConfig);
             break;
         case NExecNode::EVolumeType::Tmpfs:
             break;
@@ -1113,7 +1113,7 @@ void ToProto(NProto::TTmpfsStorageRequest* protoDiskRequestConfig, const TTmpfsS
 
 bool IsDiskRequestTmpfs(const std::optional<TStorageRequestConfig>& diskRequest)
 {
-    return diskRequest && diskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs;
+    return diskRequest && diskRequest->GetType() == NExecNode::EVolumeType::Tmpfs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

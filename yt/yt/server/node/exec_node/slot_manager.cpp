@@ -180,7 +180,7 @@ void TSlotManager::Initialize()
         BIND_NO_PROPAGATE(&TSlotManager::OnJobsCpuLimitUpdated, MakeWeak(this))
             .Via(Bootstrap_->GetJobInvoker()));
 
-    if (StaticConfig_->JobEnvironment.GetCurrentType() == NJobProxy::EJobEnvironmentType::Porto) {
+    if (StaticConfig_->JobEnvironment.GetType() == NJobProxy::EJobEnvironmentType::Porto) {
         PortoHealthChecker_->SubscribeSuccess(BIND_NO_PROPAGATE(&TSlotManager::OnPortoHealthCheckSuccess, MakeStrong(this))
             .Via(Bootstrap_->GetJobInvoker()));
         PortoHealthChecker_->SubscribeFailed(BIND_NO_PROPAGATE(&TSlotManager::OnPortoHealthCheckFailed, MakeStrong(this))
@@ -194,7 +194,7 @@ void TSlotManager::Start()
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         InitializeEnvironment().Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& /*error*/) {
-            if (StaticConfig_->JobEnvironment.GetCurrentType() == NJobProxy::EJobEnvironmentType::Porto) {
+            if (StaticConfig_->JobEnvironment.GetType() == NJobProxy::EJobEnvironmentType::Porto) {
                 PortoHealthChecker_->Start();
             }
         }));
@@ -1289,7 +1289,7 @@ void TSlotManager::AsyncInitialize()
 
     // To this moment all old processes must have been killed, so we can safely clean up old volumes
     // during root volume manager initialization.
-    JobEnvironmentType_ = StaticConfig_->JobEnvironment.GetCurrentType();
+    JobEnvironmentType_ = StaticConfig_->JobEnvironment.GetType();
     if (JobEnvironmentType_ == NJobProxy::EJobEnvironmentType::Porto) {
         if (auto oldVolumeManager = VolumeManager_.Acquire()) {
             oldVolumeManager->MarkLayersAsNotRemovable();
