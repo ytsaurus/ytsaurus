@@ -2379,7 +2379,9 @@ private:
         }
 
         if (!BlockedByAlterCardIds_.empty()) {
-            BlockedByAlterCardIds_ = THashSet<TReplicationCardId>();
+            // Cleanup with releasing all allocated memory
+            // because it can contain all card ids during cluster switch however these switches are rare.
+            BlockedByAlterCardIds_ = {};
         }
 
         YT_LOG_DEBUG("Finished periodic current timestamp propagation (Timestamp: %v)",
