@@ -25,6 +25,9 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -36,6 +39,8 @@
 #include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/table_client/table_read_spec.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
@@ -54,6 +59,7 @@
 #include <yt/yt/client/api/rpc_proxy/config.h>
 #include <yt/yt/client/api/rpc_proxy/connection.h>
 
+#include <yt/yt/core/ytree/attribute_filter.h>
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/polymorphic_yson_struct.h>
 #include <yt/yt/core/ytree/ypath_client.h>
@@ -80,6 +86,7 @@
 
 #include <yt/yt/core/rpc/bus/channel.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/library/program/helpers.h>
@@ -208,13 +215,40 @@ struct TJournalDeviceConfig
     : public NJournal::TJournalBlockDeviceConfig
     , public NJournal::TJournalBlockDeviceOptions
 {
+    //! If set, the device restores its contents from this snapshot table when initialized.
+    std::optional<TYPath> InitialSnapshotPath;
+
     REGISTER_YSON_STRUCT(TJournalDeviceConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("initial_snapshot_path", &TThis::InitialSnapshotPath)
+            .Default();
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TJournalDeviceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TSnapshotActionConfig)
+
+//! The body of a POST /devices/<name>/snapshot request.
+struct TSnapshotActionConfig
+    : public NYTree::TYsonStruct
+{
+    //! Cypress path of the new table the device snapshot is written to.
+    TYPath Path;
+
+    REGISTER_YSON_STRUCT(TSnapshotActionConfig);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("path", &TThis::Path);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSnapshotActionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -381,25 +415,44 @@ IBlockDevicePtr CreateJournalDevice(
     const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& logger)
 {
-    // The config is both the device config and its store options (see TJournalDeviceConfig).
+    // Resolve the snapshot table to a load spec here so the device just consumes it (and so the fetch
+    // runs under the tool's client).
+    std::optional<NJournal::TSnapshotLoadSpec> snapshotReadSpec;
+    if (config->InitialSnapshotPath) {
+        snapshotReadSpec = NJournal::FetchSnapshotLoadSpec(client, *config->InitialSnapshotPath);
+    }
+
+    // The config is both the device config and its store options.
     return NJournal::CreateJournalBlockDevice(
+        client,
         deviceId,
         config,
         config,
         transactionId,
         NChunkClient::NullChunkListId,
-        client,
+        snapshotReadSpec,
         logger);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A freshly built device and, for journal devices, the master transaction pinning its staged chunks
+//! (null for other backends). The transaction must outlive the device: the caller retains it once the
+//! device is registered and aborts it if the device fails to initialize or is later unregistered.
+struct TDeviceCreationResult
+{
+    IBlockDevicePtr Device;
+    NApi::ITransactionPtr Transaction;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TDeviceFactory)
 
 //! Builds block devices of any backend type. Journal devices stage their chunks under a per-device
-//! master transaction that must outlive the device; those handles are retained here for the whole
-//! run (they self-ping). Shared by the startup loop and the HTTP add-device handler, so it is
-//! thread-safe.
+//! master transaction (self-pinging) that must outlive the device; the factory retains the live ones
+//! keyed by device name and releases them on unregister. Shared by the startup loop and the HTTP
+//! add-device handler, so it is thread-safe.
 class TDeviceFactory
     : public TRefCounted
 {
@@ -413,7 +466,7 @@ public:
         , Logger(std::move(logger))
     { }
 
-    IBlockDevicePtr CreateDevice(const std::string& deviceId, const TBlockDeviceConfig& config)
+    TDeviceCreationResult CreateDevice(const std::string& deviceId, const TBlockDeviceConfig& config)
     {
         auto getClientOrThrow = [&] {
             if (!Client_) {
@@ -426,36 +479,88 @@ public:
 
         switch (config.GetType()) {
             case EBlockDeviceConfigType::Memory:
-                return CreateMemoryBlockDevice(config.GetConcrete<TMemoryBlockDeviceConfig>());
+                return {CreateMemoryBlockDevice(config.GetConcrete<TMemoryBlockDeviceConfig>()), nullptr};
             case EBlockDeviceConfigType::DynamicTable:
-                return CreateDynamicTableBlockDevice(
+                return {CreateDynamicTableBlockDevice(
                     deviceId,
                     config.GetConcrete<TDynamicTableBlockDeviceConfig>(),
                     getClientOrThrow(),
-                    Logger);
+                    Logger), nullptr};
             case EBlockDeviceConfigType::File:
-                return CreateCypressFileDevice(
+                return {CreateCypressFileDevice(
                     deviceId,
                     config.GetConcrete<TCypressFileDeviceConfig>(),
                     getClientOrThrow(),
                     Invoker_,
-                    Logger);
+                    Logger), nullptr};
             case EBlockDeviceConfigType::Chunk:
-                return CreateCypressChunkDevice(
+                return {CreateCypressChunkDevice(
                     deviceId,
                     config.GetConcrete<TCypressChunkDeviceConfig>(),
                     Client_,
                     Invoker_,
-                    Logger);
-            case EBlockDeviceConfigType::Journal:
-                return CreateJournalDevice(
+                    Logger), nullptr};
+            case EBlockDeviceConfigType::Journal: {
+                auto journalConfig = config.GetConcrete<TJournalDeviceConfig>();
+                auto client = getClientOrThrow();
+                // Journal chunks (and any snapshot table co-located with them) must live on a chunk-hosting
+                // cell; pin the device transaction there so its chunks land on the right cell.
+                auto cellTag = PickJournalCellTag(client, journalConfig);
+                auto transaction = StartDeviceTransaction(client, cellTag);
+                auto device = CreateJournalDevice(
                     deviceId,
-                    config.GetConcrete<TJournalDeviceConfig>(),
-                    StartDeviceTransaction(getClientOrThrow()),
-                    getClientOrThrow(),
+                    journalConfig,
+                    transaction->GetId(),
+                    client,
                     Logger);
+                return {std::move(device), std::move(transaction)};
+            }
         }
         YT_ABORT();
+    }
+
+    //! Retains a registered device's pinning transaction so its staged chunks stay alive. Called only
+    //! after the device is registered (names are then unique). A no-op for backends without one.
+    void RetainDeviceTransaction(const std::string& deviceId, NApi::ITransactionPtr transaction)
+    {
+        if (!transaction) {
+            return;
+        }
+        auto guard = Guard(TransactionsLock_);
+        EmplaceOrCrash(DeviceTransactions_, deviceId, std::move(transaction));
+    }
+
+    //! Removes and returns a device's retained pinning transaction (on unregister); the caller aborts
+    //! it. Returns null if none is retained. Separated from the abort so the caller can free the map
+    //! entry before blocking on the device's finalize, keeping the entry's lifetime aligned with the
+    //! device's registration (see RemoveDevice).
+    NApi::ITransactionPtr TakeDeviceTransaction(const std::string& deviceId)
+    {
+        auto guard = Guard(TransactionsLock_);
+        auto it = DeviceTransactions_.find(deviceId);
+        if (it == DeviceTransactions_.end()) {
+            return nullptr;
+        }
+        auto transaction = std::move(it->second);
+        DeviceTransactions_.erase(it);
+        return transaction;
+    }
+
+    //! Aborts a device's pinning transaction that was never retained -- e.g. one whose device failed to
+    //! initialize or lost the race to register. A no-op if #transaction is null.
+    void AbortDeviceTransaction(const NApi::ITransactionPtr& transaction)
+    {
+        if (!transaction) {
+            return;
+        }
+        auto error = WaitFor(transaction->Abort());
+        if (!error.IsOK()) {
+            YT_LOG_WARNING(error, "Failed to abort device transaction (TransactionId: %v)",
+                transaction->GetId());
+            return;
+        }
+        YT_LOG_INFO("Device transaction aborted (TransactionId: %v)",
+            transaction->GetId());
     }
 
 private:
@@ -464,19 +569,50 @@ private:
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TransactionsLock_);
-    // Retained for the whole run so the staged journal chunks stay pinned (the transaction self-pings).
-    std::vector<NApi::ITransactionPtr> Transactions_;
+    //! Live pinning transactions of registered journal devices, keyed by device name.
+    THashMap<std::string, NApi::ITransactionPtr> DeviceTransactions_;
 
-    TTransactionId StartDeviceTransaction(const NApi::NNative::IClientPtr& client)
+    //! Picks the master cell on which a journal device should allocate its chunks. When restoring from a
+    //! snapshot, reuse the snapshot's cell so a later re-snapshot co-locates with the restored chunks;
+    //! otherwise pick a random chunk-hosting cell.
+    TCellTag PickJournalCellTag(
+        const NApi::NNative::IClientPtr& client,
+        const TJournalDeviceConfigPtr& config)
     {
-        auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Master))
-            .ValueOrThrow();
-        auto transactionId = transaction->GetId();
-        {
-            auto guard = Guard(TransactionsLock_);
-            Transactions_.push_back(std::move(transaction));
+        if (config->InitialSnapshotPath) {
+            return GetSnapshotCellTag(client, *config->InitialSnapshotPath);
         }
-        return transactionId;
+        // The master cell roles are only known after the cell directory has synced with the master.
+        const auto& connection = client->GetNativeConnection();
+        WaitFor(connection->GetMasterCellDirectorySynchronizer()->RecentSync())
+            .ThrowOnError();
+        return connection->GetRandomMasterCellTagWithRoleOrThrow(
+            NCellMasterClient::EMasterCellRole::ChunkHost);
+    }
+
+    //! The cell hosting the snapshot table's chunks. That is #external_cell_tag; a table native to its
+    //! own cell has none, so fall back to #native_cell_tag.
+    static TCellTag GetSnapshotCellTag(
+        const NApi::NNative::IClientPtr& client,
+        const TYPath& path)
+    {
+        NApi::TGetNodeOptions options;
+        options.Attributes = TAttributeFilter({"external_cell_tag", "native_cell_tag"});
+        auto node = ConvertToNode(WaitFor(client->GetNode(path, options))
+            .ValueOrThrow());
+        const auto& attributes = node->Attributes();
+        if (auto externalCellTag = attributes.Find<TCellTag>("external_cell_tag")) {
+            return *externalCellTag;
+        }
+        return attributes.Get<TCellTag>("native_cell_tag");
+    }
+
+    NApi::ITransactionPtr StartDeviceTransaction(const NApi::NNative::IClientPtr& client, TCellTag cellTag)
+    {
+        NApi::TTransactionStartOptions options;
+        options.CoordinatorMasterCellTag = cellTag;
+        return WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Master, options))
+            .ValueOrThrow();
     }
 };
 
@@ -489,7 +625,7 @@ DEFINE_REFCOUNTED_TYPE(TDeviceFactory)
 INodePtr ParseRequestBody(const NHttp::IRequestPtr& request)
 {
     auto body = request->ReadAll();
-    if (auto contentType = request->GetHeaders()->Find("Content-Type"_sb);
+    if (auto contentType = request->GetHeaders()->Find(NHttp::NHeaders::ContentTypeHeaderName);
         contentType && TStringBuf(*contentType).Contains("json"_sb))
     {
         TMemoryInput input(body.Begin(), body.Size());
@@ -509,14 +645,14 @@ void WriteResponseBody(
     const NYson::TYsonString& yson)
 {
     response->SetStatus(NHttp::EStatusCode::OK);
-    if (auto accept = request->GetHeaders()->Find("Accept"_sb);
+    if (auto accept = request->GetHeaders()->Find(NHttp::NHeaders::AcceptHeaderName);
         accept && TStringBuf(*accept).Contains("json"_sb))
     {
         NHttp::ReplyJson(response, [&] (NYson::IYsonConsumer* consumer) {
             Serialize(yson, consumer);
         });
     } else {
-        response->GetHeaders()->Set("Content-Type", "application/x-yt-yson-text");
+        response->GetHeaders()->Set(NHttp::NHeaders::ContentTypeHeaderName, "application/x-yt-yson-text");
         auto text = ConvertToYsonString(yson, NYson::EYsonFormat::Text);
         WaitFor(response->WriteBody(TSharedRef::FromString(text.ToString())))
             .ThrowOnError();
@@ -586,10 +722,12 @@ public:
         INbdServerPtr nbdServer,
         IYPathServicePtr orchidService,
         TDeviceFactoryPtr deviceFactory,
+        NApi::NNative::IClientPtr client,
         NLogging::TLogger logger)
         : NbdServer_(std::move(nbdServer))
         , OrchidService_(std::move(orchidService))
         , DeviceFactory_(std::move(deviceFactory))
+        , Client_(std::move(client))
         , Logger(std::move(logger))
     { }
 
@@ -607,7 +745,7 @@ public:
             return;
         }
 
-        // Mutations address a single device: /devices/<name>.
+        // Mutations and actions address a single device: /devices/<name>[/<action>].
         constexpr auto prefix = "/devices/"_sb;
         auto tail = path;
         if (!tail.SkipPrefix(prefix) || tail.empty()) {
@@ -615,14 +753,34 @@ public:
                 method,
                 prefix);
         }
-        auto name = std::string(tail);
+
+        auto name = tail;
+        TStringBuf action;
+        if (auto slashPos = tail.find('/'); slashPos != TStringBuf::npos) {
+            name = tail.substr(0, slashPos);
+            action = tail.substr(slashPos + 1);
+        }
+
+        // POST /devices/<name>/snapshot -- take a snapshot of the device to a Cypress table.
+        if (action == "snapshot"_sb) {
+            if (method == NHttp::EMethod::Post) {
+                SnapshotDevice(std::string(name), request, response);
+            } else {
+                Reply(response, NHttp::EStatusCode::MethodNotAllowed);
+            }
+            return;
+        }
+        if (!action.empty()) {
+            Reply(response, NHttp::EStatusCode::NotFound);
+            return;
+        }
 
         switch (method) {
             case NHttp::EMethod::Put:
-                AddDevice(name, request, response);
+                AddDevice(std::string(name), request, response);
                 break;
             case NHttp::EMethod::Delete:
-                RemoveDevice(name, response);
+                RemoveDevice(std::string(name), response);
                 break;
             default:
                 Reply(response, NHttp::EStatusCode::MethodNotAllowed);
@@ -634,6 +792,7 @@ private:
     const INbdServerPtr NbdServer_;
     const IYPathServicePtr OrchidService_;
     const TDeviceFactoryPtr DeviceFactory_;
+    const NApi::NNative::IClientPtr Client_;
     const NLogging::TLogger Logger;
 
     void AddDevice(
@@ -642,9 +801,13 @@ private:
         const NHttp::IResponseWriterPtr& response)
     {
         auto deviceConfig = ConvertTo<TBlockDeviceConfig>(ParseRequestBody(request));
-        auto device = DeviceFactory_->CreateDevice(name, deviceConfig);
-        WaitFor(device->Initialize())
-            .ThrowOnError();
+        auto [device, transaction] = DeviceFactory_->CreateDevice(name, deviceConfig);
+
+        if (auto error = WaitFor(device->Initialize()); !error.IsOK()) {
+            // The device never came up, so its pinning transaction has no owner: abort it.
+            DeviceFactory_->AbortDeviceTransaction(transaction);
+            error.ThrowOnError();
+        }
 
         try {
             // RegisterDevice rejects a duplicate name atomically, so there is no point (and it would
@@ -652,11 +815,13 @@ private:
             NbdServer_->RegisterDevice(name, device);
         } catch (const std::exception&) {
             YT_UNUSED_FUTURE(device->Finalize());
+            DeviceFactory_->AbortDeviceTransaction(transaction);
             Reply(response, NHttp::EStatusCode::Conflict);
             return;
         }
+        // The device is registered under a now-unique name; retain its transaction until unregister.
+        DeviceFactory_->RetainDeviceTransaction(name, std::move(transaction));
 
-        YT_LOG_INFO("Device added via HTTP (Name: %v)", name);
         Reply(response, NHttp::EStatusCode::Created);
     }
 
@@ -669,11 +834,71 @@ private:
             Reply(response, NHttp::EStatusCode::NotFound);
             return;
         }
-        WaitFor(device->Finalize())
+        // Take the pinning transaction out of the map now, before blocking in Finalize: the name is
+        // already free in NbdServer_, so a concurrent AddDevice reusing it could otherwise re-register
+        // and hit EmplaceOrCrash on the still-present entry. It is aborted only after Finalize, and
+        // regardless of the finalize outcome, so a finalize failure cannot leak it.
+        auto transaction = DeviceFactory_->TakeDeviceTransaction(name);
+        auto finalizeError = WaitFor(device->Finalize());
+        DeviceFactory_->AbortDeviceTransaction(transaction);
+        finalizeError.ThrowOnError();
+
+        Reply(response, NHttp::EStatusCode::NoContent);
+    }
+
+    void SnapshotDevice(
+        const std::string& name,
+        const NHttp::IRequestPtr& request,
+        const NHttp::IResponseWriterPtr& response)
+    {
+        auto device = NbdServer_->FindDevice(name);
+        if (!device) {
+            Reply(response, NHttp::EStatusCode::NotFound);
+            return;
+        }
+
+        auto journalDevice = DynamicPointerCast<NJournal::IJournalBlockDevice>(device);
+        if (!journalDevice) {
+            // The device backend does not support snapshots.
+            Reply(response, NHttp::EStatusCode::MethodNotAllowed);
+            return;
+        }
+
+        if (!Client_) {
+            THROW_ERROR_EXCEPTION("Saving a snapshot requires a cluster client, but none is configured");
+        }
+
+        auto config = ConvertTo<TSnapshotActionConfigPtr>(ParseRequestBody(request));
+        const auto& path = config->Path;
+
+        // The snapshot save table must be co-located with the cell hosting the device's chunks so it
+        // can reference the device's hunk chunks zero-copy.
+        auto externalCellTag = journalDevice->GetExternalCellTag();
+
+        NApi::TTransactionStartOptions transactionOptions;
+        auto transactionAttributes = NYTree::CreateEphemeralAttributes();
+        transactionAttributes->Set("title", Format("Writing NBD snapshot to %v", path));
+        transactionOptions.Attributes = std::move(transactionAttributes);
+        auto transaction = WaitFor(Client_->StartTransaction(
+            NTransactionClient::ETransactionType::Master,
+            transactionOptions))
+            .ValueOrThrow();
+
+        NJournal::TCreateSnapshotTableOptions createOptions;
+        createOptions.TransactionId = transaction->GetId();
+        NJournal::CreateSnapshotTable(Client_, path, externalCellTag, createOptions);
+
+        NJournal::TFetchSnapshotSaveTableSpecOptions fetchOptions;
+        fetchOptions.TransactionId = transaction->GetId();
+        auto saveSpec = NJournal::FetchSnapshotSaveSpec(Client_, path, fetchOptions);
+
+        WaitFor(journalDevice->SaveSnapshot(saveSpec))
             .ThrowOnError();
 
-        YT_LOG_INFO("Device removed via HTTP (Name: %v)", name);
-        Reply(response, NHttp::EStatusCode::NoContent);
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+
+        Reply(response, NHttp::EStatusCode::OK);
     }
 };
 
@@ -762,10 +987,13 @@ private:
         auto deviceFactory = New<TDeviceFactory>(client, threadPool->GetInvoker(), nbdServer->GetLogger());
 
         for (const auto& [name, deviceConfig] : config->Devices) {
-            auto device = deviceFactory->CreateDevice(name, deviceConfig);
-            WaitFor(device->Initialize())
-                .ThrowOnError();
+            auto [device, transaction] = deviceFactory->CreateDevice(name, deviceConfig);
+            if (auto error = WaitFor(device->Initialize()); !error.IsOK()) {
+                deviceFactory->AbortDeviceTransaction(transaction);
+                error.ThrowOnError();
+            }
             nbdServer->RegisterDevice(name, std::move(device));
+            deviceFactory->RetainDeviceTransaction(name, std::move(transaction));
         }
 
         // Optionally expose an HTTP API.
@@ -782,6 +1010,7 @@ private:
                     nbdServer,
                     orchidService,
                     deviceFactory,
+                    client,
                     nbdServer->GetLogger())));
 
             httpServer->Start();
@@ -816,6 +1045,7 @@ private:
                 } else {
                     YT_LOG_INFO("Finalized device (Device: %v)", name);
                 }
+                deviceFactory->AbortDeviceTransaction(deviceFactory->TakeDeviceTransaction(name));
             }
         }
 

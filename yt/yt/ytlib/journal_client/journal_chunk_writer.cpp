@@ -131,6 +131,28 @@ public:
         return IsCloseDemanded_.load();
     }
 
+    std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        // The fields read below -- WriteTargets_ and each node's Descriptor -- are set by Open and
+        // immutable thereafter, so no synchronization is needed.
+        YT_VERIFY(WriteTargets_);
+        YT_VERIFY(std::ssize(Nodes_) == std::ssize(*WriteTargets_));
+
+        std::vector<TChunkReplicaDescriptor> replicas;
+        replicas.reserve(Nodes_.size());
+        for (int index = 0; index < std::ssize(Nodes_); ++index) {
+            const auto& target = (*WriteTargets_)[index];
+            replicas.push_back({
+                .NodeDescriptor = Nodes_[index]->Descriptor,
+                .ReplicaIndex = target.GetReplicaIndex(),
+                .MediumIndex = target.GetMediumIndex(),
+            });
+        }
+        return replicas;
+    }
+
     void SubscribeFailed(const TCallback<void(const TError&)>& callback) override
     {
         // Single-shot: a subscriber added after the failure is invoked in situ.

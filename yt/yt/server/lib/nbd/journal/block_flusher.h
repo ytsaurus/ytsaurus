@@ -34,6 +34,10 @@ struct IBlockFlusher
     //! the write path when the pool fills up.
     virtual void RequestFlush() = 0;
 
+    //! Nudges the flusher to eagerly drain every block enqueued as of this call, down to the pool's
+    //! current tail.
+    virtual void RequestFlushAll() = 0;
+
     //! Fired once per block a flush has durably written to the store, in reservation order.
     /*!
      *  The device uses it to publish the block as clean (repointing the block map and populating
