@@ -1,5 +1,9 @@
 #include "multi_reader_manager_base.h"
 
+#include <library/cpp/yt/misc/variant.h>
+
+#include <variant>
+
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
@@ -23,9 +27,14 @@ public:
     TMultiReaderManagerUnreadState GetUnreadState() const override;
 
 private:
-    using TMultiReaderManagerSessionQueue = NConcurrency::TNonblockingQueue<TMultiReaderManagerSession>;
+    struct TReaderFinishedEvent
+    { };
 
-    TMultiReaderManagerSessionQueue ReadySessions_;
+    using TSessionReadyEvent = TErrorOr<TMultiReaderManagerSession>;
+    using TEvent = std::variant<TReaderFinishedEvent, TSessionReadyEvent>;
+    using TEventQueue = TNonblockingQueue<TEvent>;
+
+    TEventQueue EventQueue_;
     int FinishedReaderCount_ = 0;
 
     TFuture<void> DoOpen() override;
@@ -35,7 +44,7 @@ private:
     void OnReaderFinished() override;
 
     TFuture<void> WaitForReadySession();
-    void OnSessionReady(const TErrorOr<TMultiReaderManagerSession>& errorOrSession);
+    void OnEvent(const TEvent& event);
 
     void WaitForReader(const TMultiReaderManagerSession& session);
     void OnReaderReady(const TMultiReaderManagerSession& session, const TError& error);
@@ -72,7 +81,7 @@ void TParallelMultiReaderManager::OnReaderOpened(const IReaderBasePtr& chunkRead
     TMultiReaderManagerSession session;
     session.Reader = std::move(chunkReader);
     session.Index = chunkIndex;
-    ReadySessions_.Enqueue(session);
+    EventQueue_.Enqueue(TSessionReadyEvent(session));
 }
 
 void TParallelMultiReaderManager::OnReaderBlocked()
@@ -91,7 +100,7 @@ void TParallelMultiReaderManager::OnReaderFinished()
 
     ++FinishedReaderCount_;
     if (FinishedReaderCount_ == std::ssize(ReaderFactories_)) {
-        ReadySessions_.Enqueue(TError(NYT::EErrorCode::Canceled, "Multi reader finished"));
+        EventQueue_.Enqueue(TReaderFinishedEvent{});
         CompletionError_.TrySet();
     } else {
         SetReadyEvent(CombineCompletionError(BIND(&TParallelMultiReaderManager::WaitForReadySession, MakeStrong(this))
@@ -104,34 +113,35 @@ void TParallelMultiReaderManager::PropagateError(const TError& error)
 {
     // Someone may wait for this future.
     if (error.IsOK()) {
-        ReadySessions_.Enqueue(TError(NYT::EErrorCode::Canceled, "Multi reader finished"));
+        EventQueue_.Enqueue(TReaderFinishedEvent{});
     } else {
-        ReadySessions_.Enqueue(TError("Multi reader failed") << error);
+        EventQueue_.Enqueue(TSessionReadyEvent(TError("Multi reader failed") << error));
     }
 }
 
 TFuture<void> TParallelMultiReaderManager::WaitForReadySession()
 {
-    return ReadySessions_.Dequeue().Apply(
-        BIND(&TParallelMultiReaderManager::OnSessionReady, MakeWeak(this))
+    return EventQueue_.Dequeue().Apply(
+        BIND(&TParallelMultiReaderManager::OnEvent, MakeWeak(this))
             .AsyncVia(ReaderInvoker_));
 }
 
 
-void TParallelMultiReaderManager::OnSessionReady(const TErrorOr<TMultiReaderManagerSession>& errorOrSession)
+void TParallelMultiReaderManager::OnEvent(const TEvent& event)
 {
-    if (errorOrSession.IsOK()) {
-        CurrentSession_ = errorOrSession.Value();
-        ReaderSwitched_.Fire();
-    } else if (errorOrSession.GetCode() == NYT::EErrorCode::Canceled) {
-        // NB(coteeq): We specifically only check the topmost error for EErrorCode::Canceled.
-        // If we were to use FindMatching, we could suppress ligitimate errors that happened
-        // because of some cancelation.
-
-        // Do nothing, this is normal reader termination, e.g. during interrupt.
-    } else {
-        THROW_ERROR errorOrSession;
-    }
+    Visit(
+        event,
+        [] (const TReaderFinishedEvent& /*event*/) {
+            // Do nothing, this is normal reader termination, e.g. during interrupt.
+        },
+        [&] (const TSessionReadyEvent& errorOrSession) {
+            if (errorOrSession.IsOK()) {
+                CurrentSession_ = errorOrSession.Value();
+                ReaderSwitched_.Fire();
+            } else {
+                THROW_ERROR errorOrSession;
+            }
+        });
 }
 
 void TParallelMultiReaderManager::WaitForReader(const TMultiReaderManagerSession& session)
@@ -144,7 +154,7 @@ void TParallelMultiReaderManager::WaitForReader(const TMultiReaderManagerSession
 void TParallelMultiReaderManager::OnReaderReady(const TMultiReaderManagerSession& session, const TError& error)
 {
     if (error.IsOK()) {
-        ReadySessions_.Enqueue(session);
+        EventQueue_.Enqueue(TSessionReadyEvent(session));
         return;
     }
 
