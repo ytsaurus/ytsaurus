@@ -441,7 +441,10 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(
                 req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
             }
             if (table->Dynamic) {
-                if (!Host_->GetSpec()->EnableDynamicStoreRead.value_or(true)) {
+                // NB: Unfrozen input tables are copied best-effort: unflushed dynamic stores are omitted.
+                if (!Host_->GetSpec()->EnableDynamicStoreRead.value_or(true) ||
+                    Host_->GetSpec()->AllowUnfrozenInputTables)
+                {
                     req->set_omit_dynamic_stores(true);
                 }
                 if (Host_->GetOperationType() == EOperationType::RemoteCopy) {
