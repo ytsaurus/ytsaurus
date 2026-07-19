@@ -80,9 +80,30 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             file.write(yql_agent_token)
 
         if self.config.get("enable_qtworker", False):
+            self._prepare_proto_dynamic_configs()
             self._prepare_qtworker()
 
         logger.info("Yql agent prepared")
+
+    def render_gateways_conf(self):
+        gw_src = self.config.get("qtworker_gateways_conf")
+        if not gw_src:
+            raise YtError("qtworker_gateways_conf is not specified in config")
+
+        with open(gw_src) as gw_file:
+            gw_text = gw_file.read()
+        gw_text = gw_text.replace("${cluster_name}", self.env.id)
+        gw_text = gw_text.replace("${cluster_address}", self.env.get_http_proxy_address())
+        gw_text = gw_text.replace("${mr_job_bin}", self._resolve_mrjob())
+        gw_text = gw_text.replace("${yt_debug_log_file}", os.path.join(self.env.logs_path, "qtworker_yt_debug.log"))
+        return gw_text
+
+    def _prepare_proto_dynamic_configs(self):
+        gw_text = self.render_gateways_conf()
+
+        filename = "//sys/yql_agent/proto_gateways/default.conf"
+        self.client.create("file", filename, recursive=True, force=True)
+        self.client.write_file(filename, gw_text.encode('utf-8'))
 
     def _prepare_qtworker_fs_conf(self):
         fs_src = self.config.get("qtworker_fs_conf")
@@ -146,19 +167,9 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             worker_out.write(worker_text)
 
     def _prepare_qtworker_gateways_conf(self):
-        mr_job_bin = self._resolve_mrjob()
-
-        gw_src = self.config.get("qtworker_gateways_conf")
-        if not gw_src:
-            raise YtError("qtworker_gateways_conf is not specified in config")
-
-        with open(gw_src) as gw_file:
-            gw_text = gw_file.read()
+        gw_text = self.render_gateways_conf()
         gw_text = gw_text.replace("${instance_root}", self._instance_root)
-        gw_text = gw_text.replace("${yt_debug_log_file}", os.path.join(self.env.logs_path, "qtworker_yt_debug.log"))
-        gw_text = gw_text.replace("${cluster_name}", self.env.id)
-        gw_text = gw_text.replace("${cluster_address}", self.env.get_http_proxy_address())
-        gw_text = gw_text.replace("${mr_job_bin}", mr_job_bin)
+
         self._qtworker_gateways_conf = os.path.join(self.env.configs_path, "qtworker_gateways.conf")
         with open(self._qtworker_gateways_conf, "w") as gw_out:
             gw_out.write(gw_text)
@@ -402,6 +413,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
             self._qtworker_inspector_port = next(self.env._open_port_iterator)
             config["yql_agent"]["qtworker_inspector_port"] = self._qtworker_inspector_port
+            config["yql_agent"]["qtworker_gateways_config_path"] = os.path.join(self.env.configs_path, "qtworker_gateways.conf")
 
         if process_plugin_config:
             config["yql_agent"]["process_plugin_config"] = process_plugin_config

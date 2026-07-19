@@ -1,12 +1,16 @@
 from conftest_lib.conftest_queries import *  # noqa
 
-from yt_commands import (get, set)
+from yt_commands import (get, set, create, write_file)
 
 from yt.environment.components.yql_agent import YqlAgent as YqlAgentComponent
 
 from yt.environment.helpers import wait_for_dynamic_config_update
 
 from yt.common import YtError
+
+from google.protobuf.text_format import Parse, MessageToString
+
+import yql.essentials.providers.common.proto.gateways_config_pb2 as gateways_config_pb2
 
 import os
 
@@ -42,6 +46,10 @@ class YqlAgent():
     def __exit__(self, exc_type, exc_value, traceback):
         self.yql_agent.stop()
 
+    def render_gateways_conf(self, env):
+        gateways_text = self.yql_agent.render_gateways_conf()
+        return Parse(gateways_text, gateways_config_pb2.TGatewaysConfig())
+
 
 def copy_yql_configs_to_test_folder(yql_agent):
     for config_path in yql_agent.config_paths:
@@ -50,9 +58,53 @@ def copy_yql_configs_to_test_folder(yql_agent):
         shutil.copy(config_path, test_folder_configs_path)
 
 
+def convert_camel_to_snake(camel_str):
+    result = []
+    for i, ch in enumerate(camel_str):
+        if ch.isupper() and i > 0 and not camel_str[i - 1].isupper():
+            result.append("_")
+        result.append(ch.lower())
+    return "".join(result)
+
+
+def merge_old_dynconfig_into_new_static(config, override):
+    fields_by_snake = {convert_camel_to_snake(field.name): field for field in config.DESCRIPTOR.fields}
+    for key, value in override.items():
+        field = fields_by_snake[key]
+        if field.label == field.LABEL_REPEATED:
+            repeated = getattr(config, field.name)
+            name_field = field.message_type.fields_by_name.get("Name") if field.type == field.TYPE_MESSAGE else None
+            if name_field is not None and name_field.type == name_field.TYPE_STRING:
+                name_key = convert_camel_to_snake(name_field.name)
+                existing_by_name = {getattr(item, name_field.name): item for item in repeated}
+                for item in value:
+                    item_name = item.get(name_key)
+                    if item_name is not None and item_name in existing_by_name:
+                        merge_old_dynconfig_into_new_static(existing_by_name[item_name], item)
+                    else:
+                        merge_old_dynconfig_into_new_static(repeated.add(), item)
+            elif field.type == field.TYPE_MESSAGE:
+                for item in value:
+                    merge_old_dynconfig_into_new_static(repeated.add(), item)
+            else:
+                repeated.extend(value)
+        elif field.type == field.TYPE_MESSAGE:
+            merge_old_dynconfig_into_new_static(getattr(config, field.name), value)
+        else:
+            setattr(config, field.name, value)
+
+
 def update_yql_agent_environment(cls, yql_agent):
     if hasattr(cls, "YQL_AGENT_DYNAMIC_CONFIG") :
         dynconfig = getattr(cls, "YQL_AGENT_DYNAMIC_CONFIG")
+
+        if getattr(cls, "YQL_QTWORKER", False) and "gateways" in dynconfig:
+            config = yql_agent.render_gateways_conf(yql_agent.yql_agent.env)
+
+            merge_old_dynconfig_into_new_static(config, dynconfig["gateways"])
+            filename = "//sys/yql_agent/proto_gateways/default.conf"
+            create("file", filename, recursive=True, force=True)
+            write_file(filename, MessageToString(config).encode('utf-8'))
 
         config = get("//sys/yql_agent/config")
         config["yql_agent"] = dynconfig
