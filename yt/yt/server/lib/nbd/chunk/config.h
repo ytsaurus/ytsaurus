@@ -26,18 +26,20 @@ struct TPageCacheConfig
     //! to the backend with WRITE requests.
     std::optional<TDuration> WritebackPeriod;
 
-    //! Dirty-data threshold in bytes that schedules asynchronous writeback.
-    //! Must be a positive multiple of PageSize and <= DirtyDataHardLimit.
-    i64 DirtyDataSoftLimit;
+    //! Fraction of Capacity that triggers asynchronous writeback when dirty data
+    //! reaches it. Must be in (0, 1] and <= DirtyDataHardLimitCapacityFraction.
+    //! The effective byte limit is rounded down to a multiple of PageSize.
+    double DirtyDataSoftLimitCapacityFraction;
 
-    //! Dirty-data threshold in bytes that throttles writes and performs synchronous
-    //! writeback. Must be a positive multiple of PageSize and <= Capacity.
-    i64 DirtyDataHardLimit;
+    //! Fraction of Capacity that throttles writes and performs synchronous writeback
+    //! when dirty data reaches it. Must be in (0, 1].
+    //! The effective byte limit is rounded down to a multiple of PageSize.
+    double DirtyDataHardLimitCapacityFraction;
 
-    //! Maximum amount of dirty data in bytes that one background/periodic writeback
-    //! invocation attempts to write. This is a per-run budget.
-    //! Must be a positive multiple of PageSize.
-    i64 MaxDirtyDataPerWriteback;
+    //! Fraction of Capacity that one background/periodic writeback invocation attempts
+    //! to write. This is a per-run budget. Must be in (0, 1].
+    //! The effective byte budget is rounded down to a multiple of PageSize.
+    double MaxDirtyDataPerWritebackCapacityFraction;
 
     //! Upper bound in bytes on a single merged WRITE request payload.
     //! A run of adjacent dirty pages larger than this is split into several WRITE

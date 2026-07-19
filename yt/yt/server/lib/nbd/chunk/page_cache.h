@@ -104,10 +104,17 @@ private:
     const i64 PageSize_;
     //! Maximum number of pages in the cache.
     const i64 MaxPages_;
+    //! Dirty-data threshold in bytes that schedules asynchronous writeback.
+    //! Computed from Config_->DirtyDataSoftLimitCapacityFraction * Capacity, rounded down to a page multiple.
+    const i64 DirtyDataSoftLimit_;
+    //! Dirty-data threshold in bytes that throttles writes and performs synchronous writeback.
+    //! Computed from Config_->DirtyDataHardLimitCapacityFraction * Capacity, rounded down to a page multiple.
+    const i64 DirtyDataHardLimit_;
 
     //! Maximum bytes of dirty data to write back in a single writeback pass.
+    //! Computed from Config_->MaxDirtyDataPerWritebackCapacityFraction * Capacity, rounded down to a page multiple.
     const i64 MaxDirtyDataPerWriteback_;
-    //! Number of dirty pages a single writeback processes (MaxDirtyDataPerWriteback / PageSize).
+    //! Number of dirty pages a single writeback processes (MaxDirtyDataPerWriteback_ / PageSize).
     const i64 MaxDirtyPagesPerWriteback_;
     //! Upper bound in bytes on the size of a single merged WriteBatch subrequest.
     const i64 MaxDirtyDataPerWrite_;
@@ -150,10 +157,10 @@ private:
     //! Must be called under Lock_.
     void MakePageMru(TPage& page);
 
-    //! Set the new DataGeneration and move the page to the MRU end of DirtyPagesList_
+    //! Increment DataGeneration and move the page to the MRU end of DirtyPagesList_
     //! in a single O(1) splice, regardless of whether the page was previously clean or dirty.
     //! Must be called under Lock_.
-    void MakePageDirtyAndMru(TPage& page, ui64 newDataGeneration);
+    void MakePageDirtyAndMru(TPage& page);
 
     //! Advance WritebackGeneration to DataGeneration (marking the page exactly clean)
     //! and move it from DirtyPagesList_ to CleanPagesList_ if it was dirty.
@@ -177,13 +184,13 @@ private:
     //! Snapshot of a page's state at the time of a FUA write.
     //! Used to advance WritebackGeneration only if no concurrent write occurred.
     struct TPageSnapshot {
-        i64 PageIndex;
-        ui64 DataGeneration;
+        i64 PageIndex = 0;
+        ui64 DataGeneration = 0;
     };
 
     //! A contiguous byte range written via FUA, together with per-page generation snapshots.
     struct TWritebackRange {
-        i64 Offset;
+        i64 Offset = 0;
         TSharedRef Data;
         std::vector<TPageSnapshot> DataPageInfo;
     };

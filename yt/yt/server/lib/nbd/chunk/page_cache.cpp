@@ -32,8 +32,10 @@ TPageCache::TPageCache(
     , SerializedInvoker_(CreateSerializedInvoker(Invoker_))
     , PageSize_(Config_->PageSize)
     , MaxPages_(Config_->Capacity / PageSize_)
-    , MaxDirtyDataPerWriteback_(Config_->MaxDirtyDataPerWriteback)
-    , MaxDirtyPagesPerWriteback_(Config_->MaxDirtyDataPerWriteback / PageSize_)
+    , DirtyDataSoftLimit_(static_cast<i64>(Config_->DirtyDataSoftLimitCapacityFraction * Config_->Capacity) / PageSize_ * PageSize_)
+    , DirtyDataHardLimit_(static_cast<i64>(Config_->DirtyDataHardLimitCapacityFraction * Config_->Capacity) / PageSize_ * PageSize_)
+    , MaxDirtyDataPerWriteback_(static_cast<i64>(Config_->MaxDirtyDataPerWritebackCapacityFraction * Config_->Capacity) / PageSize_ * PageSize_)
+    , MaxDirtyPagesPerWriteback_(MaxDirtyDataPerWriteback_ / PageSize_)
     , MaxDirtyDataPerWrite_(Config_->MaxDirtyDataPerWrite)
     , MaxInflightWriteRequests_(Config_->MaxInflightWriteRequests)
     , Logger(logger.WithTag("CacheSize: %v, PageSize: %v, MaxPages: %v", Config_->Capacity, PageSize_, MaxPages_))
@@ -140,9 +142,9 @@ TFuture<void> TPageCache::ScheduleDirtyDataWriteback(std::optional<i64> maxDirty
         // and the DataGeneration at snapshot time.
         struct TDirtyPage
         {
-            i64 PageIndex;
+            i64 PageIndex = 0;
             TSharedRef Data;
-            ui64 DataGeneration;
+            ui64 DataGeneration = 0;
         };
 
         // Collect dirty pages by scanning DirtyPagesList_ under the spinlock.
@@ -200,8 +202,8 @@ TFuture<void> TPageCache::ScheduleDirtyDataWriteback(std::optional<i64> maxDirty
         struct TDirtyPageWritebackRange
         {
             //! [DirtyBegin, DirtyEnd) range into dirtyPages covered by this writeback range.
-            i64 DirtyBegin;
-            i64 DirtyEnd;
+            i64 DirtyBegin = 0;
+            i64 DirtyEnd = 0;
             std::vector<TWriteBatchSubrequest> Subrequests;
         };
         std::vector<TDirtyPageWritebackRange> ranges;
@@ -371,11 +373,11 @@ TFuture<TReadResponse> TPageCache::Read(i64 offset, i64 length, const TReadOptio
     // page is only partially covered by [offset, offset+length).
     struct TPageReadInfo
     {
-        i64 PageIndex;
-        i64 InPageOffset;     // byte offset within the page where the request begins
-        i64 InPageLen;        // number of bytes from this page that belong to the request
-        i64 PageResultOffset; // byte offset in the result buffer for this page's slice
-        TSharedMutableRef Data; // full page buffer filled after RPC, before second lock
+        i64 PageIndex = 0;
+        i64 InPageOffset = 0;     // byte offset within the page where the request begins
+        i64 InPageLen = 0;        // number of bytes from this page that belong to the request
+        i64 PageResultOffset = 0; // byte offset in the result buffer for this page's slice
+        TSharedMutableRef Data;   // full page buffer filled after RPC, before second lock
     };
 
     // First pass under Lock_: serve cache hits synchronously, collect misses.
@@ -408,7 +410,7 @@ TFuture<TReadResponse> TPageCache::Read(i64 offset, i64 length, const TReadOptio
 
         // Check dirty watermark.
         i64 dirtyBytes = std::ssize(DirtyPagesList_) * PageSize_;
-        if (dirtyBytes >= Config_->DirtyDataSoftLimit) {
+        if (dirtyBytes >= DirtyDataSoftLimit_) {
             reachedDirtyDataSoftLimit = true;
         }
     }
@@ -534,10 +536,10 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
     // before overlaying the write bytes. At most the first and last page can be partial.
     struct TPartialPageMiss
     {
-        i64 PageIndex;
-        i64 InPageOffset; // byte offset within the page where our write begins
-        i64 InPageLen;    // number of bytes we are writing into this page
-        i64 DataOffset;   // byte offset in 'data' where our write bytes begin
+        i64 PageIndex = 0;
+        i64 InPageOffset = 0; // byte offset within the page where our write begins
+        i64 InPageLen = 0;    // number of bytes we are writing into this page
+        i64 DataOffset = 0;   // byte offset in 'data' where our write bytes begin
     };
     std::vector<TPartialPageMiss> partialPageMisses;
 
@@ -564,7 +566,7 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                     page.Data.Begin() + inPageOffset);
                 // MakePageDirtyAndMru performs exactly one splice regardless of whether
                 // the page was clean or dirty, and moves it to MRU of DirtyPagesList_.
-                MakePageDirtyAndMru(page, page.DataGeneration + 1);
+                MakePageDirtyAndMru(page);
                 if (options.Flush && coversEntirePage) {
                     // Fully-covered page in FUA path: track it for writeback generation update.
                     sharedDataPageInfo->push_back({pageIndex, page.DataGeneration});
@@ -586,7 +588,7 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                     data.Begin() + dataOffset,
                     data.Begin() + dataOffset + inPageLen,
                     page.Data.Begin());
-                MakePageDirtyAndMru(page, page.DataGeneration + 1);
+                MakePageDirtyAndMru(page);
                 if (options.Flush) {
                     sharedDataPageInfo->push_back({pageIndex, page.DataGeneration});
                 }
@@ -600,9 +602,9 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
         if (!options.Flush && partialPageMisses.empty()) {
             // Check dirty watermark after all pages have been written.
             i64 dirtyBytes = std::ssize(DirtyPagesList_) * PageSize_;
-            if (dirtyBytes >= Config_->DirtyDataHardLimit) {
+            if (dirtyBytes >= DirtyDataHardLimit_) {
                 reachedDirtyDataHardLimit = true;
-            } else if (dirtyBytes >= Config_->DirtyDataSoftLimit) {
+            } else if (dirtyBytes >= DirtyDataSoftLimit_) {
                 reachedDirtyDataSoftLimit = true;
             }
         }
@@ -652,7 +654,7 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
                     data.Begin() + miss.DataOffset,
                     data.Begin() + miss.DataOffset + miss.InPageLen,
                     page.Data.Begin() + miss.InPageOffset);
-                MakePageDirtyAndMru(page, page.DataGeneration + 1);
+                MakePageDirtyAndMru(page);
                 if (flush && wasClean) {
                     // Partial-page RBW: track for FUA writeback generation update only
                     // if the page was clean before this write. If the page was already
@@ -689,9 +691,9 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
         if (hasPendingPartialMisses) {
             auto guard = Guard(Lock_);
             i64 dirtyBytes = std::ssize(DirtyPagesList_) * PageSize_;
-            if (dirtyBytes >= Config_->DirtyDataHardLimit) {
+            if (dirtyBytes >= DirtyDataHardLimit_) {
                 reachedDirtyDataHardLimit = true;
-            } else if (dirtyBytes >= Config_->DirtyDataSoftLimit) {
+            } else if (dirtyBytes >= DirtyDataSoftLimit_) {
                 reachedDirtyDataSoftLimit = true;
             }
         }
@@ -799,14 +801,13 @@ void TPageCache::MakePageMru(TPage& page)
     lru.splice(lru.end(), lru, page.LruIter);
 }
 
-void TPageCache::MakePageDirtyAndMru(TPage& page, ui64 newDataGeneration)
+void TPageCache::MakePageDirtyAndMru(TPage& page)
 {
     // Must be called under Lock_.
-    // Set the new DataGeneration and move the page to the MRU end of DirtyPagesList_
+    // Increment DataGeneration and move the page to the MRU end of DirtyPagesList_
     // in exactly one O(1) splice, regardless of whether the page was previously clean or dirty.
     YT_VERIFY(page.DataGeneration >= page.WritebackGeneration);
-    YT_VERIFY(newDataGeneration >= page.WritebackGeneration);
-    YT_VERIFY(newDataGeneration >= page.DataGeneration);
+    const ui64 newDataGeneration = page.DataGeneration + 1;
     const bool wasClean = page.DataGeneration == page.WritebackGeneration;
     if (wasClean) {
         // Transfer directly from current Clean position → MRU of DirtyPagesList_.
@@ -922,7 +923,7 @@ TFuture<void> TPageCache::WaitForDirtyDataBelowHardLimit(ui64 cookie)
     {
         auto guard = Guard(Lock_);
         i64 dirtyBytes = std::ssize(DirtyPagesList_) * PageSize_;
-        if (dirtyBytes < Config_->DirtyDataHardLimit) {
+        if (dirtyBytes < DirtyDataHardLimit_) {
             return OKFuture;
         }
     }
