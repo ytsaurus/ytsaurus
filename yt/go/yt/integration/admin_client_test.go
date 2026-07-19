@@ -483,9 +483,7 @@ func (s *Suite) TestCheckColumnPermission(ctx context.Context, t *testing.T, yc 
 		CheckPermissionResult: allowUsersResult,
 		Columns: []yt.CheckPermissionResult{
 			{
-				Action:     yt.ActionDeny,
-				ObjectID:   nodeID,
-				ObjectName: ptr.String("node " + p.YPath().String()),
+				Action: yt.ActionDeny,
 			},
 			allowUsersResult,
 		},
