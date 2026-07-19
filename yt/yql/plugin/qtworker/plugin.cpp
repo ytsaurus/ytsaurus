@@ -16,17 +16,22 @@
 #include <yql/essentials/utils/log/log.h>
 
 #include <yt/yt/core/yson/protobuf_interop.h>
+#include <yt/yt/core/yson/writer.h>
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/concurrency/coroutine.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
+#include <library/cpp/protobuf/util/pb_io.h>
+
+#include <util/stream/file.h>
+#include <util/stream/str.h>
 
 #include <library/cpp/yson/node/node_io.h>
 
 namespace NYT::NYqlPlugin {
 
 using namespace NConcurrency;
+using namespace NYqlClient;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,6 +89,29 @@ struct TActiveQuery
     std::shared_ptr<TTaskEventCallback> Callback;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+NYson::TYsonString SerializeProtoToYson(const google::protobuf::Message& message)
+{
+    TStringStream ysonStream;
+    NYson::TYsonWriter ysonWriter(&ysonStream, NYson::EYsonFormat::Binary);
+    NYson::WriteProtobufMessage(&ysonWriter, message);
+    ysonStream.Finish();
+    return NYson::TYsonString(ysonStream.Str());
+}
+
+std::optional<TString> ExtractDefaultCluster(const NYql::TGatewaysConfig& config)
+{
+    if (config.HasYt()) {
+        for (const auto& mapping : config.GetYt().GetClusterMapping()) {
+            if (mapping.GetDefault()) {
+                return mapping.GetName();
+            }
+        }
+    }
+    return {};
+}
+
 class TQtWorkerYqlPlugin
     : public IYqlPlugin
 {
@@ -100,7 +128,21 @@ public:
             logger.SetComponentLevel(NYql::NLog::EComponent(i), NYql::NLog::ELevel::DEBUG);
         }
 
+        if (!options.GatewaysConfigPath.empty()) {
+            TFileInput input(options.GatewaysConfigPath);
+            StaticGatewaysSnapshot_ = std::make_optional<NYql::TGatewaysConfig>();
+            ParseFromTextFormat(input, *StaticGatewaysSnapshot_, EParseFromTextFormatOption::AllowUnknownField);
+        }
+
         {
+            if (StaticGatewaysSnapshot_) {
+                options.GatewayConfig = SerializeProtoToYson(StaticGatewaysSnapshot_->GetYt());
+                options.DqGatewayConfig = SerializeProtoToYson(StaticGatewaysSnapshot_->GetDq());
+                options.YtflowGatewayConfig = SerializeProtoToYson(StaticGatewaysSnapshot_->GetYtflow());
+                options.PqGatewayConfig = SerializeProtoToYson(StaticGatewaysSnapshot_->GetPq());
+                options.SolomonGatewayConfig = SerializeProtoToYson(StaticGatewaysSnapshot_->GetSolomon());
+            }
+
             // NB: under debug build this method does not fit in regular fiber stack
             // due to python udf loading
             using TSignature = void(TYqlNativePluginOptions);
@@ -162,9 +204,36 @@ public:
             data.SetAuthData(SerializeCredentials(credentials));
             data.SetIsSystemRequest(false);
 
-            auto patch = GatewaysConfigPatch_.Load();
-            if (!patch.empty()) {
-                data.SetGatewaysConfigPatch(patch);
+            std::optional<NYql::TGatewaysConfig> gatewaysConfig;
+            {
+                TGuard guard(FlavorConfigsLock_);
+                // TODO(mpereskokova): Change to custom query flavor
+                if (auto snapshot = GatewaysConfigSnapshotByFlavor_.find("default"); snapshot != GatewaysConfigSnapshotByFlavor_.end()) {
+                    gatewaysConfig = snapshot->second;
+                }
+            }
+            if (!gatewaysConfig && StaticGatewaysSnapshot_) {
+                gatewaysConfig = *StaticGatewaysSnapshot_;
+            }
+
+            std::optional<TString> defaultTranslationCluster;
+            if (gatewaysConfig) {
+                TString fullTextProto;
+                if (!::google::protobuf::TextFormat::PrintToString(*gatewaysConfig, &fullTextProto)) {
+                    ythrow yexception() << "Failed to serialize gateways config to TextProto";
+                }
+
+                data.SetGatewaysConfig(fullTextProto);
+                defaultTranslationCluster = ExtractDefaultCluster(*gatewaysConfig);
+            }
+
+            auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
+            if (auto cluster = settingsMap.FindPtr("cluster")) {
+                defaultTranslationCluster = cluster->AsString();
+            }
+
+            if (defaultTranslationCluster) {
+                data.SetDefaultTranslationCluster(*defaultTranslationCluster);
             }
 
             for (const auto& file : files) {
@@ -253,25 +322,21 @@ public:
 
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept override
     {
-        YqlPluginForGetUsedClusters_->OnDynamicConfigChanged(config);
+        for (const auto& [flavor, protoConfig] : config.ProtoGatewaysConfigs) {
+            NYql::TGatewaysConfig protoGatewaysConfig;
+            TStringInput input(protoConfig);
+            ParseFromTextFormat(input, protoGatewaysConfig, EParseFromTextFormatOption::AllowUnknownField);
 
-        NYql::TGatewaysConfig dynamicGatewaysConfig;
-        if (config.GatewaysConfig) {
-            TProtobufWriterOptions protobufWriterOptions;
-            protobufWriterOptions.ConvertSnakeToCamelCase = true;
-            dynamicGatewaysConfig.ParseFromStringOrThrow(YsonStringToProto(
-                config.GatewaysConfig,
-                ReflectProtobufMessageType<NYql::TGatewaysConfig>(),
-                protobufWriterOptions));
+            if (flavor == "default") {
+                config.GatewaysConfig = SerializeProtoToYson(protoGatewaysConfig);
+                YqlPluginForGetUsedClusters_->OnDynamicConfigChanged(config);
+            }
+
+            {
+                TGuard guard(FlavorConfigsLock_);
+                GatewaysConfigSnapshotByFlavor_[flavor] = protoGatewaysConfig;
+            }
         }
-
-        TString patchTextProto;
-        if (!::google::protobuf::TextFormat::PrintToString(dynamicGatewaysConfig, &patchTextProto)) {
-            YQL_LOG(ERROR) << "Failed to serialize gateways patch to TextProto";
-            return;
-        }
-
-        GatewaysConfigPatch_.Store(std::move(patchTextProto));
     }
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
@@ -299,7 +364,10 @@ private:
     TMutex ActiveQueriesLock_;
     THashMap<TQueryId, TActiveQuery> ActiveQueries_;
 
-    NThreading::TAtomicObject<TString> GatewaysConfigPatch_;
+    std::optional<NYql::TGatewaysConfig> StaticGatewaysSnapshot_;
+
+    TMutex FlavorConfigsLock_;
+    THashMap<TString, NYql::TGatewaysConfig> GatewaysConfigSnapshotByFlavor_;
 
     TString SerializeCredentials(const TYsonString& credentials)
     {

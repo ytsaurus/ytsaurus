@@ -19,6 +19,7 @@ namespace NYT::NYqlAgent {
 
 using namespace NSecurityClient;
 using namespace NAuth;
+using namespace NYqlClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,6 +46,15 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("qtworker_inspector_port", &TThis::QtWorkerInspectorPort)
         .Default(32391);
+    registrar.Parameter("qtworker_gateways_config_path", &TThis::QtWorkerGatewaysConfigPath)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->UseQtWorkerYqlPlugin && !config->QtWorkerGatewaysConfigPath) {
+            THROW_ERROR_EXCEPTION(
+                "\"qtworker_gateways_config_path\" must be specified when \"use_qtworker_yql_plugin\" is true");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +65,8 @@ void TYqlAgentDynamicConfig::Register(TRegistrar registrar)
         .Default(63);
     registrar.Parameter("state_check_period", &TThis::StateCheckPeriod)
         .Default(TDuration::Seconds(15));
+    registrar.Parameter("proto_configs_update_period", &TThis::ProtoConfigsUpdatePeriod)
+        .Default(TDuration::Seconds(5));
     registrar.Parameter("gateways", &TThis::GatewaysConfig)
         .Default(GetEphemeralNodeFactory()->CreateMap())
         .ResetOnLoad();
@@ -87,9 +99,17 @@ void TYqlAgentServerConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
         .Default();
 
+    registrar.Parameter("proto_dynamic_configs_path", &TThis::ProtoDynamicConfigsPath)
+        .Default();
+    registrar.Parameter("supported_flavors", &TThis::SupportedFlavors)
+        .Default({"default"});
+
     registrar.Postprocessor([] (TThis* config) {
         if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
             dynamicConfigPath = config->Root + "/config";
+        }
+        if (auto& protoDynamicConfigsPath = config->ProtoDynamicConfigsPath; protoDynamicConfigsPath.empty()) {
+            protoDynamicConfigsPath = config->Root + "/proto_gateways";
         }
     });
 };

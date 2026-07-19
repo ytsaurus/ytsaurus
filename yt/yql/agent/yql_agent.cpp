@@ -247,19 +247,25 @@ class TYqlAgent
 public:
     TYqlAgent(
         TBootstrap* bootstrap,
-        TSingletonsConfigPtr singletonsConfig,
+        TYqlAgentServerConfigPtr serverConfig,
         TYqlAgentConfigPtr yqlAgentConfig,
         TYqlAgentDynamicConfigPtr dynamicConfig,
         TClusterDirectoryPtr clusterDirectory,
         TClientDirectoryPtr clientDirectory,
         IInvokerPtr controlInvoker,
         TString agentId)
-        : SingletonsConfig_(std::move(singletonsConfig))
+        : SupportedFlavors_(serverConfig->SupportedFlavors)
+        , ProtoDynamicConfigsPath_(serverConfig->ProtoDynamicConfigsPath)
+        , SingletonsConfig_(std::move(serverConfig))
         , Config_(std::move(yqlAgentConfig))
         , ClusterDirectory_(std::move(clusterDirectory))
         , ClientDirectory_(std::move(clientDirectory))
         , ControlInvoker_(std::move(controlInvoker))
         , AgentId_(std::move(agentId))
+        , Client_(bootstrap->GetClient())
+        , ProtoConfigsUpdater_(New<TPeriodicExecutor>(
+            ControlInvoker_,
+            BIND(&TYqlAgent::UpdateProtoDynamicConfigs, MakeWeak(this))))
         , DynamicConfig_(std::move(dynamicConfig))
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
     {
@@ -335,7 +341,8 @@ public:
             auto qtOptions = ConvertToQtWorkerPluginOptions(
                 std::move(options),
                 CreateArcadiaLogBackend(TLogger("QtWorkerPlugin")),
-                Config_->QtWorkerInspectorPort);
+                Config_->QtWorkerInspectorPort,
+                *Config_->QtWorkerGatewaysConfigPath);
             YqlPlugin_ = CreateQtWorkerYqlPlugin(std::move(qtOptions));
         } else {
             // NB: under debug build this method does not fit in regular fiber stack
@@ -372,6 +379,10 @@ public:
     void Start() override
     {
         YqlPlugin_->Start();
+        if (Config_->UseQtWorkerYqlPlugin) {
+            ProtoConfigsUpdater_->Start();
+        }
+
     }
 
     void Stop() override
@@ -381,6 +392,20 @@ public:
     {
         auto producer = BIND_NO_PROPAGATE(&TYqlAgent::BuildOrchid, MakeStrong(this));
         return IYPathService::FromProducer(producer);
+    }
+
+    void UpdateProtoDynamicConfigs()
+    {
+        if (!Config_->UseQtWorkerYqlPlugin) {
+            return;
+        }
+
+        auto protoDynamicGatewaysConfigs = ReadProtoDynamicGatewaysConfigs();
+        TYqlPluginDynamicConfig pluginDynamicConfig{
+            .ProtoGatewaysConfigs = std::move(protoDynamicGatewaysConfigs),
+        };
+        YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with ProtoGatewaysConfigs: %v", pluginDynamicConfig.ProtoGatewaysConfigs);
+        YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
     }
 
     void OnDynamicConfigChanged(
@@ -397,16 +422,56 @@ public:
         }
         ActiveQueriesGuardFactory_->Update(DynamicConfig_->MaxSimultaneousQueries);
 
+        ProtoConfigsUpdater_->SetPeriod(DynamicConfig_->ProtoConfigsUpdatePeriod);
         InitYqlVersions();
 
-        if (DynamicConfig_->GatewaysConfig) {
+        if (Config_->UseQtWorkerYqlPlugin) {
+            YT_LOG_ERROR("Old GatewaysConfig is deprecated with qtworker plugin and has been ignored");
+
             TYqlPluginDynamicConfig pluginDynamicConfig{
-                .GatewaysConfig = ConvertToYsonString(DynamicConfig_->GatewaysConfig),
+                .MaxSupportedYqlVersion = TYsonString(MaxSupportedYqlVersionStr_),
+            };
+            YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
+        } else {
+            // TODO(mpereskokova): Remove with native plugin
+            TYqlPluginDynamicConfig pluginDynamicConfig{
+                .GatewaysConfig = DynamicConfig_->GatewaysConfig
+                    ? ConvertToYsonString(DynamicConfig_->GatewaysConfig)
+                    : TYsonString(),
                 .MaxSupportedYqlVersion = TYsonString(MaxSupportedYqlVersionStr_),
             };
             YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with GatewaysConfig: %v", pluginDynamicConfig.GatewaysConfig.AsStringBuf());
             YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
         }
+    }
+
+    THashMap<TString, TString> ReadProtoDynamicGatewaysConfigs()
+    {
+        THashMap<TString, TString> configs;
+        for (const auto& flavor : SupportedFlavors_) {
+            auto path = Format("%v/%v.conf", ProtoDynamicConfigsPath_, flavor);
+
+            try {
+                auto modificationTimeOrError = WaitFor(Client_->GetNode(path + "/@modification_time"));
+                if (modificationTimeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    YT_LOG_DEBUG("Proto dynamic gateways config file does not exist (Flavor: %Qv, Path: %Qv)", flavor, path);
+                    continue;
+                }
+                auto modificationTime = modificationTimeOrError.ValueOrThrow().ToString();
+                if (ProtoConfigsModificationTime_.contains(flavor) && ProtoConfigsModificationTime_[flavor] == modificationTime) {
+                    continue;
+                }
+
+                auto fileReader = WaitFor(Client_->CreateFileReader(path)).ValueOrThrow();
+                configs[flavor] = TString(fileReader->ReadAll().ToStringBuf());
+
+                ProtoConfigsModificationTime_[flavor] = modificationTime;
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Failed to read proto dynamic gateways config (Flavor: %Qv, Path: %Qv)", flavor, path);
+            }
+        }
+
+        return configs;
     }
 
     TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request) override
@@ -504,12 +569,19 @@ public:
     }
 
 private:
+    const std::set<TString> SupportedFlavors_;
+    const TString ProtoDynamicConfigsPath_;
     const TSingletonsConfigPtr SingletonsConfig_;
     const TYqlAgentConfigPtr Config_;
     const TClusterDirectoryPtr ClusterDirectory_;
     const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr ControlInvoker_;
     const TString AgentId_;
+    const NApi::NNative::IClientPtr Client_;
+
+    const TPeriodicExecutorPtr ProtoConfigsUpdater_;
+
+    THashMap<TString, TString> ProtoConfigsModificationTime_;
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, YqlVersionLock_);
     NYql::TLangVersion MaxSupportedYqlVersion_;
@@ -1153,7 +1225,7 @@ private:
 
 IYqlAgentPtr CreateYqlAgent(
     TBootstrap* bootstrap,
-    TSingletonsConfigPtr singletonsConfig,
+    TYqlAgentServerConfigPtr serverConfig,
     TYqlAgentConfigPtr config,
     TYqlAgentDynamicConfigPtr dynamicConfig,
     TClusterDirectoryPtr clusterDirectory,
@@ -1163,7 +1235,7 @@ IYqlAgentPtr CreateYqlAgent(
 {
     return New<TYqlAgent>(
         bootstrap,
-        std::move(singletonsConfig),
+        std::move(serverConfig),
         std::move(config),
         std::move(dynamicConfig),
         std::move(clusterDirectory),

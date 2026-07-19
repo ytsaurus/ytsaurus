@@ -4,6 +4,8 @@
 
 #include <yt/yql/plugin/bridge/interface.h>
 
+#include <yt/yt/ytlib/yql_client/public.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 #include <library/cpp/logger/log.h>
@@ -54,12 +56,15 @@ struct TYqlQTWorkerPluginOptions
 {
     THolder<TLogBackend> QtWorkerLogBackend;
     int QtWorkerInspectorPort = 32391;
+    TString GatewaysConfigPath;
 };
 
 struct TYqlPluginDynamicConfig
 {
     NYson::TYsonString GatewaysConfig;
     NYson::TYsonString MaxSupportedYqlVersion;
+
+    THashMap<TString, TString> ProtoGatewaysConfigs;
 };
 
 struct TQueryResult
@@ -161,7 +166,8 @@ TYqlNativePluginOptions ConvertToNativePluginOptions(
 TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(
     TYqlNativePluginOptions nativeOptions,
     THolder<TLogBackend> qtWorkerLogBackend,
-    int qtWorkerInspectorPort);
+    int qtWorkerInspectorPort,
+    TString gatewaysConfigPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

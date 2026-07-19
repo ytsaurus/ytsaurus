@@ -50,12 +50,14 @@ TYqlNativePluginOptions ConvertToNativePluginOptions(
 TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(
     TYqlNativePluginOptions nativeOptions,
     THolder<TLogBackend> qtWorkerLogBackend,
-    int qtWorkerInspectorPort)
+    int qtWorkerInspectorPort,
+    TString gatewaysConfigPath)
 {
     TYqlQTWorkerPluginOptions options;
     static_cast<TYqlNativePluginOptions&>(options) = std::move(nativeOptions);
     options.QtWorkerInspectorPort = qtWorkerInspectorPort;
     options.QtWorkerLogBackend = std::move(qtWorkerLogBackend);
+    options.GatewaysConfigPath = std::move(gatewaysConfigPath);
     return options;
 }
 

@@ -326,6 +326,11 @@ const NNative::TConnectionCompoundConfigPtr TBootstrap::GetClusterConnectionConf
     return Config_->ClusterConnection;
 }
 
+const NNative::IClientPtr& TBootstrap::GetClient() const
+{
+    return NativeClient_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYqlAgent
