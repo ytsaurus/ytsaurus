@@ -124,6 +124,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PersistVanillaJobCounts)               (302301))
     ((DropLegacySortedPool)                  (302302))
     ((HighThreadCountJobThreshold)           (302303))
+    ((SamplingSeed)                          (302304))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
