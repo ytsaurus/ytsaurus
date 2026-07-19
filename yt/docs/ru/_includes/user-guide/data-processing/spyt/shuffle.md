@@ -10,17 +10,40 @@
 
 ## Включение { #enabling }
 
-При использовании режима [прямого запуска задач в {{product-name}}](../../../../user-guide/data-processing/spyt/launch.md#submit) необходимо выставить conf параметр `spark.ytsaurus.shuffle.enabled` в `true`.
+### Прямой запуск задач { #enabling-direct }
 
-При использовании [внутреннего standalone Spark кластера внутри Vanilla операции](../../../../user-guide/data-processing/spyt/launch.md#standalone) необходимо добавить опцию `--enable-ytsaurus-shuffle` для команды `spark-launch-yt`.
+При [прямом запуске задач в {{product-name}}](../../../../user-guide/data-processing/spyt/launch.md#submit) выставьте conf-параметр `spark.ytsaurus.shuffle.enabled` в `true` — приложение будет использовать {{product-name}} Shuffle сервис вместо нативного Spark shuffle.
 
 {% note warning "Внимание" %}
 
-При использовании Shuffle-сервиса {{product-name}} не включайте нативный Spark Shuffle Service, то есть не выставляйте параметр `spark.shuffle.service.enabled` в значение `true`.
+При включённом dynamic allocation {{product-name}} Shuffle сервис обязателен: без `spark.ytsaurus.shuffle.enabled=true` запуск завершится ошибкой `Dynamic allocation requires YTsaurus shuffle service`.
 
 {% endnote %}
 
-## Принцип работы
+### Внутренний standalone-кластер { #enabling-standalone }
+
+При запуске [внутреннего standalone-кластера](../../../../user-guide/data-processing/spyt/launch.md#standalone) командой `spark-launch-yt` доступны два независимых shuffle-сервиса, каждый управляется своей опцией:
+
+| Опция | Shuffle-сервис | По умолчанию |
+| --- | --- | --- |
+| `--enable-spark-shuffle` / `--disable-spark-shuffle` | Нативный внешний Spark shuffle service | включён |
+| `--enable-ytsaurus-shuffle` / `--disable-ytsaurus-shuffle` | {{product-name}} Shuffle сервис | выключен |
+
+Опция `--enable-ytsaurus-shuffle` лишь делает {{product-name}} Shuffle сервис доступным на воркерах. Какой сервис использует приложение, определяется при его запуске параметром `spark.ytsaurus.shuffle.enabled` (`true` — {{product-name}} Shuffle, иначе — нативный Spark shuffle). Одно приложение должно использовать только один из сервисов.
+
+{% note warning "Внимание" %}
+
+Если приложение запущено с `spark.ytsaurus.shuffle.enabled=true`, а кластер поднят без опции `--enable-ytsaurus-shuffle`, на этапе submit ошибки не будет — приложение упадёт в рантайме на первом shuffle-стейдже.
+
+{% endnote %}
+
+{% note info %}
+
+Кластер допустимо запустить с обоими выключенными сервисами (`--disable-spark-shuffle --disable-ytsaurus-shuffle`) — ошибки не будет, но промежуточные данные будут храниться только на экзекьюторах и потеряются при их падении.
+
+{% endnote %}
+
+## Принцип работы { #how }
 
 Spark пишет данные в {{product-name}} Shuffle сервис под транзакцией. Жизненный цикл этой транзакции контролируется драйвером, который её периодически пингует. Транзакция запускается в момент регистрации нового shuffle, каждый shuffle записывается под отдельной транзакцией. После завершения работы (как успешного, так и неуспешного) с экземпляром shuffle транзакция откатывается, что приводит к удалению всех чанков, которые были под ней записаны. В случае ошибок на драйвере и его аварийного завершения транзакция также откатывается по истечении таймаута. Таймаут конфигурируется параметром `spark.ytsaurus.shuffle.transaction.timeout`.
 
