@@ -8234,7 +8234,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
 
     for (const auto& userJobSpec : GetUserJobSpecs()) {
         for (const auto& [_, volume] : userJobSpec->Volumes) {
-            if (!volume->DiskRequest || volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+            if (!volume->DiskRequest || volume->DiskRequest->GetType() == NExecNode::EVolumeType::Tmpfs) {
                 continue;
             }
 
@@ -8257,7 +8257,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     }
                 }
                 if (Config_->DeprecatedMedia.contains(mediumName) &&
-                    volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Nbd)
+                    volume->DiskRequest->GetType() != NExecNode::EVolumeType::Nbd)
                 {
                     THROW_ERROR_EXCEPTION("Medium is deprecated to be used in disk requests")
                         << TErrorAttribute("medium_name", mediumName);
@@ -8266,7 +8266,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     accounts.insert(*diskRequest->Account);
                 }
 
-                if (volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Nbd) {
+                if (volume->DiskRequest->GetType() == NExecNode::EVolumeType::Nbd) {
                     // Allow only NBD media.
                     if (!Config_->NbdMedia.contains(mediumName)) {
                         THROW_ERROR_EXCEPTION("Inappropriate medium for NBD")
@@ -10659,7 +10659,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         } else if (auto localDiskRequest = volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
             ToProto(jobSpec->mutable_disk_request(), *localDiskRequest);
         } else {
-            YT_LOG_FATAL("Unknown volume type %v", volume->DiskRequest->GetCurrentType());
+            YT_LOG_FATAL("Unknown volume type %v", volume->DiskRequest->GetType());
         }
     }
 

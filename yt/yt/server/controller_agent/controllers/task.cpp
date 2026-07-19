@@ -833,7 +833,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
             auto diskQuota = CreateDiskQuota(diskRequest, TaskHost_->GetMediumDirectory());
             // Do not set needed resources in case of NBD disk since we do not need these resources on exe nodes.
-            if (volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Nbd) {
+            if (volume->DiskRequest->GetType() != NExecNode::EVolumeType::Nbd) {
                 neededResources.DiskQuota() = diskQuota;
             }
             joblet->DiskRequestAccount = diskRequest->Account;

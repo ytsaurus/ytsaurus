@@ -606,7 +606,7 @@ public:
     EJobEnvironmentType GetJobEnvironmentType() const override
     {
         const auto& slotManagerConfig = Config_->ExecNode->SlotManager;
-        return slotManagerConfig->JobEnvironment.GetCurrentType();
+        return slotManagerConfig->JobEnvironment.GetType();
     }
 
     const THashSet<ENodeFlavor>& GetFlavors() const override
