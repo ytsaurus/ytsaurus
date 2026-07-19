@@ -12,36 +12,9 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(unittests)
-
-add_library(lib-nbd-chunk)
-
-
-target_compile_options(lib-nbd-chunk PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(lib-nbd-chunk PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  server-lib-nbd
-  yt-yt-ytlib
-  yt-yt-core
-)
-
-target_sources(lib-nbd-chunk PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk/chunk_block_device.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk/chunk_handler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk/page_cache.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
