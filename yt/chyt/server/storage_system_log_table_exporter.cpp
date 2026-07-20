@@ -361,26 +361,13 @@ public:
         , OutputSchema_(BuildOutputSchema(InputSchema_, tableExtender, NameTable_))
         , TableExtender_(std::move(tableExtender))
         , Logger(std::move(logger))
-    {
-        auto tablePath = EnsureTableReady();
-
-        auto handlerConfig = New<TArchiveHandlerConfig>();
-        handlerConfig->MaxInProgressDataSize = Config_->MaxInProgressDataSize;
-        handlerConfig->Path = tablePath;
-
-        ArchiveReporter_ = CreateArchiveReporter(
-            New<TArchiveVersionHolder>(),
-            Config_,
-            std::move(handlerConfig),
-            NameTable_,
-            StorageId_.getFullTableName(),
-            Client_,
-            Invoker_,
-            SystemLogTableExporterProfiler().WithTag("table_name", StorageId_.table_name));
-    }
+    { }
 
     void ConvertAndEnqueue(const DB::Block& header, const DB::Chunks& chunks)
     {
+        EnsureInitialized();
+        YT_VERIFY(ArchiveReporter_);
+
         auto extraRowBuffer = New<TRowBuffer>();
 
         for (const auto& chunk : chunks) {
@@ -447,6 +434,30 @@ private:
         columns.insert(columns.end(), QueueSystemColumns.begin(), QueueSystemColumns.end());
 
         return TTableSchema(std::move(columns), inputSchema.IsStrict(), inputSchema.IsUniqueKeys());
+    }
+
+    void EnsureInitialized()
+    {
+        // NB: System log flushing is performed in a single thread, so synchronization is not required.
+        if (ArchiveReporter_) {
+            return;
+        }
+
+        auto tablePath = EnsureTableReady();
+
+        auto handlerConfig = New<TArchiveHandlerConfig>();
+        handlerConfig->MaxInProgressDataSize = Config_->MaxInProgressDataSize;
+        handlerConfig->Path = tablePath;
+
+        ArchiveReporter_ = CreateArchiveReporter(
+            New<TArchiveVersionHolder>(),
+            Config_,
+            std::move(handlerConfig),
+            NameTable_,
+            StorageId_.getFullTableName(),
+            Client_,
+            Invoker_,
+            SystemLogTableExporterProfiler().WithTag("table_name", StorageId_.table_name));
     }
 
     TYPath EnsureTableReady()

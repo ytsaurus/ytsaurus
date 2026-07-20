@@ -1,6 +1,6 @@
 from yt_commands import (create, authors, write_table, insert_rows, get, sync_reshard_table, sync_mount_table,
                          read_table, get_singular_chunk_id, copy, raises_yt_error, alter_table, sync_unmount_table,
-                         print_debug, select_rows, trim_rows, sync_flush_table)
+                         print_debug, select_rows, trim_rows, sync_flush_table, exists)
 
 from yt_type_helpers import optional_type
 
@@ -1249,6 +1249,9 @@ class TestReadInOrder(ClickHouseTestBase):
 
     @staticmethod
     def wait_for_query_in_log(log_table, query_id=None, query_ids=tuple()):
+        # Query log table is created on the first flush.
+        wait(lambda: exists(log_table))
+        wait(lambda: get(f"{log_table}/@tablet_state") == "mounted")
         wait(lambda: len(TestReadInOrder.get_log_messages(log_table, query_id=query_id, query_ids=query_ids)) == (1 if query_id is not None else len(query_ids)))
 
     @staticmethod

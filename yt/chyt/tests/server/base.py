@@ -821,6 +821,10 @@ class Clique(object):
             result = self.get_query_log_rows(query_id, include_secondary_queries)
             return validate_query_log_rows(result)
 
+        # Query log table is created on the first flush.
+        wait(lambda: exists(self.query_log_table_path))
+        wait(lambda: get(self.query_log_table_path + "/@tablet_state") == "mounted")
+
         wait(get_and_validate_query_log_rows)
 
         return result
