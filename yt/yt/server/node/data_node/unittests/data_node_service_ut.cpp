@@ -7,6 +7,8 @@
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/master_connector.h>
 #include <yt/yt/server/node/data_node/network_statistics.h>
+#include <yt/yt/server/node/data_node/session.h>
+#include <yt/yt/server/node/data_node/session_manager.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -722,6 +724,16 @@ public:
 
         auto req = proxy.ProbePutBlocks();
         req->set_cumulative_block_size(cumulativeBlockSize);
+        ToProto(req->mutable_session_id(), sessionId);
+        return req->Invoke();
+    }
+
+    auto PingSession(const TSessionId& sessionId)
+    {
+        auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
+        TDataNodeServiceProxy proxy(channel);
+
+        auto req = proxy.PingSession();
         ToProto(req->mutable_session_id(), sessionId);
         return req->Invoke();
     }
@@ -1614,6 +1626,72 @@ TEST_F(TDataNodeTest, StartChunkIgnoresNetInThrottlerQueueSizeWhenFlagDisabled)
     TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
     auto rspOrError = WaitFor(StartChunk(sessionId, false, false, false, workloadDescriptor));
     EXPECT_TRUE(rspOrError.IsOK());
+
+    inThrottler->Release(2_GB);
+    Y_UNUSED(throttleFuture);
+}
+
+TEST_F(TDataNodeTest, ProbePutBlocksReflectsNetInThrottlerQueueSize)
+{
+    auto bootstrap = GetDataNodeBootstrap();
+    bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = true;
+    bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->EnableInThrottlerQueueWritableCheck = true;
+    bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->NetInThrottlingLimit = 0;
+
+    TWorkloadDescriptor workloadDescriptor{EWorkloadCategory::SystemReplication};
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    WaitFor(StartChunk(sessionId, true, false, false, workloadDescriptor))
+        .ThrowOnError();
+
+    auto initialResponse = WaitFor(ProbePutBlocks(sessionId, 1_MB))
+        .ValueOrThrow();
+    EXPECT_EQ(initialResponse->probe_put_blocks_state().approved_cumulative_block_size(), 1_MB);
+
+    auto inThrottler = bootstrap->GetInThrottler(workloadDescriptor);
+    auto throttleFuture = inThrottler->Throttle(2_GB);
+
+    EXPECT_GT(inThrottler->GetQueueTotalAmount(), 0);
+    auto throttledResponse = WaitFor(ProbePutBlocks(sessionId, 2_MB))
+        .ValueOrThrow();
+    EXPECT_EQ(throttledResponse->probe_put_blocks_state().requested_cumulative_block_size(), 2_MB);
+    EXPECT_EQ(throttledResponse->probe_put_blocks_state().approved_cumulative_block_size(), 0);
+
+    auto throttledPingResponse = WaitFor(PingSession(sessionId))
+        .ValueOrThrow();
+    EXPECT_EQ(throttledPingResponse->probe_put_blocks_state().requested_cumulative_block_size(), 2_MB);
+    EXPECT_EQ(throttledPingResponse->probe_put_blocks_state().approved_cumulative_block_size(), 0);
+
+    auto session = bootstrap->GetSessionManager()->GetSessionOrThrow(sessionId.ChunkId);
+    EXPECT_EQ(session->GetApprovedCumulativeBlockSize(), 2_MB);
+
+    inThrottler->Release(2_GB);
+    WaitFor(throttleFuture)
+        .ThrowOnError();
+
+    auto response = WaitFor(ProbePutBlocks(sessionId, 2_MB))
+        .ValueOrThrow();
+    EXPECT_EQ(response->probe_put_blocks_state().approved_cumulative_block_size(), 2_MB);
+}
+
+TEST_F(TDataNodeTest, ProbePutBlocksIgnoresNetInThrottlerQueueSizeWhenFlagDisabled)
+{
+    auto bootstrap = GetDataNodeBootstrap();
+    bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = true;
+    bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->EnableInThrottlerQueueWritableCheck = false;
+    bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->NetInThrottlingLimit = 0;
+
+    TWorkloadDescriptor workloadDescriptor{EWorkloadCategory::SystemReplication};
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    WaitFor(StartChunk(sessionId, true, false, false, workloadDescriptor))
+        .ThrowOnError();
+
+    auto inThrottler = bootstrap->GetInThrottler(workloadDescriptor);
+    auto throttleFuture = inThrottler->Throttle(2_GB);
+
+    EXPECT_GT(inThrottler->GetQueueTotalAmount(), 0);
+    auto response = WaitFor(ProbePutBlocks(sessionId, 1_MB))
+        .ValueOrThrow();
+    EXPECT_EQ(response->probe_put_blocks_state().approved_cumulative_block_size(), 1_MB);
 
     inThrottler->Release(2_GB);
     Y_UNUSED(throttleFuture);
