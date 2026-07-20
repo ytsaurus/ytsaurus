@@ -102,12 +102,14 @@ public:
             return;
         }
 
+        auto cookie = std::move(Cookie_);
+
         if (blockOrError.IsOK()) {
             auto block = PrepareBlockToCache(std::move(blockOrError).Value(), MemoryUsageTracker_);
-            auto entry = New<TAsyncBlockCacheEntry>(Cookie_.GetKey(), std::move(block));
-            Cookie_.EndInsert(std::move(entry));
+            auto entry = New<TAsyncBlockCacheEntry>(cookie.GetKey(), std::move(block));
+            cookie.EndInsert(std::move(entry));
         } else {
-            Cookie_.Cancel(static_cast<TError>(blockOrError));
+            cookie.Cancel(static_cast<TError>(blockOrError));
         }
     }
 
