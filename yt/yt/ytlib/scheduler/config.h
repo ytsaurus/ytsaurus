@@ -373,6 +373,10 @@ struct TSamplingConfig
     //! The probability for each particular row to remain in the output.
     std::optional<double> SamplingRate;
 
+    //! A seed for the random generator used for sampling.
+    //! Makes the set of sampled chunks deterministic for a fixed input.
+    std::optional<ui64> SamplingSeed;
+
     //! An option regulating the total data slice count during the sampling job creation procedure.
     //! It should not be used normally and left only for manual setup in marginal cases.
     //! If not set, it is overridden with MaxTotalSliceCount from controller agent options.

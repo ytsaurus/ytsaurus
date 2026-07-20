@@ -121,6 +121,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((HunkStatistics)                        (302214))
     ((PersistVanillaJobCounts)               (302215))
     ((HighThreadCountJobThreshold)           (302216))
+    ((SamplingSeed)                          (302217))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
