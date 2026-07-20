@@ -1,5 +1,6 @@
 #include "allocator_adapter.h"
 
+#include "config.h"
 #include "cypress_bindings.h"
 #include "helpers.h"
 #include "input_state.h"
@@ -343,11 +344,39 @@ public:
         return Dummy;
     }
 
-    std::vector<std::string> GetOfflineInstances(
-        const TSchedulerInputState& /*input*/,
-        const std::string& /*dataCenterName*/) const
+    std::vector<std::string> GetOfflineInstancesToDeallocate(
+        const TSchedulerInputState& input,
+        const std::string& dataCenterName) const
     {
-        return {};
+        // TODO: Properly support RPC proxies in mode without allocations.
+        if (!input.Config->HasInstanceAllocatorService) {
+            return {};
+        }
+
+        auto offlineThreshold = input.DynamicConfig->DeallocateOfflineInstanceAfter;
+        if (!offlineThreshold) {
+            return {};
+        }
+
+        std::vector<std::string> result;
+
+        const auto& aliveInstances = GetAliveInstances(dataCenterName);
+        auto now = TInstant::Now();
+
+        for (const auto& address : GetInstances(dataCenterName)) {
+            if (aliveInstances.contains(address)) {
+                continue;
+            }
+
+            const auto& proxyInfo = GetOrCrash(input.RpcProxies, address);
+            if (now - proxyInfo->ModificationTime < *offlineThreshold) {
+                continue;
+            }
+
+            result.push_back(address);
+        }
+
+        return result;
     }
 
     const std::vector<std::string>& GetInstances(const std::string& dataCenterName) const
