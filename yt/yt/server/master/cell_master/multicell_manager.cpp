@@ -335,7 +335,7 @@ public:
         // IsDynamicallyPropagatedMaster will not work.
         THROW_ERROR_EXCEPTION_UNLESS(IsLocalMasterCellRegistered(),
             NCellServer::EErrorCode::MasterCellNotReady,
-            "Master cell is not ready, it is not registered at primary yet")
+            "Master cell is not ready, it is not registered at primary yet");
     }
 
     EMasterCellRoles GetMasterCellRoles(TCellTag cellTag) const override
@@ -1331,7 +1331,7 @@ private:
             THROW_ERROR_EXCEPTION_IF(IsDynamicallyPropagatedMasterCell(cellTag) && newRoles != EMasterCellRoles::None,
                 "Attempted to set master cell roles %v to a dynamically propagated master cell %v",
                 newRoles,
-                cellTag)
+                cellTag);
 
             if (newConfig->MulticellManager->AllowMasterCellRoleInvariantCheck) {
                 auto canHostChunks = [] (auto roles) {
