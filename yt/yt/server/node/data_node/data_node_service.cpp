@@ -324,15 +324,7 @@ private:
 
         ValidateOnline();
 
-        if (GetDynamicConfig()->EnableInThrottlerQueueWritableCheck.value_or(false)) {
-            auto netThrottling = CheckNetInThrottling(context, options.WorkloadDescriptor);
-            if (netThrottling.Enabled) {
-                THROW_ERROR_EXCEPTION(
-                    NChunkClient::EErrorCode::WriteThrottlingActive,
-                    "Pending network in throttling queue size exceeds throttling limit")
-                    << TErrorAttribute("net_queue_size", netThrottling.QueueSize);
-            }
-        }
+        ValidateNetInThrottling(context, options.WorkloadDescriptor);
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
@@ -460,7 +452,7 @@ private:
 
         if (session->ShouldUseProbePutBlocks()) {
             auto maxRequestedCumulativeBlockSize = session->GetMaxRequestedCumulativeBlockSize();
-            auto approvedCumulativeBlockSize = session->GetApprovedCumulativeBlockSize();
+            auto approvedCumulativeBlockSize = GetReportedApprovedCumulativeBlockSize(context, session);
 
             response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(maxRequestedCumulativeBlockSize);
             response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
@@ -505,7 +497,7 @@ private:
         session->ProbePutBlocks(cumulativeBlockSize);
 
         auto maxRequestedCumulativeBlockSize = session->GetMaxRequestedCumulativeBlockSize();
-        auto approvedCumulativeBlockSize = session->GetApprovedCumulativeBlockSize();
+        auto approvedCumulativeBlockSize = GetReportedApprovedCumulativeBlockSize(context, session);
 
         response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(maxRequestedCumulativeBlockSize);
         response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
@@ -2961,6 +2953,38 @@ private:
                 NChunkClient::EErrorCode::MasterNotConnected,
                 "Master is not connected");
         }
+    }
+
+    template <class TContextPtr>
+    void ValidateNetInThrottling(
+        const TContextPtr& context,
+        const TWorkloadDescriptor& workloadDescriptor) const
+    {
+        if (!GetDynamicConfig()->EnableInThrottlerQueueWritableCheck.value_or(false)) {
+            return;
+        }
+
+        auto netThrottling = CheckNetInThrottling(context, workloadDescriptor);
+        if (netThrottling.Enabled) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::WriteThrottlingActive,
+                "Pending network in throttling queue size exceeds throttling limit")
+                << TErrorAttribute("net_queue_size", netThrottling.QueueSize);
+        }
+    }
+
+    template <class TContextPtr>
+    i64 GetReportedApprovedCumulativeBlockSize(
+        const TContextPtr& context,
+        const ISessionPtr& session) const
+    {
+        const bool isNetInThrottling =
+            GetDynamicConfig()->EnableInThrottlerQueueWritableCheck.value_or(false) &&
+            CheckNetInThrottling(context, session->GetWorkloadDescriptor()).Enabled;
+
+        return isNetInThrottling
+            ? 0
+            : session->GetApprovedCumulativeBlockSize();
     }
 
     template <class TContextPtr>
