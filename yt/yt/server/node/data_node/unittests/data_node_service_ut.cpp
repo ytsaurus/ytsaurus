@@ -1185,7 +1185,7 @@ public:
         return AllSucceeded(std::move(sessions));
     }
 
-    TError TryVerifyBucketTree(TEnumIndexedArray<EWorkloadCategory, std::optional<double>> workloadCategoryToWeight)
+    TError CheckVerifyBucketTree(TEnumIndexedArray<EWorkloadCategory, std::optional<double>> workloadCategoryToWeight)
     {
         double sumWeight = 0;
         for (const auto& weight : workloadCategoryToWeight) {
@@ -1207,9 +1207,9 @@ public:
         auto rootRequestWindowSize = rootBucket->RequestWindowSize.load();
         auto rootSlotWindowSize = rootBucket->SlotWindowSize.load();
         if (rootRequestWindowSize <= 0 || rootSlotWindowSize <= 0) {
-            return TError("Root windows are not filled yet: requestWindowSize %v, slotWindowSize %v",
-                rootRequestWindowSize,
-                rootSlotWindowSize);
+            return TError("Root windows are not filled yet")
+                << TErrorAttribute("request_window_size", rootRequestWindowSize)
+                << TErrorAttribute("slot_window_size", rootSlotWindowSize);
         }
 
         constexpr double WeightTolerance = 0.05;
@@ -1356,7 +1356,7 @@ TEST_P(TFairShareHierarchicalTest, DISABLED_StressTest)
     TError lastMismatch;
     while (TInstant::Now() < convergeDeadline && stableHits < RequiredStableHits) {
         TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(200));
-        lastMismatch = TryVerifyBucketTree(workloadCategoriesWeights);
+        lastMismatch = CheckVerifyBucketTree(workloadCategoriesWeights);
         stableHits = lastMismatch.IsOK() ? stableHits + 1 : 0;
     }
     EXPECT_GE(stableHits, RequiredStableHits)
