@@ -862,6 +862,12 @@ void TMapNodeImpl<TChild>::AssignChildren(const TObjectPartCoWPtr<TChildren>& ch
 }
 
 template <class TChild>
+const typename TMapNodeImpl<TChild>::TChildren* TMapNodeImpl<TChild>::GetChildren() const
+{
+    return &Children_.Get();
+}
+
+template <class TChild>
 uintptr_t TMapNodeImpl<TChild>::GetMapNodeChildrenAddress() const
 {
     return reinterpret_cast<uintptr_t>(&Children_.Get());

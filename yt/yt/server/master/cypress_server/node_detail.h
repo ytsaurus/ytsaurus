@@ -792,6 +792,8 @@ public:
     // Potentially does the 'copy' part of CoW.
     TChildren& MutableChildren();
 
+    const TChildren* GetChildren() const;
+
     NYTree::ENodeType GetNodeType() const override;
 
     void Save(NCellMaster::TSaveContext& context) const override;

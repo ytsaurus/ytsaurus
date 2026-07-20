@@ -74,6 +74,7 @@
 
 #include <yt/yt/server/master/table_server/cypress_integration.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/replicated_table_node.h>
 #include <yt/yt/server/master/table_server/replicated_table_node_type_handler.h>
 #include <yt/yt/server/master/table_server/secondary_index.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
@@ -81,6 +82,7 @@
 #include <yt/yt/server/master/table_server/table_node_type_handler.h>
 
 #include <yt/yt/server/master/tablet_server/cypress_integration.h>
+#include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 #include <yt/yt/server/master/tablet_server/hunk_storage_node_type_handler.h>
 // COMPAT(shakurov)
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
@@ -3298,6 +3300,8 @@ private:
 
         const auto& garbageCollector = Bootstrap_->GetObjectManager()->GetGarbageCollector();
 
+        auto nodeRefCounters = ComputeNodeRefCounters();
+
         THashMap<TTransactionId, TBranchedNodeSet> transactionToBranchedNodes;
         for (auto [transactionId, transaction] : Bootstrap_->GetTransactionManager()->Transactions()) {
             transactionToBranchedNodes[transactionId] = transaction->BranchedNodes();
@@ -3354,11 +3358,35 @@ private:
                 continue;
             }
 
+            auto expectedRefCounter = GetOrCrash(nodeRefCounters, node);
+            auto actualRefCounter = node->GetObjectRefCounter();
+            if (expectedRefCounter != actualRefCounter) {
+                // Refs for Sequoia nodes are determined based on reachability.
+                // However, during PrepareCreateNode, nodes in the BeingCreated state have an additional strong ref,
+                // whereas during MaterializeNode they do not.
+                // See sequoia_actions_executor for more details.
+                if (node->IsSequoia() && node->MutableSequoiaProperties() && node->MutableSequoiaProperties()->BeingCreated) {
+                    YT_LOG_ALERT_UNLESS(expectedRefCounter == actualRefCounter + 1,
+                "Node in BeingCreated state has unexpected ref counter "
+                        "(NodeId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
+                        node->GetId(),
+                        expectedRefCounter,
+                        actualRefCounter);
+                } else {
+                    YT_LOG_ALERT("Node has unexpected ref counter "
+                        "(NodeId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
+                        node->GetId(),
+                        expectedRefCounter,
+                        actualRefCounter);
+                }
+            }
+
             if (node->GetObjectRefCounter() == 0 &&
                 node->GetObjectWeakRefCounter() == 0 &&
                 node->GetObjectEphemeralRefCounter() == 0 &&
                 !garbageCollector->IsRegisteredZombie(node) &&
-                !garbageCollector->IsEphemeralGhost(node))
+                !garbageCollector->IsEphemeralGhost(node) &&
+                !garbageCollector->IsWeakGhost(node))
             {
                 YT_LOG_ALERT("Node leak detected (NodeId: %v)", node->GetId());
             }
@@ -3368,6 +3396,105 @@ private:
             for (auto node : branchNodeSet) {
                 YT_LOG_ALERT("Found a branch missing in the entity map, but held by a transaction (NodeId: %v)",
                     node->GetVersionedId());
+            }
+        }
+    }
+
+    THashMap<TCypressNode*, int> ComputeNodeRefCounters() const
+    {
+        const auto& garbageCollector = Bootstrap_->GetObjectManager()->GetGarbageCollector();
+
+        THashMap<TCypressNode*, int> nodeToRefCounter;
+
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!node->IsTrunk()) {
+               continue;
+            }
+
+            auto trunkRefCounter = 0;
+
+            if (garbageCollector->IsRegisteredZombie(node) || garbageCollector->IsEphemeralGhost(node) || garbageCollector->IsWeakGhost(node)) {
+                trunkRefCounter = 0;
+            } else if (node->IsBuiltin() || node->IsForeign()) {
+                trunkRefCounter = 1;
+            } else if (node->IsSequoia()) {
+                // Scion is also counted here.
+                trunkRefCounter = static_cast<int>(node->GetReachable() || (node->MutableSequoiaProperties() && node->MutableSequoiaProperties()->BeingCreated));
+            } else if (node->GetType() == EObjectType::PortalExit) {
+                trunkRefCounter = static_cast<int>(node->GetReachable());
+            }
+
+            EmplaceOrCrash(nodeToRefCounter, node, trunkRefCounter);
+        }
+
+        ComputeNodeRefCountersFromBranches(nodeToRefCounter);
+        ComputeNodeRefCountersFromTableNodes(nodeToRefCounter);
+        ComputeNodeRefCountersFromMapNodes(nodeToRefCounter);
+
+        return nodeToRefCounter;
+    }
+
+    void ComputeNodeRefCountersFromBranches(THashMap<TCypressNode*, int>& nodeToRefCounter) const
+    {
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!node->IsTrunk()) {
+                YT_LOG_ALERT_IF(node->GetObjectRefCounter() > 0, "Found a branch with non-zero RefCounter (NodeId: %v, RefCounter: %v)",
+                    node->GetVersionedId(),
+                    node->GetObjectRefCounter());
+
+                auto* trunkNode = node->GetTrunkNode();
+
+                YT_LOG_ALERT_UNLESS(nodeToRefCounter.contains(trunkNode),
+                    "Found a branch without trunk node (Node: %v)",
+                    node->GetVersionedId());
+
+                ++nodeToRefCounter[trunkNode];
+            }
+        }
+    }
+
+    void ComputeNodeRefCountersFromTableNodes(THashMap<TCypressNode*, int>& nodeToRefCounter) const
+    {
+        auto tryAddRefForHunkStorageNode = [&] (THunkStorageNode* hunkStorageNode) {
+            if (hunkStorageNode) {
+                ++nodeToRefCounter[hunkStorageNode->GetTrunkNode()];
+            }
+        };
+
+        for (auto [nodeId, node] : NodeMap_) {
+            if (node->GetType() == EObjectType::Table) {
+                auto* tableNode = node->As<TTableNode>();
+
+                tryAddRefForHunkStorageNode(tableNode->GetHunkStorage());
+            }
+
+            if (node->GetType() == EObjectType::ReplicatedTable) {
+                auto* replicatedTableNode = node->As<TReplicatedTableNode>();
+
+                tryAddRefForHunkStorageNode(replicatedTableNode->GetHunkStorage());
+            }
+        }
+    }
+
+    void ComputeNodeRefCountersFromMapNodes(THashMap<TCypressNode*, int>& nodeToRefCounter) const
+    {
+        THashSet<const TCypressMapNode::TChildren*> childrenMaps;
+        for (auto [nodeId, node] : NodeMap_) {
+            if (node->GetNodeType() != ENodeType::Map) {
+                continue;
+            }
+
+            if (node->IsSequoia()) {
+                continue;
+            }
+
+            auto* mapNode = node->As<TCypressMapNode>();
+            childrenMaps.emplace(mapNode->GetChildren());
+        }
+
+        for (const auto* childrenMap : childrenMaps) {
+            for (auto& [child, _] : childrenMap->ChildToKey()) {
+                ++nodeToRefCounter[child.Get()];
             }
         }
     }
