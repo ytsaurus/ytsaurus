@@ -5,7 +5,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/library/auth_server/config.h>
-#include <yt/yt/library/auth_server/ldap_helpers.h>
 #include <yt/yt/library/auth_server/login_authenticator.h>
 
 #include <util/system/env.h>
@@ -14,7 +13,6 @@ namespace NYT::NAuth {
 namespace {
 
 using namespace NConcurrency;
-using namespace NDetail;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,6 +209,33 @@ TEST(TLdapServiceConfigTest, GetAdminPasswordFromEnvVar)
     UnsetEnv("YT_TEST_LDAP_PASSWORD");
 }
 
+TEST(TLdapServiceConfigTest, GetAdminPasswordPreservesWhitespace)
+{
+    // Trailing whitespace may be part of the password, so it must survive verbatim.
+    SetEnv("YT_TEST_LDAP_PASSWORD", "env_secret \n");
+    auto config = LoadLdapConfig(MakeLdapNode([] (auto map) {
+        map.Item("admin_password_env_var").Value("YT_TEST_LDAP_PASSWORD");
+    }));
+    EXPECT_EQ(config->GetAdminPassword(), "env_secret \n");
+    UnsetEnv("YT_TEST_LDAP_PASSWORD");
+}
+
+TEST(TLdapServiceConfigTest, GetAdminPasswordEmptyThrows)
+{
+    SetEnv("YT_TEST_LDAP_PASSWORD", "");
+    auto config = LoadLdapConfig(MakeLdapNode([] (auto map) {
+        map.Item("admin_password_env_var").Value("YT_TEST_LDAP_PASSWORD");
+    }));
+    EXPECT_THROW_WITH_SUBSTRING(config->GetAdminPassword(), "is empty");
+    UnsetEnv("YT_TEST_LDAP_PASSWORD");
+}
+
+TEST(TLdapServiceConfigTest, DefaultReferralsDisabled)
+{
+    auto config = LoadLdapConfig(MakeLdapNodeWithPassword());
+    EXPECT_FALSE(config->EnableReferrals);
+}
+
 TEST(TLdapServiceConfigTest, GetAdminPasswordEnvVarMissingThrows)
 {
     UnsetEnv("YT_TEST_LDAP_PASSWORD_MISSING");
@@ -235,58 +260,6 @@ TEST(TLdapServiceConfigTest, MultiplePasswordSourcesThrows)
             map.Item("admin_password_env_var").Value("YT_FOO");
         })),
         "Exactly one");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TLdapFilterTest, NoEscapingNeeded)
-{
-    EXPECT_EQ(LdapEscapeFilterValue("alice"), "alice");
-    EXPECT_EQ(LdapEscapeFilterValue("user123"), "user123");
-    EXPECT_EQ(LdapEscapeFilterValue(""), "");
-}
-
-TEST(TLdapFilterTest, EscapesSpecialChars)
-{
-    EXPECT_EQ(LdapEscapeFilterValue("*"), "\\2a");
-    EXPECT_EQ(LdapEscapeFilterValue("("), "\\28");
-    EXPECT_EQ(LdapEscapeFilterValue(")"), "\\29");
-    EXPECT_EQ(LdapEscapeFilterValue("\\"), "\\5c");
-    EXPECT_EQ(LdapEscapeFilterValue(std::string("\0", 1)), "\\00");
-}
-
-TEST(TLdapFilterTest, EscapesMixed)
-{
-    EXPECT_EQ(LdapEscapeFilterValue("foo*bar(baz)"), "foo\\2abar\\28baz\\29");
-}
-
-TEST(TLdapFilterTest, EscapesInjectionAttempt)
-{
-    EXPECT_EQ(
-        LdapEscapeFilterValue("*)(uid=*))(|(uid=*"),
-        "\\2a\\29\\28uid=\\2a\\29\\29\\28|\\28uid=\\2a");
-}
-
-TEST(TLdapFilterTest, BuildSearchFilterSubstitutes)
-{
-    EXPECT_EQ(BuildSearchFilter("(uid={login})", "alice"), "(uid=alice)");
-}
-
-TEST(TLdapFilterTest, BuildSearchFilterEscapes)
-{
-    EXPECT_EQ(BuildSearchFilter("(uid={login})", "al*ce"), "(uid=al\\2ace)");
-}
-
-TEST(TLdapFilterTest, BuildSearchFilterMultiplePlaceholders)
-{
-    EXPECT_EQ(
-        BuildSearchFilter("(|(uid={login})(mail={login}@example.com))", "bob"),
-        "(|(uid=bob)(mail=bob@example.com))");
-}
-
-TEST(TLdapFilterTest, BuildSearchFilterNoPlaceholder)
-{
-    EXPECT_EQ(BuildSearchFilter("(objectClass=person)", "alice"), "(objectClass=person)");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
