@@ -1,0 +1,24 @@
+{
+  "info": {
+    "created": "2026-07-06T23:08:05Z",
+    "pr": {
+      "id": 14286715,
+      "author": "baymer",
+      "summary": "FBP-3266: ts: починить сендбоксинг в TS_LIBRARY"
+    }
+  },
+  "by_platform": {
+    "darwin": {
+      "uri": "sbr:12700282480"
+    },
+    "darwin-arm64": {
+      "uri": "sbr:12700281374"
+    },
+    "linux": {
+      "uri": "sbr:12700284241"
+    },
+    "linux-aarch64": {
+      "uri": "sbr:12700283393"
+    }
+  }
+}
