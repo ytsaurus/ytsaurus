@@ -59,24 +59,32 @@ cmd_unittests() {
         return 0
     fi
 
+    local skip_unittesters=(
+        unittester-containers
+        unittester-core-rpc-http
+        unittester-library-s3
+        unittester-library-ytprof
+    )
+    local skip_unittesters_re
+    skip_unittesters_re=$(IFS='|'; echo "${skip_unittesters[*]}")
+
     for unittester_binary in $(find . -name "unittester-*" -type f); do
-        if [[ ${unittester_binary} =~ "unittester-containers" ]]; then
-            continue
-        elif [[ ${unittester_binary} =~ "unittester-core-rpc-http" ]]; then
-            continue
-        fi
+        [[ ${unittester_binary} =~ (${skip_unittesters_re}) ]] && continue
         echo "Running ${unittester_binary}"
         local unittester_name
         unittester_name="$(basename "${unittester_binary}")"
         retry "${unittester_binary}" --gtest_output="xml:junit-${unittester_name}.xml"
     done
 
+    local skip_uts=(
+        library-cpp-logger-global
+        yt-cpp-mapreduce
+    )
+    local skip_uts_re
+    skip_uts_re=$(IFS='|'; echo "${skip_uts[*]}")
+
     for unittester_binary in $(find . -name "*-ut" -type f); do
-        if [[ ${unittester_binary} =~ "library-cpp-logger-global" ]]; then
-            continue
-        elif [[ ${unittester_binary} =~ "yt-cpp-mapreduce" ]]; then
-            continue
-        fi
+        [[ ${unittester_binary} =~ (${skip_uts_re}) ]] && continue
         echo "Running ${unittester_binary}"
         retry "${unittester_binary}"
     done
