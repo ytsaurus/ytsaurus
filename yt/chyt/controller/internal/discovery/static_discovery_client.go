@@ -1,4 +1,4 @@
-package chyt
+package discovery
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yt/ytdiscovery"
 )
 
-func newDiscoveryClient(cfg yt.DiscoveryConfig) (yt.DiscoveryClient, error) {
+func newClient(cfg yt.DiscoveryConfig) (yt.DiscoveryClient, error) {
 	if len(cfg.DiscoveryServers) > 0 {
 		return ytdiscovery.NewStatic(&cfg)
 	}

@@ -33,6 +33,10 @@ func NewAPI(ytc yt.Client, cfg APIConfig, ctl strawberry.Controller, l log.Logge
 	}
 }
 
+func (a *API) Controller() strawberry.Controller {
+	return a.ctl
+}
+
 func getUser(ctx context.Context) (string, error) {
 	user, ok := auth.ContextRequester(ctx)
 	if !ok {

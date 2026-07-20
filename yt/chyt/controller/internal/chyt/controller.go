@@ -17,6 +17,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/discovery"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -727,39 +728,13 @@ func parseConfig(rawConfig yson.RawValue) Config {
 	return controllerConfig
 }
 
-func createDiscoveryClient(ctx context.Context, ytc yt.Client) (yt.DiscoveryClient, error) {
-	var discoveryConnection struct {
-		Addresses *[]string `yson:"addresses"`
-		Endpoints *struct {
-			EndpointSetId string   `yson:"endpoint_set_id"`
-			Clusters      []string `yson:"clusters"`
-		} `yson:"endpoints"`
-	}
-
-	err := ytc.GetNode(ctx, ypath.Path("//sys/@cluster_connection/discovery_connection"), &discoveryConnection, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var cfg yt.DiscoveryConfig
-	if discoveryConnection.Addresses != nil {
-		cfg.DiscoveryServers = *discoveryConnection.Addresses
-	}
-	if discoveryConnection.Endpoints != nil {
-		cfg.EndpointSet = discoveryConnection.Endpoints.EndpointSetId
-		cfg.YPClusters = discoveryConnection.Endpoints.Clusters
-	}
-
-	return newDiscoveryClient(cfg)
-}
-
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, rawConfig yson.RawValue) strawberry.Controller {
 	config := parseConfig(rawConfig)
 
 	var dc yt.DiscoveryClient
 	if config.EnableDiscoveryHealthCheckOrDefault() {
 		var err error
-		dc, err = createDiscoveryClient(context.Background(), ytc)
+		dc, err = discovery.CreateClient(context.Background(), ytc)
 		if err != nil {
 			panic(err)
 		}
