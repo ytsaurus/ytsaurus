@@ -1,7 +1,15 @@
+# Self-hosted runner labels used across ytsaurus workflows.
+# "trampoline" is a persistent self-hosted runner that handles lightweight
+# jobs (start-vm/stop-vm, notifications); heavy jobs run on ephemeral
+# Yandex Cloud runners whose labels are produced at runtime by start-vm.
 self-hosted-runner:
   labels:
     - trampoline
 
+# GitHub branch/tag filter patterns support "+" (one-or-more), "[0-9]" ranges
+# and escaped dots, e.g. "stable/[0-9]+\.[0-9]+" — these match real release
+# branches/tags on GitHub. actionlint's glob rule flags the escaped dot as an
+# invalid escape, so ignore that specific message across workflows.
 paths:
   ".github/workflows/*.yaml":
     ignore:

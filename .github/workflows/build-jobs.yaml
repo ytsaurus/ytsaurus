@@ -137,7 +137,7 @@ jobs:
         if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
         run: |
           TARGETS=""
-          if [ "${{ matrix.build-type }}" == "relwithdebinfo" ]; then
+          if [ "${{ matrix.build-type }}" != "relwithdebinfo" ]; then
             TARGETS="ytserver-all ytserver-clickhouse"
           fi
           ./ytsaurus/yt/yt/scripts/build_cmake.sh build \
@@ -276,7 +276,7 @@ jobs:
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${YTSAURUS_TARGETS}
 
       - name: Build ytsaurus tests dependencies (ya-make, ${{ matrix.build-type }})
-        if: ${{ (inputs.build-ytsaurus || inputs.build-query-tracker) && inputs.build-ytsaurus-tests && (matrix.build-type == 'release') }}
+        if: ${{ (inputs.build-ytsaurus || inputs.build-query-tracker) && inputs.build-ytsaurus-tests && (matrix.build-type == 'relwithdebinfo') }}
         run: |
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 

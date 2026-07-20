@@ -8,14 +8,17 @@ on:
         default: ubuntu-latest
         type: string
       push-release-tag:
+        # If set, tag & push ghcr.io/ytsaurus/strawberry:<value>.
         required: false
         default: ''
         type: string
       push-nightly-tag:
+        # If set, tag & push ghcr.io/ytsaurus/strawberry-nightly:<value>.
         required: false
         default: ''
         type: string
     secrets:
+      # Only needed when a push tag is set (docker login/push); optional for build-only runs.
       GH_PERSONAL_ACCESS_TOKEN:
         required: false
       GH_USERNAME:

@@ -1,0 +1,74 @@
+name: CMake build and check
+on:
+  workflow_call:
+    inputs:
+      runs-on-value:
+        description: 'Label of the already-started YC runner (build+check must share one VM/FS).'
+        required: true
+        type: string
+      build-types:
+        description: 'JSON array. Keep ["relwithdebinfo"] so cmake unittest binaries are produced (full ninja) with debug symbols.'
+        required: false
+        default: '["relwithdebinfo"]'
+        type: string
+      build-chyt:
+        required: false
+        default: false
+        type: boolean
+      update-remote-cache:
+        required: false
+        default: false
+        type: boolean
+      run-unittests:
+        default: false
+        required: false
+        type: boolean
+      run-integration-tests:
+        default: false
+        required: false
+        type: boolean
+      run-python-tests:
+        default: false
+        required: false
+        type: boolean
+      run-odin-tests:
+        default: false
+        required: false
+        type: boolean
+    secrets:
+      BUILD_CACHE_BAZEL_USERNAME:
+        required: true
+      BUILD_CACHE_BAZEL_PASSWORD:
+        required: true
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+jobs:
+  build-cmake:
+    name: Build with cmake
+    with:
+      runs-on-value: ${{ inputs.runs-on-value }}
+      cpp-build-system: cmake
+      build-ytsaurus: true
+      build-chyt: ${{ inputs.build-chyt }}
+      build-python: true
+      update-remote-cache: ${{ inputs.update-remote-cache }}
+      build-types: ${{ inputs.build-types }}
+    secrets:
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+    uses: ./.github/workflows/build-jobs.yaml
+
+  check:
+    name: Check
+    needs:
+      - build-cmake
+    with:
+      runs-on-value: ${{ inputs.runs-on-value }}
+      build-dir: build_cmake_relwithdebinfo
+      run-unittests: ${{ inputs.run-unittests }}
+      run-integration-tests: ${{ inputs.run-integration-tests }}
+      run-python-tests: ${{ inputs.run-python-tests }}
+      run-odin-tests: ${{ inputs.run-odin-tests }}
+    uses: ./.github/workflows/check-jobs.yaml

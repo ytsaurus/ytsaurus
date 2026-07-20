@@ -1,4 +1,8 @@
 #!/bin/bash -ex
+# Shared cmake build orchestrator for the GitHub CI (build-jobs.yaml) and the
+# Arcadia run_cmake_build.sh. A single source of truth for the drift-prone cmake
+# flags (LLVM version, toolchain, conan provider, ccache) so both sides stay in sync.
+#
 # Usage:
 #   build_cmake.sh configure     --source-path P --build-path P --build-type T \
 #                                --ccache-remote-storage S [--ccache-base-dir P] \

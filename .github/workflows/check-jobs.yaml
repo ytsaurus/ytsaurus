@@ -6,6 +6,8 @@ on:
         required: true
         type: string
       build-dir:
+        # Build directory to test against, e.g. "build_cmake_relwithdebinfo" or "build_ya-make_relwithdebinfo".
+        # Unittests run directly from it; product tests get it symlinked to ../build.
         required: true
         type: string
       run-unittests:

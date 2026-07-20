@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - members/ilyaibraev/split-cmake-ci
     paths:
       - '.github/workflows/strawberry-nightly.yaml'
       - '.github/workflows/strawberry-action.yaml'

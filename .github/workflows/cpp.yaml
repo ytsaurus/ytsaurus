@@ -14,6 +14,7 @@ on:
       - stable/[0-9]+\.[0-9]+
       - query-tracker/[0-9]+\.[0-9]+
       - chyt/[0-9]+\.[0-9]+
+      - members/ilyaibraev/split-cmake-ci
 
 
 env:
@@ -103,7 +104,8 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
           else
-            echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
+            # TEMPORARY: profile (relwithdebinfo) only while iterating on tests; restore ["release","relwithdebinfo"] before merge.
+            echo 'BUILD_TYPES=["relwithdebinfo"]' >> "$GITHUB_OUTPUT"
           fi
 
           # Compute VERSION_PATCH as YYMMDDnnn (date of last commit + commit index within that day).
@@ -111,43 +113,6 @@ jobs:
           COMMITS_THIS_DAY=$(git -C ytsaurus log --after="20${LAST_COMMIT_DATE} 00:00:00" --oneline | wc -l | tr -d ' ')
           VERSION_PATCH=$(printf "%s%03d" "$LAST_COMMIT_DATE" "$COMMITS_THIS_DAY")
           echo "VERSION_PATCH=$VERSION_PATCH" >> "$GITHUB_OUTPUT"
-
-  build-cmake:
-    name: Build with cmake
-    needs:
-      - start-vm
-      - checkout
-      - tag
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      build-ytsaurus: true
-      build-chyt: ${{ github.ref_name == 'main' }}
-      build-python: true
-      update-remote-cache: true
-      build-types: ${{ needs.tag.outputs.build-types }}
-      version-patch: ${{ needs.tag.outputs.version-patch }}
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
-
-  docker-cmake:
-    name: Docker images with cmake
-    needs:
-      - start-vm
-      - tag
-      - build-cmake
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      image-tag: ${{ needs.tag.outputs.image-tag }}
-      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
-      build-types: ${{ needs.tag.outputs.build-types }}
-    secrets:
-      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      GH_USERNAME: ${{ secrets.GH_USERNAME }}
-    uses: ./.github/workflows/docker-jobs.yaml
 
   build-ya-make:
     name: Build with ya-make
@@ -180,10 +145,10 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') }}
-      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
-      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
-      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') }}
+      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') || github.ref_name == 'members/ilyaibraev/split-cmake-ci' }}
+      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') || github.ref_name == 'members/ilyaibraev/split-cmake-ci' }}
+      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') || github.ref_name == 'members/ilyaibraev/split-cmake-ci' }}
+      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') || github.ref_name == 'members/ilyaibraev/split-cmake-ci' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
       build-types: ${{ needs.tag.outputs.build-types }}
@@ -209,26 +174,14 @@ jobs:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       YTSAURUS_CI_K8S_EDITOR_TOKEN: ${{ secrets.YTSAURUS_CI_K8S_EDITOR_TOKEN }}
 
-  check-cmake:
-    name: Check (cmake)
-    needs:
-      - start-vm
-      - build-cmake
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-dir: build_cmake_release
-      run-unittests: true
-    uses: ./.github/workflows/check-jobs.yaml
-
   check:
     name: Check
     needs:
       - start-vm
-      - build-cmake
       - build-ya-make
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-dir: build_ya-make_release
+      build-dir: build_ya-make_relwithdebinfo
       run-unittests: true
       run-integration-tests: true
       run-python-tests: true
@@ -239,9 +192,7 @@ jobs:
     name: Stop VM
     needs:
       - start-vm
-      - check-cmake
       - check
-      - docker-cmake
       - docker-ya-make
     runs-on: trampoline
     if: ${{ always() }}
@@ -257,12 +208,9 @@ jobs:
 
   send-alert:
     needs:
-      - check-cmake
       - check
-      - build-cmake
       - build-ya-make
       - docker-ya-make
-      - docker-cmake
     if: always()
     uses: ./.github/workflows/check-status-and-send-alert.yaml
     with:
