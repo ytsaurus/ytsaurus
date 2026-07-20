@@ -358,6 +358,13 @@ bool TGarbageCollector::IsEphemeralGhost(TObject* object) const
     return EphemeralGhosts_.contains(object);
 }
 
+bool TGarbageCollector::IsWeakGhost(TObject* object) const
+{
+    VerifyPersistentStateRead();
+
+    return WeakGhosts_.contains(object->GetId());
+}
+
 void TGarbageCollector::RegisterRemovalAwaitingCellsSyncObject(TObject* object, const TCellTagSet& cellTags)
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
