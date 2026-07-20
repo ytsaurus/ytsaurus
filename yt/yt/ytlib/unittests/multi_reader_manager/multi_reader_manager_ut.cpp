@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYT::NChunkClient {
@@ -84,6 +86,48 @@ ISchemalessChunkReaderPtr CreateReaderWithError(int filledRowCount)
         readerData.push_back({MakeUnversionedOwningRow(rowIndex + 100)});
     }
     return New<TChunkReaderWithErrorMock>(std::move(readerData), TDuration::Zero());
+}
+
+class TCancellationTestChunkReader
+    : public TChunkReaderMock
+{
+public:
+    TCancellationTestChunkReader()
+        : TChunkReaderMock({}, TDuration::Zero())
+    { }
+
+    TFuture<void> GetReadyEvent() const override
+    {
+        if (ReadyEventCallCount_.fetch_add(1) == 0) {
+            return OKFuture;
+        }
+        return BlockedPromise_.ToFuture();
+    }
+
+    // Releases the WaitForReader subscription so the reader is not kept alive forever
+    // by a subscriber on its own never-fulfilled promise.
+    void Unblock()
+    {
+        BlockedPromise_.TrySet();
+    }
+
+private:
+    mutable std::atomic<int> ReadyEventCallCount_ = 0;
+    const TPromise<void> BlockedPromise_ = NewPromise<void>();
+};
+
+IMultiReaderManagerPtr CreateParallelMultiReaderManagerForCancellationTest(
+    const ISchemalessChunkReaderPtr& reader)
+{
+    auto config = New<TMultiChunkReaderConfig>();
+    auto options = New<TMultiChunkReaderOptions>();
+    auto memoryManager = New<TMultiReaderMemoryManagerMock>();
+
+    return CreateParallelMultiReaderManager(
+        std::move(config),
+        std::move(options),
+        {New<TReaderFactoryMock>(reader)},
+        std::move(memoryManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,6 +211,34 @@ TEST_P(TMultiReaderManagerTest, Interrupt)
     }
 
     EXPECT_EQ(5, remainingRowCount);
+}
+
+TEST(TParallelMultiReaderManagerTest, CancelationStress)
+{
+    for (int iteration = 0; iteration < 10000; ++iteration) {
+        auto reader = New<TCancellationTestChunkReader>();
+        auto manager = CreateParallelMultiReaderManagerForCancellationTest(reader);
+
+        manager->Open();
+        WaitFor(manager->GetReadyEvent())
+            .ThrowOnError();
+        YT_VERIFY(manager->GetCurrentSession().Reader);
+
+        YT_VERIFY(manager->OnEmptyRead(/*readerFinished*/ false));
+        YT_VERIFY(!manager->GetCurrentSession().Reader);
+
+        // We test that the protocol is not broken by the cancelation:
+        // we don't care whether Apply will be called or not, we only care that
+        // if ReadyEvent did resolve to OK, it's safe to Read.
+        auto applied = manager->GetReadyEvent().Apply(BIND([manager] {
+            manager->OnEmptyRead(/*readerFinished*/ false);
+        }));
+
+        applied.Cancel(TError("Test external cancellation"));
+        Y_UNUSED(WaitFor(applied));
+
+        reader->Unblock();
+    }
 }
 
 class TMultiReaderManagerWaitStressTest
