@@ -2664,7 +2664,12 @@ private:
                 commit->GetPersistentState(),
                 NRpc::GetCurrentAuthenticationIdentity());
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Coordinator failure; ignored (TransactionId: %v, State: %v, %v)",
+            auto stronglyOrdered = commit->IsStronglyOrderedForCell(SelfCellId_);
+            YT_LOG_EVENT(
+                Logger(),
+                stronglyOrdered ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Alert,
+                ex,
+                "Coordinator failure (TransactionId: %v, State: %v, %v)",
                 transactionId,
                 commit->GetPersistentState(),
                 NRpc::GetCurrentAuthenticationIdentity());
