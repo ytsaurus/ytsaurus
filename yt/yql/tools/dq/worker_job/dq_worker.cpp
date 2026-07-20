@@ -38,10 +38,40 @@
 using namespace NYql::NDqs;
 
 namespace {
+    const TString CoordinatorConfigFile = "yt_coordinator.cfg";
+    const TString BackendConfigFile = "yt_backend.cfg";
+    const TString YtTokenVaultKey = "YT_TOKEN";
+
+    TString ReadProtoConfigText(const TString& vaultKey, const TString& fileName) {
+        TString fromVault = GetEnv(TString("YT_SECURE_VAULT_") + vaultKey, "");
+        if (!fromVault.empty()) {
+            return fromVault;
+        }
+        if (NFs::Exists(fileName)) {
+            return TFileInput(fileName).ReadAll();
+        }
+        return "";
+    }
+
+    void ApplyTokenFromVault(NYql::NProto::TDqConfig::TYtCoordinator& coordinatorConfig, NYql::NProto::TDqConfig::TYtBackend& backendConfig) {
+        if (coordinatorConfig.HasToken()) {
+            if (!backendConfig.HasToken()) {
+                backendConfig.SetToken(coordinatorConfig.GetToken());
+            }
+            return;
+        }
+        TString token = GetEnv(TString("YT_SECURE_VAULT_") + YtTokenVaultKey, "");
+        if (token.empty()) {
+            return;
+        }
+        coordinatorConfig.SetToken(token);
+        backendConfig.SetToken(token);
+    }
+
     template <typename TMessage>
     THolder<TMessage> ParseProtoConfig(const TString& cfgFile) {
         auto config = MakeHolder<TMessage>();
-        TString configData = TFileInput(cfgFile).ReadAll();;
+        TString configData = TFileInput(cfgFile).ReadAll();
 
         using ::google::protobuf::TextFormat;
         if (!TextFormat::ParseFromString(configData, config.Get())) {
@@ -171,8 +201,8 @@ namespace NYql::NDq::NWorker {
         InitSignals();
 
         TString fileCacheDir = GetEnv(NCommonJobVars::UDFS_PATH);
-        TString ytCoordinatorStr = GetEnv(TString("YT_SECURE_VAULT_") + NCommonJobVars::YT_COORDINATOR);
-        TString ytBackendStr = GetEnv(TString("YT_SECURE_VAULT_") + NCommonJobVars::YT_BACKEND);
+        TString ytCoordinatorStr = ReadProtoConfigText(NCommonJobVars::YT_COORDINATOR, CoordinatorConfigFile);
+        TString ytBackendStr = ReadProtoConfigText(NCommonJobVars::YT_BACKEND, BackendConfigFile);
 
         TString operationId = GetEnv("YT_OPERATION_ID");
         TString jobId = GetEnv("YT_JOB_ID");
@@ -187,10 +217,12 @@ namespace NYql::NDq::NWorker {
         TStringInput inputStream2(ytBackendStr);
         ParseFromTextFormat(inputStream2, backendConfig, EParseFromTextFormatOption::AllowUnknownField);
 
+        ApplyTokenFromVault(coordinatorConfig, backendConfig);
+
         TRangeWalker<int> portWalker(startPort, startPort+100);
         auto ports = BindInRange(portWalker);
 
-        auto forceIPv4 = IsTrue(GetEnv(TString("YT_SECURE_VAULT_") + NCommonJobVars::YT_FORCE_IPV4, ""));
+        auto forceIPv4 = IsTrue(GetEnv(TString("YT_SECURE_VAULT_") + NCommonJobVars::YT_FORCE_IPV4, GetEnv(NCommonJobVars::YT_FORCE_IPV4, "")));
 
         auto addressResolverStr = GetEnv(NCommonJobVars::ADDRESS_RESOLVER_CONFIG, "");
         if (!addressResolverStr.empty()) {

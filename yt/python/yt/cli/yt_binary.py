@@ -2724,6 +2724,15 @@ def add_chyt_parser(root_subparsers):
         add_strawberry_ctl_parser(add_clickhouse_subparser, "chyt")
 
 
+def add_dq_parser(root_subparsers):
+    parser = populate_argument_help(root_subparsers.add_parser(
+        "dq", description="DQ clique commands"))
+
+    dq_subparsers = parser.add_subparsers(metavar="dq_command", **SUBPARSER_KWARGS)
+    add_dq_subparser = add_subparser(dq_subparsers, params_argument=False)
+    add_strawberry_ctl_parser(add_dq_subparser, "dq")
+
+
 def add_jupyt_parser(root_subparsers):
     parser = populate_argument_help(root_subparsers.add_parser(
         "jupyt", description="Jupyter over YT commands"))
@@ -3335,6 +3344,7 @@ def _prepare_parser():
     add_run_command_with_lock_parser(add_parser)
 
     add_chyt_parser(subparsers)
+    add_dq_parser(subparsers)
     add_jupyt_parser(subparsers)
     add_spark_parser(subparsers)
     add_flow_parser(subparsers)
