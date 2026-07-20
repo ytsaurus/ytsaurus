@@ -239,10 +239,12 @@ DEFINE_ENUM(EDynamicTableProfilingMode,
     (PathLetters)
 );
 
+// You should also update NYT::NTabletNode::TStoreFlusher::ScanTabletForMemoryUsage while changing this enum.
 DEFINE_ENUM(ETabletDynamicMemoryType,
     (Active)
     (Passive)
     (Backing)
+    (WriteLogs)
     (Other)
 );
 
