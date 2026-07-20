@@ -29,6 +29,10 @@ common:
     - from: /user-guide/data-processing/spyt/structured-streaming.md
       to: /user-guide/data-processing/spyt/structured-streaming/index.md
       type: redirect
+    # Dynamit tables
+    - from: /user-guide/dynamic-tables/index.md
+      to: /user-guide/dynamic-tables/overview.md
+      type: redirect
 ru:
     - from: /api/c\+\+/c\+\+_api.md
       to: /api/cpp/description.md
@@ -245,7 +249,7 @@ ru:
     - from: /description/common/yson.md
       to: /user-guide/storage/yson.md
       type: redirect
-
+   
     - from: /description/dynamic_tables/bulk_insert.md
       to: /user-guide/dynamic-tables/bulk-insert.md
       type: redirect
