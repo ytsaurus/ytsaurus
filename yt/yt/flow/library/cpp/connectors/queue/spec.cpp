@@ -102,7 +102,7 @@ void TAsyncQueueWriterParameters::Register(TRegistrar registrar)
         THROW_ERROR_EXCEPTION_IF(!parameters->QueuePath.GetCluster().has_value(), "QueuePath should have cluster");
         THROW_ERROR_EXCEPTION_IF(!parameters->ProducerPath.GetCluster().has_value(), "ProducerPath should have cluster");
         THROW_ERROR_EXCEPTION_IF(parameters->QueuePath.GetCluster() != parameters->ProducerPath.GetCluster(),
-            "ProducerPath and QueuePath should have the same cluster")
+            "ProducerPath and QueuePath should have the same cluster");
     });
 }
 
@@ -139,7 +139,7 @@ void TAsyncMultiClusterQueueWriterParameters::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION_IF(!parameters->QueuePath.GetCluster().has_value(), "QueuePath should have cluster");
             THROW_ERROR_EXCEPTION_IF(!parameters->ProducerPath.GetCluster().has_value(), "ProducerPath should have cluster");
             THROW_ERROR_EXCEPTION_IF(parameters->QueuePath.GetCluster() != parameters->ProducerPath.GetCluster(),
-                "ProducerPath and QueuePath should have the same cluster")
+                "ProducerPath and QueuePath should have the same cluster");
         }
     });
 }
