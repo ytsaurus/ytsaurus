@@ -46,7 +46,8 @@ void TProcessFunctionComputationBase<TBase>::DoInit(IJobInitContextPtr initConte
     auto runtimeInitContext = New<TRuntimeInitContext>(
         std::move(initContext),
         this->StateManager_,
-        this->GetSpec()->ProcessingFunctionParameters);
+        this->GetSpec()->ProcessingFunctionParameters,
+        this->GetContext()->StaticResources);
     Function_->Init(runtimeInitContext);
 }
 

@@ -65,6 +65,11 @@ public:
     //! commits it against the fixture's own client.
     void RegisterEpochCommit(std::function<void(const IRetryableTransactionPtr&)> commit);
 
+    //! Registers a static resource under |resourceId|, making it visible to the function via
+    //! IRuntimeInitContext::GetStaticResource — the test analogue of listing the resource in
+    //! the computation's ``required_resource_ids``. Call before Init.
+    void RegisterStaticResource(const TResourceId& resourceId, IResourcePtr resource);
+
     //! Registers an arbitrary external state manager under |name| (the same name the function
     //! passes to InitExternalStateClient). Lets a test plug in any IExternalStateManager — the
     //! in-memory simple one, or a real manager (e.g. a serializable-profile TProfileManager)
@@ -129,11 +134,13 @@ public:
 private:
     using TExternalManagerMap = THashMap<std::string, IExternalStateManagerPtr>;
     using TExternalJoinerMap = THashMap<std::string, IExternalStateJoinerPtr>;
+    using TStaticResourceMap = THashMap<TResourceId, IResourcePtr>;
 
     TJobStateManagerContextPtr ManagerContext_;
     TJobStateManagerPtr StateManager_;
     std::shared_ptr<TExternalManagerMap> ExternalManagers_;
     std::shared_ptr<TExternalJoinerMap> ExternalJoiners_;
+    std::shared_ptr<TStaticResourceMap> StaticResources_;
     IRuntimeInitContextPtr InitContext_;
 
     std::vector<std::function<void(const IRetryableTransactionPtr&)>> EpochCommits_;
