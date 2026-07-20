@@ -878,6 +878,10 @@ protected:
                 nextPartitionTask->FinishInput();
                 Controller_->UpdateTask(nextPartitionTask.Get());
             } else {
+                YT_VERIFY(Controller_->FinalSortTask_);
+                YT_VERIFY(Controller_->IntermediateSortTask_);
+                YT_VERIFY(Controller_->SortedMergeTask_);
+
                 Controller_->FinalSortTask_->Finalize();
                 Controller_->FinalSortTask_->FinishInput();
 
@@ -2138,6 +2142,19 @@ protected:
                 MakeWeak(this),
                 MakeWeak(partition)));
         }
+    }
+
+    void FinishRootPartitionTaskInput()
+    {
+        YT_VERIFY(!SimpleSortTask_);
+
+        ProcessInputs(PartitionTasks_.front(), RootPartitionPoolJobSizeConstraints_);
+
+        // NB(apollo1321): Partition task input must be finished only after all tasks are
+        // prepared: if the partition pool ends up empty (e.g. the whole input is sampled out),
+        // the partition task completes synchronously right here, and its completion handler
+        // requires the sort and merge tasks to be initialized.
+        FinishTaskInput(PartitionTasks_.front());
     }
 
     IMultiChunkPoolOutputPtr CreateLevelMultiChunkPoolOutput(int level) const
@@ -3447,6 +3464,10 @@ private:
         PrepareSortedMergeTask();
 
         InitJobSpecTemplates();
+
+        if (!SimpleSortTask_) {
+            FinishRootPartitionTaskInput();
+        }
     }
 
     void PreparePartitionTasks()
@@ -3496,9 +3517,6 @@ private:
             partitionTask->SetInputVertex(PartitionTasks_[partitionTaskLevel - 1]->GetVertexDescriptor());
             partitionTask->RegisterInGraph();
         }
-
-        ProcessInputs(PartitionTasks_.front(), RootPartitionPoolJobSizeConstraints_);
-        FinishTaskInput(PartitionTasks_.front());
 
         YT_LOG_INFO(
             "Sorting with partitioning (ExpectedPartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
@@ -4408,6 +4426,8 @@ private:
         InitJobSpecTemplates();
 
         SetupPartitioningCompletedCallbacks();
+
+        FinishRootPartitionTaskInput();
     }
 
     void PreparePartitionTasks()
@@ -4477,9 +4497,6 @@ private:
             partitionTask->SetInputVertex(PartitionTasks_[partitionTaskLevel - 1]->GetVertexDescriptor());
             partitionTask->RegisterInGraph();
         }
-
-        ProcessInputs(PartitionTasks_[0], RootPartitionPoolJobSizeConstraints_);
-        FinishTaskInput(PartitionTasks_[0]);
 
         YT_LOG_INFO("Map-reducing with partitioning (ExpectedPartitionCount: %v, PartitionJobCount: %v, PartitionDataWeightPerJob: %v)",
             ExpectedPartitionCount_,

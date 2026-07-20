@@ -64,7 +64,7 @@ public:
         , SliceForeignChunks_(options.SliceForeignChunks)
         , MinManiacDataWeight_(options.MinManiacDataWeight)
         , JobSizeConstraints_(options.JobSizeConstraints)
-        , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
+        , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate(), JobSizeConstraints_->GetSamplingSeed())
         , RowBuffer_(options.RowBuffer)
         , ChunkPoolStatistics_(options.ChunkPoolStatistics)
     {

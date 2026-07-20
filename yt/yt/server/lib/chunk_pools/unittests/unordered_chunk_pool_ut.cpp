@@ -16,6 +16,7 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/misc/blob_output.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
 #include <util/generic/xrange.h>
 
@@ -74,7 +75,8 @@ protected:
             InputSliceRowCount_,
             /*batchRowCount*/ {},
             /*foreignSliceDataWeight*/ 0,
-            SamplingRate_);
+            SamplingRate_,
+            SamplingSeed_);
     }
 
     TInputChunkPtr CreateChunk(
@@ -382,6 +384,8 @@ protected:
     i64 InputSliceRowCount_;
 
     std::optional<double> SamplingRate_;
+
+    std::optional<ui64> SamplingSeed_;
 
     i64 JobCount_;
 
@@ -1060,6 +1064,51 @@ TEST_F(TUnorderedChunkPoolTest, CompressedDataSizePerJobDoesNotAffectDataWeightP
     EXPECT_LE(stripeLists.size(), 2u);
 
     CheckEverything(stripeLists, /*chunksRestored*/ true);
+}
+
+TEST_F(TUnorderedChunkPoolTest, SamplingWithSeedIsDeterministic)
+{
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 1_KB;
+    JobCount_ = 0;
+    SamplingRate_ = 0.5;
+
+    std::vector<TInputChunkPtr> chunks;
+    for (int index = 0; index < 100; ++index) {
+        chunks.push_back(CreateChunk(0));
+    }
+
+    auto collectSampledChunkIds = [&] (std::optional<ui64> samplingSeed) {
+        SamplingSeed_ = samplingSeed;
+        InitJobConstraints();
+        CreateChunkPool();
+        for (const auto& chunk : chunks) {
+            AddChunk(chunk);
+        }
+        ChunkPool_->Finish();
+
+        THashSet<TChunkId> chunkIds;
+        while (ChunkPool_->GetJobCounter()->GetPending() > 0) {
+            auto cookie = ExtractCookie();
+            YT_VERIFY(cookie != IChunkPoolOutput::NullCookie);
+            for (const auto& stripe : ChunkPool_->GetStripeList(cookie)->Stripes()) {
+                for (const auto& dataSlice : stripe->DataSlices()) {
+                    InsertOrCrash(chunkIds, dataSlice->GetSingleUnversionedChunk()->GetChunkId());
+                }
+            }
+        }
+        return chunkIds;
+    };
+
+    auto firstSampledChunkIds = collectSampledChunkIds(/*samplingSeed*/ 42);
+    EXPECT_GT(std::ssize(firstSampledChunkIds), 0);
+    EXPECT_LT(std::ssize(firstSampledChunkIds), std::ssize(chunks));
+
+    EXPECT_EQ(collectSampledChunkIds(/*samplingSeed*/ 42), firstSampledChunkIds);
+    EXPECT_NE(collectSampledChunkIds(/*samplingSeed*/ 43), firstSampledChunkIds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

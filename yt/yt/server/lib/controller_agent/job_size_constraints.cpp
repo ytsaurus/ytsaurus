@@ -36,6 +36,7 @@ public:
         std::optional<i64> batchRowCount,
         i64 foreignSliceDataWeight,
         std::optional<double> samplingRate,
+        std::optional<ui64> samplingSeed,
         i64 samplingDataWeightPerJob,
         i64 samplingPrimaryDataWeightPerJob,
         i64 maxBuildRetryCount,
@@ -59,6 +60,7 @@ public:
         , BatchRowCount_(batchRowCount)
         , ForeignSliceDataWeight_(foreignSliceDataWeight)
         , SamplingRate_(samplingRate)
+        , SamplingSeed_(samplingSeed)
         , SamplingDataWeightPerJob_(samplingDataWeightPerJob)
         , SamplingPrimaryDataWeightPerJob_(samplingPrimaryDataWeightPerJob)
         , MaxBuildRetryCount_(maxBuildRetryCount)
@@ -164,6 +166,11 @@ public:
         return SamplingRate_;
     }
 
+    std::optional<ui64> GetSamplingSeed() const override
+    {
+        return SamplingSeed_;
+    }
+
     i64 GetSamplingDataWeightPerJob() const override
     {
         YT_VERIFY(SamplingRate_);
@@ -218,6 +225,7 @@ private:
     std::optional<i64> BatchRowCount_;
     i64 ForeignSliceDataWeight_;
     std::optional<double> SamplingRate_;
+    std::optional<ui64> SamplingSeed_;
     i64 SamplingDataWeightPerJob_;
     i64 SamplingPrimaryDataWeightPerJob_;
     i64 MaxBuildRetryCount_;
@@ -278,6 +286,9 @@ void TExplicitJobSizeConstraints::RegisterMetadata(auto&& registrar)
             this_->CompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
         }));
 
+    PHOENIX_REGISTER_FIELD(23, SamplingSeed_,
+        .SinceVersion(ESnapshotVersion::SamplingSeed));
+
     // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty
     // input somewhere in controller).
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
@@ -330,6 +341,7 @@ void FormatValue(TStringBuilderBase* builder, const IJobSizeConstraintsPtr& cons
         FORMAT_CONSTRAINT(PrimaryDataWeightPerJob),
         FORMAT_CONSTRAINT(PrimaryCompressedDataSizePerJob),
         FORMAT_SAMPLING_CONSTRAINT(SamplingRate),
+        FORMAT_SAMPLING_CONSTRAINT(SamplingSeed),
         FORMAT_SAMPLING_CONSTRAINT(SamplingDataWeightPerJob),
         FORMAT_SAMPLING_CONSTRAINT(SamplingPrimaryDataWeightPerJob),
         FORMAT_CONSTRAINT(DataWeightPerJobRetryFactor),
@@ -365,6 +377,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     std::optional<i64> batchRowCount,
     i64 foreignSliceDataWeight,
     std::optional<double> samplingRate,
+    std::optional<ui64> samplingSeed,
     i64 samplingDataWeightPerJob,
     i64 samplingPrimaryDataWeightPerJob,
     i64 maxBuildRetryCount,
@@ -392,6 +405,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
         batchRowCount,
         foreignSliceDataWeight,
         samplingRate,
+        samplingSeed,
         samplingDataWeightPerJob,
         samplingPrimaryDataWeightPerJob,
         maxBuildRetryCount,

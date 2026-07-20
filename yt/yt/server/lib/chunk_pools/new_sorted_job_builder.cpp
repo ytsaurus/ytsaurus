@@ -155,7 +155,7 @@ public:
         , Logger(std::move(logger))
         , StructuredLogger(std::move(structuredLogger))
         , JobSizeConstraints_(std::move(jobSizeConstraints))
-        , JobSampler_(JobSizeConstraints_->GetSamplingRate())
+        , JobSampler_(JobSizeConstraints_->GetSamplingRate(), JobSizeConstraints_->GetSamplingSeed())
         , LimitVector_(BuildLimitVector(Options_, JobSizeConstraints_, retryIndex))
         , JobSizeTracker_(Options_.PivotKeys.empty()
             ? CreateJobSizeTracker(*LimitVector_, Options_.JobSizeTrackerOptions, Logger)

@@ -108,6 +108,11 @@ public:
         return SamplingConfig_ ? SamplingConfig_->SamplingRate : std::nullopt;
     }
 
+    std::optional<ui64> GetSamplingSeed() const override
+    {
+        return SamplingConfig_ ? SamplingConfig_->SamplingSeed : std::nullopt;
+    }
+
     i64 GetSamplingDataWeightPerJob() const override
     {
         YT_VERIFY(SamplingDataWeightPerJob_);

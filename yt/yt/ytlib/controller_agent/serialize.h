@@ -113,6 +113,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((HighThreadCountJobPerTask)             (302133))
     ((PersistVanillaJobCounts)               (302134))
     ((HighThreadCountJobThreshold)           (302135))
+    ((SamplingSeed)                          (302136))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

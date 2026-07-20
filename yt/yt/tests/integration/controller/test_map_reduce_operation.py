@@ -3606,6 +3606,49 @@ while True:
 
         assert read_table("//tmp/t_out") == []
 
+    @authors("apollo1321")
+    def test_empty_input_due_to_sampling_by_chunks(self):
+        skip_if_old(self.Env, (25, 3), "Sampling seed option is not present in older binaries")
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        input_rows = [{"x": 1, "y": 2}, {"x": 3, "y": 4}]
+        write_table("//tmp/t_in", [input_rows[0]])
+        write_table("<append=%true>//tmp/t_in", [input_rows[1]])
+
+        def run_sampled_map_reduce(seed):
+            sampling = {"sampling_rate": 0.5}
+            if seed is not None:
+                sampling["sampling_seed"] = seed
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                reduce_by="x",
+                sort_by="x",
+                reducer_command="cat",
+                spec={"sampling": sampling},
+            )
+            return read_table("//tmp/t_out")
+
+        result = run_sampled_map_reduce(None)
+        assert all(row in input_rows for row in result)
+
+        # Find a seed for which chunk-level sampling discards the whole input:
+        # the operation must still complete, producing empty output.
+        empty_seed = None
+        for seed in range(10):
+            result = run_sampled_map_reduce(seed)
+            assert all(row in input_rows for row in result)
+            if not result:
+                empty_seed = seed
+                break
+
+        assert empty_seed is not None
+
+        # Sampling with a fixed seed is deterministic.
+        assert run_sampled_map_reduce(empty_seed) == []
+
     @authors("whatsername")
     def test_map_reduce_any(self):
         create(
