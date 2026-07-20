@@ -76,7 +76,7 @@ public:
     }
 };
 
-TEST_F(TBanServiceTest, TestBanService)
+TEST_F(TBanServiceTest, BanService)
 {
     auto nativeClient = DynamicPointerCast<NApi::NNative::IClient>(Client_);
     auto isBanned = WaitFor(nativeClient->GetUserBanned("user"))
