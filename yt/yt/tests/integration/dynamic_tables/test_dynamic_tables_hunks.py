@@ -3846,7 +3846,11 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
 
     @authors("shakurov")
     def test_hunk_media_requisitions_multiple_tables(self):
-        self._init_sorted_dynamic_table("//tmp/t")
+        # Disable compaction so the per-flush hunk chunks are not merged into a
+        # single one before the assertion below.
+        self._init_sorted_dynamic_table(
+            "//tmp/t",
+            mount_config={"enable_compaction_and_partitioning": False})
 
         for i in range(5):
             rows = [{"key": 2 * i, "value": "a"}, {"key": 1 + 2 * i, "value": "b"*100}]
