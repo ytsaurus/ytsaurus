@@ -19,6 +19,8 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/yson_message.h>
 
+#include <yt/yt/flow/library/cpp/common/resource.h>
+
 #include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
 
 #include <yt/yt/client/table_client/schema.h>
@@ -1089,6 +1091,66 @@ TEST(TProcessFunctionSpecValidationTest, RejectsUnknownDynamicField)
 {
     auto errors = ValidateDynamicSpec(std::string(TypeName<TParameterReadingFunction>()), "{bogus_field=1}");
     EXPECT_TRUE(HasErrorContaining(errors, "unrecognized"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Minimal resource for testing the init-context accessor.
+class TTaggedTestResource
+    : public IResource
+{
+public:
+    explicit TTaggedTestResource(int tag)
+        : Tag_(tag)
+    { }
+
+    int GetTag() const
+    {
+        return Tag_;
+    }
+
+    TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
+    {
+        return MakeFuture(TError());
+    }
+
+    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
+    { }
+
+    TParametersPtr GetParametersBase() const override
+    {
+        return New<TParameters>();
+    }
+
+    TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return New<TDynamicParameters>();
+    }
+
+private:
+    const int Tag_;
+};
+
+TEST(TProcessFunctionResourceTest, InitContextExposesRegisteredResources)
+{
+    TTestStateEnvironment stateEnv;
+    auto resource = New<TTaggedTestResource>(/*tag*/ 17);
+    stateEnv.RegisterStaticResource(TResourceId("TestExecutor"), resource);
+
+    const auto& initContext = stateEnv.GetInitContext();
+
+    // The typed As<T> cast returns the very instance that was registered.
+    auto fetched = initContext->GetStaticResource("TestExecutor");
+    EXPECT_EQ(fetched, resource);
+    EXPECT_EQ(fetched->As<TTaggedTestResource>()->GetTag(), 17);
+
+    // Resource access is prefix-independent, like the underlying static resources map.
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetStaticResource("TestExecutor"), resource);
+
+    // An unregistered id throws.
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(initContext->GetStaticResource("MissingResource")),
+        "is not registered");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

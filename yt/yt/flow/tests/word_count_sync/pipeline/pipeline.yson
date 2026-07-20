@@ -35,6 +35,20 @@
                         "parameters" = {"path" = "//path/to/word_counts";};
                     };
                 };
+                "required_resource_ids" = {
+                    "StopWords" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+            };
+        };
+        "resources" = {
+            "StopWords" = {
+                "resource_class_name" = "NYT::NFlow::NWordCountSync::TStopWordsResource";
+                "parameters" = {
+                    "stop_words" = ["flow"; "to"];
+                };
             };
         };
     };
