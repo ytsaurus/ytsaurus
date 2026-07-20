@@ -962,10 +962,7 @@ void TInstanceManager::InitNewDeallocations(
     auto instanceCountToDeallocate = std::ssize(aliveInstances) - targetInstanceCount;
     auto& deallocationsState = Adapter_->DeallocationsState();
 
-    std::vector<std::string> offlineInstances;
-    if (!Input_.Config->HasInstanceAllocatorService) {
-        offlineInstances = Adapter_->GetOfflineInstances(Input_, dataCenterName);
-    }
+    auto offlineInstances = Adapter_->GetOfflineInstancesToDeallocate(Input_, dataCenterName);
 
     if (instanceCountToDeallocate <= 0 && offlineInstances.empty()) {
         return;
