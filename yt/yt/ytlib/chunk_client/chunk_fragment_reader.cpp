@@ -550,7 +550,7 @@ private:
                 TryUpdateChunkReplicas(chunkIdWithIndex.Id, subresponse);
 
                 if (!subresponse.has_complete_chunk()) {
-                    YT_LOG_WARNING("Chunk is missing from node (ChunkId: %v, Address: %v)",
+                    YT_LOG_DEBUG("Chunk is missing from node (ChunkId: %v, Address: %v)",
                         chunkIdWithIndex,
                         peerInfo->Address);
                     continue;
