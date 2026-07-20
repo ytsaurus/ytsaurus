@@ -1524,6 +1524,11 @@ private:
                 NNodeTrackerClient::EErrorCode::InvalidState,
                 "Full data node heartbeat is already sent");
         }
+        if (validation && !node->ReportedDataNodeHeartbeat()) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::InvalidState,
+                "Cannot process a validation data node full heartbeat until normal full data node heartbeat is sent");
+        }
 
         auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
 
