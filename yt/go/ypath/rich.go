@@ -86,6 +86,7 @@ type Rich struct {
 	TransactionID any               `yson:"transaction_id,attr,omitempty"`
 	RenameColumns map[string]string `yson:"rename_columns,attr,omitempty"`
 	Cluster       string            `yson:"cluster,attr,omitempty"`
+	Timestamp     *uint64           `yson:"timestamp,attr,omitempty"`
 }
 
 // NewRich creates new Rich.
@@ -175,5 +176,11 @@ func (r *Rich) Child(name string) *Rich {
 // SetCluster updates cluster attribute of p.
 func (r *Rich) SetCluster(cluster string) *Rich {
 	r.Cluster = cluster
+	return r
+}
+
+// SetTimestamp updates timestamp attribute of p.
+func (r *Rich) SetTimestamp(timestamp uint64) *Rich {
+	r.Timestamp = &timestamp
 	return r
 }
