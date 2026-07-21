@@ -216,7 +216,7 @@ jobs:
       - build-cmake
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-dir: build_cmake_release
+      build-dir: build_cmake_relwithdebinfo
       run-unittests: true
     uses: ./.github/workflows/check-jobs.yaml
 
@@ -228,7 +228,7 @@ jobs:
       - build-ya-make
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-dir: build_ya-make_release
+      build-dir: build_ya-make_relwithdebinfo
       run-unittests: true
       run-integration-tests: true
       run-python-tests: true
