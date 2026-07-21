@@ -93,6 +93,8 @@ struct IBootstrap
     virtual const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const = 0;
     virtual const IAlienClusterClientCachePtr& GetReplicatorClientCache() const = 0;
     virtual const NChaosClient::IReplicationCardUpdatesBatcherPtr& GetReplicationCardUpdatesBatcher() const = 0;
+
+    virtual const NApi::NNative::TClientCachePtr& GetClientCache() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)
