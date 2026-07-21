@@ -754,6 +754,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
 
+    registrar.Parameter("client_cache", &TThis::ClientCache)
+        .DefaultNew();
+
     registrar.Postprocessor([] (TThis* config) {
         // Instantiate default distributed throttler configs.
         for (auto kind : TEnumTraits<ETabletDistributedThrottlerKind>::GetDomainValues()) {
@@ -853,6 +856,9 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_reign_change", &TThis::AllowReignChange)
         .Default(true);
+
+    registrar.Parameter("client_cache", &TThis::ClientCache)
+        .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
         config->VersionedChunkMetaCache->Capacity = 10_GB;

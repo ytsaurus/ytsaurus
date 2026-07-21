@@ -24,6 +24,7 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/client_cache.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
@@ -1004,10 +1005,7 @@ private:
     TExecutePlan GetExecutePlanCallback(const TQueryOptions& queryOptions)
     {
         auto clientOptions = NApi::NNative::TClientOptions::FromAuthenticationIdentity(Identity_);
-        auto client = Bootstrap_
-            ->GetClient()
-            ->GetNativeConnection()
-            ->CreateNativeClient(clientOptions);
+        auto client = Bootstrap_->GetClientCache()->Get(Identity_, clientOptions);
 
         auto remoteExecutor = CreateQueryExecutor(
             MemoryChunkProvider_,
