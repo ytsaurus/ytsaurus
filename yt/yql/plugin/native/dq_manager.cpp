@@ -92,6 +92,10 @@ void TDqManager::Start()
             protobufWriterOptions));
     }
 
+    if (!coordinatorConfig.HasProxyAddress()) {
+        *coordinatorConfig.MutableProxyAddress() = coordinatorConfig.GetClusterName();
+    }
+
     if (!coordinatorConfig.HasToken()) {
         if (!coordinatorConfig.HasTokenFile()) {
             YQL_LOG(FATAL) << "Either token or token file must be specified in the Coordinator config";
@@ -168,6 +172,10 @@ void TDqManager::Start()
 
         if (!rmOptions.YtBackend.HasICSettings()) {
             *rmOptions.YtBackend.MutableICSettings() = iCSettings;
+        }
+
+        if (!rmOptions.YtBackend.HasProxyAddress()) {
+            *rmOptions.YtBackend.MutableProxyAddress() = rmOptions.YtBackend.GetClusterName();
         }
 
         if (!rmOptions.YtBackend.HasPrefix()) {

@@ -49,7 +49,7 @@ private:
     void Bootstrap(const TActorContext& ctx) {
         YtWrapper = Coordinator->GetWrapper(
             ctx.ActorSystem(),
-            Options.YtBackend.GetClusterName(),
+            Options.YtBackend.GetProxyAddress(),
             Options.YtBackend.GetUser(),
             Options.YtBackend.GetToken());
         Check();
@@ -144,7 +144,7 @@ IActor* CreateYtResourceCleaner(
     const TResourceManagerOptions& options,
     const TIntrusivePtr<ICoordinationHelper>& coordinator)
 {
-    Y_ABORT_UNLESS(!options.YtBackend.GetClusterName().empty());
+    Y_ABORT_UNLESS(!options.YtBackend.GetProxyAddress().empty());
     Y_ABORT_UNLESS(!options.YtBackend.GetUser().empty());
     Y_ABORT_UNLESS(!options.YtBackend.GetUploadPrefix().empty());
 

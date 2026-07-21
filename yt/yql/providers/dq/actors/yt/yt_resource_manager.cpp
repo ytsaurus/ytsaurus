@@ -252,7 +252,7 @@ namespace NYql {
         void Bootstrap(const NActors::TActorContext& ctx) {
             YtWrapper = Coordinator->GetWrapper(
                 ctx.ActorSystem(),
-                Options.YtBackend.GetClusterName(),
+                Options.YtBackend.GetProxyAddress(),
                 Options.YtBackend.GetUser(),
                 Options.YtBackend.GetToken());
             RegisterChild(Coordinator->CreateLockOnCluster(YtWrapper, Options.YtBackend.GetPrefix(), Options.LockName, false));
@@ -742,7 +742,7 @@ namespace NYql {
                                                     fluent.Item("YQL_DETERMINISTIC_MODE").Value("1");
                                                 })
                                             .EndMap()
-                                        .DoIf((Options.YtBackend.GetClusterName().find("localhost") != 0) && filePaths.Empty(), [&] (NYT::TFluentMap fluent) {
+                                        .DoIf(!Options.YtBackend.GetProxyAddress().StartsWith("localhost") && filePaths.Empty(), [&] (NYT::TFluentMap fluent) {
                                             fluent.Item("file_paths").DoListFor(initialFileList, [&] (NYT::TFluentList list, const std::pair<TString, TString>& item) {
                                                 auto baseName = item.second;
                                                 list.Item()
@@ -834,7 +834,7 @@ namespace NYql {
 
             RM_LOG(INFO) << "Creating " << jobs << " workers ";
 
-            TString executableName = (Options.YtBackend.GetClusterName().find("localhost") == 0)
+            TString executableName = (Options.YtBackend.GetProxyAddress().StartsWith("localhost"))
                 ? Options.Files[0].LocalFileName
                 : TString("./") + Options.Files[0].GetRemoteFileName();
 
@@ -894,7 +894,7 @@ namespace NYql {
                           << " node_ids=[" << JoinSeq(",", nodes) << "]";
 
             auto filesAttribute = Options.Files;
-            if (Options.YtBackend.GetClusterName().find("localhost") == 0) {
+            if (Options.YtBackend.GetProxyAddress().StartsWith("localhost")) {
                 filesAttribute.clear();
             }
 
@@ -1036,7 +1036,7 @@ private:
         const TResourceManagerOptions& options,
         const ICoordinationHelper::TPtr& coordinator)
     {
-        Y_ABORT_UNLESS(!options.YtBackend.GetClusterName().empty());
+        Y_ABORT_UNLESS(!options.YtBackend.GetProxyAddress().empty());
         Y_ABORT_UNLESS(!options.YtBackend.GetUser().empty());
         Y_ABORT_UNLESS(options.YtBackend.HasMinNodeId());
         Y_ABORT_UNLESS(options.YtBackend.HasMaxNodeId());

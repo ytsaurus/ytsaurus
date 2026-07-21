@@ -372,7 +372,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "grpc_port": 31001,
                 "yt_backends": [
                     {
-                        "cluster_name": self.env.get_http_proxy_address(),
+                        "cluster_name": self.env.id,
+                        "proxy_address": self.env.get_http_proxy_address(),
                         "vanilla_job_lite": dq_vanilla_job_lite,
                         "vanilla_job_file": [
                             {
@@ -388,7 +389,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                     },
                 ],
                 "yt_coordinator": {
-                    "cluster_name": self.env.get_http_proxy_address(),
+                    "cluster_name": self.env.id,
+                    "proxy_address": self.env.get_http_proxy_address(),
                     "prefix": "//sys/yql_agent/dq_coord",
                     "token_file": self.token_path,
                     "user": self.USER_NAME,

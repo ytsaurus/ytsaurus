@@ -34,6 +34,7 @@ class TDQYTBackend
 {
 public:
     TString ClusterName;
+    TString ProxyAddress;
     ui32 JobsPerOperation;
     ui32 MaxJobs;
     TString VanillaJobLite;
@@ -71,6 +72,7 @@ class TDQYTCoordinator
 {
 public:
     TString ClusterName;
+    TString ProxyAddress;
     TString Prefix;
     TString TokenFile;
     TString User;
