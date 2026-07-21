@@ -3815,6 +3815,21 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         link(f"//sys/cluster_nodes/{leader_address}/orchid/tablet_cells/{cell_id}/tablets/{tablet_id}", "//tmp/tablet", force=True)
         assert get("//tmp/tablet/state") == "mounted"
 
+    @authors("ifsmirnov")
+    def test_cell_diagnostic_errors(self):
+        cell_id = sync_create_cells(1)[0]
+
+        def _check():
+            path = f"#{cell_id}/@peers/0/last_hydra_restart_reason"
+            if not exists(path):
+                return False
+            error = YtError.from_dict(get(path))
+            return error.find_matching_error(yt_error_codes.AccountLimitExceeded)
+
+        create_account("foo", empty=True)
+        set("//sys/tablet_cell_bundles/default/@options/changelog_account", "foo")
+        wait(_check)
+
 
 ##################################################################
 

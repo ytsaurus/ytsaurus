@@ -188,6 +188,10 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                                     fluent
                                         .Item("last_revocation_reason").Value(peer.LastRevocationReason);
                                 })
+                                .DoIf(!peer.LastHydraRestartReason.IsOK(), [&] (auto fluent) {
+                                    fluent
+                                        .Item("last_hydra_restart_reason").Value(peer.LastHydraRestartReason);
+                                })
                                 .DoIf(transaction, [&] (TFluentMap fluent) {
                                     fluent
                                         .Item("prerequisite_transaction").Value(transaction->GetId());

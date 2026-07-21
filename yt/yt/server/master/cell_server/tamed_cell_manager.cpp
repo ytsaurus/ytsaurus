@@ -1531,7 +1531,7 @@ private:
                 tabletManager->RecomputeTabletCellStatistics(cell);
             }
 
-            cell->ExpirePeerRevocationReasons(peerRevocationReasonDeadline);
+            cell->ExpireDiagnosticErrors(peerRevocationReasonDeadline);
         }
     }
 
@@ -1869,6 +1869,11 @@ private:
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
             cell->UpdatePeerState(peerId, state);
             InsertOrCrash(actualCells, cell);
+
+            auto lastRestartError = FromProto<TError>(slotInfo.error());
+            if (!lastRestartError.IsOK()) {
+                cell->Peers()[peerId].LastHydraRestartReason = lastRestartError;
+            }
 
             // Populate slot.
             slot.Cell = cell;

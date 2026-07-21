@@ -229,6 +229,8 @@ struct IHydraManager
 
     virtual i64 GetSequenceNumber() const = 0;
 
+    virtual TError GetLastRestartError() const = 0;
+
     //! Raised during periodic leader lease checks.
     //! A subscriber must start an appropriate check and return a future
     //! summarizing its outcome.
