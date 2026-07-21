@@ -36,7 +36,7 @@ private:
     struct TIoBucket
     {
         TInstant Minute;
-        i64 Size;
+        i64 Size = 0;
     };
 
     // Buckets are appended in accounting order, thus ordered by time.
@@ -50,4 +50,4 @@ DEFINE_REFCOUNTED_TYPE(TJobIoMeter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NChunkClient

@@ -253,7 +253,8 @@ void TUserJobWriteController::Init(TCpuInstant ioStartTime)
         auto& writeBlocksOptions = OutputWriteBlocksOptions_.emplace_back(
             TClientChunkWriteOptions{
                 .ChunkWriterStatistics = New<NChunkClient::TChunkWriterStatistics>(),
-                .JobIoMeter = Host_->GetJobIoMeter(),});
+                .JobIoMeter = Host_->GetJobIoMeter(),
+            });
 
         // ToDo(psushin): open writers in parallel.
         auto writer = userJobIOFactory->CreateWriter(
