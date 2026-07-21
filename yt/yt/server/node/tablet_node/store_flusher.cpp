@@ -201,12 +201,14 @@ private:
     NProfiling::TGauge DynamicMemoryUsageActiveCounter_ = Profiler_.WithTag("memory_type", "active").Gauge("/dynamic_memory_usage");
     NProfiling::TGauge DynamicMemoryUsagePassiveCounter_ = Profiler_.WithTag("memory_type", "passive").Gauge("/dynamic_memory_usage");
     NProfiling::TGauge DynamicMemoryUsageBackingCounter_ = Profiler_.WithTag("memory_type", "backing").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsageWriteLogsCounter_ = Profiler_.WithTag("memory_type", "write_logs").Gauge("/dynamic_memory_usage");
     NProfiling::TGauge DynamicMemoryUsageOtherCounter_ = Profiler_.WithTag("memory_type", "other").Gauge("/dynamic_memory_usage");
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     i64 PassiveMemoryUsage_;
     i64 ActiveMemoryUsage_;
     i64 BackingMemoryUsage_;
+    i64 WriteLogsMemoryUsage_;
 
     IYPathServicePtr CreateOrchidService()
     {
@@ -237,6 +239,7 @@ private:
         ActiveMemoryUsage_ = 0;
         PassiveMemoryUsage_ = 0;
         BackingMemoryUsage_ = 0;
+        WriteLogsMemoryUsage_ = 0;
 
         Orchid_->OnProfiling();
     }
@@ -274,11 +277,12 @@ private:
     {
         const auto& tracker = Bootstrap_->GetNodeMemoryUsageTracker();
         auto otherUsage = tracker->GetUsed(EMemoryCategory::TabletDynamic) -
-            ActiveMemoryUsage_ - PassiveMemoryUsage_ - BackingMemoryUsage_;
+            ActiveMemoryUsage_ - PassiveMemoryUsage_ - BackingMemoryUsage_ - WriteLogsMemoryUsage_;
 
         DynamicMemoryUsageActiveCounter_.Update(ActiveMemoryUsage_);
         DynamicMemoryUsagePassiveCounter_.Update(PassiveMemoryUsage_);
         DynamicMemoryUsageBackingCounter_.Update(BackingMemoryUsage_);
+        DynamicMemoryUsageWriteLogsCounter_.Update(WriteLogsMemoryUsage_);
         DynamicMemoryUsageOtherCounter_.Update(otherUsage);
     }
 
@@ -434,6 +438,8 @@ private:
         PassiveMemoryUsage_ += passiveMemoryUsage;
         ActiveMemoryUsage_ += activeMemoryUsage;
         BackingMemoryUsage_ += backingMemoryUsage;
+        WriteLogsMemoryUsage_ += tablet->RuntimeData()->DynamicMemoryUsagePerType[ETabletDynamicMemoryType::WriteLogs].load(
+            std::memory_order::relaxed);
     }
 
     void ScanStoreForFlush(std::unique_ptr<TFlushTask> task)
