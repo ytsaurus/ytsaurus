@@ -226,9 +226,21 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
     def test_bundle_solomon_tag(self):
         default_cell = sync_create_cells(1)[0]
 
+        def enable_deduce(arg):
+            update_nodes_dynamic_config({
+                "cellar_node": {
+                    "deduce_profiling_tag_from_bundle_name": arg,
+                }
+            })
+
         def get_solomon_tags(cell_id):
-            node_address = get("#%s/@peers/0/address" % cell_id)
-            return get("//sys/cluster_nodes/%s/orchid/monitoring/solomon/dynamic_tags" % node_address)
+            node_address = get(f"#{cell_id}/@peers/0/address")
+            return get(f"//sys/cluster_nodes/{node_address}/orchid/monitoring/solomon/dynamic_tags")
+
+        def has_alert(cell_id):
+            node_address = get(f"#{cell_id}/@peers/0/address")
+            alerts = get(f"//sys/cluster_nodes/{node_address}/@alerts")
+            return any("Conflicting profiling tags" in str(a) for a in alerts)
 
         wait(lambda: get_solomon_tags(default_cell) == {"tablet_cell_bundle": "default"})
 
@@ -236,6 +248,12 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         bundle_cells = sync_create_cells(20, tablet_cell_bundle="b1")
 
         wait(lambda: get_solomon_tags(default_cell) == {})
+        wait(lambda: has_alert(default_cell))
+
+        enable_deduce(False)
+        wait(lambda: not has_alert(default_cell))
+        enable_deduce(True)
+
         remove_tablet_cell(default_cell)
 
         for cell_id in bundle_cells:
@@ -245,6 +263,10 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         for cell_id in bundle_cells:
             wait(lambda: get_solomon_tags(cell_id) == {"tablet_cell_bundle": "tag1"})
+
+        enable_deduce(False)
+        for cell_id in bundle_cells:
+            wait(lambda: get_solomon_tags(cell_id) == {})
 
     @authors("prime")
     def test_profiling_path_letters(self):

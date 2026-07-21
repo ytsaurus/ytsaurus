@@ -64,6 +64,8 @@ struct TCellarNodeDynamicConfig
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
 
+    std::optional<bool> DeduceProfilingTagFromBundleName;
+
     REGISTER_YSON_STRUCT(TCellarNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -81,6 +83,8 @@ struct TCellarNodeConfig
     TMasterConnectorConfigPtr MasterConnector;
 
     NTransactionSupervisor::TTransactionLeaseTrackerConfigPtr TransactionLeaseTracker;
+
+    bool DeduceProfilingTagFromBundleName;
 
     REGISTER_YSON_STRUCT(TCellarNodeConfig);
 
