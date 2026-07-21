@@ -235,7 +235,7 @@ public class RpcOptions {
 
 
     /**
-     * Fails request after this timeout.
+     * Default request timeout; can be overridden per request.
      * @return self
      */
     public RpcOptions setGlobalTimeout(Duration globalTimeout) {

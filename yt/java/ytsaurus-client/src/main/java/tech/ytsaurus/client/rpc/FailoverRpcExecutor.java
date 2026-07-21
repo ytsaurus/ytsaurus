@@ -55,7 +55,10 @@ class FailoverRpcExecutor {
         this.retryPolicy = options.getRetryPolicyFactory().get();
 
         this.failoverTimeout = options.getFailoverTimeout().toMillis();
-        this.globalDeadline = System.currentTimeMillis() + options.getGlobalTimeout().toMillis();
+        Duration globalTimeout = request.header.hasTimeout()
+                ? RpcUtil.durationFromMicros(request.header.getTimeout())
+                : options.getGlobalTimeout();
+        this.globalDeadline = System.currentTimeMillis() + globalTimeout.toMillis();
 
         this.request = request;
         this.originalRequestId = RpcRequest.getRequestId(request.header);

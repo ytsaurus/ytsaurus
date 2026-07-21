@@ -92,6 +92,29 @@ public class FailoverRpcExecutorTest {
     }
 
     @Test
+    public void testPerRequestTimeoutOverridesGlobalTimeout() {
+        CompletableFuture<String> result = new CompletableFuture<>();
+        Supplier<RetryPolicy> retryPolicyFactory = () -> RetryPolicy.attemptLimited(
+                2, RetryPolicy.fromRpcFailoverPolicy(new TestFailoverPolicy()));
+
+        RpcOptions options = defaultOptions()
+                .setGlobalTimeout(Duration.ofSeconds(10))
+                .setFailoverTimeout(Duration.ofSeconds(10))
+                .setRetryPolicyFactory(retryPolicyFactory);
+
+        long startMillis = System.currentTimeMillis();
+        executeWithRequestTimeout(responseNever(), options, result, 2, Duration.ofMillis(100));
+
+        waitFuture(result, 2000);
+        long elapsedMillis = System.currentTimeMillis() - startMillis;
+
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertTrue(getError(result).getCause() instanceof TimeoutException);
+        assertTrue("expected timeout near 100ms, got " + elapsedMillis + "ms", elapsedMillis < 2000);
+    }
+
+    @Test
     public void testFailover() throws Exception {
         CompletableFuture<String> result = new CompletableFuture<>();
         Supplier<RetryPolicy> retryPolicyFactory = () -> RetryPolicy.attemptLimited(
@@ -273,12 +296,22 @@ public class FailoverRpcExecutorTest {
         };
     }
 
-    @SuppressWarnings("checkstyle:AvoidNestedBlocks")
     private RpcClientRequestControl execute(
             Consumer<RpcClientResponseHandler> handlerConsumer,
             RpcOptions options,
             CompletableFuture<String> result,
             int clientCount
+    ) {
+        return executeWithRequestTimeout(handlerConsumer, options, result, clientCount, null);
+    }
+
+    @SuppressWarnings("checkstyle:AvoidNestedBlocks")
+    private RpcClientRequestControl executeWithRequestTimeout(
+            Consumer<RpcClientResponseHandler> handlerConsumer,
+            RpcOptions options,
+            CompletableFuture<String> result,
+            int clientCount,
+            Duration requestTimeout
     ) {
         RpcRequest<?> rpcRequest;
         {
@@ -286,6 +319,9 @@ public class FailoverRpcExecutorTest {
             TRequestHeader.Builder header = TRequestHeader.newBuilder();
             header.setService("service");
             header.setMethod("method");
+            if (requestTimeout != null) {
+                header.setTimeout(RpcUtil.durationToMicros(requestTimeout));
+            }
             rpcRequest = new RpcRequest<>(header.build(), reqGetNode, List.of());
         }
 
