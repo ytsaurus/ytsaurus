@@ -108,6 +108,28 @@ class TestClickHouseDdl(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query('create table "//tmp/t_unsupported" (a String) engine Memory')
 
+    @authors("iharbychyk")
+    def test_create_table_wrong_sort_order(self):
+        with Clique(1) as clique:
+            create("table", "//tmp/t1", attributes={"schema": [
+                {"name": "s", "type": "string"},
+                {"name": "n", "type": "int64"},
+            ]})
+            write_table("//tmp/t1", [
+                {"s": "aba", "n": 4},
+                {"s": "aaa", "n": 3},
+                {"s": "cba", "n": 1},
+                {"s": "aab", "n": 2},
+            ])
+
+            with raises_yt_error(code=QueryFailedError):
+                clique.make_query('''
+                    create table "//tmp/t2" engine YtTable() order by n as
+                    select * from "//tmp/t1"
+                ''')
+
+            assert not exists("//tmp/t2")
+
 
 @enable_sequoia
 class TestClickHouseDdlSequoia(TestClickHouseDdl):
