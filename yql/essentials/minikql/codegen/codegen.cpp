@@ -235,6 +235,33 @@ bool CompareFuncOffsets(const std::pair<ui64, llvm::Function*>& lhs,
     return lhs.first < rhs.first;
 }
 
+std::string SetI128DefaultAlignment(std::string dl) {
+    Y_ENSURE(!dl.empty(), "Empty DataLayout string representation.");
+    const auto i128 = "i128:"sv;
+    if (const auto pos = dl.find(i128); std::string::npos == pos) {
+        const auto i64 = "i64:"sv;
+        const auto p64 = dl.find(i64);
+        const auto sep = dl.find('-', p64 + i64.size());
+        dl.insert(sep, "-i128:64"sv);
+    } else {
+        const auto val = pos + i128.size();
+        const auto sep = dl.find('-', pos + i128.size());
+        const auto end = std::string::npos == sep ? std::string::npos : sep - val;
+        dl.replace(val, end, "64"sv);
+    }
+    return dl;
+}
+
+void SetTargetMachineDataLayout(llvm::TargetMachine& targetMachine, const std::string& dataLayout) {
+    struct TTargetMachineDataLayoutAccessor: public llvm::TargetMachine {
+        void SetDataLayout(const std::string& dataLayout) {
+            const_cast<llvm::DataLayout&>(DL) = llvm::DataLayout(dataLayout);
+        }
+    };
+
+    static_cast<TTargetMachineDataLayoutAccessor&>(targetMachine).SetDataLayout(dataLayout);
+}
+
 #if defined(_asan_enabled_)
 // LLVM 18 ASan emits ELF boundary symbols even for an empty globals range.
 // RuntimeDyld treats address 0 as "not found", so use a real empty range.
@@ -316,7 +343,15 @@ public:
             engineBuilder.setMCPU(hostCpu);
         }
 
-        Engine_.reset(engineBuilder.create());
+        auto targetMachine = std::unique_ptr<llvm::TargetMachine>(engineBuilder.selectTarget());
+        if (!targetMachine) {
+            ythrow yexception() << "Failed to construct LLVM target machine: " << what;
+        }
+
+        const auto dataLayout = SetI128DefaultAlignment(targetMachine->createDataLayout().getStringRepresentation());
+        SetTargetMachineDataLayout(*targetMachine, dataLayout);
+
+        Engine_.reset(engineBuilder.create(targetMachine.release()));
         if (!Engine_) {
             ythrow yexception() << "Failed to construct ExecutionEngine: " << what;
         }
