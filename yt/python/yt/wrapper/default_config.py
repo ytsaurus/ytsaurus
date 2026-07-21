@@ -83,6 +83,7 @@ class DefaultConfigType(TypedDict, total=False):
         network_name: Optional[str]
         prefer_https: bool
         ca_bundle_path: Optional[str]
+        use_system_ca: bool
         default_suffix: Optional[str]
         tvm_only: bool
         accept_encoding: Optional[Union[Literal["gzip"], Literal["br"], Literal["identity"]]]
@@ -472,6 +473,8 @@ default_config = {
         "prefer_https": False,
 
         "ca_bundle_path": None,
+
+        "use_system_ca": True,
 
         # Suffix appended to url if it is short.
         "default_suffix": DEFAULT_HOST_SUFFIX,

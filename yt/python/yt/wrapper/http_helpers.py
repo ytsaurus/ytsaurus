@@ -18,6 +18,7 @@ from yt.common import _pretty_format_for_logging, get_fqdn as _get_fqdn
 import io
 import os
 import re
+import ssl
 import sys
 import time
 import types
@@ -114,6 +115,82 @@ def get_retriable_errors():
             YtRequestTimedOut, YtRetriableError, YtTransportError)
 
 
+def _get_requests_ca_bundle():
+    # Path to the CA bundle shipped with the (vendored) requests/certifi, or None when it is not
+    # available (e.g. in the opensource build, where certs.where() returns None).
+    lazy_import_requests()
+    try:
+        from yt.packages.requests import certs
+        return certs.where()
+    except Exception:
+        return None
+
+
+def _system_trust_store_available():
+    # Whether OpenSSL will find an operating system trust store through its default verify paths.
+    # ssl.get_default_verify_paths() resolves SSL_CERT_FILE / SSL_CERT_DIR and the compiled-in
+    # defaults, so this mirrors what ssl.create_default_context() actually consults. We check the
+    # paths rather than SSLContext.cert_store_stats() because OpenSSL loads dir-hashed certs lazily,
+    # leaving the stats at zero even when a populated store is present.
+    paths = ssl.get_default_verify_paths()
+    if paths.cafile and os.path.exists(paths.cafile):
+        return True
+    try:
+        if paths.capath and os.path.isdir(paths.capath) and os.listdir(paths.capath):
+            return True
+    except OSError:
+        # The directory exists but is not listable (e.g. permissions); treat the store as absent
+        # rather than failing client setup.
+        pass
+    return False
+
+
+def _add_ca_file(context, path):
+    # Trust the CA bundle at `path`, tolerating a missing, empty or malformed file: such input is
+    # logged and skipped instead of raising out of session setup. `path` may be None (no-op).
+    if not path:
+        return
+    if not os.path.exists(path):
+        logger.error("CA file is absent (%s)", path)
+        return
+    try:
+        context.load_verify_locations(cafile=path)
+    except (ssl.SSLError, OSError) as error:
+        logger.error("Failed to load CA file (%s): %s", path, error)
+
+
+def _create_ssl_context(ca_bundle_path=None, use_system_ca=True):
+    # An SSLContext used to verify the proxy's TLS certificate. Trust is assembled here and bound to
+    # the session adapter (see configure_ip), rather than via requests' REQUESTS_CA_BUNDLE handling
+    # or process-global environment, so it also works with the vendored yt.packages.urllib3 stack
+    # and does not leak across clients; see https://github.com/ytsaurus/ytsaurus/issues/846.
+    if use_system_ca:
+        # Trust the operating system store (honors SSL_CERT_FILE / SSL_CERT_DIR), e.g. corporate
+        # roots that requests/certifi ignores by default.
+        context = ssl.create_default_context()
+        # The CA bundle vendored with requests/certifi is only a fallback for environments without a
+        # usable system trust store (e.g. a minimal container); when the OS provides one we rely on
+        # it alone so the host's policy (additions and removals) is honored.
+        if not _system_trust_store_available():
+            _add_ca_file(context, _get_requests_ca_bundle())
+    else:
+        # Do not trust the OS store; verify only against the vendored bundle (requests' default)
+        # plus the explicit/extra CAs added below, preserving the pre-system-ca behavior.
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        _add_ca_file(context, _get_requests_ca_bundle())
+
+    # Honor a CA bundle provided through the environment, the same way requests/curl do. We load it
+    # into the context instead of relying on requests reading the variable (its CA handling is
+    # bypassed by the bound ssl_context) and instead of mutating the process-global environment.
+    for env_var in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+        _add_ca_file(context, os.environ.get(env_var))
+
+    # An explicit ca_bundle_path from the config is always trusted on top of the above.
+    _add_ca_file(context, ca_bundle_path)
+
+    return context
+
+
 class ProxyProvider(object):
     __metaclass__ = ABCMeta
 
@@ -129,21 +206,19 @@ class ProxyProvider(object):
 def _setup_new_session(client) -> "requests.Session":
     lazy_import_requests()
     session = requests.Session()
-    configure_proxy(session,
-                    get_config(client)["proxy"]["http_proxy"],
-                    get_config(client)["proxy"]["https_proxy"])
-    configure_ip(session,
-                 get_config(client)["proxy"]["force_ipv4"],
-                 get_config(client)["proxy"]["force_ipv6"])
+    proxy_config = get_config(client)["proxy"]
 
-    ca_bundle_path = get_config(client)["proxy"]["ca_bundle_path"]
-    if ca_bundle_path:
-        if os.path.exists(ca_bundle_path):
-            if os.environ.get("REQUESTS_CA_BUNDLE"):
-                logger.warning("CA override (%s -> %s)", ca_bundle_path, os.environ.get("REQUESTS_CA_BUNDLE"))
-            os.environ["REQUESTS_CA_BUNDLE"] = ca_bundle_path
-        else:
-            logger.error("CA file is absent (%s)", ca_bundle_path)
+    configure_proxy(session, proxy_config["http_proxy"], proxy_config["https_proxy"])
+
+    ssl_context = _create_ssl_context(
+        ca_bundle_path=proxy_config["ca_bundle_path"],
+        use_system_ca=proxy_config["use_system_ca"],
+    )
+
+    configure_ip(session,
+                 proxy_config["force_ipv4"],
+                 proxy_config["force_ipv6"],
+                 ssl_context=ssl_context)
 
     return session
 
@@ -172,18 +247,36 @@ def configure_proxy(session, http_proxy, https_proxy):
         session.proxies.update(proxies)
 
 
-def configure_ip(session, force_ipv4=False, force_ipv6=False):
+def configure_ip(session, force_ipv4=False, force_ipv6=False, ssl_context=None):
     lazy_import_requests()
-    if force_ipv4 or force_ipv6:
-        protocol = socket.AF_INET if force_ipv4 else socket.AF_INET6
 
-        class HTTPAdapter(requests.adapters.HTTPAdapter):
-            def init_poolmanager(self, *args, **kwargs):
-                return super(HTTPAdapter, self).init_poolmanager(*args,
-                                                                 socket_af=protocol,
-                                                                 **kwargs)
-        session.mount("http://", HTTPAdapter())
-        session.mount("https://", HTTPAdapter())
+    socket_af = None
+    if force_ipv4 or force_ipv6:
+        socket_af = socket.AF_INET if force_ipv4 else socket.AF_INET6
+
+    if socket_af is None and ssl_context is None:
+        return
+
+    class HTTPAdapter(requests.adapters.HTTPAdapter):
+        def init_poolmanager(self, *args, **kwargs):
+            if socket_af is not None:
+                kwargs["socket_af"] = socket_af
+            if ssl_context is not None:
+                kwargs["ssl_context"] = ssl_context
+            return super(HTTPAdapter, self).init_poolmanager(*args, **kwargs)
+
+        def cert_verify(self, conn, url, verify, cert):
+            if ssl_context is not None and verify and url.lower().startswith("https"):
+                # Server-cert trust is delegated to ssl_context. Pass verify=False so the base
+                # method does not require requests' default CA bundle (absent in the opensource
+                # build), then re-enable verification against the context.
+                super(HTTPAdapter, self).cert_verify(conn, url, False, cert)
+                conn.cert_reqs = "CERT_REQUIRED"
+            else:
+                super(HTTPAdapter, self).cert_verify(conn, url, verify, cert)
+
+    session.mount("http://", HTTPAdapter())
+    session.mount("https://", HTTPAdapter())
 
 
 def get_error_from_headers(headers):
