@@ -313,6 +313,14 @@ struct TDynamicKeyVisitorStreamSpec
 
     NYTree::TSize MaxScanRowsPerIteration;
 
+    //! Idle delay between background fill iterations. Each idle iteration issues
+    //! one read per swept source, so this sets the visitor's baseline read
+    //! cadence (~1/BackgroundFillPeriod per source) independently of `Period`,
+    //! which only shapes the hash-range slice width of each read. Cap-hit and
+    //! pass-rollover iterations reschedule immediately, so the actual rate can
+    //! be higher under load.
+    TDuration BackgroundFillPeriod;
+
     //! Schedule-lag threshold above which the visitor switches into catch-up
     //! mode: each next read scans a slice wider than the throttler granted
     //! by `CatchupSpeedupMultiplier`, so the accumulated lag drains back to

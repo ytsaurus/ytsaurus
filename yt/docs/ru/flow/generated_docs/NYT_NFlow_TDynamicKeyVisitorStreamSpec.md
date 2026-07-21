@@ -14,6 +14,9 @@
 || `max_scan_rows_per_iteration` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Значение по умолчанию**: `10K`
  ||
+|| `background_fill_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `500ms`
+ ||
 || `catchup_lag_threshold` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `1m`
  ||
