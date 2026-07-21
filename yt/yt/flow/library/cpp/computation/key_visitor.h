@@ -86,8 +86,8 @@ public:
     //! Must be called once before GetNextBatch.
     TFuture<void> Init();
 
-    //! Updates dynamic settings: throttler rate from `period`/`max_keys_per_period`,
-    //! draining flag.
+    //! Updates dynamic settings: throttler rate from `period`, background fill
+    //! period, draining flag.
     void Reconfigure(TDynamicKeyVisitorContextPtr dynamicContext);
 
     //! Returns up to |batchSize| ready visits drained from the internal

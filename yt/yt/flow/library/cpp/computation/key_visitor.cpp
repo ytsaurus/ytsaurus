@@ -26,10 +26,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr TDuration BackgroundFillIdlePeriod = TDuration::MilliSeconds(50);
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 ui64 GetRangeHashLength(const TKeyRange& range)
@@ -114,7 +110,7 @@ TFuture<void> TKeyVisitor::Init()
         BackgroundFillExecutor_ = New<TPeriodicExecutor>(
             Context_->SerializedInvoker,
             BIND(&TKeyVisitor::RunBackgroundFillIteration, MakeWeak(this)),
-            BackgroundFillIdlePeriod);
+            DynamicContext_->DynamicSpec->BackgroundFillPeriod);
         BackgroundFillExecutor_->Start();
     })
         .AsyncVia(Context_->SerializedInvoker)
@@ -135,6 +131,9 @@ void TKeyVisitor::Reconfigure(TDynamicKeyVisitorContextPtr dynamicContext)
     YT_VERIFY(dynamicContext);
     DynamicContext_ = std::move(dynamicContext);
     Throttler_->Reconfigure(BuildThrottlerConfig());
+    if (BackgroundFillExecutor_) {
+        BackgroundFillExecutor_->SetPeriod(DynamicContext_->DynamicSpec->BackgroundFillPeriod);
+    }
 }
 
 void TKeyVisitor::SetUpstreamCompleted()

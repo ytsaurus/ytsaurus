@@ -75,12 +75,14 @@ protected:
     TDynamicKeyVisitorContextPtr MakeDynamicContext(
         TDuration period,
         i64 bufferRowLimit,
-        i64 maxScanRowsPerIteration = 10'000)
+        i64 maxScanRowsPerIteration = 10'000,
+        TDuration backgroundFillPeriod = TDuration::MilliSeconds(50))
     {
         auto dynSpec = New<TDynamicKeyVisitorStreamSpec>();
         dynSpec->Period = period;
         dynSpec->BufferRowLimit = NYTree::TSize(bufferRowLimit);
         dynSpec->MaxScanRowsPerIteration = NYTree::TSize(maxScanRowsPerIteration);
+        dynSpec->BackgroundFillPeriod = backgroundFillPeriod;
 
         auto ctx = New<TDynamicKeyVisitorContext>();
         ctx->DynamicSpec = std::move(dynSpec);
@@ -145,6 +147,19 @@ protected:
     {
         WaitFor(BIND([visitor] {
             visitor->SetUpstreamCompleted();
+        })
+                .AsyncVia(Queue_->GetInvoker())
+                .Run())
+            .ThrowOnError();
+    }
+
+    void ReconfigureOnQueue(
+        const TKeyVisitorPtr& visitor,
+        const TDynamicKeyVisitorContextPtr& dynamicContext)
+    {
+        // Reconfigure asserts the visitor's serialized-invoker affinity.
+        WaitFor(BIND([visitor, dynamicContext] {
+            visitor->Reconfigure(dynamicContext);
         })
                 .AsyncVia(Queue_->GetInvoker())
                 .Run())
@@ -316,6 +331,53 @@ TEST_F(TKeyVisitorTest, MultiNameRowsEmitEveryKeyOncePerPass)
     DrainKeys(visitor, &pass2, std::ssize(seeded));
     EXPECT_EQ(std::ssize(pass2), std::ssize(seeded)) << "pass 2: each key once, no duplicates";
     EXPECT_EQ(ToSet(pass2), expected);
+
+    StopOnQueue(visitor);
+}
+
+// Reconfigure must retarget the background fill period. It has to be safe both
+// before Init (executor not created yet — the SetPeriod branch is skipped) and
+// on a running executor (SetPeriod applied live). After a live speed-up the
+// visitor must still emit every seeded key.
+TEST_F(TKeyVisitorTest, ReconfigureUpdatesBackgroundFillPeriod)
+{
+    std::vector<TKey> seeded;
+    for (ui64 hash = 1; hash <= 16; ++hash) {
+        seeded.push_back(MakeUintKey(hash * 5));
+    }
+    SeedKeys(seeded, "/state");
+    const auto expected = ToSet(seeded);
+
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 4);
+    // Start with a large fill period so the idle cadence is effectively stalled.
+    auto dynamicContext = MakeDynamicContext(
+        /*period*/ TDuration::MilliSeconds(10),
+        /*bufferRowLimit*/ 100,
+        /*maxScanRowsPerIteration*/ 10'000,
+        /*backgroundFillPeriod*/ TDuration::Seconds(1000));
+    auto visitor = New<TKeyVisitor>(context, dynamicContext);
+
+    // Reconfigure before Init: BackgroundFillExecutor_ is still null, so the
+    // SetPeriod call must be skipped without a null deref.
+    ReconfigureOnQueue(visitor, MakeDynamicContext(
+        /*period*/ TDuration::MilliSeconds(10),
+        /*bufferRowLimit*/ 100,
+        /*maxScanRowsPerIteration*/ 10'000,
+        /*backgroundFillPeriod*/ TDuration::Seconds(1000)));
+
+    WaitFor(visitor->Init()).ThrowOnError();
+
+    // Live reconfigure on the running executor: speed the fill period back up.
+    ReconfigureOnQueue(visitor, MakeDynamicContext(
+        /*period*/ TDuration::MilliSeconds(10),
+        /*bufferRowLimit*/ 100,
+        /*maxScanRowsPerIteration*/ 10'000,
+        /*backgroundFillPeriod*/ TDuration::MilliSeconds(5)));
+
+    std::vector<TKey> drained;
+    DrainKeys(visitor, &drained, std::ssize(seeded));
+    EXPECT_EQ(ToSet(drained), expected)
+        << "visitor must emit every key after background_fill_period is reconfigured";
 
     StopOnQueue(visitor);
 }
