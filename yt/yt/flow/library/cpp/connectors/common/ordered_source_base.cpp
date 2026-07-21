@@ -61,19 +61,19 @@ TOffset IntToOffset(i64 offset)
 void TOrderedSourcePartitionState::EnsureInvariants() const
 {
     THROW_ERROR_EXCEPTION_UNLESS(CommittedOffsetExclusive <= PersistedOffsetExclusive,
-        "Committed offset is greater than persisted offset (CommittedOffsetExclusive: %v, PersistedOffsetExclusive: %v)",
+        "Committed offset %v is greater than persisted offset %v",
         CommittedOffsetExclusive,
         PersistedOffsetExclusive);
     THROW_ERROR_EXCEPTION_UNLESS(PersistedOffsetExclusive <= PublishedOffsetExclusive,
-        "Persisted offset is greater than published offset (PersistedOffsetExclusive: %v, PublishedOffsetExclusive: %v)",
+        "Persisted offset %v is greater than published offset %v",
         PersistedOffsetExclusive,
         PublishedOffsetExclusive);
     THROW_ERROR_EXCEPTION_UNLESS(PublishedOffsetExclusive <= MaxOffsetExclusive,
-        "Published offset is greater than max offset (PublishedOffsetExclusive: %v, MaxOffsetExclusive: %v)",
+        "Published offset %v is greater than max offset %v",
         PublishedOffsetExclusive,
         MaxOffsetExclusive);
     THROW_ERROR_EXCEPTION_UNLESS(LastIdleInstant >= LastNotIdleInstant || LastIdleInstant == TInstant::Zero(),
-        "Strange value of LastIdleInstant (LastIdleInstant: %v, LastNotIdleInstant: %v)",
+        "Last idle instant %v is unexpectedly less than last not-idle instant %v",
         LastIdleInstant,
         LastNotIdleInstant);
 }

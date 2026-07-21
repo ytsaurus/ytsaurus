@@ -552,7 +552,7 @@ void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::CommitTransac
 {
     THROW_ERROR_EXCEPTION_UNLESS(
         transaction.State_ == EPersistedStateTransactionState::Active,
-        "Transaction must be active (State: %v)",
+        "Transaction must be active but is in %Qlv state",
         transaction.State_);
 
     auto guard = Guard(TransactionalLock_);
@@ -607,7 +607,7 @@ void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::AbortTransact
 {
     THROW_ERROR_EXCEPTION_UNLESS(
         transaction.State_ == EPersistedStateTransactionState::Active,
-        "Transaction must be active (State: %v)",
+        "Transaction must be active but is in %Qlv state",
         transaction.State_);
 
     transaction.Contexts_.clear();

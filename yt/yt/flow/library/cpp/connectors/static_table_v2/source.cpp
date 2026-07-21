@@ -94,9 +94,9 @@ TRangeId ExtractRangeId(const TKey& key)
 std::pair<i64, i64> GetRowIndexRange(const TRichYPath& path)
 {
     auto ranges = path.GetRanges();
-    THROW_ERROR_EXCEPTION_UNLESS(ranges.size() == 1, "Table rich path doesn't have exactly one range (Path: %v)", path);
-    THROW_ERROR_EXCEPTION_UNLESS(ranges[0].LowerLimit().HasRowIndex(), "Table rich path doesn't have lower row index (Path: %v)", path);
-    THROW_ERROR_EXCEPTION_UNLESS(ranges[0].UpperLimit().HasRowIndex(), "Table rich path doesn't have upper row index (Path: %v)", path);
+    THROW_ERROR_EXCEPTION_UNLESS(ranges.size() == 1, "Table rich path %v doesn't have exactly one range", path);
+    THROW_ERROR_EXCEPTION_UNLESS(ranges[0].LowerLimit().HasRowIndex(), "Table rich path %v doesn't have lower row index", path);
+    THROW_ERROR_EXCEPTION_UNLESS(ranges[0].UpperLimit().HasRowIndex(), "Table rich path %v doesn't have upper row index", path);
     return {ranges[0].LowerLimit().GetRowIndex(), ranges[0].UpperLimit().GetRowIndex()};
 }
 
@@ -282,7 +282,7 @@ std::pair<NTableClient::TTableSchemaPtr, std::vector<int>> TSource::GetSchemaAnd
             } else {
                 THROW_ERROR_EXCEPTION_UNLESS(
                     observed == cellType,
-                    "Inconsistent types in batch (Type1: %v, Type2: %v)",
+                    "Inconsistent types in batch: %v vs %v",
                     observed,
                     cellType);
             }
@@ -633,17 +633,17 @@ TSystemTimestamp TSourceController::ExtractTimestamp(
     TInstant instant;
     switch (locator->Format) {
         case ETimestampFormat::Iso8601:
-            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::String, "Expected string for iso8601 timestamp (ActualType: %v)", timestampNode->GetType());
+            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::String, "Expected string for iso8601 timestamp, got %v", timestampNode->GetType());
             if (TInstant::TryParseIso8601(timestampNode->AsString()->GetValue(), instant)) {
                 return TSystemTimestamp(instant.Seconds());
             }
-            THROW_ERROR_EXCEPTION("Can not parse timestamp string as iso8601 (TimestampString: %v)", timestampNode->AsString()->GetValue());
+            THROW_ERROR_EXCEPTION("Cannot parse timestamp string %Qv as iso8601", timestampNode->AsString()->GetValue());
         case ETimestampFormat::Seconds:
-            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::Uint64, "Expected ui64 for seconds timestamp (ActualType: %v)", timestampNode->GetType());
+            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::Uint64, "Expected ui64 for seconds timestamp, got %v", timestampNode->GetType());
             instant = TInstant::Seconds(timestampNode->AsUint64()->GetValue());
             return TSystemTimestamp(instant.Seconds());
         case ETimestampFormat::MilliSeconds:
-            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::Uint64, "Expected ui64 for milliseconds timestamp (ActualType: %v)", timestampNode->GetType());
+            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::Uint64, "Expected ui64 for milliseconds timestamp, got %v", timestampNode->GetType());
             instant = TInstant::MilliSeconds(timestampNode->AsUint64()->GetValue());
             return TSystemTimestamp(instant.Seconds());
     }
@@ -673,7 +673,7 @@ std::pair<TRichYPath, INodePtr> TSourceController::ResolveTable(
     auto node = ConvertToNode(WaitFor(client->GetNode(table.GetPath() + NoFollowSymlinkSuffix, getOptions)).ValueOrThrow());
     THROW_ERROR_EXCEPTION_UNLESS(
         node->Attributes().Get<EObjectType>("type") == EObjectType::Table,
-        "Parameter \"tables\" requires every node to be a table, symlinks are not allowed (Path: %v)",
+        "Node %v listed in parameter \"tables\" must be a table, symlinks are not allowed",
         table);
     return {table, node};
 }
@@ -695,7 +695,7 @@ std::vector<TSourceControllerTablePtr> TSourceController::MakeTables(
         } else if (sourceParameters->SkipNonTableNodes && EObjectType::Table != nodeType) {
             continue;
         } else {
-            THROW_ERROR_EXCEPTION_UNLESS(EObjectType::Table == nodeType, "Parameter \"tables_path\" requires every node to be a table, symlinks are not allowed (Path: %v)", path);
+            THROW_ERROR_EXCEPTION_UNLESS(EObjectType::Table == nodeType, "Node %v under \"tables_path\" must be a table, symlinks are not allowed", path);
         }
 
         if (sourceParameters->TableNameFilter &&
@@ -851,9 +851,8 @@ TListedTables TSourceController::GetMultiClusterTables(
             unavailableClusters.insert(cluster);
         }
     }
-    THROW_ERROR_EXCEPTION_IF(unavailableClusters.size() == clusters.size(),
-        "Failed to list tables from all clusters (Clusters: %v)",
-        clusters);
+    THROW_ERROR_EXCEPTION_IF(unavailableClusters.size() == clusters.size(), "Failed to list tables from all clusters")
+        << TErrorAttribute("clusters", clusters);
 
     return TListedTables{
         .Tables = MergeByName(perClusterTables),

@@ -452,10 +452,10 @@ public:
                     } else if (partition->State == EPartitionState::Interrupting) {
                         newState = EPartitionState::Interrupted;
                     } else {
-                        THROW_ERROR_EXCEPTION("Partition is already completed (PartitionId: %v, ComputationId: %v, Status: %v)",
-                            partition->PartitionId,
-                            partition->ComputationId,
-                            partition->State);
+                        THROW_ERROR_EXCEPTION("Partition is already completed")
+                            << TErrorAttribute("partition_id", partition->PartitionId)
+                            << TErrorAttribute("computation_id", partition->ComputationId)
+                            << TErrorAttribute("partition_state", partition->State);
                     }
                     YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Info, "Job completed")
                         .With("JobId", currentJobStatus->JobId)

@@ -370,7 +370,7 @@ public:
         THROW_ERROR_EXCEPTION_UNLESS(
             actualVersion == expectedVersion,
             NFlow::EErrorCode::SpecVersionMismatch,
-            "Spec version mismatch (Expected: %v, Actual: %v)",
+            "Spec version mismatch: expected %v, actual %v",
             expectedVersion,
             actualVersion);
     }
@@ -428,9 +428,9 @@ public:
                 newVersions->PipelineSpecVersion = (*spec)->GetVersion();
                 THROW_ERROR_EXCEPTION_UNLESS(
                     expectedVersions.value()->PipelineSpecVersion < newVersions->PipelineSpecVersion,
-                    "Must increase pipeline spec version (ExpectedVersion: %v, NewVersion: %v)",
-                    expectedVersions.value()->PipelineSpecVersion,
-                    newVersions->PipelineSpecVersion);
+                    "New pipeline spec version %v must be greater than expected version %v",
+                    newVersions->PipelineSpecVersion,
+                    expectedVersions.value()->PipelineSpecVersion);
                 HandleImportantVersions(expectedVersions.value(), newVersions, transaction);
                 PersistedStateStorageHandler_->WriteObsoleteObject(transaction, SpecKey, *spec);
             }
@@ -439,9 +439,9 @@ public:
                 THROW_ERROR_EXCEPTION_IF(!expectedDynamicSpecVersion.has_value(), "Expected dynamic spec version must be provided");
                 THROW_ERROR_EXCEPTION_UNLESS(
                     expectedDynamicSpecVersion->Underlying() < (*dynamicSpec)->GetVersion().Underlying(),
-                    "Must increase pipeline dynamic spec version (ExpectedVersion: %v, NewVersion: %v)",
-                    expectedDynamicSpecVersion->Underlying(),
-                    (*dynamicSpec)->GetVersion().Underlying());
+                    "New pipeline dynamic spec version %v must be greater than expected version %v",
+                    (*dynamicSpec)->GetVersion().Underlying(),
+                    expectedDynamicSpecVersion->Underlying());
                 CheckDynamicSpecVersion(*expectedDynamicSpecVersion, transaction);
                 PersistedStateStorageHandler_->WriteObsoleteObject(transaction, DynamicSpecKey, *dynamicSpec);
             }

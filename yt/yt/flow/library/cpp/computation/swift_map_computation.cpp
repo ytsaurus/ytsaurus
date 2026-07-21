@@ -213,7 +213,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             outputParents.reserve(result.OutputMessages.size());
             for (auto&& [outputMessage, parents] : Zip(result.OutputMessages, result.OutputMessagesParentMessageIds)) {
                 if (parents->ParentMessages.empty() || !parents->ParentTimers.empty()) {
-                    THROW_ERROR_EXCEPTION("Output message must have at least one parent message and no parent timers (ParentMessages: %v, ParentTimers: %v)",
+                    THROW_ERROR_EXCEPTION("Output message must have at least one parent message and no parent timers: got %v parent messages and %v parent timers",
                         parents->ParentMessages.size(),
                         parents->ParentTimers.size());
                 }

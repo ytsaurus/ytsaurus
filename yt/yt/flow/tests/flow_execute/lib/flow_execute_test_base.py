@@ -388,7 +388,7 @@ class FlowExecuteTestBase(FlowTestBase):
                         "spec": static_spec,
                     },
                 )
-            with pytest.raises(YtResponseError, match="Must increase pipeline spec version"):
+            with pytest.raises(YtResponseError, match="must be greater than expected version"):
                 self.client.flow_execute(
                     self.pipeline_path,
                     flow_command="set-pipeline-spec",
