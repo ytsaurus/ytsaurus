@@ -4,7 +4,7 @@
 
 #include <yt/yt/client/api/client.h>
 
-#include <yt/yt/library/tracing/jaeger/tracer.h>
+#include <yt/yt/library/tracing/jaeger/config.h>
 
 #include <yt/yt/library/re2/re2.h>
 

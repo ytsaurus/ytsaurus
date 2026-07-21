@@ -6,6 +6,7 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <yt/yt/library/tracing/jaeger/config.h>
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
 namespace NYT::NTracing {

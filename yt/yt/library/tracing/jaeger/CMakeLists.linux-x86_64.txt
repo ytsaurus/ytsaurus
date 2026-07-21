@@ -56,6 +56,7 @@ target_proto_messages(library-tracing-jaeger PRIVATE
 )
 
 target_sources(library-tracing-jaeger PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/jaeger/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/jaeger/sampler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/jaeger/tracer.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/tracing/jaeger/model.pb.h
