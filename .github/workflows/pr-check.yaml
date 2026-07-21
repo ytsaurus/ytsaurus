@@ -132,7 +132,7 @@ jobs:
       build-ytsaurus-tests: true
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
-      build-types: '["release"]'
+      build-types: '["relwithdebinfo"]'
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}

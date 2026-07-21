@@ -24,7 +24,7 @@ jobs:
     name: Fast tests
     with:
       runs-on-value: ${{ inputs.runs-on-value }}
-      build-dir: build_ya-make_release
+      build-dir: build_ya-make_relwithdebinfo
       run-unittests: true
       run-python-tests: true
       run-odin-tests: true
