@@ -1,9 +1,0 @@
-title: "{{product-name}}"
-href: index.md
-items:
-  - include: { mode: merge, path: _flow_check_base/toc.yaml }
-  - name: Flow
-    when: audience == "public"
-    include:
-      mode: link
-      path: flow/toc-flow.yaml

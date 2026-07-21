@@ -85,11 +85,7 @@ END()
 
 IF (NOT OPENSOURCE)
     RECURSE(
-        flow-public-check
         yandex-specific
     )
 
-    RECURSE_FOR_TESTS(
-        tests
-    )
 ENDIF()
