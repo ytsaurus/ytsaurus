@@ -216,10 +216,10 @@ class TestChunkServer(YTEnvSetup):
         profiler = self._get_chunk_replicator_profiler(chunk_id)
 
         def get_missing_repair_queue_size():
-            return profiler.gauge(
-                "chunk_server/repair_queue_size",
-                fixed_tags={"repair_queue": "missing"},
-            ).get(default=0) or 0
+            return sum(
+                projection["value"]
+                for projection in profiler.get_all("chunk_server/repair_queue_size", tags={})
+            )
 
         set_node_banned(nodes[0], True, wait_for_master=False)
 
