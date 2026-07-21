@@ -1,13 +1,13 @@
 ---
 metadata:
     - property: 'og:title'
-      content: 'Clique web interface in {{product-name}}'
+      content: 'Clique lifecycle'
     - property: 'og:description'
-      content: 'This article describes the clique web interface.'
+      content: 'The article describes the full clique lifecycle and management tools.'
     - property: 'og:type'
       content: 'article'
     - property: 'og:url'
-      content: 'https://ytsaurus.tech/docs/ru/user-guide/data-processing/chyt/cliques/ui'
+      content: 'https://ytsaurus.tech/docs/ru/user-guide/data-processing/chyt/cliques/overview'
     - property: 'article:tag'
       content: 'clique'
     - property: 'article:modified_time'
@@ -16,4 +16,4 @@ metadata:
       content: 'Tatyana Andriyanova'
 ---
 
-{% include [Clique web interface in {{product-name}}](../../../../_includes/user-guide/data-processing/chyt/cliques/ui.md) %}
+{% include [Overview](../../../../_includes/user-guide/data-processing/chyt/cliques/overview.md) %}

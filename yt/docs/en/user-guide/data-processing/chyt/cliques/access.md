@@ -1,23 +1,38 @@
 # Access permissions
 
-This article describes the clique access rules and how to request them.
+Access permissions for a clique are stored in a dedicated system node — **Access Control Object** (ACO). For more information about this object, see the [section](../../../../user-guide/query-tracker/about.md#access-control).
 
 ## Authentication { #authentication }
 
 Users are authenticated in CHYT in the same way as in {{product-name}} — using a token from {{product-name}} (for more information, see [Authentication](../../../../user-guide/storage/auth.md)).
 
-## Access types { #access_types }
+## Types of permissions { #types }
 
-Upon receiving a query, CHYT checks for two types of permissions:
+When working with cliques, four types of permissions are used:
 
-1. **Permissions to access clique resources** </br>
-   When receiving a query, the clique checks whether the user that made the query has the permission to use the clique.
-   - To execute SQL queries, you need the `use` permission.
-   - To modify, view, and delete a clique configuration, you need the `manage`, `read`, and `remove` permissions.
+- `use` — allows you to run queries against the clique;
+- `read` — grants access to read the clique configuration;
+- `manage` — allows you to modify the clique configuration;
+- `remove` — grants the permission to delete the clique.
 
-   Clique permissions are stored in a dedicated system node called Access Control Object. It's located at the path `//sys/access_control_object_namespaces/chyt/<alias>/principal` and is generated automatically for each clique created with the [CHYT Controller](../../../../user-guide/data-processing/chyt/controller.md).
+## How permission checks work { #how-it-works }
 
-   Clique permissions only control access to the computational resources of the cliques themselves.
+When working with cliques, CHYT checks two types of permissions:
 
-2. **Data access permissions** </br>
-   When accessing any data in {{product-name}}, the user's read/write access to all referenced tables is verified according to the standard ACL mechanism implemented in {{product-name}}. This verification ensures secure data access.
+1. Data access permissions. When you access any data in {{product-name}}, the system checks read and write permissions for all tables mentioned in the query. This happens via the standard ACL mechanism built into {{product-name}}. This ensures secure data access.
+2. Permissions to access clique resources. Before running a query, the clique checks whether the user has the required permissions:
+   - SQL queries require the `use` permission;
+   - modifying, viewing, or deleting the configuration requires the `manage`, `read`, and `remove` permissions.
+
+Clique permissions only control access to the computational resources of the cliques.
+
+## Access permission settings interface { #ui }
+
+Access settings are located on the **ACL** (Access Control List) tab in the [interface](../../../../user-guide/data-processing/chyt/cliques/ui.md) of the clique. There, you’ll find:
+
+- a list of people responsible for the clique (**Responsibles**);
+- a list of users with different access levels (**Object permissions**);
+- a list of available permissions: `use`, `manage`, `read`, `remove`;
+- buttons for assigning permissions (**Request Permissions**) and managing responsibles (**Manage responsibles**).
+
+For information on how to manage access permissions, see the [section](../../../../user-guide/data-processing/chyt/how-to-guides/acl.md).
