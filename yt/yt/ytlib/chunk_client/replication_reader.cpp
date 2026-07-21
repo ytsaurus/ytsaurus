@@ -856,9 +856,7 @@ protected:
         }
 
         auto mediumDescriptor = MediumDirectory_->FindByIndex(rsp->medium_index());
-        if (rsp->has_node_directory()) {
-            NodeDirectory_->MergeFrom(rsp->node_directory());
-        }
+        NodeDirectory_->MergeFrom(rsp->node_directory());
 
         return {
             .NetThrottling = rsp->net_throttling(),
@@ -3034,9 +3032,7 @@ private:
         auto netThrottling = rsp->net_throttling();
         auto diskThrottling = rsp->disk_throttling();
 
-        if (rsp->has_node_directory()) {
-            NodeDirectory_->MergeFrom(rsp->node_directory());
-        }
+        NodeDirectory_->MergeFrom(rsp->node_directory());
 
         UpdatePeerBlockMap(
             respondedPeer,
