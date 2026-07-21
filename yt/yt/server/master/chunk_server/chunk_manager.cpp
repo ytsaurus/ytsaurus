@@ -527,13 +527,13 @@ public:
 
         // This is a temporary measure to make sure solomon quota is at least somewhat stabilized.
         // The plan was to move these metrics into a separate shard. See original PR for details.
-        CrpBufferedProducer_ = New<TBufferedProducer>();
+        DetailedBufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler()
             .WithDefaultDisabled()
             .WithProducerRemoveSupport()
             .WithSparse()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
-            .AddProducer("", CrpBufferedProducer_);
+            .AddProducer("", DetailedBufferedProducer_);
 
         // NB: most ESequoiaTransactionType do not deal with replicas at all, hence WithDefaultDisabled.
         auto sequoiaReplicaModificationProfiler = ChunkServerProfiler()
@@ -2783,7 +2783,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
-    TBufferedProducerPtr CrpBufferedProducer_;
+    TBufferedProducerPtr DetailedBufferedProducer_;
 
     i64 ChunksCreated_ = 0;
     i64 ChunksDestroyed_ = 0;
@@ -6726,7 +6726,7 @@ private:
         TMasterAutomatonPart::OnRecoveryStarted();
 
         BufferedProducer_->SetEnabled(false);
-        CrpBufferedProducer_->SetEnabled(false);
+        DetailedBufferedProducer_->SetEnabled(false);
     }
 
     void OnRecoveryComplete() override
@@ -6734,7 +6734,7 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         BufferedProducer_->SetEnabled(true);
-        CrpBufferedProducer_->SetEnabled(true);
+        DetailedBufferedProducer_->SetEnabled(true);
     }
 
     void OnLeaderActive() override
@@ -7594,12 +7594,12 @@ private:
     void OnProfiling()
     {
         BufferedProducer_->SetEnabled(true);
-        CrpBufferedProducer_->SetEnabled(true);
+        DetailedBufferedProducer_->SetEnabled(true);
 
         TSensorBuffer buffer;
-        TSensorBuffer crpBuffer;
+        TSensorBuffer detailedBuffer;
 
-        ChunkReplicator_->OnProfiling(&buffer, &crpBuffer);
+        ChunkReplicator_->OnProfiling(&buffer, &detailedBuffer);
         JobRegistry_->OnProfiling(&buffer);
 
         if (IsLeader()) {
@@ -7653,7 +7653,7 @@ private:
         }
 
         BufferedProducer_->Update(std::move(buffer));
-        CrpBufferedProducer_->Update(std::move(crpBuffer));
+        DetailedBufferedProducer_->Update(std::move(detailedBuffer));
     }
 
 
