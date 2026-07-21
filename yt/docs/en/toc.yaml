@@ -277,14 +277,38 @@ items:
                href: user-guide/data-processing/chyt/queries/joins.md
            - name: Working with {{product-name}} tables
              href: user-guide/data-processing/chyt/yt-tables.md
-           - name: Cliques
+           - name: Clique interface and settings
              items:
-             - name: How to start a private clique
-               href: user-guide/data-processing/chyt/cliques/start.md
-             - name: A clique in the {{product-name}} web interface
+             - name: Overview
+               href: user-guide/data-processing/chyt/cliques/overview.md
+             - name: The clique web interface in {{product-name}}
                href: user-guide/data-processing/chyt/cliques/ui.md
+             - name: Click as a YT operation
+               href: user-guide/data-processing/chyt/cliques/yt-operation-ui.md
+             - name: Clique settings
+               href: user-guide/data-processing/chyt/cliques/configs.md
              - name: Access permissions
                href: user-guide/data-processing/chyt/cliques/access.md
+           - name: Scenarios of clique management
+             items:
+             - name: Scenarios overview
+               href: user-guide/data-processing/chyt/how-to-guides/overview.md
+             - name: Creating, starting, and stopping a clique
+               href: user-guide/data-processing/chyt/how-to-guides/create-start.md
+             - name: Adding compute resources
+               href: user-guide/data-processing/chyt/how-to-guides/manage-resources.md
+             - name: Access permissions managing
+               href: user-guide/data-processing/chyt/how-to-guides/acl.md
+             - name: Getting query logs
+               href: user-guide/data-processing/chyt/how-to-guides/query-logs.md
+             - name: Getting CHYT and Clickhouse versions 
+               href: user-guide/data-processing/chyt/how-to-guides/versions.md
+             - name: Installing a custom CHYT version
+               href: user-guide/data-processing/chyt/how-to-guides/custom-chyt-version.md
+             - name: Advanced settings configuration
+               href: user-guide/data-processing/chyt/how-to-guides/manage-advanced-settings.md
+             - name: Checking failed jobs
+               href: user-guide/data-processing/chyt/how-to-guides/failed-jobs.md    
            - name: CLI and Python API
              href: user-guide/data-processing/chyt/cli-and-api.md
            - name: Reference
