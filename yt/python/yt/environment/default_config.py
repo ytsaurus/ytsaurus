@@ -31,10 +31,6 @@ def get_master_config():
             "enable_local_read_busy_wait": False,
         },
 
-        "cell_manager": {
-            "create_virtual_cell_maps_by_default": True,
-        },
-
         "table_manager": {
             "make_schema_attribute_opaque": True,
         },
