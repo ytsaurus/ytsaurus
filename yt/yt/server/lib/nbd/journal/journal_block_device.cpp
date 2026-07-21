@@ -264,6 +264,9 @@ private:
             .Item("used_block_count").Value(BlockMap_->GetUsedBlockCount())
             .Item("dirty_pool_size").Value(DirtyPool_->GetSize())
             .Item("dirty_pool_capacity").Value(DirtyPool_->GetCapacity())
+            .Item("chunks").DoMap([this] (NYTree::TFluentMap fluent) {
+                BlockStore_->BuildChunksOrchid(fluent);
+            })
             // Whether the device was restored from a snapshot, and the latest one it has saved.
             .Item("restored_from_snapshot").Value(SnapshotReadSpec_.has_value())
             .DoIf(snapshotInfo.has_value(), [&] (NYTree::TFluentMap fluent) {
@@ -281,6 +284,8 @@ private:
 
         BlockFlusher_->SubscribeBlockFlushed(BIND(&TJournalBlockDevice::OnBlockFlushed, MakeWeak(this)));
         BlockFlusher_->SubscribeFailed(BIND(&TJournalBlockDevice::OnFlushFailed, MakeWeak(this)));
+        BlockMap_->SubscribeStoredBlockDied(BIND(&TJournalBlockDevice::OnStoredBlockDied, MakeWeak(this)));
+
         BlockFlusher_->Start();
 
         YT_LOG_INFO("Journal block device initialized (BlockSize: %v, BlockCount: %v, DirtyPoolCapacity: %v)",
@@ -373,6 +378,11 @@ private:
     void OnFlushFailed(const TError& error)
     {
         SetError(error);
+    }
+
+    void OnStoredBlockDied(TStoredBlockId storedBlockId)
+    {
+        BlockStore_->ReleaseBlock(storedBlockId);
     }
 };
 
@@ -724,6 +734,11 @@ private:
 
 void TJournalBlockDevice::DoSaveSnapshot(const TSnapshotSaveSpec& spec)
 {
+    BlockStore_->BeginSnapshot();
+    auto endSnapshotGuard = Finally([&] {
+        BlockStore_->EndSnapshot();
+    });
+
     // Blocks come back in ascending index order, as the sorted snapshot table requires.
     auto blocks = New<TSnapshotSession>(MakeStrong(this))->Run();
 

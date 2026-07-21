@@ -51,6 +51,11 @@ struct TJournalBlockStoreConfig
     //! A writer is retired once its chunk grows past this size.
     i64 MaxChunkDataSize;
 
+    //! How long a fully-dead chunk (sealed with every block superseded) is retained before it is
+    //! unstaged. The delay outlives any in-flight read or write of the chunk, so freeing it cannot turn
+    //! such an operation into a failure.
+    TDuration DeadChunkRetentionDelay;
+
     //! Governs the per-record write retries (each attempt targets a random writer).
     TExponentialBackoffOptions WriteBackoff;
 
