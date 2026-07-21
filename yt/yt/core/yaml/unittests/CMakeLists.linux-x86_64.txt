@@ -12,10 +12,12 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(unittester-library-yaml-helpers)
+find_package(linux-headers-generic REQUIRED)
+
+add_executable(unittester-core-yaml)
 
 
-target_compile_options(unittester-library-yaml-helpers PRIVATE
+target_compile_options(unittester-core-yaml PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -25,43 +27,51 @@ target_compile_options(unittester-library-yaml-helpers PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(unittester-library-yaml-helpers PUBLIC
+target_link_libraries(unittester-core-yaml PUBLIC
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   build-cow-on
+  library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-core-test_framework
-  yt-library-yaml_helpers
+  yt-core-yaml
 )
 
-target_allocator(unittester-library-yaml-helpers
-  system_allocator
+target_allocator(unittester-core-yaml
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(unittester-library-yaml-helpers PRIVATE
-  -Wl,-platform_version,macos,11.0,11.0
+target_link_options(unittester-core-yaml PRIVATE
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -framework
-  CoreFoundation
+  -lrt
+  -ldl
+  -lutil
 )
 
-target_sources(unittester-library-yaml-helpers PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/yaml_helpers/unittests/yaml_helpers_ut.cpp
+target_sources(unittester-core-yaml PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/yaml/unittests/convert_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/yaml/unittests/parser_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/yaml/unittests/writer_ut.cpp
 )
 
 
 add_test(
   NAME
-  unittester-library-yaml-helpers
+  unittester-core-yaml
   COMMAND
-  unittester-library-yaml-helpers
+  unittester-core-yaml
 )
 
 set_property(
   TEST
-  unittester-library-yaml-helpers
+  unittester-core-yaml
   PROPERTY
   LABELS
   SMALL
@@ -69,16 +79,16 @@ set_property(
 
 set_property(
   TEST
-  unittester-library-yaml-helpers
+  unittester-core-yaml
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(unittester-library-yaml-helpers)
+vcs_info(unittester-core-yaml)
 
 set_property(
   TEST
-  unittester-library-yaml-helpers
+  unittester-core-yaml
   PROPERTY
   PROCESSORS
   1

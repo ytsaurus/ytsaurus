@@ -1,10 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/client/formats/parser.h>
+#include <yt/yt/core/yaml/config.h>
 
-#include <yt/yt/client/formats/config.h>
-
-#include <yt/yt/library/formats/yaml_parser.h>
+#include <yt/yt/core/yaml/parser.h>
 
 #include <yt/yt/core/yson/writer.h>
 
@@ -12,7 +10,7 @@
 
 #include <util/stream/mem.h>
 
-namespace NYT::NFormats {
+namespace NYT::NYaml {
 namespace {
 
 using namespace NYson;
@@ -495,7 +493,7 @@ TEST(TYamlParserTest, Empty)
     EXPECT_EQ(ParseYaml(yaml, EYsonType::ListFragment), expectedYson);
 }
 
-//! There is a reverse test in yaml_writer_ut.cpp.
+//! There is a reverse test in writer_ut.cpp.
 TEST(TYamlParserTest, RealExample)
 {
     std::string yaml = R"(
@@ -599,4 +597,4 @@ compression_ratio: 0.3679379456925491
 ////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NFormats
+} // namespace NYT::NYaml
