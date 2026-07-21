@@ -81,7 +81,7 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
                 .WithTag("category", FormatEnum(category), -2);
 
             r.AddFuncGauge("/used_memory", MakeStrong(this), [this, direction, category] {
-                return UsedMemory[direction][category].load() + LegacyUsedMemory[direction][category].load();
+                return UsedMemory[direction][category].load();
             });
 
             CompletedIOSize[direction][category] = r.Counter("/blob_block_bytes");
@@ -181,13 +181,11 @@ void TLocationPerformanceCounters::ReportThrottledWrite()
 
 TLocationMemoryGuard::TLocationMemoryGuard(
     TMemoryUsageTrackerGuard memoryGuard,
-    bool useLegacyUsedMemory,
     EIODirection direction,
     EIOCategory category,
     i64 size,
     TChunkLocationPtr owner)
     : MemoryGuard_(std::move(memoryGuard))
-    , UseLegacyUsedMemory_(useLegacyUsedMemory)
     , Direction_(direction)
     , Category_(category)
     , Size_(size)
@@ -202,7 +200,6 @@ TLocationMemoryGuard::TLocationMemoryGuard(TLocationMemoryGuard&& other) noexcep
 void TLocationMemoryGuard::MoveFrom(TLocationMemoryGuard&& other) noexcept
 {
     MemoryGuard_ = std::move(other.MemoryGuard_);
-    UseLegacyUsedMemory_ = other.UseLegacyUsedMemory_;
     Direction_ = other.Direction_;
     Category_ = other.Category_;
     Size_ = other.Size_;
@@ -230,7 +227,7 @@ TLocationMemoryGuard& TLocationMemoryGuard::operator=(TLocationMemoryGuard&& oth
 void TLocationMemoryGuard::Release() noexcept
 {
     if (Owner_) {
-        Owner_->DecreaseUsedMemory(UseLegacyUsedMemory_, Direction_, Category_, Size_);
+        Owner_->DecreaseUsedMemory(Direction_, Category_, Size_);
         MemoryGuard_.Release();
         Owner_.Reset();
         Size_ = 0;
@@ -242,7 +239,7 @@ void TLocationMemoryGuard::IncreaseSize(i64 delta)
     YT_VERIFY(Owner_);
 
     Size_ += delta;
-    Owner_->IncreaseUsedMemory(UseLegacyUsedMemory_, Direction_, Category_, delta);
+    Owner_->IncreaseUsedMemory(Direction_, Category_, delta);
     if (MemoryGuard_) {
         MemoryGuard_.IncreaseSize(delta);
     }
@@ -254,7 +251,7 @@ void TLocationMemoryGuard::DecreaseSize(i64 delta)
     YT_VERIFY(Size_ >= delta);
 
     Size_ -= delta;
-    Owner_->DecreaseUsedMemory(UseLegacyUsedMemory_, Direction_, Category_, delta);
+    Owner_->DecreaseUsedMemory(Direction_, Category_, delta);
     if (MemoryGuard_) {
         MemoryGuard_.DecreaseSize(delta);
     }
@@ -265,10 +262,6 @@ i64 TLocationMemoryGuard::GetSize() const
     return Size_;
 }
 
-bool TLocationMemoryGuard::GetUseLegacyUsedMemory() const
-{
-    return UseLegacyUsedMemory_;
-}
 
 TChunkLocationPtr TLocationMemoryGuard::GetOwner() const
 {
@@ -486,25 +479,18 @@ const IMemoryUsageTrackerPtr& TChunkLocation::GetWriteMemoryTracker() const
     return WriteMemoryTracker_;
 }
 
-i64 TChunkLocation::GetMaxUsedMemory(
-    bool useLegacyUsedMemory,
-    EIODirection direction) const
+i64 TChunkLocation::GetMaxUsedMemory(EIODirection direction) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     i64 result = 0;
     for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
-        if (useLegacyUsedMemory) {
-            result = std::max(result, PerformanceCounters_->LegacyUsedMemory[direction][category].load());
-        } else {
-            result = std::max(result, PerformanceCounters_->UsedMemory[direction][category].load());
-        }
+        result = std::max(result, PerformanceCounters_->UsedMemory[direction][category].load());
     }
     return result;
 }
 
 i64 TChunkLocation::GetUsedMemory(
-    bool useLegacyUsedMemory,
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor) const
 {
@@ -512,11 +498,7 @@ i64 TChunkLocation::GetUsedMemory(
 
     auto category = ToIOCategory(workloadDescriptor);
 
-    if (useLegacyUsedMemory) {
-        return PerformanceCounters_->LegacyUsedMemory[direction][category].load();
-    } else {
-        return PerformanceCounters_->UsedMemory[direction][category].load();
-    }
+    return PerformanceCounters_->UsedMemory[direction][category].load();
 }
 
 i64 TChunkLocation::GetRequestedMemory() const
@@ -595,7 +577,6 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
         YT_VERIFY(memoryDifference > 0);
 
         auto memoryGuard = TryAcquireLocationMemory(
-            /*useLegacyUsedMemory*/ false,
             EIODirection::Write,
             request->WorkloadDescriptor,
             memoryDifference);
@@ -620,24 +601,18 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
 }
 
 i64 TChunkLocation::GetUsedMemory(
-    bool useLegacyUsedMemory,
     EIODirection direction) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     i64 result = 0;
     for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
-        if (useLegacyUsedMemory) {
-            result += PerformanceCounters_->LegacyUsedMemory[direction][category].load();
-        } else {
-            result += PerformanceCounters_->UsedMemory[direction][category].load();
-        }
+        result += PerformanceCounters_->UsedMemory[direction][category].load();
     }
     return result;
 }
 
 TLocationMemoryGuard TChunkLocation::AcquireLocationMemory(
-    bool useLegacyUsedMemory,
     TMemoryUsageTrackerGuard memoryGuard,
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor,
@@ -647,10 +622,9 @@ TLocationMemoryGuard TChunkLocation::AcquireLocationMemory(
 
     YT_ASSERT(delta >= 0);
     auto category = ToIOCategory(workloadDescriptor);
-    UpdateUsedMemory(useLegacyUsedMemory, direction, category, delta);
+    UpdateUsedMemory(direction, category, delta);
     return TLocationMemoryGuard(
         std::move(memoryGuard),
-        useLegacyUsedMemory,
         direction,
         category,
         delta,
@@ -658,7 +632,6 @@ TLocationMemoryGuard TChunkLocation::AcquireLocationMemory(
 }
 
 TErrorOr<TLocationMemoryGuard> TChunkLocation::TryAcquireLocationMemory(
-    bool useLegacyUsedMemory,
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor,
     i64 delta)
@@ -668,7 +641,7 @@ TErrorOr<TLocationMemoryGuard> TChunkLocation::TryAcquireLocationMemory(
     YT_ASSERT(delta >= 0);
 
     if (direction == EIODirection::Write) {
-        if (GetUsedMemory(useLegacyUsedMemory, direction) + delta > GetWriteMemoryLimit()) {
+        if (GetUsedMemory(direction) + delta > GetWriteMemoryLimit()) {
             return TError(NChunkClient::EErrorCode::WriteThrottlingActive,
                 "Location memory of category %Qlv exceeds memory limit",
                 EMemoryCategory::PendingDiskWrite);
@@ -693,7 +666,6 @@ TErrorOr<TLocationMemoryGuard> TChunkLocation::TryAcquireLocationMemory(
 
     if (memoryGuardOrError.IsOK()) {
         return AcquireLocationMemory(
-            useLegacyUsedMemory,
             std::move(memoryGuardOrError.Value()),
             direction,
             workloadDescriptor,
@@ -741,29 +713,26 @@ EIOCategory TChunkLocation::ToIOCategory(const TWorkloadDescriptor& workloadDesc
 }
 
 void TChunkLocation::IncreaseUsedMemory(
-    bool useLegacyUsedMemory,
     EIODirection direction,
     EIOCategory category,
     i64 delta)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    UpdateUsedMemory(useLegacyUsedMemory, direction, category, delta);
+    UpdateUsedMemory(direction, category, delta);
 }
 
 void TChunkLocation::DecreaseUsedMemory(
-    bool useLegacyUsedMemory,
     EIODirection direction,
     EIOCategory category,
     i64 delta)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    UpdateUsedMemory(useLegacyUsedMemory, direction, category, -delta);
+    UpdateUsedMemory(direction, category, -delta);
 }
 
 void TChunkLocation::UpdateUsedMemory(
-    bool useLegacyUsedMemory,
     EIODirection direction,
     EIOCategory category,
     i64 delta)
@@ -771,14 +740,9 @@ void TChunkLocation::UpdateUsedMemory(
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     i64 result;
-    if (useLegacyUsedMemory) {
-        result = PerformanceCounters_->LegacyUsedMemory[direction][category].fetch_add(delta) + delta;
-    } else {
-        result = PerformanceCounters_->UsedMemory[direction][category].fetch_add(delta) + delta;
-    }
+    result = PerformanceCounters_->UsedMemory[direction][category].fetch_add(delta) + delta;
 
-    YT_LOG_TRACE("Used memory updated (UseLegacyUsedMemory: %v, Direction: %v, Category: %v, UsedMemory: %v, Delta: %v)",
-        useLegacyUsedMemory,
+    YT_LOG_TRACE("Used memory updated Direction: %v, Category: %v, UsedMemory: %v, Delta: %v)",
         direction,
         category,
         result,
@@ -886,7 +850,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
     bool isReplication) const
 {
     auto readQueueSize =
-        GetUsedMemory(/*useLegacyUsedMemory*/ false, EIODirection::Read, workloadDescriptor) +
+        GetUsedMemory(EIODirection::Read, workloadDescriptor) +
         GetOutThrottler(workloadDescriptor)->GetQueueTotalAmount();
 
     bool throttled = true;
@@ -907,7 +871,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
         error = TError("In flight IO read request count exceeds read request limit")
             << TErrorAttribute("in_flight_read_request_count", IOEngine_->GetInFlightReadRequestCount())
             << TErrorAttribute("read_requests_limit", IOEngine_->GetReadRequestLimit());
-    } else if (i64 usedMemory = GetUsedMemory(/*useLegacyUsedMemory*/ false, EIODirection::Read),
+    } else if (i64 usedMemory = GetUsedMemory(EIODirection::Read),
         readMemoryLimit = GetReadMemoryLimit();
         usedMemory > readMemoryLimit)
     {
@@ -916,8 +880,8 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
             EMemoryCategory::PendingDiskRead)
             << TErrorAttribute("bytes_used", usedMemory)
             << TErrorAttribute("bytes_limit", readMemoryLimit);
-    } else if (i64 usedMemory = GetUsedMemory(/*useLegacyUsedMemory*/ false, EIODirection::Read) +
-            GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write),
+    } else if (i64 usedMemory = GetUsedMemory(EIODirection::Read) +
+            GetUsedMemory(EIODirection::Write),
         memoryLimit = GetTotalMemoryLimit();
         usedMemory > memoryLimit)
     {
@@ -995,7 +959,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             << TErrorAttribute("bytes_used", WriteMemoryTracker_->GetUsed())
             << TErrorAttribute("bytes_limit", WriteMemoryTracker_->GetLimit());
         memoryOvercommit = true;
-    } else if (i64 usedMemory = GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write, workloadDescriptor),
+    } else if (i64 usedMemory = GetUsedMemory(EIODirection::Write, workloadDescriptor),
         writeMemoryLimit = GetLegacyWriteMemoryLimit();
         !withProbing && usedMemory > writeMemoryLimit && blocksWindowShifted)
     {
@@ -1006,7 +970,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             << TErrorAttribute("bytes_used", usedMemory)
             << TErrorAttribute("bytes_limit", writeMemoryLimit);
         memoryOvercommit = true;
-    } else if (i64 usedMemory = GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write),
+    } else if (i64 usedMemory = GetUsedMemory(EIODirection::Write),
         writeMemoryLimit = GetLegacyWriteMemoryLimit();
         !withProbing && usedMemory > writeMemoryLimit && blocksWindowShifted)
     {
@@ -1017,8 +981,8 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             << TErrorAttribute("bytes_used", usedMemory)
             << TErrorAttribute("bytes_limit", writeMemoryLimit);
         memoryOvercommit = true;
-    } else if (i64 usedMemory = GetUsedMemory(/*useLegacyUsedMemory*/ false, EIODirection::Read) +
-            GetUsedMemory(/*useLegacyUsedMemory*/ true, EIODirection::Write),
+    } else if (i64 usedMemory = GetUsedMemory(EIODirection::Read) +
+            GetUsedMemory(EIODirection::Write),
         memoryLimit = GetTotalMemoryLimit();
         !withProbing && usedMemory > memoryLimit)
     {
@@ -2097,7 +2061,7 @@ TError TStoreLocation::CheckWritable() const
             return throttlingResult.Error;
         }
     } else {
-        auto memoryUsage = GetMaxUsedMemory(true, EIODirection::Write) + GetMaxUsedMemory(false, EIODirection::Write);
+        auto memoryUsage = GetMaxUsedMemory(EIODirection::Write);
         auto memoryLimit = GetWriteThrottlingLimit();
         if (memoryUsage > memoryLimit) {
             return TError("Location is throttling due to IO writer queue memory limit violation");

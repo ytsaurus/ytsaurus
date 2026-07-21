@@ -64,9 +64,7 @@ void TProbePutBlocksRequestSupplier::ApproveRequest(TLocationMemoryGuard&& memor
     auto guard = Guard(Lock_);
 
     YT_VERIFY(request.CumulativeBlockSize > ApprovedMemory_);
-    YT_VERIFY(memoryGuard.GetUseLegacyUsedMemory() == false);
     YT_VERIFY(memoryGuard.GetSize() == request.CumulativeBlockSize - ApprovedMemory_);
-    YT_VERIFY(!MemoryGuard_ || MemoryGuard_.GetUseLegacyUsedMemory() == false);
 
     if (MemoryGuard_) {
         YT_VERIFY(memoryGuard.GetOwner() == MemoryGuard_.GetOwner());
@@ -331,7 +329,7 @@ TLocationMemoryGuard TSessionBase::GetMemoryForPutBlocks(i64 memory)
 
     ProbePutBlocksRequestSupplier_->ReleaseResourcesForPutBlocks(memory);
 
-    return Location_->AcquireLocationMemory(true, {}, EIODirection::Write, GetWorkloadDescriptor(), memory);
+    return Location_->AcquireLocationMemory({}, EIODirection::Write, GetWorkloadDescriptor(), memory);
 }
 
 i64 TSessionBase::GetApprovedCumulativeBlockSize() const
