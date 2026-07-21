@@ -85,6 +85,11 @@ struct IBlockMap
 
     //! Fired once the map has processed the flush of a dirty block, reporting where its payload landed.
     DECLARE_INTERFACE_SIGNAL(void(TDirtyBlockId dirtyBlockId, TStoredBlockId storedBlockId), BlockFlushObserved);
+
+    //! Fired when a stored block stops being referenced -- a newer write to the same device block
+    //! superseded it, or its flush was never adopted (lost the last-write-wins race). Every stored block
+    //! handed to the map dies exactly once. Lets the store free a chunk once all its blocks have died.
+    DECLARE_INTERFACE_SIGNAL(void(TStoredBlockId storedBlockId), StoredBlockDied);
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockMap)

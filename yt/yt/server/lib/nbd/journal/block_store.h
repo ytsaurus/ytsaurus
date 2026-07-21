@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <library/cpp/yt/logging/public.h>
 
 #include <library/cpp/yt/memory/range.h>
@@ -48,13 +50,16 @@ struct TSnapshotBlock
 struct IBlockStore
     : public TRefCounted
 {
-    //! Puts blocks to the store. Returns opaque block ids, one per input block.
-    /*!
-     *  Every block must be exactly of the store's configured block size. The blocks are ref-held
-     *  for the duration of the write, so |blocks| itself need not outlive the call.
-     */
+    //! Writes blocks to the store, returning an opaque stored block id for each. Every block must be
+    //! exactly the store's configured block size; the blocks are ref-held for the write's duration, so
+    //! |blocks| need not outlive the call. Each returned id stays live until #ReleaseBlock frees it.
     virtual TFuture<std::vector<TStoredBlockId>> WriteBlocks(
         TRange<TSharedRef> blocks) = 0;
+
+    //! Releases a stored block id returned by #WriteBlocks, once its content is dead. Once every block a
+    //! chunk holds has been released, the store can free the chunk. A no-op for a block of a chunk the
+    //! store does not own (e.g. a restored one).
+    virtual void ReleaseBlock(TStoredBlockId blockId) = 0;
 
     //! Fetches blocks from the store.
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
@@ -85,6 +90,14 @@ struct IBlockStore
      */
     virtual TFuture<std::vector<TStoredBlockId>> RestoreBlocks(
         TRange<TStoredBlockRef> blockRefs) = 0;
+
+    //! Brackets a snapshot save: while one is in progress the store defers freeing chunks, so a chunk the
+    //! snapshot will reference is not freed before its table durably references it. At most one at a time.
+    virtual void BeginSnapshot() = 0;
+    virtual void EndSnapshot() = 0;
+
+    //! Renders the state of every live chunk into |fluent| (keyed by chunk id), for orchid.
+    virtual void BuildChunksOrchid(NYTree::TFluentMap fluent) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockStore)

@@ -313,6 +313,72 @@ TEST(TBlockMapTest, RepeatedSnapshotsWithWritesAreEachPointInTime)
     EXPECT_EQ(second.Blocks[0], std::pair(0, MakeDirty(11)));
 }
 
+TEST(TBlockMapTest, OverwritingStoredBlockKillsIt)
+{
+    auto blockMap = CreateBlockMap(1);
+    auto died = std::make_shared<std::vector<TStoredBlockId>>();
+    blockMap->SubscribeStoredBlockDied(BIND(
+        [] (const std::shared_ptr<std::vector<TStoredBlockId>>& out, TStoredBlockId id) {
+            out->push_back(id);
+        },
+        died));
+
+    // Write + flush to stored 10: nothing dies yet.
+    blockMap->PutDirty(0, TDirtyBlockId(1));
+    EXPECT_TRUE(blockMap->TryMakeClean(0, TDirtyBlockId(1), TStoredBlockId(10)));
+    EXPECT_TRUE(died->empty());
+
+    // Overwriting the (clean) block kills stored 10.
+    blockMap->PutDirty(0, TDirtyBlockId(2));
+    ASSERT_EQ(std::ssize(*died), 1);
+    EXPECT_EQ((*died)[0], TStoredBlockId(10));
+
+    // Re-flushing and overwriting again kills the next stored id.
+    EXPECT_TRUE(blockMap->TryMakeClean(0, TDirtyBlockId(2), TStoredBlockId(11)));
+    blockMap->PutDirty(0, TDirtyBlockId(3));
+    ASSERT_EQ(std::ssize(*died), 2);
+    EXPECT_EQ((*died)[1], TStoredBlockId(11));
+}
+
+TEST(TBlockMapTest, OverwritingDirtyBlockKillsNothing)
+{
+    auto blockMap = CreateBlockMap(1);
+    auto died = std::make_shared<std::vector<TStoredBlockId>>();
+    blockMap->SubscribeStoredBlockDied(BIND(
+        [] (const std::shared_ptr<std::vector<TStoredBlockId>>& out, TStoredBlockId id) {
+            out->push_back(id);
+        },
+        died));
+
+    // A dirty block overwritten before it flushes never had a stored id: no stored death.
+    blockMap->PutDirty(0, TDirtyBlockId(1));
+    blockMap->PutDirty(0, TDirtyBlockId(2));
+    EXPECT_TRUE(died->empty());
+}
+
+TEST(TBlockMapTest, LostFlushRaceKillsStoredBlock)
+{
+    auto blockMap = CreateBlockMap(1);
+    auto died = std::make_shared<std::vector<TStoredBlockId>>();
+    blockMap->SubscribeStoredBlockDied(BIND(
+        [] (const std::shared_ptr<std::vector<TStoredBlockId>>& out, TStoredBlockId id) {
+            out->push_back(id);
+        },
+        died));
+
+    // A newer write supersedes the drained dirty id, so the flush of stored 99 is never adopted --
+    // it is dead on arrival.
+    blockMap->PutDirty(0, TDirtyBlockId(1));
+    blockMap->PutDirty(0, TDirtyBlockId(2));
+    EXPECT_FALSE(blockMap->TryMakeClean(0, TDirtyBlockId(1), TStoredBlockId(99)));
+    ASSERT_EQ(std::ssize(*died), 1);
+    EXPECT_EQ((*died)[0], TStoredBlockId(99));
+
+    // The winning flush is adopted and does not die.
+    EXPECT_TRUE(blockMap->TryMakeClean(0, TDirtyBlockId(2), TStoredBlockId(100)));
+    EXPECT_EQ(std::ssize(*died), 1);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TMappedBlockIdTest, StoredRoundtrip)
