@@ -1,8 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/library/formats/yaml_writer.h>
+#include <yt/yt/core/yaml/writer.h>
 
-#include <yt/yt/client/formats/config.h>
+#include <yt/yt/core/yaml/config.h>
 
 #include <yt/yt/core/yson/string.h>
 
@@ -10,7 +10,7 @@
 
 #include <library/cpp/yt/string/stream.h>
 
-namespace NYT::NFormats {
+namespace NYT::NYaml {
 namespace {
 
 using namespace NYson;
@@ -318,4 +318,4 @@ compression_ratio: 0.3679379456925491
 //////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NFormats
+} // namespace NYT::NYaml

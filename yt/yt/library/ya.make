@@ -55,7 +55,6 @@ RECURSE(
     vector_hdrf
     web_assembly
     xor_filter
-    yaml_helpers
 )
 
 IF (OS_LINUX)

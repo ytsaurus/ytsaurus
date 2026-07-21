@@ -2,10 +2,18 @@ LIBRARY()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
+SRCS(
+    config.cpp
+    helpers.cpp
+    parser.cpp
+    writer.cpp
+)
+
 PEERDIR(
-    yt/yt/client/formats
-    yt/yt/library/formats
     yt/yt/core
+
+    contrib/libs/yaml
+    contrib/libs/re2
 )
 
 END()

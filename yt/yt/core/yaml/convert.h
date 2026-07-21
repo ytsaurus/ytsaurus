@@ -1,13 +1,8 @@
 #pragma once
 
-#include <yt/yt/client/formats/config.h>
-#include <yt/yt/library/formats/yaml_parser.h>
-#include <yt/yt/core/yson/yson_builder.h>
-#include <yt/yt/core/ytree/convert.h>
+#include <util/generic/strbuf.h>
 
-#include <util/stream/mem.h>
-
-namespace NYT {
+namespace NYT::NYaml {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,8 +13,8 @@ T ConvertFromYaml(TStringBuf yaml);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NYaml
 
-#define YAML_HELPERS_INL_H_
-#include "yaml_helpers-inl.h"
-#undef YAML_HELPERS_INL_H_
+#define YAML_CONVERT_INL_H_
+#include "convert-inl.h"
+#undef YAML_CONVERT_INL_H_

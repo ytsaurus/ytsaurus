@@ -1,11 +1,11 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/library/yaml_helpers/yaml_helpers.h>
+#include <yt/yt/core/yaml/convert.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
-namespace NYT {
+namespace NYT::NYaml {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,4 +58,4 @@ TEST(TYamlHelpersTest, InvalidYaml)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT
+} // namespace NYT::NYaml
