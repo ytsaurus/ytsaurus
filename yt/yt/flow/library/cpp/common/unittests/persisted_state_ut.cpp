@@ -1748,7 +1748,7 @@ TEST(TPersistedStateTest, RecoveryException)
         auto state = control->CreateState<int, std::string>("test");
         EXPECT_THROW_WITH_SUBSTRING(
             control->Recover(),
-            "The first record in persisted state must start with minus infinity (StateName: test)");
+            "The first record in persisted state \"test\" must start with minus infinity");
     }
     {
         TTestDatabase db;
@@ -1758,7 +1758,7 @@ TEST(TPersistedStateTest, RecoveryException)
         auto state = control->CreateState<int, std::string>("test");
         EXPECT_THROW_WITH_SUBSTRING(
             control->Recover(),
-            "Even record in persisted state must have a value (StateName: test)");
+            "Even record in persisted state \"test\" must have a value");
     }
     {
         TTestDatabase db;
@@ -1768,7 +1768,7 @@ TEST(TPersistedStateTest, RecoveryException)
         auto state = control->CreateState<int, std::string>("test");
         EXPECT_THROW_WITH_SUBSTRING(
             control->Recover(),
-            "There's must be no gap in persisted before value (StateName: test)");
+            "There must be no gap before value in persisted state \"test\"");
     }
     {
         TTestDatabase db;
@@ -1778,7 +1778,7 @@ TEST(TPersistedStateTest, RecoveryException)
         auto state = control->CreateState<int, std::string>("test");
         EXPECT_THROW_WITH_SUBSTRING(
             control->Recover(),
-            "Unexpected end of records in persisted state: open interval expected (StateName: test)");
+            "Unexpected end of records in persisted state \"test\": open interval expected");
     }
     {
         TTestDatabase db;
@@ -1789,7 +1789,7 @@ TEST(TPersistedStateTest, RecoveryException)
         auto state = control->CreateState<int, std::string>("test");
         EXPECT_THROW_WITH_SUBSTRING(
             control->Recover(),
-            "Odd record in persisted state must not have a value (StateName: test)");
+            "Odd record in persisted state \"test\" must not have a value");
     }
     {
         TTestDatabase db;
@@ -1800,7 +1800,7 @@ TEST(TPersistedStateTest, RecoveryException)
         auto state = control->CreateState<int, std::string>("test");
         EXPECT_THROW_WITH_SUBSTRING(
             control->Recover(),
-            "There's must be no gap before open interval in persisted state (StateName: test)");
+            "There must be no gap before open interval in persisted state \"test\"");
     }
     {
         TTestDatabase db;
@@ -1811,7 +1811,7 @@ TEST(TPersistedStateTest, RecoveryException)
         auto state = control->CreateState<int, std::string>("test");
         EXPECT_THROW_WITH_SUBSTRING(
             control->Recover(),
-            "Right boundary must be greater than left in persisted state (StateName: test)");
+            "Right boundary must be greater than left in persisted state \"test\"");
     }
     {
         TTestDatabase db;
@@ -1822,7 +1822,7 @@ TEST(TPersistedStateTest, RecoveryException)
         auto state = control->CreateState<int, std::string>("test");
         EXPECT_THROW_WITH_SUBSTRING(
             control->Recover(),
-            "The last record in persisted state must end with plus infinity (StateName: test)");
+            "The last record in persisted state \"test\" must end with plus infinity");
     }
 }
 

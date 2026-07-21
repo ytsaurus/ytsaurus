@@ -79,7 +79,7 @@ TEST(TStramSpecsTest, ThrowOnSpecDuplicate)
     auto duplicateSpec = New<TStreamSpec>();
     duplicateSpec->Schema = schemaPtr;
     streamSpecsMap["stream_id_2"].emplace(TStreamSpecId(1), std::move(duplicateSpec));
-    EXPECT_THROW_WITH_SUBSTRING(New<TStreamSpecs>(streamSpecsMap), "Found two StreamSpec versions with same schema");
+    EXPECT_THROW_WITH_SUBSTRING(New<TStreamSpecs>(streamSpecsMap), "Found two stream spec versions with same schema");
 }
 
 TEST(TStramSpecsTest, ThrowOnStreamSpecIdDuplicate)
@@ -108,7 +108,7 @@ TEST(TStramSpecsTest, ThrowOnStreamSpecIdDuplicate)
     streamSpecsMap["stream_id_2"].emplace(TStreamSpecId(0), std::move(duplicateSpec));
     EXPECT_THROW_WITH_SUBSTRING(
         New<TStreamSpecs>(streamSpecsMap),
-        "Found duplicating StreamSpecId (StreamSpecId: 0, FirstStreamId: stream_id_1, SecondStreamId: stream_id_2)");
+        "Found duplicating stream spec id 0 in streams \"stream_id_1\" and \"stream_id_2\"");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

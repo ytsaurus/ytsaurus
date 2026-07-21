@@ -37,10 +37,10 @@ std::string LexicographicallySerialize(ui64 value)
 
 void LexicographicallyRead(TStringBuf& serialized, ui64& destination)
 {
-    THROW_ERROR_EXCEPTION_IF(serialized.size() < 2ull, "Too short serialized (Serialized: %v)", serialized);
+    THROW_ERROR_EXCEPTION_IF(serialized.size() < 2ull, "Serialized value %Qv is too short", serialized);
     const ui64 length = IntFromString<ui64, 16>(serialized.substr(0, 1));
     serialized.Skip(1);
-    THROW_ERROR_EXCEPTION_IF(length > serialized.size(), "Serialized value is too short (Serialized: %v)", serialized);
+    THROW_ERROR_EXCEPTION_IF(length > serialized.size(), "Serialized value %Qv is too short", serialized);
     destination = IntFromString<ui64, 16>(serialized.substr(0, length + 1));
     serialized.Skip(length + 1);
 }
@@ -52,7 +52,7 @@ std::string DigitRevertHex(TStringBuf original)
     std::string result;
     result.reserve(original.size());
     for (const char c : original) {
-        THROW_ERROR_EXCEPTION_IF(c < '0', "Bad char in HEX (Value: %v)", original);
+        THROW_ERROR_EXCEPTION_IF(c < '0', "Bad character in hex string %Qv", original);
         if (c < '6') {
             result.push_back('f' - (c - '0'));
             continue;
@@ -61,7 +61,7 @@ std::string DigitRevertHex(TStringBuf original)
             result.push_back('9' - (c - '6'));
             continue;
         }
-        THROW_ERROR_EXCEPTION_IF(c < 'a' || c > 'f', "Bad char in HEX (Value: %v)", original);
+        THROW_ERROR_EXCEPTION_IF(c < 'a' || c > 'f', "Bad character in hex string %Qv", original);
         result.push_back('5' - (c - 'a'));
     }
     return result;
@@ -79,12 +79,12 @@ std::string LexicographicallySerialize(i64 value)
 
 void LexicographicallyRead(TStringBuf& serialized, i64& destination)
 {
-    THROW_ERROR_EXCEPTION_IF(serialized.size() < 2ull, "Too short serialized value (Value: %v)", serialized);
+    THROW_ERROR_EXCEPTION_IF(serialized.size() < 2ull, "Serialized value %Qv is too short", serialized);
 
     if (serialized[0] != '-') {
         ui64 value = 0;
         LexicographicallyRead(serialized, value);
-        THROW_ERROR_EXCEPTION_IF(value > static_cast<ui64>(std::numeric_limits<i64>::max()), "Value is too big (Value: %v)", value);
+        THROW_ERROR_EXCEPTION_IF(value > static_cast<ui64>(std::numeric_limits<i64>::max()), "Value %v is too big", value);
         destination = static_cast<i64>(value);
         return;
     }
@@ -94,8 +94,8 @@ void LexicographicallyRead(TStringBuf& serialized, i64& destination)
     const ui64 value = LexicographicallyParse<ui64>(DigitRevertHex(serialized.substr(0, length + 1)));
     serialized.Skip(length + 1);
 
-    THROW_ERROR_EXCEPTION_IF(value > static_cast<ui64>(std::numeric_limits<i64>::max()) + 1u, "Value is too big for negative (Value: %v)", value);
-    THROW_ERROR_EXCEPTION_IF(value == 0, "-0 is not correct serialized value (Value: %v)", value);
+    THROW_ERROR_EXCEPTION_IF(value > static_cast<ui64>(std::numeric_limits<i64>::max()) + 1u, "Value %v is too big for a negative number", value);
+    THROW_ERROR_EXCEPTION_IF(value == 0, "Minus zero is not a correct serialized value: got %v", value);
     destination = -static_cast<i64>(value - 1u) - 1; // Avoid integer overflow (when value is 2^63). Will be optimized by compiler.
 }
 
@@ -165,7 +165,7 @@ std::string LexicographicallySerialize(TStringBuf unescaped)
 void LexicographicallyRead(TStringBuf& serialized, std::string& destination)
 {
     const size_t pos = serialized.find(AsciiPrintableMin);
-    THROW_ERROR_EXCEPTION_IF(pos == TStringBuf::npos, "No STRING_END found in serialized string (Value: %v)", serialized);
+    THROW_ERROR_EXCEPTION_IF(pos == TStringBuf::npos, "No string end marker found in serialized string %Qv", serialized);
 
     TStringBuf escaped = serialized.substr(0, pos);
     serialized.Skip(pos + 1);
@@ -177,33 +177,33 @@ void LexicographicallyRead(TStringBuf& serialized, std::string& destination)
 
         auto consumeNextChar = [&] () {
             i += 1;
-            THROW_ERROR_EXCEPTION_IF(i >= escaped.size(), "Unexpected end of string after escaping symbol (Value: %v)", escaped);
+            THROW_ERROR_EXCEPTION_IF(i >= escaped.size(), "Unexpected end of string %Qv after escaping symbol", escaped);
             return escaped[i];
         };
 
         if (c == StringEscapingLowSymbol) {
             const char c1 = consumeNextChar();
             THROW_ERROR_EXCEPTION_IF(c1 < StringEscapingLowSymbol || c1 - StringEscapingDelta > StringEscapingLowSymbol,
-                "Invalid char after escaping symbol (Value: %v, Char: %Qv)",
-                escaped,
-                c1);
+                "Invalid character %Qv after escaping symbol in string %Qv",
+                c1,
+                escaped);
             destination.push_back(c1 - StringEscapingDelta);
         } else if (c == StringEscapingHigh1Symbol) {
             const char c1 = consumeNextChar();
             THROW_ERROR_EXCEPTION_IF(c1 < StringEscapingHighBaseSymbol || c1 >= StringEscapingHighBaseSymbol + StringEscapingHighOneSymbolCapacity,
-                "Invalid char after escaping symbol (Value: %v, Char: %Qv)",
-                escaped,
-                c1);
+                "Invalid character %Qv after escaping symbol in string %Qv",
+                c1,
+                escaped);
             destination.push_back(StringEscapingHigh1Symbol + (c1 - StringEscapingHighBaseSymbol));
         } else if (c == StringEscapingHigh2Symbol) {
             const char c1 = consumeNextChar();
             THROW_ERROR_EXCEPTION_IF(c1 < StringEscapingHighBaseSymbol || c1 >= StringEscapingHighBaseSymbol + StringEscapingHighOneSymbolCapacity,
-                "Invalid char after escaping symbol (Value: %v, Char: %Qv)",
-                escaped,
-                c1);
+                "Invalid character %Qv after escaping symbol in string %Qv",
+                c1,
+                escaped);
             destination.push_back(StringEscapingHigh1Symbol + StringEscapingHighOneSymbolCapacity + (c1 - StringEscapingHighBaseSymbol));
         } else {
-            THROW_ERROR_EXCEPTION_IF(c > AsciiPrintableMax, "Only ASCII symbols can occur in escaped string (Value: %v)", escaped);
+            THROW_ERROR_EXCEPTION_IF(c > AsciiPrintableMax, "Only ASCII symbols can occur in escaped string %Qv", escaped);
             destination.push_back(c);
         }
     }
@@ -296,7 +296,7 @@ std::string RevertSerializedDigits(TStringBuf value)
     std::string result;
     result.reserve(value.size());
     for (const unsigned char c : value) {
-        THROW_ERROR_EXCEPTION_IF(c < AsciiPrintableMin || c > AsciiPrintableMax, "Invalid char in serialized value (Value: %v)", value);
+        THROW_ERROR_EXCEPTION_IF(c < AsciiPrintableMin || c > AsciiPrintableMax, "Invalid character in serialized value %Qv", value);
         result.push_back(AsciiPrintableMax - (c - AsciiPrintableMin));
     }
     return result;

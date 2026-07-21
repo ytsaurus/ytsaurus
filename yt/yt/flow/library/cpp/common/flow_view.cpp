@@ -1653,19 +1653,19 @@ void TPipelineImportantVersions::EnsureEqual(const TPipelineImportantVersions& a
     THROW_ERROR_EXCEPTION_UNLESS(
         PipelineSpecVersion == actual.PipelineSpecVersion,
         NFlow::EErrorCode::SpecVersionMismatch,
-        "Spec version mismatch (Expected: %v, Actual: %v)",
+        "Spec version mismatch: expected %v, actual %v",
         PipelineSpecVersion,
         actual.PipelineSpecVersion);
     THROW_ERROR_EXCEPTION_UNLESS(
         PipelineStateVersion == actual.PipelineStateVersion,
         NFlow::EErrorCode::PipelineStateVersionMismatch,
-        "Pipeline state version mismatch (Expected: %v, Actual: %v)",
+        "Pipeline state version mismatch: expected %v, actual %v",
         PipelineStateVersion,
         actual.PipelineStateVersion);
     THROW_ERROR_EXCEPTION_UNLESS(
         FlowCoreTargetVersion == actual.FlowCoreTargetVersion,
         NFlow::EErrorCode::FlowCoreTargetVersionMismatch,
-        "FlowCoreTarget version mismatch (Expected: %v, Actual: %v)",
+        "FlowCoreTarget version mismatch: expected %v, actual %v",
         FlowCoreTargetVersion,
         actual.FlowCoreTargetVersion);
 

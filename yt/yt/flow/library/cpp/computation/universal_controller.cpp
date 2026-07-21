@@ -95,7 +95,7 @@ void TUniversalComputationController::TExtendedDynamicParameters::Register(TRegi
         .Default();
     registrar.Postprocessor([] (TThis* arg) {
         if (arg->MinPartitionCount && arg->MaxPartitionCount && *arg->MinPartitionCount > *arg->MaxPartitionCount) {
-            THROW_ERROR_EXCEPTION("min_partition_count must be less than or equal to max_partition_count (MinPartitionCount: %v, MaxPartitionCount: %v)",
+            THROW_ERROR_EXCEPTION("\"min_partition_count\" must be less than or equal to \"max_partition_count\": got %v > %v",
                 *arg->MinPartitionCount,
                 *arg->MaxPartitionCount);
         }

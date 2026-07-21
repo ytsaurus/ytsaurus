@@ -59,31 +59,31 @@ void TTableSourceParameters::Register(TRegistrar registrar)
         if (spec->Tables.has_value()) {
             THROW_ERROR_EXCEPTION_IF(spec->TablesPath.has_value(), "`TablesPath` cannot be set with `Tables`");
             for (const auto& table : *spec->Tables) {
-                THROW_ERROR_EXCEPTION_UNLESS(table.GetCluster().has_value(), "`Tables[i]` should have cluster (Table: %v)", table);
-                THROW_ERROR_EXCEPTION_IF(table.HasNontrivialRanges(), "`Tables[i]` should not have ranges (Table: %v)", table);
+                THROW_ERROR_EXCEPTION_UNLESS(table.GetCluster().has_value(), "Table %v in \"tables\" must have a cluster", table);
+                THROW_ERROR_EXCEPTION_IF(table.HasNontrivialRanges(), "Table %v in \"tables\" must not have ranges", table);
             }
         } else {
             THROW_ERROR_EXCEPTION_UNLESS(spec->TablesPath.has_value(), "`TablesPath` or `Tables` must be set");
 
-            THROW_ERROR_EXCEPTION_IF(spec->TablesPath->GetPath().empty(), "`TablesPath` must not be empty (TablesPath: %v)", spec->TablesPath);
-            THROW_ERROR_EXCEPTION_IF(spec->TablesPath->HasNontrivialRanges(), "`TablesPath` should not have ranges (TablesPath: %v)", spec->TablesPath);
+            THROW_ERROR_EXCEPTION_IF(spec->TablesPath->GetPath().empty(), "\"tables_path\" %v must not be empty", spec->TablesPath);
+            THROW_ERROR_EXCEPTION_IF(spec->TablesPath->HasNontrivialRanges(), "\"tables_path\" %v must not have ranges", spec->TablesPath);
 
             const bool hasCluster = spec->TablesPath->GetCluster().has_value();
             const auto clusters = spec->TablesPath->GetClusters();
             THROW_ERROR_EXCEPTION_IF(hasCluster && clusters.has_value(),
-                "`TablesPath` must specify either `cluster` or `clusters`, not both (TablesPath: %v)",
+                "\"tables_path\" %v must specify either \"cluster\" or \"clusters\", not both",
                 spec->TablesPath);
             THROW_ERROR_EXCEPTION_UNLESS(hasCluster || clusters.has_value(),
-                "`TablesPath` should have `cluster` or `clusters` (TablesPath: %v)",
+                "\"tables_path\" %v must have \"cluster\" or \"clusters\"",
                 spec->TablesPath);
             if (clusters.has_value()) {
                 THROW_ERROR_EXCEPTION_IF(clusters->empty(),
-                    "`TablesPath` `clusters` must not be empty (TablesPath: %v)",
+                    "\"clusters\" of \"tables_path\" %v must not be empty",
                     spec->TablesPath);
                 THashSet<std::string> seen;
                 for (const auto& cluster : *clusters) {
                     THROW_ERROR_EXCEPTION_UNLESS(seen.insert(cluster).second,
-                        "`TablesPath` `clusters` must not contain duplicates (Cluster: %v)",
+                        "\"clusters\" of \"tables_path\" contains duplicate cluster %Qv",
                         cluster);
                 }
             }
@@ -141,7 +141,7 @@ void TDynamicTableSourcePartitionSpec::Register(TRegistrar registrar)
         .Default(1.0);
 
     registrar.Postprocessor([] (TThis* spec) {
-        THROW_ERROR_EXCEPTION_UNLESS(spec->Table.GetCluster().has_value(), "`Table` should have cluster (Table: %v)", spec->Table);
+        THROW_ERROR_EXCEPTION_UNLESS(spec->Table.GetCluster().has_value(), "Table %v must have a cluster", spec->Table);
     });
 }
 
