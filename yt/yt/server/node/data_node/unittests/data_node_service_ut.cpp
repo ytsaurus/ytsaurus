@@ -118,7 +118,8 @@ int CalculateCummulativeBlockSize(const std::vector<TBlock>& blocks)
     return size;
 }
 
-std::vector<std::vector<bool>> GeneratePairWiseCases(int paramCount) {
+std::vector<std::vector<bool>> GeneratePairwiseCases(int paramCount)
+{
     std::vector<std::vector<bool>> result;
     std::vector<bool> testCase(paramCount, false);
 
@@ -919,7 +920,7 @@ struct TGetBlockSetTestCase
 
 std::vector<TGetBlockSetTestCase> GenerateGetBlockSetParams()
 {
-    const std::vector<std::vector<bool>> testCases = GeneratePairWiseCases(9);
+    const auto testCases = GeneratePairwiseCases(9);
     std::vector<TGetBlockSetTestCase> result;
     result.reserve(testCases.size());
 
@@ -1069,7 +1070,7 @@ struct TWriteTestCase
 
 std::vector<TWriteTestCase> GenerateWriteTestParams()
 {
-    const std::vector<std::vector<bool>> testCases = GeneratePairWiseCases(3);
+    const std::vector<std::vector<bool>> testCases = GeneratePairwiseCases(3);
     std::vector<TWriteTestCase> result;
     result.reserve(testCases.size());
 

@@ -602,7 +602,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
         DoPerformPutBlocks(std::move(fairShareQueueSlot));
         return AllSucceeded(std::vector{
             netThrottler->Throttle(totalSize),
-            diskThrottler->Throttle(totalSize)
+            diskThrottler->Throttle(totalSize),
         }).Apply(BIND([] {
             return NIO::TIOCounters{};
         }));
@@ -638,7 +638,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                 DoPerformPutBlocks(std::move(fairShareQueueSlot));
                 return AllSucceeded(std::vector{
                     netThrottler->Throttle(totalSize),
-                    diskThrottler->Throttle(totalSize)
+                    diskThrottler->Throttle(totalSize),
                 }).Apply(BIND([] {
                     return NIO::TIOCounters{};
                 }));
@@ -653,13 +653,13 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                 if (error.IsOK()) {
                     DoPerformPutBlocks(std::move(fairShareQueueSlot));
                 } else {
-                    YT_LOG_ALERT(error, "Error in allPrecedingBlocksReceivedFuture with fully async blocks writing. Session will be canceled");
+                    YT_LOG_ALERT(error, "Error in allPrecedingBlocksReceivedFuture with fully async blocks writing, session will be canceled");
                     Cancel(error);
                 }
             }).Via(SessionInvoker_));
         return AllSucceeded(std::vector{
             netThrottler->Throttle(totalSize),
-            diskThrottler->Throttle(totalSize)
+            diskThrottler->Throttle(totalSize),
         }).Apply(BIND([] {
             return NIO::TIOCounters{};
         }));
