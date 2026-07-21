@@ -132,12 +132,11 @@ Before updating the operator, make sure the cluster is healthy. For example, it 
     * ```ytsaurus.cluster.ytsaurus.tech.yaml```
 
 4. Following the cluster update, unrecognized options might remain in the master server configs (this occurs when we stop using some config fields in the `{{product-name}}` version, which is common during major updates). If this situation occurs, you'll see the following alert:
-```Found unrecognized options in dynamic cluster config```.
-You can remove unrecognized master options either manually or by running the script available [here](https://github.com/ytsaurus/ytsaurus/tree/main/yt/yt/scripts/remove_master_unrecognized_options).
+```Found unrecognized options in dynamic cluster config```
+You can remove unrecognized master options either manually, by using the [CLI command `yt admin remove-master-unrecognized-options`](../../admin-guide/cli-admin.md#remove-master-unrecognized-options), or by running the [standalone script of the same name](https://github.com/ytsaurus/ytsaurus/tree/main/yt/yt/scripts/remove_master_unrecognized_options).
 
 ### Possible automated cluster update
 
 Different operator versions may generate different configs for the same components (for example, a new field may be added in the new operator version). In that case, the cluster update is initiated immediately after starting the operator.
 
 If an update is [impossible](#impossible), the cluster remains in the `Updating` state, and the update status is set to `ImpossibleToStart`. If that happens, you can roll back the operator to cancel the update, and the cluster will enter the `Running` state. Alternatively, you can set the `enableFullUpdate: false` flag in the `Ytsaurus` specification, which also cancels the update and stops the new operator from trying to initiate another cluster update. You can then restore the cluster to a healthy state and retry the update by setting the `enableFullUpdate: true` flag.
-
