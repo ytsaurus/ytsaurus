@@ -522,14 +522,12 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
                 readBytesEstimate);
 
             locationMemoryGuard = Location_->AcquireLocationMemory(
-                /*useLegacyUsedMemory*/ false,
                 std::move(memoryGuard),
                 EIODirection::Read,
                 session->Options.WorkloadDescriptor,
                 readBytesEstimate);
         } else {
             auto memoryGuardOrError = Location_->TryAcquireLocationMemory(
-                /*useLegacyUsedMemory*/ false,
                 EIODirection::Read,
                 session->Options.WorkloadDescriptor,
                 readBytesEstimate);
