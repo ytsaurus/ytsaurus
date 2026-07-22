@@ -135,6 +135,9 @@ public class DiskRequest {
          * Create instance of {@link DiskRequest}.
          */
         public DiskRequest build() {
+            if (diskSpace == null) {
+                throw new IllegalStateException("\"disk_space\" is required in disk request");
+            }
             if (account != null && mediumName == null) {
                 throw new IllegalStateException(
                         "\"medium_name\" is required in disk request if \"account\" is specified");
