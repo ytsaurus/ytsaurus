@@ -31,6 +31,8 @@
 #include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 
+#include <library/cpp/yt/misc/cast.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYT::NJournalClient {
@@ -196,9 +198,19 @@ private:
         TChunkLocationUuid TargetLocationUuid = InvalidChunkLocationUuid;
         TChunkLocationIndex TargetLocationIndex = InvalidChunkLocationIndex;
 
-        bool IsFlushing = false;
+        // PendingRecords, monotonic: FirstUnflushed <= FirstUnsent <= LastPending.
+        // [FirstUnflushed, FirstUnsent) - sent, flush in flight.
+        // [FirstUnsent,    LastPending] - not yet sent.
 
         i64 FirstUnflushedRecordIndex = 0;
+
+        i64 FirstUnsentRecordIndex = 0;
+
+        int InFlightFlushRequestCount = 0;
+
+        //! Set when a flush is rejected because of a gap at the replica.
+        //! While set, no new flushes are dispatched.
+        bool NeedsRewind = false;
 
         TNode(
             int index,
@@ -280,6 +292,9 @@ private:
         CreateNodes(*WriteTargets_);
         StartChunkSessions();
         ConfirmChunk(*WriteTargets_);
+
+        YT_LOG_DEBUG("Journal chunk writer opened (MaxInFlightFlushCount: %v)",
+            Config_->MaxInFlightFlushCount);
     }
 
     TChunkReplicaWithMediumList AllocateWriteTargets()
@@ -586,33 +601,39 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        if (node->IsFlushing) {
-            return;
+        while (!node->NeedsRewind && node->InFlightFlushRequestCount < Config_->MaxInFlightFlushCount) {
+            if (!TryDispatchFlush(node)) {
+                break;
+            }
         }
-
-        DoFlushNode(node);
     }
 
-    void DoFlushNode(const TNodePtr& node)
+    bool TryDispatchFlush(const TNodePtr& node)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
-        YT_VERIFY(!node->IsFlushing);
 
-        node->IsFlushing = true;
+        i64 firstRecordIndexToSend = node->FirstUnsentRecordIndex;
+        i64 lastPendingRecordIndex = GetLastPendingRecordIndex();
+
+        YT_VERIFY(node->FirstUnflushedRecordIndex <= firstRecordIndexToSend);
+        YT_VERIFY(firstRecordIndexToSend <= lastPendingRecordIndex + 1);
+
+        if (firstRecordIndexToSend > lastPendingRecordIndex) {
+            return false;
+        }
 
         auto req = node->HeavyProxy.PutBlocks();
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Journal);
         ToProto(req->mutable_session_id(), GetSessionIdForNode(node));
         req->set_flush_blocks(true);
-        req->set_first_block_index(node->FirstUnflushedRecordIndex);
+        req->set_first_block_index(CheckedIntegralCast<i32>(firstRecordIndexToSend));
 
         i64 flushRecordCount = 0;
         i64 flushDataSize = 0;
 
-        i64 lastPendingRecordIndex = GetLastPendingRecordIndex();
         for (
-            int recordIndex = node->FirstUnflushedRecordIndex;
+            i64 recordIndex = firstRecordIndexToSend;
             recordIndex <= lastPendingRecordIndex;
             ++recordIndex)
         {
@@ -638,71 +659,136 @@ private:
         }
 
         if (flushRecordCount == 0) {
-            node->IsFlushing = false;
-            return;
+            return false;
         }
 
-        YT_LOG_DEBUG("Writing journal replica (Address: %v, Records: %v-%v, DataSize: %v)",
+        ++node->InFlightFlushRequestCount;
+        if (node->InFlightFlushRequestCount > 1) {
+            Counters_.PipelinedFlushCount.Increment();
+        }
+        node->FirstUnsentRecordIndex = firstRecordIndexToSend + flushRecordCount;
+
+        YT_LOG_DEBUG(
+            "Writing journal replica (Address: %v, Records: %v-%v, DataSize: %v, "
+            "FirstUnflushedRecordIndex: %v, FirstUnsentRecordIndex: %v, InFlightFlushRequestCount: %v)",
             node->Descriptor.GetDefaultAddress(),
+            firstRecordIndexToSend,
+            firstRecordIndexToSend + flushRecordCount - 1,
+            flushDataSize,
             node->FirstUnflushedRecordIndex,
-            node->FirstUnflushedRecordIndex + flushRecordCount - 1,
-            flushDataSize);
+            node->FirstUnsentRecordIndex,
+            node->InFlightFlushRequestCount);
 
         req->Invoke().Subscribe(
             BIND_NO_PROPAGATE(&TJournalChunkWriter::OnRecordsFlushed,
                 MakeWeak(this),
                 node,
-                flushRecordCount,
-                flushDataSize)
+                firstRecordIndexToSend,
+                flushRecordCount)
                 .Via(Invoker_));
+
+        return true;
+    }
+
+    bool IsRecordConfirmedOnNode(i64 recordIndex, const TNodePtr& node) const
+    {
+        return recordIndex < node->FirstUnflushedRecordIndex;
     }
 
     void OnRecordsFlushed(
         const TNodePtr& node,
+        i64 firstRecordIndex,
         i64 recordCount,
-        i64 flushDataSize,
         const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& rspOrError)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        node->IsFlushing = false;
+        --node->InFlightFlushRequestCount;
+        YT_VERIFY(node->InFlightFlushRequestCount >= 0);
 
-        if (!rspOrError.IsOK()) {
+        i64 lastRecordIndex = firstRecordIndex + recordCount - 1;
+
+        if (rspOrError.IsOK()) {
+            OnFlushSucceeded(node, firstRecordIndex, lastRecordIndex, rspOrError.Value());
+        } else if (rspOrError.FindMatching(NChunkClient::EErrorCode::MissingJournalChunkRecord)) {
+            YT_LOG_DEBUG(
+                "Journal flush arrived out of order and was rejected by replica "
+                "(Address: %v, RejectedRecords: %v-%v, FirstUnflushedRecordIndex: %v)",
+                node->Descriptor.GetDefaultAddress(),
+                firstRecordIndex,
+                lastRecordIndex,
+                node->FirstUnflushedRecordIndex);
+
+            if (!IsRecordConfirmedOnNode(lastRecordIndex, node)) {
+                node->NeedsRewind = true;
+            }
+        } else if (IsRecordConfirmedOnNode(lastRecordIndex, node)) {
+            YT_LOG_DEBUG(
+                "Ignored a flush failure for an already confirmed record range "
+                "(Address: %v, Records: %v-%v, FirstUnflushedRecordIndex: %v)",
+                node->Descriptor.GetDefaultAddress(),
+                firstRecordIndex,
+                lastRecordIndex,
+                node->FirstUnflushedRecordIndex);
+        } else {
             auto error = TError("Failed to flush records to replica %v", node->Descriptor.GetDefaultAddress())
                 << rspOrError;
             OnFailed(error);
             return;
         }
 
-        const auto& rsp = rspOrError.Value();
-        Counters_.JournalWrittenBytes.Increment(flushDataSize);
+        if (node->NeedsRewind && node->InFlightFlushRequestCount == 0) {
+            node->FirstUnsentRecordIndex = node->FirstUnflushedRecordIndex;
+            node->NeedsRewind = false;
+        }
+
+        MaybeFlushNodes();
+    }
+
+    void OnFlushSucceeded(
+        const TNodePtr& node,
+        i64 firstRecordIndex,
+        i64 lastRecordIndex,
+        const TDataNodeServiceProxy::TRspPutBlocksPtr& rsp)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
         Counters_.MediumWrittenBytes.Increment(rsp->statistics().data_bytes_written_to_medium());
         Counters_.IORequestCount.Increment(rsp->statistics().io_requests());
 
-        auto firstRecordIndex = node->FirstUnflushedRecordIndex;
-        auto lastRecordIndex = firstRecordIndex + recordCount - 1;
-
-        node->FirstUnflushedRecordIndex += recordCount;
-
-        YT_LOG_DEBUG("Journal replica written (Address: %v, Records: %v-%v)",
+        YT_LOG_DEBUG(
+            "Journal replica written (Address: %v, Records: %v-%v, FirstUnflushedRecordIndex: %v, "
+            "FirstUnsentRecordIndex: %v, InFlightFlushRequestCount: %v)",
             node->Descriptor.GetDefaultAddress(),
             firstRecordIndex,
-            lastRecordIndex);
+            lastRecordIndex,
+            node->FirstUnflushedRecordIndex,
+            node->FirstUnsentRecordIndex,
+            node->InFlightFlushRequestCount);
+
+        if (IsRecordConfirmedOnNode(lastRecordIndex, node)) {
+            return;
+        }
 
         std::vector<TPromise<void>> fulfilledPromises;
-        for (i64 recordIndex = firstRecordIndex; recordIndex <= lastRecordIndex; ++recordIndex) {
-            auto record = GetPendingRecord(recordIndex);
-            auto flushedReplicaCount = ++record->FlushedReplicaCount;
+
+        i64 oldFirstUnflushedRecordIndex = node->FirstUnflushedRecordIndex;
+        node->FirstUnflushedRecordIndex = lastRecordIndex + 1;
+        YT_VERIFY(node->FirstUnflushedRecordIndex <= node->FirstUnsentRecordIndex);
+
+        i64 newlyFlushedDataSize = 0;
+        for (i64 recordIndex = oldFirstUnflushedRecordIndex; recordIndex <= lastRecordIndex; ++recordIndex) {
+            const auto& record = GetPendingRecord(recordIndex);
+            newlyFlushedDataSize += std::ssize(record->ReplicaParts[node->Index]);
+            int flushedReplicaCount = ++record->FlushedReplicaCount;
 
             if (flushedReplicaCount == Options_->WriteQuorum) {
                 YT_LOG_DEBUG("Record is flushed to quorum (Record: %v)", recordIndex);
-
                 fulfilledPromises.push_back(record->QuorumFlushedPromise);
             }
 
             if (flushedReplicaCount == ReplicaCount_) {
                 YT_LOG_DEBUG("Record is flushed to all replicas (Record: %v)", recordIndex);
-
                 YT_VERIFY(recordIndex == FirstPendingRecordIndex_);
                 ++FirstPendingRecordIndex_;
                 PendingRecords_.pop_front();
@@ -712,12 +798,11 @@ private:
                 }
             }
         }
+        Counters_.JournalWrittenBytes.Increment(newlyFlushedDataSize);
 
         for (const auto& promise : fulfilledPromises) {
             promise.TrySet();
         }
-
-        MaybeFlushNodes();
     }
 
     TSessionId GetSessionIdForNode(const TNodePtr& node)
@@ -867,7 +952,7 @@ private:
         return record;
     }
 
-    const TRecordPtr& GetPendingRecord(int index)
+    const TRecordPtr& GetPendingRecord(i64 index)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 

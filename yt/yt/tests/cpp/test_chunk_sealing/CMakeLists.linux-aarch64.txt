@@ -34,6 +34,7 @@ target_link_libraries(cpp-integration-test-chunk-sealing PUBLIC
   build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
+  library-profiling-solomon
   library-query-engine
   tests-cpp-test_base
   yt-yt-ytlib

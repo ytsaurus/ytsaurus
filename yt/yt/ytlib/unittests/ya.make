@@ -15,6 +15,7 @@ SRCS(
     encoding_writer_ut.cpp
     erasure_parts_reader_ut.cpp
     job_resources_ut.cpp
+    journal_chunk_writer_ut.cpp
     memory_usage_tracker_ut.cpp
     multi_reader_manager/multi_reader_manager_ut.cpp
     object_service_cache_ut.cpp
