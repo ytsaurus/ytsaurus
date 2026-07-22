@@ -108,6 +108,7 @@ TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
     auto sequoiaTransactionOptions = SequoiaTransactionOptionsTemplate;
     sequoiaTransactionOptions.CypressPrerequisiteTransactionIds = cypressPrerequisiteTransactionIds;
     sequoiaTransactionOptions.Features = features;
+    sequoiaTransactionOptions.RetrySequoiaRetriableErrors = false;
     return sequoiaClient->StartTransaction(type, options, std::move(sequoiaTransactionOptions));
 }
 
