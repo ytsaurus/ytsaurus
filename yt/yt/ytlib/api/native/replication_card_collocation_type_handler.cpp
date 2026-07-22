@@ -151,17 +151,40 @@ private:
         return ConvertTo<TCellId>(yson);
     }
 
-    TYsonString GetObjectYson(TReplicationCardCollocationId replicationCardCollocationId) override
+    TErrorOr<TChaosNodeServiceProxy::TRspGetReplicationCardCollocationPtr> RequestReplicationCardCollocation(
+        TReplicationCardCollocationId replicationCardCollocationId,
+        TCellId residencyCellId)
     {
-        auto channel = Client_->GetChaosChannelByCellId(GetChaosCellId(replicationCardCollocationId));
+        auto channel = Client_->GetChaosChannelByCellId(residencyCellId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
         auto req = proxy.GetReplicationCardCollocation();
         ToProto(req->mutable_replication_card_collocation_id(), replicationCardCollocationId);
         req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout);
+        return WaitFor(req->Invoke());
+    }
 
-        auto rsp = WaitFor(req->Invoke())
-            .ValueOrThrow();
+    TYsonString GetObjectYson(TReplicationCardCollocationId replicationCardCollocationId) override
+    {
+        auto cellId = GetChaosCellId(replicationCardCollocationId);
+        auto rspOrError = RequestReplicationCardCollocation(replicationCardCollocationId, cellId);
+        if (!rspOrError.IsOK() && rspOrError.FindMatching(NChaosClient::EErrorCode::ReplicationCollocationNotKnown)) {
+            Client_->GetNativeConnection()->GetChaosResidencyCache()->ForceRefresh(
+                replicationCardCollocationId,
+                CellTagFromId(cellId));
 
+            rspOrError = RequestReplicationCardCollocation(
+                replicationCardCollocationId,
+                GetChaosCellId(replicationCardCollocationId));
+
+            if (!rspOrError.IsOK() && rspOrError.FindMatching(NChaosClient::EErrorCode::ReplicationCollocationNotKnown)) {
+                // Return retryable error to user.
+                THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCardNotKnown,
+                    "Replication card collocation is not known")
+                    << rspOrError;
+            }
+        }
+
+        auto rsp = rspOrError.ValueOrThrow();
         auto options = rsp->has_options()
             ? ConvertTo<TReplicationCollocationOptionsPtr>(TYsonString(rsp->options()))
             : New<TReplicationCollocationOptions>();
