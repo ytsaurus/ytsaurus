@@ -1,0 +1,139 @@
+{
+    "spec" = {
+        "computations" = {
+            "injector" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["event"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "state" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event"; "response";];
+                "output_stream_ids" = ["request"];
+                "streams_dependency" = {
+                    "request" = ["event"];
+                };
+                "external_state_managers" = {
+                    "/state" = {
+                        "parameters" = {"path" = "//placeholder";};
+                    };
+                };
+                "parameters" = {};
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+            };
+            "processor" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(request_id)"; "type" = "uint64"; required = %true;};
+                    {"name" = "request_id"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["request"];
+                "output_stream_ids" = ["response"];
+                "timer_streams" = {
+                    "delay" = {
+                        "time_type" = "current_time";
+                    };
+                };
+                "streams_dependency" = {
+                    "delay" = ["delay"; "request"];
+                };
+                "parameters" = {
+                    "internal_states" = ["request-state"];
+                };
+                "allow_timer_self_dependency" = %true;
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "event" = {
+                "schema" = [
+                    {name = "key"; type = "uint64";};
+                    {name = "data"; type = "string";};
+                ];
+            };
+            "request" = {
+                "schema" = [
+                    {name = "request_id"; type = "uint64";};
+                    {name = "key"; type = "uint64";};
+                    {name = "request"; type = "string";};
+                ];
+            };
+            "response" = {
+                "schema" = [
+                    {name = "request_id"; type = "uint64";};
+                    {name = "key"; type = "uint64";};
+                    {name = "length"; type = "int64";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
+                "parameters" = {
+                    "jdk_bin_path" = "/path/to/jdk/bin/java";
+                    "main_class" = "tech.ytsaurus.flow.examples.retryableasyncrequest.NodeCompanionMain";
+                    "classpath" = "/path/to/classpath";
+                    "run_process" = %true;
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "injector" = {
+                "batch_duration" = 100;
+                "max_rows_per_batch" = 100;
+            };
+            "state" = {
+                "batch_duration" = 100;
+                "max_rows_per_batch" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 7;
+                };
+                "state_manager" = {
+                    "format" = {
+                        "compress" = true;
+                    };
+                };
+            };
+            "processor" = {
+                "batch_duration" = 100;
+                "max_rows_per_batch" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 10;
+                };
+                "state_manager" = {
+                    "format" = {
+                        "compress" = true;
+                    };
+                };
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

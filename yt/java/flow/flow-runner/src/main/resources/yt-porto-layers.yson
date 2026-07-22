@@ -1,0 +1,13 @@
+{
+    "system_layer_path" = "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz";
+    "jdk_layers" = {
+        "21" = {
+            "layer_path" = "//porto_layers/delta/jdk/jdk21/layer_with_jdk21_latest.tar.gz";
+            "java_bin_path" = "/opt/jdk21/bin/java";
+        };
+        "25" = {
+            "layer_path" = "//porto_layers/delta/jdk/jdk25/layer_with_jdk25_latest.tar.gz";
+            "java_bin_path" = "/opt/jdk25/bin/java";
+        };
+    };
+}
