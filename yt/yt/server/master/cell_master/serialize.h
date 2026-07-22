@@ -209,6 +209,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixValidationHeartbeatSchedulingAndClearing_26_2)             (3334))  // grphil
     ((ExpirationArmingTime_26_2)                                    (3335))  // theevilbird
     ((DetailedChunkLogging)                                         (3336))  // evanevannnn
+    ((FixBoomerangWaveEviction)                                     (3337))  // babenko
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
