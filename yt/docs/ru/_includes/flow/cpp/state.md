@@ -280,6 +280,97 @@ private:
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TDynamicSimpleExternalStateJoinerSpec.md) %}
 
+### TStaticTableKeyVisitorJoiner {#static-table-key-visitor-joiner}
+
+`TStaticTableKeyVisitorJoiner` — external state joiner поверх **статической** сортированной таблицы. Работает только в паре с [key-visitor-стримом](../../../flow/concepts/key_visitor.md#static-table-joiner): в отличие от `TSimpleExternalStateJoiner`, он не делает случайных чтений — фоновый обход визитора последовательно читает таблицу теми же диапазонами ключей, что и внутренний стейт, и строка таблицы становится доступна в `DoProcessVisit` как read-only стейт ключа визита. Ключ, которого в таблице нет, отдаёт пустой стейт (`IsEmpty() == true`).
+
+Джойнер привязывается к visit-стриму перечислением его имени в `external_names` секции `key_visitor_streams` (см. [параметры статической спеки](../../../flow/concepts/key_visitor.md#static-params)); один джойнер можно привязать не более чем к одному visit-стриму (проверяется при submit'е спеки). `join_on/key_schema_override` не поддерживается — ключом всегда служит собственная `group_by_schema`.
+
+Требования к таблице-источнику:
+
+- статическая — динамическая таблица отвергается при чтении схемы;
+- отсортирована так, что префикс её ключевых колонок совпадает с `group_by_schema` `Computation`'а по именам и типам. Таблица может лежать на другом кластере (`<cluster=...>` в rich path).
+
+{% note warning %}
+
+Выражения вычисляемых колонок не сверяются: партиционная колонка источника должна быть **материализована** значениями, совпадающими с выражением из `group_by_schema` (обычно `farm_hash(key)`). Таблицу, материализованную иначе, фреймворк не отличит от корректной — каждый ключ визита молча резолвится как отсутствующий.
+
+{% endnote %}
+
+Канонический паттерн — зеркалирование (reconciliation): ключи таблицы участвуют в обходе наравне с ключами собственного стейта, поэтому визит приходит и для ключа, которого в стейте ещё нет (его надо создать), и для ключа, которого уже нет в таблице (его надо удалить). Периодический обход таким образом сводит стейт `Computation`'а к внешней таблице:
+
+```cpp
+class TMirrorComputation
+    : public TTransformComputation
+{
+public:
+    using TTransformComputation::TTransformComputation;
+
+    void DoInit(IJobInitContextPtr initContext) override
+    {
+        initContext->InitClient<TMirrorState>(MirroredState_, "/mirror");
+        initContext->InitExternalStateClient(SourceState_, "/source");
+    }
+
+    void DoProcessVisit(
+        const TVisit& visit,
+        IOutputCollectorPtr /*output*/) override
+    {
+        auto src = SourceState_.GetState(visit.Key);
+        if (!src.IsInitialized()) {
+            // Диапазон источника не прочитан (mark_unreadable): состояние ключа неизвестно.
+            return;
+        }
+        auto mirror = MirroredState_.GetState(visit.Key);
+        if (src.IsEmpty()) {
+            mirror.Clear();
+        } else {
+            mirror->Payload = src->GetColumnValue<std::optional<std::string>>("payload").value_or(std::string{});
+        }
+    }
+
+private:
+    TMutableStateKeyClient<TMirrorState> MirroredState_;
+    TJoinedStateKeyClient<TSimpleExternalState> SourceState_;
+};
+```
+
+Спека `Computation` для этого примера:
+
+```yson
+"external_state_joiners" = {
+    "/source" = {
+        "external_state_joiner_class_name" = "NYT::NFlow::TStaticTableKeyVisitorJoiner";
+        "parameters" = {
+            "path" = "//path/to/source";
+        };
+    };
+};
+"key_visitor_streams" = {
+    "visit_iter" = {
+        "names" = ["/mirror"];
+        "external_names" = ["/source"];
+    };
+};
+```
+
+Поведение при недоступности источника задаёт `unavailable_source_policy`. Неуспешным считается чтение, исчерпавшее `read_attempts` попыток:
+
+- `retry` (по умолчанию) — ошибка роняет итерацию обхода, чтение повторяется; обход не продвигается за непрочитанный диапазон.
+- `mark_unreadable` — ошибка проглатывается, обход идёт дальше, а ключи непрочитанного диапазона резолвятся **неинициализированным** аксессором: `IsInitialized() == false`, разыменование бросает исключение. `Computation` сам решает, что делать с ключом, состояние которого в источнике неизвестно (обычно — пропустить визит, как в примере выше).
+
+После неуспешного чтения источник помечается недоступным на `unavailable_source_backoff`: пока пометка действует, обращений к источнику нет — чтения немедленно резолвятся согласно полиси; первое чтение после истечения окна снова пробует источник. Состояние джойнера видно в сенсорах воркера `static_table_key_visitor_joiner/{source_unavailable,failed_reads,reader_opens,listed_size}` с тегом `external_state_joiner=<имя>`.
+
+Регистрировать `TStaticTableKeyVisitorJoiner` в `register.cpp` не нужно: он уже зарегистрирован в самой библиотеке Flow.
+
+Спека:
+
+{% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TStaticTableKeyVisitorJoinerSpec.md) %}
+
+Динамическая спека:
+
+{% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TDynamicStaticTableKeyVisitorJoinerSpec.md) %}
+
 {% if audience == "internal" %}
 
 ### NBigRTExtensions::TProfileJoiner {#profile-joiner}

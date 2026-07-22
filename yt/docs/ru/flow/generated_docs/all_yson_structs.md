@@ -74,6 +74,8 @@
 
 {% include [_](./NYT_NFlow_ETimestampFormat.md) %}
 
+{% include [_](./NYT_NFlow_EUnavailableSourcePolicy.md) %}
+
 {% include [_](./NYT_NFlow_NBigRTExtensions_TDynamicProfileJoinerSpec.md) %}
 
 {% include [_](./NYT_NFlow_NBigRTExtensions_TDynamicProfileManagerSpec.md) %}
@@ -167,6 +169,8 @@
 {% include [_](./NYT_NFlow_TDynamicStateJoinerSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicStateManagerSpec.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicStaticTableKeyVisitorJoinerSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicTableRequestSpec.md) %}
 
@@ -291,6 +295,8 @@
 {% include [_](./NYT_NFlow_TStateJoinSpec.md) %}
 
 {% include [_](./NYT_NFlow_TStateJoinerSpec.md) %}
+
+{% include [_](./NYT_NFlow_TStaticTableKeyVisitorJoinerSpec.md) %}
 
 {% include [_](./NYT_NFlow_TStreamSpec.md) %}
 
