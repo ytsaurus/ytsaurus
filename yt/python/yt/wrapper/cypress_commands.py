@@ -18,7 +18,7 @@ from yt.yson import is_unicode, get_bytes
 import builtins
 import string
 from copy import deepcopy, copy as shallowcopy
-from typing import Union, Optional, Literal, Callable, Any, List, Dict, Tuple
+from typing import Union, Optional, Literal, Callable, Any, List, Dict, Tuple, Mapping
 
 
 # XXX(asaitgalin): Used in get_attribute function for `default` argument
@@ -517,6 +517,15 @@ def remove(
     return make_request("remove", params, client=client)
 
 
+def _get_annotate_objects(type, client):
+    if type in ["table", "file", "map_node", "document"]:
+        annotate_objects = get_config(client)["annotate_objects"]
+        if annotate_objects and isinstance(annotate_objects, Mapping):
+            annotate_objects = dict([(name, value) for name, value in annotate_objects.items() if name.startswith("_")])
+            return annotate_objects
+    return None
+
+
 def create(
     type: Literal["table", "file", "map_node", "list_node", "document"],
     path: Union[str, YPath, None] = None,
@@ -543,6 +552,15 @@ def create(
     .. seealso:: `create in the docs <https://ytsaurus.tech/docs/en/api/commands#create>`_
     """
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
+
+    annotate_objects = _get_annotate_objects(type, client)
+    if annotate_objects:
+        if attributes:
+            attributes = deepcopy(attributes)
+            attributes.update(annotate_objects)
+        else:
+            attributes = annotate_objects
+
     params = {
         "type": type,
     }

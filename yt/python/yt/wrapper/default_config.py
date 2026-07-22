@@ -4,7 +4,7 @@ from . import common
 from .config_remote_patch import (RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean,
                                   RemotePatchableInteger, _validate_operation_link_pattern,
                                   _validate_query_link_pattern)
-from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION, ENCRYPT_PICKLE_FILES, STARTED_BY_COMMAND_LENGTH_LIMIT
+from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION, ENCRYPT_PICKLE_FILES, STARTED_BY_COMMAND_LENGTH_LIMIT, CONFIG_FORCED_SHORTCUTS
 from .errors import YtConfigError
 from .mappings import VerifiedDict
 
@@ -17,6 +17,8 @@ import os
 import typing
 from copy import deepcopy
 from datetime import timedelta
+
+import functools
 
 
 # pydoc :: default_config :: begin
@@ -110,6 +112,7 @@ class DefaultConfigType(TypedDict, total=False):
         commands_with_framing: List[str]
 
     proxy: DefaultConfigProxyType
+    annotate_objects: Dict[str, Any]
     dynamic_table_retries: DefaultConfigRetriesType
     max_row_count_for_local_sampling: int
     tablets_ready_timeout: int
@@ -559,6 +562,9 @@ default_config = {
             "list_jobs",
         ],
     },
+
+    # Annotate objects with attributes
+    "annotate_objects": {},
 
     # Parameters for dynamic table requests retries.
     "dynamic_table_retries": get_dynamic_table_retries(),
@@ -1151,7 +1157,7 @@ def get_default_config() -> DefaultConfigType:
         transform_func=transform_value)
     config = VerifiedDict(
         template_dict=template_dict,
-        keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer", "user_job_spec_defaults"],
+        keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer", "user_job_spec_defaults", "annotate_objects"],
         transform_func=transform_value)
 
     _update_from_env_vars(config, FORCED_SHORTCUTS)
@@ -1163,7 +1169,11 @@ FORCED_SHORTCUTS = {
     "YT_BASE_LAYER" : "operation_base_layer",
     "YT_HTTP_PROXY_ROLE": "proxy/http_proxy_role",
     "YT_RPC_PROXY_ROLE": "proxy/rpc_proxy_role",
+    "YT_ANNOTATE_OBJECTS": "annotate_objects",
 }
+
+
+FORCED_SHORTCUTS.update(CONFIG_FORCED_SHORTCUTS)
 
 
 SHORTCUTS = {
@@ -1273,6 +1283,17 @@ def _update_from_env_vars(
     config: VerifiedDict,
     shortcuts: Optional[dict] = None
 ):
+
+    def _parse_struct(default_type: typing.Callable[[], None], obj: str):
+        if not obj:
+            return default_type()
+
+        try:
+            data = yson._loads_from_native_str(obj)
+        except yson.YsonError:
+            data = yson.json_to_yson(json.loads(obj))
+        return data
+
     def _get_var_type(config_value, type_hint_value):
         var_type = type(config_value)
         # Using int we treat "0" as false, "1" as "true"
@@ -1288,14 +1309,17 @@ def _update_from_env_vars(
                 if get_origin(type_hint_value) == Union:
                     type_hint_value = get_args(type_hint_value)[0]
 
-                if type_hint_value in (int, str, float, bool, list, dict, tuple):
-                    var_type = type_hint_value
+                type_hint = typing.get_origin(type_hint_value) or type_hint_value
+                if type_hint in (int, str, float, bool):
+                    var_type = type_hint
+                elif type_hint in (list, dict, tuple):
+                    var_type = functools.partial(_parse_struct, var_type)
                 else:
                     var_type = str
             else:
                 var_type = str
         elif var_type == dict or var_type == YsonMap:
-            var_type = lambda obj: yson.json_to_yson(json.loads(obj)) if obj else {}  # noqa
+            var_type = functools.partial(_parse_struct, var_type)
         elif isinstance(config_value, RemotePatchableValueBase):
             var_type = type(config_value.value)
 
@@ -1317,7 +1341,10 @@ def _update_from_env_vars(
     def _get(d, key):
         parts = key.split("/")
         for k in parts:
-            d = d.get(k)
+            if typing.get_origin(d) == dict:
+                return d
+            if hasattr(d, "get"):
+                d = d.get(k)
         return d
 
     def _get_type_hints(val):
@@ -1332,9 +1359,6 @@ def _update_from_env_vars(
         shortcuts = SHORTCUTS
 
     for key, value in os.environ.items():
-        if not key.startswith("YT_"):
-            continue
-
         if key in shortcuts:
             name = shortcuts[key]
             if name == "driver_config":
@@ -1344,7 +1368,12 @@ def _update_from_env_vars(
                     return yson.yson_to_json(yson.loads(value.encode()))
                 var_type = parse_proxy_aliases
             else:
-                var_type = _get_var_type(_get(config, name), _get(config_type_hints, name))
+                var_type = _get_var_type(
+                    config_value=_get(config, name),
+                    type_hint_value=_get(config_type_hints, name),
+                )
+            if typing.get_origin(var_type) == dict:
+                var_type = yson._loads_from_native_str
             # NB: it is necessary to set boolean variable as 0 or 1.
             if var_type is bool:
                 value = int(value)
