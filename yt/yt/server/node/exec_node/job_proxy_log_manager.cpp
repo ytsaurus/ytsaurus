@@ -583,7 +583,7 @@ private:
             }
         }();
 
-        auto buffer = TSharedMutableRef::Allocate(dumpJobProxyLogBufferSize);
+        auto buffer = TSharedMutableRef::Allocate(dumpJobProxyLogBufferSize, {.InitializeStorage = false});
 
         NApi::TFileWriterOptions options;
         options.TransactionId = transactionId;
