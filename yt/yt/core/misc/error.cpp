@@ -458,7 +458,42 @@ void Deserialize(TError& error, NYson::TYsonPullParserCursor* cursor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NYT::NProto::TError* protoError, const TError& error)
+namespace {
+
+// Errors whose depth exceeds |ErrorSerializationDepthLimit| are serialized
+// as children of their ancestor on depth |ErrorSerializationDepthLimit - 1|.
+[[maybe_unused]]
+void SerializeInnerErrorsProto(NYT::NProto::TError* protoError, const TError& error, int depth)
+{
+    if (depth >= ErrorSerializationDepthLimit) {
+        // Ignore deep inner errors.
+        return;
+    }
+
+    auto visit = [&] (NYT::NProto::TError* protoError, const TError& error, int depth) {
+        ToProto(protoError->add_inner_errors(), error, depth);
+    };
+
+    for (const auto& innerError : error.InnerErrors()) {
+        if (depth < ErrorSerializationDepthLimit - 1) {
+            visit(protoError, innerError, depth + 1);
+        } else {
+            YT_VERIFY(depth == ErrorSerializationDepthLimit - 1);
+            TraverseError(
+                innerError,
+                [&] (const TError& e, int depth) {
+                    visit(protoError, e, depth);
+                },
+                depth + 1);
+        }
+    }
+}
+
+} //namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NYT::NProto::TError* protoError, const TError& error, int depth)
 {
     if (error.IsOK()) {
         protoError->set_code(ToProto(NYT::EErrorCode::OK));
@@ -524,9 +559,13 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
         addAttribute(SpanIdKey, GetSpanId(error));
     }
 
+    if (depth > ErrorSerializationDepthLimit) {
+        addAttribute(TString(OriginalErrorDepthAttribute), depth);
+    }
+
     protoError->clear_inner_errors();
-    for (const auto& innerError : error.InnerErrors()) {
-        ToProto(protoError->add_inner_errors(), innerError);
+    if (!error.InnerErrors().empty()) {
+        SerializeInnerErrorsProto(protoError, error, depth);
     }
 }
 
