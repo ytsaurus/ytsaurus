@@ -166,10 +166,16 @@ TOwningValue CastValueWithCheck(TValue value, EValueType targetType)
     if (value.Type == EValueType::Int64) {
         if (targetType == EValueType::Double) {
             auto int64Value = value.Data.Int64;
-            if (static_cast<i64>(static_cast<double>(int64Value)) != int64Value) {
+            auto doubleValue = static_cast<double>(int64Value);
+            // NB: Casting the rounded double value back to i64 is UB when it does not fit into i64
+            // (i.e. for double(i64 max)): garbage on x86_64, which throws by luck, and saturation
+            // on aarch64, which silently accepts the inaccurate conversion.
+            if (doubleValue >= static_cast<double>(std::numeric_limits<i64>::max()) ||
+                static_cast<i64>(doubleValue) != int64Value)
+            {
                 THROW_ERROR_EXCEPTION("Failed to cast %v to double: inaccurate conversion", int64Value);
             }
-            value.Data.Double = int64Value;
+            value.Data.Double = doubleValue;
         } else {
             YT_VERIFY(targetType == EValueType::Uint64);
         }
@@ -181,22 +187,34 @@ TOwningValue CastValueWithCheck(TValue value, EValueType targetType)
             }
         } else if (targetType == EValueType::Double) {
             auto uint64Value = value.Data.Uint64;
-            if (static_cast<ui64>(static_cast<double>(uint64Value)) != uint64Value) {
+            auto doubleValue = static_cast<double>(uint64Value);
+            // NB: Same as above: double(ui64 max) does not fit into ui64.
+            if (doubleValue >= static_cast<double>(std::numeric_limits<ui64>::max()) ||
+                static_cast<ui64>(doubleValue) != uint64Value)
+            {
                 THROW_ERROR_EXCEPTION("Failed to cast %vu to double: inaccurate conversion", uint64Value);
             }
-            value.Data.Double = uint64Value;
+            value.Data.Double = doubleValue;
         } else {
             YT_ABORT();
         }
     } else if (value.Type == EValueType::Double) {
         auto doubleValue = value.Data.Double;
         if (targetType == EValueType::Uint64) {
-            if (static_cast<double>(static_cast<ui64>(doubleValue)) != doubleValue) {
+            // NB: Guard before casting since casting an out-of-range (or NaN) double to ui64 is UB
+            // (see above). The guard formulation also rejects NaN.
+            if (!(doubleValue >= 0. && doubleValue < static_cast<double>(std::numeric_limits<ui64>::max())) ||
+                static_cast<double>(static_cast<ui64>(doubleValue)) != doubleValue)
+            {
                 THROW_ERROR_EXCEPTION("Failed to cast %v to uint64: inaccurate conversion", doubleValue);
             }
             value.Data.Uint64 = doubleValue;
         } else if (targetType == EValueType::Int64) {
-            if (static_cast<double>(static_cast<i64>(doubleValue)) != doubleValue) {
+            // NB: Same as above.
+            if (!(doubleValue >= static_cast<double>(std::numeric_limits<i64>::min()) &&
+                doubleValue < static_cast<double>(std::numeric_limits<i64>::max())) ||
+                static_cast<double>(static_cast<i64>(doubleValue)) != doubleValue)
+            {
                 THROW_ERROR_EXCEPTION("Failed to cast %v to int64: inaccurate conversion", doubleValue);
             }
             value.Data.Int64 = doubleValue;
