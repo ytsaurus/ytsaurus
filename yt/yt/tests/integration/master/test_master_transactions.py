@@ -8,7 +8,7 @@ from yt_commands import (
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, generate_uuid, link, make_ace)
+    raises_yt_error, generate_uuid, link, make_ace, multicell_sleep)
 
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
@@ -235,6 +235,7 @@ class TestMasterTransactions(YTEnvSetup):
         create_user("u")
         tx = start_transaction(timeout=1000, authenticated_user="u")
         set("//sys/users/u/@banned", True)
+        multicell_sleep()
         with raises_yt_error() as error:
             abort_transaction(tx, authenticated_user="u")
         assert "Access denied" in str(error) or "is banned on" in str(error)
