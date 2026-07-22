@@ -272,6 +272,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/dispatcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/dynamic_channel_pool.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/dynamic_channel_pool_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/endpoint_address.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/hedging_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/helpers.cpp
