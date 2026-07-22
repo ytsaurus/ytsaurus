@@ -48,7 +48,7 @@ NRpc::IChannelPtr TCypressProxyServiceBase::GetTargetMasterPeerChannelOrThrow(TC
     auto cellTag = context->GetTargetMasterCellTag();
 
     const auto& masterCellDirectory = Bootstrap_->GetNativeConnection()->GetMasterCellDirectory();
-    return masterCellDirectory->GetNakedMasterChannelOrThrow(kind, cellTag);
+    return masterCellDirectory->GetNonRetryingMasterChannelOrThrow(kind, cellTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

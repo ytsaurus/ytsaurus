@@ -152,8 +152,8 @@ public:
 
         cellTag = cellTag == PrimaryMasterCellTagSentinel ? GetPrimaryMasterCellTag() : cellTag;
         auto guard = ReaderGuard(SpinLock_);
-        auto it = CellWrappedChannelMap_.find(cellTag);
-        if (it == CellWrappedChannelMap_.end()) {
+        auto it = RetryingCellChannelMap_.find(cellTag);
+        if (it == RetryingCellChannelMap_.end()) {
             return nullptr;
         }
         return it->second[kind];
@@ -178,7 +178,7 @@ public:
         return GetMasterChannelOrThrow(kind, CellTagFromId(cellId));
     }
 
-    IChannelPtr FindNakedMasterChannel(EMasterChannelKind kind, TCellTag cellTag) override
+    IChannelPtr FindNonRetryingMasterChannel(EMasterChannelKind kind, TCellTag cellTag) override
     {
         YT_VERIFY(kind == EMasterChannelKind::Leader || kind == EMasterChannelKind::Follower);
 
@@ -187,21 +187,21 @@ public:
         }
 
         auto guard = ReaderGuard(SpinLock_);
-        auto it = CellNakedChannelMap_.find(cellTag);
-        if (it == CellNakedChannelMap_.end()) {
+        auto it = NonRetryingCellChannelMap_.find(cellTag);
+        if (it == NonRetryingCellChannelMap_.end()) {
             return nullptr;
         }
         return it->second[kind];
     }
 
-    IChannelPtr GetNakedMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag) override
+    IChannelPtr GetNonRetryingMasterChannelOrThrow(EMasterChannelKind kind, TCellTag cellTag) override
     {
         YT_VERIFY(kind == EMasterChannelKind::Leader || kind == EMasterChannelKind::Follower);
 
         if (cellTag == PrimaryMasterCellTagSentinel) {
             cellTag = GetPrimaryMasterCellTag();
         }
-        if (auto channel = FindNakedMasterChannel(kind, cellTag)) {
+        if (auto channel = FindNonRetryingMasterChannel(kind, cellTag)) {
             return channel;
         }
         ThrowUnknownMasterCellTag(cellTag);
@@ -398,8 +398,8 @@ private:
     const NHiveClient::ICellDirectoryPtr HiveCellDirectory_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
-    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellWrappedChannelMap_;
-    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellNakedChannelMap_;
+    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> RetryingCellChannelMap_;
+    THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> NonRetryingCellChannelMap_;
     THashMap<TCellTag, EMasterCellRoles> CellTagToRoles_;
     TEnumIndexedArray<EMasterCellRole, TCellTagList> RoleToCellTags_;
     TRandomGenerator RandomGenerator_;
@@ -571,8 +571,8 @@ private:
                 Config_->MasterCache->MasterCacheDiscoveryPeriodSplay,
                 MakeWeak(this),
                 ENodeRole::MasterCache,
-                BIND(&TCellDirectory::CreatePeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, Options_));
-            CellWrappedChannelMap_[cellTag][EMasterChannelKind::Cache] = channel;
+                BIND(&TCellDirectory::CreateRetryingPeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, Options_));
+            RetryingCellChannelMap_[cellTag][EMasterChannelKind::Cache] = channel;
         } else {
             InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower);
         }
@@ -581,7 +581,7 @@ private:
             auto cachingObjectService = CreateCachingObjectService(
                 Config_->CachingObjectService,
                 NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-                CellWrappedChannelMap_[cellTag][EMasterChannelKind::Cache],
+                RetryingCellChannelMap_[cellTag][EMasterChannelKind::Cache],
                 Cache_,
                 config->CellId,
                 ObjectClientLogger(),
@@ -590,7 +590,7 @@ private:
             //! NB: Don't check for duplicates on emplace to prevent "race" between planned update of master cell directory and scheduled out of band.
             CachingObjectServices_.emplace(cellTag, cachingObjectService);
             RpcServer_->RegisterService(cachingObjectService);
-            CellWrappedChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
+            RetryingCellChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
         }
     }
 
@@ -602,11 +602,11 @@ private:
         YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
         auto cellTag = CellTagFromId(config->CellId);
-        auto [nakedChannel, retryingChannelWithDefaultTimeout] = CreatePeerChannel(ChannelFactory_, config, peerKind, Options_);
+        auto [nonRetryingChannel, retryingChannel] = CreatePeerChannels(ChannelFactory_, config, peerKind, Options_);
 
-        CellWrappedChannelMap_[cellTag][channelKind] = std::move(retryingChannelWithDefaultTimeout);
+        RetryingCellChannelMap_[cellTag][channelKind] = std::move(retryingChannel);
         if (channelKind == EMasterChannelKind::Leader || channelKind == EMasterChannelKind::Follower) {
-            CellNakedChannelMap_[cellTag][channelKind] = std::move(nakedChannel);
+            NonRetryingCellChannelMap_[cellTag][channelKind] = std::move(nonRetryingChannel);
         }
     }
 
@@ -622,11 +622,11 @@ private:
             CachingObjectServices_.erase(cachingObjectServiceIt);
         }
 
-        EraseOrCrash(CellWrappedChannelMap_, cellTag);
-        EraseOrCrash(CellNakedChannelMap_, cellTag);
+        EraseOrCrash(RetryingCellChannelMap_, cellTag);
+        EraseOrCrash(NonRetryingCellChannelMap_, cellTag);
     }
 
-    static IChannelPtr CreatePeerChannelFromAddresses(
+    static IChannelPtr CreateRetryingPeerChannelFromAddresses(
         IChannelFactoryPtr channelFactory,
         const TMasterConnectionConfigPtr& config,
         EPeerKind peerKind,
@@ -638,17 +638,17 @@ private:
             peerChannelConfig->Addresses = discoveredAddresses;
         }
 
-        return CreatePeerChannel(channelFactory, peerChannelConfig, peerKind, options)
-            .RetryingChannelWithDefaultTimeout;
+        return CreatePeerChannels(channelFactory, peerChannelConfig, peerKind, options)
+            .RetryingChannel;
     }
 
     struct TPeerChannel
     {
-        IChannelPtr NakedChannel;
-        IChannelPtr RetryingChannelWithDefaultTimeout;
+        IChannelPtr NonRetryingChannel;
+        IChannelPtr RetryingChannel;
     };
 
-    static TPeerChannel CreatePeerChannel(
+    static TPeerChannel CreatePeerChannels(
         IChannelFactoryPtr channelFactory,
         const TMasterConnectionConfigPtr& config,
         EPeerKind kind,
@@ -680,8 +680,8 @@ private:
         auto channel = CreateRetryingChannel(config, nakedChannel, isRetriableError);
         channel = CreateDefaultTimeoutChannel(std::move(channel), config->RpcTimeout);
         return {
-            .NakedChannel = std::move(nakedChannel),
-            .RetryingChannelWithDefaultTimeout = std::move(channel),
+            .NonRetryingChannel = CreateDefaultTimeoutChannel(nakedChannel, config->RpcTimeout),
+            .RetryingChannel = CreateDefaultTimeoutChannel(CreateRetryingChannel(config, channel, isRetriableError), config->RpcTimeout),
         };
     }
 };
