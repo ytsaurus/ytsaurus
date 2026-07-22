@@ -56,4 +56,16 @@ public class CommandSpecTest {
         Assert.assertEquals("\"medium_name\" is required in disk request if \"account\" is specified",
                 exception.getMessage());
     }
+
+    @Test
+    public void testDiskRequestRequiresDiskSpace() {
+        IllegalStateException exception = Assert.assertThrows(
+                IllegalStateException.class,
+                () -> DiskRequest.builder()
+                        .setMediumName("ssd")
+                        .build()
+        );
+
+        Assert.assertEquals("\"disk_space\" is required in disk request", exception.getMessage());
+    }
 }
