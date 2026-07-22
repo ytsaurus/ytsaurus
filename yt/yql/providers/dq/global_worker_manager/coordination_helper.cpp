@@ -171,15 +171,15 @@ public:
         return Config;
     }
 
-    const NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& clusterName, const TString& user, const TString& token) override {
-        auto key = std::make_tuple(clusterName, user, token);
+    const NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& proxyAddress, const TString& user, const TString& token) override {
+        auto key = std::make_tuple(proxyAddress, user, token);
         auto guard = Guard(Mutex);
         auto it = Yt.find(key);
         if (it != Yt.end()) {
             return it->second;
         } else {
-            auto client = GetYtClient(clusterName, user, token);
-            auto wrapper = CreateYtWrapper(client, clusterName);
+            auto client = GetYtClient(proxyAddress, user, token);
+            auto wrapper = CreateYtWrapper(client, proxyAddress);
             auto actorId = Register(actorSystem, wrapper);
             Yt.emplace(key, actorId);
             return actorId;
@@ -229,11 +229,11 @@ protected:
         return id;
     }
 
-    NYT::NApi::IClientPtr GetYtClient(const TString& clusterName, const TString& user, const TString& token)
+    NYT::NApi::IClientPtr GetYtClient(const TString& proxyAddress, const TString& user, const TString& token)
     {
         NYT::NApi::NRpcProxy::TConnectionConfigPtr config = NYT::New<NYT::NApi::NRpcProxy::TConnectionConfig>();
         config->RequestCodec = NYT::NCompression::ECodec::Lz4;
-        config->ClusterUrl = clusterName;
+        config->ClusterUrl = proxyAddress;
         config->ConnectionType = NYT::NApi::EConnectionType::Rpc;
 
         auto connection = NYT::NApi::NRpcProxy::CreateConnection(config);
