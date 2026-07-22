@@ -7,8 +7,12 @@ import tech.ytsaurus.flow.computation.OutputCollector
 import tech.ytsaurus.flow.context.RuntimeContext
 import tech.ytsaurus.flow.function.RowFunction
 import tech.ytsaurus.flow.row.ExtendedMessage
+import tech.ytsaurus.flow.spring.FlowSourceComputation
 
-class EventMapper : RowFunction {
+// [BEGIN registration]
+@FlowSourceComputation(id = "reader")
+// [END registration]
+open class EventMapper : RowFunction {
     companion object {
         private val log = LoggerFactory.getLogger(EventMapper::class.java)
     }

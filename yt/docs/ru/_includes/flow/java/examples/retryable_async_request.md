@@ -69,19 +69,23 @@ YSON-сериализуемая модель стейта запроса. Хра
 
 {% endlist %}
 
-### RetryableAsyncRequestComputationContext
+### Регистрация компьютейшенов
 
-Конфигурация компаньона регистрирует компьютейшены `state` и `processor` через `ComputationProvider`:
+Компьютейшены `state` и `processor` регистрируются аннотацией `@FlowComputation` на классах их process-функций:
 
 {% list tabs group=lang %}
 
 - Java
 
-  {% code '/yt/yt/flow/examples/java/retryable_async_request/retryable_async_request/src/main/java/tech/ytsaurus/flow/examples/retryableasyncrequest/RetryableAsyncRequestComputationContext.java' lang='java' lines='[BEGIN computation_context]-[END computation_context]' keep-indents %}
+  {% code '/yt/yt/flow/examples/java/retryable_async_request/retryable_async_request/src/main/java/tech/ytsaurus/flow/examples/retryableasyncrequest/StateKeeperFunction.java' lang='java' lines='[BEGIN registration]-[END registration]' %}
+
+  {% code '/yt/yt/flow/examples/java/retryable_async_request/retryable_async_request/src/main/java/tech/ytsaurus/flow/examples/retryableasyncrequest/RequestProcessorFunction.java' lang='java' lines='[BEGIN registration]-[END registration]' %}
 
 - Kotlin
 
-  {% code '/yt/yt/flow/examples/kotlin/retryable_async_request/retryable_async_request/src/main/kotlin/tech/ytsaurus/flow/examples/retryableasyncrequest/RetryableAsyncRequestComputationContext.kt' lang='kotlin' lines='[BEGIN computation_context]-[END computation_context]' keep-indents %}
+  {% code '/yt/yt/flow/examples/kotlin/retryable_async_request/retryable_async_request/src/main/kotlin/tech/ytsaurus/flow/examples/retryableasyncrequest/StateKeeperFunction.kt' lang='kotlin' lines='[BEGIN registration]-[END registration]' %}
+
+  {% code '/yt/yt/flow/examples/kotlin/retryable_async_request/retryable_async_request/src/main/kotlin/tech/ytsaurus/flow/examples/retryableasyncrequest/RequestProcessorFunction.kt' lang='kotlin' lines='[BEGIN registration]-[END registration]' %}
 
 {% endlist %}
 

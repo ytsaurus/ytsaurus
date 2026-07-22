@@ -22,7 +22,7 @@ Java и Kotlin используются в `Runner` и `Worker`.
 Java SDK Flow (с поддержкой Kotlin) предоставляет два подхода для настройки компаньона:
 
 1. **Ручной** (SimpleRunnerProgram + PipelineContext + GrpcServerExecution) — подходит для простых случаев, когда не нужна инъекция зависимостей.
-2. **Spring Boot** (auto-config с ComputationProvider) — рекомендуемый подход для production-сервисов с развитой конфигурацией и зависимостями.
+2. **Spring Boot** (auto-config с аннотациями `@FlowComputation`) — рекомендуемый подход для production-сервисов с развитой конфигурацией и зависимостями.
 
 ## Computation и SourceComputation
 
@@ -173,7 +173,36 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
 
 ### Spring Boot подход
 
-При использовании Spring Boot необходимо реализовать интерфейс `ComputationProvider`:
+При использовании Spring Boot компьютейшен `mapper` регистрируется аннотацией `@FlowComputation` прямо на классе process-функции (источник `reader` — passthrough: он объявляется в спеке пайплайна и в Java-компаньоне не регистрируется):
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  @FlowComputation(id = "mapper")
+  public class WordCountMapper implements RowFunction {
+      @Override
+      public void onMessage(ExtendedMessage message, OutputCollector output, RuntimeContext ctx) {
+          // обработка сообщения
+      }
+  }
+  ```
+
+- Kotlin
+
+  ```kotlin
+  @FlowComputation(id = "mapper")
+  class WordCountMapper : RowFunction {
+      override fun onMessage(message: ExtendedMessage, output: OutputCollector, ctx: RuntimeContext) {
+          // обработка сообщения
+      }
+  }
+  ```
+
+{% endlist %}
+
+Типизированные стримы объявляются через `ComputationProvider` (метод `getStreams()`) либо как отдельные бины `FlowStream<?>`:
 
 {% list tabs group=lang %}
 
@@ -183,26 +212,9 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
   @Configuration
   public class WordCountContext implements ComputationProvider {
 
-      @Autowired
-      private WordCountMapper wordCountMapper;
-
-      @Override
-      public List<Computation> getComputations() {
-          var reader = SourceComputation.builder()
-                  .setComputationId("reader")
-                  .build();
-          var mapper = Computation.builder()
-                  .setComputationId("mapper")
-                  .setProcessFunction(wordCountMapper)
-                  .build();
-          return List.of(reader, mapper);
-      }
-
       @Override
       public List<FlowStream<?>> getStreams() {
-          return List.of(
-                  FlowStreams.typed("words", Word.class)
-          );
+          return List.of(FlowStreams.typed("words", Word.class));
       }
   }
   ```
@@ -213,24 +225,8 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
   @Configuration
   open class WordCountContext : ComputationProvider {
 
-      @Autowired
-      private lateinit var wordCountMapper: WordCountMapper
-
-      override fun getComputations(): List<Computation> {
-          val reader = SourceComputation.builder()
-                  .setComputationId("reader")
-                  .build()
-          val mapper = Computation.builder()
-                  .setComputationId("mapper")
-                  .setProcessFunction(wordCountMapper)
-                  .build()
-          return listOf(reader, mapper)
-      }
-
       override fun getStreams(): List<FlowStream<*>> {
-          return listOf(
-                  FlowStreams.typed("words", Word::class.java)
-          )
+          return listOf(FlowStreams.typed("words", Word::class.java))
       }
   }
   ```

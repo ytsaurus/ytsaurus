@@ -10,6 +10,7 @@ import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.PayloadBuilder;
+import tech.ytsaurus.flow.spring.FlowComputation;
 import tech.ytsaurus.flow.state.ExternalStateAccessor;
 import tech.ytsaurus.flow.state.ExternalStateDescriptor;
 import tech.ytsaurus.flow.state.StateDescriptors;
@@ -21,6 +22,9 @@ import tech.ytsaurus.flow.state.StateDescriptors;
  *   <li>response → accumulates total_length in external state ("state" table)</li>
  * </ul>
  */
+// [BEGIN registration]
+@FlowComputation(id = "state")
+// [END registration]
 public class StateKeeperFunction implements RowFunction {
     private static final Logger log = LoggerFactory.getLogger(StateKeeperFunction.class);
 

@@ -21,12 +21,12 @@ import tech.ytsaurus.flow.stream.FlowStream;
 /**
  * Spring Boot autoconfiguration for the Flow companion server.
  * <p>
- * This configuration is automatically applied when a {@link ComputationProvider} bean
- * is present in the application context and the required Flow classes are on the classpath.
- * It creates the necessary beans to start a gRPC companion server that handles
+ * This configuration is automatically applied when at least one Flow component is present in the
+ * application context (see {@link OnFlowComponentsCondition}) and the required Flow classes are on
+ * the classpath. It creates the necessary beans to start a gRPC companion server that handles
  * computation requests from YT Flow workers.
  * <p>
- * To use this autoconfiguration, either annotate your process functions with
+ * To use this autoconfiguration, annotate your process functions with
  * {@link FlowComputation} / {@link FlowSourceComputation}:
  * <pre>
  * &#64;FlowComputation(id = "my_computation")
@@ -38,26 +38,8 @@ import tech.ytsaurus.flow.stream.FlowStream;
  * }
  * </pre>
  * <p>
- * or implement the {@link ComputationProvider} interface and register it as a Spring bean:
- * <pre>
- * &#64;Configuration
- * public class MyFlowConfig implements ComputationProvider {
- *
- *     &#64;Autowired
- *     private MyProcessFunction myProcessFunction;
- *
- *     &#64;Override
- *     public List&lt;Computation&gt; getComputations() {
- *         var computation = Computation.builder()
- *                 .setComputationId("my_computation")
- *                 .setProcessFunction(myProcessFunction)
- *                 .build();
- *         return List.of(computation);
- *     }
- * }
- * </pre>
- * <p>
- * Both mechanisms can be combined; their computations and streams are merged.
+ * Streams are declared either as {@link FlowStream} beans or via a {@link ComputationProvider}
+ * bean (see {@link ComputationProvider#getStreams()}).
  * <p>
  * Configuration properties can be set in application.yml:
  * <pre>
@@ -81,9 +63,9 @@ public class FlowAutoConfiguration {
     private static final Logger log = LoggerFactory.getLogger(FlowAutoConfiguration.class);
 
     /**
-     * Creates the PipelineContext bean with registered computations and streams collected from both
-     * {@link ComputationProvider} beans and {@link FlowComputation} / {@link FlowSourceComputation}
-     * annotated beans.
+     * Creates the PipelineContext bean with registered computations collected from
+     * {@link FlowComputation} / {@link FlowSourceComputation} annotated beans, and streams collected
+     * from {@link ComputationProvider} beans and {@link FlowStream} beans.
      *
      * @param computationProviders provider of all {@link ComputationProvider} beans
      * @param flowStreams          provider of all {@link FlowStream} beans
