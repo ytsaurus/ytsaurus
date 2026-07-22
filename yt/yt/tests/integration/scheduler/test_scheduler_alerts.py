@@ -137,8 +137,34 @@ class TestSchedulerAlerts(TestSchedulerAlertsBase):
                 "cpu": 100.0,
             },
             "min_node_resource_limits_check_period": 100,
+            "min_node_resource_limits_violation_grace_period": 0,
         })
 
+        wait_single_scheduler_alert("nodes_with_insufficient_resource_limits")
+
+        update_pool_tree_config("default", {
+            "min_node_resource_limits": {
+                "cpu": 0.0,
+            },
+        })
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
+
+    @authors("renadeen")
+    def test_min_node_resource_limits_grace_period(self):
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
+        update_pool_tree_config("default", {
+            "min_node_resource_limits": {
+                "cpu": 100.0,
+            },
+            "min_node_resource_limits_check_period": 100,
+            "min_node_resource_limits_violation_grace_period": 5000,
+        })
+
+        # Alert must not fire during the grace period.
+        time.sleep(2)
+        assert len(get("//sys/scheduler/@alerts")) == 0
+
+        # Alert must fire after grace period expires.
         wait_single_scheduler_alert("nodes_with_insufficient_resource_limits")
 
         update_pool_tree_config("default", {

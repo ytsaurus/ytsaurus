@@ -4092,13 +4092,19 @@ void TSchedulingPolicy::ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedul
 
 void TSchedulingPolicy::CheckMinNodeResourceLimits()
 {
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::Strategy));
+
     static const int MaxViolatingNodesInError = 10;
 
     if (!TreeHost_->IsConnected()) {
         return;
     }
 
-    std::vector<std::string> violatingNodes;
+    auto now = TInstant::Now();
+    auto gracePeriod = Config_->MinNodeResourceLimitsViolationTimeout;
+    auto minResourceLimits = ToJobResources(Config_->MinNodeResourceLimits, TJobResources());
+
+    THashSet<std::string> currentlyViolatingAddresses;
     for (const auto& [nodeId, state] : GetNodeStateMapSnapshot()) {
         if (!state->Descriptor) {
             continue;
@@ -4109,8 +4115,29 @@ void TSchedulingPolicy::CheckMinNodeResourceLimits()
             continue;
         }
 
-        if (!Dominates(state->Descriptor->ResourceLimits, ToJobResources(Config_->MinNodeResourceLimits, TJobResources()))) {
-            violatingNodes.push_back(state->Descriptor->GetDefaultAddress());
+        if (!Dominates(state->Descriptor->ResourceLimits, minResourceLimits)) {
+            currentlyViolatingAddresses.insert(state->Descriptor->GetDefaultAddress());
+        }
+    }
+
+    std::vector<std::string> addressesToRemove;
+    for (const auto& [address, _] : NodeToResourceLimitsViolationStartTime_) {
+        if (!currentlyViolatingAddresses.contains(address)) {
+            addressesToRemove.push_back(address);
+        }
+    }
+    for (const auto& address : addressesToRemove) {
+        NodeToResourceLimitsViolationStartTime_.erase(address);
+    }
+
+    for (const auto& address : currentlyViolatingAddresses) {
+        NodeToResourceLimitsViolationStartTime_.emplace(address, now);
+    }
+
+    std::vector<std::string> violatingNodes;
+    for (const auto& [address, violationStartTime] : NodeToResourceLimitsViolationStartTime_) {
+        if (now >= violationStartTime + gracePeriod) {
+            violatingNodes.push_back(address);
         }
     }
 
