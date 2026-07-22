@@ -478,6 +478,7 @@ public:
         bool EnableSequentialIORequests = true;
         i64 CoalescedReadMaxGapSize = 10_MB;
         i64 BlockCacheCapacity = 0;
+        bool RejectOversizedBlockCacheItems = false;
         int ClusterConnectionThreadPoolSize = 4;
         int ReadThreadCount = 1;
         int WriteThreadCount = 1;
@@ -560,6 +561,7 @@ public:
         bootstrapConfig->DataNode->BlockCache = New<TBlockCacheConfig>();
         auto cacheConfig = New<TSlruCacheConfig>();
         cacheConfig->Capacity = TestParams_.BlockCacheCapacity;
+        cacheConfig->RejectOversizedItems = TestParams_.RejectOversizedBlockCacheItems;
         bootstrapConfig->DataNode->BlockCache->CompressedData = cacheConfig;
         bootstrapConfig->DataNode->BlockCache->UncompressedData = cacheConfig;
         bootstrapConfig->DataNode->ChooseLocationBasedOnIOWeight = TestParams_.ChooseLocationBasedOnIOWeight;
@@ -1895,6 +1897,45 @@ INSTANTIATE_TEST_SUITE_P(
     TGetBlockSetTest,
     ::testing::ValuesIn(GenerateGetBlockSetParams())
 );
+
+class TOversizedBlockCacheTest
+    : public TDataNodeTest
+{
+public:
+    TOversizedBlockCacheTest()
+        : TDataNodeTest(
+            TDataNodeTest::TDataNodeTestParams {
+                .BlockCacheCapacity = 1_KB,
+                .RejectOversizedBlockCacheItems = true,
+            })
+    { }
+};
+
+TEST_F(TOversizedBlockCacheTest, DoesNotChargeBlockCacheMemory)
+{
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    auto blocks = FillWithRandomBlocks(sessionId, /*blockCount*/ 1, /*blockSize*/ 4_KB);
+
+    auto rspOrError = WaitFor(GetBlockSet(
+        sessionId.ChunkId,
+        /*blockIndices*/ std::vector<int>{0},
+        /*populateCache*/ true,
+        /*fetchFromCache*/ true,
+        /*fetchFromDisk*/ true));
+    ASSERT_TRUE(rspOrError.IsOK());
+
+    auto gotBlocks = GetRpcAttachedBlocks(rspOrError.Value());
+    ASSERT_EQ(gotBlocks.size(), 1u);
+    EXPECT_EQ(BlocksToChecksums(gotBlocks), BlocksToChecksums(blocks));
+
+    auto cacheCookie = GetDataNodeBootstrap()->GetBlockCache()->GetBlockCookie(
+        TBlockId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), 0),
+        EBlockType::CompressedData);
+    ASSERT_TRUE(cacheCookie->IsActive());
+    cacheCookie->SetBlock(blocks[0]);
+
+    EXPECT_EQ(GetDataNodeBootstrap()->GetNodeMemoryUsageTracker()->GetUsed(EMemoryCategory::BlockCache), 0);
+}
 
 class TReadBlocksDeadlineTest
     : public TDataNodeTest
