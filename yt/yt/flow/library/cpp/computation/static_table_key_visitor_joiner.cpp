@@ -93,8 +93,8 @@ void ValidateTableSchema(const TTableSchema& keySchema, const TTableSchema& tabl
         const auto& column = tableSchema.Columns()[i];
         if (column.Name() != keyColumn.Name()) {
             THROW_ERROR_EXCEPTION(
-                "Table schema differs from group-by schema "
-                "(ColumnName: %v, GroupByColumnName: %v)",
+                "Table schema differs from group-by schema: "
+                "column name %Qv does not match group-by column name %Qv",
                 column.Name(),
                 keyColumn.Name());
         }
@@ -102,8 +102,8 @@ void ValidateTableSchema(const TTableSchema& keySchema, const TTableSchema& tabl
         const auto& keyColumnType = *MakeOptionalIfNot(keyColumn.LogicalType());
         if (columnType != keyColumnType) {
             THROW_ERROR_EXCEPTION(
-                "Table schema differs from group-by schema "
-                "(ColumnName: %v, ColumnType: %v, GroupByColumnType: %v)",
+                "Table schema differs from group-by schema: "
+                "column %Qv has type %v while group-by column has type %v",
                 column.Name(),
                 columnType,
                 keyColumnType);

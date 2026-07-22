@@ -729,18 +729,18 @@ void TPersistedState<TKey, TValue>::CheckContents(const TPersistedStateName& nam
     auto it = RecordSet_.begin();
     if ((*it)->IsFake()) {
         THROW_ERROR_EXCEPTION_UNLESS(std::next(it) == RecordSet_.end(),
-            "Fake record in persisted state must be the one and only record (StateName: %v)",
+            "Fake record in persisted state %Qv must be the one and only record",
             name);
         THROW_ERROR_EXCEPTION_UNLESS((*it)->Interval.EffectiveLeft().Type() == EEndpointType::MinusInf,
-            "Fake record in persisted state must start with minus infinity (StateName: %v)",
+            "Fake record in persisted state %Qv must start with minus infinity",
             name);
         THROW_ERROR_EXCEPTION_UNLESS((*it)->Interval.EffectiveRight().Type() == EEndpointType::PlusInf,
-            "Fake record in persisted state must end with plus infinity (StateName: %v)",
+            "Fake record in persisted state %Qv must end with plus infinity",
             name);
         return;
     }
     THROW_ERROR_EXCEPTION_UNLESS((*it)->Interval.EffectiveLeft().Type() == EEndpointType::MinusInf,
-        "The first record in persisted state must start with minus infinity (StateName: %v)",
+        "The first record in persisted state %Qv must start with minus infinity",
         name);
     auto lastKey = (*it)->Interval.ExtractRight();
     while (true) {
@@ -750,32 +750,32 @@ void TPersistedState<TKey, TValue>::CheckContents(const TPersistedStateName& nam
         }
         YT_ASSERT(lastKey.has_value());
         THROW_ERROR_EXCEPTION_UNLESS((*it)->Value.has_value(),
-            "Even record in persisted state must have a value (StateName: %v)",
+            "Even record in persisted state %Qv must have a value",
             name);
         THROW_ERROR_EXCEPTION_IF(*lastKey != (*it)->Interval.EffectiveLeft(),
-            "There's must be no gap in persisted before value (StateName: %v)",
+            "There must be no gap before value in persisted state %Qv",
             name);
         ++it;
         THROW_ERROR_EXCEPTION_IF(it == RecordSet_.end(),
-            "Unexpected end of records in persisted state: open interval expected (StateName: %v)",
+            "Unexpected end of records in persisted state %Qv: open interval expected",
             name);
         THROW_ERROR_EXCEPTION_IF((*it)->Value.has_value(),
-            "Odd record in persisted state must not have a value (StateName: %v)",
+            "Odd record in persisted state %Qv must not have a value",
             name);
         THROW_ERROR_EXCEPTION_IF(*lastKey != *(*it)->Interval.ExtractLeft(),
-            "There's must be no gap before open interval in persisted state (StateName: %v)",
+            "There must be no gap before open interval in persisted state %Qv",
             name);
         if ((*it)->Interval.EffectiveRight().Type() != EEndpointType::PlusInf) {
             YT_ASSERT((*it)->Interval.EffectiveLeft().Type() == EEndpointType::KeyPlus);
             YT_ASSERT((*it)->Interval.EffectiveRight().Type() == EEndpointType::KeyMinus);
             THROW_ERROR_EXCEPTION_UNLESS((*it)->Interval.EffectiveLeft().GetKeySure() < (*it)->Interval.EffectiveRight().GetKeySure(),
-                "Right boundary must be greater than left in persisted state (StateName: %v)",
+                "Right boundary must be greater than left in persisted state %Qv",
                 name);
         }
         lastKey = (*it)->Interval.ExtractRight();
     }
     THROW_ERROR_EXCEPTION_IF(lastKey.has_value(),
-        "The last record in persisted state must end with plus infinity (StateName: %v)",
+        "The last record in persisted state %Qv must end with plus infinity",
         name);
 }
 

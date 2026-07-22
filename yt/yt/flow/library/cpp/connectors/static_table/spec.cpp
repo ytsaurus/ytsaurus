@@ -54,15 +54,15 @@ void TTableSourceParameters::Register(TRegistrar registrar)
         if (spec->Tables.has_value()) {
             THROW_ERROR_EXCEPTION_IF(spec->TablesPath.has_value(), "`TablesPath` cannot be set with `Tables`");
             for (const auto& table : *spec->Tables) {
-                THROW_ERROR_EXCEPTION_UNLESS(table.GetCluster().has_value(), "`Tables[i]` should have cluster (Table: %v)", table);
-                THROW_ERROR_EXCEPTION_IF(table.HasNontrivialRanges(), "`Tables[i]` should not have ranges (Table: %v)", table);
+                THROW_ERROR_EXCEPTION_UNLESS(table.GetCluster().has_value(), "Table %v in \"tables\" must have a cluster", table);
+                THROW_ERROR_EXCEPTION_IF(table.HasNontrivialRanges(), "Table %v in \"tables\" must not have ranges", table);
             }
         } else {
             THROW_ERROR_EXCEPTION_UNLESS(spec->TablesPath.has_value(), "`TablesPath` or `Tables` must be set");
 
-            THROW_ERROR_EXCEPTION_IF(spec->TablesPath->GetPath().empty(), "`TablesPath` must not be empty (TablesPath: %v)", spec->TablesPath);
-            THROW_ERROR_EXCEPTION_UNLESS(spec->TablesPath->GetCluster().has_value(), "`TablesPath` should have cluster (TablesPath: %v)", spec->TablesPath);
-            THROW_ERROR_EXCEPTION_IF(spec->TablesPath->HasNontrivialRanges(), "`TablesPath` should not have ranges (TablesPath: %v)", spec->TablesPath);
+            THROW_ERROR_EXCEPTION_IF(spec->TablesPath->GetPath().empty(), "\"tables_path\" %v must not be empty", spec->TablesPath);
+            THROW_ERROR_EXCEPTION_UNLESS(spec->TablesPath->GetCluster().has_value(), "\"tables_path\" %v must have a cluster", spec->TablesPath);
+            THROW_ERROR_EXCEPTION_IF(spec->TablesPath->HasNontrivialRanges(), "\"tables_path\" %v must not have ranges", spec->TablesPath);
         }
     });
 }
@@ -117,7 +117,7 @@ void TDynamicTableSourcePartitionSpec::Register(TRegistrar registrar)
         .Default(1.0);
 
     registrar.Postprocessor([] (TThis* spec) {
-        THROW_ERROR_EXCEPTION_UNLESS(spec->Table.GetCluster().has_value(), "`Table` should have cluster (Table: %v)", spec->Table);
+        THROW_ERROR_EXCEPTION_UNLESS(spec->Table.GetCluster().has_value(), "Table %v must have a cluster", spec->Table);
     });
 }
 

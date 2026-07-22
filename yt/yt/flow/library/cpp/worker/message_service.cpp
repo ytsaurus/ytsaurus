@@ -168,8 +168,8 @@ private:
                 YT_VERIFY(committedOffset <= connectionState.LastAckedOffset + std::ssize(connectionState.ProcessedTasks));
                 THROW_ERROR_EXCEPTION_UNLESS(
                     connectionState.LastAckedOffset <= committedOffset,
-                    "Invalid committed_offset, probably the order in which requests were processed is broken "
-                    "(CommittedOffset: %v, LastAckedOffset: %v, ProcessedTasks: %v)",
+                    "Committed offset %v is less than last acked offset %v with %v processed tasks; "
+                    "probably the order in which requests were processed is broken",
                     committedOffset,
                     connectionState.LastAckedOffset,
                     std::ssize(connectionState.ProcessedTasks));
@@ -222,16 +222,16 @@ private:
             auto& workerOffer = jobIdToWorkerOffer[jobId];
             for (const auto& streamOffer : jobData.offers()) {
                 const auto streamId = streamSpecs->GetStreamId(FromProto<TStreamSpecId>(streamOffer.stream_spec_id()));
-                THROW_ERROR_EXCEPTION_UNLESS(IsSorted(streamOffer.min_order_timestamps().begin(), streamOffer.min_order_timestamps().end()),
-                    "Buckets of stream offer must be sorted (JobId: %v, StreamId: %v, Offer: %v)",
-                    jobId,
-                    streamId,
-                    NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
-                THROW_ERROR_EXCEPTION_UNLESS(streamOffer.min_order_timestamps_size() == streamOffer.inflated_byte_sizes_size(),
-                    "Got invalid request, sizes mismatch (JobId: %v, StreamId: %v, Offer: %v)",
-                    jobId,
-                    streamId,
-                    NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
+                THROW_ERROR_EXCEPTION_UNLESS(IsSorted(streamOffer.min_order_timestamps().begin(), streamOffer.min_order_timestamps().end()), "Buckets of stream offer must be sorted")
+                    << TErrorAttribute("job_id", jobId)
+                    << TErrorAttribute("stream_id", streamId)
+                    << TErrorAttribute("offer", NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
+                if (streamOffer.min_order_timestamps_size() != streamOffer.inflated_byte_sizes_size()) {
+                    THROW_ERROR_EXCEPTION("Invalid request: sizes of \"min_order_timestamps\" and \"inflated_byte_sizes\" mismatch")
+                        << TErrorAttribute("job_id", jobId)
+                        << TErrorAttribute("stream_id", streamId)
+                        << TErrorAttribute("offer", NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
+                }
 
                 auto& offer = workerOffer[streamId];
                 offer.reserve(streamOffer.min_order_timestamps_size());

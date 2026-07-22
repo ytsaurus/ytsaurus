@@ -92,6 +92,8 @@
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
+#include <yt/yt/library/tracing/tracer.h>
+
 #include <yt/yt/library/ytprof/external_pprof.h>
 #include <yt/yt/library/ytprof/profile.h>
 #include <yt/yt/library/ytprof/symbolize.h>

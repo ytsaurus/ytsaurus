@@ -239,12 +239,27 @@ THashMap<TComputationId, TAggregatedNodeInputMetricsPtr> AggregateInputMetricsBy
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Keys of the per-limit maps in #TJobStatus::InputLimits and OutputLimits.
+inline constexpr TStringBuf InputBufferBytesLimitType = "input_buffer_bytes";
+inline constexpr TStringBuf OutputBufferBytesLimitType = "output_buffer_bytes";
+inline constexpr TStringBuf OutputStoreBytesLimitType = "output_store_bytes";
+inline constexpr TStringBuf OutputStoreCountLimitType = "output_store_count";
+//! Not a buffer: the controller withholding a stream. Carries a blocked-time
+//! share and nothing else.
+inline constexpr TStringBuf ControllerLimitType = "controller";
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobEntityLimitStatus
     : public NYTree::TYsonStructLite
 {
     i64 Limit{};
     i64 Used{};
     std::optional<i64> Pending;
+    //! Share of the time the job spent with this buffer blocking the epoch loop,
+    //! averaged over the window from the spec. Normalized by the job lifetime, so
+    //! a job blocked since its start reports ~1 however young it is.
+    double BlockedTimeShare{};
 
     REGISTER_YSON_STRUCT_LITE(TJobEntityLimitStatus);
 

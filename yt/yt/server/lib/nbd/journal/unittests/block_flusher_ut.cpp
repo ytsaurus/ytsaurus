@@ -75,6 +75,18 @@ public:
         YT_ABORT();
     }
 
+    void ReleaseBlock(TStoredBlockId /*blockId*/) override
+    { }
+
+    void BeginSnapshot() override
+    { }
+
+    void EndSnapshot() override
+    { }
+
+    void BuildChunksOrchid(NYTree::TFluentMap /*fluent*/) override
+    { }
+
     void SetFailing(bool failing)
     {
         auto guard = Guard(Lock_);

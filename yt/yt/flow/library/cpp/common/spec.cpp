@@ -219,6 +219,9 @@ void TDynamicKeyVisitorStreamSpec::Register(TRegistrar registrar)
     registrar.Parameter("max_scan_rows_per_iteration", &TThis::MaxScanRowsPerIteration)
         .GreaterThan(NYTree::TSize(0))
         .Default(NYTree::TSize(10'000));
+    registrar.Parameter("background_fill_period", &TThis::BackgroundFillPeriod)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::MilliSeconds(500));
     registrar.Parameter("catchup_lag_threshold", &TThis::CatchupLagThreshold)
         .GreaterThanOrEqual(TDuration::Zero())
         .Default(TDuration::Minutes(1));
@@ -790,6 +793,9 @@ void TDynamicComputationSpec::Register(TRegistrar registrar)
         .Default(NYTree::TSize::FromString("1G"));
     registrar.Parameter("output_store_byte_size_limit", &TThis::OutputStoreByteSizeLimit)
         .Default(NYTree::TSize(100_GB));
+
+    registrar.Parameter("blocked_time_window", &TThis::BlockedTimeWindow)
+        .Default(TDuration::Minutes(10));
 
     registrar.Parameter("input_rows_throttler_id", &TThis::InputRowsThrottlerId)
         .Default();

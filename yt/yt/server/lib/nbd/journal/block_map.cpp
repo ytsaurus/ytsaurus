@@ -16,6 +16,7 @@
 #include <atomic>
 #include <deque>
 #include <functional>
+#include <optional>
 #include <vector>
 
 namespace NYT::NNbd::NJournal {
@@ -77,8 +78,6 @@ TMappedBlockId WithoutCoW(TMappedBlockId id)
     return TMappedBlockId(id.Underlying() & ~CoWMask);
 }
 
-} // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Maps each block index to its mapped block id, kept in a vector of atomic slots (see
@@ -101,26 +100,39 @@ public:
 
     void PutDirty(int blockIndex, TDirtyBlockId blockId) override
     {
-        auto guard = Guard(WriteLock_);
+        std::optional<TStoredBlockId> diedStoredBlockId;
+        {
+            auto guard = Guard(WriteLock_);
 
-        auto& slot = GetSlot(blockIndex);
-        auto oldId = TMappedBlockId(slot.load(std::memory_order::acquire));
+            auto& slot = GetSlot(blockIndex);
+            auto oldId = TMappedBlockId(slot.load(std::memory_order::acquire));
 
-        // The first write to a block makes it non-empty for good.
-        if (oldId == EmptyMappedBlockId) {
-            UsedBlockCount_.fetch_add(1, std::memory_order::relaxed);
-        }
-
-        auto newId = ToMappedBlockId(blockId);
-        // While a snapshot scans, stash the pre-snapshot value the first time we overwrite a block (the
-        // CoW bit means "already stashed") so TakeSnapshot can restore it.
-        if (SnapshotState_ == ESnapshotState::CoWActive) {
-            if (!IsCoW(oldId)) {
-                CoWBlocks_.emplace_back(blockIndex, oldId);
+            // The first write to a block makes it non-empty for good.
+            if (oldId == EmptyMappedBlockId) {
+                UsedBlockCount_.fetch_add(1, std::memory_order::relaxed);
             }
-            newId = WithCoW(newId);
+
+            auto bareOldId = WithoutCoW(oldId);
+            if (IsStoredMappedBlockId(bareOldId)) {
+                diedStoredBlockId = ToStoredBlockId(bareOldId);
+            }
+
+            auto newId = ToMappedBlockId(blockId);
+            // While a snapshot scans, stash the pre-snapshot value the first time we overwrite a block
+            // (the CoW bit means "already stashed") so TakeSnapshot can restore it.
+            if (SnapshotState_ == ESnapshotState::CoWActive) {
+                if (!IsCoW(oldId)) {
+                    CoWBlocks_.emplace_back(blockIndex, oldId);
+                }
+                newId = WithCoW(newId);
+            }
+            slot.store(newId.Underlying(), std::memory_order::release);
         }
-        slot.store(newId.Underlying(), std::memory_order::release);
+
+        // Fire outside WriteLock_ (subscribers may re-enter the map), strictly after the slot update.
+        if (diedStoredBlockId) {
+            StoredBlockDied_.Fire(*diedStoredBlockId);
+        }
     }
 
     bool TryMakeClean(int blockIndex, TDirtyBlockId expectedBlockId, TStoredBlockId storedBlockId) override
@@ -131,6 +143,12 @@ public:
         // update, and regardless of whether the flush was adopted: a snapshot armed under the same
         // lock either sees the update in its scan or is subscribed by now, so it cannot miss this.
         BlockFlushObserved_.Fire(expectedBlockId, storedBlockId);
+
+        // A flush that lost the last-write-wins race is never referenced, so its stored block is dead
+        // on arrival.
+        if (!adopted) {
+            StoredBlockDied_.Fire(storedBlockId);
+        }
 
         return adopted;
     }
@@ -223,6 +241,7 @@ public:
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(TDirtyBlockId dirtyBlockId, TStoredBlockId storedBlockId), BlockFlushObserved);
+    DEFINE_SIGNAL_OVERRIDE(void(TStoredBlockId storedBlockId), StoredBlockDied);
 
 private:
     std::vector<std::atomic<TMappedBlockId::TUnderlying>> Slots_;
@@ -272,6 +291,8 @@ private:
         return true;
     }
 };
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

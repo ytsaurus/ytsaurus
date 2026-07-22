@@ -45,6 +45,8 @@ void TJournalBlockStoreConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_chunk_data_size", &TThis::MaxChunkDataSize)
         .Default(1_GB)
         .GreaterThan(0);
+    registrar.Parameter("dead_chunk_retention_delay", &TThis::DeadChunkRetentionDelay)
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("write_backoff", &TThis::WriteBackoff)
         .Default(TExponentialBackoffOptions{
             .InvocationCount = 10,

@@ -1,0 +1,85 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["rows"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+            "mapper" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["rows"];
+                "output_stream_ids" = ["mapped"];
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["mapped"];
+                        "parameters" = {};
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "rows" = {
+                "schema" = [
+                    {name = "key"; type = "string";};
+                    {name = "f_string"; type = "string";};
+                    {name = "f_int64"; type = "int64";};
+                    {name = "f_uint64"; type = "uint64";};
+                    {name = "f_double"; type = "double";};
+                    {name = "f_bool"; type = "boolean";};
+                ];
+            };
+            "mapped" = {
+                "schema" = [
+                    {name = "key"; type = "string";};
+                    {name = "f_string"; type = "string";};
+                    {name = "f_int64"; type = "int64";};
+                    {name = "f_uint64"; type = "uint64";};
+                    {name = "f_double"; type = "double";};
+                    {name = "f_bool"; type = "boolean";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
+                "parameters" = {
+                    "timeout" = "1s";
+                    "jdk_bin_path" = "/path/to/jdk/bin";
+                    "main_class" = "tech.ytsaurus.flow.tests.types.NodeCompanionMain";
+                    "classpath" = "/path/to/classpath";
+                    "run_process" = %true;
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {};
+            "mapper" = {};
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

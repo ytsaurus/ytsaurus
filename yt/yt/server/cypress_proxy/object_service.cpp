@@ -589,10 +589,8 @@ private:
         TCellTag cellTag)
     {
         const auto& masterCellDirectory = Owner_->Connection_->GetMasterCellDirectory();
-        auto nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
-        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(nakedMasterChannel));
-        // TODO(nadya02): Set the correct timeout here.
-        proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
+        auto nonRetryingMasterChannel = masterCellDirectory->GetNonRetryingMasterChannelOrThrow(MasterChannelKind_, cellTag);
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(nonRetryingMasterChannel));
 
         auto masterRequest = proxy.Execute();
 
@@ -1213,10 +1211,10 @@ private:
         const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
 
         auto syncWithCell = [&] (TCellTag cellTag) {
-            auto nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(
+            auto nonRetryingMasterChannel = masterCellDirectory->GetNonRetryingMasterChannelOrThrow(
                 EMasterChannelKind::Leader,
                 cellTag);
-            auto proxy = TSequoiaTransactionServiceProxy(std::move(nakedMasterChannel));
+            auto proxy = TSequoiaTransactionServiceProxy(std::move(nonRetryingMasterChannel));
             proxy.SetDefaultTimeout(config->GroundUpdateQueuesSyncRequestTimeout);
 
             auto request = proxy.SyncWithGroundUpdateQueue();

@@ -1,0 +1,183 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TSwiftOrderedSourceCompanionComputation";
+                "output_stream_ids" = ["event"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=cluster_name>//path/to/queue";
+                            "consumer_path" = "<cluster=cluster_name>//path/to/consumer";
+                            "finite" = false;
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+            "shuffle_a" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key_a)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key_a"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event"];
+                "output_stream_ids" = ["event_a"];
+            };
+            "shuffle_b" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key_b)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key_b"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event_a"];
+                "output_stream_ids" = ["event_b"];
+            };
+            "shuffle_c" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key_c)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key_c"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event_b"];
+                "output_stream_ids" = ["event_c"];
+            };
+            "shuffle_d" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key_d)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key_d"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event_c"];
+                "output_stream_ids" = ["event_d"];
+            };
+            "reducer" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(value)"; "type" = "uint64"; required = %true;};
+                    {"name" = "value"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["event_a"; "event_b"; "event_c"; "event_d";];
+                "output_stream_ids" = [];
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "external_state_managers" = {
+                    "/shuffle-state" = {
+                        "parameters" = {
+                            "path" = "<cluster=cluster_name>//path/to/state";
+                        };
+                    };
+                };
+                "parameters" = {
+                };
+            };
+        };
+        "streams" = {
+            "event" = {
+                "schema" = [
+                    {"name" = "key_a"; "type" = "uint64";};
+                    {"name" = "key_b"; "type" = "uint64";};
+                    {"name" = "key_c"; "type" = "uint64";};
+                    {"name" = "key_d"; "type" = "uint64";};
+                    {"name" = "value"; "type" = "string";};
+                ];
+            };
+            "event_a" = {
+                "schema" = [
+                    {"name" = "key_a"; "type" = "uint64";};
+                    {"name" = "key_b"; "type" = "uint64";};
+                    {"name" = "key_c"; "type" = "uint64";};
+                    {"name" = "key_d"; "type" = "uint64";};
+                    {"name" = "value"; "type" = "string";};
+                ];
+            };
+            "event_b" = {
+                "schema" = [
+                    {"name" = "key_a"; "type" = "uint64";};
+                    {"name" = "key_b"; "type" = "uint64";};
+                    {"name" = "key_c"; "type" = "uint64";};
+                    {"name" = "key_d"; "type" = "uint64";};
+                    {"name" = "value"; "type" = "string";};
+                ];
+            };
+            "event_c" = {
+                "schema" = [
+                    {"name" = "key_a"; "type" = "uint64";};
+                    {"name" = "key_b"; "type" = "uint64";};
+                    {"name" = "key_c"; "type" = "uint64";};
+                    {"name" = "key_d"; "type" = "uint64";};
+                    {"name" = "value"; "type" = "string";};
+                ];
+            };
+            "event_d" = {
+                "schema" = [
+                    {"name" = "key_a"; "type" = "uint64";};
+                    {"name" = "key_b"; "type" = "uint64";};
+                    {"name" = "key_c"; "type" = "uint64";};
+                    {"name" = "key_d"; "type" = "uint64";};
+                    {"name" = "value"; "type" = "string";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
+                "parameters" = {
+                    "jdk_bin_path" = "/path/to/jdk/bin/java";
+                    "main_class" = "tech.ytsaurus.flow.examples.shuffle.NodeCompanionMain";
+                    "classpath" = "/path/to/classpath";
+                    "run_process" = %true;
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {
+                };
+            };
+            "mapper" = {
+                "parameters" = {
+                };
+            };
+            "shuffle_a" = {
+                "parameters" = {
+                    "desired_partition_count" = 1;
+                }
+            };
+            "shuffle_b" = {
+                "parameters" = {
+                    "desired_partition_count" = 2;
+                }
+            };
+            "shuffle_c" = {
+                "parameters" = {
+                    "desired_partition_count" = 3;
+                }
+            };
+            "shuffle_d" = {
+                "parameters" = {
+                    "desired_partition_count" = 4;
+                }
+            };
+            "reducer" = {
+                "parameters" = {
+                    "desired_partition_count" = 5;
+                }
+            };
+        };
+    };
+}

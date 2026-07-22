@@ -18,6 +18,8 @@ What becomes available after installing the package:
 - The binary `yt-fuse` for connecting [Cypress](../../../user-guide/storage/cypress.md) as a file system locally.
 {% endif %}
 
+Current package version requires **Python 3.8+**
+
 ### Installation { #install }
 
 #### YSON libraries
@@ -56,6 +58,20 @@ If you encounter a problem, check the [FAQ](#faq) section. If the problem persis
 We do not recommend installing the library and its dependent packages in different ways at the same time. This can lead to problems that are difficult to diagnose.
 
 {% endnote %}
+
+#### Additional dependencies (extras) { #extras }
+
+Some features require the additional dependencies that are not installed by default. They are declared in the extras sets of the `ytsaurus-client` package and are installed by specifying the set in square brackets:
+
+| Set | Dependencies | Purpose |
+| --- | --- | --- |
+| `recommended` | `brotli`, `cryptography` | Recommended optional dependencies |
+| `admin` | `kubernetes`, `docker` | [CLI admin commands](../../../admin-guide/cli-admin.md) (`yt admin logs k8s`, `yt admin metrics replay`) |
+
+```bash
+pip install "ytsaurus-client[recommended]"
+pip install "ytsaurus-client[admin]"
+```
 
 ### User documentation { #userdoc }
 * [General](../../../api/python/userdoc.md#common)

@@ -66,9 +66,6 @@ private:
         auto channel = GetTargetMasterPeerChannelOrThrow(context);
         auto proxy = TCypressTransactionServiceProxy(std::move(channel));
 
-        // TODO(h0pless, kvk1920): Set the correct timeout here.
-        proxy.SetDefaultTimeout(HugeDoNotUseRpcRequestTimeout);
-
         auto request = createRequest(proxy);
         auto requestId = request->GetRequestId();
 

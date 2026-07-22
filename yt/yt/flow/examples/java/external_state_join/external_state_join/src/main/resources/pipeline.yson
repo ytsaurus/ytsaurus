@@ -1,0 +1,85 @@
+{
+    "spec" = {
+        "computations" = {
+            "event_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["event"];
+                "source_streams" = {
+                    "event_queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "lookup_join" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event"];
+                "output_stream_ids" = ["enriched"];
+                "external_state_joiners" = {
+                    "/reference" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "parameters" = {
+                            "path" = "//path/to/current";
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["enriched"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "event" = {
+                "schema" = [
+                    {name = "key"; type = "uint64";};
+                ];
+            };
+            "enriched" = {
+                "schema" = [
+                    {name = "key"; type = "uint64";};
+                    {name = "name"; type = "string";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
+                "parameters" = {
+                    "jdk_bin_path" = "/path/to/jdk/bin/java";
+                    "main_class" = "tech.ytsaurus.flow.examples.externalstatejoin.NodeCompanionMain";
+                    "classpath" = "/path/to/classpath";
+                    "run_process" = %true;
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "event_reader" = {
+                "parameters" = {};
+            };
+            "lookup_join" = {
+                "parameters" = {};
+            };
+        };
+    };
+}

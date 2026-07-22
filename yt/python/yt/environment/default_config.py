@@ -31,10 +31,6 @@ def get_master_config():
             "enable_local_read_busy_wait": False,
         },
 
-        "cell_manager": {
-            "create_virtual_cell_maps_by_default": True,
-        },
-
         "table_manager": {
             "make_schema_attribute_opaque": True,
         },
@@ -46,7 +42,6 @@ def get_master_config():
         },
 
         "hive_manager": {
-            "use_new": True,
             "ping_period": 1000,
             "idle_post_period": 1000,
         },
@@ -568,7 +563,6 @@ def get_node_config():
                 },
             },
             "hive_manager": {
-                "use_new": True,
                 "ping_period": 1000,
                 "idle_post_period": 1000,
             },
@@ -687,7 +681,6 @@ def get_chaos_node_config():
                                 "lock_transaction_timeout": 5000,
                             },
                             "hive_manager": {
-                                "use_new": True,
                                 "ping_period": 1000,
                                 "idle_post_period": 1000,
                             },

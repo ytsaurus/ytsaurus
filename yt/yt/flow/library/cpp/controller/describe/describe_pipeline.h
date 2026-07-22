@@ -47,6 +47,10 @@ struct TStreamLimitStats
     // Sum across all partitions (Total.Pending = sum of Pending values, 0 if absent).
     TJobEntityLimitStatus Total;
 
+    // Partition with the maximum blocked-time share (see TJobEntityLimitStatus::BlockedTimeShare).
+    double MaxBlockedTimeShare = 0;
+    TPartitionId MaxBlockedPartitionId;
+
     double GetMaxFillRate() const
     {
         return static_cast<double>(Max.Used) / std::max<i64>(1, Max.Limit);

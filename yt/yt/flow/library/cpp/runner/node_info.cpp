@@ -100,15 +100,13 @@ protected:
         std::string addressStr;
         if (addressResolverConfig->EnableIPv6) {
             THROW_ERROR_EXCEPTION_UNLESS(address.IsIP6(),
-                "Address resolved from FQDN is not IPv6 address "
-                "(LocalFqdn: %v, ResolvedAddress: %v)",
+                "Local FQDN %v resolved to non-IPv6 address %v",
                 localFqdn,
                 address);
             addressStr = ToString(address.ToIP6Address());
         } else {
             THROW_ERROR_EXCEPTION_UNLESS(address.IsIP4(),
-                "Address resolved from FQDN is not IPv4 address "
-                "(LocalFqdn: %v, ResolvedAddress: %v)",
+                "Local FQDN %v resolved to non-IPv4 address %v",
                 localFqdn,
                 address);
             addressStr = ToString(address, {.IncludePort = false, .IncludeTcpProtocol = false});
@@ -235,13 +233,11 @@ protected:
         auto addressResolverConfig = Config->GetSingletonConfig<NNet::TAddressResolverConfig>();
         if (addressResolverConfig->EnableIPv6) {
             THROW_ERROR_EXCEPTION_UNLESS(address.IsIP6(),
-                "YT_IP_ADDRESS_DEFAULT is not an IPv6 address but enable_ipv6 is set "
-                "(IP: %v)",
+                "YT_IP_ADDRESS_DEFAULT %Qv is not an IPv6 address but \"enable_ipv6\" is set",
                 Ip_);
         } else {
             THROW_ERROR_EXCEPTION_UNLESS(address.IsIP4(),
-                "YT_IP_ADDRESS_DEFAULT is not an IPv4 address but enable_ipv4 is set "
-                "(IP: %v)",
+                "YT_IP_ADDRESS_DEFAULT %Qv is not an IPv4 address but \"enable_ipv4\" is set",
                 Ip_);
         }
 
@@ -352,8 +348,8 @@ TNodeInfoPtr GetNodeInfo(const TFlowNodeConfigPtr& config, const TLogger& logger
     auto addressResolverConfig = config->GetSingletonConfig<NNet::TAddressResolverConfig>();
     THROW_ERROR_EXCEPTION_IF(
         addressResolverConfig->EnableIPv4 == addressResolverConfig->EnableIPv6,
-        "Exactly one of enable_ipv4 or enable_ipv6 must be set in address_resolver config "
-        "(EnableIPv4: %v, EnableIPv6: %v)",
+        "Exactly one of \"enable_ipv4\" and \"enable_ipv6\" must be set in address resolver config: "
+        "enable_ipv4 is %v, enable_ipv6 is %v",
         addressResolverConfig->EnableIPv4,
         addressResolverConfig->EnableIPv6);
 

@@ -274,6 +274,66 @@ TEST_F(TBlockStoreTest, ChunkRotationOnDataSizeLimit)
     ExpectBlocksEqual(allBlocks, ReadBlocks(store, allIds));
 }
 
+TEST_F(TBlockStoreTest, FreeDropUnstagesFullyDeadChunk)
+{
+    // Staged under the transaction alone (no chunk list), so unstaging a fully-dead chunk destroys it.
+    constexpr i64 BlockSize = 4096;
+    auto config = CreateConfig(BlockSize);
+    config->BlockStore->WriteParallelism = 1;
+    config->BlockStore->MaxChunkDataSize = 2 * BlockSize;
+    config->BlockStore->ChunkMaintenancePeriod = TDuration::MilliSeconds(200);
+    config->BlockStore->DeadChunkRetentionDelay = TDuration::Zero();
+    auto store = CreateStore(config, CreateOptions());
+
+    auto blocks = MakeRandomBlocks(2, BlockSize);
+    auto blockIds = WriteBlocks(store, blocks);
+
+    auto refs = store->GetBlockRefs(blockIds);
+    auto chunkId = refs[0].ChunkId;
+    for (const auto& ref : refs) {
+        ASSERT_EQ(ref.ChunkId, chunkId);
+    }
+
+    auto chunkPath = "#" + ToString(chunkId);
+    ASSERT_TRUE(WaitFor(NativeClient_->NodeExists(chunkPath)).ValueOrThrow());
+
+    for (auto blockId : blockIds) {
+        store->ReleaseBlock(blockId);
+    }
+
+    bool destroyed = false;
+    for (int attempt = 0; attempt < 150; ++attempt) {
+        if (!WaitFor(NativeClient_->NodeExists(chunkPath)).ValueOrThrow()) {
+            destroyed = true;
+            break;
+        }
+        Sleep(TDuration::MilliSeconds(200));
+    }
+    EXPECT_TRUE(destroyed) << "dead chunk " << chunkPath << " was not unstaged";
+}
+
+TEST_F(TBlockStoreTest, FreeDropKeepsChunkWithLiveBlock)
+{
+    constexpr i64 BlockSize = 4096;
+    auto config = CreateConfig(BlockSize);
+    config->BlockStore->WriteParallelism = 1;
+    config->BlockStore->MaxChunkDataSize = 2 * BlockSize;
+    config->BlockStore->ChunkMaintenancePeriod = TDuration::MilliSeconds(200);
+    config->BlockStore->DeadChunkRetentionDelay = TDuration::Zero();
+    auto store = CreateStore(config, CreateOptions());
+
+    auto blocks = MakeRandomBlocks(2, BlockSize);
+    auto blockIds = WriteBlocks(store, blocks);
+    auto chunkId = store->GetBlockRefs(blockIds)[0].ChunkId;
+    auto chunkPath = "#" + ToString(chunkId);
+
+    store->ReleaseBlock(blockIds[0]);
+
+    Sleep(TDuration::Seconds(2));
+    ASSERT_TRUE(WaitFor(NativeClient_->NodeExists(chunkPath)).ValueOrThrow());
+    ExpectBlocksEqual({blocks[1]}, ReadBlocks(store, {blockIds[1]}));
+}
+
 TEST_F(TBlockStoreTest, EmptyWrite)
 {
     auto store = CreateStore(CreateConfig(4096), CreateOptions());

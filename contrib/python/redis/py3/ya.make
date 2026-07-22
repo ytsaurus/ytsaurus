@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(7.1.1)
+VERSION(7.4.1)
 
 LICENSE(MIT)
 
@@ -55,6 +55,8 @@ PY_SRCS(
     redis/asyncio/multidb/failover.py
     redis/asyncio/multidb/failure_detector.py
     redis/asyncio/multidb/healthcheck.py
+    redis/asyncio/observability/__init__.py
+    redis/asyncio/observability/recorder.py
     redis/asyncio/retry.py
     redis/asyncio/sentinel.py
     redis/asyncio/utils.py
@@ -110,6 +112,7 @@ PY_SRCS(
     redis/crc.py
     redis/credentials.py
     redis/data_structure.py
+    redis/driver_info.py
     redis/event.py
     redis/exceptions.py
     redis/http/__init__.py
@@ -126,7 +129,13 @@ PY_SRCS(
     redis/multidb/exception.py
     redis/multidb/failover.py
     redis/multidb/failure_detector.py
-    redis/multidb/healthcheck.py
+    redis/observability/__init__.py
+    redis/observability/attributes.py
+    redis/observability/config.py
+    redis/observability/metrics.py
+    redis/observability/providers.py
+    redis/observability/recorder.py
+    redis/observability/registry.py
     redis/ocsp.py
     redis/retry.py
     redis/sentinel.py

@@ -443,8 +443,8 @@ public:
                     }
                 };
 
-                fillBufferLimits("input_buffer_bytes", StreamLimitUsageStates_.Input, status->InputLimits);
-                fillBufferLimits("output_buffer_bytes", StreamLimitUsageStates_.Output, status->OutputLimits);
+                fillBufferLimits(InputBufferBytesLimitType, StreamLimitUsageStates_.Input, status->InputLimits);
+                fillBufferLimits(OutputBufferBytesLimitType, StreamLimitUsageStates_.Output, status->OutputLimits);
             } catch (const std::exception& ex) {
                 status->Error = TError(ex);
                 status->FromPartitionTraverseData = nullptr;

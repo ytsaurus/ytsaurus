@@ -1,8 +1,0 @@
-allowHTML: true
-apply-presets: true
-varsPreset: public
-langs: ['ru']
-allow-custom-resources: true
-ignore:
-  - '**/yandex-specific/**'
-  - 'flow-public-check/**'

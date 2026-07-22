@@ -1,0 +1,134 @@
+{
+    "spec" = {
+        "computations" = {
+            "reference_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["reference"];
+                "source_streams" = {
+                    "reference_table" = {
+                        "source_class_name" = "NYT::NFlow::NStaticTableConnector::TSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "event_reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["event"];
+                "source_streams" = {
+                    "event_queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "reference_loader" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["reference"];
+                "output_stream_ids" = [];
+                "external_state_managers" = {
+                    "/reference_state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {
+                            "path" = "//path/to/state";
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+            "enricher" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(key)"; "type" = "uint64"; required = %true;};
+                    {"name" = "key"; "type" = "uint64";};
+                ];
+                "input_stream_ids" = ["event"];
+                "output_stream_ids" = ["enriched"];
+                "external_state_joiners" = {
+                    "/reference_state" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "parameters" = {
+                            "path" = "//path/to/state";
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TAsyncQueueSink";
+                        "input_stream_ids" = ["enriched"];
+                        "parameters" = {
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {};
+            };
+        };
+        "streams" = {
+            "reference" = {
+                "schema" = [
+                    {name = "key"; type = "uint64";};
+                    {name = "name"; type = "string";};
+                ];
+            };
+            "event" = {
+                "schema" = [
+                    {name = "key"; type = "uint64";};
+                ];
+            };
+            "enriched" = {
+                "schema" = [
+                    {name = "key"; type = "uint64";};
+                    {name = "name"; type = "string";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
+                "parameters" = {
+                    "jdk_bin_path" = "/path/to/jdk/bin/java";
+                    "main_class" = "tech.ytsaurus.flow.examples.statictablejoin.NodeCompanionMain";
+                    "classpath" = "/path/to/classpath";
+                    "run_process" = %true;
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reference_reader" = {
+                "parameters" = {};
+                "source_streams" = {"reference_table" = {"parameters" = {}}};
+            };
+            "event_reader" = {
+                "parameters" = {};
+            };
+            "reference_loader" = {
+                "parameters" = {};
+            };
+            "enricher" = {
+                "parameters" = {};
+            };
+        };
+    };
+}

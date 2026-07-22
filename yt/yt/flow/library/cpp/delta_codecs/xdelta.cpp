@@ -106,7 +106,7 @@ TSharedRef TXDeltaCodec::ApplyPatch(const TSharedRef& base, const TSharedRef& pa
         100,
         &errorMessage);
     if (ret != 0) {
-        THROW_ERROR_EXCEPTION("Failed to decode by XDelta (Code: %v(%v), Message: %v)",
+        THROW_ERROR_EXCEPTION("Failed to decode by XDelta with code %v (%v): %v",
             ret,
             xd3_strerror(ret),
             errorMessage ? errorMessage : "");
@@ -146,7 +146,7 @@ std::optional<TSharedRef> TXDeltaCodec::TryComputePatch(const TSharedRef& base, 
         &errorMessage);
 
     if (ret != 0) {
-        THROW_ERROR_EXCEPTION("Failed to encode by XDelta (Code: %v(%v), Message: %v)",
+        THROW_ERROR_EXCEPTION("Failed to encode by XDelta with code %v (%v): %v",
             ret,
             xd3_strerror(ret),
             errorMessage ? errorMessage : "");

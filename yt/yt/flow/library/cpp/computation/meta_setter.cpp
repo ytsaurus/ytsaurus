@@ -153,7 +153,7 @@ protected:
                 }
             }
             if (newParentMessages.empty() && newParentTimers.empty() && newParentVisits.empty()) {
-                THROW_ERROR_EXCEPTION("Message has no valid parents (MessageId: %v, StreamId: %v)",
+                THROW_ERROR_EXCEPTION("Message %v of stream %v has no valid parents",
                     meta.MessageId,
                     meta.StreamId);
             }

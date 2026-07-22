@@ -1,24 +1,24 @@
 {
   "info": {
-    "created": "2026-07-06T23:08:05Z",
+    "created": "2026-07-21T09:26:46.606Z",
     "pr": {
-      "id": 14286715,
+      "id": 14537546,
       "author": "baymer",
-      "summary": "FBP-3266: ts: починить сендбоксинг в TS_LIBRARY"
+      "summary": "FBP-3287: добавить кешируемые герметичные node_modules"
     }
   },
   "by_platform": {
     "darwin": {
-      "uri": "sbr:12700282480"
+      "uri": "sbr:12864763820"
     },
     "darwin-arm64": {
-      "uri": "sbr:12700281374"
+      "uri": "sbr:12864760082"
     },
     "linux": {
-      "uri": "sbr:12700284241"
+      "uri": "sbr:12864770985"
     },
     "linux-aarch64": {
-      "uri": "sbr:12700283393"
+      "uri": "sbr:12864767486"
     }
   }
 }

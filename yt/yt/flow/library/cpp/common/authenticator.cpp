@@ -115,10 +115,10 @@ public:
         auto [ticketInstant, hmac] = PreparseTicket(ticket);
         auto secondsDelta = std::abs(TInstant::Now().SecondsFloat() - ticketInstant.SecondsFloat());
         if (secondsDelta > TicketLifetime_.Seconds()) {
-            THROW_ERROR_EXCEPTION("Ticket expired (TicketTimestamp: %v, DeltaSeconds: %v, LifeTimeSeconds: %v)",
-                ticketInstant,
-                secondsDelta,
-                TicketLifetime_.Seconds());
+            THROW_ERROR_EXCEPTION("Ticket expired")
+                << TErrorAttribute("ticket_timestamp", ticketInstant)
+                << TErrorAttribute("delta_seconds", secondsDelta)
+                << TErrorAttribute("lifetime_seconds", TicketLifetime_.Seconds());
         }
         if (ComputeHmac(ticketInstant) != hmac) {
             THROW_ERROR_EXCEPTION("Wrong ticket hmac");
@@ -156,7 +156,7 @@ private:
             if (prefix.size() > maxPrefixPrintLength) {
                 prefix = prefix.substr(0, maxPrefixPrintLength) + "..."; // Avoid printing full secret, if it is bad.
             }
-            THROW_ERROR_EXCEPTION("Wrong ticket prefix (Got: %v, Expected: %v)", prefix, TicketPrefix_);
+            THROW_ERROR_EXCEPTION("Wrong ticket prefix: got %Qv, expected %Qv", prefix, TicketPrefix_);
         }
         return {TInstant::Seconds(instantSeconds), hmac};
     }
@@ -361,17 +361,17 @@ private:
             NYson::TYsonStringBuf(serializedMetadata));
 
         if (metadata->Method != ControllerRequestMetadataMethod) {
-            THROW_ERROR_EXCEPTION("Proxy request metadata method mismatch (Expected: %v, Actual: %v)",
+            THROW_ERROR_EXCEPTION("Proxy request metadata method mismatch: expected %v, actual %v",
                 ControllerRequestMetadataMethod,
                 metadata->Method);
         }
         if (metadata->PipelineObjectId != ExpectedPipelineObjectId_) {
-            THROW_ERROR_EXCEPTION("Proxy request metadata pipeline object id mismatch (Expected: %v, Actual: %v)",
+            THROW_ERROR_EXCEPTION("Proxy request metadata pipeline object id mismatch: expected %v, actual %v",
                 ExpectedPipelineObjectId_,
                 metadata->PipelineObjectId);
         }
         if (metadata->ControllerAddress != ExpectedControllerAddress_) {
-            THROW_ERROR_EXCEPTION("Proxy request metadata controller address mismatch (Expected: %v, Actual: %v)",
+            THROW_ERROR_EXCEPTION("Proxy request metadata controller address mismatch: expected %v, actual %v",
                 ExpectedControllerAddress_,
                 metadata->ControllerAddress);
         }

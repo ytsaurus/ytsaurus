@@ -331,7 +331,7 @@ void TSwiftOrderedSourceComputation::ProcessSourceBatches(std::vector<ISource::T
     std::vector<std::vector<bool>> isOutputByBatch(sourceMessageBatches.size());
     for (auto&& [output, outputParents, isOutput] : Zip(result.OutputMessages, result.OutputMessagesParentMessageIds, flatDistribute)) {
         if (outputParents->ParentMessages.size() != 1 || outputParents->ParentTimers.size() != 0) {
-            THROW_ERROR_EXCEPTION("Expected exactly one ParentMessageId (ParentsCount: %v)",
+            THROW_ERROR_EXCEPTION("Expected exactly one parent message, got %v",
                 outputParents->ParentMessages.size());
         }
         int index = GetOrCrash(sourceMessageBatchIndices, outputParents->ParentMessages[0].Get());
