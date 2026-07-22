@@ -12,6 +12,8 @@
   ".github/workflows/check-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/check-jobs.yaml",
   ".github/workflows/check-status-and-send-alert.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/check-status-and-send-alert.yaml",
   ".github/workflows/chyt_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/chyt_release.yaml",
+  ".github/workflows/cmake-action.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/cmake-action.yaml",
+  ".github/workflows/cmake.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/cmake.yaml",
   ".github/workflows/cpp.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/cpp.yaml",
   ".github/workflows/cron-release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/cron-release.yaml",
   ".github/workflows/docker-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/docker-jobs.yaml",

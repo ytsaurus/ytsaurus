@@ -102,23 +102,20 @@ jobs:
       runs-on-value: ubuntu-latest
     uses: ./.github/workflows/strawberry-action.yaml
 
-  build-cmake:
-    name: Build with cmake
+  build-check-cmake:
+    name: CMake build and check
     needs:
       - start-vm
       - checkout
-      - build-strawberry
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      build-ytsaurus: true
       build-chyt: ${{ github.ref_name == 'main' }}
-      build-python: true
-      build-types: '["release"]'
+      build-types: '["relwithdebinfo"]'
+      run-unittests: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
+    uses: ./.github/workflows/cmake-action.yaml
 
   build-ya-make:
     name: Build with ya-make
@@ -162,7 +159,7 @@ jobs:
       - run-tests
       - start-vm
       - build-ya-make
-      - build-cmake
+      - build-check-cmake
       - build-strawberry
     runs-on: trampoline
     if: ${{ always() }}
@@ -174,7 +171,7 @@ jobs:
             const current_time = new Date().toLocaleString("ru-RU");
             const message = 'PR autocheck finished.\nStatuses:\n'
             const strawberry_status = 'Strawberry controller: ' + '${{ needs.build-strawberry.result }}' + '\n';
-            const cmake_status = 'CMake build: ' + '${{ needs.build-cmake.result }}' + '\n';
+            const cmake_status = 'CMake build+check: ' + '${{ needs.build-check-cmake.result }}' + '\n';
             const ya_make_status = 'Ya-make build: ' + '${{ needs.build-ya-make.result }}' + '\n';
             const tests_status = 'Tests: ' + '${{ needs.run-tests.result }}' + '\n';
             const comment = await github.rest.issues.getComment({
@@ -196,7 +193,7 @@ jobs:
     needs:
       - start-vm
       - build-ya-make
-      - build-cmake
+      - build-check-cmake
       - run-tests
       - notify-finish
     runs-on: trampoline
