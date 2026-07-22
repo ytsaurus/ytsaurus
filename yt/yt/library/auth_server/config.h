@@ -458,6 +458,13 @@ struct TLdapServiceConfig
     //! TLS mode: None (plain ldap://), Ldaps (ldaps://, port 636), StartTls (upgrade, port 389).
     ELdapEncryption Encryption;
 
+    //! Whether the LDAP client should follow server referrals.
+    //! Some LDAP deployments (especially multi-domain Active Directory
+    //! forests) use referrals to redirect searches to another server.
+    //! However, referral chasing may establish additional unauthenticated
+    //! connections and break authenticated operations in some environments.
+    bool EnableReferrals;
+
     //! CA certificate for TLS verification. Only FileName is supported for LDAP.
     NCrypto::TPemBlobConfigPtr CertificateAuthority;
 
