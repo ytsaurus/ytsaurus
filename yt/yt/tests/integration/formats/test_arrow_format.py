@@ -569,6 +569,57 @@ class TestArrowFormat(YTEnvSetup):
         assert result.schema.field("a").type == pa.binary()
         assert result["a"].to_pylist() == [None]
 
+    @authors("dagorokhov")
+    def test_read_empty_table(self, optimize_for):
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [
+                    {"name": "int", "type_v3": "int64"},
+                    {"name": "str", "type_v3": "string"},
+                ],
+                "optimize_for": optimize_for
+            },
+            force=True,
+        )
+
+        parsed_table = parse_arrow_stream(read_table("//tmp/t_in", output_format=ARROW_FORMAT))
+        column_names = parsed_table.column_names
+
+        assert column_names[0] == "int"
+        assert parsed_table[column_names[0]].to_pylist() == []
+
+        assert column_names[1] == "str"
+        assert parsed_table[column_names[1]].to_pylist() == []
+
+    @authors("dagorokhov")
+    def test_read_empty_table_with_column_filter(self, optimize_for):
+        create("table", "//tmp/t_in", force=True, attributes={
+            "schema": [
+                {"name": "a", "type_v3": "int64"},
+                {"name": "b", "type_v3": "string"},
+                {"name": "c", "type_v3": "double"},
+            ],
+            "optimize_for": optimize_for,
+        })
+
+        parsed_table = parse_arrow_stream(read_table("//tmp/t_in{a,c}", output_format=ARROW_FORMAT))
+
+        assert parsed_table.column_names == ["a", "c"]
+        assert parsed_table.num_rows == 0
+
+    @authors("dagorokhov")
+    def test_write_arrow_empty_table(self, optimize_for):
+        schema = [{"name": "int", "type_v3": "int64"}, {"name": "str", "type_v3": "string"}]
+        create("table", "//tmp/table1", attributes={"schema": schema, "optimize_for": optimize_for})
+        create("table", "//tmp/table2", attributes={"schema": schema})
+
+        arrow_dump = read_table("//tmp/table1", output_format=ARROW_FORMAT)
+        write_table("//tmp/table2", arrow_dump, is_raw=True, input_format=ARROW_FORMAT)
+
+        assert read_table("//tmp/table2") == []
+
 
 @authors("nadya02")
 @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -915,6 +966,41 @@ class TestMapArrowFormat(YTEnvSetup):
         else:
             assert row_batch_count > 0 and columnar_batch_count == 0
 
+    @authors("dagorokhov")
+    def test_multi_table_with_empty(self, optimize_for):
+        def create_int_table(path, column):
+            create("table", path, force=True, attributes={
+                "schema": [{"name": column, "type_v3": "int64"}], "optimize_for": optimize_for})
+
+        create_int_table("//tmp/t1", "a")
+        create_int_table("//tmp/t2", "empty_a")
+        create_int_table("//tmp/t3", "empty_b")
+        create_int_table("//tmp/t4", "b")
+        create("table", "//tmp/t_out", force=True)
+
+        write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
+        write_table("//tmp/t4", [{"b": 3}, {"b": 4}])
+
+        op = map(
+            in_=["//tmp/t1", "//tmp/t2", "//tmp/t3", "//tmp/t4"],
+            out="//tmp/t_out",
+            command="cat 1>&2",
+            spec={"mapper": {"input_format": ARROW_FORMAT}},
+        )
+
+        stderr_bytes = op.read_stderr(op.list_jobs()[0])
+        reader = pa.BufferReader(pa.py_buffer(stderr_bytes))
+        by_column = {}
+        while reader.tell() < len(stderr_bytes):
+            table = pa.ipc.open_stream(reader).read_all()
+            by_column[table.column_names[0]] = table
+
+        assert set(by_column) == {"a", "empty_a", "empty_b", "b"}
+        assert by_column["a"]["a"].to_pylist() == [1, 2]
+        assert by_column["b"]["b"].to_pylist() == [3, 4]
+        assert by_column["empty_a"].num_rows == 0
+        assert by_column["empty_b"].num_rows == 0
+
     @authors("nadya02")
     def test_multi_table_with_same_column(self, optimize_for):
         schema = [
@@ -1018,6 +1104,45 @@ class TestMapArrowFormat(YTEnvSetup):
             assert row_batch_count == 0 and columnar_batch_count > 0
         else:
             assert row_batch_count > 0 and columnar_batch_count == 0
+
+    @authors("dagorokhov")
+    def test_map_empty_input(self, optimize_for):
+        schema = [
+            {"name": "int", "type_v3": "int64"},
+        ]
+
+        output_schema = [
+            {"name": "int", "type_v3": "int64"},
+        ]
+
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": schema,
+                "optimize_for": optimize_for,
+            },
+            force=True,
+        )
+
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={
+                "schema": output_schema,
+                "optimize_for": optimize_for,
+            },
+            force=True,
+        )
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={"mapper": {"format": ARROW_FORMAT}},
+        )
+
+        assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
 
 @authors("nadya73")
@@ -1135,3 +1260,20 @@ class TestComplexTypesArrowFormat(YTEnvSetup):
         )
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
+
+    @authors("dagorokhov")
+    def test_read_empty_table_complex_types(self, optimize_for):
+        create("table", "//tmp/t_in", force=True, attributes={
+            "schema": [
+                {"name": "opt_string", "type_v3": optional_type("string")},
+                {"name": "list_of_strings", "type_v3": list_type("string")},
+                {"name": "nested_struct", "type_v3": struct_type([("a", "int64"), ("b", "string")])},
+            ],
+            "optimize_for": optimize_for,
+        })
+
+        parsed_table = parse_arrow_stream(
+            read_table("//tmp/t_in", output_format=yson.loads(ARROW_FORMAT_COMPLEX_TYPES)))
+
+        assert parsed_table.column_names == ["opt_string", "list_of_strings", "nested_struct"]
+        assert parsed_table.num_rows == 0
