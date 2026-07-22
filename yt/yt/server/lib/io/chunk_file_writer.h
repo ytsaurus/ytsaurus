@@ -162,6 +162,7 @@ private:
 
     void SetFailed(const TError& error);
     TError TryChangeState(EState oldState, EState newState);
+    bool ShouldUseDirectIOForWrites() const;
     TFlags<EOpenModeFlag> GetFileMode() const;
 };
 

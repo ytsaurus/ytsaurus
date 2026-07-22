@@ -63,7 +63,8 @@ public:
             Location_->GetIOEngine(),
             chunkId,
             Location_->GetChunkPath(chunkId),
-            Options_.SyncOnClose))
+            Options_.SyncOnClose,
+            Options_.UseDirectIo))
     { }
 
 
