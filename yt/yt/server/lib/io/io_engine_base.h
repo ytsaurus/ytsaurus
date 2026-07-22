@@ -57,6 +57,7 @@ struct TIOEngineConfigBase
     std::optional<TDuration> SicknessExpirationTimeout;
 
     EDirectIOPolicy UseDirectIOForReads;
+    EDirectIOPolicy UseDirectIOForWrites;
 
     i64 TotalRequestLimit;
     i64 WriteRequestLimit;
@@ -189,6 +190,7 @@ public:
     i64 GetTotalWrittenBytes() const override;
 
     EDirectIOPolicy UseDirectIOForReads() const override;
+    EDirectIOPolicy UseDirectIOForWrites() const override;
 
     bool IsInFlightRequestLimitExceeded() const override;
     bool IsInFlightReadRequestLimitExceeded() const override;
