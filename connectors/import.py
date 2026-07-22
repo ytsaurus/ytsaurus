@@ -87,6 +87,15 @@ def read_jdbc(args, spark, db):
 
         ret = ret.option('password', password)
 
+    if args.jdbc_partition_column:
+        if not (args.jdbc_lower_bound and args.jdbc_upper_bound and args.jdbc_num_partitions):
+            error_exit("--jdbc-partition-column requires --jdbc-lower-bound, "
+                       "--jdbc-upper-bound and --jdbc-num-partitions")
+        ret = ret.option('partitionColumn', args.jdbc_partition_column) \
+                 .option('lowerBound', args.jdbc_lower_bound) \
+                 .option('upperBound', args.jdbc_upper_bound) \
+                 .option('numPartitions', args.jdbc_num_partitions)
+
     return ret
 
 def split_by(inp, sep):
@@ -191,6 +200,15 @@ def main():
     parser.add_argument("--jdbc-server", required=False)
     parser.add_argument("--jdbc-user", required=False, default='')
     parser.add_argument("--jdbc-password", required=False)
+    parser.add_argument("--jdbc-partition-column", required=False,
+                        help="Numeric/date column to split the JDBC read into " \
+                        "parallel ranges (Spark partitionColumn)")
+    parser.add_argument("--jdbc-lower-bound", required=False,
+                        help="Lower bound of --jdbc-partition-column")
+    parser.add_argument("--jdbc-upper-bound", required=False,
+                        help="Upper bound of --jdbc-partition-column")
+    parser.add_argument("--jdbc-num-partitions", required=False,
+                        help="Number of parallel partitions (JDBC connections) for the read")
     parser.add_argument("--extra-conf", required=False)
 
     parser.add_argument("--s3-access-key", required=False, help="S3 access key")
