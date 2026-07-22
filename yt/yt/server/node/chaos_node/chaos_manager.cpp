@@ -427,7 +427,9 @@ public:
     {
         auto* collocation = FindReplicationCardCollocation(collocationId);
         if (!collocation) {
-            THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCardNotKnown, "No such replication card collocation")
+            THROW_ERROR_EXCEPTION(
+                NChaosClient::EErrorCode::ReplicationCollocationNotKnown,
+                "No such replication card collocation")
                 << TErrorAttribute("replication_card_collocation_id", collocationId);
         }
 
