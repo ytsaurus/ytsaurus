@@ -5487,6 +5487,10 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
         "cluster_connection": {
             "chaos_residency_cache": {
                 "use_has_chaos_object": True,
+                "expire_after_successful_update_time": 60000,
+                "expire_after_failed_update_time": 60000,
+                "expire_after_access_time": 60000,
+                "refresh_time": 0,
             },
         },
     }
@@ -5677,6 +5681,49 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
 
             values = [{"key": i, "value": "0"}]
             wait(lambda: _try_insert_rows(values))
+
+    @authors("osidorkin")
+    def test_collocation_residency_update(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        dst_cell_id = self._sync_create_chaos_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        replicated_table_options = {
+            "enable_replicated_table_tracker": False,
+            "min_sync_replica_count": 1,
+            "max_sync_replica_count": 2,
+        }
+
+        def _create_supertable(prefix, clusters, sync_cluster):
+            return self._create_chaos_supertable(prefix, clusters, sync_cluster, "c", replicated_table_options)
+
+        clusters = self.get_cluster_names()
+        crt1, card1, replicas1, replica_ids1 = _create_supertable("//tmp/a", clusters, clusters[0])
+        crt2, card2, replicas2, replica_ids2 = _create_supertable("//tmp/b", clusters, clusters[1])
+
+        for crt in [crt1, crt2]:
+            assert get("{0}/@collocated_replication_card_ids".format(crt)) == []
+
+        collocation_id = create("replication_card_collocation", None, attributes={
+            "type": "replication",
+            "table_paths": [crt1, crt2]
+        })
+
+        cards = sorted([card1, card2])
+        for crt in [crt1, crt2]:
+            assert get("{0}/@replication_collocation_id".format(crt)) == collocation_id
+            assert sorted(get("{0}/@collocated_replication_card_ids".format(crt))) == cards
+
+        # Ensure cache is filled.
+        assert sorted(get(f"#{collocation_id}/@replication_card_ids")) == cards
+
+        self._sync_migrate_replication_cards(cell_id, [card1, card2], dst_cell_id)
+
+        self._sync_replication_era(card1, replicas1)
+        self._sync_replication_era(card2, replicas2)
+
+        # Check if it resolved correctly after migration.
+        assert sorted(get(f"#{collocation_id}/@replication_card_ids")) == cards
 
 
 ##################################################################
