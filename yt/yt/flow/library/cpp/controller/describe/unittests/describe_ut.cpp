@@ -5,6 +5,7 @@
 #include <yt/yt/flow/library/cpp/controller/describe/describe_pipeline.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_worker.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_workers.h>
+#include <yt/yt/flow/library/cpp/controller/describe/draw_pipeline_graph.h>
 #include <yt/yt/flow/library/cpp/controller/describe/fill_graph_limits.h>
 #include <yt/yt/flow/library/cpp/controller/describe/pipeline_description_unroll.h>
 
@@ -1305,17 +1306,152 @@ TEST_F(TDescribeTest, FillExtendedStreams)
     const auto& loadedMsg = filled.ExtendedInputStreams[0].Messages[0];
     EXPECT_TRUE(filled.ExtendedInputStreams[0].BackpressureDetected);
     EXPECT_EQ(loadedMsg.Level, ELogLevel::Warning);
-    EXPECT_THAT(loadedMsg.MarkdownText.value(), AllOf(HasSubstr("fill ratio"), HasSubstr("**"))); // exceedance bolded
+    EXPECT_THAT(loadedMsg.MarkdownText.value(), AllOf(HasSubstr("buffers"), HasSubstr("**")));
 
     ASSERT_EQ(filled.ExtendedOutputStreams.size(), 1u);
     const auto& calmMsg = filled.ExtendedOutputStreams[0].Messages[0];
     EXPECT_FALSE(filled.ExtendedOutputStreams[0].BackpressureDetected);
     EXPECT_EQ(calmMsg.Level, ELogLevel::Info);
-    EXPECT_THAT(calmMsg.MarkdownText.value(), AllOf(HasSubstr("fill ratio"), Not(HasSubstr("**")))); // Below threshold, not bold.
+    EXPECT_THAT(calmMsg.MarkdownText.value(), AllOf(HasSubstr("buffers"), Not(HasSubstr("**"))));
 
-    // Per-edge messages are folded into one warning-level computation message.
     ASSERT_FALSE(filled.Messages.empty());
     EXPECT_EQ(filled.Messages.back().Level, ELogLevel::Warning);
+}
+
+TEST_F(TDescribeTest, BuildBuffersAndBackpressureMessage)
+{
+    auto in = MakeStreamGraphId(TStreamId("in"));
+    auto calm = MakeStreamGraphId(TStreamId("calm"));
+    auto out = MakeStreamGraphId(TStreamId("out"));
+    auto fillPartition = TPartitionId(TGuid::FromString("1-1-1-1"));
+    auto blockedPartition = TPartitionId(TGuid::FromString("2-2-2-2"));
+    auto writerPartition = TPartitionId(TGuid::FromString("3-3-3-3"));
+
+    TPipelineComputationDescription comp;
+    comp.InputStreams = {in, calm};
+    comp.OutputStreams = {out};
+
+    // Nearly full input: the fill blocks (bold) and names its worst partition.
+    auto& inStats = comp.InputLimitStats[in]["input_buffer_bytes"];
+    inStats.Max.Used = 97;
+    inStats.Max.Limit = 100;
+    inStats.Max.Pending = 500;
+    inStats.MaxPartitionId = fillPartition;
+
+    // Calm input: visible, not blocking.
+    auto& calmStats = comp.InputLimitStats[calm]["input_buffer_bytes"];
+    calmStats.Max.Used = 10;
+    calmStats.Max.Limit = 100;
+
+    // Output with a low fill but a blocking blocked-time share.
+    auto& outStats = comp.OutputLimitStats[out]["output_buffer_bytes"];
+    outStats.Max.Used = 20;
+    outStats.Max.Limit = 100;
+    outStats.MaxBlockedTimeShare = 0.6;
+    outStats.MaxBlockedPartitionId = blockedPartition;
+
+    // Zero limit with usage: percentages are meaningless, bytes are printed.
+    auto& storeStats = comp.OutputLimitStats[out]["output_store_bytes"];
+    storeStats.Max.Used = 5_MB;
+    storeStats.Max.Limit = 0;
+    storeStats.MaxPartitionId = blockedPartition;
+
+    // Count limits are formatted as counts, not bytes.
+    auto& countStats = comp.OutputLimitStats[out]["output_store_count"];
+    countStats.Max.Used = 12000;
+    countStats.Max.Limit = 50000;
+
+    THashMap<TGraphEntityId, TWriterBlockedShare> writerBlocked;
+    writerBlocked[in] = {0.56, writerPartition};
+
+    auto message = BuildBuffersAndBackpressureMessage(comp, writerBlocked);
+    ASSERT_TRUE(message.has_value());
+    EXPECT_EQ(message->Level, NLogging::ELogLevel::Warning);
+    const auto& markdown = *message->MarkdownText;
+
+    EXPECT_LT(markdown.find("- input"), markdown.find("- output"));
+    EXPECT_THAT(markdown, HasSubstr(Format("input_buffer_bytes{limit=100B, used=**97%%**, pending=500%%, backpressured_partition=%v}", fillPartition)));
+    EXPECT_THAT(markdown, HasSubstr(Format("writer{blocked_share=**0.56**, backpressured_partition=%v}", writerPartition)));
+    EXPECT_THAT(markdown, HasSubstr(Format("output_buffer_bytes{blocked_share=**0.60**, limit=100B, used=20%%, backpressured_partition=%v}", blockedPartition)));
+    EXPECT_THAT(markdown, HasSubstr("output_store_bytes{limit=0B, used=**5.0MB**"));
+    EXPECT_THAT(markdown, HasSubstr("output_store_count{limit=50K, used=24%}"));
+    // The calm stream is listed without bold or a partition.
+    EXPECT_THAT(markdown, HasSubstr("input_buffer_bytes{limit=100B, used=10%}\n"));
+
+    EXPECT_FALSE(BuildBuffersAndBackpressureMessage(TPipelineComputationDescription{}, {}).has_value());
+}
+
+TEST_F(TDescribeTest, MermaidGraphEscapesBraces)
+{
+    Prepare();
+
+    for (const auto& [computationId, computationSpec] : Spec->Computations) {
+        auto& computationDescription = Pipeline.Computations[computationId];
+        RegisterStreams(Spec, computationId, Pipeline, computationDescription, TDescribeTraitsContext{});
+        auto& stats = computationDescription.OutputLimitStats[MakeStreamGraphId(TStreamId("output_stream"))]["output_buffer_bytes"];
+        stats.Max.Limit = 100_MB;
+        stats.Max.Used = 90_MB;
+        stats.MaxBlockedTimeShare = 0.9;
+    }
+
+    // Braces are node syntax in mermaid and must reach the diagram as entities,
+    // not as lookalike fullwidth symbols.
+    auto diagram = BuildMermaidComputationsGraph(Pipeline);
+    EXPECT_THAT(diagram, HasSubstr("&lbrace;"));
+    EXPECT_THAT(diagram, HasSubstr("&rbrace;"));
+    EXPECT_THAT(diagram, Not(HasSubstr("{")));
+    EXPECT_THAT(diagram, Not(HasSubstr("\uff5b")));
+    EXPECT_THAT(diagram, Not(HasSubstr("\uff5d")));
+}
+
+TEST_F(TDescribeTest, BlockedTimeShareReachesDescribeFromJobStatus)
+{
+    Prepare();
+
+    // Charge a blocked-time share on one partition's output buffer, exactly the
+    // way a worker reports it, and check it survives the whole aggregation path
+    // into the rendered computation message.
+    TPartitionId blockedPartitionId;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId != TComputationId("Computation_1")) {
+            continue;
+        }
+        auto& jobStatus = FlowView->Feedback->PartitionJobStatuses[partitionId]->CurrentJobStatus;
+        auto& limitStatus = jobStatus->OutputLimits["output_buffer_bytes"][TStreamId("output_stream")];
+        limitStatus.Limit = 100_MB;
+        limitStatus.Used = 10_MB;
+        limitStatus.BlockedTimeShare = 0.75;
+        blockedPartitionId = partitionId;
+        break;
+    }
+    ASSERT_FALSE(blockedPartitionId == TPartitionId());
+
+    for (const auto& [computationId, computationSpec] : Spec->Computations) {
+        auto& computationDescription = Pipeline.Computations[computationId];
+        RegisterStreams(Spec, computationId, Pipeline, computationDescription, TDescribeTraitsContext{});
+    }
+    FillGraphLimits(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView), Pipeline);
+    FillExtendedStreams(FlowView, Pipeline);
+
+    const auto& computation = Pipeline.Computations.at(TComputationId("Computation_1"));
+    const TMessage* message = nullptr;
+    for (const auto& candidate : computation.Messages) {
+        if (candidate.Text == "Stream buffers and backpressure") {
+            message = &candidate;
+        }
+    }
+    ASSERT_TRUE(message);
+    EXPECT_EQ(message->Level, ELogLevel::Warning);
+    EXPECT_THAT(*message->MarkdownText, HasSubstr("blocked_share=**0.75**"));
+    EXPECT_THAT(*message->MarkdownText, HasSubstr(Format("backpressured_partition=%v", blockedPartitionId)));
+
+    // The consumers of that stream see the producer's blocked share as their own
+    // writer-side signal.
+    auto writerShares = ComputeWriterBlockedTimeShares(Pipeline);
+    const auto* share = writerShares.FindPtr(MakeStreamGraphId(TStreamId("output_stream")));
+    ASSERT_TRUE(share);
+    EXPECT_EQ(share->Share, 0.75);
+    EXPECT_EQ(share->ExamplePartitionId, blockedPartitionId);
 }
 
 TEST_F(TDescribeTest, FillStreamStatisticsMessages)

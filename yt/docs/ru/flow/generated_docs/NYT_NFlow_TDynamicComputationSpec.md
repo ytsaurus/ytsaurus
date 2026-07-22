@@ -78,6 +78,9 @@
 || `output_store_byte_size_limit` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Значение по умолчанию**: `100Gi`
  ||
+|| `blocked_time_window` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `10m`
+Окно усреднения для доли времени, которую джоба провела заблокированной на каждом из лимитов (`blocked_share` в диагностиках). Доля нормируется на время жизни джобы, поэтому джоба, заблокированная с самого старта, показывает `~1` независимо от своего возраста. ||
 || `input_rows_throttler_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>>`
 Id троттлера для ограничения скорости обработки сообщений. Если задан, перед каждой итерацией `Computation` ждёт квоту, равную числу сообщений во входном батче. Id должен присутствовать в `dynamic_spec/throttlers`. Подробнее в разделе [Distributed Throttler](../concepts/distributed_throttler.md). ||
 || `input_bytes_throttler_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>>`

@@ -863,6 +863,10 @@ struct TDynamicComputationSpec
     NYTree::TSize OutputStoreCountLimit;
     NYTree::TSize OutputStoreByteSizeLimit;
 
+    //! Averaging window of the blocked-time shares reported in
+    //! #TJobEntityLimitStatus::BlockedTimeShare.
+    TDuration BlockedTimeWindow;
+
     //! Optional throttlers for the input batch.
     //! Before each Process step the computation draws its batch row count
     //! and byte size from the respective throttler. Null means "no limit in
