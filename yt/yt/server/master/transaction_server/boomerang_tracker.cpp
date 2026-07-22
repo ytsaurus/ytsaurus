@@ -135,7 +135,7 @@ void TBoomerangTracker::OnCheck()
 void TBoomerangTracker::RemoveStuckBoomerangWaves(NProto::TReqRemoveStuckBoomerangWaves* /*request*/)
 {
     const auto* mutationContext = GetCurrentMutationContext();
-    auto deadline = mutationContext->GetTimestamp() + GetDynamicConfig()->StuckBoomerangWaveExpirationTime;
+    auto deadline = mutationContext->GetTimestamp() - GetDynamicConfig()->StuckBoomerangWaveExpirationTime;
 
     const auto maxRemovalCount = GetDynamicConfig()->MaxExpiredBoomerangWaveRemovalsPerCheck;
     auto it = BoomerangWavesByTime_.begin();
