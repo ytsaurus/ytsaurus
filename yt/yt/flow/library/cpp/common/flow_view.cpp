@@ -430,6 +430,9 @@ void TJobEntityLimitStatus::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("pending", &TThis::Pending)
         .Default();
+    registrar.Parameter("blocked_time_share", &TThis::BlockedTimeShare)
+        .DontSerializeDefault()
+        .Default(0.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -327,6 +327,12 @@ void TStreamLimitStats::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("total", &TThis::Total)
         .Default();
+    registrar.Parameter("max_blocked_time_share", &TThis::MaxBlockedTimeShare)
+        .DontSerializeDefault()
+        .Default(0.0);
+    registrar.Parameter("max_blocked_partition_id", &TThis::MaxBlockedPartitionId)
+        .DontSerializeDefault()
+        .Default();
 }
 
 void TReadDelayEdge::Register(TRegistrar registrar)

@@ -791,6 +791,64 @@ THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> TUniversalComp
     return {};
 }
 
+TBlockedTimeAccountant::TBlockedTimeAccountant(TInstant startTime)
+    : StartTime_(startTime)
+{ }
+
+void TBlockedTimeAccountant::Account(TInstant now, TDuration window, const std::vector<TBlockedLimit>& blocked)
+{
+    double elapsed = LastUpdate_ ? (now - *LastUpdate_).SecondsFloat() : 0.0;
+    if (!LastUpdate_) {
+        Lifetime_.Update(0, StartTime_);
+    }
+    LastUpdate_ = now;
+    Lifetime_.SetWindow(window);
+    Lifetime_.Inc(elapsed, now);
+
+    for (const auto& [limitType, streamId] : blocked) {
+        auto [it, inserted] = Counters_[std::string(limitType)].try_emplace(streamId, window);
+        if (inserted) {
+            // A counter measuring from its own creation would report the share of
+            // its own lifetime, so a job that starts blocking after an hour of
+            // work would look blocked all along. Anchoring it at the job start
+            // keeps every counter spanning the same interval as the lifetime one.
+            it->second.Update(0, StartTime_);
+        }
+        it->second.SetWindow(window);
+        it->second.Inc(elapsed, now);
+    }
+}
+
+void TBlockedTimeAccountant::FillShares(
+    TInstant now,
+    THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>>* limits) const
+{
+    for (const auto& [limitType, streamCounters] : Counters_) {
+        for (const auto& [streamId, counter] : streamCounters) {
+            // A stream that never blocked must not conjure a limit entry.
+            if (auto share = GetShare(counter, now); share > 0) {
+                (*limits)[limitType][streamId].BlockedTimeShare = share;
+            }
+        }
+    }
+}
+
+//! The blocked rate is divided by the lifetime rate rather than used as is: both
+//! counters warm up from zero over their first window, and the ratio cancels that
+//! warm-up, so a job blocked all along reports ~1 instead of ~0.86. Until the
+//! rates are available at all, the same ratio is taken over the totals.
+double TBlockedTimeAccountant::GetShare(const TSimpleEmaCounter& blocked, TInstant now) const
+{
+    auto blockedRate = blocked.GetRate(now);
+    auto lifetimeRate = Lifetime_.GetRate(now);
+    if (blockedRate && lifetimeRate && *lifetimeRate > 0) {
+        return std::min(*blockedRate / *lifetimeRate, 1.0);
+    }
+    return Lifetime_.GetTotal() > 0
+        ? std::min(blocked.GetTotal() / Lifetime_.GetTotal(), 1.0)
+        : 0.0;
+}
+
 bool TUniversalComputationBase::UpdateStatus(
     TSystemTimestamp reportTime,
     TSystemTimestamp systemWatermark,
@@ -809,16 +867,17 @@ bool TUniversalComputationBase::UpdateStatus(
     for (const auto& streamId : GetSpec()->OutputStreamIds) {
         auto [count, byteSize] = GetOrCrash(outputStoreCountAndByteSize, streamId);
         {
-            auto& entityLimitStatus = outputLimits["output_store_bytes"][streamId];
+            auto& entityLimitStatus = outputLimits[OutputStoreBytesLimitType][streamId];
             entityLimitStatus.Limit = GetDynamicSpec()->OutputStoreByteSizeLimit;
             entityLimitStatus.Used = byteSize;
         }
         {
-            auto& entityLimitStatus = outputLimits["output_store_count"][streamId];
+            auto& entityLimitStatus = outputLimits[OutputStoreCountLimitType][streamId];
             entityLimitStatus.Limit = GetDynamicSpec()->OutputStoreCountLimit;
             entityLimitStatus.Used = count;
         }
     }
+    BlockedTimeAccountant_.FillShares(TInstant::Now(), &outputLimits);
     {
         auto guard = Guard(LimitsLock_);
         InputLimits_ = std::move(inputLimits);
@@ -1477,9 +1536,13 @@ void TUniversalComputationBase::FinishRunIteration()
 
 TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::CheckOutputLimits(
     const TDynamicComputationSpecPtr& dynamicSpec,
-    const TUniversalComputationDynamicPartitionSpecPtr& dynamicPartitionSpec) const
+    const TUniversalComputationDynamicPartitionSpecPtr& dynamicPartitionSpec)
 {
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+
     NTracing::TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Accounting"));
+
+    std::vector<TBlockedTimeAccountant::TBlockedLimit> blockedLimits;
 
     TCheckOutputLimitsResult result;
     THashSet<TStreamId> allowedOutputStreams(GetSpec()->OutputStreamIds.size());
@@ -1488,6 +1551,7 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
     for (const auto& streamId : GetSpec()->OutputStreamIds) {
         if (dynamicPartitionSpec && dynamicPartitionSpec->BlockedOutputStreams.contains(streamId)) {
             result.BlockedByController = true;
+            blockedLimits.push_back({ControllerLimitType, streamId});
             YT_TLOG_INFO(
                 "Output stream is blocked by controller, "
                 "probably waiting for finishing previous overlapping partition")
@@ -1496,6 +1560,7 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
         }
         if (!streamsAllowedByLimits.contains(streamId)) {
             result.OutputBufferOverflow = true;
+            blockedLimits.push_back({OutputBufferBytesLimitType, streamId});
             YT_TLOG_INFO("Output buffer is full for stream")
                 .With("StreamId", streamId);
             continue;
@@ -1505,6 +1570,10 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
             byteSize >= dynamicSpec->OutputStoreByteSizeLimit)
         {
             result.OutputStoreOverflow = true;
+            auto limitType = byteSize >= dynamicSpec->OutputStoreByteSizeLimit
+                ? OutputStoreBytesLimitType
+                : OutputStoreCountLimitType;
+            blockedLimits.push_back({limitType, streamId});
             YT_TLOG_INFO("Output store is full for stream")
                 .With("StreamId", streamId)
                 .With("Count", count)
@@ -1515,6 +1584,8 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
         }
         allowedOutputStreams.insert(streamId);
     }
+    BlockedTimeAccountant_.Account(TInstant::Now(), dynamicSpec->BlockedTimeWindow, blockedLimits);
+
     result.AllowedInputStreams = ComputeAllowedInputStreams(allowedOutputStreams, GetSpec());
     return result;
 }

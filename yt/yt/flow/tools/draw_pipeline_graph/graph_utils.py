@@ -4,6 +4,14 @@ from yt.wrapper.constants import UI_ADDRESS_PATTERN
 
 _EDGE_WARNING_FILL_RATE_THRESHOLD = 0.5
 
+# Mirrors WarningBlockedTimeShareThreshold in controller/describe/fill_graph_limits.h.
+BLOCKED_TIME_SHARE_THRESHOLD = 0.3
+
+MIN_VISIBLE_BLOCKED_TIME_SHARE = 0.01
+
+# Mirrors ControllerLimitType in common/flow_view.h.
+CONTROLLER_LIMIT_TYPE = "controller"
+
 
 def get_group_by_columns(computation):
     """Return list of group-by column expressions for a computation."""
@@ -31,9 +39,56 @@ def is_computation_warning(computation):
     return False
 
 
+def format_bytes_short(size):
+    """20MB-style short byte size."""
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if abs(value) < 1024 or unit == "TB":
+            return f"{value:.1f}{unit}" if unit != "B" and abs(value) < 10 else f"{value:.0f}{unit}"
+        value /= 1024
+
+
+def format_count_short(count):
+    """50K-style short count."""
+    value = float(count)
+    for unit in ("", "K", "M", "G"):
+        if abs(value) < 1000 or unit == "G":
+            return f"{value:.1f}{unit}" if unit and abs(value) < 10 else f"{value:.0f}{unit}"
+        value /= 1000
+
+
+def format_limit_entry(limit_type, status):
+    """kind{blocked_share=, limit=, used=%, pending=%, backpressured_partition=} — mirrors the describe format."""
+    parts = []
+    if status.blocked_time_share >= MIN_VISIBLE_BLOCKED_TIME_SHARE:
+        parts.append(f"blocked_share={status.blocked_time_share:.2f}")
+    # Count limits (e.g. output_store_count) are counts, not bytes.
+    format_value = format_count_short if limit_type.endswith("_count") else format_bytes_short
+
+    def of_limit(value):
+        # Percentages of a zero limit are meaningless: fall back to absolute values.
+        return f"{value / status.limit * 100:.0f}%" if status.limit > 0 else format_value(value)
+
+    # The controller limit type is not a buffer: it carries a blocked share and nothing else.
+    if limit_type != CONTROLLER_LIMIT_TYPE:
+        parts.append(f"limit={format_value(status.limit)}")
+        parts.append(f"used={of_limit(status.used)}")
+        if status.pending is not None:
+            parts.append(f"pending={of_limit(status.pending)}")
+    if (
+        status.get_fill_rate() >= _EDGE_WARNING_FILL_RATE_THRESHOLD
+        or status.blocked_time_share >= BLOCKED_TIME_SHARE_THRESHOLD
+    ):
+        parts.append(f"backpressured_partition={status.partition_id}")
+    return f"{limit_type}{{{', '.join(parts)}}}"
+
+
 def is_edge_warning(edge):
-    """Return True if any limit on the edge is critically full."""
-    return edge.get_max_fill_rate() >= _EDGE_WARNING_FILL_RATE_THRESHOLD
+    """Return True if any limit on the edge is critically full or blocks the writer."""
+    return (
+        edge.get_max_fill_rate() >= _EDGE_WARNING_FILL_RATE_THRESHOLD
+        or edge.get_max_blocked_time_share() >= BLOCKED_TIME_SHARE_THRESHOLD
+    )
 
 
 def make_computation_url(computation, graph):

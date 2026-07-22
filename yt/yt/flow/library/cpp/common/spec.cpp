@@ -794,6 +794,9 @@ void TDynamicComputationSpec::Register(TRegistrar registrar)
     registrar.Parameter("output_store_byte_size_limit", &TThis::OutputStoreByteSizeLimit)
         .Default(NYTree::TSize(100_GB));
 
+    registrar.Parameter("blocked_time_window", &TThis::BlockedTimeWindow)
+        .Default(TDuration::Minutes(10));
+
     registrar.Parameter("input_rows_throttler_id", &TThis::InputRowsThrottlerId)
         .Default();
     registrar.Parameter("input_bytes_throttler_id", &TThis::InputBytesThrottlerId)
