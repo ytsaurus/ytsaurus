@@ -336,19 +336,37 @@ void TCypressPasswordAuthenticatorConfig::Register(TRegistrar registrar)
 
 TString TLdapServiceConfig::GetAdminPassword() const
 {
+    // The password is passed through verbatim: trailing whitespace may well be
+    // part of it, and silently trimming a secret would turn a valid password into
+    // an inexplicable authentication failure.
+    std::string password;
     if (AdminPasswordPath) {
         TFileInput input(*AdminPasswordPath);
-        return input.ReadAll();
-    }
-    if (AdminPasswordEnvVar) {
-        if (auto value = TryGetEnv(TString(*AdminPasswordEnvVar))) {
-            return *value;
+        password = input.ReadAll();
+    } else if (AdminPasswordEnvVar) {
+        auto value = TryGetEnv(TString(*AdminPasswordEnvVar));
+        if (!value) {
+            THROW_ERROR_EXCEPTION(
+                "Environment variable %Qv specified in \"admin_password_env_var\" is not set",
+                *AdminPasswordEnvVar);
         }
-        THROW_ERROR_EXCEPTION(
-            "Environment variable %Qv specified in \"admin_password_env_var\" is not set",
-            *AdminPasswordEnvVar);
+        password = std::string(*value);
+    } else {
+        YT_VERIFY(false, "One of \"admin_password_path\" or \"admin_password_env_var\" must be set");
     }
-    YT_VERIFY(false, "One of \"admin_password_path\" or \"admin_password_env_var\" must be set");
+
+    // An empty password would be sent as an unauthenticated simple bind per
+    // RFC 4513 §5.1.2 — Active Directory accepts that with LDAP_SUCCESS but keeps
+    // the session anonymous, then rejects the subsequent search with "successful
+    // bind must be completed on the connection". Fail loudly instead.
+    if (password.empty()) {
+        THROW_ERROR_EXCEPTION("LDAP admin password is empty")
+            << TErrorAttribute("source",
+                AdminPasswordPath
+                    ? Format("file %Qv", *AdminPasswordPath)
+                    : Format("env var %Qv", *AdminPasswordEnvVar));
+    }
+    return password;
 }
 
 void TLdapServiceConfig::Register(TRegistrar registrar)
@@ -359,6 +377,8 @@ void TLdapServiceConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("encryption", &TThis::Encryption)
         .Default(ELdapEncryption::None);
+    registrar.Parameter("enable_referrals", &TThis::EnableReferrals)
+        .Default(false);
     registrar.Parameter("ca", &TThis::CertificateAuthority)
         .Optional();
     registrar.Parameter("admin_dn", &TThis::AdminDn)
