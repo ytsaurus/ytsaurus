@@ -977,44 +977,63 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ca
 
     // NB(eshcherbin): Check disk request lazily only if resources request can be satisfied.
     if (!CanSatisfyResourceRequest(node, discount)) {
-        YT_LOG_DEBUG_IF(isDetailedLoggingEnabled, "Cannot add assignment to node: insufficient resources");
+        YT_LOG_DEBUG_IF(isDetailedLoggingEnabled,
+            "Cannot add assignment to node: insufficient resources (ResourceLimits: %v, RequiredResources: %v)",
+            node->Descriptor()->ResourceLimits,
+            GetRequiredResources(node, discount));
         return false;
     }
 
-    if (!CanSatisfyDiskRequest(node)) {
-        YT_LOG_DEBUG_IF(isDetailedLoggingEnabled, "Cannot add assignment to node: insufficient disk");
+    if (auto unsatisfiedDiskRequests = GetUnsatisfiedDiskRequests(node)) {
+        YT_LOG_DEBUG_IF(isDetailedLoggingEnabled,
+            "Cannot add assignment to node: insufficient disk (DiskResources: %v, DiskRequests: %v)",
+            node->Descriptor()->DiskResources,
+            *unsatisfiedDiskRequests);
         return false;
     }
 
     return true;
 }
 
+TJobResources TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::GetRequiredResources(
+    TNode* node,
+    const TJobResources& discount) const
+{
+    return (node->AssignedResourceUsage() - discount) + AllocationGroupResources_.MinNeededResources.ToJobResources();
+}
+
 bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::CanSatisfyResourceRequest(
     TNode* node,
     const TJobResources& discount) const
 {
-    return Dominates(
-        node->Descriptor()->ResourceLimits,
-        (node->AssignedResourceUsage() - discount) + AllocationGroupResources_.MinNeededResources.ToJobResources());
+    return Dominates(node->Descriptor()->ResourceLimits, GetRequiredResources(node, discount));
 }
 
-bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::CanSatisfyDiskRequest(TNode* node) const
+std::vector<TDiskQuota> TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::GetDiskRequests(TNode* node) const
 {
-    const auto& diskRequest = AllocationGroupResources_.MinNeededResources.DiskQuota();
-    if (!diskRequest) {
-        return true;
-    }
-
     std::vector<TDiskQuota> diskRequests;
     if (ShouldConsiderDiskUsage()) {
         diskRequests = node->GetPreliminaryAssignedDiskRequests();
     }
-    diskRequests.push_back(diskRequest);
+    if (const auto& diskRequest = AllocationGroupResources_.MinNeededResources.DiskQuota()) {
+        diskRequests.push_back(diskRequest);
+    }
 
-    return CanSatisfyDiskQuotaRequests(
-        node->Descriptor()->DiskResources,
-        diskRequests,
-        ShouldConsiderDiskUsage());
+    return diskRequests;
+}
+
+std::optional<std::vector<TDiskQuota>> TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::GetUnsatisfiedDiskRequests(TNode* node) const
+{
+    if (!AllocationGroupResources_.MinNeededResources.DiskQuota()) {
+        return std::nullopt;
+    }
+
+    auto diskRequests = GetDiskRequests(node);
+    if (CanSatisfyDiskQuotaRequests(node->Descriptor()->DiskResources, diskRequests, ShouldConsiderDiskUsage())) {
+        return std::nullopt;
+    }
+
+    return diskRequests;
 }
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::AddAssignmentToNode(TNode* node)

@@ -216,8 +216,13 @@ private:
 
         virtual bool ShouldConsiderDiskUsage() const;
 
+        //! Resources that must fit into the node's limits to add an assignment.
+        TJobResources GetRequiredResources(TNode* node, const TJobResources& discount) const;
         bool CanSatisfyResourceRequest(TNode* node, const TJobResources& discount) const;
-        bool CanSatisfyDiskRequest(TNode* node) const;
+        //! Disk quota requests that must fit into the node's disk resources to add an assignment.
+        std::vector<TDiskQuota> GetDiskRequests(TNode* node) const;
+        //! Returns the disk requests that don't fit into the node, or |nullopt| if they do (or there are none).
+        std::optional<std::vector<TDiskQuota>> GetUnsatisfiedDiskRequests(TNode* node) const;
     };
 
     class TAllocationGroupPlanner
