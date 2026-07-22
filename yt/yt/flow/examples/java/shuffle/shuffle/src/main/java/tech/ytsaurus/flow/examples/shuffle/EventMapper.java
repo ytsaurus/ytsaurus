@@ -10,11 +10,7 @@ import tech.ytsaurus.flow.computation.OutputCollector;
 import tech.ytsaurus.flow.context.RuntimeContext;
 import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.row.ExtendedMessage;
-import tech.ytsaurus.flow.spring.FlowSourceComputation;
 
-// [BEGIN registration]
-@FlowSourceComputation(id = "reader")
-// [END registration]
 public class EventMapper implements RowFunction {
     private static final Logger log = LoggerFactory.getLogger(EventMapper.class);
     private final ObjectMapper ysonMapper = new ObjectMapper();

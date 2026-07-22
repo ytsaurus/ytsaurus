@@ -16,7 +16,8 @@ import org.springframework.stereotype.Component;
  * This annotation is meta-annotated with {@link Component}, so the annotated class becomes a Spring
  * bean on component scan without any additional stereotype. At startup the autoconfiguration
  * collects every annotated bean, wraps it in a {@link tech.ytsaurus.flow.computation.Computation}
- * with the supplied id and registers it with the pipeline context.
+ * with the supplied id and registers it with the pipeline context. This is an alternative to
+ * implementing {@link ComputationProvider} by hand; both mechanisms can be used together.
  * <p>
  * Example usage:
  * <pre>
@@ -30,6 +31,7 @@ import org.springframework.stereotype.Component;
  * </pre>
  *
  * @see FlowSourceComputation
+ * @see ComputationProvider
  * @see tech.ytsaurus.flow.computation.Computation
  */
 @Target(ElementType.TYPE)
@@ -41,8 +43,8 @@ public @interface FlowComputation {
     /**
      * The computation id from the pipeline static spec.
      * <p>
-     * Must be unique across all computations and must match the corresponding computation defined
-     * in the YT Flow pipeline spec.
+     * Must be unique across all computations (annotated or provided via {@link ComputationProvider})
+     * and must match the corresponding computation defined in the YT Flow pipeline spec.
      *
      * @return the computation id.
      */

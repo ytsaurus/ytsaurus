@@ -309,6 +309,24 @@ jobs:
             ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare
           done
 
+          # Flow pytest binaries: the flow runner resolves flow_server and the
+          # cpp example pipelines through their build-tree paths (the same way
+          # the integration tests reach ytserver-all), so build them here into
+          # the ya-make build root instead of the cmake build.
+          #
+          # The java/kotlin examples are deliberately absent: they PEERDIR the
+          # unversioned contrib/java/<group>/<artifact> dispatchers, whose
+          # ya.make files are not part of the opensource export yet (only the
+          # versioned subdirectories are), so configuring them here fails with
+          # "PEERDIR to directory without ya.make".
+          FLOW_TARGETS="\
+            ../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server \
+            ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp"
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. --bazel-remote-put ${FLOW_TARGETS}
+          fi
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${FLOW_TARGETS}
+
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
         run: |

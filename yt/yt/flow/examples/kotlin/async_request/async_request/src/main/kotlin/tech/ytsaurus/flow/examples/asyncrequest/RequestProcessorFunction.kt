@@ -5,17 +5,12 @@ import tech.ytsaurus.flow.computation.OutputCollector
 import tech.ytsaurus.flow.context.RuntimeContext
 import tech.ytsaurus.flow.function.RowFunction
 import tech.ytsaurus.flow.row.ExtendedMessage
-import tech.ytsaurus.flow.spring.FlowComputation
-
-// [BEGIN registration]
-@FlowComputation(id = "processor")
-// [END registration]
 
 /**
  * Processes request messages: computes the length of the request string
  * and emits a response message back to the "response" stream.
  */
-open class RequestProcessorFunction : RowFunction {
+class RequestProcessorFunction : RowFunction {
     companion object {
         private val log = LoggerFactory.getLogger(RequestProcessorFunction::class.java)
     }

@@ -59,6 +59,19 @@ cmd_unittests() {
         return 0
     fi
 
+    # Flow unit gtests run first and, unlike the loops below, do not abort on
+    # failure, so a flaky generic unittester cannot skip them; a flow failure
+    # is recorded and returned at the end. Flow unit gtests have path-derived
+    # *-unittest(s) names; flow gtests that need a running YT are named
+    # differently and thus excluded.
+    local flow_unittests_status=0
+    for unittester_binary in $(find ./yt/yt/flow -type f \( -name "*-unittests" -o -name "*-unittest" \) 2>/dev/null); do
+        echo "Running ${unittester_binary}"
+        local unittester_name
+        unittester_name="$(basename "${unittester_binary}")"
+        retry "${unittester_binary}" --gtest_output="xml:junit-${unittester_name}.xml" || flow_unittests_status=1
+    done
+
     local skip_unittesters=(
         unittester-containers
         unittester-core-rpc-http
@@ -88,6 +101,8 @@ cmd_unittests() {
         echo "Running ${unittester_binary}"
         retry "${unittester_binary}"
     done
+
+    return ${flow_unittests_status}
 }
 
 cmd_prepare() {
@@ -144,8 +159,23 @@ cmd_python() {
     python3 -m pytest -vs "yt/wrapper/tests" -m opensource
 }
 
+cmd_flow() {
+    cmd_prepare
+
+    # The Flow runner is self-contained (it assembles the flow-specific python,
+    # protos and pipeline binaries on top of `prepare`, starts the local YT
+    # recipe and runs pytest). Without arguments it runs the opensource CI
+    # scope; pass --all or explicit targets to run more (see the runner).
+    cd "${SOURCE_ROOT}/yt/yt/flow/tests"
+    if [ $# -gt 0 ]; then
+        ./run_tests.sh "$@"
+    else
+        ./run_tests.sh --ci
+    fi
+}
+
 action="${1:-}"
-[ -z "${action}" ] && { echo "Usage: $0 {unittests|prepare|integration|python} [args]" >&2; exit 1; }
+[ -z "${action}" ] && { echo "Usage: $0 {unittests|prepare|integration|python|flow} [args]" >&2; exit 1; }
 shift
 
 case "${action}" in
@@ -153,5 +183,6 @@ case "${action}" in
     prepare)     cmd_prepare "$@";;
     integration) cmd_integration "$@";;
     python)      cmd_python "$@";;
+    flow)        cmd_flow "$@";;
     *) echo "Unknown action: ${action}" >&2; exit 1;;
 esac

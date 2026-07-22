@@ -41,7 +41,7 @@ protected:
 
     IServerPtr DoCreateServer(const TServerConfigPtr& config) final
     {
-        return NHttp::CreateServer(config);
+        return CreateServer(config);
     }
 };
 

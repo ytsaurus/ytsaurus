@@ -32,7 +32,6 @@ POSSIBILITY OF SUCH DAMAGE.  */
 
 #include "config.h"
 
-#include <string.h>
 #include <sys/types.h>
 
 #include "unwind.h"
@@ -86,24 +85,11 @@ unwind (struct _Unwind_Context *context, void *vdata)
   if (!ip_before_insn)
     --pc;
 
-  if (bdata->can_alloc)
+  if (!bdata->can_alloc)
+    bdata->ret = bdata->callback (bdata->data, pc, NULL, 0, NULL);
+  else
     bdata->ret = backtrace_pcinfo (bdata->state, pc, bdata->callback,
 				   bdata->error_callback, bdata->data);
-  else
-    {
-      if (!bdata->state->moredata)
-	bdata->ret = bdata->callback (bdata->data, pc, NULL, 0, NULL);
-      else
-	{
-	  struct backtrace_moredata md;
-
-	  memset (&md, 0, sizeof md);
-	  md.backtrace_version = BACKTRACE_MOREDATA_VERSION;
-	  md.backtrace_data = bdata->data;
-	  bdata->ret = bdata->callback (&md, pc, NULL, 0, NULL);
-	}
-    }
-
   if (bdata->ret != 0)
     return _URC_END_OF_STACK;
 

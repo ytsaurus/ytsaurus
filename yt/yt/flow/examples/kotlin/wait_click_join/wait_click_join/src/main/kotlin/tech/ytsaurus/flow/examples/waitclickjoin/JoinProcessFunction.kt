@@ -11,15 +11,11 @@ import tech.ytsaurus.flow.function.RowFunction
 import tech.ytsaurus.flow.row.ExtendedMessage
 import tech.ytsaurus.flow.row.Message
 import tech.ytsaurus.flow.row.Timer
-import tech.ytsaurus.flow.spring.FlowComputation
 import tech.ytsaurus.flow.state.ExternalStateDescriptor
 import tech.ytsaurus.flow.state.StateDescriptors
 import java.time.Duration
 
-// [BEGIN registration]
-@FlowComputation(id = "join")
-// [END registration]
-open class JoinProcessFunction : RowFunction {
+class JoinProcessFunction : RowFunction {
     companion object {
         val JOINED_ACTION_STATE: ExternalStateDescriptor =
             StateDescriptors.external("/join-state")

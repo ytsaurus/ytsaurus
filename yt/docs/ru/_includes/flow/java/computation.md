@@ -330,14 +330,14 @@
 
 ## Spring Boot
 
-При использовании Spring Boot компьютейшен регистрируется аннотацией `@FlowComputation` (или `@FlowSourceComputation` для источника) прямо на классе `ProcessFunction`. Аннотация мета-аннотирована `@Component`, поэтому класс автоматически становится Spring-бином:
+При использовании Spring Boot функции обработки могут быть Spring-компонентами:
 
 {% list tabs group=lang %}
 
 - Java
 
   ```java
-  @FlowComputation(id = "mapper")
+  @Component
   public class WordCountMapper implements RowFunction {
       @Override
       public void onMessage(ExtendedMessage message, OutputCollector output, RuntimeContext ctx) {
@@ -349,7 +349,7 @@
 - Kotlin
 
   ```kotlin
-  @FlowComputation(id = "mapper")
+  @Component
   class WordCountMapper : RowFunction {
       override fun onMessage(message: ExtendedMessage, output: OutputCollector, ctx: RuntimeContext) {
           // обработка сообщения
@@ -359,7 +359,7 @@
 
 {% endlist %}
 
-Стримы объявляются как Spring-бины `FlowStream<?>` (либо через `ComputationProvider.getStreams()`):
+Регистрация компьютейшенов и стримов происходит через `ComputationProvider`:
 
 {% list tabs group=lang %}
 
@@ -367,11 +367,26 @@
 
   ```java
   @Configuration
-  public class StreamConfiguration {
+  public class MyContext implements ComputationProvider {
 
-      @Bean
-      public FlowStream<Word> wordsStream() {
-          return FlowStreams.typed("words", Word.class);
+      @Autowired
+      private WordCountMapper wordCountMapper;
+
+      @Override
+      public List<Computation> getComputations() {
+          return List.of(
+              Computation.builder()
+                  .setComputationId("mapper")
+                  .setProcessFunction(wordCountMapper)
+                  .build()
+          );
+      }
+
+      @Override
+      public List<FlowStream<?>> getStreams() {
+          return List.of(
+              FlowStreams.typed("words", Word.class)
+          );
       }
   }
   ```
@@ -380,18 +395,31 @@
 
   ```kotlin
   @Configuration
-  class StreamConfiguration {
+  class MyContext : ComputationProvider {
 
-      @Bean
-      fun wordsStream(): FlowStream<Word> = FlowStreams.typed("words", Word::class.java)
+      @Autowired
+      private lateinit var wordCountMapper: WordCountMapper
+
+      override fun getComputations(): List<Computation> {
+          return listOf(
+              Computation.builder()
+                  .setComputationId("mapper")
+                  .setProcessFunction(wordCountMapper)
+                  .build()
+          )
+      }
+
+      override fun getStreams(): List<FlowStream<*>> {
+          return listOf(
+              FlowStreams.typed("words", Word::class.java)
+          )
+      }
   }
   ```
 
 {% endlist %}
 
 `FlowStreams.typed(...)` создаёт типизированный стрим, который автоматически сериализует и десериализует сообщения в Java-объекты указанного типа. Подробнее в разделе [Typed Streams](../../../flow/java/typed-streams.md).
-
-Подробнее про регистрацию через аннотации и `ComputationProvider` — в разделе [Spring Boot интеграция](../../../flow/java/spring.md).
 
 ## Конфигурация ресурса CompanionManager {#companion-manager}
 

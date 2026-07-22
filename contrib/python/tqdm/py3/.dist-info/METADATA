@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: tqdm
-Version: 4.68.4
+Version: 4.68.3
 Summary: Fast, Extensible Progress Meter
 Maintainer-email: tqdm developers <devs@tqdm.ml>
 License: MPL-2.0 AND MIT

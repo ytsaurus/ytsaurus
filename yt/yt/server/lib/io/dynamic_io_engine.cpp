@@ -193,11 +193,6 @@ public:
         return GetCurrentEngine()->UseDirectIOForReads();
     }
 
-    EDirectIOPolicy UseDirectIOForWrites() const override
-    {
-        return GetCurrentEngine()->UseDirectIOForWrites();
-    }
-
     bool IsInFlightRequestLimitExceeded() const override
     {
         return GetCurrentEngine()->IsInFlightRequestLimitExceeded();

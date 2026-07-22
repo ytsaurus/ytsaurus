@@ -2,36 +2,49 @@ package tech.ytsaurus.flow.spring;
 
 import java.util.List;
 
+import tech.ytsaurus.flow.computation.Computation;
 import tech.ytsaurus.flow.stream.FlowStream;
 
 /**
- * Provider interface for Flow streams in Spring Boot applications.
+ * Provider interface for Flow computations in Spring Boot applications.
  * <p>
- * Implement this interface and register it as a Spring bean to declare the streams of a Flow
- * pipeline imperatively in one place. The provided streams are registered with the pipeline
- * context and served via the gRPC companion server.
- * <p>
- * Computations are registered separately, by annotating their process functions with
- * {@link FlowComputation} / {@link FlowSourceComputation}. Streams may also be declared as
- * individual {@link FlowStream} beans instead of implementing this interface.
+ * Implement this interface and register it as a Spring bean to enable
+ * automatic Flow pipeline configuration. The provided computations will
+ * be registered with the pipeline context and served via the gRPC companion server.
  * <p>
  * Example usage:
  * <pre>
  * &#64;Configuration
  * public class MyFlowConfig implements ComputationProvider {
  *
+ *     &#64;Autowired
+ *     private MyProcessFunction myProcessFunction;
+ *
  *     &#64;Override
- *     public List&lt;FlowStream&lt;?&gt;&gt; getStreams() {
- *         return List.of(FlowStreams.typed("words", Word.class));
+ *     public List&lt;Computation&gt; getComputations() {
+ *         var computation = Computation.builder()
+ *                 .setComputationId("my_computation")
+ *                 .setProcessFunction(myProcessFunction)
+ *                 .build();
+ *         return List.of(computation);
  *     }
  * }
  * </pre>
  *
  * @see FlowAutoConfiguration
- * @see FlowComputation
- * @see FlowStream
+ * @see Computation
  */
 public interface ComputationProvider {
+
+    /**
+     * Returns the list of computations to register with the Flow pipeline.
+     * <p>
+     * Each computation must have a unique computation ID that matches
+     * the corresponding computation defined in the YT Flow pipeline spec.
+     *
+     * @return List of computations to register; must not be null.
+     */
+    List<Computation> getComputations();
 
     /**
      * Returns the list of streams to register with the Flow pipeline.
@@ -41,6 +54,8 @@ public interface ComputationProvider {
      *
      * @return List of streams to register; must not be null.
      */
-    List<FlowStream<?>> getStreams();
+    default List<FlowStream<?>> getStreams() {
+        return List.of();
+    }
 
 }

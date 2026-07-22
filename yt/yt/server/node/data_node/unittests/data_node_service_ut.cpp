@@ -421,7 +421,6 @@ struct TIOEngineConfig
     int ReadThreadCount;
     int WriteThreadCount;
     NIO::EDirectIOPolicy UseDirectIOForReads;
-    NIO::EDirectIOPolicy UseDirectIOForWrites;
     i64 MinRequestSizeToUseHugePages;
 
     // Request size in bytes.
@@ -449,8 +448,6 @@ struct TIOEngineConfig
 
         registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
             .Default(NIO::EDirectIOPolicy::Never);
-        registrar.Parameter("use_direct_io_for_writes", &TThis::UseDirectIOForWrites)
-            .Default(NIO::EDirectIOPolicy::Never);
 
         registrar.Parameter("desired_request_size", &TThis::DesiredRequestSize)
             .GreaterThanOrEqual(4_KB)
@@ -477,12 +474,10 @@ public:
         NIO::EHugeManagerType HugePageManagerType = NIO::EHugeManagerType::Transparent;
         bool EnableHugePageManager = false;
         NIO::EDirectIOPolicy UseDirectIOForReads = NIO::EDirectIOPolicy::Never;
-        NIO::EDirectIOPolicy UseDirectIOForWrites = NIO::EDirectIOPolicy::Never;
         i64 MinRequestSizeToUseHugePages = 2_MB;
         bool EnableSequentialIORequests = true;
         i64 CoalescedReadMaxGapSize = 10_MB;
         i64 BlockCacheCapacity = 0;
-        bool RejectOversizedBlockCacheItems = false;
         int ClusterConnectionThreadPoolSize = 4;
         int ReadThreadCount = 1;
         int WriteThreadCount = 1;
@@ -498,6 +493,7 @@ public:
         bool EnableWriteThrottlingWritableCheck = false;
         bool EnableInThrottlerQueueWritableCheck = false;
         bool PreallocateDiskSpace = false;
+        bool UseDirectIO = false;
         bool WaitPrecedingBlocksReceived = true;
         TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
         TDuration DelayBeforePerformPutBlocks = TDuration::Seconds(2);
@@ -518,7 +514,6 @@ public:
         ioEngineConfig->ReadThreadCount = TestParams_.ReadThreadCount;
         ioEngineConfig->WriteThreadCount = TestParams_.WriteThreadCount;
         ioEngineConfig->UseDirectIOForReads = TestParams_.UseDirectIOForReads;
-        ioEngineConfig->UseDirectIOForWrites = TestParams_.UseDirectIOForWrites;
         ioEngineConfig->MinRequestSizeToUseHugePages = TestParams_.MinRequestSizeToUseHugePages;
         storeLocationConfig->IOConfig = NYTree::ConvertToNode(ioEngineConfig);
         storeLocationConfig->IOWeight = ioWeight;
@@ -565,7 +560,6 @@ public:
         bootstrapConfig->DataNode->BlockCache = New<TBlockCacheConfig>();
         auto cacheConfig = New<TSlruCacheConfig>();
         cacheConfig->Capacity = TestParams_.BlockCacheCapacity;
-        cacheConfig->RejectOversizedItems = TestParams_.RejectOversizedBlockCacheItems;
         bootstrapConfig->DataNode->BlockCache->CompressedData = cacheConfig;
         bootstrapConfig->DataNode->BlockCache->UncompressedData = cacheConfig;
         bootstrapConfig->DataNode->ChooseLocationBasedOnIOWeight = TestParams_.ChooseLocationBasedOnIOWeight;
@@ -672,6 +666,7 @@ public:
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->EnableInThrottlerQueueWritableCheck = TestParams_.EnableInThrottlerQueueWritableCheck;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks = TestParams_.DelayBeforePerformPutBlocks;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->PreallocateDiskSpace = TestParams_.PreallocateDiskSpace;
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseDirectIO = TestParams_.UseDirectIO;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->WaitPrecedingBlocksReceived = TestParams_.WaitPrecedingBlocksReceived;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->FairShareHierarchicalScheduler->WindowSize = TDuration::Seconds(1);
         DataNodeBootstrap_->GetFairShareHierarchicalScheduler()->Reconfigure(DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->FairShareHierarchicalScheduler);
@@ -1101,12 +1096,11 @@ public:
         : TDataNodeTest(
             TDataNodeTest::TDataNodeTestParams {
                 .EnableHugePageManager = GetParam().UseDirectIo,
-                // TODO(depression): Enable after Direct IO issues get fixed
-                .UseDirectIOForWrites = NIO::EDirectIOPolicy::Never,
                 .ReadThreadCount = 4,
                 .WriteThreadCount = 4,
                 .UseProbePutBlocks = GetParam().UseProbePutBlocks,
                 .PreallocateDiskSpace = GetParam().PreallocateDiskSpace,
+                .UseDirectIO = GetParam().UseDirectIo,
             })
     { }
 };
@@ -1901,45 +1895,6 @@ INSTANTIATE_TEST_SUITE_P(
     TGetBlockSetTest,
     ::testing::ValuesIn(GenerateGetBlockSetParams())
 );
-
-class TOversizedBlockCacheTest
-    : public TDataNodeTest
-{
-public:
-    TOversizedBlockCacheTest()
-        : TDataNodeTest(
-            TDataNodeTest::TDataNodeTestParams {
-                .BlockCacheCapacity = 1_KB,
-                .RejectOversizedBlockCacheItems = true,
-            })
-    { }
-};
-
-TEST_F(TOversizedBlockCacheTest, DoesNotChargeBlockCacheMemory)
-{
-    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
-    auto blocks = FillWithRandomBlocks(sessionId, /*blockCount*/ 1, /*blockSize*/ 4_KB);
-
-    auto rspOrError = WaitFor(GetBlockSet(
-        sessionId.ChunkId,
-        /*blockIndices*/ std::vector<int>{0},
-        /*populateCache*/ true,
-        /*fetchFromCache*/ true,
-        /*fetchFromDisk*/ true));
-    ASSERT_TRUE(rspOrError.IsOK());
-
-    auto gotBlocks = GetRpcAttachedBlocks(rspOrError.Value());
-    ASSERT_EQ(gotBlocks.size(), 1u);
-    EXPECT_EQ(BlocksToChecksums(gotBlocks), BlocksToChecksums(blocks));
-
-    auto cacheCookie = GetDataNodeBootstrap()->GetBlockCache()->GetBlockCookie(
-        TBlockId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), 0),
-        EBlockType::CompressedData);
-    ASSERT_TRUE(cacheCookie->IsActive());
-    cacheCookie->SetBlock(blocks[0]);
-
-    EXPECT_EQ(GetDataNodeBootstrap()->GetNodeMemoryUsageTracker()->GetUsed(EMemoryCategory::BlockCache), 0);
-}
 
 class TReadBlocksDeadlineTest
     : public TDataNodeTest

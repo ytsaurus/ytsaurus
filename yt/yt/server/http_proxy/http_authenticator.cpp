@@ -85,7 +85,6 @@ void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWr
         });
     } else {
         SetStatusFromAuthError(rsp, TError(result));
-        FillYTErrorHeaders(rsp, TError(result));
         ReplyJson(rsp, [&] (auto consumer) {
             BuildYsonFluently(consumer)
                 .Value(TError(result));
@@ -299,7 +298,6 @@ void TCompositeHttpAuthenticator::HandleRequest(const IRequestPtr& req, const IR
     }
 
     SetStatusFromAuthError(rsp, TError(result));
-    FillYTErrorHeaders(rsp, TError(result));
     ReplyJson(rsp, [&] (auto consumer) {
         BuildYsonFluently(consumer)
             .Value(TError(result));

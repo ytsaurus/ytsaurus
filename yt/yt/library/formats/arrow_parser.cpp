@@ -2158,7 +2158,6 @@ public:
 
     void Finish() override
     {
-        // TODO(dagorokhov): reject empty (0-byte) input (YT-28650)
         if (LastState_ == EListenerState::InProgress) {
             THROW_ERROR_EXCEPTION("Unexpected end of stream");
         }

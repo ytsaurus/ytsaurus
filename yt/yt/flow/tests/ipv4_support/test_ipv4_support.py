@@ -6,7 +6,7 @@ import yatest.common
 from yt.yt.flow.library.python.integration_test_base.yt_flow_base import FlowTestBase
 from yt.yt.flow.library.python.integration_test_base.helpers import get_yson_config
 
-from yt_sync import run_yt_sync
+from .yt_sync import run_yt_sync
 
 # Matches an IPv4 address (dotted-decimal) anywhere in a string.
 _IPV4_RE = re.compile(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")

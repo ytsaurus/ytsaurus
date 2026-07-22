@@ -93,8 +93,13 @@ def _derive_test_name(cls, method) -> str:
         ), f"Test name from env does not contain expected name. Env: {env_current_test}, expected: {test_name}"
         test_name += env_current_test.split(test_name, 1)[1].split()[0]
 
+    # Same-named test classes live in different modules (e.g. the cpp and python
+    # example tests); the module path keeps their log dirs and Cypress work
+    # paths distinct when several modules share one test session.
+    test_name = f"{cls.__class__.__module__}::{test_name}"
+
     # YPath special symbols (https://ytsaurus.tech/docs/en/user-guide/storage/ypath#simple_ypath_lexis) + some extra symbols.
-    special_symbols = ["{", "}", "[", "]", "(", ")", "/", "@", "&", "*", ":"]
+    special_symbols = ["{", "}", "[", "]", "(", ")", "/", "@", "&", "*", ":", "."]
 
     test_name = test_name.translate(str.maketrans({special_symbol: "_" for special_symbol in special_symbols}))
     test_name = "_".join(part for part in test_name.split("_") if part)

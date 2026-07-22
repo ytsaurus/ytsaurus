@@ -42,7 +42,6 @@ from .client_exceptions import (
     ClientConnectionError,
     ClientConnectionResetError,
     ClientConnectorCertificateError,
-    ClientConnectorDNSError,
     ClientConnectorError,
     ClientConnectorSSLError,
     ClientError,
@@ -89,6 +88,7 @@ from .helpers import (
     DEBUG,
     BasicAuth,
     TimeoutHandle,
+    ceil_timeout,
     get_env_proxy_for_url,
     method_must_be_empty_body,
     sentinel,
@@ -105,7 +105,6 @@ __all__ = (
     "ClientConnectionError",
     "ClientConnectionResetError",
     "ClientConnectorCertificateError",
-    "ClientConnectorDNSError",
     "ClientConnectorError",
     "ClientConnectorSSLError",
     "ClientError",
@@ -209,7 +208,7 @@ class ClientTimeout:
 
 
 # 5 Minute default read timeout
-DEFAULT_TIMEOUT: Final[ClientTimeout] = ClientTimeout(total=5 * 60, sock_connect=30)
+DEFAULT_TIMEOUT: Final[ClientTimeout] = ClientTimeout(total=5 * 60)
 
 # https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2
 IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE"})
@@ -355,7 +354,7 @@ class ClientSession:
             cookie_jar = CookieJar(loop=loop)
         self._cookie_jar = cookie_jar
 
-        if cookies:
+        if cookies is not None:
             self._cookie_jar.update_cookies(cookies)
 
         self._connector = connector
@@ -445,7 +444,7 @@ class ClientSession:
         if self._base_url is None:
             return url
         else:
-            assert not url.absolute and url.path.startswith("/")
+            assert not url.is_absolute() and url.path.startswith("/")
             return self._base_url.join(url)
 
     async def _request(
@@ -478,7 +477,7 @@ class ClientSession:
         ssl: Union[SSLContext, bool, Fingerprint] = True,
         server_hostname: Optional[str] = None,
         proxy_headers: Optional[LooseHeaders] = None,
-        trace_request_ctx: Optional[Mapping[str, Any]] = None,
+        trace_request_ctx: Optional[Mapping[str, str]] = None,
         read_bufsize: Optional[int] = None,
         auto_decompress: Optional[bool] = None,
         max_line_size: Optional[int] = None,
@@ -505,12 +504,13 @@ class ClientSession:
             warnings.warn("Chunk size is deprecated #1615", DeprecationWarning)
 
         redirects = 0
-        history: List[ClientResponse] = []
+        history = []
         version = self._version
         params = params or {}
 
         # Merge with default headers and transform to CIMultiDict
         headers = self._prepare_headers(headers)
+        proxy_headers = self._prepare_headers(proxy_headers)
 
         try:
             url = self._build_url(str_or_url)
@@ -526,10 +526,7 @@ class ClientSession:
             for i in skip_auto_headers:
                 skip_headers.add(istr(i))
 
-        if proxy is None:
-            proxy_headers = None
-        else:
-            proxy_headers = self._prepare_headers(proxy_headers)
+        if proxy is not None:
             try:
                 proxy = URL(proxy)
             except ValueError as e:
@@ -589,18 +586,13 @@ class ClientSession:
                             else InvalidUrlClientError
                         )
                         raise err_exc_cls(url)
-                    # If `auth` was passed for an already authenticated URL,
-                    # disallow only if this is the initial URL; this is to avoid issues
-                    # with sketchy redirects that are not the caller's responsibility
-                    if not history and (auth and auth_from_url):
+                    if auth and auth_from_url:
                         raise ValueError(
                             "Cannot combine AUTH argument with "
                             "credentials encoded in URL"
                         )
 
-                    # Override the auth with the one from the URL only if we
-                    # have no auth, or if we got an auth from a redirect URL
-                    if auth is None or (history and auth_from_url is not None):
+                    if auth is None:
                         auth = auth_from_url
                     if auth is None:
                         auth = self._default_auth
@@ -660,9 +652,13 @@ class ClientSession:
 
                     # connection timeout
                     try:
-                        conn = await self._connector.connect(
-                            req, traces=traces, timeout=real_timeout
-                        )
+                        async with ceil_timeout(
+                            real_timeout.connect,
+                            ceil_threshold=real_timeout.ceil_threshold,
+                        ):
+                            conn = await self._connector.connect(
+                                req, traces=traces, timeout=real_timeout
+                            )
                     except asyncio.TimeoutError as exc:
                         raise ConnectionTimeoutError(
                             f"Connection timeout to host {url}"
@@ -706,8 +702,7 @@ class ClientSession:
                             raise
                         raise ClientOSError(*exc.args) from exc
 
-                    if cookies := resp.cookies:
-                        self._cookie_jar.update_cookies(cookies, resp.url)
+                    self._cookie_jar.update_cookies(resp.cookies, resp.url)
 
                     # redirects
                     if resp.status in (301, 302, 303, 307, 308) and allow_redirects:

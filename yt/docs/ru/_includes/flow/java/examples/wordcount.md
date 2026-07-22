@@ -27,22 +27,22 @@ gRPC-сервер поднимается автоматически через S
 
 ### WordCountContext
 
-Стримы пайплайна объявляются через `ComputationProvider` (метод `getStreams()`). Компьютейшен `mapper` регистрируется аннотацией `@FlowComputation` на классе `WordCountMapper` (см. ниже):
+Конфигурация [компьютейшенов](../../../../flow/concepts/glossary.md#stream-and-computation) и стримов через `ComputationProvider`:
 
 {% list tabs group=lang %}
 
 - Java
 
-  {% code '/yt/yt/flow/examples/java/word_count/wordcount/src/main/java/tech/ytsaurus/flow/examples/wordcount/WordCountContext.java' lang='java' lines='[BEGIN stream_context]-[END stream_context]' keep-indents %}
+  {% code '/yt/yt/flow/examples/java/word_count/wordcount/src/main/java/tech/ytsaurus/flow/examples/wordcount/WordCountContext.java' lang='java' lines='[BEGIN word_count_context]-[END word_count_context]' keep-indents %}
 
 - Kotlin
 
-  {% code '/yt/yt/flow/examples/kotlin/word_count/wordcount/src/main/kotlin/tech/ytsaurus/flow/examples/wordcount/WordCountContext.kt' lang='kotlin' lines='[BEGIN stream_context]-[END stream_context]' keep-indents %}
+  {% code '/yt/yt/flow/examples/kotlin/word_count/wordcount/src/main/kotlin/tech/ytsaurus/flow/examples/wordcount/WordCountContext.kt' lang='kotlin' lines='[BEGIN word_count_context]-[END word_count_context]' keep-indents %}
 
 {% endlist %}
 
 - `reader` — SourceComputation без процессной функции. Чтение и парсинг выполняются на стороне C++ [worker](../../../../flow/concepts/glossary.md#worker)-а.
-- `mapper` — Computation, реализованный классом `WordCountMapper` с аннотацией `@FlowComputation(id = "mapper")`.
+- `mapper` — Computation c внедренным через `@Autowired` компонентом `WordCountMapper`.
 - `FlowStreams.typed("words", Word.class)` — регистрирует типизированный стрим `"words"`, что позволяет получать сообщения как объекты `Word`.
 
 ### WordCountMapper
@@ -61,7 +61,7 @@ gRPC-сервер поднимается автоматически через S
 
 {% endlist %}
 
-Аннотация `@FlowComputation(id = "mapper")` регистрирует класс как компьютейшен и делает его Spring-бином (она мета-аннотирована `@Component`).
+Аннотация `@Component` позволяет Spring-у автоматически создать и внедрить экземпляр.
 
 ### RunnerMain
 
@@ -82,8 +82,8 @@ gRPC-сервер поднимается автоматически через S
 ## Ключевые паттерны
 
 - **Spring Boot auto-config** — не нужно вручную создавать `PipelineContext` и `GrpcServerExecution`.
-- **@FlowComputation** — процессная функция одновременно становится Spring-бином и компьютейшеном; можно использовать инъекцию зависимостей.
-- **ComputationProvider.getStreams()** — объявление стримов пайплайна в одном месте.
+- **@Component + @Autowired** — процессные функции являются Spring-бинами и могут использовать инъекцию зависимостей.
+- **ComputationProvider** — единая точка регистрации всех компьютейшенов и стримов.
 - **FlowStreams.typed** — типизированный доступ к сообщениям через Java-объекты.
 
 ## Запуск

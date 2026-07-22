@@ -583,7 +583,8 @@ IGraphTransformer::TStatus EvaluateExpression(const TExprNode::TPtr& input, TExp
     TOptimizeExprSettings settings(nullptr);
     settings.VisitChanges = true;
     settings.TrackFrames = true;
-    settings.ReuseLambda = true;
+    static const char ReuseLambdaFlag[] = "EvalReuseLambda";
+    settings.ReuseLambda = !IsOptimizerDisabled<ReuseLambdaFlag>(types);
     auto status = OptimizeExpr(output, output, [&](const TExprNode::TPtr& node, TExprContext& ctx) -> TExprNode::TPtr {
         if (node->IsCallable("EvaluateIf!")) {
             if (!EnsureMinArgsCount(*node, 3, ctx)) {

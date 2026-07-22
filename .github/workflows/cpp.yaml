@@ -11,6 +11,7 @@ on:
   push:
     branches:
       - main
+      - members/mikari/flow-os-ci-smoke
       - stable/[0-9]+\.[0-9]+
       - query-tracker/[0-9]+\.[0-9]+
       - chyt/[0-9]+\.[0-9]+

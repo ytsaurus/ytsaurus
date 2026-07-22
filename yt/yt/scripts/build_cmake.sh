@@ -134,6 +134,30 @@ cmd_move_binaries() {
         mv "${ut_binary}" "${output_build_path}"
     done
 
+    # Flow test binaries are resolved by their build-tree paths (the flow tests
+    # reach them through yatest.common.binary_path), so unlike the loops above
+    # these keep their directories: the flow unit gtests run in the unittests
+    # job, the server and cpp example binaries in the flow pytest job.
+    for flow_unittest_binary in $(find yt/yt/flow -type f \( -name "*-unittests" -o -name "*-unittest" \)); do
+        strip "${flow_unittest_binary}"
+        mkdir -p "${output_build_path}/$(dirname "${flow_unittest_binary}")"
+        mv "${flow_unittest_binary}" "${output_build_path}/$(dirname "${flow_unittest_binary}")"
+    done
+
+    local flow_server="yt/yt/flow/bin/flow_server/flow_server"
+    strip "${flow_server}"
+    mkdir -p "${output_build_path}/$(dirname "${flow_server}")"
+    mv "${flow_server}" "${output_build_path}/$(dirname "${flow_server}")"
+
+    for flow_example_dir in yt/yt/flow/examples/cpp/*/; do
+        local flow_example_binary="${flow_example_dir}$(basename "${flow_example_dir}")"
+        if [ -f "${flow_example_binary}" ]; then
+            strip "${flow_example_binary}"
+            mkdir -p "${output_build_path}/${flow_example_dir}"
+            mv "${flow_example_binary}" "${output_build_path}/${flow_example_dir}"
+        fi
+    done
+
     local scheduler_simulator="yt/yt/tools/scheduler_simulator/bin/scheduler_simulator"
     strip "${scheduler_simulator}"
     mv "${scheduler_simulator}" "${output_build_path}"

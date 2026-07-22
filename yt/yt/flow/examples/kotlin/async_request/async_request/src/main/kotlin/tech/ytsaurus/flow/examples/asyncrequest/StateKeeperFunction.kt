@@ -5,21 +5,16 @@ import tech.ytsaurus.flow.computation.OutputCollector
 import tech.ytsaurus.flow.context.RuntimeContext
 import tech.ytsaurus.flow.function.RowFunction
 import tech.ytsaurus.flow.row.ExtendedMessage
-import tech.ytsaurus.flow.spring.FlowComputation
 import tech.ytsaurus.flow.state.ExternalStateDescriptor
 import tech.ytsaurus.flow.state.StateDescriptors
 import java.util.Random
-
-// [BEGIN registration]
-@FlowComputation(id = "state")
-// [END registration]
 
 /**
  * Handles both "event" and "response" streams:
  *   - event  → creates a request message and emits it to the "request" stream
  *   - response → accumulates total_length in external state ("state" table)
  */
-open class StateKeeperFunction : RowFunction {
+class StateKeeperFunction : RowFunction {
     companion object {
         private val log = LoggerFactory.getLogger(StateKeeperFunction::class.java)
         private val RANDOM = Random()

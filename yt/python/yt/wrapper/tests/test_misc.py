@@ -1914,15 +1914,6 @@ class TestClientConfigFromCluster(object):
         env_alias_client = yt.YtClient(config=config)
         assert env_alias_client.get(node_path) == "value"
 
-    @authors("denvr")
-    def test_config_annotations(self):
-        with mock.patch.dict(os.environ, {"YT_ANNOTATE_OBJECTS": "{some_bad_attr=some_val;_some_attr=some_str_val}"}):
-            client = yt.YtClient(config=yt.config.config)
-            client.create("table", "//tmp/table1")
-        attrs = yt.get("//tmp/table1", attributes=["some_bad_attr", "_some_attr"]).attributes
-        assert attrs["_some_attr"] == "some_str_val"
-        assert "some_bad_attr" not in attrs["_some_attr"]
-
 
 class _ConfigFile:
     def __init__(self, content: bytes, is_readable: bool, file_name: str):

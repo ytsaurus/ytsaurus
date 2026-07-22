@@ -15,14 +15,10 @@ import tech.ytsaurus.flow.row.Message;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.PayloadBuilder;
 import tech.ytsaurus.flow.row.Timer;
-import tech.ytsaurus.flow.spring.FlowComputation;
 import tech.ytsaurus.flow.state.ExternalStateAccessor;
 import tech.ytsaurus.flow.state.ExternalStateDescriptor;
 import tech.ytsaurus.flow.state.StateDescriptors;
 
-// [BEGIN registration]
-@FlowComputation(id = "join")
-// [END registration]
 public class JoinProcessFunction implements RowFunction {
     static final ExternalStateDescriptor JOINED_ACTION_STATE =
             StateDescriptors.external("/join-state");

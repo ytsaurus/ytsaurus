@@ -1,7 +1,6 @@
 #include "chunk_file_writer.h"
 #include "io_engine.h"
 #include "private.h"
-#include "helpers.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
@@ -119,15 +118,10 @@ TChunkFileWriter::TChunkFileWriter(
 TFlags<EOpenModeFlag> TChunkFileWriter::GetFileMode() const
 {
     auto flags = FileMode;
-    if (ShouldUseDirectIOForWrites()) {
+    if (UseDirectIO_) {
         flags |= DirectAligned;
     }
     return flags;
-}
-
-bool TChunkFileWriter::ShouldUseDirectIOForWrites() const
-{
-    return ShouldUseDirectIO(IOEngine_->UseDirectIOForWrites(), UseDirectIO_);
 }
 
 void TChunkFileWriter::TryLockDataFile(TPromise<void> promise)

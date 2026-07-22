@@ -51,33 +51,19 @@
 
 {% endlist %}
 
-### Регистрация компьютейшена и стримов
+### UrlDownloaderComputationContext
 
-Компьютейшен `url_downloader` регистрируется аннотацией `@FlowComputation` на классе process-функции:
-
-{% list tabs group=lang %}
-
-- Java
-
-  {% code '/yt/yt/flow/examples/java/url_downloader/url_downloader/src/main/java/tech/ytsaurus/flow/examples/urldownloader/UrlDownloadFunction.java' lang='java' lines='[BEGIN registration]-[END registration]' %}
-
-- Kotlin
-
-  {% code '/yt/yt/flow/examples/kotlin/url_downloader/url_downloader/src/main/kotlin/tech/ytsaurus/flow/examples/urldownloader/UrlDownloadFunction.kt' lang='kotlin' lines='[BEGIN registration]-[END registration]' %}
-
-{% endlist %}
-
-Типизированные стримы объявляются через `ComputationProvider` (метод `getStreams()`):
+Конфигурация компаньона регистрирует компьютейшен `url_downloader` через `ComputationProvider`:
 
 {% list tabs group=lang %}
 
 - Java
 
-  {% code '/yt/yt/flow/examples/java/url_downloader/url_downloader/src/main/java/tech/ytsaurus/flow/examples/urldownloader/UrlDownloaderComputationContext.java' lang='java' lines='[BEGIN stream_context]-[END stream_context]' keep-indents %}
+  {% code '/yt/yt/flow/examples/java/url_downloader/url_downloader/src/main/java/tech/ytsaurus/flow/examples/urldownloader/UrlDownloaderComputationContext.java' lang='java' lines='[BEGIN computation_context]-[END computation_context]' keep-indents %}
 
 - Kotlin
 
-  {% code '/yt/yt/flow/examples/kotlin/url_downloader/url_downloader/src/main/kotlin/tech/ytsaurus/flow/examples/urldownloader/UrlDownloaderComputationContext.kt' lang='kotlin' lines='[BEGIN stream_context]-[END stream_context]' keep-indents %}
+  {% code '/yt/yt/flow/examples/kotlin/url_downloader/url_downloader/src/main/kotlin/tech/ytsaurus/flow/examples/urldownloader/UrlDownloaderComputationContext.kt' lang='kotlin' lines='[BEGIN computation_context]-[END computation_context]' keep-indents %}
 
 {% endlist %}
 

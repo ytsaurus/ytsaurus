@@ -36,8 +36,6 @@ void TSlruCacheConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0.0);
     registrar.Parameter("enable_ghost_caches", &TThis::EnableGhostCaches)
         .Default(true);
-    registrar.Parameter("reject_oversized_items", &TThis::RejectOversizedItems)
-        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         if (!IsPowerOf2(config->ShardCount)) {
@@ -59,8 +57,6 @@ void TSlruCacheDynamicConfig::Register(TRegistrar registrar)
         .InRange(0.0, 1.0);
     registrar.Parameter("enable_ghost_caches", &TThis::EnableGhostCaches)
         .Default(true);
-    registrar.Parameter("reject_oversized_items", &TThis::RejectOversizedItems)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

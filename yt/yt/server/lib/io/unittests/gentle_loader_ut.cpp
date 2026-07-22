@@ -256,11 +256,6 @@ public:
         return EDirectIOPolicy::Never;
     }
 
-    EDirectIOPolicy UseDirectIOForWrites() const override
-    {
-        return EDirectIOPolicy::Never;
-    }
-
     bool IsInFlightRequestLimitExceeded() const override
     {
         return false;

@@ -10,14 +10,10 @@ import tech.ytsaurus.flow.function.RowFunction
 import tech.ytsaurus.flow.row.ExtendedMessage
 import tech.ytsaurus.flow.row.Message
 import tech.ytsaurus.flow.row.Timer
-import tech.ytsaurus.flow.spring.FlowComputation
 import tech.ytsaurus.flow.state.InternalStateDescriptor
 import tech.ytsaurus.flow.state.StateDescriptors
 
-// [BEGIN registration]
-@FlowComputation(id = "url_downloader")
-// [END registration]
-open class UrlDownloadFunction : RowFunction {
+class UrlDownloadFunction : RowFunction {
     companion object {
         private val log = LoggerFactory.getLogger(UrlDownloadFunction::class.java)
 

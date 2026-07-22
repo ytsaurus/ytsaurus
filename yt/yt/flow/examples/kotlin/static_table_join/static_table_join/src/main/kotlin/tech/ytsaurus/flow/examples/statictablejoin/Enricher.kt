@@ -4,18 +4,13 @@ import tech.ytsaurus.flow.computation.OutputCollector
 import tech.ytsaurus.flow.context.RuntimeContext
 import tech.ytsaurus.flow.function.RowFunction
 import tech.ytsaurus.flow.row.ExtendedMessage
-import tech.ytsaurus.flow.spring.FlowComputation
 import tech.ytsaurus.flow.state.JoinedExternalStateDescriptor
 import tech.ytsaurus.flow.state.StateDescriptors
-
-// [BEGIN registration]
-@FlowComputation(id = "enricher")
-// [END registration]
 
 /**
  * Joins each event against the reference state and emits the enriched row.
  */
-open class Enricher : RowFunction {
+class Enricher : RowFunction {
     companion object {
         private val REFERENCE_STATE: JoinedExternalStateDescriptor =
             StateDescriptors.externalReadOnly("/reference_state")

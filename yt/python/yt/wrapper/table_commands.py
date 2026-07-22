@@ -764,8 +764,7 @@ class _ReadTableRetriableState(object):
                 self.range_started = True
                 self.range_index_row_yielded = False
                 self.row_index_row_yielded = False
-            if self.next_row_index is not None:
-                self.next_row_index += 1
+            self.next_row_index += 1
 
         return can_omit_control_info
 

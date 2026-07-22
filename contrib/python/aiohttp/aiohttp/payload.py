@@ -101,7 +101,6 @@ class PayloadRegistry:
         self._first: List[_PayloadRegistryItem] = []
         self._normal: List[_PayloadRegistryItem] = []
         self._last: List[_PayloadRegistryItem] = []
-        self._normal_lookup: Dict[Any, PayloadType] = {}
 
     def get(
         self,
@@ -110,20 +109,12 @@ class PayloadRegistry:
         _CHAIN: "Type[chain[_PayloadRegistryItem]]" = chain,
         **kwargs: Any,
     ) -> "Payload":
-        if self._first:
-            for factory, type_ in self._first:
-                if isinstance(data, type_):
-                    return factory(data, *args, **kwargs)
-        # Try the fast lookup first
-        if lookup_factory := self._normal_lookup.get(type(data)):
-            return lookup_factory(data, *args, **kwargs)
-        # Bail early if its already a Payload
         if isinstance(data, Payload):
             return data
-        # Fallback to the slower linear search
-        for factory, type_ in _CHAIN(self._normal, self._last):
-            if isinstance(data, type_):
+        for factory, type in _CHAIN(self._first, self._normal, self._last):
+            if isinstance(data, type):
                 return factory(data, *args, **kwargs)
+
         raise LookupError()
 
     def register(
@@ -133,11 +124,6 @@ class PayloadRegistry:
             self._first.append((factory, type))
         elif order is Order.normal:
             self._normal.append((factory, type))
-            if isinstance(type, Iterable):
-                for t in type:
-                    self._normal_lookup[t] = factory
-            else:
-                self._normal_lookup[type] = factory
         elif order is Order.try_last:
             self._last.append((factory, type))
         else:
@@ -173,8 +159,7 @@ class Payload(ABC):
             self._headers[hdrs.CONTENT_TYPE] = content_type
         else:
             self._headers[hdrs.CONTENT_TYPE] = self._default_content_type
-        if headers:
-            self._headers.update(headers)
+        self._headers.update(headers or {})
 
     @property
     def size(self) -> Optional[int]:
@@ -243,6 +228,9 @@ class BytesPayload(Payload):
     def __init__(
         self, value: Union[bytes, bytearray, memoryview], *args: Any, **kwargs: Any
     ) -> None:
+        if not isinstance(value, (bytes, bytearray, memoryview)):
+            raise TypeError(f"value argument must be byte-ish, not {type(value)!r}")
+
         if "content_type" not in kwargs:
             kwargs["content_type"] = "application/octet-stream"
 
@@ -250,10 +238,8 @@ class BytesPayload(Payload):
 
         if isinstance(value, memoryview):
             self._size = value.nbytes
-        elif isinstance(value, (bytes, bytearray)):
-            self._size = len(value)
         else:
-            raise TypeError(f"value argument must be byte-ish, not {type(value)!r}")
+            self._size = len(value)
 
         if self._size > TOO_LARGE_BYTES_BODY:
             kwargs = {"source": self}

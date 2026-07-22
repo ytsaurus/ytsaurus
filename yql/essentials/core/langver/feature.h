@@ -7,22 +7,12 @@
 namespace NYql {
 
 struct TFeature {
-    const TStringBuf Name;
-    const TStringBuf Description;
-    const TLangVersion MinLangVer = UnknownLangVersion;
-    const TLangVersion MaxLangVer = UnknownLangVersion;
+    TString Name;
+    TString Description;
+    TLangVersion MinLangVer = UnknownLangVersion;
+    TLangVersion MaxLangVer = UnknownLangVersion;
 
-    static consteval TFeature Checked(TFeature f) {
-        if (f.MinLangVer != UnknownLangVersion && !IsValidLangVersion(f.MinLangVer)) {
-            throw std::invalid_argument("Bad MinLangVer");
-        }
-
-        if (f.MaxLangVer != UnknownLangVersion && !IsValidLangVersion(f.MaxLangVer)) {
-            throw std::invalid_argument("Bad MaxLangVer");
-        }
-
-        return f;
-    }
+    TFeature Finish() &&;
 };
 
 bool IsAvailableOn(

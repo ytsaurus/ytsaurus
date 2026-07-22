@@ -147,9 +147,6 @@
     "ValidateRegexp": {
         "min_langver": "2025.03"
     },
-    "Interval64Seconds": {
-        "min_langver": "2025.03"
-    },
     "GroupByExprAfterWhere": {
         "min_langver": "2025.02"
     },

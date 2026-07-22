@@ -8,7 +8,6 @@ TEST_SRCS(
 
 PEERDIR(
     yt/yt/tests/conftest_lib
-    contrib/python/pyarrow
 )
 
 END()

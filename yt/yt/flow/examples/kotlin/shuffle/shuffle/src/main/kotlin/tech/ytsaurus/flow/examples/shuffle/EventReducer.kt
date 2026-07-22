@@ -4,14 +4,10 @@ import tech.ytsaurus.flow.computation.OutputCollector
 import tech.ytsaurus.flow.context.RuntimeContext
 import tech.ytsaurus.flow.function.RowFunction
 import tech.ytsaurus.flow.row.ExtendedMessage
-import tech.ytsaurus.flow.spring.FlowComputation
 import tech.ytsaurus.flow.state.ExternalStateDescriptor
 import tech.ytsaurus.flow.state.StateDescriptors
 
-// [BEGIN registration]
-@FlowComputation(id = "reducer")
-// [END registration]
-open class EventReducer : RowFunction {
+class EventReducer : RowFunction {
     companion object {
         private val SHUFFLE_STATE: ExternalStateDescriptor =
             StateDescriptors.external("/shuffle-state")

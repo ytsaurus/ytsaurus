@@ -4,7 +4,6 @@ import tech.ytsaurus.flow.computation.OutputCollector;
 import tech.ytsaurus.flow.context.RuntimeContext;
 import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.row.ExtendedMessage;
-import tech.ytsaurus.flow.spring.FlowComputation;
 import tech.ytsaurus.flow.state.ExternalStateAccessor;
 import tech.ytsaurus.flow.state.ExternalStateDescriptor;
 import tech.ytsaurus.flow.state.StateDescriptors;
@@ -12,9 +11,6 @@ import tech.ytsaurus.flow.state.StateDescriptors;
 /**
  * Trims and lowercases the reference name, storing it in keyed external state.
  */
-// [BEGIN registration]
-@FlowComputation(id = "reference_loader")
-// [END registration]
 public class ReferenceLoaderFunction implements RowFunction {
     private static final ExternalStateDescriptor REFERENCE_STATE =
             StateDescriptors.external("/reference_state");
