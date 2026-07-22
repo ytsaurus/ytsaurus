@@ -6,11 +6,15 @@ import tech.ytsaurus.flow.computation.OutputCollector;
 import tech.ytsaurus.flow.context.RuntimeContext;
 import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.row.ExtendedMessage;
+import tech.ytsaurus.flow.spring.FlowComputation;
 
 /**
  * Processes request messages: computes the length of the request string
  * and emits a response message back to the "response" stream.
  */
+// [BEGIN registration]
+@FlowComputation(id = "processor")
+// [END registration]
 public class RequestProcessorFunction implements RowFunction {
     private static final Logger log = LoggerFactory.getLogger(RequestProcessorFunction.class);
 

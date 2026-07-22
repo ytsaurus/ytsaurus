@@ -161,7 +161,21 @@ flowchart TD
 [Исходный код (Java)]({{source-root}}/yt/yt/flow/examples/java/wait_click_join/wait_click_join/src/main/java/tech/ytsaurus/flow/examples/waitclickjoin/PipelineConfiguration.java)
 
 [Исходный код (Kotlin)]({{source-root}}/yt/yt/flow/examples/kotlin/wait_click_join/wait_click_join/src/main/kotlin/tech/ytsaurus/flow/examples/waitclickjoin/PipelineConfiguration.kt)
-Пример использует [Spring Boot интеграцию](../../../../flow/java/spring.md) для конфигурации:
+Пример использует [Spring Boot интеграцию](../../../../flow/java/spring.md) для конфигурации. Компьютейшен `join` регистрируется аннотацией `@FlowComputation` на классе `JoinProcessFunction`:
+
+{% list tabs group=lang %}
+
+- Java
+
+  {% code '/yt/yt/flow/examples/java/wait_click_join/wait_click_join/src/main/java/tech/ytsaurus/flow/examples/waitclickjoin/JoinProcessFunction.java' lang='java' lines='[BEGIN registration]-[END registration]' %}
+
+- Kotlin
+
+  {% code '/yt/yt/flow/examples/kotlin/wait_click_join/wait_click_join/src/main/kotlin/tech/ytsaurus/flow/examples/waitclickjoin/JoinProcessFunction.kt' lang='kotlin' lines='[BEGIN registration]-[END registration]' %}
+
+{% endlist %}
+
+Типизированные стримы объявляются через `ComputationProvider` (метод `getStreams()`):
 
 {% list tabs group=lang %}
 
@@ -176,7 +190,7 @@ flowchart TD
 {% endlist %}
 
 Ключевые моменты:
-- Регистрируется один Computation `join` с `JoinProcessFunction`.
+- Компьютейшен `join` (`JoinProcessFunction`) регистрируется аннотацией `@FlowComputation(id = "join")`.
 - Регистрируются три типизированных стрима: `hit`, `action` и `joined_action`.
 - Типизированные стримы позволяют использовать `message.getPayload()` для получения POJO-объектов.
 

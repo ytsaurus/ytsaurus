@@ -8,9 +8,14 @@ import tech.ytsaurus.flow.examples.retryableasyncrequest.model.RequestState
 import tech.ytsaurus.flow.function.RowFunction
 import tech.ytsaurus.flow.row.ExtendedMessage
 import tech.ytsaurus.flow.row.Timer
+import tech.ytsaurus.flow.spring.FlowComputation
 import tech.ytsaurus.flow.state.InternalStateDescriptor
 import tech.ytsaurus.flow.state.StateAccessor
 import tech.ytsaurus.flow.state.StateDescriptors
+
+// [BEGIN registration]
+@FlowComputation(id = "processor")
+// [END registration]
 
 /**
  * Processes request messages with retry logic using timers.
@@ -22,7 +27,7 @@ import tech.ytsaurus.flow.state.StateDescriptors
  * On failure: increment failedAttempts, save state, schedule a timer 5 seconds in the future.
  * On success: emit response, clear state.
  */
-class RequestProcessorFunction : RowFunction {
+open class RequestProcessorFunction : RowFunction {
     companion object {
         private val log: Logger = LoggerFactory.getLogger(RequestProcessorFunction::class.java)
 

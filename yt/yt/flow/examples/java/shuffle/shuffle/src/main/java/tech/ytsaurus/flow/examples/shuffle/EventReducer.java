@@ -6,10 +6,14 @@ import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.PayloadBuilder;
+import tech.ytsaurus.flow.spring.FlowComputation;
 import tech.ytsaurus.flow.state.ExternalStateAccessor;
 import tech.ytsaurus.flow.state.ExternalStateDescriptor;
 import tech.ytsaurus.flow.state.StateDescriptors;
 
+// [BEGIN registration]
+@FlowComputation(id = "reducer")
+// [END registration]
 public class EventReducer implements RowFunction {
     private static final ExternalStateDescriptor SHUFFLE_STATE =
             StateDescriptors.external("/shuffle-state");

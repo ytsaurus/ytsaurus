@@ -17,13 +17,10 @@ import tech.ytsaurus.flow.stream.FlowStream;
  * Collects Flow computations and streams from a Spring application context and assembles a
  * {@link PipelineContext}.
  * <p>
- * Computations are gathered from two sources and merged:
- * <ul>
- *     <li>every {@link ComputationProvider} bean — via {@link ComputationProvider#getComputations()};</li>
- *     <li>every bean annotated with {@link FlowComputation} or {@link FlowSourceComputation}.</li>
- * </ul>
- * Streams are likewise gathered from {@link ComputationProvider#getStreams()} and from every
- * {@link FlowStream} bean declared in the context.
+ * Computations are gathered from every bean annotated with {@link FlowComputation} or
+ * {@link FlowSourceComputation}. Streams are gathered from every {@link ComputationProvider} bean
+ * (via {@link ComputationProvider#getStreams()}) and from every {@link FlowStream} bean declared in
+ * the context.
  * <p>
  * {@link ComputationProvider} and {@link FlowStream} beans are supplied as {@link ObjectProvider}s
  * (the idiomatic way to inject all beans of a type), while the annotated computations are discovered
@@ -34,7 +31,7 @@ import tech.ytsaurus.flow.stream.FlowStream;
  * {@link PipelineContext} with an {@link IllegalArgumentException}.
  *
  * @see FlowAutoConfiguration
- * @see ComputationProvider
+ * @see FlowComputation
  */
 public final class FlowComponents {
 
@@ -55,7 +52,7 @@ public final class FlowComponents {
             ObjectProvider<FlowStream<?>> flowStreams,
             ListableBeanFactory beanFactory
     ) {
-        var context = new PipelineContext(collectComputations(computationProviders, beanFactory));
+        var context = new PipelineContext(collectComputations(beanFactory));
         context.registerStreams(collectStreams(computationProviders, flowStreams));
         return context;
     }
@@ -76,26 +73,20 @@ public final class FlowComponents {
             ListableBeanFactory beanFactory,
             MetricsContext metricsContext
     ) {
-        var context = new PipelineContext(
-                collectComputations(computationProviders, beanFactory), metricsContext);
+        var context = new PipelineContext(collectComputations(beanFactory), metricsContext);
         context.registerStreams(collectStreams(computationProviders, flowStreams));
         return context;
     }
 
     /**
-     * Collects all computations declared in the application context, from both
-     * {@link ComputationProvider} beans and annotated beans.
+     * Collects all computations declared in the application context via {@link FlowComputation} and
+     * {@link FlowSourceComputation} annotated beans.
      *
-     * @param computationProviders provider of all {@link ComputationProvider} beans.
-     * @param beanFactory          the bean factory used to discover annotated computations.
-     * @return the merged list of computations.
+     * @param beanFactory the bean factory used to discover annotated computations.
+     * @return the list of computations.
      */
-    public static List<Computation> collectComputations(
-            ObjectProvider<ComputationProvider> computationProviders,
-            ListableBeanFactory beanFactory
-    ) {
+    public static List<Computation> collectComputations(ListableBeanFactory beanFactory) {
         List<Computation> computations = new ArrayList<>();
-        computationProviders.forEach(provider -> computations.addAll(provider.getComputations()));
         beanFactory.getBeansWithAnnotation(FlowComputation.class).forEach((beanName, bean) -> {
             FlowComputation annotation = beanFactory.findAnnotationOnBean(beanName, FlowComputation.class);
             computations.add(Computation.builder()

@@ -7,10 +7,15 @@ import tech.ytsaurus.flow.context.RuntimeContext
 import tech.ytsaurus.flow.function.RowFunction
 import tech.ytsaurus.flow.row.ExtendedMessage
 import tech.ytsaurus.flow.row.Payload
+import tech.ytsaurus.flow.spring.FlowComputation
 import tech.ytsaurus.flow.state.ExternalStateAccessor
 import tech.ytsaurus.flow.state.ExternalStateDescriptor
 import tech.ytsaurus.flow.state.StateDescriptors
 import java.util.Random
+
+// [BEGIN registration]
+@FlowComputation(id = "state")
+// [END registration]
 
 /**
  * Handles both "event" and "response" streams:
@@ -19,7 +24,7 @@ import java.util.Random
  *
  * Identical logic to the async_request StateKeeper.
  */
-class StateKeeperFunction : RowFunction {
+open class StateKeeperFunction : RowFunction {
     companion object {
         private val log: Logger = LoggerFactory.getLogger(StateKeeperFunction::class.java)
 

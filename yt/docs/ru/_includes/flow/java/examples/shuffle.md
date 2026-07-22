@@ -45,19 +45,23 @@
 3. Создаем `PayloadBuilder` из текущего стейта, увеличиваем счетчик.
 4. Сохраняем обновленный стейт.
 
-### ShuffleComputationContext
+### Регистрация компьютейшенов
 
-Конфигурация компаньона регистрирует компьютейшены `reader` и `reducer` через `ComputationProvider`:
+Компьютейшен-источник `reader` регистрируется аннотацией `@FlowSourceComputation`, а трансформация `reducer` — аннотацией `@FlowComputation`:
 
 {% list tabs group=lang %}
 
 - Java
 
-  {% code '/yt/yt/flow/examples/java/shuffle/shuffle/src/main/java/tech/ytsaurus/flow/examples/shuffle/ShuffleComputationContext.java' lang='java' lines='[BEGIN computation_context]-[END computation_context]' keep-indents %}
+  {% code '/yt/yt/flow/examples/java/shuffle/shuffle/src/main/java/tech/ytsaurus/flow/examples/shuffle/EventMapper.java' lang='java' lines='[BEGIN registration]-[END registration]' %}
+
+  {% code '/yt/yt/flow/examples/java/shuffle/shuffle/src/main/java/tech/ytsaurus/flow/examples/shuffle/EventReducer.java' lang='java' lines='[BEGIN registration]-[END registration]' %}
 
 - Kotlin
 
-  {% code '/yt/yt/flow/examples/kotlin/shuffle/shuffle/src/main/kotlin/tech/ytsaurus/flow/examples/shuffle/ShuffleComputationContext.kt' lang='kotlin' lines='[BEGIN computation_context]-[END computation_context]' keep-indents %}
+  {% code '/yt/yt/flow/examples/kotlin/shuffle/shuffle/src/main/kotlin/tech/ytsaurus/flow/examples/shuffle/EventMapper.kt' lang='kotlin' lines='[BEGIN registration]-[END registration]' %}
+
+  {% code '/yt/yt/flow/examples/kotlin/shuffle/shuffle/src/main/kotlin/tech/ytsaurus/flow/examples/shuffle/EventReducer.kt' lang='kotlin' lines='[BEGIN registration]-[END registration]' %}
 
 {% endlist %}
 
@@ -79,7 +83,7 @@
 
 ## Ключевые паттерны
 
-- **Конфигурация через Spring Boot** — `ShuffleComputationContext` реализует `ComputationProvider`; `flow-spring-boot-starter` управляет жизненным циклом gRPC-сервера.
+- **Конфигурация через Spring Boot** — компьютейшены регистрируются аннотациями `@FlowSourceComputation` / `@FlowComputation`; `flow-spring-boot-starter` управляет жизненным циклом gRPC-сервера.
 - **ExternalStateAccessor** — работа с внешним стейтом через `Payload` и `PayloadBuilder`.
 - **SourceComputation с ProcessFunction** — `reader` использует `EventMapper` для трансформации входных данных на стороне компаньона.
 

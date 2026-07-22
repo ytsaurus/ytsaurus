@@ -1,17 +1,19 @@
 package tech.ytsaurus.flow.examples.wordcount;
 
-import org.springframework.stereotype.Component;
 import tech.ytsaurus.flow.computation.OutputCollector;
 import tech.ytsaurus.flow.context.RuntimeContext;
 import tech.ytsaurus.flow.examples.wordcount.model.Word;
 import tech.ytsaurus.flow.examples.wordcount.model.WordCountState;
 import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.row.ExtendedMessage;
+import tech.ytsaurus.flow.spring.FlowComputation;
 import tech.ytsaurus.flow.state.InternalStateDescriptor;
 import tech.ytsaurus.flow.state.StateAccessor;
 import tech.ytsaurus.flow.state.StateDescriptors;
 
-@Component
+// [BEGIN registration]
+@FlowComputation(id = "mapper")
+// [END registration]
 public class WordCountMapper implements RowFunction {
     static final InternalStateDescriptor<WordCountState> WORD_STATE =
             StateDescriptors.yson("word-state", WordCountState.class);

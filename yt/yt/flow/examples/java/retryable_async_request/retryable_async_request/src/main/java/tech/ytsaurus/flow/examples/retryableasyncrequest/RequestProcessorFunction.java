@@ -9,6 +9,7 @@ import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.MessageBuilder;
 import tech.ytsaurus.flow.row.Timer;
+import tech.ytsaurus.flow.spring.FlowComputation;
 import tech.ytsaurus.flow.state.InternalStateDescriptor;
 import tech.ytsaurus.flow.state.StateAccessor;
 import tech.ytsaurus.flow.state.StateDescriptors;
@@ -23,6 +24,9 @@ import tech.ytsaurus.flow.state.StateDescriptors;
  * On failure: increment failedAttempts, save state, schedule a timer 5 seconds in the future.
  * On success: emit response, clear state.
  */
+// [BEGIN registration]
+@FlowComputation(id = "processor")
+// [END registration]
 public class RequestProcessorFunction implements RowFunction {
     private static final Logger log = LoggerFactory.getLogger(RequestProcessorFunction.class);
 

@@ -51,18 +51,6 @@ class FlowAnnotationConfigurationTest {
     }
 
     @Test
-    void annotationAndProviderComputationsAreMerged() {
-        contextRunner
-                .withUserConfiguration(ExecConfig.class, AnnotatedMapper.class, ProviderConfig.class)
-                .run(context -> {
-                    assertThat(context).hasNotFailed();
-                    var snapshot = new PipelineContextSnapshot(context.getBean(PipelineContext.class));
-                    assertThat(snapshot.getComputation("annotated_mapper")).isNotNull();
-                    assertThat(snapshot.getComputation("provided_computation")).isNotNull();
-                });
-    }
-
-    @Test
     void streamBeansAreRegistered() {
         contextRunner
                 .withUserConfiguration(ExecConfig.class, AnnotatedMapper.class, StreamConfig.class)
@@ -70,6 +58,17 @@ class FlowAnnotationConfigurationTest {
                     assertThat(context).hasNotFailed();
                     var snapshot = new PipelineContextSnapshot(context.getBean(PipelineContext.class));
                     assertThat(snapshot.getStreamContext().getStream("bean_stream")).isNotNull();
+                });
+    }
+
+    @Test
+    void streamsFromComputationProviderAreRegistered() {
+        contextRunner
+                .withUserConfiguration(ExecConfig.class, AnnotatedMapper.class, StreamProviderConfig.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    var snapshot = new PipelineContextSnapshot(context.getBean(PipelineContext.class));
+                    assertThat(snapshot.getStreamContext().getStream("provider_stream")).isNotNull();
                 });
     }
 
@@ -111,23 +110,22 @@ class FlowAnnotationConfigurationTest {
     }
 
     @Configuration
-    static class ProviderConfig {
-        @Bean
-        ComputationProvider computationProvider() {
-            return () -> List.of(Computation.builder()
-                    .setComputationId("provided_computation")
-                    .setProcessFunction(new AnnotatedMapper())
-                    .build());
-        }
-    }
-
-    @Configuration
     static class StreamConfig {
         @Bean
         FlowStream<?> beanStream() {
             FlowStream<?> stream = Mockito.mock(FlowStream.class);
             Mockito.when(stream.getStreamId()).thenReturn("bean_stream");
             return stream;
+        }
+    }
+
+    @Configuration
+    static class StreamProviderConfig {
+        @Bean
+        ComputationProvider streamProvider() {
+            FlowStream<?> stream = Mockito.mock(FlowStream.class);
+            Mockito.when(stream.getStreamId()).thenReturn("provider_stream");
+            return () -> List.of(stream);
         }
     }
 }

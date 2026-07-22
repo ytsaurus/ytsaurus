@@ -32,7 +32,6 @@ import org.springframework.stereotype.Component;
  * </pre>
  *
  * @see FlowComputation
- * @see ComputationProvider
  * @see tech.ytsaurus.flow.computation.SourceComputation
  */
 @Target(ElementType.TYPE)
@@ -44,8 +43,8 @@ public @interface FlowSourceComputation {
     /**
      * The computation id from the pipeline static spec.
      * <p>
-     * Must be unique across all computations (annotated or provided via {@link ComputationProvider})
-     * and must match the corresponding computation defined in the YT Flow pipeline spec.
+     * Must be unique across all computations and must match the corresponding computation defined
+     * in the YT Flow pipeline spec.
      *
      * @return the computation id.
      */

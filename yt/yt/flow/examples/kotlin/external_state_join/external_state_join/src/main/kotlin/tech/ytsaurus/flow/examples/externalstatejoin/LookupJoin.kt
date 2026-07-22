@@ -4,8 +4,13 @@ import tech.ytsaurus.flow.computation.OutputCollector
 import tech.ytsaurus.flow.context.RuntimeContext
 import tech.ytsaurus.flow.function.RowFunction
 import tech.ytsaurus.flow.row.ExtendedMessage
+import tech.ytsaurus.flow.spring.FlowComputation
 import tech.ytsaurus.flow.state.JoinedExternalStateDescriptor
 import tech.ytsaurus.flow.state.StateDescriptors
+
+// [BEGIN registration]
+@FlowComputation(id = "lookup_join")
+// [END registration]
 
 /**
  * Joins each event against a pre-built dynamic reference table reached through
@@ -13,7 +18,7 @@ import tech.ytsaurus.flow.state.StateDescriptors
  * symlink behind that path per lookup, so repointing the symlink swaps the
  * reference dataset for keys looked up afterwards without a pipeline restart.
  */
-class LookupJoin : RowFunction {
+open class LookupJoin : RowFunction {
     companion object {
         private val REFERENCE_STATE: JoinedExternalStateDescriptor =
             StateDescriptors.externalReadOnly("/reference")
