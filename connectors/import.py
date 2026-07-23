@@ -12,6 +12,7 @@ import spyt.standalone
 import spyt.utils
 import sys
 
+from contextlib import contextmanager
 from yt.wrapper import YtClient
 from yt.wrapper.http_helpers import get_user_name
 
@@ -165,6 +166,24 @@ def write_output(data, output_path):
     data_write.yt(out)
 
 
+@contextmanager
+def _create_spark_session(args, spark_conf):
+    # When import.py is launched by spark-submit (for example
+    # `spark-submit --master ytsaurus://... --deploy-mode cluster import.py ...`),
+    # the JVM gateway is started by spark-submit and PYSPARK_GATEWAY_PORT is set in the
+    # environment; reuse the SparkSession and master provided by spark-submit.
+    # Otherwise (plain `python import.py ...`) start a direct-submit session ourselves.
+    if "PYSPARK_GATEWAY_PORT" in os.environ:
+        spark = pyspark.sql.SparkSession.builder.config(conf=spark_conf).getOrCreate()
+        try:
+            yield spark
+        finally:
+            spark.stop()
+    else:
+        with spyt.direct_spark_session(args.proxy, spark_conf) as spark:
+            yield spark
+
+
 def main():
     parser = spyt.utils.get_default_arg_parser(prog="import.py")
 
@@ -233,7 +252,7 @@ def main():
         validate_args(args, in_table, out_table)
 
     spark_conf = _create_spark_conf(args)
-    with spyt.direct_spark_session(args.proxy, spark_conf) as spark:
+    with _create_spark_session(args, spark_conf) as spark:
         for (in_table, out_table) in zip(args.input, args.output):
             input_data = read_input(args, spark, in_table)
             write_output(input_data, out_table)
