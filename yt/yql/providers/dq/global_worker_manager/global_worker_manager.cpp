@@ -320,6 +320,7 @@ public:
         , LatencyHistogram(Metrics->GetHistogram("LeaderLatency", ExponentialHistogram(10, 2, 1)))
         , Workers(Coordinator->GetNodeId(), Metrics, metricsRegistry->GetSensors()->GetSubgroup("counters", "workers"))
         , Scheduler(NDq::IScheduler::Make(schedulerConfig, metricsRegistry))
+        , MaxRequestsPerTick(schedulerConfig.GetMaxRequestsPerTick())
         , Revision(ToString(GetProgramCommitId()))
         , ResourceUploaderOptions(resourceUploaderOptions)
         , WaitListSize(nullptr)
@@ -838,7 +839,14 @@ private:
             ScheduleWaitCount = 0U;
             DeadOperations.clear();
         } else if (Workers.FreeSlots() >= ScheduleWaitCount) {
+            size_t processed = 0;
+            bool hitLimit = false;
             Scheduler->Process(Workers.Capacity(), Workers.FreeSlots(), [&] (const auto& item) {
+                if (processed >= MaxRequestsPerTick) {
+                    hitLimit = true;
+                    return false; // keep in queue, process on next tick
+                }
+                ++processed;
                 auto maybeDead = DeadOperations.find(item.Request.GetResourceId());
                 if (maybeDead != DeadOperations.end()) {
                     DeadOperations.erase(maybeDead);
@@ -852,6 +860,14 @@ private:
             });
             ScheduleWaitCount = std::numeric_limits<size_t>::max();
             DeadOperations.clear();
+            if (hitLimit) {
+                // Remaining requests stay in queue — trigger processing on the next tick.
+                MarkDirty(0);
+                if (TryResumeThrottledCounter) {
+                    *TryResumeThrottledCounter += 1;
+                }
+                YQL_CLOG(DEBUG, ProviderDq) << "TryResume hit per-tick limit=" << MaxRequestsPerTick;
+            }
         }
     }
 
@@ -1088,6 +1104,7 @@ private:
             info->SetCount(item.Request.GetCount());
             info->SetOperationId(item.Request.GetTraceId());
             info->SetUserName(item.Request.GetUser());
+            info->SetEnqueueTime(item.StartTime.ToString());
 
             THashMap<TString, Yql::DqsProto::ClusterStatusResponse::File> files;
 
@@ -1337,6 +1354,9 @@ private:
         if (!WaitListSize) {
             WaitListSize = Metrics->GetSubgroup("component", "lists")->GetCounter("WaitListSize");
         }
+        if (!TryResumeThrottledCounter) {
+            TryResumeThrottledCounter = Metrics->GetSubgroup("component", "scheduler")->GetCounter("TryResumeThrottled", /*derivative=*/true);
+        }
         *WaitListSize = Scheduler->UpdateMetrics();
         Workers.UpdateMetrics();
     }
@@ -1372,6 +1392,8 @@ private:
     TDqResourceId CurrentResourceId;
 
     const NDq::IScheduler::TPtr Scheduler;
+    // Max queued requests processed per TryResume call (from Scheduler.MaxRequestsPerTick).
+    const size_t MaxRequestsPerTick;
     const TString Revision;
 
     THashMap<TActorId, TVector<TString>> UploadProcesses; // actorId -> objects
@@ -1406,6 +1428,8 @@ private:
     bool TerminatingMode = false;
     const TString Address = HostName();
     const ui32 Pid = GetPID();
+
+    TDynamicCounters::TCounterPtr TryResumeThrottledCounter;
 };
 
 NActors::IActor* CreateGlobalWorkerManager(

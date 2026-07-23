@@ -33,6 +33,7 @@ void TWorkersStorage::Clear()
 {
     Workers.clear();
     FreeList.clear();
+    FileToWorkers.clear();
     WorkersSize = nullptr;
     FreeListSize = nullptr;
     Metrics->RemoveSubgroup("component", "lists");
@@ -46,6 +47,30 @@ TList<TWorkerInfo::TPtr> TWorkersStorage::GetList() {
     }
 
     return workers;
+}
+
+static void AddWorkerToFileIndex(
+    THashMap<TString, THashSet<TWorkerInfo::TPtr>>& index,
+    const TWorkerInfo::TPtr& worker)
+{
+    for (const auto& fileId : worker->GetResources()) {
+        index[fileId].insert(worker);
+    }
+}
+
+static void RemoveWorkerFromFileIndex(
+    THashMap<TString, THashSet<TWorkerInfo::TPtr>>& index,
+    const TWorkerInfo::TPtr& worker)
+{
+    for (const auto& fileId : worker->GetResources()) {
+        auto it = index.find(fileId);
+        if (it != index.end()) {
+            it->second.erase(worker);
+            if (it->second.empty()) {
+                index.erase(it);
+            }
+        }
+    }
 }
 
 std::tuple<TWorkerInfo::TPtr, bool> TWorkersStorage::CreateOrUpdate(ui32 nodeId, TGUID workerId, Yql::DqsProto::RegisterNodeRequest& request) {
@@ -74,6 +99,7 @@ std::tuple<TWorkerInfo::TPtr, bool> TWorkersStorage::CreateOrUpdate(ui32 nodeId,
                 workerInfo = MakeIntrusive<TWorkerInfo>(StartTime, nodeId, workerId, request, WorkerMetrics, limiter, GlobalResources);
                 Workers[workerId] = workerInfo;
                 FreeList.insert(workerInfo);
+                AddWorkerToFileIndex(FileToWorkers, workerInfo);
                 needResume = true;
                 break;
             }
@@ -81,7 +107,27 @@ std::tuple<TWorkerInfo::TPtr, bool> TWorkersStorage::CreateOrUpdate(ui32 nodeId,
     } else {
         workerInfo = maybeWorker->second;
         FreeList.erase(workerInfo);
+        // Snapshot old file set before Update so we can diff for the index.
+        THashSet<TString> oldFiles = workerInfo->GetResources();
         needResume = workerInfo->Update(request);
+        // Diff old vs new and patch FileToWorkers.
+        const THashSet<TString>& newFiles = workerInfo->GetResources();
+        for (const auto& fileId : oldFiles) {
+            if (!newFiles.contains(fileId)) {
+                auto it = FileToWorkers.find(fileId);
+                if (it != FileToWorkers.end()) {
+                    it->second.erase(workerInfo);
+                    if (it->second.empty()) {
+                        FileToWorkers.erase(it);
+                    }
+                }
+            }
+        }
+        for (const auto& fileId : newFiles) {
+            if (!oldFiles.contains(fileId)) {
+                FileToWorkers[fileId].insert(workerInfo);
+            }
+        }
         if (workerInfo->RunningRequests < workerInfo->Capacity) {
             FreeList.insert(workerInfo);
         }
@@ -127,6 +173,7 @@ void TWorkersStorage::CleanUp(TInstant now, TDuration duration) {
     THashMap<TString, TWorkerInfo::TFileResource> downloadList;
     for (const auto& [k, v] : Workers) {
         if (now - v->LastPingTime > duration) {
+            RemoveWorkerFromFileIndex(FileToWorkers, v);
             FreeList.erase(v);
 
             deadWorkers.push_back(k);
@@ -161,6 +208,7 @@ void TWorkersStorage::DropWorker(TInstant now, TGUID workerId) {
     Y_UNUSED(now);
     auto it = Workers.find(workerId);
     if (it != Workers.end()) {
+        RemoveWorkerFromFileIndex(FileToWorkers, it->second);
         FreeList.erase(it->second);
         it->second->OnDead();
         Workers.erase(it);
@@ -180,7 +228,7 @@ TWorkersStorage::TFreeList::iterator TWorkersStorage::ProcessMatched(
     TWorkersStorage::TFreeList::iterator it,
     TVector<NDqs::TWorkerInfo::TPtr>& result,
     TFreeList* freeList,
-    THashMap<TWorkerInfo::TPtr, int> tasksPerWorker,
+    THashMap<TWorkerInfo::TPtr, int>& tasksPerWorker,
     THashMap<i32, TWorkerFilter>& tasksToAllocate,
     int taskId)
 {
@@ -192,7 +240,7 @@ TWorkersStorage::TFreeList::iterator TWorkersStorage::ProcessMatched(
         it = freeList->begin();
     }
 
-    tasksPerWorker[workerInfo] ++;
+    tasksPerWorker[workerInfo]++;
 
     Y_ASSERT(result[taskId] == nullptr);
     result[taskId] = workerInfo;
@@ -201,21 +249,28 @@ TWorkersStorage::TFreeList::iterator TWorkersStorage::ProcessMatched(
     return it;
 }
 
-void TWorkersStorage::SearchFreeList(
+size_t TWorkersStorage::SearchFreeList(
     TVector<TWorkerInfo::TPtr>& result,
     TFreeList* freeList,
     const i32 maxTasksPerWorker,
     THashMap<TWorkerInfo::TPtr, int>& tasksPerWorker,
     THashMap<i32, TWorkerFilter>& tasksToAllocate,
     THashMap<TString, THashSet<int>>& waitingResources,
-    TWorkerFilter::EMatchStatus matchMode)
+    TWorkerFilter::EMatchStatus matchMode,
+    size_t maxOuterIters)
 {
     TWorkerFilter::TStats stats;
     stats.WaitingResources = &waitingResources;
     stats.Uploaded = &Uploaded;
 
+    size_t outerIters = 0;
+
     // fresh nodes must be first
     for (auto it = freeList->begin(); it != freeList->end(); ) {
+        if (maxOuterIters > 0 && outerIters >= maxOuterIters) {
+            break;
+        }
+
         // must exists
         auto workerInfo = *it;
         if (workerInfo->IsDead) {
@@ -231,15 +286,17 @@ void TWorkersStorage::SearchFreeList(
 
         if (maxTasksPerWorker > 0 && tasksPerWorker[workerInfo] >= maxTasksPerWorker) {
             ++it;
+            ++outerIters;
             continue;
         }
 
         if (workerInfo->Stopping) {
             ++it;
+            ++outerIters;
             continue;
         }
 
-        i32 taskId;
+        i32 taskId = 0;
         bool ok = false;
         for (const auto& [taskId_, filter] : tasksToAllocate) {
             taskId = taskId_;
@@ -248,6 +305,8 @@ void TWorkersStorage::SearchFreeList(
                 break;
             }
         }
+
+        ++outerIters;
 
         if (ok) {
             it = ProcessMatched(
@@ -260,6 +319,129 @@ void TWorkersStorage::SearchFreeList(
             break;
         }
     }
+
+    return outerIters;
+}
+
+size_t TWorkersStorage::SearchFreeListWithIndex(
+    TVector<TWorkerInfo::TPtr>& result,
+    TFreeList* freeList,
+    const i32 maxTasksPerWorker,
+    THashMap<TWorkerInfo::TPtr, int>& tasksPerWorker,
+    THashMap<i32, TWorkerFilter>& tasksToAllocate,
+    THashMap<TString, THashSet<int>>& waitingResources)
+{
+    // Snapshot task IDs to avoid iterator invalidation when ProcessMatched
+    // erases matched tasks from tasksToAllocate.
+    TVector<i32> taskIds;
+    taskIds.reserve(tasksToAllocate.size());
+    for (const auto& [id, _] : tasksToAllocate) {
+        taskIds.push_back(id);
+    }
+
+    size_t opsCount = 0;
+
+    for (const auto taskId : taskIds) {
+        auto taskIt = tasksToAllocate.find(taskId);
+        if (taskIt == tasksToAllocate.end()) {
+            continue; // already allocated in a previous iteration
+        }
+        const auto& filter = taskIt->second;
+
+        // Collect file IDs from this task's filter.
+        TVector<TString> fileIds;
+        filter.Visit([&](const auto& file) {
+            fileIds.push_back(file.GetObjectId());
+        });
+
+        if (fileIds.empty()) {
+            continue; // no file filter — leave for regular SearchFreeList
+        }
+
+        opsCount += fileIds.size(); // index lookups
+
+        // Find the smallest worker set among all required files (best pivot for intersection).
+        const THashSet<TWorkerInfo::TPtr>* pivot = nullptr;
+        bool anyFileMissing = false;
+        for (const auto& fileId : fileIds) {
+            auto it = FileToWorkers.find(fileId);
+            if (it == FileToWorkers.end() || it->second.empty()) {
+                anyFileMissing = true;
+                break;
+            }
+            if (!pivot || it->second.size() < pivot->size()) {
+                pivot = &it->second;
+            }
+        }
+
+        if (anyFileMissing || !pivot) {
+            // No worker has all files — update WaitingResources for download scheduling.
+            for (const auto& fileId : fileIds) {
+                waitingResources[fileId].erase(taskId);
+                auto uploadedIt = Uploaded.find(fileId);
+                if (uploadedIt != Uploaded.end()) {
+                    uploadedIt->second.TryCount++;
+                }
+            }
+            continue; // leave in tasksToAllocate for SearchFreeList fallback
+        }
+
+        // Iterate pivot set; check each worker has ALL files and is allocatable.
+        bool allocated = false;
+        for (const auto& workerInfo : *pivot) {
+            opsCount++;
+
+            if (workerInfo->IsDead) {
+                continue;
+            }
+            if (workerInfo->Capacity <= workerInfo->RunningRequests) {
+                continue;
+            }
+            if (workerInfo->Stopping) {
+                continue;
+            }
+            if (maxTasksPerWorker > 0 && tasksPerWorker[workerInfo] >= maxTasksPerWorker) {
+                continue;
+            }
+            if (!filter.MatchHost(workerInfo)) {
+                continue;
+            }
+            if (freeList->find(workerInfo) == freeList->end()) {
+                continue;
+            }
+
+            // Verify all required files are present (pivot only guarantees one file).
+            bool hasAll = true;
+            for (const auto& fileId : fileIds) {
+                opsCount++;
+                if (!workerInfo->GetResources().contains(fileId)) {
+                    hasAll = false;
+                    break;
+                }
+            }
+            if (!hasAll) {
+                continue;
+            }
+
+            // Mark files as available for this task in stats.
+            for (const auto& fileId : fileIds) {
+                waitingResources[fileId].insert(taskId);
+            }
+
+            // Allocate: find iterator in freeList and call ProcessMatched.
+            auto freeIt = freeList->find(workerInfo);
+            ProcessMatched(freeIt, result, freeList, tasksPerWorker, tasksToAllocate, taskId);
+            allocated = true;
+            break;
+        }
+
+        if (!allocated) {
+            // No suitable worker found via index — leave task for SearchFreeList fallback.
+            // (The worker exists in the index but may be busy, stopping, or mismatching host.)
+        }
+    }
+
+    return opsCount;
 }
 
 TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::TWaitInfo& waitInfo) noexcept
@@ -319,10 +501,12 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
 
     i32 maxTasksPerWorker = 0;
     if (request.GetWorkersCount()) {
-        YQL_CLOG(DEBUG, ProviderDq) << "Bounded mode";
+        YQL_CLOG(DEBUG, ProviderDq) << "Bounded mode, requested workers: " << count
+            << ", workers limit: " << request.GetWorkersCount();
         maxTasksPerWorker = (count + request.GetWorkersCount() - 1) / request.GetWorkersCount();
         freeList = &boundedList;
-        auto slots = count; slots = 0;
+        auto slots = count;
+        slots = 0;
 
         for (auto it = FreeList.begin(); it != FreeList.end() && freeList->size() < request.GetWorkersCount(); ) {
             auto workerInfo = *it;
@@ -341,15 +525,57 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
         }
 
         if (slots < count) {
-            YQL_CLOG(DEBUG, ProviderDq) << "Not enough slots";
+            YQL_CLOG(DEBUG, ProviderDq) << "Not enough slots: available slots=" << slots
+                << ", requested workers=" << count
+                << ", selected workers=" << freeList->size()
+                << ", workers limit=" << request.GetWorkersCount();
             return { };
         }
     }
 
+    // Estimate average number of file lookups per task (K).
+    // Each outer iteration (worker) costs M * K file lookups in the worst case (no match).
+    // We use this to bound outer iterations so total file lookups <= SearchComplexityLimit.
+    size_t totalFiles = 0;
+    for (const auto& [_, filter] : tasksToAllocate) {
+        totalFiles += filter.GetFileCount();
+    }
+    const size_t avgFilesPerTask = tasksToAllocate.empty() ? 1
+        : Max<size_t>(1, totalFiles / tasksToAllocate.size());
+
+    // Bound outer (per-worker) iterations per SearchFreeList pass:
+    //   maxOuterItersPerPass * tasksToAllocate.size() * avgFilesPerTask <= SearchComplexityLimit.
+    // Two passes (EOK + EPARTIAL) share the same per-pass cap. 0 = unlimited.
+    const size_t maxOuterItersPerPass = (SearchComplexityLimit > 0 && !tasksToAllocate.empty())
+        ? Max<size_t>(1, SearchComplexityLimit / (tasksToAllocate.size() * avgFilesPerTask))
+        : 0;
+
     THashMap<TWorkerInfo::TPtr, int> tasksPerWorker;
-    SearchFreeList(result, freeList, maxTasksPerWorker, tasksPerWorker, tasksToAllocate, waitingResources, TWorkerFilter::EOK);
+    size_t totalIters = 0;
+
+    // Fast path: use inverted index for tasks with file filters.
+    // Handles tasks where all required files are available on some workers
+    // without scanning the full FreeList.
+    if (!FileToWorkers.empty()) {
+        totalIters += SearchFreeListWithIndex(result, freeList, maxTasksPerWorker,
+                                              tasksPerWorker, tasksToAllocate, waitingResources);
+    }
+
+    // Fallback: linear scan for remaining tasks (no file filter, or index had no candidates).
     if (!tasksToAllocate.empty()) {
-        SearchFreeList(result, freeList, maxTasksPerWorker, tasksPerWorker, tasksToAllocate, waitingResources, TWorkerFilter::EPARTIAL);
+        totalIters += SearchFreeList(result, freeList, maxTasksPerWorker, tasksPerWorker, tasksToAllocate, waitingResources, TWorkerFilter::EOK, maxOuterItersPerPass);
+    }
+    if (!tasksToAllocate.empty()) {
+        totalIters += SearchFreeList(result, freeList, maxTasksPerWorker, tasksPerWorker, tasksToAllocate, waitingResources, TWorkerFilter::EPARTIAL, maxOuterItersPerPass);
+    }
+
+    if (SearchIterationsCounter) {
+        *SearchIterationsCounter += totalIters;
+    }
+    if (TryAllocateOverloadedCounter && maxOuterItersPerPass > 0 && totalIters >= maxOuterItersPerPass && !tasksToAllocate.empty()) {
+        *TryAllocateOverloadedCounter += 1;
+        YQL_CLOG(WARN, ProviderDq) << "TryAllocate search truncated: iters=" << totalIters
+            << " limit=" << maxOuterItersPerPass << " remainingTasks=" << tasksToAllocate.size();
     }
 
     for (const auto& file : request.GetFiles()) {
@@ -367,7 +593,7 @@ TVector<TWorkerInfo::TPtr> TWorkersStorage::TryAllocate(const NDq::IScheduler::T
         auto now = TInstant::Now();
         for (const auto& workerInfo : result) {
             Y_ASSERT(workerInfo != nullptr);
-            workerInfo->UseCount ++;
+            workerInfo->UseCount++;
             workerInfo->RequestStartTime = now;
         }
         for (const auto& file : request.GetFiles()) {
@@ -530,6 +756,9 @@ void TWorkersStorage::ClusterStatus(Yql::DqsProto::ClusterStatusResponse* r) con
 
         node->SetUseCount(workerInfo->UseCount);
         node->SetUseTime(workerInfo->UseTime.MilliSeconds());
+        if (workerInfo->RunningRequests > 0) {
+            node->SetRequestStartTime(workerInfo->RequestStartTime.ToString());
+        }
     }
 
     for (const auto& [_, i] : Uploaded) {
@@ -541,6 +770,7 @@ void TWorkersStorage::ClusterStatus(Yql::DqsProto::ClusterStatusResponse* r) con
         rr->SetUseCount(i.UseCount);
         rr->SetTryCount(i.TryCount);
         rr->SetSize(i.Size);
+        rr->SetUploaded(i.Uploaded);
     }
 
     r->SetFreeListSize(FreeList.size());
@@ -575,6 +805,12 @@ void TWorkersStorage::UpdateMetrics() {
     }
     if (!FreeListSize) {
         FreeListSize = Metrics->GetSubgroup("component", "lists")->GetCounter("FreeListSize");
+    }
+    if (!SearchIterationsCounter) {
+        SearchIterationsCounter = Metrics->GetSubgroup("component", "search")->GetCounter("SearchIterations", /*derivative=*/true);
+    }
+    if (!TryAllocateOverloadedCounter) {
+        TryAllocateOverloadedCounter = Metrics->GetSubgroup("component", "search")->GetCounter("TryAllocateOverloaded", /*derivative=*/true);
     }
     *WorkersSize = Workers.size();
     *FreeListSize = FreeList.size();
