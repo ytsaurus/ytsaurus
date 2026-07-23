@@ -22,7 +22,6 @@ YQL_LAST_ABI_VERSION()
 
 SET(
     SOURCE
-    benchmark.cpp
     global_worker_manager.cpp
     service_node_pinger.cpp
     workers_storage.cpp
@@ -53,5 +52,8 @@ END()
 IF (NOT OPENSOURCE OR OPENSOURCE_PROJECT == "ydb")
     RECURSE_FOR_TESTS(
         ut
+    )
+    RECURSE(
+        benchmark
     )
 ENDIF()
