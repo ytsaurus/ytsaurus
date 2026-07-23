@@ -35,6 +35,8 @@ class TestMultiConsumerController(TestQueueAgentBase):
         self._wait_for_component_passes()
 
         orchid = QueueAgentOrchid().get_multi_consumer_orchid(GenericObjectPath(path, "primary"))
+        orchid.wait_fresh_pass()
+
         assert orchid.get_queue_consumer_names() == []
         assert select_rows("* from [//sys/queue_agents/multi_consumer_names]") == []
 
