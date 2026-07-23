@@ -55,8 +55,12 @@ public:
     explicit TDqManager(const TDqManagerConfigPtr& config);
     void Start();
 
+    NYql::TFileLinkPtr GetVanillaJobLite() const;
+
 private:
     TDqManagerConfigPtr Config_;
+    NYql::TFileLinkPtr VanillaJobLite_;
+    NYql::TFileLinkPtr StrippedVanillaJobLite_;
 
     NActors::TActorSystem* ActorSystem_;
     ICoordinationHelper::TPtr Coordinator_;
@@ -73,4 +77,3 @@ DEFINE_REFCOUNTED_TYPE(TDqManager)
 ///////////////////////////////////////////
 
 } // namespace NYT::NYqlPlugin
-
