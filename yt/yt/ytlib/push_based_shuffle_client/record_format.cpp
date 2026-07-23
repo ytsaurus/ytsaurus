@@ -80,6 +80,11 @@ i64 TShuffleRecordBuilder::GetDataSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRecordHeader ReadShuffleRecordHeader(const TSharedRef& wire)
+{
+    return ReadShuffleRecordHeader(TRange(&wire, 1));
+}
+
 TRecordHeader ReadShuffleRecordHeader(TRange<TSharedRef> wire)
 {
     TRecordHeader header;
@@ -111,6 +116,13 @@ std::vector<TSharedRef> CompressShuffleRecord(
 
     auto* codecPtr = GetCodec(codec);
     return {TSharedRef(std::move(headerRef)), codecPtr->Compress(record.UncompressedPayload)};
+}
+
+TShuffleRecord DecompressShuffleRecord(
+    const TSharedRef& wire,
+    ECodec codec)
+{
+    return DecompressShuffleRecord(TRange(&wire, 1), codec);
 }
 
 TShuffleRecord DecompressShuffleRecord(
