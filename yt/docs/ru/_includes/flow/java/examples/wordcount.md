@@ -25,25 +25,25 @@
 
 gRPC-сервер поднимается автоматически через Spring Boot auto-config.
 
-### WordCountContext
+### Регистрация стримов
 
-Стримы пайплайна объявляются через `ComputationProvider` (метод `getStreams()`). Компьютейшен `mapper` регистрируется аннотацией `@FlowComputation` на классе `WordCountMapper` (см. ниже):
+Типизированные стримы объявляются декларативно: POJO-класс сообщения помечается аннотацией `@FlowMessage` со списком идентификаторов стримов (`streamIds`), которые он обслуживает. Класс уже помечен JPA-аннотацией `@Entity`, из которой выводится схема. Spring Boot находит такие классы сканированием пакетов приложения и регистрирует стримы автоматически. Компьютейшен `mapper` регистрируется аннотацией `@FlowComputation` на классе `WordCountMapper` (см. ниже):
 
 {% list tabs group=lang %}
 
 - Java
 
-  {% code '/yt/yt/flow/examples/java/word_count/wordcount/src/main/java/tech/ytsaurus/flow/examples/wordcount/WordCountContext.java' lang='java' lines='[BEGIN stream_context]-[END stream_context]' keep-indents %}
+  {% code '/yt/yt/flow/examples/java/word_count/wordcount/src/main/java/tech/ytsaurus/flow/examples/wordcount/model/Word.java' lang='java' lines='[BEGIN stream_context]-[END stream_context]' keep-indents %}
 
 - Kotlin
 
-  {% code '/yt/yt/flow/examples/kotlin/word_count/wordcount/src/main/kotlin/tech/ytsaurus/flow/examples/wordcount/WordCountContext.kt' lang='kotlin' lines='[BEGIN stream_context]-[END stream_context]' keep-indents %}
+  {% code '/yt/yt/flow/examples/kotlin/word_count/wordcount/src/main/kotlin/tech/ytsaurus/flow/examples/wordcount/model/Word.kt' lang='kotlin' lines='[BEGIN stream_context]-[END stream_context]' keep-indents %}
 
 {% endlist %}
 
 - `reader` — SourceComputation без процессной функции. Чтение и парсинг выполняются на стороне C++ [worker](../../../../flow/concepts/glossary.md#worker)-а.
 - `mapper` — Computation, реализованный классом `WordCountMapper` с аннотацией `@FlowComputation(id = "mapper")`.
-- `FlowStreams.typed("words", Word.class)` — регистрирует типизированный стрим `"words"`, что позволяет получать сообщения как объекты `Word`.
+- `@FlowMessage(streamIds = {"words"})` на классе `Word` — регистрирует типизированный стрим `"words"`, что позволяет получать сообщения как объекты `Word`.
 
 ### WordCountMapper
 
