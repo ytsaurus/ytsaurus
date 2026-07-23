@@ -78,6 +78,8 @@
 
 #include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/yson/parser.h>
+
+#include <util/datetime/base.h>
 #include <library/cpp/yson/writer.h>
 
 #include <library/cpp/digest/md5/md5.h>
@@ -1260,7 +1262,17 @@ private:
 
         TVector<NYql::TDataProviderInitializer> dataProvidersInit;
         if (DqManagerConfig_) {
-            auto dqGateway = NYql::CreateDqGateway("localhost", DqManagerConfig_->GrpcPort);
+            const auto vanillaJobLite = DqManager_->GetVanillaJobLite();
+            NYql::NProto::TDqConfig dqConfig;
+            dqConfig.SetPort(DqManagerConfig_->GrpcPort);
+            dqConfig.SetOpenSessionTimeoutMs(TDuration::Minutes(60).MilliSeconds());
+            dqConfig.SetRequestTimeoutMs(TDuration::Max().MilliSeconds());
+
+            auto* ytBackend = dqConfig.AddYtBackends();
+            ytBackend->SetVanillaJobLite(vanillaJobLite->GetPath());
+            ytBackend->SetVanillaJobLiteMd5(vanillaJobLite->GetMd5());
+
+            auto dqGateway = NYql::CreateDqGateway(dqConfig);
             // NOTE: prevent deadlock upon thread joining
             // details in https://st.yandex-team.ru/YT-26302
             auto dqGatewayWithOffloading = CreateDqGatewayWithOffloading(
