@@ -330,6 +330,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("lookup_rows_ext_memory_logging_suppression_timeout", &TThis::LookupRowsExtMemoryLoggingSuppressionTimeout)
         .Optional();
 
+    registrar.Parameter("pull_queue_response_codec", &TThis::PullQueueResponseCodec)
+        .Default(NCompression::ECodec::None);
+
     registrar.Parameter("default_get_tablet_errors_limit", &TThis::DefaultGetTabletErrorsLimit)
         .Default(5)
         .GreaterThan(0);

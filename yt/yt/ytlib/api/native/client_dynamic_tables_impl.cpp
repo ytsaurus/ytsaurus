@@ -3153,7 +3153,6 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
     ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
     auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
     TQueryServiceProxy proxy(channel);
-    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultFetchTableRowsTimeout));
 
     auto req = proxy.FetchTableRows();
     ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
@@ -3164,6 +3163,10 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
     req->set_max_row_count(rowBatchReadOptions.MaxRowCount);
     req->set_max_data_weight(rowBatchReadOptions.MaxDataWeight);
     ToProto(req->mutable_options()->mutable_workload_descriptor(), options.WorkloadDescriptor);
+
+    const auto& connectionConfig = Connection_->GetConfig();
+    req->SetTimeout(options.Timeout.value_or(connectionConfig->DefaultFetchTableRowsTimeout));
+    req->SetResponseCodec(connectionConfig->PullQueueResponseCodec);
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
