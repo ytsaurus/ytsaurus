@@ -202,32 +202,27 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
 
 {% endlist %}
 
-Типизированные стримы объявляются через `ComputationProvider` (метод `getStreams()`) либо как отдельные бины `FlowStream<?>`:
+Типизированные стримы объявляются декларативно: POJO-класс сообщения помечается аннотацией `@FlowMessage` со списком идентификаторов стримов (`streamIds`), которые он обслуживает. Класс уже помечен JPA-аннотацией `@Entity`, из которой выводится схема. Spring Boot находит такие классы сканированием пакетов приложения и регистрирует стримы автоматически:
 
 {% list tabs group=lang %}
 
 - Java
 
   ```java
-  @Configuration
-  public class WordCountContext implements ComputationProvider {
-
-      @Override
-      public List<FlowStream<?>> getStreams() {
-          return List.of(FlowStreams.typed("words", Word.class));
-      }
+  @Entity
+  @FlowMessage(streamIds = {"words"})
+  public class Word {
+      // поля, конструкторы, геттеры, сеттеры...
   }
   ```
 
 - Kotlin
 
   ```kotlin
-  @Configuration
-  open class WordCountContext : ComputationProvider {
-
-      override fun getStreams(): List<FlowStream<*>> {
-          return listOf(FlowStreams.typed("words", Word::class.java))
-      }
+  @Entity
+  @FlowMessage(streamIds = ["words"])
+  class Word {
+      // поля, конструкторы...
   }
   ```
 

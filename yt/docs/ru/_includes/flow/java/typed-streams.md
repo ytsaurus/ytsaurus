@@ -64,9 +64,59 @@ POJO-классы для стримов описываются с помощью
 
 ### Регистрация стримов
 
-Все типизированные стримы необходимо зарегистрировать в `PipelineContext`.
+Все типизированные стримы необходимо зарегистрировать до старта companion-сервера.
 
-Типизированные стримы создаются через фабричный метод `FlowStreams.typed`, который принимает два аргумента: `streamId` и класс сообщения.
+#### Через аннотацию `@FlowMessage` (рекомендуется)
+
+POJO-класс сообщения помечается аннотацией `@FlowMessage` со списком идентификаторов стримов (`streamIds`), которые он обслуживает. Аннотация используется вместе с `@Entity` (из которой выводится схема) и не заменяет её. Один POJO может обслуживать несколько стримов с одинаковой схемой — в этом случае в `streamIds` указывается несколько идентификаторов.
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  @Entity
+  @FlowMessage(streamIds = {"hit"})
+  public class Hit {
+      // поля...
+  }
+  ```
+
+- Kotlin
+
+  ```kotlin
+  @Entity
+  @FlowMessage(streamIds = ["hit"])
+  class Hit {
+      // поля...
+  }
+  ```
+
+{% endlist %}
+
+В Spring Boot-приложениях такие классы находятся сканированием пакетов приложения и регистрируются автоматически. По умолчанию сканируются пакеты автоконфигурации Spring Boot (пакет класса с `@SpringBootApplication` и вложенные пакеты). Дополнительные пакеты можно указать свойством `flow.entity-scan-packages`.
+
+Без Spring Boot классы передаются напрямую в `PipelineContext.registerTypedStreams`:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  context.registerTypedStreams(Hit.class, Action.class, JoinedAction.class);
+  ```
+
+- Kotlin
+
+  ```kotlin
+  context.registerTypedStreams(Hit::class.java, Action::class.java, JoinedAction::class.java)
+  ```
+
+{% endlist %}
+
+#### Через `FlowStreams.typed` (императивно)
+
+Типизированные стримы также можно создать и зарегистрировать вручную через фабричный метод `FlowStreams.typed`, который принимает два аргумента: `streamId` и класс сообщения. В Spring Boot-приложениях стримы можно объявить через `ComputationProvider` (метод `getStreams()`) либо как отдельные бины `FlowStream<?>`.
 
 {% list tabs group=lang %}
 
