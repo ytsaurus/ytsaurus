@@ -9,6 +9,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	logzap "go.ytsaurus.tech/library/go/core/log/zap"
+	"go.ytsaurus.tech/library/go/core/metrics/solomon"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/agent"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/api"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/httpserver"
@@ -44,6 +45,7 @@ type App struct {
 
 	HTTPAPIServer        *httpserver.HTTPServer
 	HTTPMonitoringServer *httpserver.HTTPServer
+	HTTPSolomonServer    *httpserver.HTTPServer
 
 	isLeader *atomic.Bool
 }
@@ -77,6 +79,10 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 	config.Token = getStrawberryToken(config.Token)
 
 	var err error
+
+	solomonRegistry := solomon.NewRegistry(solomon.NewRegistryOpts().AddTags(map[string]string{
+		"service": "strawberry",
+	}))
 
 	if config.CoordinationProxy != nil {
 		app.ytc, err = ythttp.NewClient(&yt.Config{
@@ -136,7 +142,13 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 			}
 
 			c := cf.Ctor(l.WithName("c"), loc.ytc, config.Strawberry.RootOrDefault().Child(family), proxy, cCfg)
-			a := agent.NewAgent(proxy, config.Token, loc.ytc, l.WithName("a"), c, &aCfg)
+			subRegistry := solomonRegistry.WithTags(map[string]string{
+				"family":  family,
+				"stage":   aCfg.Stage,
+				"cluster": proxy,
+			})
+			agentMetrics := agent.NewAgentMetrics(subRegistry)
+			a := agent.NewAgent(proxy, config.Token, loc.ytc, l.WithName("a"), c, &aCfg, agentMetrics)
 			loc.as[family] = a
 		}
 
@@ -179,7 +191,19 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		app.HTTPMonitoringServer = monitoring.NewServer(monitoringConfig, l, &app, healthCheckers)
 	}
 
+	if config.HTTPSolomonEndpoint != nil {
+		app.HTTPSolomonServer = monitoring.NewSolomonServer(config.HTTPSolomonEndpointOrDefault(), solomonRegistry)
+	}
+
 	app.isLeader = atomic.NewBool(false)
+
+	// is_leader is an instance-scoped sensor reported by every controllerю
+	solomonRegistry.FuncIntGauge("is_leader", func() int64 {
+		if app.IsLeader() {
+			return 1
+		}
+		return 0
+	})
 
 	l.Info("app is ready to serve locations", log.Strings("location_proxies", config.LocationProxies))
 
@@ -193,6 +217,9 @@ func (app *App) Run(stopCh <-chan struct{}) {
 	}
 	if app.HTTPMonitoringServer != nil {
 		go app.HTTPMonitoringServer.Run()
+	}
+	if app.HTTPSolomonServer != nil {
+		go app.HTTPSolomonServer.Run()
 	}
 
 L:
@@ -240,6 +267,9 @@ L:
 	}
 	if app.HTTPMonitoringServer != nil {
 		app.HTTPMonitoringServer.Stop()
+	}
+	if app.HTTPSolomonServer != nil {
+		app.HTTPSolomonServer.Stop()
 	}
 }
 

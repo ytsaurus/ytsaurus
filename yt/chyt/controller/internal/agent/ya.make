@@ -7,6 +7,7 @@ SRCS(
     health_state.go
     helpers.go
     job_checker.go
+    metrics.go
     operation_collector.go
     tracker.go
 )

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/metrics/solomon"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/agent"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/api"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/httpserver"
@@ -204,6 +205,10 @@ func abortAllOperations(t *testing.T, env *Env) {
 }
 
 func CreateAgent(env *Env, stage string) *agent.Agent {
+	return CreateAgentWithMetrics(env, stage, nil)
+}
+
+func CreateAgentWithMetrics(env *Env, stage string, metrics *agent.AgentMetrics) *agent.Agent {
 	l := log.With(env.L.Logger(), log.String("agent_stage", stage))
 
 	passPeriod := yson.Duration(time.Millisecond * 400)
@@ -225,7 +230,8 @@ func CreateAgent(env *Env, stage string) *agent.Agent {
 			env.StrawberryRoot,
 			"test",
 			/*config*/ nil),
-		config)
+		config,
+		metrics)
 
 	return agent
 }
@@ -258,6 +264,22 @@ func PrepareMonitoring(t *testing.T) (*Env, *agent.Agent, *RequestClient) {
 	server := monitoring.NewServer(c, env.L.Logger(), DummyLeader{}, map[string]monitoring.HealthChecker{
 		proxy: agent,
 	})
+	return env, agent, PrepareClient(t, env, proxy, server)
+}
+
+func PrepareSolomonMonitoring(t *testing.T) (*Env, *agent.Agent, *RequestClient) {
+	env := PrepareEnv(t, "sleep")
+	proxy := os.Getenv("YT_PROXY")
+
+	registry := solomon.NewRegistry(solomon.NewRegistryOpts())
+	subRegistry := registry.WithTags(map[string]string{
+		"family":  "sleep",
+		"stage":   "default",
+		"cluster": proxy,
+	})
+	agent := CreateAgentWithMetrics(env, "default", agent.NewAgentMetrics(subRegistry))
+
+	server := monitoring.NewSolomonServer(":0", registry)
 	return env, agent, PrepareClient(t, env, proxy, server)
 }
 
