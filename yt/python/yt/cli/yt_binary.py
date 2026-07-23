@@ -2951,7 +2951,10 @@ def show_flow_describe_result(**kwargs):
     """Execute YT Flow describe-pipeline command
 
     :param pipeline_path: path to pipeline.
+    :param status_only: describe only the pipeline status and its messages.
     """
+    if kwargs.pop("status_only"):
+        kwargs["flow_argument"] = {"status_only": True}
     result = yt.flow_execute(**kwargs, flow_command="describe-pipeline")
     if kwargs["output_format"] is None:
         result = dump_data(result)
@@ -2962,6 +2965,8 @@ def add_flow_describe_parser(add_parser):
     parser = add_parser("describe-pipeline", show_flow_describe_result,
                         help="Execute YT Flow describe command")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--status-only", action="store_true",
+                        help="Describe only the pipeline status and its messages")
     add_structured_format_argument(parser, "--output-format")
 
 
