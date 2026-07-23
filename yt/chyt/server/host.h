@@ -3,7 +3,7 @@
 #include "cluster_nodes.h"
 #include "private.h"
 #include "config.h"
-#include "cypress_config_repository.h"
+#include "cypress_object_repository.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -153,7 +153,7 @@ public:
 
     void ReloadDictionaryGlobally(const std::string& configPath) const;
 
-    TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository();
+    TCypressObjectRepositoryPtr GetCypressObjectRepository() const;
 
     void PrepareClickHouseUser(const std::string& userName);
 

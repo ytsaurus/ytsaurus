@@ -6,7 +6,7 @@
 #include "query_context.h"
 #include "table.h"
 #include "host.h"
-#include "cypress_config_repository.h"
+#include "cypress_object_repository.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
@@ -67,7 +67,7 @@ void TYtDatabaseBase::createTable(
     if (table->getName() == "Dictionary") {
         auto* queryContext = GetQueryContext(context);
         auto host = queryContext->Host;
-        host->GetCypressDictionaryConfigRepository()->WriteDictionary(
+        host->GetCypressObjectRepository()->WriteDictionary(
             context,
             table->getStorageID(),
             dynamic_pointer_cast<DB::StorageDictionary>(table)->getConfiguration());
@@ -132,7 +132,7 @@ void TYtDatabaseBase::dropTable(DB::ContextPtr context, const String& name, bool
 
     DB::StorageID tableId(getDatabaseName(), name);
     if (queryContext->LastResolvedDictionaryName == name) {
-        host->GetCypressDictionaryConfigRepository()->DeleteDictionary(context, tableId);
+        host->GetCypressObjectRepository()->DeleteDictionary(context, tableId);
         return;
     }
 

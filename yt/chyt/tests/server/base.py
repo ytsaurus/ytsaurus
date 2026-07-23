@@ -99,7 +99,7 @@ class Clique(object):
                  cpu_limit=None,
                  alias=None,
                  export_query_log=False,
-                 enable_dictionary_repository=True,
+                 enable_object_repository=True,
                  **kwargs):
         """
         alias: str
@@ -174,10 +174,10 @@ class Clique(object):
         config["yt"]["user_defined_sql_objects_storage"]["path"] = self.sql_udf_path
         config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
 
-        if enable_dictionary_repository:
-            config["yt"]["dictionary_repository"] = dict()
+        if enable_object_repository:
+            config["yt"]["object_repository"] = dict()
             self.dictionaries_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
-            config["yt"]["dictionary_repository"]["root_path"] = self.dictionaries_path
+            config["yt"]["object_repository"]["root_path"] = self.dictionaries_path
             create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
                 "acl": [ace],
             })
