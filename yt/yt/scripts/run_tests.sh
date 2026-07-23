@@ -61,7 +61,6 @@ cmd_unittests() {
 
     local skip_unittesters=(
         unittester-containers
-        unittester-core-rpc-http
         unittester-library-s3
         unittester-library-ytprof
     )
