@@ -1147,6 +1147,8 @@ public:
         std::optional<TPartitionTags> partitionTags = {},
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
+    void InitializeRefCounted();
+
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
 private:
@@ -1472,6 +1474,10 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
 
     ApplyLimits();
     ComputeBlockIndexes(PrefixRange_);
+}
+
+void THorizontalSchemalessKeyRangesChunkReader::InitializeRefCounted()
+{
     InitBlocks();
 }
 
