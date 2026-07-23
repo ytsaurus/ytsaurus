@@ -367,8 +367,6 @@ items:
                 href: user-guide/data-processing/spyt/cluster/cluster-start.md
               - name: Порядок обновления SPYT
                 href: user-guide/data-processing/spyt/version.md
-              - name: Livy server
-                href: user-guide/data-processing/spyt/cluster/livy.md
               - name: History server
                 href: user-guide/data-processing/spyt/cluster/shs.md
               # - name: Метрики в Prometheus
@@ -379,6 +377,12 @@ items:
                 href: user-guide/data-processing/spyt/logs.md
               - name: Решение проблем
                 href: user-guide/data-processing/spyt/problems.md
+            - name: Подключение к SPYT
+              items:
+                - name: SPYT Connect
+                  href: user-guide/data-processing/spyt/connect.md
+                - name: Livy server
+                  href: user-guide/data-processing/spyt/cluster/livy.md
             - name: Structured Streaming
               items:
                 - name: Основное
