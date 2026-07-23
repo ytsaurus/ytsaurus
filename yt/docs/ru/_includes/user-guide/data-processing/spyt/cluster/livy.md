@@ -1,10 +1,10 @@
-{% note warning "Внимание" %}
+# Livy server
 
-Начиная с версии SPYT 2.10.0 поддержка Livy сервера прекращена. Вместо него предлагается использовать протокол Spark Connect.
+{% note alert %}
+
+Начиная с SPYT 2.10.0 и Query Tracker 0.4 интеграция через Livy больше не поддерживается. Если вы используете Livy, перейдите на [SPYT Connect](../../../../../user-guide/data-processing/spyt/connect.md#migration).
 
 {% endnote %}
-
-# Livy server
 
 Начиная с версии 1.74.0 в SPYT доступен сервис [Livy](https://livy.apache.org/), который позволяет осуществлять общение между клиентом и Spark кластером через REST интерфейс. Этот функционал используется в модуле [Query tracker](../../../../../user-guide/query-tracker/about.md) для выполнения Spark SQL запросов в {{product-name}}.
 
