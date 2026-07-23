@@ -7,7 +7,7 @@ from yt.yson import YsonUint64
 
 
 PivotKey = list
-PivotFunction = Callable[..., list[PivotKey]]
+PivotFunction = Callable[..., list[PivotKey] | None]
 
 
 class Type(enum.Enum):
@@ -116,6 +116,18 @@ def _location_replicas(shard_count: int, cell_tags: list[str], version: int) -> 
         return _build_pivot_keys([(Type.DISCRETE, cell_tags)], shard_count)
 
 
+def _node_id_to_path(shard_count: int, cell_tags: list[str], version: int) -> list[PivotKey] | None:
+    return (
+        _default_pivots(shard_count, cell_tags, version)
+        if version >= 7 else None)
+
+
+def _response_keeper(shard_count: int, cell_tags: list[str], version: int) -> list[PivotKey] | None:
+    return (
+        _default_pivots(shard_count, cell_tags, version)
+        if version >= 7 else None)
+
+
 _REGISTRY: dict[str, PivotFunction] = {
     "acls":                      _default_pivots,
     "child_forks":               _default_pivots,
@@ -125,8 +137,10 @@ _REGISTRY: dict[str, PivotFunction] = {
     "doomed_transactions":       _default_pivots,
     "location_replicas":         _location_replicas,
     "node_forks":                _default_pivots,
+    "node_id_to_path":           _node_id_to_path,
     "node_snapshots":            _default_pivots,
     "path_forks":                _default_pivots,
+    "response_keeper":           _response_keeper,
     "transaction_descendants":   _default_pivots,
     "transaction_replicas":      _default_pivots,
     "transactions":              _default_pivots,
