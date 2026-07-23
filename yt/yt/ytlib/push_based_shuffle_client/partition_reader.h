@@ -55,8 +55,8 @@ struct IPushBasedPartitionReader
     //! Records.empty() and Finished are independent — an empty batch with
     //! Finished=false is valid.
     //!
-    //! Callers MUST serialize Read() calls. The returned future is
-    //! uncancelable.
+    //! Calls must not overlap. Canceling a pending call cancels the reader;
+    //! subsequent calls return the same cancellation error.
     [[nodiscard]] virtual TFuture<TShuffleReadBatchPtr> Read() = 0;
 
     //! Declare a new chunk. AddChunk after SetNoMoreChunks() or with a

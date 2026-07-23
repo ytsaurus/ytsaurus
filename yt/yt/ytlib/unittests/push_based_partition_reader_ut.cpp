@@ -57,6 +57,9 @@ public:
     {
         YT_VERIFY(!PendingPromise_);
         PendingPromise_ = NewPromise<TChunkReadResult>();
+        PendingPromise_.OnCanceled(BIND_NO_PROPAGATE(
+            &TMockChunkSessionReader::OnReadCanceled,
+            MakeWeak(this)));
         return PendingPromise_.ToFuture();
     }
 
@@ -105,9 +108,22 @@ public:
         return SetAllWritersFinishedCalled_;
     }
 
+    bool WasReadCanceled() const
+    {
+        return ReadCanceled_;
+    }
+
 private:
     TPromise<TChunkReadResult> PendingPromise_;
     bool SetAllWritersFinishedCalled_ = false;
+    bool ReadCanceled_ = false;
+
+    void OnReadCanceled(const TError& error) noexcept
+    {
+        ReadCanceled_ = true;
+        auto promise = std::move(PendingPromise_);
+        promise.Set(TError(NYT::EErrorCode::Canceled, "Mock read canceled") << error);
+    }
 };
 
 using TMockChunkSessionReaderPtr = TIntrusivePtr<TMockChunkSessionReader>;
@@ -626,6 +642,38 @@ TEST_F(TPartitionReaderTest, ChunkSessionErrorPropagatesAndPersists)
 
     // SetAllWritersFinished must have been called on the surviving chunk session reader.
     EXPECT_TRUE(mock->WasSetAllWritersFinishedCalled());
+}
+
+TEST_F(TPartitionReaderTest, CancelingPendingReadCancelsReader)
+{
+    auto mock = New<TMockChunkSessionReader>();
+    auto createSessionReader = [mock] (
+        TChunkId, TChunkReplicaList, i64, std::optional<i64>)
+    {
+        return mock;
+    };
+
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
+    DrainInvoker();
+
+    auto readFuture = reader->Read();
+    DrainInvoker();
+    ASSERT_FALSE(readFuture.IsSet());
+
+    ASSERT_TRUE(readFuture.Cancel(TError("test cancellation")));
+    auto error = WaitFor(readFuture.WithTimeout(TDuration::Seconds(1)));
+    ASSERT_TRUE(error.FindMatching(NYT::EErrorCode::Canceled).has_value());
+    EXPECT_THAT(error.GetMessage(), ::testing::HasSubstr("Partition reader canceled"));
+
+    DrainInvoker();
+    EXPECT_TRUE(mock->WasSetAllWritersFinishedCalled());
+    EXPECT_TRUE(mock->WasReadCanceled());
+
+    auto nextError = WaitFor(reader->Read());
+    EXPECT_TRUE(nextError.FindMatching(NYT::EErrorCode::Canceled).has_value());
+
+    FlushPendingMockRead(mock);
 }
 
 TEST_F(TPartitionReaderTest, EmptyTerminalChunkSessionResultUnblocksReadAfterSeal)

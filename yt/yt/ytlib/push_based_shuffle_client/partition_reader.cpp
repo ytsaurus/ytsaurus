@@ -53,6 +53,7 @@ struct TBatchPayloadsHolder
 struct TChunkReadState
 {
     IDistributedChunkSessionReaderPtr ChunkSessionReader;
+    TFuture<TChunkReadResult> ReadFuture;
 
     //! Latest unconsumed chunk session read result. We issue the next Read()
     //! only after the previous one's callback completes, so there's never
@@ -93,7 +94,11 @@ public:
     TFuture<TShuffleReadBatchPtr> Read() override
     {
         auto promise = NewPromise<TShuffleReadBatchPtr>();
-        auto future = promise.ToFuture().ToUncancelable();
+        auto future = promise.ToFuture();
+        promise.OnCanceled(BIND_NO_PROPAGATE(
+            &TPushBasedPartitionReader::OnReadCanceled,
+            MakeWeak(this))
+            .Via(SerializedInvoker_));
         SerializedInvoker_->Invoke(BIND_NO_PROPAGATE(
             &TPushBasedPartitionReader::DoRead,
             MakeWeak(this),
@@ -164,7 +169,7 @@ private:
 
         TChunkReadState state;
         state.ChunkSessionReader = sessionReader;
-        SubscribeToChunkSessionRead(chunkId, sessionReader->Read());
+        StartChunkSessionRead(chunkId, &state);
 
         ChunkStates_[chunkId] = std::move(state);
 
@@ -202,9 +207,17 @@ private:
         MaybeResolveRead();
     }
 
-    void SubscribeToChunkSessionRead(TChunkId chunkId, TFuture<TChunkReadResult> readFuture) noexcept
+    void OnReadCanceled(const TError& error) noexcept
     {
-        readFuture.Subscribe(BIND_NO_PROPAGATE(
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+
+        FailReader(TError(NYT::EErrorCode::Canceled, "Partition reader canceled") << error);
+    }
+
+    void StartChunkSessionRead(TChunkId chunkId, TChunkReadState* state) noexcept
+    {
+        state->ReadFuture = state->ChunkSessionReader->Read();
+        state->ReadFuture.Subscribe(BIND_NO_PROPAGATE(
             &TPushBasedPartitionReader::OnChunkSessionReadComplete,
             MakeWeak(this),
             chunkId)
@@ -215,22 +228,20 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-        auto stateIt = ChunkStates_.find(chunkId);
-        YT_VERIFY(stateIt != ChunkStates_.end());
-        auto& state = stateIt->second;
-
-        if (!resultOrError.IsOK()) {
-            FailReader(resultOrError);
+        if (!TerminalError_.IsOK()) {
+            if (!resultOrError.IsOK()) {
+                YT_LOG_DEBUG(resultOrError, "Shuffle reader received subsequent failure");
+            }
             return;
         }
 
-        // Drop late successes once the reader has failed: no consumer will
-        // ever drain this result (MaybeResolveRead resolves the pending
-        // promise with TerminalError_ and skips the drain loop), so storing
-        // it would keep the blob buffers pinned until reader teardown for
-        // no purpose. Letting `resultOrError` die at function exit releases
-        // them immediately.
-        if (!TerminalError_.IsOK()) {
+        auto stateIt = ChunkStates_.find(chunkId);
+        YT_VERIFY(stateIt != ChunkStates_.end());
+        auto& state = stateIt->second;
+        state.ReadFuture.Reset();
+
+        if (!resultOrError.IsOK()) {
+            FailReader(resultOrError);
             return;
         }
 
@@ -337,7 +348,7 @@ private:
             if (wasFinished) {
                 finishedChunks.push_back(chunkId);
             } else {
-                SubscribeToChunkSessionRead(chunkId, state.ChunkSessionReader->Read());
+                StartChunkSessionRead(chunkId, &state);
             }
         }
         for (auto chunkId : finishedChunks) {
@@ -360,10 +371,13 @@ private:
             TerminalError_ = error;
             YT_LOG_WARNING(TerminalError_, "Shuffle reader failed");
 
-            // Wind down outstanding chunk session reads so they don't poll forever.
             for (auto& [_, state] : ChunkStates_) {
                 state.ChunkSessionReader->SetAllWritersFinished();
+                if (state.ReadFuture) {
+                    state.ReadFuture.Cancel(TerminalError_);
+                }
             }
+            ChunkStates_.clear();
         } else {
             // First failure wins; later errors are observability noise — log them
             // at DEBUG so the diagnostic info isn't silently dropped, but don't
