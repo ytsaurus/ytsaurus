@@ -1,7 +1,0 @@
-{
-    "port" = 8080;
-    "monitoring_port" = 8081;
-    "cluster_url" = "test_cluster";
-    "pipeline_path" = "//some/yt/path/pipeline";
-    "job_ttl_seconds" = 3600;
-}
