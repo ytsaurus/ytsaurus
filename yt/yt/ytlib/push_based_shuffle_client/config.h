@@ -67,6 +67,9 @@ struct TPartitionReaderConfig
     //! rejects. Not a cap on decompressed or returned-batch size.
     i64 MaxBytesPerRead;
 
+    //! Checks that decoded values do not use configured identity column ids.
+    bool ValidateIdentityColumnIds;
+
     REGISTER_YSON_STRUCT(TPartitionReaderConfig);
 
     static void Register(TRegistrar registrar);

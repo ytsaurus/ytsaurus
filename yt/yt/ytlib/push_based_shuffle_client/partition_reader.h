@@ -76,13 +76,15 @@ DEFINE_REFCOUNTED_TYPE(IPushBasedPartitionReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Optionally appends header-derived mapper and row identity values.
 IPushBasedPartitionReaderPtr CreatePushBasedPartitionReader(
     TPartitionReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     int readQuorum,
     IInvokerPtr invoker,
-    TRecordHeaderFilter recordHeaderFilter = {});
+    TRecordHeaderFilter recordHeaderFilter = {},
+    std::optional<TIdentityColumnIds> identityColumnIds = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

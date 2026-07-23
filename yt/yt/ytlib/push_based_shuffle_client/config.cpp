@@ -41,6 +41,8 @@ void TPartitionReaderConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_bytes_per_read", &TThis::MaxBytesPerRead)
         .Default(64_MB)
         .GreaterThan(0);
+    registrar.Parameter("validate_identity_column_ids", &TThis::ValidateIdentityColumnIds)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
