@@ -1916,12 +1916,37 @@ class TestClientConfigFromCluster(object):
 
     @authors("denvr")
     def test_config_annotations(self):
+        DIR = "//tmp/dir1"
+        FILE = "//tmp/file1"
+        DOCUMENT = "//tmp/doc1"
+        TABLE = "//tmp/table1"
+        TABLE_DST = "//tmp/table1_dst"
+
         with mock.patch.dict(os.environ, {"YT_ANNOTATE_OBJECTS": "{some_bad_attr=some_val;_some_attr=some_str_val}"}):
             client = yt.YtClient(config=yt.config.config)
-            client.create("table", "//tmp/table1")
-        attrs = yt.get("//tmp/table1", attributes=["some_bad_attr", "_some_attr"]).attributes
-        assert attrs["_some_attr"] == "some_str_val"
+            client.create("map_node", DIR)
+            client.create("file", FILE)
+            client.create("document", DOCUMENT)
+            client.create("table", TABLE)
+        for path in [DIR, FILE, TABLE]:
+            attrs = yt.get(path, attributes=["some_bad_attr", "_some_attr"]).attributes
+            assert attrs["_some_attr"] == "some_str_val"
+            assert "some_bad_attr" not in attrs["_some_attr"]
+        for path in [DOCUMENT]:
+            attrs = yt.get(path, attributes=["some_bad_attr", "_some_attr"]).attributes
+            assert attrs == {}
+
+        with mock.patch.dict(os.environ, {"YT_ANNOTATE_OBJECTS": "{\"_some_attr_2\": {\"some_key\": \"some_str_val_2\"}}"}):
+            client.run_map(
+                "cat",
+                source_table=TABLE,
+                destination_table=TABLE_DST,
+                format="yson"
+            )
+        attrs = yt.get(TABLE_DST, attributes=["some_bad_attr", "_some_attr", "_some_attr_2"]).attributes
+        assert attrs["_some_attr_2"] == {"some_key": "some_str_val_2"}
         assert "some_bad_attr" not in attrs["_some_attr"]
+        assert "_some_attr" not in attrs["_some_attr"]
 
 
 class _ConfigFile:

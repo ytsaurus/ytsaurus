@@ -517,15 +517,6 @@ def remove(
     return make_request("remove", params, client=client)
 
 
-def _get_annotate_objects(type, client):
-    if type in ["table", "file", "map_node", "document"]:
-        annotate_objects = get_config(client)["annotate_objects"]
-        if annotate_objects and isinstance(annotate_objects, Mapping):
-            annotate_objects = dict([(name, value) for name, value in annotate_objects.items() if name.startswith("_")])
-            return annotate_objects
-    return None
-
-
 def create(
     type: Literal["table", "file", "map_node", "list_node", "document"],
     path: Union[str, YPath, None] = None,
@@ -551,9 +542,17 @@ def create(
 
     .. seealso:: `create in the docs <https://ytsaurus.tech/docs/en/api/commands#create>`_
     """
+    def _get_object_annotations(type, client):
+        if type in ["table", "file", "map_node"]:
+            annotate_objects = get_config(client)["annotate_objects"]
+            if annotate_objects and isinstance(annotate_objects, Mapping):
+                annotate_objects = dict([(name, value) for name, value in annotate_objects.items() if name.startswith("_")])
+                return annotate_objects
+        return None
+
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
 
-    annotate_objects = _get_annotate_objects(type, client)
+    annotate_objects = _get_object_annotations(type, client)
     if annotate_objects:
         if attributes:
             attributes = deepcopy(attributes)

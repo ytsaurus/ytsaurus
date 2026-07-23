@@ -13,12 +13,11 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.yson import YsonEntity, YsonMap
 
+import functools
 import os
 import typing
 from copy import deepcopy
 from datetime import timedelta
-
-import functools
 
 
 # pydoc :: default_config :: begin
@@ -1284,9 +1283,12 @@ def _update_from_env_vars(
     shortcuts: Optional[dict] = None
 ):
 
-    def _parse_struct(default_type: typing.Callable[[], None], obj: str):
+    def _parse_string_to_struct(default_obj_type: Optional[typing.Callable[[], None]], obj: str):
         if not obj:
-            return default_type()
+            if default_obj_type:
+                return default_obj_type()
+            else:
+                return None
 
         try:
             data = yson._loads_from_native_str(obj)
@@ -1294,7 +1296,7 @@ def _update_from_env_vars(
             data = yson.json_to_yson(json.loads(obj))
         return data
 
-    def _get_var_type(config_value, type_hint_value):
+    def _get_var_type(config_value, type_hint_value) -> typing.Callable[[str], Any]:
         var_type = type(config_value)
         # Using int we treat "0" as false, "1" as "true"
         if var_type == bool:
@@ -1310,16 +1312,12 @@ def _update_from_env_vars(
                     type_hint_value = get_args(type_hint_value)[0]
 
                 type_hint = typing.get_origin(type_hint_value) or type_hint_value
-                if type_hint in (int, str, float, bool):
+                if type_hint in (int, str, float, bool, list, dict, tuple):
                     var_type = type_hint
-                elif type_hint in (list, dict, tuple):
-                    var_type = functools.partial(_parse_struct, var_type)
                 else:
                     var_type = str
             else:
                 var_type = str
-        elif var_type == dict or var_type == YsonMap:
-            var_type = functools.partial(_parse_struct, var_type)
         elif isinstance(config_value, RemotePatchableValueBase):
             var_type = type(config_value.value)
 
@@ -1341,10 +1339,9 @@ def _update_from_env_vars(
     def _get(d, key):
         parts = key.split("/")
         for k in parts:
-            if typing.get_origin(d) == dict:
-                return d
-            if hasattr(d, "get"):
-                d = d.get(k)
+            if typing.get_origin(d):
+                break
+            d = d.get(k)
         return d
 
     def _get_type_hints(val):
@@ -1361,6 +1358,7 @@ def _update_from_env_vars(
     for key, value in os.environ.items():
         if key in shortcuts:
             name = shortcuts[key]
+            var_type = None
             if name == "driver_config":
                 var_type = yson._loads_from_native_str
             elif name == "proxy/aliases":
@@ -1372,8 +1370,8 @@ def _update_from_env_vars(
                     config_value=_get(config, name),
                     type_hint_value=_get(config_type_hints, name),
                 )
-            if typing.get_origin(var_type) == dict:
-                var_type = yson._loads_from_native_str
+            if var_type in (list, dict, tuple, YsonMap):
+                var_type = functools.partial(_parse_string_to_struct, var_type)
             # NB: it is necessary to set boolean variable as 0 or 1.
             if var_type is bool:
                 value = int(value)
