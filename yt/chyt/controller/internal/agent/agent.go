@@ -47,9 +47,11 @@ type Agent struct {
 
 	opletInfoBatchCh chan []strawberry.OpletInfoForScaler
 	scalingTargetCh  chan []scalingRequest
+
+	metrics *AgentMetrics
 }
 
-func NewAgent(proxy, token string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config) *Agent {
+func NewAgent(proxy, token string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config, metrics *AgentMetrics) *Agent {
 	hostname, err := os.Hostname()
 	if err != nil {
 		l.Fatal("error getting hostname", log.Error(err))
@@ -71,6 +73,7 @@ func NewAgent(proxy, token string, ytc yt.Client, l log.Logger, controller straw
 			time.Duration(tf*float64(config.PassPeriodOrDefault())),
 			time.Duration(tf*float64(config.RevisionCollectPeriodOrDefault())),
 			time.Duration(tf*float64(config.CollectOperationsPeriodOrDefault()))),
+		metrics: metrics,
 	}
 }
 
@@ -294,7 +297,9 @@ func (a *Agent) pass() {
 
 	a.l.Info("starting pass", log.Int("oplet_count", len(a.aliasToOp)))
 	defer func() {
+		a.metrics.RecordPassDuration(time.Since(startedAt))
 		if passErr != nil {
+			a.metrics.RecordPassError()
 			a.l.Info("pass failed", log.Error(passErr))
 			a.healthState.SetPassState(passErr)
 		} else {
@@ -314,6 +319,21 @@ func (a *Agent) pass() {
 	}
 
 	a.processOplets()
+
+	opletCount := 0
+	failedCount := 0
+	for _, oplet := range a.aliasToOp {
+		if oplet.Inappropriate() {
+			continue
+		}
+		opletCount++
+		if h, _ := oplet.Health(); h == strawberry.OpletHealthFailed {
+			failedCount++
+		}
+	}
+	a.metrics.SetOpletCount(opletCount)
+	a.metrics.SetFailedOpletCount(failedCount)
+
 	for _, oplet := range a.aliasToOp {
 		if oplet.Broken() {
 			a.l.Info("unregistering oplet: it is broken",
@@ -635,6 +655,8 @@ func (a *Agent) Stop() {
 	a.l.Info("stopping agent")
 	a.cancelCtx()
 	<-a.backgroundStopCh
+
+	a.metrics.Reset()
 
 	a.ctx = nil
 	a.aliasToOp = nil
