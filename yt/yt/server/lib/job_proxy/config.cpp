@@ -278,7 +278,7 @@ void TCriJobEnvironmentConfig::Register(TRegistrar registrar)
     registrar.Parameter("pod_descriptor", &TThis::PodDescriptor)
         .Default();
     registrar.Parameter("pod_spec", &TThis::PodSpec)
-        .DefaultNew();
+        .Default();
     registrar.Parameter("gpu_config", &TThis::GpuConfig)
         .Default();
 }
