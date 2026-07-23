@@ -170,6 +170,12 @@ static const INodeTypeHandlerPtr NullTypeHandler;
 
 class TCypressManager;
 
+DEFINE_ENUM(ELockCheckResult,
+    (Inconclusive)
+    (Conflict)
+    (OK)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeFactory
@@ -3858,11 +3864,26 @@ private:
             }
         }
 
+        auto enableMoreEfficientConflictCheck = GetDynamicConfig()->EnableMoreEfficientConflictCheck;
         auto checkExistingLock = [&] (const TLock* existingLock) {
             auto existingTransaction = existingLock->GetTransaction();
-            if (!IsConcurrentTransaction(transaction, existingTransaction)) {
-                return TError();
+            if (enableMoreEfficientConflictCheck &&
+                transaction == existingTransaction &&
+                request.Mode <= existingLock->Request().Mode)
+            {
+                // A stronger (or equal) lock is taken under the same transaction. No need to check the rest.
+                return ELockCheckResult::OK;
             }
+
+            if (!IsConcurrentTransaction(transaction, existingTransaction)) {
+                return ELockCheckResult::Inconclusive;
+            }
+
+            return ELockCheckResult::Conflict;
+        };
+
+        auto buildConflictErrorMessage = [&] (const TLock* existingLock) {
+            auto existingTransaction = existingLock->GetTransaction();
             switch (request.Key.Kind) {
                 case ELockKeyKind::None:
                     return TError(
@@ -3897,34 +3918,57 @@ private:
             }
         };
 
-        for (auto [transaction, existingLock] : transactionToExclusiveLocks) {
-            auto error = checkExistingLock(existingLock);
-            if (!error.IsOK()) {
-                return error;
+        auto enableEvenMoreEfficientConflictCheck = GetDynamicConfig()->EnableEvenMoreEfficientConflictCheck;
+        auto it = transactionToExclusiveLocks.begin();
+        while (it != transactionToExclusiveLocks.end()) {
+            auto checkResult = checkExistingLock(it->second);
+            if (checkResult == ELockCheckResult::OK) {
+                break;
+            } else if (checkResult == ELockCheckResult::Conflict) {
+                return buildConflictErrorMessage(it->second);
+            }
+
+            if (enableEvenMoreEfficientConflictCheck) {
+                it = transactionToExclusiveLocks.upper_bound(it->first);
+            } else {
+                ++it;
             }
         }
 
         switch (request.Mode) {
-            case ELockMode::Exclusive:
-                for (const auto& [transaction, lockKey, lock] : transactionAndKeyToSharedLocks) {
-                    auto error = checkExistingLock(lock);
-                    if (!error.IsOK()) {
-                        return error;
+            case ELockMode::Exclusive: {
+                auto it = transactionAndKeyToSharedLocks.begin();
+                while (it != transactionAndKeyToSharedLocks.end()) {
+                    auto checkResult = checkExistingLock(std::get<TLockRawPtr>(*it));
+                    if (checkResult == ELockCheckResult::OK) {
+                        break;
+                    } else if (checkResult == ELockCheckResult::Conflict) {
+                        return buildConflictErrorMessage(std::get<TLockRawPtr>(*it));
+                    }
+
+                    if (enableEvenMoreEfficientConflictCheck) {
+                        it = transactionAndKeyToSharedLocks.upper_bound(std::get<TTransactionRawPtr>(*it));
+                    } else {
+                        ++it;
                     }
                 }
                 break;
+            }
 
-            case ELockMode::Shared:
+            case ELockMode::Shared: {
                 if (request.Key.Kind != ELockKeyKind::None) {
                     auto range = keyToSharedLocks.equal_range(request.Key);
                     for (auto it = range.first; it != range.second; ++it) {
-                        auto error = checkExistingLock(it->second);
-                        if (!error.IsOK()) {
-                            return error;
+                        auto checkResult = checkExistingLock(it->second);
+                        if (checkResult == ELockCheckResult::OK) {
+                            break;
+                        } else if (checkResult == ELockCheckResult::Conflict) {
+                            return buildConflictErrorMessage(it->second);
                         }
                     }
                 }
                 break;
+            }
 
             default:
                 YT_ABORT();

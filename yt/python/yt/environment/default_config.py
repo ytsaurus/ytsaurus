@@ -151,6 +151,8 @@ def get_dynamic_master_config():
             "virtual_map_read_offload_batch_size": 2,
             "enable_preserve_acl_during_move": False,
             "use_better_check_when_rewriting_path": True,
+            "enable_more_efficient_conflict_check": True,
+            "enable_even_more_efficient_conflict_check": True,
         },
 
         "transaction_manager": {
