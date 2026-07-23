@@ -127,6 +127,13 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_weaker_access_validation_check", &TThis::UseWeakerAccessValidationCheck)
         .Default(false);
 
+    registrar.Parameter("enable_more_efficient_conflict_check", &TThis::EnableMoreEfficientConflictCheck)
+        .Default(false)
+        .DontSerializeDefault();
+    registrar.Parameter("enable_even_more_efficient_conflict_check", &TThis::EnableEvenMoreEfficientConflictCheck)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("default_optimize_for", &TThis::DefaultOptimizeFor)
         .Default(NTableClient::EOptimizeFor::Lookup);
 

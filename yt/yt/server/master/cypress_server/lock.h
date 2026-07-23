@@ -145,6 +145,8 @@ struct TCypressNodeLockingState
     // They must not be invalidated unless the record itself is erased. Keep this
     // in mind when changing container types.
     // NB: Deterministic order for both keys and values is required here, hence std::set.
+    // NB: Transactions have to be sorted by depth, since checking child transactions always
+    // provides more information than the ancestor.
     std::set<
         std::pair<
             NTransactionServer::TTransactionRawPtr,

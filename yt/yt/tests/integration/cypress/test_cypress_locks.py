@@ -1481,9 +1481,6 @@ class TestCypressLocks(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_nested_tx5(self):
-        get("//sys/clusters", driver=get_driver(cluster="primary"))
-        get("//sys/clusters", driver=get_driver(cluster="primary_ground"))
-
         set("//tmp/x", 1)
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)

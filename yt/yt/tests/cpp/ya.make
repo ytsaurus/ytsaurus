@@ -1,14 +1,16 @@
 RECURSE(
     library
     test_api
+    test_ban_service
     test_base
-    test_chaos_lease
     test_chaos_election
+    test_chaos_lease
     test_chunk_scraper
     test_chunk_sealing
     test_cluster_directory
     test_cross_cluster_replicated_state
     test_cypress_election
+    test_cypress_locks
     test_data_node_rpc
     test_distributed_chunk_sessions
     test_hydra
@@ -16,7 +18,6 @@ RECURSE(
     test_multiproxy
     test_push_based_shuffle
     test_readers
-    test_sequoia
     test_s3_data
-    test_ban_service
+    test_sequoia
 )
