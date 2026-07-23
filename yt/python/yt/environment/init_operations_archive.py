@@ -1305,6 +1305,51 @@ TRANSFORMS[67] = [
                 "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
             })),
 ]
+
+TRANSFORMS[68] = [
+    Conversion(
+        "ordered_by_id",
+        table_info=TableInfo(
+            [
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any", {"lock": "controller_agent"}),
+                ("provided_spec", "any"),
+                ("spec", "any"),
+                ("full_spec", "any"),
+                ("experiment_assignments", "any"),
+                ("experiment_assignment_names", "any"),
+                ("brief_progress", "any", {"lock": "controller_agent"}),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any"),
+                ("events", "any"),
+                ("alerts", "any"),
+                ("slot_index", "int64"),
+                ("unrecognized_spec", "any"),
+                ("runtime_parameters", "any"),
+                ("slot_index_per_pool_tree", "any"),
+                ("annotations", "any"),
+                ("task_names", "any"),
+                ("controller_features", "any", {"lock": "controller_agent"}),
+                ("alert_events", "any", {"lock": "alert_events"}),
+                ("scheduling_attributes_per_pool_tree", "any"),
+            ],
+            in_memory=False,
+            default_lock="operations_cleaner",
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
+
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
 
 
