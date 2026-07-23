@@ -1119,6 +1119,82 @@ class TestInputFetching(ClickHouseTestBase):
                 assert_items_equal([row["a"] for row in result], [20, 30, 31, 32, 33, 34])
 
     @authors("buyval01")
+    def test_predicate_pushdown_through_join(self):
+        # A predicate pushed into a joined table's read must reference that table by the alias
+        # used in the re-serialized secondary query, not the coordinator-level one. See CHYT-1446.
+        create("table", "//tmp/left", attributes={"schema": [
+            {"name": "k", "type": "int64", "sort_order": "ascending"},
+            {"name": "a", "type": "int64"},
+        ]})
+        write_table("//tmp/left", [{"k": 0, "a": 1}, {"k": 1, "a": 2}, {"k": 2, "a": 3}])
+
+        create("table", "//tmp/right", attributes={"schema": [
+            {"name": "k", "type": "int64", "sort_order": "ascending"},
+            {"name": "b", "type": "int64"},
+            {"name": "c", "type": "int64"},
+            {"name": "d", "type": "int64"},
+        ]})
+        write_table("//tmp/right", [
+            {"k": 0, "b": 1, "c": 100, "d": 1000},
+            {"k": 1, "b": 2, "c": 200, "d": 2000},
+            {"k": 2, "b": 3, "c": 100, "d": 3000},
+        ])
+
+        create("table", "//tmp/t1", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "v", "type": "int64"},
+        ]})
+        write_table("//tmp/t1", [{"key": 1, "v": 100}, {"key": 2, "v": 200}, {"key": 3, "v": 100}])
+
+        create("table", "//tmp/t2", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "v", "type": "int64"},
+        ]})
+        write_table("//tmp/t2", [{"key": 1, "v": 10}, {"key": 2, "v": 20}, {"key": 3, "v": 30}])
+
+        # Co-distributed sorted join whose tables share column "v"; the predicate lives in an
+        # outer query over the subquery so it is pushed down as a filter rather than serialized
+        # into the join. ClickHouse disambiguates the shared name to "v" (t1.v) and "t2.v".
+        inner = (
+            "select t1.key as key, t1.v, t2.v "
+            "from '//tmp/t1' as t1 join '//tmp/t2' as t2 using key"
+        )
+        settings = {"output_format_json_quote_64bit_integers": 0}
+
+        with Clique(1) as clique:
+            # Non-key join: the right table is read as a separate single-table secondary query
+            # with a renamed alias.
+            query = (
+                "select l.a as a, r.d as d from '//tmp/left' as l "
+                "left join '//tmp/right' as r on r.b = l.a and r.c = 100 "
+                "order by a"
+            )
+            assert clique.make_query(query) == [
+                {"a": 1, "d": 1000},
+                {"a": 2, "d": None},
+                {"a": 3, "d": 3000},
+            ]
+
+            first_table_query = "select * from ({}) where v = 100 order by key".format(inner)
+            assert clique.make_query(first_table_query, settings=settings) == [
+                {"key": 1, "v": 100, "t2.v": 10},
+                {"key": 3, "v": 100, "t2.v": 30},
+            ]
+
+            # 30 exists only in t2.v (t1.v is 100/200), so a misresolution to t1.v yields an empty
+            # result instead of key 3.
+            second_table_query = "select * from ({}) where `t2.v` = 30 order by key".format(inner)
+            assert clique.make_query(second_table_query, settings=settings) == [
+                {"key": 3, "v": 100, "t2.v": 30},
+            ]
+
+            explain_query = "explain plan actions = 1 select * from ({}) where `t2.v` = 30".format(inner)
+            assert any(
+                e["explain"].strip().startswith("Pushed filter:")
+                for e in clique.make_query(explain_query)
+            ), "predicate was not pushed down into the read"
+
+    @authors("buyval01")
     def test_explain_predicate_pushdown(self):
         table_path = "//tmp/t"
         create("table", table_path, attributes={"schema": [{"name": "a", "type": "int64"}]})
