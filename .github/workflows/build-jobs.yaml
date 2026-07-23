@@ -284,6 +284,11 @@ jobs:
 
           BUILD_FLAGS=$(echo ${BUILD_FLAGS} | sed 's/--thinlto//')
 
+          # SMOKE-ONLY: the full unittest sweep and the integration size_*
+          # folders take >4h on this runner and blow the 480-minute job cap
+          # before the flow binaries below are ever built. This smoke only
+          # needs the flow pipeline binaries, so skip them. Not part of the PR.
+          if false; then
           FOLDERS_WITH_UNITTESTS=""
           for makefile in $(find ../ytsaurus/ytsaurus/ -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
             folder=$(dirname ${makefile})
@@ -308,6 +313,7 @@ jobs:
             fi
             ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare
           done
+          fi
 
           # Flow pytest binaries: the flow runner resolves flow_server and the
           # cpp example pipelines through their build-tree paths (the same way
