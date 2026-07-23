@@ -77,10 +77,15 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Reads the 16-byte header from the front of a wire shuffle record.
+TRecordHeader ReadShuffleRecordHeader(const TSharedRef& wire);
 TRecordHeader ReadShuffleRecordHeader(TRange<TSharedRef> wire);
 
 std::vector<TSharedRef> CompressShuffleRecord(
     const TShuffleRecord& record,
+    NCompression::ECodec codec);
+
+TShuffleRecord DecompressShuffleRecord(
+    const TSharedRef& wire,
     NCompression::ECodec codec);
 
 TShuffleRecord DecompressShuffleRecord(

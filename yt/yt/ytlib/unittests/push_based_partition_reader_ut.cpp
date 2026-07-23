@@ -19,6 +19,8 @@
 #include <library/cpp/yt/memory/blob.h>
 #include <library/cpp/yt/memory/weak_ptr.h>
 
+#include <memory>
+
 namespace NYT::NPushBasedShuffleClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -508,6 +510,44 @@ TEST_F(TPartitionReaderTest, MaxBytesPerReadDefersExtraChunks)
     FlushPendingMockRead(mock2);
 }
 
+TEST_F(TPartitionReaderTest, MaxBytesPerReadSplitsSingleChunkResult)
+{
+    auto mock = New<TMockChunkSessionReader>();
+    auto createSessionReader = [mock] (
+        TChunkId, TChunkReplicaList, i64, std::optional<i64>)
+    {
+        return mock;
+    };
+
+    auto reader = CreatePushBasedPartitionReaderForTesting(
+        MakeConfig(/*maxBytesPerRead*/ 1),
+        createSessionReader,
+        Invoker());
+    reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
+    reader->SetNoMoreChunks();
+    DrainInvoker();
+
+    TChunkReadResult result;
+    for (int mapperId = 0; mapperId < 3; ++mapperId) {
+        auto record = MakeSingleRecordResult(
+            mapperId,
+            /*startRow*/ 0,
+            {{mapperId, mapperId}},
+            /*finished*/ false);
+        result.Records.push_back(std::move(record.Records[0]));
+    }
+    result.Finished = true;
+    mock->SetNextReadResult(std::move(result));
+
+    for (int mapperId = 0; mapperId < 3; ++mapperId) {
+        auto batch = WaitFor(reader->Read())
+            .ValueOrThrow();
+        ASSERT_EQ(std::ssize(batch->Records), 1);
+        EXPECT_EQ(batch->Records[0].Header.MapperId, mapperId);
+        EXPECT_EQ(batch->Finished, mapperId == 2);
+    }
+}
+
 TEST_F(TPartitionReaderTest, DecompressionFailureFailsReader)
 {
     auto mock = New<TMockChunkSessionReader>();
@@ -574,6 +614,86 @@ TEST_F(TPartitionReaderTest, HeaderFilterDropsRejectedRecords)
     EXPECT_TRUE(batch->Finished);
     ASSERT_EQ(std::ssize(batch->Records), 1);
     EXPECT_EQ(batch->Records[0].Header.MapperId, 7);
+}
+
+TEST_F(TPartitionReaderTest, DropsDuplicateBeforeDecompression)
+{
+    auto mock = New<TMockChunkSessionReader>();
+    auto createSessionReader = [mock] (
+        TChunkId, TChunkReplicaList, i64, std::optional<i64>)
+    {
+        return mock;
+    };
+
+    auto reader = CreatePushBasedPartitionReaderForTesting(
+        MakeConfig(),
+        createSessionReader,
+        Invoker());
+    reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
+    reader->SetNoMoreChunks();
+    DrainInvoker();
+
+    auto result = MakeSingleRecordResult(
+        /*mapperId*/ 7,
+        /*startRow*/ 10,
+        {{20, 200}},
+        /*finished*/ false);
+    result.Records.push_back(MakeRecordWithValidHeaderCorruptPayload(
+        /*mapperId*/ 7,
+        /*startRow*/ 10,
+        /*rowCount*/ 1));
+    result.Finished = true;
+    mock->SetNextReadResult(std::move(result));
+
+    auto batch = WaitFor(reader->Read())
+        .ValueOrThrow();
+    EXPECT_TRUE(batch->Finished);
+    ASSERT_EQ(std::ssize(batch->Records), 1);
+    EXPECT_EQ(batch->Records[0].Header.MapperId, 7);
+    EXPECT_EQ(batch->Records[0].Header.StartRow, 10);
+}
+
+TEST_F(TPartitionReaderTest, ReleasesHeaderFilterAfterFinish)
+{
+    auto mock = New<TMockChunkSessionReader>();
+    auto createSessionReader = [mock] (
+        TChunkId,
+        TChunkReplicaList,
+        i64,
+        std::optional<i64>)
+    {
+        return mock;
+    };
+
+    auto filterState = std::make_shared<int>();
+    std::weak_ptr<int> weakFilterState = filterState;
+    TRecordHeaderFilter filter = [filterState] (const TRecordHeader&) {
+        return true;
+    };
+    filterState.reset();
+
+    auto reader = CreatePushBasedPartitionReaderForTesting(
+        MakeConfig(),
+        createSessionReader,
+        Invoker(),
+        std::move(filter));
+    filter = {};
+    reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
+    reader->SetNoMoreChunks();
+    DrainInvoker();
+
+    auto readFuture = reader->Read();
+    DrainInvoker();
+    mock->SetNextReadResult(MakeSingleRecordResult(
+        /*mapperId*/ 7,
+        /*startRow*/ 0,
+        {{1, 10}},
+        /*finished*/ true));
+
+    auto batch = WaitFor(readFuture)
+        .ValueOrThrow();
+    EXPECT_TRUE(batch->Finished);
+    EXPECT_TRUE(weakFilterState.expired());
 }
 
 TEST_F(TPartitionReaderTest, HeaderFilterRejectAllRespectsMaxBytes)
