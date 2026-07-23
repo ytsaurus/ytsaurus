@@ -200,6 +200,9 @@ items:
     items:
       - name: Базовые правила выкатки пайплайна
         href: release/basic-rules.md
+      - name: Выбор типа репликации для стейта
+        href: ../yandex-specific/flow/release/state-tables-choice.md
+        when: audience == "internal"
       - name: Запуск в Vanilla-операции
         href: release/launch-vanilla.md
       - name: Запуск через Infractl
