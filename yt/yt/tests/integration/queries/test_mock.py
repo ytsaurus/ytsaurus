@@ -20,6 +20,8 @@ from yt.wrapper import yson
 from collections import Counter
 from builtins import set as Set
 
+import pyarrow as pa
+
 import pytest
 import time
 
@@ -154,6 +156,21 @@ class TestQueriesMock(YTEnvSetup):
         assert_items_equal(q.read_result(1, columns=["foo"]), [{"foo": row["foo"]} for row in rows])
         assert q.read_result(1, columns=["bar", "foo", "bar"], output_format="dsv") == \
             b"""bar=abc\tfoo=42\nbar=def\tfoo=-17\nbar=ghi\tfoo=123\n"""
+
+    @authors("dagorokhov")
+    def test_read_empty_result(self, query_tracker):
+        schema = [{"name": "foo", "type": "int64"}, {"name": "bar", "type": "string"}]
+
+        q = start_query("mock", "complete_after", settings={
+            "results": [
+                {"schema": schema, "rows": []},
+            ]
+        })
+        q.track()
+
+        result = pa.ipc.open_stream(q.read_result(0, output_format=yson.YsonString(b"arrow"))).read_all()
+        assert result.num_rows == 0
+        assert result.column_names == ["foo", "bar"]
 
     @authors("kirsiv40")
     def test_assigned_tracker_attribute_saves_after_query_finishes(self, query_tracker):
