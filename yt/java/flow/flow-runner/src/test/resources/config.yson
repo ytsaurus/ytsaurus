@@ -1,5 +1,0 @@
-{
-    "cluster_url" = "test_cluster";
-    "path" = "//some/yt/path/pipeline";
-    "proxy_role" = "test";
-}
