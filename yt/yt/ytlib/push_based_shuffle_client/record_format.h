@@ -29,6 +29,18 @@ static_assert(sizeof(TRecordHeader) == 16, "sizeof(TRecordHeader) != 16");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TIdentityColumnIds
+{
+    int MapperId = -1;
+    int RowId = -1;
+
+    bool AreValid() const noexcept;
+};
+
+constexpr int IdentityColumnCount = 2;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Header + uncompressed payload. UncompressedPayload is the row data
 //! only (offset table + varint-encoded rows); the 16-byte Header is a
 //! separate field and is never serialized into UncompressedPayload.
@@ -92,10 +104,12 @@ TShuffleRecord DecompressShuffleRecord(
     TRange<TSharedRef> wire,
     NCompression::ECodec codec);
 
-//! Materializes the rows of a shuffle record.
+//! Materializes rows and optionally appends mapper and row identity values.
 TParsedRecord ParseShuffleRecord(
     TShuffleRecord record,
-    TChunkedMemoryPool* pool);
+    TChunkedMemoryPool* pool,
+    std::optional<TIdentityColumnIds> identityColumnIds = {},
+    bool validateIdentityColumnIds = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

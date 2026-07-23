@@ -71,23 +71,27 @@ public:
         TPartitionReaderConfigPtr config,
         TCreateChunkSessionReaderCallback createDistributedChunkSessionReader,
         TRecordHeaderFilter recordHeaderFilter,
+        std::optional<TIdentityColumnIds> identityColumnIds,
         IInvokerPtr invoker)
         : Config_(std::move(config))
         , CreateDistributedChunkSessionReader_(std::move(createDistributedChunkSessionReader))
         , RecordHeaderFilter_(std::move(recordHeaderFilter))
+        , IdentityColumnIds_(std::move(identityColumnIds))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
         , Logger(PushBasedShuffleLogger())
     {
         YT_VERIFY(Config_);
         YT_VERIFY(CreateDistributedChunkSessionReader_);
+        YT_VERIFY(!IdentityColumnIds_ || IdentityColumnIds_->AreValid());
 
         YT_LOG_INFO(
             "Push-based shuffle reader created (Codec: %v, MaxBytesPerRead: %v, "
-            "RowBufferStartChunkSize: %v, HasHeaderFilter: %v)",
+            "RowBufferStartChunkSize: %v, HasHeaderFilter: %v, HasIdentityColumns: %v)",
             Config_->Codec,
             Config_->MaxBytesPerRead,
             Config_->RowBufferStartChunkSize,
-            static_cast<bool>(RecordHeaderFilter_));
+            static_cast<bool>(RecordHeaderFilter_),
+            static_cast<bool>(IdentityColumnIds_));
     }
 
     TFuture<TShuffleReadBatchPtr> Read() override
@@ -131,6 +135,7 @@ private:
     const TPartitionReaderConfigPtr Config_;
     const TCreateChunkSessionReaderCallback CreateDistributedChunkSessionReader_;
     TRecordHeaderFilter RecordHeaderFilter_;
+    const std::optional<TIdentityColumnIds> IdentityColumnIds_;
     const IInvokerPtr SerializedInvoker_;
     const TLogger Logger;
 
@@ -327,7 +332,11 @@ private:
                         continue;
                     }
                     auto record = DecompressShuffleRecord(blob, Config_->Codec);
-                    auto parsed = ParseShuffleRecord(std::move(record), holder->RowBuffer->GetPool());
+                    auto parsed = ParseShuffleRecord(
+                        std::move(record),
+                        holder->RowBuffer->GetPool(),
+                        IdentityColumnIds_,
+                        Config_->ValidateIdentityColumnIds);
                     holder->Payloads.push_back(std::move(parsed.UncompressedPayload));
                     batch->Records.push_back({
                         parsed.Header,
@@ -415,12 +424,14 @@ IPushBasedPartitionReaderPtr CreatePushBasedPartitionReaderForTesting(
     TPartitionReaderConfigPtr config,
     TCreateChunkSessionReaderCallback createDistributedChunkSessionReader,
     IInvokerPtr invoker,
-    TRecordHeaderFilter recordHeaderFilter)
+    TRecordHeaderFilter recordHeaderFilter,
+    std::optional<TIdentityColumnIds> identityColumnIds)
 {
     return New<TPushBasedPartitionReader>(
         std::move(config),
         std::move(createDistributedChunkSessionReader),
         std::move(recordHeaderFilter),
+        std::move(identityColumnIds),
         std::move(invoker));
 }
 
@@ -432,7 +443,8 @@ IPushBasedPartitionReaderPtr CreatePushBasedPartitionReader(
     TChunkReaderHostPtr chunkReaderHost,
     int readQuorum,
     IInvokerPtr invoker,
-    TRecordHeaderFilter recordHeaderFilter)
+    TRecordHeaderFilter recordHeaderFilter,
+    std::optional<TIdentityColumnIds> identityColumnIds)
 {
     auto createSessionReader = [
         config,
@@ -462,6 +474,7 @@ IPushBasedPartitionReaderPtr CreatePushBasedPartitionReader(
         std::move(config),
         std::move(createSessionReader),
         std::move(recordHeaderFilter),
+        std::move(identityColumnIds),
         std::move(invoker));
 }
 

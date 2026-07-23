@@ -20,6 +20,7 @@
 #include <library/cpp/yt/memory/weak_ptr.h>
 
 #include <memory>
+#include <string>
 
 namespace NYT::NPushBasedShuffleClient {
 
@@ -43,7 +44,8 @@ IPushBasedPartitionReaderPtr CreatePushBasedPartitionReaderForTesting(
     TPartitionReaderConfigPtr config,
     TCreateChunkSessionReaderCallback createDistributedChunkSessionReader,
     IInvokerPtr invoker,
-    TRecordHeaderFilter recordHeaderFilter = {});
+    TRecordHeaderFilter recordHeaderFilter = {},
+    std::optional<TIdentityColumnIds> identityColumnIds = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -296,6 +298,120 @@ TEST_F(TPartitionReaderTest, SingleChunkHappyPath)
     EXPECT_EQ(batch->Records[0].Rows[0][1].Data.Int64, 100);
     EXPECT_EQ(batch->Records[0].Rows[1][0].Data.Int64, 11);
     EXPECT_EQ(batch->Records[0].Rows[1][1].Data.Int64, 101);
+}
+
+TEST_F(TPartitionReaderTest, AppendsIdentityValues)
+{
+    auto mock = New<TMockChunkSessionReader>();
+    auto createSessionReader = [mock] (
+        TChunkId,
+        TChunkReplicaList,
+        i64,
+        std::optional<i64>)
+    {
+        return mock;
+    };
+
+    auto reader = CreatePushBasedPartitionReaderForTesting(
+        MakeConfig(),
+        createSessionReader,
+        Invoker(),
+        {},
+        TIdentityColumnIds{
+            .MapperId = 10,
+            .RowId = 11,
+        });
+
+    reader->AddChunk(TChunkId(1, 2, 3, 4), {}, 0, std::nullopt);
+    reader->SetNoMoreChunks();
+    DrainInvoker();
+
+    auto readFuture = reader->Read();
+    DrainInvoker();
+    ASSERT_TRUE(mock->HasPendingRead());
+
+    auto result = MakeSingleRecordResult(
+        /*mapperId*/ 7,
+        /*startRow*/ 100,
+        {{10, 1000}, {11, 1100}},
+        /*finished*/ true);
+    mock->SetNextReadResult(std::move(result));
+
+    auto batch = WaitFor(readFuture)
+        .ValueOrThrow();
+    ASSERT_EQ(std::ssize(batch->Records), 1);
+    ASSERT_EQ(std::ssize(batch->Records[0].Rows), 2);
+    for (int index = 0; index < 2; ++index) {
+        auto row = batch->Records[0].Rows[index];
+        ASSERT_EQ(row.GetCount(), 4u);
+        EXPECT_EQ(row[2].Id, 10u);
+        EXPECT_EQ(row[2].Data.Int64, 7);
+        EXPECT_EQ(row[3].Id, 11u);
+        EXPECT_EQ(row[3].Data.Int64, 100 + index);
+    }
+}
+
+struct TIdentityColumnValidationTestCase
+{
+    TIdentityColumnIds IdentityColumnIds;
+    std::string ExpectedError;
+};
+
+TEST_PI(
+    TPartitionReaderTest,
+    IdentityColumnValidationRejectsConflict,
+    ::testing::Values(
+        TIdentityColumnValidationTestCase{
+            .IdentityColumnIds = {
+                .MapperId = 1,
+                .RowId = 11,
+            },
+            .ExpectedError = "mapper identity column ID 1",
+        },
+        TIdentityColumnValidationTestCase{
+            .IdentityColumnIds = {
+                .MapperId = 10,
+                .RowId = 1,
+            },
+            .ExpectedError = "row identity column ID 1",
+        }),
+    TIdentityColumnValidationTestCase)
+{
+    const auto& testCase = GetParam();
+    auto mock = New<TMockChunkSessionReader>();
+    auto createSessionReader = [mock] (
+        TChunkId,
+        TChunkReplicaList,
+        i64,
+        std::optional<i64>)
+    {
+        return mock;
+    };
+    auto config = MakeConfig();
+    config->ValidateIdentityColumnIds = true;
+    auto reader = CreatePushBasedPartitionReaderForTesting(
+        std::move(config),
+        createSessionReader,
+        Invoker(),
+        {},
+        testCase.IdentityColumnIds);
+
+    reader->AddChunk(TChunkId(1, 2, 3, 4), {}, 0, std::nullopt);
+    reader->SetNoMoreChunks();
+    DrainInvoker();
+
+    auto readFuture = reader->Read();
+    DrainInvoker();
+    mock->SetNextReadResult(MakeSingleRecordResult(
+        /*mapperId*/ 7,
+        /*startRow*/ 100,
+        {{10, 1000}},
+        /*finished*/ true));
+
+    auto error = WaitFor(readFuture);
+    ASSERT_FALSE(error.IsOK());
+    EXPECT_THAT(error.GetMessage(), ::testing::HasSubstr(testCase.ExpectedError));
+    EXPECT_FALSE(WaitFor(reader->Read()).IsOK());
 }
 
 TEST_F(TPartitionReaderTest, MultiChunkStagedCoalescing)
