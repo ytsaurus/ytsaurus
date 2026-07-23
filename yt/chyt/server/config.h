@@ -677,19 +677,19 @@ DEFINE_REFCOUNTED_TYPE(TUserDefinedSqlObjectsStorageConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDictionaryRepositoryConfig
+struct TCypressObjectRepositoryConfig
     : public NYTree::TYsonStruct
 {
     NYPath::TYPath RootPath;
 
     TDuration UpdatePeriod;
 
-    REGISTER_YSON_STRUCT(TDictionaryRepositoryConfig);
+    REGISTER_YSON_STRUCT(TCypressObjectRepositoryConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDictionaryRepositoryConfig)
+DEFINE_REFCOUNTED_TYPE(TCypressObjectRepositoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -856,7 +856,7 @@ struct TYtConfig
 
     TUserDefinedSqlObjectsStorageConfigPtr UserDefinedSqlObjectsStorage;
 
-    TDictionaryRepositoryConfigPtr DictionaryRepository;
+    TCypressObjectRepositoryConfigPtr CypressObjectRepository;
 
     TDictionaryAccessControlConfigPtr DictionaryAccessControl;
 
