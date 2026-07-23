@@ -1,13 +1,15 @@
 #pragma once
 
-#include "client.h"
+#include <yt/yt/client/api/public.h>
+
+#include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NApi::IPrerequisitePtr CreateChaosLease(
-    IClientPtr client,
+    NApi::IClientPtr client,
     NRpc::IChannelPtr channel,
     NChaosClient::TChaosLeaseId id,
     TDuration timeout,
