@@ -78,6 +78,11 @@ class DictCurrentUser(TypedDict):
 
 def get_current_user(client=None) -> Optional[DictCurrentUser]:
     """Get current user info"""
+    return _get_current_user(client=client)
+
+
+def _get_current_user(client=None, raise_error=False) -> Optional[DictCurrentUser]:
+    """Get current user info"""
     # TODO: simplify after complet release `get_current_user`
     current_user = get_option("_current_user", client)
     if current_user:
@@ -96,7 +101,12 @@ def get_current_user(client=None) -> Optional[DictCurrentUser]:
             try:
                 current_user = {"user": get_user_name(client=client)}
             except YtError:
+                if raise_error:
+                    raise
                 return None
+        else:
+            if raise_error:
+                raise
 
     if current_user:
         set_option("_current_user", current_user, client)
