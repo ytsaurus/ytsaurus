@@ -13,7 +13,7 @@ using namespace NYT;
 
 ui32 AssignNodeId(const TAssignNodeIdOptions& options)
 {
-    Y_ABORT_UNLESS(!options.ClusterName.empty());
+    Y_ABORT_UNLESS(!options.ProxyAddress.empty());
     Y_ABORT_UNLESS(!options.NodeName.empty());
     Y_ABORT_UNLESS(!options.Prefix.empty());
     Y_ABORT_UNLESS(!options.Role.empty());
@@ -37,7 +37,7 @@ ui32 AssignNodeId(const TAssignNodeIdOptions& options)
     auto lockPath = options.Prefix + "/" + options.Role + "/lock";
     auto nodePath = options.Prefix + "/" + options.Role + "/" + options.NodeName;
 
-    auto client = CreateClient(options.ClusterName, TCreateClientOptions().Token(token));
+    auto client = CreateClient(options.ProxyAddress, TCreateClientOptions().Token(token));
     // create std directories
     client->Create(options.Prefix, ENodeType::NT_MAP, TCreateOptions().IgnoreExisting(true).Recursive(true));
     client->Create(options.Prefix + "/" + options.Role, ENodeType::NT_MAP, TCreateOptions().IgnoreExisting(true));

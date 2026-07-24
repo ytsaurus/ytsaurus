@@ -71,7 +71,7 @@ public:
 
         NYql::TAssignNodeIdOptions options;
 
-        options.ClusterName = Config.GetClusterName();
+        options.ProxyAddress = Config.GetProxyAddress();
         options.User = Config.GetUser();
         options.Token = Config.GetToken();
         options.Prefix = Config.GetPrefix();
@@ -171,15 +171,15 @@ public:
         return Config;
     }
 
-    const NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& clusterName, const TString& user, const TString& token) override {
-        auto key = std::make_tuple(clusterName, user, token);
+    const NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& proxyAddress, const TString& user, const TString& token) override {
+        auto key = std::make_tuple(proxyAddress, user, token);
         auto guard = Guard(Mutex);
         auto it = Yt.find(key);
         if (it != Yt.end()) {
             return it->second;
         } else {
-            auto client = GetYtClient(clusterName, user, token);
-            auto wrapper = CreateYtWrapper(client, clusterName);
+            auto client = GetYtClient(proxyAddress, user, token);
+            auto wrapper = CreateYtWrapper(client, proxyAddress);
             auto actorId = Register(actorSystem, wrapper);
             Yt.emplace(key, actorId);
             return actorId;
@@ -187,11 +187,11 @@ public:
     }
 
     const NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem) override {
-        return GetWrapper(actorSystem, Config.GetClusterName(), Config.GetUser(), Config.GetToken());
+        return GetWrapper(actorSystem, Config.GetProxyAddress(), Config.GetUser(), Config.GetToken());
     }
 
     const NActors::TActorId GetWrapper() override {
-        auto key = std::make_tuple(Config.GetClusterName(), Config.GetUser(), Config.GetToken());
+        auto key = std::make_tuple(Config.GetProxyAddress(), Config.GetUser(), Config.GetToken());
         auto guard = Guard(Mutex);
         auto it = Yt.find(key);
         Y_ABORT_UNLESS(it != Yt.end());
@@ -229,11 +229,11 @@ protected:
         return id;
     }
 
-    NYT::NApi::IClientPtr GetYtClient(const TString& clusterName, const TString& user, const TString& token)
+    NYT::NApi::IClientPtr GetYtClient(const TString& proxyAddress, const TString& user, const TString& token)
     {
         NYT::NApi::NRpcProxy::TConnectionConfigPtr config = NYT::New<NYT::NApi::NRpcProxy::TConnectionConfig>();
         config->RequestCodec = NYT::NCompression::ECodec::Lz4;
-        config->ClusterUrl = clusterName;
+        config->ClusterUrl = proxyAddress;
         config->ConnectionType = NYT::NApi::EConnectionType::Rpc;
 
         auto connection = NYT::NApi::NRpcProxy::CreateConnection(config);
@@ -248,7 +248,7 @@ protected:
 
     NYT::NApi::IClientPtr GetYtClient()
     {
-        return GetYtClient(Config.GetClusterName(), Config.GetUser(), Config.GetToken());
+        return GetYtClient(Config.GetProxyAddress(), Config.GetUser(), Config.GetToken());
     }
 
     const NProto::TDqConfig::TYtCoordinator Config;
@@ -315,7 +315,7 @@ public:
 ICoordinationHelper::TPtr CreateCoordiantionHelper(const NProto::TDqConfig::TYtCoordinator& cfg, const NProto::TDqConfig::TScheduler& schedulerConfig, const TString& role, ui16 interconnectPort, const TString& host, const TString& ip)
 {
     NProto::TDqConfig::TYtCoordinator config = cfg;
-    auto clusterName = config.GetClusterName();
+    const auto proxyAddress = config.GetProxyAddress();
 
     TString userName;
     TString token;
@@ -324,7 +324,7 @@ ICoordinationHelper::TPtr CreateCoordiantionHelper(const NProto::TDqConfig::TYtC
         // internal job
         userName = config.GetUser();
         token = config.GetToken();
-    } else if (!clusterName.empty()) {
+    } else if (!proxyAddress.empty()) {
         std::tie(userName, token) = NDqs::GetUserToken(
             config.HasUser() ? TMaybe<TString>(config.GetUser()) : TMaybe<TString>(),
             config.HasTokenFile() ? TMaybe<TString>(config.GetTokenFile()) : TMaybe<TString>()
@@ -335,7 +335,7 @@ ICoordinationHelper::TPtr CreateCoordiantionHelper(const NProto::TDqConfig::TYtC
 
     if (config.GetLockType() != "dummy") {
         Y_ABORT_UNLESS(!token.empty());
-        Y_ABORT_UNLESS(!clusterName.empty());
+        Y_ABORT_UNLESS(!proxyAddress.empty());
         Y_ABORT_UNLESS(!userName.empty());
         Y_ABORT_UNLESS(!prefix.empty());
     }
