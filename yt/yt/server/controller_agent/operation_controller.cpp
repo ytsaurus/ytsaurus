@@ -1,4 +1,5 @@
 #include "config.h"
+#include "experiments.h"
 #include "helpers.h"
 #include "operation.h"
 #include "operation_controller.h"
@@ -567,119 +568,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ApplyPatch(
-    const TYPath& path,
-    const INodePtr& root,
-    const INodePtr& templatePatch,
-    const INodePtr& patch)
-{
-    auto node = FindNodeByYPath(root, path);
-    if (node) {
-        node = CloneNode(node);
-    }
-    if (templatePatch) {
-        if (node) {
-            node = PatchNode(templatePatch, node);
-        } else {
-            node = templatePatch;
-        }
-    }
-    if (patch) {
-        if (node) {
-            node = PatchNode(node, patch);
-        } else {
-            node = patch;
-        }
-    }
-    if (node) {
-        ForceYPath(root, path);
-        // Note that #node may be equal to one of the #root's subtrees or to one of the patches.
-        // In any case, we do not want to use it as an argument to SetNodeByYPath, since this wonderful
-        // method would change the parent of the argument node, which may lead to child-parent relation inconsistency.
-        SetNodeByYPath(root, path, CloneNode(node));
-    }
-}
-
-void ApplyExperiments(TOperation* operation)
-{
-    const auto& spec = operation->GetSpec();
-    std::vector<TYPath> userJobPaths;
-    std::vector<TYPath> jobIOPaths;
-    jobIOPaths.push_back("/auto_merge/job_io");
-    switch (operation->GetType()) {
-        case EOperationType::Map: {
-            userJobPaths.push_back("/mapper");
-            jobIOPaths.push_back("/job_io");
-            break;
-        }
-        case EOperationType::JoinReduce:
-        case EOperationType::Reduce: {
-            userJobPaths.push_back("/reducer");
-            jobIOPaths.push_back("/job_io");
-            break;
-        }
-        case EOperationType::MapReduce: {
-            if (FindNodeByYPath(spec, "/mapper")) {
-                userJobPaths.push_back("/mapper");
-            }
-            if (FindNodeByYPath(spec, "/reduce_combiner")) {
-                userJobPaths.push_back("/reduce_combiner");
-            }
-            userJobPaths.push_back("/reducer");
-            jobIOPaths.push_back("/map_job_io");
-            jobIOPaths.push_back("/sort_job_io");
-            jobIOPaths.push_back("/reduce_job_io");
-            break;
-        }
-        case EOperationType::Sort: {
-            jobIOPaths.push_back("/partition_job_io");
-            jobIOPaths.push_back("/sort_job_io");
-            jobIOPaths.push_back("/merge_job_io");
-            break;
-        }
-        case EOperationType::Merge:
-        case EOperationType::Erase:
-        case EOperationType::RemoteCopy: {
-            jobIOPaths.push_back("/job_io");
-            break;
-        }
-        case EOperationType::Vanilla: {
-            auto tasks = GetNodeByYPath(spec, "/tasks");
-            for (const auto& key : tasks->AsMap()->GetKeys()) {
-                userJobPaths.push_back("/tasks/" + key);
-                jobIOPaths.push_back("/tasks/" + key + "/job_io");
-            }
-            break;
-        }
-    }
-
-    INodePtr optionsPatch;
-
-    for (const auto& experiment : operation->ExperimentAssignments()) {
-        for (const auto& path : userJobPaths) {
-            ApplyPatch(
-                path,
-                spec,
-                experiment->Effect->ControllerUserJobSpecTemplatePatch,
-                experiment->Effect->ControllerUserJobSpecPatch);
-        }
-        for (const auto& path : jobIOPaths) {
-            ApplyPatch(
-                path,
-                spec,
-                experiment->Effect->ControllerJobIOTemplatePatch,
-                experiment->Effect->ControllerJobIOPatch);
-        }
-        if (const auto& node = experiment->Effect->ControllerOptionsPatch; node) {
-            optionsPatch = optionsPatch
-                ? PatchNode(optionsPatch, node)
-                : node;
-        }
-    }
-
-    operation->SetOptionsPatch(std::move(optionsPatch));
-}
-
 IOperationControllerPtr CreateControllerForOperation(
     TControllerAgentConfigPtr config,
     TOperation* operation,
@@ -687,7 +575,15 @@ IOperationControllerPtr CreateControllerForOperation(
 {
     IOperationControllerPtr controller;
     auto host = operation->GetHost();
-    ApplyExperiments(operation);
+
+    INodePtr optionsPatch;
+    ApplyExperiments(
+        operation->GetSpec(),
+        operation->GetType(),
+        operation->ExperimentAssignments(),
+        &optionsPatch);
+    operation->SetOptionsPatch(std::move(optionsPatch));
+
     switch (operation->GetType()) {
         case EOperationType::Map: {
             auto baseSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
