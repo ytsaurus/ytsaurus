@@ -111,7 +111,7 @@ TSwiftOrderedSourceComputation::TSwiftOrderedSourceComputation(
 
 void TSwiftOrderedSourceComputation::DoPrepare(const IComputationRunContextPtr& context)
 {
-    InitOutputStoreDistribution(context, /*allowOutputDuplicates*/ false);
+    InitOutputStoreDistribution(context);
 }
 
 void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& context, TTraceContextGuard&& initTraceContextGuard)

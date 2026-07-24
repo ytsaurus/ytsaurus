@@ -528,7 +528,7 @@ protected:
         }));
     }
 
-    void InitOutputStoreDistribution(const IComputationRunContextPtr& context, bool allowOutputDuplicates);
+    void InitOutputStoreDistribution(const IComputationRunContextPtr& context);
 
     void Run(const IComputationRunContextPtr& context) final;
 
@@ -642,7 +642,6 @@ private:
     TStreamEventLagObserver OutputEventLagObserver_;
 
     TIntrusivePtr<TPendingDistributedOutputs> PendingProcessedOutputs_;
-    std::optional<bool> AllowOutputDuplicates_;
 
 private:
     std::optional<TStreamId> CreateActiveSourceStreamId();
