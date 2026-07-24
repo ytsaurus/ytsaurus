@@ -273,7 +273,7 @@ TInternalReadResponse DoRead(
             ++response.IORequests;
 
             if (reallyRead > 0) {
-                sensors->RegisterReadBytes(reallyRead);
+                sensors->RegisterReadBytes(reallyRead, category);
             }
 
             YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
@@ -444,7 +444,7 @@ TWriteResponse DoWriteAligned(
                 ythrow TFileError();
             }
 
-            sensors->RegisterWrittenBytes(reallyWritten);
+            sensors->RegisterWrittenBytes(reallyWritten, category);
             fileOffset += reallyWritten;
             bufferOffset += reallyWritten;
             toWriteRemaining -= reallyWritten;
@@ -531,7 +531,7 @@ TWriteResponse DoWriteImpl(
                     ythrow TFileError();
                 }
 
-                sensors->RegisterWrittenBytes(reallyWritten);
+                sensors->RegisterWrittenBytes(reallyWritten, category);
                 if (simulatedMaxBytesPerWrite) {
                     reallyWritten = Min(reallyWritten, *simulatedMaxBytesPerWrite);
                 }
@@ -568,7 +568,7 @@ TWriteResponse DoWriteImpl(
                     ythrow TFileError();
                 }
 
-                sensors->RegisterWrittenBytes(reallyWritten);
+                sensors->RegisterWrittenBytes(reallyWritten, category);
                 fileOffset += reallyWritten;
                 bufferOffset += reallyWritten;
                 toWriteRemaining -= reallyWritten;
@@ -1010,7 +1010,7 @@ public:
                         std::move(slice.Request),
                         std::move(slice.OutputBuffer),
                         TWallTimer(),
-                        CreateInFlightRequestGuard(EIOEngineRequestType::Read));
+                        CreateInFlightRequestGuard(EIOEngineRequestType::Read, category));
                 futures.push_back(std::move(future));
             }
         }
@@ -1076,7 +1076,7 @@ public:
                 .Run(
                     std::move(slice),
                     TWallTimer(),
-                    CreateInFlightRequestGuard(EIOEngineRequestType::Write));
+                    CreateInFlightRequestGuard(EIOEngineRequestType::Write, category));
             futures.push_back(std::move(future));
         }
 
@@ -1241,7 +1241,7 @@ public:
                     timer = TWallTimer(),
                     category = category,
                     sessionId = sessionId,
-                    requestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Read)] () mutable {
+                    requestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Read, category)] () mutable {
                     const auto readWaitTime = timer.GetElapsedTime();
                     AddReadWaitTimeSample(readWaitTime);
 
@@ -1333,7 +1333,7 @@ public:
                 this_ = MakeStrong(this),
                 request = std::move(slice),
                 timer = TWallTimer(),
-                requestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Write)] () mutable {
+                requestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Write, category)] () mutable {
                 AddWriteWaitTimeSample(timer.GetElapsedTime());
                 TSharedMutableRef writeBlob;
                 if (request.Handle->IsOpenForDirectIO()) {
