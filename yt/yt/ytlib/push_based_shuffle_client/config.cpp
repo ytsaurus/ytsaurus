@@ -47,6 +47,24 @@ void TPartitionReaderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSortReaderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bucket_row_count", &TThis::BucketRowCount)
+        .Default(10'000)
+        .GreaterThan(0);
+    registrar.Parameter("max_rows_per_read", &TThis::MaxRowsPerRead)
+        .Default(10'000)
+        .GreaterThan(0);
+    registrar.Parameter("max_data_weight_per_read", &TThis::MaxDataWeightPerRead)
+        .Default(16_MB)
+        .GreaterThan(0);
+    registrar.Parameter("merge_yield_period", &TThis::MergeYieldPeriod)
+        .Default(TDuration::MilliSeconds(10))
+        .GreaterThan(TDuration::Zero());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TPushShuffleConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("writer_config", &TThis::WriterConfig)
