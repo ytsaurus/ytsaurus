@@ -733,6 +733,7 @@ private:
     bool PingAncestors_ = false;
     std::optional<std::string> PingerAddress_;
     std::optional<TDuration> Timeout_;
+    std::optional<EMasterTransactionExpirationMode> MasterExpirationMode_;
     EAtomicity Atomicity_ = EAtomicity::Full;
     EDurability Durability_ = EDurability::Sync;
     TCellTag ClockClusterTag_ = InvalidCellTag;
@@ -874,6 +875,9 @@ private:
         if (!options.Ping) {
             THROW_ERROR_EXCEPTION("Cannot switch off pings for a tablet transaction");
         }
+        if (options.MasterExpirationMode) {
+            THROW_ERROR_EXCEPTION("Cannot set \"master_expiration_mode\" for a tablet transaction");
+        }
         if (options.Atomicity == EAtomicity::Full && options.Durability != EDurability::Sync) {
             THROW_ERROR_EXCEPTION("Durability must be %Qlv for tablet transactions with %Qlv atomicity",
                 EDurability::Sync,
@@ -936,6 +940,7 @@ private:
             PingAncestors_ = options.PingAncestors;
             PingerAddress_ = options.PingerAddress;
             Timeout_ = options.Timeout;
+            MasterExpirationMode_ = options.MasterExpirationMode;
             Atomicity_ = options.Atomicity;
             Durability_ = options.Durability;
             PrerequisiteTransactionIds_ = options.PrerequisiteTransactionIds;
@@ -1086,6 +1091,10 @@ private:
             AutoAbort_,
             Ping_,
             PingAncestors_);
+
+        if (MasterExpirationMode_ == EMasterTransactionExpirationMode::Pessimistic) {
+            PingLeaseDeadline_.store(TInstant::Now() + GetTimeout());
+        }
 
         if (Ping_) {
             RunPeriodicPings();
@@ -1650,7 +1659,13 @@ private:
             YT_LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
                 Id_,
                 cellId);
-            PingLeaseDeadline_.store(TInstant::Now() + GetTimeout());
+            // Only pessimistic transactions track a ping lease; optimistic ones keep the deadline at
+            // TInstant::Max() so they never self-fence. Tablet transactions default to pessimistic.
+            if (Type_ == ETransactionType::Tablet ||
+                MasterExpirationMode_ == EMasterTransactionExpirationMode::Pessimistic)
+            {
+                PingLeaseDeadline_.store(TInstant::Now() + GetTimeout());
+            }
             return TError();
         } else if (
             rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction &&
@@ -1724,7 +1739,8 @@ private:
 
     bool IsPingLeaseExpired()
     {
-        return Type_ == ETransactionType::Tablet && PingLeaseDeadline_.load() < TInstant::Now();
+        // Optimistic transactions keep the deadline at TInstant::Max(), so no mode check is needed.
+        return PingLeaseDeadline_.load() < TInstant::Now();
     }
 
 
