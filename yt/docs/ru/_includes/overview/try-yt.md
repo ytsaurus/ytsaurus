@@ -45,15 +45,15 @@
       - Если у вас Mac — установите [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) либо [Podman](https://podman.io/docs/installation) в качестве альтернативы. Убедитесь, что у вас установлена и включена [Rosetta 2](https://support.apple.com/ru-ru/102527).
 
   2. Скачайте скрипт [run_local_cluster.sh](https://github.com/ytsaurus/ytsaurus/tree/main/yt/docker/local) для развёртывания кластера и выставьте права на исполнение:
-     ```bash
-     mkdir ~/yt-local && cd ~/yt-local
-     curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/main/yt/docker/local/run_local_cluster.sh > run_local_cluster.sh
-     chmod +x run_local_cluster.sh
+     ```bash prompt="$"
+     $ mkdir ~/yt-local && cd ~/yt-local
+     $ curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/main/yt/docker/local/run_local_cluster.sh > run_local_cluster.sh
+     $ chmod +x run_local_cluster.sh
      ```
 
   3. Чтобы поднять кластер, запустите скрипт:
-     ```bash
-     ./run_local_cluster.sh
+     ```bash prompt="$"
+     $ ./run_local_cluster.sh
      ```
 
      Этот скрипт создаст и запустит [docker-контейнеры](*about-docker-containers), в которых будет развёрнут {{product-name}}. Если всё прошло успешно, появится сообщение:
@@ -66,7 +66,7 @@
      - `localhost:8000` — адрес серверной части кластера. Этот адрес нужно будет [указать](#set-vars) в качестве адреса прокси для доступа к кластеру через CLI.
 
   4. Чтобы убедиться, что всё работает, запустите команду:
-     ```bash
+     ```bash prompt="$"
      $ docker ps | grep yt
      CONTAINER ID   IMAGE                           COMMAND                  CREATED         STATUS         PORTS              NAMES
      2c254e35037c   ghcr.io/ytsaurus/local:stable   "--fqdn localhost --…"   2 minutes ago   Up 2 minutes   80/tcp, 8002/tcp   yt.backend
@@ -80,7 +80,7 @@
 
        Чтобы узнать, какие компоненты {{product-name}} подняты в системе, можно посмотреть на список запущенных процессов внутри контейнера:
 
-       ```bash
+       ```bash prompt="$"
        $ docker exec -it yt.backend /bin/bash
        $ ps -axo command | grep ytserver
        /mnt/rosetta /usr/bin/python3.8 /usr/local/bin/yt_local start --proxy-port 80 --local-cypress-dir /var/lib/yt/local-cypress --fqdn localhost --ytserver-all-path /usr/bin/ytserver-all --sync --fqdn localhost --proxy-config {coordinator={public_fqdn="localhost:8000"}} --rpc-proxy-count 0 --rpc-proxy-port 8002 --node-count 1 --queue-agent-count 1 --address-resolver-config {enable_ipv4=%true;enable_ipv6=%false;} --native-client-supported --id primary -c {name=query-tracker} -c {name=yql-agent;config={path="/usr/bin";count=1;artifacts_path="/usr/bin"}}
@@ -148,7 +148,7 @@
 
   #### 2. Поднимите кластер Kubernetes {#k8s-start}
 
-  ```bash
+  ```bash prompt="$"
   $ minikube start  --cpus=6 --memory=8192 --driver=docker
 
   # Если вы используете Podman
@@ -157,7 +157,7 @@
 
   Когда кластер Kubernetes будет поднят, должна успешно выполняться команда:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl cluster-info
   Kubernetes control plane is running at https://127.0.0.1:36399
   CoreDNS is running at https://127.0.0.1:36399/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
@@ -165,13 +165,13 @@
 
   #### 3. Установите cert-manager { #cert-manager-apply }
 
-  ```bash
-  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/{{cert-manager-version}}/cert-manager.yaml
+  ```bash prompt="$"
+  $ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/{{cert-manager-version}}/cert-manager.yaml
   ```
 
   Дождитесь, когда под `cert-manager-webhook` будет находиться в состоянии `Running`:
 
-  ```
+  ```bash prompt="$"
   $ kubectl get pods -A
   NAMESPACE        NAME                                        READY   STATUS      RESTARTS   AGE
   cert-manager     cert-manager-7b5cdf866f-5lfth               1/1     Running     0          2m12s
@@ -186,15 +186,15 @@
   [{{product-name}} оператор](https://github.com/ytsaurus/ytsaurus-k8s-operator) — это программа, которая управляет исполнением {{product-name}} в Kubernetes кластере. Оператор следит за тем, чтобы все компоненты {{product-name}} были запущены и работали корректно.
 
   Установите чарт:
-  ```bash
-  helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}
+  ```bash prompt="$"
+  $ helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}
   ```
 
   {% cut "Если возникла ошибка 'Internal error occurred: failed calling webhook "webhook.cert-manager.io"'" %}
 
   Проверьте, какой статус у пода `cert-manager-webhook`:
 
-  ```
+  ```bash prompt="$"
   $ kubectl get pods -A
   NAMESPACE       NAME                                      READY   STATUS               RESTARTS   AGE
   cert-manager    cert-manager-7b5cdf866f-5lfth             1/1     ContainerCreating    0          2m12s
@@ -210,7 +210,7 @@
 
   Дождитесь, когда оператор будет находиться в статусе `Running`:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl get pod
   NAME                                                      READY   STATUS     RESTARTS   AGE
   ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0          7m57s
@@ -218,14 +218,14 @@
 
   #### 5. Запустите {{product-name}} кластер {#yt-start}
 
-  ```bash
-  curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/cluster-config/cluster_v1_local.yaml > cluster_v1_local.yaml
-  kubectl apply -f cluster_v1_local.yaml
+  ```bash prompt="$"
+  $ curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/cluster-config/cluster_v1_local.yaml > cluster_v1_local.yaml
+  $ kubectl apply -f cluster_v1_local.yaml
   ```
 
   Обычно запуск {{product-name}} кластера занимает несколько минут. Если всё прошло успешно, список запущенных подов будет выглядеть следующим образом:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl get pod
   NAME                                                      READY   STATUS              RESTARTS   AGE
   ca-0                                                      1/1     Running     0          8m43s
@@ -255,7 +255,7 @@
 
   Скорее всего, это связано с нехваткой ресурсов. Удалите Minikube кластер и попробуйте создать его заново, увеличив число ресурсов при запуске.
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl delete -f cluster_v1_local.yaml
   $ minikube delete
   $ minikube start --cpus=8 --memory=10000 --driver=docker
@@ -271,7 +271,7 @@
 
   Чтобы посмотреть, по какому адресу будет доступен кластер {{product-name}}, запустите команды:
 
-  ```bash
+  ```bash prompt="$"
   # Сетевой доступ до веб-интерфейса
   $ minikube service ytsaurus-ui --url
   http://192.168.49.2:30539
@@ -290,15 +290,15 @@
   {% cut "Как получить доступ к веб-интерфейсу, если кластер развёрнут на удалённом хосте" %}
 
   1. На удалённом хосте запустите команду:
-     ```bash
+     ```bash prompt="$"
      $ minikube service http-proxies-lb --url
      <HOST>:<PORT>
      ```
      Значения `<HOST>` и `<PORT>` вам понадобятся на следующем шаге.
 
   2. На локальном хосте запустите новую сессию терминала и выполните:
-     ```
-     ssh -fnNT -L 127.0.0.1:8080:<HOST>:<PORT> <VM>
+     ```bash prompt="$"
+     $ ssh -fnNT -L 127.0.0.1:8080:<HOST>:<PORT> <VM>
      ```
      Веб-интерфейс будет доступен по адресу [127.0.0.1:8080](http://127.0.0.1:8080).
 
@@ -343,18 +343,18 @@
 
   #### 2. Поднимите кластер Kubernetes {#kind-k8s-start}
 
-  ```bash
-  kind create cluster --name ytsaurus
+  ```bash prompt="$"
+  $ kind create cluster --name ytsaurus
   ```
 
   Когда кластер Kubernetes будет поднят, переключите контекст k8s на созданный кластер:
-  ```bash
-  kubectl cluster-info --context kind-ytsaurus
+  ```bash prompt="$"
+  $ kubectl cluster-info --context kind-ytsaurus
   ```
 
   Проверьте, что кластер доступен и работает:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl cluster-info
   Kubernetes control plane is running at https://127.0.0.1:38797
   CoreDNS is running at https://127.0.0.1:38797/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
@@ -363,24 +363,24 @@
   {% note warning %}
 
   В некоторых случаях &mdash; например, с использованием операционной системы Ubuntu 22.04 &mdash; могут быть проблемы со стартом k8s-кластера. В этом случае стоит попробовать воспользоваться Kind версии 0.20.0:
-  ```bash
-  curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
-  chmod +x ./kind
-  sudo mv ./kind /usr/local/bin/kind
-  kind create cluster --name ytsaurus
+  ```bash prompt="$"
+  $ curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+  $ chmod +x ./kind
+  $ sudo mv ./kind /usr/local/bin/kind
+  $ kind create cluster --name ytsaurus
   ```
 
   {% endnote %}
 
   #### 3. Установите cert-manager { #kind-cert-manager-apply }
 
-  ```bash
-  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/{{cert-manager-version}}/cert-manager.yaml
+  ```bash prompt="$"
+  $ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/{{cert-manager-version}}/cert-manager.yaml
   ```
 
   Дождитесь, когда под `cert-manager-webhook` будет находиться в состоянии `Running`:
 
-  ```
+  ```bash prompt="$"
   $ kubectl get pods -A
   NAMESPACE        NAME                                        READY   STATUS      RESTARTS   AGE
   cert-manager     cert-manager-7b5cdf866f-5lfth               1/1     Running     0          2m12s
@@ -395,8 +395,8 @@
   [{{product-name}} оператор](https://github.com/ytsaurus/ytsaurus-k8s-operator) — это программа, которая управляет исполнением {{product-name}} в Kubernetes кластере. Оператор следит за тем, чтобы все компоненты {{product-name}} были запущены и работали корректно.
 
   Установите чарт:
-  ```bash
-  helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}
+  ```bash prompt="$"
+  $ helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}
   ```
 
   {% cut "Если возникла ошибка 'Internal error occurred: failed calling webhook "webhook.cert-manager.io"'" %}
@@ -419,7 +419,7 @@
 
   Дождитесь, когда оператор будет находиться в статусе `Running`:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl get pod
   NAME                                                      READY   STATUS     RESTARTS   AGE
   ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0          7m57s
@@ -427,14 +427,14 @@
 
   #### 5. Запустите {{product-name}} кластер {#kind-yt-start}
 
-  ```bash
-  curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/cluster-config/cluster_v1_local.yaml > cluster_v1_local.yaml
-  kubectl apply -f cluster_v1_local.yaml
+  ```bash prompt="$"
+  $ curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/cluster-config/cluster_v1_local.yaml > cluster_v1_local.yaml
+  $ kubectl apply -f cluster_v1_local.yaml
   ```
 
   Обычно запуск {{product-name}} кластера занимает несколько минут. Если всё прошло успешно, список запущенных подов будет выглядеть следующим образом:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl get pod
   NAME                                                      READY   STATUS              RESTARTS   AGE
   ca-0                                                      1/1     Running     0          8m43s
@@ -466,8 +466,8 @@
 
   - Чтобы получить доступ к веб-интерфейсу кластера по адресу `localhost:8080`, в отдельном терминале выполните команду:
 
-     ```bash
-     kubectl port-forward service/ytsaurus-ui 8080:80
+     ```bash prompt="$"
+     $ kubectl port-forward service/ytsaurus-ui 8080:80
      ```
 
      Для входа используйте:
@@ -478,22 +478,22 @@
 
   - Чтобы получить доступ к API кластера по адресу `localhost:8081`, в отдельном терминале выполните команду:
 
-     ```bash
-     kubectl port-forward service/http-proxies-lb 8081:80
+     ```bash prompt="$"
+     $ kubectl port-forward service/http-proxies-lb 8081:80
      ```
 
   - Для работы через [RPC proxy](../../user-guide/proxy/rpc.md) по адресу `localhost:8082` в отдельном терминале выполните команду:
 
-    ```bash
-    kubectl port-forward service/rpc-proxies-lb 8082:9013
+    ```bash prompt="$"
+    $ kubectl port-forward service/rpc-proxies-lb 8082:9013
     ```
 
     {% note info %}
 
     Чтобы RPC proxy был доступен через Discovery, необходимо прописать его как балансер в `//sys/rpc_proxies/@balancers`:
 
-    ```bash
-    yt --proxy localhost:8081 set --format json //sys/rpc_proxies/@balancers '{ "default": { "internal_rpc": { "default": ["localhost:8082"]} } }'
+    ```bash prompt="$"
+    $ yt --proxy localhost:8081 set --format json //sys/rpc_proxies/@balancers '{ "default": { "internal_rpc": { "default": ["localhost:8082"]} } }'
     ```
     {% endnote %}
 
@@ -525,14 +525,14 @@
      ```
 
      Запуск Kind кластера с указанием конфига:
-     ```bash
-     kind create cluster --name ytsaurus --config=kind-config.yaml
+     ```bash prompt="$"
+     $ kind create cluster --name ytsaurus --config=kind-config.yaml
      ```
 
   2. Настроить проброс портов из веб-интерфейса и проксей в {{product-name}} кластере.
 
      Для этого в конфиге {{product-name}} кластера необходимо указать опцию `httpNodePort` в проксях и веб-интерфейсе. Для RPC-прокси используется опция `nodePort`:
-     ```bash
+     ```bash prompt="$"
      $ grep nodePort: -iB 5 cluster_v1_local_with_ports.yaml
        httpProxies:
          - serviceType: NodePort
@@ -582,42 +582,42 @@
 
 1. Для начала установите менеджер пакетов pip3, если он у вас ещё не установлен:
 
-```bash
-sudo apt update
-sudo apt install python3-pip
+```bash prompt="$"
+$ sudo apt update
+$ sudo apt install python3-pip
 ```
 
 2. Проверьте, что всё получилось:
 
-```bash
+```bash prompt="$"
 $ pip3 --version
 pip 22.0.2 from ...
 ```
 
 3. Установите утилиту `ytsaurus-client`:
 
-```bash
-pip3 install --user ytsaurus-client
+```bash prompt="$"
+$ pip3 install --user ytsaurus-client
 ```
 
 4. Добавьте путь до `$HOME/.local/bin` в переменную `PATH`:
 
-```bash
-export PATH="$PATH:$HOME/.local/bin"
+```bash prompt="$"
+$ export PATH="$PATH:$HOME/.local/bin"
 ```
 
 {% cut "Как сохранить это изменение после перезагрузки системы" %}
 
-```bash
-echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc # Команда добавит строку в конец файла ~/.bashrc
-source ~/.bashrc  # Применить изменения сейчас
+```bash prompt="$"
+$ echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc # Команда добавит строку в конец файла ~/.bashrc
+$ source ~/.bashrc  # Применить изменения сейчас
 ```
 
 {% endcut %}
 
 6. Проверьте, что установка {{product-name}} СLI прошла успешно:
 
-```bash
+```bash prompt="$"
 $ yt --version
 Version: YT wrapper 0.13.20
 ```
@@ -637,17 +637,17 @@ Version: YT wrapper 0.13.20
 
 - Docker {selected}
 
-  ```bash
-  export YT_PROXY=localhost:8000
+  ```bash prompt="$"
+  $ export YT_PROXY=localhost:8000
   ```
 
 - Minikube
 
-  ```bash
-  export YT_PROXY=`minikube service http-proxies-lb --url`
+  ```bash prompt="$"
+  $ export YT_PROXY=`minikube service http-proxies-lb --url`
   # Отключить автоматическое обнаружение прокси-сервера {{product-name}}
-  export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
-  export YT_TOKEN=password
+  $ export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
+  $ export YT_TOKEN=password
   ```
 
   {% note warning %}
@@ -658,11 +658,11 @@ Version: YT wrapper 0.13.20
 
 - Kind
 
-  ```bash
-  export YT_PROXY='localhost:8081'
+  ```bash prompt="$"
+  $ export YT_PROXY='localhost:8081'
   # Отключить автоматическое обнаружение прокси-сервера {{product-name}}
-  export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
-  export YT_TOKEN=password
+  $ export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
+  $ export YT_TOKEN=password
   ```
 
   {% note warning %}
@@ -677,7 +677,7 @@ Version: YT wrapper 0.13.20
 
 В {{product-name}} все данные хранятся в [таблицах](../../user-guide/storage/static-tables.md). Поэтому для начала создайте таблицу:
 
-```bash
+```bash prompt="$"
 $ yt create table //home/input_table --attributes '{schema = [{name = id; type = int64}; {name = text; type = string}]}'
 > 16-64ca-10191-47007b7d
 ```
@@ -692,14 +692,14 @@ $ yt create table //home/input_table --attributes '{schema = [{name = id; type =
 
 Теперь запишите данные в таблицу, вызвав команду [write-table](../../api/cli/commands.md#write-table):
 
-```bash
-echo '{ "id": 0, "text": "Hello" } { "id": 1, "text": "World!" }' | yt write-table //home/input_table --format json
+```bash prompt="$"
+$ echo '{ "id": 0, "text": "Hello" } { "id": 1, "text": "World!" }' | yt write-table //home/input_table --format json
 ```
 
 ### 4. Прочитайте результат { #get-result }
 
 Чтобы убедиться, что данные записались в таблицу, выполните команду:
-```bash
+```bash prompt="$"
 $ yt read-table //home/input_table --format json
 {"id":0,"text":"Hello"}
 {"id":1,"text":"World!"}
@@ -752,9 +752,9 @@ SELECT * FROM `//home/input_table`;
 
 Скачайте [исходный текст](https://github.com/ytsaurus/ytsaurus/blob/main/yt/docs/code-examples/source/moem.txt) и преобразуйте его в tab-separated формат:
 
-```bash
-curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/source/moem.txt > source.txt
-awk '{gsub(/\t/, "\\t"); print "lineno="NR"\ttext="$0}' source.txt > source.tsv
+```bash prompt="$"
+$ curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/source/moem.txt > source.txt
+$ awk '{gsub(/\t/, "\\t"); print "lineno="NR"\ttext="$0}' source.txt > source.tsv
 ```
 
 {% cut "Про tab-separated формат" %}
@@ -769,38 +769,38 @@ awk '{gsub(/\t/, "\\t"); print "lineno="NR"\ttext="$0}' source.txt > source.tsv
 
 Подготовьте исходник программы, которая будет выполнять MapReduce операцию. Скачайте [скрипт]({{pages.try-yt.mr-source}}) — он написан на Python&nbsp;3 — и сохраните его локально:
 
-```bash
-curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/python/word-count.py > word-count.py
+```bash prompt="$"
+$ curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/python/word-count.py > word-count.py
 ```
 
 #### 2. Создайте таблицу { #mr-create-table }
 
 Создайте две таблицы — одну для исходных данных, а вторую для результатов выполнения MapReduce:
 
-```bash
-yt create table //home/mapreduce_input --attributes '{schema = [{name = lineno; type = string}; {name = text; type = string}]}'
-yt create table //home/mapreduce_result --attributes '{schema = [{name = count; type = string}; {name = word; type = string}]}'
+```bash prompt="$"
+$ yt create table //home/mapreduce_input --attributes '{schema = [{name = lineno; type = string}; {name = text; type = string}]}'
+$ yt create table //home/mapreduce_result --attributes '{schema = [{name = count; type = string}; {name = word; type = string}]}'
 ```
 
 Если вы получаете ошибку 'Cannot determine backend type: either driver config or proxy url should be specified.' — необходимо [выставить](#set-vars) переменную окружения `YT_PROXY`.
 
 Теперь запишите данные в исходную таблицу, вызвав команду [write-table](../../api/cli/commands.md#write-table):
 
-```bash
-cat source.tsv | yt write-table //home/mapreduce_input --format dsv
+```bash prompt="$"
+$ cat source.tsv | yt write-table //home/mapreduce_input --format dsv
 ```
 Чтобы проверить, что в таблицу записались данные, можно прочитать таблицу с помощью команды [read-table](../../api/cli/commands.md#read-table). В квадратных скобках указан полуинтервал — получить первые шесть строк таблицы:
 
-```bash
-yt read-table '//home/mapreduce_input[:#6]' --format dsv
+```bash prompt="$"
+$ yt read-table '//home/mapreduce_input[:#6]' --format dsv
 ```
 
 #### 3. Запустите MapReduce { #mr-run }
 
 Запустите MapReduce операцию с помощью команды [map-reduce](../../api/cli/commands.md#map-reduce):
 
-```bash
-yt map-reduce --mapper "python3 word-count.py map" --reducer "python3 word-count.py reduce" --map-local-file word-count.py --reduce-local-file word-count.py --src //home/mapreduce_input --dst //home/mapreduce_result --reduce-by word --format dsv
+```bash prompt="$"
+$ yt map-reduce --mapper "python3 word-count.py map" --reducer "python3 word-count.py reduce" --map-local-file word-count.py --reduce-local-file word-count.py --src //home/mapreduce_input --dst //home/mapreduce_result --reduce-by word --format dsv
 ```
 
 Статус запущенной операции можно отследить в веб-интерфейсе, в разделе **Operations**.
@@ -829,8 +829,8 @@ LIMIT 30;
 - Docker {selected}
 
   Чтобы удалить {{product-name}} кластер, необходимо завершить работу контейнеров `yt.frontend` и `yt.backend`. Для этого выполните команду:
-    ```bash
-  ./run_local_cluster.sh --stop
+    ```bash prompt="$"
+  $ ./run_local_cluster.sh --stop
   ```
 
   Команда остановит контейнеры (выполнит `docker stop`) и затем удалит их (`docker rm`).
@@ -838,51 +838,51 @@ LIMIT 30;
 - Minikube
 
   1. Удалите {{product-name}} кластер:
-     ```bash
-     kubectl delete -f cluster_v1_local.yaml
+     ```bash prompt="$"
+     $ kubectl delete -f cluster_v1_local.yaml
      ```
 
   2. Удалите оператор:
-     ```bash
-     helm uninstall ytsaurus
+     ```bash prompt="$"
+     $ helm uninstall ytsaurus
      ```
 
   3. Остановите кластер Kubernetes:
-     ```bash
-     minikube stop
+     ```bash prompt="$"
+     $ minikube stop
      ```
 
   4. Удалите кластер Kubernetes:
-     ```bash
-     minikube delete
+     ```bash prompt="$"
+     $ minikube delete
      ```
 
   5. Очистите кеш Minikube:
-     ```bash
-     rm -rf ~/.minikube/
+     ```bash prompt="$"
+     $ rm -rf ~/.minikube/
      ```
 
   6. Если вы использовали Podman:
-     ```bash
-     podman rm -f minikube
-     podman volume rm minikube
+     ```bash prompt="$"
+     $ podman rm -f minikube
+     $ podman volume rm minikube
      ```
 
 - Kind
 
   1. Удалите {{product-name}} кластер:
-     ```bash
-     kubectl delete -f cluster_v1_local.yaml
+     ```bash prompt="$"
+     $ kubectl delete -f cluster_v1_local.yaml
      ```
 
   2. Удалите оператор:
-     ```bash
-     helm uninstall ytsaurus
+     ```bash prompt="$"
+     $ helm uninstall ytsaurus
      ```
 
   3. Удалите кластер Kubernetes:
-     ```bash
-     kind delete cluster --name ytsaurus
+     ```bash prompt="$"
+     $ kind delete cluster --name ytsaurus
      ```
 
 {% endlist %}
