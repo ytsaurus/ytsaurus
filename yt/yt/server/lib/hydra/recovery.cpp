@@ -191,7 +191,16 @@ void TRecovery::DoRun()
         if (snapshotSegmentId == currentState.SegmentId && snapshotSequenceNumber == currentState.SequenceNumber) {
             YT_LOG_INFO("No need to use snapshot for recovery");
         } else {
-            YT_LOG_INFO("Using snapshot for recovery");
+            YT_LOG_INFO("Using snapshot for recovery (SnapshotSegmentId: %v, SnapshotSequenceNumber: %v)",
+                snapshotSegmentId,
+                snapshotSequenceNumber);
+
+            TReachableState snapshotReachableState(snapshotSegmentId, snapshotSequenceNumber);
+            if (snapshotReachableState > TargetState_) {
+                YT_LOG_ALERT_AND_THROW("Attempting to recover from snapshot with a state greater then target state (SnapshotReachableState: %v, TargetState: %v)",
+                    snapshotReachableState,
+                    TargetState_);
+            }
 
             if (ResponseKeeper_) {
                 ResponseKeeper_->Stop();
