@@ -92,6 +92,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/distributed_file_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/etc_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/journal_client.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/not_implemented_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/operation_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/security_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/table_client.cpp
