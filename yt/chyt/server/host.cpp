@@ -39,6 +39,8 @@
 
 #include <yt/yt/library/clickhouse_discovery/discovery.h>
 
+#include <yt/yt/library/cypress_election/election_manager.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -88,6 +90,7 @@ using namespace NConcurrency;
 using namespace NYPath;
 using namespace NServer;
 using namespace NCypressClient;
+using namespace NCypressElection;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -181,6 +184,17 @@ public:
 
         if (Config_->DictionaryAccessControl) {
             DictionaryAccessControl_ = CreateDictionaryAccessControl(PermissionCache_, Config_->DictionaryAccessControl, FetcherInvoker_);
+        }
+
+        if (Config_->ElectionManager) {
+            auto electionOptions = New<TCypressElectionManagerOptions>();
+            electionOptions->GroupName = "clique";
+            electionOptions->MemberName = ToString(InstanceCookie_);
+            ElectionManager_ = CreateCypressElectionManager(
+                RootClient_,
+                ControlInvoker_,
+                Config_->ElectionManager,
+                std::move(electionOptions));
         }
 
         ClickHouseYtProfiler().AddFuncGauge(
@@ -282,6 +296,10 @@ public:
 
         if (Config_->DictionaryAccessControl) {
             DictionaryAccessControl_->Start(getContext());
+        }
+
+        if (ElectionManager_) {
+            ElectionManager_->Start();
         }
 
         CreateOrchidNode();
@@ -588,6 +606,11 @@ public:
     int GetInstanceCookie() const
     {
         return InstanceCookie_;
+    }
+
+    bool IsLeader() const
+    {
+        return !ElectionManager_ || ElectionManager_->IsLeader();
     }
 
     const IInvokerPtr& GetControlInvoker() const
@@ -936,6 +959,8 @@ private:
 
     IDiscoveryPtr Discovery_;
     int InstanceCookie_;
+
+    ICypressElectionManagerPtr ElectionManager_;
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
 
@@ -1331,6 +1356,11 @@ IClusterNodePtr THost::GetLocalNode() const
 int THost::GetInstanceCookie() const
 {
     return Impl_->GetInstanceCookie();
+}
+
+bool THost::IsLeader() const
+{
+    return Impl_->IsLeader();
 }
 
 void THost::HandleCrashSignal() const

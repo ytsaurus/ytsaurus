@@ -340,6 +340,7 @@ class TSystemLogExporter
 {
 public:
     TSystemLogExporter(
+        const THost* const host,
         DB::StorageID storageId,
         TYPath cypressTableDirectory,
         NNative::IClientPtr client,
@@ -349,7 +350,8 @@ public:
         TTableSchema schema,
         ITableExtenderPtr tableExtender,
         TLogger logger)
-        : StorageId_(std::move(storageId))
+        : Host_(host)
+        , StorageId_(std::move(storageId))
         , CypressTableDirectory_(std::move(cypressTableDirectory))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
@@ -393,6 +395,7 @@ public:
     }
 
 private:
+    const THost* const Host_;
     const DB::StorageID StorageId_;
     const TYPath CypressTableDirectory_;
     const NNative::IClientPtr Client_;
@@ -462,28 +465,33 @@ private:
 
     TYPath EnsureTableReady()
     {
-        int lastVersion;
         while (true) {
             auto [currentVersion, schema, tabletCount, mounted] = GetLatestTableInfo();
 
-            if (currentVersion == -1 || schema != OutputSchema_ || tabletCount != Config_->CreateTableTabletCount) {
-                ++currentVersion;
-                CreateVersionedTable(currentVersion);
-                mounted = MountVersionedTable(currentVersion);
-            } else if (!mounted) {
-                mounted = MountVersionedTable(currentVersion);
+            if (currentVersion != -1 && schema == OutputSchema_ && tabletCount == Config_->CreateTableTabletCount && mounted) {
+                return GetVersionedTablePath(currentVersion);
             }
 
-            if (!mounted) {
-                NConcurrency::TDelayedExecutor::WaitForDuration(Config_->StartupRetryBackoff);
-                continue;
+            if (Host_->IsLeader()) {
+                if (currentVersion == -1 || schema != OutputSchema_ || tabletCount != Config_->CreateTableTabletCount) {
+                    ++currentVersion;
+                    CreateVersionedTable(currentVersion);
+                    mounted = MountVersionedTable(currentVersion);
+                } else if (!mounted) {
+                    mounted = MountVersionedTable(currentVersion);
+                }
+
+                if (mounted) {
+                    return GetVersionedTablePath(currentVersion);
+                }
+            } else {
+                YT_LOG_DEBUG("Not a leader, waiting for leader to create/mount table (LastSeenVersion: %v, Mounted: %v)",
+                    currentVersion,
+                    mounted);
             }
 
-            lastVersion = currentVersion;
-            break;
+            NConcurrency::TDelayedExecutor::WaitForDuration(Config_->StartupRetryBackoff);
         }
-
-        return GetVersionedTablePath(lastVersion);
     }
 
     TYPath GetLatestTablePath() const
@@ -748,6 +756,7 @@ void RegisterStorageSystemLogTableExporter(
             auto tableExtender = CreateTableExtender(args.table_id.table_name, host);
 
             logExporter = New<TSystemLogExporter>(
+                host,
                 args.table_id,
                 Format("%v/%v", exportersConfig->CypressRootDirectory, ToYPathLiteral(args.table_id.table_name)),
                 client,

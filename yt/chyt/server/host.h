@@ -115,6 +115,10 @@ public:
 
     int GetInstanceCookie() const;
 
+    //! Whether this instance currently holds the per-clique leader lock.
+    //! Used to gate work that must be performed by exactly one instance in the clique.
+    bool IsLeader() const;
+
     const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
 
     TYtConfigPtr GetConfig() const;
