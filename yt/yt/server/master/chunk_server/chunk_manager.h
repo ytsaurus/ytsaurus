@@ -299,8 +299,8 @@ struct IChunkManager
     virtual void ScheduleGlobalChunkRefresh() = 0;
     virtual void RescheduleChunkListRequisitionTraversals() = 0;
 
-    virtual void SetDetailedChunkLogging(const TChunk* chunk, bool enable) = 0;
-    virtual bool IsDetailedChunkLoggingEnabled(const TChunk* chunk) const = 0;
+    virtual void SetVerboselyLogged(const TChunk* chunk, bool enable) = 0;
+    virtual bool IsVerboselyLogged(const TChunk* chunk) const = 0;
 
     //! Computes quorum info for a given journal chunk
     //! by querying a quorum of replicas.

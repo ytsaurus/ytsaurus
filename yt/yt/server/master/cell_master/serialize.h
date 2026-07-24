@@ -208,7 +208,7 @@ DEFINE_ENUM(EMasterReign,
     ((ScratchChunkListKind)                                         (3333))  // babenko
     ((FixValidationHeartbeatSchedulingAndClearing_26_2)             (3334))  // grphil
     ((ExpirationArmingTime_26_2)                                    (3335))  // theevilbird
-    ((DetailedChunkLogging)                                         (3336))  // evanevannnn
+    ((VerboseChunkLogging)                                          (3336))  // evanevannnn
     ((FixBoomerangWaveEviction)                                     (3337))  // babenko
 );
 

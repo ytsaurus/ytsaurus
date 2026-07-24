@@ -2,6 +2,7 @@
 #include "chunk_manager.h"
 
 #include "chunk.h"
+#include "helpers.h"
 #include "private.h"
 
 #include <yt/yt/server/master/object_server/object_manager.h>
@@ -219,12 +220,9 @@ bool TChunkScanQueueBase::GetScanFlag(TChunk* chunk) const
 
 void TChunkScanQueueBase::ClearScanFlag(TChunk* chunk)
 {
-    auto logLevel = Bootstrap_->GetChunkManager()->IsDetailedChunkLoggingEnabled(chunk) ?
-        NLogging::ELogLevel::Debug :
-        NLogging::ELogLevel::Trace;
     YT_LOG_EVENT(
         ChunkServerLogger(),
-        logLevel,
+        GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()),
         "Scan flag is cleared for chunk (ChunkId: %v, Kind: %v)",
         chunk->GetId(),
         Kind_);
@@ -233,12 +231,9 @@ void TChunkScanQueueBase::ClearScanFlag(TChunk* chunk)
 
 void TChunkScanQueueBase::SetScanFlag(TChunk* chunk)
 {
-    auto logLevel = Bootstrap_->GetChunkManager()->IsDetailedChunkLoggingEnabled(chunk) ?
-        NLogging::ELogLevel::Debug :
-        NLogging::ELogLevel::Trace;
     YT_LOG_EVENT(
         ChunkServerLogger(),
-        logLevel,
+        GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()),
         "Scan flag is set for chunk (ChunkId: %v, Kind: %v)",
         chunk->GetId(),
         Kind_);

@@ -208,6 +208,10 @@ EChunkReplicaState GetAddedChunkReplicaState(
 
 bool IsSealNeeded(const TChunk* chunk);
 
+NLogging::ELogLevel GetChunkLogLevel(
+    const TChunk* chunk,
+    const IChunkManagerPtr& chunkManager);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkSequoiaConfig
@@ -235,6 +239,12 @@ void AccumulateNewlyReferencedHunkStatistics(TChunk* hunkChunk, i64 dataWeightDe
 
 bool IsReplicaDecommissioned(TChunkLocation* replica);
 bool IsReplicaOnPendingRestartNode(TChunkLocation* replica);
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define YT_VERBOSE_LOG_CHUNK_EVENT(chunk, ...)                      YT_LOG_EVENT(Logger(), GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()), __VA_ARGS__)
+#define YT_VERBOSE_LOG_CHUNK_EVENT_IF(condition, chunk, ...)        if (condition)    YT_VERBOSE_LOG_CHUNK_EVENT(__VA_ARGS__)
+#define YT_VERBOSE_LOG_CHUNK_EVENT_UNLESS(condition, chunk, ...)    if (!(condition)) YT_VERBOSE_LOG_CHUNK_EVENT(__VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
 

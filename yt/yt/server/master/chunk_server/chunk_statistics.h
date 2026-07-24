@@ -60,6 +60,7 @@ struct IChunkStatisticsCalculatorCallbacks
     virtual const NHydra::TReadOnlyEntityMap<TMedium>& GetMedia() const = 0;
     virtual TChunkRequisitionRegistry* GetChunkRequisitionRegistry() const = 0;
     virtual const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const = 0;
+    virtual NLogging::ELogLevel GetChunkLogLevel(const TChunk* chunk) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStatisticsCalculatorCallbacks)

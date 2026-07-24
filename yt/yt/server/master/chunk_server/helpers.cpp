@@ -1783,6 +1783,15 @@ bool IsSealNeeded(const TChunk* chunk)
         !chunk->IsSealed();
 }
 
+NLogging::ELogLevel GetChunkLogLevel(
+    const TChunk* chunk,
+    const IChunkManagerPtr& chunkManager)
+{
+    return chunkManager->IsVerboselyLogged(chunk)
+        ? NLogging::ELogLevel::Debug
+        : NLogging::ELogLevel::Trace;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TDynamicSequoiaChunkReplicasStoreConfigPtr& GetChunkSequoiaStoreConfig(
