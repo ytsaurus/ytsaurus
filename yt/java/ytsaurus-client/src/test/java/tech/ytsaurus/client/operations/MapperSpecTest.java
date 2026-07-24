@@ -37,6 +37,12 @@ public class MapperSpecTest {
         Duration prepareTimeLimit = Duration.ofSeconds(30);
         boolean useTmpfs = true;
         DataSize tmpfsSize = DataSize.fromMegaBytes(400);
+        DiskRequest diskRequest = DiskRequest.builder()
+                .setDiskSpace(DataSize.fromGigaBytes(2))
+                .setInodeCount(1000L)
+                .setAccount("tmp")
+                .setMediumName("ssd")
+                .build();
 
         MapperSpec spec = MapperSpec.builder()
                 .setMapper(new DummyMapper())
@@ -53,6 +59,7 @@ public class MapperSpecTest {
                 .setPrepareTimeLimit(prepareTimeLimit)
                 .setUseTmpfs(useTmpfs)
                 .setTmpfsSize(tmpfsSize)
+                .setDiskRequest(diskRequest)
                 .build();
 
         YTreeBuilder builder = YTree.builder();
@@ -94,6 +101,14 @@ public class MapperSpecTest {
         Assert.assertEquals(".", node.get("tmpfs_path").stringValue());
         Assert.assertTrue(node.get("copy_files").boolValue());
         Assert.assertEquals(tmpfsSize.toBytes(), node.get("tmpfs_size").intValue());
+        Assert.assertEquals(diskRequest.getDiskSpace().get().toBytes(),
+                node.get("disk_request").asMap().get("disk_space").longValue());
+        Assert.assertEquals(diskRequest.getInodeCount().get().longValue(),
+                node.get("disk_request").asMap().get("inode_count").longValue());
+        Assert.assertEquals(diskRequest.getAccount().get(), node.get("disk_request").asMap().get("account")
+                .stringValue());
+        Assert.assertEquals(diskRequest.getMediumName().get(), node.get("disk_request").asMap().get("medium_name")
+                .stringValue());
     }
 
     private static class DummyMapper implements Mapper<YTreeMapNode, YTreeMapNode> {

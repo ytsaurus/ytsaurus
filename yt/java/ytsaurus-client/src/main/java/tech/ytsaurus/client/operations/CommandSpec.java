@@ -47,6 +47,8 @@ public class CommandSpec implements Spec, UserJobSpec {
 
     @Nullable
     private final Long jobTimeLimit;
+    @Nullable
+    private final DiskRequest diskRequest;
 
     // Only relevant for vanilla operations
     // (TODO: move to separate class VanillaCommandSpec)
@@ -73,6 +75,7 @@ public class CommandSpec implements Spec, UserJobSpec {
         environment = builder.environment;
         cpuLimit = builder.cpuLimit;
         jobTimeLimit = builder.jobTimeLimit;
+        diskRequest = builder.diskRequest;
         jobCount = builder.jobCount;
         outputTablePaths = builder.outputTablePaths;
 
@@ -111,6 +114,7 @@ public class CommandSpec implements Spec, UserJobSpec {
                 && environment.equals(spec.environment)
                 && Optional.ofNullable(cpuLimit).equals(Optional.ofNullable(spec.cpuLimit))
                 && Optional.ofNullable(jobTimeLimit).equals(Optional.ofNullable(spec.jobTimeLimit))
+                && Optional.ofNullable(diskRequest).equals(Optional.ofNullable(spec.diskRequest))
                 && outputTablePaths.equals(spec.outputTablePaths)
                 && Optional.ofNullable(jobCount).equals(Optional.ofNullable(spec.jobCount));
     }
@@ -181,6 +185,13 @@ public class CommandSpec implements Spec, UserJobSpec {
     }
 
     /**
+     * @see Builder#setDiskRequest(DiskRequest)
+     */
+    public Optional<DiskRequest> getDiskRequest() {
+        return Optional.ofNullable(diskRequest);
+    }
+
+    /**
      * @see Builder#setJobCount(Integer)
      */
     public Optional<Integer> getJobCount() {
@@ -204,6 +215,7 @@ public class CommandSpec implements Spec, UserJobSpec {
                 .key("environment").value(environment)
                 .when(cpuLimit != null, b -> b.key("cpu_limit").value(cpuLimit))
                 .when(jobTimeLimit != null, b -> b.key("job_time_limit").value(jobTimeLimit))
+                .when(diskRequest != null, b -> b.key("disk_request").value(diskRequest.prepare()))
                 .when(jobCount != null, b -> b.key("job_count").value(jobCount))
                 .when(!outputTablePaths.isEmpty(), b -> b.key("output_table_paths").value(
                         outputTablePaths.stream().map(YPath::toTree).collect(Collectors.toList())
@@ -262,6 +274,8 @@ public class CommandSpec implements Spec, UserJobSpec {
         Double cpuLimit = null;
         @Nullable
         Long jobTimeLimit = null;
+        @Nullable
+        DiskRequest diskRequest = null;
         @Nullable
         Integer jobCount = null;
         List<YPath> outputTablePaths = new ArrayList<>();
@@ -360,6 +374,14 @@ public class CommandSpec implements Spec, UserJobSpec {
          */
         public T setJobTimeLimit(@Nullable Long jobTimeLimit) {
             this.jobTimeLimit = jobTimeLimit;
+            return self();
+        }
+
+        /**
+         * Set disk request for the job.
+         */
+        public T setDiskRequest(@Nullable DiskRequest diskRequest) {
+            this.diskRequest = diskRequest;
             return self();
         }
 
