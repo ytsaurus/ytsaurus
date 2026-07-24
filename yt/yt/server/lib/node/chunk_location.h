@@ -167,9 +167,6 @@ public:
     //! Returns |true| if location is sick.
     bool IsSick() const;
 
-    //! Returns limit on the maximum memory used of probe put blocks.
-    i64 GetLegacyWriteMemoryLimit() const;
-
     //! Returns limit on the maximum memory used of location reads.
     i64 GetReadMemoryLimit() const;
 

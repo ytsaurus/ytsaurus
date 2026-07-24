@@ -903,7 +903,7 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         if (!options.UseProbePutBlocks) {
             auto memoryLimitFractionForStartingNewSessions = location->GetMemoryLimitFractionForStartingNewSessions();
             auto usedMemory = location->GetUsedMemory(EIODirection::Write);
-            auto memoryLimit = location->GetLegacyWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions;
+            auto memoryLimit = location->GetWriteMemoryLimit() * memoryLimitFractionForStartingNewSessions;
             if (memoryLimitFractionForStartingNewSessions &&
                 usedMemory > memoryLimit)
             {

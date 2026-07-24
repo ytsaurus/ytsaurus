@@ -960,7 +960,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             << TErrorAttribute("bytes_limit", WriteMemoryTracker_->GetLimit());
         memoryOvercommit = true;
     } else if (i64 usedMemory = GetUsedMemory(EIODirection::Write, workloadDescriptor),
-        writeMemoryLimit = GetLegacyWriteMemoryLimit();
+        writeMemoryLimit = GetWriteMemoryLimit();
         !withProbing && usedMemory > writeMemoryLimit && blocksWindowShifted)
     {
         error = TError(
@@ -971,7 +971,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             << TErrorAttribute("bytes_limit", writeMemoryLimit);
         memoryOvercommit = true;
     } else if (i64 usedMemory = GetUsedMemory(EIODirection::Write),
-        writeMemoryLimit = GetLegacyWriteMemoryLimit();
+        writeMemoryLimit = GetWriteMemoryLimit();
         !withProbing && usedMemory > writeMemoryLimit && blocksWindowShifted)
     {
         error = TError(
