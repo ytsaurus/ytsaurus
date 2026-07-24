@@ -149,8 +149,6 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .Default(0);
 
     registrar.Postprocessor([] (TThis* config) {
-        config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
-
         for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
             if (!config->Throttlers[kind]) {
                 config->Throttlers[kind] = New<TRelativeThroughputThrottlerConfig>();
@@ -183,10 +181,6 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0)
         .Optional();
-
-    registrar.Postprocessor([] (TThis* config) {
-        config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

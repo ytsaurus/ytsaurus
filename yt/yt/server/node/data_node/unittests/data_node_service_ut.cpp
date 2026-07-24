@@ -488,7 +488,6 @@ public:
         int WriteThreadCount = 1;
         i64 WriteMemoryLimit = 128_GB;
         i64 ReadMemoryLimit = 128_GB;
-        i64 LegacyWriteMemoryLimit = 128_GB;
         bool ChooseLocationBasedOnIOWeight = false;
         std::vector<double> IOWeights = {1.};
         std::vector<int> SessionCountLimits = {1024};
@@ -526,7 +525,6 @@ public:
         storeLocationConfig->Throttlers = {};
         storeLocationConfig->WriteMemoryLimit = TestParams_.WriteMemoryLimit;
         storeLocationConfig->ReadMemoryLimit = TestParams_.ReadMemoryLimit;
-        storeLocationConfig->LegacyWriteMemoryLimit = TestParams_.LegacyWriteMemoryLimit;
         storeLocationConfig->CoalescedReadMaxGapSize = TestParams_.CoalescedReadMaxGapSize;
         storeLocationConfig->FairShareWorkloadCategoryWeights = TestParams_.FairShareWorkloadCategoryWeights;
 

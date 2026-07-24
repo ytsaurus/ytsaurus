@@ -136,14 +136,6 @@ const NIO::IIOEnginePtr& TChunkLocationBase::GetIOEngine() const
     return IOEngine_;
 }
 
-i64 TChunkLocationBase::GetLegacyWriteMemoryLimit() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto config = GetRuntimeConfig();
-    return config->LegacyWriteMemoryLimit;
-}
-
 i64 TChunkLocationBase::GetReadMemoryLimit() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
