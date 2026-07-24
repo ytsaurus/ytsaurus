@@ -2114,6 +2114,34 @@ class TestCypressAcls(CheckPermissionBase):
         # full_read should also grant full_read.
         copy("//tmp/t", "//tmp/t_copy", authenticated_user="restricted")
 
+    @authors("babenko")
+    def test_full_read_covers_columns_of_foreign_aces(self):
+        # A columnar ACE mentioning a column but not matching the user used to leave
+        # that column's action undefined, which crashes the client.
+        create_user("u")
+        create_user("other")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "private", "type": "int64"},
+                ],
+                "acl": [
+                    make_ace("allow", "u", "full_read"),
+                    make_ace("allow", "other", "read", columns=["private"]),
+                ],
+                "inherit_acl": False,
+            }
+        )
+
+        response = check_permission("u", "read", "//tmp/t", columns=["public", "private"])
+        assert response["action"] == "allow"
+        assert response["columns"][0]["action"] == "allow"
+        assert response["columns"][1]["action"] == "allow"
+
     @authors("coteeq")
     def test_full_read_and_deny_read(self):
         create_user("u")

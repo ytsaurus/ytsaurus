@@ -143,10 +143,16 @@ TPermissionCheckResponse TPermissionChecker<TAccessControlEntry, TCallback>::Get
                 result = static_cast<const TPermissionCheckResult>(Response_);
             } else {
                 result = it->second;
-                if (result.Action == NSecurityClient::ESecurityAction::Undefined && !FullReadExplicitlyGranted_) {
-                    result.Action = NSecurityClient::ESecurityAction::Deny;
-                    if (!deniedColumnResult) {
-                        deniedColumnResult = result;
+                if (result.Action == NSecurityClient::ESecurityAction::Undefined) {
+                    if (FullReadExplicitlyGranted_) {
+                        // An explicit "full_read" grant covers every column, so fall back
+                        // to the (allowing) object-level result.
+                        result = static_cast<const TPermissionCheckResult>(Response_);
+                    } else {
+                        result.Action = NSecurityClient::ESecurityAction::Deny;
+                        if (!deniedColumnResult) {
+                            deniedColumnResult = result;
+                        }
                     }
                 }
             }
