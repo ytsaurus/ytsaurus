@@ -821,7 +821,7 @@ TFuture<std::vector<std::string>> TNbdVolumeFactory::FindDataNodesWithMedium(
                 << TErrorAttribute("error", FromProto<TError>(subresponse.error()));
         }
 
-        // TODO(yuryalekseev): nodeDirectory->MergeFrom(response->node_directory()); ?
+        Bootstrap_->GetConnection()->GetNodeDirectory()->MergeFrom(rsp->node_directory());
 
         auto replicas = FromProto<TChunkReplicaWithMediumList>(subresponse.replicas());
         std::vector<std::string> result;
