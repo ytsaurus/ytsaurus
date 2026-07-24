@@ -11,6 +11,8 @@
 #include <yt/yt/flow/library/cpp/tables/compact_output_messages.h>
 #include <yt/yt/flow/library/cpp/tables/compact_partition_output_messages.h>
 
+#include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
+
 #include <yt/yt/client/table_client/public.h>
 
 #include <library/cpp/containers/absl/flat_hash_map.h>
@@ -45,12 +47,6 @@ constexpr i64 MaxChunkMessageCountLimit = 1LL << TMessageLocation::PositionInChu
 
 // Bounded by YT's per-value string-column limit; pre-compression checks are stricter.
 constexpr i64 MaxChunkDataSize = NTableClient::MaxStringValueLength;
-
-// YT caps transactions at 100'000 modified rows; keep well under. The bound
-// applies to the number of YT-side row touches the async drain may schedule
-// (mask updates + erases), not to the number of UnregisterImpl calls — most
-// of which only mutate in-memory state without producing a row modification.
-constexpr int MaxDirtyChunksPerTransaction = 20'000;
 
 bool MaskGet(const std::string& mask, int position)
 {
@@ -149,16 +145,6 @@ public:
         InflightStore_->SyncCounters();
     }
 
-    void AsyncUnregisterBatch(std::span<const TMessageMeta* const> metas) override
-    {
-        for (const auto* meta : metas) {
-            YT_TLOG_DEBUG("MessageLifeCycle.CompactOutputStore: message was asynchronously unregistered")
-                .With("MessageId", meta->MessageId)
-                .With("StreamId", meta->StreamId);
-            AsyncEraseQueue_.push_back(*meta);
-        }
-    }
-
     TFuture<std::vector<std::pair<TOutputMessageConstPtr, std::optional<TKey>>>> Init(bool loadKeyState) override
     {
         KeyStateLoaded_ = loadKeyState;
@@ -247,116 +233,160 @@ public:
             .Run();
     }
 
-    void Sync(NApi::IDynamicTableTransactionPtr tx) override
+    std::vector<IRetryableTransactionPtr> Sync(NApi::IDynamicTableTransactionPtr epochTransaction) override
     {
-        // Three-phase flush: pack pending messages into chunks, then write new
-        // chunks / refresh masks on existing ones / erase fully-processed ones.
-        while (!AsyncEraseQueue_.empty() &&
-            std::ssize(MaskDirtyChunks_) + std::ssize(ChunksToErase_) < MaxDirtyChunksPerTransaction)
-        {
-            UnregisterImpl(AsyncEraseQueue_.front(), /*ensure*/ true);
-            AsyncEraseQueue_.pop_front();
-        }
         InflightStore_->SyncCounters();
 
         PackPendingMessages();
 
-        std::vector<NTables::ICompactPartitionOutputMessages::TChunk> partitionToWrite;
-        std::vector<NTables::ICompactPartitionOutputMessages::TMaskUpdate> partitionMaskUpdates;
-        std::vector<NTables::ICompactPartitionOutputMessages::TTableKey> partitionToErase;
-        std::vector<NTables::ICompactOutputMessages::TChunk> keyedToWrite;
-        std::vector<NTables::ICompactOutputMessages::TMaskUpdate> keyedMaskUpdates;
-        std::vector<NTables::ICompactOutputMessages::TTableKey> keyedToErase;
-
         const auto& computationId = Context_->Partition->ComputationId;
         const auto& partitionId = Context_->Partition->PartitionId;
 
-        // Invariant: every LocalChunkId in NewChunks_/MaskDirtyChunks_/ChunksToErase_ is in Chunks_.
-        for (auto localChunkId : NewChunks_) {
+        // New messages must be written synchronously into the epoch tx — mandatory, no options
+        // (losing output is worse than a duplicate). Erases are the opposite: they can happen
+        // "whenever", overflowing into post-commit async transactions below. ToPersist_ already
+        // excludes anything unregistered this epoch.
+        {
+            std::vector<NTables::ICompactPartitionOutputMessages::TChunk> partitionToWrite;
+            std::vector<NTables::ICompactOutputMessages::TChunk> keyedToWrite;
+            for (auto localChunkId : NewChunks_) {
+                auto iter = Chunks_.find(localChunkId);
+                YT_VERIFY(iter != Chunks_.end());
+                auto& state = iter->second;
+                if (state.Key) {
+                    keyedToWrite.push_back({
+                        .Key = {
+                            .ComputationId = computationId,
+                            .Key = *state.Key,
+                            .StreamId = state.StreamId,
+                            .ChunkId = state.ChunkId,
+                        },
+                        .Data = std::move(state.SerializedBatch),
+                        .ProcessedMask = state.ProcessedMask,
+                    });
+                } else {
+                    partitionToWrite.push_back({
+                        .Key = {
+                            .PartitionId = partitionId,
+                            .StreamId = state.StreamId,
+                            .ChunkId = state.ChunkId,
+                        },
+                        .Data = std::move(state.SerializedBatch),
+                        .ProcessedMask = state.ProcessedMask,
+                    });
+                }
+                state.SerializedBatch = {};
+            }
+            NewChunks_.clear();
+            PartitionTable_->Write(epochTransaction, partitionToWrite, DynamicSpec_->CompressionCodec);
+            KeyTable_->Write(epochTransaction, keyedToWrite, DynamicSpec_->CompressionCodec);
+        }
+
+        // Erase GC streams into the epoch tx up to MaxEraseRowsPerEpochTransaction ops, then overflows
+        // into fresh retryable txs of up to MaxEraseRowsPerAsyncTransaction ops each. In-memory chunk
+        // state is cleared inline regardless of the target tx: a failed async commit crashes the job,
+        // and the fresh store's Init reloads the un-erased rows straight from YT.
+        std::vector<NTables::ICompactPartitionOutputMessages::TMaskUpdate> partitionMaskUpdates;
+        std::vector<NTables::ICompactPartitionOutputMessages::TTableKey> partitionToErase;
+        std::vector<NTables::ICompactOutputMessages::TMaskUpdate> keyedMaskUpdates;
+        std::vector<NTables::ICompactOutputMessages::TTableKey> keyedToErase;
+        std::vector<IRetryableTransactionPtr> asyncEraseTransactions;
+        bool epochFlushDone = false;
+        int limit = Context_->MaxEraseRowsPerEpochTransaction;
+        int count = 0;
+
+        // The first flush enriches the epoch tx and switches to the async-row budget; each later flush
+        // gets its own retryable, created here so none is left empty. Erases into a retryable are
+        // deferred via Apply (replayed on DoAttempt), so an uncommitted retryable never touches the tables.
+        auto flush = [&] {
+            auto flushInto = [
+                partitionTable = PartitionTable_,
+                keyTable = KeyTable_,
+                partitionMaskUpdates = std::exchange(partitionMaskUpdates, {}),
+                partitionToErase = std::exchange(partitionToErase, {}),
+                keyedMaskUpdates = std::exchange(keyedMaskUpdates, {}),
+                keyedToErase = std::exchange(keyedToErase, {})
+            ] (const NApi::IDynamicTableTransactionPtr& transaction) {
+                partitionTable->UpdateMask(transaction, partitionMaskUpdates);
+                partitionTable->Erase(transaction, partitionToErase);
+                keyTable->UpdateMask(transaction, keyedMaskUpdates);
+                keyTable->Erase(transaction, keyedToErase);
+            };
+            count = 0;
+            if (!epochFlushDone) {
+                epochFlushDone = true;
+                limit = Context_->MaxEraseRowsPerAsyncTransaction;
+                flushInto(epochTransaction);
+            } else {
+                auto retryable = CreateRetryableTransaction();
+                asyncEraseTransactions.push_back(retryable);
+                retryable->Apply(BIND(std::move(flushInto)));
+            }
+        };
+
+        auto appendOp = [&] (ui64 localChunkId, bool isErase) {
+            if (count == limit) {
+                flush();
+            }
             auto iter = Chunks_.find(localChunkId);
             YT_VERIFY(iter != Chunks_.end());
-            auto& state = iter->second;
-            if (state.Key) {
-                keyedToWrite.push_back({
-                    .Key = {
+            const auto& state = iter->second;
+            if (isErase) {
+                if (state.Key) {
+                    keyedToErase.push_back({
                         .ComputationId = computationId,
                         .Key = *state.Key,
                         .StreamId = state.StreamId,
                         .ChunkId = state.ChunkId,
-                    },
-                    .Data = std::move(state.SerializedBatch),
-                    .ProcessedMask = state.ProcessedMask,
-                });
-            } else {
-                partitionToWrite.push_back({
-                    .Key = {
+                    });
+                } else {
+                    partitionToErase.push_back({
                         .PartitionId = partitionId,
                         .StreamId = state.StreamId,
                         .ChunkId = state.ChunkId,
-                    },
-                    .Data = std::move(state.SerializedBatch),
-                    .ProcessedMask = state.ProcessedMask,
-                });
+                    });
+                }
+                // The flush vectors hold value copies, so the chunk can drop from Chunks_ now.
+                Chunks_.erase(iter);
+            } else {
+                if (state.Key) {
+                    keyedMaskUpdates.push_back({
+                        .Key = {
+                            .ComputationId = computationId,
+                            .Key = *state.Key,
+                            .StreamId = state.StreamId,
+                            .ChunkId = state.ChunkId,
+                        },
+                        .ProcessedMask = state.ProcessedMask,
+                    });
+                } else {
+                    partitionMaskUpdates.push_back({
+                        .Key = {
+                            .PartitionId = partitionId,
+                            .StreamId = state.StreamId,
+                            .ChunkId = state.ChunkId,
+                        },
+                        .ProcessedMask = state.ProcessedMask,
+                    });
+                }
             }
-            state.SerializedBatch = {};
-        }
-        NewChunks_.clear();
+            ++count;
+        };
 
+        // Every entry of both sets is flushed, so they are read during the pass then cleared wholesale
+        // afterwards — never mutated mid-iteration. Erased chunks drop from Chunks_ inline above.
         for (auto localChunkId : MaskDirtyChunks_) {
-            auto iter = Chunks_.find(localChunkId);
-            YT_VERIFY(iter != Chunks_.end());
-            const auto& state = iter->second;
-            if (state.Key) {
-                keyedMaskUpdates.push_back({
-                    .Key = {
-                        .ComputationId = computationId,
-                        .Key = *state.Key,
-                        .StreamId = state.StreamId,
-                        .ChunkId = state.ChunkId,
-                    },
-                    .ProcessedMask = state.ProcessedMask,
-                });
-            } else {
-                partitionMaskUpdates.push_back({
-                    .Key = {
-                        .PartitionId = partitionId,
-                        .StreamId = state.StreamId,
-                        .ChunkId = state.ChunkId,
-                    },
-                    .ProcessedMask = state.ProcessedMask,
-                });
-            }
+            appendOp(localChunkId, /*isErase*/ false);
         }
-        MaskDirtyChunks_.clear();
-
         for (auto localChunkId : ChunksToErase_) {
-            auto iter = Chunks_.find(localChunkId);
-            YT_VERIFY(iter != Chunks_.end());
-            const auto& state = iter->second;
-            if (state.Key) {
-                keyedToErase.push_back({
-                    .ComputationId = computationId,
-                    .Key = *state.Key,
-                    .StreamId = state.StreamId,
-                    .ChunkId = state.ChunkId,
-                });
-            } else {
-                partitionToErase.push_back({
-                    .PartitionId = partitionId,
-                    .StreamId = state.StreamId,
-                    .ChunkId = state.ChunkId,
-                });
-            }
-            Chunks_.erase(iter);
+            appendOp(localChunkId, /*isErase*/ true);
         }
+        flush();
+
+        MaskDirtyChunks_.clear();
         ChunksToErase_.clear();
 
-        PartitionTable_->Write(tx, partitionToWrite, DynamicSpec_->CompressionCodec);
-        PartitionTable_->UpdateMask(tx, partitionMaskUpdates);
-        PartitionTable_->Erase(tx, partitionToErase);
-        KeyTable_->Write(tx, keyedToWrite, DynamicSpec_->CompressionCodec);
-        KeyTable_->UpdateMask(tx, keyedMaskUpdates);
-        KeyTable_->Erase(tx, keyedToErase);
+        return asyncEraseTransactions;
     }
 
     THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflight() override
@@ -615,8 +645,6 @@ private:
     bool KeyStateLoaded_ = false;
 
     absl::flat_hash_map<TOutputMessageConstPtr, TKey, TMessageHashMapOpsByMessageId, TMessageHashMapOpsByMessageId> Keys_;
-
-    std::deque<TMessageMeta> AsyncEraseQueue_;
 
     // Newly produced messages awaiting chunk packing on the next Sync.
     absl::flat_hash_map<TOutputMessageConstPtr, std::optional<TKey>, TMessageHashMapOpsByMessageId, TMessageHashMapOpsByMessageId> ToPersist_;

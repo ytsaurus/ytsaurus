@@ -107,7 +107,7 @@ void TSwiftMapComputation::DoPrepare(const IComputationRunContextPtr& context)
             "AllowBatchingWithRelaxedGuarantees is enabled: outputs may merge several parents, per-key MessageId order "
             "is not preserved and downstream must tolerate at-least-once delivery");
     }
-    InitOutputStoreDistribution(context, /*allowOutputDuplicates*/ true);
+    InitOutputStoreDistribution(context);
 }
 
 void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, TTraceContextGuard&& initTraceContextGuard)

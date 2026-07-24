@@ -66,7 +66,7 @@ TTransformComputation::TTransformComputation(
 
 void TTransformComputation::DoPrepare(const IComputationRunContextPtr& context)
 {
-    InitOutputStoreDistribution(context, /*allowOutputDuplicates*/ false);
+    InitOutputStoreDistribution(context);
 }
 
 void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, TTraceContextGuard&& initTraceContextGuard)
@@ -217,7 +217,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
 
 void TTransformComputation::ProcessDistributedMessages(const IComputationRunContextPtr& /*context*/, std::deque<TOutputMessageConstPtr>&& messages)
 {
-    OutputStore_->AsyncUnregisterBatch(messages);
+    OutputStore_->TryUnregisterBatch(messages);
 }
 
 void TTransformComputation::DoInit(IJobInitContextPtr /*initContext*/)

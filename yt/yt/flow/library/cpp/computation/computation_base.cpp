@@ -1478,6 +1478,7 @@ IRetryableTransactionPtr TUniversalComputationBase::PrepareTransaction(const ICo
 void TUniversalComputationBase::Commit(IComputationRunContextPtr context, IRetryableTransactionPtr transaction)
 {
     YT_VERIFY(transaction);
+    std::vector<IRetryableTransactionPtr> asyncEraseTransactions;
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("FinalizeTransaction"));
         if (ActiveSource_) {
@@ -1486,7 +1487,7 @@ void TUniversalComputationBase::Commit(IComputationRunContextPtr context, IRetry
         if (InputStore_) {
             InputStore_->Sync(transaction);
         }
-        OutputStore_->Sync(transaction);
+        asyncEraseTransactions = OutputStore_->Sync(transaction);
         if (TimerStore_) {
             TimerStore_->Sync(transaction);
         }
@@ -1513,6 +1514,17 @@ void TUniversalComputationBase::Commit(IComputationRunContextPtr context, IRetry
             sink->Commit();
         }
         YT_TLOG_INFO("Transaction committed");
+
+        // Eager drain-all-or-fail of the output store's overflow GC erases: the epoch is already
+        // durable, so this runs off the sink-flush / exactly-once critical path. Commit EVERY
+        // returned async erase transaction; on the first failure throw loudly (epoch stays durable,
+        // only GC is stuck) so the job restarts and Init re-attempts. No carry, no time-box.
+        for (const auto& asyncEraseTransaction : asyncEraseTransactions) {
+            WaitFor(GetTransactionManager()->CommitTransaction(asyncEraseTransaction))
+                .ThrowOnError(
+                    "Post-commit async output GC erase transaction failed; "
+                    "epoch is already committed and durable, only garbage collection is stuck");
+        }
     }
 }
 
@@ -1636,11 +1648,8 @@ ITimeProvider::TGlobalUniqueSeqNo TUniversalComputationBase::GenerateGlobalUniqu
     return WaitFor(GetTimeProvider()->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
 }
 
-void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRunContextPtr& context, bool allowOutputDuplicates)
+void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRunContextPtr& context)
 {
-    YT_VERIFY(!AllowOutputDuplicates_.has_value(), "InitOutputStoreDistribution must not be called twice");
-    AllowOutputDuplicates_ = allowOutputDuplicates;
-
     const bool loadKeyState = GetPartitionState() == EPartitionState::Executing || GetPartitionState() == EPartitionState::Completing;
 
     auto outputs = WaitFor(OutputStore_->Init(loadKeyState)).ValueOrThrow();
@@ -2009,23 +2018,17 @@ void TUniversalComputationBase::DrainDistributedOutputs(const IComputationRunCon
     // Atomically extract both pending deques under a single lock acquisition.
     auto [pending, initPending] = PendingProcessedOutputs_->Extract();
 
-    // OutputStore in-flight set drains via TryUnregister/AsyncUnregister below.
+    // OutputStore in-flight set drains via TryUnregister below.
     ProcessDistributedMessages(context, std::move(pending));
 
     // NOLINTNEXTLINE(bugprone-use-after-move): ProcessDistributedMessages takes an rvalue reference and does not move the deque.
     ClearAsynchronously(std::move(pending));
 
     if (!initPending.empty()) {
-        YT_VERIFY(AllowOutputDuplicates_.has_value());
-        const bool allowOutputDuplicates = *AllowOutputDuplicates_;
         std::vector<TOutputMessageConstPtr> initMessages(
             std::make_move_iterator(initPending.begin()),
             std::make_move_iterator(initPending.end()));
-        if (allowOutputDuplicates) {
-            OutputStore_->AsyncUnregisterBatch(initMessages);
-        } else {
-            OutputStore_->TryUnregisterBatch(initMessages);
-        }
+        OutputStore_->TryUnregisterBatch(initMessages);
     }
 }
 
