@@ -5,7 +5,9 @@
 #include <yt/yt/ytlib/push_based_shuffle_client/partition_reader.h>
 #include <yt/yt/ytlib/push_based_shuffle_client/public.h>
 #include <yt/yt/ytlib/push_based_shuffle_client/record_format.h>
+#include <yt/yt/ytlib/push_based_shuffle_client/sort_reader.h>
 
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -46,6 +48,14 @@ IPushBasedPartitionReaderPtr CreatePushBasedPartitionReaderForTesting(
     IInvokerPtr invoker,
     TRecordHeaderFilter recordHeaderFilter = {},
     std::optional<TIdentityColumnIds> identityColumnIds = {});
+
+ISortReaderPtr CreateSortReaderForTesting(
+    TSortReaderConfigPtr config,
+    IPushBasedPartitionReaderPtr underlyingReader,
+    TComparator comparator,
+    TSortReaderMode mode,
+    IInvokerPtr invoker,
+    IInvokerPtr sortInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -348,6 +358,65 @@ TEST_F(TPartitionReaderTest, AppendsIdentityValues)
         EXPECT_EQ(row[2].Data.Int64, 7);
         EXPECT_EQ(row[3].Id, 11u);
         EXPECT_EQ(row[3].Data.Int64, 100 + index);
+    }
+}
+
+TEST_F(TPartitionReaderTest, IdentityPreservingSortConsumesExtendedRows)
+{
+    auto mock = New<TMockChunkSessionReader>();
+    auto createSessionReader = [mock] (
+        TChunkId,
+        TChunkReplicaList,
+        i64,
+        std::optional<i64>)
+    {
+        return mock;
+    };
+    TIdentityColumnIds identityColumnIds{
+        .MapperId = 10,
+        .RowId = 11,
+    };
+    auto partitionReader = CreatePushBasedPartitionReaderForTesting(
+        MakeConfig(),
+        createSessionReader,
+        /*invoker*/ Invoker(),
+        /*recordHeaderFilter*/ {},
+        identityColumnIds);
+    auto sortReader = CreateSortReaderForTesting(
+        New<TSortReaderConfig>(),
+        std::move(partitionReader),
+        TComparator({ESortOrder::Ascending}),
+        identityColumnIds,
+        /*invoker*/ Invoker(),
+        /*sortInvoker*/ Invoker());
+
+    sortReader->AddChunk(
+        TChunkId(1, 2, 3, 4),
+        /*replicas*/ {},
+        /*startRecordIndex*/ 0,
+        /*rangeEndRecordIndex*/ std::nullopt);
+    sortReader->SetNoMoreChunks();
+    auto readFuture = sortReader->Read();
+    DrainInvoker();
+    ASSERT_TRUE(mock->HasPendingRead());
+
+    const i32 mapperId = 7;
+    const i64 startRowIndex = 100;
+    mock->SetNextReadResult(MakeSingleRecordResult(
+        mapperId,
+        startRowIndex,
+        {{2, 20}, {1, 10}},
+        /*finished*/ true));
+
+    auto rows = WaitFor(readFuture)
+        .ValueOrThrow();
+    ASSERT_EQ(std::ssize(rows), 2);
+    EXPECT_EQ(rows[0], MakeUnversionedOwningRow(1, 10, mapperId, startRowIndex + 1));
+    EXPECT_EQ(rows[1], MakeUnversionedOwningRow(2, 20, mapperId, startRowIndex));
+    for (const auto& row : rows) {
+        ASSERT_EQ(row.GetCount(), 4u);
+        EXPECT_EQ(row[2].Id, identityColumnIds.MapperId);
+        EXPECT_EQ(row[3].Id, identityColumnIds.RowId);
     }
 }
 
