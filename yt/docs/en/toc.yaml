@@ -389,6 +389,8 @@ items:
                href: user-guide/data-processing/spyt/spark-sql.md
              - name: Spark UI
                href: user-guide/data-processing/spyt/spark-ui.md
+             - name: Building an offline Docker image of SPYT
+               href: user-guide/data-processing/spyt/offline-image.md
              - name: Using the {{product-name}} Shuffle service
                href: user-guide/data-processing/spyt/shuffle.md
              - name: API
