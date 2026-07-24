@@ -1,0 +1,1 @@
+{% include [Building an offline SPYT Docker image](../../../_includes/user-guide/data-processing/spyt/offline-image.md) %}
