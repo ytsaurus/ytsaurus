@@ -92,6 +92,7 @@ class Clique(object):
     sql_udf_path = None
     query_log_table_path = None
     dictionaries_path = None
+    election_lock_path = None
 
     def __init__(self, instance_count,
                  max_failed_job_count=0,
@@ -142,6 +143,7 @@ class Clique(object):
             create("map_node", system_log_table_dir, recursive=True)
 
             self.query_log_table_path = f"{system_log_table_dir}/query_log/0"
+            self.election_lock_path = f"//sys/strawberry/chyt/{self.alias}/leader_lock"
 
             log_table_config_patch = {
                 "yt": {
@@ -152,6 +154,10 @@ class Clique(object):
                             "max_rows_to_keep": 100000,
                             "reporting_period": 100,
                         },
+                    },
+                    "election_manager": {
+                        "lock_path": self.election_lock_path,
+                        "lock_acquisition_period": 300,
                     },
                 },
             }
@@ -346,6 +352,23 @@ class Clique(object):
 
     def get_active_instance_count(self):
         return len(self.get_active_instances())
+
+    # Returns the job cookie of the instance holding the leader lock or None if there is no leader.
+    def get_leader_instance_cookie(self):
+        assert self.election_lock_path is not None
+        if not exists(self.election_lock_path, verbose=False):
+            return None
+
+        # Lock transaction title is "Lock transaction for <group name>:<member name>".
+        title_prefix = "Lock transaction for clique:"
+
+        for election_lock in get(self.election_lock_path + "/@locks", verbose=False):
+            if election_lock["state"] != "acquired":
+                continue
+            title = get("#{}/@title".format(election_lock["transaction_id"]), default="", verbose=False)
+            if title.startswith(title_prefix):
+                return int(title[len(title_prefix):])
+        return None
 
     # Validate number of rows that were read from storage.
     def make_query_and_validate_read_row_count(self, query, exact=None, min=None, max=None, verbose=True, **kwargs):

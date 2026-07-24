@@ -56,6 +56,7 @@ target_link_libraries(yt-chyt-server PUBLIC
   yt-yt-ytlib
   yt-library-clickhouse_discovery
   yt-library-clickhouse_functions
+  yt-library-cypress_election
   yt-library-orchid
   yt-library-monitoring
   library-tracing-jaeger
@@ -189,6 +190,7 @@ target_link_libraries(yt-chyt-server.global PUBLIC
   yt-yt-ytlib
   yt-library-clickhouse_discovery
   yt-library-clickhouse_functions
+  yt-library-cypress_election
   yt-library-orchid
   yt-library-monitoring
   library-tracing-jaeger

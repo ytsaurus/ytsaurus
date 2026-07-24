@@ -36,6 +36,8 @@
 
 #include <yt/yt/library/clickhouse_discovery/config.h>
 
+#include <yt/yt/library/cypress_election/config.h>
+
 #include <yt/yt/library/re2/public.h>
 
 namespace NYT::NClickHouseServer {
@@ -841,6 +843,8 @@ struct TYtConfig
     i64 ReaderMemoryRequirement;
 
     THealthCheckerConfigPtr HealthChecker;
+
+    NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
 
     THashMap<TString, TString> DatabaseDirectories;
 

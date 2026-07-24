@@ -695,6 +695,9 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("health_checker", &TThis::HealthChecker)
         .DefaultNew();
 
+    registrar.Parameter("election_manager", &TThis::ElectionManager)
+        .Default();
+
     registrar.Parameter("database_directories", &TThis::DatabaseDirectories)
         .Default();
 
