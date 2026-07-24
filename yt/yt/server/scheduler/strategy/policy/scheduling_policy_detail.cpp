@@ -2,6 +2,8 @@
 
 #include "helpers.h"
 
+#include <yt/yt/server/scheduler/strategy/policy/gpu/persistent_state.h>
+
 #include <yt/yt/server/scheduler/strategy/helpers.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree.h>
 #include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
@@ -3118,6 +3120,12 @@ void TSchedulingPolicy::InitPersistentState(INodePtr persistentState)
 
     if (persistentState) {
         try {
+            // COMPAT(bystrovserg)
+            if (!IsClassicPersistentState(persistentState)) {
+                YT_LOG_INFO("Converting GPU scheduling policy persistent state to classic format");
+                persistentState = NGpu::ConvertGpuToClassicPersistentState(persistentState);
+            }
+
             InitialPersistentState_ = ConvertTo<TPersistentStatePtr>(persistentState);
         } catch (const std::exception& ex) {
             InitialPersistentState_ = New<TPersistentState>();

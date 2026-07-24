@@ -21,7 +21,7 @@ from yt_commands import (
 
 from yt_scheduler_helpers import (
     scheduler_orchid_path, scheduler_orchid_node_path, scheduler_new_orchid_pool_tree_path, scheduler_orchid_pool_path,
-    scheduler_orchid_operation_path
+    scheduler_orchid_operation_path, scheduler_orchid_pool_tree_config_path
 )
 
 from yt_helpers import read_structured_log, write_log_barrier, profiler_factory
@@ -2140,6 +2140,57 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
         assert get_priority_module_binding(ops["child_unset"]) is False
         assert get_priority_module_binding(ops["default_pool"]) is False
 
+    @authors("bystrovserg")
+    def test_operation_module_survives_policy_switch_to_classic(self):
+        policy_kind_path = scheduler_orchid_pool_tree_config_path("gpu") + "/policy_kind"
+        wait(lambda: get(policy_kind_path, default=None) == "gpu")
+
+        op = run_sleeping_vanilla(
+            job_count=1,
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: get_operation_from_gpu_policy_orchid(op).get("scheduling_module") in self.DATA_CENTERS)
+        module = get_operation_from_gpu_policy_orchid(op)["scheduling_module"]
+
+        # Fill the rest of the op's module, leaving the other module completely empty.
+        nodes_per_module = self.NUM_NODES // len(self.DATA_CENTERS)
+        blocker = run_sleeping_vanilla(
+            job_count=nodes_per_module - 1,
+            spec={"scheduling_modules": [module]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(blocker.get_running_jobs()) == nodes_per_module - 1)
+
+        op_gpu_module_path = (
+            "//sys/scheduler/strategy_state/tree_states/gpu/scheduling_policy_state"
+            "/operation_states/{}/scheduling_module".format(op.id)
+        )
+        wait(lambda: exists(op_gpu_module_path) and get(op_gpu_module_path) == module)
+
+        # Enable classic scheduling segments and switch the tree to the classic policy.
+        update_pool_tree_config_option("gpu", "scheduling_segments", {
+            "mode": "large_gpu",
+            "initialization_timeout": 60000,
+            "manage_period": 100,
+            "unsatisfied_segments_rebalancing_timeout": 1000,
+            "data_centers": self.DATA_CENTERS,
+            "module_type": "data_center",
+        })
+        update_pool_tree_config_option("gpu", "policy_kind", "classic")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        # The tree is now running the classic policy.
+        wait(lambda: get(policy_kind_path, default=None) == "classic")
+
+        # The op must stay on its persisted (full) module instead of moving to the empty one.
+        op_classic_module_path = scheduler_orchid_operation_path(op.id, tree="gpu") + "/scheduling_segment_module"
+        wait(lambda: get(op_classic_module_path, default=None) == module)
+
+        op.abort()
+        blocker.abort()
+
 ##################################################################
 
 
@@ -3178,6 +3229,70 @@ class TestAllocationGpuSchedulingPolicyRevivalOnPolicySwitch(YTEnvSetup):
 
         op.abort()
         wait_operation_unregistered(op.id)
+
+    @authors("bystrovserg")
+    def test_operation_module_survives_policy_switch_to_allocating(self):
+        module = self.DATA_CENTER
+        policy_kind_path = scheduler_orchid_pool_tree_config_path("gpu") + "/policy_kind"
+
+        # The tree starts under the classic policy (set in setup_method).
+        wait(lambda: get(policy_kind_path, default=None) == "classic")
+
+        # Enable classic large-GPU scheduling segments so full-host ops become module-bound.
+        update_pool_tree_config_option("gpu", "scheduling_segments", {
+            "mode": "large_gpu",
+            "initialization_timeout": 10000,
+            "manage_period": 100,
+            "unsatisfied_segments_rebalancing_timeout": 1000,
+            "data_centers": [module],
+            "module_type": "data_center",
+        })
+        create_pool("large_gpu", pool_tree="gpu", attributes={"allow_normal_preemption": False})
+
+        # Fill the module with a running full-host op so the target op can only reserve it.
+        blocker = run_sleeping_vanilla(
+            job_count=self.NUM_NODES,
+            spec={"pool": "large_gpu", "scheduling_segment_modules": [module]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(blocker.get_running_jobs()) == self.NUM_NODES)
+
+        op = run_sleeping_vanilla(
+            job_count=1,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        op_module_path = (
+            "//sys/scheduler/strategy_state/tree_states/gpu/scheduling_policy_state"
+            "/scheduling_segments_state/operation_states/{}/module".format(op.id)
+        )
+        wait(lambda: exists(op_module_path) and get(op_module_path) == module)
+        assert op.get_running_jobs() == {}
+
+        # Switch to the GPU allocating policy and restart. The long init timeout freezes planning.
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy", {
+            "mode": "allocating",
+            "plan_update_period": 100,
+            "module_type": "data_center",
+            "modules": [module],
+            "full_host_aggressive_preemption_timeout": 1000,
+            "initialization_timeout": 60000,
+        })
+        update_pool_tree_config_option("gpu", "policy_kind", "gpu")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        # The tree is now running the GPU policy.
+        wait(lambda: get(policy_kind_path, default=None) == "gpu")
+
+        # During the initialization window the reserving op must already be on its persisted module
+        wait_for_operations_in_gpu_policy_orchid(operation_count=2)
+        wait(lambda: get_operation_from_gpu_policy_orchid(op).get("scheduling_module") == module)
+        wait(lambda: get_operation_from_gpu_policy_orchid(blocker).get("scheduling_module") == module)
+
+        op.abort()
+        blocker.abort()
 
 ##################################################################
 

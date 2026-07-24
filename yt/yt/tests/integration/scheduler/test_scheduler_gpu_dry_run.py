@@ -1042,7 +1042,7 @@ class TestGpuSchedulerPersistentState(DryRunGpuSchedulingPolicyTestBaseConfig):
         })
 
     def _get_persistent_state_path(self, tree="gpu", entity="node"):
-        return f"//sys/scheduler/strategy_state/tree_states/{tree}/gpu_scheduling_policy_state/{entity}_states"
+        return f"//sys/scheduler/strategy_state/tree_states/{tree}/dry_run_gpu_scheduling_policy_state/{entity}_states"
 
     def _get_node_address_to_node_state_map(self, tree="gpu"):
         result = {}
@@ -1300,7 +1300,7 @@ class TestGpuSchedulerPersistentState(DryRunGpuSchedulingPolicyTestBaseConfig):
         wait(lambda: len(op.get_running_jobs()) == 1)
 
         current_state_config = get("//sys/scheduler/strategy_state/tree_states/gpu")
-        current_state_config.pop("gpu_scheduling_policy_state")
+        current_state_config.pop("dry_run_gpu_scheduling_policy_state")
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             set("//sys/scheduler/strategy_state/tree_states/gpu", current_state_config)
