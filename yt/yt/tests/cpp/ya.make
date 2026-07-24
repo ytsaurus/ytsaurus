@@ -20,4 +20,5 @@ RECURSE(
     test_readers
     test_s3_data
     test_sequoia
+    test_transaction_expiration_mode
 )

@@ -250,6 +250,7 @@ private:
         TTransactionStartOptions options {
             .Timeout = Config_->TransactionTimeout,
             .PingPeriod = Config_->TransactionPingPeriod,
+            .MasterExpirationMode = Config_->MasterTransactionExpirationMode,
             .Attributes = std::move(attributes),
         };
         Transaction_ = WaitFor(

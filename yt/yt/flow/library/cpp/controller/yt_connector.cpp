@@ -209,6 +209,7 @@ private:
         config->TransactionPingPeriod = Config_->ElectionManager->TransactionPingPeriod;
         config->LockAcquisitionPeriod = Config_->ElectionManager->LockAcquisitionPeriod;
         config->LeaderCacheUpdatePeriod = Config_->ElectionManager->LeaderCacheUpdatePeriod;
+        config->MasterTransactionExpirationMode = NTransactionClient::EMasterTransactionExpirationMode::Pessimistic;
 
         auto options = NYT::New<TCypressElectionManagerOptions>();
         auto attrs = NYT::NYTree::CreateEphemeralAttributes();
