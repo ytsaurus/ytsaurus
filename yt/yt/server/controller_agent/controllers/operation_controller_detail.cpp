@@ -7865,6 +7865,10 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             file.Executable = attributes.Get<bool>("executable", false);
                             file.Executable = file.Path.GetExecutable().value_or(file.Executable);
 
+                            if (file.Executable && attributes.Get<i64>("chunk_count") == 0) {
+                                THROW_ERROR_EXCEPTION("Executable file %v is empty", file.Path);
+                            }
+
                             if (file.Layer) {
                                 if (attributes.Get<i64>("chunk_count") == 0) {
                                     THROW_ERROR_EXCEPTION("File %v is empty", file.Path);
