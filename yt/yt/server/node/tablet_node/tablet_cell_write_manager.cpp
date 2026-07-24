@@ -292,6 +292,8 @@ public:
                 transaction->TransientPrepareSignature() += mutationPrepareSignature;
             }
 
+            auto tableProfiler = tablet->GetTableProfiler();
+
             if (!reader->IsBatchEmpty()) {
                 auto writeCommandBatch = reader->FinishBatch();
                 auto compressedRecordData = ChangelogCodec_->Compress(writeCommandBatch.Data());
@@ -350,7 +352,7 @@ public:
                 mutation->SetCurrentTraceContext();
                 commitResult = mutation->Commit().As<void>();
 
-                auto counters = tablet->GetTableProfiler()->GetWriteCounters(GetCurrentProfilingUser());
+                auto counters = tableProfiler->GetWriteCounters(GetCurrentProfilingUser());
                 counters->RowCount.Increment(writeRecord.RowCount);
                 counters->DataWeight.Increment(writeRecord.DataWeight);
             }
@@ -363,8 +365,7 @@ public:
                     context.BlockedLockMask,
                     context.BlockedTimestamp);
 
-                tablet
-                    ->GetTableProfiler()
+                tableProfiler
                     ->GetWriteCounters(GetCurrentProfilingUser())
                     ->WaitOnBlockedRowDuration
                     .Record(waitOnBlockedRowDuration);
