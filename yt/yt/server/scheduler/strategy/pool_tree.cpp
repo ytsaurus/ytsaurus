@@ -1084,7 +1084,7 @@ public:
         }
 
         result->SchedulingPolicyState = SchedulingPolicy_->BuildPersistentState();
-        result->GpuSchedulingPolicyState = DryRunGpuSchedulingPolicy_->BuildPersistentState();
+        result->DryRunGpuSchedulingPolicyState = DryRunGpuSchedulingPolicy_->BuildPersistentState();
 
         return result;
     }
@@ -1111,7 +1111,7 @@ public:
         }
 
         SchedulingPolicy_->InitPersistentState(persistentState->SchedulingPolicyState);
-        DryRunGpuSchedulingPolicy_->InitPersistentState(persistentState->GpuSchedulingPolicyState);
+        DryRunGpuSchedulingPolicy_->InitPersistentState(persistentState->DryRunGpuSchedulingPolicyState);
     }
 
     TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) override

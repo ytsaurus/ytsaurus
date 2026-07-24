@@ -4,6 +4,7 @@
 
 #include "pool_tree_snapshot_state.h"
 
+#include <yt/yt/server/scheduler/strategy/policy/persistent_state.h>
 #include <yt/yt/server/scheduler/strategy/policy/pool_tree_snapshot_state.h>
 
 #include <yt/yt/server/scheduler/common/exec_node.h>
@@ -704,6 +705,11 @@ void TSchedulingPolicy::InitPersistentState(INodePtr persistentState)
 
     if (persistentState) {
         try {
+            if (IsClassicPersistentState(persistentState)) {
+                YT_LOG_INFO("Converting classic scheduling policy persistent state to GPU format");
+                persistentState = ConvertClassicToGpuPersistentState(persistentState);
+            }
+
             InitialPersistentState_ = ConvertTo<TPersistentStatePtr>(persistentState);
         } catch (const std::exception& ex) {
             InitialPersistentState_ = New<TPersistentState>();

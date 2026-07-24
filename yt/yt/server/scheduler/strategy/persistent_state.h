@@ -33,7 +33,7 @@ struct TPersistentTreeState
     THashMap<std::string, TPersistentPoolStatePtr> PoolStates;
 
     NYTree::INodePtr SchedulingPolicyState;
-    NYTree::INodePtr GpuSchedulingPolicyState;
+    NYTree::INodePtr DryRunGpuSchedulingPolicyState;
 
     REGISTER_YSON_STRUCT(TPersistentTreeState);
 

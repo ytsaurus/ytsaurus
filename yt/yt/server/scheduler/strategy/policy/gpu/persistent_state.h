@@ -60,4 +60,12 @@ using TPersistentStatePtr = TIntrusivePtr<TPersistentState>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(bystrovserg): Converts the classic policy's persistent state into the GPU policy format.
+NYTree::INodePtr ConvertClassicToGpuPersistentState(const NYTree::INodePtr& node);
+
+// COMPAT(bystrovserg): Converts the GPU policy's persistent state into the classic policy format.
+NYTree::INodePtr ConvertGpuToClassicPersistentState(const NYTree::INodePtr& node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu
