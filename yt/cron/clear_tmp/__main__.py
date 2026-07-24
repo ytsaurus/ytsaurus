@@ -12,8 +12,9 @@ Special attribute @clear_tmp_config adjusts clear_tmp behavior on tables and dir
         children of this directory are still considered for removal
 """
 
-from yt.common import _pretty_format_for_logging, date_string_to_datetime, utcnow
+from yt.common import _pretty_format_for_logging, date_string_to_datetime, update_inplace, utcnow
 from yt.wrapper.common import chunk_iter_list, get_value
+from yt.wrapper.default_config import retries_config
 
 import yt.wrapper as yt
 import yt.logger as yt_logger
@@ -26,6 +27,33 @@ import argparse
 import logging
 
 from contextlib import contextmanager
+
+
+SECOND = 1000
+MINUTE = 60 * SECOND
+
+
+def make_retries_config():
+    return retries_config(count=12, enable=True, total_timeout=10 * MINUTE, backoff={
+        "policy": "exponential",
+        "exponential_policy": {
+            "start_timeout": 5 * SECOND,
+            "base": 2,
+            "max_timeout": 2 * MINUTE,
+            "decay_factor_bound": 0.3,
+        },
+    })
+
+
+def configure_proxy_timeouts(config):
+    update_inplace(config, {
+        "proxy": {
+            "request_timeout": 2 * MINUTE,
+            "heavy_request_timeout": 2 * MINUTE,
+            "retries": make_retries_config(),
+        },
+        "batch_requests_retries": make_retries_config(),
+    })
 
 
 @contextmanager
@@ -246,7 +274,7 @@ def main():
     token = None if args.token_env_variable is None else os.environ.get(args.token_env_variable)
 
     config = yt.default_config.get_config_from_env()
-    config["proxy"]["request_timeout"] = 60000
+    configure_proxy_timeouts(config)
     yt_client = yt.YtClient(config=config, token=token)
 
     if args.account is not None:
