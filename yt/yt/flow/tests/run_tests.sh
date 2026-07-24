@@ -44,8 +44,10 @@ VENV_PYTHON="${VIRTUALENV_PATH}/bin/python3"
 # exported (only the versioned subdirectories are). Add them back once the
 # export covers those.
 FLOW_CI_INTEGRATION_PATHS=(
-    "examples/cpp/*/test"
-    "examples/python/*/test"
+    # SMOKE EXPERIMENT: single primary-only example to test whether the local-YT
+    # master-startup timeout is caused by concurrent multi-cluster boot or by
+    # the runner being slow even for one master.
+    "examples/cpp/wait_click_join/test"
 )
 
 # Python unit tests: no YT needed, run as a fast pass without the recipe.
@@ -302,7 +304,9 @@ if [ -n "${INTEGRATION_ROOTS}" ]; then
     if [ "${MODE}" = "all" ]; then
         YT_CLUSTER_NAMES="primary,remote_0,remote_1"
     else
-        YT_CLUSTER_NAMES="primary,remote_0"
+        # SMOKE EXPERIMENT: single cluster so only one master boots (no
+        # concurrent multi-cluster contention). wait_click_join needs primary.
+        YT_CLUSTER_NAMES="primary"
     fi
     YT_CONFIG_PATCH="{rpc_proxy_count=1;node_count=3;scheduler_count=1;queue_agent_state_target_version=7;}"
     RECIPE_ENV_FILE="${TESTS_SANDBOX}/flow_recipe_env.json"
