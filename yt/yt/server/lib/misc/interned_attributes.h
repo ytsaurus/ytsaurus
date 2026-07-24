@@ -179,7 +179,6 @@
     XX(EnableByUserProfiling, enable_by_user_profiling) \
     XX(EnableChunkReincarnation, enable_chunk_reincarnation) \
     XX(EnableConsistentChunkReplicaPlacement, enable_consistent_chunk_replica_placement) \
-    XX(EnableDetailedChunkLogs, enable_detailed_chunk_logs) \
     XX(EnableDetailedLogs, enable_detailed_logs) \
     XX(EnableDetailedProfiling, enable_detailed_profiling) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
@@ -194,6 +193,7 @@
     XX(EnableStepFunctionForGangOperations, enable_step_function_for_gang_operations) \
     XX(EnableStripedErasure, enable_striped_erasure) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
+    XX(EnableVerboseLogging, enable_verbose_logging) \
     XX(EndorsementRequired, endorsement_required) \
     XX(EntranceCellTag, entrance_cell_tag) \
     XX(EntranceNodeId, entrance_node_id) \

@@ -152,7 +152,9 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
         if (ChunkPlacement_->UseHostAwareReplicator() && host) {
             auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
             if (!inserted) {
-                YT_LOG_TRACE(
+                YT_LOG_EVENT(
+                    Logger(),
+                    Callbacks_->GetChunkLogLevel(chunk),
                     "Chunk has multiple replicas on the same host (ChunkId: %v, Host: %v, UnsafelyPlacedReplicaNodeAddress: %v)",
                     chunk->GetId(),
                     host->GetName(),
@@ -234,7 +236,10 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
             mediumToErasedIndexes[mediumIndex],
             totallySealed);
 
-        YT_LOG_TRACE("Computed erasure chunk statistics for medium "
+        YT_LOG_EVENT(
+            Logger(),
+            Callbacks_->GetChunkLogLevel(chunk),
+            "Computed erasure chunk statistics for medium "
             "(ChunkId: %v, MediumIndex: %v, MediumName: %v, DataPartsOnly: %v, Status: %v, "
             "ReplicationFactor: %v, ReplicaCount: %v, MaxReplicasPerRack: %v, "
             "DecommissionedReplicaCount: %v, TemporarilyUnavailableReplicaCount: %v)",
@@ -638,7 +643,9 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeRegularChunkStatistics(
         if (ChunkPlacement_->UseHostAwareReplicator() && host) {
             auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
             if (!inserted) {
-                YT_LOG_TRACE(
+                YT_LOG_EVENT(
+                    Logger(),
+                    Callbacks_->GetChunkLogLevel(chunk),
                     "Chunk has multiple replicas on the same host (ChunkId: %v, Host: %v, UnsafelyPlacedReplicaNodeAddress: %v)",
                     chunk->GetId(),
                     host->GetName(),
@@ -751,7 +758,10 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeRegularChunkStatistics(
             precarious = precarious && mediumTransient;
         }
 
-        YT_LOG_TRACE("Computed regular chunk statistics for medium "
+        YT_LOG_EVENT(
+            Logger(),
+            Callbacks_->GetChunkLogLevel(chunk),
+            "Computed regular chunk statistics for medium "
             "(ChunkId: %v, MediumIndex: %v, MediumName: %v, Status: %v, ReplicationFactor: %v, "
             "ReplicaCount: %v, MaxReplicasPerRack: %v, DecommissionedReplicas: %v, "
             "TemporarilyUnavailableReplicas: %v)",

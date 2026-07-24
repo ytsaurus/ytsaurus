@@ -278,7 +278,7 @@ private:
         descriptors->emplace_back(EInternedAttributeKey::ScheduleReincarnation)
             .SetWritable(!isForeign)
             .SetPresent(false);
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableDetailedChunkLogs)
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableVerboseLogging)
             .SetWritable(!chunk->IsForeign())
             .SetPresent(!chunk->IsForeign()));
     }
@@ -965,13 +965,13 @@ private:
                 return true;
             }
 
-            case EInternedAttributeKey::EnableDetailedChunkLogs: {
+            case EInternedAttributeKey::EnableVerboseLogging: {
                 if (isForeign) {
                     break;
                 }
 
                 BuildYsonFluently(consumer)
-                    .Value(chunkManager->IsDetailedChunkLoggingEnabled(chunk));
+                    .Value(chunkManager->IsVerboselyLogged(chunk));
                 return true;
             }
 
@@ -1293,12 +1293,12 @@ private:
     {
         switch (key) {
             case EInternedAttributeKey::ScheduleReincarnation: {
+                ValidateSuperuserOnAttributeModification(Bootstrap_->GetSecurityManager(), key.Unintern());
+
                 auto* chunk = GetThisImpl<TChunk>();
                 if (chunk->IsForeign()) {
                     THROW_ERROR_EXCEPTION("Reincarnation can be scheduled for native chunks only");
                 }
-
-                ValidateSuperuserOnAttributeModification(Bootstrap_->GetSecurityManager(), key.Unintern());
 
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 const auto& chunkReincarnator = chunkManager->GetChunkReincarnator();
@@ -1307,16 +1307,16 @@ private:
                 return true;
             }
 
-            case EInternedAttributeKey::EnableDetailedChunkLogs: {
-                auto* chunk = GetThisImpl<TChunk>();
-                if (chunk->IsForeign()) {
-                    THROW_ERROR_EXCEPTION("Detailed chunk logging can be enabled for native chunks only");
-                }
-
+            case EInternedAttributeKey::EnableVerboseLogging: {
                 ValidateSuperuserOnAttributeModification(Bootstrap_->GetSecurityManager(), key.Unintern());
 
+                auto* chunk = GetThisImpl<TChunk>();
+                if (chunk->IsForeign()) {
+                    THROW_ERROR_EXCEPTION("Verbose chunk logging can be enabled for native chunks only");
+                }
+
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
-                chunkManager->SetDetailedChunkLogging(chunk, ConvertTo<bool>(value));
+                chunkManager->SetVerboselyLogged(chunk, ConvertTo<bool>(value));
 
                 return true;
             }

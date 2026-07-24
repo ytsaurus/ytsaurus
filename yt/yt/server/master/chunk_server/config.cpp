@@ -1046,11 +1046,11 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("allow_offshore_media", &TThis::AllowOffshoreMedia)
         .Default(false);
 
-    registrar.Parameter("max_chunks_with_detailed_logging_enabled", &TThis::MaxChunksWithDetailedLoggingEnabled)
-        .Default(0);
+    registrar.Parameter("max_verbosely_logged_chunks", &TThis::MaxVerboselyLoggedChunks)
+        .Default(50);
 
-    registrar.Parameter("detailed_logging_enabled_alert_time", &TThis::DetailedLoggingEnabledAlertTime)
-        .Default(TDuration::Minutes(5));
+    registrar.Parameter("max_verbose_logging_enabled_duration", &TThis::MaxVerboseLoggingEnabledDuration)
+        .Default(TDuration::Days(1));
 
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;

@@ -116,7 +116,7 @@ protected:
 class TChunkScanQueueBase
 {
 public:
-    explicit TChunkScanQueueBase(NCellMaster::TBootstrap* bootstrap, EChunkScanKind kind);
+    TChunkScanQueueBase(NCellMaster::TBootstrap* bootstrap, EChunkScanKind kind);
 
 protected:
     const NCellMaster::TBootstrap* Bootstrap_;
