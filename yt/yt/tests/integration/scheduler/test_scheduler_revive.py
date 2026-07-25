@@ -1720,6 +1720,30 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         with raises_yt_error("Cannot revive operation when spec option .* is set"):
             op.track()
 
+    @authors("apollo1321")
+    def test_vanilla_fail_on_job_restart_stall(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "command": "sleep 1000",
+                    },
+                },
+                "fail_on_job_restart": True,
+            },
+        )
+
+        self._wait_for_single_job(op.id)
+        op.wait_for_fresh_snapshot()
+
+        self._kill_and_start("controller_agents")
+
+        wait(lambda: op.get_state() == "failed", timeout=10)
+        with raises_yt_error("Reviving operation without job revival"):
+            op.track()
+
 
 ##################################################################
 
