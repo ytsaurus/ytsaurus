@@ -206,7 +206,7 @@ private:
 
         for (auto transactionId : transactionIds) {
             if (CellTagFromId(transactionId) != cellTag) {
-                THROW_ERROR_EXCEPTION("Transaction is not coordinated by this cell (TransactionId: %v, CellTag: %v)",
+                THROW_ERROR_EXCEPTION("Transaction %v is not coordinated by cell %v",
                     transactionId,
                     cellTag);
             }

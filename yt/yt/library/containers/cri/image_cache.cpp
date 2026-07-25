@@ -144,7 +144,7 @@ public:
                 const TCriImageApi::TRspImageStatusPtr& imageStatus) mutable
             {
                 if (!imageStatus->has_image()) {
-                    return MakeFuture<TCriImageCacheEntryPtr>(TError("Docker image not found in cache (Image: %v)", image));
+                    return MakeFuture<TCriImageCacheEntryPtr>(TError("Docker image %v not found in cache", image));
                 }
                 auto protoImage = imageStatus->image();
                 if (!IsManagedImage(image)) {
@@ -174,7 +174,7 @@ public:
                         YT_LOG_DEBUG("Unmanaged docker image found in cache (Image: %v)", image);
                         return New<TCriImageCacheEntry>(std::move(image), protoImage.size());
                     } else {
-                        THROW_ERROR_EXCEPTION("Unmanaged docker image not found in cache (Image: %v)",
+                        THROW_ERROR_EXCEPTION("Unmanaged docker image %v not found in cache",
                             image);
                     }
                 }));

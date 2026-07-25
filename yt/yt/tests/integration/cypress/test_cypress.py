@@ -722,7 +722,7 @@ class TestCypress(YTEnvSetup):
         create("file", "//tmp/p1/f", attributes={"account": "a"})
         wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") > 0)
 
-        with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
+        with raises_yt_error("Cannot remove account .* because its usage is not zero"):
             remove("//sys/accounts/a")
         assert get("//sys/accounts/a/@life_stage") == "creation_committed"
 

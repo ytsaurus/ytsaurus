@@ -633,7 +633,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         // We need to prevent context switched between checking node state and BeginNodeHeartbeatProcessing.
         TForbidContextSwitchGuard guard;
         if (node->GetMasterState() != NNodeTrackerClient::ENodeState::Online || node->GetSchedulerState() != ENodeState::Online) {
-            auto error = TError("Node is not online (MasterState: %v, SchedulerState: %v)",
+            auto error = TError("Node is not online: master state is %Qlv, scheduler state is %Qlv",
                 node->GetMasterState(),
                 node->GetSchedulerState());
             if (!node->GetRegistrationError().IsOK()) {

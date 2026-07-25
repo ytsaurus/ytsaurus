@@ -728,7 +728,7 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
             lambda: get("//sys/accounts/acc_async_remove/@resource_usage/master_memory/total") > 0
             and get("//sys/accounts/acc_async_remove/@resource_usage/node_count") > 0
         )
-        with raises_yt_error("Cannot remove an account \"acc_async_remove\" because its usage is not zero"):
+        with raises_yt_error("Cannot remove account \"acc_async_remove\" because its usage is not zero"):
             remove_account("acc_async_remove", sync=False)
 
         yield

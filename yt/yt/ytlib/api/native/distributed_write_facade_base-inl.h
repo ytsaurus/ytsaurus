@@ -233,7 +233,7 @@ void TDistributedWriteFinishFacadeBase<TDerived, TTraits>::FinishSession(
         auto batchRspOrError = NConcurrency::WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
             NChunkClient::GetCumulativeError(batchRspOrError),
-            "Error attaching output chunks (Path: %v)",
+            "Error attaching output chunks to %v",
             path);
 
         const auto& batchRsp = batchRspOrError.Value();

@@ -87,7 +87,9 @@ public:
     {
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawn_file_actions_adddup2(&Actions_, oldFD, newFD) != 0,
-            TError("Failed to add dup2 file action (OldFD: %v, NewFD: %v)", oldFD, newFD)
+            TError("Failed to add dup2 file action")
+                << TErrorAttribute("old_fd", oldFD)
+                << TErrorAttribute("new_fd", newFD)
                 << TError::FromSystem());
     }
 
@@ -96,7 +98,7 @@ public:
     {
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawn_file_actions_addchdir_np(&Actions_, path.c_str()) != 0,
-            TError("Failed to add chdir file actions (Path: %v)", path)
+            TError("Failed to add chdir file action for path %v", path)
                 << TError::FromSystem());
     }
 #endif

@@ -755,7 +755,7 @@ void TJobFailsTolerance::Register(TRegistrar registrar)
             for (const auto& [key, value] : field) {
                 THROW_ERROR_EXCEPTION_UNLESS(
                     value >= 0,
-                    "Maximum value of fails for each exit code must be non-negative! (ExitCode: %v, MaxFailsCount: %v)",
+                    "Maximum number of fails for exit code %v must be non-negative, got %v",
                     key,
                     value);
             }

@@ -800,12 +800,11 @@ private:
         // corrupt the window.
         if (window.NextReadIndex + std::ssize(records) > window.InFlightEndIndex) {
             auto error = TError(
-                "Chunk %v read returned more records than requested "
-                "(ReturnedCount: %v, NextReadIndex: %v, RequestedEndIndex: %v)",
-                ChunkId_,
-                std::ssize(records),
-                window.NextReadIndex,
-                window.InFlightEndIndex);
+                "Chunk %v read returned more records than requested",
+                ChunkId_)
+                << TErrorAttribute("returned_count", std::ssize(records))
+                << TErrorAttribute("next_read_index", window.NextReadIndex)
+                << TErrorAttribute("requested_end_index", window.InFlightEndIndex);
             YT_LOG_ALERT(error);
             FailPrefetch(std::move(error));
             return;
@@ -889,7 +888,7 @@ private:
         // Check the budget before backing off so the final attempt fails fast.
         ++window.ErrorAttempts;
         if (window.ErrorAttempts >= Config_->MaxReadAttempts) {
-            FailPrefetch(TError("Phase-2 prefetch read attempts exhausted (AttemptCount: %v)",
+            FailPrefetch(TError("Phase-2 prefetch read attempts exhausted after %v attempts",
                 window.ErrorAttempts)
                 << std::move(readError));
             return;

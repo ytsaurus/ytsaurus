@@ -331,9 +331,9 @@ void TRecovery::FinishRecovery()
 
     auto automatonState = DecoratedAutomaton_->GetReachableState();
     if (automatonState != TargetState_) {
-        THROW_ERROR_EXCEPTION("Unable to recover to version (AutomatonState: %v, TargetState: %v)",
-            automatonState,
-            TargetState_);
+        THROW_ERROR_EXCEPTION("Unable to recover to target state %v: automaton reached state %v",
+            TargetState_,
+            automatonState);
     }
 }
 

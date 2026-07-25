@@ -263,7 +263,7 @@ public:
         auto metaIt = ChunkMetas_.find(chunkId);
 
         if (metaIt.IsEnd()) {
-            THROW_ERROR_EXCEPTION("Chunk meta not found (ChunkId: %v)", chunkId);
+            THROW_ERROR_EXCEPTION("Chunk meta not found for chunk %v", chunkId);
         }
 
         *response->mutable_chunk_meta() = metaIt->second;
