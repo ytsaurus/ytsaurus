@@ -1137,7 +1137,7 @@ class TestPortoFakeNonRootVolumes(TestFakeNonRootVolumes):
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        with raises_yt_error("It is impossible to create a fake non-root volume if it contains a layer (VolumeId: 1)"):
+        with raises_yt_error("Cannot create fake non-root volume 1 since it contains a layer"):
             map(
                 command="[ -d tmpfs ]",
                 in_="//tmp/t_input",

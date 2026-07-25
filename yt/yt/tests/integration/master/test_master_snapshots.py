@@ -196,7 +196,7 @@ def check_hierarchical_accounts():
         and get("//sys/accounts/b2/@recursive_resource_usage/chunk_count") > 0
         and get("//sys/accounts/b2/@recursive_resource_usage/chunk_host_cell_master_memory") > 0
     )
-    with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
+    with raises_yt_error("Cannot remove account .* because its usage is not zero"):
         remove_account("b2", sync=False)
 
     # XXX(kiselyovp) this might be flaky

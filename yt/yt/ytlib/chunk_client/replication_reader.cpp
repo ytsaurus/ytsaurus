@@ -518,7 +518,7 @@ private:
                 if (Config_->FailOnUnresolvedNodeId) {
                     return TError(
                         NNodeTrackerClient::EErrorCode::NoSuchNode,
-                        "Replica has unresolved node id (NodeId: %v)",
+                        "Replica has unresolved node id %v",
                         replica.GetNodeId());
                 }
                 YT_LOG_WARNING("Skipping replica with unresolved node id (NodeId: %v)", nodeId);

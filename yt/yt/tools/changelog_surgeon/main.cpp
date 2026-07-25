@@ -228,9 +228,9 @@ void PerformSurgery(const TSurgeonParams& params)
     for (int i = 0; i < ssize(resultingRecords); ++i) {
         DeserializeMutationRecord(resultingRecords[i], &mutationHeader, &mutationData);
         if (prevMutationHeader && mutationHeader.prev_random_seed() != prevMutationHeader->random_seed()) {
-            THROW_ERROR_EXCEPTION("Random seeds do not match (FirstMutationHeader: %v, SecondMutationHeader: %v)",
-                ToString(mutationHeader),
-                ToString(*prevMutationHeader));
+            THROW_ERROR_EXCEPTION("Random seeds do not match")
+                << TErrorAttribute("first_mutation_header", ToString(mutationHeader))
+                << TErrorAttribute("second_mutation_header", ToString(*prevMutationHeader));
         }
 
         if (mutationHeader.segment_id() != resultingChangelogId) {

@@ -470,7 +470,7 @@ int GetQueryProcessingStageRank(DB::QueryProcessingStage::Enum stage)
             return 3;
 
         default:
-            THROW_ERROR_EXCEPTION("Unexpected query processing stage (Stage: %v)",
+            THROW_ERROR_EXCEPTION("Unexpected query processing stage %Qv",
                 toString(stage));
     }
 }

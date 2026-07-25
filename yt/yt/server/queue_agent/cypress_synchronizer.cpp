@@ -491,14 +491,14 @@ private:
                 for (const auto& [path, _] : watchlist->Queues) {
                     THROW_ERROR_EXCEPTION_IF(
                         watchlist->Consumers.contains(path),
-                        "Set of queues and consumers must not intersect, but they do (ObjectPath: %v)",
+                        "Sets of queues and consumers must not intersect, but both contain %v",
                         path);
                 }
 
                 for (const auto& [path, _] : watchlist->Consumers) {
                     THROW_ERROR_EXCEPTION_IF(
                         watchlist->Queues.contains(path),
-                        "Set of queues and consumers must not intersect, but they do (ObjectPath: %v)",
+                        "Sets of queues and consumers must not intersect, but both contain %v",
                         path);
                 }
             });

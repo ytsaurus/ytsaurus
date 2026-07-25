@@ -496,9 +496,8 @@ public:
             std::vector<TFuture<TOverlayData>> errorFutures;
             errorFutures.reserve(layerOptions.size());
             for (const auto& layerOption : layerOptions) {
-                errorFutures.push_back(MakeFuture<TOverlayData>(TError(
-                    "Throw on prepare layers (ArtifactKey: %v)",
-                    layerOption.ArtifactKey)));
+                errorFutures.push_back(MakeFuture<TOverlayData>(TError("Throw on prepare layers")
+                    << TErrorAttribute("artifact_key", ToString(layerOption.ArtifactKey))));
             }
             return errorFutures;
         }

@@ -1286,7 +1286,7 @@ private:
 
                         if (!secureVaultRspOrError.IsOK() &&
                             secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
-                            THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation (OperationId: %v)",
+                            THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation %v",
                                 operationId)
                                 << secureVaultRspOrError;
                         }

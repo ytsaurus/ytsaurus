@@ -454,7 +454,7 @@ public:
                     for (const auto& volume : volumeParams) {
                         if (!volume->LayerArtifactKeys.empty()) {
                             THROW_ERROR_EXCEPTION(
-                                "It is impossible to create a fake non-root volume if it contains a layer (VolumeId: %v)",
+                                "Cannot create fake non-root volume %v since it contains a layer",
                                 volume->VolumeId);
                         }
                     }

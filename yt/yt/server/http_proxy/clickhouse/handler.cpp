@@ -304,14 +304,14 @@ private:
                 result = TUserAndToken{.User=std::move(userAndToken[0]), .Token=std::move(userAndToken[1])};
             } else {
                 return TError(
-                    "Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected (CredentialsDecoded: %v)",
-                    credentialsDecoded);
+                    "Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected")
+                    << TErrorAttribute("credentials_decoded", credentialsDecoded);
             }
 
         } else {
-            return TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
-                authorizationType,
-                authorizationTypeAndCredentials.size());
+            return TError("Unsupported authorization header type %Qv",
+                authorizationType)
+                << TErrorAttribute("token_count", authorizationTypeAndCredentials.size());
         }
         YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
 

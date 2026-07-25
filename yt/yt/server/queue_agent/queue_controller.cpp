@@ -776,7 +776,7 @@ private:
 
         auto error = TError("Static export config check failed");
         for (const auto& directory : duplicateDirectories) {
-            error <<= TError("Duplicate directory in config (Value: %v)", directory);
+            error <<= TError("Duplicate directory %v in config", directory);
         }
         return error;
     }

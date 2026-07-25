@@ -1131,7 +1131,7 @@ private:
             auto agentState = agent->GetState();
             if (agentState != EControllerAgentState::Registering) {
                 THROW_ERROR_EXCEPTION(
-                    "Failed to complete agent registration (AgentState: %Qlv)",
+                    "Failed to complete agent registration since agent is in %Qlv state",
                     agentState);
             }
 

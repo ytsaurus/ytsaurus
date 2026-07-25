@@ -1227,7 +1227,7 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
         auto descriptor = mediumDirectory->FindByName(defaultMediumName);
         if (!descriptor) {
             THROW_ERROR_EXCEPTION(
-                "Default medium is unknown (MediumName: %v)",
+                "Default medium %Qv is unknown",
                 defaultMediumName);
         }
         DefaultMediumIndex_ = descriptor->GetIndex();

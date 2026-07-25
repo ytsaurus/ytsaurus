@@ -2743,7 +2743,7 @@ private:
         if (sequenceNumber < leaderSequenceNumber) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
-                "Could not synchronize to sequence number (Expected: %v, Actual: %v)",
+                "Could not synchronize to sequence number: expected %v, actual %v",
                 leaderSequenceNumber,
                 sequenceNumber);
         }

@@ -299,7 +299,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
     TError unrecognizedOptionsError;
     if (unrecognizedOptions && unrecognizedOptions->GetChildCount() > 0 && Config_->EnableUnrecognizedOptionsAlert) {
         unrecognizedOptionsError = TError(NDynamicConfig::EErrorCode::UnrecognizedDynamicConfigOption,
-            "Found unrecognized options in dynamic config (DynamicConfigName: %v)",
+            "Found unrecognized options in dynamic config %Qv",
             Options_.Name)
             << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, NYson::EYsonFormat::Text));
         YT_LOG_WARNING(unrecognizedOptionsError);
