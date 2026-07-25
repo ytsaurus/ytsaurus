@@ -171,7 +171,7 @@ public:
         return Config;
     }
 
-    const NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& clusterName, const TString& user, const TString& token) override {
+    NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& clusterName, const TString& user, const TString& token) override {
         auto key = std::make_tuple(clusterName, user, token);
         auto guard = Guard(Mutex);
         auto it = Yt.find(key);
@@ -186,11 +186,11 @@ public:
         }
     }
 
-    const NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem) override {
+    NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem) override {
         return GetWrapper(actorSystem, Config.GetClusterName(), Config.GetUser(), Config.GetToken());
     }
 
-    const NActors::TActorId GetWrapper() override {
+    NActors::TActorId GetWrapper() override {
         auto key = std::make_tuple(Config.GetClusterName(), Config.GetUser(), Config.GetToken());
         auto guard = Guard(Mutex);
         auto it = Yt.find(key);

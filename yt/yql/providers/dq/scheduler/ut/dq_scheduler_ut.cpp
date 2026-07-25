@@ -273,6 +273,28 @@ Y_UNIT_TEST_SUITE(TSchedulerTest) {
         UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
     }
 
+    Y_UNIT_TEST(ProcessAllFreesPerUserOperationSlot) {
+        // Regression test: ProcessAll is used on node disconnect (DropActorOrNode) and when all
+        // workers shut down (TryResume). It must decrement AwaitOperations the same way Process()
+        // does, otherwise per-user limits leak and new requests get OVERLOADED.
+        NYql::NProto::TDqConfig::TScheduler cfg;
+        cfg.SetMaxOperationsPerUser(5);
+        cfg.SetMaxOperations(1000);
+        const auto scheduler = IScheduler::Make(cfg);
+        UNIT_ASSERT(scheduler);
+        const TString user = "user1";
+        UNIT_ASSERT(scheduler->Suspend({MakeRequest(3U, user), {}}));
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 1U);
+        scheduler->ProcessAll([](const IScheduler::TWaitInfo&) { return true; });
+        UNIT_ASSERT_VALUES_EQUAL(scheduler->UpdateMetrics(), 0U);
+        for (int i = 0; i < 5; ++i) {
+            UNIT_ASSERT_C(
+                scheduler->Suspend({MakeRequest(3U, user), {}}),
+                TStringBuilder() << "Failed on iteration " << i);
+        }
+        UNIT_ASSERT(!scheduler->Suspend({MakeRequest(3U, user), {}}));
+    }
+
     Y_UNIT_TEST(UpdateMetricsAfterRejectedLargeRequest) {
         // Regression test for crash in UpdateMetrics() when a new user's large request
         // is rejected (LargeWaitList full) before per-user counters are initialized.
