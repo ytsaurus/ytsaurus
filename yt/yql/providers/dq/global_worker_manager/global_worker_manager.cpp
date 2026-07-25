@@ -311,7 +311,8 @@ public:
            const ICoordinationHelper::TPtr& coordinator,
            const TVector<TResourceManagerOptions>& resourceUploaderOptions,
            IMetricsRegistryPtr metricsRegistry,
-           const NProto::TDqConfig::TScheduler& schedulerConfig)
+           const NProto::TDqConfig::TScheduler& schedulerConfig,
+           TDuration scheduleInterval)
        : TWorkerManagerCommon<TGlobalWorkerManager>(&TGlobalWorkerManager::Initialization)
         , Coordinator(coordinator)
         , LeaderResolver(std::make_shared<TSingleNodeResolver>())
@@ -324,6 +325,7 @@ public:
         , Revision(ToString(GetProgramCommitId()))
         , ResourceUploaderOptions(resourceUploaderOptions)
         , WaitListSize(nullptr)
+        , ScheduleInterval(scheduleInterval)
     { }
 
 private:
@@ -1421,7 +1423,7 @@ private:
     THashMap<TString, TInstant> LastUploadCache;
 
     // Don't reschedule too frequently to avoid GWM hanging
-    TDuration ScheduleInterval = TDuration::MilliSeconds(100);
+    TDuration ScheduleInterval;
     size_t ScheduleWaitCount = std::numeric_limits<size_t>::max(); // max - no, 0 - any, > 0 count
     TInstant LastCleanTime;
     TDuration CleanInterval = TDuration::Seconds(2);
@@ -1436,8 +1438,9 @@ NActors::IActor* CreateGlobalWorkerManager(
         const ICoordinationHelper::TPtr& coordinator,
         const TVector<TResourceManagerOptions>& resourceUploaderOptions,
         IMetricsRegistryPtr metricsRegistry,
-        const NProto::TDqConfig::TScheduler& schedulerConfig) {
-    return new TGlobalWorkerManager(coordinator, resourceUploaderOptions, std::move(metricsRegistry), schedulerConfig);
+        const NProto::TDqConfig::TScheduler& schedulerConfig,
+        TDuration scheduleInterval) {
+    return new TGlobalWorkerManager(coordinator, resourceUploaderOptions, std::move(metricsRegistry), schedulerConfig, scheduleInterval);
 }
 
 } // namespace NYql

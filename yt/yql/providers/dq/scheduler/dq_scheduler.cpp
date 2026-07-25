@@ -203,6 +203,7 @@ private:
         const auto proc = [&processor](const TFullWaitInfo& info) {
             if (processor(info)) {
                 info.UserInfo->second.Await -= info.Request.GetCount();
+                info.UserInfo->second.AwaitOperations -= 1;
                 return true;
             }
             return false;
