@@ -5985,6 +5985,12 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
 
     auto joblet = GetJoblet(jobId);
     if (!joblet->IsStarted()) {
+        if (joblet->Revived) {
+            // A revived job that was not marked started in the snapshot may have
+            // actually started after the snapshot was built. Job tracker revives
+            // such a job, so it must be explicitly released once it finishes.
+            JobIdToReleaseFlags_.emplace(jobId, summary->ReleaseFlags);
+        }
         return;
     }
 
