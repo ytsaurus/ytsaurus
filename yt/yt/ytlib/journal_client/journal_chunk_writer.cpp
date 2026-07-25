@@ -234,6 +234,8 @@ private:
 
     TError Error_;
 
+    bool Finished_ = false;
+
     std::atomic<bool> IsCloseDemanded_ = false;
 
     TSingleShotCallbackList<void(const TError&)> Failed_;
@@ -906,6 +908,10 @@ private:
     void OnWriterFinished()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        if (std::exchange(Finished_, true)) {
+            return;
+        }
 
         for (auto& node : Nodes_) {
             if (node->PingExecutor) {
