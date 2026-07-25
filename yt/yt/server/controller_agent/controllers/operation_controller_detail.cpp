@@ -1594,11 +1594,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive(bool suspended
 
     if (!Config_->EnableJobRevival) {
         if (HasJobUniquenessRequirements() && RunningJobCount_ != 0) {
-            OnJobUniquenessViolated(TError(
+            THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
                 "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
-                << TErrorAttribute("reason", EFailOnJobRestartReason::JobRevivalDisabled));
-            return result;
+                << TErrorAttribute("reason", EFailOnJobRestartReason::JobRevivalDisabled);
         }
 
         AbortAllJoblets(EAbortReason::JobRevivalDisabled, /*honestly*/ true);
