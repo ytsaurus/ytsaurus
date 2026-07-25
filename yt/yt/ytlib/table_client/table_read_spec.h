@@ -39,15 +39,13 @@ struct TFetchSingleTableReadSpecOptions
     bool FetchParityReplicas = true;
     EUnavailableChunkStrategy UnavailableChunkStrategy = EUnavailableChunkStrategy::ThrowError;
     NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy = NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable;
-
     bool FetchFromTablets = false;
 };
 
-//! Helper for fetching single table identified by TRichYPath.
-//! By the moment this comment is written, it is used in NApi::TTableReader
-//! and in CHYT YT-based external dictionaries.
+//! Helper for fetching a single table.
+//! Used in NApi::TTableReader and in CHYT YT-based external dictionaries.
 TTableReadSpec FetchSingleTableReadSpec(
-    const NYPath::TRichYPath& path,
+    NChunkClient::TUserObject* userObject,
     const NApi::NNative::IClientPtr& client,
     const TFetchSingleTableReadSpecOptions& options = {});
 

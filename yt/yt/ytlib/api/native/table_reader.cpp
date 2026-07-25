@@ -202,7 +202,8 @@ private:
         chunkReadOptions.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
         chunkReadOptions.ReadSessionId = readSessionId;
 
-        auto tableReadSpec = FetchSingleTableReadSpec(RichPath_, Client_, fetchTableReadSpecOptions);
+        NChunkClient::TUserObject userObject(RichPath_);
+        auto tableReadSpec = FetchSingleTableReadSpec(&userObject, Client_, fetchTableReadSpecOptions);
         YT_VERIFY(tableReadSpec.DataSourceDirectory->DataSources().size() == 1);
         const auto& dataSource = tableReadSpec.DataSourceDirectory->DataSources().front();
         TableSchema_ = dataSource->Schema();

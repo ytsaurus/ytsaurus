@@ -193,10 +193,11 @@ TTableReadSpec FetchRegularTableReadSpec(
 }
 
 TTableReadSpec FetchSingleTableReadSpec(
-    const NYPath::TRichYPath& path,
+    TUserObject* userObject,
     const NNative::IClientPtr& client,
     const TFetchSingleTableReadSpecOptions& options)
 {
+    const auto& path = userObject->Path;
     auto tablePath = path.GetPath();
 
     auto Logger = TableClientLogger().WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
@@ -206,11 +207,9 @@ TTableReadSpec FetchSingleTableReadSpec(
 
     YT_LOG_INFO("Fetching table read spec");
 
-    auto userObject = std::make_unique<TUserObject>(path);
-
     GetUserObjectBasicAttributes(
         client,
-        {userObject.get()},
+        {userObject},
         options.TransactionId,
         Logger,
         EPermission::Read,
@@ -228,7 +227,7 @@ TTableReadSpec FetchSingleTableReadSpec(
 
     switch (type) {
         case EObjectType::Table:
-            return FetchRegularTableReadSpec(path, client, options, userObject.get(), Logger);
+            return FetchRegularTableReadSpec(path, client, options, userObject, Logger);
         default:
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 tablePath,

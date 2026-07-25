@@ -95,7 +95,8 @@ public:
 
         auto readSchema = BuildReadSchema(*table->Schema);
 
-        auto tableReadSpec = FetchSingleTableReadSpec(Path_, Client_, TFetchSingleTableReadSpecOptions{
+        TUserObject userObject(Path_);
+        auto tableReadSpec = FetchSingleTableReadSpec(&userObject, Client_, TFetchSingleTableReadSpecOptions{
             .GetUserObjectBasicAttributesOptions = {
                 .OmitInaccessibleRows = true,
             },

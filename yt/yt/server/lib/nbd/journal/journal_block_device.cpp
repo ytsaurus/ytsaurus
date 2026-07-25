@@ -830,8 +830,9 @@ TSnapshotLoadSpec FetchSnapshotLoadSpec(
     const NYPath::TYPath& path,
     const TFetchSnapshotLoadTableSpecOptions& options)
 {
+    NChunkClient::TUserObject userObject{NYPath::TRichYPath(path)};
     return NTableClient::FetchSingleTableReadSpec(
-        NYPath::TRichYPath(path),
+        &userObject,
         client,
         options);
 }
