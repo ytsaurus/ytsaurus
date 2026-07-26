@@ -22,6 +22,16 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMasterChunkSpecFetcherOptions
+{
+    NApi::TMasterReadOptions MasterReadOptions;
+    int MaxChunksPerFetch = 1000;
+    int MaxChunksPerLocateRequest = 1000;
+    std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr& req, int tableIndex)> FetchRequestInitializer;
+    bool SkipUnavailableChunks = false;
+    EChunkListContentType ChunkListContentType = EChunkListContentType::Main;
+};
+
 //! This class fetches chunk specs from master and processes the responses
 //! (possibly locating foreign chunks).
 class TMasterChunkSpecFetcher
@@ -32,16 +42,11 @@ public:
 
 public:
     TMasterChunkSpecFetcher(
-        const NApi::NNative::IClientPtr& client,
-        const NApi::TMasterReadOptions& masterReadOptions,
+        NApi::NNative::IClientPtr client,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        const IInvokerPtr& invoker,
-        int maxChunksPerFetch,
-        int maxChunksPerLocateRequest,
-        const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&, int /*tableIndex*/)>& initializeFetchRequest,
-        const NLogging::TLogger& logger,
-        bool skipUnavailableChunks = false,
-        bool fetchHunkChunks = false);
+        IInvokerPtr invoker,
+        const TMasterChunkSpecFetcherOptions& options,
+        NLogging::TLogger logger);
 
     void Add(
         NObjectClient::TObjectId objectId,
@@ -59,15 +64,10 @@ public:
 
 private:
     NApi::NNative::IClientPtr Client_;
-    NApi::TMasterReadOptions MasterReadOptions_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     IInvokerPtr Invoker_;
-    int MaxChunksPerFetch_;
-    int MaxChunksPerLocateRequest_;
-    std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&, int)> InitializeFetchRequest_;
+    TMasterChunkSpecFetcherOptions Options_;
     NLogging::TLogger Logger;
-    bool SkipUnavailableChunks_;
-    bool FetchHunkChunks_;
     i64 TotalChunkCount_ = 0;
     int TableCount_ = 0;
 

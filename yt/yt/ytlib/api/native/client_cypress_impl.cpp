@@ -2084,12 +2084,13 @@ private:
 
         auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             Client_,
-            TMasterReadOptions{},
             Client_->Connection_->GetNodeDirectory(),
             Client_->Connection_->GetInvoker(),
-            Client_->Connection_->GetConfig()->MaxChunksPerFetch,
-            Client_->Connection_->GetConfig()->MaxChunksPerLocateRequest,
-            prepareFetchRequest,
+            TMasterChunkSpecFetcherOptions{
+                .MaxChunksPerFetch = Client_->Connection_->GetConfig()->MaxChunksPerFetch,
+                .MaxChunksPerLocateRequest = Client_->Connection_->GetConfig()->MaxChunksPerLocateRequest,
+                .FetchRequestInitializer = prepareFetchRequest,
+            },
             Logger);
 
         for (int srcObjectIndex = 0; srcObjectIndex < std::ssize(SrcObjects_); ++srcObjectIndex) {

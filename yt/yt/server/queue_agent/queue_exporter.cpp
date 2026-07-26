@@ -781,12 +781,13 @@ private:
 
         auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             Client_,
-            TMasterReadOptions{},
             Connection_->GetNodeDirectory(),
             Connection_->GetInvoker(),
-            Connection_->GetConfig()->MaxChunksPerFetch,
-            Connection_->GetConfig()->MaxChunksPerLocateRequest,
-            prepareFetchRequest,
+            TMasterChunkSpecFetcherOptions{
+                .MaxChunksPerFetch = Connection_->GetConfig()->MaxChunksPerFetch,
+                .MaxChunksPerLocateRequest = Connection_->GetConfig()->MaxChunksPerLocateRequest,
+                .FetchRequestInitializer = prepareFetchRequest,
+            },
             Logger);
 
         chunkSpecFetcher->Add(

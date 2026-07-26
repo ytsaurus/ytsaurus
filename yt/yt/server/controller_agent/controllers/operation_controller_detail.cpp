@@ -7408,34 +7408,35 @@ void TOperationControllerBase::FetchUserFiles()
         }
         chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             InputManager_->GetClient(LocalClusterName),
-            TMasterReadOptions{},
             InputManager_->GetNodeDirectory(LocalClusterName),
             GetCancelableInvoker(),
-            Config_->MaxChunksPerFetch,
-            Config_->MaxChunksPerLocateRequest,
-            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int fileIndex) {
-                const auto& file = *userFiles[fileIndex];
-                req->set_fetch_all_meta_extensions(false);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                if (file.Type == EObjectType::File && file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
-                    req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
-                }
-                if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
-                    req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
-                }
-                if (file.Dynamic) {
-                    if (!Spec_->EnableDynamicStoreRead.value_or(true)) {
-                        req->set_omit_dynamic_stores(true);
+            TMasterChunkSpecFetcherOptions{
+                .MaxChunksPerFetch = Config_->MaxChunksPerFetch,
+                .MaxChunksPerLocateRequest = Config_->MaxChunksPerLocateRequest,
+                .FetchRequestInitializer = [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int fileIndex) {
+                    const auto& file = *userFiles[fileIndex];
+                    req->set_fetch_all_meta_extensions(false);
+                    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                    if (file.Type == EObjectType::File && file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
+                        req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
                     }
-                    if (OperationType_ == EOperationType::RemoteCopy) {
-                        req->set_throw_on_chunk_views(true);
+                    if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
+                        req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
                     }
-                }
-                // NB: We always fetch parity replicas since
-                // erasure reader can repair data on flight.
-                req->set_fetch_parity_replicas(true);
-                AddCellTagToSyncWith(req, file.ObjectId);
-                SetTransactionId(req, file.ExternalTransactionId);
+                    if (file.Dynamic) {
+                        if (!Spec_->EnableDynamicStoreRead.value_or(true)) {
+                            req->set_omit_dynamic_stores(true);
+                        }
+                        if (OperationType_ == EOperationType::RemoteCopy) {
+                            req->set_throw_on_chunk_views(true);
+                        }
+                    }
+                    // NB: We always fetch parity replicas since
+                    // erasure reader can repair data on flight.
+                    req->set_fetch_parity_replicas(true);
+                    AddCellTagToSyncWith(req, file.ObjectId);
+                    SetTransactionId(req, file.ExternalTransactionId);
+                },
             },
             Logger);
     };
