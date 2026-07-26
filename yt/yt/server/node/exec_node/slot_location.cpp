@@ -541,6 +541,9 @@ void TSlotLocation::TakeIntoAccountTmpfsVolumes(
             continue;
         }
         tmpfsData.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(GetSlotPath(slotIndex), volumeMount->MountPath.Path().string())), (*volumeIt)->VolumeType);
+        if (rootVolume) {
+            tmpfsData.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(rootVolume->GetPath(), volumeMount->MountPath.Path().string())), (*volumeIt)->VolumeType);
+        }
     }
 }
 
