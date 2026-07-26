@@ -38,6 +38,12 @@ public class ReducerSpecTest {
         Duration prepareTimeLimit = Duration.ofSeconds(30);
         boolean useTmpfs = true;
         DataSize tmpfsSize = DataSize.fromMegaBytes(400);
+        DiskRequest diskRequest = DiskRequest.builder()
+                .setDiskSpace(DataSize.fromGigaBytes(2))
+                .setInodeCount(1000L)
+                .setAccount("tmp")
+                .setMediumName("ssd")
+                .build();
 
         ReducerSpec spec = ReducerSpec.builder()
                 .setReducer(new DummyReducer())
@@ -54,6 +60,7 @@ public class ReducerSpecTest {
                 .setPrepareTimeLimit(prepareTimeLimit)
                 .setUseTmpfs(useTmpfs)
                 .setTmpfsSize(tmpfsSize)
+                .setDiskRequest(diskRequest)
                 .build();
 
         YTreeBuilder builder = YTree.builder();
@@ -94,6 +101,14 @@ public class ReducerSpecTest {
         Assert.assertEquals(".", node.get("tmpfs_path").stringValue());
         Assert.assertTrue(node.get("copy_files").boolValue());
         Assert.assertEquals(tmpfsSize.toBytes(), node.get("tmpfs_size").intValue());
+        Assert.assertEquals(diskRequest.getDiskSpace().get().toBytes(),
+                node.get("disk_request").asMap().get("disk_space").longValue());
+        Assert.assertEquals(diskRequest.getInodeCount().get().longValue(),
+                node.get("disk_request").asMap().get("inode_count").longValue());
+        Assert.assertEquals(diskRequest.getAccount().get(), node.get("disk_request").asMap().get("account")
+                .stringValue());
+        Assert.assertEquals(diskRequest.getMediumName().get(), node.get("disk_request").asMap().get("medium_name")
+                .stringValue());
     }
 
     private static class DummyReducer implements Reducer<YTreeMapNode, YTreeMapNode> {
