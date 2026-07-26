@@ -112,12 +112,13 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
 
     auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
         client,
-        TMasterReadOptions{},
         connection->GetNodeDirectory(),
         connection->GetInvoker(),
-        connection->GetConfig()->MaxChunksPerFetch,
-        connection->GetConfig()->MaxChunksPerLocateRequest,
-        prepareFetchRequest,
+        TMasterChunkSpecFetcherOptions{
+            .MaxChunksPerFetch = connection->GetConfig()->MaxChunksPerFetch,
+            .MaxChunksPerLocateRequest = connection->GetConfig()->MaxChunksPerLocateRequest,
+            .FetchRequestInitializer = prepareFetchRequest,
+        },
         Logger);
 
     chunkSpecFetcher->Add(

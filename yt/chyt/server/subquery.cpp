@@ -650,26 +650,28 @@ private:
     {
         MasterChunkSpecFetcher_ = New<TMasterChunkSpecFetcher>(
             Client_,
-            *QueryContext_->SessionSettings->FetchChunksReadOptions,
             Client_->GetNativeConnection()->GetNodeDirectory(),
             Invoker_,
-            Config_->MaxChunksPerFetch,
-            Config_->MaxChunksPerLocateRequest,
-            [=, this] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int tableIndex) {
-                req->set_fetch_all_meta_extensions(false);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
-                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
-                if (!QueryContext_->SessionSettings->DynamicTable->EnableDynamicStoreRead) {
-                    req->set_omit_dynamic_stores(true);
-                }
-                if (InputTables_[tableIndex]->ExternalTransactionId) {
-                    SetTransactionId(req, InputTables_[tableIndex]->ExternalTransactionId);
-                } else {
-                    SetTransactionId(req, TransactionId_);
-                }
-                SetSuppressAccessTracking(req, true);
-                SetSuppressExpirationTimeoutRenewal(req, true);
+            TMasterChunkSpecFetcherOptions{
+                .MasterReadOptions = *QueryContext_->SessionSettings->FetchChunksReadOptions,
+                .MaxChunksPerFetch = Config_->MaxChunksPerFetch,
+                .MaxChunksPerLocateRequest = Config_->MaxChunksPerLocateRequest,
+                .FetchRequestInitializer = [=, this] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int tableIndex) {
+                    req->set_fetch_all_meta_extensions(false);
+                    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
+                    if (!QueryContext_->SessionSettings->DynamicTable->EnableDynamicStoreRead) {
+                        req->set_omit_dynamic_stores(true);
+                    }
+                    if (InputTables_[tableIndex]->ExternalTransactionId) {
+                        SetTransactionId(req, InputTables_[tableIndex]->ExternalTransactionId);
+                    } else {
+                        SetTransactionId(req, TransactionId_);
+                    }
+                    SetSuppressAccessTracking(req, true);
+                    SetSuppressExpirationTimeoutRenewal(req, true);
+                },
             },
             Logger);
 

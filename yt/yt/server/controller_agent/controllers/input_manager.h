@@ -292,7 +292,7 @@ private:
 
     NChunkClient::TMasterChunkSpecFetcherPtr CreateChunkSpecFetcher(
         const TInputClusterPtr& cluster,
-        bool fetchHunkChunks = false) const;
+        NChunkClient::EChunkListContentType chunkListContentType) const;
 
     PHOENIX_DECLARE_TYPE(TInputManager, 0xc5d6e7f8);
 };
