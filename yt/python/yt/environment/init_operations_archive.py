@@ -1338,7 +1338,7 @@ TRANSFORMS[68] = [
                 ("slot_index_per_pool_tree", "any"),
                 ("annotations", "any"),
                 ("task_names", "any"),
-                ("controller_features", "any", {"lock": "controller_agent"}),
+                ("controller_features", "any", {"lock": "controller_features"}),
                 ("alert_events", "any", {"lock": "alert_events"}),
                 ("scheduling_attributes_per_pool_tree", "any"),
             ],
