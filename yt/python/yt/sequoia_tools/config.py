@@ -58,7 +58,6 @@ class GroundClusterConfig:
 class SequoiaComponentConfig:
     tablet_cell_bundle: str
     tablet_cell_bundle_config: dict[str, Any]
-    tablet_cell_count: int
     default_table_attributes: dict[str, Any]
     table_attribute_patches: dict[str, dict[str, Any]]
 
