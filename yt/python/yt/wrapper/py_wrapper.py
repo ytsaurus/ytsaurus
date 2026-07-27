@@ -525,9 +525,10 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
 
     pickling_config = get_config(client)["pickling"]
     pickler_name = pickling_config["framework"]
+    encryption_engine = pickling_config.get("encryption_engine", "cryptography_fernet")
     pickler = Pickler(pickler_name)
     if params.pickling_encryption_key is not None:
-        encryption_key = pickler.enable_encryption(key=params.pickling_encryption_key)
+        encryption_key = pickler.enable_encryption(key=params.pickling_encryption_key, engine=encryption_engine)
     else:
         encryption_key = None
     dump_kwargs = {}
@@ -554,7 +555,7 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
             del config_copy["token"]
         config_pickler = Pickler(config.DEFAULT_PICKLING_FRAMEWORK)
         if encryption_key:
-            config_pickler.enable_encryption(key=encryption_key)
+            config_pickler.enable_encryption(key=encryption_key, engine=encryption_engine)
         config_pickler.dump(config_copy, fout)
 
     return (list(map(file_argument_builder, [function_filename, config_filename])), encryption_key)
