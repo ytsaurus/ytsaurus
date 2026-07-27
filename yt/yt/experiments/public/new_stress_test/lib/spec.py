@@ -390,6 +390,11 @@ spec_template = {
         # cadence: a table expiring before the verifier reads it would look like a row_index
         # gap (false data-loss failure). Set to None to disable TTL entirely.
         "export_ttl_seconds": 14 * 24 * 3600,
+        # For auto-trim queues, never trim rows younger than this — the queue always keeps a
+        # rolling window of the most recent data (3 days by default) regardless of what has
+        # already been exported/consumed. Bounds queue growth while keeping recent data.
+        # Set to None to trim purely by export/consumer progress with no time floor.
+        "auto_trim_retained_lifetime_seconds": 3 * 24 * 3600,
         # Auto-flush period (ms) for the queue's dynamic stores. Kept small so the Queue
         # Agent has freshly flushed chunks to export (exports never see unflushed data).
         "flush_period_ms": 5000,

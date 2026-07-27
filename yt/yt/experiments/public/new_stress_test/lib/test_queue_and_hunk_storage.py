@@ -836,6 +836,10 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
     yt.config["dynamic_table_retries"]["backoff"] = {"policy": "constant_time", "constant_time": 0.1}
     yt.config["dynamic_table_retries"]["total_timeout"] = 180000
     yt.config["tablets_ready_timeout"] = 4 * 60 * 1000
+    # Give transactions a generous lifetime (default is 30s): operations run under a master
+    # transaction (sort/merge/map_reduce/alter) can take minutes, and a too-short timeout makes
+    # the transaction expire mid-operation ("No such transaction" on commit).
+    yt.config["transaction_timeout"] = 300000
 
     queues = {}
     hunk_storages = {}
