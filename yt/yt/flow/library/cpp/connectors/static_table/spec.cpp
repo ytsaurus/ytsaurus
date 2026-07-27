@@ -82,6 +82,9 @@ void TDynamicTableSourceParameters::Register(TRegistrar registrar)
     registrar.Parameter("min_event_timestamp", &TThis::MinEventTimestamp)
         .Default();
 
+    registrar.Parameter("max_event_timestamp", &TThis::MaxEventTimestamp)
+        .Default();
+
     registrar.Parameter("restart_instant", &TThis::RestartInstant)
         .Default(TInstant::Zero());
 

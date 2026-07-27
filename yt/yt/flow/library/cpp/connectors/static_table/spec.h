@@ -83,6 +83,10 @@ struct TDynamicTableSourceParameters
     // Min timestamp in seconds of table to process.
     std::optional<ui64> MinEventTimestamp;
 
+    // Max timestamp in seconds of table to process.
+    // Used to freeze a source at a fixed boundary before switching to a replacement source/connector.
+    std::optional<ui64> MaxEventTimestamp;
+
     // TLDR: Set it to NOW to restart processing of all visible tables.
     // Ignore current processing progress if previous start/restart was earlier than RestartInstant.
     TInstant RestartInstant;
