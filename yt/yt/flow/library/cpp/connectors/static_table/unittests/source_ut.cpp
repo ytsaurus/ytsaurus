@@ -294,6 +294,61 @@ TEST(TStaticTableSourceTest, MinEventTimestampFilter)
     EXPECT_TRUE(tables.size() == 1);
 }
 
+TEST(TStaticTableSourceTest, MaxEventTimestampFilter)
+{
+    auto lastProcessingTable = New<TSourceControllerTable>();
+    lastProcessingTable->Path = "primary://home/t1";
+    lastProcessingTable->RowCount = 30;
+    lastProcessingTable->DistributedRows = 20;
+    lastProcessingTable->DistributingRanges[TRangeId(40000)] = std::pair<i64, i64>(12, 20);
+    auto sourceParameters = New<TTableSourceParameters>();
+
+    auto sourceDynParameters = New<TDynamicTableSourceParameters>();
+
+    TInstant maxEventTimestamp;
+    TInstant::TryParseIso8601("2025-01-01T00:00:10Z", maxEventTimestamp);
+
+    // clang-format off
+    std::vector<std::pair<TRichYPath, INodePtr>> InputTables({
+        {
+            "primary://home/t1",
+            NYT::NYTree::BuildYsonNodeFluently()
+                .BeginAttributes()
+                .Item("type").Value(NYT::NObjectClient::EObjectType::Table)
+                .Item("id").Value("2025-01-01T00:00:00Z")
+                .Item("creation_time").Value("2025-01-01T00:00:00Z")
+                .Item("key").Value("2025-01-01T00:00:00Z")
+                .Item("row_count").Value(10)
+                .Item("uncompressed_data_size").Value(100)
+                .EndAttributes()
+                .Entity()
+        },
+        {
+            "primary://home/t2",
+            NYT::NYTree::BuildYsonNodeFluently()
+                .BeginAttributes()
+                .Item("type").Value(NYT::NObjectClient::EObjectType::Table)
+                .Item("id").Value("2025-01-01T00:00:20Z")
+                .Item("creation_time").Value("2025-01-01T00:00:20Z")
+                .Item("key").Value("2025-01-01T00:00:20Z")
+                .Item("row_count").Value(10)
+                .Item("uncompressed_data_size").Value(100)
+                .EndAttributes()
+                .Entity()
+        }
+    });
+    // clang-format on
+
+    std::vector<TSourceControllerTablePtr> tables = TSourceController::MakeTables(InputTables, sourceParameters, sourceDynParameters, lastProcessingTable, 2);
+
+    EXPECT_TRUE(tables.size() == 2);
+
+    sourceDynParameters->MaxEventTimestamp = maxEventTimestamp.Seconds();
+    tables = TSourceController::MakeTables(InputTables, sourceParameters, sourceDynParameters, lastProcessingTable, 2);
+    EXPECT_TRUE(tables.size() == 1);
+    EXPECT_EQ(tables[0]->Path.Attributes().Get<std::string>("original_path"), "//home/t1");
+}
+
 TEST(TStaticTableSourceTest, TableNameFilter)
 {
     auto lastProcessingTable = New<TSourceControllerTable>();

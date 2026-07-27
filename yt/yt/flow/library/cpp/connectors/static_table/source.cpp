@@ -685,6 +685,9 @@ void TSourceController::FilterTables(
         if (dynamicSourceParameters->MinEventTimestamp.has_value() && table->EventTimestamp.Underlying() < *dynamicSourceParameters->MinEventTimestamp) {
             return true;
         }
+        if (dynamicSourceParameters->MaxEventTimestamp.has_value() && table->EventTimestamp.Underlying() > *dynamicSourceParameters->MaxEventTimestamp) {
+            return true;
+        }
         return table->GetOrderingKey() < lastProcessingTable->GetOrderingKey() || table->RowCount == 0;
     });
 }

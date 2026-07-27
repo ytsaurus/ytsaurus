@@ -777,6 +777,9 @@ void TSourceController::FilterTables(
         if (dynamicSourceParameters->MinEventTimestamp.has_value() && table->EventTimestamp.Underlying() < *dynamicSourceParameters->MinEventTimestamp) {
             return true;
         }
+        if (dynamicSourceParameters->MaxEventTimestamp.has_value() && table->EventTimestamp.Underlying() > *dynamicSourceParameters->MaxEventTimestamp) {
+            return true;
+        }
         auto coarseKey = std::tie(table->Era, table->EventTimestamp);
         if (table->RowCount == 0 || coarseKey < lastCoarseKey) {
             return true;
