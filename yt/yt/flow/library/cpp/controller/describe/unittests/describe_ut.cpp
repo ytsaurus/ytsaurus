@@ -1602,6 +1602,34 @@ TEST(TBuildDeterministicTopologicalIndexTest, DeterministicAndStable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_W(TDescribeTest, DescribeWorkerShowsGroups)
+{
+    WorkerCount = 0;
+    Prepare();
+
+    auto worker = New<NFlow::TWorker>();
+    worker->RpcAddress = "[10.0.0.1]:81";
+    worker->MonitoringAddress = "[10.0.0.1]:80";
+    worker->IncarnationId = TIncarnationId(TGuid::Create());
+    worker->Groups = {TWorkerGroupId("HEAVY_WORKER"), TWorkerGroupId("misc")};
+    FlowView->State->Workers[worker->RpcAddress] = worker;
+
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    JobManager->DistributeJobs(FlowView);
+    FlowView->State->CommitMutation();
+
+    auto workersDescription = DescribeWorkers(FlowView);
+    ASSERT_EQ(workersDescription.Workers.size(), 1u);
+    const auto expected = std::vector<TWorkerGroupId>{TWorkerGroupId("HEAVY_WORKER"), TWorkerGroupId("misc")};
+    EXPECT_EQ(workersDescription.Workers[0].WorkerGroups, expected);
+    EXPECT_EQ(workersDescription.Workers[0].Groups, expected);
+
+    auto serialized = NYTree::ConvertToNode(workersDescription.Workers[0])->AsMap();
+    EXPECT_TRUE(serialized->FindChild("groups"));
+    EXPECT_TRUE(serialized->FindChild("worker_groups"));
+}
+
 TEST_W(TDescribeTest, DescribeWorkerWithIPv4Address)
 {
     // Override the default worker address to use IPv4 format produced by FormatNetworkAddress.
