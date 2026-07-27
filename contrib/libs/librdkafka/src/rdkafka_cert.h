@@ -43,9 +43,10 @@ typedef struct rd_kafka_cert_s {
         rd_kafka_cert_enc_t encoding;
         rd_refcnt_t refcnt;
 #if WITH_SSL
-        X509 *x509;        /**< Certificate (public key) */
-        EVP_PKEY *pkey;    /**< Private key */
-        X509_STORE *store; /**< CA certificate chain store */
+        X509 *x509;             /**< Certificate (public key) */
+        STACK_OF(X509) * chain; /**< Certificate chain (public key) */
+        EVP_PKEY *pkey;         /**< Private key */
+        X509_STORE *store;      /**< CA trusted certificates */
 #endif
 } rd_kafka_cert_t;
 

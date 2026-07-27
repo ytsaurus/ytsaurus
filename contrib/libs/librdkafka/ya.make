@@ -14,9 +14,9 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(2.6.1)
+VERSION(2.15.0)
 
-ORIGINAL_SOURCE(https://github.com/confluentinc/librdkafka/archive/v2.6.1.tar.gz)
+ORIGINAL_SOURCE(https://github.com/confluentinc/librdkafka/archive/v2.15.0.tar.gz)
 
 PEERDIR(
     contrib/libs/curl
@@ -81,6 +81,7 @@ SRCS(
     src/rdkafka_mock.c
     src/rdkafka_mock_cgrp.c
     src/rdkafka_mock_handlers.c
+    src/rdkafka_mock_sharegrp.c
     src/rdkafka_msg.c
     src/rdkafka_msgset_reader.c
     src/rdkafka_msgset_writer.c
@@ -98,6 +99,7 @@ SRCS(
     src/rdkafka_sasl_oauthbearer.c
     src/rdkafka_sasl_plain.c
     src/rdkafka_sasl_scram.c
+    src/rdkafka_share_acknowledgement.c
     src/rdkafka_ssl.c
     src/rdkafka_sticky_assignor.c
     src/rdkafka_subscription.c
@@ -118,6 +120,9 @@ SRCS(
     src/rdregex.c
     src/rdstring.c
     src/rdunittest.c
+    src/rdunittest_acknowledge.c
+    src/rdunittest_fetcher.c
+    src/rdunittest_msgset_errors.c
     src/rdvarint.c
     src/snappy.c
     src/tinycthread.c

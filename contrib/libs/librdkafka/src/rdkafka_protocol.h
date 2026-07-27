@@ -120,8 +120,12 @@
 #define RD_KAFKAP_GetTelemetrySubscriptions    71
 #define RD_KAFKAP_PushTelemetry                72
 #define RD_KAFKAP_AssignReplicasToDirs         73
+#define RD_KAFKAP_ShareGroupHeartbeat          76
+#define RD_KAFKAP_ShareGroupDescribe           77
+#define RD_KAFKAP_ShareFetch                   78
+#define RD_KAFKAP_ShareAcknowledge             79
+#define RD_KAFKAP__NUM                         80
 
-#define RD_KAFKAP__NUM 74
-
+#define RD_KAFKAP_RPC_VERSION_MAX INT16_MAX
 
 #endif /* _RDKAFKA_PROTOCOL_H_ */

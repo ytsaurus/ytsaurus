@@ -32,7 +32,7 @@
 #include <openssl/ssl.h>
 #else
 
-#define conv_bin2ascii(a, table) ((table)[(a)&0x3f])
+#define conv_bin2ascii(a, table) ((table)[(a) & 0x3f])
 
 static const unsigned char data_bin2ascii[65] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -119,6 +119,37 @@ char *rd_base64_encode_str(const rd_chariov_t *in) {
         return out.ptr;
 }
 
+/**
+ * @brief Base64 encode binary input \p in and return a newly allocated,
+ *        base64-encoded string with URL-safe characters.
+ * @returns a newly allocated, base64-encoded string or NULL in case of some
+ *          issue with the conversion or the conversion is not supported.
+ *
+ * @remark Returned string must be freed after use.
+ */
+char *rd_base64_encode_str_urlsafe(const rd_chariov_t *in) {
+        rd_chariov_t out;
+        char *p;
+        rd_base64_encode(in, &out);
+
+        /* Replace + with - and / with _ */
+        for (p = out.ptr; *p; p++) {
+                if (*p == '+')
+                        *p = '-';
+                else if (*p == '/')
+                        *p = '_';
+        }
+
+        /* Remove padding '=' characters */
+        int newlen = strlen(out.ptr);
+        while (newlen > 0 && out.ptr[newlen - 1] == '=') {
+                out.ptr[newlen - 1] = '\0';
+                newlen--;
+        }
+
+        out.size = newlen;
+        return out.ptr;
+}
 
 /**
  * @brief Base64 decode input string \p in. Ignores leading and trailing

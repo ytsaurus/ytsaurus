@@ -354,6 +354,7 @@ rd_kafka_topic_t *rd_kafka_topic_new0(rd_kafka_t *rk,
         rkt->rkt_rk    = rk;
 
         rkt->rkt_ts_create = rd_clock();
+        rkt->rkt_ts_state  = rkt->rkt_ts_create;
 
         rkt->rkt_conf = *conf;
         rd_free(conf); /* explicitly not rd_kafka_topic_destroy()
@@ -517,6 +518,158 @@ rd_kafka_topic_t *rd_kafka_topic_new0(rd_kafka_t *rk,
 }
 
 
+/**
+ * @brief Create a topic instance with a topic_id known at construction.
+ *
+ *        Used by share-consumer paths where the heartbeat-derived
+ *        assignment carries a topic_id and the corresponding name was
+ *        resolved (typically via metadata cache lookup) before this
+ *        function is called.
+ *
+ *        Returns the existing rkt if one with the same topic_id is
+ *        already registered. The supplied name is ignored in that
+ *        case; the existing rkt's name is immutable post-construction.
+ *
+ *        Differences from rd_kafka_topic_new0 (the by-name twin):
+ *
+ *        - rkt_topic_id is set at construction, avoiding the in-place
+ *          mutation path in rd_kafka_topic_metadata_update that breaks
+ *          share-session bookkeeping when a topic is recreated.
+ *
+ *        - The unassigned (UA) toppar is NOT created. Share consumers
+ *          do not produce, do not buffer messages under an UA
+ *          partition, and never call rd_kafka_topic_assign_uas.
+ *          Skipping UA also drops one rkt refcount slot, which means
+ *          the rkt's lifetime is tied to its rkt_p[] / rkt_desp
+ *          toppars (and any caller keeps). The last rkt reference
+ *          must be released via one of:
+ *
+ *            (a) set_notexists' partition_cnt_update(rkt, 0)
+ *                destroying all rktps; or
+ *            (b) rd_kafka_topic_partitions_remove(rkt) on consumer or
+ *                rk destroy.
+ *
+ *          Any code path that decrements an rkt reference on this rkt
+ *          must respect this invariant — a premature destroy releases
+ *          rktps that callers may still hold.
+ *
+ *        - Producer-relevant fields in rkt_conf are NOT initialized:
+ *          partitioner, sticky_partition_linger, compression config
+ *          (codec/level), queuing strategy / msg-order comparator,
+ *          random_partitioner flag. If a producer ever needs this
+ *          construction path, mirror the relevant blocks from
+ *          rd_kafka_topic_new0 (search for the partitioner setup near
+ *          the top of that function) before using.
+ *
+ *        - Conf parameter omitted; rkt_conf is populated from
+ *          rk->rk_conf.topic_conf (or an empty topic_conf) and copied
+ *          in by value. No finalize step; finalize covers
+ *          producer-side validation that does not apply here. Share
+ *          consumer does not consume topic-level conf today.
+ *
+ *        - Cache seeding looks up the metadata cache by topic_id, not
+ *          name. The seeded metadata update sees the rkt's topic_id
+ *          already matches the cache entry's, so the in-place mutation
+ *          branch in rd_kafka_topic_metadata_update is skipped.
+ *
+ * @param rk
+ * @param topic Topic name; must be non-NULL. Callers on the share-consumer
+ *              path resolve the name via the metadata cache or the cgrp's
+ *              current assignment before calling, so this is a
+ *              precondition rather than a runtime check.
+ * @param topic_id Topic id; must be non-zero.
+ * @param do_lock Take rk wrlock internally if rd_true; caller must hold
+ *                rk_wrlock if rd_false.
+ *
+ * @returns the existing or newly created rkt with rkt_refcnt bumped.
+ *          NULL on invalid input.
+ *
+ * @locks_required rk_wrlock if do_lock is rd_false
+ * @locks_acquired rk_wrlock if do_lock is rd_true
+ */
+rd_kafka_topic_t *rd_kafka_topic_new_with_id(rd_kafka_t *rk,
+                                             const char *topic,
+                                             rd_kafka_Uuid_t topic_id,
+                                             int do_lock) {
+        rd_kafka_topic_t *rkt;
+        const struct rd_kafka_metadata_cache_entry *rkmce;
+        rd_kafka_topic_conf_t *conf;
+
+        rd_dassert(!RD_KAFKA_UUID_IS_ZERO(topic_id));
+        rd_dassert(topic != NULL);
+        if (RD_KAFKA_UUID_IS_ZERO(topic_id) || !topic)
+                return NULL;
+
+        if (do_lock)
+                rd_kafka_wrlock(rk);
+
+        rkt = rd_kafka_topic_find_by_topic_id(rk, topic_id);
+        if (rkt) {
+                if (do_lock)
+                        rd_kafka_wrunlock(rk);
+                return rkt;
+        }
+
+        if (rk->rk_conf.topic_conf)
+                conf = rd_kafka_topic_conf_dup(rk->rk_conf.topic_conf);
+        else
+                conf = rd_kafka_topic_conf_new();
+
+        rkt = rd_calloc(1, sizeof(*rkt));
+        memcpy(rkt->rkt_magic, "IRKT", 4);
+
+        rkt->rkt_topic    = rd_kafkap_str_new(topic, -1);
+        rkt->rkt_topic_id = topic_id;
+        rkt->rkt_rk       = rk;
+
+        rkt->rkt_ts_create = rd_clock();
+        rkt->rkt_ts_state  = rkt->rkt_ts_create;
+
+        rkt->rkt_conf = *conf;
+        rd_free(conf); /* explicitly not rd_kafka_topic_destroy()
+                        * since we dont want to rd_free internal members,
+                        * just the placeholder. The internal members
+                        * were copied on the line above. */
+
+        rd_avg_init(&rkt->rkt_avg_batchsize, RD_AVG_GAUGE, 0,
+                    rk->rk_conf.max_msg_size, 2,
+                    rk->rk_conf.stats_interval_ms ? 1 : 0);
+        rd_avg_init(&rkt->rkt_avg_batchcnt, RD_AVG_GAUGE, 0,
+                    rk->rk_conf.batch_num_messages, 2,
+                    rk->rk_conf.stats_interval_ms ? 1 : 0);
+
+        rd_kafka_dbg(rk, TOPIC, "TOPIC", "New local topic: %.*s (id %s)",
+                     RD_KAFKAP_STR_PR(rkt->rkt_topic),
+                     rd_kafka_Uuid_base64str(&topic_id));
+
+        rd_list_init(&rkt->rkt_desp, 16, NULL);
+        rd_interval_init(&rkt->rkt_desp_refresh_intvl);
+        TAILQ_INIT(&rkt->rkt_saved_partmsgids);
+        rd_refcnt_init(&rkt->rkt_refcnt, 0);
+        rd_refcnt_init(&rkt->rkt_app_refcnt, 0);
+
+        rd_kafka_topic_keep(rkt);
+
+        rwlock_init(&rkt->rkt_lock);
+
+        TAILQ_INSERT_TAIL(&rk->rk_topics, rkt, rkt_link);
+        rk->rk_topic_cnt++;
+
+        rkmce = rd_kafka_metadata_cache_find_by_id(rk, topic_id, 1 /*valid*/);
+        if (rkmce && !rkmce->rkmce_mtopic.err) {
+                rd_kafka_topic_metadata_update(
+                    rkt, &rkmce->rkmce_mtopic,
+                    &rkmce->rkmce_metadata_internal_topic,
+                    rkmce->rkmce_ts_insert);
+        }
+
+        if (do_lock)
+                rd_kafka_wrunlock(rk);
+
+        return rkt;
+}
+
+
 
 /**
  * @brief Create new app topic handle.
@@ -538,7 +691,7 @@ rd_kafka_topic_t *rd_kafka_topic_new(rd_kafka_t *rk,
 
         /* Query for the topic leader (async) */
         if (!existing)
-                rd_kafka_topic_leader_query(rk, rkt);
+                rd_kafka_topic_fast_leader_query(rk, rd_true /* force */);
 
         /* Drop our reference since there is already/now an app refcnt */
         rd_kafka_topic_destroy0(rkt);
@@ -565,7 +718,8 @@ static void rd_kafka_topic_set_state(rd_kafka_topic_t *rkt, int state) {
         if (rkt->rkt_state == RD_KAFKA_TOPIC_S_ERROR)
                 rkt->rkt_err = RD_KAFKA_RESP_ERR_NO_ERROR;
 
-        rkt->rkt_state = state;
+        rkt->rkt_state    = state;
+        rkt->rkt_ts_state = rd_clock();
 }
 
 /**
@@ -643,6 +797,7 @@ int rd_kafka_toppar_broker_update(rd_kafka_toppar_t *rktp,
  * @remark If a toppar is currently delegated to a preferred replica,
  *         it will not be delegated to the leader broker unless there
  *         has been a leader change.
+ * @remark The new leader, if present, should not be terminating.
  *
  * @param leader_id The id of the new leader broker.
  * @param leader A reference to the leader broker or NULL if the
@@ -663,7 +818,8 @@ static int rd_kafka_toppar_leader_update(rd_kafka_topic_t *rkt,
                                          int32_t leader_epoch) {
         rd_kafka_toppar_t *rktp;
         rd_bool_t need_epoch_validation = rd_false;
-        int r                           = 0;
+        rd_bool_t fetching_from_follower;
+        int r = 0;
 
         rktp = rd_kafka_toppar_get(rkt, partition, 0);
         if (unlikely(!rktp)) {
@@ -681,7 +837,11 @@ static int rd_kafka_toppar_leader_update(rd_kafka_topic_t *rkt,
 
         rd_kafka_toppar_lock(rktp);
 
-        if (leader_epoch < rktp->rktp_leader_epoch) {
+        /* -1 (null) is excluded to allow to switch back to a
+         * leader not supporting KIP-320 still, for example
+         * during a cluster roll for upgrading brokers to
+         * a version supporting that KIP. */
+        if (leader_epoch != -1 && leader_epoch < rktp->rktp_leader_epoch) {
                 rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, TOPIC, "BROKER",
                              "%s [%" PRId32
                              "]: ignoring outdated metadata update with "
@@ -691,81 +851,93 @@ static int rd_kafka_toppar_leader_update(rd_kafka_topic_t *rkt,
                              rktp->rktp_rkt->rkt_topic->str,
                              rktp->rktp_partition, leader_epoch,
                              rktp->rktp_leader_epoch);
-                if (rktp->rktp_fetch_state !=
-                    RD_KAFKA_TOPPAR_FETCH_VALIDATE_EPOCH_WAIT) {
-                        rd_kafka_toppar_unlock(rktp);
-                        rd_kafka_toppar_destroy(rktp); /* from get() */
-                        return 0;
-                }
+                rd_kafka_toppar_unlock(rktp);
+                rd_kafka_toppar_destroy(rktp); /* from get() */
+                return 0;
         }
 
-        if (rktp->rktp_leader_epoch == -1 ||
-            leader_epoch > rktp->rktp_leader_epoch) {
-                rd_bool_t fetching_from_follower;
-                rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, TOPIC, "BROKER",
-                             "%s [%" PRId32 "]: leader %" PRId32
-                             " epoch %" PRId32 " -> leader %" PRId32
-                             " epoch %" PRId32,
-                             rktp->rktp_rkt->rkt_topic->str,
-                             rktp->rktp_partition, rktp->rktp_leader_id,
-                             rktp->rktp_leader_epoch, leader_id, leader_epoch);
-                if (leader_epoch > rktp->rktp_leader_epoch)
-                        rktp->rktp_leader_epoch = leader_epoch;
+        rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, TOPIC, "BROKER",
+                     "%s [%" PRId32 "]: leader %" PRId32 " epoch %" PRId32
+                     " -> leader %" PRId32 " epoch %" PRId32,
+                     rktp->rktp_rkt->rkt_topic->str, rktp->rktp_partition,
+                     rktp->rktp_leader_id, rktp->rktp_leader_epoch, leader_id,
+                     leader_epoch);
+
+        if (leader_epoch > rktp->rktp_leader_epoch ||
+            rktp->rktp_fetch_state ==
+                RD_KAFKA_TOPPAR_FETCH_VALIDATE_EPOCH_WAIT) {
+                /* Epoch increased and needs to be validated (leader_epoch > -1)
+                 * or we need to complete the validation. */
                 need_epoch_validation = rd_true;
+        }
 
+        rktp->rktp_leader_epoch = leader_epoch;
 
-                fetching_from_follower =
-                    leader != NULL && rktp->rktp_broker != NULL &&
-                    rktp->rktp_broker->rkb_source != RD_KAFKA_INTERNAL &&
-                    rktp->rktp_broker != leader;
+        /* Share consumer never fetches from a follower (KIP-392), so
+         * rktp_broker == leader always holds on the share path. Force
+         * the flag to false here so the "not migrating away from
+         * preferred replica" branch is structurally unreachable on the
+         * share path, rather than depending on the runtime equality
+         * happening to hold. */
+        fetching_from_follower =
+            !RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk) &&
+            leader != NULL && rktp->rktp_broker != NULL &&
+            rktp->rktp_broker->rkb_source != RD_KAFKA_INTERNAL &&
+            rktp->rktp_broker != leader;
 
-                if (fetching_from_follower &&
-                    rktp->rktp_leader_id == leader_id) {
-                        rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, TOPIC, "BROKER",
-                                     "Topic %s [%" PRId32 "]: leader %" PRId32
-                                     " unchanged, "
-                                     "not migrating away from preferred "
-                                     "replica %" PRId32,
-                                     rktp->rktp_rkt->rkt_topic->str,
-                                     rktp->rktp_partition, leader_id,
-                                     rktp->rktp_broker_id);
-                        r = 0;
+        if (fetching_from_follower && rktp->rktp_leader_id == leader_id) {
+                rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, TOPIC, "BROKER",
+                             "Topic %s [%" PRId32 "]: leader %" PRId32
+                             " unchanged, "
+                             "not migrating away from preferred "
+                             "replica %" PRId32,
+                             rktp->rktp_rkt->rkt_topic->str,
+                             rktp->rktp_partition, leader_id,
+                             rktp->rktp_broker_id);
+                r = 0;
 
-                } else {
+        } else {
 
-                        if (rktp->rktp_leader_id != leader_id ||
-                            rktp->rktp_leader != leader) {
-                                /* Update leader if it has changed */
-                                rktp->rktp_leader_id = leader_id;
-                                if (rktp->rktp_leader)
-                                        rd_kafka_broker_destroy(
-                                            rktp->rktp_leader);
-                                if (leader)
-                                        rd_kafka_broker_keep(leader);
-                                rktp->rktp_leader = leader;
-                        }
-
-                        /* Update handling broker */
-                        r = rd_kafka_toppar_broker_update(
-                            rktp, leader_id, leader, "leader updated");
+                if (rktp->rktp_leader_id != leader_id ||
+                    rktp->rktp_leader != leader) {
+                        /* Update leader if it has changed */
+                        rd_kafka_dbg(
+                            rktp->rktp_rkt->rkt_rk, TOPIC, "LEADER",
+                            "%s [%" PRId32
+                            "]: applying leader-id update %" PRId32
+                            " -> %" PRId32 " (epoch %" PRId32 "%s)",
+                            rktp->rktp_rkt->rkt_topic->str,
+                            rktp->rktp_partition, rktp->rktp_leader_id,
+                            leader_id, leader_epoch,
+                            RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk)
+                                ? ", share-consumer"
+                                : "");
+                        rktp->rktp_leader_id = leader_id;
+                        if (rktp->rktp_leader)
+                                rd_kafka_broker_destroy(rktp->rktp_leader);
+                        if (leader)
+                                rd_kafka_broker_keep(leader);
+                        rktp->rktp_leader = leader;
                 }
 
-        } else if (rktp->rktp_fetch_state ==
-                   RD_KAFKA_TOPPAR_FETCH_VALIDATE_EPOCH_WAIT)
-                need_epoch_validation = rd_true;
+                /* Update handling broker */
+                r = rd_kafka_toppar_broker_update(rktp, leader_id, leader,
+                                                  "leader updated");
+        }
 
-        if (need_epoch_validation) {
+        if (need_epoch_validation &&
+            !RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk)) {
                 /* Set offset validation position,
                  * depending it if should continue with current position or
-                 * with next fetch start position. */
-                if (rd_kafka_toppar_fetch_decide_start_from_next_fetch_start(
-                        rktp)) {
-                        rd_kafka_toppar_set_offset_validation_position(
-                            rktp, rktp->rktp_next_fetch_start);
-                } else {
-                        rd_kafka_toppar_set_offset_validation_position(
-                            rktp, rktp->rktp_offsets.fetch_pos);
-                }
+                 * with next fetch start position.
+                 *
+                 * Skipped for share consumers: the offset-validation flow
+                 * issues OffsetForLeaderEpoch / ListOffsets and pipes
+                 * results into rktp_fetchq, which the share path doesn't
+                 * drain. */
+                rd_kafka_toppar_set_offset_validation_position(
+                    rktp,
+                    rd_kafka_toppar_fetch_decide_next_fetch_start_pos(rktp));
                 rd_kafka_offset_validate(rktp, "epoch updated from metadata");
         }
 
@@ -794,7 +966,12 @@ int rd_kafka_toppar_delegate_to_leader(rd_kafka_toppar_t *rktp) {
         rd_kafka_rdlock(rktp->rktp_rkt->rkt_rk);
         rd_kafka_toppar_lock(rktp);
 
-        rd_assert(rktp->rktp_leader_id != rktp->rktp_broker_id);
+        if (rktp->rktp_leader_id == rktp->rktp_broker_id) {
+                /* Given lock was released we need to check again */
+                rd_kafka_toppar_unlock(rktp);
+                rd_kafka_rdunlock(rktp->rktp_rkt->rkt_rk);
+                return 0;
+        }
 
         rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, TOPIC, "BROKER",
                      "Topic %s [%" PRId32
@@ -822,6 +999,45 @@ int rd_kafka_toppar_delegate_to_leader(rd_kafka_toppar_t *rktp) {
 }
 
 
+/**
+ * @brief Forgets current rktp leader, to reduce reference count
+ *        and allow the broker to be destroyed.
+ *
+ * @locks none
+ * @locks_acquired rk rdlock, rktp
+ * @locality any
+ */
+void rd_kafka_toppar_forget_leader(rd_kafka_toppar_t *rktp) {
+        rd_kafka_rdlock(rktp->rktp_rkt->rkt_rk);
+        rd_kafka_toppar_lock(rktp);
+
+        if (rktp->rktp_leader) {
+                rd_kafka_broker_destroy(rktp->rktp_leader);
+                rktp->rktp_leader       = NULL;
+                rktp->rktp_leader_id    = -1;
+                rktp->rktp_leader_epoch = -1;
+        }
+
+        rd_kafka_toppar_unlock(rktp);
+        rd_kafka_rdunlock(rktp->rktp_rkt->rkt_rk);
+}
+
+/**
+ * @brief Revert the topic+partition delegation to the internal broker.
+ *
+ * @locks none
+ * @locks_acquired rk rdlock, rktp
+ * @locality any
+ */
+void rd_kafka_toppar_undelegate(rd_kafka_toppar_t *rktp) {
+        rd_kafka_rdlock(rktp->rktp_rkt->rkt_rk);
+        rd_kafka_toppar_lock(rktp);
+
+        rd_kafka_toppar_broker_delegate(rktp, NULL);
+
+        rd_kafka_toppar_unlock(rktp);
+        rd_kafka_rdunlock(rktp->rktp_rkt->rkt_rk);
+}
 
 /**
  * @brief Save idempotent producer state for a partition that is about to
@@ -900,16 +1116,18 @@ static int rd_kafka_topic_partition_cnt_update(rd_kafka_topic_t *rkt,
         if (unlikely(rkt->rkt_partition_cnt != 0 &&
                      !rd_kafka_terminating(rkt->rkt_rk)))
                 rd_kafka_log(rk, LOG_NOTICE, "PARTCNT",
-                             "Topic %s partition count changed "
+                             "Topic %s (id %s) partition count changed "
                              "from %" PRId32 " to %" PRId32,
-                             rkt->rkt_topic->str, rkt->rkt_partition_cnt,
-                             partition_cnt);
+                             rkt->rkt_topic->str,
+                             rd_kafka_Uuid_base64str(&rkt->rkt_topic_id),
+                             rkt->rkt_partition_cnt, partition_cnt);
         else
                 rd_kafka_dbg(rk, TOPIC, "PARTCNT",
-                             "Topic %s partition count changed "
+                             "Topic %s (id %s) partition count changed "
                              "from %" PRId32 " to %" PRId32,
-                             rkt->rkt_topic->str, rkt->rkt_partition_cnt,
-                             partition_cnt);
+                             rkt->rkt_topic->str,
+                             rd_kafka_Uuid_base64str(&rkt->rkt_topic_id),
+                             rkt->rkt_partition_cnt, partition_cnt);
 
 
         /* Create and assign new partition list */
@@ -1188,11 +1406,14 @@ rd_bool_t rd_kafka_topic_set_notexists(rd_kafka_topic_t *rkt,
         rd_assert(err != RD_KAFKA_RESP_ERR_NO_ERROR);
 
         remains_us =
-            (rkt->rkt_ts_create +
+            (rkt->rkt_ts_state +
              (rkt->rkt_rk->rk_conf.metadata_propagation_max_ms * 1000)) -
             rkt->rkt_ts_metadata;
 
-        if (!permanent && rkt->rkt_state == RD_KAFKA_TOPIC_S_UNKNOWN &&
+        if (!permanent &&
+            (rkt->rkt_state == RD_KAFKA_TOPIC_S_UNKNOWN ||
+             rkt->rkt_state == RD_KAFKA_TOPIC_S_ERROR ||
+             rkt->rkt_state == RD_KAFKA_TOPIC_S_EXISTS) &&
             remains_us > 0) {
                 /* Still allowing topic metadata to propagate. */
                 rd_kafka_dbg(
@@ -1216,6 +1437,47 @@ rd_bool_t rd_kafka_topic_set_notexists(rd_kafka_topic_t *rkt,
 
         /* Propagate nonexistent topic info */
         rd_kafka_topic_propagate_notexists(rkt, err);
+
+        return rd_true;
+}
+
+/**
+ * @brief Mark topic as existent, unless metadata propagation configuration
+ *        disallows it.
+ *
+ * @returns true if the topic was marked as existent, else false.
+ *
+ * @locks topic_wrlock() MUST be held.
+ */
+rd_bool_t rd_kafka_topic_set_exists(rd_kafka_topic_t *rkt,
+                                    rd_kafka_Uuid_t topic_id) {
+        rd_ts_t remains_us;
+
+        if (unlikely(rd_kafka_terminating(rkt->rkt_rk))) {
+                /* Dont update metadata while terminating. */
+                return rd_false;
+        }
+
+        remains_us =
+            (rkt->rkt_ts_state +
+             (rkt->rkt_rk->rk_conf.metadata_propagation_max_ms * 1000)) -
+            rkt->rkt_ts_metadata;
+
+        if (/* Same topic id */
+            rd_kafka_Uuid_cmp(rkt->rkt_topic_id, topic_id) == 0 &&
+            rkt->rkt_state == RD_KAFKA_TOPIC_S_NOTEXISTS && remains_us > 0) {
+                /* Still allowing topic metadata to propagate. */
+                rd_kafka_dbg(
+                    rkt->rkt_rk, TOPIC | RD_KAFKA_DBG_METADATA, "TOPICPROP",
+                    "Topic %.*s exists after being deleted, "
+                    " allowing %dms for metadata propagation before marking "
+                    "topic "
+                    "as existent",
+                    RD_KAFKAP_STR_PR(rkt->rkt_topic), (int)(remains_us / 1000));
+                return rd_false;
+        }
+
+        rd_kafka_topic_set_state(rkt, RD_KAFKA_TOPIC_S_EXISTS);
 
         return rd_true;
 }
@@ -1327,18 +1589,24 @@ rd_kafka_topic_metadata_update(rd_kafka_topic_t *rkt,
             mdt->err == RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART ||
             mdt->err == RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_ID)
                 rd_kafka_topic_set_notexists(rkt, mdt->err);
-        else if (mdt->partition_cnt > 0)
-                rd_kafka_topic_set_state(rkt, RD_KAFKA_TOPIC_S_EXISTS);
-        else if (mdt->err)
+        else if (mdt->err == RD_KAFKA_RESP_ERR_NO_ERROR &&
+                 mdt->partition_cnt > 0)
+                rd_kafka_topic_set_exists(rkt, mdit->topic_id);
+        else if (mdt->err == RD_KAFKA_RESP_ERR_TOPIC_AUTHORIZATION_FAILED)
+                /* Only set an error when it's permanent and it needs
+                 * to be surfaced to the application. */
                 rd_kafka_topic_set_error(rkt, mdt->err);
 
         /* Update number of partitions, but not if there are
          * (possibly intermittent) errors (e.g., "Leader not available"). */
         if (mdt->err == RD_KAFKA_RESP_ERR_NO_ERROR) {
-                upd += rd_kafka_topic_partition_cnt_update(rkt,
-                                                           mdt->partition_cnt);
-                if (rd_kafka_Uuid_cmp(mdit->topic_id, RD_KAFKA_UUID_ZERO) &&
-                    rd_kafka_Uuid_cmp(mdit->topic_id, rkt->rkt_topic_id)) {
+                rd_bool_t different_topic_id =
+                    rd_kafka_Uuid_cmp(mdit->topic_id, rkt->rkt_topic_id) != 0;
+                if (different_topic_id ||
+                    mdt->partition_cnt > rkt->rkt_partition_cnt)
+                        upd += rd_kafka_topic_partition_cnt_update(
+                            rkt, mdt->partition_cnt);
+                if (different_topic_id) {
                         /* FIXME: an offset reset must be triggered.
                          * when rkt_topic_id wasn't zero.
                          * There are no problems
@@ -1364,71 +1632,63 @@ rd_kafka_topic_metadata_update(rd_kafka_topic_t *rkt,
                  * Issue #1985. */
                 if (old_state == RD_KAFKA_TOPIC_S_UNKNOWN)
                         upd++;
-        }
 
-        /* Update leader for each partition */
-        for (j = 0; j < mdt->partition_cnt; j++) {
-                int r = 0;
-                rd_kafka_broker_t *leader;
-                int32_t leader_epoch = mdit->partitions[j].leader_epoch;
-                rd_kafka_toppar_t *rktp =
-                    rd_kafka_toppar_get(rkt, mdt->partitions[j].id, 0);
+                /* Update leader for each partition
+                 * only when topic response has no errors. */
+                for (j = 0;
+                     j < mdt->partition_cnt && j < rkt->rkt_partition_cnt;
+                     j++) {
+                        int r = 0;
+                        rd_kafka_broker_t *leader;
+                        int32_t leader_epoch = mdit->partitions[j].leader_epoch;
+                        rd_kafka_toppar_t *rktp =
+                            rd_kafka_toppar_get(rkt, mdt->partitions[j].id, 0);
 
-                rd_kafka_dbg(rk, TOPIC | RD_KAFKA_DBG_METADATA, "METADATA",
-                             "Topic %s [%" PRId32 "] Leader %" PRId32
-                             " Epoch %" PRId32,
-                             rkt->rkt_topic->str, mdt->partitions[j].id,
-                             mdt->partitions[j].leader, leader_epoch);
+                        rd_kafka_dbg(rk, TOPIC | RD_KAFKA_DBG_METADATA,
+                                     "METADATA",
+                                     "Topic %s [%" PRId32 "] Leader %" PRId32
+                                     " Epoch %" PRId32,
+                                     rkt->rkt_topic->str, mdt->partitions[j].id,
+                                     mdt->partitions[j].leader, leader_epoch);
 
-                leader         = partbrokers[j];
-                partbrokers[j] = NULL;
+                        leader         = partbrokers[j];
+                        partbrokers[j] = NULL;
 
-                /* If broker does not support leaderEpoch(KIP 320) then it is
-                 * set to -1, we assume that metadata is not stale. */
-                if (leader_epoch == -1)
-                        partition_exists_with_no_leader_epoch = rd_true;
-                else if (leader_epoch < rktp->rktp_leader_epoch)
-                        partition_exists_with_stale_leader_epoch = rd_true;
+                        /* If broker does not support leaderEpoch(KIP 320) then
+                         * it is set to -1, we assume that metadata is not
+                         * stale. */
+                        if (leader_epoch == -1)
+                                partition_exists_with_no_leader_epoch = rd_true;
+                        else if (rktp && leader_epoch < rktp->rktp_leader_epoch)
+                                partition_exists_with_stale_leader_epoch =
+                                    rd_true;
 
 
-                /* Update leader for partition */
-                r = rd_kafka_toppar_leader_update(rkt, mdt->partitions[j].id,
-                                                  mdt->partitions[j].leader,
-                                                  leader, leader_epoch);
+                        /* Update leader for partition */
+                        r = rd_kafka_toppar_leader_update(
+                            rkt, mdt->partitions[j].id,
+                            mdt->partitions[j].leader, leader, leader_epoch);
 
-                upd += (r != 0 ? 1 : 0);
+                        upd += (r != 0 ? 1 : 0);
 
-                if (leader) {
-                        if (r != -1)
-                                leader_cnt++;
-                        /* Drop reference to broker (from find()) */
-                        rd_kafka_broker_destroy(leader);
+                        if (leader) {
+                                if (r != -1)
+                                        leader_cnt++;
+                                /* Drop reference to broker (from find()) */
+                                rd_kafka_broker_destroy(leader);
+                        }
+                        RD_IF_FREE(rktp, rd_kafka_toppar_destroy);
                 }
-                RD_IF_FREE(rktp, rd_kafka_toppar_destroy);
         }
 
         /* If all partitions have leaders, and this metadata update was not
          * stale, we can turn off fast leader query. */
-        if (mdt->partition_cnt > 0 && leader_cnt == mdt->partition_cnt &&
+        if (rkt->rkt_partition_cnt > 0 &&
+            leader_cnt == rkt->rkt_partition_cnt &&
             (partition_exists_with_no_leader_epoch ||
              !partition_exists_with_stale_leader_epoch))
                 rkt->rkt_flags &= ~RD_KAFKA_TOPIC_F_LEADER_UNAVAIL;
 
-        if (mdt->err != RD_KAFKA_RESP_ERR_NO_ERROR && rkt->rkt_partition_cnt) {
-                /* (Possibly intermittent) topic-wide error:
-                 * remove leaders for partitions */
-
-                for (j = 0; j < rkt->rkt_partition_cnt; j++) {
-                        rd_kafka_toppar_t *rktp;
-                        if (!rkt->rkt_p[j])
-                                continue;
-
-                        rktp = rkt->rkt_p[j];
-                        rd_kafka_toppar_lock(rktp);
-                        rd_kafka_toppar_broker_delegate(rktp, NULL);
-                        rd_kafka_toppar_unlock(rktp);
-                }
-        }
 
         /* If there was an update to the partitions try to assign
          * unassigned messages to new partitions, or fail them */
@@ -1463,7 +1723,14 @@ int rd_kafka_topic_metadata_update2(
 
         rd_kafka_wrlock(rkb->rkb_rk);
 
-        if (likely(mdt->topic != NULL)) {
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rkb->rkb_rk) &&
+            !RD_KAFKA_UUID_IS_ZERO(mdit->topic_id)) {
+                /* Share consumer identifies topics by id; looking up
+                 * by name risks matching a recreated topic's response
+                 * to a stale rkt that shares its name. */
+                rkt = rd_kafka_topic_find_by_topic_id(rkb->rkb_rk,
+                                                      mdit->topic_id);
+        } else if (likely(mdt->topic != NULL)) {
                 rkt = rd_kafka_topic_find(rkb->rkb_rk, mdt->topic, 0 /*!lock*/);
         } else {
                 rkt = rd_kafka_topic_find_by_topic_id(rkb->rkb_rk,
@@ -1647,8 +1914,8 @@ void rd_kafka_topic_scan_all(rd_kafka_t *rk, rd_ts_t now) {
 
                 /* Check if metadata information has timed out. */
                 if (rkt->rkt_state != RD_KAFKA_TOPIC_S_UNKNOWN &&
-                    !rd_kafka_metadata_cache_topic_get(rk, rkt->rkt_topic->str,
-                                                       1 /*only valid*/)) {
+                    !rd_kafka_metadata_cache_topic_get(
+                        rk, rkt->rkt_topic->str, NULL, 1 /*only valid*/)) {
                         rd_kafka_dbg(rk, TOPIC, "NOINFO",
                                      "Topic %s metadata information timed out "
                                      "(%" PRId64 "ms old)",
@@ -1766,7 +2033,8 @@ void rd_kafka_topic_scan_all(rd_kafka_t *rk, rd_ts_t now) {
                                                       * info exists*/
                     ,
                     rk->rk_conf.allow_auto_create_topics,
-                    rd_false /*!cgrp_update*/, "refresh unavailable topics");
+                    rd_false /*!cgrp_update*/, -1,
+                    "refresh unavailable topics");
         rd_list_destroy(&query_topics);
 }
 
@@ -1965,7 +2233,7 @@ rd_kafka_topic_info_t *rd_kafka_topic_info_new_with_rack(
 /**
  * Destroy/free topic_info
  */
-void rd_kafka_topic_info_destroy(rd_kafka_topic_info_t *ti) {
+void rd_kafka_topic_info_destroy_free(void *ti) {
         rd_free(ti);
 }
 
@@ -2013,7 +2281,7 @@ void rd_kafka_topic_leader_query0(rd_kafka_t *rk,
 
         rd_kafka_metadata_refresh_topics(
             rk, NULL, &topics, force, rk->rk_conf.allow_auto_create_topics,
-            rd_false /*!cgrp_update*/, "leader query");
+            rd_false /*!cgrp_update*/, -1, "leader query");
 
         rd_list_destroy(&topics);
 }
@@ -2039,9 +2307,45 @@ void rd_kafka_local_topics_to_list(rd_kafka_t *rk,
         rd_list_grow(topics, rk->rk_topic_cnt);
         TAILQ_FOREACH(rkt, &rk->rk_topics, rkt_link)
         rd_list_add(topics, rd_strdup(rkt->rkt_topic->str));
-        cache_cnt = rd_kafka_metadata_cache_topics_to_list(rk, topics);
+        cache_cnt = rd_kafka_metadata_cache_topics_to_list(rk, topics, rd_true);
         if (cache_cntp)
                 *cache_cntp = cache_cnt;
+        rd_kafka_rdunlock(rk);
+}
+
+
+/**
+ * @brief Populate \p topic_ids with the topic_ids (Uuid pointers) of all
+ *        locally known topics that have a non-zero topic_id.
+ *
+ *        Used by share-consumer periodic refresh: the broker's response
+ *        to a by-id Metadata request tells the client which local rkts
+ *        no longer correspond to a live cluster-side topic, driving
+ *        cleanup of stale rkts left behind by topic recreation.
+ *
+ * @remark \p rk lock MUST NOT be held
+ * @remark Elements are rd_kafka_Uuid_t * allocated via rd_kafka_Uuid_copy
+ *         and the caller must use rd_list_Uuid_destroy as the list's
+ *         free callback.
+ */
+void rd_kafka_local_topic_ids_to_list(rd_kafka_t *rk, rd_list_t *topic_ids) {
+        rd_kafka_topic_t *rkt;
+
+        rd_kafka_rdlock(rk);
+        rd_list_grow(topic_ids, rk->rk_topic_cnt);
+        /* TODO KIP-932: Consider skipping rkts in the non-existent state
+         * to avoid re-querying ids the broker has already told us are
+         * gone. Today the re-query is harmless (the resulting
+         * set_notexists is idempotent and the resulting error stays at
+         * debug-log level for the share consumer propagator), but it
+         * costs a few bytes per stale rkt per refresh. Keep in mind that
+         * including non-existent rkts also acts as a recovery path if a
+         * previously-absent id reappears in metadata. */
+        TAILQ_FOREACH(rkt, &rk->rk_topics, rkt_link) {
+                if (!RD_KAFKA_UUID_IS_ZERO(rkt->rkt_topic_id))
+                        rd_list_add(topic_ids,
+                                    rd_kafka_Uuid_copy(&rkt->rkt_topic_id));
+        }
         rd_kafka_rdunlock(rk);
 }
 
@@ -2056,8 +2360,8 @@ void rd_ut_kafka_topic_set_topic_exists(rd_kafka_topic_t *rkt,
         rd_kafka_metadata_partition_internal_t *partitions =
             rd_calloc(partition_cnt, sizeof(*partitions));
         struct rd_kafka_metadata_topic mdt      = {.topic =
-                                                  (char *)rkt->rkt_topic->str,
-                                              .partition_cnt = partition_cnt};
+                                                       (char *)rkt->rkt_topic->str,
+                                                   .partition_cnt = partition_cnt};
         rd_kafka_metadata_topic_internal_t mdit = {.partitions = partitions};
         int i;
 
@@ -2071,7 +2375,7 @@ void rd_ut_kafka_topic_set_topic_exists(rd_kafka_topic_t *rkt,
 
         rd_kafka_wrlock(rkt->rkt_rk);
         rd_kafka_metadata_cache_topic_update(rkt->rkt_rk, &mdt, &mdit, rd_true,
-                                             rd_false, NULL, 0, rd_false);
+                                             rd_false, rd_true);
         rd_kafka_topic_metadata_update(rkt, &mdt, &mdit, rd_clock());
         rd_kafka_wrunlock(rkt->rkt_rk);
         rd_free(partitions);

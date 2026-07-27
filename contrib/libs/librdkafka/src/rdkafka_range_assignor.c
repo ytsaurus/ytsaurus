@@ -1424,7 +1424,7 @@ static int ut_testRackAwareAssignmentWithCoPartitioning0(
         char *subscription12[]    = {"t1", "t2"};
         char *subscription34[]    = {"t3", "t4"};
         char **subscriptions[]    = {subscription12, subscription12,
-                                  subscription34, subscription34};
+                                     subscription34, subscription34};
         int racks[]               = {0, 1, 1, 0};
 
         if (parametrization !=

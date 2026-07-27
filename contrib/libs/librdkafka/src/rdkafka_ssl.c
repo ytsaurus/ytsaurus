@@ -36,6 +36,7 @@
 #include "rdkafka_int.h"
 #include "rdkafka_transport_int.h"
 #include "rdkafka_cert.h"
+#include "rdunittest.h"
 
 #ifdef _WIN32
 #include <wincrypt.h>
@@ -135,11 +136,14 @@ const char *rd_kafka_ssl_last_error_str(void) {
  *
  * If 'rkb' is non-NULL broker-specific logging will be used,
  * else it will fall back on global 'rk' debugging.
+ *
+ * `ctx_identifier` is a string used to customize the log message.
  */
-static char *rd_kafka_ssl_error(rd_kafka_t *rk,
-                                rd_kafka_broker_t *rkb,
-                                char *errstr,
-                                size_t errstr_size) {
+char *rd_kafka_ssl_error0(rd_kafka_t *rk,
+                          rd_kafka_broker_t *rkb,
+                          const char *ctx_identifier,
+                          char *errstr,
+                          size_t errstr_size) {
         unsigned long l;
         const char *file, *data, *func;
         int line, flags;
@@ -166,9 +170,11 @@ static char *rd_kafka_ssl_error(rd_kafka_t *rk,
                 if (cnt++ > 0) {
                         /* Log last message */
                         if (rkb)
-                                rd_rkb_log(rkb, LOG_ERR, "SSL", "%s", errstr);
+                                rd_rkb_log(rkb, LOG_ERR, "SSL", "%s: %s",
+                                           ctx_identifier, errstr);
                         else
-                                rd_kafka_log(rk, LOG_ERR, "SSL", "%s", errstr);
+                                rd_kafka_log(rk, LOG_ERR, "SSL", "%s: %s",
+                                             ctx_identifier, errstr);
                 }
 
                 ERR_error_string_n(l, buf, sizeof(buf));
@@ -188,12 +194,18 @@ static char *rd_kafka_ssl_error(rd_kafka_t *rk,
 
         if (cnt == 0)
                 rd_snprintf(errstr, errstr_size,
-                            "No further error information available");
+                            "%s: No further error information available",
+                            ctx_identifier);
 
         return errstr;
 }
 
-
+static char *rd_kafka_ssl_error(rd_kafka_t *rk,
+                                rd_kafka_broker_t *rkb,
+                                char *errstr,
+                                size_t errstr_size) {
+        return rd_kafka_ssl_error0(rk, rkb, "kafka", errstr, errstr_size);
+}
 
 /**
  * Set transport IO event polling based on SSL error.
@@ -225,16 +237,22 @@ rd_kafka_transport_ssl_io_update(rd_kafka_transport_t *rktrans,
                 if (serr2)
                         rd_kafka_ssl_error(NULL, rktrans->rktrans_rkb, errstr,
                                            errstr_size);
-                else if (!rd_socket_errno || rd_socket_errno == ECONNRESET)
-                        rd_snprintf(errstr, errstr_size, "Disconnected");
-                else
+                else if (!rd_socket_errno) {
+                        rd_snprintf(errstr, errstr_size,
+                                    "Disconnected: connection closed by "
+                                    "peer");
+                } else if (rd_socket_errno == ECONNRESET) {
+                        rd_snprintf(errstr, errstr_size,
+                                    "Disconnected: connection reset by peer");
+                } else
                         rd_snprintf(errstr, errstr_size,
                                     "SSL transport error: %s",
                                     rd_strerror(rd_socket_errno));
                 return -1;
 
         case SSL_ERROR_ZERO_RETURN:
-                rd_snprintf(errstr, errstr_size, "Disconnected");
+                rd_snprintf(errstr, errstr_size,
+                            "Disconnected: SSL connection closed by peer");
                 return -1;
 
         default:
@@ -433,6 +451,38 @@ static int rd_kafka_transport_ssl_cert_verify_cb(int preverify_ok,
 }
 
 /**
+ * @brief Normalize hostname for SSL certificate verification.
+ *
+ * Strips trailing dot from hostname as X.509 certificates (per RFC 5280)
+ * don't include them in Subject Alternative Names (SANs).
+ * The trailing dot is used in DNS to indicate an absolute FQDN,
+ * but certificate SANs use a different representation without it.
+ *
+ * @param hostname Input hostname (may have trailing dot)
+ * @param normalized Output buffer for normalized hostname
+ * @param size Size of output buffer
+ *
+ * @returns The normalized hostname (same as \p normalized)
+ *
+ * @remark This function is exposed for testing via ENABLE_DEVEL.
+ */
+static const char *rd_kafka_ssl_normalize_hostname(const char *hostname,
+                                                   char *normalized,
+                                                   size_t size) {
+        size_t len;
+
+        rd_snprintf(normalized, size, "%s", hostname);
+        len = strlen(normalized);
+
+        /* Strip trailing dot (unless it's a single dot) */
+        if (len > 1 && normalized[len - 1] == '.') {
+                normalized[len - 1] = '\0';
+        }
+
+        return normalized;
+}
+
+/**
  * @brief Set TLSEXT hostname for SNI and optionally enable
  *        SSL endpoint identification verification.
  *
@@ -442,6 +492,7 @@ static int rd_kafka_transport_ssl_set_endpoint_id(rd_kafka_transport_t *rktrans,
                                                   char *errstr,
                                                   size_t errstr_size) {
         char name[RD_KAFKA_NODENAME_SIZE];
+        char name_for_verify[RD_KAFKA_NODENAME_SIZE];
         char *t;
 
         rd_kafka_broker_lock(rktrans->rktrans_rkb);
@@ -453,13 +504,21 @@ static int rd_kafka_transport_ssl_set_endpoint_id(rd_kafka_transport_t *rktrans,
         if ((t = strrchr(name, ':')))
                 *t = '\0';
 
+        /* Normalize hostname (remove trailing dot) for both SNI and certificate
+         * verification */
+        rd_kafka_ssl_normalize_hostname(name, name_for_verify,
+                                        sizeof(name_for_verify));
+
 #if (OPENSSL_VERSION_NUMBER >= 0x0090806fL) && !defined(OPENSSL_NO_TLSEXT)
         /* If non-numerical hostname, send it for SNI */
-        if (!(/*ipv6*/ (strchr(name, ':') &&
-                        strspn(name, "0123456789abcdefABCDEF:.[]%") ==
-                            strlen(name)) ||
-              /*ipv4*/ strspn(name, "0123456789.") == strlen(name)) &&
-            !SSL_set_tlsext_host_name(rktrans->rktrans_ssl, name))
+        if (!(/*ipv6*/ (
+                  strchr(name_for_verify, ':') &&
+                  strspn(name_for_verify, "0123456789abcdefABCDEF:.[]%") ==
+                      strlen(name_for_verify)) ||
+              /*ipv4*/
+              strspn(name_for_verify, "0123456789.") ==
+                  strlen(name_for_verify)) &&
+            !SSL_set_tlsext_host_name(rktrans->rktrans_ssl, name_for_verify))
                 goto fail;
 #endif
 
@@ -467,8 +526,16 @@ static int rd_kafka_transport_ssl_set_endpoint_id(rd_kafka_transport_t *rktrans,
             RD_KAFKA_SSL_ENDPOINT_ID_NONE)
                 return 0;
 
+        /* Log if we stripped a trailing dot */
+        if (strcmp(name, name_for_verify) != 0) {
+                rd_rkb_dbg(rktrans->rktrans_rkb, SECURITY, "ENDPOINT",
+                           "Stripped trailing dot from hostname for "
+                           "certificate verification: %s -> %s",
+                           name, name_for_verify);
+        }
+
 #if OPENSSL_VERSION_NUMBER >= 0x10100000 && !defined(OPENSSL_IS_BORINGSSL)
-        if (!SSL_set1_host(rktrans->rktrans_ssl, name))
+        if (!SSL_set1_host(rktrans->rktrans_ssl, name_for_verify))
                 goto fail;
 #elif OPENSSL_VERSION_NUMBER >= 0x1000200fL /* 1.0.2 */
         {
@@ -476,8 +543,9 @@ static int rd_kafka_transport_ssl_set_endpoint_id(rd_kafka_transport_t *rktrans,
 
                 param = SSL_get0_param(rktrans->rktrans_ssl);
 
-                if (!X509_VERIFY_PARAM_set1_host(param, name,
-                                                 strnlen(name, sizeof(name))))
+                if (!X509_VERIFY_PARAM_set1_host(
+                        param, name_for_verify,
+                        strnlen(name_for_verify, sizeof(name_for_verify))))
                         goto fail;
         }
 #else
@@ -489,7 +557,8 @@ static int rd_kafka_transport_ssl_set_endpoint_id(rd_kafka_transport_t *rktrans,
 #endif
 
         rd_rkb_dbg(rktrans->rktrans_rkb, SECURITY, "ENDPOINT",
-                   "Enabled endpoint identification using hostname %s", name);
+                   "Enabled endpoint identification using hostname %s",
+                   name_for_verify);
 
         return 0;
 
@@ -656,7 +725,7 @@ int rd_kafka_transport_ssl_handshake(rd_kafka_transport_t *rktrans) {
                             " (install ca-certificates package)"
 #endif
                             ;
-                else if (!strcmp(errstr, "Disconnected")) {
+                else if (rd_kafka_transport_error_disconnected(errstr)) {
                         extra = ": connecting to a PLAINTEXT broker listener?";
                         /* Disconnects during handshake are most likely
                          * not due to SSL, but rather at the transport level */
@@ -698,21 +767,91 @@ static EVP_PKEY *rd_kafka_ssl_PKEY_from_string(rd_kafka_t *rk,
 }
 
 /**
- * @brief Parse a PEM-formatted string into an X509 object.
+ * Read a PEM formatted cert chain from BIO \p in into \p chainp .
  *
- * @param str Input PEM string, nul-terminated
+ * @param rk rdkafka instance.
+ * @param in BIO to read from.
+ * @param chainp Stack to push the certificates to.
+ *
+ * @return 0 on success, -1 on error.
+ */
+int rd_kafka_ssl_read_cert_chain_from_BIO(BIO *in,
+                                          STACK_OF(X509) * chainp,
+                                          pem_password_cb *password_cb,
+                                          void *password_cb_opaque) {
+        X509 *ca;
+        int r, ret = 0;
+        unsigned long err;
+        while (1) {
+                ca = X509_new();
+                if (ca == NULL) {
+                        rd_assert(!*"X509_new() allocation failed");
+                }
+                if (PEM_read_bio_X509(in, &ca, password_cb,
+                                      password_cb_opaque) != NULL) {
+                        r = sk_X509_push(chainp, ca);
+                        if (!r) {
+                                X509_free(ca);
+                                ret = -1;
+                                goto end;
+                        }
+                } else {
+                        X509_free(ca);
+                        break;
+                }
+        }
+        /* When the while loop ends, it's usually just EOF. */
+        err = ERR_peek_last_error();
+        if (ERR_GET_LIB(err) == ERR_LIB_PEM &&
+            ERR_GET_REASON(err) == PEM_R_NO_START_LINE)
+                ret = 0;
+        else
+                ret = -1; /* some real error */
+        ERR_clear_error();
+end:
+        return ret;
+}
+
+/**
+ * @brief Parse a PEM-formatted string into an X509 object.
+ *        Rest of CA chain is pushed to the \p chainp stack.
+ *
+ * @param str Input PEM string, nul-terminated.
+ * @param chainp Stack to push the certificates to.
  *
  * @returns a new X509 on success or NULL on error.
+ *
+ * @remark When NULL is returned the chainp stack is not modified.
  */
-static X509 *rd_kafka_ssl_X509_from_string(rd_kafka_t *rk, const char *str) {
+static X509 *rd_kafka_ssl_X509_from_string(rd_kafka_t *rk,
+                                           const char *str,
+                                           STACK_OF(X509) * chainp) {
         BIO *bio = BIO_new_mem_buf((void *)str, -1);
         X509 *x509;
 
         x509 =
             PEM_read_bio_X509(bio, NULL, rd_kafka_transport_ssl_passwd_cb, rk);
 
-        BIO_free(bio);
+        if (!x509) {
+                BIO_free(bio);
+                return NULL;
+        }
 
+        if (rd_kafka_ssl_read_cert_chain_from_BIO(
+                bio, chainp, rd_kafka_transport_ssl_passwd_cb, rk) != 0) {
+                /* Rest of the certificate is present,
+                 * but couldn't be read,
+                 * returning NULL as certificate cannot be verified
+                 * without its chain. */
+                rd_kafka_log(rk, LOG_WARNING, "SSL",
+                             "Failed to read certificate chain from PEM. "
+                             "Returning NULL certificate too.");
+                X509_free(x509);
+                BIO_free(bio);
+                return NULL;
+        }
+
+        BIO_free(bio);
         return x509;
 }
 
@@ -723,6 +862,7 @@ static X509 *rd_kafka_ssl_X509_from_string(rd_kafka_t *rk, const char *str) {
  * @brief Attempt load CA certificates from a Windows Certificate store.
  */
 static int rd_kafka_ssl_win_load_cert_store(rd_kafka_t *rk,
+                                            const char *ctx_identifier,
                                             SSL_CTX *ctx,
                                             const char *store_name) {
         HCERTSTORE w_store;
@@ -737,15 +877,16 @@ static int rd_kafka_ssl_win_load_cert_store(rd_kafka_t *rk,
         /* Convert store_name to wide-char */
         werr = mbstowcs_s(&wsize, NULL, 0, store_name, strlen(store_name));
         if (werr || wsize < 2 || wsize > 1000) {
-                rd_kafka_log(rk, LOG_ERR, "CERTSTORE",
-                             "Invalid Windows certificate store name: %.*s%s",
-                             30, store_name,
-                             wsize < 2 ? " (empty)" : " (truncated)");
+                rd_kafka_log(
+                    rk, LOG_ERR, "CERTSTORE",
+                    "%s: Invalid Windows certificate store name: %.*s%s",
+                    ctx_identifier, 30, store_name,
+                    wsize < 2 ? " (empty)" : " (truncated)");
                 return -1;
         }
         wstore_name = rd_alloca(sizeof(*wstore_name) * wsize);
         werr        = mbstowcs_s(NULL, wstore_name, wsize, store_name,
-                          strlen(store_name));
+                                 strlen(store_name));
         rd_assert(!werr);
 
         w_store = CertOpenStore(CERT_STORE_PROV_SYSTEM, 0, 0,
@@ -756,9 +897,9 @@ static int rd_kafka_ssl_win_load_cert_store(rd_kafka_t *rk,
         if (!w_store) {
                 rd_kafka_log(
                     rk, LOG_ERR, "CERTSTORE",
-                    "Failed to open Windows certificate "
+                    "%s: Failed to open Windows certificate "
                     "%s store: %s",
-                    store_name,
+                    ctx_identifier, store_name,
                     rd_strerror_w32(GetLastError(), errstr, sizeof(errstr)));
                 return -1;
         }
@@ -794,9 +935,9 @@ static int rd_kafka_ssl_win_load_cert_store(rd_kafka_t *rk,
         CertCloseStore(w_store, 0);
 
         rd_kafka_dbg(rk, SECURITY, "CERTSTORE",
-                     "%d certificate(s) successfully added from "
+                     "%s: %d certificate(s) successfully added from "
                      "Windows Certificate %s store, %d failed",
-                     cnt, store_name, fail_cnt);
+                     ctx_identifier, cnt, store_name, fail_cnt);
 
         if (cnt == 0 && fail_cnt > 0)
                 return -1;
@@ -809,9 +950,10 @@ static int rd_kafka_ssl_win_load_cert_store(rd_kafka_t *rk,
  *
  * @returns the number of successfully loaded certificates, or -1 on error.
  */
-static int rd_kafka_ssl_win_load_cert_stores(rd_kafka_t *rk,
-                                             SSL_CTX *ctx,
-                                             const char *store_names) {
+int rd_kafka_ssl_win_load_cert_stores(rd_kafka_t *rk,
+                                      const char *ctx_identifier,
+                                      SSL_CTX *ctx,
+                                      const char *store_names) {
         char *s;
         int cert_cnt = 0, fail_cnt = 0;
 
@@ -845,7 +987,8 @@ static int rd_kafka_ssl_win_load_cert_stores(rd_kafka_t *rk,
                         s = "";
                 }
 
-                r = rd_kafka_ssl_win_load_cert_store(rk, ctx, store_name);
+                r = rd_kafka_ssl_win_load_cert_store(rk, ctx_identifier, ctx,
+                                                     store_name);
                 if (r != -1)
                         cert_cnt += r;
                 else
@@ -859,7 +1002,32 @@ static int rd_kafka_ssl_win_load_cert_stores(rd_kafka_t *rk,
 }
 #endif /* MSC_VER */
 
+/**
+ * @brief Probe for a single \p path and if found and not an empty directory,
+ *        set it on the \p ctx.
+ *
+ * @returns 0 if CA location was set with an error, 1 if it was set correctly,
+ *          -1 if path should be skipped.
+ */
+static int rd_kafka_ssl_set_ca_path(rd_kafka_t *rk,
+                                    const char *ctx_identifier,
+                                    const char *path,
+                                    SSL_CTX *ctx,
+                                    rd_bool_t *is_dir) {
+        if (!rd_file_stat(path, is_dir))
+                return -1;
 
+        if (*is_dir && rd_kafka_dir_is_empty(path))
+                return -1;
+
+        rd_kafka_dbg(rk, SECURITY, "CACERTS",
+                     "Setting default CA certificate location for %s "
+                     "to \"%s\"",
+                     ctx_identifier, path);
+
+        return SSL_CTX_load_verify_locations(ctx, *is_dir ? NULL : path,
+                                             *is_dir ? path : NULL);
+}
 
 /**
  * @brief Probe for the system's CA certificate location and if found set it
@@ -867,8 +1035,9 @@ static int rd_kafka_ssl_win_load_cert_stores(rd_kafka_t *rk,
  *
  * @returns 0 if CA location was set, else -1.
  */
-static int rd_kafka_ssl_probe_and_set_default_ca_location(rd_kafka_t *rk,
-                                                          SSL_CTX *ctx) {
+int rd_kafka_ssl_probe_and_set_default_ca_location(rd_kafka_t *rk,
+                                                   const char *ctx_identifier,
+                                                   SSL_CTX *ctx) {
 #if _WIN32
         /* No standard location on Windows, CA certs are in the ROOT store. */
         return -1;
@@ -920,34 +1089,21 @@ static int rd_kafka_ssl_probe_and_set_default_ca_location(rd_kafka_t *rk,
         int i;
 
         for (i = 0; (path = paths[i]); i++) {
-                struct stat st;
                 rd_bool_t is_dir;
-                int r;
-
-                if (stat(path, &st) != 0)
+                int r = rd_kafka_ssl_set_ca_path(rk, ctx_identifier, path, ctx,
+                                                 &is_dir);
+                if (r == -1)
                         continue;
 
-                is_dir = S_ISDIR(st.st_mode);
-
-                if (is_dir && rd_kafka_dir_is_empty(path))
-                        continue;
-
-                rd_kafka_dbg(rk, SECURITY, "CACERTS",
-                             "Setting default CA certificate location "
-                             "to %s, override with ssl.ca.location",
-                             path);
-
-                r = SSL_CTX_load_verify_locations(ctx, is_dir ? NULL : path,
-                                                  is_dir ? path : NULL);
                 if (r != 1) {
                         char errstr[512];
                         /* Read error and clear the error stack */
                         rd_kafka_ssl_error(rk, NULL, errstr, sizeof(errstr));
                         rd_kafka_dbg(rk, SECURITY, "CACERTS",
                                      "Failed to set default CA certificate "
-                                     "location to %s %s: %s: skipping",
+                                     "location to %s %s for %s: %s: skipping",
                                      is_dir ? "directory" : "file", path,
-                                     errstr);
+                                     ctx_identifier, errstr);
                         continue;
                 }
 
@@ -956,11 +1112,108 @@ static int rd_kafka_ssl_probe_and_set_default_ca_location(rd_kafka_t *rk,
 
         rd_kafka_dbg(rk, SECURITY, "CACERTS",
                      "Unable to find any standard CA certificate"
-                     "paths: is the ca-certificates package installed?");
+                     "paths for %s: is the ca-certificates package installed?",
+                     ctx_identifier);
         return -1;
 #endif
 }
 
+/**
+ * @brief Simple utility function to check if \p ca DN is matching
+ *        any of the DNs in the \p ca_dns stack.
+ */
+static int rd_kafka_ssl_cert_issuer_match(STACK_OF(X509_NAME) * ca_dns,
+                                          X509 *ca) {
+        X509_NAME *issuer_dn = X509_get_issuer_name(ca);
+        X509_NAME *dn;
+        int i;
+
+        for (i = 0; i < sk_X509_NAME_num(ca_dns); i++) {
+                dn = sk_X509_NAME_value(ca_dns, i);
+                if (0 == X509_NAME_cmp(dn, issuer_dn)) {
+                        /* match found */
+                        return 1;
+                }
+        }
+        return 0;
+}
+
+/**
+ * @brief callback function for SSL_CTX_set_cert_cb, see
+ * https://docs.openssl.org/master/man3/SSL_CTX_set_cert_cb for details
+ * of the callback function requirements.
+ *
+ * According to section 4.2.4 of RFC 8446:
+ * The "certificate_authorities" extension is used to indicate the
+ * certificate authorities (CAs) which an endpoint supports and which
+ * SHOULD be used by the receiving endpoint to guide certificate
+ * selection.
+ *
+ * We avoid sending a client certificate if the issuer doesn't match any DN
+ * of server trusted certificate authorities (SSL_get_client_CA_list).
+ * This is done to avoid sending a client certificate that would almost
+ * certainly be rejected by the peer and would avoid successful
+ * SASL_SSL authentication on the same connection in case
+ * `ssl.client.auth=requested`.
+ */
+static int rd_kafka_ssl_cert_callback(SSL *ssl, void *arg) {
+        rd_kafka_t *rk = arg;
+        STACK_OF(X509_NAME) * ca_list;
+        STACK_OF(X509) *certs = NULL;
+        X509 *cert;
+        int i;
+
+        /* Get client cert from SSL connection */
+        cert = SSL_get_certificate(ssl);
+        if (cert == NULL) {
+                /* If there's no client certificate,
+                 * skip certificate issuer verification and
+                 * avoid logging a warning. */
+                return 1;
+        }
+
+        /* Get the accepted client CA list from the SSL connection, this
+         * comes from the `certificate_authorities` field. */
+        ca_list = SSL_get_client_CA_list(ssl);
+        if (sk_X509_NAME_num(ca_list) < 1) {
+                /* `certificate_authorities` is supported either
+                 * in CertificateRequest (SSL <= 3, TLS <= 1.2)
+                 * or as an extension (TLS >= 1.3). This should be always
+                 * available, but in case it isn't, just send the certificate
+                 * and let the server validate it. */
+                return 1;
+        }
+
+        if (rd_kafka_ssl_cert_issuer_match(ca_list, cert)) {
+                /* A match is found, use the certificate. */
+                return 1;
+        }
+
+        /* Get client cert chain from SSL connection */
+        SSL_get0_chain_certs(ssl, &certs);
+
+        if (certs) {
+                /* Check if there's a match in the CA list for
+                 * each cert in the chain. */
+                for (i = 0; i < sk_X509_num(certs); i++) {
+                        cert = sk_X509_value(certs, i);
+                        if (rd_kafka_ssl_cert_issuer_match(ca_list, cert)) {
+                                /* A match is found, use the certificate. */
+                                return 1;
+                        }
+                }
+        }
+
+        /* No match is found, which means they would almost certainly be
+         * rejected by the peer.
+         * We decide to send no certificates. */
+        rd_kafka_log(rk, LOG_WARNING, "SSL",
+                     "No matching issuer found in "
+                     "server trusted certificate authorities, "
+                     "not sending any client certificates");
+        SSL_certs_clear(ssl);
+        return 1;
+}
 
 /**
  * @brief Registers certificates, keys, etc, on the SSL_CTX
@@ -1080,7 +1333,7 @@ static int rd_kafka_ssl_set_certs(rd_kafka_t *rk,
                 /* Attempt to load CA root certificates from the
                  * configured Windows certificate stores. */
                 r = rd_kafka_ssl_win_load_cert_stores(
-                    rk, ctx, rk->rk_conf.ssl.ca_cert_stores);
+                    rk, "kafka", ctx, rk->rk_conf.ssl.ca_cert_stores);
                 if (r == 0) {
                         rd_kafka_log(
                             rk, LOG_NOTICE, "CERTSTORE",
@@ -1111,8 +1364,8 @@ static int rd_kafka_ssl_set_certs(rd_kafka_t *rk,
                          * of standard CA certificate paths and use the
                          * first one that is found.
                          * Ignore failures. */
-                        r = rd_kafka_ssl_probe_and_set_default_ca_location(rk,
-                                                                           ctx);
+                        r = rd_kafka_ssl_probe_and_set_default_ca_location(
+                            rk, "kafka", ctx);
                 }
 
                 if (r == -1) {
@@ -1169,6 +1422,20 @@ static int rd_kafka_ssl_set_certs(rd_kafka_t *rk,
                         rd_snprintf(errstr, errstr_size, "ssl_cert failed: ");
                         return -1;
                 }
+
+                if (rk->rk_conf.ssl.cert->chain) {
+                        r = SSL_CTX_set0_chain(ctx,
+                                               rk->rk_conf.ssl.cert->chain);
+                        if (r != 1) {
+                                rd_snprintf(errstr, errstr_size,
+                                            "ssl_cert failed: "
+                                            "setting certificate chain: ");
+                                return -1;
+                        } else {
+                                /* The chain is now owned by the CTX */
+                                rk->rk_conf.ssl.cert->chain = NULL;
+                        }
+                }
         }
 
         if (rk->rk_conf.ssl.cert_location) {
@@ -1188,16 +1455,21 @@ static int rd_kafka_ssl_set_certs(rd_kafka_t *rk,
 
         if (rk->rk_conf.ssl.cert_pem) {
                 X509 *x509;
+                STACK_OF(X509) *ca = sk_X509_new_null();
+                if (!ca) {
+                        rd_assert(!*"sk_X509_new_null() allocation failed");
+                }
 
                 rd_kafka_dbg(rk, SECURITY, "SSL",
                              "Loading public key from string");
 
-                x509 =
-                    rd_kafka_ssl_X509_from_string(rk, rk->rk_conf.ssl.cert_pem);
+                x509 = rd_kafka_ssl_X509_from_string(
+                    rk, rk->rk_conf.ssl.cert_pem, ca);
                 if (!x509) {
                         rd_snprintf(errstr, errstr_size,
                                     "ssl.certificate.pem failed: "
                                     "not in PEM format?: ");
+                        sk_X509_pop_free(ca, X509_free);
                         return -1;
                 }
 
@@ -1207,11 +1479,25 @@ static int rd_kafka_ssl_set_certs(rd_kafka_t *rk,
 
                 if (r != 1) {
                         rd_snprintf(errstr, errstr_size,
-                                    "ssl.certificate.pem failed: ");
+                                    "ssl.certificate.pem failed: "
+                                    "setting main certificate: ");
+                        sk_X509_pop_free(ca, X509_free);
                         return -1;
                 }
-        }
 
+                if (sk_X509_num(ca) == 0) {
+                        sk_X509_pop_free(ca, X509_free);
+                } else {
+                        r = SSL_CTX_set0_chain(ctx, ca);
+                        if (r != 1) {
+                                rd_snprintf(errstr, errstr_size,
+                                            "ssl.certificate.pem failed: "
+                                            "setting certificate chain: ");
+                                sk_X509_pop_free(ca, X509_free);
+                                return -1;
+                        }
+                }
+        }
 
         /*
          * ssl_key, ssl.key.location and ssl.key.pem
@@ -1284,8 +1570,8 @@ static int rd_kafka_ssl_set_certs(rd_kafka_t *rk,
          * ssl.keystore.location
          */
         if (rk->rk_conf.ssl.keystore_location) {
-                EVP_PKEY *pkey;
-                X509 *cert;
+                EVP_PKEY *pkey     = NULL;
+                X509 *cert         = NULL;
                 STACK_OF(X509) *ca = NULL;
                 BIO *bio;
                 PKCS12 *p12;
@@ -1313,8 +1599,6 @@ static int rd_kafka_ssl_set_certs(rd_kafka_t *rk,
                         return -1;
                 }
 
-                pkey = EVP_PKEY_new();
-                cert = X509_new();
                 if (!PKCS12_parse(p12, rk->rk_conf.ssl.keystore_password, &pkey,
                                   &cert, &ca)) {
                         EVP_PKEY_free(pkey);
@@ -1330,28 +1614,17 @@ static int rd_kafka_ssl_set_certs(rd_kafka_t *rk,
                         return -1;
                 }
 
-                if (ca != NULL)
-                        sk_X509_pop_free(ca, X509_free);
-
                 PKCS12_free(p12);
                 BIO_free(bio);
 
-                r = SSL_CTX_use_certificate(ctx, cert);
-                X509_free(cert);
-                if (r != 1) {
-                        EVP_PKEY_free(pkey);
-                        rd_snprintf(errstr, errstr_size,
-                                    "Failed to use ssl.keystore.location "
-                                    "certificate: ");
-                        return -1;
-                }
-
-                r = SSL_CTX_use_PrivateKey(ctx, pkey);
-                EVP_PKEY_free(pkey);
+                r = SSL_CTX_use_cert_and_key(ctx, cert, pkey, ca, 1);
+                RD_IF_FREE(cert, X509_free);
+                RD_IF_FREE(pkey, EVP_PKEY_free);
+                if (ca != NULL)
+                        sk_X509_pop_free(ca, X509_free);
                 if (r != 1) {
                         rd_snprintf(errstr, errstr_size,
-                                    "Failed to use ssl.keystore.location "
-                                    "private key: ");
+                                    "Failed to use ssl.keystore.location: ");
                         return -1;
                 }
 
@@ -1435,6 +1708,10 @@ static int rd_kafka_ssl_set_certs(rd_kafka_t *rk,
                 rd_snprintf(errstr, errstr_size, "Private key check failed: ");
                 return -1;
         }
+
+        /* Set client certificate callback to control the behaviour
+         * of client certificate selection TLS handshake. */
+        SSL_CTX_set_cert_cb(ctx, rd_kafka_ssl_cert_callback, rk);
 
         return 0;
 }
@@ -1570,8 +1847,8 @@ static rd_bool_t rd_kafka_ssl_ctx_load_providers(rd_kafka_t *rk,
                 OSSL_PROVIDER *prov;
                 const char *buildinfo = NULL;
                 OSSL_PARAM request[]  = {{"buildinfo", OSSL_PARAM_UTF8_PTR,
-                                         (void *)&buildinfo, 0, 0},
-                                        {NULL, 0, NULL, 0, 0}};
+                                          (void *)&buildinfo, 0, 0},
+                                         {NULL, 0, NULL, 0, 0}};
 
                 prov = OSSL_PROVIDER_load(NULL, provider);
                 if (!prov) {
@@ -1768,14 +2045,7 @@ rd_kafka_transport_ssl_lock_cb(int mode, int i, const char *file, int line) {
 #endif
 
 static RD_UNUSED unsigned long rd_kafka_transport_ssl_threadid_cb(void) {
-#ifdef _WIN32
-        /* Windows makes a distinction between thread handle
-         * and thread id, which means we can't use the
-         * thrd_current() API that returns the handle. */
-        return (unsigned long)GetCurrentThreadId();
-#else
-        return (unsigned long)(intptr_t)thrd_current();
-#endif
+        return thrd_current_id();
 }
 
 #ifdef HAVE_OPENSSL_CRYPTO_THREADID_SET_CALLBACK
@@ -1821,7 +2091,7 @@ void rd_kafka_ssl_init(void) {
         if (!CRYPTO_get_locking_callback()) {
                 rd_kafka_ssl_locks_cnt = CRYPTO_num_locks();
                 rd_kafka_ssl_locks     = rd_malloc(rd_kafka_ssl_locks_cnt *
-                                               sizeof(*rd_kafka_ssl_locks));
+                                                   sizeof(*rd_kafka_ssl_locks));
                 for (i = 0; i < rd_kafka_ssl_locks_cnt; i++)
                         mtx_init(&rd_kafka_ssl_locks[i], mtx_plain);
 
@@ -1901,4 +2171,65 @@ int rd_kafka_ssl_hmac(rd_kafka_broker_t *rkb,
         out->size = ressize;
 
         return 0;
+}
+
+/**
+ * @brief Unit test for SSL hostname normalization.
+ *
+ * Tests the rd_kafka_ssl_normalize_hostname() function with various edge cases
+ * to verify that trailing dots are correctly stripped from hostnames for
+ * SSL certificate verification.
+ */
+int unittest_ssl(void) {
+        int fails = 0;
+        struct {
+                const char *input;
+                const char *expected;
+                const char *description;
+        } test_cases[] = {
+            {"broker.example.com.", "broker.example.com",
+             "FQDN with trailing dot"},
+            {"broker.example.com", "broker.example.com",
+             "FQDN without trailing dot"},
+            {"localhost.", "localhost", "localhost with trailing dot"},
+            {"localhost", "localhost", "localhost without trailing dot"},
+            {".", ".", "single dot (edge case - should remain unchanged)"},
+            {"", "", "empty string (edge case)"},
+            {"broker-1.example.com.", "broker-1.example.com",
+             "hostname with dash and trailing dot"},
+            {"192.168.1.1", "192.168.1.1", "IP address (no trailing dot)"},
+            {NULL, NULL, NULL}};
+        int i;
+
+        RD_UT_SAY("Testing hostname normalization edge cases");
+
+        for (i = 0; test_cases[i].input != NULL; i++) {
+                char normalized[256];
+                const char *input    = test_cases[i].input;
+                const char *expected = test_cases[i].expected;
+                const char *desc     = test_cases[i].description;
+                const char *result;
+
+                /* Call the function under test */
+                result = rd_kafka_ssl_normalize_hostname(input, normalized,
+                                                         sizeof(normalized));
+
+                /* Verify the function returns the normalized buffer */
+                RD_UT_ASSERT(result == normalized,
+                             "Test case %d (%s): Function should return the "
+                             "normalized buffer",
+                             i + 1, desc);
+
+                /* Verify the normalization is correct */
+                RD_UT_ASSERT(!strcmp(result, expected),
+                             "Test case %d (%s): Hostname normalization "
+                             "failed: expected \"%s\" but got \"%s\"",
+                             i + 1, desc, expected, result);
+
+                RD_UT_SAY("Test case %d passed: %s", i + 1, desc);
+        }
+
+        RD_UT_SAY("All %d hostname normalization edge cases passed", i);
+
+        return fails;
 }
