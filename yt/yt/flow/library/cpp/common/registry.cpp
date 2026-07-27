@@ -4,6 +4,7 @@
 #include "computation_controller.h"
 #include "process_function.h"
 #include "resource.h"
+#include "resource_controller.h"
 #include "sink.h"
 #include "sink_controller.h"
 #include "source.h"
@@ -156,6 +157,13 @@ IResourcePtr TRegistry::CreateResource(
     const TDynamicResourceContextPtr& dynamicContext)
 {
     return GetResourceDescriptor(context->ResourceSpec->ResourceClassName).Factory(context, dynamicContext);
+}
+
+IResourceControllerPtr TRegistry::CreateResourceController(
+    const TResourceControllerContextPtr& context,
+    const TDynamicResourceControllerContextPtr& dynamicContext)
+{
+    return GetResourceDescriptor(context->ResourceSpec->ResourceClassName).ControllerFactory(context, dynamicContext);
 }
 
 TYsonMessagePtr TRegistry::CreateYsonMessage(TStringBuf name)

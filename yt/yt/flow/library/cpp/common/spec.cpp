@@ -562,6 +562,16 @@ void TPipelineSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("streams", &TThis::Streams)
         .Default();
+
+    registrar.Postprocessor([] (TThis* spec) {
+        for (const auto& [computationId, computationSpec] : spec->Computations) {
+            // The colon is reserved: resource-controller states live in the computation-state
+            // namespace under "resource:<id>" keys.
+            THROW_ERROR_EXCEPTION_IF(computationId.Underlying().find(':') != std::string::npos,
+                "Computation id %Qv must not contain a colon",
+                computationId);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -71,8 +71,15 @@ void TVersionedValue<TValue>::Register(TRegistrar registrar)
     registrar.Parameter("version", &TThis::Version_)
         .Default();
     if constexpr (NDetail::IsIntrusivePtr<TValue>) {
-        registrar.Parameter("value", &TThis::Value_)
-            .DefaultNew();
+        // Only a yson-struct pointee can be default-constructed here; any other pointee
+        // (e.g. INodePtr) defaults to null.
+        if constexpr (std::derived_from<typename TValue::TUnderlying, NYT::NYTree::TYsonStructBase>) {
+            registrar.Parameter("value", &TThis::Value_)
+                .DefaultNew();
+        } else {
+            registrar.Parameter("value", &TThis::Value_)
+                .Default();
+        }
     } else {
         registrar.Parameter("value", &TThis::Value_)
             .Default();

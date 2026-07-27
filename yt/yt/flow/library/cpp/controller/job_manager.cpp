@@ -9,6 +9,8 @@
 #include <yt/yt/flow/library/cpp/common/computation_controller.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
+#include <yt/yt/flow/library/cpp/common/resource.h>
+#include <yt/yt/flow/library/cpp/common/resource_controller.h>
 #include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
 
@@ -125,6 +127,38 @@ public:
             }
         }
 
+        for (const auto& [resourceId, resourceSpec] : Spec_->Resources) {
+            auto resourceControllerContext = New<TResourceControllerContext>();
+            resourceControllerContext->ResourceId = resourceId;
+            resourceControllerContext->ResourceSpec = resourceSpec;
+            resourceControllerContext->Invoker = Context_->MainCycleInvoker;
+            resourceControllerContext->Logger = Logger().WithTag("ResourceController: %v", resourceId.Underlying());
+            resourceControllerContext->Profiler = WithPipelineRelatedTags(
+                ControllerProfiler()
+                    .WithPrefix("/resource_controller")
+                    .WithTag("resource", resourceId.Underlying())
+                    .WithGlobal());
+            resourceControllerContext->StatusProfiler = Context_->StatusProfiler->WithPrefix(Format("/resource_controllers/%v", resourceId.Underlying()));
+
+            auto dynamicResourceControllerContext = New<TDynamicResourceControllerContext>();
+            dynamicResourceControllerContext->DynamicResourceSpec = GetOrDefault(DynamicSpec_->Resources, resourceId, New<TDynamicResourceSpec>());
+
+            YT_TLOG_INFO("Creating resource controller")
+                .With("ResourceId", resourceId);
+            try {
+                auto resourceController = TRegistry::Get()->CreateResourceController(
+                    resourceControllerContext,
+                    dynamicResourceControllerContext);
+                YT_VERIFY(resourceController);
+                resourceController->Init(StateManager_->CreateResourceContext(resourceId));
+                EmplaceOrCrash(ResourceControllers_, resourceId, TResourceControllerEntry{.Controller = std::move(resourceController)});
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to create resource controller")
+                    << TErrorAttribute("resource_id", resourceId)
+                    << TError(ex);
+            }
+        }
+
         for (const auto& workerGroup : workerGroups) {
             EmplaceOrCrash(BalanceSynchronizers_, workerGroup, NBalancer::CreateBalanceAsyncSynchronizer(Profiler_.WithPrefix("/job_balancer"), workerGroup));
         }
@@ -161,8 +195,14 @@ public:
             controller->Reconfigure(dynamicContext);
         }
 
+        for (const auto& [resourceId, entry] : ResourceControllers_) {
+            auto dynamicContext = New<TDynamicResourceControllerContext>();
+            dynamicContext->DynamicResourceSpec = GetOrDefault(DynamicSpec_->Resources, resourceId, New<TDynamicResourceSpec>());
+            entry.Controller->Reconfigure(dynamicContext);
+        }
+
         // Reconfigure resources.
-        ResourceManager_->Reconfigure(DynamicSpec_->Resources);
+        ResourceManager_->Reconfigure(DynamicSpec_->Resources, BuildTargetRevisions());
     }
 
     void AggregateTraverseData(const TFlowViewPtr& flowView) override
@@ -378,6 +418,50 @@ public:
             }
         }
         flowView->State->ExecutionSpec->WatermarkState->SetValue(watermarkState);
+    }
+
+    void UpdateResourceControllers(const TFlowViewPtr& flowView) override
+    {
+        // With no resource controllers the maps below come out empty, wiping anything a
+        // previously configured pipeline spec might have published.
+
+        const auto& workerStatuses = flowView->Feedback->WorkerStatuses;
+        auto controllerStatuses = ResourceManager_->CollectResourceStatuses();
+        for (const auto& [resourceId, entry] : ResourceControllers_) {
+            THashMap<std::string, TWorkerResourceStatusPtr> statuses;
+            for (const auto& [workerAddress, workerStatus] : workerStatuses) {
+                if (!workerStatus) {
+                    continue;
+                }
+                if (auto it = workerStatus->ResourceStatuses.find(resourceId); it != workerStatus->ResourceStatuses.end()) {
+                    statuses.emplace(workerAddress, it->second);
+                }
+            }
+            entry.Controller->CollectStatuses(statuses, GetOrDefault(controllerStatuses, resourceId));
+        }
+
+        for (auto& [resourceId, entry] : ResourceControllers_) {
+            auto oldVersion = entry.PublishedSpec->GetVersion();
+            entry.PublishedSpec->SetValue(entry.Controller->BuildTargetRevisionSpec());
+            if (entry.PublishedSpec->GetVersion() != oldVersion) {
+                YT_TLOG_INFO("Publishing resource target revision")
+                    .With("ResourceId", resourceId)
+                    .With("RevisionId", entry.PublishedSpec->GetVersion().Underlying());
+            }
+        }
+
+        auto targetRevisions = BuildTargetRevisions();
+        ResourceManager_->Reconfigure(/*dynamicSpecs*/ {}, targetRevisions);
+        // SetValue dedups by content, so an unchanged map does not bump the section version.
+        flowView->State->ExecutionSpec->ResourceTargetRevisions->SetValue(std::move(targetRevisions));
+
+        THashMap<TResourceId, NYTree::IMapNodePtr> views;
+        for (const auto& [resourceId, entry] : ResourceControllers_) {
+            if (auto view = entry.Controller->GetView()) {
+                views.emplace(resourceId, std::move(view));
+            }
+        }
+        flowView->EphemeralState->ResourceControllerViews = std::move(views);
     }
 
     void CheckCompletedPartitions(const TFlowViewPtr& flowView) override
@@ -923,6 +1007,33 @@ private:
     const IResourceManagerPtr ResourceManager_;
 
     THashMap<TComputationId, IComputationControllerPtr> ComputationControllers_;
+
+    struct TResourceControllerEntry
+    {
+        IResourceControllerPtr Controller;
+        //! SetValue dedups by content and the value's version is the published revision id.
+        //! A null value means nothing is published.
+        TIntrusivePtr<TVersionedValue<NYTree::INodePtr>> PublishedSpec =
+            New<TVersionedValue<NYTree::INodePtr>>();
+    };
+
+    THashMap<TResourceId, TResourceControllerEntry> ResourceControllers_;
+
+    THashMap<TResourceId, TResourceRevisionPtr> BuildTargetRevisions() const
+    {
+        THashMap<TResourceId, TResourceRevisionPtr> result;
+        for (const auto& [resourceId, entry] : ResourceControllers_) {
+            const auto& publishedSpec = entry.PublishedSpec->GetValue();
+            if (!publishedSpec) {
+                continue;
+            }
+            auto revision = New<TResourceRevision>();
+            revision->RevisionId = entry.PublishedSpec->GetVersion().Underlying();
+            revision->Spec = publishedSpec;
+            result[resourceId] = std::move(revision);
+        }
+        return result;
+    }
 
     NProfiling::TProfiler Profiler_;
     NProfiling::TCounter FailedJobsCounter_;

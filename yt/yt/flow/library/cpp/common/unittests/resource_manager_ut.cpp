@@ -1,5 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/public.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/resource.h>
@@ -61,6 +62,11 @@ public:
         return Items_;
     }
 
+    TResourceRevisionState GetRevisionState() const override
+    {
+        return {};
+    }
+
     TYsonStructPtr GetParametersBase() const final
     {
         return nullptr;
@@ -108,6 +114,11 @@ public:
         return Spec_->Dependencies.size();
     }
 
+    TResourceRevisionState GetRevisionState() const override
+    {
+        return {};
+    }
+
     TYsonStructPtr GetParametersBase() const final
     {
         return nullptr;
@@ -152,6 +163,11 @@ public:
     int GetReconfigureCount() const
     {
         return ReconfigureCount_;
+    }
+
+    TResourceRevisionState GetRevisionState() const override
+    {
+        return {};
     }
 
     TYsonStructPtr GetParametersBase() const final
@@ -212,6 +228,11 @@ public:
     void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
     { }
 
+    TResourceRevisionState GetRevisionState() const override
+    {
+        return {};
+    }
+
     TYsonStructPtr GetParametersBase() const final
     {
         return nullptr;
@@ -267,6 +288,78 @@ THashMap<TResourceId, TSlowResource*> TSlowResource::Instances_;
 DEFINE_REFCOUNTED_TYPE(TSlowResource);
 
 YT_FLOW_DEFINE_RESOURCE(TSlowResource);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TRevisionAwareResource);
+
+// Records target revisions delivered through Reconfigure and reports an applied revision id:
+// by default the delivered one (instant switching), or an explicitly set lagging one.
+class TRevisionAwareResource
+    : public IResource
+{
+public:
+    TRevisionAwareResource(TResourceContextPtr /*context*/, TDynamicResourceContextPtr dynamicContext)
+        : DynamicContext_(std::move(dynamicContext))
+    { }
+
+    TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
+    {
+        return OKFuture;
+    }
+
+    void Reconfigure(const TDynamicResourceContextPtr& dynamicContext) override
+    {
+        ++ReconfigureCount_;
+        DynamicContext_ = dynamicContext;
+    }
+
+    TResourceRevisionState GetRevisionState() const override
+    {
+        if (!DynamicContext_->TargetRevision) {
+            return {};
+        }
+        auto targetRevisionId = DynamicContext_->TargetRevision->RevisionId;
+        return {
+            .AppliedRevisionId = ReportedRevisionId_ ? ReportedRevisionId_ : targetRevisionId,
+            .TargetRevisionId = targetRevisionId,
+        };
+    }
+
+    void SetReportedRevisionId(std::optional<i64> revisionId)
+    {
+        ReportedRevisionId_ = revisionId;
+    }
+
+    TResourceRevisionPtr GetTargetRevision() const
+    {
+        return DynamicContext_->TargetRevision;
+    }
+
+    int GetReconfigureCount() const
+    {
+        return ReconfigureCount_;
+    }
+
+    TYsonStructPtr GetParametersBase() const final
+    {
+        return nullptr;
+    }
+
+    TYsonStructPtr GetDynamicParametersBase() const final
+    {
+        return nullptr;
+    }
+
+private:
+    TDynamicResourceContextPtr DynamicContext_;
+    std::optional<i64> ReportedRevisionId_;
+    int ReconfigureCount_ = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TRevisionAwareResource);
+
+YT_FLOW_DEFINE_RESOURCE(TRevisionAwareResource);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -354,7 +447,8 @@ public:
         const THashMap<TResourceId, TResourceSpecPtr>& resources,
         IInvokerPtr invoker = nullptr,
         bool isController = false,
-        THashMap<TComputationId, TComputationSpecPtr> computations = {})
+        THashMap<TComputationId, TComputationSpecPtr> computations = {},
+        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions = {})
     {
         auto context = New<TResourceManagerContext>();
         context->Invoker = invoker ? invoker : GetCurrentInvoker();
@@ -362,7 +456,22 @@ public:
         context->StatusProfiler = CreateSyncStatusProfiler();
         context->IsController = isController;
         context->Computations = std::move(computations);
-        return CreateResourceManager(std::move(context), resources, {});
+        return CreateResourceManager(std::move(context), resources, {}, targetRevisions);
+    }
+
+    TResourceSpecPtr BuildRevisionAwareResourceSpec()
+    {
+        auto spec = New<TResourceSpec>();
+        spec->ResourceClassName = TypeName<TRevisionAwareResource>();
+        return spec;
+    }
+
+    static TResourceRevisionPtr MakeRevision(i64 revisionId, TStringBuf specYson)
+    {
+        auto revision = New<TResourceRevision>();
+        revision->RevisionId = revisionId;
+        revision->Spec = ConvertToNode(TYsonStringBuf(specYson));
+        return revision;
     }
 };
 
@@ -455,7 +564,7 @@ TEST_F(TResourceManagerTest, ReconfigureBasic)
     THashMap<TResourceId, TDynamicResourceSpecPtr> newDynamicSpecs;
     newDynamicSpecs["res"] = BuildDynamicResourceSpec("value1");
 
-    resourceManager->Reconfigure(newDynamicSpecs);
+    resourceManager->Reconfigure(newDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource->GetReconfigureCount(), 1);
 }
@@ -480,7 +589,7 @@ TEST_F(TResourceManagerTest, ReconfigureSkipsUnchangedSpec)
     THashMap<TResourceId, TDynamicResourceSpecPtr> dynamicSpecs;
     dynamicSpecs["res"] = BuildDynamicResourceSpec("value1");
 
-    resourceManager->Reconfigure(dynamicSpecs);
+    resourceManager->Reconfigure(dynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource->GetReconfigureCount(), 1);
 
@@ -488,7 +597,7 @@ TEST_F(TResourceManagerTest, ReconfigureSkipsUnchangedSpec)
     THashMap<TResourceId, TDynamicResourceSpecPtr> sameDynamicSpecs;
     sameDynamicSpecs["res"] = BuildDynamicResourceSpec("value1");
 
-    resourceManager->Reconfigure(sameDynamicSpecs);
+    resourceManager->Reconfigure(sameDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource->GetReconfigureCount(), 1);
 }
@@ -512,7 +621,7 @@ TEST_F(TResourceManagerTest, ReconfigureSkipsUnknownResource)
     THashMap<TResourceId, TDynamicResourceSpecPtr> newDynamicSpecs;
     newDynamicSpecs["unknown_resource"] = BuildDynamicResourceSpec("value1");
 
-    resourceManager->Reconfigure(newDynamicSpecs);
+    resourceManager->Reconfigure(newDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource->GetReconfigureCount(), 0);
 }
@@ -540,7 +649,7 @@ TEST_F(TResourceManagerTest, ReconfigureMultipleResources)
     newDynamicSpecs["res1"] = BuildDynamicResourceSpec("a");
     newDynamicSpecs["res2"] = BuildDynamicResourceSpec("b");
 
-    resourceManager->Reconfigure(newDynamicSpecs);
+    resourceManager->Reconfigure(newDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource1->GetReconfigureCount(), 1);
     ASSERT_EQ(resource2->GetReconfigureCount(), 1);
@@ -568,7 +677,7 @@ TEST_F(TResourceManagerTest, ReconfigureTriggersOnChangedSpec)
     THashMap<TResourceId, TDynamicResourceSpecPtr> newDynamicSpecs;
     newDynamicSpecs["res"] = BuildDynamicResourceSpec("updated");
 
-    resourceManager->Reconfigure(newDynamicSpecs);
+    resourceManager->Reconfigure(newDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource->GetReconfigureCount(), 1);
 
@@ -576,7 +685,7 @@ TEST_F(TResourceManagerTest, ReconfigureTriggersOnChangedSpec)
     THashMap<TResourceId, TDynamicResourceSpecPtr> sameDynamicSpecs;
     sameDynamicSpecs["res"] = BuildDynamicResourceSpec("updated");
 
-    resourceManager->Reconfigure(sameDynamicSpecs);
+    resourceManager->Reconfigure(sameDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource->GetReconfigureCount(), 1);
 
@@ -584,7 +693,7 @@ TEST_F(TResourceManagerTest, ReconfigureTriggersOnChangedSpec)
     THashMap<TResourceId, TDynamicResourceSpecPtr> anotherDynamicSpecs;
     anotherDynamicSpecs["res"] = BuildDynamicResourceSpec("updated_again");
 
-    resourceManager->Reconfigure(anotherDynamicSpecs);
+    resourceManager->Reconfigure(anotherDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource->GetReconfigureCount(), 2);
 }
@@ -615,7 +724,7 @@ TEST_F(TResourceManagerTest, ReconfigurePartialUpdate)
     newDynamicSpecs["res1"] = BuildDynamicResourceSpec("initial");
     newDynamicSpecs["res2"] = BuildDynamicResourceSpec("initial");
 
-    resourceManager->Reconfigure(newDynamicSpecs);
+    resourceManager->Reconfigure(newDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource1->GetReconfigureCount(), 1);
     ASSERT_EQ(resource2->GetReconfigureCount(), 1);
@@ -623,7 +732,7 @@ TEST_F(TResourceManagerTest, ReconfigurePartialUpdate)
     newDynamicSpecs["res1"] = BuildDynamicResourceSpec("initial");
     newDynamicSpecs["res2"] = BuildDynamicResourceSpec("new_value");
 
-    resourceManager->Reconfigure(newDynamicSpecs);
+    resourceManager->Reconfigure(newDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource1->GetReconfigureCount(), 1);
     ASSERT_EQ(resource2->GetReconfigureCount(), 2);
@@ -648,7 +757,7 @@ TEST_F(TResourceManagerTest, ReconfigureWithFailedResource)
     THashMap<TResourceId, TDynamicResourceSpecPtr> newDynamicSpecs;
     newDynamicSpecs["failed_res"] = BuildDynamicResourceSpec("value1");
 
-    EXPECT_NO_THROW(resourceManager->Reconfigure(newDynamicSpecs));
+    EXPECT_NO_THROW(resourceManager->Reconfigure(newDynamicSpecs, /*targetRevisions*/ {}));
 }
 
 TEST_F(TResourceManagerTest, ReconfigureWithFailedAndReconfigurableResources)
@@ -677,7 +786,7 @@ TEST_F(TResourceManagerTest, ReconfigureWithFailedAndReconfigurableResources)
     newDynamicSpecs["failed_res"] = BuildDynamicResourceSpec("value1");
     newDynamicSpecs["good_res"] = BuildDynamicResourceSpec("value2");
 
-    EXPECT_NO_THROW(resourceManager->Reconfigure(newDynamicSpecs));
+    EXPECT_NO_THROW(resourceManager->Reconfigure(newDynamicSpecs, /*targetRevisions*/ {}));
 
     // Verify that the reconfigurable resource was successfully reconfigured.
     ASSERT_EQ(goodResource->GetReconfigureCount(), 1);
@@ -1152,6 +1261,118 @@ TEST_F(TResourceManagerTest, PreloadAndAlwaysOnAreMutuallyExclusive)
 {
     auto yson = TYsonStringBuf("{resource_class_name=Foo; preload_required=%true; always_on=%true}");
     EXPECT_THROW(ConvertTo<NYT::NFlow::TResourceSpecPtr>(yson), NYT::TErrorException);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TResourceManagerTest, TargetRevisionReachesResource)
+{
+    auto manager = CreateManager({{"res", BuildRevisionAwareResourceSpec()}});
+    auto resource = manager->Get("res")->As<TRevisionAwareResource>();
+    EXPECT_EQ(resource->GetReconfigureCount(), 0);
+    EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, std::nullopt);
+
+    manager->Reconfigure({}, {{"res", MakeRevision(1, "{value = 42}")}});
+
+    EXPECT_EQ(resource->GetReconfigureCount(), 1);
+    ASSERT_TRUE(resource->GetTargetRevision());
+    EXPECT_EQ(resource->GetTargetRevision()->RevisionId, 1);
+    EXPECT_EQ(resource->GetTargetRevision()->Spec->AsMap()->GetChildValueOrThrow<i64>("value"), 42);
+    EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, std::optional<i64>(1));
+}
+
+TEST_F(TResourceManagerTest, TargetRevisionNotRedeliveredWhenIdUnchanged)
+{
+    auto manager = CreateManager({{"res", BuildRevisionAwareResourceSpec()}});
+    auto resource = manager->Get("res")->As<TRevisionAwareResource>();
+
+    manager->Reconfigure({}, {{"res", MakeRevision(1, "{value = 42}")}});
+    manager->Reconfigure({}, {{"res", MakeRevision(1, "{value = 42}")}});
+
+    EXPECT_EQ(resource->GetReconfigureCount(), 1);
+
+    manager->Reconfigure({}, {{"res", MakeRevision(2, "{value = 43}")}});
+
+    EXPECT_EQ(resource->GetReconfigureCount(), 2);
+    EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, std::optional<i64>(2));
+}
+
+TEST_F(TResourceManagerTest, TargetRevisionAvailableAtConstruction)
+{
+    auto manager = CreateManager(
+        {{"res", BuildRevisionAwareResourceSpec()}},
+        /*invoker*/ nullptr,
+        /*isController*/ false,
+        /*computations*/ {},
+        /*targetRevisions*/ {{"res", MakeRevision(7, "{value = 1}")}});
+    auto resource = manager->Get("res")->As<TRevisionAwareResource>();
+
+    EXPECT_EQ(resource->GetReconfigureCount(), 0);
+    ASSERT_TRUE(resource->GetTargetRevision());
+    EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, std::optional<i64>(7));
+
+    // A redelivery of the embedded revision is a no-op.
+    manager->Reconfigure({}, {{"res", MakeRevision(7, "{value = 1}")}});
+    EXPECT_EQ(resource->GetReconfigureCount(), 0);
+}
+
+TEST_F(TResourceManagerTest, TargetRevisionRemovalDeliversNull)
+{
+    auto manager = CreateManager({{"res", BuildRevisionAwareResourceSpec()}});
+    auto resource = manager->Get("res")->As<TRevisionAwareResource>();
+
+    manager->Reconfigure({}, {{"res", MakeRevision(1, "{value = 42}")}});
+    manager->Reconfigure({}, {});
+
+    EXPECT_EQ(resource->GetReconfigureCount(), 2);
+    EXPECT_FALSE(resource->GetTargetRevision());
+    EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, std::nullopt);
+}
+
+TEST_F(TResourceManagerTest, AppliedRevisionReportedByResource)
+{
+    auto manager = CreateManager({{"res", BuildRevisionAwareResourceSpec()}});
+    auto resource = manager->Get("res")->As<TRevisionAwareResource>();
+    WaitFor(manager->Load("res")).ThrowOnError();
+
+    manager->Reconfigure({}, {{"res", MakeRevision(3, "{value = 42}")}});
+    resource->SetReportedRevisionId(2);
+
+    // A slowly switching resource reports the applied id lagging behind the target one.
+    auto statuses = manager->CollectResourceStatuses();
+    ASSERT_TRUE(statuses.contains("res"));
+    EXPECT_EQ(statuses["res"]->AppliedRevisionId, std::optional<i64>(2));
+    EXPECT_EQ(statuses["res"]->TargetRevisionId, std::optional<i64>(3));
+}
+
+TEST_F(TResourceManagerTest, AppliedRevisionNotReportedForUnloadedResource)
+{
+    auto manager = CreateManager({{"res", BuildRevisionAwareResourceSpec()}});
+
+    manager->Reconfigure({}, {{"res", MakeRevision(3, "{value = 42}")}});
+
+    // The target is delivered to the constructed instance, but the resource was never
+    // loaded, so it serves nothing and must not report an applied revision.
+    EXPECT_FALSE(manager->CollectResourceStatuses().contains("res"));
+
+    WaitFor(manager->Load("res")).ThrowOnError();
+
+    auto statuses = manager->CollectResourceStatuses();
+    ASSERT_TRUE(statuses.contains("res"));
+    EXPECT_EQ(statuses["res"]->AppliedRevisionId, std::optional<i64>(3));
+}
+
+TEST_F(TResourceManagerTest, PlainResourceReportsNoRevision)
+{
+    auto manager = CreateManager({{"plain", BuildReconfigurableResourceSpec()}});
+    auto resource = manager->Get("plain")->As<TReconfigurableResource>();
+    WaitFor(manager->Load("plain")).ThrowOnError();
+
+    manager->Reconfigure({}, {});
+
+    EXPECT_EQ(resource->GetReconfigureCount(), 0);
+    auto statuses = manager->CollectResourceStatuses();
+    EXPECT_FALSE(statuses.contains("plain"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

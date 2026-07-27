@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include "checksum.h"
+#include "resource.h"
 
 #include <yt/yt/flow/library/cpp/misc/version_helpers.h>
 
@@ -518,6 +519,10 @@ void TWorkerResourceStatus::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("queue_fetch_rate_10m", &TThis::QueueFetchRate10m)
         .Default();
+    registrar.Parameter("applied_revision_id", &TThis::AppliedRevisionId)
+        .Default();
+    registrar.Parameter("target_revision_id", &TThis::TargetRevisionId)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -973,6 +978,9 @@ void TExecutionSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("watermark_state", &TThis::WatermarkState)
         .DefaultNew();
+
+    registrar.Parameter("resource_target_revisions", &TThis::ResourceTargetRevisions)
+        .DefaultNew();
 }
 
 //! Checks whether the flow-core binary version matches the target set by user.
@@ -1042,6 +1050,9 @@ void TExecutionSpecVersions::Register(TRegistrar registrar)
 
     registrar.Parameter("watermark_state_version", &TThis::WatermarkStateVersion)
         .Default();
+
+    registrar.Parameter("resource_target_revisions_version", &TThis::ResourceTargetRevisionsVersion)
+        .Default();
 }
 
 TExecutionSpecVersionsPtr BuildExecutionSpecVersions(const TExecutionSpecPtr& executionSpec)
@@ -1055,6 +1066,7 @@ TExecutionSpecVersionsPtr BuildExecutionSpecVersions(const TExecutionSpecPtr& ex
     versions->StreamSpecStorageStateVersion = executionSpec->StreamSpecStorageState->GetVersion();
     versions->InputStreamsTraverseVersion = executionSpec->InputStreamsTraverse->GetVersion();
     versions->WatermarkStateVersion = executionSpec->WatermarkState->GetVersion();
+    versions->ResourceTargetRevisionsVersion = executionSpec->ResourceTargetRevisions->GetVersion();
     return versions;
 }
 
@@ -1074,6 +1086,7 @@ std::pair<TExecutionSpecPtr, std::vector<TPersistedStateStorageRow<std::string>>
     FLOW_VIEW_PREPARE_UPDATE(StreamSpecStorageState);
     FLOW_VIEW_PREPARE_UPDATE(InputStreamsTraverse);
     FLOW_VIEW_PREPARE_UPDATE(WatermarkState);
+    FLOW_VIEW_PREPARE_UPDATE(ResourceTargetRevisions);
 
     std::vector<TPersistedStateStorageRow<std::string>> stateUpdate;
     if (versions->LayoutVersion != current->Layout->GetVersion()) {
@@ -1103,6 +1116,7 @@ TExecutionSpecPtr ApplyExecutionSpecUpdate(const TExecutionSpecPtr& current, con
     FLOW_VIEW_APPLY_UPDATE(StreamSpecStorageState);
     FLOW_VIEW_APPLY_UPDATE(InputStreamsTraverse);
     FLOW_VIEW_APPLY_UPDATE(WatermarkState);
+    FLOW_VIEW_APPLY_UPDATE(ResourceTargetRevisions);
 
     newExecutionSpec->Layout = current->Layout;
     newExecutionSpec->Layout->Apply(stateUpdate);
@@ -1280,6 +1294,8 @@ void TFlowEphemeralState::Register(TRegistrar registrar)
     registrar.Parameter("pipeline_path", &TThis::PipelinePath)
         .Default();
     registrar.Parameter("traverse_uncovered_computations", &TThis::TraverseUncoveredComputations)
+        .Default();
+    registrar.Parameter("resource_controller_views", &TThis::ResourceControllerViews)
         .Default();
 }
 

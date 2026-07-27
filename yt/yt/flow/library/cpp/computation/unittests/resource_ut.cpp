@@ -110,7 +110,7 @@ TEST_F(TResourceBaseTest, ReconfigureBasic)
     THashMap<TResourceId, TDynamicResourceSpecPtr> newDynamicSpecs;
     newDynamicSpecs["res"] = BuildDynamicResourceSpec("value1");
 
-    resourceManager->Reconfigure(newDynamicSpecs);
+    resourceManager->Reconfigure(newDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource->GetDoReconfigureCount(), 1);
 
@@ -148,7 +148,7 @@ TEST_F(TResourceBaseTest, ReconfigureWithFailedAndReconfigurableResources)
     newDynamicSpecs["failed_res"] = BuildDynamicResourceSpec("value1");
     newDynamicSpecs["good_res"] = BuildDynamicResourceSpec("value2");
 
-    EXPECT_NO_THROW(resourceManager->Reconfigure(newDynamicSpecs));
+    EXPECT_NO_THROW(resourceManager->Reconfigure(newDynamicSpecs, /*targetRevisions*/ {}));
 
     // Verify that the reconfigurable resource was successfully reconfigured.
     ASSERT_EQ(goodResource->GetDoReconfigureCount(), 1);
@@ -181,7 +181,7 @@ TEST_F(TResourceBaseTest, ReconfigureSkipsUnchangedSpec)
     THashMap<TResourceId, TDynamicResourceSpecPtr> dynamicSpecs;
     dynamicSpecs["res"] = BuildDynamicResourceSpec("value1");
 
-    resourceManager->Reconfigure(dynamicSpecs);
+    resourceManager->Reconfigure(dynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource->GetDoReconfigureCount(), 1);
 
@@ -189,7 +189,7 @@ TEST_F(TResourceBaseTest, ReconfigureSkipsUnchangedSpec)
     THashMap<TResourceId, TDynamicResourceSpecPtr> sameDynamicSpecs;
     sameDynamicSpecs["res"] = BuildDynamicResourceSpec("value1");
 
-    resourceManager->Reconfigure(sameDynamicSpecs);
+    resourceManager->Reconfigure(sameDynamicSpecs, /*targetRevisions*/ {});
 
     // DoReconfigure should not be called again since the spec hasn't changed.
     ASSERT_EQ(resource->GetDoReconfigureCount(), 1);

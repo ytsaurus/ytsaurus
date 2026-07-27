@@ -1117,6 +1117,11 @@ public:
     void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
     { }
 
+    TResourceRevisionState GetRevisionState() const override
+    {
+        return {};
+    }
+
     TParametersPtr GetParametersBase() const override
     {
         return New<TParameters>();

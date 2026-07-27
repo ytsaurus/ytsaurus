@@ -40,6 +40,11 @@ public:
     void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
     { }
 
+    TResourceRevisionState GetRevisionState() const override
+    {
+        return {};
+    }
+
     TParametersPtr GetParametersBase() const override
     {
         THROW_ERROR_EXCEPTION(Error_);
@@ -118,13 +123,15 @@ public:
     TResourceManager(
         TResourceManagerContextPtr managerContext,
         const THashMap<TResourceId, TResourceSpecPtr>& resources,
-        const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs)
+        const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs,
+        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions)
         : ManagerContext_(std::move(managerContext))
         , Invoker_(ManagerContext_->Invoker)
         , Logger(ManagerContext_->Logger)
     {
         ResourceSpecs_ = resources;
         DynamicResourceSpecs_ = dynamicResourceSpecs;
+        TargetRevisions_ = targetRevisions;
 
         // Create resources in order of their resourceId. It's only needed by tests now but it's a good practice anyway.
         std::map<TResourceId, TResourceSpecPtr> resourceSpecs(ResourceSpecs_.begin(), ResourceSpecs_.end());
@@ -208,36 +215,49 @@ public:
         return AllSucceeded(std::move(futures));
     }
 
-    void Reconfigure(const THashMap<TResourceId, TDynamicResourceSpecPtr>& newDynamicSpecs) override
+    void Reconfigure(
+        const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicSpecs,
+        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions) override
     {
-        std::vector<std::pair<IResourcePtr, TDynamicResourceSpecPtr>> toReconfigure;
+        std::vector<std::pair<IResourcePtr, TDynamicResourceContextPtr>> toReconfigure;
         {
             auto guard = Guard(Lock_);
 
-            for (const auto& [resourceId, newDynamicSpec] : newDynamicSpecs) {
-                auto resourceIt = Resources_.find(resourceId);
-                if (resourceIt == Resources_.end()) {
-                    continue;
+            for (const auto& [resourceId, resource] : Resources_) {
+                bool changed = false;
+
+                if (auto it = dynamicSpecs.find(resourceId); it != dynamicSpecs.end()) {
+                    const auto& newDynamicSpec = it->second;
+                    auto oldDynamicSpec = GetOrDefault(DynamicResourceSpecs_, resourceId);
+                    if (!oldDynamicSpec || !AreNodesEqual(oldDynamicSpec->Parameters, newDynamicSpec->Parameters)) {
+                        DynamicResourceSpecs_[resourceId] = newDynamicSpec;
+                        changed = true;
+                    }
                 }
 
-                auto oldDynamicSpec = GetOrDefault(DynamicResourceSpecs_, resourceId);
+                auto newTarget = GetOrDefault(targetRevisions, resourceId);
+                auto oldTarget = GetOrDefault(TargetRevisions_, resourceId);
+                auto oldRevisionId = oldTarget ? std::optional(oldTarget->RevisionId) : std::nullopt;
+                auto newRevisionId = newTarget ? std::optional(newTarget->RevisionId) : std::nullopt;
+                if (oldRevisionId != newRevisionId) {
+                    if (newTarget) {
+                        TargetRevisions_[resourceId] = newTarget;
+                    } else {
+                        TargetRevisions_.erase(resourceId);
+                    }
+                    changed = true;
+                }
 
-                // Check if dynamic spec has changed.
-                bool specChanged = !oldDynamicSpec ||
-                    !AreNodesEqual(oldDynamicSpec->Parameters, newDynamicSpec->Parameters);
-
-                if (specChanged) {
-                    DynamicResourceSpecs_[resourceId] = newDynamicSpec;
+                if (changed) {
                     YT_TLOG_INFO("Reconfiguring resource")
-                        .With("ResourceId", resourceId);
-                    toReconfigure.emplace_back(resourceIt->second, newDynamicSpec);
+                        .With("ResourceId", resourceId)
+                        .With("TargetRevisionId", newTarget ? std::optional(newTarget->RevisionId) : std::nullopt);
+                    toReconfigure.emplace_back(resource, BuildDynamicContext(resourceId));
                 }
             }
         }
 
-        for (const auto& [resource, newDynamicSpec] : toReconfigure) {
-            auto dynamicContext = New<TDynamicResourceContext>();
-            dynamicContext->DynamicResourceSpec = newDynamicSpec;
+        for (const auto& [resource, dynamicContext] : toReconfigure) {
             resource->Reconfigure(dynamicContext);
         }
     }
@@ -251,12 +271,36 @@ public:
 
     THashMap<TResourceId, TWorkerResourceStatusPtr> CollectResourceStatuses() override
     {
-        auto guard = Guard(Lock_);
-
         THashMap<TResourceId, TWorkerResourceStatusPtr> result;
+        THashMap<TResourceId, IResourcePtr> loadedResources;
+        {
+            auto guard = Guard(Lock_);
 
-        for (const auto& [resourceId, resourceStatus] : ResourceStatuses_) {
-            EmplaceOrCrash(result, resourceId, resourceStatus.Collect());
+            for (const auto& [resourceId, resourceStatus] : ResourceStatuses_) {
+                EmplaceOrCrash(result, resourceId, resourceStatus.Collect());
+            }
+            // Applied revisions are reported only for successfully loaded resources: every
+            // resource in the spec is constructed and receives targets, but an unloaded
+            // instance does not serve anything.
+            for (const auto& [resourceId, future] : ResourcesInitializationFutures_) {
+                if (auto error = future.TryGet(); error && error->IsOK()) {
+                    loadedResources.emplace(resourceId, GetOrCrash(Resources_, resourceId));
+                }
+            }
+        }
+
+        // Revision states are queried outside the lock: GetRevisionState is overridable.
+        for (const auto& [resourceId, resource] : loadedResources) {
+            auto revisionState = resource->GetRevisionState();
+            if (!revisionState.AppliedRevisionId && !revisionState.TargetRevisionId) {
+                continue;
+            }
+            auto& status = result[resourceId];
+            if (!status) {
+                status = New<TWorkerResourceStatus>();
+            }
+            status->AppliedRevisionId = revisionState.AppliedRevisionId;
+            status->TargetRevisionId = revisionState.TargetRevisionId;
         }
 
         return result;
@@ -358,6 +402,7 @@ private:
     THashMap<TResourceId, IResourcePtr> Resources_;
     THashMap<TResourceId, TResourceSpecPtr> ResourceSpecs_;
     THashMap<TResourceId, TDynamicResourceSpecPtr> DynamicResourceSpecs_;
+    THashMap<TResourceId, TResourceRevisionPtr> TargetRevisions_;
     THashMap<TResourceId, TResourceStatus> ResourceStatuses_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
@@ -448,12 +493,18 @@ private:
         context->StatusProfiler = ManagerContext_->StatusProfiler->WithPrefix(Format("/resources/%v", resourceId));
 
         try {
-            auto dynamicResourceContext = New<TDynamicResourceContext>();
-            dynamicResourceContext->DynamicResourceSpec = GetOrDefault(DynamicResourceSpecs_, resourceId, New<TDynamicResourceSpec>());
-            return TRegistry::Get()->CreateResource(context, dynamicResourceContext);
+            return TRegistry::Get()->CreateResource(context, BuildDynamicContext(resourceId));
         } catch (const std::exception& ex) {
             return New<TFailedResource>(context->StatusProfiler, TError(ex));
         }
+    }
+
+    TDynamicResourceContextPtr BuildDynamicContext(const TResourceId& resourceId)
+    {
+        auto dynamicContext = New<TDynamicResourceContext>();
+        dynamicContext->DynamicResourceSpec = GetOrDefault(DynamicResourceSpecs_, resourceId, New<TDynamicResourceSpec>());
+        dynamicContext->TargetRevision = GetOrDefault(TargetRevisions_, resourceId);
+        return dynamicContext;
     }
 };
 
@@ -462,9 +513,10 @@ private:
 IResourceManagerPtr CreateResourceManager(
     TResourceManagerContextPtr managerContext,
     const THashMap<TResourceId, TResourceSpecPtr>& resources,
-    const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs)
+    const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs,
+    const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions)
 {
-    return New<TResourceManager>(std::move(managerContext), resources, dynamicResourceSpecs);
+    return New<TResourceManager>(std::move(managerContext), resources, dynamicResourceSpecs, targetRevisions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

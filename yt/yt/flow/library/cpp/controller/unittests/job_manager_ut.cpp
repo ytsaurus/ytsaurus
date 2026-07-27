@@ -2,6 +2,7 @@
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
+#include <yt/yt/flow/library/cpp/common/resource.h>
 #include <yt/yt/flow/library/cpp/computation/controller_base.h>
 #include <yt/yt/flow/library/cpp/computation/transform_computation.h>
 #include <yt/yt/flow/library/cpp/controller/config.h>
@@ -37,6 +38,54 @@ struct TSimpleComputation
         return {};
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TSimpleResource);
+
+// Minimal registered resource: the job manager instantiates a resource controller for every
+// resource in the spec, so the specs built by these tests must name a registered class.
+class TSimpleResource
+    : public IResource
+{
+public:
+    TSimpleResource(TResourceContextPtr /*context*/, TDynamicResourceContextPtr /*dynamicContext*/)
+    { }
+
+    TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
+    {
+        return OKFuture;
+    }
+
+    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
+    { }
+
+    TResourceRevisionState GetRevisionState() const override
+    {
+        return {};
+    }
+
+    NYTree::TYsonStructPtr GetParametersBase() const final
+    {
+        return nullptr;
+    }
+
+    NYTree::TYsonStructPtr GetDynamicParametersBase() const final
+    {
+        return nullptr;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSimpleResource);
+
+YT_FLOW_DEFINE_RESOURCE(TSimpleResource);
+
+static TResourceSpecPtr MakeSimpleResourceSpec()
+{
+    auto spec = New<TResourceSpec>();
+    spec->ResourceClassName = TypeName<TSimpleResource>();
+    return spec;
+}
 
 DEFINE_REFCOUNTED_TYPE(TSimpleComputation);
 
@@ -1887,7 +1936,7 @@ TEST_F(TJobBalancerTest, PreloadAddActionAppliedToWorkerSpecs)
 
     // Build spec with one computation that requires a preloadable resource.
     auto spec = New<TPipelineSpec>();
-    auto resourceSpec = New<TResourceSpec>();
+    auto resourceSpec = MakeSimpleResourceSpec();
     resourceSpec->PreloadRequired = true;
     spec->Resources[resId] = resourceSpec;
 
@@ -1975,13 +2024,13 @@ TEST_F(TJobBalancerTest, PreloadDelActionAppliedToWorkerSpecs)
 
     // Build spec: computation does NOT require resId (resId is an orphaned preloadable resource).
     auto spec = New<TPipelineSpec>();
-    auto resourceSpec = New<TResourceSpec>();
+    auto resourceSpec = MakeSimpleResourceSpec();
     resourceSpec->PreloadRequired = true;
     spec->Resources[resId] = resourceSpec;
 
     // Computation uses a different (non-preloadable) resource.
     const TResourceId otherResId = TResourceId("res_other");
-    auto otherResourceSpec = New<TResourceSpec>();
+    auto otherResourceSpec = MakeSimpleResourceSpec();
     otherResourceSpec->PreloadRequired = false;
     spec->Resources[otherResId] = otherResourceSpec;
 
@@ -2051,10 +2100,10 @@ TEST_F(TJobBalancerTest, PreloadAddPreservesExistingResources)
     // Build spec: computation requires resIdB (preloadable).
     // resIdA is also preloadable but not required by any computation (already issued manually).
     auto spec = New<TPipelineSpec>();
-    auto resourceSpecA = New<TResourceSpec>();
+    auto resourceSpecA = MakeSimpleResourceSpec();
     resourceSpecA->PreloadRequired = true;
     spec->Resources[resIdA] = resourceSpecA;
-    auto resourceSpecB = New<TResourceSpec>();
+    auto resourceSpecB = MakeSimpleResourceSpec();
     resourceSpecB->PreloadRequired = true;
     spec->Resources[resIdB] = resourceSpecB;
 

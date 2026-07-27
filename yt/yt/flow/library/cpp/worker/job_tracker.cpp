@@ -233,7 +233,8 @@ public:
         ResourceManager_ = CreateResourceManagerForPipelineSpec(
             ExecutionSpec_->PipelineSpec->GetValue()->Resources,
             ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
-            ExecutionSpec_->PipelineSpec->GetValue()->Computations);
+            ExecutionSpec_->PipelineSpec->GetValue()->Computations,
+            ExecutionSpec_->ResourceTargetRevisions->GetValue());
 
         PerformanceCountersUpdater_->Start();
     }
@@ -312,16 +313,15 @@ public:
         auto oldDynamicJobSpecs = DynamicJobSpecs_;
         DynamicJobSpecs_ = BuildNewJobSpecs(oldDynamicJobSpecs, newDynamicComputationPartitionSpecs, oldExecutionSpec, ExecutionSpec_);
 
-        if (oldExecutionSpec->DynamicPipelineSpec->GetVersion() != ExecutionSpec_->DynamicPipelineSpec->GetVersion()) {
+        bool dynamicPipelineSpecChanged =
+            oldExecutionSpec->DynamicPipelineSpec->GetVersion() != ExecutionSpec_->DynamicPipelineSpec->GetVersion();
+        if (dynamicPipelineSpecChanged) {
             const auto& jobTrackerSpec = ExecutionSpec_->DynamicPipelineSpec->GetValue()->JobTracker;
             JobControlThreadPool_->SetThreadCount(jobTrackerSpec->JobControlThreads);
             JobThreadPool_->SetThreadCount(GetJobThreadPoolSize(ExecutionSpec_->DynamicPipelineSpec->GetValue(), Context_->WorkerNodeInfo));
             BufferStateManager_->Reconfigure(jobTrackerSpec->BufferStateManager);
             LoadThroughputThrottler_->Reconfigure(jobTrackerSpec->LoadThroughputThrottler);
             StateCache_->Reconfigure(jobTrackerSpec->StateCache);
-
-            // Reconfigure resources.
-            ResourceManager_->Reconfigure(ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources);
             // Throttlers flow to computations through TDynamicComputationContext;
             // each computation's factory reconfigures itself on ApplyPendingStates.
         }
@@ -332,13 +332,24 @@ public:
             ResourceManager_ = CreateResourceManagerForPipelineSpec(
                 ExecutionSpec_->PipelineSpec->GetValue()->Resources,
                 ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
-                ExecutionSpec_->PipelineSpec->GetValue()->Computations);
+                ExecutionSpec_->PipelineSpec->GetValue()->Computations,
+                ExecutionSpec_->ResourceTargetRevisions->GetValue());
         } else {
             for (const auto& jobId : GetKeys(JobIdToRuntimeState_)) {
                 if (!ExecutionSpec_->Layout->Jobs.contains(jobId)) {
                     DropJob(jobId);
                 }
             }
+        }
+
+        // A no-op right after a manager rebuild: the new manager is constructed with the
+        // current state embedded.
+        if (dynamicPipelineSpecChanged ||
+            oldExecutionSpec->ResourceTargetRevisions->GetVersion() != ExecutionSpec_->ResourceTargetRevisions->GetVersion())
+        {
+            ResourceManager_->Reconfigure(
+                ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
+                ExecutionSpec_->ResourceTargetRevisions->GetValue());
         }
 
         // Update preloaded resources based on WorkerSpecs.
@@ -553,7 +564,8 @@ private:
     IResourceManagerPtr CreateResourceManagerForPipelineSpec(
         const THashMap<TResourceId, TResourceSpecPtr>& resources,
         const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs,
-        const THashMap<TComputationId, TComputationSpecPtr>& computations)
+        const THashMap<TComputationId, TComputationSpecPtr>& computations,
+        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions)
     {
         auto context = New<TResourceManagerContext>();
         context->PipelineAuthenticator = Context_->PipelineAuthenticator;
@@ -563,7 +575,7 @@ private:
         context->StatusProfiler = Context_->StatusProfiler->WithPrefix("/resource_manager");
         context->IsController = false;
         context->Computations = computations;
-        return CreateResourceManager(std::move(context), resources, dynamicResourceSpecs);
+        return CreateResourceManager(std::move(context), resources, dynamicResourceSpecs, targetRevisions);
     }
 
     void UpdatePerformanceCounters()

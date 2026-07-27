@@ -38,6 +38,8 @@ RECURSE(
     table_injector
     test_distributed_throttler
     test_distributed_throttler/pipeline
+    test_resource_control_channel
+    test_resource_control_channel/pipeline
     word_count_sync
     working_pipeline_telemetry
     working_pipeline_telemetry/pipeline

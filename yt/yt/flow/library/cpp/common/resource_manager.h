@@ -62,12 +62,17 @@ struct IResourceManager
     // The following methods are for internal use by the job tracker / controller only.
     // User code (jobs, computations) should not call them directly.
 
-    //! Applies updated dynamic specs to the matching resources.
-    //! Only resources whose dynamic spec has actually changed are reconfigured.
-    virtual void Reconfigure(const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicSpecs) = 0;
+    //! Applies updated dynamic specs and delivers the target revisions published by the resource
+    //! controllers. A resource is reconfigured once when its dynamic spec content or its target
+    //! revision id changed. |dynamicSpecs| updates the resources listed in it, while
+    //! |targetRevisions| is a full snapshot: a resource absent from it loses its target.
+    virtual void Reconfigure(
+        const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicSpecs,
+        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions) = 0;
 
-    //! Returns a snapshot of queue size and throughput statistics for every resource
-    //! that has received at least one FeedStatus call.
+    //! Returns a snapshot of queue size and throughput statistics for every resource that has
+    //! received at least one FeedStatus call, plus the applied revision id of every resource
+    //! that reports one.
     virtual THashMap<TResourceId, TWorkerResourceStatusPtr> CollectResourceStatuses() = 0;
 
     //! Sets the resources that should be eagerly preloaded on this worker.
@@ -87,7 +92,8 @@ DEFINE_REFCOUNTED_TYPE(IResourceManager);
 IResourceManagerPtr CreateResourceManager(
     TResourceManagerContextPtr managerContext,
     const THashMap<TResourceId, TResourceSpecPtr>& resources,
-    const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs);
+    const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs,
+    const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

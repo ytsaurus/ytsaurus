@@ -49,6 +49,8 @@ items:
         href: cpp/computation.md
       - name: Работа со стейтами
         href: cpp/state.md
+      - name: Ресурсы
+        href: cpp/resources.md
       - name: Тестирование
         href: cpp/testing.md
       - name: Process function
