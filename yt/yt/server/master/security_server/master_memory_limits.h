@@ -5,8 +5,9 @@
 
 #include <yt/yt/client/object_client/public.h>
 
-#include <yt/yt/core/misc/default_map.h>
 #include <yt/yt/core/misc/maybe_inf.h>
+
+#include <library/cpp/yt/containers/default_map.h>
 
 namespace NYT::NSecurityServer {
 

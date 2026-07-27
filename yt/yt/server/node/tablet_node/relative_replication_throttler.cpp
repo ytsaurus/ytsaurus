@@ -4,7 +4,7 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
-#include <yt/yt/core/misc/ring_queue.h>
+#include <library/cpp/yt/containers/ring_queue.h>
 
 namespace NYT::NTabletNode {
 

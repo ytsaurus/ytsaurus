@@ -26,9 +26,10 @@
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/ring_queue.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 namespace NYT::NDataNode {
 

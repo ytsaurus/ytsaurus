@@ -33,5 +33,6 @@ target_link_libraries(cpp-yt-containers INTERFACE
   yutil
   cpp-yt-assert
   cpp-yt-misc
+  cpp-yt-string
 )
 

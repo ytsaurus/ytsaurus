@@ -9,9 +9,9 @@
 
 #include <yt/yt/client/tablet_client/dynamic_value.h>
 
-#include <yt/yt/core/misc/ring_queue.h>
-
 #include <library/cpp/yt/compact_containers/compact_set.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
 

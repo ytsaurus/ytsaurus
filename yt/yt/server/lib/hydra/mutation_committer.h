@@ -24,9 +24,10 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/mpsc_queue.h>
-#include <yt/yt/core/misc/ring_queue.h>
 
 #include <yt/yt/library/tracing/async_queue_trace.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 namespace NYT::NHydra {
 
