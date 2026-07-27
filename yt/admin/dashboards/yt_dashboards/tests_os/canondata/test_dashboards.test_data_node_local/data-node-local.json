@@ -1,0 +1,543 @@
+{
+    "panels": [
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 0
+            },
+            "options": {
+                "content": "<h2>Location info</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 2
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_read_bytes\", host=~\"$host\", location_type=~\"store\", location_id=~\".+\", medium=~\".+\"}[$__rate_interval])",
+                    "legendFormat": "{{medium}}: {{location_id}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Read throughput",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 2
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_written_bytes\", host=~\"$host\", location_type=~\"store\", location_id=~\".+\", medium=~\".+\"}[$__rate_interval])",
+                    "legendFormat": "{{medium}}: {{location_id}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Write throughput",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_read_time_avg\", host=~\"$host\", location_type=~\"store\", location_id=~\".+\", medium=~\".+\"}",
+                    "legendFormat": "{{medium}}: {{location_id}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Read time",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_write_time_avg\", host=~\"$host\", location_type=~\"store\", location_id=~\".+\", medium=~\".+\"}",
+                    "legendFormat": "{{medium}}: {{location_id}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Write time",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 14
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_read_request_count\", host=~\"$host\", location_type=~\"store\", location_id=~\".+\", medium=~\".+\"}[$__rate_interval])",
+                    "legendFormat": "{{medium}}: {{location_id}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Read request count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 14
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_write_request_count\", host=~\"$host\", location_type=~\"store\", location_id=~\".+\", medium=~\".+\"}[$__rate_interval])",
+                    "legendFormat": "{{medium}}: {{location_id}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Write request count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 6,
+                "y": 20
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_sync_time_avg\", host=~\"$host\", location_type=~\"store\", location_id=~\".+\", medium=~\".+\"}",
+                    "legendFormat": "{{medium}}: {{location_id}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Sync time",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 26
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_disk_throttler_unlimited_out_value_rate|yt_location_disk_throttler_unlimited_out_throttler_value\", host=~\"$host\", location_type=~\"store\", location_id=~\".+\", medium=~\".+\"}[$__rate_interval])",
+                    "legendFormat": "{{medium}}: {{location_id}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Out throttler",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 26
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_disk_throttler_unlimited_in_value\", host=~\"$host\", location_type=~\"store\", location_id=~\".+\", medium=~\".+\"}[$__rate_interval])",
+                    "legendFormat": "{{medium}}: {{location_id}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "In throttler",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 32
+            },
+            "options": {
+                "content": "<h2>CPU usage</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 34
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", host=~\"$host\", thread=~\".*store.*\"}",
+                    "legendFormat": "{{thread}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "CPU store threads",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 34
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "(topk(10, {cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", host=~\"$host\", thread!~\".*store.*\"}))",
+                    "legendFormat": "{{thread}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "CPU non-store threads top-10",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 6,
+                "y": 40
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_resource_tracker_total_cpu\", host=~\"$host\", thread=~\"\"}",
+                    "legendFormat": "usage",
+                    "refId": "A"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_resource_tracker_cpu_wait\", host=~\"$host\", thread=~\"\"}",
+                    "legendFormat": "wait",
+                    "refId": "B"
+                }
+            ],
+            "title": "CPU usage and wait",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 2,
+                "w": 24,
+                "x": 0,
+                "y": 46
+            },
+            "options": {
+                "content": "<h2>Memory and network</h2>",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 48
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_data_node_net_throttled_reads\", host=~\"$host\", network=~\"\"}[$__rate_interval])",
+                    "legendFormat": "throttled reads",
+                    "refId": "A"
+                }
+            ],
+            "title": "Network throttled reads",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 48
+            },
+            "targets": [],
+            "title": "Network rx/tx bytes",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 6,
+                "y": 54
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_resource_tracker_memory_usage_rss\", host=~\"$host\"}",
+                    "legendFormat": "rss",
+                    "refId": "A"
+                }
+            ],
+            "title": "Memory usage",
+            "type": "timeseries"
+        }
+    ],
+    "tags": [],
+    "templating": {
+        "list": [
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "default",
+                    "value": "default"
+                },
+                "hide": 0,
+                "label": "Cluster",
+                "name": "cluster",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "default",
+                        "value": "default"
+                    }
+                ],
+                "query": "default",
+                "skipUrlSync": false,
+                "type": "textbox"
+            },
+            {
+                "allFormat": "glob",
+                "current": {
+                    "selected": true,
+                    "text": "dnd-0",
+                    "value": "dnd-0"
+                },
+                "hide": 0,
+                "label": "Host",
+                "name": "host",
+                "options": [
+                    {
+                        "selected": true,
+                        "text": "dnd-0",
+                        "value": "dnd-0"
+                    }
+                ],
+                "query": "dnd-0",
+                "skipUrlSync": false,
+                "type": "textbox"
+            }
+        ]
+    },
+    "title": "Data Node Local"
+}

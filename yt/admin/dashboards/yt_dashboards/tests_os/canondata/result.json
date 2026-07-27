@@ -32,6 +32,9 @@
     "test_dashboards.test_cluster_resources": {
         "uri": "file://test_dashboards.test_cluster_resources/cluster-resources.json"
     },
+    "test_dashboards.test_data_node_local": {
+        "uri": "file://test_dashboards.test_data_node_local/data-node-local.json"
+    },
     "test_dashboards.test_http_proxies": {
         "uri": "file://test_dashboards.test_http_proxies/http-proxies.json"
     },

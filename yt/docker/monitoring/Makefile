@@ -32,7 +32,8 @@ DASHBOARDS = master-accounts \
              master-local \
              queue-metrics \
              queue-consumer-metrics \
-             http-proxies
+             http-proxies \
+             data-node-local
 
 CHART_DIR = ../charts/monitoring-chart
 CHART_PACKAGE = $(CHART_REPOSITORY)-$(VERSION).tgz
