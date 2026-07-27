@@ -108,7 +108,9 @@ class TestS3MediumBase(YTEnvSetup):
 
     MEDIUM_DIRECTORY_SYNCHRONIZER_DELTA = {
         "sync_period": 10,
-        "use_cache": False,
+        "testing": {
+            "bypass_cache": True,
+        },
     }
     CLUSTER_CONNECTION_DELTA = {
         "medium_directory_synchronizer": MEDIUM_DIRECTORY_SYNCHRONIZER_DELTA
