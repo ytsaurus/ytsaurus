@@ -157,7 +157,9 @@ struct TWorkerDescription
     , public TNodeInfoBase
 {
     std::string Address; // Compatibility for UI.
+    //! Deprecated duplicate of WorkerGroups. TODO(pechatnov): drop after the UI migrates.
     std::vector<TWorkerGroupId> Groups;
+    std::vector<TWorkerGroupId> WorkerGroups;
     TInstant RegisterTime;
     NLogging::ELogLevel Status{};
 
