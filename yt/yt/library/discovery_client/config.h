@@ -61,5 +61,39 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDiscoveryBaseConfig
+    : public virtual NYTree::TYsonStruct
+{
+    NDiscoveryClient::TGroupId GroupId;
+    TDuration UpdatePeriod;
+    TDuration BanTimeout;
+
+    REGISTER_YSON_STRUCT(TDiscoveryBaseConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiscoveryBaseConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDiscoveryConfig
+    : public virtual TDiscoveryBaseConfig
+    , public TDiscoveryClientConfig
+    , public TMemberClientConfig
+{
+    int Version;
+
+    TDuration DiscoveryReadinessTimeout;
+
+    REGISTER_YSON_STRUCT(TDiscoveryConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiscoveryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDiscoveryClient
 

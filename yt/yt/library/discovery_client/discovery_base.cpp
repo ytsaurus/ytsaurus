@@ -1,10 +1,8 @@
 #include "discovery_base.h"
 
-#include "config.h"
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-namespace NYT::NClickHouseServer {
+namespace NYT::NDiscoveryClient {
 
 using namespace NConcurrency;
 using namespace NLogging;
@@ -128,4 +126,4 @@ void TDiscoveryBase::DoUpdateListNonThrowing()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClickHouseServer
+} // namespace NYT::NDiscoveryClient

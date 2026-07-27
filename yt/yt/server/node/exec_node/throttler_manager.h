@@ -12,7 +12,7 @@
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
 
-#include <yt/yt/ytlib/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/public.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 

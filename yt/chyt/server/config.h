@@ -34,7 +34,7 @@
 
 #include <yt/yt/library/profiling/solomon/config.h>
 
-#include <yt/yt/library/clickhouse_discovery/config.h>
+#include <yt/yt/library/clickhouse_discovery/public.h>
 
 #include <yt/yt/library/cypress_election/config.h>
 

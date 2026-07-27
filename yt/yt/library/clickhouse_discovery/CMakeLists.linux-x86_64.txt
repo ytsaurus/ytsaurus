@@ -33,15 +33,13 @@ target_link_libraries(yt-library-clickhouse_discovery PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yt-yt-core
   yt-yt-client
-  yt-ytlib-discovery_client
-  cpp-yt-threading
+  yt-yt-core
+  yt-library-discovery_client
+  yt-yt-ytlib
 )
 
 target_sources(yt-library-clickhouse_discovery PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/discovery_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/discovery.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/helpers.cpp
 )

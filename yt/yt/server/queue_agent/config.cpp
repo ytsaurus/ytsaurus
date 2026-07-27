@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/yt/ytlib/discovery_client/config.h>
+#include <yt/yt/library/discovery_client/config.h>
 
 #include <yt/yt/ytlib/queue_client/config.h>
 

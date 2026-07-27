@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include <yt/yt/ytlib/discovery_client/config.h>
+#include <yt/yt/library/discovery_client/config.h>
 
 #include <yt/yt/core/concurrency/config.h>
 

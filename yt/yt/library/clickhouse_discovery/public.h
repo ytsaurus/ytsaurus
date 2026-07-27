@@ -2,14 +2,17 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/library/discovery_client/discovery.h>
+#include <yt/yt/library/discovery_client/public.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IDiscovery)
-
-DECLARE_REFCOUNTED_STRUCT(TDiscoveryBaseConfig)
-DECLARE_REFCOUNTED_STRUCT(TDiscoveryConfig)
+using IDiscovery = NDiscoveryClient::IDiscovery;
+using IDiscoveryPtr = NDiscoveryClient::IDiscoveryPtr;
+using TDiscoveryConfig = NDiscoveryClient::TDiscoveryConfig;
+using TDiscoveryConfigPtr = NDiscoveryClient::TDiscoveryConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

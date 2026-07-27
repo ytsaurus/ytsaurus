@@ -15,7 +15,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/yt/ytlib/discovery_client/member_client.h>
+#include <yt/yt/library/discovery_client/member_client.h>
 
 #include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 

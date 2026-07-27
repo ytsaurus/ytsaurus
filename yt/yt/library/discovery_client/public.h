@@ -38,6 +38,12 @@ DECLARE_REFCOUNTED_STRUCT(IDiscoveryClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(IDiscovery)
+DECLARE_REFCOUNTED_STRUCT(TDiscoveryBaseConfig)
+DECLARE_REFCOUNTED_STRUCT(TDiscoveryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 using TGroupId = NYPath::TYPath;
 using TMemberId = std::string;
 

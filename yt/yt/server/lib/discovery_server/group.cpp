@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/ytree/attributes.h>
 
-#include <yt/yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/helpers.h>
 
 namespace NYT::NDiscoveryServer {
 

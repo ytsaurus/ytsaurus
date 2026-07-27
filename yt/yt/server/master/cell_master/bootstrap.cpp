@@ -157,7 +157,7 @@
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
-#include <yt/yt/ytlib/discovery_client/config.h>
+#include <yt/yt/library/discovery_client/config.h>
 
 #include <yt/yt/library/orchid/orchid_service.h>
 

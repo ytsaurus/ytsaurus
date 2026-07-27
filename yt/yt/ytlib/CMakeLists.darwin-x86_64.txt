@@ -29,7 +29,6 @@ get_built_tool_path(
 )
 
 add_subdirectory(admin)
-add_subdirectory(discovery_client)
 add_subdirectory(query_tracker_client)
 add_subdirectory(distributed_throttler)
 add_subdirectory(unittests)
@@ -75,6 +74,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   cpp-containers-absl
   library-erasure-impl
   yt-library-containers
+  yt-library-discovery_client
   yt-library-disk_manager
   yt-library-process
   yt-library-random
@@ -103,7 +103,6 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-vector_hdrf
   library-web_assembly-api
   yt-ytlib-admin
-  yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
   library-cpp-client
@@ -1910,6 +1909,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   cpp-containers-absl
   library-erasure-impl
   yt-library-containers
+  yt-library-discovery_client
   yt-library-disk_manager
   yt-library-process
   yt-library-random
@@ -1938,7 +1938,6 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-vector_hdrf
   library-web_assembly-api
   yt-ytlib-admin
-  yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
   library-cpp-client

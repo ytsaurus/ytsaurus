@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/yt/ytlib/discovery_client/public.h>
-#include <yt/yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/options.h>
