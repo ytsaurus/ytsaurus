@@ -198,6 +198,48 @@ func (a *API) CheckPermissionToPool(ctx context.Context, poolTrees []string, poo
 	return nil
 }
 
+func (a *API) CheckPermissionToNetworkProject(ctx context.Context, networkProject string) error {
+	user, err := getUser(ctx)
+	if err != nil {
+		a.l.Error("failed to get user", log.Error(err))
+		return err
+	}
+
+	networkProjectPath := ypath.Path("//sys/network_projects").Child(networkProject)
+
+	response, err := a.Ytc.CheckPermission(ctx, user, yt.PermissionUse, networkProjectPath, nil)
+	if err != nil {
+		return err
+	}
+	if response.Action != yt.ActionAllow {
+		return yterrors.Err(
+			fmt.Sprintf("use permission to network_project %v denied for user %v", networkProject, user),
+			yterrors.Attr("network_project", networkProject),
+			yterrors.Attr("permission", yt.PermissionUse),
+			yterrors.Attr("user", user))
+	}
+
+	if a.cfg.RobotUsername != "" {
+		response, err = a.Ytc.CheckPermission(ctx, a.cfg.RobotUsername, yt.PermissionUse, networkProjectPath, nil)
+		if err != nil {
+			return err
+		}
+		if response.Action != yt.ActionAllow {
+			return yterrors.Err(
+				fmt.Sprintf("use permission to network_project %v denied for system user %v; "+
+					"in order to use the network_project in the controller, you need to grant use permission to our system user %v",
+					networkProject,
+					a.cfg.RobotUsername,
+					a.cfg.RobotUsername),
+				yterrors.Attr("network_project", networkProject),
+				yterrors.Attr("permission", yt.PermissionUse),
+				yterrors.Attr("user", a.cfg.RobotUsername))
+		}
+	}
+
+	return nil
+}
+
 func (a *API) validatePoolOption(ctx context.Context, poolValue any, poolTreesValue any) error {
 	pool, ok := poolValue.(string)
 	if !ok {
@@ -348,6 +390,15 @@ func (a *API) Create(
 
 	pool, poolIsSet := specletOptions["pool"]
 	poolTrees := specletOptions["pool_trees"]
+
+	if networkProject, networkProjectIsSet := specletOptions["network_project"]; networkProjectIsSet {
+		if err := validateString(networkProject); err != nil {
+			return err
+		}
+		if err := a.CheckPermissionToNetworkProject(ctx, networkProject.(string)); err != nil {
+			return err
+		}
+	}
 
 	if active, ok := specletOptions["active"]; ok {
 		if err := validateBool(active); err != nil {
@@ -707,6 +758,15 @@ func (a *API) SetSpeclet(ctx context.Context, alias string, speclet map[string]a
 		}
 	}
 
+	if networkProject, networkProjectIsSet := speclet["network_project"]; networkProjectIsSet {
+		if err := validateString(networkProject); err != nil {
+			return err
+		}
+		if err := a.CheckPermissionToNetworkProject(ctx, networkProject.(string)); err != nil {
+			return err
+		}
+	}
+
 	var node struct {
 		Speclet struct {
 			Family string `yson:"family"`
@@ -777,6 +837,7 @@ func (a *API) EditOptions(
 	speclet := node.Speclet
 
 	poolOptionsChanged := false
+	networkProjectOptionsChanged := false
 
 	for _, key := range optionsToRemove {
 		delete(speclet, key)
@@ -790,10 +851,22 @@ func (a *API) EditOptions(
 		if key == "pool" || key == "pool_trees" {
 			poolOptionsChanged = true
 		}
+		if key == "network_project" {
+			networkProjectOptionsChanged = true
+		}
 	}
 
 	if pool, ok := speclet["pool"]; ok && poolOptionsChanged {
 		if err := a.validatePoolOption(ctx, pool, speclet["pool_trees"]); err != nil {
+			return err
+		}
+	}
+
+	if networkProject, networkProjectIsSet := speclet["network_project"]; networkProjectIsSet && networkProjectOptionsChanged {
+		if err := validateString(networkProject); err != nil {
+			return err
+		}
+		if err := a.CheckPermissionToNetworkProject(ctx, networkProject.(string)); err != nil {
 			return err
 		}
 	}

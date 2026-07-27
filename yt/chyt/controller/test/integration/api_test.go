@@ -1134,15 +1134,22 @@ func TestHTTPAPICreateAndStart(t *testing.T) {
 func TestHTTPAPIListWorksIfSpecletIsIncorrect(t *testing.T) {
 	t.Parallel()
 
-	_, c := helpers.PrepareSleepAPI(t)
+	env, c := helpers.PrepareSleepAPI(t)
 	alias := helpers.GenerateAlias()
+
+	_, err := env.YT.CreateObject(env.Ctx, yt.NodeNetworkProject, &yt.CreateObjectOptions{
+		Attributes: map[string]any{
+			"name": "10",
+		},
+	})
+	require.NoError(t, err)
 
 	r := c.MakePostRequest("create", api.RequestParams{
 		Params: map[string]any{
 			"alias": alias,
 			"speclet_options": map[string]any{
 				"test_option":     "not_int",
-				"network_project": 10,
+				"network_project": "10",
 			},
 		},
 	})
