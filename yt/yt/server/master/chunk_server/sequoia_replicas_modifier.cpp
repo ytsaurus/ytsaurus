@@ -158,6 +158,7 @@ private:
         auto modifyRequest = std::make_unique<TReqModifyReplicas>();
         modifyRequest->set_node_id(ReplaceLocationRequest_->node_id());
         modifyRequest->set_caused_by_node_disposal(ReplaceLocationRequest_->caused_by_node_disposal());
+        modifyRequest->set_caused_by_validation(ReplaceLocationRequest_->is_validation());
         Requests_.push_back(std::move(modifyRequest));
 
         GatherReplacedLocationReplicasDifference();
