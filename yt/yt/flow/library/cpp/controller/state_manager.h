@@ -17,6 +17,11 @@ public:
 
     IInitContextPtr CreateContext(const TComputationId& computationId, std::string prefix = "");
 
+    //! Context for a resource controller. Its states share the computation-state namespace
+    //! under a "resource:<id>" key; spec validation forbids colons in computation ids, so the
+    //! key cannot collide with one.
+    IInitContextPtr CreateResourceContext(const TResourceId& resourceId, std::string prefix = "");
+
     void Sync();
 
     IStateHolderPtr CreateState(const TComputationId& computationId, const std::string& name, std::function<IStateHolderPtr()> ctor);

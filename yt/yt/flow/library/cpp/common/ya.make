@@ -29,6 +29,8 @@ SRCS(
     process_function.cpp
     public.cpp
     registry.cpp
+    resource.cpp
+    resource_controller.cpp
     resource_manager.cpp
     schema.cpp
     select_literals.cpp

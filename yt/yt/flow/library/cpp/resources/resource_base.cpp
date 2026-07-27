@@ -56,6 +56,18 @@ void TResourceBase::Reconfigure(const TDynamicResourceContextPtr& dynamicContext
     TReconfigurable<TDynamicResourceContext>::Reconfigure(dynamicContext);
 }
 
+TResourceRevisionState TResourceBase::GetRevisionState() const
+{
+    auto dynamicContext = GetDynamicContext();
+    if (!dynamicContext->TargetRevision) {
+        return {};
+    }
+    return {
+        .AppliedRevisionId = dynamicContext->TargetRevision->RevisionId,
+        .TargetRevisionId = dynamicContext->TargetRevision->RevisionId,
+    };
+}
+
 NYTree::TYsonStructPtr TResourceBase::GetDynamicParametersBase() const
 {
     return DynamicParameters_.Acquire();

@@ -85,6 +85,8 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/process_function.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/registry.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/resource.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/resource_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/resource_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/select_literals.cpp

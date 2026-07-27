@@ -235,10 +235,21 @@ void TRegistry::RegisterSink()
 template <class T>
 void TRegistry::RegisterResource()
 {
+    static_assert(std::is_base_of_v<IResourceController, typename T::TController>,
+        "Resource must define the controller");
+
+    ValidateParametersTypes<typename T::TController>();
+
+    static_assert(std::is_base_of_v<typename T::TController::TParameters, typename T::TParameters>,
+        "Resource parameters must extend (or be equal) resource controller parameters");
+    static_assert(std::is_base_of_v<typename T::TController::TDynamicParameters, typename T::TDynamicParameters>,
+        "Resource dynamic parameters must extend (or be equal) resource controller dynamic parameters");
+
     EmplaceDescriptorOrCrash<T>(
         TypeNameToResourceDescriptor_,
         TResourceDescriptor{
             .Factory = &New<T, const TResourceContextPtr&, const TDynamicResourceContextPtr&>,
+            .ControllerFactory = &New<typename T::TController, const TResourceControllerContextPtr&, const TDynamicResourceControllerContextPtr&>,
             .ParametersFactory = &New<TUnitedParameters<T>>,
             .DynamicParametersFactory = &New<TDynamicUnitedParameters<T>>,
             .ValidateSpec = [] (const TResourceSpec& spec) {

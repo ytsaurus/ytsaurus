@@ -39,6 +39,7 @@ target_link_libraries(library-cpp-resources PUBLIC
 
 target_sources(library-cpp-resources PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/resources/resource_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/resources/resource_controller_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/resources/yt_client_factory_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/resources/yt_hedging_client_detail.cpp
 )

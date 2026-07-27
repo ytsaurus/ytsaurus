@@ -1,13 +1,43 @@
 #pragma once
 
 #include "public.h"
+#include "resource_controller.h"
 #include "spec_validation.h"
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A revision of a resource: what the worker-side instances of the resource should be serving.
+struct TResourceRevision
+    : public NYTree::TYsonStruct
+{
+    i64 RevisionId{};
+    NYTree::INodePtr Spec;
+
+    REGISTER_YSON_STRUCT(TResourceRevision);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceRevision);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Revision state of a single resource instance.
+struct TResourceRevisionState
+{
+    //! Id of the revision the instance actually serves.
+    std::optional<i64> AppliedRevisionId;
+    //! Id of the delivered target revision the instance is switching to.
+    std::optional<i64> TargetRevisionId;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +67,9 @@ struct TDynamicResourceContext
     : public TRefCounted
 {
     TDynamicResourceSpecPtr DynamicResourceSpec;
+
+    //! Target revision published by this resource's controller; null when there is none.
+    TResourceRevisionPtr TargetRevision;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicResourceContext);
@@ -65,6 +98,11 @@ struct IResource
 
     using TValidator = TNoopSpecValidator;
 
+    //! Type of the controller-side part of this resource class.
+    //! It may be shadowed by a typedef in derived types.
+    //! @see IResourceController.
+    using TController = TNullResourceController;
+
     //! Loads the resource with its dependencies.
     /*!
      *  This method is called to load the resource and prepare it for use.
@@ -90,6 +128,16 @@ struct IResource
      *  \param dynamicSpec - The new dynamic resource spec.
      */
     virtual void Reconfigure(const TDynamicResourceContextPtr& dynamicContext) = 0;
+
+    //! Revision state of this instance.
+    /*!
+     *  Switching to a delivered target revision may take time (e.g. a download); Reconfigure only
+     *  hands the target over. A resource that switches slowly reports an applied id lagging
+     *  behind the target one. Empty fields mean the instance does not track revisions.
+     *
+     *  Must be cheap and thread-safe.
+     */
+    virtual TResourceRevisionState GetRevisionState() const = 0;
 
     //! Casts this resource to a derived resource type, throwing an exception if the cast fails.
     template <class TDerivedResource>

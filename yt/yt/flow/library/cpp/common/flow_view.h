@@ -332,6 +332,12 @@ struct TWorkerResourceStatus
     std::optional<double> QueueFetchRate30s;
     std::optional<double> QueueFetchRate10m;
 
+    //! Id of the revision this resource actually serves on the worker; missing when the
+    //! resource does not track revisions.
+    std::optional<i64> AppliedRevisionId;
+    //! Id of the delivered target revision the resource is switching to.
+    std::optional<i64> TargetRevisionId;
+
     REGISTER_YSON_STRUCT(TWorkerResourceStatus);
 
     static void Register(TRegistrar registrar);
@@ -511,6 +517,7 @@ DEFINE_REFCOUNTED_TYPE(TVersionedWatermarkState);
 DEFINE_REFCOUNTED_TYPE(TVersionedPipelineState);
 DEFINE_REFCOUNTED_TYPE(TVersionedStreamsTraverse);
 DEFINE_REFCOUNTED_TYPE(TVersionedFlowCoreTarget);
+DEFINE_REFCOUNTED_TYPE(TVersionedResourceTargetRevisions);
 
 struct TExecutionSpec
     : public NYTree::TYsonStruct
@@ -533,6 +540,9 @@ struct TExecutionSpec
 
     TVersionedStreamsTraversePtr InputStreamsTraverse;
     TVersionedWatermarkStatePtr WatermarkState;
+
+    //! Target revisions published by the resource controllers, delivered to every worker.
+    TVersionedResourceTargetRevisionsPtr ResourceTargetRevisions;
 
     void AttachToControl(TPersistedStateControlPtr<std::string> control);
     void SetAsSlave();
@@ -572,6 +582,7 @@ struct TExecutionSpecVersions
 
     TVersion InputStreamsTraverseVersion;
     TVersion WatermarkStateVersion;
+    TVersion ResourceTargetRevisionsVersion;
 
     REGISTER_YSON_STRUCT(TExecutionSpecVersions);
 
@@ -765,6 +776,8 @@ struct TFlowEphemeralState
     TMessageTransferingInfoPtr MessageTransferingInfo;
     NYPath::TRichYPath PipelinePath;
     THashSet<TComputationId> TraverseUncoveredComputations;
+
+    THashMap<TResourceId, NYTree::IMapNodePtr> ResourceControllerViews;
 
     //! Workers excluded from scheduling due to FlowCoreTarget mismatch, grouped by their FlowCoreVersion.
     struct TFlowCoreTargetMismatchedVersionGroup

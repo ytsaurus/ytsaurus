@@ -30,6 +30,11 @@ IInitContextPtr TStateManager::CreateContext(const TComputationId& computationId
     return New<TInitContext>(MakeStrong(this), computationId, prefix);
 }
 
+IInitContextPtr TStateManager::CreateResourceContext(const TResourceId& resourceId, std::string prefix)
+{
+    return CreateContext(TComputationId(Format("resource:%v", resourceId.Underlying())), std::move(prefix));
+}
+
 void TStateManager::Sync()
 {
     for (auto& [computationId, states] : States_) {

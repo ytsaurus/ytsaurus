@@ -337,6 +337,13 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicResourceContext);
 DECLARE_REFCOUNTED_STRUCT(IResource);
 DECLARE_REFCOUNTED_STRUCT(TResourceManagerContext);
 DECLARE_REFCOUNTED_STRUCT(IResourceManager);
+DECLARE_REFCOUNTED_STRUCT(TResourceRevision);
+DECLARE_REFCOUNTED_STRUCT(TResourceControllerContext);
+DECLARE_REFCOUNTED_STRUCT(TDynamicResourceControllerContext);
+DECLARE_REFCOUNTED_STRUCT(IResourceController);
+
+using TVersionedResourceTargetRevisions = TVersionedValue<THashMap<TResourceId, TResourceRevisionPtr>>;
+DECLARE_REFCOUNTED_TYPE(TVersionedResourceTargetRevisions);
 
 DECLARE_REFCOUNTED_CLASS(TInflightTracker);
 DECLARE_REFCOUNTED_CLASS(TMultiInflightTracker);

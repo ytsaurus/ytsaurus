@@ -512,6 +512,7 @@ public:
             JobManager_->AggregateTraverseData(flowView);
             JobManager_->UpdateInputStreamsTraverse(flowView);
             JobManager_->UpdateWatermarkState(flowView);
+            JobManager_->UpdateResourceControllers(flowView);
 
             bool flowCoreTargetMatched = CheckFlowCoreTarget(flowView, NodeInfo_->FlowCoreVersion);
             if (flowCoreTargetMatched != FlowCoreTargetMatched_) {

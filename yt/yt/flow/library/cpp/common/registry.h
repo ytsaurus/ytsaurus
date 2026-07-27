@@ -157,6 +157,10 @@ public:
         const TResourceContextPtr& context,
         const TDynamicResourceContextPtr& dynamicContext);
 
+    IResourceControllerPtr CreateResourceController(
+        const TResourceControllerContextPtr& context,
+        const TDynamicResourceControllerContextPtr& dynamicContext);
+
     NYTree::TYsonStructPtr ParseResourceParameters(const TResourceSpecPtr& spec);
 
     NYTree::TYsonStructPtr ParseResourceDynamicParameters(
@@ -295,6 +299,7 @@ private:
     struct TResourceDescriptor
     {
         std::function<IResourcePtr(const TResourceContextPtr& context, const TDynamicResourceContextPtr& dynamicContext)> Factory;
+        std::function<IResourceControllerPtr(const TResourceControllerContextPtr& context, const TDynamicResourceControllerContextPtr& dynamicContext)> ControllerFactory;
         TParametersFactory ParametersFactory;
         TParametersFactory DynamicParametersFactory;
         std::function<void(const TResourceSpec&)> ValidateSpec;
