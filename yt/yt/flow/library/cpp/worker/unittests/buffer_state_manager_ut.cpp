@@ -292,5 +292,70 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+
+// Per side independently, the max among the worker's matched groups wins; a side
+// no matched group overrides falls back to the base pool, and a worker outside
+// the overridden groups is unaffected.
+TEST(TWorkerGroupPoolOverridesTest, PerSideMaxAndFallback)
+{
+    auto makeSpec = [] {
+        auto makeOneSide = [] (i64 pool) {
+            auto side = New<TDynamicBufferStateManagerSpec::TOneSideBufferSpec>();
+            side->FairSharePool = NYTree::TSize(pool);
+            side->JobGuarantee = NYTree::TSize(0);
+            side->JobLimit = NYTree::TSize(1_GB);
+            side->MaxDuration = TDuration::Minutes(1);
+            return side;
+        };
+        auto spec = New<TDynamicBufferStateManagerSpec>();
+        spec->DemandWindow = TDuration::Minutes(1);
+        spec->InputBuffer = makeOneSide(10_MB);
+        spec->OutputBuffer = makeOneSide(10_MB);
+        spec->InputBuffer->WorkerGroupFairSharePoolOverrides[TWorkerGroupId("fat")] = NYTree::TSize(100_MB);
+        spec->InputBuffer->WorkerGroupFairSharePoolOverrides[TWorkerGroupId("misc")] = NYTree::TSize(50_MB);
+        spec->OutputBuffer->WorkerGroupFairSharePoolOverrides[TWorkerGroupId("misc")] = NYTree::TSize(1_MB);
+        return spec;
+    };
+
+    auto run = [&] (std::vector<TWorkerGroupId> groups) {
+        auto timeProvider = New<TMockTimeProvider>();
+        auto manager = CreateBufferStateManager(
+            GetSyncInvoker(),
+            New<TMockJobDirectory>(1),
+            makeSpec(),
+            timeProvider->GetProvider(),
+            std::move(groups));
+        auto states = manager->RegisterJob(TJobId(TGuid::Create()), CreateJobSpec(TStreamId("input"), TStreamId("output")));
+        auto input = states.Input.at(TStreamId("input"));
+        auto output = states.Output.at(TStreamId("output"));
+
+        TStreamUsage inputUsage;
+        TStreamUsage outputUsage;
+        TInstant now = TInstant::Zero();
+        for (int second = 0; second < 120; ++second) {
+            now += TDuration::Seconds(1);
+            timeProvider->Set(now);
+            inputUsage.CumulativeByteOut += 10'000'000;
+            inputUsage.CumulativeCountOut += 10;
+            input->Update(inputUsage);
+            outputUsage.CumulativeByteOut += 10'000'000;
+            outputUsage.CumulativeCountOut += 10;
+            output->Update(outputUsage);
+            manager->ManageBuffers();
+        }
+        return std::pair(input->GetLimitBytes(), output->GetLimitBytes());
+    };
+
+    auto [fatInput, fatOutput] = run({TWorkerGroupId("fat"), TWorkerGroupId("misc")});
+    EXPECT_GT(fatInput, static_cast<i64>(60_MB));
+    EXPECT_LE(fatInput, static_cast<i64>(100_MB));
+    EXPECT_LE(fatOutput, static_cast<i64>(2_MB));
+
+    auto [plainInput, plainOutput] = run({TWorkerGroupId("other")});
+    EXPECT_LE(plainInput, static_cast<i64>(12_MB));
+    EXPECT_GT(plainOutput, static_cast<i64>(5_MB));
+}
+
 } // namespace
 } // namespace NYT::NFlow::NWorker

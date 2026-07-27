@@ -37,7 +37,8 @@ IBufferStateManagerPtr CreateBufferStateManager(
     TDynamicBufferStateManagerSpecPtr dynamicSpec,
     std::function<TInstant()> timeProvider = [] {
         return TInstant::Now();
-    });
+    },
+    std::vector<TWorkerGroupId> workerGroups = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -214,7 +214,12 @@ public:
     explicit TJobTracker(TJobTrackerContextPtr context)
         : Context_(std::move(context))
         , ExecutionSpec_(New<TExecutionSpec>())
-        , BufferStateManager_(CreateBufferStateManager(Context_->ControlInvoker, Context_->JobDirectory, GetDynamicPipelineSpec()->JobTracker->BufferStateManager))
+        , BufferStateManager_(CreateBufferStateManager(
+            Context_->ControlInvoker,
+            Context_->JobDirectory,
+            GetDynamicPipelineSpec()->JobTracker->BufferStateManager,
+            &TInstant::Now,
+            Context_->WorkerGroups))
         , EvaluatorCache_(CreateFastColumnEvaluatorCache())
         , JobControlThreadPool_(CreateFairShareThreadPool(GetDynamicPipelineSpec()->JobTracker->JobControlThreads, "JobControl"))
         , JobThreadPool_(CreateFairShareThreadPool(GetJobThreadPoolSize(GetDynamicPipelineSpec(), Context_->WorkerNodeInfo), "Jobs"))

@@ -976,6 +976,8 @@ void TDynamicBufferStateManagerSpec::TOneSideBufferSpec::Register(TRegistrar reg
 {
     registrar.Parameter("fair_share_pool", &TThis::FairSharePool)
         .Default(NYTree::TSize(3_GB));
+    registrar.Parameter("worker_group_fair_share_pool_overrides", &TThis::WorkerGroupFairSharePoolOverrides)
+        .Default();
     registrar.Parameter("job_guarantee", &TThis::JobGuarantee)
         .Default(NYTree::TSize(5_MB));
     registrar.Parameter("job_limit", &TThis::JobLimit)

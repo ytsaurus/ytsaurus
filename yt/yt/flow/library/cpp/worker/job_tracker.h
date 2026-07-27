@@ -32,6 +32,8 @@ struct TJobTrackerContext
     IPipelineAuthenticatorPtr PipelineAuthenticator;
     TStreamSpecStoragePtr StreamSpecStorage;
     IJobDirectoryPtr JobDirectory;
+    //! Groups this worker belongs to; select the per-group buffer pool overrides.
+    std::vector<TWorkerGroupId> WorkerGroups;
     NObjectClient::TCellTag ClockClusterTag;
     NYT::NHttp::IClientPtr HttpClient;
     NYT::NHttp::IClientPtr HttpsClient;

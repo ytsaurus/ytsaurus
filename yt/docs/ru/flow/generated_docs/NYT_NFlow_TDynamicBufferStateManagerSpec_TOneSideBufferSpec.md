@@ -8,6 +8,9 @@
 || `fair_share_pool` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Значение по умолчанию**: `3Gi`
 Размер пула для распределения по FairShare алгоритму на основании утилизации. ||
+|| `worker_group_fair_share_pool_overrides` | **Тип**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, `[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
+**Значение по умолчанию**: `{}`
+Замена `fair_share_pool` для воркеров перечисленных [воркер-групп](../concepts/worker_groups.md) — для инсталляций, где часть воркеров имеет существенно больше памяти. Воркер, состоящий в нескольких перечисленных группах, берёт максимум: пул отражает фактически доступную память воркера. ||
 || `job_guarantee` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Значение по умолчанию**: `5Mi`
 Минимальный размер буффера для одной джобы. ||

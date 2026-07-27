@@ -12,5 +12,7 @@
 || `enable_ghost_caches` | **Тип**: `bool`
 **Значение по умолчанию**: `true`
  ||
+|| `reject_oversized_items` | **Тип**: `std::optional<bool>`
+ ||
 |#
 

@@ -26,5 +26,8 @@
 || `enable_ghost_caches` | **Тип**: `bool`
 **Значение по умолчанию**: `true`
  ||
+|| `reject_oversized_items` | **Тип**: `bool`
+**Значение по умолчанию**: `false`
+ ||
 |#
 

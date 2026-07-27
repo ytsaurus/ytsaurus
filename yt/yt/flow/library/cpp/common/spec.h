@@ -1029,6 +1029,11 @@ struct TDynamicBufferStateManagerSpec
         : public virtual NYTree::TYsonStruct
     {
         NYTree::TSize FairSharePool;
+        //! FairSharePool replacement for workers of the listed groups (for
+        //! installations whose worker flavours differ in memory). A worker in
+        //! several listed groups takes the max: the pool reflects the memory the
+        //! worker actually has, so the largest claim wins.
+        THashMap<TWorkerGroupId, NYTree::TSize> WorkerGroupFairSharePoolOverrides;
         NYTree::TSize JobGuarantee;
         NYTree::TSize JobLimit;
         TDuration MaxDuration;
