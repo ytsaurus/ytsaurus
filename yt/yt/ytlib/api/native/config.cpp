@@ -331,7 +331,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("pull_queue_response_codec", &TThis::PullQueueResponseCodec)
-        .Default(NCompression::ECodec::None);
+        .Optional();
 
     registrar.Parameter("default_get_tablet_errors_limit", &TThis::DefaultGetTabletErrorsLimit)
         .Default(5)

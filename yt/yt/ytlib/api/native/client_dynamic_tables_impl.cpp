@@ -3143,7 +3143,9 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
 
     const auto& connectionConfig = Connection_->GetConfig();
     req->SetTimeout(options.Timeout.value_or(connectionConfig->DefaultFetchTableRowsTimeout));
-    req->SetResponseCodec(connectionConfig->PullQueueResponseCodec);
+    if (connectionConfig->PullQueueResponseCodec.has_value()) {
+        req->SetResponseCodec(connectionConfig->PullQueueResponseCodec.value());
+    }
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
