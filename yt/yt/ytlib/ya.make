@@ -829,6 +829,7 @@ PEERDIR(
     library/cpp/containers/absl
     yt/yt/library/erasure/impl
     yt/yt/library/containers
+    yt/yt/library/discovery_client
     yt/yt/library/disk_manager
     yt/yt/library/process
     yt/yt/library/random
@@ -858,7 +859,6 @@ PEERDIR(
     yt/yt/library/vector_hdrf
     yt/yt/library/web_assembly/api
     yt/yt/ytlib/admin
-    yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client
     yt/yt_proto/yt/client
     yt/yt/flow/library/cpp/client
@@ -868,7 +868,6 @@ PEERDIR(
 END()
 
 RECURSE(
-    discovery_client
     distributed_throttler
 )
 

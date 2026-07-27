@@ -109,6 +109,8 @@ private:
     TDiscoveryClientConfigPtr ClientConfig_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IDiscoveryClientPtr CreateDiscoveryClient(
     TDiscoveryConnectionConfigPtr connectionConfig,
     TDiscoveryClientConfigPtr clientConfig,

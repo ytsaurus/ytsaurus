@@ -11,8 +11,8 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/discovery_client/discovery_client.h>
-#include <yt/yt/ytlib/discovery_client/member_client.h>
+#include <yt/yt/library/discovery_client/discovery_client.h>
+#include <yt/yt/library/discovery_client/member_client.h>
 
 #include <yt/yt/library/numeric/binary_search.h>
 #include <yt/yt/library/numeric/algorithm_helpers.h>

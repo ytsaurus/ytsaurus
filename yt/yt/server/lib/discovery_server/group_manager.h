@@ -9,7 +9,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/helpers.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
 

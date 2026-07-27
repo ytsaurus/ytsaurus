@@ -4,7 +4,7 @@
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
-namespace NYT::NClickHouseServer {
+namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,4 +46,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClickHouseServer
+} // namespace NYT::NDiscoveryClient

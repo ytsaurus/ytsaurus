@@ -166,7 +166,7 @@ public:
         YT_VERIFY(Config_->Discovery->Version == 2);
         auto groupId = (Config_->CliqueAlias.empty()) ? ToString(Config_->CliqueId) : Config_->CliqueAlias;
         Config_->Discovery->GroupId = "/chyt/" + groupId;
-        Discovery_ = CreateDiscovery(
+        Discovery_ = CreateDiscoveryFromNativeConnection(
             Config_->Discovery,
             Connection_,
             ChannelFactory_,

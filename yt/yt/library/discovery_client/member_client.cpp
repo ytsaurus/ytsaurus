@@ -220,6 +220,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IMemberClientPtr CreateMemberClient(
     TDiscoveryConnectionConfigPtr connectionConfig,
     TMemberClientConfigPtr clientConfig,

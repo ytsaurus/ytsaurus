@@ -18,7 +18,6 @@
 #include <yt/yt/library/auth_server/helpers.h>
 #include <yt/yt/library/auth_server/token_authenticator.h>
 
-#include <yt/yt/library/clickhouse_discovery/config.h>
 #include <yt/yt/library/clickhouse_discovery/discovery.h>
 #include <yt/yt/library/clickhouse_discovery/helpers.h>
 
@@ -733,7 +732,7 @@ private:
         config->WriteQuorum = 1;
         config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
 
-        auto discovery = NClickHouseServer::CreateDiscovery(
+        auto discovery = NClickHouseServer::CreateDiscoveryFromNativeConnection(
             std::move(config),
             Bootstrap_->GetNativeConnection(),
             Bootstrap_->GetNativeConnection()->GetChannelFactory(),

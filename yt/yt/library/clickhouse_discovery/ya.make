@@ -3,15 +3,13 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 PEERDIR(
-    yt/yt/core
     yt/yt/client
-    yt/yt/ytlib/discovery_client
-    library/cpp/yt/threading
+    yt/yt/core
+    yt/yt/library/discovery_client
+    yt/yt/ytlib
 )
 
 SRCS(
-    config.cpp
-    discovery_base.cpp
     discovery.cpp
     helpers.cpp
 )

@@ -8,7 +8,7 @@
 
 #include <yt/yt/ytlib/chaos_client/public.h>
 
-#include <yt/yt/ytlib/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/public.h>
 
 #include <yt/yt/library/query/base/public.h>
 

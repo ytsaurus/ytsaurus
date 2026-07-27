@@ -43,9 +43,9 @@
 
 #include <yt/yt/ytlib/yql_client/config.h>
 
-#include <yt/yt/ytlib/discovery_client/discovery_client.h>
-#include <yt/yt/ytlib/discovery_client/member_client.h>
-#include <yt/yt/ytlib/discovery_client/request_session.h>
+#include <yt/yt/library/discovery_client/discovery_client.h>
+#include <yt/yt/library/discovery_client/member_client.h>
+#include <yt/yt/library/discovery_client/request_session.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
