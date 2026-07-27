@@ -503,6 +503,9 @@ private:
         jobTrackerContext->HttpsClient = HttpsClient_;
         jobTrackerContext->Poller = HttpPoller_;
         jobTrackerContext->StatusProfiler = WorkerStatusProfiler_;
+        for (const auto& group : workerGroups) {
+            jobTrackerContext->WorkerGroups.push_back(TWorkerGroupId(group));
+        }
         // ControllerConnector_ is created just below; at call time it is always
         // initialized (jobs start running only after worker setup is complete).
         jobTrackerContext->DistributedThrottlerChannel = [this] () -> NRpc::IChannelPtr {
