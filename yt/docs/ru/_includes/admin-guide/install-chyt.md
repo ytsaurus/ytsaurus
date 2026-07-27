@@ -53,3 +53,4 @@ mychyt   Finished
 
 Если в спецификации `Chyt` был выставлен флаг `makeDefault` и на кластере запущен `strawberry controller`, то также будет поднята клика по умолчанию — `ch_public`.
 
+Инструкция по обновлению CHYT подробно описана в статье [Обновление CHYT](../../admin-guide/update/update-chyt.md).

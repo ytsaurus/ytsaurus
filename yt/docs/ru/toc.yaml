@@ -573,6 +573,18 @@ items:
             href: admin-guide/install-monitoring.md
           - name: Task-прокси
             href: admin-guide/install-task-proxy.md
+      - name: Обновление кластера
+        items:
+          - name: Стартегии обновления
+            href: admin-guide/update/update_strategy.md
+          - name: YTsaurus
+            href: admin-guide/update/update-ytsaurus.md
+          - name: CHYT
+            href: admin-guide/update/update-chyt.md
+          - name: SPYT
+            href: admin-guide/update/update-spyt.md
+          - name: Обновление томов
+            href: admin-guide/update/update-volumes.md
       - name: Подготовка спецификации {{product-name}}
         items:
           - name: Описание
@@ -596,10 +608,6 @@ items:
         href: admin-guide/monitoring.md
           #      - name: Изменение конфигурации кластера
           #        href: admin-guide/configuration.md
-      - name: Обновление серверных компонент
-        href: admin-guide/update-ytsaurus.md
-      - name: Обновление томов
-        href: admin-guide/update-volumes.md
       - name: Эксплуатация кластера
         href: admin-guide/cluster-operations.md
       - name: Административные команды CLI (yt admin)

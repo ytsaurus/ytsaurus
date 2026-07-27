@@ -388,7 +388,7 @@ yt admin metrics replay metrics.zip
 
 Команда читает `//sys/@master_alerts`, находит алерт `Found unrecognized options in dynamic cluster config` и удаляет из `//sys/@config` все перечисленные в нём опции. После удаления вложенных опций пустые промежуточные узлы (`{}`) также удаляются. Если такого алерта нет, команда ничего не делает.
 
-Чаще всего это требуется [после обновления кластера](../../admin-guide/update-ytsaurus.md#operator): в новой версии {{product-name}} часть полей конфига может выйти из употребления, и тогда они остаются в `//sys/@config` как нераспознанные.
+Чаще всего это требуется [после обновления кластера](../../admin-guide/update/update-ytsaurus.md#operator): в новой версии {{product-name}} часть полей конфига может выйти из употребления, и тогда они остаются в `//sys/@config` как нераспознанные.
 
 ```bash
 yt admin remove-master-unrecognized-options [--dry] [--do-not-print-config]
