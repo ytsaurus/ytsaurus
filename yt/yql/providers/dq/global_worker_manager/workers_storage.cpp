@@ -375,9 +375,9 @@ size_t TWorkersStorage::SearchFreeListWithIndex(
         }
 
         if (anyFileMissing || !pivot) {
-            // No worker has all files — update WaitingResources for download scheduling.
+            // No worker has all files — task is waiting for missing resources.
             for (const auto& fileId : fileIds) {
-                waitingResources[fileId].erase(taskId);
+                waitingResources[fileId].insert(taskId);
                 auto uploadedIt = Uploaded.find(fileId);
                 if (uploadedIt != Uploaded.end()) {
                     uploadedIt->second.TryCount++;
@@ -423,9 +423,9 @@ size_t TWorkersStorage::SearchFreeListWithIndex(
                 continue;
             }
 
-            // Mark files as available for this task in stats.
+            // Mark files as available for this task in stats — no longer waiting.
             for (const auto& fileId : fileIds) {
-                waitingResources[fileId].insert(taskId);
+                waitingResources[fileId].erase(taskId);
             }
 
             // Allocate: find iterator in freeList and call ProcessMatched.

@@ -58,9 +58,9 @@ TWorkerFilter::EMatchStatus TWorkerFilter::Match(const TWorkerInfo::TPtr& worker
         allExists &= flag;
         if (stats) {
             if (flag) {
-                (*stats->WaitingResources)[id].insert(taskId);
-            } else {
                 (*stats->WaitingResources)[id].erase(taskId);
+            } else {
+                (*stats->WaitingResources)[id].insert(taskId);
                 auto maybeUploadedStats = stats->Uploaded->find(id);
                 if (maybeUploadedStats != stats->Uploaded->end()) {
                     maybeUploadedStats->second.TryCount ++;
