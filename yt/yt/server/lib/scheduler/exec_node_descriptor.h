@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/concurrency/lease_manager.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NScheduler {
 

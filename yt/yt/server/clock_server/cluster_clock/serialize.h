@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/hydra/serialize.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NClusterClock {
 

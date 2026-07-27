@@ -54,11 +54,12 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NQueryClient {
 

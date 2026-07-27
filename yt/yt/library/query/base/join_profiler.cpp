@@ -18,7 +18,7 @@
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
-#include <yt/yt/core/misc/range_formatters.h>
+#include <library/cpp/yt/misc/range_formatters.h>
 
 #include <library/cpp/cache/cache.h>
 

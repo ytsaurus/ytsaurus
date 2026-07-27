@@ -9,8 +9,6 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/concurrency/async_batcher.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -18,6 +16,8 @@
 #include <yt/yt/core/tracing/public.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 

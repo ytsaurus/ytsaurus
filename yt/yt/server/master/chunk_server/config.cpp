@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/concurrency/config.h>
 
-#include <yt/yt/core/misc/error_code.h>
+#include <library/cpp/yt/error/error_code.h>
 
 namespace NYT::NChunkServer {
 

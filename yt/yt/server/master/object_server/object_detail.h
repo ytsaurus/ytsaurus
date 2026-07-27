@@ -19,10 +19,10 @@
 
 #include <yt/yt/ytlib/security_client/acl.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/ytree/system_attribute_provider.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NObjectServer {
 

@@ -17,7 +17,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/range_formatters.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NObjectServer {
 

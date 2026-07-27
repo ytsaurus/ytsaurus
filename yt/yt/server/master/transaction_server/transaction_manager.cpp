@@ -107,7 +107,6 @@
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/authentication_identity.h>
@@ -119,6 +118,8 @@
 #include <yt/yt/library/profiling/producer.h>
 
 #include <library/cpp/yt/compact_containers/compact_queue.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NTransactionServer {
 

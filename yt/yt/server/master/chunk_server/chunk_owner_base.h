@@ -17,8 +17,9 @@
 
 #include <yt/yt/core/crypto/crypto.h>
 
-#include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/intern_registry.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChunkServer {
 

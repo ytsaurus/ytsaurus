@@ -14,11 +14,11 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NScheduler {
 

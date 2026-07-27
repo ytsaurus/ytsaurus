@@ -23,7 +23,6 @@
 
 #include <yt/yt/core/misc/codicil.h>
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
@@ -34,6 +33,8 @@
 #include <library/cpp/yt/memory/ref.h>
 
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NScheduler {
 

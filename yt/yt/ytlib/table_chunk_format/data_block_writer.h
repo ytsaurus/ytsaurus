@@ -5,9 +5,9 @@
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
 #include <yt/yt/ytlib/table_client/block.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTableChunkFormat {
 

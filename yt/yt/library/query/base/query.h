@@ -8,9 +8,10 @@
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/misc/guid.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/memory/range.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NQueryClient {
 

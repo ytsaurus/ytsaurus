@@ -7,11 +7,12 @@
 #include <yt/yt/core/actions/callback.h>
 
 #include <yt/yt/core/misc/codicil.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <optional>
 

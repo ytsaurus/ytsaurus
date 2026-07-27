@@ -4,9 +4,9 @@
 
 #include <yt/yt/ytlib/exec_node/public.h>
 
-#include <yt/yt/core/misc/error_code.h>
-
 #include <yt/yt/client/job_tracker_client/public.h>
+
+#include <library/cpp/yt/error/error_code.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
 

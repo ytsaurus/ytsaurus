@@ -16,10 +16,11 @@
 
 #include <yt/yt/library/erasure/public.h>
 
-#include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/phoenix/type_decl.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <array>
 

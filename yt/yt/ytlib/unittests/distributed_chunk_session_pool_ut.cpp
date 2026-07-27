@@ -12,10 +12,10 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/suspendable_action_queue.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/ytree/convert.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/yson_string/string.h>
 

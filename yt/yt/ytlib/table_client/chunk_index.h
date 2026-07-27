@@ -2,10 +2,11 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/serialize.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTableClient {
 

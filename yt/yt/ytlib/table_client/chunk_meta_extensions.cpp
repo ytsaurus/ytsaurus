@@ -5,9 +5,10 @@
 #include <yt/yt/client/table_client/key_bound.h>
 
 #include <yt/yt/core/misc/object_pool.h>
-#include <yt/yt/core/misc/range_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/misc/range_helpers.h>
 
 namespace NYT::NTableClient {
 

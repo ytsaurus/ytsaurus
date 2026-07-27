@@ -29,9 +29,9 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/aggregate_property.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/misc/enum.h>
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
 

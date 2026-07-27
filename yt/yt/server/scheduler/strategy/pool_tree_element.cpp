@@ -16,9 +16,10 @@
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/digest.h>
-#include <yt/yt/core/misc/string_builder.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/string/string_builder.h>
 
 #include <util/generic/ymath.h>
 

@@ -18,7 +18,8 @@
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/misc/chunked_vector.h>
-#include <yt/yt/core/misc/property.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 

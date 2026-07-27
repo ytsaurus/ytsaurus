@@ -29,8 +29,6 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/phoenix/context.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -40,6 +38,8 @@
 #include <yt/yt/core/yson/writer.h>
 #include <yt/yt/core/yson/null_consumer.h>
 #include <yt/yt/core/yson/stream.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 

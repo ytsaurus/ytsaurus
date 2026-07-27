@@ -22,9 +22,10 @@
 #include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/misc/aggregate_property.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/compact_containers/compact_vector.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTableServer {
 

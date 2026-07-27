@@ -25,9 +25,10 @@
 #include <yt/yt/library/profiling/producer.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <optional>
 
