@@ -41,6 +41,38 @@ UNRESOLVED_VAR_RE = re.compile(r'\$\{?[A-Za-z_][A-Za-z0-9_]*\}?')
 
 _OP_CHARS = "=!"
 
+_STRING_ESCAPES = {
+    "a": "\a",
+    "b": "\b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "v": "\v",
+    "\\": "\\",
+    "'": "'",
+    '"': '"',
+}
+
+
+def _decode_string_escape(expr: str, i: int) -> Tuple[str, int]:
+    ch = expr[i]
+    if ch in _STRING_ESCAPES:
+        return _STRING_ESCAPES[ch], i + 1
+    if ch in ("x", "u", "U"):
+        width = {"x": 2, "u": 4, "U": 8}[ch]
+        digits = expr[i + 1:i + 1 + width]
+        if len(digits) == width:
+            try:
+                return chr(int(digits, 16)), i + 1 + width
+            except ValueError:
+                pass
+    elif ch in "01234567":
+        digits = expr[i:i + 3]
+        if len(digits) == 3 and all(d in "01234567" for d in digits):
+            return chr(int(digits, 8)), i + 3
+    return "\\" + ch, i + 1
+
 
 def _tokenize(expr: str) -> List[Tuple[str, Any]]:
     tokens: List[Tuple[str, Any]] = []
@@ -64,8 +96,8 @@ def _tokenize(expr: str) -> List[Tuple[str, Any]]:
             while j < n:
                 c = expr[j]
                 if c == "\\" and quote != "`" and j + 1 < n:
-                    buf.append(expr[j + 1])
-                    j += 2
+                    decoded, j = _decode_string_escape(expr, j + 1)
+                    buf.append(decoded)
                     continue
                 if c == quote:
                     j += 1

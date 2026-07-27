@@ -1,6 +1,11 @@
-from yt.admin.metrics.config import DashboardInfo, MetricsDumpConfig
+from yt.admin.metrics.config import (
+    DATASOURCE_UID,
+    GRAFANA_PROVISIONING_FILE,
+    DashboardInfo,
+    MetricsDumpConfig,
+)
 from yt.admin.metrics.dump import MetricsDumper, _selectors_from_extra_targets
-from yt.admin.metrics.grafana import build_dashboard_url
+from yt.admin.metrics.grafana import GrafanaProvisioner, build_dashboard_url
 from yt.admin.metrics.openmetrics import OpenMetricsWriter
 from yt.admin.metrics.promql import (
     _parse_matchers_from_tokens,
@@ -15,6 +20,7 @@ from yt.admin.metrics.promql import (
 from yt.admin.metrics.spec import SpecLoader, params_by_dashboard, walk_exprs
 
 import pytest
+import yaml
 
 import json
 import os
@@ -73,7 +79,9 @@ class TestPromql:
                 ],
             ),
             ('{cluster="someclustername", service=~"yt-master.*"}', ['{cluster="someclustername",service=~"yt-master.*"}']),
-            (r'foo_total{b="x\"y",a="back\\slash",c="line\nbreak"}', [r'foo_total{a="back\\slash",b="x\"y",c="linenbreak"}']),
+            (r'foo_total{b="x\"y",a="back\\slash",c="line\nbreak"}', [r'foo_total{a="back\\slash",b="x\"y",c="line\nbreak"}']),
+            (r'metric{x=~"a\nb"}', [r'metric{x=~"a\nb"}']),
+            (r'metric{x=~"foo\\.bar"}', [r'metric{x=~"foo\\.bar"}']),
             ("foo{a='single quoted',b=`raw\\value`}", [r'foo{a="single quoted",b="raw\\value"}']),
             ("rate(foo_total[5m]) + increase(bar_total[1h])", ["foo_total", "bar_total"]),
         ],
@@ -119,6 +127,17 @@ class TestPromql:
                 ],
             ),
             ('metric{label=~"val"}', [("IDENT", "metric"), ("LBRACE", "{"), ("IDENT", "label"), ("OP", "=~"), ("STRING", "val"), ("RBRACE", "}")]),
+            (r'"line\nbreak"', [("STRING", "line\nbreak")]),
+            (r'"tab\there"', [("STRING", "tab\there")]),
+            (r'"bell\a backspace\b feed\f cr\r vtab\v"', [("STRING", "bell\a backspace\b feed\f cr\r vtab\v")]),
+            (r'"hex\x41"', [("STRING", "hexA")]),
+            ('"uni\\u00e9"', [("STRING", "unié")]),
+            (r'"uni\U0001F600"', [("STRING", "uni\U0001F600")]),
+            (r'"oct\101"', [("STRING", "octA")]),
+            (r'"unknown\qesc"', [("STRING", r"unknown\qesc")]),
+            (r'"bad\xZZhex"', [("STRING", r"bad\xZZhex")]),
+            (r'"truncated\u12"', [("STRING", r"truncated\u12")]),
+            (r"`raw\n\x41`", [("STRING", r"raw\n\x41")]),
         ],
     )
     def test_tokenize_all_paths(self, expr, expected_tokens):
@@ -491,6 +510,48 @@ class TestGrafana:
     )
     def test_build_dashboard_url(self, dashboard, variables, from_ms, to_ms, expected):
         assert build_dashboard_url("http://localhost:3000", dashboard, variables, from_ms=from_ms, to_ms=to_ms) == expected
+
+    def test_dump_patched_dashboards_without_dashboards_dir(self, tmp_path):
+        provisioner = GrafanaProvisioner(str(tmp_path))
+        assert provisioner._dump_patched_dashboards() == []
+
+    def test_write_provisions_datasource_without_dashboards(self, tmp_path):
+        provisioner = GrafanaProvisioner(str(tmp_path))
+
+        assert provisioner.write("http://fake-prometheus:9090") == []
+
+        assert os.path.isdir(provisioner.grafana_dashboards_patched_path)
+        assert os.listdir(provisioner.grafana_dashboards_patched_path) == []
+
+        datasource_path = os.path.join(provisioner.grafana_provisioning_path, "datasources", GRAFANA_PROVISIONING_FILE)
+        with open(datasource_path) as f:
+            datasource = yaml.safe_load(f)
+        assert datasource["datasources"][0]["url"] == "http://fake-prometheus:9090"
+        assert datasource["datasources"][0]["uid"] == DATASOURCE_UID
+
+        providers_path = os.path.join(provisioner.grafana_provisioning_path, "dashboards", GRAFANA_PROVISIONING_FILE)
+        assert os.path.isfile(providers_path)
+
+    def test_dump_patched_dashboards_patches_and_lists(self, tmp_path):
+        src = tmp_path / "dashboards"
+        src.mkdir()
+        (src / "d.json").write_text(
+            json.dumps(
+                {
+                    "uid": "u1",
+                    "title": "My Dash",
+                    "panels": [{"datasource": {"uid": "${PROMETHEUS_DS_UID}"}}],
+                }
+            )
+        )
+        provisioner = GrafanaProvisioner(str(tmp_path))
+        os.makedirs(provisioner.grafana_dashboards_patched_path, exist_ok=True)
+
+        result = provisioner._dump_patched_dashboards()
+
+        assert [(d.file, d.uid, d.title, d.slug) for d in result] == [("d.json", "u1", "My Dash", "my-dash")]
+        patched = (tmp_path / "grafana-dashboards-patched" / "d.json").read_text()
+        assert "${PROMETHEUS_DS_UID}" not in patched
 
 
 class TestOpenMetrics:
