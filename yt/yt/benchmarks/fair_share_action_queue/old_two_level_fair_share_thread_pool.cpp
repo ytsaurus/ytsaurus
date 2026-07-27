@@ -8,7 +8,8 @@
 #include <yt/yt/core/concurrency/thread_pool_detail.h>
 
 #include <yt/yt/core/misc/heap.h>
-#include <yt/yt/core/misc/ring_queue.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 #include <library/cpp/yt/system/tscp.h>
 

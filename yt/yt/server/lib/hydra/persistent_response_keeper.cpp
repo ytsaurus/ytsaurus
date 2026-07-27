@@ -10,8 +10,9 @@
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/service.h>
 
-#include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/serialize.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
 

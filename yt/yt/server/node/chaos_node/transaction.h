@@ -14,7 +14,8 @@
 
 #include <yt/yt/core/misc/persistent_queue.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ring_queue.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
 
