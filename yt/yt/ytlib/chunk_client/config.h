@@ -275,12 +275,27 @@ DEFINE_REFCOUNTED_TYPE(TS3MediumConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMediumDirectorySynchronizerTestingConfig
+    : public NYTree::TYsonStruct
+{
+    bool BypassCache;
+
+    REGISTER_YSON_STRUCT(TMediumDirectorySynchronizerTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TMediumDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
-    bool UseCache;
+
+    TMediumDirectorySynchronizerTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TMediumDirectorySynchronizerConfig);
 

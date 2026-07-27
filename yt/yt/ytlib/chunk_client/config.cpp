@@ -176,12 +176,20 @@ void TS3MediumConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMediumDirectorySynchronizerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bypass_cache", &TThis::BypassCache)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TMediumDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("sync_period", &TThis::SyncPeriod)
         .Default(TDuration::Seconds(60));
-    registrar.Parameter("use_cache", &TThis::UseCache)
-        .Default(true);
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

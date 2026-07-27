@@ -9,7 +9,9 @@
         cluster_connection = {
             medium_directory_synchronizer = {
                 sync_period = 10;
-                use_cache = %false;
+                testing = {
+                    bypass_cache = %true;
+                };
             };
         };
     };
@@ -17,7 +19,9 @@
         cluster_connection = {
             medium_directory_synchronizer = {
                 sync_period = 10;
-                use_cache = %false;
+                testing = {
+                    bypass_cache = %true;
+                };
             };
         };
     };
@@ -25,7 +29,9 @@
         cluster_connection = {
             medium_directory_synchronizer = {
                 sync_period = 10;
-                use_cache = %false;
+                testing = {
+                    bypass_cache = %true;
+                };
             };
         };
     };
@@ -43,7 +49,9 @@
     DELTA_DRIVER_CONFIG = {
         medium_directory_synchronizer = {
             sync_period = 10;
-            use_cache = %false;
+            testing = {
+                bypass_cache = %true;
+            };
         };
         transaction_manager = {
             ping_batcher = {
