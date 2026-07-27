@@ -22,6 +22,7 @@ MaxKeyLengthViolation = 505
 InvalidInputChunk = 733
 UnsupportedChunkFeature = 734
 LocationMediumIsMisconfigured = 753
+AuthenticationError = 900
 AuthorizationErrorCode = 901
 AccountLimitExceeded = 902
 IsAlreadyPresentInGroup = 908
