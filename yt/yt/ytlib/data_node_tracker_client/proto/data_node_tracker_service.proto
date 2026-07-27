@@ -35,7 +35,7 @@ message TReqModifyReplicas
     required bool caused_by_node_disposal = 6 [default = false];
 
     optional bool is_incremental_heartbeat = 9;
-
+    optional bool caused_by_validation = 10 [default = false];
     reserved 4, 7, 8;
 }
 
