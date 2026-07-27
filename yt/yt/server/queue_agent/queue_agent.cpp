@@ -31,12 +31,13 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/range_helpers.h>
 
 #include <yt/yt/core/ypath/token.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <library/cpp/yt/misc/range_helpers.h>
 
 namespace NYT::NQueueAgent {
 

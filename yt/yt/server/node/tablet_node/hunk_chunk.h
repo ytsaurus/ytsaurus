@@ -7,9 +7,9 @@
 
 #include <yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTabletNode {
 

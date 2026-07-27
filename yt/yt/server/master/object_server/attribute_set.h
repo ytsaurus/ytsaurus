@@ -4,9 +4,9 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/yson/string.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NObjectServer {
 

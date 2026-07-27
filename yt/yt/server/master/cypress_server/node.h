@@ -19,13 +19,13 @@
 
 #include <yt/yt/ytlib/cypress_client/public.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/library/erasure/public.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <queue>
 #include <variant>

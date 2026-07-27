@@ -10,7 +10,7 @@
 
 #include <yt/yt/server/master/table_server/schemaful_node.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChaosServer {
 

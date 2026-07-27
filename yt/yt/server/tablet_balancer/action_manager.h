@@ -6,9 +6,9 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTabletBalancer {
 

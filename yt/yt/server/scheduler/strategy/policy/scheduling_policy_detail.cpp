@@ -14,12 +14,13 @@
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/core/misc/heap.h>
-#include <yt/yt/core/misc/string_builder.h>
 
 #include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
+
+#include <library/cpp/yt/string/string_builder.h>
 
 #include <library/cpp/yt/yson/consumer.h>
 

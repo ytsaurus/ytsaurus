@@ -11,9 +11,9 @@
 
 #include <yt/yt/core/ytree/request_complexity_limits.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/concurrency/public.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NSecurityServer {
 

@@ -27,7 +27,7 @@
 
 #include <yt/yt/core/actions/signal.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NTransactionServer {
 

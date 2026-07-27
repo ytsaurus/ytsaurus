@@ -15,11 +15,12 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/lazy_ptr.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/profiling/public.h>
 
 #include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChunkClient {
 

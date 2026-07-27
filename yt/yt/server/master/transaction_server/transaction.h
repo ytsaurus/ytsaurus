@@ -26,9 +26,9 @@
 
 #include <yt/yt/core/concurrency/async_barrier.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/containers/absl/flat_hash_map.h>
 

@@ -21,7 +21,8 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/property.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NServer {
 
