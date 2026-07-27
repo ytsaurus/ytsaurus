@@ -110,7 +110,12 @@ class RemotePatchableValueBase(object):
             cluster_data = cls._REMOTE_CACHE[cache_key]
         elif path and client:
             try:
-                cluster_data = client.get(client.config["config_remote_patch_path"], read_from="cache", attributes=["value"])
+                cluster_data = client.get(
+                    client.config["config_remote_patch_path"],
+                    read_from="cache",
+                    attributes=["value", "type"],
+                )
+                _validate_remote_config_node(path, cluster_data)
                 if not isinstance(cluster_data, yson.yson_types.YsonMap):
                     # cache bad config
                     cluster_data = {}
@@ -253,3 +258,27 @@ def _validate_query_link_pattern(local_value, remote_value):
     except KeyError:
         raise RuntimeError("Wrong placeholder")
     return ret
+
+
+def _validate_remote_config_node(path, cluster_data):
+    # type: (str, object) -> None
+    def _node_type(node):
+        attributes = getattr(node, "attributes", None)
+        return attributes.get("type") if attributes else None
+
+    node_type = _node_type(cluster_data)
+    if node_type != "map_node":
+        logger.warning(
+            "Node \"%s\" exists, but has type \"%s\" instead of \"map_node\", "
+            "remote config patch is not applied",
+            path, node_type)
+    elif "default" not in cluster_data:
+        logger.warning(
+            "Node \"%s\" exists, but required config \"%s/default\" is absent, "
+            "remote config patch is not applied",
+            path, path)
+    elif _node_type(cluster_data["default"]) != "document":
+        logger.warning(
+            "Node \"%s/default\" exists, but has type \"%s\" instead of \"document\", "
+            "remote config patch is not applied",
+            path, _node_type(cluster_data["default"]))

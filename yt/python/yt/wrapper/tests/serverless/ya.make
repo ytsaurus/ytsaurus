@@ -34,6 +34,7 @@ EXPLICIT_DATA()
 SET(SRCS
     __init__.py
     test_common.py
+    test_config_remote_patch.py
     test_formats.py
     test_misc.py
     test_schema.py
