@@ -24,12 +24,13 @@ void ApplyPatch(
     const INodePtr& patch)
 {
     auto node = FindNodeByYPath(root, path);
-    if (node) {
-        node = CloneNode(node);
-    }
+    // PatchNode always returns a new node, so #node needs no cloning if it was passed to PatchNode.
+    // #owned tracks whether we own it (e.g. node was (deeply) copied by PatchNode).
+    bool owned = false;
     if (templatePatch) {
         if (node) {
             node = PatchNode(templatePatch, node);
+            owned = true;
         } else {
             node = templatePatch;
         }
@@ -37,16 +38,18 @@ void ApplyPatch(
     if (patch) {
         if (node) {
             node = PatchNode(node, patch);
+            owned = true;
         } else {
             node = patch;
         }
     }
     if (node) {
         ForceYPath(root, path);
-        // Note that #node may be equal to one of the #root's subtrees or to one of the patches.
-        // In any case, we do not want to use it as an argument to SetNodeByYPath, since this wonderful
-        // method would change the parent of the argument node, which may lead to child-parent relation inconsistency.
-        SetNodeByYPath(root, path, CloneNode(node));
+        // Unless it is owned, #node is equal either to one of the #root's subtrees or to one
+        // of the patches. In both cases we do not want to use it as an argument to SetNodeByYPath,
+        // since this wonderful method would change the parent of the argument node, which may
+        // lead to child-parent relation inconsistency.
+        SetNodeByYPath(root, path, owned ? node : CloneNode(node));
     }
 }
 
