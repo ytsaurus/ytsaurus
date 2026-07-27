@@ -1835,4 +1835,5 @@ class TestChaosMetadata(TestSecondaryIndexChaosBase):
         # Alter might fail due to encountered migrating collocation or chaos channel misdirection.
         assert err[0].contains_text("Migrated before alter") or \
             err[0].contains_text("migrating") or \
-            err[0].contains_text("Replication card is not in \"normal\" state")
+            err[0].contains_text("Replication card is not in \"normal\" state") or \
+            err[0].contains_text("Replication card has been migrated")
