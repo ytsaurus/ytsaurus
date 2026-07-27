@@ -29,7 +29,7 @@ NAME                                                      READY   STATUS     RES
 ytsaurus-ytop-chart-controller-manager-7478f9b6cb-qr8wd   2/2     Running   0           1m
 ```
 
-Про обновление оператора можно прочитать в разделе [Обновление оператора](../../admin-guide/update-ytsaurus.md#operator).
+Про обновление оператора можно прочитать в разделе [обновление оператора](../../admin-guide/update/update-ytsaurus.md#update-operator).
 
 ## Запуск кластера {{product-name}}
 
@@ -126,6 +126,8 @@ $ kubectl get ytsaurus -n <namespace>
 NAME         CLUSTERSTATE   UPDATESTATE   UPDATINGCOMPONENTS
 minisaurus   Running        None
 ```
+
+Чтобы обновить кластер, ознакомьтесь с [этой статьей](../../admin-guide/update/update-ytsaurus.md). В ней подробно рассказывается, как подготовить кластер к обновлению, обновить оператор и проверить результат.
 
 ### Диагностика проблем при инициализации
 
@@ -362,3 +364,4 @@ helm upgrade --install yt-ui ytsaurus-ui/packages/ui-helm-chart/ -f values.yaml 
 ```
 kubectl port-forward deployment/yt-ui-ytsaurus-ui-chart 8080:80
 ```
+
