@@ -340,7 +340,6 @@ TFuture<void> TBlobSession::DoStart()
     PendingBlockMemoryGuard_ = TMemoryUsageTrackerGuard::Build(Location_->GetWriteMemoryTracker());
 
     PendingBlockLocationMemoryGuard_ = Location_->AcquireLocationMemory(
-        UseProbePutBlocks_,
         /*memoryGuard*/ {},
         EIODirection::Write,
         Options_.WorkloadDescriptor,
@@ -743,7 +742,6 @@ void TBlobSession::PreparePutBlocks(
 
                 // Track memory per location - without memory tracker.
                 slot.LocationMemoryGuard = Location_->AcquireLocationMemory(
-                    /*useLegacyUsedMemory*/ true,
                     /*memoryGuard*/ {},
                     EIODirection::Write,
                     Options_.WorkloadDescriptor,
