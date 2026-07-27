@@ -42,7 +42,9 @@ IClientRequestControlPtr TPeerChannel::Send(
         if (errorKind == 0) {
             auto timeout = FromProto<TDuration>(request->Header().timeout());
             TDelayedExecutor::Submit(
-                BIND(&IClientResponseHandler::HandleError, responseHandler, error),
+                BIND([responseHandler = std::move(responseHandler), error = std::move(error)] () mutable {
+                    responseHandler->HandleError(std::move(error));
+                }),
                 timeout);
             YT_LOG_DEBUG("Request timeout");
             return nullptr;
