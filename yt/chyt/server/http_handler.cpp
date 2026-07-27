@@ -20,6 +20,8 @@
 #include <Server/NotFoundHandler.h>
 #include <Server/StaticRequestHandler.h>
 
+#include <Server/HTTP/sendExceptionToHTTPClient.h>
+
 #include <base/getFQDNOrHostName.h>
 
 namespace NYT::NClickHouseServer {
@@ -119,6 +121,8 @@ public:
 
         auto replyError = [&] (DBPoco::Net::HTTPResponse::HTTPStatus statusCode, const TError& error) {
             YT_LOG_INFO(error, "Replying with error");
+            // Closing with an unread body makes the peer see an RST instead of this response.
+            DB::drainRequestIfNeeded(request, response);
             // Without this header proxy thinks that the response is not from clickhouse instance.
             response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
             response.setStatusAndReason(statusCode);
