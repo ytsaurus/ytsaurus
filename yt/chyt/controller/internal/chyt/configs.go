@@ -114,7 +114,7 @@ func applyConfigDefaults(configMapNode, defaultsMapNode map[string]any, configWi
 	}
 }
 
-func (c Controller) getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
+func (c *Controller) getPatchedClickHouseConfig(oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
 	config, err = cloneNode(speclet.ClickHouseConfig)
 	if err != nil {
 		return
@@ -194,7 +194,7 @@ func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (addresses 
 	return
 }
 
-func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
+func (c *Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
 	config, err = cloneNode(speclet.YTConfig)
 	if err != nil {
 		return
@@ -431,19 +431,19 @@ func (c *Controller) uploadYsonFile(ctx context.Context, alias string, filename 
 	return c.uploadFile(ctx, alias, filename, configYson)
 }
 
-func (c Controller) artifactDir(alias string) ypath.Path {
+func (c *Controller) artifactDir(alias string) ypath.Path {
 	return c.root.Child(alias).Child("artifacts")
 }
 
-func (c Controller) sqlUDFDir(alias string) ypath.Path {
+func (c *Controller) sqlUDFDir(alias string) ypath.Path {
 	return c.root.Child(alias).Child("user_defined_sql_functions")
 }
 
-func (c Controller) systemLogTableRootDir(alias string) ypath.Path {
+func (c *Controller) systemLogTableRootDir(alias string) ypath.Path {
 	return c.artifactDir(alias).Child("system_log_tables")
 }
 
-func (c Controller) storageArtifactsDir(alias string) ypath.Path {
+func (c *Controller) storageArtifactsDir(alias string) ypath.Path {
 	return c.root.Child(alias).Child("storage_artifacts")
 }
 

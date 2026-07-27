@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/ptr"
@@ -144,7 +145,7 @@ type chytOpletInfo struct {
 
 type Controller struct {
 	ytc                     yt.Client
-	dc                      yt.DiscoveryClient
+	dc                      atomic.Value // yt.DiscoveryClient
 	l                       log.Logger
 	cachedClusterConnection map[string]any
 	root                    ypath.Path
@@ -455,19 +456,33 @@ func (c *Controller) needsRestart(ctx context.Context, oplet *strawberry.Oplet) 
 	return false, nil
 }
 
+func (c *Controller) initDiscoveryClient(ctx context.Context) {
+	if !c.config.EnableDiscoveryHealthCheckOrDefault() || c.dc.Load() != nil {
+		return
+	}
+
+	dc, err := discovery.CreateClient(ctx, c.ytc)
+	if err != nil {
+		c.l.Warn("failed to create discovery client", log.Error(err))
+		return
+	}
+	c.dc.Store(dc)
+}
+
 func (c *Controller) checkHealth(ctx context.Context, oplet *strawberry.Oplet) (strawberry.OpletHealth, string) {
 	if !oplet.Active() || !c.config.EnableDiscoveryHealthCheckOrDefault() {
 		return strawberry.OpletHealthGood, ""
 	}
 
 	// If discovery client hasn't been initialized for any reason, we consider this as the default case.
-	if c.dc == nil {
+	dc, ok := c.dc.Load().(yt.DiscoveryClient)
+	if !ok {
 		return c.config.DefaultOpletHealthOrDefault(), ""
 	}
 
 	group := "/chyt/" + oplet.Alias()
 	// NB: Strawberry doesn't limit the number of instances, but ListMember requires an explicit limit.
-	members, err := c.dc.ListMembers(ctx, group, &yt.ListMembersOptions{Limit: ptr.Int32(math.MaxInt32)})
+	members, err := dc.ListMembers(ctx, group, &yt.ListMembersOptions{Limit: ptr.Int32(math.MaxInt32)})
 	if err != nil && !yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchGroup) {
 		return strawberry.OpletHealthUnknown, fmt.Sprintf("failed to discover instances: %s", err)
 	}
@@ -499,6 +514,7 @@ func (c *Controller) CheckState(ctx context.Context, oplet *strawberry.Oplet) (s
 }
 
 func (c *Controller) UpdateState() (changed bool, err error) {
+	c.initDiscoveryClient(context.Background())
 	connectionChanged, err := c.updateClusterConnection(context.Background())
 	if err != nil {
 		return false, err
@@ -731,24 +747,15 @@ func parseConfig(rawConfig yson.RawValue) Config {
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, rawConfig yson.RawValue) strawberry.Controller {
 	config := parseConfig(rawConfig)
 
-	var dc yt.DiscoveryClient
-	if config.EnableDiscoveryHealthCheckOrDefault() {
-		var err error
-		dc, err = discovery.CreateClient(context.Background(), ytc)
-		if err != nil {
-			panic(err)
-		}
-	}
-
 	c := &Controller{
 		l:       l,
 		ytc:     ytc,
-		dc:      dc,
 		root:    root,
 		cluster: cluster,
 		secrets: make(map[string][]byte),
 		config:  config,
 	}
 	c.prepareTvmSecret()
+	c.initDiscoveryClient(context.Background())
 	return c
 }
