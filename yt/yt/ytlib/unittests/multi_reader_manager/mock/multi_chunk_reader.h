@@ -21,6 +21,9 @@ class TMultiChunkReaderMock
 public:
     explicit TMultiChunkReaderMock(IMultiReaderManagerPtr multiReaderManager)
         : MultiReaderManager_(std::move(multiReaderManager))
+    { }
+
+    void InitializeRefCounted()
     {
         MultiReaderManager_->SubscribeReaderSwitched(BIND(&TMultiChunkReaderMock::OnReaderSwitched, MakeWeak(this)));
         MultiReaderManager_->Open();
