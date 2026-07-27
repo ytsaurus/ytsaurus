@@ -191,6 +191,7 @@ class DefaultConfigType(TypedDict, total=False):
         ignore_system_modules: bool
         system_module_patterns: List[Any]
         encrypt_pickle_files: int
+        encryption_engine: str
 
     pickling: DefaultConfigPicklingType
     is_local_mode: Optional[Any]
@@ -756,6 +757,8 @@ default_config = {
         ],
         # Encrypt files with pickle data (None - disabled, 1 - enabled, 2 - enabled with key in "secure vault")
         "encrypt_pickle_files": RemotePatchableInteger(ENCRYPT_PICKLE_FILES, "python_encrypt_pickle_files"),
+        # Pickle encryption engine: "cryptography_fernet" (default) or "native_chacha" (ctypes+OpenSSL with pure Python fallback).
+        "encryption_engine": "cryptography_fernet",
     },
 
     # Enables special behavior if client works with local mode cluster.
@@ -1257,6 +1260,7 @@ SHORTCUTS = {
     "YT_CONFIG_PROFILE": "config_profile",
 
     "YT_ENCRYPT_PICKLE": "pickling/encrypt_pickle_files",
+    "YT_ENCRYPTION_ENGINE": "pickling/encryption_engine",
 
     "YT_ADMIN_PROMETHEUS_IMAGE": "admin/prometheus_image",
     "YT_ADMIN_GRAFANA_IMAGE": "admin/grafana_image",
