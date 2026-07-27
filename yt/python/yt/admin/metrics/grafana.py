@@ -85,6 +85,8 @@ class GrafanaProvisioner:
     def _dump_patched_dashboards(self) -> List[DashboardInfo]:
         dashboards: List[DashboardInfo] = []
         src = os.path.join(self.workdir, "dashboards")
+        if not os.path.isdir(src):
+            return dashboards
         for name in sorted(os.listdir(src)):
             if not name.endswith(".json"):
                 continue
