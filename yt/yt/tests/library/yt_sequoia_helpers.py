@@ -23,6 +23,12 @@ SEQUOIA_MAP_NODE_OBJECT_ID = 1504
 ROOTSTOCK_OBJECT_ID = 12000
 SCION_OBJECT_ID = 12000
 
+CELL_BUNDLE_CONFIG = {
+    "options": {"changelog_account": "sequoia", "snapshot_account": "sequoia"},
+    "acl": [{"action": "allow", "permissions": ["use"], "subjects": ["users"]}],
+    "resource_limits": {"tablet_count": 10**5, "tablet_static_memory": 2**40},
+}
+
 
 def get_ground_driver(cluster="primary"):
     return get_driver(cluster=cluster + "_ground")
@@ -282,12 +288,6 @@ def create_sequoia_tool(cluster: str = "primary") -> yt_sequoia.SequoiaTool:
         })
 
     class ConfigProviderImpl(yt_sequoia.ConfigProvider):
-        CELL_BUNDLE_CONFIG = {
-            "options": {"changelog_account": "sequoia", "snapshot_account": "sequoia"},
-            "acl": [{"action": "allow", "permissions": ["use"], "subjects": ["users"]}],
-            "resource_limits": {"tablet_count": 10**5, "tablet_static_memory": 2**40},
-        }
-
         @override
         def get_ground_config(self) -> yt_sequoia.GroundClusterConfig:
             return yt_sequoia.GroundClusterConfig(
@@ -316,8 +316,7 @@ def create_sequoia_tool(cluster: str = "primary") -> yt_sequoia.SequoiaTool:
 
             return yt_sequoia.SequoiaComponentConfig(
                 tablet_cell_bundle="sequoia-chunks" if scope == yt_sequoia.Scope.REPLICAS else "sequoia-cypress",
-                tablet_cell_bundle_config=self.CELL_BUNDLE_CONFIG,
-                tablet_cell_count=1,
+                tablet_cell_bundle_config=CELL_BUNDLE_CONFIG,
                 default_table_attributes=default_attrs,
                 table_attribute_patches=patches)
 
