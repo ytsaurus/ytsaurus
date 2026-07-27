@@ -22,17 +22,13 @@ RECURSE(
 )
 
 RECURSE_FOR_TESTS(
+    test
     unittest
 )
 
 IF (NOT OPENSOURCE)
-    # The yt_sync runner and the test use replicated tables and multiple
-    # stages — out of yt_sync_mini's scope.
+    # The example tool uses the full yt_sync runner.
     RECURSE(
         tools
-    )
-
-    RECURSE_FOR_TESTS(
-        test
     )
 ENDIF()

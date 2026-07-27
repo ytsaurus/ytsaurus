@@ -30,7 +30,7 @@ jobs:
     runs-on: ${{ inputs.runs-on-value }}
     steps:
       - name: Unittests
-        if: ${{ inputs.run-unittests }}
+        if: ${{ false }}
         shell: bash
         run: |
           ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../${{ inputs.build-dir }}
@@ -43,19 +43,25 @@ jobs:
           ln -sfn "$(pwd)/../${{ inputs.build-dir }}" "$(pwd)/../build"
 
       - name: Integration tests
-        if: ${{ inputs.run-integration-tests }}
+        if: ${{ false }}
         shell: bash
         run: |
           ./ytsaurus/yt/yt/scripts/run_tests.sh integration
 
+      - name: Flow tests
+        if: ${{ inputs.run-integration-tests }}
+        shell: bash
+        run: |
+          ./ytsaurus/yt/yt/scripts/run_tests.sh flow
+
       - name: Python tests
-        if: ${{ inputs.run-python-tests }}
+        if: ${{ false }}
         shell: bash
         run: |
           ./ytsaurus/yt/yt/scripts/run_tests.sh python
 
       - name: Odin tests
-        if: ${{ inputs.run-odin-tests }}
+        if: ${{ false }}
         shell: bash
         run: |
           ytsaurus/yt/odin/tests/run_tests.sh

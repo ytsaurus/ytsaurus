@@ -134,6 +134,21 @@ cmd_move_binaries() {
         mv "${ut_binary}" "${output_build_path}"
     done
 
+    # Flow tests resolve these binaries by their build-tree paths.
+    local flow_server="yt/yt/flow/bin/flow_server/flow_server"
+    strip "${flow_server}"
+    mkdir -p "${output_build_path}/$(dirname "${flow_server}")"
+    mv "${flow_server}" "${output_build_path}/$(dirname "${flow_server}")"
+
+    for flow_example_dir in yt/yt/flow/examples/cpp/*/; do
+        local flow_example_binary="${flow_example_dir}$(basename "${flow_example_dir}")"
+        if [ -f "${flow_example_binary}" ]; then
+            strip "${flow_example_binary}"
+            mkdir -p "${output_build_path}/${flow_example_dir}"
+            mv "${flow_example_binary}" "${output_build_path}/${flow_example_dir}"
+        fi
+    done
+
     local scheduler_simulator="yt/yt/tools/scheduler_simulator/bin/scheduler_simulator"
     strip "${scheduler_simulator}"
     mv "${scheduler_simulator}" "${output_build_path}"

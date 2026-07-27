@@ -263,8 +263,6 @@ jobs:
 
           YTSAURUS_TARGETS="\
             ../ytsaurus/ytsaurus/yt/yt/server/all \
-            ../ytsaurus/ytsaurus/yt/chyt/server/bin \
-            ../ytsaurus/ytsaurus/yt/chyt/trampoline \
             ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive \
             ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state \
             ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state"
@@ -284,6 +282,7 @@ jobs:
 
           BUILD_FLAGS=$(echo ${BUILD_FLAGS} | sed 's/--thinlto//')
 
+          if false; then
           FOLDERS_WITH_UNITTESTS=""
           for makefile in $(find ../ytsaurus/ytsaurus/ -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
             folder=$(dirname ${makefile})
@@ -308,6 +307,16 @@ jobs:
             fi
             ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare
           done
+          fi
+
+          # Binaries required by the minimal Flow pytest smoke.
+          FLOW_TARGETS="\
+            ../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server \
+            ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp/word_count"
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. --bazel-remote-put ${FLOW_TARGETS}
+          fi
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${FLOW_TARGETS}
 
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}

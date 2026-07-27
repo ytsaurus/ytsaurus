@@ -95,6 +95,9 @@ def _derive_test_name(cls, method) -> str:
 
     # YPath special symbols (https://ytsaurus.tech/docs/en/user-guide/storage/ypath#simple_ypath_lexis) + some extra symbols.
     special_symbols = ["{", "}", "[", "]", "(", ")", "/", "@", "&", "*", ":"]
+    if os.environ.get("YT_FLOW_PLAIN_PYTEST") == "1":
+        test_name = f"{cls.__class__.__module__}::{test_name}"
+        special_symbols.append(".")
 
     test_name = test_name.translate(str.maketrans({special_symbol: "_" for special_symbol in special_symbols}))
     test_name = "_".join(part for part in test_name.split("_") if part)
@@ -311,9 +314,7 @@ class FlowTestBase:
                         f"{ui_address}navigation?path={cls.base_work_yt_path}"
                         f" (proxy: {url})\n"
                     )
-        message += (
-            "    About test framework: yt/yt/flow/library/python/integration_test_base/README.md\n"
-        )
+        message += "    About test framework: yt/yt/flow/library/python/integration_test_base/README.md\n"
         logging.info("%s", message)
         cls.try_print_tty(message)  # Ignore if printing failed.
 
@@ -360,6 +361,15 @@ class FlowTestBase:
             default_config_parameters.fill_runner_test_defaults(config)
         else:
             default_config_parameters.fill_flow_node_test_defaults(config)
+        if os.environ.get("YT_FLOW_PLAIN_PYTEST") == "1":
+            config.setdefault("address_resolver", {}).update(
+                {
+                    "enable_ipv4": True,
+                    "enable_ipv6": False,
+                    "localhost_name_override": "127.0.0.1",
+                    "resolve_hostname_into_fqdn": False,
+                }
+            )
 
     def dump_config_to_log_dir(self, config: dict, name: str):
         prepared_path = os.path.join(self.path_to_flow_logs, name)

@@ -22,11 +22,6 @@ RECURSE(
 )
 
 RECURSE_FOR_TESTS(
+    test
     unittest
 )
-
-IF (NOT OPENSOURCE)
-    RECURSE_FOR_TESTS(
-        test
-    )
-ENDIF()

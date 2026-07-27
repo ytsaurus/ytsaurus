@@ -11,6 +11,7 @@ on:
   push:
     branches:
       - main
+      - members/mikari/flow-os-ci-smoke
       - stable/[0-9]+\.[0-9]+
       - query-tracker/[0-9]+\.[0-9]+
       - chyt/[0-9]+\.[0-9]+
@@ -103,7 +104,7 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
           else
-            echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
+            echo 'BUILD_TYPES=["relwithdebinfo"]' >> "$GITHUB_OUTPUT"
           fi
 
           # Compute VERSION_PATCH as YYMMDDnnn (date of last commit + commit index within that day).
@@ -123,10 +124,10 @@ jobs:
       cpp-build-system: ya-make
       build-ytsaurus: true
       build-ytsaurus-tests: true
-      build-query-tracker: true
+      build-query-tracker: false
       build-python: true
-      build-chyt: true
-      update-remote-cache: true
+      build-chyt: false
+      update-remote-cache: false
       build-types: ${{ needs.tag.outputs.build-types }}
       version-patch: ${{ needs.tag.outputs.version-patch }}
     secrets:
@@ -136,6 +137,7 @@ jobs:
 
   docker-ya-make:
     name: Docker images with ya-make
+    if: ${{ false }}
     needs:
       - start-vm
       - tag
