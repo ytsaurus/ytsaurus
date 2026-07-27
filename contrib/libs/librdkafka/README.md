@@ -1,5 +1,5 @@
-librdkafka - the Apache Kafka C/C++ client library
-==================================================
+librdkafka - the Apache Kafka® C/C++ client library
+===================================================
 
 Copyright (c) 2012-2022, [Magnus Edenhill](http://www.edenhill.se/).
               2023 [Confluent Inc.](https://www.confluent.io/).
@@ -19,10 +19,11 @@ has been licensed for use by librdkafka. librdkafka has no
 affiliation with and is not endorsed by The Apache Software Foundation.
 
 
-# Features #
+# Features
   * Full Exactly-Once-Semantics (EOS) support
   * High-level producer, including Idempotent and Transactional producers
   * High-level balanced KafkaConsumer (requires broker >= 0.9)
+  * Share consumer / Queues for Kafka ([KIP-932](INTRODUCTION.md#share-consumers-queues-for-kafka)) — **Preview**, C API only (requires broker >= 4.2)
   * Simple (legacy) consumer
   * Admin client
   * Compression: snappy, gzip, lz4, zstd
@@ -147,6 +148,7 @@ See [getting Started with Apache Kafka and C/C++](https://developer.confluent.io
 
     * Producers: basic producers, idempotent producers, transactional producers.
     * Consumers: basic consumers, reading batches of messages.
+    * Share consumers (Queues for Kafka, KIP-932, Preview): see the `share_consumer*` examples.
     * Performance and latency testing tools.
 
 2. Refer to the [examples GitHub repo](https://github.com/confluentinc/examples/tree/master/clients/cloud/c) for code connecting to a cloud streaming data service based on Apache Kafka
@@ -168,7 +170,7 @@ File bug reports and feature requests using [GitHub Issues](https://github.com/c
 Questions and discussions are welcome on the [Discussions](https://github.com/confluentinc/librdkafka/discussions) forum, and on the [Confluent Community slack](https://launchpass.com/confluentcommunity) #clients channel.
 
 
-# Language bindings #
+# Language bindings
 
   * C#/.NET: [confluent-kafka-dotnet](https://github.com/confluentinc/confluent-kafka-dotnet) (based on [rdkafka-dotnet](https://github.com/ah-/rdkafka-dotnet))
   * C++: [cppkafka](https://github.com/mfontanini/cppkafka)

@@ -123,6 +123,7 @@ int rd_kafka_err_action(rd_kafka_broker_t *rkb,
         case RD_KAFKA_RESP_ERR_COORDINATOR_NOT_AVAILABLE:
         case RD_KAFKA_RESP_ERR_NOT_COORDINATOR:
         case RD_KAFKA_RESP_ERR__WAIT_COORD:
+        case RD_KAFKA_RESP_ERR__DESTROY_BROKER:
                 /* Request metadata information update */
                 actions |= RD_KAFKA_ERR_ACTION_REFRESH |
                            RD_KAFKA_ERR_ACTION_MSG_NOT_PERSISTED;
@@ -200,16 +201,15 @@ int rd_kafka_err_action(rd_kafka_broker_t *rkb,
         return actions;
 }
 
-
 /**
  * @brief Read a list of topic+partitions+extra from \p rkbuf.
  *
- * @param rkbuf buffer to read from
+ * @param rkbuf Buffer to read from
  * @param fields An array of fields to read from the buffer and set on
  *               the rktpar object, in the specified order, must end
  *               with RD_KAFKA_TOPIC_PARTITION_FIELD_END.
  *
- * @returns a newly allocated list on success, or NULL on parse error.
+ * @returns A newly allocated list on success, or NULL on parse error.
  */
 rd_kafka_topic_partition_list_t *rd_kafka_buf_read_topic_partitions(
     rd_kafka_buf_t *rkbuf,
@@ -217,14 +217,44 @@ rd_kafka_topic_partition_list_t *rd_kafka_buf_read_topic_partitions(
     rd_bool_t use_topic_name,
     size_t estimated_part_cnt,
     const rd_kafka_topic_partition_field_t *fields) {
+        rd_bool_t parse_err;
+        /* Even if NULL it should be treated as a parse error,
+         * as this field isn't nullable. */
+        return rd_kafka_buf_read_topic_partitions_nullable(
+            rkbuf, use_topic_id, use_topic_name, estimated_part_cnt, fields,
+            &parse_err);
+}
+
+/**
+ * @brief Read a nullable list of topic+partitions+extra from \p rkbuf.
+ *
+ * @param rkbuf Buffer to read from
+ * @param fields An array of fields to read from the buffer and set on
+ *               the rktpar object, in the specified order, must end
+ *               with RD_KAFKA_TOPIC_PARTITION_FIELD_END.
+ * @param parse_err Is set to true if a parsing error occurred.
+ *
+ * @returns A newly allocated list, or NULL.
+ */
+rd_kafka_topic_partition_list_t *rd_kafka_buf_read_topic_partitions_nullable(
+    rd_kafka_buf_t *rkbuf,
+    rd_bool_t use_topic_id,
+    rd_bool_t use_topic_name,
+    size_t estimated_part_cnt,
+    const rd_kafka_topic_partition_field_t *fields,
+    rd_bool_t *parse_err) {
         const int log_decode_errors = LOG_ERR;
         int32_t TopicArrayCnt;
         rd_kafka_topic_partition_list_t *parts = NULL;
 
-        /* We assume here that the topic partition list is not NULL.
-         * FIXME: check NULL topic array case, if required in future. */
+        rd_dassert(parse_err);
+        *parse_err = rd_false;
 
         rd_kafka_buf_read_arraycnt(rkbuf, &TopicArrayCnt, RD_KAFKAP_TOPICS_MAX);
+        if (TopicArrayCnt < -1)
+                goto err_parse;
+        else if (TopicArrayCnt == -1)
+                return NULL;
 
         parts = rd_kafka_topic_partition_list_new(
             RD_MAX(TopicArrayCnt * 4, (int)estimated_part_cnt));
@@ -334,6 +364,7 @@ err_parse:
         if (parts)
                 rd_kafka_topic_partition_list_destroy(parts);
 
+        *parse_err = rd_true;
         return NULL;
 }
 
@@ -531,6 +562,9 @@ int rd_kafka_buf_read_NodeEndpoints(rd_kafka_buf_t *rkbuf,
         int32_t i;
         rd_kafka_buf_read_arraycnt(rkbuf, &NodeEndpoints->NodeEndpointCnt,
                                    RD_KAFKAP_BROKERS_MAX);
+        // printf(" ---------------------------------------
+        // rd_kafka_buf_read_NodeEndpoints: NodeEndpointCnt=%d\n",
+        //        NodeEndpoints->NodeEndpointCnt);
         rd_dassert(!NodeEndpoints->NodeEndpoints);
         NodeEndpoints->NodeEndpoints =
             rd_calloc(NodeEndpoints->NodeEndpointCnt,
@@ -1132,6 +1166,11 @@ void rd_kafka_OffsetForLeaderEpochRequest(
 }
 
 
+int rd_kafka_handle_OffsetFetch_err_action(rd_kafka_broker_t *rkb,
+                                           rd_kafka_resp_err_t err,
+                                           rd_kafka_buf_t *request) {
+        return rd_kafka_err_action(rkb, err, request, RD_KAFKA_ERR_ACTION_END);
+}
 
 /**
  * Generic handler for OffsetFetch responses.
@@ -1331,8 +1370,7 @@ err:
                            seen_cnt, (*offsets)->cnt, retry_unstable,
                            rd_kafka_err2str(err));
 
-        actions =
-            rd_kafka_err_action(rkb, err, request, RD_KAFKA_ERR_ACTION_END);
+        actions = rd_kafka_handle_OffsetFetch_err_action(rkb, err, request);
 
         if (actions & RD_KAFKA_ERR_ACTION_REFRESH) {
                 /* Re-query for coordinator */
@@ -1695,9 +1733,9 @@ rd_kafka_handle_OffsetCommit(rd_kafka_t *rk,
                         continue;
                 }
 
+                rktpar->err = partition->err;
                 if (partition->err) {
-                        rktpar->err = partition->err;
-                        err         = partition->err;
+                        err = partition->err;
                         errcnt++;
                         /* Accumulate actions for per-partition
                          * errors. */
@@ -2242,7 +2280,8 @@ void rd_kafka_ConsumerGroupHeartbeatRequest(
     const rd_kafkap_str_t *group_instance_id,
     const rd_kafkap_str_t *rack_id,
     int32_t rebalance_timeout_ms,
-    const rd_kafka_topic_partition_list_t *subscribe_topics,
+    const rd_kafka_topic_partition_list_t *subscribed_topics,
+    rd_kafkap_str_t *subscribed_topic_regex,
     const rd_kafkap_str_t *remote_assignor,
     const rd_kafka_topic_partition_list_t *current_assignments,
     rd_kafka_replyq_t replyq,
@@ -2253,26 +2292,37 @@ void rd_kafka_ConsumerGroupHeartbeatRequest(
         int16_t ApiVersion = 0;
         int features;
         size_t rkbuf_size = 0;
+        rd_kafkap_str_t *subscribed_topic_regex_to_send =
+            subscribed_topic_regex;
 
         ApiVersion = rd_kafka_broker_ApiVersion_supported(
-            rkb, RD_KAFKAP_ConsumerGroupHeartbeat, 0, 0, &features);
+            rkb, RD_KAFKAP_ConsumerGroupHeartbeat, 1, 1, &features);
+
+        if (ApiVersion == -1) {
+                rd_kafka_cgrp_coord_dead(rkb->rkb_rk->rk_cgrp,
+                                         RD_KAFKA_RESP_ERR__UNSUPPORTED_FEATURE,
+                                         "ConsumerGroupHeartbeatRequest not "
+                                         "supported by broker");
+                return;
+        }
 
         if (rd_rkb_is_dbg(rkb, CGRP)) {
-                char current_assignments_str[512] = "NULL";
-                char subscribe_topics_str[512]    = "NULL";
-                const char *member_id_str         = "NULL";
-                const char *group_instance_id_str = "NULL";
-                const char *remote_assignor_str   = "NULL";
+                char current_assignments_str[512]              = "NULL";
+                char subscribed_topics_str[512]                = "NULL";
+                const char *member_id_str                      = "NULL";
+                const char *group_instance_id_str              = "NULL";
+                const char *remote_assignor_str                = "NULL";
+                const char *subscribed_topic_regex_to_send_str = "NULL";
 
                 if (current_assignments) {
                         rd_kafka_topic_partition_list_str(
                             current_assignments, current_assignments_str,
                             sizeof(current_assignments_str), 0);
                 }
-                if (subscribe_topics) {
+                if (subscribed_topics) {
                         rd_kafka_topic_partition_list_str(
-                            subscribe_topics, subscribe_topics_str,
-                            sizeof(subscribe_topics_str), 0);
+                            subscribed_topics, subscribed_topics_str,
+                            sizeof(subscribed_topics_str), 0);
                 }
                 if (member_id)
                         member_id_str = member_id->str;
@@ -2280,6 +2330,9 @@ void rd_kafka_ConsumerGroupHeartbeatRequest(
                         group_instance_id_str = group_instance_id->str;
                 if (remote_assignor)
                         remote_assignor_str = remote_assignor->str;
+                if (subscribed_topic_regex_to_send)
+                        subscribed_topic_regex_to_send_str =
+                            subscribed_topic_regex_to_send->str;
 
                 rd_rkb_dbg(rkb, CGRP, "HEARTBEAT",
                            "ConsumerGroupHeartbeat of member id \"%s\", group "
@@ -2287,19 +2340,27 @@ void rd_kafka_ConsumerGroupHeartbeatRequest(
                            "generation id %" PRId32
                            ", group instance id \"%s\""
                            ", current assignment \"%s\""
-                           ", subscribe topics \"%s\""
+                           ", subscribed topics \"%s\""
+                           ", subscribed topic regex \"%s\""
                            ", remote assignor \"%s\"",
                            member_id_str, group_id->str, member_epoch,
                            group_instance_id_str, current_assignments_str,
-                           subscribe_topics_str, remote_assignor_str);
+                           subscribed_topics_str,
+                           subscribed_topic_regex_to_send_str,
+                           remote_assignor_str);
         }
 
         size_t next_subscription_size = 0;
 
-        if (subscribe_topics) {
+        if (!subscribed_topic_regex_to_send)
+                subscribed_topic_regex_to_send = rd_kafkap_str_new(NULL, -1);
+
+        if (subscribed_topics) {
                 next_subscription_size =
-                    ((subscribe_topics->cnt * (4 + 50)) + 4);
+                    ((subscribed_topics->cnt * (4 + 50)) + 4);
         }
+        next_subscription_size +=
+            RD_KAFKAP_STR_SIZE(subscribed_topic_regex_to_send);
 
         if (group_id)
                 rkbuf_size += RD_KAFKAP_STR_SIZE(group_id);
@@ -2329,22 +2390,22 @@ void rd_kafka_ConsumerGroupHeartbeatRequest(
         rd_kafka_buf_write_kstr(rkbuf, rack_id);
         rd_kafka_buf_write_i32(rkbuf, rebalance_timeout_ms);
 
-        if (subscribe_topics) {
-                size_t of_TopicsArrayCnt;
-                int topics_cnt = subscribe_topics->cnt;
+        if (subscribed_topics) {
+                int topics_cnt = subscribed_topics->cnt;
 
                 /* write Topics */
-                of_TopicsArrayCnt = rd_kafka_buf_write_arraycnt_pos(rkbuf);
-                rd_kafka_buf_finalize_arraycnt(rkbuf, of_TopicsArrayCnt,
-                                               topics_cnt);
+                rd_kafka_buf_write_arraycnt(rkbuf, topics_cnt);
                 while (--topics_cnt >= 0)
                         rd_kafka_buf_write_str(
-                            rkbuf, subscribe_topics->elems[topics_cnt].topic,
+                            rkbuf, subscribed_topics->elems[topics_cnt].topic,
                             -1);
 
         } else {
                 rd_kafka_buf_write_arraycnt(rkbuf, -1);
         }
+
+        if (ApiVersion >= 1)
+                rd_kafka_buf_write_kstr(rkbuf, subscribed_topic_regex_to_send);
 
         rd_kafka_buf_write_kstr(rkbuf, remote_assignor);
 
@@ -2379,9 +2440,106 @@ void rd_kafka_ConsumerGroupHeartbeatRequest(
         }
 
         rd_kafka_broker_buf_enq_replyq(rkb, rkbuf, replyq, resp_cb, opaque);
+
+        if (!subscribed_topic_regex)
+                rd_kafkap_str_destroy(subscribed_topic_regex_to_send);
 }
 
+void rd_kafka_ShareGroupHeartbeatRequest(
+    rd_kafka_broker_t *rkb,
+    const rd_kafkap_str_t *group_id,
+    const rd_kafkap_str_t *member_id,
+    int32_t member_epoch,
+    const rd_kafkap_str_t *rack_id,
+    const rd_kafka_topic_partition_list_t *subscribed_topics,
+    rd_kafka_replyq_t replyq,
+    rd_kafka_resp_cb_t *resp_cb,
+    void *opaque) {
+        rd_kafka_buf_t *rkbuf;
+        int16_t ApiVersion = 0;
+        int features;
+        size_t rkbuf_size = 0;
 
+        ApiVersion = rd_kafka_broker_ApiVersion_supported(
+            rkb, RD_KAFKAP_ShareGroupHeartbeat, 1, 1, &features);
+
+        rd_rkb_dbg(rkb, CGRP, "SHAREHEARTBEAT",
+                   "ShareGroupHeartbeat version %d for group \"%s\", member id "
+                   "\"%s\", topic count = %d",
+                   ApiVersion, group_id ? group_id->str : "NULL",
+                   member_id ? member_id->str : "NULL",
+                   subscribed_topics ? subscribed_topics->cnt : -1);
+
+        if (ApiVersion == -1) {
+                rd_kafka_cgrp_coord_dead(rkb->rkb_rk->rk_cgrp,
+                                         RD_KAFKA_RESP_ERR__UNSUPPORTED_FEATURE,
+                                         "ShareGroupHeartbeatRequest not "
+                                         "supported by broker");
+                return;
+        }
+
+        // debug log all the fields
+        if (rd_rkb_is_dbg(rkb, CGRP)) {
+                char subscribed_topics_str[512] = "NULL";
+                if (subscribed_topics) {
+                        rd_kafka_topic_partition_list_str(
+                            subscribed_topics, subscribed_topics_str,
+                            sizeof(subscribed_topics_str), 0);
+                }
+                rd_rkb_dbg(rkb, CGRP, "SHAREHEARTBEAT",
+                           "ShareGroupHeartbeat of group id \"%s\", "
+                           "member id \"%s\", member epoch %d, rack id \"%s\""
+                           ", subscribed topics \"%s\"",
+                           group_id ? group_id->str : "NULL",
+                           member_id ? member_id->str : "NULL", member_epoch,
+                           rack_id ? rack_id->str : "NULL",
+                           subscribed_topics_str);
+        }
+
+        if (group_id)
+                rkbuf_size += RD_KAFKAP_STR_SIZE(group_id);
+        if (member_id)
+                rkbuf_size += RD_KAFKAP_STR_SIZE(member_id);
+        rkbuf_size += 4; /* MemberEpoch */
+        if (rack_id)
+                rkbuf_size += RD_KAFKAP_STR_SIZE(rack_id);
+        if (subscribed_topics) {
+                rkbuf_size +=
+                    ((subscribed_topics->cnt * (4 + 50)) + 4 /* array size */);
+        }
+
+        rkbuf = rd_kafka_buf_new_flexver_request(
+            rkb, RD_KAFKAP_ShareGroupHeartbeat, 1, rkbuf_size, rd_true);
+
+        rd_kafka_buf_write_kstr(rkbuf, group_id);
+        rd_kafka_buf_write_kstr(rkbuf, member_id);
+        rd_kafka_buf_write_i32(rkbuf, member_epoch);
+        rd_kafka_buf_write_kstr(rkbuf, rack_id);
+
+        if (subscribed_topics) {
+                int topics_cnt = subscribed_topics->cnt;
+
+                /* write Topics */
+                rd_kafka_buf_write_arraycnt(rkbuf, topics_cnt);
+                while (--topics_cnt >= 0) {
+                        if (rd_rkb_is_dbg(rkb, CGRP))
+                                rd_rkb_dbg(
+                                    rkb, CGRP, "SHAREHEARTBEAT",
+                                    "ShareGroupHeartbeat subscribed "
+                                    "topic %s",
+                                    subscribed_topics->elems[topics_cnt].topic);
+                        rd_kafka_buf_write_str(
+                            rkbuf, subscribed_topics->elems[topics_cnt].topic,
+                            -1);
+                }
+        } else {
+                rd_kafka_buf_write_arraycnt(rkbuf, -1);
+        }
+
+        rd_kafka_buf_ApiVersion_set(rkbuf, ApiVersion, features);
+
+        rd_kafka_broker_buf_enq_replyq(rkb, rkbuf, replyq, resp_cb, opaque);
+}
 
 /**
  * @brief Construct and send ListGroupsRequest to \p rkb
@@ -2478,7 +2636,7 @@ rd_kafka_DescribeGroupsRequest(rd_kafka_broker_t *rkb,
         size_t of_GroupsArrayCnt;
 
         if (max_ApiVersion < 0)
-                max_ApiVersion = 4;
+                max_ApiVersion = 5;
 
         if (max_ApiVersion > ApiVersion) {
                 /* Remark: don't check if max_ApiVersion is zero.
@@ -2497,9 +2655,9 @@ rd_kafka_DescribeGroupsRequest(rd_kafka_broker_t *rkb,
         rkbuf = rd_kafka_buf_new_flexver_request(
             rkb, RD_KAFKAP_DescribeGroups, 1,
             4 /* rd_kafka_buf_write_arraycnt_pos */ +
-                1 /* IncludeAuthorizedOperations */ + 1 /* tags */ +
+                1 /* IncludeAuthorizedOperations */ +
                 32 * group_cnt /* Groups */,
-            rd_false);
+            ApiVersion >= 5 /* is_flexver */);
 
         /* write Groups */
         of_GroupsArrayCnt = rd_kafka_buf_write_arraycnt_pos(rkbuf);
@@ -2531,9 +2689,11 @@ static void rd_kafka_handle_Metadata(rd_kafka_t *rk,
         rd_kafka_op_t *rko                = opaque; /* Possibly NULL */
         rd_kafka_metadata_internal_t *mdi = NULL;
         const rd_list_t *topics           = request->rkbuf_u.Metadata.topics;
+        const int32_t cgrp_subscription_version =
+            request->rkbuf_u.Metadata.cgrp_subscription_version;
         int actions;
 
-        rd_kafka_assert(NULL, err == RD_KAFKA_RESP_ERR__DESTROY ||
+        rd_kafka_assert(NULL, rd_kafka_broker_is_any_err_destroy(err) ||
                                   thrd_is_current(rk->rk_thread));
 
         /* Avoid metadata updates when we're terminating. */
@@ -2561,12 +2721,15 @@ static void rd_kafka_handle_Metadata(rd_kafka_t *rk,
         if (err)
                 goto err;
 
+        rd_kafka_rebootstrap_tmr_stop(rk);
         if (rko && rko->rko_replyq.q) {
                 /* Reply to metadata requester, passing on the metadata.
                  * Reuse requesting rko for the reply. */
                 rko->rko_err            = err;
                 rko->rko_u.metadata.md  = &mdi->metadata;
                 rko->rko_u.metadata.mdi = mdi;
+                rko->rko_u.metadata.subscription_version =
+                    cgrp_subscription_version;
                 rd_kafka_replyq_enq(&rko->rko_replyq, rko, 0);
                 rko = NULL;
         } else {
@@ -2577,35 +2740,50 @@ static void rd_kafka_handle_Metadata(rd_kafka_t *rk,
         goto done;
 
 err:
-        actions = rd_kafka_err_action(rkb, err, request,
+        actions = rd_kafka_err_action(
+            rkb, err, request,
 
-                                      RD_KAFKA_ERR_ACTION_RETRY,
-                                      RD_KAFKA_RESP_ERR__PARTIAL,
+            RD_KAFKA_ERR_ACTION_SPECIAL, RD_KAFKA_RESP_ERR_REBOOTSTRAP_REQUIRED,
 
-                                      RD_KAFKA_ERR_ACTION_END);
+            RD_KAFKA_ERR_ACTION_RETRY, RD_KAFKA_RESP_ERR__PARTIAL,
+
+            RD_KAFKA_ERR_ACTION_END);
+
+        if (actions & RD_KAFKA_ERR_ACTION_SPECIAL) {
+                rd_kafka_rebootstrap(rk);
+        }
 
         if (actions & RD_KAFKA_ERR_ACTION_RETRY) {
-                if (rd_kafka_buf_retry(rkb, request))
+                /* In case it's a brokers full refresh call,
+                 * avoid retrying it on this same broker.
+                 * This is to prevent client is hung
+                 * until it can connect to this broker again.
+                 * No need to acquire the lock here but
+                 * when decrementing the integer pointed
+                 * by `decr`. */
+                if (!request->rkbuf_u.Metadata.decr &&
+                    rd_kafka_buf_retry(rkb, request))
                         return;
                 /* FALLTHRU */
-        } else {
+        }
+
+        if (actions & RD_KAFKA_ERR_ACTION_PERMANENT) {
                 rd_rkb_log(rkb, LOG_WARNING, "METADATA",
                            "Metadata request failed: %s: %s (%dms): %s",
                            request->rkbuf_u.Metadata.reason,
                            rd_kafka_err2str(err),
                            (int)(request->rkbuf_ts_sent / 1000),
                            rd_kafka_actions2str(actions));
-                /* Respond back to caller on non-retriable errors */
-                if (rko && rko->rko_replyq.q) {
-                        rko->rko_err            = err;
-                        rko->rko_u.metadata.md  = NULL;
-                        rko->rko_u.metadata.mdi = NULL;
-                        rd_kafka_replyq_enq(&rko->rko_replyq, rko, 0);
-                        rko = NULL;
-                }
         }
 
-
+        /* Respond back to caller on non-retriable errors */
+        if (rko && rko->rko_replyq.q) {
+                rko->rko_err            = err;
+                rko->rko_u.metadata.md  = NULL;
+                rko->rko_u.metadata.mdi = NULL;
+                rd_kafka_replyq_enq(&rko->rko_replyq, rko, 0);
+                rko = NULL;
+        }
 
         /* FALLTHRU */
 
@@ -2668,6 +2846,18 @@ done:
  *
  * @sa rd_kafka_MetadataRequest().
  * @sa rd_kafka_MetadataRequest_resp_cb().
+ *
+ * @locality any
+ * @locks none
+ * @locks_acquired
+ *  - mtx_lock(&rkb->rkb_rk->rk_metadata_cache.rkmc_full_lock) in
+ *    this function
+ *  - rd_kafka_broker_lock() in
+ *    rd_kafka_broker_ApiVersion_supported()
+ *  - rd_kafka_timers_lock() in
+ *    rd_kafka_rebootstrap_tmr_start_maybe()
+ *  - mtx_lock(&rkq->rkq_lock) in
+ *    rd_kafka_broker_buf_enq_replyq()
  */
 static rd_kafka_resp_err_t
 rd_kafka_MetadataRequest0(rd_kafka_broker_t *rkb,
@@ -2678,6 +2868,7 @@ rd_kafka_MetadataRequest0(rd_kafka_broker_t *rkb,
                           rd_bool_t include_cluster_authorized_operations,
                           rd_bool_t include_topic_authorized_operations,
                           rd_bool_t cgrp_update,
+                          int32_t cgrp_subscription_version,
                           rd_bool_t force_racks,
                           rd_kafka_op_t *rko,
                           rd_kafka_resp_cb_t *resp_cb,
@@ -2694,7 +2885,7 @@ rd_kafka_MetadataRequest0(rd_kafka_broker_t *rkb,
         int *full_incr                 = NULL;
         void *handler_arg              = NULL;
         rd_kafka_resp_cb_t *handler_cb = rd_kafka_handle_Metadata;
-        int16_t metadata_max_version   = 12;
+        int16_t metadata_max_version   = 13;
         rd_kafka_replyq_t use_replyq   = replyq;
 
         /* In case we want cluster authorized operations in the Metadata
@@ -2721,9 +2912,10 @@ rd_kafka_MetadataRequest0(rd_kafka_broker_t *rkb,
         if (!reason)
                 reason = "";
 
-        rkbuf->rkbuf_u.Metadata.reason      = rd_strdup(reason);
-        rkbuf->rkbuf_u.Metadata.cgrp_update = cgrp_update;
-        rkbuf->rkbuf_u.Metadata.force_racks = force_racks;
+        rkbuf->rkbuf_u.Metadata.reason                    = rd_strdup(reason);
+        rkbuf->rkbuf_u.Metadata.cgrp_update               = cgrp_update;
+        rkbuf->rkbuf_u.Metadata.force_racks               = force_racks;
+        rkbuf->rkbuf_u.Metadata.cgrp_subscription_version = -1;
 
         /* TopicArrayCnt */
         of_TopicArrayCnt = rd_kafka_buf_write_arraycnt_pos(rkbuf);
@@ -2799,8 +2991,27 @@ rd_kafka_MetadataRequest0(rd_kafka_broker_t *rkb,
                 rkbuf->rkbuf_u.Metadata.decr = full_incr;
                 rkbuf->rkbuf_u.Metadata.decr_lock =
                     &rkb->rkb_rk->rk_metadata_cache.rkmc_full_lock;
+        } else if (!resp_cb) {
+                /*
+                 * Conditions for starting the rebootstrap timer:
+                 *
+                 * !full_incr:
+                 * In case it's a full request, forced or not, it won't be
+                 * retried on the same broker to avoid blocking metadata
+                 * requests, because of the lock, when that broker isn't
+                 * available. We don't start the timer as we cannot ensure the
+                 * request is retried for the duration of
+                 * `metadata.recovery.rebootstrap.trigger.ms`.
+                 *
+                 * !resp_cb:
+                 * Same reasoning applies when we use a custom callback, for the
+                 * AdminClient requests for example.
+                 *
+                 * Start the rebootstrap timer only if it's the first
+                 * metadata refresh request after last successful response,
+                 * so the timer is not reset if already scheduled. */
+                rd_kafka_rebootstrap_tmr_start_maybe(rkb->rkb_rk);
         }
-
 
         if (topic_cnt > 0) {
                 char *topic;
@@ -2898,6 +3109,13 @@ rd_kafka_MetadataRequest0(rd_kafka_broker_t *rkb,
         if (!use_replyq.q)
                 use_replyq = RD_KAFKA_REPLYQ(rkb->rkb_rk->rk_ops, 0);
 
+        if (cgrp_update && rkb->rkb_rk->rk_cgrp && total_topic_cnt > 0) {
+                rkbuf->rkbuf_u.Metadata.cgrp_subscription_version =
+                    cgrp_subscription_version >= 0
+                        ? cgrp_subscription_version
+                        : rd_atomic32_get(
+                              &rkb->rkb_rk->rk_cgrp->rkcg_subscription_version);
+        }
         rd_kafka_broker_buf_enq_replyq(
             rkb, rkbuf, use_replyq,
             /* The default response handler is rd_kafka_handle_Metadata, but we
@@ -2924,6 +3142,7 @@ rd_kafka_MetadataRequest0(rd_kafka_broker_t *rkb,
  *                                   This is best-effort, depending on broker
  *                                   config and version.
  * @param cgrp_update - Update cgrp in parse_Metadata (see comment there).
+ * @param subscription_version - Consumer group subscription version.
  * @param force_racks - Force partition to rack mapping computation in
  *                      parse_Metadata (see comment there).
  * @param rko       - (optional) rko with replyq for handling response.
@@ -2946,13 +3165,14 @@ rd_kafka_resp_err_t rd_kafka_MetadataRequest(rd_kafka_broker_t *rkb,
                                              const char *reason,
                                              rd_bool_t allow_auto_create_topics,
                                              rd_bool_t cgrp_update,
+                                             int32_t cgrp_subscription_version,
                                              rd_bool_t force_racks,
                                              rd_kafka_op_t *rko) {
         return rd_kafka_MetadataRequest0(
             rkb, topics, topic_ids, reason, allow_auto_create_topics,
             rd_false /*don't include cluster authorized operations*/,
             rd_false /*don't include topic authorized operations*/, cgrp_update,
-            force_racks, rko,
+            cgrp_subscription_version, force_racks, rko,
             /* We use the default rd_kafka_handle_Metadata rather than a custom
                resp_cb */
             NULL,
@@ -3011,6 +3231,7 @@ rd_kafka_resp_err_t rd_kafka_MetadataRequest_resp_cb(
     rd_bool_t include_cluster_authorized_operations,
     rd_bool_t include_topic_authorized_operations,
     rd_bool_t cgrp_update,
+    int32_t cgrp_subscription_version,
     rd_bool_t force_racks,
     rd_kafka_resp_cb_t *resp_cb,
     rd_kafka_replyq_t replyq,
@@ -3019,7 +3240,8 @@ rd_kafka_resp_err_t rd_kafka_MetadataRequest_resp_cb(
         return rd_kafka_MetadataRequest0(
             rkb, topics, topics_ids, reason, allow_auto_create_topics,
             include_cluster_authorized_operations,
-            include_topic_authorized_operations, cgrp_update, force_racks,
+            include_topic_authorized_operations, cgrp_update,
+            cgrp_subscription_version, force_racks,
             NULL /* No op - using custom resp_cb. */, resp_cb, replyq, force,
             opaque);
 }
@@ -3243,6 +3465,9 @@ void rd_kafka_handle_SaslAuthenticate(rd_kafka_t *rk,
         rd_kafkap_str_t error_str;
         rd_kafkap_bytes_t auth_data;
         char errstr[512];
+
+        if (rd_kafka_broker_is_any_err_destroy(err))
+                return;
 
         if (err) {
                 rd_snprintf(errstr, sizeof(errstr),
@@ -3504,6 +3729,107 @@ void rd_kafkap_leader_discovery_set_CurrentLeader(
         mdpi->id           = partition_id;
         mdpi->leader_epoch = CurrentLeader->LeaderEpoch;
 }
+
+/**
+ * @brief Apply inline metadata updates from a Share* response.
+ *
+ * Builds a synthetic metadata-internal struct from collected
+ * per-partition CurrentLeader hints plus top-level NodeEndpoints,
+ * and enqueues it as OP_METADATA_UPDATE.
+ *
+ * Entries in \p leader_changes must be grouped by topic_id in
+ * iteration order — naturally satisfied when a parser walks
+ * topic-then-partition.
+ *
+ * @locality broker thread
+ */
+void rd_kafkap_share_leader_changes_apply(
+    rd_kafka_broker_t *rkb,
+    rd_list_t *leader_changes,
+    rd_kafkap_NodeEndpoints_t *NodeEndpoints) {
+        rd_kafkap_share_leader_change_t *lc;
+        int *partitions_per_topic;
+        int distinct_topic_cnt;
+        rd_kafka_Uuid_t prev_topic;
+        rd_tmpabuf_t tbuf;
+        rd_kafka_metadata_internal_t *mdi;
+        rd_kafka_op_t *rko;
+        int32_t nodeid;
+        int k, t_idx, p_idx;
+
+        if (!leader_changes || rd_list_cnt(leader_changes) == 0 ||
+            NodeEndpoints->NodeEndpointCnt == 0)
+                return;
+
+        rd_rkb_dbg(rkb, METADATA, "LEADER",
+                   "Applying inline metadata update from Share response: "
+                   "%d partition leader change(s), %" PRId32
+                   " node endpoint(s)",
+                   rd_list_cnt(leader_changes), NodeEndpoints->NodeEndpointCnt);
+
+        partitions_per_topic =
+            rd_calloc(rd_list_cnt(leader_changes), sizeof(int));
+
+        prev_topic = RD_KAFKA_UUID_ZERO;
+        t_idx      = -1;
+        RD_LIST_FOREACH(lc, leader_changes, k) {
+                if (t_idx < 0 ||
+                    rd_kafka_Uuid_cmp(lc->topic_id, prev_topic) != 0) {
+                        t_idx++;
+                        prev_topic = lc->topic_id;
+                }
+                partitions_per_topic[t_idx]++;
+        }
+        distinct_topic_cnt = t_idx + 1;
+
+        rd_kafka_broker_lock(rkb);
+        nodeid = rkb->rkb_nodeid;
+        rd_kafka_broker_unlock(rkb);
+
+        rd_tmpabuf_new(&tbuf, 0, rd_true /*assert on fail*/);
+        rd_tmpabuf_add_alloc(&tbuf, sizeof(*mdi));
+        rd_kafkap_leader_discovery_tmpabuf_add_alloc_brokers(&tbuf,
+                                                             NodeEndpoints);
+        rd_kafkap_leader_discovery_tmpabuf_add_alloc_topics(&tbuf,
+                                                            distinct_topic_cnt);
+        for (t_idx = 0; t_idx < distinct_topic_cnt; t_idx++)
+                rd_kafkap_leader_discovery_tmpabuf_add_alloc_topic(
+                    &tbuf, NULL, partitions_per_topic[t_idx]);
+        rd_tmpabuf_finalize(&tbuf);
+
+        mdi = rd_tmpabuf_alloc(&tbuf, sizeof(*mdi));
+        rd_kafkap_leader_discovery_metadata_init(mdi, nodeid);
+        rd_kafkap_leader_discovery_set_brokers(&tbuf, mdi, NodeEndpoints);
+        rd_kafkap_leader_discovery_set_topic_cnt(&tbuf, mdi,
+                                                 distinct_topic_cnt);
+
+        prev_topic = RD_KAFKA_UUID_ZERO;
+        t_idx      = -1;
+        p_idx      = 0;
+        RD_LIST_FOREACH(lc, leader_changes, k) {
+                if (t_idx < 0 ||
+                    rd_kafka_Uuid_cmp(lc->topic_id, prev_topic) != 0) {
+                        t_idx++;
+                        p_idx      = 0;
+                        prev_topic = lc->topic_id;
+                        rd_kafkap_leader_discovery_set_topic(
+                            &tbuf, mdi, t_idx, lc->topic_id, NULL,
+                            partitions_per_topic[t_idx]);
+                }
+                rd_kafkap_leader_discovery_set_CurrentLeader(
+                    &tbuf, mdi, t_idx, p_idx, lc->partition,
+                    &lc->current_leader);
+                p_idx++;
+        }
+
+        rd_free(partitions_per_topic);
+
+        rko                     = rd_kafka_op_new(RD_KAFKA_OP_METADATA_UPDATE);
+        rko->rko_u.metadata.md  = &mdi->metadata;
+        rko->rko_u.metadata.mdi = mdi;
+        rd_kafka_q_enq(rkb->rkb_rk->rk_ops, rko);
+}
+
 /**@}*/
 
 static int rd_kafkap_Produce_reply_tags_partition_parse(
@@ -4994,7 +5320,7 @@ rd_kafka_DeleteTopicsRequest(rd_kafka_broker_t *rkb,
         }
 
         ApiVersion = rd_kafka_broker_ApiVersion_supported(
-            rkb, RD_KAFKAP_DeleteTopics, 0, 1, &features);
+            rkb, RD_KAFKAP_DeleteTopics, 0, 4, &features);
         if (ApiVersion == -1) {
                 rd_snprintf(errstr, errstr_size,
                             "Topic Admin API (KIP-4) not supported "
@@ -5003,13 +5329,13 @@ rd_kafka_DeleteTopicsRequest(rd_kafka_broker_t *rkb,
                 return RD_KAFKA_RESP_ERR__UNSUPPORTED_FEATURE;
         }
 
-        rkbuf =
-            rd_kafka_buf_new_request(rkb, RD_KAFKAP_DeleteTopics, 1,
-                                     /* FIXME */
-                                     4 + (rd_list_cnt(del_topics) * 100) + 4);
+        rkbuf = rd_kafka_buf_new_flexver_request(
+            rkb, RD_KAFKAP_DeleteTopics, 1,
+            /* FIXME */
+            4 + (rd_list_cnt(del_topics) * 100) + 4, ApiVersion >= 4);
 
         /* #topics */
-        rd_kafka_buf_write_i32(rkbuf, rd_list_cnt(del_topics));
+        rd_kafka_buf_write_arraycnt(rkbuf, rd_list_cnt(del_topics));
 
         while ((delt = rd_list_elem(del_topics, i++)))
                 rd_kafka_buf_write_str(rkbuf, delt->topic, -1);
@@ -5063,7 +5389,7 @@ rd_kafka_DeleteRecordsRequest(rd_kafka_broker_t *rkb,
         partitions = rd_list_elem(offsets_list, 0);
 
         ApiVersion = rd_kafka_broker_ApiVersion_supported(
-            rkb, RD_KAFKAP_DeleteRecords, 0, 1, &features);
+            rkb, RD_KAFKAP_DeleteRecords, 0, 2, &features);
         if (ApiVersion == -1) {
                 rd_snprintf(errstr, errstr_size,
                             "DeleteRecords Admin API (KIP-107) not supported "
@@ -5071,8 +5397,9 @@ rd_kafka_DeleteRecordsRequest(rd_kafka_broker_t *rkb,
                 return RD_KAFKA_RESP_ERR__UNSUPPORTED_FEATURE;
         }
 
-        rkbuf = rd_kafka_buf_new_request(rkb, RD_KAFKAP_DeleteRecords, 1,
-                                         4 + (partitions->cnt * 100) + 4);
+        rkbuf = rd_kafka_buf_new_flexver_request(
+            rkb, RD_KAFKAP_DeleteRecords, 1, 4 + (partitions->cnt * 100) + 4,
+            ApiVersion >= 2);
 
         const rd_kafka_topic_partition_field_t fields[] = {
             RD_KAFKA_TOPIC_PARTITION_FIELD_PARTITION,
@@ -5133,7 +5460,7 @@ rd_kafka_CreatePartitionsRequest(rd_kafka_broker_t *rkb,
         }
 
         ApiVersion = rd_kafka_broker_ApiVersion_supported(
-            rkb, RD_KAFKAP_CreatePartitions, 0, 0, NULL);
+            rkb, RD_KAFKAP_CreatePartitions, 0, 2, NULL);
         if (ApiVersion == -1) {
                 rd_snprintf(errstr, errstr_size,
                             "CreatePartitions (KIP-195) not supported "
@@ -5142,12 +5469,12 @@ rd_kafka_CreatePartitionsRequest(rd_kafka_broker_t *rkb,
                 return RD_KAFKA_RESP_ERR__UNSUPPORTED_FEATURE;
         }
 
-        rkbuf = rd_kafka_buf_new_request(rkb, RD_KAFKAP_CreatePartitions, 1,
-                                         4 + (rd_list_cnt(new_parts) * 200) +
-                                             4 + 1);
+        rkbuf = rd_kafka_buf_new_flexver_request(
+            rkb, RD_KAFKAP_CreatePartitions, 1,
+            4 + (rd_list_cnt(new_parts) * 200) + 4 + 1, ApiVersion >= 2);
 
         /* #topics */
-        rd_kafka_buf_write_i32(rkbuf, rd_list_cnt(new_parts));
+        rd_kafka_buf_write_arraycnt(rkbuf, rd_list_cnt(new_parts));
 
         while ((newp = rd_list_elem(new_parts, i++))) {
                 /* topic */
@@ -5158,21 +5485,21 @@ rd_kafka_CreatePartitionsRequest(rd_kafka_broker_t *rkb,
 
                 /* #replica_assignment */
                 if (rd_list_empty(&newp->replicas)) {
-                        rd_kafka_buf_write_i32(rkbuf, -1);
+                        rd_kafka_buf_write_arraycnt(rkbuf, -1);
                 } else {
                         const rd_list_t *replicas;
                         int pi = -1;
 
-                        rd_kafka_buf_write_i32(rkbuf,
-                                               rd_list_cnt(&newp->replicas));
+                        rd_kafka_buf_write_arraycnt(
+                            rkbuf, rd_list_cnt(&newp->replicas));
 
                         while (
                             (replicas = rd_list_elem(&newp->replicas, ++pi))) {
                                 int ri = 0;
 
                                 /* replica count */
-                                rd_kafka_buf_write_i32(rkbuf,
-                                                       rd_list_cnt(replicas));
+                                rd_kafka_buf_write_arraycnt(
+                                    rkbuf, rd_list_cnt(replicas));
 
                                 /* replica */
                                 for (ri = 0; ri < rd_list_cnt(replicas); ri++) {
@@ -5180,8 +5507,12 @@ rd_kafka_CreatePartitionsRequest(rd_kafka_broker_t *rkb,
                                             rkbuf,
                                             rd_list_get_int32(replicas, ri));
                                 }
+
+                                rd_kafka_buf_write_tags_empty(rkbuf);
                         }
                 }
+
+                rd_kafka_buf_write_tags_empty(rkbuf);
         }
 
         /* timeout */
@@ -5259,7 +5590,9 @@ rd_kafka_AlterConfigsRequest(rd_kafka_broker_t *rkb,
                 int ei;
 
                 /* ResourceType */
-                rd_kafka_buf_write_i8(rkbuf, config->restype);
+                rd_kafka_buf_write_i8(
+                    rkbuf, rd_kafka_ResourceType_to_ConfigResourceType(
+                               config->restype));
 
                 /* ResourceName */
                 rd_kafka_buf_write_str(rkbuf, config->name, -1);
@@ -5341,7 +5674,9 @@ rd_kafka_resp_err_t rd_kafka_IncrementalAlterConfigsRequest(
                 int ei;
 
                 /* ResourceType */
-                rd_kafka_buf_write_i8(rkbuf, config->restype);
+                rd_kafka_buf_write_i8(
+                    rkbuf, rd_kafka_ResourceType_to_ConfigResourceType(
+                               config->restype));
 
                 /* ResourceName */
                 rd_kafka_buf_write_str(rkbuf, config->name, -1);
@@ -5435,7 +5770,9 @@ rd_kafka_resp_err_t rd_kafka_DescribeConfigsRequest(
                 int ei;
 
                 /* resource_type */
-                rd_kafka_buf_write_i8(rkbuf, config->restype);
+                rd_kafka_buf_write_i8(
+                    rkbuf, rd_kafka_ResourceType_to_ConfigResourceType(
+                               config->restype));
 
                 /* resource_name */
                 rd_kafka_buf_write_str(rkbuf, config->name, -1);
@@ -5503,7 +5840,7 @@ rd_kafka_DeleteGroupsRequest(rd_kafka_broker_t *rkb,
         rd_kafka_DeleteGroup_t *delt;
 
         ApiVersion = rd_kafka_broker_ApiVersion_supported(
-            rkb, RD_KAFKAP_DeleteGroups, 0, 1, &features);
+            rkb, RD_KAFKAP_DeleteGroups, 0, 2, &features);
         if (ApiVersion == -1) {
                 rd_snprintf(errstr, errstr_size,
                             "DeleteGroups Admin API (KIP-229) not supported "
@@ -5512,12 +5849,12 @@ rd_kafka_DeleteGroupsRequest(rd_kafka_broker_t *rkb,
                 return RD_KAFKA_RESP_ERR__UNSUPPORTED_FEATURE;
         }
 
-        rkbuf =
-            rd_kafka_buf_new_request(rkb, RD_KAFKAP_DeleteGroups, 1,
-                                     4 + (rd_list_cnt(del_groups) * 100) + 4);
+        rkbuf = rd_kafka_buf_new_flexver_request(
+            rkb, RD_KAFKAP_DeleteGroups, 1,
+            4 + (rd_list_cnt(del_groups) * 100) + 4, ApiVersion >= 2);
 
         /* #groups */
-        rd_kafka_buf_write_i32(rkbuf, rd_list_cnt(del_groups));
+        rd_kafka_buf_write_arraycnt(rkbuf, rd_list_cnt(del_groups));
 
         while ((delt = rd_list_elem(del_groups, i++)))
                 rd_kafka_buf_write_str(rkbuf, delt->group, -1);
@@ -5580,7 +5917,7 @@ rd_kafka_CreateAclsRequest(rd_kafka_broker_t *rkb,
         }
 
         ApiVersion = rd_kafka_broker_ApiVersion_supported(
-            rkb, RD_KAFKAP_CreateAcls, 0, 1, NULL);
+            rkb, RD_KAFKAP_CreateAcls, 0, 2, NULL);
         if (ApiVersion == -1) {
                 rd_snprintf(errstr, errstr_size,
                             "ACLs Admin API (KIP-140) not supported "
@@ -5621,10 +5958,11 @@ rd_kafka_CreateAclsRequest(rd_kafka_broker_t *rkb,
                 len += rd_kafka_AclBinding_request_size(new_acl, ApiVersion);
         }
 
-        rkbuf = rd_kafka_buf_new_request(rkb, RD_KAFKAP_CreateAcls, 1, len);
+        rkbuf = rd_kafka_buf_new_flexver_request(rkb, RD_KAFKAP_CreateAcls, 1,
+                                                 len, ApiVersion >= 2);
 
         /* #acls */
-        rd_kafka_buf_write_i32(rkbuf, rd_list_cnt(new_acls));
+        rd_kafka_buf_write_arraycnt(rkbuf, rd_list_cnt(new_acls));
 
         RD_LIST_FOREACH(new_acl, new_acls, i) {
                 rd_kafka_buf_write_i8(rkbuf, new_acl->restype);
@@ -5643,6 +5981,8 @@ rd_kafka_CreateAclsRequest(rd_kafka_broker_t *rkb,
                 rd_kafka_buf_write_i8(rkbuf, new_acl->operation);
 
                 rd_kafka_buf_write_i8(rkbuf, new_acl->permission_type);
+
+                rd_kafka_buf_write_tags_empty(rkbuf);
         }
 
         /* timeout */
@@ -5699,7 +6039,7 @@ rd_kafka_resp_err_t rd_kafka_DescribeAclsRequest(
         acl = rd_list_elem(acls, 0);
 
         ApiVersion = rd_kafka_broker_ApiVersion_supported(
-            rkb, RD_KAFKAP_DescribeAcls, 0, 1, NULL);
+            rkb, RD_KAFKAP_DescribeAcls, 0, 2, NULL);
         if (ApiVersion == -1) {
                 rd_snprintf(errstr, errstr_size,
                             "ACLs Admin API (KIP-140) not supported "
@@ -5729,9 +6069,9 @@ rd_kafka_resp_err_t rd_kafka_DescribeAclsRequest(
                 }
         }
 
-        rkbuf = rd_kafka_buf_new_request(
+        rkbuf = rd_kafka_buf_new_flexver_request(
             rkb, RD_KAFKAP_DescribeAcls, 1,
-            rd_kafka_AclBinding_request_size(acl, ApiVersion));
+            rd_kafka_AclBinding_request_size(acl, ApiVersion), ApiVersion >= 2);
 
         /* resource_type */
         rd_kafka_buf_write_i8(rkbuf, acl->restype);
@@ -5804,7 +6144,7 @@ rd_kafka_DeleteAclsRequest(rd_kafka_broker_t *rkb,
         }
 
         ApiVersion = rd_kafka_broker_ApiVersion_supported(
-            rkb, RD_KAFKAP_DeleteAcls, 0, 1, NULL);
+            rkb, RD_KAFKAP_DeleteAcls, 0, 2, NULL);
         if (ApiVersion == -1) {
                 rd_snprintf(errstr, errstr_size,
                             "ACLs Admin API (KIP-140) not supported "
@@ -5840,10 +6180,11 @@ rd_kafka_DeleteAclsRequest(rd_kafka_broker_t *rkb,
                 len += rd_kafka_AclBinding_request_size(acl, ApiVersion);
         }
 
-        rkbuf = rd_kafka_buf_new_request(rkb, RD_KAFKAP_DeleteAcls, 1, len);
+        rkbuf = rd_kafka_buf_new_flexver_request(rkb, RD_KAFKAP_DeleteAcls, 1,
+                                                 len, ApiVersion >= 2);
 
         /* #acls */
-        rd_kafka_buf_write_i32(rkbuf, rd_list_cnt(del_acls));
+        rd_kafka_buf_write_arraycnt(rkbuf, rd_list_cnt(del_acls));
 
         RD_LIST_FOREACH(acl, del_acls, i) {
                 /* resource_type */
@@ -5870,6 +6211,8 @@ rd_kafka_DeleteAclsRequest(rd_kafka_broker_t *rkb,
 
                 /* permission type (rd_kafka_AclPermissionType_t) */
                 rd_kafka_buf_write_i8(rkbuf, acl->permission_type);
+
+                rd_kafka_buf_write_tags_empty(rkbuf);
         }
 
         /* timeout */
@@ -5973,6 +6316,61 @@ rd_kafka_resp_err_t rd_kafka_ElectLeadersRequest(
 
         return RD_KAFKA_RESP_ERR_NO_ERROR;
 }
+
+/**
+ * @brief Construct and send ConsumerGroupDescribe requests
+ *        to \p rkb with the groups (const char *) in \p groups.
+ *        Uses \p include_authorized_operations to get
+ *        group ACL authorized operations.
+ *
+ *        The response (unparsed) will be enqueued on \p replyq
+ *        for handling by \p resp_cb (with \p opaque passed).
+ *
+ * @return NULL on success, a new error instance that must be
+ *         released with rd_kafka_error_destroy() in case of error.
+ */
+rd_kafka_error_t *
+rd_kafka_ConsumerGroupDescribeRequest(rd_kafka_broker_t *rkb,
+                                      char **groups,
+                                      size_t group_cnt,
+                                      rd_bool_t include_authorized_operations,
+                                      rd_kafka_replyq_t replyq,
+                                      rd_kafka_resp_cb_t *resp_cb,
+                                      void *opaque) {
+        rd_kafka_buf_t *rkbuf;
+        size_t i;
+
+        int16_t ApiVersion = rd_kafka_broker_ApiVersion_supported(
+            rkb, RD_KAFKAP_ConsumerGroupDescribe, 0, 0, NULL);
+
+        if (ApiVersion == -1) {
+                return rd_kafka_error_new(
+                    RD_KAFKA_RESP_ERR__UNSUPPORTED_FEATURE,
+                    "ConsumerGroupDescribe (KIP-848) "
+                    "not supported by broker, "
+                    "requires broker version >= 4.0.0");
+        }
+
+        rkbuf = rd_kafka_buf_new_flexver_request(
+            rkb, RD_KAFKAP_ConsumerGroupDescribe, 1,
+            4 /* rd_kafka_buf_write_arraycnt_pos */ +
+                1 /* IncludeAuthorizedOperations */ + 1 /* tags */ +
+                32 * group_cnt /* Groups */,
+            rd_true /* flexver */);
+
+        rd_kafka_buf_write_arraycnt(rkbuf, group_cnt);
+
+        for (i = 0; i < group_cnt; i++) {
+                rd_kafka_buf_write_str(rkbuf, groups[i], -1);
+        }
+
+        rd_kafka_buf_write_bool(rkbuf, include_authorized_operations);
+        rd_kafka_buf_ApiVersion_set(rkbuf, ApiVersion, 0);
+        rd_kafka_broker_buf_enq_replyq(rkb, rkbuf, replyq, resp_cb, opaque);
+
+        return NULL;
+}
+
 /**
  * @brief Parses and handles an InitProducerId reply.
  *
@@ -6364,16 +6762,17 @@ rd_kafka_PushTelemetryRequest(rd_kafka_broker_t *rkb,
         }
 
         size_t len = sizeof(rd_kafka_Uuid_t) + sizeof(int32_t) +
-                     sizeof(rd_bool_t) + sizeof(compression_type) +
-                     metrics_size;
+                     sizeof(rd_bool_t) + sizeof(int8_t) + metrics_size;
         rkbuf = rd_kafka_buf_new_flexver_request(rkb, RD_KAFKAP_PushTelemetry,
                                                  1, len, rd_true);
 
         rd_kafka_buf_write_uuid(rkbuf, client_instance_id);
         rd_kafka_buf_write_i32(rkbuf, subscription_id);
         rd_kafka_buf_write_bool(rkbuf, terminating);
-        rd_kafka_buf_write_i8(rkbuf, compression_type);
+        rd_kafka_buf_write_i8(rkbuf, (int8_t)compression_type);
 
+        rd_dassert(metrics != NULL);
+        rd_dassert(metrics_size >= 0);
         rd_kafkap_bytes_t *metric_bytes =
             rd_kafkap_bytes_new(metrics, metrics_size);
         rd_kafka_buf_write_kbytes(rkbuf, metric_bytes);
@@ -6435,10 +6834,12 @@ void rd_kafka_handle_GetTelemetrySubscriptions(rd_kafka_t *rk,
                 rk->rk_telemetry.accepted_compression_types =
                     rd_calloc(arraycnt, sizeof(rd_kafka_compression_t));
 
-                for (i = 0; i < (size_t)arraycnt; i++)
-                        rd_kafka_buf_read_i8(
-                            rkbuf,
-                            &rk->rk_telemetry.accepted_compression_types[i]);
+                for (i = 0; i < (size_t)arraycnt; i++) {
+                        int8_t AcceptedCompressionType;
+                        rd_kafka_buf_read_i8(rkbuf, &AcceptedCompressionType);
+                        rk->rk_telemetry.accepted_compression_types[i] =
+                            AcceptedCompressionType;
+                }
         } else {
                 rk->rk_telemetry.accepted_compression_types_cnt = 1;
                 rk->rk_telemetry.accepted_compression_types =
@@ -6478,7 +6879,7 @@ void rd_kafka_handle_GetTelemetrySubscriptions(rd_kafka_t *rk,
                         rd_kafkap_str_t Metric;
                         rd_kafka_buf_read_str(rkbuf, &Metric);
                         rk->rk_telemetry.requested_metrics[i] =
-                            rd_strdup(Metric.str);
+                            RD_KAFKAP_STR_DUP(&Metric);
                 }
         }
 
@@ -6804,12 +7205,92 @@ static int unittest_idempotent_producer(void) {
 }
 
 /**
+ * @brief Test for the GetTelemetrySubscriptions response handling.
+ *
+ * @returns 1 on failure, 0 on success.
+ */
+static int unittest_handle_GetTelemetrySubscriptions(void) {
+        rd_kafka_t *rk;
+        rd_kafka_broker_t *rkb;
+        rd_kafka_buf_t *rkbuf;
+
+        RD_UT_SAY("Verifying GetTelemetrySubscriptions response handling");
+
+        rk  = rd_kafka_new(RD_KAFKA_CONSUMER, NULL, NULL, 0);
+        rkb = rd_kafka_broker_add_logical(rk, "unittest");
+
+        rkbuf            = rd_kafka_buf_new(0, 0);
+        rkbuf->rkbuf_rkb = rkb;
+        rd_kafka_buf_write_i32(rkbuf, 0); /* ThrottleTime */
+        rd_kafka_buf_write_i16(rkbuf, 0); /* ErrorCode */
+
+        rd_kafka_buf_write_uuid(rkbuf, &rk->rk_telemetry.client_instance_id);
+
+        rd_kafka_buf_write_i32(rkbuf, 0); /* SubscriptionId */
+
+        rd_kafka_buf_write_arraycnt(rkbuf, 2); /* #AcceptedCompressionTypes */
+        /* AcceptedCompressionTypes[0] */
+        rd_kafka_buf_write_i8(rkbuf, RD_KAFKA_COMPRESSION_GZIP);
+        /* AcceptedCompressionTypes[1] */
+        rd_kafka_buf_write_i8(rkbuf, RD_KAFKA_COMPRESSION_LZ4);
+
+        rd_kafka_buf_write_i32(rkbuf, 0);  /* PushIntervalMs */
+        rd_kafka_buf_write_i32(rkbuf, 0);  /* TelemetryMaxBytes */
+        rd_kafka_buf_write_bool(rkbuf, 0); /* DeltaTemporality */
+
+        rd_kafka_buf_write_arraycnt(rkbuf, 2); /* #RequestedMetrics */
+        /* RequestedMetrics[0] */
+        rd_kafka_buf_write_str(rkbuf, "metric1", -1);
+        /* RequestedMetrics[1] */
+        rd_kafka_buf_write_str(rkbuf, "metric2", -1);
+
+        /* Set up a buffer reader for sending the buffer. */
+        rd_slice_init_full(&rkbuf->rkbuf_reader, &rkbuf->rkbuf_buf);
+
+        /* Handle the response */
+        rd_kafka_handle_GetTelemetrySubscriptions(
+            rk, rkb, RD_KAFKA_RESP_ERR_NO_ERROR, rkbuf, NULL, NULL);
+
+
+        RD_UT_ASSERT(rk->rk_telemetry.accepted_compression_types_cnt == 2,
+                     "Expected 2 accepted compression types, got %" PRIusz,
+                     rk->rk_telemetry.accepted_compression_types_cnt);
+        RD_UT_ASSERT(rk->rk_telemetry.accepted_compression_types[0] ==
+                         RD_KAFKA_COMPRESSION_GZIP,
+                     "Expected 'gzip' compression type, got '%s'",
+                     rd_kafka_compression2str(
+                         rk->rk_telemetry.accepted_compression_types[0]));
+        RD_UT_ASSERT(rk->rk_telemetry.accepted_compression_types[1] ==
+                         RD_KAFKA_COMPRESSION_LZ4,
+                     "Expected 'lz4' compression type, got '%s'",
+                     rd_kafka_compression2str(
+                         rk->rk_telemetry.accepted_compression_types[1]));
+
+        RD_UT_ASSERT(rk->rk_telemetry.requested_metrics_cnt == 2,
+                     "Expected 2 requested metrics, got %" PRIusz,
+                     rk->rk_telemetry.requested_metrics_cnt);
+        RD_UT_ASSERT(
+            rd_strcmp(rk->rk_telemetry.requested_metrics[0], "metric1") == 0,
+            "Expected 'metric1', got '%s'",
+            rk->rk_telemetry.requested_metrics[0]);
+        RD_UT_ASSERT(
+            rd_strcmp(rk->rk_telemetry.requested_metrics[1], "metric2") == 0,
+            "Expected 'metric2', got '%s'",
+            rk->rk_telemetry.requested_metrics[1]);
+
+        rd_kafka_buf_destroy(rkbuf);
+        rd_kafka_destroy(rk);
+        return 0;
+}
+
+/**
  * @brief Request/response unit tests
  */
 int unittest_request(void) {
         int fails = 0;
 
         fails += unittest_idempotent_producer();
+        fails += unittest_handle_GetTelemetrySubscriptions();
 
         return fails;
 }

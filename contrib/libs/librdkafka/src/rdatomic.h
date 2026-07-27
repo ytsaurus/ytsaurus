@@ -111,24 +111,25 @@ static RD_INLINE int32_t RD_UNUSED rd_atomic32_get(rd_atomic32_t *ra) {
 #endif
 }
 
+/**
+ * @brief Set the atomic value to \p v and return the previous value to
+ *        that can be used to determine if the value was changed.
+ */
 static RD_INLINE int32_t RD_UNUSED rd_atomic32_set(rd_atomic32_t *ra,
                                                    int32_t v) {
 #ifdef _WIN32
         return InterlockedExchange((LONG *)&ra->val, v);
-#elif !HAVE_ATOMICS_32
+#elif HAVE_ATOMICS_32 && HAVE_ATOMICS_32_ATOMIC
+        return __atomic_exchange_n(&ra->val, v, __ATOMIC_SEQ_CST);
+#elif HAVE_ATOMICS_32 && HAVE_ATOMICS_32_SYNC
+        return __sync_lock_test_and_set(&ra->val, v);
+#else
         int32_t r;
         mtx_lock(&ra->lock);
-        r = ra->val = v;
+        r       = ra->val;
+        ra->val = v;
         mtx_unlock(&ra->lock);
         return r;
-#elif HAVE_ATOMICS_32_ATOMIC
-        __atomic_store_n(&ra->val, v, __ATOMIC_SEQ_CST);
-        return v;
-#elif HAVE_ATOMICS_32_SYNC
-        (void)__sync_lock_test_and_set(&ra->val, v);
-        return v;
-#else
-        return ra->val = v;  // FIXME
 #endif
 }
 
@@ -200,26 +201,61 @@ static RD_INLINE int64_t RD_UNUSED rd_atomic64_get(rd_atomic64_t *ra) {
 #endif
 }
 
-
+/**
+ * @brief Set the atomic value to \p v and return the previous value to
+ *        that can be used to determine if the value was changed.
+ */
 static RD_INLINE int64_t RD_UNUSED rd_atomic64_set(rd_atomic64_t *ra,
                                                    int64_t v) {
 #ifdef _WIN32
         return InterlockedExchange64(&ra->val, v);
-#elif !HAVE_ATOMICS_64
+#elif HAVE_ATOMICS_64 && HAVE_ATOMICS_64_ATOMIC
+        return __atomic_exchange_n(&ra->val, v, __ATOMIC_SEQ_CST);
+#elif HAVE_ATOMICS_64 && HAVE_ATOMICS_64_SYNC
+        return __sync_lock_test_and_set(&ra->val, v);
+#else
         int64_t r;
         mtx_lock(&ra->lock);
-        ra->val = v;
         r       = ra->val;
+        ra->val = v;
         mtx_unlock(&ra->lock);
         return r;
-#elif HAVE_ATOMICS_64_ATOMIC
-        __atomic_store_n(&ra->val, v, __ATOMIC_SEQ_CST);
-        return v;
-#elif HAVE_ATOMICS_64_SYNC
-        (void)__sync_lock_test_and_set(&ra->val, v);
-        return v;
+#endif
+}
+
+/**
+ * @brief Atomic compare-and-swap on a 64-bit value.
+ *
+ *        If *ra == @p expected, atomically replace it with @p desired
+ *        and return 1. Otherwise leave *ra unchanged and return 0.
+ */
+static RD_INLINE int RD_UNUSED rd_atomic64_cas(rd_atomic64_t *ra,
+                                               int64_t expected,
+                                               int64_t desired) {
+#ifdef __SUNPRO_C
+        return atomic_cas_64((volatile uint64_t *)&ra->val, (uint64_t)expected,
+                             (uint64_t)desired) == (uint64_t)expected;
+#elif defined(_WIN32)
+        return InterlockedCompareExchange64((LONG64 *)&ra->val, (LONG64)desired,
+                                            (LONG64)expected) ==
+               (LONG64)expected;
+#elif HAVE_ATOMICS_64 && HAVE_ATOMICS_64_ATOMIC
+        return __atomic_compare_exchange_n(&ra->val, &expected, desired,
+                                           0 /* strong */, __ATOMIC_SEQ_CST,
+                                           __ATOMIC_SEQ_CST);
+#elif HAVE_ATOMICS_64 && HAVE_ATOMICS_64_SYNC
+        return __sync_bool_compare_and_swap(&ra->val, expected, desired);
 #else
-        return ra->val = v;  // FIXME
+        int r;
+        mtx_lock(&ra->lock);
+        if (ra->val == expected) {
+                ra->val = desired;
+                r       = 1;
+        } else {
+                r = 0;
+        }
+        mtx_unlock(&ra->lock);
+        return r;
 #endif
 }
 

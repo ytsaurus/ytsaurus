@@ -31,6 +31,7 @@
 
 #include "rdkafka_proto.h"
 #include "rdkafka_header.h"
+#include "rdkafka_share_acknowledgement.h"
 
 
 /**
@@ -154,6 +155,20 @@ typedef struct rd_kafka_msg_s {
                                                     *   protocol msg */
                         int32_t leader_epoch;      /**< Leader epoch at the time
                                                     *   the message was fetched. */
+                        int32_t wire_size;         /**< wire-format size of this
+                                                    *   record including the
+                                                    *   length-prefix varint and all
+                                                    *   per-record framing.
+                                                    *   Used by share consumer
+                                                    *   fetch.size telemetry.
+                                                    */
+                        rd_kafka_share_internal_acknowledgement_type
+                            ack_type; /**< Share consumer: acknowledgement
+                                       *   type
+                                       * (rd_kafka_share_internal_acknowledgement_type).
+                                       *   Set during response processing. */
+                        int16_t delivery_count; /**< Share consumer: delivery
+                                                 *   count. */
                 } consumer;
         } rkm_u;
 } rd_kafka_msg_t;
@@ -535,9 +550,9 @@ rd_kafka_msgq_overlap(const rd_kafka_msgq_t *a, const rd_kafka_msgq_t *b) {
         la = rd_kafka_msgq_last(a);
         lb = rd_kafka_msgq_last(b);
 
-        return (rd_bool_t)(
-            fa->rkm_u.producer.msgid <= lb->rkm_u.producer.msgid &&
-            fb->rkm_u.producer.msgid <= la->rkm_u.producer.msgid);
+        return (
+            rd_bool_t)(fa->rkm_u.producer.msgid <= lb->rkm_u.producer.msgid &&
+                       fb->rkm_u.producer.msgid <= la->rkm_u.producer.msgid);
 }
 
 /**

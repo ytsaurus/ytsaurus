@@ -112,7 +112,7 @@ namespace RdKafka {
  * @remark This value should only be used during compile time,
  *         for runtime checks of version use RdKafka::version()
  */
-#define RD_KAFKA_VERSION 0x020601ff
+#define RD_KAFKA_VERSION 0x020f00ff
 
 /**
  * @brief Returns the librdkafka version as integer.
@@ -327,6 +327,11 @@ enum ErrorCode {
   ERR__AUTO_OFFSET_RESET = -140,
   /** Partition log truncation detected */
   ERR__LOG_TRUNCATION = -139,
+  /** A different record in the batch was invalid
+   *  and this message failed persisting. */
+  ERR__INVALID_DIFFERENT_RECORD = -138,
+  /** Broker is going away but client isn't terminating */
+  ERR__DESTROY_BROKER = -137,
 
   /** End internal error codes */
   ERR__END = -100,
@@ -544,7 +549,28 @@ enum ErrorCode {
   /** Unable to update finalized features due to server error */
   ERR_FEATURE_UPDATE_FAILED = 96,
   /** Request principal deserialization failed during forwarding */
-  ERR_PRINCIPAL_DESERIALIZATION_FAILURE = 97
+  ERR_PRINCIPAL_DESERIALIZATION_FAILURE = 97,
+  /** Unknown Topic Id */
+  ERR_UNKNOWN_TOPIC_ID = 100,
+  /** The member epoch is fenced by the group coordinator */
+  ERR_FENCED_MEMBER_EPOCH = 110,
+  /** The instance ID is still used by another member in the
+   *  consumer group */
+  ERR_UNRELEASED_INSTANCE_ID = 111,
+  /** The assignor or its version range is not supported by the consumer
+   *  group */
+  ERR_UNSUPPORTED_ASSIGNOR = 112,
+  /** The member epoch is stale */
+  ERR_STALE_MEMBER_EPOCH = 113,
+  /** Client sent a push telemetry request with an invalid or outdated
+   *  subscription ID. */
+  ERR_UNKNOWN_SUBSCRIPTION_ID = 117,
+  /** Client sent a push telemetry request larger than the maximum size
+   *  the broker will accept. */
+  ERR_TELEMETRY_TOO_LARGE = 118,
+  /** Client metadata is stale,
+   *  client should rebootstrap to obtain new metadata. */
+  ERR_REBOOTSTRAP_REQUIRED = 129
 };
 
 

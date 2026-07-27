@@ -172,12 +172,14 @@ int rd_kafka_sasl_io_event(rd_kafka_transport_t *rktrans,
         r = rd_kafka_transport_framed_recv(rktrans, &rkbuf, errstr,
                                            errstr_size);
         if (r == -1) {
-                if (!strcmp(errstr, "Disconnected"))
-                        rd_snprintf(errstr, errstr_size,
-                                    "Disconnected: check client %s credentials "
+                if (rd_kafka_transport_error_disconnected(errstr)) {
+                        int curr_len = strlen(errstr);
+                        rd_snprintf(errstr + curr_len, errstr_size - curr_len,
+                                    ": check client %s credentials "
                                     "and broker logs",
                                     rktrans->rktrans_rkb->rkb_rk->rk_conf.sasl
                                         .mechanisms);
+                }
                 return -1;
         } else if (r == 0) /* not fully received yet */
                 return 0;
@@ -471,6 +473,65 @@ rd_kafka_error_t *rd_kafka_sasl_background_callbacks_enable(rd_kafka_t *rk) {
         rd_kafka_queue_destroy(bgq);
 
         return NULL;
+}
+
+
+rd_kafka_error_t *
+rd_kafka_share_sasl_background_callbacks_enable(rd_kafka_share_t *rkshare) {
+        return rd_kafka_sasl_background_callbacks_enable(rkshare->rkshare_rk);
+}
+
+
+rd_kafka_error_t *rd_kafka_share_sasl_set_credentials(rd_kafka_share_t *rkshare,
+                                                      const char *username,
+                                                      const char *password) {
+        return rd_kafka_sasl_set_credentials(rkshare->rkshare_rk, username,
+                                             password);
+}
+
+
+/* TODO KIP-932: add integration tests for the share-consumer OAUTHBEARER
+ * SASL APIs below (set_token, set_token_failure, queue_get_sasl). */
+
+rd_kafka_queue_t *rd_kafka_share_queue_get_sasl(rd_kafka_share_t *rkshare) {
+        if (unlikely(!rkshare || !rkshare->rkshare_rk))
+                return NULL;
+        return rd_kafka_queue_get_sasl(rkshare->rkshare_rk);
+}
+
+
+rd_kafka_resp_err_t
+rd_kafka_share_oauthbearer_set_token(rd_kafka_share_t *rkshare,
+                                     const char *token_value,
+                                     int64_t md_lifetime_ms,
+                                     const char *md_principal_name,
+                                     const char **extensions,
+                                     size_t extension_size,
+                                     char *errstr,
+                                     size_t errstr_size) {
+        if (unlikely(!rkshare || !rkshare->rkshare_rk)) {
+                rd_snprintf(errstr, errstr_size,
+                            "Share consumer handle is NULL or uninitialized");
+                return RD_KAFKA_RESP_ERR__INVALID_ARG;
+        }
+        if (unlikely(!token_value || !md_principal_name)) {
+                rd_snprintf(errstr, errstr_size, "%s must not be NULL",
+                            !token_value ? "token_value" : "md_principal_name");
+                return RD_KAFKA_RESP_ERR__INVALID_ARG;
+        }
+        return rd_kafka_oauthbearer_set_token(
+            rkshare->rkshare_rk, token_value, md_lifetime_ms, md_principal_name,
+            extensions, extension_size, errstr, errstr_size);
+}
+
+
+rd_kafka_resp_err_t
+rd_kafka_share_oauthbearer_set_token_failure(rd_kafka_share_t *rkshare,
+                                             const char *errstr) {
+        if (unlikely(!rkshare || !rkshare->rkshare_rk))
+                return RD_KAFKA_RESP_ERR__INVALID_ARG;
+        return rd_kafka_oauthbearer_set_token_failure(rkshare->rkshare_rk,
+                                                      errstr);
 }
 
 
