@@ -140,7 +140,8 @@ def _cron_interval_seconds(cron):
 
 class Queue:
     def __init__(self, state_path, name, tablet_count, exports_cfg, erasure, hunks, commit_ordering,
-                 auto_trim, flush_period_ms, export_ttl_ms, cron_default_interval_seconds, session_id):
+                 auto_trim, auto_trim_retained_lifetime_ms, flush_period_ms, export_ttl_ms,
+                 cron_default_interval_seconds, session_id):
         self.name = name
         self.path = f"{state_path}/{name}"
         self.shadow_path = f"{state_path}/{name}.shadow"
@@ -151,6 +152,7 @@ class Queue:
         self.hunks = hunks
         self.commit_ordering = commit_ordering
         self.auto_trim = auto_trim
+        self.auto_trim_retained_lifetime_ms = auto_trim_retained_lifetime_ms
         self.flush_period_ms = flush_period_ms
         self.export_ttl_ms = export_ttl_ms
         self.cron_default_interval = cron_default_interval_seconds
@@ -374,7 +376,13 @@ class Queue:
         # not the shadow or the export tables, and total_row_count (our row_index counter)
         # is unaffected. NB: real trimming also needs Controller/EnableAutomaticTrimming on
         # in the queue agent dynamic config (deploy-side).
-        yt.set(f"{self.path}/@auto_trim_config", {"enable": self.auto_trim})
+        config = {"enable": self.auto_trim}
+        if self.auto_trim and self.auto_trim_retained_lifetime_ms:
+            # Never trim rows younger than this — keep a rolling window (e.g. last 3 days) of
+            # data in the queue regardless of what has already been exported/consumed. Bounds
+            # queue growth while keeping recent data available.
+            config["retained_lifetime_duration"] = self.auto_trim_retained_lifetime_ms
+        yt.set(f"{self.path}/@auto_trim_config", config)
 
     def _ensure_shadow(self):
         if not yt.exists(self.shadow_path):
@@ -637,6 +645,10 @@ def test_queue_static_export(base_path, spec, attributes, args):
     yt.config["dynamic_table_retries"]["backoff"] = {"policy": "constant_time", "constant_time": 0.1}
     yt.config["dynamic_table_retries"]["total_timeout"] = 180000
     yt.config["tablets_ready_timeout"] = 4 * 60 * 1000
+    # Give transactions a generous lifetime (default is 30s) so the write tablet transaction
+    # (push_queue_producer + shadow insert) does not expire on a slow/flaky cluster
+    # ("No such transaction" on commit).
+    yt.config["transaction_timeout"] = 300000
 
     cfg = spec.queue_static_export
 
@@ -679,6 +691,9 @@ def test_queue_static_export(base_path, spec, attributes, args):
             hunks=queue_cfg.get("hunks", False),
             commit_ordering=queue_cfg.get("commit_ordering"),
             auto_trim=queue_cfg.get("auto_trim", False),
+            auto_trim_retained_lifetime_ms=(
+                cfg.auto_trim_retained_lifetime_seconds * 1000
+                if cfg.auto_trim_retained_lifetime_seconds else None),
             flush_period_ms=queue_cfg.get("flush_period_ms", cfg.flush_period_ms),
             export_ttl_ms=(cfg.export_ttl_seconds * 1000) if cfg.export_ttl_seconds else None,
             cron_default_interval_seconds=cfg.cron_default_interval_seconds,
