@@ -143,9 +143,9 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 
 			c := cf.Ctor(l.WithName("c"), loc.ytc, config.Strawberry.RootOrDefault().Child(family), proxy, cCfg)
 			subRegistry := solomonRegistry.WithTags(map[string]string{
-				"family":  family,
-				"stage":   aCfg.Stage,
-				"cluster": proxy,
+				"family": family,
+				"stage":  aCfg.Stage,
+				"proxy":  proxy,
 			})
 			agentMetrics := agent.NewAgentMetrics(subRegistry)
 			a := agent.NewAgent(proxy, config.Token, loc.ytc, l.WithName("a"), c, &aCfg, agentMetrics)
