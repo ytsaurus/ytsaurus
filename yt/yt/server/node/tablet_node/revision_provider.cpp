@@ -2,107 +2,151 @@
 
 #include "private.h"
 
+#include <yt/yt/core/misc/chunked_vector.h>
+#include <yt/yt/core/misc/three_level_stable_vector.h>
+
 namespace NYT::NTabletNode {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTwoLevelRevisionProvider::TTwoLevelRevisionProvider()
+class TTwoLevelRevisionProvider
+    : public IRevisionProvider
 {
-    // Reserve the vector to prevent reallocations and thus enable accessing
-    // it from arbitrary threads.
-    RevisionToTimestamp_.ReserveChunks(MaxRevisionChunks);
-    RevisionToTimestamp_.PushBack(NullTimestamp);
-    RevisionToTimestamp_[NullRevision.Underlying()] = NullTimestamp;
-}
-
-TSortedDynamicStoreRevision TTwoLevelRevisionProvider::GetLatestRevision() const
-{
-    YT_VERIFY(!RevisionToTimestamp_.Empty());
-    return TSortedDynamicStoreRevision(RevisionToTimestamp_.Size() - 1);
-}
-
-TSortedDynamicStoreRevision TTwoLevelRevisionProvider::RegisterRevision(TTimestamp timestamp, std::optional<i64> mutationSequenceNumber)
-{
-    YT_VERIFY(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
-
-    i64 resolvedMutationSequenceNumber = mutationSequenceNumber.value_or(0);
-
-    auto latestRevision = GetLatestRevision();
-    if (resolvedMutationSequenceNumber == LatestRevisionMutationSequenceNumber_ &&
-        TimestampFromRevision(latestRevision) == timestamp)
+public:
+    TTwoLevelRevisionProvider()
     {
-        return latestRevision;
+        // Reserve the vector to prevent reallocations and thus enable accessing
+        // it from arbitrary threads.
+        RevisionToTimestamp_.ReserveChunks(MaxRevisionChunks);
+        RevisionToTimestamp_.PushBack(NullTimestamp);
+        RevisionToTimestamp_[NullRevision.Underlying()] = NullTimestamp;
     }
 
-    YT_VERIFY(RevisionToTimestamp_.Size() < TwoLevelHardRevisionsPerDynamicStoreLimit);
-    RevisionToTimestamp_.PushBack(timestamp);
-    LatestRevisionMutationSequenceNumber_ = resolvedMutationSequenceNumber;
+    TSortedDynamicStoreRevision GetLatestRevision() const final
+    {
+        YT_VERIFY(!RevisionToTimestamp_.Empty());
+        return TSortedDynamicStoreRevision(RevisionToTimestamp_.Size() - 1);
+    }
 
-    return GetLatestRevision();
-}
+    TSortedDynamicStoreRevision RegisterRevision(TTimestamp timestamp, std::optional<i64> mutationSequenceNumber) final
+    {
+        YT_VERIFY(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
 
-TTimestamp TTwoLevelRevisionProvider::TimestampFromRevision(TSortedDynamicStoreRevision revision) const
-{
-    return RevisionToTimestamp_[revision.Underlying()];
-}
+        i64 resolvedMutationSequenceNumber = mutationSequenceNumber.value_or(0);
 
-i64 TTwoLevelRevisionProvider::GetTimestampCount() const
-{
-    return RevisionToTimestamp_.Size();
-}
+        auto latestRevision = GetLatestRevision();
+        if (resolvedMutationSequenceNumber == LatestRevisionMutationSequenceNumber_ &&
+            TimestampFromRevision(latestRevision) == timestamp)
+        {
+            return latestRevision;
+        }
 
-i64 TTwoLevelRevisionProvider::GetSoftTimestampCountLimit() const
-{
-    return TwoLevelSoftRevisionsPerDynamicStoreLimit;
-}
+        YT_VERIFY(RevisionToTimestamp_.Size() < TwoLevelHardRevisionsPerDynamicStoreLimit);
+        RevisionToTimestamp_.PushBack(timestamp);
+        LatestRevisionMutationSequenceNumber_ = resolvedMutationSequenceNumber;
+
+        return GetLatestRevision();
+    }
+
+    TTimestamp TimestampFromRevision(TSortedDynamicStoreRevision revision) const final
+    {
+        return RevisionToTimestamp_[revision.Underlying()];
+    }
+
+    i64 GetTimestampCount() const final
+    {
+        return RevisionToTimestamp_.Size();
+    }
+
+    i64 GetSoftTimestampCountLimit() const final
+    {
+        return TwoLevelSoftRevisionsPerDynamicStoreLimit;
+    }
+
+private:
+    static constexpr size_t RevisionsPerChunk = 1ULL << 13;
+    static constexpr size_t MaxRevisionChunks = TwoLevelHardRevisionsPerDynamicStoreLimit / RevisionsPerChunk + 1;
+
+    TChunkedVector<TTimestamp, RevisionsPerChunk> RevisionToTimestamp_;
+    i64 LatestRevisionMutationSequenceNumber_ = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TThreeLevelRevisionProvider::TThreeLevelRevisionProvider()
+class TThreeLevelRevisionProvider
+    : public IRevisionProvider
 {
-    RevisionToTimestamp_.PushBack(NullTimestamp);
-    YT_VERIFY(TimestampFromRevision(NullRevision) == NullTimestamp);
-}
-
-TSortedDynamicStoreRevision TThreeLevelRevisionProvider::GetLatestRevision() const
-{
-    YT_VERIFY(!RevisionToTimestamp_.Empty());
-    return TSortedDynamicStoreRevision(RevisionToTimestamp_.Size() - 1);
-}
-
-TSortedDynamicStoreRevision TThreeLevelRevisionProvider::RegisterRevision(TTimestamp timestamp, std::optional<i64> mutationSequenceNumber)
-{
-    YT_VERIFY(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
-
-    i64 resolvedMutationSequenceNumber = mutationSequenceNumber.value_or(0);
-
-    auto latestRevision = GetLatestRevision();
-    if (resolvedMutationSequenceNumber == LatestRevisionMutationSequenceNumber_ &&
-        TimestampFromRevision(latestRevision) == timestamp)
+public:
+    TThreeLevelRevisionProvider()
     {
-        return latestRevision;
+        RevisionToTimestamp_.PushBack(NullTimestamp);
+        YT_VERIFY(TimestampFromRevision(NullRevision) == NullTimestamp);
     }
 
-    YT_VERIFY(RevisionToTimestamp_.Size() < ThreeLevelHardRevisionsPerDynamicStoreLimit);
-    RevisionToTimestamp_.PushBack(timestamp);
-    LatestRevisionMutationSequenceNumber_ = resolvedMutationSequenceNumber;
+    TSortedDynamicStoreRevision GetLatestRevision() const final
+    {
+        YT_VERIFY(!RevisionToTimestamp_.Empty());
+        return TSortedDynamicStoreRevision(RevisionToTimestamp_.Size() - 1);
+    }
 
-    return GetLatestRevision();
+    TSortedDynamicStoreRevision RegisterRevision(TTimestamp timestamp, std::optional<i64> mutationSequenceNumber) final
+    {
+        YT_VERIFY(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
+
+        i64 resolvedMutationSequenceNumber = mutationSequenceNumber.value_or(0);
+
+        auto latestRevision = GetLatestRevision();
+        if (resolvedMutationSequenceNumber == LatestRevisionMutationSequenceNumber_ &&
+            TimestampFromRevision(latestRevision) == timestamp)
+        {
+            return latestRevision;
+        }
+
+        YT_VERIFY(RevisionToTimestamp_.Size() < ThreeLevelHardRevisionsPerDynamicStoreLimit);
+        RevisionToTimestamp_.PushBack(timestamp);
+        LatestRevisionMutationSequenceNumber_ = resolvedMutationSequenceNumber;
+
+        return GetLatestRevision();
+    }
+
+    TTimestamp TimestampFromRevision(TSortedDynamicStoreRevision revision) const final
+    {
+        return RevisionToTimestamp_[revision.Underlying()];
+    }
+
+    i64 GetTimestampCount() const final
+    {
+        return RevisionToTimestamp_.Size();
+    }
+
+    i64 GetSoftTimestampCountLimit() const final
+    {
+        return ThreeLevelSoftRevisionsPerDynamicStoreLimit;
+    }
+
+private:
+    static constexpr size_t RevisionsPerChunk = 1ULL << 13;
+    static_assert(ThreeLevelHardRevisionsPerDynamicStoreLimit == 1LL << 31);
+
+    TThreeLevelStableVector<TTimestamp, RevisionsPerChunk, RevisionsPerChunk, ThreeLevelHardRevisionsPerDynamicStoreLimit> RevisionToTimestamp_;
+    i64 LatestRevisionMutationSequenceNumber_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRevisionProviderPtr CreateTwoLevelRevisionProvider()
+{
+    return New<TTwoLevelRevisionProvider>();
 }
 
-TTimestamp TThreeLevelRevisionProvider::TimestampFromRevision(TSortedDynamicStoreRevision revision) const
+IRevisionProviderPtr CreateThreeLevelRevisionProvider()
 {
-    return RevisionToTimestamp_[revision.Underlying()];
-}
-
-i64 TThreeLevelRevisionProvider::GetTimestampCount() const
-{
-    return RevisionToTimestamp_.Size();
-}
-
-i64 TThreeLevelRevisionProvider::GetSoftTimestampCountLimit() const
-{
-    return ThreeLevelSoftRevisionsPerDynamicStoreLimit;
+    return New<TThreeLevelRevisionProvider>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
