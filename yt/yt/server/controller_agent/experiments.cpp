@@ -7,6 +7,8 @@
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
+#include <ranges>
+
 namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
@@ -53,15 +55,62 @@ void ApplyPatch(
     }
 }
 
-} // namespace
+INodePtr PatchNodeFast(const INodePtr& accumulator, const INodePtr& patch)
+{
+    if (!patch) {
+        return accumulator;
+    }
+    if (!accumulator) {
+        return patch;
+    }
+    return PatchNode(accumulator, patch);
+}
 
-////////////////////////////////////////////////////////////////////////////////
+struct TMergedEffect
+{
+    INodePtr UserJobSpecTemplatePatch;
+    INodePtr UserJobSpecPatch;
+    INodePtr JobIOTemplatePatch;
+    INodePtr JobIOPatch;
+    INodePtr OptionsPatch;
+};
 
-void ApplyExperiments(
-    const IMapNodePtr& spec,
-    EOperationType type,
-    const std::vector<TExperimentAssignmentPtr>& experimentAssignments,
-    INodePtr* optionsPatch)
+TMergedEffect MergeEffects(const std::vector<TExperimentAssignmentPtr>& experimentAssignments)
+{
+    TMergedEffect merged;
+    for (const auto& experiment : experimentAssignments) {
+        const auto& effect = experiment->Effect;
+        merged.UserJobSpecPatch = PatchNodeFast(merged.UserJobSpecPatch, effect->ControllerUserJobSpecPatch);
+        merged.JobIOPatch = PatchNodeFast(merged.JobIOPatch, effect->ControllerJobIOPatch);
+        merged.OptionsPatch = PatchNodeFast(merged.OptionsPatch, effect->ControllerOptionsPatch);
+    }
+
+    // COMPAT(coteeq): The fact that we are applying patches in order is purely
+    // accidental. Ideally, we should check that patches do not intersect when
+    // loading config from Cypress in scheduler.
+    //
+    // Applying the assignments one by one makes the template of a later assignment the base
+    // of the already patched spec, so the templates merge in the reverse order.
+    for (const auto& experiment : experimentAssignments | std::views::reverse) {
+        const auto& effect = experiment->Effect;
+        merged.UserJobSpecTemplatePatch = PatchNodeFast(
+            merged.UserJobSpecTemplatePatch,
+            effect->ControllerUserJobSpecTemplatePatch);
+        merged.JobIOTemplatePatch = PatchNodeFast(
+            merged.JobIOTemplatePatch,
+            effect->ControllerJobIOTemplatePatch);
+    }
+
+    return merged;
+}
+
+struct TPatchPaths
+{
+    std::vector<TYPath> UserJobPaths;
+    std::vector<TYPath> JobIOPaths;
+};
+
+TPatchPaths GetPatchPaths(const IMapNodePtr& spec, EOperationType type)
 {
     std::vector<TYPath> userJobPaths;
     std::vector<TYPath> jobIOPaths;
@@ -113,31 +162,33 @@ void ApplyExperiments(
         }
     }
 
-    INodePtr mergedOptionsPatch;
+    return {
+        .UserJobPaths = std::move(userJobPaths),
+        .JobIOPaths = std::move(jobIOPaths),
+    };
+}
 
-    for (const auto& experiment : experimentAssignments) {
-        for (const auto& path : userJobPaths) {
-            ApplyPatch(
-                path,
-                spec,
-                experiment->Effect->ControllerUserJobSpecTemplatePatch,
-                experiment->Effect->ControllerUserJobSpecPatch);
-        }
-        for (const auto& path : jobIOPaths) {
-            ApplyPatch(
-                path,
-                spec,
-                experiment->Effect->ControllerJobIOTemplatePatch,
-                experiment->Effect->ControllerJobIOPatch);
-        }
-        if (const auto& node = experiment->Effect->ControllerOptionsPatch; node) {
-            mergedOptionsPatch = mergedOptionsPatch
-                ? PatchNode(mergedOptionsPatch, node)
-                : node;
-        }
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ApplyExperiments(
+    const IMapNodePtr& spec,
+    EOperationType type,
+    const std::vector<TExperimentAssignmentPtr>& experimentAssignments,
+    INodePtr* optionsPatch)
+{
+    auto paths = GetPatchPaths(spec, type);
+    auto effect = MergeEffects(experimentAssignments);
+
+    for (const auto& path : paths.UserJobPaths) {
+        ApplyPatch(path, spec, effect.UserJobSpecTemplatePatch, effect.UserJobSpecPatch);
+    }
+    for (const auto& path : paths.JobIOPaths) {
+        ApplyPatch(path, spec, effect.JobIOTemplatePatch, effect.JobIOPatch);
     }
 
-    *optionsPatch = std::move(mergedOptionsPatch);
+    *optionsPatch = std::move(effect.OptionsPatch);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

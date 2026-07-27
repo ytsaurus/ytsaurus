@@ -138,6 +138,32 @@ TEST(TApplyExperimentsTest, SeveralAssignmentsAppliedInOrder)
     ExpectSpecEquals(optionsPatch->AsMap(), "{a=1;b=2}");
 }
 
+//! Templates are bases, so an earlier assignment wins over a later one; patches are applied
+//! on top, so a later assignment wins over an earlier one.
+TEST(TApplyExperimentsTest, EarlierAssignmentWinsAmongTemplates)
+{
+    auto spec = ParseSpec("{mapper={command=cat}}");
+    auto first = MakeAssignment("{controller_user_job_spec_template_patch={memory_limit=100;a=1}}");
+    auto second = MakeAssignment("{controller_user_job_spec_template_patch={memory_limit=200;b=2}}");
+
+    INodePtr optionsPatch;
+    ApplyExperiments(spec, EOperationType::Map, {first, second}, &optionsPatch);
+
+    ExpectSpecEquals(spec, "{mapper={command=cat;memory_limit=100;a=1;b=2}}");
+}
+
+TEST(TApplyExperimentsTest, PatchWinsOverTemplateOfAnotherAssignment)
+{
+    auto spec = ParseSpec("{mapper={command=cat}}");
+    auto first = MakeAssignment("{controller_user_job_spec_patch={memory_limit=100}}");
+    auto second = MakeAssignment("{controller_user_job_spec_template_patch={memory_limit=200}}");
+
+    INodePtr optionsPatch;
+    ApplyExperiments(spec, EOperationType::Map, {first, second}, &optionsPatch);
+
+    ExpectSpecEquals(spec, "{mapper={command=cat;memory_limit=100}}");
+}
+
 TEST(TApplyExperimentsTest, VanillaSimple)
 {
     auto spec = ParseSpec(
