@@ -53,7 +53,7 @@ private:
         auto result = std::get<0>(*ev->Get());
 
         if (!result.IsOK()) {
-            YQL_CLOG(ERROR, ProviderDq) << "Error on list node " << ToString(result);
+            YQL_CLOG(ERROR, ProviderDq) << "Error on set node " << ToString(result);
         }
 
         if (!result.IsOK() && result.FindMatching(NYT::NYTree::EErrorCode::ResolveError)) {

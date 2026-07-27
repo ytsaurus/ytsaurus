@@ -102,7 +102,7 @@ private:
 
         try {
             if (LastListNodeOk) {
-                // remove only after 2't attempt to minimize Y_ABORT_UNLESS chance on registrator
+                // remove only after 2nd attempt to minimize Y_ABORT_UNLESS chance on registrator
                 ScheduleRemove(now, NYT::NodeFromYsonString(result.ValueOrThrow()).AsList(), ctx);
                 MaybeReschedule(now);
                 schedule = false;
@@ -124,7 +124,7 @@ private:
     TActorId YtWrapper;
     TNodeIdCleanerOptions Options;
     TInstant LastUpdateTime;
-    bool LastListNodeOk = true;
+    bool LastListNodeOk = false;
     int WaitCount = 0;
 };
 

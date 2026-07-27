@@ -8,14 +8,15 @@ PEERDIR(
     contrib/ydb/library/actors/testlib
     contrib/ydb/library/yql/providers/dq/actors/events
     contrib/ydb/library/yql/providers/dq/common
-    yt/cpp/mapreduce/interface
-    yt/yql/providers/dq/global_worker_manager
     yql/essentials/utils/log
     yql/essentials/utils/log/proto
+    yt/cpp/mapreduce/interface
+    yt/yql/providers/dq/global_worker_manager
 )
 
 SRCS(
     node_id_allocator_ut.cpp
+    nodeid_cleaner_ut.cpp
     yt_resource_manager_ut.cpp
 )
 

@@ -605,10 +605,19 @@ namespace NYql {
 
             Y_ABORT_UNLESS(jobsPerOperation > 0);
 
+            int startedJobs = 0;
             for (int i = 0; i < jobs; i += jobsPerOperation) {
                 if (jobs - i >= jobsPerOperation) {
                     StartOperation(jobsPerOperation, ctx);
+                    startedJobs += jobsPerOperation;
                 }
+            }
+
+            int remainingJobs = jobs - startedJobs;
+            if (remainingJobs > 0) {
+                RM_LOG(WARN) << "Only " << startedJobs << " of " << jobs
+                    << " jobs will be started: " << remainingJobs
+                    << " jobs are not enough for a full operation (jobsPerOperation=" << jobsPerOperation << ")";
             }
         }
 
@@ -842,7 +851,7 @@ namespace NYql {
 
             TString command = Options.YtBackend.GetVanillaJobCommand();
 
-            RM_LOG(INFO) << "Executable " << command;
+            RM_LOG(INFO) << "Vanilla job command " << command;
 
             TVector<ui32> nodes;
 
