@@ -72,7 +72,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     NLogging::TLogger logger,
     NRpc::IAuthenticatorPtr authenticator,
     NProfiling::TProfiler profiler = {},
-    std::optional<i64> memberPriority = std::nullopt);
+    std::optional<i64> memberPriorityHint = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

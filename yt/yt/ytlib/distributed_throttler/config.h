@@ -18,6 +18,8 @@ DEFINE_ENUM(EDistributedThrottlerMode,
     (Precise)
 );
 
+// It's not really a generator; it's generation policy.
+// TODO(h0pless): rename.
 DEFINE_ENUM(EDistributedThrottlerMemberPriorityGenerator,
     (StartTime)
     (Random)
