@@ -230,6 +230,14 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 
 TQueryOptions GetJoinSubqueryOptions(const TQueryOptions& queryOptions);
 
+struct TJoinSubqueryOptionsPatch
+{
+    std::optional<NTransactionClient::TTimestamp> Timestamp;
+    std::optional<int> MaxSubqueries;
+};
+
+TQueryOptions ApplyPatch(const TQueryOptions& base, const TJoinSubqueryOptionsPatch& patch);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFeatureFlags
