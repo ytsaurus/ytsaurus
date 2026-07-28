@@ -76,9 +76,21 @@ TVM &mdash; более универсальный способ: его дост�
 
 ## См. также
 
-- [Запуск в Vanilla-операции](../../../flow/release/launch-vanilla.md){% if audience == "internal" %}
-- [Запуск через Infractl](../../../flow/release/launch-infractl.md){% endif %}
+- [Запуск в Vanilla-операции](../../../flow/release/launch-vanilla.md)
+
+{% if audience == "internal" %}
+
+- [Запуск через Infractl](../../../flow/release/launch-infractl.md)
+
+{% endif %}
+
 - [Spec и DynamicSpec](../../../flow/concepts/spec.md)
-- [CLI пайплайна](../../../flow/release/cli.md){% if audience == "internal" %}
-- [Мониторинг](../../../flow/release/monitoring.md){% endif %}
+- [CLI пайплайна](../../../flow/release/cli.md)
+
+{% if audience == "internal" %}
+
+- [Мониторинг](../../../flow/release/monitoring.md)
+
+{% endif %}
+
 - [Защита от зомби-процессов](../../../flow/release/flow-core-target.md)

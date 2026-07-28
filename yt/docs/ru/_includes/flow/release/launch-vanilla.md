@@ -136,7 +136,18 @@ Vanilla-операция запускается под пользователе�
 
 ## См. также
 
-- [Базовые правила выкатки](../../../flow/release/basic-rules.md){% if audience == "internal" %}
-- [Запуск через Infractl](../../../flow/release/launch-infractl.md){% endif %}
-- [Spec и DynamicSpec](../../../flow/concepts/spec.md){% if audience == "internal" %}
-- [Интеграция с Monitoring](../../../flow/release/monitoring.md#vanilla-monitoring){% endif %}
+- [Базовые правила выкатки](../../../flow/release/basic-rules.md)
+
+{% if audience == "internal" %}
+
+- [Запуск через Infractl](../../../flow/release/launch-infractl.md)
+
+{% endif %}
+
+- [Spec и DynamicSpec](../../../flow/concepts/spec.md)
+
+{% if audience == "internal" %}
+
+- [Интеграция с Monitoring](../../../flow/release/monitoring.md#vanilla-monitoring)
+
+{% endif %}
