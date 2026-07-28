@@ -1,6 +1,8 @@
 #include "helpers.h"
 #include "shutdown.h"
 
+#include <util/generic/hash.h>
+
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/finally.h>
 
@@ -301,16 +303,27 @@ PyObject* GetModuleAttribute(const std::string& moduleName, const std::string& a
 
 PyObject* FindYsonTypeClass(const std::string& name)
 {
-    return FindModuleAttribute("yt.yson.yson_types", name);
+    static THashMap<std::string, PyObject*> TypesCache;
+    auto it = TypesCache.find(name);
+    if (it != TypesCache.end()) {
+        Py_INCREF(it->second);
+        return it->second;
+    }
+    auto* typeClass = FindModuleAttribute("yt.yson.yson_types", name);
+    if (typeClass) {
+        Py_INCREF(typeClass);
+        TypesCache.emplace(name, typeClass);
+    }
+    return typeClass;
 }
 
 PyObject* GetYsonTypeClass(const std::string& name)
 {
-    auto klass = FindYsonTypeClass(name);
-    if (!klass) {
+    auto* typeClass = FindYsonTypeClass(name);
+    if (!typeClass) {
         throw Py::RuntimeError("Class " + name + " not found in module yt.yson.yson_types");
     }
-    return klass;
+    return typeClass;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
