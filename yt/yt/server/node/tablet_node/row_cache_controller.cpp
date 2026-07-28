@@ -286,7 +286,9 @@ private:
             statistics.TotalGarbageAmount);
 
         double rawScaleFactor = static_cast<double>(memoryLimitWithoutGarbage) / statistics.NewTotalCacheSize;
-        double categoryMemoryLimitScaleFactor = std::clamp(rawScaleFactor, 0.0, 1.0);
+        double categoryMemoryLimitScaleFactor = Config_->AllowFillingAvailableMemory
+            ? std::max(rawScaleFactor, 0.0)
+            : std::clamp(rawScaleFactor, 0.0, 1.0);
 
         YT_LOG_DEBUG("Computed row cache memory scale factor "
             "(TotalMemoryLimit: %v, TotalGarbageAmount: %v, MemoryLimitWithoutGarbage: %v, NewTotalCacheSize: %v, "

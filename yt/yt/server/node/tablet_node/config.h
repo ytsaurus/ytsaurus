@@ -550,6 +550,7 @@ struct TRowCacheControllerDynamicConfig
     i64 MemoryLimitGapInBytes;
     double MemoryLimitGapFraction;
     double RotationMemoryThreshold;
+    bool AllowFillingAvailableMemory;
 
     REGISTER_YSON_STRUCT(TRowCacheControllerDynamicConfig);
 

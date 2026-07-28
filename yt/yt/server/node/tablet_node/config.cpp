@@ -609,6 +609,8 @@ void TRowCacheControllerDynamicConfig::Register(TRegistrar registrar)
         .Default(0.95)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(1);
+    registrar.Parameter("allow_filling_available_memory", &TThis::AllowFillingAvailableMemory)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
