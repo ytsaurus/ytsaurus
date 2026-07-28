@@ -24,7 +24,7 @@ class SpecLoader:
             self.raw = yaml.safe_load(f) or {}
 
     def load(self) -> MetricsSpec:
-        raw_step = self.raw.get("defaults", {}).get("step")
+        raw_step = (self.raw.get("defaults") or {}).get("step")
         step_ms = parse_duration_ms(str(raw_step)) if raw_step is not None else DEFAULT_STEP_MS
         selectors: List[str] = []
         dashboards: List[Tuple[str, Dict[str, Any]]] = []
