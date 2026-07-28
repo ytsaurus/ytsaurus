@@ -170,4 +170,4 @@ Internal State не требует создания внешних таблиц.
 - [Stateful processing (концепция)](../../../flow/concepts/stateful.md)
 - [Internal State (Java)](../../../flow/java/internal-state.md)
 - [Пример WordCount](../../../flow/python/examples/wordcount.md)
-{% if audience == "internal" %}- [Пример lb_wait_click_join](../../../yandex-specific/flow/python/examples/lb_wait_click_join.md){% endif %}
+{% if audience == "internal" %}- [Пример lb_wait_click_join](../../../flow/python/examples/lb_wait_click_join.md){% endif %}

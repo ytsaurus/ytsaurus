@@ -32,7 +32,7 @@ WHERE int64_field > 0;
 
 ## Чтение и запись из Logbroker {#logbroker}
 
-Источниками и приёмниками данных также могут быть [Logbroker](../../../yandex-specific/flow/extensions/logbroker.md) топики. Для чтения из Logbroker необходимо дополнительно задать прагму `Ytflow.LogbrokerConsumerPath`.
+Источниками и приёмниками данных также могут быть [Logbroker](../../../flow/extensions/logbroker.md) топики. Для чтения из Logbroker необходимо дополнительно задать прагму `Ytflow.LogbrokerConsumerPath`.
 
 ```yql
 PRAGMA Ytflow.LogbrokerConsumerPath = "yt/my-project/lb_consumer";

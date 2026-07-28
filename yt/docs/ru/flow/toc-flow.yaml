@@ -7,7 +7,7 @@ items:
   - name: Быстрый старт
     href: quickstart.md
   - name: Плагин AI-агента
-    href: ../yandex-specific/flow/ai-agent.md
+    href: ai-agent.md
     when: audience == "internal"
   - name: Основные понятия
     items:
@@ -70,13 +70,13 @@ items:
           - name: URL Downloader
             href: cpp/examples/url_downloader.md
           - name: Logbroker Wait Click Join
-            href: ../yandex-specific/flow/cpp/examples/lb_wait_click_join.md
+            href: cpp/examples/lb_wait_click_join.md
             when: audience == "internal"
           - name: YQL protobuf-вариант
-            href: ../yandex-specific/flow/cpp/examples/yql_protobuf.md
+            href: cpp/examples/yql_protobuf.md
             when: audience == "internal"
           - name: YQL YSON-вариант (spec-only)
-            href: ../yandex-specific/flow/cpp/examples/yql_yson.md
+            href: cpp/examples/yql_yson.md
             when: audience == "internal"
           - name: Multiplexer
             href: cpp/examples/multiplexer.md
@@ -121,7 +121,7 @@ items:
           - name: URL Downloader
             href: java/examples/url_downloader.md
           - name: Logbroker Wait Click Join
-            href: ../yandex-specific/flow/java/examples/lb_wait_click_join.md
+            href: java/examples/lb_wait_click_join.md
             when: audience == "internal"
   - name: Python
     items:
@@ -156,7 +156,7 @@ items:
           - name: URL Downloader
             href: python/examples/url_downloader.md
           - name: Logbroker Wait Click Join
-            href: ../yandex-specific/flow/python/examples/lb_wait_click_join.md
+            href: python/examples/lb_wait_click_join.md
             when: audience == "internal"
   - name: YQL
     items:
@@ -183,27 +183,27 @@ items:
     when: audience == "internal"
     items:
       - name: Обзор
-        href: ../yandex-specific/flow/extensions/about.md
+        href: extensions/about.md
       - name: Logbroker
-        href: ../yandex-specific/flow/extensions/logbroker.md
+        href: extensions/logbroker.md
       - name: ClickHouse
-        href: ../yandex-specific/flow/extensions/clickhouse.md
+        href: extensions/clickhouse.md
       - name: GrUT WatchLog
-        href: ../yandex-specific/flow/extensions/grut-watchlog.md
+        href: extensions/grut-watchlog.md
       - name: BigRT Queue
-        href: ../yandex-specific/flow/extensions/bigrt.md
+        href: extensions/bigrt.md
       - name: Monium
-        href: ../yandex-specific/flow/extensions/monium.md
+        href: extensions/monium.md
       - name: Serializable Profile
-        href: ../yandex-specific/flow/extensions/serializable-profile.md
+        href: extensions/serializable-profile.md
       - name: YQL Computation
-        href: ../yandex-specific/flow/extensions/yql.md
+        href: extensions/yql.md
   - name: Релизы и управление пайплайном
     items:
       - name: Базовые правила выкатки пайплайна
         href: release/basic-rules.md
       - name: Выбор типа репликации для стейта
-        href: ../yandex-specific/flow/release/state-tables-choice.md
+        href: release/state-tables-choice.md
         when: audience == "internal"
       - name: Запуск в Vanilla-операции
         href: release/launch-vanilla.md
@@ -211,12 +211,12 @@ items:
         href: release/launch-infractl.md
         when: audience == "internal"
       - name: UI
-        href: ../yandex-specific/flow/release/ui.md
+        href: release/ui.md
         when: audience == "internal"
       - name: CLI
         href: release/cli.md
       - name: Деплой в YP
-        href: ../yandex-specific/flow/release/yp.md
+        href: release/yp.md
         when: audience == "internal"
       - name: Интеграция с Monitoring
         href: release/monitoring.md
@@ -254,14 +254,14 @@ items:
   - name: Прочее
     items:
       - name: Пользователи фреймворка
-        href: ../yandex-specific/flow/other/framework_users.md
+        href: other/framework_users.md
         when: audience == "internal"
       - name: История развития фреймворка
-        href: ../yandex-specific/flow/other/history.md
+        href: other/history.md
         when: audience == "internal"
       - name: Выступления на мероприятиях, публикации и семинары
-        href: ../yandex-specific/flow/other/video-posts.md
+        href: other/video-posts.md
         when: audience == "internal"
       - name: Сравнение с альтернативными технологиями
-        href: ../yandex-specific/flow/other/comparison.md
+        href: other/comparison.md
         when: audience == "internal"

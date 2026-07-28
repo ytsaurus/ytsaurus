@@ -115,7 +115,7 @@ At-least-once гарантирует, что каждое сообщение б�
 
 ### At-least-once синки {#at-least-once-sinks}
 
-Коннектор [Logbroker](../../../yandex-specific/flow/extensions/logbroker.md) предоставляет отдельные классы синков с at-least-once семантикой:
+Коннектор [Logbroker](../../../flow/extensions/logbroker.md) предоставляет отдельные классы синков с at-least-once семантикой:
 
 - `TAtLeastOnceLogbrokerSink`
 - `TAtLeastOnceLogbrokerFramingSink`
@@ -192,7 +192,7 @@ Flow **не гарантирует** глобальный порядок обр�
 || Дубликаты при сбое | Нет | Возможны ||
 |#
 
-Подробнее — [Logbroker](../../../yandex-specific/flow/extensions/logbroker.md).
+Подробнее — [Logbroker](../../../flow/extensions/logbroker.md).
 
 {% endif %}
 
@@ -227,7 +227,7 @@ Exactly-once требует один из движков таблиц ClickHouse
 || Дубликаты при сбое | Нет | Возможны | Нет ||
 |#
 
-Подробнее — [ClickHouse-расширение](../../../yandex-specific/flow/extensions/clickhouse.md).
+Подробнее — [ClickHouse-расширение](../../../flow/extensions/clickhouse.md).
 
 {% endif %}
 
@@ -245,7 +245,7 @@ Exactly-once требует один из движков таблиц ClickHouse
 - **Source**: exactly-once — оффсеты консьюмера фиксируются после коммита эпохи.
 - Синк отсутствует.
 
-Подробнее — [GrUT WatchLog](../../../yandex-specific/flow/extensions/grut-watchlog.md).
+Подробнее — [GrUT WatchLog](../../../flow/extensions/grut-watchlog.md).
 
 ### BigRT Queue {#bigrt-guarantees}
 
@@ -255,7 +255,7 @@ Exactly-once требует один из движков таблиц ClickHouse
 - **Синхронный синк** (`TSyncBigRTQueueSink`): exactly-once.
 - **Асинхронный синк** (`TAsyncBigRTQueueSink`): exactly-once.
 
-Подробнее — [BigRT Queue](../../../yandex-specific/flow/extensions/bigrt.md).
+Подробнее — [BigRT Queue](../../../flow/extensions/bigrt.md).
 
 ### Monium {#monium-guarantees}
 
@@ -264,7 +264,7 @@ Monium — pull-based система метрик; в отличие от оче
 - **Source** (`TMoniumSource`): поллер периодически вызывает `DataService.Read` за полуоткрытый интервал `[LastPolledTo, min(now, LastPolledTo + poll_interval))` (`from_time` включается, `to_time` исключается — соответствует `containsOpenClose` из solomon's `Interval`) и эмитит каждую точку временного ряда отдельным сообщением плюс технический heartbeat в конце каждого поллинга. После успешного ответа `LastPolledTo` устанавливается равным `to_time` поллинга, поэтому точка на границе попадает только в следующий поллинг — окна поллов не пересекаются, и точки на стыке окон не дублируются. При перезапуске пайплайна `LastPolledTo` восстанавливается из `GetPersistedEventWatermark()` (это `Meta.EventWatermark` последнего закоммиченного heartbeat-а, равный `to_time` соответствующего поллинга), поэтому downtime произвольной длительности **не приводит к потере точек** — источник итеративно догонит историю шагами по `poll_interval`. На уровне внутренних потоков каждое сообщение получает уникальный offset (exactly-once для внутренних потоков); дедупликация по содержимому точки (`(sensor, timestamp, labels)`) на стороне Flow не выполняется — это **at-least-once** на уровне точек метрик.
 - **Sink** (`TMoniumSink`): exactly-once на уровне фреймворка — сообщения сохраняются в `output_messages`, затем доставляются через `MetricsDataService.Write` с экспоненциальным бэкоффом. Monium **не поддерживает** message-level дедупликацию, поэтому при сетевом ретрае одна и та же `(timestamp, labels)` точка может быть записана повторно. Это безопасно для метрик, перезапись которых идемпотентна (`DGAUGE`, `IGAUGE` — последняя запись по `(timestamp, labels)` побеждает), но может привести к артефактам для дельта-метрик; следите за поведением своих сенсоров и при сомнениях используйте `DGAUGE`.
 
-Подробнее — [Monium](../../../yandex-specific/flow/extensions/monium.md).
+Подробнее — [Monium](../../../flow/extensions/monium.md).
 
 {% endif %}
 

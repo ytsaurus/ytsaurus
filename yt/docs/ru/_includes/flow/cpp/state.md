@@ -214,7 +214,7 @@ YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER(NYT::NFlow::NBigRTExtensions::TProfileMana
 
 В спеке `Computation` имя класса задаётся `external_state_manager_class_name` и должно быть полностью квалифицированным именем того типа, который был передан в `YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER` (например, `NYT::NFlow::NBigRTExtensions::TProfileManager<NMyNamespace::TMyProfile>`).
 
-Подробнее об этом расширении см. в разделе [Serializable Profile](../../../yandex-specific/flow/extensions/serializable-profile.md). О юнит-тестировании функций со стейтом Serializable Profile — в разделе [Тестирование](../../../flow/cpp/process-functions.md#profile-testing).
+Подробнее об этом расширении см. в разделе [Serializable Profile](../../../flow/extensions/serializable-profile.md). О юнит-тестировании функций со стейтом Serializable Profile — в разделе [Тестирование](../../../flow/cpp/process-functions.md#profile-testing).
 
 {% endif %}
 
@@ -391,7 +391,7 @@ YT_FLOW_DEFINE_EXTERNAL_STATE_JOINER(NYT::NFlow::NBigRTExtensions::TProfileJoine
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_NBigRTExtensions_TDynamicProfileJoinerSpec.md) %}
 
-Подробнее об этом расширении см. в разделе [Serializable Profile](../../../yandex-specific/flow/extensions/serializable-profile.md). О юнит-тестировании функций со стейтом Serializable Profile — в разделе [Тестирование](../../../flow/cpp/process-functions.md#profile-testing).
+Подробнее об этом расширении см. в разделе [Serializable Profile](../../../flow/extensions/serializable-profile.md). О юнит-тестировании функций со стейтом Serializable Profile — в разделе [Тестирование](../../../flow/cpp/process-functions.md#profile-testing).
 
 {% endif %}
 

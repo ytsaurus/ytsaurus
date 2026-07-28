@@ -26,7 +26,7 @@
 
 7. **Реализуйте бизнес-логику** на выбранном языке, следуя соответствующему руководству по быстрому старту.
 
-8. **Создайте необходимые объекты в {{product-name}}** — таблицы, очереди, пайплайн{% if audience == "internal" %} — с помощью утилиты [YtSync]({{yt-sync-docs}}/) (спецификация пайплайна описана [здесь]({{yt-sync-docs}}/pipeline_specification)){% endif %}.{% if audience == "internal" %} При необходимости сделайте то же самое в сторонних системах вроде [Logbroker](../../yandex-specific/flow/extensions/logbroker.md).{% endif %}
+8. **Создайте необходимые объекты в {{product-name}}** — таблицы, очереди, пайплайн{% if audience == "internal" %} — с помощью утилиты [YtSync]({{yt-sync-docs}}/) (спецификация пайплайна описана [здесь]({{yt-sync-docs}}/pipeline_specification)){% endif %}.{% if audience == "internal" %} При необходимости сделайте то же самое в сторонних системах вроде [Logbroker](../../flow/extensions/logbroker.md).{% endif %}
 
 9. **Напишите тесты.** Следуйте инструкциям для выбранного языка программирования:
    - [C++](../../flow/cpp/testing.md)
@@ -41,4 +41,4 @@
 - [Быстрый старт](../../flow/quickstart.md)
 - [Основные понятия](../../flow/concepts/glossary.md)
 - [Коннекторы](../../flow/connectors/about.md)
-{% if audience == "internal" %}- [Сравнение с альтернативными технологиями](../../yandex-specific/flow/other/comparison.md){% endif %}
+{% if audience == "internal" %}- [Сравнение с альтернативными технологиями](../../flow/other/comparison.md){% endif %}
