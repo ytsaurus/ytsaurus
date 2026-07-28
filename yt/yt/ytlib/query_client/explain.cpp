@@ -160,6 +160,19 @@ void GetReadRangesInfo(
     }
 }
 
+void EmitHierarchicalJoinInfo(
+    TFluentMap fluent,
+    const std::vector<TConstHierarchicalJoinClausePtr>& hierarchicalJoins,
+    TStringBuf key)
+{
+    fluent.Item(key).DoListFor(hierarchicalJoins, [] (auto fluent, const auto& hierarchicalJoin) {
+        fluent.Item().BeginMap()
+            .Item("is_left").Value(hierarchicalJoin->IsLeft)
+            .Item("result_column").Value(hierarchicalJoin->ResultColumnName)
+        .EndMap();
+    });
+}
+
 void GetFrontQueryInfo(
     TFluentMap fluent,
     const TConstBaseQueryPtr query,
@@ -171,6 +184,10 @@ void GetFrontQueryInfo(
         .DoIf(query->UseDisjointGroupBy, [&] (auto fluent) {
             fluent.Item("common_prefix_with_primary_key").Value(query->GroupClause->CommonPrefixWithPrimaryKey);
         });
+
+    if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
+        EmitHierarchicalJoinInfo(fluent, derivedQuery->HierarchicalJoinsAfterGroupBy, "hierarchical_joins_after_group_by");
+    }
 }
 
 void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, bool allowUnorderedGroupByWithLimit)
@@ -213,6 +230,10 @@ void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, bool allowUnord
                 }).EndList();
             })
         .EndList();
+
+    EmitHierarchicalJoinInfo(fluent, query->HierarchicalJoinsInWhereClause, "hierarchical_joins_in_where_clause");
+    EmitHierarchicalJoinInfo(fluent, query->HierarchicalJoinsBeforeGroupBy, "hierarchical_joins_before_group_by");
+    EmitHierarchicalJoinInfo(fluent, query->HierarchicalJoinsAfterGroupBy, "hierarchical_joins_after_group_by");
 
     GetFrontQueryInfo(fluent, query, allowUnorderedGroupByWithLimit);
 }
