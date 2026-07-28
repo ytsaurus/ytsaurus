@@ -301,14 +301,14 @@ items:
                href: user-guide/data-processing/chyt/how-to-guides/acl.md
              - name: Getting query logs
                href: user-guide/data-processing/chyt/how-to-guides/query-logs.md
-             - name: Getting CHYT and Clickhouse versions 
+             - name: Getting CHYT and Clickhouse versions
                href: user-guide/data-processing/chyt/how-to-guides/versions.md
              - name: Installing a custom CHYT version
                href: user-guide/data-processing/chyt/how-to-guides/custom-chyt-version.md
              - name: Advanced settings configuration
                href: user-guide/data-processing/chyt/how-to-guides/manage-advanced-settings.md
              - name: Checking failed jobs
-               href: user-guide/data-processing/chyt/how-to-guides/failed-jobs.md    
+               href: user-guide/data-processing/chyt/how-to-guides/failed-jobs.md
            - name: CLI and Python API
              href: user-guide/data-processing/chyt/cli-and-api.md
            - name: Reference

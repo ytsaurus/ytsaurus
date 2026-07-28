@@ -575,7 +575,7 @@ items:
             href: admin-guide/install-task-proxy.md
       - name: Обновление кластера
         items:
-          - name: Стартегии обновления
+          - name: Стратегии обновления
             href: admin-guide/update/update_strategy.md
           - name: YTsaurus
             href: admin-guide/update/update-ytsaurus.md
@@ -583,6 +583,10 @@ items:
             href: admin-guide/update/update-chyt.md
           - name: SPYT
             href: admin-guide/update/update-spyt.md
+          - name: Cron
+            href: admin-guide/update/update-cron.md
+          - name: Odin
+            href: admin-guide/update/update-odin.md
           - name: Обновление томов
             href: admin-guide/update/update-volumes.md
       - name: Подготовка спецификации {{product-name}}
