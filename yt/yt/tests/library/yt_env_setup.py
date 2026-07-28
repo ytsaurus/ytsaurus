@@ -488,7 +488,6 @@ class YTEnvSetup(object):
         return cls.NUM_SECONDARY_MASTER_CELLS
 
     # To be redefined in successors
-    # TODO(pavel-bash): add modify_offshore_data_gateway_config when needed.
     @classmethod
     def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
         pass
