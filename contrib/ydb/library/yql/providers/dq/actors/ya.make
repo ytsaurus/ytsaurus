@@ -42,6 +42,7 @@ PEERDIR(
     contrib/ydb/public/lib/yson_value
     yql/essentials/core
     yql/essentials/providers/common/metrics
+    yql/essentials/public/issue
     yql/essentials/utils/failure_injector
     yql/essentials/utils/log
 )

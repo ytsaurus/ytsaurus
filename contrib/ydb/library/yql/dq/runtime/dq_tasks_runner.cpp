@@ -1,8 +1,8 @@
-#include "dq_channel_service.h"
 #include "dq_tasks_counters.h"
 #include "dq_tasks_runner.h"
 
 #include <contrib/ydb/library/yql/dq/runtime/streaming/dq_compute_actor_watermarks.h>
+#include <contrib/ydb/library/yql/dq/runtime/streaming/dq_watermark_generator_tracker.h>
 #include <contrib/ydb/library/yql/dq/actors/spilling/spilling_counters.h>
 #include <contrib/ydb/library/yql/dq/comp_nodes/dq_watermark_generator.h>
 #include <yql/essentials/minikql/comp_nodes/mkql_multihopping.h>
@@ -356,7 +356,7 @@ public:
             } else if (callable.GetType()->GetName() == "MultiHoppingCore") {
                 return WrapMultiHoppingCore(callable, ctx, Watermark);
             } else if (callable.GetType()->GetName() == "DqWatermarkGenerator") {
-                return WrapDqWatermarkGenerator(callable, ctx, Watermark);
+                return WrapDqWatermarkGenerator(callable, ctx, Watermark, SourceWatermarksTracker);
             }
             return nullptr;
         };
@@ -370,7 +370,8 @@ public:
             optLLVM = "OFF";
         }
 
-        auto runtimeSettings = NYql::DeserializeRuntimeSettingsFromProto(task.GetProgram().GetRuntimeSettings());
+
+        Y_ENSURE(RuntimeSettings, "RuntimeSettings must be set in Prepare stage of TDqTaskRunner");
 
         TComputationPatternOpts opts(alloc.Ref(), typeEnv, taskRunnerFactory,
             Context.FuncRegistry, NUdf::EValidateMode::None, validatePolicy, optLLVM, EGraphPerProcess::Multi,
@@ -581,9 +582,11 @@ public:
 
     void Prepare(const TDqTaskSettings& task, const TDqTaskRunnerMemoryLimits& memoryLimits,
         const IDqTaskRunnerExecutionContext& execCtx,
-        TDqComputeActorWatermarks* watermarksTracker) override
-    {
+        TDqComputeActorWatermarks* watermarksTracker,
+        TDqWatermarkGeneratorTracker* sourceWatermarksTracker
+    ) override {
         WatermarksTracker = watermarksTracker;
+        SourceWatermarksTracker = sourceWatermarksTracker;
         TaskId = task.GetId();
         StageId = task.GetStageId();
         LangVer = task.GetProgram().GetLangVer();
@@ -763,6 +766,20 @@ public:
                 taskUsesWatermarks = true;
             }
         }
+
+        bool outputUsesWatermarks = false;
+        for (const auto& outputDesc : task.GetOutputs()) {
+            for (const auto& outputChannelDesc : outputDesc.GetChannels()) {
+                if (outputChannelDesc.GetWatermarksMode() != NDqProto::WATERMARKS_MODE_DISABLED) {
+                    outputUsesWatermarks = true;
+                    break;
+                }
+            }
+            if (outputUsesWatermarks) {
+                break;
+            }
+        }
+        taskUsesWatermarks |= outputUsesWatermarks;
 
         if (!taskUsesWatermarks) {
             WatermarksTracker = nullptr;
@@ -1288,6 +1305,7 @@ private:
     std::optional<TAllocatedHolder> AllocatedHolder;
     NKikimr::NMiniKQL::TWatermark Watermark;
     TDqComputeActorWatermarks* WatermarksTracker = nullptr;
+    TDqWatermarkGeneratorTracker* SourceWatermarksTracker = nullptr;
 
     bool TaskHasEffects = false;
 

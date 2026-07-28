@@ -4,12 +4,14 @@ SRCS(
     exec_query.cpp
     exec_query.h
     client_session.cpp
+    session_state_handler.cpp
 )
 
 PEERDIR(
     contrib/ydb/public/api/grpc/draft
     contrib/ydb/public/api/protos
     contrib/ydb/public/sdk/cpp/src/client/common_client/impl
+    contrib/ydb/public/sdk/cpp/src/client/impl/session
     contrib/ydb/public/sdk/cpp/src/client/impl/observability
     contrib/ydb/public/sdk/cpp/src/client/proto
 )

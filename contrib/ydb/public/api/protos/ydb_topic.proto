@@ -152,7 +152,10 @@ message StreamWriteMessage {
         // See enum Codec above for values.
         int32 codec = 2;
 
-        optional TransactionIdentity tx = 3;
+        oneof write_context {
+            TransactionIdentity tx = 3;
+            DeferredPublishIdentity deferred_publish = 9;
+        }
 
         message MessageData {
             // Message sequence number, provided by client for deduplication. Max sequence number for batch messages.
@@ -522,6 +525,10 @@ message StreamReadMessage {
         // All messages with offset less than commit_offset are processed by client.
         // Server will commit this position if this is not done yet.
         optional int64 commit_offset = 3;
+
+        // If max_ofset is set, server will return data only up to max_offset (inclusive)
+        // If set and is less than read_offset, commit_offset or actual committed offset then server will send an error message (status != SUCCESS) and close stream.
+        optional int64 max_offset = 4;
     }
 
     // Command from server to stop and destroy concrete partition session.
@@ -712,6 +719,15 @@ message TransactionIdentity {
 
     // Session identifier from TableService.
     string session = 2;
+}
+
+// Identity of a deferred topic publication for StreamWrite.
+// int_publication_id is assigned by the server in BeginPublication.
+// ext_publication_id is repeated from BeginPublication on each write batch.
+message DeferredPublishIdentity {
+    uint64 int_publication_id = 1;
+
+    string ext_publication_id = 2 [(Ydb.length).le = 2048];
 }
 
 // Add offsets to transaction request sent from client to server.
