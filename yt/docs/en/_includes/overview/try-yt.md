@@ -31,15 +31,15 @@ Regardless of the installation method, the required system components will be de
       - If you're using MacOS, install either [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) or [Podman](https://podman.io/docs/installation). Make sure that you have [Rosetta 2](https://support.apple.com/en-us/102527) installed and enabled.
 
   2. Download the [run_local_cluster.sh](https://github.com/ytsaurus/ytsaurus/tree/main/yt/docker/local) script for deploying the cluster, and set execution permissions:
-     ```bash
-     mkdir ~/yt-local && cd ~/yt-local
-     curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/main/yt/docker/local/run_local_cluster.sh > run_local_cluster.sh
-     chmod +x run_local_cluster.sh
+     ```bash prompt="$" prompt="$"
+     $ mkdir ~/yt-local && cd ~/yt-local
+     $ curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/main/yt/docker/local/run_local_cluster.sh > run_local_cluster.sh
+     $ chmod +x run_local_cluster.sh
      ```
 
   3. Run the script to deploy the cluster:
-     ```bash
-     ./run_local_cluster.sh
+     ```bash prompt="$" prompt="$"
+     $ ./run_local_cluster.sh
      ```
 
      The script creates and runs [docker containers](*about-docker-containers) for deploying {{product-name}}. If the operation is successful, you'll see the following message:
@@ -52,7 +52,7 @@ Regardless of the installation method, the required system components will be de
      - `localhost:8000` is the cluster's backend address. You'll need to [specify](#set-vars) it as the proxy address to access the cluster via the CLI.
 
   4. To make sure everything works correctly, run the following command:
-     ```bash
+     ```bash prompt="$"
      $ docker ps | grep yt
      CONTAINER ID   IMAGE                           COMMAND                  CREATED         STATUS         PORTS              NAMES
      2c254e35037c   ghcr.io/ytsaurus/local:stable   "--fqdn localhost --…"   2 minutes ago   Up 2 minutes   80/tcp, 8002/tcp   yt.backend
@@ -66,7 +66,7 @@ Regardless of the installation method, the required system components will be de
 
        To find out what {{product-name}} components are deployed on your system, check the list of processes running within the container:
 
-       ```bash
+       ```bash prompt="$"
        $ docker exec -it yt.backend /bin/bash
        $ ps -axo command | grep ytserver
        /mnt/rosetta /usr/bin/python3.8 /usr/local/bin/yt_local start --proxy-port 80 --local-cypress-dir /var/lib/yt/local-cypress --fqdn localhost --ytserver-all-path /usr/bin/ytserver-all --sync --fqdn localhost --proxy-config {coordinator={public_fqdn="localhost:8000"}} --rpc-proxy-count 0 --rpc-proxy-port 8002 --node-count 1 --queue-agent-count 1 --address-resolver-config {enable_ipv4=%true;enable_ipv6=%false;} --native-client-supported --id primary -c {name=query-tracker} -c {name=yql-agent;config={path="/usr/bin";count=1;artifacts_path="/usr/bin"}}
@@ -134,7 +134,7 @@ Regardless of the installation method, the required system components will be de
 
   #### 2. Deploy a Kubernetes cluster {#k8s-start}
 
-  ```bash
+  ```bash prompt="$"
   $ minikube start  --cpus=6 --memory=8192 --driver=docker
 
   # If you're using Podman
@@ -143,7 +143,7 @@ Regardless of the installation method, the required system components will be de
 
   Once your Kubernetes cluster is deployed, the following command should execute successfully:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl cluster-info
   Kubernetes control plane is running at https://127.0.0.1:36399
   CoreDNS is running at https://127.0.0.1:36399/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
@@ -151,13 +151,13 @@ Regardless of the installation method, the required system components will be de
 
   #### 3. Install cert-manager { #cert-manager-apply }
 
-  ```bash
-  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/{{cert-manager-version}}/cert-manager.yaml
+  ```bash prompt="$"
+  $ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/{{cert-manager-version}}/cert-manager.yaml
   ```
 
   Wait for the `cert-manager-webhook` pod to enter the `Running` state:
 
-  ```
+  ```bash prompt="$"
   $ kubectl get pods -A
   NAMESPACE        NAME                                        READY   STATUS      RESTARTS   AGE
   cert-manager     cert-manager-7b5cdf866f-5lfth               1/1     Running     0          2m12s
@@ -172,8 +172,8 @@ Regardless of the installation method, the required system components will be de
   The [{{product-name}} operator](https://github.com/ytsaurus/ytsaurus-k8s-operator) is a program that manages {{product-name}} execution in a Kubernetes cluster. The operator ensures that all {{product-name}} components are up and running correctly.
 
   Install the chart:
-  ```bash
-  helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}
+  ```bash prompt="$"
+  $ helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}
   ```
 
   {% cut "If you see the error 'Internal error occurred: failed calling webhook "webhook.cert-manager.io"'" %}
@@ -196,7 +196,7 @@ Regardless of the installation method, the required system components will be de
 
   Wait for the operator to enter the `Running` state:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl get pod
   NAME                                                      READY   STATUS     RESTARTS   AGE
   ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0          7m57s
@@ -204,14 +204,14 @@ Regardless of the installation method, the required system components will be de
 
   #### 5. Start the {{product-name}} cluster {#yt-start}
 
-  ```bash
-  curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/cluster-config/cluster_v1_local.yaml > cluster_v1_local.yaml
-  kubectl apply -f cluster_v1_local.yaml
+  ```bash prompt="$"
+  $ curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/cluster-config/cluster_v1_local.yaml > cluster_v1_local.yaml
+  $ kubectl apply -f cluster_v1_local.yaml
   ```
 
   It usually takes a few minutes for a {{product-name}} cluster to start. If everything is successful, the list of running pods will look like this:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl get pod
   NAME                                                      READY   STATUS              RESTARTS   AGE
   ca-0                                                      1/1     Running     0          8m43s
@@ -241,7 +241,7 @@ Regardless of the installation method, the required system components will be de
 
   Most likely, this is due to insufficient resources. Delete the Minikube cluster and try creating it again, this time allocating more resources at launch.
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl delete -f cluster_v1_local.yaml
   $ minikube delete
   $ minikube start --cpus=8 --memory=10000 --driver=docker
@@ -257,7 +257,7 @@ Regardless of the installation method, the required system components will be de
 
   To check the address at which the {{product-name}} cluster will be available, run the following commands:
 
-  ```bash
+  ```bash prompt="$"
   # Network access to the web interface
   $ minikube service ytsaurus-ui --url
   http://192.168.49.2:30539
@@ -276,15 +276,15 @@ Regardless of the installation method, the required system components will be de
   {% cut "How to access the web interface if the cluster is deployed on a remote host" %}
 
   1. On the remote host, run the command:
-     ```bash
+     ```bash prompt="$"
      $ minikube service http-proxies-lb --url
      <HOST>:<PORT>
      ```
      You'll need the `<HOST>` and `<PORT>` values for the next step.
 
   2. On the local host, start a new terminal session and run the following:
-     ```
-     ssh -fnNT -L 127.0.0.1:8080:<HOST>:<PORT> <VM>
+     ```bash prompt="$"
+     $ ssh -fnNT -L 127.0.0.1:8080:<HOST>:<PORT> <VM>
      ```
      The web interface will be available at [127.0.0.1:8080](http://127.0.0.1:8080).
 
@@ -329,18 +329,18 @@ Regardless of the installation method, the required system components will be de
 
   #### 2. Start a Kubernetes cluster {#kind-k8s-start}
 
-  ```bash
-  kind create cluster --name ytsaurus
+  ```bash prompt="$"
+  $ kind create cluster --name ytsaurus
   ```
 
   When the Kubernetes cluster is up, switch the k8s context to the created cluster:
-  ```bash
-  kubectl cluster-info --context kind-ytsaurus
+  ```bash prompt="$"
+  $ kubectl cluster-info --context kind-ytsaurus
   ```
 
   Check that the cluster is accessible and running:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl cluster-info
   Kubernetes control plane is running at https://127.0.0.1:38797
   CoreDNS is running at https://127.0.0.1:38797/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
@@ -349,24 +349,24 @@ Regardless of the installation method, the required system components will be de
   {% note warning %}
 
   In some cases — for example, when using Ubuntu 22.04 — there may be issues starting the k8s cluster. In this case, try using Kind version 0.20.0:
-  ```bash
-  curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
-  chmod +x ./kind
-  sudo mv ./kind /usr/local/bin/kind
-  kind create cluster --name ytsaurus
+  ```bash prompt="$"
+  $ curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+  $ chmod +x ./kind
+  $ sudo mv ./kind /usr/local/bin/kind
+  $ kind create cluster --name ytsaurus
   ```
 
   {% endnote %}
 
   #### 3. Install cert-manager { #kind-cert-manager-apply }
 
-  ```bash
-  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/{{cert-manager-version}}/cert-manager.yaml
+  ```bash prompt="$"
+  $ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/{{cert-manager-version}}/cert-manager.yaml
   ```
 
   Wait until the `cert-manager-webhook` pod is in the `Running` state:
 
-  ```
+  ```bash prompt="$"
   $ kubectl get pods -A
   NAMESPACE        NAME                                        READY   STATUS      RESTARTS   AGE
   cert-manager     cert-manager-7b5cdf866f-5lfth               1/1     Running     0          2m12s
@@ -381,8 +381,8 @@ Regardless of the installation method, the required system components will be de
   The [{{product-name}} operator](https://github.com/ytsaurus/ytsaurus-k8s-operator) is a program that manages the execution of {{product-name}} in a Kubernetes cluster. The operator ensures that all {{product-name}} components are launched and running correctly.
 
   Install the chart:
-  ```bash
-  helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}
+  ```bash prompt="$"
+  $ helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}
   ```
 
   {% cut "If you encounter the error 'Internal error occurred: failed calling webhook "webhook.cert-manager.io"'" %}
@@ -405,7 +405,7 @@ Regardless of the installation method, the required system components will be de
 
   Wait until the operator is in `Running` status:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl get pod
   NAME                                                      READY   STATUS     RESTARTS   AGE
   ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0          7m57s
@@ -413,14 +413,14 @@ Regardless of the installation method, the required system components will be de
 
   #### 5. Launch the {{product-name}} cluster {#kind-yt-start}
 
-  ```bash
-  curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/cluster-config/cluster_v1_local.yaml > cluster_v1_local.yaml
-  kubectl apply -f cluster_v1_local.yaml
+  ```bash prompt="$"
+  $ curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/cluster-config/cluster_v1_local.yaml > cluster_v1_local.yaml
+  $ kubectl apply -f cluster_v1_local.yaml
   ```
 
   Usually, launching the {{product-name}} cluster takes several minutes. If everything is successful, the list of running pods will look like this:
 
-  ```bash
+  ```bash prompt="$"
   $ kubectl get pod
   NAME                                                      READY   STATUS              RESTARTS   AGE
   ca-0                                                      1/1     Running     0          8m43s
@@ -452,8 +452,8 @@ Regardless of the installation method, the required system components will be de
 
   To access the cluster web interface at `localhost:8080`, run this command in a separate terminal:
 
-  ```bash
-  kubectl port-forward service/ytsaurus-ui 8080:80
+  ```bash prompt="$"
+  $ kubectl port-forward service/ytsaurus-ui 8080:80
   ```
 
   Use the following credentials:
@@ -463,22 +463,22 @@ Regardless of the installation method, the required system components will be de
   ```
 
   To access the cluster API at `localhost:8081`, run this command in a separate terminal:
-   ```bash
-   kubectl port-forward service/http-proxies-lb 8081:80
+   ```bash prompt="$"
+   $ kubectl port-forward service/http-proxies-lb 8081:80
    ```
 
    To work via [RPC proxy](../../user-guide/proxy/rpc.md) at `localhost:8082`, run this command in a separate terminal:
 
-   ```bash
-   kubectl port-forward service/rpc-proxies-lb 8082:9013
+   ```bash prompt="$"
+   $ kubectl port-forward service/rpc-proxies-lb 8082:9013
    ```
 
    {% note info %}
 
    For the RPC proxy to be accessible through Discovery, you need to register it as a balancer in `//sys/rpc_proxies/@balancers`:
 
-   ```bash
-   yt --proxy localhost:8081 set --format json //sys/rpc_proxies/@balancers '{ "default": { "internal_rpc": { "default": ["localhost:8082"]} } }'
+   ```bash prompt="$"
+   $ yt --proxy localhost:8081 set --format json //sys/rpc_proxies/@balancers '{ "default": { "internal_rpc": { "default": ["localhost:8082"]} } }'
    ```
    {% endnote %}
 
@@ -510,14 +510,14 @@ Regardless of the installation method, the required system components will be de
      ```
 
      Start the Kind cluster with the config:
-     ```bash
-     kind create cluster --name ytsaurus --config=kind-config.yaml
+     ```bash prompt="$"
+     $ kind create cluster --name ytsaurus --config=kind-config.yaml
      ```
 
   2. Configure port forwarding for the web interface and proxies in the {{product-name}} cluster.
 
      In the {{product-name}} cluster config, specify the `httpNodePort` option in the proxies and web interface. For RPC proxy specify the `nodePort` option:
-     ```bash
+     ```bash prompt="$"
      $ grep nodePort: -iB 5 cluster_v1_local_with_ports.yaml
        httpProxies:
          - serviceType: NodePort
@@ -567,41 +567,41 @@ The most convenient way to interact with the {{product-name}} system is through 
 
 First, install the pip3 package manager if you don't already have it installed:
 
-```bash
-sudo apt update
-sudo apt install python3-pip
+```bash prompt="$"
+$ sudo apt update
+$ sudo apt install python3-pip
 ```
 
 Make sure that everything worked correctly:
-```bash
+```bash prompt="$"
 $ pip3 --version
 pip 22.0.2 from ...
 ```
 
 Install the `ytsaurus-client` utility:
 
-```bash
-pip3 install --user ytsaurus-client
+```bash prompt="$"
+$ pip3 install --user ytsaurus-client
 ```
 
 Add the path to `$HOME/.local/bin` to the `PATH` variable:
 
-```bash
-export PATH="$PATH:$HOME/.local/bin"
+```bash prompt="$"
+$ export PATH="$PATH:$HOME/.local/bin"
 ```
 
 {% cut "How to save this change after system reboot" %}
 
-```bash
-echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc # This command appends the string to the end of the ~/.bashrc file
-source ~/.bashrc  # Apply the changes now
+```bash prompt="$"
+$ echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc # This command appends the string to the end of the ~/.bashrc file
+$ source ~/.bashrc  # Apply the changes now
 ```
 
 {% endcut %}
 
 Check if the {{product-name}} CLI was successfully installed:
 
-```bash
+```bash prompt="$"
 $ yt --version
 Version: YT wrapper 0.13.20
 ```
@@ -621,17 +621,17 @@ You'll need this to access the cluster via the CLI for the examples that follow.
 
 - Docker {selected}
 
-  ```bash
-  export YT_PROXY=localhost:8000
+  ```bash prompt="$"
+  $ export YT_PROXY=localhost:8000
   ```
 
 - Minikube
 
-  ```bash
-  export YT_PROXY=`minikube service http-proxies-lb --url`
+  ```bash prompt="$"
+  $ export YT_PROXY=`minikube service http-proxies-lb --url`
   # Disable automatic proxy server detection {{product-name}}
-  export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
-  export YT_TOKEN=password
+  $ export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
+  $ export YT_TOKEN=password
   ```
 
   {% note warning %}
@@ -642,11 +642,11 @@ You'll need this to access the cluster via the CLI for the examples that follow.
 
 - Kind
 
-  ```bash
-  export YT_PROXY='localhost:8081'
+  ```bash prompt="$"
+  $ export YT_PROXY='localhost:8081'
   # Disable automatic {{product-name}} proxy discovery
-  export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
-  export YT_TOKEN=password
+  $ export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
+  $ export YT_TOKEN=password
   ```
 
   {% note warning %}
@@ -661,7 +661,7 @@ You'll need this to access the cluster via the CLI for the examples that follow.
 
 In {{product-name}}, all data is stored in [tables](../../user-guide/storage/static-tables.md). Let's create one!
 
-```bash
+```bash prompt="$"
 $ yt create table //home/input_table --attributes '{schema = [{name = id; type = int64}; {name = text; type = string}]}'
 > 16-64ca-10191-47007b7d
 ```
@@ -676,14 +676,14 @@ You can view the created table in the web interface. In your web browser, open t
 
 Now write some data to the table by calling the [write-table](../../api/cli/commands.md#write-table) command:
 
-```bash
-echo '{ "id": 0, "text": "Hello" } { "id": 1, "text": "World!" }' | yt write-table //home/input_table --format json
+```bash prompt="$"
+$ echo '{ "id": 0, "text": "Hello" } { "id": 1, "text": "World!" }' | yt write-table //home/input_table --format json
 ```
 
 ### Read the result { #get-result }
 
 To verify that the data has indeed been written to the table, run the following command:
-```bash
+```bash prompt="$"
 $ yt read-table //home/input_table --format json
 {"id":0,"text":"Hello"}
 {"id":1,"text":"World!"}
@@ -736,9 +736,9 @@ For a Word Count problem, the MapReduce operation is executed according to the f
 
 Download the [source text](https://github.com/ytsaurus/ytsaurus/blob/main/yt/docs/code-examples/source/moem.txt) and convert it into a tab-separated format:
 
-```bash
-curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/source/moem.txt > source.txt
-awk '{gsub(/\t/, "\\t"); print "lineno="NR"\ttext="$0}' source.txt > source.tsv
+```bash prompt="$"
+$ curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/source/moem.txt > source.txt
+$ awk '{gsub(/\t/, "\\t"); print "lineno="NR"\ttext="$0}' source.txt > source.tsv
 ```
 
 {% cut "About the tab-separated format" %}
@@ -753,38 +753,38 @@ For example, the string `lineno=1\tsize=6\tvalue=foobar` describes a row with co
 
 Prepare the source code of the program that will run the MapReduce operation. Download the Python&nbsp;3 [script]({{pages.try-yt.mr-source}}) and save it locally:
 
-```bash
-curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/python/word-count.py > word-count.py
+```bash prompt="$"
+$ curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/python/word-count.py > word-count.py
 ```
 
 #### 2. Create a table { #mr-create-table }
 
 Create two tables, one for the source data and another for the results of executing the MapReduce operation:
 
-```bash
-yt create table //home/mapreduce_input --attributes '{schema = [{name = lineno; type = string}; {name = text; type = string}]}'
-yt create table //home/mapreduce_result --attributes '{schema = [{name = count; type = string}; {name = word; type = string}]}'
+```bash prompt="$"
+$ yt create table //home/mapreduce_input --attributes '{schema = [{name = lineno; type = string}; {name = text; type = string}]}'
+$ yt create table //home/mapreduce_result --attributes '{schema = [{name = count; type = string}; {name = word; type = string}]}'
 ```
 
 If you get 'Cannot determine backend type: either driver config or proxy url should be specified,' [set](#set-vars) the environment variable `YT_PROXY`.
 
 Now write some data to the source table by calling the [write-table](../../api/cli/commands.md#write-table) command:
 
-```bash
-cat source.tsv | yt write-table //home/mapreduce_input --format dsv
+```bash prompt="$"
+$ cat source.tsv | yt write-table //home/mapreduce_input --format dsv
 ```
 To verify that the data has been written to the table, use the [read-table](../../api/cli/commands.md#read-table) command. The half-interval specified in the square brackets indicates that we want to get the first six rows of the table:
 
-```bash
-yt read-table '//home/mapreduce_input[:#6]' --format dsv
+```bash prompt="$"
+$ yt read-table '//home/mapreduce_input[:#6]' --format dsv
 ```
 
 #### 3. Run MapReduce { #mr-run }
 
 Run the MapReduce operation using the [map-reduce](../../api/cli/commands.md#map-reduce) command:
 
-```bash
-yt map-reduce --mapper "python3 word-count.py map" --reducer "python3 word-count.py reduce" --map-local-file word-count.py --reduce-local-file word-count.py --src //home/mapreduce_input --dst //home/mapreduce_result --reduce-by word --format dsv
+```bash prompt="$"
+$ yt map-reduce --mapper "python3 word-count.py map" --reducer "python3 word-count.py reduce" --map-local-file word-count.py --reduce-local-file word-count.py --src //home/mapreduce_input --dst //home/mapreduce_result --reduce-by word --format dsv
 ```
 
 You can track the status of a running operation in the **Operations** section of the web interface.
@@ -813,8 +813,8 @@ LIMIT 30;
 - Docker {selected}
 
   To delete a {{product-name}} cluster, shut down the `yt.frontend` and `yt.backend` containers. To do this, run the command:
-    ```bash
-  ./run_local_cluster.sh --stop
+    ```bash prompt="$"
+  $ ./run_local_cluster.sh --stop
   ```
 
   This command stops (executes `docker stop`) and then removes (`docker rm`) the containers.
@@ -822,51 +822,51 @@ LIMIT 30;
 - Minikube
 
   1. Delete the {{product-name}} cluster:
-     ```bash
-     kubectl delete -f cluster_v1_local.yaml
+     ```bash prompt="$"
+     $ kubectl delete -f cluster_v1_local.yaml
      ```
 
   2. Uninstall the operator:
-     ```bash
-     helm uninstall ytsaurus
+     ```bash prompt="$"
+     $ helm uninstall ytsaurus
      ```
 
   3. Stop the Kubernetes cluster:
-     ```bash
-     minikube stop
+     ```bash prompt="$"
+     $ minikube stop
      ```
 
   4. Delete the Kubernetes cluster:
-     ```bash
-     minikube delete
+     ```bash prompt="$"
+     $ minikube delete
      ```
 
   5. Clear the Minikube cache:
-     ```bash
-     rm -rf ~/.minikube/
+     ```bash prompt="$"
+     $ rm -rf ~/.minikube/
      ```
 
   6. If you used Podman:
-     ```bash
-     podman rm -f minikube
-     podman volume rm minikube
+     ```bash prompt="$"
+     $ podman rm -f minikube
+     $ podman volume rm minikube
      ```
 
 - Kind
 
   1. Delete the {{product-name}} cluster:
-     ```bash
-     kubectl delete -f cluster_v1_local.yaml
+     ```bash prompt="$"
+     $ kubectl delete -f cluster_v1_local.yaml
      ```
 
   2. Delete the operator:
-     ```bash
-     helm uninstall ytsaurus
+     ```bash prompt="$"
+     $ helm uninstall ytsaurus
      ```
 
   3. Delete the Kubernetes cluster:
-     ```bash
-     kind delete cluster --name ytsaurus
+     ```bash prompt="$"
+     $ kind delete cluster --name ytsaurus
      ```
 
 {% endlist %}
