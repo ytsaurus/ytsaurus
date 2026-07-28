@@ -79,6 +79,7 @@ protected:
             /*batchRowCount*/ {},
             InputSliceDataWeight_,
             SamplingRate_,
+            /*samplingSeed*/ std::nullopt,
             SamplingDataWeightPerJob_,
             SamplingPrimaryDataWeightPerJob_,
             MaxBuildRetryCount_);
