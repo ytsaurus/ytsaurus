@@ -38,8 +38,8 @@ class PrometheusClient:
             logger.warning(f"Unexpected response for count({selector}): {type(e).__name__}: {e}")
             return -1
 
-    def query_range(self, selector: str, start: float, end: float, step: str) -> Dict[str, Any]:
+    def query_range(self, selector: str, start: float, end: float, step_ms: int) -> Dict[str, Any]:
         return self._get(
             "api/v1/query_range",
-            {"query": selector, "start": start, "end": end, "step": step},
+            {"query": selector, "start": start, "end": end, "step": f"{step_ms}ms"},
         )
