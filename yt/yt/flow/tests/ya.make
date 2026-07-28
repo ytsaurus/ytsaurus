@@ -54,8 +54,9 @@ IF (NOT SANITIZER_TYPE)
 ENDIF()
 
 IF (NOT OPENSOURCE)
-    # Uses replicated tables — out of yt_sync_mini's scope.
+    # Use replicated/chaos tables — out of yt_sync_mini's scope.
     RECURSE(
+        read_chaos_tables
         sorted_dynamic_table
     )
 
