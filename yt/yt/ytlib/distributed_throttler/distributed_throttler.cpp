@@ -95,7 +95,7 @@ public:
             // Set limit to zero for now. The actual limit will be given by the
             // leader on the first heartbeat. This makes monitoring graphs nice.
             double limit = 0;
-            Initialize(limit);
+            EnsureProfilingInitialized(limit);
             Underlying_->SetLimit(limit);
         }
     }
@@ -112,7 +112,7 @@ public:
         auto guard = Guard(HistoricUsageAggregatorLock_);
 
         auto usage = HistoricUsageAggregator_.GetAverage();
-        if (Initialized_) {
+        if (ProfilingInitialized_.load(std::memory_order::acquire)) {
             Usage_.Update(usage);
         }
         return usage;
@@ -207,7 +207,7 @@ public:
 
         auto queueTotalAmount = Underlying_->GetQueueTotalAmount();
 
-        if (Initialized_) {
+        if (ProfilingInitialized_.load(std::memory_order::acquire)) {
             QueueTotalAmount_.Update(queueTotalAmount);
         }
 
@@ -227,7 +227,7 @@ public:
     {
         Underlying_->SetLimit(limit);
 
-        if (Initialized_) {
+        if (ProfilingInitialized_.load(std::memory_order::acquire)) {
             Limit_.Update(limit.value_or(-1));
         }
     }
@@ -246,7 +246,7 @@ public:
     {
         auto duration = Underlying_->GetEstimatedOverdraftDuration();
 
-        if (Initialized_) {
+        if (ProfilingInitialized_.load(std::memory_order::acquire)) {
             EstimatedOverdraftDuration_.Update(duration);
         }
 
@@ -275,16 +275,18 @@ public:
         };
     }
 
-    void Initialize(std::optional<double> limit = std::nullopt)
+    void EnsureProfilingInitialized(std::optional<double> limit = std::nullopt)
     {
-        if (Initialized_) {
+        // Using _acquire_ here to provide _synchronizes-with_ for accessing counters
+        // in case of concurrent "ensuring".
+        if (ProfilingInitialized_.load(std::memory_order::acquire)) {
             return;
         }
 
-        // We make sure that solomon counters are initialized only once.
-        auto guard = TGuard(InitializationLock_);
+        // Make sure that solomon counters are initialized exactly once.
+        auto guard = TGuard(ProfilingInitializationLock_);
 
-        if (Initialized_) {
+        if (ProfilingInitialized_.load(std::memory_order::relaxed)) {
             return;
         }
 
@@ -308,7 +310,7 @@ public:
         EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
         EstimatedOverdraftDuration_.Update(TDuration::Zero());
 
-        Initialized_ = true;
+        ProfilingInitialized_.store(true, std::memory_order::release);
     }
 
 private:
@@ -329,8 +331,8 @@ private:
     TCounter TotalUsage_;
     TGauge QueueTotalAmount_;
     TTimeGauge EstimatedOverdraftDuration_;
-    std::atomic<bool> Initialized_ = false;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InitializationLock_);
+    std::atomic<bool> ProfilingInitialized_ = false;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProfilingInitializationLock_);
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
     TAverageAdjustedExponentialMovingAverage HistoricUsageAggregator_;
@@ -339,14 +341,14 @@ private:
     {
         auto guard = Guard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateAt(TInstant::Now(), amount);
-        Acquired_.Increment(amount);
-        if (amount > 0) {
-            Initialize();
-        }
-        if (Initialized_) {
-            Usage_.Update(HistoricUsageAggregator_.GetAverage());
+        if (amount == 0) {
+            return;
         }
 
+        EnsureProfilingInitialized();
+
+        Usage_.Update(HistoricUsageAggregator_.GetAverage());
+        Acquired_.Increment(amount);
         TotalUsage_.Increment(amount);
     }
 };
@@ -1263,7 +1265,7 @@ public:
         const NLogging::TLogger& logger,
         IAuthenticatorPtr authenticator,
         TProfiler profiler,
-        std::optional<i64> memberPriority)
+        std::optional<i64> memberPriorityHint)
         : ChannelFactory_(std::move(channelFactory))
         , Connection_(std::move(connection))
         , GroupId_(std::move(groupId))
@@ -1306,9 +1308,12 @@ public:
             Throttlers_,
             Logger,
             std::move(authenticator)))
-        , MemberPriority_(memberPriority)
+        , MemberPriority_(GenerateMemberPriority(
+            config->MemberPriorityGenerator,
+            memberPriorityHint))
     {
-        YT_LOG_INFO("Starting distributed throttler factory");
+        YT_LOG_INFO("Starting distributed throttler factory (MemberPriority: %v)",
+            MemberPriority_);
 
         IsLeader_ = Profiler_.Gauge("/leader");
         IsLeader_.Update(0);
@@ -1317,22 +1322,27 @@ public:
         attributes->Set(RealmIdAttributeKey, RealmId_);
         attributes->Set(AddressAttributeKey, address);
 
-        if (MemberPriority_) {
-            MemberClient_->SetPriority(MemberPriority_.value());
-        } else {
-            // Generate and set member priority.
-            switch (config->MemberPriorityGenerator) {
-                case EDistributedThrottlerMemberPriorityGenerator::StartTime:
-                    MemberClient_->SetPriority(TInstant::Now().Seconds());
-                    break;
-                case EDistributedThrottlerMemberPriorityGenerator::Random:
-                    MemberClient_->SetPriority(RandomNumber<ui64>());
-                    break;
-                default:
-                    THROW_ERROR_EXCEPTION("Unsupported member priority generator %Qlv",
-                        config->MemberPriorityGenerator);
-                    break;
-            }
+        MemberClient_->SetPriority(MemberPriority_);
+    }
+
+    i64 GenerateMemberPriority(
+        EDistributedThrottlerMemberPriorityGenerator generator,
+        std::optional<i64> memberPriorityHint)
+    {
+        if (memberPriorityHint) {
+            return *memberPriorityHint;
+        }
+
+        switch (generator) {
+            case EDistributedThrottlerMemberPriorityGenerator::StartTime:
+                return TInstant::Now().Seconds();
+
+            case EDistributedThrottlerMemberPriorityGenerator::Random:
+                return RandomNumber<ui64>();
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported member priority generator %Qlv",
+                    generator);
         }
     }
 
@@ -1511,7 +1521,10 @@ private:
 
     const TThrottlersPtr Throttlers_ = New<TThrottlers>();
     const TDistributedThrottlerServicePtr DistributedThrottlerService_;
-    const std::optional<i64> MemberPriority_;
+
+    // This value is responsoible for choosing the leader.
+    // Member with the lowest value wins.
+    const i64 MemberPriority_;
 
     std::atomic<bool> Active_ = false;
 
@@ -1877,7 +1890,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     NLogging::TLogger logger,
     IAuthenticatorPtr authenticator,
     TProfiler profiler,
-    std::optional<i64> memberPriority)
+    std::optional<i64> memberPriorityHint)
 {
     return New<TDistributedThrottlerFactory>(
         CloneYsonStruct(std::move(config)),
@@ -1891,7 +1904,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         std::move(logger),
         std::move(authenticator),
         std::move(profiler),
-        std::move(memberPriority));
+        std::move(memberPriorityHint));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

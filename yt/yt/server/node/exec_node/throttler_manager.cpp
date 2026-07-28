@@ -351,14 +351,14 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 
         ClusterThrottlersConfig_ = std::move(newConfig);
 
-        std::optional<i64> memberPriority;
+        std::optional<i64> memberPriorityHint;
         if (!ClusterThrottlersConfig_->LeaderNodeTagFilter.IsSatisfiedBy(Bootstrap_->GetLocalDescriptor().GetTags())) {
             YT_LOG_INFO("Leader node tag filter is not satisfied, set the lowest member priority (LeaderNodeTagFilter: %v, NodeTags: %v)",
                 ClusterThrottlersConfig_->LeaderNodeTagFilter,
                 Bootstrap_->GetLocalDescriptor().GetTags());
 
             // Set the lowest member priority. The higher the value, the lower the priority.
-            memberPriority = std::numeric_limits<i64>::max();
+            memberPriorityHint = std::numeric_limits<i64>::max();
         } else {
             YT_LOG_INFO("Leader node tag filter is satisfied (LeaderNodeTagFilter: %v, NodeTags: %v)",
                 ClusterThrottlersConfig_->LeaderNodeTagFilter,
@@ -389,7 +389,7 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
                     this->Logger,
                     Authenticator_,
                     Profiler_.WithPrefix("/distributed_throttler"),
-                    std::move(memberPriority));
+                    std::move(memberPriorityHint));
             }
 
             UpdateClusterLimits(ClusterThrottlersConfig_->ClusterLimits);
