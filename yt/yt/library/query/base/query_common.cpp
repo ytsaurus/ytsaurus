@@ -474,8 +474,22 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 TQueryOptions GetJoinSubqueryOptions(const TQueryOptions& queryOptions)
 {
     auto result = queryOptions;
-    result.MaxSubqueries = 1;
     result.MergeVersionedRows = true;
+
+    return result;
+}
+
+TQueryOptions ApplyPatch(const TQueryOptions& base, const TJoinSubqueryOptionsPatch& patch)
+{
+    auto result = base;
+
+    if (patch.Timestamp) {
+        result.TimestampRange.Timestamp = *patch.Timestamp;
+    }
+
+    if (patch.MaxSubqueries) {
+        result.MaxSubqueries = *patch.MaxSubqueries;
+    }
 
     return result;
 }
