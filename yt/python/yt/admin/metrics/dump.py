@@ -9,6 +9,7 @@ from yt.admin.metrics.spec import SpecLoader
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 import json
+import math
 import os
 import sys
 import time
@@ -52,13 +53,14 @@ class MetricsDumper:
         if cfg.to_ts <= cfg.from_ts:
             raise ValueError("--to-ts must be greater than --from-ts")
 
+        start, end = cfg.from_ts.timestamp(), cfg.to_ts.timestamp()
+        step_ms = cfg.step_ms if cfg.step_ms is not None else spec.step_ms
+        self._validate_step(start, end, step_ms, cfg.max_points_per_series)
+
         if os.path.exists(cfg.output) and not cfg.force:
             if not _confirm(f"{cfg.output} exists, overwrite? [y/N] "):
                 logger.info("Aborted")
                 return
-
-        start, end = cfg.from_ts.timestamp(), cfg.to_ts.timestamp()
-        step = cfg.step or spec.step
 
         estimate_at = min(end, time.time())
         if not self._confirm_volume(selectors, estimate_at, cfg.max_series, cfg.force):
@@ -70,13 +72,31 @@ class MetricsDumper:
             "to_ts": cfg.to_ts.isoformat(),
             "start_unix": start,
             "end_unix": end,
-            "step": step,
+            "step": f"{step_ms}ms",
             "selectors": selectors,
             "spec": spec.raw,
             "dumped_at": datetime.now(timezone.utc).isoformat(),
         }
-        succeeded, samples = self._stream_archive(cfg.output, selectors, start, end, step, spec.dashboards, meta)
+        succeeded, samples = self._stream_archive(cfg.output, selectors, start, end, step_ms, spec.dashboards, meta)
         logger.info(f"Dumped {succeeded}/{len(selectors)} queries, {samples} samples to {cfg.output}")
+
+    @staticmethod
+    def _validate_step(start: float, end: float, step_ms: int, max_points_per_series: int) -> None:
+        if step_ms <= 0:
+            raise ValueError(f"--step must be positive, got {step_ms} ms")
+        if max_points_per_series <= 0:
+            return
+        points_per_series = (end - start) * 1000 / step_ms
+        if points_per_series <= max_points_per_series:
+            return
+        min_step = math.ceil((end - start) / max_points_per_series)
+        raise ValueError(
+            f"Range needs {int(points_per_series)} points per series at --step {step_ms}ms, "
+            f"over the --max-points-per-series limit of {max_points_per_series}. "
+            f"Use --step {min_step}s or a shorter range. "
+            f"If your backend allows a higher resolution, raise --max-points-per-series "
+            f"(0 disables this check)."
+        )
 
     def _confirm_volume(self, selectors: List[str], at: float, max_series: int, force: bool) -> bool:
         logger.info(f"Estimating volume for {len(selectors)} selectors")
@@ -91,7 +111,7 @@ class MetricsDumper:
         return True
 
     def _stream_archive(
-        self, output: str, selectors: List[str], start: float, end: float, step: str,
+        self, output: str, selectors: List[str], start: float, end: float, step_ms: int,
         dashboards: List[Tuple[str, Dict[str, Any]]], meta: Dict[str, Any],
     ) -> Tuple[int, int]:
         succeeded = 0
@@ -102,7 +122,7 @@ class MetricsDumper:
                 for i, selector in enumerate(selectors):
                     logger.info(f"Querying [{i + 1}/{len(selectors)}] {selector}")
                     try:
-                        data = self.prom.query_range(selector, start, end, step)
+                        data = self.prom.query_range(selector, start, end, step_ms)
                     except requests.exceptions.RequestException as e:
                         logger.error(f"Failed to query {selector}: {e}")
                         response = getattr(e, "response", None)

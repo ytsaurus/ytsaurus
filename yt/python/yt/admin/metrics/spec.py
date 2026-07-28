@@ -1,5 +1,5 @@
 import yt.logger as logger
-from yt.admin.metrics.config import DEFAULT_STEP, MetricsSpec
+from yt.admin.metrics.config import DEFAULT_STEP_MS, MetricsSpec, parse_duration_ms
 from yt.admin.metrics.promql import UNRESOLVED_VAR_RE, extract_selectors
 
 import json
@@ -24,7 +24,8 @@ class SpecLoader:
             self.raw = yaml.safe_load(f) or {}
 
     def load(self) -> MetricsSpec:
-        step = self.raw.get("defaults", {}).get("step", DEFAULT_STEP)
+        raw_step = self.raw.get("defaults", {}).get("step")
+        step_ms = parse_duration_ms(str(raw_step)) if raw_step is not None else DEFAULT_STEP_MS
         selectors: List[str] = []
         dashboards: List[Tuple[str, Dict[str, Any]]] = []
 
@@ -40,7 +41,7 @@ class SpecLoader:
                     selectors.extend(extract_selectors(query))
             else:
                 logger.warning(f"Unknown target type: {target_type!r}")
-        return MetricsSpec(selectors=selectors, dashboards=dashboards, step=step, raw=self.raw)
+        return MetricsSpec(selectors=selectors, dashboards=dashboards, step_ms=step_ms, raw=self.raw)
 
     def _load_dashboard(self, target: Dict[str, Any]) -> Tuple[str, List[str], Dict[str, Any]]:
         path = target.get("path")
