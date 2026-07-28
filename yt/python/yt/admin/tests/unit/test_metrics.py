@@ -406,9 +406,19 @@ targets:
         assert spec.dashboards == []
         assert spec.raw["defaults"]["step"] == "30s"
 
-    def test_uses_default_step_when_missing(self, tmp_path):
+    @pytest.mark.parametrize(
+        "defaults_section",
+        [
+            "",
+            "defaults:\n",
+            "defaults: {}\n",
+            "defaults: null\n",
+            "defaults:\n  # step: 30s\n",
+        ],
+    )
+    def test_uses_default_step_when_missing(self, tmp_path, defaults_section):
         spec_path = tmp_path / "spec.yaml"
-        spec_path.write_text("""
+        spec_path.write_text(defaults_section + """
 targets:
 - type: metric
   query: foo_total
