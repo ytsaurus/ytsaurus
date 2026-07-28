@@ -498,7 +498,7 @@ def _build_versions(d):
     )
 
 
-def build_data_nodes_common():
+def build_data_nodes_common(backend="monitoring"):
     d = Dashboard()
 
     _build_versions(d)
