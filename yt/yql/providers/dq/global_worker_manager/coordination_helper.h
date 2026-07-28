@@ -51,7 +51,7 @@ public:
 
     virtual NActors::TActorId GetWrapper() = 0;
 
-    virtual NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& clusterName, const TString& user, const TString& token) = 0;
+    virtual NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& proxyAddress, const TString& user, const TString& token) = 0;
 
     virtual TWorkerRuntimeData* GetRuntimeData() = 0;
 

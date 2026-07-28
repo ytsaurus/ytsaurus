@@ -171,7 +171,9 @@ void TVanillaJobFile::Register(TRegistrar registrar)
 void TDQYTBackend::Register(TRegistrar registrar)
 {
     registrar.Parameter("cluster_name", &TThis::ClusterName)
-        .Default();
+        .Default().DontSerializeDefault();
+    registrar.Parameter("proxy_address", &TThis::ProxyAddress)
+        .Default().DontSerializeDefault();
     registrar.Parameter("jobs_per_operation", &TThis::JobsPerOperation)
         .Default(5);
     registrar.Parameter("max_jobs", &TThis::MaxJobs)
@@ -224,7 +226,9 @@ void TDQYTBackend::Register(TRegistrar registrar)
 void TDQYTCoordinator::Register(TRegistrar registrar)
 {
     registrar.Parameter("cluster_name", &TThis::ClusterName)
-        .Default();
+        .Default().DontSerializeDefault();
+    registrar.Parameter("proxy_address", &TThis::ProxyAddress)
+        .Default().DontSerializeDefault();
     registrar.Parameter("prefix", &TThis::Prefix)
         .Default("//sys/yql_agent/dq_coord");
     registrar.Parameter("token_file", &TThis::TokenFile)

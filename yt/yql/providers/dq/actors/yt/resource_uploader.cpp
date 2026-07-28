@@ -139,7 +139,7 @@ private:
     void Bootstrap(const NActors::TActorContext& ctx) {
         YtWrapper = Coordinator->GetWrapper(
             ctx.ActorSystem(),
-            Options.YtBackend.GetClusterName(),
+            Options.YtBackend.GetProxyAddress(),
             Options.YtBackend.GetUser(),
             Options.YtBackend.GetToken());
         YQL_LOG_CTX_ROOT_SCOPE(ClusterName);
@@ -242,7 +242,7 @@ IActor* CreateYtResourceUploader(
     const TResourceManagerOptions& options,
     const ICoordinationHelper::TPtr& coordinator)
 {
-    Y_ABORT_UNLESS(!options.YtBackend.GetClusterName().empty());
+    Y_ABORT_UNLESS(!options.YtBackend.GetProxyAddress().empty());
     Y_ABORT_UNLESS(!options.YtBackend.GetUser().empty());
     Y_ABORT_UNLESS(options.YtBackend.HasPrefix());
     Y_ABORT_UNLESS(!options.Files.empty());
