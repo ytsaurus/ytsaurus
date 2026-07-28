@@ -17,8 +17,6 @@ from yt.yt.flow.library.python.pipeline_tables.schemas import (
     PIPELINE_QUEUES,
     PIPELINE_TABLES,
 )
-import yt.yt.flow.library.python.yt_sync_mini.easy_mode as easy_mode
-from yt.yt.flow.library.python.yt_sync_mini.easy_mode import _entity_spec
 from yt.yt.flow.library.python.yt_sync_mini import (
     QUEUE_META_COLUMNS,
     StagesSpec,
@@ -190,22 +188,12 @@ def test_unsupported_spec_key_rejected():
         run_yt_sync_easy_mode("test", spec, args=ENSURE_ARGS, exit_on_finish=False, setup_logging=False)
 
 
-def test_multiple_stages_require_explicit_stage():
-    stages = make_stages("//tmp/never_created")
-    stages["prestable"] = stages["test"]
-    spec = StagesSpec(stages=stages)
-
-    with pytest.raises(NotImplementedError, match="explicit --stage"):
+def test_multiple_stages_rejected():
+    """Every flow spec declares exactly one non-default stage."""
+    spec = make_stages_spec("//tmp/never_created")
+    spec.stages["prestable"] = spec.stages["test"]
+    with pytest.raises(NotImplementedError, match="exactly one"):
         run_yt_sync_easy_mode("test", spec, args=ENSURE_ARGS, exit_on_finish=False, setup_logging=False)
-
-    exit_code = run_yt_sync_easy_mode(
-        "test",
-        spec,
-        args=["--stage", "test"] + ENSURE_ARGS,
-        exit_on_finish=False,
-        setup_logging=False,
-    )
-    assert exit_code == 0
 
 
 def test_stage_without_cluster_rejected():
@@ -243,84 +231,14 @@ def test_consumer_referencing_unknown_queue_rejected():
         run_yt_sync_easy_mode("test", spec, args=ENSURE_ARGS, exit_on_finish=False, setup_logging=False)
 
 
-def test_per_stage_entity_overlay_selected():
-    stages = make_stages("//tmp/never_created")
-    stages["prestable"] = stages["test"]
-    entity = {
-        "default": {"monitoring_project": "default", "monitoring_cluster": "default"},
-        "test": {"monitoring_project": "test"},
-        "prestable": {"monitoring_project": "prestable"},
-    }
-
-    assert _entity_spec("pipeline", "pipeline", entity, stages, "test") == {
-        "monitoring_project": "test",
-        "monitoring_cluster": "default",
-    }
-
-
-def test_replicated_table_created_for_multicluster_stage(monkeypatch):
-    clients = {}
-
-    class FakeClient:
-        def __init__(self, proxy):
-            self.proxy = proxy
-            self.calls = []
-
-        def create(self, object_type, path=None, **kwargs):
-            self.calls.append(("create", object_type, path, kwargs))
-            return "replica-id"
-
-        def mount_table(self, path, **kwargs):
-            self.calls.append(("mount_table", path, kwargs))
-
-        def get(self, path):
-            assert path.endswith("/@replicas")
-            return {}
-
-    def make_client(proxy, config):
-        clients[proxy] = FakeClient(proxy)
-        return clients[proxy]
-
-    monkeypatch.setattr(easy_mode.yt, "YtClient", make_client)
-    stages = {
-        "default": {},
-        "test": {
-            "folder": "//tmp/replicated",
-            "presets": {
-                "builtin:storage_preset": {"clusters": {"primary": {"main": True}}},
-                "builtin:table_preset": {
-                    "clusters": {
-                        "primary": {"attributes": {"replicated_table_options": {"min_sync_replica_count": 1}}},
-                        "remote_0": {"replicated_table_tracker_enabled": True, "preferred_sync": True},
-                    },
-                },
-            },
-        },
-    }
-    spec = StagesSpec(
-        stages=stages,
-        tables={
-            "queue": {
-                "default": {
-                    "$merge_presets": ["builtin:table_preset"],
-                    "schema": [{"name": "value", "type": "string"}],
-                },
-            },
-        },
-    )
-
-    assert run_yt_sync_easy_mode("test", spec, args=ENSURE_ARGS, exit_on_finish=False) == 0
-    assert any(call[1] == "table" for call in clients["remote_0"].calls if call[0] == "create")
-    replicated_calls = [call for call in clients["primary"].calls if call[:2] == ("create", "replicated_table")]
-    assert len(replicated_calls) == 1
-    assert replicated_calls[0][3]["attributes"]["replicated_table_options"] == {
-        "min_sync_replica_count": 1,
-        "preferred_sync_replica_clusters": ["remote_0"],
-    }
-    replica_calls = [call for call in clients["primary"].calls if call[:2] == ("create", "table_replica")]
-    assert len(replica_calls) == 1
-    assert replica_calls[0][3]["attributes"]["mode"] == "sync"
-    assert replica_calls[0][3]["attributes"]["enable_replicated_table_tracker"]
+def test_per_stage_entity_overlay_rejected():
+    """Entity specs must keep everything under ``"default"``; per-stage
+    overlays (a yt_sync feature no flow spec uses) fail loudly before
+    anything is created."""
+    spec = make_stages_spec("//tmp/never_created")
+    spec.tables["state_table"]["test"] = {"schema": []}
+    with pytest.raises(NotImplementedError, match="state_table"):
+        run_yt_sync_easy_mode("test", spec, args=ENSURE_ARGS, exit_on_finish=False, setup_logging=False)
 
 
 def test_enum_stage_keys_accepted():

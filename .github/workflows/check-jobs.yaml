@@ -49,7 +49,7 @@ jobs:
           ./ytsaurus/yt/yt/scripts/run_tests.sh integration
 
       - name: Flow tests
-        if: ${{ inputs.run-integration-tests }}
+        if: ${{ inputs.run-integration-tests && !cancelled() }}
         shell: bash
         run: |
           ./ytsaurus/yt/yt/scripts/run_tests.sh flow
