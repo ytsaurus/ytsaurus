@@ -375,6 +375,8 @@ We recommend using the web interface:
 
 1. To apply the changes, click **Confirm**.
 
+{% include [memory-usage-warning](./_includes/memory-usage-warning.md) %}
+
 ## Sticky query distribution { #sticky-query }
 
 Advanced options **Enable sticky query distribution** and **Query sticky group size** control query distribution across instances with caching in mind.

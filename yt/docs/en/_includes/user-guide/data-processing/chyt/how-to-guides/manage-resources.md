@@ -4,7 +4,7 @@ Sometimes, when working with cliques, you may experience performance issues due 
 
 Compute resources are {{clickhouse}} instances: servers with dedicated CPUs and RAM. Most of the time, users only need to adjust the number of instances.
 
-{% note warning %}
+{% note warning "Important" %}
 
 To configure a clique, you must have the `manage` permission for that clique. Check whether you have this permission type on the **ACL** tab in the [Tabs panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs) under **Object permissions**.
 
@@ -71,7 +71,7 @@ You can add compute resources to a clique in two ways:
 
 ## Advanced compute resource settings { #advanced }
 
-{% note warning %}
+{% note warning "Important" %}
 
 These options are intended for advanced users. If you’re unsure whether you need them, keep the default values.
 
@@ -84,7 +84,7 @@ Recommended values:
 - 1–100 CPU cores per instance;
 - 20–300 GB of RAM per instance.
 
-{% note warning %}
+{% note info %}
 
 Choose option values so that they don’t exceed the physical resources of the servers. For example, on a server with 10 CPU cores and 40 GB of memory, you can’t allocate an instance with 16 cores and 65 GB.
 
@@ -152,5 +152,7 @@ You can set the `Instance CPU` and `Instance Total Memory` options via:
         where `RAM_AMOUNT` is the amount of RAM in GB.
 
 {% endlist %}
+
+{% include [memory-usage-warning](./_includes/memory-usage-warning.md) %}
 
 Note that with the **Restart on speclet change** option enabled, any setting changes will trigger an automatic clique restart, and the restart will take some time. You can enable the **Restart on speclet change** option on the **General** tab in the speclet interface dialog box.
