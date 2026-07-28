@@ -17,5 +17,5 @@ END()
 
 RECURSE_FOR_TESTS(
     test
-    unit_test
+    unittests
 )
