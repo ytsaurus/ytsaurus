@@ -8,8 +8,9 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/core
     library/cpp/streams/zstd
+    library/cpp/yt/assert
+    library/cpp/yt/error
 )
 
 END()

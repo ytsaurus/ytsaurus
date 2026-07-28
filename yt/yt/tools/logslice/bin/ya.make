@@ -6,6 +6,8 @@ ALLOCATOR(TCMALLOC)
 
 STRIP()
 
+NO_EXPORT_DYNAMIC_SYMBOLS()
+
 SRCS(
     main.cpp
 )
