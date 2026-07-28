@@ -1175,6 +1175,49 @@
             "uri": "https://{canondata_backend}/1937027/4c53324ecca5e76cff00fb59e6a5dbdb35a313b7/resource.tar.gz#test.test_limit-limit_skip_take-default.txt-Results_/results.txt"
         }
     ],
+    "test.test[lineage-demux--Debug]": [
+        {
+            "checksum": "a2bbf30980ca7b346cf7a5a4d7a5bc60",
+            "size": 2050,
+            "uri": "https://{canondata_backend}/1773845/cd042eb7fbfb957bc02b018ab622659976aa91a8/resource.tar.gz#test.test_lineage-demux--Debug_/opt.yql"
+        }
+    ],
+    "test.test[lineage-demux--Lineage]": [
+        {
+            "checksum": "153b03a6c624d69460478a2f1145ff3c",
+            "size": 2593,
+            "uri": "https://{canondata_backend}/1773845/cd042eb7fbfb957bc02b018ab622659976aa91a8/resource.tar.gz#test.test_lineage-demux--Lineage_/results.txt"
+        }
+    ],
+    "test.test[lineage-demux--Plan]": [
+        {
+            "checksum": "a05afae8adca1d5afe93b59cbb710467",
+            "size": 8129,
+            "uri": "https://{canondata_backend}/1773845/cd042eb7fbfb957bc02b018ab622659976aa91a8/resource.tar.gz#test.test_lineage-demux--Plan_/plan.txt"
+        }
+    ],
+    "test.test[lineage-demux--Results]": [
+        {
+            "checksum": "b50199199a5e828984ff2d7689692b13",
+            "size": 128,
+            "uri": "https://{canondata_backend}/1773845/cd042eb7fbfb957bc02b018ab622659976aa91a8/resource.tar.gz#test.test_lineage-demux--Results_/Output1.txt"
+        },
+        {
+            "checksum": "d21568701f01c6c6d0096ae574eb5637",
+            "size": 731,
+            "uri": "https://{canondata_backend}/1773845/cd042eb7fbfb957bc02b018ab622659976aa91a8/resource.tar.gz#test.test_lineage-demux--Results_/Output1.yqlrun.txt.attr"
+        },
+        {
+            "checksum": "9aa118f892c60dff586bd42d7ed5a2b2",
+            "size": 126,
+            "uri": "https://{canondata_backend}/1773845/cd042eb7fbfb957bc02b018ab622659976aa91a8/resource.tar.gz#test.test_lineage-demux--Results_/Output2.txt"
+        },
+        {
+            "checksum": "d21568701f01c6c6d0096ae574eb5637",
+            "size": 731,
+            "uri": "https://{canondata_backend}/1773845/cd042eb7fbfb957bc02b018ab622659976aa91a8/resource.tar.gz#test.test_lineage-demux--Results_/Output2.yqlrun.txt.attr"
+        }
+    ],
     "test.test[lineage-reduce_all_row-lineage2-Debug]": [
         {
             "checksum": "35b3c6f6f25783c03d103419b2f8d6e5",
