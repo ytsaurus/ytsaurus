@@ -5,7 +5,7 @@ SRCS(
 )
 
 PEERDIR(
-    contrib/ydb/core/base
+    contrib/ydb/library/actors/core
     contrib/ydb/library/yql/providers/solomon/proto
     contrib/ydb/library/yql/providers/solomon/solomon_accessor/client
 )

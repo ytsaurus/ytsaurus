@@ -12,6 +12,7 @@
 #include <contrib/ydb/library/wilson_ids/wilson.h>
 #include <contrib/ydb/library/services/services.pb.h>
 
+#include <contrib/ydb/library/yql/dq/runtime/streaming/dq_watermark_generator_tracker.h>
 #include <contrib/ydb/library/yql/providers/dq/counters/counters.h>
 #include <contrib/ydb/library/yql/dq/actors/protos/dq_events.pb.h>
 #include <contrib/ydb/library/yql/dq/common/dq_common.h>
@@ -220,6 +221,7 @@ protected:
         , CheckpointingMode(GetTaskCheckpointingMode(Task))
         , State(Task.GetCreateSuspended() ? NDqProto::COMPUTE_STATE_UNKNOWN : NDqProto::COMPUTE_STATE_EXECUTING)
         , WatermarksTracker(LogPrefix, taskCounters)
+        , WatermarkGeneratorTracker(LogPrefix, taskCounters)
         , TaskCounters(taskCounters)
         , MetricsReporter(taskCounters)
         , ComputeActorSpan(NKikimr::TWilsonKqp::ComputeActor, std::move(traceId), "ComputeActor")
@@ -284,6 +286,7 @@ protected:
         LogPrefix = std::move(prefixBuilder);
 
         WatermarksTracker.SetLogPrefix(LogPrefix);
+        WatermarkGeneratorTracker.SetLogPrefix(LogPrefix);
         for (auto& [_, info]: InputTransformsMap) {
             info.SetLogPrefix(LogPrefix);
         }
@@ -1874,6 +1877,7 @@ protected:
 
     virtual void DrainAsyncOutput(ui64 outputIndex, TAsyncOutputInfoBase& outputInfo) = 0;
 
+    // sync CA only
     ui32 SendDataChunkToAsyncOutput(ui64 outputIndex, TAsyncOutputInfoBase& outputInfo, ui64 bytes) {
         auto sink = outputInfo.Buffer;
 
@@ -1899,8 +1903,6 @@ protected:
         TMaybe<NDqProto::TCheckpoint> maybeCheckpoint;
         if (hasCheckpoint) {
             maybeCheckpoint = checkpoint;
-            CA_LOG_I("Resume inputs");
-            ResumeInputsByCheckpoint();
         }
 
         outputInfo.AsyncOutput->SendData(std::move(dataBatch), dataSize, maybeCheckpoint, outputInfo.Finished);
@@ -2203,6 +2205,9 @@ protected:
                 ResumeExecution(EResumeSource::CAWatermarkIdleness);
             }
         }
+        if (WatermarkGeneratorTracker.ProcessIdlenessCheck(checkTime)) {
+            ResumeExecution(EResumeSource::CAWatermarkIdleness);
+        }
         ScheduleIdlenessCheck();
     }
 
@@ -2227,6 +2232,11 @@ protected:
             CA_LOG_T("Schedule next idleness check at " << checkTime);
             this->Schedule(*checkTime, new TEvPrivate::TEvCheckIdleness(*checkTime));
         }
+    }
+
+    void ScheduleSourceIdlenessCheck(TInstant checkTime) {
+        CA_LOG_T("Schedule next source idleness check at " << checkTime);
+        this->Schedule(checkTime, new TEvPrivate::TEvCheckIdleness(checkTime));
     }
 
     bool AllAsyncOutputsFinished() const {
@@ -2749,6 +2759,7 @@ protected:
 
     THolder<TDqMemoryQuota> MemoryQuota;
     TDqComputeActorWatermarks WatermarksTracker;
+    TDqWatermarkGeneratorTracker WatermarkGeneratorTracker;
     ::NMonitoring::TDynamicCounterPtr TaskCounters;
     TDqComputeActorMetrics MetricsReporter;
     NWilson::TSpan ComputeActorSpan;
