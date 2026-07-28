@@ -2879,20 +2879,19 @@ class TestChunkWeightStatisticsHistogram(YTEnvSetup):
     def test_verbose_chunk_logging_cleanup_on_destroy(self):
         set("//sys/@config/chunk_manager/max_verbosely_logged_chunks", 10)
 
-        wait(lambda: self._get_verbose_logging_chunk_count() is not None)
-        initial_count = self._get_verbose_logging_chunk_count()
+        wait(lambda: self._get_verbose_logging_chunk_count() == 0)
 
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
         chunk_id = get_singular_chunk_id("//tmp/t")
 
         set(f"#{chunk_id}/@enable_verbose_logging", True)
-        wait(lambda: self._get_verbose_logging_chunk_count() == initial_count + 1)
+        wait(lambda: self._get_verbose_logging_chunk_count() == 1)
 
         # Removing the table destroys the chunk and must free its slot.
         remove("//tmp/t")
         gc_collect()
-        wait(lambda: self._get_verbose_logging_chunk_count() == initial_count)
+        wait(lambda: self._get_verbose_logging_chunk_count() == 0)
 
     @authors("evanevannnn")
     def test_verbose_chunk_logging_persistence(self):
