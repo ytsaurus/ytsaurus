@@ -67,7 +67,7 @@
 
 - [О Flow](../../flow/about.md)
 - [С чего начать](../../flow/start.md)
-{% if audience == "internal" %}- [Кто использует Flow](../../yandex-specific/flow/other/framework_users.md){% endif %}
+{% if audience == "internal" %}- [Кто использует Flow](../../flow/other/framework_users.md){% endif %}
 
 [*rps]: Requests per second
 [*kps]: Keys per second

@@ -8,7 +8,7 @@
 
 {% endnote %}
 
-{% if audience == "internal" %}Интеграции с внешними (не-{{product-name}}) системами описаны в разделе [Расширения](../../../yandex-specific/flow/extensions/about.md).{% endif %}
+{% if audience == "internal" %}Интеграции с внешними (не-{{product-name}}) системами описаны в разделе [Расширения](../../../flow/extensions/about.md).{% endif %}
 
 ## Список коннекторов {#list}
 

@@ -758,13 +758,18 @@ ru:
       to: /user-guide/problems/woodpeckers.md
       type: redirect
 
+    # Flow published URL cleanup (YTFLOW-718)
+    - from: /yandex-specific/flow/(.*)
+      to: /flow/$1
+      type: redirect
+
     # Flow docs reorg (YTFLOW-483)
     - from: /flow/examples/lb2lb.md
-      to: /yandex-specific/flow/cpp/examples/lb_wait_click_join.md
+      to: /flow/cpp/examples/lb_wait_click_join.md
       type: redirect
 
     - from: /flow/cpp/examples/lb2lb.md
-      to: /yandex-specific/flow/cpp/examples/lb_wait_click_join.md
+      to: /flow/cpp/examples/lb_wait_click_join.md
       type: redirect
 
     - from: /flow/examples/shuffle.md
@@ -825,15 +830,15 @@ ru:
 
     # Flow: connectors → extensions split
     - from: /flow/connectors/logbroker.md
-      to: /yandex-specific/flow/extensions/logbroker.md
+      to: /flow/extensions/logbroker.md
       type: redirect
 
     - from: /flow/connectors/bigrt.md
-      to: /yandex-specific/flow/extensions/bigrt.md
+      to: /flow/extensions/bigrt.md
       type: redirect
 
     - from: /flow/connectors/grut-watchlog.md
-      to: /yandex-specific/flow/extensions/grut-watchlog.md
+      to: /flow/extensions/grut-watchlog.md
       type: redirect
 
     # Redirects for Cluster Access article
@@ -883,9 +888,9 @@ ru:
       type: redirect
 
     - from: /flow/extensions/solomon.md
-      to: /yandex-specific/flow/extensions/monium.md
+      to: /flow/extensions/monium.md
       type: redirect
 
     - from: /flow/yandex/(.*)
-      to: /yandex-specific/flow/$1
+      to: /flow/$1
       type: redirect

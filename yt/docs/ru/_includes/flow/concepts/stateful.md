@@ -34,7 +34,7 @@ Read-only доступ к внешним стейтам через join по к�
 
 {% note info %}
 
-Для часто обновляемых protobuf-профилей у External State и External State Joiner есть специализированное расширение — [Serializable Profile](../../../yandex-specific/flow/extensions/serializable-profile.md). Оно даёт пару `NBigRTExtensions::TProfileManager` (read-write) и `NBigRTExtensions::TProfileJoiner` (read-only), параметризованных пользовательским типом профиля, с дельта-кодированием изменений и сжатием поверх обычной таблицы стейтов — экономит место и трафик по сравнению с записью полного профиля на каждое обновление.
+Для часто обновляемых protobuf-профилей у External State и External State Joiner есть специализированное расширение — [Serializable Profile](../../../flow/extensions/serializable-profile.md). Оно даёт пару `NBigRTExtensions::TProfileManager` (read-write) и `NBigRTExtensions::TProfileJoiner` (read-only), параметризованных пользовательским типом профиля, с дельта-кодированием изменений и сжатием поверх обычной таблицы стейтов — экономит место и трафик по сравнению с записью полного профиля на каждое обновление.
 
 {% endnote %}
 
@@ -72,7 +72,7 @@ Read-only доступ к внешним стейтам через join по к�
 
 {% if audience == "internal" %}
 
-Как выбрать вариант хранения и репликации этих таблиц (обычные, реплицированные или хаосные) при запуске нового пайплайна — в статье [Выбор типа репликации для стейта](../../../yandex-specific/flow/release/state-tables-choice.md).
+Как выбрать вариант хранения и репликации этих таблиц (обычные, реплицированные или хаосные) при запуске нового пайплайна — в статье [Выбор типа репликации для стейта](../../../flow/release/state-tables-choice.md).
 
 {% endif %}
 

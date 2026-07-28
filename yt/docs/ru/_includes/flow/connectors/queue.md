@@ -108,7 +108,7 @@ YT_PROXY={{flow-data-cluster}} ya tool bigrtcli consumer update_offsets "<cluste
 
 ## Расширение для BigRT
 
-Для работы с очередями в BigRT-формате (батчинг и сжатие в одну колонку) используйте расширение [BigRT Queue](../../../yandex-specific/flow/extensions/bigrt.md).
+Для работы с очередями в BigRT-формате (батчинг и сжатие в одну колонку) используйте расширение [BigRT Queue](../../../flow/extensions/bigrt.md).
 
 {% endif %}
 

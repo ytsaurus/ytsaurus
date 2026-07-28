@@ -231,4 +231,4 @@ ya make path/to/your/project
 - [Watermarks](../../../flow/concepts/watermarks.md)
 - [Timers](../../../flow/concepts/timers.md)
 - [Spec & DynamicSpec](../../../flow/concepts/spec.md)
-{% if audience == "internal" %}- [Logbroker WaitClickJoin (C++)](../../../yandex-specific/flow/cpp/examples/lb_wait_click_join.md){% endif %}
+{% if audience == "internal" %}- [Logbroker WaitClickJoin (C++)](../../../flow/cpp/examples/lb_wait_click_join.md){% endif %}

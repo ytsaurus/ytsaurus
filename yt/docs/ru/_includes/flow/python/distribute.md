@@ -56,4 +56,4 @@ pipeline.add("hit_reader", HitParsingFunction(), source=True)
 - [Computation (Python)](../../../flow/python/computation.md)
 - [Watermarks](../../../flow/concepts/watermarks.md)
 - [Флаг distribute (Java)](../../../flow/java/distribute.md)
-{% if audience == "internal" %}- [Пример lb_wait_click_join](../../../yandex-specific/flow/python/examples/lb_wait_click_join.md){% endif %}
+{% if audience == "internal" %}- [Пример lb_wait_click_join](../../../flow/python/examples/lb_wait_click_join.md){% endif %}

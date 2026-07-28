@@ -85,4 +85,4 @@ var hitReader = SourceComputation.builder()
 - [Computation (Java)](../../../flow/java/computation.md)
 - [Watermarks](../../../flow/concepts/watermarks.md)
 - [Флаг distribute (Python)](../../../flow/python/distribute.md)
-{% if audience == "internal" %}- [Пример lb_wait_click_join](../../../yandex-specific/flow/java/examples/lb_wait_click_join.md){% endif %}
+{% if audience == "internal" %}- [Пример lb_wait_click_join](../../../flow/java/examples/lb_wait_click_join.md){% endif %}

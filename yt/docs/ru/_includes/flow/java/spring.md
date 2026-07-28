@@ -151,7 +151,7 @@ Java SDK Flow (поддерживает Kotlin) предоставляет [Spri
 
 {% if audience == "internal" %}
 
-Пример из [Logbroker Wait Click Join](../../../yandex-specific/flow/java/examples/lb_wait_click_join.md):
+Пример из [Logbroker Wait Click Join](../../../flow/java/examples/lb_wait_click_join.md):
 
 {% list tabs group=lang %}
 
@@ -400,6 +400,6 @@ Spring Boot Starter автоматически создаёт следующие
 
 {% endlist %}
 
-{% if audience == "internal" %}Пример на аннотациях — [Logbroker Wait Click Join](../../../yandex-specific/flow/java/examples/lb_wait_click_join.md): [Java]({{source-root}}/yt/yt/flow/yandex/examples/java/lb_wait_click_join), [Kotlin]({{source-root}}/yt/yt/flow/yandex/examples/kotlin/lb_wait_click_join).{% endif %}
+{% if audience == "internal" %}Пример на аннотациях — [Logbroker Wait Click Join](../../../flow/java/examples/lb_wait_click_join.md): [Java]({{source-root}}/yt/yt/flow/yandex/examples/java/lb_wait_click_join), [Kotlin]({{source-root}}/yt/yt/flow/yandex/examples/kotlin/lb_wait_click_join).{% endif %}
 
 Пример с аннотацией `@FlowComputation` и стримами через `ComputationProvider` — [wait_click_join]({{source-root}}/yt/yt/flow/examples/java/wait_click_join) (Java) и [wait_click_join]({{source-root}}/yt/yt/flow/examples/kotlin/wait_click_join) (Kotlin).

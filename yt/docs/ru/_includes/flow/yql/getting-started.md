@@ -11,7 +11,7 @@ YQL over Flow позволяет описать [пайплайн](../../../flow
 {% if audience == "internal" %}
 {% note info %}
 
-Если нужно выполнить YQL-`SELECT` в отдельном узле обычного пайплайна, а не описывать весь пайплайн запросом, см. [YQL-вычисление в {{product-name}} Flow](../../../yandex-specific/flow/extensions/yql.md).
+Если нужно выполнить YQL-`SELECT` в отдельном узле обычного пайплайна, а не описывать весь пайплайн запросом, см. [YQL-вычисление в {{product-name}} Flow](../../../flow/extensions/yql.md).
 
 {% endnote %}
 {% endif %}
@@ -34,7 +34,7 @@ YQL over Flow позволяет описать [пайплайн](../../../flow
 | `PRAGMA Ytflow.PipelineDirectory = "...";` | Путь к директории с пайплайнами в {{product-name}} |
 | `PRAGMA Ytflow.PipelineName = "...";` | Имя пайплайна. Полный путь: `{pipeline_directory}/{pipeline_name}` |
 | `PRAGMA Ytflow.WorkerCount = "...";` | Количество воркер-джобов ванилла операции |
-{% if audience == "internal" %}| `PRAGMA Ytflow.LogbrokerConsumerPath = "...";` | Путь к [Logbroker](../../../yandex-specific/flow/extensions/logbroker.md) консьюмеру (только при чтении из Logbroker) |
+{% if audience == "internal" %}| `PRAGMA Ytflow.LogbrokerConsumerPath = "...";` | Путь к [Logbroker](../../../flow/extensions/logbroker.md) консьюмеру (только при чтении из Logbroker) |
 {% endif %}
 
 ## Первый запрос {#first-query}
@@ -112,7 +112,7 @@ client.run_query(
 
 Для отслеживания работы запущенного пайплайна доступны:
 
-{% if audience == "internal" %}- **Граф обработки** с характеристиками потоков и потреблением ресурсов — [вкладка **Flow** пайплайна в UI {{product-name}}](../../../yandex-specific/flow/release/ui.md).{% endif %}
+{% if audience == "internal" %}- **Граф обработки** с характеристиками потоков и потреблением ресурсов — [вкладка **Flow** пайплайна в UI {{product-name}}](../../../flow/release/ui.md).{% endif %}
 - **Дашборд** — вкладка **Flow → Monitoring**.
 - **Логи контроллера** (состояние воркеров, возможные проблемы):
   ```bash
