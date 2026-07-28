@@ -15,8 +15,11 @@ namespace NYT::NDiscoveryClient {
 
 TDiscoveryConnectionConfigPtr FetchDiscoveryConnectionConfig(IClientPtr client)
 {
+    TGetOptions options;
+    options.ReadFrom(EMasterReadKind::Cache);
+
     auto discoveryConnectionNode = client->Get(
-        "//sys/@cluster_connection/discovery_connection");
+        "//sys/@cluster_connection/discovery_connection", options);
     auto yson = NodeToYsonString(discoveryConnectionNode);
     return NYTree::ConvertTo<TDiscoveryConnectionConfigPtr>(
         NYson::TYsonStringBuf(yson));
