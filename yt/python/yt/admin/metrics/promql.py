@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 PROMQL_KEYWORDS = frozenset(
     {
@@ -239,10 +239,10 @@ def extract_selectors(expr: str) -> List[str]:
     return selectors
 
 
-def _parse_selector(selector: str) -> Tuple[Optional[str], Dict[str, Tuple[str, str]]]:
+def _parse_selector(selector: str) -> Tuple[Optional[str], List[Tuple[str, str, str]]]:
     tokens = _tokenize(selector)
     if not tokens:
-        return None, {}
+        return None, []
     metric: Optional[str] = None
     i = 0
     if tokens[0][0] == "IDENT":
@@ -250,8 +250,8 @@ def _parse_selector(selector: str) -> Tuple[Optional[str], Dict[str, Tuple[str, 
         i = 1
     if i < len(tokens) and tokens[i][0] == "LBRACE":
         matchers, _ = _parse_matchers_from_tokens(tokens, i)
-        return metric, {label: (op, val) for label, op, val in matchers}
-    return metric, {}
+        return metric, matchers
+    return metric, []
 
 
 def _value_subsumes(a_op: str, a_val: str, b_op: str, b_val: str) -> bool:
@@ -274,16 +274,18 @@ def _selector_subsumes(a: str, b: str) -> bool:
         return True
     a_metric, a_matchers = _parse_selector(a)
     b_metric, b_matchers = _parse_selector(b)
-    a_matchers_copy = dict(a_matchers)
-    b_matchers_copy = dict(b_matchers)
     if a_metric:
-        a_matchers_copy["__name__"] = ("=", a_metric)
+        a_matchers = a_matchers + [("__name__", "=", a_metric)]
     if b_metric:
-        b_matchers_copy["__name__"] = ("=", b_metric)
-    for label, (a_op, a_val) in a_matchers_copy.items():
-        if label not in b_matchers_copy:
+        b_matchers = b_matchers + [("__name__", "=", b_metric)]
+    a_by_label = {label: (op, val) for label, op, val in a_matchers}
+    b_by_label = {label: (op, val) for label, op, val in b_matchers}
+    if len(a_by_label) != len(a_matchers) or len(b_by_label) != len(b_matchers):
+        return False
+    for label, (a_op, a_val) in a_by_label.items():
+        if label not in b_by_label:
             return False
-        b_op, b_val = b_matchers_copy[label]
+        b_op, b_val = b_by_label[label]
         if not _value_subsumes(a_op, a_val, b_op, b_val):
             return False
     return True
