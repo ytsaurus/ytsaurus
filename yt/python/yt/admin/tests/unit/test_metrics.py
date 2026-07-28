@@ -165,10 +165,11 @@ class TestPromql:
     @pytest.mark.parametrize(
         "selector, expected_metric, expected_matchers",
         [
-            ('foo_total{a="1", b=~"2"}', "foo_total", {"a": ("=", "1"), "b": ("=~", "2")}),
-            ('foo_total', "foo_total", {}),
-            ('{a="1"}', None, {"a": ("=", "1")}),
-            ('', None, {}),
+            ('foo_total{a="1", b=~"2"}', "foo_total", [("a", "=", "1"), ("b", "=~", "2")]),
+            ('foo_total', "foo_total", []),
+            ('{a="1"}', None, [("a", "=", "1")]),
+            ('', None, []),
+            ('foo{env="prod",env=~".*"}', "foo", [("env", "=", "prod"), ("env", "=~", ".*")]),
         ],
     )
     def test_parse_selector(self, selector, expected_metric, expected_matchers):
@@ -305,6 +306,26 @@ class TestPromql:
                 ],
                 [
                     '{__name__="yt_accounts", account=~".*"}',
+                ],
+            ),
+            (
+                [
+                    'foo{env="prod",env=~".*"}',
+                    'foo{env="dev"}',
+                ],
+                [
+                    'foo{env="dev"}',
+                    'foo{env="prod",env=~".*"}',
+                ],
+            ),
+            (
+                [
+                    'foo{pod!="p-tmp",pod=~".*"}',
+                    'foo{pod="p-tmp"}',
+                ],
+                [
+                    'foo{pod="p-tmp"}',
+                    'foo{pod!="p-tmp",pod=~".*"}',
                 ],
             ),
         ],
