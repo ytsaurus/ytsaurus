@@ -49,7 +49,6 @@ target_link_options(logslice PRIVATE
   -fPIC
   -lrt
   -ldl
-  -lutil
 )
 
 target_sources(logslice PRIVATE

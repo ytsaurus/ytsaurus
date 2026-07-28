@@ -42,7 +42,7 @@ ARCHIVE_DIR_DEFAULT = "/yt/master-logs-archive"
 
 # A debug logslice is hundreds of MiB; a release one is well under this. Anything
 # below the limit is assumed to be a usable release build.
-RELEASE_SIZE_LIMIT = 50 * 1024 * 1024
+RELEASE_SIZE_LIMIT = 3 * 1024 * 1024
 
 # Path of this script inside Arcadia, used both to locate the binary and to
 # recover the Arcadia root when the script is run from an arbitrary directory.
