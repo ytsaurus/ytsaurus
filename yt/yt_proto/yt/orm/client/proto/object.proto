@@ -206,7 +206,7 @@ message TLocalAttributeMigration
     optional string old_lock_group = 4;
 }
 
-// Next field number 60.
+// Next field number 61.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 34, 35, 37, 38, 46;
@@ -245,6 +245,9 @@ message TObjectTypeOption
     optional bool enable_finalizers = 51;
 
     optional EHashPolicy hash_policy = 24;
+
+    // Specifies expression for hash column (e.g. "farm_hash([meta.id])"). Mutually exclusive with hash_policy.
+    optional string hash_expression = 60;
     optional THistoryOptions history = 43;
     repeated TWatchLogOption watch_logs = 8;
 
