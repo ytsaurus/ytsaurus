@@ -233,12 +233,6 @@ protected:
                 continue;
             }
 
-            if (IsJournalChunkType(child->GetType()) && ShouldTraverseHunkChunkListAsMain()) {
-                // NB: This constraint on fetching journal hunk chunks is a robust way
-                // to ensure they are not accessed in such operations as remote copy.
-                THROW_ERROR_EXCEPTION("Chunk tree traverser encountered journal chunk while fetching hunk chunks");
-            }
-
             YT_LOG_TRACE("Current child (Index: %v, Id: %v, Kind: %v)",
                 entry.ChildIndex,
                 child->GetId(),
@@ -325,7 +319,7 @@ protected:
         return it == UnsealedChunkIdToStatisticsFuture_.end() ? TFuture<void>() : it->second.AsVoid();
     }
 
-    void InferJournalChunkRowRange(const TStackEntry& entry)
+    void MemoizeJournalChunkRowRange(const TStackEntry& entry)
     {
         YT_VERIFY(EnforceBounds_);
 
@@ -372,7 +366,7 @@ protected:
             endRowIndex = std::max(startRowIndex, endRowIndex);
         }
 
-        YT_VERIFY(JournalChunkIdToRowRange_.emplace(chunk->GetId(), std::pair{startRowIndex, endRowIndex}).second);
+        EmplaceOrCrash(JournalChunkIdToRowRange_, chunk->GetId(), std::pair(startRowIndex, endRowIndex));
 
         YT_LOG_DEBUG("Journal chunk row range inferred (ChunkId: %v, RowIndexes: %v-%v)",
             chunk->GetId(),
@@ -441,7 +435,7 @@ protected:
             }
 
             if (IsJournalChunkType(childType)) {
-                InferJournalChunkRowRange(*entry);
+                MemoizeJournalChunkRowRange(*entry);
             }
 
             auto [childLowerStatistics, childUpperStatistics] = GetCumulativeStatisticsRange(*entry);
@@ -956,7 +950,10 @@ protected:
                 }
 
                 // Don't traverse hunks when bounds are enforced and hunks are not explicitly requested.
-                if (!isHunkChunkList || !EnforceBounds_ || ShouldTraverseHunkChunkListAsMain()) {
+                if (!isHunkChunkList ||
+                    !EnforceBounds_ ||
+                    PrimaryChunkListContentType_ == EChunkListContentType::Hunk)
+                {
                     PushFirstChild(childChunkList, childIndex, 0, tabletIndex, subtreeStartLimit, subtreeEndLimit);
                 }
                 break;
@@ -1123,9 +1120,9 @@ protected:
         int childIndex = 0;
 
         // Don't traverse hunks when bounds are enforced and hunks are not explicitly requested.
-        if (EnforceBounds_ &&
-            chunkList->GetKind() == EChunkListKind::HunkRoot &&
-            !ShouldTraverseHunkChunkListAsMain())
+        if (chunkList->GetKind() == EChunkListKind::HunkRoot &&
+            EnforceBounds_ &&
+            PrimaryChunkListContentType_ != EChunkListContentType::Hunk)
         {
             auto error = TError("Attempted to traverse hunk root chunk list %v with bounds enforced",
                 chunkList->GetId());
@@ -1318,10 +1315,8 @@ protected:
             }
         }
 
-        // Adjust for journal chunks.
-        if (IsJournalChunkType(child->GetType())) {
-            YT_VERIFY(!ShouldTraverseHunkChunkListAsMain());
-
+        // Handle journal chunks in main chunk list.
+        if (IsJournalChunkType(child->GetType()) && PrimaryChunkListContentType_ == EChunkListContentType::Main) {
             const auto* chunk = child->AsChunk();
             auto [startRowIndex, endRowIndex] = GetJournalChunkRowRange(chunk);
 
@@ -1353,7 +1348,7 @@ protected:
             auto physicalStartRowIndex = *startLimit->GetRowIndex();
             auto physicalEndRowIndex = *endLimit->GetRowIndex();
 
-            YT_LOG_DEBUG("Journal chunk fetched "
+            YT_LOG_DEBUG("Journal chunk row limits inferred "
                 "(ChunkId: %v, Overlayed: %v, LogicalRowIndexes: %v-%v, PhysicalRowIndexes: %v-%v, JournalRowIndexes: %v-%v)",
                 chunk->GetId(),
                 chunk->GetOverlayed(),
@@ -1428,11 +1423,6 @@ protected:
             *endLimit);
     }
 
-    bool ShouldTraverseHunkChunkListAsMain() const
-    {
-        return PrimaryChunkListContentType_ == EChunkListContentType::Hunk;
-    }
-
     bool IsStackEmpty()
     {
         return Stack_.empty();
@@ -1495,7 +1485,7 @@ public:
         TReadLimit lowerLimit,
         TReadLimit upperLimit,
         TTraverserTestingOptions testingOptions,
-        EChunkListContentType primaryChunkListContentType = EChunkListContentType::Main)
+        EChunkListContentType primaryChunkListContentType)
         : Context_(std::move(context))
         , Visitor_(std::move(visitor))
         , EnforceBounds_(enforceBounds)
@@ -1520,7 +1510,7 @@ public:
             !EnforceBounds_ &&
             RootHunkChunkList_)
         {
-            YT_VERIFY(!ShouldTraverseHunkChunkListAsMain());
+            YT_VERIFY(PrimaryChunkListContentType_ == EChunkListContentType::Main);
 
             auto* hunkChunkList = RootHunkChunkList_.Get();
             if (hunkChunkList->GetKind() != EChunkListKind::HunkRoot) {
@@ -1684,7 +1674,8 @@ void TraverseChunkTree(
         TComparator(),
         TReadLimit(),
         TReadLimit(),
-        std::move(testingOptions))
+        std::move(testingOptions),
+        EChunkListContentType::Main)
         ->Run();
 }
 
