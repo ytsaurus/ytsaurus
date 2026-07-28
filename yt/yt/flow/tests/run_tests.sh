@@ -245,7 +245,7 @@ export PYTHONPATH="${PYTHON_ROOT}:${SOURCE_ROOT}:${SOURCE_ROOT}/library/python/t
 export YT_FLOW_SOURCE_ROOT="${SOURCE_ROOT}"
 export YT_FLOW_BUILD_ROOT="${BUILD_ROOT}"
 export YT_FLOW_TEST_SANDBOX="${TESTS_SANDBOX}"
-export YT_FLOW_PLAIN_PYTEST=1
+export YT_FLOW_OS_TEST_MODE=1
 
 # flow_execute feature toggles. ya-make sets these per variant package; the
 # only variant shipped to opensource is trunk, whose ya.make.inc defaults are

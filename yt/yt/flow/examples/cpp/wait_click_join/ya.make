@@ -21,14 +21,11 @@ RECURSE(
     lib
 )
 
+RECURSE(
+    tools
+)
+
 RECURSE_FOR_TESTS(
     test
     unittest
 )
-
-IF (NOT OPENSOURCE)
-    # The example tool uses the full yt_sync runner.
-    RECURSE(
-        tools
-    )
-ENDIF()

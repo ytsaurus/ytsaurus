@@ -95,7 +95,7 @@ def _derive_test_name(cls, method) -> str:
 
     # YPath special symbols (https://ytsaurus.tech/docs/en/user-guide/storage/ypath#simple_ypath_lexis) + some extra symbols.
     special_symbols = ["{", "}", "[", "]", "(", ")", "/", "@", "&", "*", ":"]
-    if os.environ.get("YT_FLOW_PLAIN_PYTEST") == "1":
+    if os.environ.get("YT_FLOW_OS_TEST_MODE") == "1":
         test_name = f"{cls.__class__.__module__}::{test_name}"
         special_symbols.append(".")
 
@@ -361,7 +361,7 @@ class FlowTestBase:
             default_config_parameters.fill_runner_test_defaults(config)
         else:
             default_config_parameters.fill_flow_node_test_defaults(config)
-        if os.environ.get("YT_FLOW_PLAIN_PYTEST") == "1":
+        if os.environ.get("YT_FLOW_OS_TEST_MODE") == "1":
             config.setdefault("address_resolver", {}).update(
                 {
                     "enable_ipv4": True,

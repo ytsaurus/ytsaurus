@@ -6,11 +6,10 @@ from yt.yt.flow.library.python.integration_test_base.yt_flow_base import FlowTes
 from yt.yt.flow.library.python.integration_test_base.helpers import get_yson_config
 from yt.yt.flow.library.python.queue import batching_write_rows
 
-from .yt_sync import run_yt_sync
-
 ##################################################################
 
 PIPELINE_CONFIG_PATH = yatest.common.source_path(f"{yatest.common.context.project_path}/../pipeline.yson")
+YT_SYNC_BINARY_PATH = yatest.common.binary_path(f"{yatest.common.context.project_path}/../tools/yt_sync/yt_sync")
 
 if yatest.common.context.sanitize is not None:
     TOTAL_ACTIONS = 100
@@ -137,7 +136,7 @@ class TestWaitClickJoin(FlowTestBase):
     def prepare_environment(self):
         tablet_count = 5
 
-        run_yt_sync("primary", self.work_yt_path, tablet_count)
+        self.run_yt_sync_ensure(YT_SYNC_BINARY_PATH, extra_env={"TEST_INPUT_QUEUE_TABLET_COUNT": str(tablet_count)})
 
         batching_write_rows(
             generate_action_log(tablet_count), lambda batch: self.client.insert_rows(self.action_queue, batch), 10000

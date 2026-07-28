@@ -1,18 +1,21 @@
 PY3TEST()
 
-INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/library/python/integration_test_base/recipe.inc)
+SET(YT_CLUSTER_NAMES primary,remote_0)
+
+INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/tests/recipes/local_yt.inc)
 
 TEST_SRCS(
     test_wait_click_join.py
-    yt_sync.py
 )
 
 PEERDIR(
+    yt/yt/flow/library/python/integration_test_base
     yt/yt/flow/library/python/queue
 )
 
 DEPENDS(
     ${MODDIR}/..
+    ${MODDIR}/../tools/yt_sync
 )
 
 DATA(arcadia/${MODDIR}/../pipeline.yson)

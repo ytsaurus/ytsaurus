@@ -151,11 +151,10 @@ cmd_flow() {
     # protos and pipeline binaries on top of `prepare`, starts the local YT
     # recipe and runs pytest). Without arguments it runs the opensource CI
     # scope; pass --all or explicit targets to run more (see the runner).
-    cd "${SOURCE_ROOT}/yt/yt/flow/tests"
     if [ $# -gt 0 ]; then
-        ./run_tests.sh "$@"
+        "${SOURCE_ROOT}/yt/yt/flow/tests/run_tests.sh" "$@"
     else
-        ./run_tests.sh --ci
+        "${SOURCE_ROOT}/yt/yt/flow/tests/run_tests.sh" --ci
     fi
 }
 
