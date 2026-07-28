@@ -36,6 +36,27 @@ static constexpr i64 MinReliableRowCount = 100;
 
 namespace {
 
+struct TRowCacheControllerCounters
+{
+    TRowCacheControllerCounters() = default;
+
+    explicit TRowCacheControllerCounters(const NProfiling::TProfiler& profiler)
+        : TotalMemoryLimit(profiler.Gauge("/total_memory_limit"))
+        , TotalGarbageAmount(profiler.Gauge("/total_garbage_amount"))
+        , MemoryLimitWithoutGarbage(profiler.Gauge("/memory_limit_without_garbage"))
+        , NewTotalCacheSize(profiler.Gauge("/new_total_cache_size"))
+        , RawScaleFactor(profiler.Gauge("/raw_scale_factor"))
+        , CategoryMemoryLimitScaleFactor(profiler.Gauge("/category_memory_limit_scale_factor"))
+    { }
+
+    NProfiling::TGauge TotalMemoryLimit;
+    NProfiling::TGauge TotalGarbageAmount;
+    NProfiling::TGauge MemoryLimitWithoutGarbage;
+    NProfiling::TGauge NewTotalCacheSize;
+    NProfiling::TGauge RawScaleFactor;
+    NProfiling::TGauge CategoryMemoryLimitScaleFactor;
+};
+
 struct TRowCacheBriefStatistics
 {
     i64 DataWeight = 0;
@@ -229,6 +250,7 @@ class TScaleToMemoryLimitStrategy
 public:
     explicit TScaleToMemoryLimitStrategy(TRowCacheControllerDynamicConfigPtr config)
         : Config_(std::move(config))
+        , Counters_(TabletNodeProfiler().WithPrefix("/row_cache_controller"))
     { }
 
     TRowCacheControllerDecision Run(const TRowCacheControllerContext& context, IInvokerPtr invokerToPerformRotation) override
@@ -276,6 +298,13 @@ private:
             rawScaleFactor,
             categoryMemoryLimitScaleFactor);
 
+        Counters_.TotalMemoryLimit.Update(*context.TotalMemoryLimit);
+        Counters_.TotalGarbageAmount.Update(statistics.TotalGarbageAmount);
+        Counters_.MemoryLimitWithoutGarbage.Update(memoryLimitWithoutGarbage);
+        Counters_.NewTotalCacheSize.Update(statistics.NewTotalCacheSize);
+        Counters_.RawScaleFactor.Update(rawScaleFactor);
+        Counters_.CategoryMemoryLimitScaleFactor.Update(categoryMemoryLimitScaleFactor);
+
         i64 totalAliveBytesRotationThreshold = static_cast<i64>(
             *context.TotalMemoryLimit * Config_->RotationMemoryThreshold);
 
@@ -292,6 +321,7 @@ private:
     }
 
     TRowCacheControllerDynamicConfigPtr Config_;
+    const TRowCacheControllerCounters Counters_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TScaleToMemoryLimitStrategy)
