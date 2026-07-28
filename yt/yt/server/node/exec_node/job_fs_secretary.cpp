@@ -15,6 +15,7 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/sync_cache.h>
 
 namespace NYT::NExecNode {
 
@@ -33,11 +34,22 @@ std::string MakeNbdDeviceId(TJobId jobId, int nbdDeviceIndex)
     return ToString(nbdDeviceId);
 }
 
-} // namespace
+// A global cache mapping TArtifactKey to a stable NBD device id.
+// This ensures that the same artifact content always maps to the same device id
+// across different jobs, enabling the RO NBD volume cache to work correctly.
+constexpr size_t NbdDeviceIdCacheMaxSize = 100'000;
+TSimpleLruCache<TArtifactKey, std::string> NbdDeviceIdCache(NbdDeviceIdCacheMaxSize);
+YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NbdDeviceIdCacheLock);
 
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
+std::string GetOrCreateNbdDeviceId(const TArtifactKey& artifactKey)
+{
+    auto guard = Guard(NbdDeviceIdCacheLock);
+    auto* deviceId = NbdDeviceIdCache.Find(artifactKey);
+    if (!deviceId) {
+        deviceId = NbdDeviceIdCache.Insert(artifactKey, ToString(TGuid::Create()));
+    }
+    return *deviceId;
+}
 
 TError CheckArtifacts(
     const std::vector<TArtifactDescription>& baseline,
@@ -434,9 +446,9 @@ void TJobFSSecretary::ConfigureNbdDeviceIds(TNonNullPtr<TJobFSDescription> descr
     int nbdDeviceCount = 0;
     for (auto& layer : description->RootVolumeLayerArtifactKeys) {
         if (NYT::FromProto<ELayerAccessMethod>(layer.access_method()) == ELayerAccessMethod::Nbd) {
-            auto deviceId = layer.GetRuntimeGuid();
+            auto deviceId = GetOrCreateNbdDeviceId(layer);
             EmplaceOrCrash(NbdDeviceIds_, deviceId);
-            ToProto(layer.mutable_nbd_device_id(), deviceId);
+            layer.set_nbd_device_id(deviceId);
             ++nbdDeviceCount;
         }
     }
@@ -467,9 +479,9 @@ void TJobFSSecretary::ConfigureNbdDeviceIds(TNonNullPtr<TJobFSDescription> descr
             }
         }
 
-        auto deviceId = virtualArtifactKey.GetRuntimeGuid();
+        auto deviceId = GetOrCreateNbdDeviceId(virtualArtifactKey);
         EmplaceOrCrash(NbdDeviceIds_, deviceId);
-        ToProto(virtualArtifactKey.mutable_nbd_device_id(), deviceId);
+        virtualArtifactKey.set_nbd_device_id(deviceId);
         ++nbdDeviceCount;
 
         VirtualSandboxData_ = TVirtualSandboxData{

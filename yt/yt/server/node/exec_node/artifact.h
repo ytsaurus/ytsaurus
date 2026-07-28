@@ -36,9 +36,6 @@ struct TArtifactKey
     //! Comparer.
     bool operator==(const TArtifactKey& other) const;
 
-    //! Get unique id of the artifact. Different TArtifactKey instances with
-    //! the same NProto::TArtifactKey values will normally have the same unique id.
-    std::string GetRuntimeGuid() const;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TArtifactKey& key, TStringBuf spec);
