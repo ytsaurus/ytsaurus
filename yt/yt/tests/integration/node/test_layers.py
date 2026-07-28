@@ -1969,7 +1969,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
 
         finished_job_counter = profiler.with_tags({"origin": "scheduler"}).counter("job_controller/job_final_state")
         squashfs_volume_count = profiler.with_tags({"type": "squashfs"}).gauge("volumes/count")
-        assert not squashfs_volume_count.get()
+        wait(lambda: not squashfs_volume_count.get())
 
         initial_adding_log_count = len(self._get_node_debug_logs("Volume added to cache"))
         initial_removing_log_count = len(self._get_node_debug_logs("Volume removed from cache"))
