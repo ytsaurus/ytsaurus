@@ -10,6 +10,8 @@
 #include <library/cpp/yt/memory/range.h>
 #include <library/cpp/yt/memory/ref.h>
 
+#include <util/generic/hash_set.h>
+
 #include <optional>
 #include <vector>
 
@@ -28,6 +30,8 @@ struct TRecordHeader
 static_assert(sizeof(TRecordHeader) == 16, "sizeof(TRecordHeader) != 16");
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using TValidMapperIds = THashSet<i32>;
 
 struct TIdentityColumnIds
 {

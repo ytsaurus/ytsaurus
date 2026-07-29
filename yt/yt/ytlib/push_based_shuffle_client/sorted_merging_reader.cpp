@@ -1,0 +1,324 @@
+#include "sorted_merging_reader.h"
+
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/sorted_merging_reader.h>
+
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+
+#include <yt/yt/core/misc/error.h>
+
+#include <algorithm>
+#include <atomic>
+#include <exception>
+#include <limits>
+#include <optional>
+#include <utility>
+
+namespace NYT::NPushBasedShuffleClient {
+
+using namespace NChunkClient;
+using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+struct TRowIdentity
+{
+    i32 MapperId;
+    i64 RowId;
+
+    bool operator==(const TRowIdentity& other) const = default;
+};
+
+TRowIdentity ValidateAndGetIdentity(
+    TUnversionedRow row,
+    int keyColumnCount,
+    TIdentityColumnIds identityColumnIds)
+{
+    if (static_cast<int>(row.GetCount()) < keyColumnCount + IdentityColumnCount) {
+        THROW_ERROR_EXCEPTION("Row is too short to carry identity columns")
+            << TErrorAttribute("value_count", row.GetCount())
+            << TErrorAttribute("expected_min_value_count", keyColumnCount + IdentityColumnCount);
+    }
+
+    const auto& mapperValue = row[keyColumnCount];
+    const auto& rowValue = row[keyColumnCount + 1];
+    if (mapperValue.Id != identityColumnIds.MapperId) {
+        THROW_ERROR_EXCEPTION("Unexpected mapper identity column id")
+            << TErrorAttribute("expected_column_id", identityColumnIds.MapperId)
+            << TErrorAttribute("actual_column_id", mapperValue.Id)
+            << TErrorAttribute("row_position", keyColumnCount);
+    }
+    if (rowValue.Id != identityColumnIds.RowId) {
+        THROW_ERROR_EXCEPTION("Unexpected row identity column id")
+            << TErrorAttribute("expected_column_id", identityColumnIds.RowId)
+            << TErrorAttribute("actual_column_id", rowValue.Id)
+            << TErrorAttribute("row_position", keyColumnCount + 1);
+    }
+    if (mapperValue.Type != EValueType::Int64) {
+        THROW_ERROR_EXCEPTION("Unexpected mapper identity value type")
+            << TErrorAttribute("value_type", mapperValue.Type)
+            << TErrorAttribute("row_position", keyColumnCount);
+    }
+    if (rowValue.Type != EValueType::Int64) {
+        THROW_ERROR_EXCEPTION("Unexpected row identity value type")
+            << TErrorAttribute("value_type", rowValue.Type)
+            << TErrorAttribute("row_position", keyColumnCount + 1);
+    }
+
+    const auto mapperId = mapperValue.Data.Int64;
+    if (mapperId < std::numeric_limits<i32>::min() ||
+        mapperId > std::numeric_limits<i32>::max())
+    {
+        THROW_ERROR_EXCEPTION("Mapper identity value is outside the Int32 range")
+            << TErrorAttribute("mapper_value", mapperId)
+            << TErrorAttribute("row_position", keyColumnCount);
+    }
+
+    const int rowValueCount = static_cast<int>(row.GetCount());
+    for (int index = 0; index < rowValueCount; ++index) {
+        if (index == keyColumnCount || index == keyColumnCount + 1) {
+            continue;
+        }
+        const auto& value = row[index];
+        if (value.Id == identityColumnIds.MapperId || value.Id == identityColumnIds.RowId) {
+            THROW_ERROR_EXCEPTION("Duplicate identity column id")
+                << TErrorAttribute("actual_column_id", value.Id)
+                << TErrorAttribute("row_position", index);
+        }
+    }
+
+    return {
+        .MapperId = static_cast<i32>(mapperId),
+        .RowId = rowValue.Data.Int64,
+    };
+}
+
+struct TBatchHolder
+    : public TRefCounted
+{
+    IUnversionedRowBatchPtr SourceBatch;
+    TRowBufferPtr RowBuffer = New<TRowBuffer>();
+};
+
+DEFINE_REFCOUNTED_TYPE(TBatchHolder)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIdentityAwareSortedMergingReader
+    : public ISchemalessMultiChunkReader
+{
+public:
+    TIdentityAwareSortedMergingReader(
+        ISchemalessMultiChunkReaderPtr underlyingReader,
+        int keyColumnCount,
+        TIdentityColumnIds identityColumnIds,
+        TValidMapperIds validMapperIds)
+        : UnderlyingReader_(std::move(underlyingReader))
+        , KeyColumnCount_(keyColumnCount)
+        , IdentityColumnIds_(identityColumnIds)
+        , ValidMapperIds_(std::move(validMapperIds))
+    { }
+
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        if (ErrorPromise_.IsSet()) {
+            return CreateEmptyUnversionedRowBatch();
+        }
+
+        auto sourceBatch = UnderlyingReader_->Read(options);
+        if (!sourceBatch) {
+            return nullptr;
+        }
+
+        auto sourceRows = sourceBatch->MaterializeRows();
+        if (sourceRows.empty()) {
+            return sourceBatch;
+        }
+
+        try {
+            auto batchHolder = New<TBatchHolder>();
+            batchHolder->SourceBatch = std::move(sourceBatch);
+
+            std::vector<TUnversionedRow> outputRows;
+            outputRows.reserve(sourceRows.size());
+            auto lastEmittedIdentity = LastEmittedIdentity_;
+            i64 emittedRowCount = 0;
+            i64 emittedDataWeight = 0;
+            i64 rejectedRowCount = 0;
+            for (const auto& row : sourceRows) {
+                auto identity = ValidateAndGetIdentity(
+                    row,
+                    KeyColumnCount_,
+                    IdentityColumnIds_);
+                if (!ValidMapperIds_.contains(identity.MapperId)) {
+                    ++rejectedRowCount;
+                    continue;
+                }
+                if (lastEmittedIdentity == identity) {
+                    ++rejectedRowCount;
+                    continue;
+                }
+
+                lastEmittedIdentity = identity;
+                auto outputRow = batchHolder->RowBuffer->AllocateUnversioned(
+                    row.GetCount() - IdentityColumnCount);
+                std::copy(
+                    row.Begin(),
+                    row.Begin() + KeyColumnCount_,
+                    outputRow.Begin());
+                std::copy(
+                    row.Begin() + KeyColumnCount_ + IdentityColumnCount,
+                    row.End(),
+                    outputRow.Begin() + KeyColumnCount_);
+                emittedDataWeight += GetDataWeight(outputRow);
+                ++emittedRowCount;
+                outputRows.push_back(outputRow);
+            }
+
+            LastEmittedIdentity_ = lastEmittedIdentity;
+            EmittedRowCount_.fetch_add(emittedRowCount);
+            EmittedDataWeight_.fetch_add(emittedDataWeight);
+            RejectedRowCount_.fetch_add(rejectedRowCount);
+            return CreateBatchFromUnversionedRows(
+                MakeSharedRange(std::move(outputRows), std::move(batchHolder)));
+        } catch (const std::exception& ex) {
+            ErrorPromise_.Set(ex);
+            return CreateEmptyUnversionedRowBatch();
+        }
+    }
+
+    TFuture<void> GetReadyEvent() const override
+    {
+        return ErrorPromise_.IsSet()
+            ? ErrorPromise_.ToFuture()
+            : UnderlyingReader_->GetReadyEvent();
+    }
+
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        auto statistics = UnderlyingReader_->GetDataStatistics();
+        statistics.set_row_count(EmittedRowCount_.load());
+        statistics.set_data_weight(EmittedDataWeight_.load());
+        return statistics;
+    }
+
+    TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
+    bool IsFetchingCompleted() const override
+    {
+        return UnderlyingReader_->IsFetchingCompleted();
+    }
+
+    std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return UnderlyingReader_->GetFailedChunkIds();
+    }
+
+    const TNameTablePtr& GetNameTable() const override
+    {
+        return UnderlyingReader_->GetNameTable();
+    }
+
+    i64 GetTableRowIndex() const override
+    {
+        return UnderlyingReader_->GetTableRowIndex();
+    }
+
+    TInterruptDescriptor GetInterruptDescriptor(
+        TRange<TUnversionedRow> /*unreadRows*/) const override
+    {
+        YT_ABORT();
+    }
+
+    const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    {
+        YT_ABORT();
+    }
+
+    TTimingStatistics GetTimingStatistics() const override
+    {
+        return UnderlyingReader_->GetTimingStatistics();
+    }
+
+    i64 GetSessionRowIndex() const override
+    {
+        return EmittedRowCount_.load();
+    }
+
+    i64 GetTotalRowCount() const override
+    {
+        return UnderlyingReader_->GetTotalRowCount() - RejectedRowCount_.load();
+    }
+
+    void Interrupt() override
+    {
+        YT_ABORT();
+    }
+
+    void SkipCurrentReader() override
+    {
+        YT_ABORT();
+    }
+
+private:
+    const ISchemalessMultiChunkReaderPtr UnderlyingReader_;
+    const int KeyColumnCount_;
+    const TIdentityColumnIds IdentityColumnIds_;
+    const TValidMapperIds ValidMapperIds_;
+    const TPromise<void> ErrorPromise_ = NewPromise<void>();
+
+    std::optional<TRowIdentity> LastEmittedIdentity_;
+    std::atomic<i64> EmittedRowCount_ = 0;
+    std::atomic<i64> EmittedDataWeight_ = 0;
+    std::atomic<i64> RejectedRowCount_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+ISchemalessMultiChunkReaderPtr CreateIdentityAwareSortedMergingReader(
+    const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
+    TComparator sortComparator,
+    TIdentityColumnIds identityColumnIds,
+    TValidMapperIds validMapperIds)
+{
+    if (readers.empty()) {
+        THROW_ERROR_EXCEPTION("Cannot create identity-aware sorted merging reader without input readers");
+    }
+    if (sortComparator.GetLength() < IdentityColumnCount + 1) {
+        THROW_ERROR_EXCEPTION(
+            "Identity-aware sorted merging reader requires at least three sort columns")
+            << TErrorAttribute("sort_column_count", sortComparator.GetLength());
+    }
+    if (!identityColumnIds.AreValid()) {
+        THROW_ERROR_EXCEPTION("Invalid identity column ids")
+            << TErrorAttribute("mapper_id_column_id", identityColumnIds.MapperId)
+            << TErrorAttribute("row_id_column_id", identityColumnIds.RowId);
+    }
+
+    const int keyColumnCount = sortComparator.GetLength() - IdentityColumnCount;
+
+    // Merge comparator is only used for key-edge interruptions, which are disabled.
+    auto underlyingReader = CreateSortedMergingReader(
+        readers,
+        std::move(sortComparator),
+        /*mergeComparator*/ {},
+        /*interruptAtKeyEdge*/ false);
+    return New<TIdentityAwareSortedMergingReader>(
+        std::move(underlyingReader),
+        keyColumnCount,
+        identityColumnIds,
+        std::move(validMapperIds));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NPushBasedShuffleClient
