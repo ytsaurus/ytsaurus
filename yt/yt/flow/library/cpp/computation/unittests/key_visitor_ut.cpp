@@ -76,13 +76,17 @@ protected:
         TDuration period,
         i64 bufferRowLimit,
         i64 maxScanRowsPerIteration = 10'000,
-        TDuration backgroundFillPeriod = TDuration::MilliSeconds(50))
+        TDuration backgroundFillPeriod = TDuration::MilliSeconds(50),
+        bool finite = true,
+        bool fullFinalPass = true)
     {
         auto dynSpec = New<TDynamicKeyVisitorStreamSpec>();
         dynSpec->Period = period;
         dynSpec->BufferRowLimit = NYTree::TSize(bufferRowLimit);
         dynSpec->MaxScanRowsPerIteration = NYTree::TSize(maxScanRowsPerIteration);
         dynSpec->BackgroundFillPeriod = backgroundFillPeriod;
+        dynSpec->Finite = finite;
+        dynSpec->FullFinalPass = fullFinalPass;
 
         auto ctx = New<TDynamicKeyVisitorContext>();
         ctx->DynamicSpec = std::move(dynSpec);
@@ -430,6 +434,214 @@ TEST_F(TKeyVisitorTest, NonFinalPassNeverReportsEmpty)
     DrainKeys(visitor, &drained, /*stopCount*/ 4); // Two passes' worth.
 
     EXPECT_FALSE(IsEmptyOnQueue(visitor)) << "non-final visitor must never declare itself empty";
+
+    StopOnQueue(visitor);
+}
+
+// A non-finite visitor is a periodic scanner: the completion signal means nothing to it.
+TEST_F(TKeyVisitorTest, NonFiniteVisitorIgnoresUpstreamCompletion)
+{
+    const std::vector<TKey> seeded{MakeUintKey(10), MakeUintKey(20)};
+    SeedKeys(seeded, "/state");
+
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
+    auto dynamicContext = MakeDynamicContext(
+        /*period*/ TDuration::MilliSeconds(10),
+        /*bufferRowLimit*/ 100,
+        /*maxScanRowsPerIteration*/ 10'000,
+        /*backgroundFillPeriod*/ TDuration::MilliSeconds(50),
+        /*finite*/ false);
+    auto visitor = New<TKeyVisitor>(context, dynamicContext);
+    WaitFor(visitor->Init()).ThrowOnError();
+
+    SetUpstreamCompletedOnQueue(visitor);
+
+    std::vector<TKey> drained;
+    DrainKeys(visitor, &drained, /*stopCount*/ 3 * std::ssize(seeded));
+    EXPECT_EQ(std::ssize(drained), 3 * std::ssize(seeded)) << "a non-finite visitor keeps sweeping";
+    EXPECT_FALSE(IsEmptyOnQueue(visitor)) << "a non-finite visitor must never declare itself empty";
+
+    StopOnQueue(visitor);
+}
+
+// The signal arrives before anything is swept, so the pass in hand is the final one: one
+// sweep, not two. This is the shape of a computation with no upstream at all.
+TEST_F(TKeyVisitorTest, FiniteVisitorFinalizesUnsweptPassInPlace)
+{
+    const std::vector<TKey> seeded{MakeUintKey(10), MakeUintKey(20)};
+    SeedKeys(seeded, "/state");
+
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
+    auto dynamicContext = MakeDynamicContext(
+        /*period*/ TDuration::MilliSeconds(10),
+        /*bufferRowLimit*/ 100);
+    auto visitor = New<TKeyVisitor>(context, dynamicContext);
+    WaitFor(visitor->Init()).ThrowOnError();
+
+    SetUpstreamCompletedOnQueue(visitor);
+
+    std::vector<TKey> drained;
+    DrainKeys(visitor, &drained, std::ssize(seeded));
+    EXPECT_EQ(ToSet(drained), ToSet(seeded)) << "the final pass must still emit every key";
+    EXPECT_TRUE(IsEmptyOnQueue(visitor)) << "the visitor must be empty after its single pass";
+
+    std::vector<TKey> extra;
+    DrainKeys(visitor, &extra, /*stopCount*/ 1, /*batchSize*/ 100, /*timeout*/ TDuration::MilliSeconds(500));
+    EXPECT_TRUE(extra.empty()) << "no pass may follow the final one";
+
+    StopOnQueue(visitor);
+}
+
+// The signal arrives mid-sweep, so the pass in flight is not the one that gets finalized:
+// the guarantee of a complete sweep after completion is preserved.
+TEST_F(TKeyVisitorTest, FiniteVisitorFinishesSweptPassBeforeFinalizing)
+{
+    std::vector<TKey> seeded;
+    for (ui64 hash = 1; hash <= 8; ++hash) {
+        seeded.push_back(MakeUintKey(hash * 5));
+    }
+    SeedKeys(seeded, "/state");
+
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
+    auto dynamicContext = MakeDynamicContext(
+        /*period*/ TDuration::MilliSeconds(10),
+        /*bufferRowLimit*/ 100);
+    auto visitor = New<TKeyVisitor>(context, dynamicContext);
+    WaitFor(visitor->Init()).ThrowOnError();
+
+    // Consume part of the first pass, then signal: the rest of it plus one more full pass
+    // must still be emitted. One key at a time, so the pass stays genuinely mid-sweep —
+    // a batch large enough to drain the buffer would commit the pass and rotate it.
+    std::vector<TKey> drained;
+    DrainKeys(visitor, &drained, /*stopCount*/ 1, /*batchSize*/ 1);
+    ASSERT_FALSE(drained.empty());
+    SetUpstreamCompletedOnQueue(visitor);
+    EXPECT_FALSE(IsEmptyOnQueue(visitor)) << "a swept pass may not be finalized where it stands";
+
+    // Count what actually comes out: a pass marked Final in place would not report Empty
+    // until it commits either, so only the emitted total tells the two cases apart.
+    const auto wanted = 2 * std::ssize(seeded) - std::ssize(drained);
+    EXPECT_EQ(DrainKeys(visitor, &drained, wanted), wanted) << "a full further pass must be emitted";
+    EXPECT_TRUE(IsEmptyOnQueue(visitor)) << "the visitor must be empty after the following pass";
+
+    StopOnQueue(visitor);
+}
+
+// Waiving the full-sweep guarantee finalizes the pass in flight instead of the next one.
+TEST_F(TKeyVisitorTest, FullFinalPassDisabledFinalizesSweptPass)
+{
+    std::vector<TKey> seeded;
+    for (ui64 hash = 1; hash <= 8; ++hash) {
+        seeded.push_back(MakeUintKey(hash * 5));
+    }
+    SeedKeys(seeded, "/state");
+
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
+    auto dynamicContext = MakeDynamicContext(
+        /*period*/ TDuration::MilliSeconds(10),
+        /*bufferRowLimit*/ 100,
+        /*maxScanRowsPerIteration*/ 10'000,
+        /*backgroundFillPeriod*/ TDuration::MilliSeconds(50),
+        /*finite*/ true,
+        /*fullFinalPass*/ false);
+    auto visitor = New<TKeyVisitor>(context, dynamicContext);
+    WaitFor(visitor->Init()).ThrowOnError();
+
+    std::vector<TKey> drained;
+    DrainKeys(visitor, &drained, /*stopCount*/ 1, /*batchSize*/ 1);
+    ASSERT_FALSE(drained.empty());
+    SetUpstreamCompletedOnQueue(visitor);
+
+    // The remainder of the pass in flight is still emitted, but nothing beyond it.
+    DrainKeys(visitor, &drained, std::ssize(seeded) - std::ssize(drained));
+    EXPECT_TRUE(IsEmptyOnQueue(visitor)) << "the pass in flight must be the final one";
+
+    std::vector<TKey> extra;
+    DrainKeys(visitor, &extra, /*stopCount*/ 1, /*batchSize*/ 100, /*timeout*/ TDuration::MilliSeconds(500));
+    EXPECT_TRUE(extra.empty()) << "no further pass may run";
+
+    StopOnQueue(visitor);
+}
+
+// Switching back to non-finite must keep the scanner running: the completion signal is not
+// a latch that outlives the switch.
+TEST_F(TKeyVisitorTest, ReconfigureBackToNonFiniteKeepsSweeping)
+{
+    std::vector<TKey> seeded;
+    for (ui64 hash = 1; hash <= 8; ++hash) {
+        seeded.push_back(MakeUintKey(hash * 5));
+    }
+    SeedKeys(seeded, "/state");
+
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
+    auto visitor = New<TKeyVisitor>(
+        context,
+        MakeDynamicContext(
+            /*period*/ TDuration::MilliSeconds(10),
+            /*bufferRowLimit*/ 100));
+    WaitFor(visitor->Init()).ThrowOnError();
+
+    // Signal mid-sweep, so the pass in flight is not finalized and the decision is deferred
+    // to the rotation. One key at a time: a batch that drains the buffer would commit the
+    // whole pass and rotate it into a final one before the switch lands.
+    std::vector<TKey> drained;
+    DrainKeys(visitor, &drained, /*stopCount*/ 1, /*batchSize*/ 1);
+    ASSERT_FALSE(drained.empty());
+    SetUpstreamCompletedOnQueue(visitor);
+
+    ReconfigureOnQueue(
+        visitor,
+        MakeDynamicContext(
+            /*period*/ TDuration::MilliSeconds(10),
+            /*bufferRowLimit*/ 100,
+            /*maxScanRowsPerIteration*/ 10'000,
+            /*backgroundFillPeriod*/ TDuration::MilliSeconds(50),
+            /*finite*/ false));
+    SetUpstreamCompletedOnQueue(visitor);
+
+    // The rotation must not inherit the withdrawn signal.
+    DrainKeys(visitor, &drained, 3 * std::ssize(seeded));
+    EXPECT_FALSE(IsEmptyOnQueue(visitor)) << "a withdrawn completion must not finalize a pass";
+
+    StopOnQueue(visitor);
+}
+
+// Switching a running scanner into finite mode is what asks it to finish; the flip arrives
+// through Reconfigure, exactly as a dynamic-spec update delivers it in production.
+TEST_F(TKeyVisitorTest, ReconfigureToFiniteTerminatesRunningVisitor)
+{
+    const std::vector<TKey> seeded{MakeUintKey(10), MakeUintKey(20)};
+    SeedKeys(seeded, "/state");
+
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
+    auto visitor = New<TKeyVisitor>(
+        context,
+        MakeDynamicContext(
+            /*period*/ TDuration::MilliSeconds(10),
+            /*bufferRowLimit*/ 100,
+            /*maxScanRowsPerIteration*/ 10'000,
+            /*backgroundFillPeriod*/ TDuration::MilliSeconds(50),
+            /*finite*/ false));
+    WaitFor(visitor->Init()).ThrowOnError();
+
+    SetUpstreamCompletedOnQueue(visitor);
+    std::vector<TKey> drained;
+    DrainKeys(visitor, &drained, /*stopCount*/ 2 * std::ssize(seeded));
+    ASSERT_FALSE(IsEmptyOnQueue(visitor));
+
+    ReconfigureOnQueue(
+        visitor,
+        MakeDynamicContext(
+            /*period*/ TDuration::MilliSeconds(10),
+            /*bufferRowLimit*/ 100,
+            /*maxScanRowsPerIteration*/ 10'000,
+            /*backgroundFillPeriod*/ TDuration::MilliSeconds(50),
+            /*finite*/ true));
+    SetUpstreamCompletedOnQueue(visitor);
+
+    std::vector<TKey> tail;
+    DrainKeys(visitor, &tail, /*stopCount*/ 2 * std::ssize(seeded));
+    EXPECT_TRUE(IsEmptyOnQueue(visitor)) << "the flip must let the visitor finish";
 
     StopOnQueue(visitor);
 }

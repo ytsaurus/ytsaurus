@@ -131,6 +131,13 @@ public:
     //! True iff the current pass was started with finalPass=true.
     bool IsCurrentPassFinal() const;
 
+    //! True while the current pass has swept nothing at all — every interval is still
+    //! Pending. A pass resumed from persisted coverage has already swept something.
+    bool HasCurrentPassSweptNothing() const;
+
+    //! Marks the current pass Final in place, without rotating it.
+    void MarkCurrentPassFinal();
+
     //! Read-only view of the current bucket geometry. Intended for tests.
     const std::vector<TBucket>& GetBuckets() const;
 

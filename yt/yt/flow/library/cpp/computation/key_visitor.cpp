@@ -139,7 +139,21 @@ void TKeyVisitor::Reconfigure(TDynamicKeyVisitorContextPtr dynamicContext)
 void TKeyVisitor::SetUpstreamCompleted()
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->SerializedInvoker);
+    if (!DynamicContext_->DynamicSpec->Finite) {
+        // Dropped, not just ignored: a rotation must not inherit a signal taken back.
+        UpstreamCompleted_ = false;
+        return;
+    }
+    if (UpstreamCompleted_) {
+        return;
+    }
     UpstreamCompleted_ = true;
+    // A pass that has swept nothing yet began at or after the completion moment, so it can
+    // be the final one; a pass already in flight is left to finish and the rotation marks
+    // the next one instead — unless the caller waived that guarantee.
+    if (Store_->HasCurrentPassSweptNothing() || !DynamicContext_->DynamicSpec->FullFinalPass) {
+        Store_->MarkCurrentPassFinal();
+    }
     if (BackgroundFillExecutor_) {
         BackgroundFillExecutor_->ScheduleOutOfBand();
     }
