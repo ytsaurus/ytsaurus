@@ -9,11 +9,11 @@ Source: [yt/yt/flow/library/cpp/runner/vanilla_launcher.h]({{source-root}}/yt/yt
 **Required parameter**
 Number of jobs for the task (controller or worker) in the vanilla operation. ||
 || `memory_limit` | **Type**: `std::optional<`[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
-Memory limit per job. If not set, the task default is used (different for the controller and worker). ||
+Memory limit per job. If not set, a single shared default of `18 GiB` is used, the same for the controller and worker. ||
 || `cpu_limit` | **Type**: `std::optional<int>`
-CPU limit per job. If not set, the task default is used (different for the controller and worker). ||
+CPU limit per job. If not set, a single shared default of `6` is used, the same for the controller and worker. ||
 || `port_count` | **Type**: `std::optional<int>`
-Number of ports to request from YT (ports are provided via `YT_PORT_<i>` and override fixed ports from node-config). Needed on hosts with a shared network where fixed ports of neighboring jobs would collide. ||
+Number of ports to request from YT (ports are provided via `YT_PORT_<i>` and override fixed ports from node-config): `YT_PORT_0` is `rpc_port` (and `bus_server.port`), `YT_PORT_1` is `monitoring_port`, `YT_PORT_2` is `companion.port` (present only for python and java workers). Needed on hosts with a shared network where fixed ports of neighboring jobs would collide: `2` for the controller and the C++ worker, `3` for python and java workers. ||
 || `local_files` | **Type**: `THashMap<std::string, std::string>`
 **Default value**: `{}`
  ||
@@ -22,8 +22,8 @@ Number of ports to request from YT (ports are provided via `YT_PORT_<i>` and ove
  ||
 || `layers` | **Type**: `std::vector<std::string>`
 **Default value**: `[]`
- ||
+Cypress paths of the porto layers mounted into the task's root filesystem. A non-empty list on at least one task enables porto jobs for the whole vanilla operation. ||
 || `system_layer_path` | **Type**: `std::optional<std::string>`
- ||
+The task's base OS layer; overrides the default system layer. ||
 |#
 

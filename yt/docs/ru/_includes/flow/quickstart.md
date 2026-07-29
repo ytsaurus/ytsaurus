@@ -148,7 +148,7 @@ $ ls *.log
 controller.log  worker.log
 ```
 
-{% if audience == "internal" %}Как работать с логами, можно посмотреть в разделе [Сырые логи контроллера и воркера](../../flow/release/problems.md#raw-logs).{% endif %}
+{% if audience == "internal" %}Как работать с логами, можно посмотреть в разделе [Сырые логи контроллера и воркера](../../flow/devops/deploy/diagnostics/logs.md#raw-logs).{% endif %}
 
 Визуализация графа пайплайна:
 
@@ -179,9 +179,9 @@ $ ya run . -- --input {{flow-example-cluster}}://tmp/example/noop --ttl 1
 }
 ```
 
-Обязательные параметры: `worker.count`, `pool`. Остальные имеют разумные значения по умолчанию: контроллер 1 джоба × (1 CPU, 4 GB), воркер по 4 CPU и 4 GB на джобу, порты выдаёт YT через `YT_PORT_*`. При запуске бинарь сам создаст vanilla-операцию с двумя задачами (controller + worker), отправит пайплайн на исполнение и дождётся завершения.
+Обязательные параметры: `worker.count`, `pool`. Остальные имеют разумные значения по умолчанию: контроллер — 1 джоба, каждая джоба (и контроллера, и воркера) получает 6 CPU и 18 GiB памяти, а порты внутри джобы фиксированные (`rpc_port = 10080`, `monitoring_port = 10081`). При запуске бинарь сам создаст vanilla-операцию с двумя задачами (controller + worker), отправит пайплайн на исполнение и дождётся завершения.
 
-Полный список полей &mdash; в [TVanillaConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaConfig) (см. также [TVanillaTaskConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaTaskConfig)).
+Полный список полей &mdash; в [TVanillaConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaConfig) (см. также [TVanillaTaskConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaTaskConfig)), подробный разбор запуска &mdash; в разделе [Запуск пайплайна в Vanilla-операции](../../flow/devops/vanilla/initial-deploy.md).
 
 ## Что дальше
 

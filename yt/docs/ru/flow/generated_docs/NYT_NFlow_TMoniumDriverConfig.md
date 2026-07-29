@@ -17,7 +17,7 @@
  ||
 || `auth_mode` | **Тип**: [NYT::NFlow::EMoniumAuthMode](./all_yson_structs#NYT_NFlow_EMoniumAuthMode)
 **Значение по умолчанию**: `o_auth_env`
-Режим аутентификации: `Tvm`, `OAuthEnv` или `Iam`. См. также раздел [Настройка аутентификации](../release/basic-rules.md#authentication). ||
+Режим аутентификации: `Tvm`, `OAuthEnv` или `Iam`. См. также раздел [Настройка аутентификации](../devops/vanilla/security.md#authentication). ||
 || `tvm_alias` | **Тип**: `std::string`
 **Значение по умолчанию**: `monium`
 Алиас TVM-клиента, который драйвер использует для получения тикета в режиме `Tvm`. Должен соответствовать алиасу, зарегистрированному в TVM-клиенте пайплайна. ||

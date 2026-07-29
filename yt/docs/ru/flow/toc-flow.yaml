@@ -198,40 +198,95 @@ items:
         href: extensions/serializable-profile.md
       - name: YQL Computation
         href: extensions/yql.md
-  - name: Релизы и управление пайплайном
+  - name: Эксплуатация
     items:
-      - name: Базовые правила выкатки пайплайна
-        href: release/basic-rules.md
+      - name: Обзор и сравнение способов запуска
+        href: devops/index.md
+        when: audience == "internal"
       - name: Выбор типа репликации для стейта
-        href: release/state-tables-choice.md
+        href: devops/state-tables-choice.md
         when: audience == "internal"
-      - name: Запуск в Vanilla-операции
-        href: release/launch-vanilla.md
-      - name: Запуск через Infractl
-        href: release/launch-infractl.md
+      - name: Деплой
         when: audience == "internal"
-      - name: UI
-        href: release/ui.md
+        items:
+          - name: Обзор
+            href: devops/deploy/index.md
+          - name: Первичный деплой
+            href: devops/deploy/initial-deploy.md
+          - name: Базовые операции с пайплайном
+            href: devops/deploy/pipeline-operations.md
+          - name: Диагностика
+            items:
+              - name: Обзор
+                href: devops/deploy/diagnostics/index.md
+              - name: Логи
+                href: devops/deploy/diagnostics/logs.md
+              - name: Мониторинг
+                href: devops/deploy/diagnostics/monitoring.md
+              - name: Профилирование
+                href: devops/deploy/diagnostics/profiling.md
+              - name: UI
+                href: devops/deploy/diagnostics/ui.md
+          - name: Обновления и релизы
+            href: devops/deploy/releases.md
+          - name: Безопасность и доступы
+            href: devops/deploy/security.md
+      - name: Vanilla-операции
+        items:
+          - name: Обзор
+            href: devops/vanilla/index.md
+            when: audience == "internal"
+          - name: Первичный деплой
+            href: devops/vanilla/initial-deploy.md
+          - name: Базовые операции с пайплайном
+            href: devops/vanilla/pipeline-operations.md
+          - name: Диагностика
+            items:
+              - name: Обзор
+                href: devops/vanilla/diagnostics/index.md
+                when: audience == "internal"
+              - name: Логи
+                href: devops/vanilla/diagnostics/logs.md
+              - name: Мониторинг
+                href: devops/vanilla/diagnostics/monitoring.md
+                when: audience == "internal"
+              - name: Профилирование
+                href: devops/vanilla/diagnostics/profiling.md
+                when: audience == "internal"
+              - name: UI
+                href: devops/vanilla/diagnostics/ui.md
+                when: audience == "internal"
+          - name: Обновления и релизы
+            href: devops/vanilla/releases.md
+          - name: Безопасность и доступы
+            href: devops/vanilla/security.md
+      - name: Проблемы и их решение
         when: audience == "internal"
-      - name: CLI
-        href: release/cli.md
-      - name: Деплой в YP
-        href: release/yp.md
-        when: audience == "internal"
-      - name: Интеграция с Monitoring
-        href: release/monitoring.md
-        when: audience == "internal"
-      - name: Защита от зомби-процессов
-        href: release/flow-core-target.md
-      - name: Диагностика и решение проблем
-        href: release/problems.md
-        when: audience == "internal"
+        items:
+          - name: Обзор
+            href: devops/problems/index.md
+          - name: Падающие джобы
+            href: devops/problems/failed-jobs.md
+          - name: Зависшая обработка
+            href: devops/problems/hung-processing.md
+          - name: Retryable-ошибки
+            href: devops/problems/retryable-errors.md
+          - name: Медленная обработка
+            href: devops/problems/slow-processing.md
+          - name: Медленный YT
+            href: devops/problems/slow-yt.md
+          - name: Ошибки троттлера
+            href: devops/problems/throttler-errors.md
+          - name: Зомби-процессы
+            href: devops/problems/zombie-processes.md
   - name: Примеры задач
     href: tasks.md
   - name: FAQ
     href: faq.md
   - name: Справочник конфигураций
     href: generated_docs/all_yson_structs.md
+  - name: CLI {{product-name}} Flow
+    href: tools/cli.md
   - name: Инструменты
     when: audience == "internal"
     items:

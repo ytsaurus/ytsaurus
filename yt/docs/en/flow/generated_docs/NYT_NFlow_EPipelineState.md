@@ -7,11 +7,11 @@
 || `unknown` | Default state value for a pipeline that has not been started yet. ||
 || `stopped` | Pipeline is stopped. `Draining` has been performed &mdash; all intermediate messages in the pipeline are processed, the actual processed offsets in the source queues are committed. All jobs are stopped.
 In this state, you can safely roll out a pipeline release and update its static spec.
-To initiate a transition to this state, use the `stop-pipeline` command.{% if audience == "internal" %} Or via the [UI](../../yandex-specific/flow/release/ui.md).{% endif %} ||
+To initiate a transition to this state, use the `stop-pipeline` command.{% if audience == "internal" %} Or via the [UI](../../flow/devops/deploy/diagnostics/ui.md).{% endif %} ||
 || `paused` | Pipeline is paused. All jobs are stopped, but intermediate messages in the pipeline may not have been processed.
-To initiate a transition to this state, use the `pause-pipeline` command.{% if audience == "internal" %} Or via the [UI](../../yandex-specific/flow/release/ui.md).{% endif %} ||
+To initiate a transition to this state, use the `pause-pipeline` command.{% if audience == "internal" %} Or via the [UI](../../flow/devops/deploy/diagnostics/ui.md).{% endif %} ||
 || `working` | Pipeline is working. Messages are being processed.
-To initiate a transition to this state, use the `start-pipeline` command.{% if audience == "internal" %} Or via the [UI](../../yandex-specific/flow/release/ui.md).{% endif %} ||
+To initiate a transition to this state, use the `start-pipeline` command.{% if audience == "internal" %} Or via the [UI](../../flow/devops/deploy/diagnostics/ui.md).{% endif %} ||
 || `draining` | Intermediate state. Pipeline is in the process of stopping (transition to `stopped` state). All messages that the pipeline has already seen from sources and all internal intermediate messages between computations are being final-processed. ||
 || `pausing` | Intermediate state. Pipeline is in the process of pausing. All jobs are being stopped. ||
 || `completed` | Final state. Pipeline is complete. All sources were finite, and all messages from them have been processed.

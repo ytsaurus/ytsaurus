@@ -81,7 +81,7 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
 
 ## Runner
 
-Класс с `main`-методом для запуска [пайплайна](../../../flow/concepts/glossary.md#pipeline). `SimpleRunnerProgram` является Java-аналогом [NYT::NFlow::TSimpleRunnerProgram](../../../flow/release/basic-rules.md#launch-flow) и принимает те же файлы конфигурации и переменные среды.
+Класс с `main`-методом для запуска [пайплайна](../../../flow/concepts/glossary.md#pipeline). `SimpleRunnerProgram` является Java-аналогом [NYT::NFlow::TSimpleRunnerProgram](../../../flow/devops/vanilla/releases.md#launch-flow) и принимает те же файлы конфигурации и переменные среды.
 
 {% list tabs group=lang %}
 

@@ -152,7 +152,7 @@
 - [Таймеры](../../../../flow/concepts/timers.md)
 - [Stateful processing](../../../../flow/concepts/stateful.md)
 
-Все эти объекты необходимо создать в {{product-name}}, перед тем как [запускать работу пайплайна](../../../../flow/release/basic-rules.md#launch-flow).{% if audience == "internal" %} Для создания объектов можно воспользоваться библиотекой [YtSync]({{yt-sync-docs}}/). Она позволяет лаконично описать объекты и их отличия между разными [окружениями](../../../../flow/concepts/glossary.md#environment) и выполнять операции создания, обновления, [миграции](../../../../flow/concepts/glossary.md#migration) (в ряде случаев).{% endif %}
+Все эти объекты необходимо создать в {{product-name}}, перед тем как [запускать работу пайплайна](../../../../flow/devops/vanilla/releases.md#launch-flow).{% if audience == "internal" %} Для создания объектов можно воспользоваться библиотекой [YtSync]({{yt-sync-docs}}/). Она позволяет лаконично описать объекты и их отличия между разными [окружениями](../../../../flow/concepts/glossary.md#environment) и выполнять операции создания, обновления, [миграции](../../../../flow/concepts/glossary.md#migration) (в ряде случаев).{% endif %}
 
 {% if audience == "internal" %}В данном примере продемонстрировано использование режима easy mode, подробную документацию по которому можно найти [здесь]({{yt-sync-docs}}/stages_specification).{% endif %}
 

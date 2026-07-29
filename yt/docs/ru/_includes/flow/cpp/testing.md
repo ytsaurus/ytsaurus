@@ -12,7 +12,7 @@ C++ [воркеры](../../../flow/concepts/glossary.md#worker) на данны�
 
 ## См. также
 
-- [Базовые правила выкатки](../../../flow/release/basic-rules.md)
+- [Базовые правила выкатки](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules)
 - [Тестирование (Java)](../../../flow/java/testing.md)
 - [Тестирование (Python)](../../../flow/python/testing.md)
 - [Быстрый старт (C++)](../../../flow/cpp/getting-started.md)
