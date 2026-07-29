@@ -281,19 +281,26 @@ void RunPipeline(
                 .ValueOrThrow()
                 .State;
 
-            THashSet<EPipelineState> targetStates = {
-                EPipelineState::Unknown,
-                EPipelineState::Paused,
-                EPipelineState::Stopped};
-
-            if (enablePipelineStopOrPause) {
-                targetStates.insert(EPipelineState::Working);
-            }
-
-            if (!targetStates.contains(currentState)) {
+            if (currentState == EPipelineState::Completed) {
                 fatalError = true;
 
-                THROW_ERROR_EXCEPTION("Found unexpected pipeline state: %Qv",
+                THROW_ERROR_EXCEPTION(
+                    "Pipeline state is %Qv; the controller cannot transition out of it, "
+                    "recreate the pipeline to recover",
+                    currentState);
+            }
+
+            // A runner permitted to stop or pause the pipeline handles the remaining states below,
+            // including a Draining or Pausing left by an earlier iteration of this loop. Unknown is
+            // how a pipeline looks while its controller has no synced flow view.
+            if (!enablePipelineStopOrPause &&
+                currentState != EPipelineState::Unknown &&
+                currentState != EPipelineState::Paused &&
+                currentState != EPipelineState::Stopped)
+            {
+                fatalError = true;
+
+                THROW_ERROR_EXCEPTION("Pipeline state is %Qv, but it must be stopped or paused to update its specs",
                     currentState);
             }
 
