@@ -235,7 +235,7 @@ void LogStreamError(const TString& message) {
 }
 
 void RunStream(const TCompletionResources& resources) {
-    while (true) {
+    for (;;) {
         TString document;
         const auto readResult = ReadJsonDocument(Cin, document);
         if (readResult == EReadDocumentResult::EndOfStream) {
