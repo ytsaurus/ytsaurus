@@ -135,8 +135,7 @@ enum class EReadDocumentResult {
 EReadDocumentResult ReadJsonDocument(IInputStream& input, TString& document) {
     document.clear();
 
-    char current;
-    while (input.ReadChar(current)) {
+    for (char current; input.ReadChar(current);) {
         if (!std::isspace(static_cast<unsigned char>(current))) {
             document.push_back(current);
             break;
