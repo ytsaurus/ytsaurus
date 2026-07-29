@@ -28,6 +28,7 @@ target_link_libraries(essentials-minikql-runtime_settings PUBLIC
   providers-common-config
   providers-common-activation
   contrib-libs-openssl
+  library-cpp-hyperloglog
 )
 
 target_sources(essentials-minikql-runtime_settings PRIVATE
