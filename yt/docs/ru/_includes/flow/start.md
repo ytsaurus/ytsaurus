@@ -33,7 +33,7 @@
    - [Java](../../flow/java/testing.md)
    - [Python](../../flow/python/testing.md)
 
-10. **Запустите пайплайн** и следите за ним через UI {{product-name}}. Детально про релизы можно прочитать в [Релизы и управление пайплайном](../../flow/release/basic-rules.md).
+10. **Запустите пайплайн** и следите за ним через UI {{product-name}}. Детально про релизы можно прочитать в [Релизы и управление пайплайном](../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules).
 
 ## См. также
 

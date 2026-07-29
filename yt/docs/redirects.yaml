@@ -891,6 +891,62 @@ ru:
       to: /flow/extensions/monium.md
       type: redirect
 
+    - from: /flow/release/launch-vanilla.md
+      to: /flow/devops/vanilla/initial-deploy.md
+      type: redirect
+
+    - from: /flow/release/cli.md
+      to: /flow/tools/cli.md
+      type: redirect
+
+    - from: /flow/release/launch-infractl.md
+      to: /flow/devops/deploy/initial-deploy.md
+      type: redirect
+
+    - from: /flow/release/yp.md
+      to: /flow/devops/deploy/initial-deploy.md
+      type: redirect
+
+    - from: /flow/release/monitoring.md
+      to: /flow/devops/deploy/diagnostics/monitoring.md
+      type: redirect
+
+    - from: /flow/release/ui.md
+      to: /flow/devops/deploy/diagnostics/ui.md
+      type: redirect
+
+    - from: /flow/release/state-tables-choice.md
+      to: /flow/devops/state-tables-choice.md
+      type: redirect
+
+    - from: /flow/release/basic-rules.md
+      to: /flow/devops/vanilla/releases.md
+      type: redirect
+
+    - from: /flow/release/flow-core-target.md
+      to: /flow/devops/vanilla/releases.md
+      type: redirect
+
+    - from: /flow/release/problems.md#diagnostic-tools
+      to: /flow/devops/deploy/diagnostics/profiling.md
+      type: redirect
+
+    - from: /flow/release/problems.md#ytprof
+      to: /flow/devops/deploy/diagnostics/profiling.md#ytprof
+      type: redirect
+
+    - from: /flow/release/problems.md#draw-pipeline-graph-tool
+      to: /flow/devops/deploy/diagnostics/profiling.md#draw-pipeline-graph-tool
+      type: redirect
+
+    - from: /flow/release/problems.md#slow-processing
+      to: /flow/devops/problems/slow-processing.md
+      type: redirect
+
+    - from: /flow/release/problems.md
+      to: /flow/devops/problems/index.md
+      type: redirect
+
     - from: /flow/yandex/(.*)
       to: /flow/$1
       type: redirect

@@ -17,7 +17,7 @@ Use TLS for the connection. ||
  ||
 || `auth_mode` | **Type**: [NYT::NFlow::EMoniumAuthMode](./all_yson_structs#NYT_NFlow_EMoniumAuthMode)
 **Default value**: `o_auth_env`
-Authentication mode: `Tvm`, `OAuthEnv`, or `Iam`. See also the [Configuring authentication](../release/basic-rules.md#authentication) section. ||
+Authentication mode: `Tvm`, `OAuthEnv`, or `Iam`. See also the [Configuring authentication](../devops/vanilla/security.md#authentication) section. ||
 || `tvm_alias` | **Type**: `std::string`
 **Default value**: `monium`
 TVM client alias that the driver uses to obtain a ticket in `Tvm` mode. Must match the alias registered in the pipeline's TVM client. ||

@@ -101,7 +101,7 @@ auto nodeId = NYT::NFlow::CreatePipelineNode(client, pipelinePath, options);
 
 ## External State { #external-state }
 
-При смене схемы [внутренних таблиц](#internal_tables) в новой версии Flow апгрейд формата выполняется отдельной миграцией &mdash; см. [Внутренние таблицы пайплайна](../../../flow/concepts/glossary.md#inner-pipeline-tables) и [Базовые правила выкатки](../../../flow/release/basic-rules.md).
+При смене схемы [внутренних таблиц](#internal_tables) в новой версии Flow апгрейд формата выполняется отдельной миграцией &mdash; см. [Внутренние таблицы пайплайна](../../../flow/concepts/glossary.md#inner-pipeline-tables) и [Базовые правила выкатки](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules).
 
 Если пайплайн использует [External State](../../../flow/concepts/stateful.md) (пользовательские таблицы за пределами узла), их создание и эволюция схем &mdash; ответственность пользователя. {% if audience == "internal" %}В Yandex-инфраструктуре для этого используется [YtSync]({{yt-sync-docs}}/).{% else %}Операции выполняются стандартными командами `yt create table ... --attributes '{dynamic=true; schema=...}'` и `yt mount-table` &mdash; см. примеры в разделе [Команда create](../../../user-guide/storage/cypress-example.md#create).{% endif %}
 
@@ -109,7 +109,7 @@ auto nodeId = NYT::NFlow::CreatePipelineNode(client, pipelinePath, options);
 
 - [Глоссарий: Pipeline](../../../flow/concepts/glossary.md#pipeline)
 - [Внутренние таблицы пайплайна](../../../flow/concepts/glossary.md#inner-pipeline-tables)
-- [Базовые правила выкатки пайплайна](../../../flow/release/basic-rules.md)
+- [Базовые правила выкатки пайплайна](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules)
 {% if audience != "internal" %}
 - Опенсорс-пример bootstrap-скрипта: [`yt/yt/flow/examples/cpp/noop/yt_sync_mini`]({{source-root}}/yt/yt/flow/examples/cpp/noop/yt_sync_mini)
 {% endif %}

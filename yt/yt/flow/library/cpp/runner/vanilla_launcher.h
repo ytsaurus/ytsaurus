@@ -21,8 +21,6 @@ namespace NYT::NFlow {
 DECLARE_REFCOUNTED_STRUCT(TVanillaTaskConfig)
 
 //! Per-task (controller or worker) sizing in a Flow vanilla launch.
-//! `count` is required; memory/cpu are optional — the launcher fills task-specific
-//! defaults (they differ between controller and worker, so the struct itself stays neutral).
 struct TVanillaTaskConfig
     : public NYTree::TYsonStruct
 {

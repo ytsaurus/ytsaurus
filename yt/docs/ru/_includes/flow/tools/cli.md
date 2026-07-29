@@ -17,5 +17,5 @@
 
 ## См. также
 
-- [Базовые правила выкатки](../../../flow/release/basic-rules.md)
+- [Базовые правила выкатки](../../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules)
 - [Spec и DynamicSpec](../../../flow/concepts/spec.md)

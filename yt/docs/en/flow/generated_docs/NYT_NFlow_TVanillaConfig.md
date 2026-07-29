@@ -20,7 +20,7 @@ Config for controller jobs (number of jobs and resource limits). If not set, one
 || `runtime_cluster` | **Type**: `std::optional<std::string>`
 The cluster on which the vanilla operation runs. Defaults to the pipeline's `cluster_url`. ||
 || `runtime_proxy_role` | **Type**: `std::optional<std::string>`
-The RPC proxy role for the `runtime_cluster` (the pipeline cluster's role may not exist on that cluster). ||
+The RPC proxy role for the `runtime_cluster` (the pipeline cluster's role may not exist on that cluster). Taken into account only when `runtime_cluster` differs from the pipeline cluster. ||
 || `cache_path` | **Type**: `TString`
 **Default value**: `//tmp/yt_wrapper/file_storage/new_cache`
 A content-addressed cache to which job files are uploaded (shared by all flow operations on the cluster). A long-term copy in the pipeline folder is a cheap `CopyNode` from this cache. ||
