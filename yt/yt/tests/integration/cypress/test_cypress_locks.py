@@ -1609,6 +1609,163 @@ class TestCypressLocks(YTEnvSetup):
                            "transaction .* its descendants already have . locks associated with them"):
             lock("//tmp/table", mode="shared", tx=tx12)
 
+    @authors("ivpiskarev")
+    def test_waitable_lock_count_limit_deny_0(self):
+        set("//sys/@config/cypress_manager/max_locks_per_transaction_subtree", 2)
+        create("table", "//tmp/t")
+
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        tx3 = start_transaction()
+
+        lock_id1 = lock("//tmp/t", tx=tx1, mode="exclusive")["lock_id"]
+        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", waitable=True)["lock_id"]
+        lock_id3 = lock("//tmp/t", tx=tx2, mode="shared", waitable=True)["lock_id"]
+        lock_id4 = lock("//tmp/t", tx=tx3, mode="exclusive", waitable=True)["lock_id"]
+
+        assert get(f"#{lock_id1}/@state") == "acquired"
+        assert get(f"#{lock_id2}/@state") == "pending"
+        assert get(f"#{lock_id3}/@state") == "pending"
+        assert get(f"#{lock_id4}/@state") == "pending"
+
+        with raises_yt_error(f"Cannot create \"shared\" lock for node //tmp/t since "
+                             f"transaction {tx2} and its descendants already have {2} locks associated with them"):
+            lock("//tmp/t", tx=tx2, mode="shared", waitable=True)
+
+        commit_transaction(tx=tx1)
+
+        state2 = get(f"#{lock_id2}/@state")
+        state3 = get(f"#{lock_id3}/@state")
+        state4 = get(f"#{lock_id4}/@state")
+
+        if state4 == "acquired":
+            assert [state2, state3, state4] == ["pending", "pending", "acquired"]
+            commit_transaction(tx=tx3)
+            assert get(f"#{lock_id2}/@state") == "acquired"
+            assert get(f"#{lock_id3}/@state") == "acquired"
+            commit_transaction(tx=tx2)
+        else:
+            assert [state2, state3, state4] == ["acquired", "acquired", "pending"]
+            commit_transaction(tx=tx2)
+            assert get(f"#{lock_id4}/@state") == "acquired"
+            commit_transaction(tx=tx3)
+
+    @authors("ivpiskarev")
+    def test_waitable_lock_count_limit_deny_1(self):
+        set("//sys/@config/cypress_manager/max_locks_per_transaction_subtree", 3)
+        create("table", "//tmp/t")
+
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        tx3 = start_transaction(tx=tx2)
+
+        lock_id1 = lock("//tmp/t", tx=tx3, mode="exclusive")["lock_id"]
+        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", waitable=True)["lock_id"]
+        lock_id3 = lock("//tmp/t", tx=tx1, mode="exclusive", waitable=True)["lock_id"]
+
+        assert get(f"#{lock_id1}/@state") == "acquired"
+        assert get(f"#{lock_id2}/@state") == "pending"
+        assert get(f"#{lock_id3}/@state") == "pending"
+
+        with raises_yt_error(f"Cannot create \"shared\" lock for node //tmp/t since "
+                             f"transaction {tx1} and its descendants already have {3} locks associated with them"):
+            lock("//tmp/t", tx=tx3, mode="shared", waitable=True)
+
+        commit_transaction(tx=tx3)
+
+        assert get(f"#{lock_id1}/@state") == "acquired"
+        assert get(f"#{lock_id2}/@state") == "acquired"
+        assert get(f"#{lock_id3}/@state") == "pending"
+
+        commit_transaction(tx=tx2)
+
+        assert get(f"#{lock_id1}/@state") == "acquired"
+        assert get(f"#{lock_id2}/@state") == "acquired"
+        assert get(f"#{lock_id3}/@state") == "acquired"
+
+        commit_transaction(tx=tx1)
+
+    @authors("ivpiskarev")
+    @pytest.mark.parametrize("mode", ["shared", "exclusive"])
+    def test_waitable_snapshot_locks_0(self, mode):
+        create("table", "//tmp/t")
+
+        tx1 = start_transaction()
+        lock("//tmp/t", tx=tx1, mode=mode)
+
+        with raises_yt_error(f"Cannot take \"snapshot\" lock for node //tmp/t since \"{mode}\" lock is already taken by same transaction {tx1}"):
+            lock("//tmp/t", tx=tx1, mode="snapshot", waitable=False)
+
+        lock_id2 = lock("//tmp/t", tx=tx1, mode="snapshot", waitable=True)["lock_id"]
+        assert get(f"#{lock_id2}/@state") == "pending"
+        commit_transaction(tx=tx1)
+
+    @authors("ivpiskarev")
+    @pytest.mark.parametrize("mode", ["shared", "exclusive"])
+    @pytest.mark.parametrize("depth", [0, 1, 2, 3, 4])
+    def test_waitable_snapshot_locks_1(self, mode, depth):
+        create("table", "//tmp/t")
+
+        txs = []
+        txs += [start_transaction()]
+        for _ in range(depth):
+            txs += [start_transaction(tx=txs[-1])]
+
+        lock_id1 = lock("//tmp/t", tx=txs[-1], mode=mode)["lock_id"]
+        assert get(f"#{lock_id1}/@state") == "acquired"
+
+        for tx in txs[:-1]:
+            with raises_yt_error(f"Cannot take \"snapshot\" lock for node //tmp/t since \"{mode}\" lock is already taken by a descendant transaction"):
+                lock("//tmp/t", tx=tx, mode="snapshot", waitable=False)
+
+        lock_id2 = lock("//tmp/t", tx=txs[0], mode="snapshot", waitable=True)["lock_id"]
+        while len(txs):
+            assert get(f"#{lock_id2}/@state") == "pending"
+            commit_transaction(tx=txs.pop())
+
+    @authors("ivpiskarev")
+    def test_waitable_snapshot_locks_2(self):
+        create("table", "//tmp/t")
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        lock("//tmp/t", tx=tx2, mode="snapshot")
+
+        lock_id2 = lock("//tmp/t", tx=tx1, mode="shared", waitable=False)["lock_id"]
+        lock_id3 = lock("//tmp/t", tx=tx1, mode="shared", waitable=True)["lock_id"]
+        assert get(f"#{lock_id2}/@state") == "acquired"
+        assert get(f"#{lock_id3}/@state") == "acquired"
+
+        commit_transaction(tx=tx2)
+        commit_transaction(tx=tx1)
+
+    @authors("ivpiskarev")
+    def test_waitable_snapshot_locks_3(self):
+        create("table", "//tmp/t")
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        tx3 = start_transaction(tx=tx2)
+        tx4 = start_transaction(tx=tx3)
+
+        lock_id1 = lock("//tmp/t", tx=tx2, mode="snapshot")["lock_id"]
+        lock_id2 = lock("//tmp/t", tx=tx2, mode="snapshot", waitable=True)["lock_id"]
+        assert get(f"#{lock_id1}/@state") == "acquired"
+        assert get(f"#{lock_id2}/@state") == "acquired"
+
+        for tx in [tx3, tx4]:
+            with raises_yt_error(f"Cannot take \"shared\" lock for node //tmp/t since \"snapshot\" lock is already taken by parent transaction {tx2}"):
+                lock("//tmp/t", tx=tx, mode="shared", waitable=False)
+
+        lock_id4 = lock("//tmp/t", tx=tx4, mode="shared", waitable=True)["lock_id"]
+        assert get(f"#{lock_id4}/@state") == "pending"
+        commit_transaction(tx=tx4)
+        assert get(f"#{lock_id4}/@state") == "pending"
+        commit_transaction(tx=tx3)
+        assert get(f"#{lock_id4}/@state") == "pending"
+        commit_transaction(tx=tx2)
+        assert get(f"#{lock_id4}/@state") == "acquired"
+        commit_transaction(tx=tx1)
+
     @authors("danilalexeev")
     @not_implemented_in_sequoia
     def test_map_node_copy_on_write(self):
