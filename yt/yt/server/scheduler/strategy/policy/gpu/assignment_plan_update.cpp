@@ -1161,6 +1161,7 @@ NDetail::TPreemptionPenalty TGpuAllocationAssignmentPlanUpdateExecutor::TPreempt
         const auto& assignment = *it;
         preliminaryPreemptedResources += assignment->ResourceUsage;
         penalty += Host_->GetAssignmentPreemptionPenalty(assignment);
+        ++it;
     }
 
     return penalty;
