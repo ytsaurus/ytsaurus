@@ -111,9 +111,11 @@ BUILD_FLAGS_ISOLATED=${BUILD_FLAGS/ --yt-store / }
 
 if [ "$build_python_udfs" == "yes" ]; then
   # Build yql system python udfs inside a docker container.
+  # Extra docker mounts (e.g. the host ya cache/token) are provided by the caller via EXTRA_MOUNTS.
   docker container run --rm --name yql-python-udfs-build \
     -v $YTSAURUS_SOURCE_PATH:/ytsaurus \
     -v $YQL_BUILD_PATH:/yql_build \
+    ${EXTRA_MOUNTS:-} \
     --env YTSAURUS_SOURCE_PATH=/ytsaurus \
     --env YQL_BUILD_PATH=/yql_build \
     --env "BUILD_FLAGS=$BUILD_FLAGS_ISOLATED" \
