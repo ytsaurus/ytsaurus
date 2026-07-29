@@ -397,6 +397,7 @@ public:
         : Connector_(std::move(connector))
         , PipelineAuthenticator_(std::move(authenticator))
         , TimeProvider_(CreateRetryingTimeProvider(Connector_->GetClient(), clockClusterTag, invoker, statusProfiler, ControllerLogger()))
+        , VersionProvider_(CreateVersionProvider(TimeProvider_))
         , Config_(std::move(config))
         , NodeInfo_(std::move(nodeInfo))
         , Profiler_(profiler)
@@ -413,6 +414,11 @@ public:
         , DynamicSpecVersion_(Profiler_.Gauge("/dynamic_spec_version"))
         , StatusProfiler_(std::move(statusProfiler))
     { }
+
+    const IVersionProviderPtr& GetVersionProvider() const
+    {
+        return VersionProvider_;
+    }
 
     void SyncWorkers(const TFlowViewPtr& flowView, const std::vector<TWorkerInfo>& workers)
     {
@@ -490,12 +496,13 @@ public:
             context->Invoker = Invoker_;
             context->MainCycleInvoker = MainCycleInvoker_;
             context->TimeProvider = TimeProvider_;
+            context->VersionProvider = VersionProvider_;
             context->StatusProfiler = StatusProfiler_->WithPrefix("/job_manager");
             JobManager_ = CreateJobManager(std::move(context), New<TPipelineSpec>(), New<TDynamicPipelineSpec>(), New<TJobManagerState>(), /*authenticator*/ nullptr);
             try {
                 auto pipelineState = flowState->ExecutionSpec->PipelineState->GetValue();
                 if (pipelineState != EPipelineState::Paused && pipelineState != EPipelineState::Stopped && pipelineState != EPipelineState::Completed) {
-                    flowState->ExecutionSpec->PipelineState->SetValue(EPipelineState::Pausing);
+                    flowState->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Pausing, VersionProvider_);
                 }
                 DoScheduling(flowView);
             } catch (const std::exception& ex) {
@@ -537,7 +544,7 @@ public:
                     YT_TLOG_WARNING("FlowCoreTarget mismatch, pausing pipeline")
                         .With("Target", flowView->State->ExecutionSpec->FlowCoreTarget->GetValue())
                         .With("Actual", NodeInfo_->FlowCoreVersion);
-                    flowView->State->ExecutionSpec->PipelineState->SetValue(EPipelineState::Pausing);
+                    flowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Pausing, VersionProvider_);
                 }
             }
 
@@ -676,6 +683,7 @@ private:
     const IYTConnectorPtr Connector_;
     const IPipelineAuthenticatorPtr PipelineAuthenticator_;
     const ITimeProviderPtr TimeProvider_;
+    const IVersionProviderPtr VersionProvider_;
     const TControllerConfigPtr Config_;
     const TNodeInfoPtr NodeInfo_;
     const TProfiler Profiler_;
@@ -709,8 +717,8 @@ private:
         const auto& executionSpec = flowState->ExecutionSpec;
         if (executionSpec->PipelineSpec->GetVersion() != spec->GetVersion() || !JobManager_) {
             executionSpec->PipelineSpec = spec;
-            executionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(executionSpec->PipelineSpec->GetValue()));
-            UpdateStreamSpecStorageState(executionSpec->StreamSpecStorageState, *spec->GetValue(), TimeProvider_);
+            executionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(executionSpec->PipelineSpec->GetValue()), VersionProvider_);
+            UpdateStreamSpecStorageState(executionSpec->StreamSpecStorageState, *spec->GetValue(), TimeProvider_, VersionProvider_);
             try {
                 auto context = New<TJobManagerContext>();
                 context->ClientsCache = Connector_->GetClientsCache();
@@ -718,6 +726,7 @@ private:
                 context->Invoker = Invoker_;
                 context->MainCycleInvoker = MainCycleInvoker_;
                 context->TimeProvider = TimeProvider_;
+                context->VersionProvider = VersionProvider_;
                 context->StatusProfiler = StatusProfiler_->WithPrefix("/job_manager");
                 JobManager_ = CreateJobManager(std::move(context), executionSpec->PipelineSpec->GetValue(), executionSpec->DynamicPipelineSpec->GetValue(), flowState->JobManagerState, PipelineAuthenticator_);
             } catch (const std::exception& ex) {
@@ -760,17 +769,17 @@ private:
                 switch (dynamicSpec->TargetState) {
                     case EPipelineState::Completed:
                         if (executionSpec->PipelineState->GetValue() != EPipelineState::Working) {
-                            executionSpec->PipelineState->SetValue(EPipelineState::Working);
+                            executionSpec->PipelineState->TrySetValue(EPipelineState::Working, VersionProvider_);
                         }
                         break;
                     case EPipelineState::Stopped:
                         if (executionSpec->PipelineState->GetValue() != EPipelineState::Draining) {
-                            executionSpec->PipelineState->SetValue(EPipelineState::Draining);
+                            executionSpec->PipelineState->TrySetValue(EPipelineState::Draining, VersionProvider_);
                         }
                         break;
                     default:
                         if (executionSpec->PipelineState->GetValue() != EPipelineState::Pausing && executionSpec->PipelineState->GetValue() != EPipelineState::Stopped && executionSpec->PipelineState->GetValue() != EPipelineState::Completed) {
-                            executionSpec->PipelineState->SetValue(EPipelineState::Pausing);
+                            executionSpec->PipelineState->TrySetValue(EPipelineState::Pausing, VersionProvider_);
                         }
                         break;
                 }
@@ -778,7 +787,7 @@ private:
         } else {
             YT_TLOG_WARNING("Binary compatibility mismatch");
             if (executionSpec->PipelineState->GetValue() != EPipelineState::Completed && executionSpec->PipelineState->GetValue() != EPipelineState::Paused && executionSpec->PipelineState->GetValue() != EPipelineState::Stopped) {
-                executionSpec->PipelineState->SetValue(EPipelineState::Pausing);
+                executionSpec->PipelineState->TrySetValue(EPipelineState::Pausing, VersionProvider_);
             }
         }
     }
@@ -881,7 +890,7 @@ private:
         auto stopJobsAndResetState = [&] (EPipelineState newState) {
             JobManager_->StopAllJobs(flowView);
             LeaseManager_->TerminateStrayLeases(flowView);
-            flowView->State->ExecutionSpec->PipelineState->SetValue(newState);
+            flowView->State->ExecutionSpec->PipelineState->TrySetValue(newState, VersionProvider_);
         };
         auto manageJobs = [&] {
             JobManager_->RemoveFailedJobs(flowView);
@@ -1248,6 +1257,14 @@ public:
     TNodeInfoPtr GetNodeInfo() const override
     {
         return NodeInfo_;
+    }
+
+    IVersionProviderPtr GetVersionProvider() const override
+    {
+        EnsureIsLeader();
+        auto leader = WeakLeader_.Lock();
+        THROW_ERROR_EXCEPTION_UNLESS(leader, "Controller leader is not running");
+        return leader->GetVersionProvider();
     }
 
     void RegisterJobStatus(const TJobId& jobId, TJobStatusPtr jobStatus) override

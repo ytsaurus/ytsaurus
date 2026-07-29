@@ -1,4 +1,5 @@
 #include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
@@ -112,6 +113,8 @@ public:
     { }
 };
 
+constexpr auto InitialTimestamp = TSystemTimestamp(1'784'633'264);
+
 class TPartitioning
     : public ::testing::Test
 {
@@ -123,6 +126,7 @@ public:
     TPipelineSpecPtr Spec;
     TDynamicPipelineSpecPtr DynamicSpec;
     TComputationId ComputationId = "computation";
+    TIntrusivePtr<TFakeVersionProvider> VersionProvider = New<TFakeVersionProvider>(InitialTimestamp.Underlying());
 
     void Prepare(ssize_t numWorkers, bool withSink = false, bool withSecondSink = false)
     {
@@ -167,10 +171,10 @@ public:
         )"""")));
         Spec->Streams["output_stream"] = streamSpec;
 
-        FlowView->State->ExecutionSpec->PipelineSpec->SetValue(Spec);
-        FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(DynamicSpec);
-        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(Spec));
-        FlowView->State->ExecutionSpec->PipelineState->SetValue(EPipelineState::Working);
+        FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(Spec, VersionProvider);
+        FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, VersionProvider);
+        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(Spec), VersionProvider);
+        FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, VersionProvider);
         ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 0u);
         auto context = New<TJobManagerContext>();
         context->Invoker = GetCurrentInvoker();
@@ -178,7 +182,7 @@ public:
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
         context->StatusProfiler = CreateSyncStatusProfiler();
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
-        FlowView->CurrentSpec->SetValue(Spec);
+        FlowView->CurrentSpec->TrySetValue(Spec, VersionProvider);
 
         FlowView->State->StartMutation();
         for (ssize_t i = 0; i < numWorkers; i++) {
@@ -233,7 +237,13 @@ public:
         PersistedControl = New<TPersistedStateControl<std::string>>(StorageHandler);
         FlowView->State->AttachToControl(PersistedControl);
         PersistedControl->Recover();
+        FlowView->State->CurrentTimestamp = InitialTimestamp;
         JobManager = nullptr;
+    }
+
+    void AdvanceClock()
+    {
+        ++FlowView->State->CurrentTimestamp.Underlying();
     }
 };
 
@@ -357,7 +367,7 @@ TEST_F(TPartitioning, Repartitioning)
     FlowView->State->CommitMutation();
     EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
 
-    Sleep(TDuration::MilliSeconds(10));
+    AdvanceClock();
 
     double maxCpuUsage = TUniversalComputationController::DefaultDesiredAveragePartitionCpuLoad;
     SetFeedback(maxCpuUsage * 2, 0, 0, 0);
@@ -366,7 +376,7 @@ TEST_F(TPartitioning, Repartitioning)
     FlowView->State->CommitMutation();
     EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30u); // 10 old and 20 new.
 
-    Sleep(TDuration::MilliSeconds(10));
+    AdvanceClock();
 
     double maxMemUsage = TUniversalComputationController::DefaultDesiredAveragePartitionMemoryUsed;
     SetFeedback(maxCpuUsage, maxMemUsage * 2, 0, 0);
@@ -375,7 +385,7 @@ TEST_F(TPartitioning, Repartitioning)
     FlowView->State->CommitMutation();
     EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 70u); // 30 old and 40 new.
 
-    Sleep(TDuration::MilliSeconds(10));
+    AdvanceClock();
 
     double maxMessages = TUniversalComputationController::DefaultDesiredAveragePartitionMessagesPerSecond;
     SetFeedback(maxCpuUsage, maxMemUsage, maxMessages * 2, 0);
@@ -384,7 +394,7 @@ TEST_F(TPartitioning, Repartitioning)
     FlowView->State->CommitMutation();
     EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 150u); // 70 old and 80 new.
 
-    Sleep(TDuration::MilliSeconds(10));
+    AdvanceClock();
 
     double maxBytes = TUniversalComputationController::DefaultDesiredAveragePartitionBytesPerSecond;
     SetFeedback(maxCpuUsage, maxMemUsage, maxMessages, maxBytes * 2);
@@ -393,13 +403,71 @@ TEST_F(TPartitioning, Repartitioning)
     FlowView->State->CommitMutation();
     EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 310u); // 150 old and 160 new.
 
-    Sleep(TDuration::MilliSeconds(10));
+    AdvanceClock();
 
     SetFeedback(maxCpuUsage, maxMemUsage, maxMessages, maxBytes);
     FlowView->State->StartMutation();
     JobManager->DoPartitioning(FlowView);
     FlowView->State->CommitMutation();
     EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 310u);
+}
+
+TEST_F(TPartitioning, FirstPassAfterFailoverKeepsTheCooldown)
+{
+    Prepare(10);
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    RecreateJobManager();
+
+    double maxCpuUsage = TUniversalComputationController::DefaultDesiredAveragePartitionCpuLoad;
+    SetFeedback(maxCpuUsage * 2, 0, 0, 0);
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    AdvanceClock();
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30u);
+}
+
+TEST_F(TPartitioning, ResumeRearmsTheCooldown)
+{
+    Prepare(10);
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    double maxCpuUsage = TUniversalComputationController::DefaultDesiredAveragePartitionCpuLoad;
+    SetFeedback(maxCpuUsage * 2, 0, 0, 0);
+
+    AdvanceClock();
+    VersionProvider->SetUnixTime(FlowView->State->CurrentTimestamp.Underlying());
+    FlowView->State->StartMutation();
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Paused, VersionProvider);
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    AdvanceClock();
+    VersionProvider->SetUnixTime(FlowView->State->CurrentTimestamp.Underlying());
+    FlowView->State->StartMutation();
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, VersionProvider);
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    AdvanceClock();
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30u);
 }
 
 TEST_F(TPartitioning, RecreateOnSinkChannelCountChange)
@@ -544,7 +612,7 @@ TEST_F(TPartitioning, PartitionCountHalfDelayDoesNotBlockGrowth)
     FlowView->State->CommitMutation();
     EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
 
-    Sleep(TDuration::MilliSeconds(10));
+    AdvanceClock();
 
     double maxCpuUsage = TUniversalComputationController::DefaultDesiredAveragePartitionCpuLoad;
     SetFeedback(maxCpuUsage * 4, 0, 0, 0);

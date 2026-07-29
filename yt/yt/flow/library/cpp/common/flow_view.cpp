@@ -5,8 +5,6 @@
 #include "checksum.h"
 #include "resource.h"
 
-#include <yt/yt/flow/library/cpp/misc/version_helpers.h>
-
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/ypath_client.h>
@@ -29,6 +27,9 @@
 
 #include <util/digest/multi.h>
 #include <util/generic/map.h>
+
+#include <algorithm>
+#include <limits>
 #include <vector>
 
 namespace NYT::NFlow {
@@ -901,13 +902,38 @@ TSystemTimestamp TWatermarkState::GetAlignmentSystemWatermark(const TWatermarkAl
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+i64 ComputeExecutionSpecEpoch(
+    i64 pipelineStateVersion,
+    i64 pipelineSpecVersion,
+    i64 extendedPipelineSpecVersion,
+    i64 dynamicPipelineSpecVersion,
+    i64 layoutVersion)
+{
+    const auto clockVersion = std::max({
+        pipelineStateVersion,
+        pipelineSpecVersion,
+        extendedPipelineSpecVersion,
+        dynamicPipelineSpecVersion,
+    });
+    YT_VERIFY(layoutVersion >= 0);
+    YT_VERIFY(clockVersion <= std::numeric_limits<i64>::max() - layoutVersion);
+    return clockVersion + layoutVersion;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 i64 TExecutionSpec::GetEpoch() const
 {
-    return PipelineState->GetVersion().Underlying() +
-        PipelineSpec->GetVersion().Underlying() +
-        ExtendedPipelineSpec->GetVersion().Underlying() +
-        DynamicPipelineSpec->GetVersion().Underlying() +
-        Layout->GetVersion().Underlying();
+    return ComputeExecutionSpecEpoch(
+        PipelineState->GetVersion().Underlying(),
+        PipelineSpec->GetVersion().Underlying(),
+        ExtendedPipelineSpec->GetVersion().Underlying(),
+        DynamicPipelineSpec->GetVersion().Underlying(),
+        Layout->GetVersion().Underlying());
 }
 
 void TExecutionSpec::AttachToControl(TPersistedStateControlPtr<std::string> control)
@@ -1018,11 +1044,12 @@ bool CheckFlowCoreTarget(const TFlowViewPtr& flowView, const std::string& actual
 
 i64 TExecutionSpecVersions::GetEpoch() const
 {
-    return PipelineStateVersion.Underlying() +
-        PipelineSpecVersion.Underlying() +
-        ExtendedPipelineSpecVersion.Underlying() +
-        DynamicPipelineSpecVersion.Underlying() +
-        LayoutVersion.Underlying();
+    return ComputeExecutionSpecEpoch(
+        PipelineStateVersion.Underlying(),
+        PipelineSpecVersion.Underlying(),
+        ExtendedPipelineSpecVersion.Underlying(),
+        DynamicPipelineSpecVersion.Underlying(),
+        LayoutVersion.Underlying());
 }
 
 void TExecutionSpecVersions::Register(TRegistrar registrar)

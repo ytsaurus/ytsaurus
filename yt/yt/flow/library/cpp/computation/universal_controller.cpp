@@ -319,6 +319,11 @@ void TUniversalComputationController::DoPartitioning(
             grouped.RangePartitions.clear();
         }
 
+        // A new leader starts its cooldown before using fresh job samples.
+        if (LastRepartitionTime_ == TInstant::Zero()) {
+            LastRepartitionTime_ = TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying());
+        }
+
         TInputAutoPartitioningContext context(flowView, grouped.RangePartitions);
         InputAutoPartitioningCollectData(context);
         InputAutoPartitioningCalculateOptimalCount(context);
@@ -351,7 +356,7 @@ void TUniversalComputationController::DoPartitioning(
             for (const auto& [lower, upper] : context.NewRanges) {
                 CreateRangePartition(flowView, lower, upper, makeDynamicPartitionSpec(lower, upper));
             }
-            LastRepartitionTime_ = TInstant::Now();
+            LastRepartitionTime_ = TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying());
             GetContext()->CommonContext->LastRepartitioningInstant = LastRepartitionTime_;
             LastCommonRepartitioningInstant_ = LastRepartitionTime_;
             // Merge (not replace) so a sink whose count is transiently unknown keeps its last-known
@@ -609,7 +614,8 @@ void TUniversalComputationController::InputAutoPartitioningCollectData(TInputAut
         if (!context.AnotherComputationRecentlyRepartitioned) {
             baseInstant = std::max(baseInstant, GetContext()->CommonContext->LastRepartitioningInstant);
         }
-        context.NormalFlightDuration = TInstant::Now() - baseInstant;
+        // Both operands use the cluster clock; node-clock skew would corrupt the cooldown.
+        context.NormalFlightDuration = TInstant::Seconds(context.FlowView->State->CurrentTimestamp.Underlying()) - baseInstant;
         YT_TLOG_INFO("Partitioning: calculating normal flight duration")
             .With("PipelineState", pipelineState->GetValue())
             .With("LastRepartitionTime", LastRepartitionTime_)
@@ -821,7 +827,7 @@ void TUniversalComputationController::InputAutoPartitioningCalculateOptimalCount
                 // That would create a tension that would force all computations to repartition at the same time.
                 // That in turn would allow to avoid several sequential delays causes by sequential repartitioning
                 //  of different computation.
-                TDuration timeSinceAnyRepartitioning = TInstant::Now() - GetContext()->CommonContext->LastRepartitioningInstant;
+                TDuration timeSinceAnyRepartitioning = TInstant::Seconds(context.FlowView->State->CurrentTimestamp.Underlying()) - GetContext()->CommonContext->LastRepartitioningInstant;
                 TDuration crossComputationAffectDuration = std::min(referenceDelay, delay) / 2;
                 if (timeSinceAnyRepartitioning < crossComputationAffectDuration) {
                     // Approximate linearly from 0.5 to 1.

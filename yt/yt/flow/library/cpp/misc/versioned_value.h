@@ -1,11 +1,24 @@
 #pragma once
 
 #include "public.h"
-#include "version_helpers.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(IVersionProvider)
+
+struct IVersionProvider
+    : public TRefCounted
+{
+    //! Returns a fresh, strictly increasing version.
+    //! May context-switch and must be called from a fiber.
+    virtual TVersion GenerateVersion() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IVersionProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,9 +33,11 @@ public:
 
     TInstant GetLastUpdate() const;
 
-    void SetValue(TValue newValue);
+    //! Replaces the value and advances its version if the content differs. Returns whether it changed.
+    bool TrySetValue(TValue newValue, const IVersionProviderPtr& versionProvider);
 
-    void BumpVersion();
+    //! Advances the version after an in-place mutation.
+    void Bump(const IVersionProviderPtr& versionProvider);
 
     REGISTER_YSON_STRUCT(TVersionedValue<TValue>);
 

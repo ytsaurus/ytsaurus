@@ -284,11 +284,13 @@ class TestTableInjector(TestTableInjectorBase):
             pipeline_config = get_yson_config(
                 self.prepare_pipeline_config(select_limit=5, finite=False, use_compact_input_messages=False)
             )
+            last_version = 0
             for spec_type in ["spec", "dynamic_spec"]:
                 new_version = self._set_pipeline_spec(spec_type, pipeline_config[spec_type], expected_version=0)[
                     "version"
                 ]
-                assert new_version == 1
+                assert new_version > 0
+                last_version = max(last_version, new_version)
 
             self.client.start_pipeline(self.pipeline_path)
 
@@ -307,12 +309,13 @@ class TestTableInjector(TestTableInjectorBase):
             spec_copy = copy.deepcopy(pipeline_config["spec"])
             spec_copy["computations"]["Second"]["parameters"]["key"] = "value"
             new_version = self._set_pipeline_spec("spec", spec_copy, force=True)["version"]
-            assert new_version == 2
+            assert new_version > last_version
+            last_version = new_version
             # epoch could not became synced because pipeline is not executing
             self._wait_spec_sync()
 
             new_version = self._set_pipeline_spec("spec", pipeline_config["spec"], force=True)["version"]
-            assert new_version == 3
+            assert new_version > last_version
 
             self.client.start_pipeline(self.pipeline_path)
             wait(lambda: self.client.get_pipeline_state(self.pipeline_path) == "working")

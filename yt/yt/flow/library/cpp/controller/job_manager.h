@@ -21,6 +21,7 @@ struct TJobManagerContext
     IInvokerPtr Invoker;
     IInvokerPtr MainCycleInvoker;
     ITimeProviderPtr TimeProvider;
+    IVersionProviderPtr VersionProvider;
     IStatusProfilerPtr StatusProfiler;
 };
 

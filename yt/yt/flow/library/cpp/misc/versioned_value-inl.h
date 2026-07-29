@@ -6,6 +6,8 @@
     #include "versioned_value.h"
 #endif
 
+#include <yt/yt/client/transaction_client/helpers.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,24 +47,30 @@ TInstant TVersionedValue<TValue>::GetLastUpdate() const
 }
 
 template <typename TValue>
-void TVersionedValue<TValue>::SetValue(TValue newValue)
+bool TVersionedValue<TValue>::TrySetValue(TValue newValue, const IVersionProviderPtr& versionProvider)
 {
     auto tmp = New<TVersionedValue>();
     tmp->Value_ = std::move(newValue);
     tmp->Version_ = Version_;
     tmp->LastUpdate_ = LastUpdate_;
     if (AreNodesEqual(ConvertTo<NYTree::INodePtr>(*this), ConvertTo<NYTree::INodePtr>(tmp))) {
-        return;
+        return false;
     }
+    tmp->Bump(versionProvider);
     Value_ = std::move(tmp->Value_);
-    LastUpdate_ = TInstant::Now();
-    BumpVersion();
+    Version_ = tmp->Version_;
+    LastUpdate_ = tmp->LastUpdate_;
+    return true;
 }
 
 template <typename TValue>
-void TVersionedValue<TValue>::BumpVersion()
+void TVersionedValue<TValue>::Bump(const IVersionProviderPtr& versionProvider)
 {
-    Bump(&Version_);
+    auto version = versionProvider->GenerateVersion();
+    YT_VERIFY(version > Version_);
+    Version_ = version;
+    // Stored for readable text YSON; derived from the version to keep both fields consistent.
+    LastUpdate_ = NTransactionClient::TimestampToInstant(version.Underlying()).first;
 }
 
 template <typename TValue>

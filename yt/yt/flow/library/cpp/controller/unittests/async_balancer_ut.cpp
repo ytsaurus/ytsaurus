@@ -1,4 +1,5 @@
 #include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
@@ -104,11 +105,11 @@ public:
                 )"""")));
         }
 
-        FlowView->State->ExecutionSpec->PipelineSpec->SetValue(Spec);
-        FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(DynamicSpec);
-        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(Spec));
-        FlowView->State->ExecutionSpec->PipelineState->SetValue(EPipelineState::Working);
-        FlowView->CurrentSpec->SetValue(Spec);
+        FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(Spec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(Spec), TestVersionProvider());
+        FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, TestVersionProvider());
+        FlowView->CurrentSpec->TrySetValue(Spec, TestVersionProvider());
     }
 
     //! (Re)creates the job manager for the current Spec/DynamicSpec, starting a fresh async

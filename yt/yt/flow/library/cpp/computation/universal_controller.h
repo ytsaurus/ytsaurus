@@ -167,7 +167,7 @@ private:
     TAtomicIntrusivePtr<TWatermarkState> WatermarkState_;
     THashMap<TStreamId, ISourceControllerPtr> Sources_;
     THashMap<TSinkId, ISinkControllerPtr> Sinks_;
-    TInstant LastRepartitionTime_ = TInstant::Now();
+    TInstant LastRepartitionTime_ = TInstant::Zero();
     TInstant LastCommonRepartitioningInstant_ = TInstant::Zero();
 
     struct TCriterionEmaState

@@ -1,4 +1,5 @@
 #include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
@@ -82,11 +83,11 @@ static TFlowViewPtr MakeEmptyFlowView()
 
     auto pipelineSpec = New<TPipelineSpec>();
     auto dynamicSpec = New<TDynamicPipelineSpec>();
-    flowView->CurrentSpec->SetValue(pipelineSpec);
-    flowView->CurrentDynamicSpec->SetValue(dynamicSpec);
-    flowView->State->ExecutionSpec->PipelineSpec->SetValue(pipelineSpec);
-    flowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(dynamicSpec);
-    flowView->State->ExecutionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(pipelineSpec));
+    flowView->CurrentSpec->TrySetValue(pipelineSpec, TestVersionProvider());
+    flowView->CurrentDynamicSpec->TrySetValue(dynamicSpec, TestVersionProvider());
+    flowView->State->ExecutionSpec->PipelineSpec->TrySetValue(pipelineSpec, TestVersionProvider());
+    flowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(dynamicSpec, TestVersionProvider());
+    flowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(pipelineSpec), TestVersionProvider());
 
     return flowView;
 }
@@ -301,18 +302,18 @@ protected:
     {
         auto pipelineSpec = FlowView->CurrentSpec->GetValue();
         pipelineSpec->Computations[computationId] = spec;
-        FlowView->CurrentSpec->SetValue(pipelineSpec);
-        FlowView->State->ExecutionSpec->PipelineSpec->SetValue(pipelineSpec);
-        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(pipelineSpec));
+        FlowView->CurrentSpec->TrySetValue(pipelineSpec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(pipelineSpec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(pipelineSpec), TestVersionProvider());
     }
 
     void SetResourceSpec(const TResourceId& resourceId, TResourceSpecPtr spec)
     {
         auto pipelineSpec = FlowView->CurrentSpec->GetValue();
         pipelineSpec->Resources[resourceId] = spec;
-        FlowView->CurrentSpec->SetValue(pipelineSpec);
-        FlowView->State->ExecutionSpec->PipelineSpec->SetValue(pipelineSpec);
-        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(pipelineSpec));
+        FlowView->CurrentSpec->TrySetValue(pipelineSpec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(pipelineSpec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(pipelineSpec), TestVersionProvider());
     }
 
     TRebalanceResult RunBalancer(double planningHorizonSeconds = 60.0)
