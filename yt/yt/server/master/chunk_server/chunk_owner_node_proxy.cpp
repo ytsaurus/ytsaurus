@@ -638,6 +638,8 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkChunkListId)
         .SetExternal(isExternal)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HasHunkChunkList)
+        .SetExternal(isExternal));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkIds)
         .SetExternal(isExternal)
         .SetOpaque(true));
@@ -752,6 +754,15 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
             BuildYsonFluently(consumer)
                 .Value(GetObjectId(hunkChunkList));
+            return true;
+
+        case EInternedAttributeKey::HasHunkChunkList:
+            if (isExternal) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(hunkChunkList != nullptr);
             return true;
 
         case EInternedAttributeKey::ChunkCount:

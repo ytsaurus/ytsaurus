@@ -146,6 +146,11 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
             GetVersionedId(),
             HunkReplication());
     }
+
+    // COMPAT(babenko)
+    if (context.GetVersion() < EMasterReign::DropHasHunkChunkListUserAttribute && GetAttributes()) {
+        GetMutableAttributes()->TryRemove("has_hunk_chunk_list");
+    }
 }
 
 TChunkList* TChunkOwnerBase::GetChunkList() const

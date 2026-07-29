@@ -254,6 +254,7 @@
     XX(Freeze, freeze) \
     XX(Full, full) \
     XX(FullNodeCount, full_node_count) \
+    XX(HasHunkChunkList, has_hunk_chunk_list) \
     XX(HasRowLevelAce, has_row_level_ace) \
     XX(HashedPassword, hashed_password) \
     XX(Health, health) \
