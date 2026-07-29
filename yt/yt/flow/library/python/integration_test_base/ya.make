@@ -6,6 +6,7 @@ PY_SRCS(
     default_config_parameters.py
     flow_process.py
     helpers.py
+    monitoring_stack.py
     yt_flow_base.py
     yt_flow_java_base.py
     yt_flow_cpp_base.py
@@ -18,6 +19,7 @@ IF (OPENSOURCE_PROJECT != "yt-cpp-sdk")
         contrib/python/requests
         library/python/port_manager
         library/python/testing/yatest_common
+        yt/yt/flow/docker/monitoring
         yt/yt/flow/library/python/bullied_process
         yt/recipe/basic/lib
         yt/python/yt/wrapper

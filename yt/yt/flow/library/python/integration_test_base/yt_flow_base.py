@@ -23,6 +23,7 @@ from yt.common import wait, WaitFailed
 
 from . import default_config_parameters
 from .helpers import dump_yson_config, get_yson_config
+from .monitoring_stack import MonitoringStack, MONITORING_STACK_ENABLED
 
 log = logging.getLogger("flow_process")
 
@@ -311,9 +312,7 @@ class FlowTestBase:
                         f"{ui_address}navigation?path={cls.base_work_yt_path}"
                         f" (proxy: {url})\n"
                     )
-        message += (
-            "    About test framework: yt/yt/flow/library/python/integration_test_base/README.md\n"
-        )
+        message += "    About test framework: yt/yt/flow/library/python/integration_test_base/README.md\n"
         logging.info("%s", message)
         cls.try_print_tty(message)  # Ignore if printing failed.
 
@@ -498,7 +497,14 @@ class FlowTestBase:
             companion_pipeline_path=self.pipeline_path if run_companion_externally else None,
             client=self.client,
         ) as federation:
+            monitoring = (
+                MonitoringStack(self.path_to_flow_logs, self.port_manager) if MONITORING_STACK_ENABLED else None
+            )
             try:
+                # Inside the try so that if the stack fails to come up the finally still dumps the
+                # pipeline state (and the docker error surfaces).
+                if monitoring is not None:
+                    monitoring.start(federation)
                 if controllers_count > 0:
                     wait(
                         lambda: self.client.exists(f"{self.pipeline_path}/@leader_controller_address"),
@@ -520,7 +526,18 @@ class FlowTestBase:
                 self._try_dump_flow_view()
                 self._try_dump_description()
                 federation.try_dump_processes_state(debug_hang=debug_hang)
-                while int(yatest.common.get_param("PAUSE_BEFORE_FLOW_PROCESS_FEDERATION_TEARDOWN", 0)):
+                # Pause before teardown so the pipeline stays up for inspection. Requested explicitly
+                # via PAUSE_BEFORE_FLOW_PROCESS_FEDERATION_TEARDOWN, or implicitly whenever the
+                # monitoring stack actually came up (its whole point is to browse the live metrics) --
+                # not when it failed to start. The reaper removes the stack once this process exits, so
+                # no explicit teardown is needed.
+                stack_up = monitoring is not None and monitoring.started
+                pause_before_teardown = stack_up or int(
+                    yatest.common.get_param("PAUSE_BEFORE_FLOW_PROCESS_FEDERATION_TEARDOWN", 0)
+                )
+                if stack_up:
+                    monitoring.notify_hold()
+                while pause_before_teardown:
                     time.sleep(1)
 
     def _try_dump_flow_view(self):

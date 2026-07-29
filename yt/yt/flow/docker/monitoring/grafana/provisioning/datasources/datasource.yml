@@ -1,0 +1,14 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: ytflow-prometheus
+    access: proxy
+    url: http://localhost:$__env{PROMETHEUS_PORT}
+    isDefault: true
+    editable: false
+    jsonData:
+      # Match prometheus.yml scrape_interval so Grafana's $__interval / $__rate_interval resolve to 5s
+      # (its default assumes 15s, which coarsens every panel to ~per-minute).
+      timeInterval: "5s"
