@@ -1922,15 +1922,16 @@ class TestClientConfigFromCluster(object):
         TABLE = "//tmp/table1"
         TABLE_DST = "//tmp/table1_dst"
 
-        with mock.patch.dict(os.environ, {"YT_ANNOTATE_OBJECTS": "{some_bad_attr=some_val;_some_attr=some_str_val}"}):
+        with mock.patch.dict(os.environ, {"YT_ANNOTATE_OBJECTS": "{some_bad_attr=some_val;_some_attr=some_str_val;_some_attr_with_attr=<attr1=val1>some_str_val_2;}"}):
             client = yt.YtClient(config=yt.config.config)
             client.create("map_node", DIR)
             client.create("file", FILE)
             client.create("document", DOCUMENT)
             client.create("table", TABLE)
         for path in [DIR, FILE, TABLE]:
-            attrs = yt.get(path, attributes=["some_bad_attr", "_some_attr"]).attributes
+            attrs = yt.get(path, attributes=["some_bad_attr", "_some_attr", "_some_attr_with_attr"]).attributes
             assert attrs["_some_attr"] == "some_str_val"
+            assert attrs["_some_attr_with_attr"] == yson.loads(b"<attr1=val1>some_str_val_2")
             assert "some_bad_attr" not in attrs["_some_attr"]
         for path in [DOCUMENT]:
             attrs = yt.get(path, attributes=["some_bad_attr", "_some_attr"]).attributes
