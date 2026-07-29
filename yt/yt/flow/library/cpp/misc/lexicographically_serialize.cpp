@@ -95,7 +95,7 @@ void LexicographicallyRead(TStringBuf& serialized, i64& destination)
     serialized.Skip(length + 1);
 
     THROW_ERROR_EXCEPTION_IF(value > static_cast<ui64>(std::numeric_limits<i64>::max()) + 1u, "Value %v is too big for a negative number", value);
-    THROW_ERROR_EXCEPTION_IF(value == 0, "Minus zero is not a correct serialized value: got %v", value);
+    THROW_ERROR_EXCEPTION_IF(value == 0, "Minus zero is not a correct serialized value");
     destination = -static_cast<i64>(value - 1u) - 1; // Avoid integer overflow (when value is 2^63). Will be optimized by compiler.
 }
 
