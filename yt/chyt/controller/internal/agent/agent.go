@@ -248,6 +248,7 @@ func (a *Agent) processOplets() {
 				_ = oplet.Pass(a.ctx, false /*checkOpLiveness*/)
 
 				passDur := time.Since(start)
+				a.metrics.RecordOpletPassDuration(passDur)
 				workerPassDur[idx] += passDur
 				if passDur > workerMaxPassDur[idx].dur {
 					workerMaxPassDur[idx].dur = passDur

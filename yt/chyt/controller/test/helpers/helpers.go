@@ -277,7 +277,7 @@ func PrepareSolomonMonitoring(t *testing.T) (*Env, *agent.Agent, *RequestClient)
 		"stage":   "default",
 		"cluster": proxy,
 	})
-	agent := CreateAgentWithMetrics(env, "default", agent.NewAgentMetrics(subRegistry))
+	agent := CreateAgentWithMetrics(env, "default", agent.NewAgentMetrics(subRegistry, &agent.MetricsConfig{}))
 
 	server := monitoring.NewSolomonServer(":0", registry)
 	return env, agent, PrepareClient(t, env, proxy, server)

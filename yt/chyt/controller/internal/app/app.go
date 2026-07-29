@@ -147,7 +147,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 				"stage":  aCfg.Stage,
 				"proxy":  proxy,
 			})
-			agentMetrics := agent.NewAgentMetrics(subRegistry)
+			agentMetrics := agent.NewAgentMetrics(subRegistry, aCfg.MetricsConfigOrDefault())
 			a := agent.NewAgent(proxy, config.Token, loc.ytc, l.WithName("a"), c, &aCfg, agentMetrics)
 			loc.as[family] = a
 		}

@@ -3,6 +3,7 @@ package agent
 import (
 	"time"
 
+	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 )
@@ -67,6 +68,60 @@ type Config struct {
 	UseFamilyPrefixInOpAlias bool `yson:"use_family_prefix_in_op_alias"`
 
 	JobCheckerConfig *JobCheckerConfig `yson:"job_checker_config"`
+
+	// MetricsConfig enables and configures agent sensors.
+	// If it is not set, the agent exports no metrics.
+	MetricsConfig *MetricsConfig `yson:"metrics_config"`
+}
+
+type MetricsConfig struct {
+	OpletPassDurationHistogram *TimeHistogramConfig `yson:"oplet_pass_duration_histogram"`
+}
+
+// TimeHistogramConfig describes exponential histogram buckets:
+// start, start*factor, start*factor^2, ... clipped to the [min, max] range.
+type TimeHistogramConfig struct {
+	Min    *yson.Duration `yson:"min"`
+	Max    *yson.Duration `yson:"max"`
+	Start  *yson.Duration `yson:"start"`
+	Factor *float64       `yson:"factor"`
+}
+
+func (c *TimeHistogramConfig) bucketBounds() []time.Duration {
+	min := time.Duration(DefaultTimeHistogramMin)
+	max := time.Duration(DefaultTimeHistogramMax)
+	start := time.Duration(DefaultTimeHistogramStart)
+	factor := DefaultTimeHistogramFactor
+	if c != nil {
+		if c.Min != nil {
+			min = time.Duration(*c.Min)
+		}
+		if c.Max != nil {
+			max = time.Duration(*c.Max)
+		}
+		if c.Start != nil && *c.Start > 0 {
+			start = time.Duration(*c.Start)
+		}
+		if c.Factor != nil && *c.Factor > 1 {
+			factor = *c.Factor
+		}
+	}
+
+	var bounds []time.Duration
+	for bound := start; bound <= max && len(bounds) < maxBucketCount; bound = time.Duration(float64(bound) * factor) {
+		if bound >= min {
+			bounds = append(bounds, bound)
+		}
+	}
+	return bounds
+}
+
+func (c *TimeHistogramConfig) buckets() metrics.DurationBuckets {
+	bounds := c.bucketBounds()
+	if len(bounds) == 0 {
+		bounds = (&TimeHistogramConfig{}).bucketBounds()
+	}
+	return metrics.NewDurationBuckets(bounds...)
 }
 
 const (
@@ -83,6 +138,13 @@ const (
 	DefaultAssignAdministerToCreator        = true
 	DefaultScaleWorkerNumber                = 1
 	DefaultScalePeriod                      = yson.Duration(60 * time.Second)
+
+	DefaultTimeHistogramMin    = yson.Duration(0)
+	DefaultTimeHistogramMax    = yson.Duration(3 * time.Minute)
+	DefaultTimeHistogramStart  = yson.Duration(10 * time.Millisecond)
+	DefaultTimeHistogramFactor = 2.0
+
+	maxBucketCount = 65
 )
 
 func (c *Config) RootOrDefault() ypath.Path {
@@ -172,6 +234,13 @@ func (c *Config) ScalePeriodOrDefault() yson.Duration {
 func (c *Config) JobCheckerConfigOrDefault() *JobCheckerConfig {
 	if c.JobCheckerConfig != nil {
 		return c.JobCheckerConfig
+	}
+	return nil
+}
+
+func (c *Config) MetricsConfigOrDefault() *MetricsConfig {
+	if c.MetricsConfig != nil {
+		return c.MetricsConfig
 	}
 	return nil
 }
