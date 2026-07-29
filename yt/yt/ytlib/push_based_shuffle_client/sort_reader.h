@@ -14,8 +14,6 @@
 
 #include <library/cpp/yt/memory/shared_range.h>
 
-#include <util/generic/hash_set.h>
-
 #include <variant>
 
 namespace NYT::NPushBasedShuffleClient {
@@ -48,7 +46,6 @@ DEFINE_REFCOUNTED_TYPE(ISortReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TValidMapperIds = THashSet<i32>;
 using TSortReaderMode = std::variant<TValidMapperIds, TIdentityColumnIds>;
 
 //! TValidMapperIds selects identity-free mode; TIdentityColumnIds preserves identity.
