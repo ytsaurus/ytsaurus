@@ -223,7 +223,6 @@ void WriteStreamResponse(const TVector<NSQLComplete::TCandidate>& candidates) {
 
     NJson::WriteJson(&Cout, &response, false);
     Cout << Endl;
-    Cout.Flush();
 }
 
 void WriteEmptyStreamResponse() {
