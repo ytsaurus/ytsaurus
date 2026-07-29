@@ -23,6 +23,7 @@ TNodeProgress::TNodeProgress(const NProto::TTaskProgress::TNodeProgress& p)
         Progress_.Stage = Stages_.back();
     }
     Progress_.RemoteId = p.GetRemoteId();
+    Progress_.WaitingRemoteId = p.GetWaitingRemoteId();
     if (p.HasCounters()) {
         Progress_.Counters.ConstructInPlace();
         Progress_.Counters->Completed = p.GetCounters().GetCompleted();
@@ -53,14 +54,20 @@ bool TNodeProgress::MergeWith(const NProto::TTaskProgress::TNodeProgress& p)
         dirty = true;
     }
 
-    // (2) state
+    // (2) remote id
+    if (!p.GetWaitingRemoteId().empty() && p.GetWaitingRemoteId() != Progress_.WaitingRemoteId) {
+        Progress_.WaitingRemoteId = p.GetWaitingRemoteId();
+        dirty = true;
+    }
+
+    // (3) state
     auto newState = ConvertState(p.GetState());
     if (newState != Progress_.State) {
         Progress_.State = newState;
         dirty = true;
     }
 
-    // (3) counters
+    // (4) counters
     if (p.HasCounters()) {
         THashMap<TString, i64> customCounters;
         for (auto& [k, v] : p.GetCustomCounters()) {
@@ -84,7 +91,7 @@ bool TNodeProgress::MergeWith(const NProto::TTaskProgress::TNodeProgress& p)
         }
     }
 
-    // (4) finished time
+    // (5) finished time
     if (p.HasFinishedAt()) {
         auto newFinishedAt = TInstant::MilliSeconds(p.GetFinishedAt());
         if (FinishedAt_ != newFinishedAt) {
@@ -93,7 +100,7 @@ bool TNodeProgress::MergeWith(const NProto::TTaskProgress::TNodeProgress& p)
         }
     }
 
-    // (5) progress
+    // (6) progress
     auto stages = ProtoToStages(p);
     if (stages != Stages_) {
         Stages_ = stages;
@@ -103,7 +110,7 @@ bool TNodeProgress::MergeWith(const NProto::TTaskProgress::TNodeProgress& p)
         dirty = true;
     }
 
-    // (6) block status
+    // (7) block status
     if (p.HasBlockStatus()) {
         auto newBlockStatus = ConvertBlockStatus(p.GetBlockStatus());
         auto& oldBlockStatus = Progress_.BlockStatus;
@@ -113,7 +120,7 @@ bool TNodeProgress::MergeWith(const NProto::TTaskProgress::TNodeProgress& p)
         }
     }
 
-    // (7) alerts
+    // (8) alerts
     auto newAlerts = ProtoToAlerts(p);
     if (newAlerts != Progress_.Alerts) {
         Progress_.Alerts = newAlerts;
@@ -130,6 +137,7 @@ void TNodeProgress::FlushTo(NProto::TTaskProgress::TNodeProgress* proto)
     proto->SetCategory(Progress_.Category);
     proto->SetState(ConvertState(Progress_.State));
     proto->SetRemoteId(Progress_.RemoteId);
+    proto->SetWaitingRemoteId(Progress_.WaitingRemoteId);
     if (Progress_.Counters) {
         auto mut = proto->MutableCounters();
         mut->SetCompleted(Progress_.Counters->Completed);
