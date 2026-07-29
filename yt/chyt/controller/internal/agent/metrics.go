@@ -11,19 +11,22 @@ import (
 type AgentMetrics struct {
 	opletCount       metrics.IntGauge
 	failedOpletCount metrics.IntGauge
-	lastPassDuration metrics.Gauge
-	passErrorCount   metrics.Counter
+
+	lastPassDuration  metrics.Gauge
+	opletPassDuration metrics.Timer
+	passErrorCount    metrics.Counter
 }
 
-func NewAgentMetrics(r metrics.Registry) *AgentMetrics {
-	if r == nil {
+func NewAgentMetrics(r metrics.Registry, config *MetricsConfig) *AgentMetrics {
+	if r == nil || config == nil {
 		return nil
 	}
 	m := &AgentMetrics{
-		opletCount:       r.IntGauge("oplet_count"),
-		failedOpletCount: r.IntGauge("failed_oplet_count"),
-		lastPassDuration: r.Gauge("last_pass_duration_seconds"),
-		passErrorCount:   r.Counter("pass_error_count"),
+		opletCount:        r.IntGauge("oplet_count"),
+		failedOpletCount:  r.IntGauge("failed_oplet_count"),
+		lastPassDuration:  r.Gauge("last_pass_duration_seconds"),
+		opletPassDuration: r.DurationHistogram("oplet_pass_duration_seconds", config.OpletPassDurationHistogram.buckets()),
+		passErrorCount:    r.Counter("pass_error_count"),
 	}
 	m.opletCount.Set(0)
 	m.failedOpletCount.Set(0)
@@ -52,6 +55,13 @@ func (m *AgentMetrics) RecordPassDuration(d time.Duration) {
 	m.lastPassDuration.Set(d.Seconds())
 }
 
+func (m *AgentMetrics) RecordOpletPassDuration(d time.Duration) {
+	if m == nil {
+		return
+	}
+	m.opletPassDuration.RecordDuration(d)
+}
+
 func (m *AgentMetrics) RecordPassError() {
 	if m == nil {
 		return
@@ -62,8 +72,9 @@ func (m *AgentMetrics) RecordPassError() {
 // Reset zeroes the leader-scoped count sensors. It is called when the agent
 // stops (e.g. leadership is lost) so that a former leader stops reporting its
 // last known oplet counts instead of leaving them frozen at stale values.
-// pass_error_count is intentionally left untouched: it is a monotonic counter
-// whose rate naturally drops to zero once the agent stops running passes.
+// pass_error_count and oplet_pass_duration_seconds are intentionally left
+// untouched: they are cumulative sensors whose rates naturally drop to zero
+// once the agent stops running passes.
 func (m *AgentMetrics) Reset() {
 	m.SetOpletCount(0)
 	m.SetFailedOpletCount(0)
