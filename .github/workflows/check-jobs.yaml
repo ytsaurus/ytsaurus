@@ -48,6 +48,12 @@ jobs:
         run: |
           ./ytsaurus/yt/yt/scripts/run_tests.sh integration
 
+      - name: Flow tests
+        if: ${{ inputs.run-integration-tests && !cancelled() }}
+        shell: bash
+        run: |
+          ./ytsaurus/yt/yt/scripts/run_tests.sh flow
+
       - name: Python tests
         if: ${{ inputs.run-python-tests }}
         shell: bash

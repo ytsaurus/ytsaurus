@@ -4,6 +4,7 @@
 #   run_tests.sh prepare
 #   run_tests.sh integration
 #   run_tests.sh python [pytest-args ...]
+#   run_tests.sh flow [--ci|--all|pytest-targets ...]
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SOURCE_ROOT="$(cd "${SCRIPT_DIR}/../../../" && pwd)"
@@ -143,8 +144,22 @@ cmd_python() {
     python3 -m pytest -vs "yt/wrapper/tests" -m opensource
 }
 
+cmd_flow() {
+    cmd_prepare
+
+    # The Flow runner is self-contained (it assembles the flow-specific python,
+    # protos and pipeline binaries on top of `prepare`, starts the local YT
+    # recipe and runs pytest). Without arguments it runs the opensource CI
+    # scope; pass --all or explicit targets to run more (see the runner).
+    if [ $# -gt 0 ]; then
+        "${SOURCE_ROOT}/yt/yt/flow/tests/run_tests.sh" "$@"
+    else
+        "${SOURCE_ROOT}/yt/yt/flow/tests/run_tests.sh" --ci
+    fi
+}
+
 action="${1:-}"
-[ -z "${action}" ] && { echo "Usage: $0 {unittests|prepare|integration|python} [args]" >&2; exit 1; }
+[ -z "${action}" ] && { echo "Usage: $0 {unittests|prepare|integration|python|flow} [args]" >&2; exit 1; }
 shift
 
 case "${action}" in
@@ -152,5 +167,6 @@ case "${action}" in
     prepare)     cmd_prepare "$@";;
     integration) cmd_integration "$@";;
     python)      cmd_python "$@";;
+    flow)        cmd_flow "$@";;
     *) echo "Unknown action: ${action}" >&2; exit 1;;
 esac

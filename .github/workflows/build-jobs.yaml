@@ -309,6 +309,15 @@ jobs:
             ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare
           done
 
+          # Binaries required by the minimal Flow pytest smoke.
+          FLOW_TARGETS="\
+            ../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server \
+            ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp/word_count"
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. --bazel-remote-put ${FLOW_TARGETS}
+          fi
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${FLOW_TARGETS}
+
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
         run: |
