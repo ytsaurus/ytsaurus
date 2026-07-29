@@ -23,7 +23,6 @@ SRCS(
     retryable_client.cpp
     retryable_transaction.cpp
     status_profiler.cpp
-    version_helpers.cpp
     weighted_random.cpp
 )
 

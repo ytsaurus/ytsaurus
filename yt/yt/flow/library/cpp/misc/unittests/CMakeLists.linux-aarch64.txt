@@ -80,6 +80,7 @@ target_sources(yt-flow-library-cpp-misc-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/status_profiler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/weighted_random_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/remedian_splitter_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/versioned_value_ut.cpp
 )
 
 

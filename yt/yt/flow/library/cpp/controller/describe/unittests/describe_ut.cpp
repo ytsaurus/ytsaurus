@@ -1,3 +1,4 @@
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 #include <yt/yt/flow/library/cpp/controller/describe/common.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_computation.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_computations.h>
@@ -209,9 +210,9 @@ public:
         Spec->Streams["output_stream"] = streamSpec;
         Spec->Postprocess();
 
-        FlowView->State->ExecutionSpec->PipelineSpec->SetValue(Spec);
-        FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(DynamicSpec);
-        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(Spec));
+        FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(Spec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(Spec), TestVersionProvider());
         ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 0u);
         auto context = New<TJobManagerContext>();
         context->Invoker = GetCurrentInvoker();
@@ -219,7 +220,7 @@ public:
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
         context->StatusProfiler = CreateSyncStatusProfiler();
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
-        FlowView->CurrentSpec->SetValue(Spec);
+        FlowView->CurrentSpec->TrySetValue(Spec, TestVersionProvider());
 
         FlowView->State->StartMutation();
         JobManager->DoPartitioning(FlowView);
@@ -832,14 +833,14 @@ TEST_W(TDescribeTest, DescribePipelineWarnsOnTooFewWorkers)
 
     // Requiring more workers than are available surfaces a top-level error message.
     DynamicSpec->JobManager->MinimumWorkerCount = 5;
-    FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(DynamicSpec);
+    FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, TestVersionProvider());
     auto description = DescribeStatus();
     EXPECT_TRUE(MessagesContain(description.Messages, "Too few workers (Count: 1, Required: 5)"))
         << "Messages:" << ConvertToYsonString(description.Messages).ToString();
 
     // When the requirement is met, no such message is emitted.
     DynamicSpec->JobManager->MinimumWorkerCount = 1;
-    FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(DynamicSpec);
+    FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, TestVersionProvider());
     description = DescribeStatus();
     EXPECT_FALSE(MessagesContain(description.Messages, "Too few workers"))
         << "Messages:" << ConvertToYsonString(description.Messages).ToString();
@@ -847,7 +848,7 @@ TEST_W(TDescribeTest, DescribePipelineWarnsOnTooFewWorkers)
     // The minimum is enforced per used worker group: pointing a computation at a group with no
     // workers warns about that group even though the overall worker count is sufficient.
     Spec->Computations["Computation_1"]->WorkerGroup = TWorkerGroupId("gpu");
-    FlowView->State->ExecutionSpec->PipelineSpec->SetValue(Spec);
+    FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(Spec, TestVersionProvider());
     description = DescribeStatus();
     EXPECT_TRUE(MessagesContain(description.Messages, "Too few workers in worker group \"gpu\" (Count: 0, Required: 1)"))
         << "Messages:" << ConvertToYsonString(description.Messages).ToString();
@@ -856,7 +857,7 @@ TEST_W(TDescribeTest, DescribePipelineWarnsOnTooFewWorkers)
     auto gpuOverride = New<TDynamicJobManagerSpec>();
     gpuOverride->MinimumWorkerCount = 3;
     DynamicSpec->JobManager->WorkerGroupOverride[TWorkerGroupId("gpu")] = gpuOverride;
-    FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(DynamicSpec);
+    FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, TestVersionProvider());
     description = DescribeStatus();
     EXPECT_TRUE(MessagesContain(description.Messages, "Too few workers in worker group \"gpu\" (Count: 0, Required: 3)"))
         << "Messages:" << ConvertToYsonString(description.Messages).ToString();
@@ -1673,7 +1674,7 @@ TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetNotSet)
 TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMatching)
 {
     Prepare();
-    FlowView->State->ExecutionSpec->FlowCoreTarget->SetValue(TFlowCoreTarget(GetBinaryChecksum()));
+    FlowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(GetBinaryChecksum()), TestVersionProvider());
 
     auto description = DescribeStatus();
 
@@ -1684,7 +1685,7 @@ TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMatching)
 TEST_W(TDescribeTest, DescribePipelineShowsControllerCommitInfo)
 {
     Prepare();
-    FlowView->State->ExecutionSpec->FlowCoreTarget->SetValue(TFlowCoreTarget(std::string("mismatched_version")));
+    FlowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(std::string("mismatched_version")), TestVersionProvider());
 
     auto description = DescribeStatus();
     auto contains = [&] (const std::string& text) {
@@ -1725,7 +1726,7 @@ TEST_W(TDescribeTest, DescribePipelineShowsControllerCommitInfo)
 TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMismatch)
 {
     Prepare();
-    FlowView->State->ExecutionSpec->FlowCoreTarget->SetValue(TFlowCoreTarget(std::string("mismatched_version")));
+    FlowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(std::string("mismatched_version")), TestVersionProvider());
 
     auto description = DescribeStatus();
     auto dump = [&] {
@@ -1749,7 +1750,7 @@ TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMismatch)
 TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMismatchedWorkers)
 {
     Prepare();
-    FlowView->State->ExecutionSpec->FlowCoreTarget->SetValue(TFlowCoreTarget(GetBinaryChecksum()));
+    FlowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(GetBinaryChecksum()), TestVersionProvider());
     FlowView->EphemeralState->FlowCoreTargetMismatchedWorkers["old_version_1"] = {
         .ExampleAddress = "worker-old-1.net:81",
         .Count = 1,

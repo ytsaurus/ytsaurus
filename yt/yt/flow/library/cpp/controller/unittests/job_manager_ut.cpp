@@ -1,4 +1,5 @@
 #include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
@@ -187,11 +188,11 @@ public:
 
     void Prepare(const TPipelineSpecPtr& spec, const TDynamicPipelineSpecPtr& dynamicSpec)
     {
-        FlowView->CurrentSpec->SetValue(spec);
-        FlowView->CurrentDynamicSpec->SetValue(dynamicSpec);
-        FlowView->State->ExecutionSpec->PipelineSpec->SetValue(spec);
-        FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(dynamicSpec);
-        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(spec));
+        FlowView->CurrentSpec->TrySetValue(spec, TestVersionProvider());
+        FlowView->CurrentDynamicSpec->TrySetValue(dynamicSpec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(spec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(dynamicSpec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(spec), TestVersionProvider());
         auto context = New<TJobManagerContext>();
         ThreadPool = NConcurrency::CreateFairShareThreadPool(MaxThreads, "Balancer");
         context->Invoker = ThreadPool->GetInvoker("Balancer");

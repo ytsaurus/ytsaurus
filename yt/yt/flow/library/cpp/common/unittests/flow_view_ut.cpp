@@ -1,5 +1,8 @@
 #include <yt/yt/flow/library/cpp/common/checksum.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
+
+#include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -206,7 +209,7 @@ TEST(TFlowViewKeeperTest, SetFeedbackFencesOnStaleSpecVersion)
 
     // Barrier crossed: a new static spec is installed, dropping the previous feedback.
     auto specV1 = New<TVersionedPipelineSpec>();
-    specV1->BumpVersion();
+    specV1->Bump(TestVersionProvider());
     keeper->SetSpecs(specV1, std::nullopt);
     EXPECT_NE(expectedSpecVersion, keeper->GetFlowView()->CurrentSpec->GetVersion());
     EXPECT_TRUE(keeper->GetFlowView()->Feedback->PartitionJobStatuses.empty());
@@ -222,6 +225,43 @@ TEST(TFlowViewKeeperTest, SetFeedbackFencesOnStaleSpecVersion)
     freshFeedback->PartitionJobStatuses.emplace(TPartitionId(TGuid::Create()), New<TPartitionJobStatus>());
     EXPECT_TRUE(keeper->SetFeedback(freshFeedback, keeper->GetFlowView()->CurrentSpec->GetVersion()));
     EXPECT_EQ(keeper->GetFlowView()->Feedback->PartitionJobStatuses.size(), 1ull);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TExecutionSpecEpochTest, AdvancesForEveryVersionComponent)
+{
+    auto versions = New<TExecutionSpecVersions>();
+    i64 nextClockVersion = NTransactionClient::TimestampFromUnixTime(1'784'633'264);
+
+    auto updateClockVersion = [&] (TVersion& version) {
+        const auto previousEpoch = versions->GetEpoch();
+        version = TVersion(++nextClockVersion);
+        EXPECT_GT(versions->GetEpoch(), previousEpoch);
+    };
+
+    updateClockVersion(versions->PipelineStateVersion);
+    updateClockVersion(versions->PipelineSpecVersion);
+    updateClockVersion(versions->ExtendedPipelineSpecVersion);
+    updateClockVersion(versions->DynamicPipelineSpecVersion);
+
+    const auto previousEpoch = versions->GetEpoch();
+    versions->LayoutVersion = TVersion(1);
+    EXPECT_GT(versions->GetEpoch(), previousEpoch);
+}
+
+TEST(TExecutionSpecEpochTest, RemainsPositivePastTheOld2038OverflowBoundary)
+{
+    const i64 clockVersion = NTransactionClient::TimestampFromUnixTime(1ULL << 31);
+    auto versions = New<TExecutionSpecVersions>();
+    versions->PipelineStateVersion = TVersion(clockVersion + 1);
+    versions->PipelineSpecVersion = TVersion(clockVersion + 2);
+    versions->ExtendedPipelineSpecVersion = TVersion(clockVersion + 3);
+    versions->DynamicPipelineSpecVersion = TVersion(clockVersion + 4);
+    versions->LayoutVersion = TVersion(5);
+
+    EXPECT_EQ(versions->GetEpoch(), clockVersion + 9);
+    EXPECT_GT(versions->GetEpoch(), 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -242,14 +282,14 @@ TEST(TFlowCoreTargetTest, EmptyTargetPasses)
 TEST(TFlowCoreTargetTest, MatchingTargetPasses)
 {
     auto flowView = CreateSyncedFlowView();
-    flowView->State->ExecutionSpec->FlowCoreTarget->SetValue(TFlowCoreTarget(GetBinaryChecksum()));
+    flowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(GetBinaryChecksum()), TestVersionProvider());
     EXPECT_TRUE(CheckFlowCoreTarget(flowView, GetBinaryChecksum()));
 }
 
 TEST(TFlowCoreTargetTest, MismatchingTargetFails)
 {
     auto flowView = CreateSyncedFlowView();
-    flowView->State->ExecutionSpec->FlowCoreTarget->SetValue(TFlowCoreTarget("mismatch_version"));
+    flowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget("mismatch_version"), TestVersionProvider());
     EXPECT_FALSE(CheckFlowCoreTarget(flowView, GetBinaryChecksum()));
 }
 

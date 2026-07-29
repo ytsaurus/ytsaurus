@@ -2,6 +2,8 @@
 
 #include <yt/yt/flow/library/cpp/common/time_provider.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
+
 #include <yt/yt/core/actions/future.h>
 
 namespace NYT::NFlow {
@@ -35,6 +37,38 @@ public:
 private:
     mutable std::atomic<i64> Counter_{1};
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFakeVersionProvider
+    : public IVersionProvider
+{
+public:
+    explicit TFakeVersionProvider(ui64 unixTime = 1'784'633'264)
+        : NextVersion_(static_cast<i64>(NTransactionClient::TimestampFromUnixTime(unixTime)))
+    { }
+
+    TVersion GenerateVersion() override
+    {
+        return TVersion(NextVersion_++);
+    }
+
+    void SetUnixTime(ui64 unixTime)
+    {
+        const auto nextVersion = static_cast<i64>(NTransactionClient::TimestampFromUnixTime(unixTime));
+        YT_VERIFY(nextVersion > NextVersion_);
+        NextVersion_ = nextVersion;
+    }
+
+private:
+    std::atomic<i64> NextVersion_;
+};
+
+inline IVersionProviderPtr TestVersionProvider()
+{
+    static const auto provider = New<TFakeVersionProvider>();
+    return provider;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

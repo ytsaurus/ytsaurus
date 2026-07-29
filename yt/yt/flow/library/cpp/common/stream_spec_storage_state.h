@@ -36,7 +36,8 @@ DEFINE_REFCOUNTED_TYPE(TVersionedStreamSpecStorageState);
 void UpdateStreamSpecStorageState(
     const TVersionedStreamSpecStorageStatePtr& versionedStorageState,
     const TPipelineSpec& spec,
-    const ITimeProviderPtr& timeProvider);
+    const ITimeProviderPtr& timeProvider,
+    const IVersionProviderPtr& versionProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -24,6 +24,7 @@ SRCS(
     status_profiler_ut.cpp
     weighted_random_ut.cpp
     remedian_splitter_ut.cpp
+    versioned_value_ut.cpp
 )
 
 PEERDIR(

@@ -382,7 +382,7 @@ public:
 
     void UpdateInputStreamsTraverse(const TFlowViewPtr& flowView) override
     {
-        flowView->State->ExecutionSpec->InputStreamsTraverse->SetValue(flowView->State->TraverseData->Streams);
+        flowView->State->ExecutionSpec->InputStreamsTraverse->TrySetValue(flowView->State->TraverseData->Streams, Context_->VersionProvider);
     }
 
     void UpdateWatermarkState(const TFlowViewPtr& flowView) override
@@ -417,7 +417,7 @@ public:
                 }
             }
         }
-        flowView->State->ExecutionSpec->WatermarkState->SetValue(watermarkState);
+        flowView->State->ExecutionSpec->WatermarkState->TrySetValue(watermarkState, Context_->VersionProvider);
     }
 
     void UpdateResourceControllers(const TFlowViewPtr& flowView) override
@@ -441,9 +441,7 @@ public:
         }
 
         for (auto& [resourceId, entry] : ResourceControllers_) {
-            auto oldVersion = entry.PublishedSpec->GetVersion();
-            entry.PublishedSpec->SetValue(entry.Controller->BuildTargetRevisionSpec());
-            if (entry.PublishedSpec->GetVersion() != oldVersion) {
+            if (entry.PublishedSpec->TrySetValue(entry.Controller->BuildTargetRevisionSpec(), Context_->VersionProvider)) {
                 YT_TLOG_INFO("Publishing resource target revision")
                     .With("ResourceId", resourceId)
                     .With("RevisionId", entry.PublishedSpec->GetVersion().Underlying());
@@ -452,8 +450,7 @@ public:
 
         auto targetRevisions = BuildTargetRevisions();
         ResourceManager_->Reconfigure(/*dynamicSpecs*/ {}, targetRevisions);
-        // SetValue dedups by content, so an unchanged map does not bump the section version.
-        flowView->State->ExecutionSpec->ResourceTargetRevisions->SetValue(std::move(targetRevisions));
+        flowView->State->ExecutionSpec->ResourceTargetRevisions->TrySetValue(std::move(targetRevisions), Context_->VersionProvider);
 
         THashMap<TResourceId, NYTree::IMapNodePtr> views;
         for (const auto& [resourceId, entry] : ResourceControllers_) {

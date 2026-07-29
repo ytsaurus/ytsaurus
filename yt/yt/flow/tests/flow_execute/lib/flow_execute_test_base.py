@@ -307,59 +307,68 @@ class FlowExecuteTestBase(FlowTestBase):
             res = exec_get_dyn_spec(flow_argument={})
             assert "spec" in res and "version" in res
             if self.CHECK_SPEC_VERSIONS:
-                assert res["version"] == 2
-            base_version = res["version"]
+                assert res["version"] > 0
+            version = res["version"]
             spec = res["spec"]
             assert "computations" in spec and "job_manager" in spec and "job_tracker" in spec
 
+            def set_dyn_spec_bumped(prev_version, **kwargs):
+                res = exec_set_dyn_spec(**kwargs)
+                assert res["version"] > prev_version
+                return res["version"]
+
             spec["job_tracker"]["load_throughput_throttler"]["period"] = 1001
-            res = exec_set_dyn_spec(flow_argument={"spec": spec})
-            assert res["version"] == base_version + 1
+            version = set_dyn_spec_bumped(version, flow_argument={"spec": spec})
 
             res = exec_get_dyn_spec(flow_argument={})
-            assert res == {"spec": spec, "version": base_version + 1}
+            assert res == {"spec": spec, "version": version}
 
             spec["job_tracker"]["load_throughput_throttler"]["period"] = 1002
-            res = exec_set_dyn_spec(flow_argument={"spec": spec, "expected_version": base_version + 1})
-            assert res["version"] == base_version + 2
+            version = set_dyn_spec_bumped(version, flow_argument={"spec": spec, "expected_version": version})
 
             res = exec_get_dyn_spec(flow_argument={})
-            assert res == {"spec": spec, "version": base_version + 2}
+            assert res == {"spec": spec, "version": version}
 
             test_path = "/job_tracker/load_throughput_throttler/period"
 
             res = exec_get_dyn_spec(flow_argument={"path": test_path})
-            assert res == {"spec": 1002, "version": base_version + 2}
+            assert res == {"spec": 1002, "version": version}
 
-            res = exec_set_dyn_spec(flow_argument={"spec": 1003, "path": test_path})
-            assert res == {"version": base_version + 3}
+            version = set_dyn_spec_bumped(version, flow_argument={"spec": 1003, "path": test_path})
 
             res = exec_get_dyn_spec(flow_argument={"path": test_path})
-            assert res == {"spec": 1003, "version": base_version + 3}
+            assert res == {"spec": 1003, "version": version}
 
-            res = exec_set_dyn_spec(flow_argument=json.dumps({"spec": 1004, "path": test_path}), input_format="json")
-            assert res == {"version": base_version + 4}
+            version = set_dyn_spec_bumped(
+                version, flow_argument=json.dumps({"spec": 1004, "path": test_path}), input_format="json"
+            )
 
             res = exec_get_dyn_spec(flow_argument={"path": test_path}, output_format="yson")
-            assert res == yson.dumps({"spec": 1004, "version": base_version + 4}, "binary")
+            assert res == yson.dumps({"spec": 1004, "version": version}, "binary")
 
             spec_arg = yson.dumps({"spec": 1005, "path": test_path}, "binary")
             res = exec_set_dyn_spec(flow_argument=spec_arg, input_format="yson", output_format="json")
-            assert res == json_dump_bin({"version": base_version + 5})
+            new_version = json.loads(res)["version"]
+            assert new_version > version
+            version = new_version
+            assert res == json_dump_bin({"version": version})
 
             res = exec_get_dyn_spec(
                 flow_argument='{"path"="' + test_path + '"}', input_format="yson", output_format="json"
             )
-            assert res == json_dump_bin({"spec": 1005, "version": base_version + 5})
+            assert res == json_dump_bin({"spec": 1005, "version": version})
 
             spec_arg = yson.dumps({"spec": 1006, "path": test_path}, "text").decode("utf-8")
             res = exec_set_dyn_spec(flow_argument=spec_arg, input_format="yson", output_format="yson")
-            assert res == yson.dumps({"version": base_version + 6}, "binary")
+            new_version = yson.loads(res)["version"]
+            assert new_version > version
+            version = new_version
+            assert res == yson.dumps({"version": version}, "binary")
 
             res = exec_get_dyn_spec(
                 flow_argument='{"path"="' + test_path + '"}', input_format="yson", output_format=yson_text_format
             )
-            assert res == yson.dumps({"spec": 1006, "version": base_version + 6}, "text")
+            assert res == yson.dumps({"spec": 1006, "version": version}, "text")
 
             # Test get-pipeline-spec.
             res = self.client.flow_execute(self.pipeline_path, flow_command="get-pipeline-spec", flow_argument={})
@@ -393,7 +402,7 @@ class FlowExecuteTestBase(FlowTestBase):
                     self.pipeline_path,
                     flow_command="set-pipeline-spec",
                     flow_argument={
-                        "expected_version": old_static_spec["version"] + 1,  # Bad expected version.
+                        "expected_version": 2**62,
                         "spec": static_spec,
                         "force": True,
                     },
@@ -407,7 +416,7 @@ class FlowExecuteTestBase(FlowTestBase):
                     "spec": static_spec,
                 },
             )["version"]
-            assert old_static_spec["version"] + 1 == new_static_spec_version
+            assert new_static_spec_version > old_static_spec["version"]
             new_static_spec = self.client.flow_execute(
                 self.pipeline_path, flow_command="get-pipeline-spec", flow_argument={}
             )
@@ -552,21 +561,26 @@ class FlowExecuteTestBase(FlowTestBase):
             )["version"]
             spec["job_tracker"]["load_throughput_throttler"]["period"] = 1010
             res = console_flow_execute("set-pipeline-dynamic-spec", yson.dumps({"spec": spec}), "--input-format=yson")
-            assert yson.loads(res) == {"version": old_dynamic_spec_version + 1}
+            dynamic_spec_version = yson.loads(res)["version"]
+            assert dynamic_spec_version > old_dynamic_spec_version
+            assert yson.loads(res) == {"version": dynamic_spec_version}
 
             res = console_flow_execute("get-pipeline-dynamic-spec", "{}", "--input-format=json")
-            assert yson.loads(res) == {"spec": spec, "version": old_dynamic_spec_version + 1}
+            assert yson.loads(res) == {"spec": spec, "version": dynamic_spec_version}
 
             test_path = "/job_tracker/load_throughput_throttler/period"
             arg = {"spec": 1011, "path": test_path}
             res = console_flow_execute("set-pipeline-dynamic-spec", json.dumps(arg), "--input-format=json")
-            assert yson.loads(res) == {"version": old_dynamic_spec_version + 2}
+            new_dynamic_spec_version = yson.loads(res)["version"]
+            assert new_dynamic_spec_version > dynamic_spec_version
+            dynamic_spec_version = new_dynamic_spec_version
+            assert yson.loads(res) == {"version": dynamic_spec_version}
 
             arg = {"path": test_path}
             res = console_flow_execute(
                 "get-pipeline-dynamic-spec", json.dumps(arg), "--input-format=json", "--output-format=json"
             )
-            assert json.loads(res) == {"spec": 1011, "version": old_dynamic_spec_version + 2}
+            assert json.loads(res) == {"spec": 1011, "version": dynamic_spec_version}
 
             # Test invalid arguments in command line utility.
             with pytest.raises(Exception, match="Incorrect format xml"):
@@ -796,8 +810,8 @@ class FlowExecuteTestBase(FlowTestBase):
             },
         )
 
-        assert result["spec_version"] == old_static_spec["version"] + 1
-        assert result["dynamic_spec_version"] == old_dynamic_spec["version"] + 1
+        assert result["spec_version"] > old_static_spec["version"]
+        assert result["dynamic_spec_version"] > old_dynamic_spec["version"]
 
         # Verify both specs were updated.
         new_static_spec = self.client.flow_execute(
@@ -1051,24 +1065,26 @@ class FlowExecuteTestBase(FlowTestBase):
             result = self.client.flow_execute(
                 self.pipeline_path, "set-flow-core-target", {"flow_core_target": "v2.0.0"}
             )
-            assert result["version"] == 1
+            assert result["version"] > 0
+            version_v2 = result["version"]
 
             result = self.client.flow_execute(self.pipeline_path, "get-flow-core-target", {})
             assert result["flow_core_target"] == "v2.0.0"
-            assert result["version"] == 1
+            assert result["version"] == version_v2
 
             self.client.flow_execute(self.pipeline_path, "set-flow-core-target", {"flow_core_target": "v3.0.0"})
             result = self.client.flow_execute(self.pipeline_path, "get-flow-core-target", {})
             assert result["flow_core_target"] == "v3.0.0"
-            assert result["version"] == 2
+            assert result["version"] > version_v2
+            version_v3 = result["version"]
 
             result = self.client.flow_execute(self.pipeline_path, "set-flow-core-target", {"flow_core_target": ""})
-            assert result["version"] == 3
+            assert result["version"] > version_v3
             version_after_set = result["version"]
 
             result = self.client.flow_execute(self.pipeline_path, "get-flow-core-target", {})
             assert result["flow_core_target"] == ""
-            assert result["version"] == 3
+            assert result["version"] == version_after_set
 
             result = self.client.flow_execute(
                 self.pipeline_path,

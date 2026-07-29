@@ -64,7 +64,6 @@ target_sources(library-cpp-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/retryable_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/retryable_transaction.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/status_profiler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/version_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/weighted_random.cpp
 )
 

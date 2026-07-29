@@ -17,6 +17,8 @@ struct IController
     virtual void EnsureIsLeader() const = 0;
     virtual TFlowViewKeeperPtr GetFlowViewKeeper() const = 0;
     virtual TNodeInfoPtr GetNodeInfo() const = 0;
+    //! Returns the controller-wide provider; all version updates must use this instance.
+    virtual IVersionProviderPtr GetVersionProvider() const = 0;
 
     virtual void RegisterJobStatus(const TJobId& jobId, TJobStatusPtr status) = 0;
 

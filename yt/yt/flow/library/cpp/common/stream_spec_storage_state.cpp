@@ -93,7 +93,8 @@ void TStreamSpecStorageState::Register(TRegistrar registrar)
 void UpdateStreamSpecStorageState(
     const TVersionedStreamSpecStorageStatePtr& versionedStorageState,
     const TPipelineSpec& pipelineSpec,
-    const ITimeProviderPtr& timeProvider)
+    const ITimeProviderPtr& timeProvider,
+    const IVersionProviderPtr& versionProvider)
 {
     YT_VERIFY(versionedStorageState);
     const auto& storageState = versionedStorageState->GetValue();
@@ -103,7 +104,7 @@ void UpdateStreamSpecStorageState(
     bumpVersion |= UpdateGroupBySchemas(storageState, pipelineSpec.Computations);
 
     if (bumpVersion) {
-        versionedStorageState->BumpVersion();
+        versionedStorageState->Bump(versionProvider);
     }
 }
 

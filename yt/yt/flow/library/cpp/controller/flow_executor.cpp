@@ -254,7 +254,7 @@ TSetPipelineDynamicSpecResult TFlowExecutor::SetPipelineDynamicSpec(const TSetPi
 
     auto newDynamicSpec = NYTree::ConvertTo<TDynamicPipelineSpecPtr>(specNode);
     ValidateDynamicPipelineSpec(newDynamicSpec);
-    versionedSpec->SetValue(newDynamicSpec);
+    versionedSpec->TrySetValue(newDynamicSpec, Controller_->GetVersionProvider());
 
     if (versionedSpec->GetVersion() != originalVersion) { // Persist only if there are changes.
         PersistedStateManager_->PersistSpecs(std::nullopt, std::nullopt, versionedSpec, expectedVersion);
@@ -412,18 +412,17 @@ TSetPipelineSpecsResult TFlowExecutor::SetPipelineSpecs(const TSetPipelineSpecsA
 
             // Update specs if provided.
             if (argument.Spec) {
-                spec->SetValue(NYTree::ConvertTo<TPipelineSpecPtr>(*argument.Spec));
+                spec->TrySetValue(NYTree::ConvertTo<TPipelineSpecPtr>(*argument.Spec), Controller_->GetVersionProvider());
                 ValidatePipelineSpec(spec->GetValue());
             }
             if (argument.DynamicSpec) {
-                dynamicSpec->SetValue(NYTree::ConvertTo<TDynamicPipelineSpecPtr>(*argument.DynamicSpec));
+                dynamicSpec->TrySetValue(NYTree::ConvertTo<TDynamicPipelineSpecPtr>(*argument.DynamicSpec), Controller_->GetVersionProvider());
                 ValidateDynamicPipelineSpec(dynamicSpec->GetValue());
             }
 
             result.SpecVersion = spec->GetVersion();
             result.DynamicSpecVersion = dynamicSpec->GetVersion();
 
-            // Check if there are any changes (SetValue() changes version when value is really changed).
             bool specChanged = (spec->GetVersion() != originalSpecVersion);
             bool dynamicSpecChanged = (dynamicSpec->GetVersion() != originalDynamicSpecVersion);
 
@@ -571,7 +570,7 @@ TSetTargetPipelineStateResult TFlowExecutor::SetTargetPipelineState(const TSetTa
     const auto expectedVersion = dynamicSpec->GetVersion();
 
     dynamicSpec->GetValue()->TargetState = argument.TargetPipelineState;
-    dynamicSpec->BumpVersion();
+    dynamicSpec->Bump(Controller_->GetVersionProvider());
 
     PersistedStateManager_->PersistSpecs(std::nullopt, std::nullopt, dynamicSpec, expectedVersion);
     keeper->SetSpecs(std::nullopt, dynamicSpec);
@@ -651,7 +650,7 @@ TSetFlowCoreTargetResult TFlowExecutor::SetFlowCoreTarget(const TSetFlowCoreTarg
     expectedVersions->FlowCoreTargetVersion = argument.ExpectedVersion.value_or(currentTarget->GetVersion());
 
     auto newTarget = CloneYsonStruct(currentTarget);
-    newTarget->SetValue(argument.FlowCoreTarget);
+    newTarget->TrySetValue(argument.FlowCoreTarget, Controller_->GetVersionProvider());
 
     PersistedStateManager_->PersistFlowCoreTarget(newTarget, expectedVersions);
 
