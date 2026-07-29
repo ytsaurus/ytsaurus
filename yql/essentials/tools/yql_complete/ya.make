@@ -20,6 +20,7 @@ PEERDIR(
 )
 
 SRCS(
+    completion_factory.cpp
     yql_complete.cpp
 )
 
