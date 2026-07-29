@@ -622,6 +622,20 @@ class FlowTestBase:
                 )
             )
 
+    def ask_key_visitor_to_complete(self, computation_id, stream_id):
+        """Ask a running key visitor to finish sweeping.
+
+        The counterpart of a finite source running out of input: a periodic scanner has no
+        end of its own, so a test that needs the pipeline to reach `completed` says when the
+        sweeping should stop. Returns once the request is applied — wait for the pipeline
+        state separately.
+        """
+        self.client.set_pipeline_dynamic_spec(
+            self.pipeline_path,
+            True,
+            spec_path=f"/computations/{computation_id}/key_visitor_streams/{stream_id}/finite",
+        )
+
     def wait_for_pipeline_error(self, error_substring, timeout=60):
         """Wait until an error containing the given substring appears in the flow view."""
 

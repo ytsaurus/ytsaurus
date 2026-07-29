@@ -332,6 +332,20 @@ struct TDynamicKeyVisitorStreamSpec
     //! in catch-up mode. Must be strictly greater than 1.0.
     double CatchupSpeedupMultiplier{};
 
+    //! Whether the visitor follows the computation's upstreams, the way a source follows its
+    //! input: when set (the default), the pass that starts once the upstreams are Completed is
+    //! marked Final and the visit stream reports itself empty after it. Unset it for a periodic
+    //! scanner that must sweep for as long as the pipeline runs — a computation with no input
+    //! and no source streams has no upstream to follow, so leaving this set retires its
+    //! partitions after a single pass. Dynamic on purpose: it can be switched on a running
+    //! pipeline to ask a scanner to finish.
+    bool Finite{};
+
+    //! Whether the final pass must be a complete sweep started after the upstreams completed.
+    //! Set by default, which is the documented guarantee. Unset it to let the visitor finalize
+    //! the pass it already has in flight instead, trading the guarantee for a faster stop.
+    bool FullFinalPass{};
+
     REGISTER_YSON_STRUCT(TDynamicKeyVisitorStreamSpec);
 
     static void Register(TRegistrar registrar);

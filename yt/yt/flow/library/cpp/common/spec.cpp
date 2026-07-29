@@ -228,6 +228,10 @@ void TDynamicKeyVisitorStreamSpec::Register(TRegistrar registrar)
     registrar.Parameter("catchup_speedup_multiplier", &TThis::CatchupSpeedupMultiplier)
         .GreaterThan(1.0)
         .Default(1.2);
+    registrar.Parameter("finite", &TThis::Finite)
+        .Default(true);
+    registrar.Parameter("full_final_pass", &TThis::FullFinalPass)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

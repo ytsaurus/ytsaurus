@@ -112,6 +112,74 @@ TEST_F(TKeyVisitorStoreTest, GetNextRangeProgressesAndExhausts)
     EXPECT_TRUE(store->GetNextRange().has_value());
 }
 
+// A pass that has swept nothing can be declared final where it stands, without a rotation:
+// that is how a visitor whose upstreams are already complete finishes in one sweep.
+TEST_F(TKeyVisitorStoreTest, PassThatSweptNothingIsFinalizedInPlace)
+{
+    auto store = MakeStore(MakeUintKeyRange(1, 100), /*bucketCount*/ 2, MakeBackend());
+    WaitFor(store->Init()).ThrowOnError();
+
+    EXPECT_TRUE(store->HasCurrentPassSweptNothing());
+    EXPECT_FALSE(store->IsCurrentPassFinal());
+
+    store->MarkCurrentPassFinal();
+    EXPECT_TRUE(store->IsCurrentPassFinal());
+    EXPECT_TRUE(store->HasCurrentPassSweptNothing()) << "finalizing must not consume coverage";
+    EXPECT_TRUE(store->GetNextRange().has_value()) << "the final pass still has to be swept";
+}
+
+TEST_F(TKeyVisitorStoreTest, SweptPassHasSweptSomething)
+{
+    auto store = MakeStore(MakeUintKeyRange(1, 100), /*bucketCount*/ 2, MakeBackend());
+    WaitFor(store->Init()).ThrowOnError();
+
+    store->MarkBuffered(MakeUintKeyRange(10, 20), TSystemTimestamp(1));
+    EXPECT_FALSE(store->HasCurrentPassSweptNothing()) << "buffered coverage counts as swept";
+
+    store->MarkCommitted(MakeUintKeyRange(10, 20));
+    EXPECT_FALSE(store->HasCurrentPassSweptNothing());
+
+    store->StartNewPass(/*finalPass*/ false);
+    EXPECT_TRUE(store->HasCurrentPassSweptNothing()) << "a rotation starts the pass over";
+}
+
+// Finalizing a pass whose coverage is already persisted has to reach the state table:
+// otherwise a restart resumes an endless pass, and Init meets a mix of final and non-final
+// rows that SeedCommitted refuses to seed.
+TEST_F(TKeyVisitorStoreTest, FinalizedSweptPassSurvivesRestart)
+{
+    auto backend = MakeBackend();
+    {
+        auto store = MakeStore(MakeUintKeyRange(1, 100), /*bucketCount*/ 1, backend);
+        WaitFor(store->Init()).ThrowOnError();
+        store->MarkCommitted(MakeUintKeyRange(10, 50));
+        store->Sync(/*transaction*/ nullptr);
+        ASSERT_FALSE(store->IsCurrentPassFinal());
+
+        store->MarkCurrentPassFinal();
+        store->Sync(/*transaction*/ nullptr);
+    }
+
+    auto resumed = MakeStore(MakeUintKeyRange(1, 100), /*bucketCount*/ 1, backend);
+    WaitFor(resumed->Init()).ThrowOnError();
+    EXPECT_TRUE(resumed->IsCurrentPassFinal()) << "the final marker must be persisted";
+}
+
+TEST_F(TKeyVisitorStoreTest, ResumedPassCountsAsSwept)
+{
+    auto backend = MakeBackend();
+    {
+        auto store = MakeStore(MakeUintKeyRange(1, 100), /*bucketCount*/ 1, backend);
+        WaitFor(store->Init()).ThrowOnError();
+        store->MarkCommitted(MakeUintKeyRange(10, 50));
+        store->Sync(/*transaction*/ nullptr);
+    }
+
+    auto resumed = MakeStore(MakeUintKeyRange(1, 100), /*bucketCount*/ 1, backend);
+    WaitFor(resumed->Init()).ThrowOnError();
+    EXPECT_FALSE(resumed->HasCurrentPassSweptNothing()) << "persisted coverage is already swept";
+}
+
 TEST_F(TKeyVisitorStoreTest, SyncIsIdempotent)
 {
     auto backend = MakeBackend();
