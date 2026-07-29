@@ -909,6 +909,9 @@ struct TDynamicChunkManagerConfig
     // COMPAT(koloshmet)
     bool UpdateHistoricallyNonVitalInUnexport;
 
+    // COMPAT(danilalexeev)
+    bool UpdateHistoricallyNonVitalOnChunkCreationAndExport;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

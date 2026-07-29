@@ -1245,6 +1245,13 @@ public:
         auto requisitionIndex = ChunkRequisitionRegistry_.GetOrCreate(requisition, objectManager);
         chunk->SetLocalRequisitionIndex(requisitionIndex, GetChunkRequisitionRegistry(), objectManager);
 
+        // COMPAT(danilalexeev)
+        if (GetDynamicConfig()->UpdateHistoricallyNonVitalOnChunkCreationAndExport &&
+            !IsDurabilityRequiredForChunk(chunk, requisitionIndex))
+        {
+            chunk->SetHistoricallyNonVital(true);
+        }
+
         StageChunk(chunk, transaction, account);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1506,6 +1513,13 @@ public:
 
     void ExportChunk(TChunk* chunk, TCellTag destinationCellTag) override
     {
+        // COMPAT(danilalexeev): Covers chunks created before this flag was enabled.
+        if (GetDynamicConfig()->UpdateHistoricallyNonVitalOnChunkCreationAndExport &&
+            !IsDurabilityRequiredForChunk(chunk, chunk->GetAggregatedRequisitionIndex()))
+        {
+            chunk->SetHistoricallyNonVital(true);
+        }
+
         chunk->Export(destinationCellTag, GetChunkRequisitionRegistry());
     }
 
