@@ -497,6 +497,7 @@ public:
         ValidateHeartbeatRequest(node, originalRequest);
 
         auto enableChunkReplicasThrottling = GetDynamicConfig()->EnableChunkReplicasThrottlingInHeartbeats;
+
         const auto& semaphore = enableChunkReplicasThrottling
             ? IncrementalHeartbeatPerReplicasSemaphore_
             : IncrementalHeartbeatSemaphore_;
@@ -525,11 +526,39 @@ public:
         i64 slots = 1;
         if (enableChunkReplicasThrottling) {
             slots = originalRequest.added_chunks_size() + originalRequest.removed_chunks_size();
+
+            const auto& sequoiaReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
+            if (!GetDynamicConfig()->FlushBatchedIncrementalHeartbeatsOnThrottling &&
+                sequoiaReplicasConfig->BatchIncrementalHeartbeat &&
+                slots > GetDynamicConfig()->MaxConcurrentChunkReplicasDuringIncrementalHeartbeat / 2)
+            {
+                YT_LOG_WARNING("Data node incremental heartbeat chunk replicas throttler allows less than twice of required slots"
+                    "(SemaphoreSlotsTotal: %v, RequiredSlots: %v, IsReplicasThrottlingEnabled: %v)",
+                    semaphore->GetTotal(),
+                    slots,
+                    enableChunkReplicasThrottling);
+                // We change the number of occupied slots by request to avoid locking the incremental heartbeat batch:
+                // We hold the invariant that number of occupied slots is not grater than number of replicas in batch.
+                // We also maintain that throttler allows at least 2x of max number of replicas in batch.
+                // That means that if batch is not full, at least half of throttler slots are empty, so we will not throttle the next request.
+                slots = GetDynamicConfig()->MaxConcurrentChunkReplicasDuringIncrementalHeartbeat / 2;
+            }
         }
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
         auto timeBefore = NProfiling::GetInstant();
-        auto guard = WaitFor(semaphore->AsyncAcquire(slots).AsUnique())
-            .ValueOrThrow();
+        TAsyncSemaphoreGuard guard;
+        if (GetDynamicConfig()->FlushBatchedIncrementalHeartbeatsOnThrottling) {
+            guard = TAsyncSemaphoreGuard::TryAcquire(semaphore, slots);
+            if (!guard) {
+                chunkManager->FlushWaitingSequoiaIncrementalHeartbeatRequests();
+            }
+        }
+        if (!guard) {
+            guard = WaitFor(semaphore->AsyncAcquire(slots).AsUnique())
+                .ValueOrThrow();
+        }
         auto timeAfter = NProfiling::GetInstant();
 
         auto requestTimeout = context->GetTimeout();
@@ -542,8 +571,6 @@ public:
         auto locationDirectory = ParseLocationDirectory(node, originalRequest);
 
         auto preparedRequest = SplitRequest(context, locationDirectory);
-
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
             YT_LOG_TRACE("There are Sequoia replicas for this request (NodeId: %v)", nodeId);

@@ -4159,7 +4159,7 @@ private:
         }
     }
 
-    void FlushWaitingSequoiaIncrementalHeartbeatRequests()
+    void FlushWaitingSequoiaIncrementalHeartbeatRequests() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -4205,14 +4205,18 @@ private:
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
 
+        auto isBatchFull = [&] {
+            const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+            return ssize(WaitingSequoiaIncrementalHeartbeatRequests_) >= config->MaxRequestsInIncrementalHeartbeatBatch ||
+                ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ >= config->MaxReplicasInIncrementalHeartbeatBatch;
+        };
+
         auto tryAddRequestToCurrentBatch = [&] () mutable {
             if (WaitingSequoiaIncrementalHeartbeatRequests_.contains(nodeId)) {
                 return false;
             }
 
-            const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
-            if (ssize(WaitingSequoiaIncrementalHeartbeatRequests_) >= config->MaxRequestsInIncrementalHeartbeatBatch ||
-                ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ >= config->MaxReplicasInIncrementalHeartbeatBatch)
+            if (isBatchFull())
             {
                 return false;
             }
@@ -4228,9 +4232,13 @@ private:
         };
 
         int retryCount = 0;
-        while (!tryAddRequestToCurrentBatch() && retryCount < MaxTryAddRequestToCurrentBatchRetries) {
+        while (IsActiveLeader() && !tryAddRequestToCurrentBatch() && retryCount < MaxTryAddRequestToCurrentBatchRetries) {
             FlushWaitingSequoiaIncrementalHeartbeatRequests();
             retryCount++;
+        }
+
+        if (!IsActiveLeader()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Peer is not leading");
         }
 
         // There should not be more than one retry.
@@ -4242,9 +4250,15 @@ private:
 
         YT_LOG_DEBUG("Added request to waiting Sequoia incremental heartbeat requests (NodeId: %v)", nodeId);
 
-        return BatchSequoiaIncrementalHeartbeatPromise_
+        auto result = BatchSequoiaIncrementalHeartbeatPromise_
             .ToFuture()
             .ToUncancelable();
+
+        if (isBatchFull()) {
+            FlushWaitingSequoiaIncrementalHeartbeatRequests();
+        }
+
+        return result;
     }
 
     TFuture<void> ModifySequoiaReplicas(

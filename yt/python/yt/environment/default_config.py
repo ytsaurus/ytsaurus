@@ -108,6 +108,7 @@ def get_dynamic_master_config():
                 "batch_incremental_heartbeat": True,
                 "batch_incremental_heartbeat_period": 300,
                 "max_requests_in_incremental_heartbeat_batch": 5,
+                "max_replicas_in_incremental_heartbeat_batch": 10,
             }
         },
 
