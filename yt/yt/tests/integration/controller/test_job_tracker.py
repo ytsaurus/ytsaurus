@@ -932,7 +932,10 @@ class TestStoredJobRemoval(YTEnvSetup):
         job_release_request_counter = profiler.counter("controller_agent/job_tracker/job_release_request_count")
 
         wait(lambda: not exists(orchid_path))
-        wait(lambda: job_release_request_counter.get_delta() >= 1)
+        # The agent is freshly restarted, so its counter starts from zero; read the
+        # absolute value rather than a delta whose baseline may be captured after the
+        # release requests have already been sent during recovery.
+        wait(lambda: job_release_request_counter.get(default=0) >= 1)
 
         release_breakpoint()
         op.track()
