@@ -1,4 +1,5 @@
 RECURSE(
+    all_states_cpp
     passthrough_transform
     types/common
     types/python

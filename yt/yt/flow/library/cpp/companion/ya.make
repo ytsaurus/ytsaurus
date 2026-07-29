@@ -35,6 +35,10 @@ PEERDIR(
 
 END()
 
+RECURSE(
+    server
+)
+
 RECURSE_FOR_TESTS(
     unittest
 )

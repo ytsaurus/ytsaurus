@@ -1,5 +1,6 @@
 RECURSE(
     async_request
+    companion_word_count
     external_state_join
     noop
     retryable_async_request

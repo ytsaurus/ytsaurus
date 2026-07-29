@@ -8,6 +8,7 @@ PY_SRCS(
     helpers.py
     yt_flow_base.py
     yt_flow_java_base.py
+    yt_flow_cpp_base.py
     yt_flow_python_base.py
 )
 

@@ -1,0 +1,54 @@
+#pragma once
+
+#include "public.h"
+
+#include "state_store.h"
+
+#include <yt/yt/flow/library/cpp/common/runtime_init_context.h>
+
+namespace NYT::NFlow::NCompanionServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Companion-side IRuntimeInitContext: state key clients are bound to the
+//! per-job #TCompanionStateStore; static resources and internal-state joiners
+//! are not available out of process.
+class TCompanionRuntimeInitContext
+    : public IRuntimeInitContext
+{
+public:
+    TCompanionRuntimeInitContext(
+        TCompanionStateStorePtr stateStore,
+        NYTree::IMapNodePtr parametersNode,
+        std::string prefix = {});
+
+    TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(
+        std::function<IStateHolderPtr()> ctor) const override;
+    TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(
+        std::function<IStateHolderPtr()> ctor) const override;
+
+    IInitContextPtr AsPartition() const override;
+    IInitContextPtr AsKey(TKey key) const override;
+
+    IRuntimeInitContextPtr WithPrefix(TStringBuf prefix) const override;
+    const std::string& GetPrefix() const override;
+
+    NYTree::IMapNodePtr GetParametersNode() const override;
+
+    IResourcePtr GetStaticResource(const TResourceId& resourceId) const override;
+
+protected:
+    IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const override;
+    IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const override;
+
+private:
+    const TCompanionStateStorePtr StateStore_;
+    const NYTree::IMapNodePtr ParametersNode_;
+    const std::string Prefix_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TCompanionRuntimeInitContext);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NCompanionServer
