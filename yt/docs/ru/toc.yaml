@@ -587,6 +587,8 @@ items:
             href: admin-guide/update/update-cron.md
           - name: Odin
             href: admin-guide/update/update-odin.md
+          - name: Task-прокси
+            href: admin-guide/update/update-task-proxy.md
           - name: Обновление томов
             href: admin-guide/update/update-volumes.md
       - name: Подготовка спецификации {{product-name}}
