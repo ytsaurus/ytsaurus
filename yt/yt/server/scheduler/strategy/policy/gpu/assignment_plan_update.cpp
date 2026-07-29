@@ -381,7 +381,7 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldUseFullHostAggressivePree
 
 bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldUsePriorityModuleBinding(const TOperationPtr& operation) const
 {
-    return Context_->IsPriorityModuleBindingEnabled(operation) &&
+    return operation->PriorityModuleBindingEnabled().value_or(false) &&
         operation->WaitingForModuleBindingSince() &&
         *operation->WaitingForModuleBindingSince() + Config_->PriorityModuleBindingTimeout < Now_;
 }
@@ -556,7 +556,7 @@ std::optional<NDetail::TOperationModuleBindingOutcome> TGpuAllocationAssignmentP
     if (priorityModuleBinding) {
         std::vector<TOperation*> availableForEvictionOperations;
         for (auto* operation : moduleState.FullHostBoundOperations()) {
-            if (!Context_->IsPriorityModuleBindingEnabled(operation)) {
+            if (!operation->PriorityModuleBindingEnabled().value_or(false)) {
                 availableForEvictionOperations.push_back(operation);
             }
         }

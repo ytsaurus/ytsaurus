@@ -84,7 +84,6 @@ struct IAssignmentPlanUpdateContext
 
     virtual TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const = 0;
 
-    virtual bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const = 0;
     virtual bool IsDetailedLoggingEnabled(const TOperationPtr& operation) const = 0;
 };
 
