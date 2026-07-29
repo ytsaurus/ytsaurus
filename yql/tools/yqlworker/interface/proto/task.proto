@@ -245,6 +245,7 @@ message TTaskProgress {
         optional uint32 Total = 6; // deprecated
         optional string Category = 7;
         optional string RemoteId = 8;
+        optional string WaitingRemoteId = 15;
         optional TCounters Counters = 9;
         map<string,int64> CustomCounters = 13;
         optional string Stage = 10; // deprecated
