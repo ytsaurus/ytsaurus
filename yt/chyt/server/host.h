@@ -134,10 +134,6 @@ public:
     TFuture<void> GetIdleFuture() const;
 
     void PopulateSystemDatabase(DB::IDatabase* systemDatabase) const;
-    DB::DatabasePtr CreateYTDatabase() const;
-
-    //! Create rooted databases using names and rootes specified in the yt-config by user.
-    std::vector<DB::DatabasePtr> CreateUserDefinedDatabases() const;
 
     std::vector<TString> GetUserDefinedDatabaseNames() const;
 

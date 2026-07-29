@@ -12,6 +12,8 @@
 #include "poco_config.h"
 #include "tcp_handler.h"
 #include "user_defined_sql_objects_storage.h"
+#include "yt_database.h"
+#include "yt_directory_database.h"
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -277,10 +279,10 @@ private:
 
         Host_->PopulateSystemDatabase(SystemDatabase_.get());
 
-        DB::DatabaseCatalog::instance().attachDatabase("YT", Host_->CreateYTDatabase());
+        DB::DatabaseCatalog::instance().attachDatabase("YT", CreateYTDatabase());
 
-        for (const auto& databasePtr : Host_->CreateUserDefinedDatabases()) {
-            DB::DatabaseCatalog::instance().attachDatabase(databasePtr->getDatabaseName(), databasePtr);
+        for (const auto& [databaseName, root] : Host_->GetConfig()->DatabaseDirectories) {
+            DB::DatabaseCatalog::instance().attachDatabase(databaseName, CreateDirectoryDatabase(databaseName, root));
         }
 
         ServerContext_->setCurrentDatabase(Config_->DefaultDatabase);
