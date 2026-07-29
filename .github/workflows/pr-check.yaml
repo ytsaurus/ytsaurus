@@ -29,11 +29,16 @@ on:
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
+permissions:
+  contents: read
+
 jobs:
 
   notify-start:
     name: Notify PR start
     runs-on: trampoline
+    permissions:
+      issues: write
     outputs:
       comment-id: ${{ steps.notify-pr.outputs.comment-id }}
     steps:
@@ -95,11 +100,15 @@ jobs:
           ref: ${{ inputs.commit-sha }}
           fetch-depth: 2
           path: ytsaurus
+          allow-unsafe-pr-checkout: true
 
   build-strawberry:
     name: Build Strawberry controller
+    permissions:
+      contents: read
     with:
       runs-on-value: ubuntu-latest
+      checkout-ref: ${{ inputs.commit-sha }}
     uses: ./.github/workflows/strawberry-action.yaml
 
   build-check-cmake:
@@ -143,6 +152,9 @@ jobs:
       - notify-start
       - checkout
     if: ${{ needs.build-ya-make.result == 'success' }}
+    permissions:
+      contents: read
+      issues: write
     uses: ./.github/workflows/pr-tests.yaml
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
@@ -162,6 +174,8 @@ jobs:
       - build-check-cmake
       - build-strawberry
     runs-on: trampoline
+    permissions:
+      issues: write
     if: ${{ always() }}
     steps:
       - name: Notify PR

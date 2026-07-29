@@ -15,6 +15,11 @@ on:
         required: false
         default: ''
         type: string
+      checkout-ref:
+        description: 'Ref to build. Empty means the ref the workflow was triggered on.'
+        required: false
+        default: ''
+        type: string
     secrets:
       GH_PERSONAL_ACCESS_TOKEN:
         required: false
@@ -30,7 +35,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.checkout-ref }}
           path: ytsaurus
+          allow-unsafe-pr-checkout: ${{ inputs.checkout-ref != '' }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
