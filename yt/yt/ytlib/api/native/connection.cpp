@@ -76,6 +76,7 @@
 #include <yt/yt/ytlib/offshore_data_gateway/offshore_data_gateway_channel.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/query_pool_permission_cache.h>
 #include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
 #include <yt/yt/ytlib/tablet_balancer_client/tablet_balancer_channel.h>
@@ -338,6 +339,11 @@ public:
             this,
             Profiler_.WithPrefix("/permission_cache"));
 
+        QueryPoolPermissionCache_ = New<TQueryPoolPermissionCache>(
+            config->PermissionCache,
+            this,
+            Profiler_.WithPrefix("/query_pool_permission_cache"));
+
         UserAttributeCache_ = New<TUserAttributeCache>(
             config->UserAttributeCache,
             MakeWeak(this),
@@ -532,6 +538,11 @@ public:
         return PermissionCache_;
     }
 
+    const TQueryPoolPermissionCachePtr& GetQueryPoolPermissionCache() override
+    {
+        return QueryPoolPermissionCache_;
+    }
+
     const TUserAttributeCachePtr& GetUserAttributeCache() override
     {
         return UserAttributeCache_;
@@ -581,6 +592,7 @@ public:
     {
         TableMountCache_->Clear();
         PermissionCache_->Clear();
+        QueryPoolPermissionCache_->Clear();
         UserAttributeCache_->Clear();
     }
 
@@ -1105,6 +1117,7 @@ private:
     IClockManagerPtr ClockManager_;
     TJobShellDescriptorCachePtr JobShellDescriptorCache_;
     TPermissionCachePtr PermissionCache_;
+    TQueryPoolPermissionCachePtr QueryPoolPermissionCache_;
     TUserAttributeCachePtr UserAttributeCache_;
     TSyncReplicaCachePtr SyncReplicaCache_;
 
