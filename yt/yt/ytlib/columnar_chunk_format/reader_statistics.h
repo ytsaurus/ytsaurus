@@ -34,6 +34,7 @@ struct TReaderStatistics final
     TCpuDuration DoReadValuesTime;
 
     size_t RowCount = 0;
+    size_t DataWeight = 0;
 
     size_t TryUpdateWindowCallCount = 0;
     size_t SkipToBlockCallCount = 0;
