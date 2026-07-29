@@ -149,9 +149,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<TInstant>, WaitingForModuleBindingSince);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TInstant>, WaitingForAssignmentsSince);
 
-    //! Diagnostic-only: whether priority module binding is enabled for this operation
-    //! (derived from pool configuration). Stamped during assignment plan update.
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(PriorityModuleBindingEnabled);
+    //! Whether priority module binding is enabled for this operation
+    //! Updated from pool configuration every assignment plan update during context creation
+    //! Can be nullopt if plan update did not happen yet
+    DEFINE_BYREF_RW_PROPERTY(std::optional<bool>, PriorityModuleBindingEnabled);
 
     // Full-host module-bound operation is either fully preemptible or none of its assignments are preemptible.
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Preemptible);

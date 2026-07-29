@@ -133,9 +133,9 @@ TAssignmentPlanUpdateContext::TAssignmentPlanUpdateContext(
 {
     InitializeRecursiveAttributes(TreeSnapshot_->RootElement().Get());
 
-    // Stamp the diagnostic priority module binding attribute on each operation.
+    // Update the priority module binding attribute on each operation
     for (const auto& [_, operation] : SchedulableOperations_) {
-        operation->SetPriorityModuleBindingEnabled(IsPriorityModuleBindingEnabled(operation));
+        operation->PriorityModuleBindingEnabled() = IsPriorityModuleBindingEnabled(operation);
     }
 }
 
@@ -202,14 +202,6 @@ TJobResources TAssignmentPlanUpdateContext::GetAvailableOperationLimits(const TO
         treeElement = treeElement->GetParent();
     }
     return Max(availableLimits, TJobResources{});
-}
-
-bool TAssignmentPlanUpdateContext::IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const
-{
-    const TPoolTreeElement* treeElement = FindOperationElement(operation);
-    YT_VERIFY(treeElement);
-
-    return AttributesList_.AttributesOf(treeElement).PriorityModuleBindingEnabled;
 }
 
 std::optional<std::string> TAssignmentPlanUpdateContext::FindLimitViolatingParentId(const TPoolTreeElement* element) const
@@ -567,6 +559,14 @@ void TAssignmentPlanUpdateContext::PreemptAllOperationAssignments(
     for (const auto& assignment : GetItems(operation->Assignments())) {
         PreemptAssignment(assignment, preemptionReason, preemptionDescription);
     }
+}
+
+bool TAssignmentPlanUpdateContext::IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const
+{
+    const auto* treeElement = FindOperationElement(operation);
+    YT_VERIFY(treeElement);
+
+    return AttributesList_.AttributesOf(treeElement).PriorityModuleBindingEnabled;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

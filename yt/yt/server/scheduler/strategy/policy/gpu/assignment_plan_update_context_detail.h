@@ -79,8 +79,6 @@ public:
 
     std::optional<std::string> FindLimitViolatingParentId(const TPoolTreeElement* element) const;
 
-    bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const override;
-
     void UpdatePreemptionStatuses() const;
     void FillOperationUsage();
     void PreemptLimitViolatingOperations();
@@ -129,6 +127,7 @@ private:
         EAllocationPreemptionReason preemptionReason,
         const std::string& preemptionDescription);
 
+    bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
