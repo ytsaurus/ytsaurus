@@ -230,7 +230,7 @@ void WriteEmptyStreamResponse() {
     WriteStreamResponse({});
 }
 
-void LogStreamError(const TString& message) {
+void LogStreamError(TStringBuf message) {
     Cerr << "Failed to process stream request: " << message << Endl;
 }
 
