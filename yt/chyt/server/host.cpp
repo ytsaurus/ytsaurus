@@ -740,21 +740,6 @@ public:
             /*relative_table_path*/ "");
     }
 
-    DB::DatabasePtr CreateYTDatabase() const
-    {
-        return NYT::NClickHouseServer::CreateYTDatabase();
-    }
-
-    std::vector<DB::DatabasePtr> CreateUserDefinedDatabases() const
-    {
-        std::vector<DB::DatabasePtr> result;
-        result.reserve(Config_->DatabaseDirectories.size());
-        for (const auto& [databaseName, root] : Config_->DatabaseDirectories) {
-            result.push_back(NYT::NClickHouseServer::CreateDirectoryDatabase(databaseName, root));
-        }
-        return result;
-    }
-
     std::vector<TString> GetUserDefinedDatabaseNames() const
     {
         std::vector<TString> result;
@@ -1416,16 +1401,6 @@ EInstanceState THost::GetInstanceState() const
 void THost::PopulateSystemDatabase(DB::IDatabase* systemDatabase) const
 {
     return Impl_->PopulateSystemDatabase(systemDatabase);
-}
-
-std::shared_ptr<DB::IDatabase> THost::CreateYTDatabase() const
-{
-    return Impl_->CreateYTDatabase();
-}
-
-std::vector<DB::DatabasePtr> THost::CreateUserDefinedDatabases() const
-{
-    return Impl_->CreateUserDefinedDatabases();
 }
 
 std::vector<TString> THost::GetUserDefinedDatabaseNames() const
