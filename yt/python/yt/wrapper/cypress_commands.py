@@ -547,6 +547,11 @@ def create(
             annotate_objects = get_config(client)["annotate_objects"]
             if annotate_objects and isinstance(annotate_objects, Mapping):
                 annotate_objects = dict([(name, value) for name, value in annotate_objects.items() if name.startswith("_")])
+                # YT-28611
+                if "_nirvana_meta" in annotate_objects:
+                    annotate_objects["_nirvana_meta"] = {
+                        "block_url": annotate_objects["_nirvana_meta"].get("block_url")
+                    }
                 return annotate_objects
         return None
 
