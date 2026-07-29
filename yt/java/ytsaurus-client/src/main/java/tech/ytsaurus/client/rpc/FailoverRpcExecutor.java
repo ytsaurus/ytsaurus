@@ -29,6 +29,7 @@ class FailoverRpcExecutor {
     private final RpcClientPool clientPool;
     private final RetryPolicy retryPolicy;
 
+    private final boolean failoverEnabled;
     private final long failoverTimeout;
     private final long globalDeadline;
 
@@ -46,7 +47,8 @@ class FailoverRpcExecutor {
             RpcClientPool clientPool,
             RpcRequest<?> request,
             RpcClientResponseHandler handler,
-            RpcOptions options
+            RpcOptions options,
+            boolean failoverEnabled
     ) {
         this.serializedExecutorService = new ScheduledSerializedExecutorService(executorService);
         this.clientPool = clientPool;
@@ -54,6 +56,7 @@ class FailoverRpcExecutor {
 
         this.retryPolicy = options.getRetryPolicyFactory().get();
 
+        this.failoverEnabled = failoverEnabled;
         this.failoverTimeout = options.getFailoverTimeout().toMillis();
         Duration globalTimeout = request.header.hasTimeout()
                 ? RpcUtil.durationFromMicros(request.header.getTimeout())
@@ -90,12 +93,28 @@ class FailoverRpcExecutor {
             RpcClientResponseHandler handler,
             RpcOptions options
     ) {
+        return execute(executorService, clientPool, request, handler, options, true);
+    }
+
+    /**
+     * Failover sends a copy of the request to another client of the pool when the current attempt is taking
+     * too long, so it makes no sense for a pool with a single destination and may be switched off.
+     */
+    static RpcClientRequestControl execute(
+            ScheduledExecutorService executorService,
+            RpcClientPool clientPool,
+            RpcRequest<?> request,
+            RpcClientResponseHandler handler,
+            RpcOptions options,
+            boolean failoverEnabled
+    ) {
         return new FailoverRpcExecutor(
                 executorService,
                 clientPool,
                 request,
                 handler,
-                options)
+                options,
+                failoverEnabled)
                 .execute();
     }
 
@@ -276,6 +295,10 @@ class FailoverRpcExecutor {
 
             logger.debug("Starting new attempt; AttemptId: {}, OriginalRequestId: {}, RequestId: {}",
                     requestsSent, originalRequestId, currentRequestId);
+
+            if (!failoverEnabled) {
+                return;
+            }
 
             // schedule next step
             ScheduledFuture<?> scheduled = serializedExecutorService.schedule(
