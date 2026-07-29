@@ -157,8 +157,8 @@ EReadDocumentResult ReadJsonDocument(IInputStream& input, TString& document) {
         return EReadDocumentResult::Complete;
     }
 
-    bool inString = first == '"';
-    bool escaped = false;
+    bool isInString = (first == '"');
+    bool isEscaped = false;
     TVector<char> closingCharacters;
     if (first == '{') {
         closingCharacters.push_back('}');
