@@ -111,6 +111,8 @@
   "yt/odin/tests/run_tests.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/odin/tests/run_tests.sh",
   "yt/python/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/python/README.md",
   "yt/python/yt/wrapper/tests/pytest.ini":"yt/opensource/repos/ytsaurus/github_toplevel/yt/python/yt/wrapper/tests/pytest.ini",
+  "yt/yt/flow/tests/flow_os_test_env.py":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/flow/tests/flow_os_test_env.py",
+  "yt/yt/flow/tests/run_tests.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/flow/tests/run_tests.sh",
   "yt/yt/gpuagent/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/gpuagent/go.mod",
   "yt/yt/gpuagent/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/gpuagent/go.sum",
   "yt/yt/scripts/build_cmake.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/scripts/build_cmake.sh",
