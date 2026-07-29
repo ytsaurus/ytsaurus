@@ -48,6 +48,10 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default(32391);
     registrar.Parameter("qtworker_gateways_config_path", &TThis::QtWorkerGatewaysConfigPath)
         .Default();
+    registrar.Parameter("udf_meta_path", &TThis::UdfMetaPath)
+        .Default();
+    registrar.Parameter("udf_meta_user", &TThis::UdfMetaUser)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->UseQtWorkerYqlPlugin && !config->QtWorkerGatewaysConfigPath) {
@@ -110,6 +114,11 @@ void TYqlAgentServerConfig::Register(TRegistrar registrar)
         }
         if (auto& protoDynamicConfigsPath = config->ProtoDynamicConfigsPath; protoDynamicConfigsPath.empty()) {
             protoDynamicConfigsPath = config->Root + "/proto_gateways";
+        }
+    });
+    registrar.Postprocessor([] (TThis* config) {
+        if (auto& udfMetaPath = config->YqlAgent->UdfMetaPath; udfMetaPath.empty()) {
+            udfMetaPath = config->Root + "/udfs/_meta";
         }
     });
 };

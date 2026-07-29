@@ -112,6 +112,7 @@ class QueryTracker(YTServerComponentBase, YTComponent):
                     {"action": "allow", "subjects": ["everyone"], "permissions": ["use"], "inheritance_mode": "object_and_descendants"},
                 ],
             })
+        self.client.create("access_control_object", attributes={"name": "admin", "namespace": "queries"})
 
         logger.info("Initialization for query tracker completed")
 

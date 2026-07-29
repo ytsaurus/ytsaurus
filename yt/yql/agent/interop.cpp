@@ -344,4 +344,23 @@ std::vector<TWireYqlRowset> BuildRowsets(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TWireYqlRowset BuildRawYsonResultRowset(const TString& yqlYsonResults)
+{
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("result", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))
+    });
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto row = rowBuffer->AllocateUnversioned(1);
+    row[0] = rowBuffer->CaptureValue(MakeUnversionedAnyValue(yqlYsonResults, 0));
+
+    return MakeWireYqlRowset(TYqlRowset{
+        .TargetSchema = std::move(schema),
+        .ResultRows = {row},
+        .RowBuffer = std::move(rowBuffer),
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYqlAgent

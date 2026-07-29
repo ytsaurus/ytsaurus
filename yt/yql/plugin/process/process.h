@@ -44,8 +44,8 @@ public:
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) override;
-
+        int executeMode,
+        NYqlClient::EQueryType queryType) override;
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
@@ -59,6 +59,8 @@ public:
     TAbortResult Abort(TQueryId queryId) override;
 
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override;
+
+    void OnUdfMetaChanged(TUdfMetaPtr udfMeta) override;
 
     void RegisterQuery(TQueryId queryId) override;
     void UnregisterQuery(TQueryId queryId) override;

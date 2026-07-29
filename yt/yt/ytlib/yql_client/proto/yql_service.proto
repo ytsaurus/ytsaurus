@@ -43,6 +43,7 @@ message TYqlRequest
     optional bytes settings = 7; // YSON
     repeated TYqlQueryFile files = 8;
     repeated TYqlSecret secrets = 9;
+    optional int64 query_type = 10 [default = 0]; // EQueryType
 }
 
 // A counterpart to NYql::NEmbedded::IOperation and to NYqlClient::TYqlResponse.

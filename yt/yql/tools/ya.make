@@ -11,6 +11,7 @@ IF (NOT OPENSOURCE)
         dqrun_light
         qt_stress
         query_replay
+        udf_admin
         ytfilerun
         ytflowrun
         ytflow_worker

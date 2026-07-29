@@ -14,6 +14,7 @@ message TReqRunQuery
     required bytes settings = 5; // YSON
     repeated NYT.NYqlClient.NProto.TYqlQueryFile files = 6;
     required int64 mode = 7 [default = 2]; // EExecuteMode
+    required int64 query_type = 8 [default = 0]; // EQueryType
 }
 
 message TRspRunQuery

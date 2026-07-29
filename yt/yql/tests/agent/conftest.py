@@ -4,16 +4,16 @@ from yt_commands import (get, set, create, write_file)
 
 from yt.environment.components.yql_agent import YqlAgent as YqlAgentComponent
 
-from yt.environment.helpers import wait_for_dynamic_config_update
+from yt.environment.helpers import wait, wait_for_dynamic_config_update
 
-from yt.common import YtError
+from yt.common import YtError, YtResponseError
 
 from google.protobuf.text_format import Parse, MessageToString
 
 import yql.essentials.providers.common.proto.gateways_config_pb2 as gateways_config_pb2
 
+import datetime
 import os
-
 import shutil
 
 import pytest
@@ -29,7 +29,7 @@ class YqlAgent():
             "count": count,
             "path": yatest.common.binary_path("yt/yql/agent/bin"),
             "mr_job_bin": yatest.common.binary_path("yt/yql/tools/mrjob/mrjob"),
-            "mr_job_udfs_dir": os.path.dirname(yatest.common.binary_path("yql/essentials/udfs/common")),
+            "mr_job_udfs_dir": yatest.common.binary_path("yql/essentials/udfs/common"),
             "yql_plugin_shared_library": yatest.common.binary_path("yt/yql/plugin/dynamic/libyqlplugin.so"),
             "native_client_supported": True,
             "libraries": libraries,
@@ -113,6 +113,67 @@ def update_yql_agent_environment(cls, yql_agent):
         wait_for_dynamic_config_update(yql_agent.yql_agent.client, config, "//sys/yql_agent/instances")
 
 
+def wait_for_udf_meta_update(client, expected_meta):
+    instances = client.list("//sys/yql_agent/instances")
+
+    if not instances:
+        return
+
+    def check():
+        batch_client = client.create_batch_client()
+
+        responses = [
+            batch_client.get("//sys/yql_agent/instances/{0}/orchid/yql_agent/udf_meta".format(instance))
+            for instance in instances
+        ]
+        batch_client.commit_batch()
+
+        for response in responses:
+            if not response.is_ok():
+                raise YtResponseError(response.get_error())
+
+            if expected_meta != response.get_result():
+                return False
+
+        return True
+
+    wait(check, error_message="UDF meta didn't become as expected in time", ignore_exceptions=True)
+
+
+def setup_udf_registry(cls, yql_agent, udfs):
+    client = yql_agent.yql_agent.client
+    cluster = yql_agent.yql_agent.env.id
+
+    udfs_root = "//sys/yql_agent/udfs"
+    client.create("map_node", udfs_root)
+
+    updated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    meta = {}
+    for key, entry in udfs.items():
+        local_path = yatest.common.binary_path(entry["path"])
+        remote_path = f"{udfs_root}/{os.path.basename(local_path)}"
+
+        client.create("file", remote_path)
+        with open(local_path, "rb") as f:
+            client.write_file(remote_path, f)
+
+        meta[key] = {
+            **entry,
+            "alias": f"yt://{cluster}{remote_path}",
+            "updated_at": updated_at,
+        }
+
+    meta = {
+        "udfs": meta
+    }
+
+    meta_path = f"{udfs_root}/_meta"
+    client.create("document", meta_path)
+    client.set(meta_path, meta)
+
+    wait_for_udf_meta_update(client, meta)
+
+
 @pytest.fixture
 def yql_agent(request):
     cls = request.cls
@@ -151,4 +212,12 @@ def yql_agent(request):
     with YqlAgent(cls.Env, cls.remote_envs, count, libraries, config) as yql_agent:
         update_yql_agent_environment(cls, yql_agent)
         copy_yql_configs_to_test_folder(yql_agent.yql_agent)
+
+        udfs = getattr(cls, "YQL_UDF_REGISTRY", {})
+        if udfs:
+            if not use_qtworker:
+                raise YtError("YQL_UDF_REGISTRY requires YQL_QTWORKER to be set")
+
+            setup_udf_registry(cls, yql_agent, udfs)
+
         yield yql_agent

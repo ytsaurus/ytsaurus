@@ -122,7 +122,8 @@ public:
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) override
+        int executeMode,
+        NYqlClient::EQueryType queryType) override
     {
         auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
 
@@ -143,7 +144,8 @@ public:
             queryText,
             settings,
             files,
-            executeMode);
+            executeMode,
+            queryType);
 
         YT_LOG_INFO("Query finished (QueryId: %v, SlotIndex: %v)", queryId, pluginProcess->SlotIndex());
         return result;
@@ -245,6 +247,11 @@ public:
         }
 
         YT_LOG_INFO("Dynamic config updated");
+    }
+
+    void OnUdfMetaChanged(TUdfMetaPtr /*udfMeta*/) override
+    {
+        // Not implemented
     }
 
     IMapNodePtr GetOrchidNode() const override
