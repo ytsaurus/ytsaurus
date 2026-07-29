@@ -146,6 +146,7 @@ struct IConnection
     virtual const NJobProberClient::TJobShellDescriptorCachePtr& GetJobShellDescriptorCache() = 0;
 
     virtual const NSecurityClient::TPermissionCachePtr& GetPermissionCache() = 0;
+    virtual const NSecurityClient::TQueryPoolPermissionCachePtr& GetQueryPoolPermissionCache() = 0;
     virtual const NSecurityClient::TUserAttributeCachePtr& GetUserAttributeCache() = 0;
 
     virtual const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() = 0;
