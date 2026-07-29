@@ -16,6 +16,7 @@ SRCS(
     bootstrap.cpp
     config.cpp
     dynamic_config_manager.cpp
+    udf_meta_manager.cpp
     yql_agent.cpp
     yql_service.cpp
     interop.cpp

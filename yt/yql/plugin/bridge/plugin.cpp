@@ -5,6 +5,7 @@
 #include <yt/yql/plugin/plugin.h>
 
 #include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/yt/misc/cast.h>
 
@@ -159,7 +160,8 @@ public:
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) noexcept override
+        int executeMode,
+        NYqlClient::EQueryType queryType) noexcept override
     {
         auto settingsString = settings ? settings.ToString() : "{}";
         auto queryIdStr = ToString(queryId);
@@ -188,7 +190,8 @@ public:
             filesData.size(),
             executeMode,
             credentialsString.data(),
-            credentialsString.length());
+            credentialsString.length(),
+            ToProto(queryType));
         TQueryResult queryResult{
             .YsonResult = ToString(bridgeQueryResult->YsonResult, bridgeQueryResult->YsonResultLength),
             .Plan = ToString(bridgeQueryResult->Plan, bridgeQueryResult->PlanLength),
@@ -312,6 +315,11 @@ public:
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept override
     {
         BridgeOnDynamicConfigChanged(BridgePlugin_, &config);
+    }
+
+    void OnUdfMetaChanged(TUdfMetaPtr /*udfMeta*/) override
+    {
+        // Not implemented
     }
 
     void RegisterQuery(TQueryId queryId) noexcept override

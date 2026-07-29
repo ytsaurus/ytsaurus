@@ -15,6 +15,11 @@ DEFINE_ENUM(EExecuteMode,
     ((Run)         (2))
 );
 
+DEFINE_ENUM(EQueryType,
+    ((Regular)    (0))
+    ((UdfMeta)    (1))
+);
+
 YT_DEFINE_ERROR_ENUM(
     ((RequestThrottled)     (40100))
     ((YqlAgentBanned)       (40101))

@@ -3,6 +3,7 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/library/process/process.h>
 
@@ -112,7 +113,8 @@ TQueryResult TYqlExecutorProcess::Run(
     TString queryText,
     TYsonString settings,
     std::vector<TQueryFile> files,
-    int executeMode)
+    int executeMode,
+    NYqlClient::EQueryType queryType)
 {
     {
         auto guard = Guard(ActiveQueryIdLock_);
@@ -135,6 +137,7 @@ TQueryResult TYqlExecutorProcess::Run(
     }
 
     runQueryReq->set_mode(executeMode);
+    runQueryReq->set_query_type(ToProto(queryType));
 
     auto response = WaitFor(runQueryReq->Invoke());
     if (!response.IsOK()) {
@@ -231,6 +234,11 @@ int TYqlExecutorProcess::DynamicConfigVersion() const
 void TYqlExecutorProcess::OnDynamicConfigChanged(TYqlPluginDynamicConfig /*config*/)
 {
     // do nothing
+}
+
+void TYqlExecutorProcess::OnUdfMetaChanged(TUdfMetaPtr /*udfMeta*/)
+{
+    // Not implemented
 }
 
 void TYqlExecutorProcess::RegisterQuery(TQueryId queryId)

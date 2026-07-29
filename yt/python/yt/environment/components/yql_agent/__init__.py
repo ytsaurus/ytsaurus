@@ -417,6 +417,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             config["yql_agent"]["qtworker_inspector_port"] = self._qtworker_inspector_port
             config["yql_agent"]["qtworker_gateways_config_path"] = os.path.join(self.env.configs_path, "qtworker_gateways.conf")
 
+            config["yql_agent"]["udf_meta_user"] = self.USER_NAME
+
         if process_plugin_config:
             config["yql_agent"]["process_plugin_config"] = process_plugin_config
 

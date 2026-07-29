@@ -45,9 +45,6 @@ const std::string FinishedQueriesByUserAndStartTimeTable = "finished_queries_by_
 const std::string SearchIndexTable = "search_inverted_index";
 const std::string SearchMetaTable = "search_meta";
 
-// Path to access control object namespace for QT.
-const TYPath QueriesAcoNamespacePath = "//sys/access_control_object_namespaces/queries";
-
 // Rows in SearchTable and SearchMetaTable are duplicated:
 // one with the actual engine value, and one with NoEngineFilterString in the 'engine' column.
 // This allows efficient searching both with and without an engine filter.

@@ -1,12 +1,16 @@
 import test_simple
+import test_udfs
 
 from common import TestQueriesYqlBase
-
 from conftest import merge_old_dynconfig_into_new_static
 
-from yt_commands import authors, create, write_file, write_table, raises_yt_error, wait
+from yt.environment.helpers import assert_items_equal
+
+from yt_commands import authors, create, create_user, write_file, write_table, raises_yt_error, wait, update_access_control_object_acl
 
 from google.protobuf.text_format import MessageToString
+
+from dirty_equals import AnyThing
 
 import pytest
 
@@ -290,3 +294,119 @@ class TestCrossClusterQueriesYqlWithQtWorker(test_simple.TestCrossClusterQueries
 @pytest.mark.skip(reason="TODO@mpereskokova")
 class TestOperationOptionsWithQtWorker(test_simple.TestOperationOptions):
     YQL_QTWORKER = True
+
+
+@authors("ziganshinmr")
+class TestUdfsWithQtWorker(test_udfs.TestUdfs):
+    YQL_QTWORKER = True
+
+
+@authors("ziganshinmr")
+class TestPythonUdfWithQtWorker(test_udfs.TestPythonUdf):
+    YQL_QTWORKER = True
+
+
+@authors("ziganshinmr")
+class TestUdfRegistry(TestQueriesYqlBase):
+    YQL_QTWORKER = True
+
+    # Note that UDFs from yql/essentials/udfs/common/
+    # are preloaded as trusted during qtworker startup,
+    # so we are using SimpleUdf which is outside of this path
+    YQL_UDF_REGISTRY = {
+        "simple": {
+            "path": "yql/essentials/udfs/test/simple/libsimple_udf.so",
+            "modules": {
+                "SimpleUdf": {
+                    "functions": [
+                        {
+                            "OptionalArgCount": 0,
+                            "ArgCount": 1,
+                            "MinLangVer": 0,
+                            "SupportsBlocks": False,
+                            "Name": "SimpleUdf.Echo",
+                            "RunConfigType": "[\"VoidType\"]",
+                            "IsTypeAwareness": False,
+                            "IsStrict": False,
+                            "CallableType": "[\"CallableType\";[];[[\"DataType\";\"String\"]];[[[\"OptionalType\";[\"DataType\";\"String\"]]]]]",
+                            "MaxLangVer": 0
+                        }
+                    ]
+                }
+            },
+        },
+    }
+
+    @authors("ziganshinmr")
+    @pytest.mark.timeout(120)
+    def test_udf_registry(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
+        write_table("//tmp/t", [{"a": "a meow"}])
+        query = self.start_query("yql", "select SimpleUdf::Echo(a) as echoed_a from primary.`//tmp/t`")
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"echoed_a": "a meow"}])
+
+    @authors("ziganshinmr")
+    @pytest.mark.timeout(120)
+    def test_udf_meta(self, query_tracker, yql_agent):
+        cluster = yql_agent.yql_agent.env.id
+        addresss = yql_agent.yql_agent.env.get_http_proxy_address()
+
+        with raises_yt_error("Query of type \"UdfMeta\" must not be indexed"):
+            self.start_query(
+                "yql",
+                "",
+                settings={"query_type": "udf_meta"},
+                access_control_objects=["admin"]
+                # Indexed
+            ).track()
+
+        with raises_yt_error("Query of type \"UdfMeta\" is expected to have only \"admin\" access control object set"):
+            self.start_query(
+                "yql",
+                "",
+                settings={"query_type": "udf_meta", "is_indexed": False},
+                # No ACO
+            ).track()
+
+        with raises_yt_error("\"Administer\" permission required to run \"UdfMeta\" queries"):
+            create_user("unprivileged")
+            self.start_query(
+                "yql",
+                "",
+                settings={"query_type": "udf_meta", "is_indexed": False},
+                access_control_objects=["admin"],
+                authenticated_user="unprivileged"
+            ).track()
+
+        create_user("privileged")
+        update_access_control_object_acl("queries", "admin", [
+            {"action": "allow", "subjects": ["privileged"], "permissions": ["administer"], "inheritance_mode": "object_and_descendants"},
+        ])
+
+        query = self.start_query(
+            "yql",
+            "",
+            files=[{"name": "simple", "content": f"yt://{cluster}//sys/yql_agent/udfs/libsimple_udf.so", "type": "url"}],
+            settings={"query_type": "udf_meta", "is_indexed": False},
+            access_control_objects=["admin"],
+            authenticated_user="privileged"
+        )
+        query.track()
+        result = query.read_result(0)
+
+        assert len(result) == 1
+        udf_meta = result[0].get("result")
+        assert udf_meta == [
+            {
+                "Imports": [
+                    {
+                        "CustomUdfPrefix": "",
+                        "Modules": ["SimpleUdf"],
+                        "FileAlias": f"yt://{addresss}//sys/yql_agent/udfs/libsimple_udf.so",
+                    }
+                ],
+                "Udfs": AnyThing(),
+            }
+        ]

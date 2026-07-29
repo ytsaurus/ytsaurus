@@ -167,7 +167,8 @@ using TFuncBridgeRun = TBridgeQueryResult*(
     int fileCount,
     int executeMode,
     const char* credentials,
-    int credentialsLength);
+    int credentialsLength,
+    int queryType);
 using TFuncBridgeGetUsedClusters = TBridgeClustersResult*(
     TBridgeYqlPlugin* plugin,
     const char* queryId,

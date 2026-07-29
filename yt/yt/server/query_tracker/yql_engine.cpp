@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "handler_base.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 
@@ -33,6 +34,7 @@ using namespace NYqlClient;
 using namespace NYqlClient::NProto;
 using namespace NYson;
 using namespace NConcurrency;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +54,7 @@ struct TYqlSettings
 {
     std::optional<std::string> Stage;
     EExecuteMode ExecuteMode;
+    EQueryType QueryType;
 
     REGISTER_YSON_STRUCT(TYqlSettings);
 
@@ -61,6 +64,8 @@ struct TYqlSettings
             .Optional();
         registrar.Parameter("execution_mode", &TThis::ExecuteMode)
             .Default(EExecuteMode::Run);
+        registrar.Parameter("query_type", &TThis::QueryType)
+            .Default(EQueryType::Regular);
     }
 };
 
@@ -97,6 +102,7 @@ public:
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
         , Stage_(Settings_->Stage.value_or(Config_->Stage))
         , ExecuteMode_(Settings_->ExecuteMode)
+        , QueryType_(Settings_->QueryType)
         , Secrets_(MakeSecrets(activeQuery.Secrets))
         , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
     { }
@@ -108,6 +114,28 @@ public:
 
     void Start() override
     {
+        if (QueryType_ != EQueryType::Regular) {
+            if (IsIndexed_) {
+                THROW_ERROR_EXCEPTION("Query of type %Qv must not be indexed", QueryType_);
+            }
+
+            auto accessControlObjectList = ConvertTo<std::optional<std::vector<std::string>>>(AccessControlObjects_);
+            if (!accessControlObjectList || accessControlObjectList->size() != 1 || (*accessControlObjectList)[0] != AdminAccessControlObjectName) {
+                THROW_ERROR_EXCEPTION("Query of type %Qv is expected to have only %Qv access control object set",
+                    QueryType_,
+                    AdminAccessControlObjectName);
+            }
+
+            if (CheckAccessControl(User_, AccessControlObjects_, StateClient_, EPermission::Administer) == ESecurityAction::Deny) {
+                THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AuthorizationError,
+                    "%Qv permission required to run %Qv queries",
+                    EPermission::Administer,
+                    QueryType_)
+                    << TErrorAttribute("user", User_)
+                    << TErrorAttribute("access_control_objects", AccessControlObjects_);
+            }
+        }
+
         auto providerInfo = Connection_->GetYqlAgentChannelProviderOrThrow(Stage_);
         YqlAgentChannelProvider_ = providerInfo.first;
         YqlAgentChannelProviderConfig_ = providerInfo.second;
@@ -151,6 +179,7 @@ private:
     const TYqlSettingsPtr Settings_;
     const std::string Stage_;
     const EExecuteMode ExecuteMode_;
+    const EQueryType QueryType_;
     const IInvokerPtr ProgressInvoker_;
     const std::vector<TQuerySecretPtr> Secrets_;
 
@@ -184,6 +213,7 @@ private:
         yqlRequest->set_query(Query_);
         yqlRequest->set_settings(ToProto(ConvertToYsonString(SettingsNode_)));
         yqlRequest->set_mode(ToProto(ExecuteMode_));
+        yqlRequest->set_query_type(ToProto(QueryType_));
 
         for (const auto& file : Files_) {
             auto* protoFile = yqlRequest->add_files();

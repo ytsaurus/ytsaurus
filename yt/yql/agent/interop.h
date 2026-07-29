@@ -63,6 +63,8 @@ std::vector<TWireYqlRowset> BuildRowsets(
     const TString& yqlYsonResults,
     i64 rowCountLimit);
 
+TWireYqlRowset BuildRawYsonResultRowset(const TString& yqlYsonResults);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYqlAgent

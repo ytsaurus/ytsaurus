@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/yql_client/public.h>
 
 #include <yt/yt/core/ytree/public.h>
+#include <yt/yt/ytlib/yql_client/public.h>
 
 #include <library/cpp/logger/log.h>
 
@@ -131,13 +132,16 @@ struct IYqlPlugin
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) = 0;
+        int executeMode,
+        NYqlClient::EQueryType queryType) = 0;
 
     virtual TQueryResult GetProgress(TQueryId queryId) = 0;
 
     virtual TAbortResult Abort(TQueryId queryId) = 0;
 
     virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) = 0;
+
+    virtual void OnUdfMetaChanged(TUdfMetaPtr udfMeta) = 0;
 
     virtual TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,

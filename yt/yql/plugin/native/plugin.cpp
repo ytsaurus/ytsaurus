@@ -632,8 +632,16 @@ public:
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode)
+        int executeMode,
+        NYqlClient::EQueryType queryType)
     {
+        if (queryType != NYqlClient::EQueryType::Regular) {
+            return TQueryResult{
+                .YsonError = MessageToYtErrorYson(
+                    Format("Unsupported query type: %v", queryType)),
+            };
+        }
+
         auto dynamicConfig = DynamicConfig_.Acquire();
         auto factory = CreateProgramFactory(queryId, *dynamicConfig);
         factory->SetUrlListerManager(MakeUrlListerManager({MakeYtUrlLister()}));
@@ -862,7 +870,8 @@ public:
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) noexcept override
+        int executeMode,
+        NYqlClient::EQueryType queryType) noexcept override
     {
         TQueryResult result;
 
@@ -878,7 +887,7 @@ public:
                 });
 
                 try {
-                    result = GuardedRun(queryId, user, credentials, queryText, settings, files, executeMode);
+                    result = GuardedRun(queryId, user, credentials, queryText, settings, files, executeMode, queryType);
                 } catch (const std::exception& ex) {
                     YQL_LOG(DEBUG) << "Query " << ToString(queryId) << " finished with errors";
                     result = TQueryResult{
@@ -1055,6 +1064,11 @@ public:
             }
         }
         YQL_LOG(INFO) << "Dynamic config update finished";
+    }
+
+    void OnUdfMetaChanged(TUdfMetaPtr /*udfMeta*/) override
+    {
+        // Not implemented
     }
 
     void RegisterQuery(TQueryId queryId) noexcept override

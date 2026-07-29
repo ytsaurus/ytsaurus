@@ -1,6 +1,8 @@
 #include <yt/yql/plugin/bridge/interface.h>
 #include <yt/yql/plugin/native/plugin.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <type_traits>
 
 using namespace NYT::NYqlPlugin;
@@ -160,7 +162,8 @@ TBridgeQueryResult* BridgeRun(
     int bridgeFileCount,
     int executeMode,
     const char* credentials,
-    int credentialsLength)
+    int credentialsLength,
+    int queryType)
 {
     static const auto EmptyMap = TYsonString(TString("{}"));
 
@@ -184,7 +187,8 @@ TBridgeQueryResult* BridgeRun(
         TString(queryText),
         settings ? TYsonString(TString(settings, settingsLength)) : EmptyMap,
         files,
-        executeMode);
+        executeMode,
+        NYT::FromProto<NYT::NYqlClient::EQueryType>(queryType));
     FOR_EACH_QUERY_RESULT_STRING_FIELD(FILL_STRING_FIELD);
 
     return bridgeResult;

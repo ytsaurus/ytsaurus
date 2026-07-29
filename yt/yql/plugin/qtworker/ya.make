@@ -24,6 +24,7 @@ PEERDIR(
     yql/essentials/parser/pg_wrapper
     yql/essentials/utils/log
     yql/tools/yqlworker/interface/msgbus
+    yql/tools/yqlworker/proto
 )
 
 YQL_LAST_ABI_VERSION()

@@ -18,6 +18,7 @@ DECLARE_REFCOUNTED_STRUCT(TYqlAgentServerConfig)
 DECLARE_REFCOUNTED_STRUCT(TYqlAgentServerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TYqlRef)
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
+DECLARE_REFCOUNTED_CLASS(TUdfMetaManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

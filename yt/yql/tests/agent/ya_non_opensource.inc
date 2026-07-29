@@ -1,4 +1,6 @@
 PEERDIR(
+    contrib/python/dirty-equals
+
     kikimr/public/sdk/python/ydb_v3_new_behavior
 
     library/python/ydb/federated_topic_client

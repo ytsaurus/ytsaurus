@@ -64,9 +64,6 @@ namespace NDetail {
 
 constexpr int MaxAccessControlObjectsPerQuery = 10;
 
-// Path to access control object namespace for QT.
-const NYPath::TYPath QueriesAcoNamespacePath = "//sys/access_control_object_namespaces/queries";
-
 static const TYsonString EmptyMap = TYsonString(TString("{}"));
 static const std::string CompressedEmptyMap = Compress(EmptyMap.ToString(), MaxDyntableStringSize);
 
@@ -114,7 +111,7 @@ TFuture<typename TRecordDescriptor::TRecordPartial> LookupQueryTrackerRecord(
     return asyncRecord;
 };
 
-ESecurityAction CheckAccessControl(
+ESecurityAction CheckQueryAccessControl(
     const std::string& user,
     const std::optional<TYsonString>& accessControlObjects,
     const std::string& queryAuthor,
@@ -125,35 +122,7 @@ ESecurityAction CheckAccessControl(
         return ESecurityAction::Allow;
     }
 
-    auto userSubjects = GetUserSubjects(user, client);
-    if (userSubjects.contains(NSecurityClient::SuperusersGroupName)) {
-        return NSecurityClient::ESecurityAction::Allow;
-    }
-
-    auto accessControlObjectList = ConvertTo<std::optional<std::vector<std::string>>>(accessControlObjects);
-    if (!accessControlObjectList) {
-        return NSecurityClient::ESecurityAction::Deny;
-    }
-
-    TCheckPermissionOptions checkPermissionOptions;
-    checkPermissionOptions.ReadFrom = EMasterChannelKind::Cache;
-    checkPermissionOptions.SuccessStalenessBound = TDuration::Minutes(1);
-    for (const auto& accessControlObject : *accessControlObjectList) {
-        auto path = Format(
-            "%v/%v/principal",
-            QueriesAcoNamespacePath,
-            NYPath::ToYPathLiteral(accessControlObject));
-
-        auto securityAction = WaitFor(client->CheckPermission(user, path, permission, checkPermissionOptions))
-            .ValueOrThrow()
-            .Action;
-
-        if (securityAction == NSecurityClient::ESecurityAction::Allow) {
-            return NSecurityClient::ESecurityAction::Allow;
-        }
-    }
-
-    return NSecurityClient::ESecurityAction::Deny;
+    return CheckAccessControl(user, accessControlObjects, client, permission);
 }
 
 void ThrowAccessDeniedException(
@@ -235,7 +204,7 @@ void ValidateQueryPermissions(
         "access_control_objects",
     };
     auto query = LookupQuery(queryId, client, root, lookupKeys, timestamp, logger);
-    if (CheckAccessControl(user, query.AccessControlObjects, *query.User, client, permission) == ESecurityAction::Deny) {
+    if (CheckQueryAccessControl(user, query.AccessControlObjects, *query.User, client, permission) == ESecurityAction::Deny) {
         ThrowAccessDeniedException(queryId, permission, user, query.AccessControlObjects, *query.User);
     }
 }

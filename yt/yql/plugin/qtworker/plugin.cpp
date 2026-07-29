@@ -7,8 +7,11 @@
 #include <yt/yql/plugin/lib/error_helpers.h>
 #include <yt/yql/plugin/lib/progress_merger.h>
 
+#include <yt/yql/plugin/udf_meta.h>
+
 #include <yql/tools/yqlworker/interface/msgbus/worker_api_msgbus.h>
 #include <yql/tools/yqlworker/interface/proto/task.pb.h>
+#include <yql/tools/yqlworker/proto/function_registry.pb.h>
 
 #include <yql/essentials/providers/common/proto/gateways_config.pb.h>
 #include <yql/essentials/public/issue/yql_issue.h>
@@ -27,6 +30,7 @@
 #include <util/stream/str.h>
 
 #include <library/cpp/yson/node/node_io.h>
+#include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NYqlPlugin {
 
@@ -182,7 +186,8 @@ public:
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) noexcept override
+        int executeMode,
+        NYqlClient::EQueryType queryType) noexcept override
     {
         if (!WorkerApi_ || !WorkerApi_->IsHealthy()) {
             return TQueryResult{
@@ -196,13 +201,14 @@ public:
 
             NYql::NProto::TTaskData data;
             data.SetId(ToString(queryId));
-            data.SetSyntax(NYql::NProto::ESyntax::SQLv1);
+            data.SetSyntax((queryType == NYqlClient::EQueryType::UdfMeta) ? NYql::NProto::ESyntax::UDF_META : NYql::NProto::ESyntax::SQLv1);
             data.SetProgram(queryText);
             data.SetUsername(user);
             data.SetResultFormat(NYql::NProto::EDataFormat::YSON_TEXT);
             data.SetAttributes(settings.ToString());
             data.SetAuthData(SerializeCredentials(credentials));
             data.SetIsSystemRequest(false);
+            data.SetFunctionRegistryData(FunctionRegistryData_.Load());
 
             std::optional<NYql::TGatewaysConfig> gatewaysConfig;
             {
@@ -339,6 +345,52 @@ public:
         }
     }
 
+    void OnUdfMetaChanged(TUdfMetaPtr udfMeta) override
+    {
+        TProtobufWriterOptions protobufWriterOptions;
+        protobufWriterOptions.UnknownYsonFieldModeResolver =
+            TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(EUnknownYsonFieldsMode::Skip);
+
+        NYql::NProto::TFunctionRegistryData functionRegistryData;
+        for (const auto& [packageName, packageMeta] : udfMeta->Udfs) {
+            auto* package = functionRegistryData.add_packages();
+            package->set_name(packageName);
+            package->set_defaultversion(0);
+
+            auto* resource = package->add_resources();
+            resource->set_url(packageMeta->Alias);
+            resource->set_version(0);
+            resource->set_istrusted(false);
+
+            for (const auto& [moduleName, moduleMeta] : packageMeta->Modules) {
+                auto* module = resource->add_modules();
+                module->set_name(moduleName);
+
+                for (const auto& functionNode : moduleMeta->Functions->GetChildren()) {
+                    // TODO: switch proto fields to optional with default value somehow
+                    auto functionMap = CloneNode(functionNode)->AsMap();
+                    if (!functionMap->FindChild("ArgCount")) {
+                        functionMap->AddChild("ArgCount", NYTree::ConvertToNode(0u));
+                    }
+                    if (!functionMap->FindChild("OptionalArgCount")) {
+                        functionMap->AddChild("OptionalArgCount", NYTree::ConvertToNode(0u));
+                    }
+
+                    module->add_functions()->ParseFromStringOrThrow(YsonStringToProto(
+                        ConvertToYsonString(functionMap),
+                        ReflectProtobufMessageType<NYql::NProto::TFunction>(),
+                        protobufWriterOptions));
+                }
+            }
+        }
+
+        TString textProto;
+        YT_VERIFY(::google::protobuf::TextFormat::PrintToString(functionRegistryData, &textProto));
+        FunctionRegistryData_.Store(std::move(textProto));
+
+        YQL_LOG(INFO) << Format("Udf meta updated (packages count: %v)", functionRegistryData.packages_size());
+    }
+
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId /*queryId*/,
         TString /*user*/,
@@ -368,6 +420,8 @@ private:
 
     TMutex FlavorConfigsLock_;
     THashMap<TString, NYql::TGatewaysConfig> GatewaysConfigSnapshotByFlavor_;
+
+    NThreading::TAtomicObject<TString> FunctionRegistryData_;
 
     TString SerializeCredentials(const TYsonString& credentials)
     {
