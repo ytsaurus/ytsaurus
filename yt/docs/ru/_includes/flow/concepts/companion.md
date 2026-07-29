@@ -78,6 +78,44 @@ Computation на стороне Worker-a собирает батч сообще�
 
 Ключевое в данном примере – использование ресурса `CompanionManager` для запуска процесса-компаньона и специализированный класс Computation-a `NYT::NFlow::NCompanion::TTransformCompanionComputation`.
 
+### C++ компаньон {#cpp-companion}
+
+Пользовательский C++ код тоже можно вынести из воркера в отдельный процесс. SDK находится в `yt/yt/flow/library/cpp/companion/server`: пользователь объявляет обслуживаемые Computation-ы в `TPipeline`, указывая тип process function (типизированное объявление заменяет `YT_FLOW_DEFINE_PROCESS_FUNCTION`), и собирает отдельный бинарник с точкой входа `RunCompanionMain`:
+
+```cpp
+int main(int argc, const char** argv)
+{
+    NYT::NFlow::NCompanionServer::TPipeline pipeline;
+    pipeline.AddSource<TMyReadFunction, TMyReadParameters>("reader");
+    pipeline.AddTransform<TMyMapFunction>("mapper");
+    return NYT::NFlow::NCompanionServer::RunCompanionMain(argc, argv, std::move(pipeline));
+}
+```
+
+Функция выбирается по имени из поля `processing_function` спеки Computation-а — так же, как во внутрипроцессных адаптерах `TProcessFunctionComputation`. Воркер запускает бинарник через универсальный ресурс `TCompanionManager`:
+
+```yson
+"CompanionManager" = {
+    "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+    "parameters" = {
+        "run_process" = %true;
+        "entrypoint" = {
+            "executable" = "/path/to/my_companion";
+        };
+    };
+};
+```
+
+Ограничения первой версии C++ компаньона:
+
+- не поддерживаются sync process function-ы (у протокола компаньона нет фазы Sync);
+- недоступны статические [ресурсы](../../../flow/concepts/glossary.md#resource), распределённые троттлеры и timestamp эпохи (`GetCurrentTimestamp`);
+- внешние стейты поддерживаются только в виде `TSimpleExternalState`;
+- таймеры на выходе могут указывать только ключ одной из родительских сущностей батча;
+- компаньон работает одним многопоточным процессом (`companion_process_count` — 0 или 1).
+
+Пример: `yt/yt/flow/examples/cpp/companion_word_count`.
+
 ### Виды Computation-ов для работы с компаньонами
 
 - `NYT::NFlow::NCompanion::TSwiftMapCompanionComputation`: Реализация [TSwiftMapComputation](../../../flow/concepts/computation.md#tswiftmapcomputation) делегирующая обработку данных процессу-компаньону.

@@ -10,6 +10,7 @@
 #include <yt/yt/flow/library/cpp/common/public.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <util/system/type_name.h>
 
@@ -155,8 +156,13 @@ void TRegistry::RegisterComputation()
 template <class TFunction, class TStaticParameters, class TDynamicParameters>
 void TRegistry::RegisterProcessFunction()
 {
-    EmplaceDescriptorOrCrash<TFunction>(
-        TypeNameToProcessFunctionDescriptor_,
+    // Unlike the other Register* methods, this one can be reached at runtime
+    // (via the companion TPipeline typed API), where a duplicate — the same
+    // function declared with different parameter types, or a typed declaration
+    // clashing with a linked YT_FLOW_DEFINE_PROCESS_FUNCTION — must surface as
+    // a catchable error rather than a crash.
+    auto [it, success] = TypeNameToProcessFunctionDescriptor_.try_emplace(
+        TypeName<TFunction>(),
         TProcessFunctionDescriptor{
             .Factory = [] {
                 return IProcessFunctionBasePtr(New<TFunction>());
@@ -176,6 +182,9 @@ void TRegistry::RegisterProcessFunction()
             },
             .OverridesSync = std::is_base_of_v<ISyncProcessFunction, TFunction>,
         });
+    THROW_ERROR_EXCEPTION_UNLESS(success,
+        "Process function %Qv is already registered",
+        TypeName<TFunction>());
 }
 
 template <class T>

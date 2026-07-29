@@ -1,5 +1,6 @@
 #include "companion_client_detail.h"
 #include "companion_model.h"
+#include "state_codec.h"
 
 #include "private.h"
 
@@ -82,53 +83,19 @@ void AddStatesToRequest(
     const THashMap<std::string, TStateHolder<TStatePayload>>& States)
 {
     for (const auto& [stateName, state] : States) {
-        auto addStatePtr = mutableStates->Add();
-        addStatePtr->set_name(ToProto<TProtobufString>(stateName));
-        if (state.Schema) {
-            addStatePtr->set_schema(ToProto(NYson::ConvertToYsonString(state.Schema)));
-        }
-        for (const auto& stateItem : state.StateItems) {
-            auto addStateItemPtr = addStatePtr->add_stateitems();
-            ToProto(addStateItemPtr->mutable_key(), stateItem.Key);
-            addStateItemPtr->set_state(ToProto<TProtobufString>(stateItem.State));
-            addStateItemPtr->set_reset(false);
-        }
+        SerializeStateHolder(mutableStates->Add(), state, EStateDirection::Request);
     }
 }
 
-template <typename TProtoStatePayload, typename TStatePayload, typename TStatesPtr>
+template <typename TStatePayload, typename TStatesPtr>
 void ExtractStatesFromRequest(
     std::vector<TStateHolder<TStatePayload>>& states,
     const TStatesPtr& protoStates)
 {
     for (const auto& protoState : protoStates) {
-        auto stateName = FromProto<TProtobufString>(protoState.name());
-        std::vector<TStateItem<TStatePayload>> stateItems;
-        for (const auto& protoStateItem : protoState.stateitems()) {
-            auto stateItem = TStateItem<TStatePayload>{
-                .Key = FromProto<TKey>(protoStateItem.key()),
-                .Reset = protoStateItem.reset(),
-                .State = FromProto<TProtoStatePayload>(protoStateItem.state()),
-            };
-            // Validate for empty state.
-            constexpr auto isEmpty = [] (auto& state) {
-                if constexpr (requires { !state; }) {
-                    return !state;
-                } else {
-                    return state.empty();
-                }
-            };
-            if (!stateItem.Reset && isEmpty(stateItem.State)) {
-                THROW_ERROR_EXCEPTION("Empty state value for non-reset state response")
-                    << TErrorAttribute("state_name", stateName)
-                    << TErrorAttribute("key", stateItem.Key);
-            }
-            stateItems.push_back(std::move(stateItem));
-        }
-        states.push_back({
-            .StateName = std::move(stateName),
-            .StateItems = std::move(stateItems),
-        });
+        states.push_back(ParseStateHolder<TStatePayload>(
+            protoState,
+            EStateDirection::Response));
     }
 }
 
@@ -316,11 +283,11 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
     }
 
     // Internal states.
-    ExtractStatesFromRequest<TProtobufString>(companionResponse->InternalStates, response->data().internal_states());
+    ExtractStatesFromRequest(companionResponse->InternalStates, response->data().internal_states());
     YT_TLOG_DEBUG("Received internal states")
         .With("Size", companionResponse->InternalStates.size());
     // External states.
-    ExtractStatesFromRequest<TPayload>(companionResponse->ExternalStates, response->data().external_states());
+    ExtractStatesFromRequest(companionResponse->ExternalStates, response->data().external_states());
     YT_TLOG_DEBUG("Received external states")
         .With("Size", companionResponse->ExternalStates.size());
 

@@ -1,0 +1,306 @@
+#include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yt/flow/library/cpp/companion/server/runtime_init_context.h>
+#include <yt/yt/flow/library/cpp/companion/server/state_store.h>
+
+#include <yt/yt/flow/library/cpp/common/key.h>
+
+#include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
+namespace NYT::NFlow::NCompanionServer {
+namespace {
+
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompanionStateStorePtr MakeStore()
+{
+    return New<TCompanionStateStore>(
+        THashSet<std::string>{"counter"},
+        THashSet<std::string>{"profile"},
+        THashSet<std::string>{"joined"},
+        NTesting::DefaultTestKeySchema());
+}
+
+std::string YsonBytes(i64 value)
+{
+    return std::string(NYson::ConvertToYsonString(value).ToString());
+}
+
+//! Batch input whose only purpose is to bring the given keys into the batch key set.
+TBatchInput MakeBatchInputWithKeys(const std::vector<ui64>& keyValues)
+{
+    TBatchInput input;
+    auto schema = NTesting::DefaultTestKeySchema();
+    for (auto keyValue : keyValues) {
+        input.Messages.push_back(NTesting::MakeTestMessage(
+            TStreamId("input"),
+            MakeKey(keyValue),
+            schema,
+            [&] (TMessageBuilder& builder) {
+                builder.Payload().Set(keyValue, "key");
+            }));
+    }
+    return input;
+}
+
+TEST(TCompanionStateStoreTest, InternalStateLifecycle)
+{
+    auto store = MakeStore();
+    auto provider = store->RegisterInternalState(
+        "counter",
+        &New<TYsonSerializableStateHolder<i64>>);
+    TMutableStateKeyClient<i64> client(provider);
+
+    auto key1 = MakeKey(ui64{1});
+    auto key2 = MakeKey(ui64{2});
+    auto key3 = MakeKey(ui64{3});
+
+    auto input = MakeBatchInputWithKeys({1, 3});
+    auto& holder = input.InternalStates["counter"];
+    holder.StateName = "counter";
+    holder.StateItems.push_back({.Key = key1, .Reset = false, .State = YsonBytes(5)});
+    holder.StateItems.push_back({.Key = key2, .Reset = false, .State = YsonBytes(7)});
+    store->LoadBatch(input);
+
+    // Incoming state deserializes into the typed holder.
+    EXPECT_EQ(*client.GetState(key1), 5);
+
+    // Modify key1; leave key2 untouched; create key3.
+    *client.GetState(key1) = 6;
+    *client.GetState(key3) = 100;
+
+    std::vector<NCompanion::TStateHolder<std::string>> internalStates;
+    std::vector<NCompanion::TStateHolder<TPayload>> externalStates;
+    store->CollectModified(&internalStates, &externalStates);
+
+    ASSERT_EQ(std::ssize(internalStates), 1);
+    THashMap<TKey, std::string> modified;
+    for (const auto& item : internalStates[0].StateItems) {
+        EXPECT_FALSE(item.Reset);
+        modified[item.Key] = item.State;
+    }
+    EXPECT_EQ(
+        modified,
+        (THashMap<TKey, std::string>{{key1, YsonBytes(6)}, {key3, YsonBytes(100)}}));
+}
+
+TEST(TCompanionStateStoreTest, InternalStateResetAndUnchanged)
+{
+    auto store = MakeStore();
+    auto provider = store->RegisterInternalState(
+        "counter",
+        &New<TYsonSerializableStateHolder<i64>>);
+    TMutableStateKeyClient<i64> client(provider);
+
+    auto key1 = MakeKey(ui64{1});
+    auto key2 = MakeKey(ui64{2});
+
+    auto input = MakeBatchInputWithKeys({1, 2});
+    auto& holder = input.InternalStates["counter"];
+    holder.StateName = "counter";
+    holder.StateItems.push_back({.Key = key1, .Reset = false, .State = YsonBytes(5)});
+    holder.StateItems.push_back({.Key = key2, .Reset = false, .State = YsonBytes(7)});
+    store->LoadBatch(input);
+
+    // Reading without writing does not mark the state modified.
+    EXPECT_EQ(*client.GetState(key2), 7);
+    // Clearing an existing state produces a reset item.
+    client.GetState(key1).Clear();
+
+    std::vector<NCompanion::TStateHolder<std::string>> internalStates;
+    std::vector<NCompanion::TStateHolder<TPayload>> externalStates;
+    store->CollectModified(&internalStates, &externalStates);
+
+    ASSERT_EQ(std::ssize(internalStates), 1);
+    ASSERT_EQ(std::ssize(internalStates[0].StateItems), 1);
+    EXPECT_EQ(internalStates[0].StateItems[0].Key, key1);
+    EXPECT_TRUE(internalStates[0].StateItems[0].Reset);
+}
+
+TEST(TCompanionStateStoreTest, UndeclaredStateThrows)
+{
+    auto store = MakeStore();
+    EXPECT_THROW_WITH_SUBSTRING(
+        store->RegisterInternalState("unknown", &New<TYsonSerializableStateHolder<i64>>),
+        "not declared");
+    EXPECT_THROW_WITH_SUBSTRING(
+        store->GetExternalStateManager("unknown"),
+        "not declared");
+    EXPECT_THROW_WITH_SUBSTRING(
+        store->GetExternalStateJoiner("unknown"),
+        "not declared");
+}
+
+TEST(TCompanionStateStoreTest, ConflictingCanonicalNamesThrow)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(New<TCompanionStateStore>(
+            THashSet<std::string>{"counter", "/counter"},
+            THashSet<std::string>{},
+            THashSet<std::string>{},
+            NTesting::DefaultTestKeySchema())),
+        "canonicalize to the same name");
+}
+
+TEST(TCompanionStateStoreTest, WriteOutsideBatchKeysThrows)
+{
+    auto store = MakeStore();
+    auto provider = store->RegisterInternalState(
+        "counter",
+        &New<TYsonSerializableStateHolder<i64>>);
+    TMutableStateKeyClient<i64> client(provider);
+
+    store->LoadBatch(MakeBatchInputWithKeys({1}));
+    *client.GetState(MakeKey(ui64{99})) = 1;
+
+    std::vector<NCompanion::TStateHolder<std::string>> internalStates;
+    std::vector<NCompanion::TStateHolder<TPayload>> externalStates;
+    EXPECT_THROW_WITH_SUBSTRING(
+        store->CollectModified(&internalStates, &externalStates),
+        "outside the current batch");
+}
+
+TEST(TCompanionStateStoreTest, ExternalStateLifecycle)
+{
+    auto store = MakeStore();
+    auto manager = store->GetExternalStateManager("profile");
+    TMutableStateKeyClient<TSimpleExternalState> client(manager);
+
+    auto stateSchema = NTesting::DefaultTestKeySchema();
+    auto key1 = MakeKey(ui64{1});
+    auto key2 = MakeKey(ui64{2});
+
+    TPayloadBuilder builder(stateSchema);
+    builder.Set(ui64{5}, "key");
+    auto payload = builder.Finish();
+
+    auto input = MakeBatchInputWithKeys({1, 2});
+    auto& holder = input.ExternalStates["profile"];
+    holder.StateName = "profile";
+    holder.Schema = stateSchema;
+    holder.StateItems.push_back({.Key = key1, .Reset = false, .State = payload});
+    store->LoadBatch(input);
+
+    // Incoming payload is visible.
+    EXPECT_EQ(client.GetState(key1)->template GetColumnValue<ui64>("key"), ui64{5});
+
+    // Overwrite key1, create key2.
+    {
+        TPayloadBuilder update(stateSchema);
+        update.Set(ui64{6}, "key");
+        client.GetState(key1)->Payload = update.Finish();
+    }
+    {
+        TPayloadBuilder update(stateSchema);
+        update.Set(ui64{7}, "key");
+        client.GetState(key2)->Payload = update.Finish();
+    }
+
+    std::vector<NCompanion::TStateHolder<std::string>> internalStates;
+    std::vector<NCompanion::TStateHolder<TPayload>> externalStates;
+    store->CollectModified(&internalStates, &externalStates);
+
+    ASSERT_EQ(std::ssize(externalStates), 1);
+    EXPECT_EQ(externalStates[0].StateName, "profile");
+    ASSERT_TRUE(externalStates[0].Schema);
+    THashMap<TKey, ui64> modified;
+    for (const auto& item : externalStates[0].StateItems) {
+        EXPECT_FALSE(item.Reset);
+        modified[item.Key] = GetColumnValue<ui64>(item.State, 0);
+    }
+    EXPECT_EQ(modified, (THashMap<TKey, ui64>{{key1, 6}, {key2, 7}}));
+}
+
+TEST(TCompanionStateStoreTest, ExternalStateResetAndUnchanged)
+{
+    auto store = MakeStore();
+    auto manager = store->GetExternalStateManager("profile");
+    TMutableStateKeyClient<TSimpleExternalState> client(manager);
+
+    auto stateSchema = NTesting::DefaultTestKeySchema();
+    auto key1 = MakeKey(ui64{1});
+    auto key2 = MakeKey(ui64{2});
+
+    TPayloadBuilder builder(stateSchema);
+    builder.Set(ui64{5}, "key");
+    auto payload = builder.Finish();
+
+    auto input = MakeBatchInputWithKeys({1, 2});
+    auto& holder = input.ExternalStates["profile"];
+    holder.StateName = "profile";
+    holder.Schema = stateSchema;
+    holder.StateItems.push_back({.Key = key1, .Reset = false, .State = payload});
+    holder.StateItems.push_back({.Key = key2, .Reset = false, .State = payload});
+    store->LoadBatch(input);
+
+    // Reading without writing does not mark the state modified.
+    EXPECT_EQ(client.GetState(key2)->template GetColumnValue<ui64>("key"), ui64{5});
+    // Clearing an existing state produces a reset item, which is what makes
+    // the worker delete the row.
+    client.GetState(key1)->Clear();
+
+    std::vector<NCompanion::TStateHolder<std::string>> internalStates;
+    std::vector<NCompanion::TStateHolder<TPayload>> externalStates;
+    store->CollectModified(&internalStates, &externalStates);
+
+    ASSERT_EQ(std::ssize(externalStates), 1);
+    ASSERT_EQ(std::ssize(externalStates[0].StateItems), 1);
+    EXPECT_EQ(externalStates[0].StateItems[0].Key, key1);
+    EXPECT_TRUE(externalStates[0].StateItems[0].Reset);
+}
+
+TEST(TCompanionStateStoreTest, JoinedStateReadOnly)
+{
+    auto store = MakeStore();
+    auto joiner = store->GetExternalStateJoiner("joined");
+    TJoinedStateKeyClient<TSimpleExternalState> client(joiner);
+
+    auto stateSchema = NTesting::DefaultTestKeySchema();
+    auto key1 = MakeKey(ui64{1});
+
+    TPayloadBuilder builder(stateSchema);
+    builder.Set(ui64{42}, "key");
+
+    auto input = MakeBatchInputWithKeys({1});
+    auto& holder = input.JoinedExternalStates["joined"];
+    holder.StateName = "joined";
+    holder.Schema = stateSchema;
+    holder.StateItems.push_back({.Key = key1, .Reset = false, .State = builder.Finish()});
+    store->LoadBatch(input);
+
+    auto seeded = client.GetState(key1);
+    ASSERT_TRUE(seeded.IsInitialized());
+    EXPECT_EQ(seeded->template GetColumnValue<ui64>("key"), ui64{42});
+
+    // A key the batch carried no joined state for is an uninitialized accessor.
+    EXPECT_FALSE(client.GetState(MakeKey(ui64{2})).IsInitialized());
+}
+
+TEST(TCompanionRuntimeInitContextTest, PrefixAndParameters)
+{
+    auto store = MakeStore();
+    auto parameters = ConvertTo<IMapNodePtr>(NYson::TYsonString(TStringBuf("{answer=42}")));
+    auto initContext = New<TCompanionRuntimeInitContext>(store, parameters);
+
+    EXPECT_EQ(initContext->GetParametersNode()->GetChildOrThrow("answer")->AsInt64()->GetValue(), 42);
+
+    TMutableStateKeyClient<i64> client;
+    initContext->InitClient(client, "counter");
+    EXPECT_TRUE(client.IsInitialized());
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(initContext->GetStaticResource(TResourceId("some_resource"))),
+        "not available in a companion process");
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(initContext->AsPartition()),
+        "not available in a companion process");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT::NFlow::NCompanionServer
