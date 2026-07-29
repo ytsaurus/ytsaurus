@@ -70,7 +70,7 @@ func (r *reader) readValue() (v Value, err error) {
 
 // UnmarshalRowset decodes rowset from YT wire format.
 //
-// Returned values of type Bytes and Any point directly into the input buffer.
+// Returned values of type Bytes, Any, and Composite point directly into the input buffer.
 func UnmarshalRowset(b []byte) (rows []Row, err error) {
 	r := reader{buf: b}
 
