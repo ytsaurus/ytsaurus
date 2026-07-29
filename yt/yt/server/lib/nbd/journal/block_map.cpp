@@ -162,7 +162,7 @@ public:
     //! flip to CoWActive, scan the slots lock-free, and let concurrent writers stash the pre-snapshot
     //! value of each block they first touch. The scan may catch post-flip values; a cleanup pass then
     //! restores the stashed originals, yielding the map exactly as of the flip.
-    TBlockMapSnapshot TakeSnapshot(std::function<void(int)> onScanned) override
+    TBlockMapSnapshot TakeSnapshot(const std::function<void(int)>& onScanned) override
     {
         // Arm copy-on-write. Only one snapshot at a time (the CoW bit and CoWBlocks_ are single-writer).
         {
