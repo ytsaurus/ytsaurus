@@ -346,6 +346,9 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("validate_sequoia_replicas", &TThis::ValidateSequoiaReplicas)
         .Default(false)
         .DontSerializeDefault();
+    registrar.Parameter("validate_master_replicas", &TThis::ValidateMasterReplicas)
+        .Default(true)
+        .DontSerializeDefault();
     registrar.Parameter("ignore_replicas_with_changed_state_during_validation", &TThis::IgnoreReplicasWithChangedStateDuringValidation)
         .Default(true);
     registrar.Parameter("enable_chunk_replicas_throttling_in_heartbeats", &TThis::EnableChunkReplicasThrottlingInHeartbeats)
