@@ -3,12 +3,13 @@ from yt.admin.dashboards.yt_dashboards.testlib import canonize_dashboard, grafan
 import yt_dashboards.master as master
 
 from yt_dashboards.cluster_resources import build_cluster_resources
-from yt_dashboards.scheduler_internal import build_scheduler_internal
-from yt_dashboards.scheduler_gpu import build_scheduler_gpu
-from yt_dashboards.scheduler_pool import build_scheduler_pool
-from yt_dashboards.scheduler_operation import build_scheduler_operation
-from yt_dashboards.queue_and_consumer_metrics import build_queue_metrics, build_queue_consumer_metrics
+from yt_dashboards.data_nodes import build_data_nodes_common
 from yt_dashboards.http_proxies import build_http_proxies
+from yt_dashboards.queue_and_consumer_metrics import build_queue_metrics, build_queue_consumer_metrics
+from yt_dashboards.scheduler_gpu import build_scheduler_gpu
+from yt_dashboards.scheduler_internal import build_scheduler_internal
+from yt_dashboards.scheduler_operation import build_scheduler_operation
+from yt_dashboards.scheduler_pool import build_scheduler_pool
 
 import yt_dashboards.bundle_ui.bundle_ui_dashboard as bundle_ui_dashboard
 
@@ -117,3 +118,7 @@ def test_scheduler_operation():
 
 def test_scheduler_pool():
     return canonize_dashboard(build_scheduler_pool(), grafana_serializer(), "scheduler-pool.json")
+
+
+def test_data_nodes_common():
+    return canonize_dashboard(build_data_nodes_common("grafana"), grafana_serializer(), "data-nodes-common.json")

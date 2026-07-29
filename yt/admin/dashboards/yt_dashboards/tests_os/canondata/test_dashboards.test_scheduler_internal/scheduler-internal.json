@@ -994,7 +994,7 @@
             "targets": [
                 {
                     "datasource": null,
-                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_node_heartbeat_concurrent_limit_reached_count_rate|yt_scheduler_node_heartbeat_concurrent_complexity_limit_reached_count\", limit_type=~\"\", node_shard_id=~\"\"}[$__rate_interval])",
+                    "expr": "rate(label_replace({cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_node_heartbeat_concurrent_limit_reached_count|yt_scheduler_node_heartbeat_concurrent_complexity_limit_reached_count\", limit_type=~\"\", node_shard_id=~\"\"}, \"name\", \"$1\", \"__name__\", \"(.*)\")[$__rate_interval:])",
                     "refId": "A"
                 }
             ],
