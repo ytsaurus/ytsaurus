@@ -2,18 +2,18 @@
 
 Эта статья описывает процесс обновления Odin. Выполните обновление с помощью Helm.
 
-## Что важно знать перед обновлением
+## Что важно знать перед обновлением {#important}
 
-При обновлении Odin кластер YTsaurus продолжает работать в обычном режиме, вы можете выполнять все операции с данными.
+При обновлении Odin кластер {{product-name}} продолжает работать в обычном режиме, вы можете выполнять все операции с данными.
 
 Во время обновления Odin происходят следующие изменения
 
-- Кластер YTsaurus продолжает работать в штатном режиме;
-- Серверные компоненты YTsaurus не требуют перезапуска;
-- Доступ к данным через YTsaurus API сохраняется;
+- Кластер {{product-name}} продолжает работать в штатном режиме;
+- Серверные компоненты {{product-name}} не требуют перезапуска;
+- Доступ к данным через {{product-name}} API сохраняется;
 - Проверки Odin могут временно быть недоступны во время обновления.
 
-{% if audience == "public" %}Доступные версии Odin и изменения в них описаны в [релизах Odin](../../../admin-guide/releases.md#odin).{% endif %}
+{% if audience == "public" %}Доступные версии Odin и изменения в них описаны в [релизах Odin](../../../admin-guide/releases.md#odin){% endif %}.
 
 ## Подготовка к обновлению {#before-update}
 
@@ -53,19 +53,19 @@ deployment.apps/odin-odin-chart-web      1/1     1            1           49s
 Сохраните текущую конфигурацию Odin
 
 ```bash
-helm get values odin -n <namespace> > odin-backup.yaml
+helm get values odin -n <namespace> -o yaml > odin-backup.yaml
 ```
 
 ## Обновление Odin {#update-process}
 
-Выполняйте обновление до целевой версии. {% if audience == "public" %}Доступные версии Odin и изменения в них описаны в [релизах Odin](../../../admin-guide/releases.md#odin).{% endif %}
+Выполняйте обновление до целевой версии.
 
 ### 1. Получить текущую конфигурацию Odin
 
 Получите текущую конфигурацию Odin
 
 ```bash
-helm get values odin -n <namespace> > odin-values.yaml
+helm get values odin -n <namespace> -o yaml > odin-values.yaml
 ```
 
 ### 2. Обновить Odin до новой версии
@@ -219,6 +219,7 @@ helm history odin -n <namespace>
 Для очистки истории удалите и переустановите релиз
 
 ```bash
+helm get values odin -n <namespace> -o yaml > odin-values.yaml
 helm uninstall odin -n <namespace>
 helm install odin oci://ghcr.io/ytsaurus/odin-chart \
   --version <version> \

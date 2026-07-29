@@ -190,3 +190,5 @@ tls:
 ```sh
 kubectl create secret tls yt-domain-cert -n yt --cert=cert.pem --key=key.pem
 ```
+
+Инструкция по обновлению Task-прокси подробно описана в статье [Обновление Task-прокси](../../admin-guide/update/update-task-proxy.md).

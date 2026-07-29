@@ -2,15 +2,15 @@
 
 Эта статья описывает процесс обновления Cron. Выполните обновление с помощью Helm.
 
-## Что важно знать перед обновлением
+## Что важно знать перед обновлением {#important}
 
-При обновлении Cron кластер YTsaurus продолжает работать в обычном режиме, вы можете выполнять все операции с данными.
+При обновлении Cron кластер {{product-name}} продолжает работать в обычном режиме, вы можете выполнять все операции с данными.
 
 Во время обновления Cron происходят следующие изменения
 
-- Кластер YTsaurus продолжает работать в штатном режиме;
-- Серверные компоненты YTsaurus не требуют перезапуска;
-- Доступ к данным через YTsaurus API сохраняется;
+- Кластер {{product-name}} продолжает работать в штатном режиме;
+- Серверные компоненты {{product-name}} не требуют перезапуска;
+- Доступ к данным через {{product-name}} API сохраняется;
 - Cronjobs могут временно быть недоступны во время обновления.
 
 {% if audience == "public" %}Доступные версии Cron и изменения в них описаны в [релизах Cron](../../../admin-guide/releases.md#cron).{% endif %}
@@ -53,7 +53,7 @@ ytsaurus-cron-cron-chart-prune-offline-cluster-nodes   */15 * * * *   True      
 Сохраните текущую конфигурацию Cron
 
 ```bash
-helm get values ytsaurus-cron -n <namespace> > cron-backup.yaml
+helm get values ytsaurus-cron -n <namespace> -o yaml > cron-backup.yaml
 ```
 
 ## Обновление Cron {#update-process}
@@ -65,7 +65,7 @@ helm get values ytsaurus-cron -n <namespace> > cron-backup.yaml
 Получите текущую конфигурацию Cron
 
 ```bash
-helm get values ytsaurus-cron -n <namespace> > cron-values.yaml
+helm get values ytsaurus-cron -n <namespace> -o yaml > cron-values.yaml
 ```
 
 ### 2. Обновить Cron до новой версии
@@ -191,6 +191,7 @@ helm history ytsaurus-cron -n <namespace>
 Для очистки истории удалите и переустановите релиз
 
 ```bash
+helm get values ytsaurus-cron -n <namespace> -o yaml > cron-values.yaml
 helm uninstall ytsaurus-cron -n <namespace>
 helm install ytsaurus-cron oci://ghcr.io/ytsaurus/cron-chart \
   --version <version> \
