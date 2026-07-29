@@ -83,12 +83,55 @@ public:
             options.ExecutionBackend,
             options.OptimizationLevel);
 
+        TQueryStatistics queryStatistics;
+
+        DoRun(
+            &queryStatistics,
+            query,
+            reader,
+            writer,
+            joinProfilerRegistry,
+            functionProfilers,
+            aggregateProfilers,
+            sdk,
+            memoryChunkProvider,
+            options,
+            requestFeatureFlags,
+            std::move(responseFeatureFlags),
+            Logger);
+
+        return queryStatistics;
+    }
+
+private:
+    void DoRun(
+        TQueryStatistics* queryStatistics,
+        const TConstBaseQueryPtr& query,
+        const ISchemafulUnversionedReaderPtr& reader,
+        const IUnversionedRowsetWriterPtr& writer,
+        const TJoinProfilerRegistry& joinProfilerRegistry,
+        const TConstFunctionProfilerMapPtr& functionProfilers,
+        const TConstAggregateProfilerMapPtr& aggregateProfilers,
+        const NWebAssembly::TModuleBytecode& sdk,
+        const IMemoryChunkProviderPtr& memoryChunkProvider,
+        const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags,
+        TFuture<TFeatureFlags> responseFeatureFlags,
+        const NLogging::TLogger& Logger)
+    {
         TExecutionStatistics statistics;
         NProfiling::TWallTimer wallTime;
         NProfiling::TFiberWallTimer syncTime;
 
-        auto finalLogger = Finally([&] {
-            YT_LOG_DEBUG("Finalizing evaluation");
+        auto finallyRecordStatistics = Finally([&] {
+            statistics.SyncTime = syncTime.GetElapsedTime();
+            statistics.AsyncTime = wallTime.GetElapsedTime() - statistics.SyncTime;
+            statistics.ExecuteTime =
+                statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
+            *queryStatistics = TQueryStatistics::FromExecutionStatistics(
+                statistics,
+                options.StatisticsAggregation);
+            YT_LOG_DEBUG("Finalizing evaluation; query statistics (%v)", *queryStatistics);
         });
 
         // TODO(dtorilov): Catch here WAVM::Runtime::Exception*.
@@ -148,22 +191,8 @@ public:
             YT_LOG_DEBUG(ex, "Query evaluation failed");
             THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
         }
-
-        statistics.SyncTime = syncTime.GetElapsedTime();
-        statistics.AsyncTime = wallTime.GetElapsedTime() - statistics.SyncTime;
-        statistics.ExecuteTime =
-            statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
-
-        auto queryStatistics = TQueryStatistics::FromExecutionStatistics(
-            statistics,
-            options.StatisticsAggregation);
-
-        YT_LOG_DEBUG("Query statistics (%v)", queryStatistics);
-
-        return queryStatistics;
     }
 
-private:
     TCGQueryInstance Codegen(
         TConstBaseQueryPtr query,
         TCGVariables& variables,
