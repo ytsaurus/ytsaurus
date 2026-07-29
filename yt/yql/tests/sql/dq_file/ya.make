@@ -1,5 +1,3 @@
-IF (NOT OPENSOURCE)
-
 RECURSE(
     part0
     part1
@@ -22,5 +20,3 @@ RECURSE(
     part18
     part19
 )
-
-ENDIF()
