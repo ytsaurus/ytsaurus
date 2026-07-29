@@ -27,18 +27,16 @@ FLOW_TESTS_DIR="${FLOW_SRC}/tests"
 VENV_PYTHON="${VIRTUALENV_PATH}/bin/python3"
 
 # ============================================================================
-# The default opensource CI smoke, relative to yt/yt/flow.
-FLOW_CI_INTEGRATION_TARGETS=(
-    "examples/cpp/word_count/test/test_word_count.py::Test::test_basic[1c_1w]"
-    "examples/python/word_count/test/test_wordcount.py::Test::test_basic[1c_1w]"
-)
-
-# Test paths used only by --all.
-FLOW_ALL_INTEGRATION_PATHS=(
+# All example tests shipped to opensource, relative to yt/yt/flow.
+FLOW_EXAMPLE_INTEGRATION_PATHS=(
     "examples/cpp/*/test"
     "examples/python/*/test"
 )
-FLOW_ALL_UNITTEST_PATHS=(
+FLOW_EXAMPLE_CPP_UNITTEST_PATHS=(
+    "examples/cpp/*/unittest"
+    "examples/cpp/*/pipeline/unittest"
+)
+FLOW_EXAMPLE_PYTHON_UNITTEST_PATHS=(
     "examples/python/*/unittests"
 )
 
@@ -58,12 +56,6 @@ expand_paths() {
     done | sort
 }
 
-absolute_targets() {
-    for target in "$@"; do
-        echo "${FLOW_SRC}/${target}"
-    done
-}
-
 usage() {
     sed -n '3,10p' "$0" >&2
     exit 1
@@ -74,22 +66,25 @@ if [ "$#" -eq 0 ]; then
 fi
 
 MODE=manual
-UNIT_ROOTS=""
+CPP_UNITTEST_ROOTS=""
+PYTHON_UNITTEST_ROOTS=""
 INTEGRATION_ROOTS=""
 case "$1" in
     --ci)
         MODE=ci
-        INTEGRATION_ROOTS=$(absolute_targets "${FLOW_CI_INTEGRATION_TARGETS[@]}")
+        CPP_UNITTEST_ROOTS=$(expand_paths "${FLOW_EXAMPLE_CPP_UNITTEST_PATHS[@]}")
+        PYTHON_UNITTEST_ROOTS=$(expand_paths "${FLOW_EXAMPLE_PYTHON_UNITTEST_PATHS[@]}")
+        INTEGRATION_ROOTS=$(expand_paths "${FLOW_EXAMPLE_INTEGRATION_PATHS[@]}")
         ;;
     --all)
-        # Everything shipped to opensource. The CI never runs this mode.
         MODE=all
-        UNIT_ROOTS=$(expand_paths "${FLOW_ALL_UNITTEST_PATHS[@]}")
+        CPP_UNITTEST_ROOTS=$(expand_paths "${FLOW_EXAMPLE_CPP_UNITTEST_PATHS[@]}")
+        PYTHON_UNITTEST_ROOTS=$(expand_paths "${FLOW_EXAMPLE_PYTHON_UNITTEST_PATHS[@]}")
         INTEGRATION_ROOTS=$(
             {
                 echo "${FLOW_TESTS_DIR}"
                 find "${FLOW_SRC}/library" -type d \( -name "tests" -o -name "tests_*" -o -name "test" \)
-                expand_paths "${FLOW_ALL_INTEGRATION_PATHS[@]}"
+                expand_paths "${FLOW_EXAMPLE_INTEGRATION_PATHS[@]}"
             } | sort -u
         )
         ;;
@@ -197,15 +192,12 @@ EOF
 chmod +x "${YT_CLI_WRAPPER}"
 
 # yatest.common.binary_path resolves <build_root>/<arcadia-relative-dir>/<name>.
-# The CI build contains only the two binaries needed by its smoke scope.
 required_binary_dirs="yt/yt/flow/bin/flow_server"
-if [ "${MODE}" = "ci" ]; then
-    required_binary_dirs="${required_binary_dirs} yt/yt/flow/examples/cpp/word_count"
-else
-    for example_test_dir in "${FLOW_SRC}"/examples/cpp/*/test; do
+for example_test_dir in "${FLOW_SRC}"/examples/cpp/*/test; do
+    if [ -d "${example_test_dir}" ]; then
         required_binary_dirs="${required_binary_dirs} $(dirname "${example_test_dir#"${SOURCE_ROOT}"/}")"
-    done
-fi
+    fi
+done
 
 missing_binaries=""
 for relative_dir in ${required_binary_dirs}; do
@@ -272,17 +264,45 @@ run_pytest() {
         "$@"
 }
 
+run_cpp_unittests() {
+    for source_dir in ${CPP_UNITTEST_ROOTS}; do
+        relative_dir="${source_dir#"${SOURCE_ROOT}"/}"
+        binary_path=""
+        for candidate in "${BUILD_ROOT}/${relative_dir}"/*; do
+            if [ -f "${candidate}" ] && [ -x "${candidate}" ]; then
+                if [ -n "${binary_path}" ]; then
+                    echo "error: multiple C++ example unit test binaries found under ${BUILD_ROOT}/${relative_dir}" >&2
+                    status=1
+                    binary_path=""
+                    break
+                fi
+                binary_path="${candidate}"
+            fi
+        done
+        if [ -z "${binary_path}" ]; then
+            echo "error: C++ example unit test binary not found under ${BUILD_ROOT}/${relative_dir}" >&2
+            status=1
+            continue
+        fi
+        binary_name=$(basename "${binary_path}")
+        "${binary_path}" --gtest_output="xml:${TESTS_SANDBOX}/${binary_name}.xml" || status=$?
+    done
+}
+
 status=0
 
-# The unit pass needs no local YT, so it runs before (and without) the recipe.
-if [ -n "${UNIT_ROOTS}" ]; then
-    run_pytest ${UNIT_ROOTS} || status=$?
+# Unit tests need no local YT, so run them before (and without) the recipe.
+if [ -n "${CPP_UNITTEST_ROOTS}" ]; then
+    run_cpp_unittests
+fi
+if [ -n "${PYTHON_UNITTEST_ROOTS}" ]; then
+    run_pytest ${PYTHON_UNITTEST_ROOTS} || status=$?
 fi
 
 if [ -n "${INTEGRATION_ROOTS}" ]; then
     # Start only the clusters required by the selected scope.
     if [ "${MODE}" = "ci" ]; then
-        YT_CLUSTER_NAMES="primary"
+        YT_CLUSTER_NAMES="primary,remote_0"
     else
         YT_CLUSTER_NAMES="primary,remote_0,remote_1"
     fi

@@ -309,14 +309,30 @@ jobs:
           done
           fi
 
-          # Binaries required by the minimal Flow pytest smoke.
-          FLOW_TARGETS="\
-            ../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server \
-            ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp/word_count"
+          # Programs and C++ unit tests required by the exported Flow examples.
+          FLOW_PROGRAM_TARGETS="../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server"
+          for test_dir in ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp/*/test; do
+            if [ -d "${test_dir}" ]; then
+              FLOW_PROGRAM_TARGETS="${FLOW_PROGRAM_TARGETS} $(dirname "${test_dir}")"
+            fi
+          done
+
+          FLOW_CPP_UNITTEST_TARGETS=""
+          for unittest_dir in \
+            ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp/*/unittest \
+            ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp/*/pipeline/unittest
+          do
+            if [ -d "${unittest_dir}" ]; then
+              FLOW_CPP_UNITTEST_TARGETS="${FLOW_CPP_UNITTEST_TARGETS} ${unittest_dir}"
+            fi
+          done
+
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. --bazel-remote-put ${FLOW_TARGETS}
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. --bazel-remote-put ${FLOW_PROGRAM_TARGETS}
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare --bazel-remote-put ${FLOW_CPP_UNITTEST_TARGETS}
           fi
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${FLOW_TARGETS}
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${FLOW_PROGRAM_TARGETS}
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FLOW_CPP_UNITTEST_TARGETS}
 
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
