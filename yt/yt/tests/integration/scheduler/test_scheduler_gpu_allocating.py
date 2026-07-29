@@ -3493,3 +3493,69 @@ class TestProcessAllocationUpdateAfterFinishRace(YTEnvSetup):
         gpu_op.abort()
 
 ##################################################################
+
+
+class TestAllocatingGpuSchedulingPolicyZeroGpuPreemption(AllocatingGpuSchedulingPolicyBaseConfig):
+    ENABLE_MULTIDAEMON = False
+    NUM_NODES = 1
+
+    @authors("yaishenka")
+    def test_preemption_with_zero_gpu_assignment(self):
+        create_pool(
+            "low",
+            pool_tree="gpu",
+            attributes={"mode": "fifo"},
+            wait_for_orchid=False,
+        )
+        create_pool(
+            "high",
+            pool_tree="gpu",
+            wait_for_orchid=False,
+        )
+
+        # Occupy all GPUs of the single node.
+        op_gpu = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=2,
+            spec={"pool": "low"},
+        )
+        wait(lambda: len(op_gpu.get_running_jobs()) == 2)
+        wait(lambda: get(scheduler_orchid_operation_path(op_gpu.id, tree="gpu") + "/resource_usage/gpu", default=None) == 8)
+
+        # A zero-GPU operation in the same FIFO pool runs above its fair share,
+        # so its assignment is preemptible with zero preemption penalty.
+        op_zero = run_sleeping_vanilla(
+            task_patch={"cpu_limit": 1, "enable_gpu_layers": False},
+            job_count=1,
+            spec={"pool": "low"},
+        )
+        wait(lambda: len(op_zero.get_running_jobs()) == 1)
+
+        wait_for_operations_in_gpu_policy_orchid(operation_count=2)
+        wait_for_assignments_in_gpu_policy_orchid(op_zero, assignment_count=1, exactly=True)
+
+        def zero_gpu_assignment_is_preemptible():
+            assignments = get_operation_gpu_assignments_from_gpu_policy_orchid(op_zero)
+            return len(assignments) == 1 and \
+                assignments[0]["resource_usage"]["gpu"] == 0 and \
+                assignments[0]["preemptible"]
+
+        wait(zero_gpu_assignment_is_preemptible)
+
+        # A starving operation triggers preemptive assignment planning on the node
+        # with the zero-GPU preemptible assignment. It must not hang the scheduler.
+        op_starving = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            job_count=1,
+            spec={"pool": "high"},
+        )
+
+        wait(lambda: len(op_starving.get_running_jobs()) == 1)
+        wait(lambda: get(scheduler_orchid_operation_path(op_starving.id, tree="gpu") + "/resource_usage/gpu", default=None) == 4)
+        wait(lambda: len(op_gpu.get_running_jobs()) == 1)
+
+        # The zero-GPU assignment has the smallest preemption penalty, so it is preempted
+        # as well, but the operation is rescheduled shortly after.
+        wait(lambda: len(op_zero.get_running_jobs()) == 1)
+
+##################################################################
