@@ -148,7 +148,7 @@ EReadDocumentResult ReadJsonDocument(IInputStream& input, TString& document) {
 
     const char first = document.front();
     if (first != '{' && first != '[' && first != '"') {
-        while (input.ReadChar(current)) {
+        for (char current; input.ReadChar(current);) {
             if (std::isspace(static_cast<unsigned char>(current))) {
                 break;
             }
@@ -166,16 +166,16 @@ EReadDocumentResult ReadJsonDocument(IInputStream& input, TString& document) {
         closingCharacters.push_back(']');
     }
 
-    while (input.ReadChar(current)) {
+    for (char current; input.ReadChar(current);) {
         document.push_back(current);
 
-        if (inString) {
-            if (escaped) {
-                escaped = false;
+        if (isInString) {
+            if (isEscaped) {
+                isEscaped = false;
             } else if (current == '\\') {
-                escaped = true;
+                isEscaped = true;
             } else if (current == '"') {
-                inString = false;
+                isInString = false;
                 if (closingCharacters.empty()) {
                     return EReadDocumentResult::Complete;
                 }
@@ -184,7 +184,7 @@ EReadDocumentResult ReadJsonDocument(IInputStream& input, TString& document) {
         }
 
         if (current == '"') {
-            inString = true;
+            isInString = true;
         } else if (current == '{') {
             closingCharacters.push_back('}');
         } else if (current == '[') {
@@ -206,18 +206,12 @@ EReadDocumentResult ReadJsonDocument(IInputStream& input, TString& document) {
     return EReadDocumentResult::Incomplete;
 }
 
-TString CandidateKindToString(NSQLComplete::ECandidateKind kind) {
-    TStringStream output;
-    output << kind;
-    return output.Str();
-}
-
 void WriteStreamResponse(const TVector<NSQLComplete::TCandidate>& candidates) {
     NJson::TJsonArray response;
     for (const auto& candidate : candidates) {
         response.AppendValue(NJson::TJsonMap{
             {"word", candidate.Content},
-            {"type", CandidateKindToString(candidate.Kind)},
+            {"type", ToString(candidate.Kind)},
         });
     }
 
