@@ -371,6 +371,7 @@ public:
 
         rows->resize(offset);
         ReaderStatistics_->RowCount += rows->size();
+        ReaderStatistics_->DataWeight += *dataWeight;
         return hasMoreRows;
     }
 
@@ -471,17 +472,24 @@ void FormatValue(TStringBuilderBase* builder, const TReaderStatistics& statistic
         return static_cast<ui64>(cpuDuration * ticksToNanoseconds);
     };
 
+    auto readTimeNs = cpuDurationToNs(statistics.ReadTime);
+    auto readSpeedMBps = readTimeNs > 0
+        ? static_cast<double>(statistics.DataWeight) * 1'000'000'000 / (static_cast<double>(readTimeNs) * 1_MB)
+        : 0.0;
+
     Format(
         builder,
-        "RowCount: %v, "
+        "RowCount: %v, DataWeight: %v, ReadSpeed: %.2fMB/s, "
         "Summary Init/Read Time: %vns / %vns, "
         "BuildReadWindows/GetValuesIdMapping/CreateColumnBlockHolders/GetTypesFromSchema/BuildColumnInfos/CreateRowsetBuilder/CreateBlockManager Times: %vns / %vns / %vns / %vns / %vns / %vns / %vns, "
         "Decode Timestamp/Key/Value Times: %vns / %vns / %vns, "
         "FetchBlocks/BuildRanges/DoRead/CollectCounts/AllocateRows/DoReadKeys/DoReadValues Times: %vns / %vns / %vns / %vns / %vns / %vns / %vns, "
         "TryUpdateWindow/SkipToBlock/FetchBlock/SetBlock/UpdateSegment/DoRead CallCounts: %v / %v / %v / %v / %v / %v",
         statistics.RowCount,
+        statistics.DataWeight,
+        readSpeedMBps,
         cpuDurationToNs(statistics.InitTime),
-        cpuDurationToNs(statistics.ReadTime),
+        readTimeNs,
         cpuDurationToNs(statistics.BuildReadWindowsTime),
         cpuDurationToNs(statistics.GetValuesIdMappingTime),
         cpuDurationToNs(statistics.CreateColumnBlockHoldersTime),
