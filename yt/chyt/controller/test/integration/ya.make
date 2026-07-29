@@ -12,4 +12,10 @@ GO_TEST_SRCS(
     strawberry_test.go
 )
 
+IF (NOT OPENSOURCE)
+    GO_TEST_SRCS(
+        metrics_test.go
+    )
+ENDIF()
+
 END()
