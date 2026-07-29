@@ -73,7 +73,7 @@ struct IBlockMap
      *  Testing only: |onScanned|, if set, is invoked with each slot index before that slot is read, so a
      *  test can inject concurrent mutations at a chosen scan position.
      */
-    virtual TBlockMapSnapshot TakeSnapshot(std::function<void(int blockIndex)> onScanned = {}) = 0;
+    virtual TBlockMapSnapshot TakeSnapshot(const std::function<void(int blockIndex)>& onScanned = {}) = 0;
 
     //! Loads a previously saved device snapshot into the map, publishing every one of its blocks as
     //! flushed to the block store.
