@@ -330,7 +330,7 @@
             "targets": [
                 {
                     "datasource": null,
-                    "expr": "(topk(10, sum by(container) (rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"\", method=~\"\"}[$__rate_interval]))))",
+                    "expr": "(topk(10, sum by(container) (rate(label_replace({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"\", method=~\"\"}, \"name\", \"$1\", \"__name__\", \"(.*)\")[$__rate_interval:]))))",
                     "legendFormat": "\"{{container}}\"",
                     "refId": "A"
                 }
@@ -430,7 +430,7 @@
             "targets": [
                 {
                     "datasource": null,
-                    "expr": "(topk(10, sum by(container) (rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"default\", method=~\"\"}[$__rate_interval]))))",
+                    "expr": "(topk(10, sum by(container) (rate(label_replace({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"default\", method=~\"\"}, \"name\", \"$1\", \"__name__\", \"(.*)\")[$__rate_interval:]))))",
                     "legendFormat": "\"{{container}}\"",
                     "refId": "A"
                 }
@@ -516,7 +516,7 @@
             "targets": [
                 {
                     "datasource": null,
-                    "expr": "(topk(10, sum by(container) (rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"ssd_blobs\", method=~\"\"}[$__rate_interval]))))",
+                    "expr": "(topk(10, sum by(container) (rate(label_replace({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"ssd_blobs\", method=~\"\"}, \"name\", \"$1\", \"__name__\", \"(.*)\")[$__rate_interval:]))))",
                     "legendFormat": "\"{{container}}\"",
                     "refId": "A"
                 }
@@ -602,7 +602,7 @@
             "targets": [
                 {
                     "datasource": null,
-                    "expr": "(topk(10, sum by(container) (rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"ssd_journals\", method=~\"\"}[$__rate_interval]))))",
+                    "expr": "(topk(10, sum by(container) (rate(label_replace({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"ssd_journals\", method=~\"\"}, \"name\", \"$1\", \"__name__\", \"(.*)\")[$__rate_interval:]))))",
                     "legendFormat": "\"{{container}}\"",
                     "refId": "A"
                 }
@@ -688,7 +688,7 @@
             "targets": [
                 {
                     "datasource": null,
-                    "expr": "(topk(10, sum by(container) (rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"nvme_blobs\", method=~\"\"}[$__rate_interval]))))",
+                    "expr": "(topk(10, sum by(container) (rate(label_replace({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_.*chunk_reader_statistics_.*_bytes_read_from_disk\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", user=~\"\", account=~\"\", medium=~\"nvme_blobs\", method=~\"\"}, \"name\", \"$1\", \"__name__\", \"(.*)\")[$__rate_interval:]))))",
                     "legendFormat": "\"{{container}}\"",
                     "refId": "A"
                 }

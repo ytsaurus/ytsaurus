@@ -30,6 +30,13 @@ class PrometheusDiscoverValues:
 
 class GrafanaSystemTags(enum.Enum):
     Rate = enum.auto()
+    MultipleSensors = enum.auto()
+    NameLabel = enum.auto()
+
+
+# rate() drops __name__, so several sensors matched by one selector would become indistinguishable.
+# The name is copied into this label beforehand to survive the aggregation.
+SensorNameLabel = "name"
 
 
 class GrafanaTextboxDashboardParameter:
@@ -186,11 +193,29 @@ class ExprFuncSerializer:
         return ExprFuncSerializer._series_func(serializer, expression, "sum")
 
     @staticmethod
+    def series_percentile(serializer, expression):
+        percentile = expression.args[1]
+        if not isinstance(percentile, (int, float)):
+            raise NotImplementedError(
+                f"Function series_percentile expects a single percentile, got {percentile}. "
+                f"Expression: {expression}, expression type: {type(expression)}"
+            )
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[-1])
+        return f"quantile({percentile / 100:g}, {query_parts})", other_tags
+
+    @staticmethod
     def _series_func(serializer, expression, func):
         query_parts, other_tags = serializer._prepare_expr_query(expression.args[-1])
         args = ""
         if len(expression.args) > 2:
-            args = ExprFuncSerializer.serialize_arg(expression.args[1])
+            labels = expression.args[1]
+            if isinstance(labels, list):
+                name_label = other_tags.get(GrafanaSystemTags.NameLabel, "__name__")
+                labels = [
+                    f'"{name_label}"' if ExprFuncSerializer.serialize_arg(label) == "sensor" else label
+                    for label in labels
+                ]
+            args = ExprFuncSerializer.serialize_arg(labels)
         return f"{func} by({args}) ({query_parts})", other_tags
 
 
@@ -240,6 +265,7 @@ class GrafanaSerializerBase(SerializerBase):
             "series_max": lambda expression: ExprFuncSerializer.series_max(self, expression),
             "series_min": lambda expression: ExprFuncSerializer.series_min(self, expression),
             "series_sum": lambda expression: ExprFuncSerializer.series_sum(self, expression),
+            "series_percentile": lambda expression: ExprFuncSerializer.series_percentile(self, expression),
         }
         builder = builders.get(expression.args[0])
         if builder is None:
@@ -259,7 +285,13 @@ class GrafanaSerializerBase(SerializerBase):
             query_parts, other_tags = self._prepare_sensor_query(expression)
             query = f"{{{', '.join(query_parts)}}}"
             if GrafanaSystemTags.Rate in other_tags:  # cthulhu fhtagn
-                query = f'rate({query}[$__rate_interval])'
+                if GrafanaSystemTags.MultipleSensors in other_tags:
+                    query = (
+                        f'rate(label_replace({query}, "{SensorNameLabel}", "$1", "__name__", "(.*)")'
+                        f'[$__rate_interval:])')
+                    other_tags[GrafanaSystemTags.NameLabel] = SensorNameLabel
+                else:
+                    query = f'rate({query}[$__rate_interval])'
             return query, other_tags
         assert issubclass(
             type(expression), MonitoringExpr
@@ -323,6 +355,9 @@ class GrafanaSerializerBase(SerializerBase):
 
             if not regex:
                 v = self._glob_to_regex(v)
+
+            if k == "__name__" and ("|" in v or ".*" in v or ".+" in v):
+                other_tags[GrafanaSystemTags.MultipleSensors] = True
 
             if negate:
                 query_parts.append(f'{k}!~"{v}"')

@@ -269,7 +269,12 @@ dashboards = {
     },
     "data-nodes-common": {
         "func": build_data_nodes_common,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "data-node-local": {
         "func": build_data_node_local,
