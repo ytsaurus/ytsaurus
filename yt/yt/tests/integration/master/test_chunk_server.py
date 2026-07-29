@@ -1645,6 +1645,81 @@ class TestFullHeartbeatLocationBackpressure(YTEnvSetup):
 ##################################################################
 
 
+class TestSequoiaReplicasBatchingWithHeartbeatThrottling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    USE_SEQUOIA = True
+
+    NUM_NODES = 1
+
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "master_connector": {
+                "heartbeat_period": 500,
+                "heartbeat_period_splay": 50,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "profiling_period": 100,
+        },
+        "chunk_manager": {
+            "data_node_tracker": {
+                "enable_per_location_full_heartbeats": True,
+                "max_concurrent_location_full_heartbeats": 1,
+                "max_concurrent_incremental_heartbeats": 2,
+                "max_concurrent_chunk_replicas_during_full_heartbeat": 1,
+                "max_concurrent_chunk_replicas_during_incremental_heartbeat": 2,
+            },
+            "replica_approve_timeout": 5000,
+            "refresh_delay": 100,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "blob_chunk_replicas": {
+                    "store_in_sequoia": True,
+                    "replicas_percentage": 100,
+                    "fetch_replicas_from_sequoia": True,
+                    "store_sequoia_replicas_on_master": True,
+                    "process_removed_sequoia_replicas_on_master": True,
+                    "validate_sequoia_replicas_fetch": True,
+                    "allow_extra_master_replicas_during_validation": False,
+                },
+                "enable_sequoia_chunk_refresh": True,
+                "sequoia_chunk_refresh_period": 100,
+                "batch_incremental_heartbeat": True,
+                "batch_incremental_heartbeat_period": 1000000,
+                "max_requests_in_incremental_heartbeat_batch": 1,
+                "max_replicas_in_incremental_heartbeat_batch": 1,
+            }
+        },
+    }
+
+    @authors("grphil")
+    @pytest.mark.parametrize("replicas_throttling", [True, False])
+    @pytest.mark.parametrize("flush_on_throttling", [True, False])
+    def test_incremental_heartbeat_batches_are_flushed(self, replicas_throttling, flush_on_throttling):
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_chunk_replicas_throttling_in_heartbeats", replicas_throttling)
+        set("//sys/@config/chunk_manager/data_node_tracker/flush_batched_incremental_heartbeats_on_throttling", flush_on_throttling)
+
+        create("table", "//tmp/t", attributes={"erasure_codec": "reed_solomon_3_3"})
+        write_table("//tmp/t", {"a": "b"})
+        chunk = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk}/@stored_sequoia_replicas")) == 6)
+
+
+##################################################################
+
+
 class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
     ENABLE_MULTIDAEMON = False  # There are specific component kills.
     DELTA_NODE_CONFIG = {

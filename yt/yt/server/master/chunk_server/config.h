@@ -339,8 +339,8 @@ struct TDynamicDataNodeTrackerConfig
     // COMPAT(grphil)
     bool IgnoreReplicasWithChangedStateDuringValidation;
 
-    // COMPAT(cherepashka)
     bool EnableChunkReplicasThrottlingInHeartbeats;
+    bool FlushBatchedIncrementalHeartbeatsOnThrottling;
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
 

@@ -353,6 +353,8 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_chunk_replicas_throttling_in_heartbeats", &TThis::EnableChunkReplicasThrottlingInHeartbeats)
         .Default(false);
+    registrar.Parameter("flush_batched_incremental_heartbeats_on_throttling", &TThis::FlushBatchedIncrementalHeartbeatsOnThrottling)
+        .Default(false);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
     registrar.Parameter("use_location_indexes_in_sequoia_chunk_confirmation", &TThis::UseLocationIndexesInSequoiaChunkConfirmation)
@@ -502,10 +504,10 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
 
     registrar.Parameter("max_requests_in_incremental_heartbeat_batch", &TThis::MaxRequestsInIncrementalHeartbeatBatch)
-        .Default(100);
+        .Default(5);
 
     registrar.Parameter("max_replicas_in_incremental_heartbeat_batch", &TThis::MaxReplicasInIncrementalHeartbeatBatch)
-        .Default(30000);
+        .Default(3000);
 
     // COMPAT(grphil).
     registrar.Parameter("compat_replicas_percentage", &TThis::CompatReplicasPercentage)
@@ -1067,8 +1069,28 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
             }
         }
 
-        if (config->SequoiaChunkReplicas->Enable && config->AllowOffshoreMedia) {
+        const auto& sequoiaReplicasConfig = config->SequoiaChunkReplicas;
+        const auto& dataNodeTrackerConfig = config->DataNodeTracker;
+
+        if (sequoiaReplicasConfig->Enable && config->AllowOffshoreMedia) {
             THROW_ERROR_EXCEPTION("Offshore media and Sequoia replicas cannot coexist (yet)");
+        }
+
+        if (sequoiaReplicasConfig->Enable && sequoiaReplicasConfig->BatchIncrementalHeartbeat) {
+            if (dataNodeTrackerConfig->EnableChunkReplicasThrottlingInHeartbeats) {
+                if (dataNodeTrackerConfig->MaxConcurrentChunkReplicasDuringIncrementalHeartbeat <
+                    sequoiaReplicasConfig->MaxReplicasInIncrementalHeartbeatBatch * 2)
+                {
+                    // We should allow at least 2x of MaxReplicasInIncrementalHeartbeatBatch for batching not to stuck.
+                    THROW_ERROR_EXCEPTION("max_concurrent_chunk_replicas_during_incremental_heartbeat should be at lest 2x of Sequoia max_replicas_in_incremental_heartbeat_batch");
+                }
+            } else {
+                if (dataNodeTrackerConfig->MaxConcurrentIncrementalHeartbeats <=
+                    sequoiaReplicasConfig->MaxRequestsInIncrementalHeartbeatBatch)
+                {
+                    THROW_ERROR_EXCEPTION("max_concurrent_incremental_heartbeats should be grater than Sequoia max_requests_in_incremental_heartbeat_batch");
+                }
+            }
         }
     });
 }
