@@ -127,7 +127,9 @@ struct TVisitor
     {
         Visit(likeExpr->Text);
         Visit(likeExpr->Pattern);
-        Visit(likeExpr->EscapeCharacter);
+        if (likeExpr->EscapeCharacter) {
+            Visit(likeExpr->EscapeCharacter);
+        }
     }
 
     void OnCompositeMemberAccessor(const TCompositeMemberAccessorExpression* memberAccessorExpr)
