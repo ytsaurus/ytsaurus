@@ -49,6 +49,10 @@ type (
 
 	minFreeSpace float64
 
+	encoderConfig struct {
+		fn func(*zapcore.EncoderConfig)
+	}
+
 	Option interface {
 		isOption()
 	}
@@ -64,6 +68,13 @@ func (minFreeSpace) isOption() {}
 
 func WithMinFreeSpace(space float64) Option {
 	return minFreeSpace(space)
+}
+
+func (encoderConfig) isOption() {}
+
+// WithEncoderConfig applies fn to the default encoder config.
+func WithEncoderConfig(fn func(*zapcore.EncoderConfig)) Option {
+	return encoderConfig{fn: fn}
 }
 
 // NewSelfrotate returns logger configured with YT defaults.
@@ -84,12 +95,15 @@ func NewSelfrotateCore(logPath string, options ...Option) (*asynczap.Core, func(
 	rotateOptions.Name = logPath
 
 	level := zap.DebugLevel
+	var encoderConfigFn func(*zapcore.EncoderConfig)
 	for _, opt := range options {
 		switch v := opt.(type) {
 		case logLevel:
 			level = v.level
 		case minFreeSpace:
 			rotateOptions.MinFreeSpace = float64(opt.(minFreeSpace))
+		case encoderConfig:
+			encoderConfigFn = v.fn
 		}
 	}
 
@@ -100,6 +114,9 @@ func NewSelfrotateCore(logPath string, options ...Option) (*asynczap.Core, func(
 
 	encoder := zap.NewProductionEncoderConfig()
 	encoder.EncodeTime = zapcore.ISO8601TimeEncoder
+	if encoderConfigFn != nil {
+		encoderConfigFn(&encoder)
+	}
 
 	core := asynczap.NewCore(zapcore.NewJSONEncoder(encoder), w, level, asynczap.Options{})
 
