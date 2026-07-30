@@ -501,9 +501,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIdentityFreeModePolicy
+struct TIdentityFreeModePolicy
 {
-public:
     static int CompareTail(TUnversionedRow /*lhs*/, TUnversionedRow /*rhs*/) noexcept
     {
         return 0;
@@ -527,8 +526,8 @@ private:
         auto identityIterator = row.End() - IdentityColumnCount;
         const auto& mapperId = *identityIterator++;
         const auto& rowId = *identityIterator;
-        YT_ASSERT(mapperId.Type == EValueType::Int64);
-        YT_ASSERT(rowId.Type == EValueType::Int64);
+        YT_VERIFY(mapperId.Type == EValueType::Int64);
+        YT_VERIFY(rowId.Type == EValueType::Int64);
         return {mapperId.Data.Int64, rowId.Data.Int64};
     }
 };
@@ -634,12 +633,12 @@ ISortReaderPtr CreateSortReader(
             return createReader(
                 TIdentityFreeModePolicy(),
                 std::move(recordHeaderFilter),
-                {});
+                /*identityColumnIds*/ {});
         },
         [&] (TIdentityColumnIds identityColumnIds) {
             return createReader(
                 TIdentityPreservingModePolicy(),
-                {},
+                /*recordHeaderFilter*/ {},
                 std::move(identityColumnIds));
         });
 }

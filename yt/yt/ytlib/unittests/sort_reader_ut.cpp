@@ -339,7 +339,11 @@ TEST_F(TSortReaderTest, ForwardsPartitionControl)
 {
     auto reader = MakeIdentityPreservingReader();
 
-    reader->AddChunk(TChunkId(1, 2, 3, 4), {}, 5, 10);
+    reader->AddChunk(
+        TChunkId(1, 2, 3, 4),
+        /*replicas*/ {},
+        /*startRecordIndex*/ 5,
+        /*rangeEndRecordIndex*/ 10);
     reader->SetNoMoreChunks();
 
     EXPECT_EQ(MockReader_->GetAddChunkCallCount(), 1);
@@ -1097,7 +1101,12 @@ TEST_F(TSortReaderTest, RandomizedAgainstReference)
                 i64 key = keyDistribution(rng);
                 i64 payload = payloadCounter++;
                 rows.push_back(MakeRow(key, payload));
-                expectedRecord.push_back(TExpectedRow{key, payload, mapperId, nextRowId++});
+                expectedRecord.push_back(TExpectedRow{
+                    .Key = key,
+                    .Payload = payload,
+                    .MapperId = mapperId,
+                    .RowId = nextRowId++,
+                });
             }
             expected.insert(expected.end(), expectedRecord.begin(), expectedRecord.end());
             records.push_back(MakeIdentityPreservingRecord(mapperId, startRow, std::move(rows)));
