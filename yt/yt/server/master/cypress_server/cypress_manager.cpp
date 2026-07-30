@@ -2115,7 +2115,7 @@ public:
     }
 
     //! Traverses a transaction tree. The root transaction does not have to be topmost.
-    template <CInvocable<void(TTransaction*)> F>
+    template <NMpl::CInvocable<void(TTransaction*)> F>
     void VisitTransactionTree(TTransaction* rootTransaction, F&& processTransaction)
     {
         // BFS queue.
@@ -3697,7 +3697,7 @@ private:
 
 
 
-    template <CInvocable<void(TCypressNode*)> TDoCheck, CInvocable<bool()> TIsCheckFinished>
+    template <NMpl::CInvocable<void(TCypressNode*)> TDoCheck, NMpl::CInvocable<bool()> TIsCheckFinished>
     struct TCheckSubtreeTrunkNodesTraverser
     {
         TDoCheck DoCheck;
@@ -4694,7 +4694,7 @@ private:
         multicellManager->PostToMaster(request, externalCellTag);
     }
 
-    template <CInvocable<bool(TCypressNode*)> TFilter>
+    template <NMpl::CInvocable<bool(TCypressNode*)> TFilter>
     void ListSubtreeNodes(
         TCypressNode* trunkNode,
         TTransaction* transaction,

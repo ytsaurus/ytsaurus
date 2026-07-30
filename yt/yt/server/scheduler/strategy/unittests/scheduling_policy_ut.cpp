@@ -542,7 +542,7 @@ protected:
         return New<TAllocation>(
             allocationId,
             operationId,
-            /*incarnationId*/ TWrapperTraits<TIncarnationId>::RecursiveWrap(TGuid::Create()),
+            /*incarnationId*/ NMpl::TWrapperTraits<TIncarnationId>::RecursiveWrap(TGuid::Create()),
             /*controllerEpoch*/ TControllerEpoch(0),
             execNode,
             startTime,

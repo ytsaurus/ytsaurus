@@ -490,7 +490,7 @@ public:
         return agent;
     }
 
-    template <CInvocable<void(THashMap<TAgentId, TControllerAgentPtr>&)> TMutator>
+    template <NMpl::CInvocable<void(THashMap<TAgentId, TControllerAgentPtr>&)> TMutator>
     void MutateAgentMappings(TMutator mutator)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);

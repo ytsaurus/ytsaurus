@@ -308,8 +308,8 @@ void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOp
         TJobResources resourceUsage,
         const TJobResources& resourceUsageBound,
         const TResourceVector& fairShareBound,
-        const CInvocable<void(TAllocationProperties*)> auto& onMovedLeftToRight,
-        const CInvocable<void(TAllocationProperties*)> auto& onMovedRightToLeft,
+        const NMpl::CInvocable<void(TAllocationProperties*)> auto& onMovedLeftToRight,
+        const NMpl::CInvocable<void(TAllocationProperties*)> auto& onMovedRightToLeft,
         bool moveAllocationsWithOnBoundaryUsage = false)
     {
         auto initialResourceUsage = resourceUsage;
