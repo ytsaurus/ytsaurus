@@ -726,7 +726,7 @@ private:
 
         auto syncSession = New<TMultiPhaseCellSyncSession>(
             Bootstrap_,
-            ChunkServerLogger().WithTag("RequestId: %v", context->GetRequestId()));
+            ChunkServerLogger().WithTag("RequestId", context->GetRequestId()));
         WaitFor(syncSession->Sync(cellTagsToSyncWith))
             .ThrowOnError();
 

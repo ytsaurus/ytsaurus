@@ -282,7 +282,7 @@ public:
         IOThroughputMeter_ = CreateIOThroughputMeter(
             GetDynamicConfigManager(),
             ChunkStore_,
-            DataNodeLogger().WithTag("IOMeter"));
+            DataNodeLogger().WithTag("Meter", "IO"));
         JobController_->Initialize();
 
         auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager();

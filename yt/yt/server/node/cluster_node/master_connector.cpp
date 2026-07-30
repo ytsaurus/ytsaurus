@@ -103,7 +103,7 @@ public:
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ false,
             ENodeHeartbeatType::Cluster,
-            ClusterNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Cluster))
+            ClusterNodeLogger().WithTag("HeartbeatType", ENodeHeartbeatType::Cluster))
         , Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->MasterConnector)
         , RpcAddresses_(rpcAddresses)
@@ -133,7 +133,7 @@ public:
 
         UpdateLocalHostName(/*useHostObjects*/ false);
 
-        const auto& heartbeatLogger = Logger().WithTag("HeartbeatType: Cluster");
+        const auto& heartbeatLogger = Logger().WithTag("HeartbeatType", "Cluster");
 
         Reconfigure(dynamicConfigManager->GetConfig()->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
     }

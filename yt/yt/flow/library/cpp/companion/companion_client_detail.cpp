@@ -125,7 +125,7 @@ TCompanionClient::TCompanionClient(
     const IStatusProfilerPtr& statusProfiler)
     : Timeout_(timeout)
     , BackoffOptions_(backoffOptions)
-    , Logger(CompanionLogger().WithTag("CompanionClient"))
+    , Logger(CompanionLogger().WithTag("Client", "Companion"))
     , CompanionProxy_(CreateCompanionProxy(address))
     , StatusProfiler_(statusProfiler)
 { }

@@ -151,9 +151,9 @@ public:
         }
 
         Logger = StorageContext_->Logger;
-        Logger.AddTag("SubqueryIndex: %v, SubqueryTableIndex: %v",
-            SubquerySpec_.SubqueryIndex,
-            SubquerySpec_.TableIndex);
+        Logger
+            .AddTag("SubqueryIndex", SubquerySpec_.SubqueryIndex)
+            .AddTag("SubqueryTableIndex", SubquerySpec_.TableIndex);
 
         const auto& traceContext = GetQueryContext(context)->TraceContext;
 

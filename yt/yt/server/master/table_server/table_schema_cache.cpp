@@ -31,7 +31,7 @@ TTableSchemaCache::TTableSchemaCache(TAsyncExpiringCacheConfigPtr config)
     : TAsyncExpiringCache<TCompactTableSchemaPtr, TTableSchemaPtr>(
         std::move(config),
         NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-        TableServerLogger().WithTag("Cache: TableSchema"),
+        TableServerLogger().WithTag("Cache", "TableSchema"),
         TableServerProfiler().WithPrefix("/table_schema_cache"))
 { }
 
@@ -98,7 +98,7 @@ TYsonTableSchemaCache::TYsonTableSchemaCache(const TWeakPtr<ITableManager>& weak
     : TAsyncExpiringCache<TCompactTableSchemaPtr, TYsonString>(
         config,
         NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-        TableServerLogger().WithTag("Cache: YsonTableSchema"),
+        TableServerLogger().WithTag("Cache", "YsonTableSchema"),
         TableServerProfiler().WithPrefix("/yson_table_schema_cache"))
     , WeakTableManager_(weakTableManager)
 { }

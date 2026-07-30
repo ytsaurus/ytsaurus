@@ -74,7 +74,7 @@ public:
         , TrafficMeter_(std::move(trafficMeter))
         , TargetReplicas_(std::move(targetReplicas))
         , SessionId_(sessionId)
-        , Logger(ChunkClientLogger().WithTag("TransactionId: %v", TransactionId_))
+        , Logger(ChunkClientLogger().WithTag("TransactionId", TransactionId_))
     {
         Config_->UploadReplicationFactor = std::min(
             Config_->UploadReplicationFactor,
@@ -255,7 +255,7 @@ private:
             YT_LOG_DEBUG("Chunk created (ChunkId: %v)", SessionId_.ChunkId);
         }
 
-        Logger.AddTag("ChunkId: %v", SessionId_);
+        Logger.AddTag("ChunkId", SessionId_);
 
         UnderlyingWriter_ = CreateUnderlyingWriter();
         WaitFor(UnderlyingWriter_->Open())

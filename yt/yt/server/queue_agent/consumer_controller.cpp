@@ -185,7 +185,7 @@ private:
         TQueueSnapshotConstPtr queueSnapshot,
         bool enableVerboseLogging)
     {
-        auto Logger = this->Logger().WithTag("Queue: %v", queuePath);
+        auto Logger = this->Logger().WithTag("Queue", queuePath);
 
         YT_LOG_DEBUG("Building subconsumer snapshot (PassIndex: %v)", ConsumerSnapshot_->PassIndex);
         auto logFinally = Finally([&] {
@@ -478,7 +478,9 @@ public:
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(ConsumerControllerLogger().WithTag("Consumer: %v, Leading: %v", ConsumerRef_, Leading_))
+        , Logger(ConsumerControllerLogger()
+            .WithTag("Consumer", ConsumerRef_)
+            .WithTag("Leading", Leading_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TConsumerController::Pass, MakeWeak(this)),

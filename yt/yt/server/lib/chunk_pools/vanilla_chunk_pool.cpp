@@ -34,8 +34,6 @@ public:
     {
         Logger = options.Logger;
 
-        ValidateLogger(Logger);
-
         // We use very small portion of job manager functionality. We fill it with dummy
         // jobs and make manager deal with extracting/completing/failing/aborting jobs for us.
         for (int index = 0; index < options.JobCount; ++index) {

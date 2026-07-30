@@ -23,7 +23,7 @@ TJobGpuChecker::TJobGpuChecker(
     NLogging::TLogger logger)
     : Context_(std::move(context))
     , Logger(std::move(logger)
-        .WithTag("Type: %v", Context_.Type))
+        .WithTag("Type", Context_.Type))
 {
     YT_LOG_DEBUG("Creating job GPU checker");
 }

@@ -107,7 +107,7 @@ public:
         , SnapThreadTagsGuard_(RegisterThreadGuard(
             creationContext.SnapshotThreadName,
             creationContext.BundleNameTags))
-        , Logger(ChaosNodeLogger().WithTag("SlotName: %v", creationContext.AutomatonThreadName))
+        , Logger(ChaosNodeLogger().WithTag("SlotName", creationContext.AutomatonThreadName))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
@@ -121,9 +121,9 @@ public:
         YT_VERIFY(!Occupant_);
 
         Occupant_ = std::move(occupant);
-        Logger.AddTag("CellId: %v, PeerId: %v",
-            Occupant_->GetCellId(),
-            Occupant_->GetPeerId());
+        Logger
+            .AddTag("CellId", Occupant_->GetCellId())
+            .AddTag("PeerId", Occupant_->GetPeerId());
     }
 
     TCellId GetCellId() const override

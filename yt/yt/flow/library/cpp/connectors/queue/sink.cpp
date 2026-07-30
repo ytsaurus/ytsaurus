@@ -65,7 +65,7 @@ TSyncQueueSink::TSyncQueueSink(
     TSinkContextPtr context,
     TDynamicSinkContextPtr dynamicContext)
     : TSyncSinkBase(std::move(context), std::move(dynamicContext))
-    , Logger(TSyncSinkBase::Logger.WithTag("QueuePath: %v", GetParameters()->QueuePath))
+    , Logger(TSyncSinkBase::Logger.WithTag("QueuePath", GetParameters()->QueuePath))
     , NameTable_(GenerateNameTable())
     , FlowMetaColumn_(
         GetParameters()->WriteFlowQueueMeta
@@ -210,9 +210,9 @@ TAsyncQueueWriter::TAsyncQueueWriter(
         std::move(dynamicParameters),
         std::move(nameTable),
         std::move(errorState),
-        logger.WithTag("QueuePath: %v, ProducerPath: %v",
-            parameters->QueuePath,
-            parameters->ProducerPath))
+        logger
+            .WithTag("QueuePath", parameters->QueuePath)
+            .WithTag("ProducerPath", parameters->ProducerPath))
     , Parameters_(std::move(parameters))
     , Client_(Context_->ClientsCache->GetClient(*Parameters_->QueuePath.GetCluster()))
     , ProducerClient_(NQueueClient::CreateProducerClient(Client_, Parameters_->ProducerPath))
@@ -284,9 +284,9 @@ TAsyncMultiClusterQueueWriter::TAsyncMultiClusterQueueWriter(
         std::move(dynamicParameters),
         std::move(nameTable),
         std::move(errorState),
-        logger.WithTag("QueuePath: %v, ProducerPath: %v",
-            parameters->QueuePath,
-            parameters->ProducerPath))
+        logger
+            .WithTag("QueuePath", parameters->QueuePath)
+            .WithTag("ProducerPath", parameters->ProducerPath))
     , Parameters_(std::move(parameters))
     , DataByCluster_()
     , CurrentClusterIndex_(0)
@@ -501,7 +501,7 @@ TQueueSinkController::TQueueSinkController(
         GetParameters(),
         Client_,
         GetContext()->Invoker,
-        GetContext()->Logger.WithTag("QueuePath: %v", GetParameters()->QueuePath),
+        GetContext()->Logger.WithTag("QueuePath", GetParameters()->QueuePath),
         GetContext()->StatusProfiler->WithPrefix("/queue_info")))
     , HeartbeatExecutor_(New<NConcurrency::TPeriodicExecutor>(
         GetContext()->Invoker,
@@ -627,7 +627,7 @@ void TMultiClusterQueueSinkController::ConstructByCluster(const std::string& clu
         GetParameters(),
         client,
         GetContext()->Invoker,
-        GetContext()->Logger.WithTag("QueuePath: %v", GetParameters()->QueuePath).WithTag("Cluster: %v", cluster),
+        GetContext()->Logger.WithTag("QueuePath", GetParameters()->QueuePath).WithTag("Cluster", cluster),
         GetContext()->StatusProfiler->WithPrefix(Format("/queue_info/clusters/%v", cluster)));
 }
 

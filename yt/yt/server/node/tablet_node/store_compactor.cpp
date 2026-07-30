@@ -322,7 +322,7 @@ struct TCompactionTask
     const IInvokerPtr Invoker;
     const TCancelableContextPtr CancelableContext;
 
-    const std::string TabletLoggingTag;
+    const NLogging::TLoggingTagList TabletLoggingTags;
 
     // These fields are filled upon task invocation.
     TWeakPtr<TStoreCompactor> Owner;
@@ -1017,9 +1017,9 @@ public:
                 return std::vector<std::unique_ptr<TCompactionTask>>();
             }
 
-            auto Logger = TabletNodeLogger().WithTag("CellId: %v, TaskKind: %v",
-                slot->GetCellId(),
-                taskKind);
+            auto Logger = TabletNodeLogger()
+                .WithTag("CellId", slot->GetCellId())
+                .WithTag("TaskKind", taskKind);
 
             std::vector<std::unique_ptr<TCompactionTask>> tasks;
             tasks.reserve(requests.size());
@@ -1276,7 +1276,7 @@ private:
         if (tablet->GetMountRevision() != request.Tablet->GetMountRevision()) {
             YT_LOG_DEBUG("Compaction task declined: mount revision mismatch (%v, "
                 "ActualMountRevision: %v, RequestMountRevision: %v)",
-                tablet->GetLoggingTag(),
+                tablet->GetLoggingTags(),
                 tablet->GetMountRevision(),
                 request.Tablet->GetMountRevision());
             return nullptr;
@@ -1284,14 +1284,14 @@ private:
 
         if (!tablet->SmoothMovementData().IsTabletStoresUpdateAllowed(/*isCommonFlush*/ false)) {
             YT_LOG_DEBUG("Compaction task declined: tablet participates in smooth movement (%v)",
-                tablet->GetLoggingTag());
+                tablet->GetLoggingTags());
             return nullptr;
         }
 
         if (request.DiscardStores && tablet->GetTableSchema()->HasTtlColumn()) {
             YT_LOG_DEBUG("Compaction task declined: tablet has TTL column and has been compacted "
                 "by discard stores (%v)",
-                tablet->GetLoggingTag());
+                tablet->GetLoggingTags());
             return nullptr;
         }
 
@@ -1483,7 +1483,7 @@ private:
             tabletSnapshot->TablePath,
             tabletSnapshot->TabletId));
 
-        logger->AddTag("TransactionId: %v", transaction->GetId());
+        logger->AddTag("TransactionId", transaction->GetId());
 
         YT_LOG_INFO("Partition compaction transaction created");
 
@@ -1502,7 +1502,7 @@ private:
             tabletSnapshot->TablePath,
             tabletSnapshot->TabletId));
 
-        logger->AddTag("TransactionId: %v", transaction->GetId());
+        logger->AddTag("TransactionId", transaction->GetId());
 
         YT_LOG_INFO("Eden partitioning transaction created");
 
@@ -1542,9 +1542,8 @@ private:
         };
 
         auto Logger = TabletNodeLogger()
-            .WithTag("%v, ReadSessionId: %v",
-                task->TabletLoggingTag,
-                chunkReadOptions.ReadSessionId);
+            .WithTags(task->TabletLoggingTags)
+            .WithTag("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
@@ -1961,9 +1960,8 @@ private:
         };
 
         auto Logger = TabletNodeLogger()
-            .WithTag("%v, ReadSessionId: %v",
-                task->TabletLoggingTag,
-                chunkReadOptions.ReadSessionId);
+            .WithTags(task->TabletLoggingTags)
+            .WithTag("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
             if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
@@ -2059,11 +2057,13 @@ private:
             return;
         }
 
-        Logger.AddTag("Eden: %v, PartitionRange: %v .. %v, PartitionId: %v",
-            partition->IsEden(),
+        Logger.AddTag("Eden", partition->IsEden());
+        Logger.AddTagFormat(
+            "PartitionRange",
+            "%v .. %v",
             partition->GetPivotKey(),
-            partition->GetNextPivotKey(),
-            partition->GetId());
+            partition->GetNextPivotKey());
+        Logger.AddTag("PartitionId", partition->GetId());
 
         partition->EnterCompactionState(EPartitionState::Compacting);
 
@@ -2509,7 +2509,7 @@ TCompactionTask::TCompactionTask(
     , Slot(slot)
     , Invoker(tablet->GetEpochAutomatonInvoker())
     , CancelableContext(tablet->GetCancelableContext())
-    , TabletLoggingTag(tablet->GetLoggingTag())
+    , TabletLoggingTags(tablet->GetLoggingTags())
 { }
 
 void TCompactionTask::Prepare(

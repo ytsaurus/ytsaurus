@@ -124,10 +124,9 @@ public:
         , ProfilingCounters_(std::move(profilingCounters))
         , Queue_(std::move(queue))
         , ExportConfig_(std::move(exportConfig))
-        , Logger(logger.WithTag(
-            "ExportDirectory: %v, ExportPeriod: %v",
-            ExportConfig_->ExportDirectory,
-            ExportConfig_->ExportPeriod))
+        , Logger(logger
+            .WithTag("ExportDirectory", ExportConfig_->ExportDirectory)
+            .WithTag("ExportPeriod", ExportConfig_->ExportPeriod))
     { }
 
     //! Performs the following steps:
@@ -797,9 +796,9 @@ TQueueExporterOld::TQueueExporterOld(
             BIND_NO_PROPAGATE(&TQueueExporterOld::Export, MakeWeak(this)),
             /*interval*/ std::nullopt
         ))
-    , Logger(QueueStaticTableExporterLogger().WithTag("%v, ExportName: %v",
-        logger.GetTag(),
-        ExportName_))
+    , Logger(QueueStaticTableExporterLogger()
+        .WithTags(logger.GetTags())
+        .WithTag("ExportName", ExportName_))
 {
     Executor_->Start();
     Executor_->SetInterval(DynamicConfig_.Enable

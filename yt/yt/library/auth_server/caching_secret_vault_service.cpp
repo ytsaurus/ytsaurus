@@ -30,7 +30,7 @@ public:
         : TAsyncExpiringCache(
             config->Cache,
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            AuthLogger().WithTag("Cache: SecretVault"),
+            AuthLogger().WithTag("Cache", "SecretVault"),
             std::move(profiler))
         , Underlying_(std::move(underlying))
     { }

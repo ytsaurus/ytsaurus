@@ -60,9 +60,9 @@ public:
         , Throttler_(std::move(throttler))
         , WriteBlocksOptions_(std::move(writeBlocksOptions))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
-        , Logger(FileClientLogger().WithTag("Path: %v, TransactionId: %v",
-            Cookie_.CookieData.RichPath,
-            transactionId))
+        , Logger(FileClientLogger()
+            .WithTag("Path", Cookie_.CookieData.RichPath)
+            .WithTag("TransactionId", transactionId))
     { }
 
     TFuture<void> Open() override

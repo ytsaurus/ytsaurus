@@ -328,7 +328,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         auto queryId = queryRecord.Key.QueryId;
-        auto Logger = NQueryTracker::Logger().WithTag("QueryId: %v", queryId);
+        auto Logger = NQueryTracker::Logger().WithTag("QueryId", queryId);
         YT_LOG_DEBUG("Starting acquisition transaction");
         auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet))
             .ValueOrThrow();
@@ -463,7 +463,9 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-        auto Logger = QueryTrackerLogger().WithTag("QueryId: %v, Incarnation: %v", queryId, incarnation);
+        auto Logger = QueryTrackerLogger()
+            .WithTag("QueryId", queryId)
+            .WithTag("Incarnation", incarnation);
 
         if (auto iter = AcquiredQueries_.find(queryId);
             iter == AcquiredQueries_.end() || iter->second.Incarnation != incarnation)
@@ -595,7 +597,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-        auto Logger = NQueryTracker::Logger().WithTag("QueryId: %v", queryId);
+        auto Logger = NQueryTracker::Logger().WithTag("QueryId", queryId);
 
         try {
             YT_LOG_DEBUG("Starting finish transaction");

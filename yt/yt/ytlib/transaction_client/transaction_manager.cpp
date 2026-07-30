@@ -367,7 +367,7 @@ class TTransaction::TImpl
 public:
     explicit TImpl(TIntrusivePtr<TTransactionManager::TImpl> owner)
         : Owner_(owner)
-        , Logger(TransactionClientLogger().WithTag("ConnectionCellTag: %v", Owner_->PrimaryCellTag_))
+        , Logger(TransactionClientLogger().WithTag("ConnectionCellTag", Owner_->PrimaryCellTag_))
     { }
 
     ~TImpl()

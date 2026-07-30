@@ -77,11 +77,11 @@ NLogging::TLogger MakeLogger(const std::optional<TTransactionReplicationInitiato
     auto logger = TransactionServerLogger();
     if (requestInfo) {
         TStringBuilder builder;
-        builder.AppendFormat("InitiatorRequestId: %v", requestInfo->RequestId);
+        builder.AppendFormat("%v", requestInfo->RequestId);
         if (requestInfo->SubrequestIndex) {
             builder.AppendFormat("[%v]", *requestInfo->SubrequestIndex);
         }
-        logger.AddRawTag(builder.Flush());
+        logger.AddTag("InitiatorRequestId", builder.Flush());
     }
     return logger;
 }

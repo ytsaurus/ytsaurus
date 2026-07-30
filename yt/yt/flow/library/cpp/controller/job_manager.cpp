@@ -97,11 +97,11 @@ public:
                     .WithTag("computation_id", computationId.Underlying())
                     .WithGlobal());
             context->StatusProfiler = Context_->StatusProfiler->WithPrefix(Format("/computation_controllers/%v", computationId.Underlying()));
-            context->Logger = Logger().WithTag("ComputationId: %v", computationId.Underlying());
+            context->Logger = Logger().WithTag("ComputationId", computationId);
             context->ClientsCache = Context_->ClientsCache;
             context->PipelinePath = Context_->PipelinePath;
             context->Invoker = Context_->MainCycleInvoker;
-            context->PublicLogger = PublicControllerLogger().WithTag("ComputationId: %v", computationId.Underlying());
+            context->PublicLogger = PublicControllerLogger().WithTag("ComputationId", computationId);
             auto dynamicContext = New<TDynamicComputationControllerContext>();
             dynamicContext->DynamicComputationSpec = dynamicSpec;
 
@@ -132,7 +132,7 @@ public:
             resourceControllerContext->ResourceId = resourceId;
             resourceControllerContext->ResourceSpec = resourceSpec;
             resourceControllerContext->Invoker = Context_->MainCycleInvoker;
-            resourceControllerContext->Logger = Logger().WithTag("ResourceController: %v", resourceId.Underlying());
+            resourceControllerContext->Logger = Logger().WithTag("ResourceController", resourceId);
             resourceControllerContext->Profiler = WithPipelineRelatedTags(
                 ControllerProfiler()
                     .WithPrefix("/resource_controller")
@@ -1049,7 +1049,7 @@ private:
     {
         auto context = New<TResourceManagerContext>();
         context->PipelineAuthenticator = PipelineAuthenticator_;
-        context->Logger = Logger().WithTag("ResourceManager");
+        context->Logger = Logger().WithTag("Manager", "Resource");
         context->Invoker = Context_->MainCycleInvoker;
         context->Profiler = WithPipelineRelatedTags(ControllerProfiler());
         context->StatusProfiler = Context_->StatusProfiler->WithPrefix("/resource_manager");

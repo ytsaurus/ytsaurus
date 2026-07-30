@@ -51,7 +51,7 @@ TFileChunkOutput::TFileChunkOutput(
     IThroughputThrottlerPtr throttler,
     IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     i64 sizeLimit)
-    : Logger(FileClientLogger().WithTag("TransactionId: %v", transactionId))
+    : Logger(FileClientLogger().WithTag("TransactionId", transactionId))
     , Config_(std::move(config))
     , Options_(std::move(options))
     , Client_(std::move(client))

@@ -108,7 +108,7 @@ TComputationBase::TComputationBase(
         ToString(Context_->Job->JobId),
         ToFactoryThrottlers(DynamicContext_->Throttlers),
         Context_->StatusProfiler->WithPrefix("/throttlers"),
-        Logger.WithTag("ThrottlerFactory"),
+        Logger.WithTag("Factory", "Throttler"),
         Context_->Profiler.WithPrefix("/throttlers")))
 {
     YT_VERIFY(Parameters_);
@@ -926,7 +926,7 @@ THashMap<TStreamId, TKeyVisitorPtr> TUniversalComputationBase::CreateKeyVisitors
         context->KeyVisitorStates = stateTable;
         context->TimeProvider = GetTimeProvider();
         context->SerializedInvoker = GetContext()->SerializedInvoker;
-        context->Logger = Logger.WithTag("KeyVisitorStreamId: %v", streamId);
+        context->Logger = Logger.WithTag("KeyVisitorStreamId", streamId);
         context->Profiler = GetContext()->Profiler.WithPrefix("/key_visitor_streams").WithTag("stream_id", streamId.Underlying());
         context->StatusProfiler = GetContext()->StatusProfiler->WithPrefix(Format("/key_visitor/%v", streamId));
 
@@ -1003,7 +1003,7 @@ ISourcePtr TUniversalComputationBase::CreateActiveSource()
         auto [streamId, sourceKey] = SplitUniversalPartitionKey(*GetContext()->Partition->SourceKey);
         auto context = New<TSourceContext>();
         static_cast<TComputationContextBase&>(*context) = *GetContext();
-        context->Logger = context->Logger.WithTag("SourceStreamId: %v", streamId.Underlying());
+        context->Logger = context->Logger.WithTag("SourceStreamId", streamId);
         context->Profiler = context->Profiler.WithPrefix("/source_streams").WithTag("stream_id", streamId.Underlying());
         context->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/sources/%v", streamId));
         context->SourceStreamId = streamId;
@@ -1830,7 +1830,7 @@ ISinkPtr TUniversalComputationBase::GetOrCreateSink(const TSinkId& sinkId, const
     static_cast<TComputationContextBase&>(*context) = *GetContext();
     context->Profiler = context->Profiler.WithPrefix("/sink").WithTag("sink_id", sinkId.Underlying());
     context->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/sinks/%v", sinkId));
-    context->Logger = context->Logger.WithTag("SinkId: %v", sinkId.Underlying());
+    context->Logger = context->Logger.WithTag("SinkId", sinkId);
     context->SinkSpec = GetOrCrash(GetSpec()->Sinks, sinkId);
     auto dynamicSinkContext = New<TDynamicSinkContext>();
     dynamicSinkContext->DynamicSinkSpec = GetOrDefault(dynamicSpec->Sinks, sinkId, New<TDynamicSinkSpec>());

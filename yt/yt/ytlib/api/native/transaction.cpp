@@ -168,9 +168,9 @@ public:
         NLogging::TLogger logger)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
-        , Logger(logger.WithTag("TransactionId: %v, ClusterTag: %v",
-            GetId(),
-            Client_->GetConnection()->GetClusterTag()))
+        , Logger(logger
+            .WithTag("TransactionId", GetId())
+            .WithTag("ClusterTag", Client_->GetConnection()->GetClusterTag()))
         , Counters_(Client_->GetCounters().TransactionCounters)
         , SerializedInvoker_(CreateSerializedInvoker(
             Client_->GetConnection()->GetInvoker()))
@@ -364,7 +364,7 @@ public:
         }
 
         YT_LOG_DEBUG("Alien transaction registered (AlienConnectionId: %v)",
-            transaction->GetConnection()->GetLoggingTag());
+            transaction->GetConnection()->GetLoggingTags());
     }
 
 
@@ -1318,7 +1318,7 @@ private:
             : Transaction_(transaction)
             , UpstreamReplicaId_(upstreamReplicaId)
             , ReplicationCard_(std::move(replicationCard))
-            , Logger(transaction->Logger().WithTag("Path: %v", path))
+            , Logger(transaction->Logger().WithTag("Path", path))
         {
             const auto& tableMountCache = transaction->Client_->GetTableMountCache();
             auto tableInfoFuture = tableMountCache->GetTableInfo(path);

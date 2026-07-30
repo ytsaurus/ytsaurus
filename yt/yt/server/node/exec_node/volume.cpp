@@ -192,10 +192,9 @@ TFuture<void> TSimpleTmpfsVolume::Remove()
     const auto& volumePath = Path_;
 
     auto Logger = ExecNodeLogger()
-        .WithTag("VolumeType: %v, VolumeId: %v, VolumePath: %v",
-            volumeType,
-            volumeId,
-            volumePath);
+        .WithTag("VolumeType", volumeType)
+        .WithTag("VolumeId", volumeId)
+        .WithTag("VolumePath", volumePath);
 
     RemoveFuture_ = BIND(
         [

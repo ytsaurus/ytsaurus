@@ -139,7 +139,9 @@ TSource::TSource(
     TSourceContextPtr context,
     TDynamicSourceContextPtr dynamicContext)
     : TIntegerOffsetOrderedSourceBase(std::move(context), std::move(dynamicContext))
-    , Logger(TOrderedSourceBase::Logger.WithTag("Tables: %v, TablesPath: %v", GetParameters()->Tables, GetParameters()->TablesPath))
+    , Logger(TOrderedSourceBase::Logger
+            .WithTag("Tables", GetParameters()->Tables)
+            .WithTag("TablesPath", GetParameters()->TablesPath))
     , Throttler_(CreateReconfigurableThroughputThrottler(
         CreateThrottlerConfig(
             GetDynamicPartitionSpec()->RowsPerSecond,

@@ -234,7 +234,7 @@ TVanillaTask::TVanillaTask(
     , VanillaController_(dynamic_cast<TVanillaController*>(TaskHost_))
     , Spec_(std::move(spec))
     , Name_(std::move(name))
-    , Logger(TTask::Logger.WithTag("TaskName: %v", Name_))
+    , Logger(TTask::Logger.WithTag("TaskName", Name_))
     , VanillaChunkPool_(CreateVanillaChunkPool(TVanillaChunkPoolOptions{
         .JobCount = jobCount,
         .RestartCompletedJobs = Spec_->RestartCompletedJobs,

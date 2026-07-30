@@ -141,7 +141,7 @@ public:
         TNameTablePtr nameTable,
         const TChunkTimestamps& chunkTimestamps,
         const std::optional<NChunkClient::TDataSink>& dataSink)
-        : Logger(TableClientLogger().WithTag("ChunkWriterId: %v", TGuid::Create()))
+        : Logger(TableClientLogger().WithTag("ChunkWriterId", TGuid::Create()))
         , Schema_(std::move(schema))
         , ChunkTimestamps_(chunkTimestamps)
         , ChunkNameTable_(nameTable ? std::move(nameTable) : TNameTable::FromSchemaStable(*Schema_))
@@ -1470,7 +1470,7 @@ public:
         YT_VERIFY(BlockSize_ > 0);
         YT_VERIFY(BufferSize_ > 0);
 
-        Logger.AddTag("PartitionMultiChunkWriterId: %v", TGuid::Create());
+        Logger.AddTag("PartitionMultiChunkWriterId", TGuid::Create());
 
         int partitionCount = Partitioner_->GetPartitionCount();
         BlockWriters_.reserve(partitionCount);
@@ -2623,9 +2623,9 @@ public:
         , Throttler_(std::move(throttler))
         , BlockCache_(std::move(blockCache))
         , WriteBlocksOptions_(std::move(writeBlocksOptions))
-        , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
-            richPath.GetPath(),
-            TransactionId_))
+        , Logger(TableClientLogger()
+            .WithTag("Path", richPath.GetPath())
+            .WithTag("TransactionId", TransactionId_))
     {
         if (Transaction_) {
             StartListenTransaction(Transaction_);
@@ -2931,9 +2931,9 @@ public:
         , Throttler_(std::move(throttler))
         , BlockCache_(std::move(blockCache))
         , WriteBlocksOptions_(std::move(writeBlocksOptions))
-        , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
-            cookie.PatchInfo.RichPath,
-            TransactionId_))
+        , Logger(TableClientLogger()
+            .WithTag("Path", cookie.PatchInfo.RichPath)
+            .WithTag("TransactionId", TransactionId_))
     { }
 
     TFuture<void> Open()

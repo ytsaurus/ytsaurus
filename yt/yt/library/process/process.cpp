@@ -201,7 +201,7 @@ private:
 TErrorOr<std::string> ResolveBinaryPath(const std::string& binary)
 {
     auto Logger = NYT::Logger()
-        .WithTag("Binary: %v", binary);
+        .WithTag("Binary", binary);
 
     YT_LOG_DEBUG("Resolving binary path");
 

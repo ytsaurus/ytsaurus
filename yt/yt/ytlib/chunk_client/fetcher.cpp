@@ -48,7 +48,7 @@ public:
         , ThrottlerManager_(std::move(throttlerManager))
         , Client_(std::move(client))
         , NodeDirectory_(std::move(nodeDirectory))
-        , Logger(logger.WithTag("FetcherChunkScraperId: %v", TGuid::Create()))
+        , Logger(logger.WithTag("FetcherChunkScraperId", TGuid::Create()))
     { }
 
     TFuture<void> ScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs) override

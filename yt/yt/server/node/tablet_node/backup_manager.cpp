@@ -224,7 +224,7 @@ public:
         YT_LOG_DEBUG(
             "Replication transaction overlaps backup checkpoint timestamp, aborting backup "
             "(%v, StartTimestamp: %v, CheckpointTimestamp: %v, CommitTimestamp: %v)",
-            tablet->GetLoggingTag(),
+            tablet->GetLoggingTags(),
             transaction->GetStartTimestamp(),
             checkpointTimestamp,
             transaction->GetCommitTimestamp());
@@ -447,14 +447,14 @@ private:
 
         YT_LOG_DEBUG(
             "Backup checkpoint released (%v, BackupMode: %v, BackupStage: %v)",
-            tablet->GetLoggingTag(),
+            tablet->GetLoggingTags(),
             tablet->GetBackupMode(),
             tablet->GetBackupStage());
 
         if (!tablet->GetBackupCheckpointTimestamp()) {
             YT_LOG_ALERT("Backup checkpoint released from a tablet that does not participate "
                 "in backup (%v)",
-                tablet->GetLoggingTag());
+                tablet->GetLoggingTags());
             return;
         }
 
@@ -645,7 +645,7 @@ private:
             if (tablet->GetDynamicStoreCount() >= DynamicStoreCountLimit) {
                 YT_LOG_DEBUG("Backup rejected since dynamic store count limit is exceeded "
                     "(%v, DynamicStoreCount: %v, Limit: %v)",
-                    tablet->GetLoggingTag(),
+                    tablet->GetLoggingTags(),
                     tablet->GetDynamicStoreCount(),
                     DynamicStoreCountLimit);
 
@@ -710,7 +710,7 @@ private:
             YT_LOG_ALERT(error,
                 "Attempted to abort tablet backup when it has already reported success "
                 "to master (%v)",
-                tablet->GetLoggingTag());
+                tablet->GetLoggingTags());
             return;
         }
 
@@ -807,7 +807,7 @@ private:
                     YT_LOG_DEBUG(
                         "Tablet with nonempty active store is not mounted "
                         "during backup checkpoint passing (%v, TabletState: %v)",
-                        tablet->GetLoggingTag(),
+                        tablet->GetLoggingTags(),
                         tablet->GetState());
                     auto error = TError("Tablet %v has nonempty dynamic store and is not mounted "
                         "during backup checkpoint passing",
@@ -825,7 +825,7 @@ private:
                     YT_LOG_DEBUG(
                         "Cannot perform backup cutoff due to empty "
                         "dynamic store id pool (%v)",
-                        tablet->GetLoggingTag());
+                        tablet->GetLoggingTags());
                     auto error = TError("Tablet %v cannot perform backup cutoff due to empty "
                         "dynamic store id pool",
                         tablet->GetId())
@@ -844,7 +844,7 @@ private:
                 YT_LOG_DEBUG(
                     "Store rotated to perform backup cutoff (%v, PreviousStoreId: %v, "
                     "NextStoreId: %v, BackupMode: %v)",
-                    tablet->GetLoggingTag(),
+                    tablet->GetLoggingTags(),
                     previousStoreId,
                     tablet->GetActiveStore()->GetId(),
                     tablet->GetBackupMode());
@@ -856,7 +856,7 @@ private:
                     YT_LOG_DEBUG(
                         "Dynamic store id for ordered tablet allocated "
                         "after backup cutoff (%v)",
-                        tablet->GetLoggingTag());
+                        tablet->GetLoggingTags());
                 }
             } else {
                 tablet->SetOutOfBandRotationRequested(true);
@@ -875,7 +875,7 @@ private:
 
             YT_LOG_DEBUG(
                 "Backup row index cutoff descriptor generated (%v, RowIndex: %v, NextDynamicStoreId: %v)",
-                tablet->GetLoggingTag(),
+                tablet->GetLoggingTags(),
                 tablet->GetTotalRowCount(),
                 nextDynamicStoreId);
         } else {
@@ -884,7 +884,7 @@ private:
 
             YT_LOG_DEBUG(
                 "Backup dynamic store list cutoff descriptor generated (%v, DynamicStoreIdsToKeep: %v)",
-                tablet->GetLoggingTag(),
+                tablet->GetLoggingTags(),
                 capturedDynamicStoreIds);
         }
 
@@ -923,7 +923,7 @@ private:
                 YT_LOG_DEBUG(
                     "Backup checkpoint confirmation is delayed by replication in progress "
                     "(%v, PendingAsyncReplicaCount: %v)",
-                    tablet->GetLoggingTag(),
+                    tablet->GetLoggingTags(),
                     pendingAsyncReplicaCount);
                 tablet->CheckedSetBackupStage(
                     EBackupStage::FeasibilityConfirmed,
@@ -976,7 +976,7 @@ private:
                 YT_LOG_DEBUG(
                     "Tablet has passed backup checkpoint but still has replicator writes "
                     "in progress (%v, PreparedTransactionIds: %v)",
-                    tablet->GetLoggingTag(),
+                    tablet->GetLoggingTags(),
                     MakeFormattableView(
                         tablet->PreparedReplicatorTransactionIds(),
                         TDefaultFormatter{}));
@@ -1034,7 +1034,7 @@ private:
                     "Reported backup checkpoint passage due to a transaction "
                     "with later timestamp (%v, CheckpointTimestamp: %v, "
                     "NextTransactionCommitTimestamp: %v)",
-                    tablet->GetLoggingTag(),
+                    tablet->GetLoggingTags(),
                     checkpointTimestamp,
                     commitTimestamp);
 
@@ -1043,7 +1043,7 @@ private:
                     "Rejected backup checkpoint timestamp due to a transaction "
                     "with later timestamp (%v, CheckpointTimestamp: %v, "
                     "CommitTimestamp: %v)",
-                    tablet->GetLoggingTag(),
+                    tablet->GetLoggingTags(),
                     checkpointTimestamp,
                     commitTimestamp);
 
@@ -1075,7 +1075,7 @@ private:
 
         YT_LOG_DEBUG(
             "All replicator write transactions finished (%v)",
-            tablet->GetLoggingTag());
+            tablet->GetLoggingTags());
 
         YT_VERIFY(tablet->GetBackupMode() == EBackupMode::SortedAsyncReplica);
         tablet->CheckedSetBackupStage(

@@ -106,7 +106,9 @@ TWorkerConnection::TWorkerConnection(
     IInvokerPtr serializedInvoker,
     IInvokerPtr poolInvoker,
     const TSensorsOwner& sensorsOwner)
-    : Logger(WorkerLogger().WithTag("Component: DistributorWorkerConnection, DestinationWorker: %v", workerAddress))
+    : Logger(WorkerLogger()
+            .WithTag("Component", "DistributorWorkerConnection")
+            .WithTag("DestinationWorker", workerAddress))
     , State_(std::move(state))
     , DistributorSensorsOwner_(sensorsOwner)
     , StreamSpecStorage_(std::move(streamSpecStorage))
@@ -726,7 +728,7 @@ TMessageDistributor::TMessageDistributor(
     IJobDirectoryPtr jobDirectory,
     IChannelFactoryPtr channelFactory,
     TStreamSpecStoragePtr streamSpecStorage)
-    : Logger(WorkerLogger().WithTag("Component: Distributor"))
+    : Logger(WorkerLogger().WithTag("Component", "Distributor"))
     , State_(New<TMessageDistributorState>(jobDirectory))
     , JobDirectory_(std::move(jobDirectory))
     , ChannelFactory_(std::move(channelFactory))

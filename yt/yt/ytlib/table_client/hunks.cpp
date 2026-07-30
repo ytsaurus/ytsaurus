@@ -1874,8 +1874,7 @@ public:
         , DictionaryCompressionFactory_(std::move(dictionaryCompressionFactory))
         , Options_(std::move(options))
         , PerformanceCounters_(std::move(performanceCounters))
-        , Logger(TableClientLogger().WithTag("ReadSessionId: %v",
-            Options_.ReadSessionId))
+        , Logger(TableClientLogger().WithTag("ReadSessionId", Options_.ReadSessionId))
     { }
 
     TDataStatistics GetDataStatistics() const override

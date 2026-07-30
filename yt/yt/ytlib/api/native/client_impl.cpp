@@ -135,9 +135,9 @@ TClient::TClient(
     INodeMemoryTrackerPtr memoryTracker)
     : Connection_(std::move(connection))
     , Options_(options)
-    , Logger(ApiLogger().WithTag("ClientId: %v, AuthenticatedUser: %v",
-        TGuid::Create(),
-        Options_.GetAuthenticatedUser()))
+    , Logger(ApiLogger()
+        .WithTag("ClientId", TGuid::Create())
+        .WithTag("AuthenticatedUser", Options_.GetAuthenticatedUser()))
     , Profiler_(TProfiler("/native_client").WithTag("connection_name", Connection_->GetStaticConfig()->ConnectionName))
     , Counters_(Profiler_)
     , TypeHandlers_{

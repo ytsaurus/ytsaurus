@@ -28,7 +28,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             invoker,
-            std::move(logger).WithTag("Cache: PoolWeight"))
+            std::move(logger).WithTag("Cache", "PoolWeight"))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
     { }

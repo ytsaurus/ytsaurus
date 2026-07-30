@@ -247,7 +247,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            Logger().WithTag("Cache: ClusterLivenessCheck"))
+            Logger().WithTag("Cache", "ClusterLivenessCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -292,7 +292,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            Logger().WithTag("Cache: ClusterIncomingReplicationCheck"))
+            Logger().WithTag("Cache", "ClusterIncomingReplicationCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -345,7 +345,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            Logger().WithTag("Cache: ClusterSafeModeCheck"))
+            Logger().WithTag("Cache", "ClusterSafeModeCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -392,7 +392,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            Logger().WithTag("Cache: HydraReadOnlyCheck"))
+            Logger().WithTag("Cache", "HydraReadOnlyCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -467,7 +467,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            Logger().WithTag("Cache: BundleHealth"))
+            Logger().WithTag("Cache", "BundleHealth"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 

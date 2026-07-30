@@ -355,7 +355,7 @@ private:
     void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, const std::string& shardingDirPath) noexcept
     {
         auto Logger = ExecNodeLogger()
-            .WithTag("ShardingDirPath: %v", shardingDirPath);
+            .WithTag("ShardingDirPath", shardingDirPath);
 
         auto guard = TAsyncSemaphoreGuard();
         if (DynamicConfig_.Acquire()->DirectoryTraversalConcurrency.value_or(Config_->DirectoryTraversalConcurrency) != 0) {

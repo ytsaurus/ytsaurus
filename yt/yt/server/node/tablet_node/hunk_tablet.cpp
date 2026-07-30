@@ -30,7 +30,9 @@ THunkTablet::THunkTablet(
     : TObjectBase(tabletId)
     , HunkStoragePath_(std::move(hunkStoragePath))
     , Host_(host)
-    , Logger(TabletNodeLogger().WithTag("TabletId: %v, Path: %v", tabletId, HunkStoragePath_))
+    , Logger(TabletNodeLogger()
+        .WithTag("TabletId", tabletId)
+        .WithTag("Path", HunkStoragePath_))
 {
     RenewPromise();
 }

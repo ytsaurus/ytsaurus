@@ -32,7 +32,7 @@ public:
         TSessionId sessionId)
         : Client_(std::move(client))
         , SessionId_(sessionId)
-        , Logger(ChunkClientLogger().WithTag("ChunkId: %v", SessionId_.ChunkId))
+        , Logger(ChunkClientLogger().WithTag("ChunkId", SessionId_.ChunkId))
         , ChunkUploadSession_(New<TS3MultiPartUploadSession>(
             Client_,
             mediumDescriptor->GetS3ObjectPlacementForChunk(SessionId_.ChunkId),

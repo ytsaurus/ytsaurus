@@ -88,7 +88,7 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
         traceContext,
         queryContext->Host,
         storageContext->Settings,
-        Logger.WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId),
+        Logger.WithTag("ReadSessionId", chunkReadOptions.ReadSessionId),
         chunkReadOptions.ChunkReaderStatistics,
         std::move(statisticsCallback));
 

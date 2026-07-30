@@ -10,7 +10,7 @@ TContextPtr TContext::WithTableName(TStringBuf name) const
     namedContext->Client = Client;
     namedContext->PipelinePath = PipelinePath;
     namedContext->LoadThroughputThrottler = LoadThroughputThrottler;
-    namedContext->Logger = Logger.WithTag("Table: %v", name);
+    namedContext->Logger = Logger.WithTag("Table", name);
     namedContext->Profiler = Profiler.WithTag("table", std::string(name));
     namedContext->Tag = Tag;
     return namedContext;

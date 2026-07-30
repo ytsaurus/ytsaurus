@@ -87,7 +87,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            TabletNodeLogger().WithTag("Cache: ResourceLimits"))
+            TabletNodeLogger().WithTag("Cache", "ResourceLimits"))
         , Bootstrap_(bootstrap)
     { }
 

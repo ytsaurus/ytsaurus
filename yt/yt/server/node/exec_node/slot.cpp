@@ -81,7 +81,7 @@ public:
         , NodeTag_(nodeTag)
         , JobProxyUnixDomainSocketPath_(GetJobProxyUnixDomainSocketPath())
         , NumaNodeAffinity_(numaNodeAffinity)
-        , Logger(SlotLogger().WithTag("SlotIndex: %v", SlotIndex_))
+        , Logger(SlotLogger().WithTag("SlotIndex", SlotIndex_))
     {
         Location_->IncreaseSessionCount();
         if (diskRequest.disk_space() > 0) {
@@ -701,7 +701,7 @@ public:
     {
         VerifyEnabled();
 
-        Logger.AddTag("AllocationId: %v", allocationId);
+        Logger.AddTag("AllocationId", allocationId);
     }
 
     std::string GetJobProxyUnixDomainSocketPath() const override

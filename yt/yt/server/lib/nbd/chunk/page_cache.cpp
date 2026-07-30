@@ -38,7 +38,10 @@ TPageCache::TPageCache(
     , MaxDirtyPagesPerWriteback_(MaxDirtyDataPerWriteback_ / PageSize_)
     , MaxDirtyDataPerWrite_(Config_->MaxDirtyDataPerWrite)
     , MaxInflightWriteRequests_(Config_->MaxInflightWriteRequests)
-    , Logger(logger.WithTag("CacheSize: %v, PageSize: %v, MaxPages: %v", Config_->Capacity, PageSize_, MaxPages_))
+    , Logger(logger
+        .WithTag("CacheSize", Config_->Capacity)
+        .WithTag("PageSize", PageSize_)
+        .WithTag("MaxPages", MaxPages_))
 {
     YT_VERIFY(ChunkHandler_);
     YT_VERIFY(Invoker_);

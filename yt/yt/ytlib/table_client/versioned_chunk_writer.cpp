@@ -73,7 +73,7 @@ public:
         IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
         const std::optional<NChunkClient::TDataSink>& dataSink)
-        : Logger(TableClientLogger().WithTag("ChunkWriterId: %v", TGuid::Create()))
+        : Logger(TableClientLogger().WithTag("ChunkWriterId", TGuid::Create()))
         , Options_(std::move(options))
         , Config_(std::move(config))
         , BlockSize_(GetWriteBlockSize(Config_, Options_))

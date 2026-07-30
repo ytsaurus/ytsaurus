@@ -1254,7 +1254,7 @@ void TClickHouseHandler::HandleRequest(
     const IResponseWriterPtr& response)
 {
     auto Logger = ClickHouseUnstructuredLogger()
-        .WithTag("RequestId: %v", request->GetRequestId());
+        .WithTag("RequestId", request->GetRequestId());
 
     if (!Coordinator_->CanHandleHeavyRequests()) {
         // We intentionally read the body of the request and drop it to make sure

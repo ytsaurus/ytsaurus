@@ -38,9 +38,8 @@ public:
                 .Item("cell_tag").Value(cellTag)
             .EndMap()))
         , Logger(ChaosClientLogger()
-            .WithTag("ProviderId: %v, CellTag: %v",
-                TGuid::Create(),
-                cellTag))
+            .WithTag("ProviderId", TGuid::Create())
+            .WithTag("CellTag", cellTag))
     {
         synchronizer->AddCellTag(cellTag);
 

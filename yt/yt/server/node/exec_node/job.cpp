@@ -330,11 +330,10 @@ TJob::TJob(
     , OperationId_(operationId)
     , Type_(EJobType(jobSpec.type()))
     , Bootstrap_(bootstrap)
-    , Logger(ExecNodeLogger().WithTag(
-        "JobId: %v, OperationId: %v, JobType: %v",
-        jobId,
-        operationId,
-        Type_))
+    , Logger(ExecNodeLogger()
+        .WithTag("JobId", jobId)
+        .WithTag("OperationId", operationId)
+        .WithTag("JobType", Type_))
     , Allocation_(std::move(allocation))
     , ResourceHolder_(Allocation_->GetResourceHolder())
     , InitialResourceDemand_(ResourceHolder_->GetInitialResourceDemand())

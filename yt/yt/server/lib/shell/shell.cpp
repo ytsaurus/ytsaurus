@@ -71,7 +71,9 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        Logger.AddTag("ShellId: %v, ShellIndex: %v", Id_, Index_);
+        Logger
+            .AddTag("ShellId", Id_)
+            .AddTag("ShellIndex", Index_);
     }
 
     void ResizeWindow(int height, int width) override

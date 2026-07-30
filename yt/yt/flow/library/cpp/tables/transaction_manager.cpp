@@ -44,7 +44,7 @@ TTransactionManager::TTransactionManager(
     : Context_(std::move(context))
     , Spec_(std::move(spec))
     , PartitionTransactionsPath_(NYPath::YPathJoin(Context_->PipelinePath.GetPath(), PartitionTransactionsTableName))
-    , Logger(Context_->Logger.WithTag("TransactionManager"))
+    , Logger(Context_->Logger.WithTag("Manager", "Transaction"))
     , Profiler_(Context_->Profiler.WithPrefix("/transaction_manager"))
     , SkipEmptyTransactionsDeadline_(TInstant::Zero())
     , InitialEmptyTransactionCompleted_(false)

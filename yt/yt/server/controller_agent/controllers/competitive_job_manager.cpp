@@ -20,7 +20,7 @@ TCompetitiveJobManagerBase::TCompetitiveJobManagerBase(
     EJobCompetitionType competitionType,
     EAbortReason resultLost)
     : Host_(host)
-    , Logger(logger.WithTag("CompetitionType: %v", competitionType))
+    , Logger(logger.WithTag("CompetitionType", competitionType))
     , JobCounter_(New<TProgressCounter>())
     , MaxCompetitiveJobCount_(maxSecondaryJobCount)
     , CompetitionType_(competitionType)
@@ -30,8 +30,8 @@ TCompetitiveJobManagerBase::TCompetitiveJobManagerBase(
 bool TCompetitiveJobManagerBase::TryAddCompetitiveJob(const TJobletPtr& joblet)
 {
     auto Logger = this->Logger
-        .WithTag("JobId: %v", joblet->JobId)
-        .WithTag("Cookie: %v", joblet->OutputCookie);
+        .WithTag("JobId", joblet->JobId)
+        .WithTag("Cookie", joblet->OutputCookie);
 
     if (!IsRelevant(joblet)) {
         YT_LOG_DEBUG("Ignoring competitive job request; job is not relevant");

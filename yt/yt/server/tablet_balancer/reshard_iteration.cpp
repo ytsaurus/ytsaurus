@@ -527,8 +527,8 @@ public:
             referenceTable->second,
             DynamicConfig_->ActionManager->MaxTabletCountPerAction,
             Logger()
-                .WithTag("BundleName: %v", BundleName_)
-                .WithTag("TableId: %v", table->Id))
+                .WithTag("BundleName", BundleName_)
+                .WithTag("TableId", table->Id))
             .AsyncVia(invoker)
             .Run();
     }

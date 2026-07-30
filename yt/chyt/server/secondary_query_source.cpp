@@ -837,7 +837,7 @@ DB::SourcePtr CreateSecondaryQuerySource(
         queryContext->Host,
         storageContext->Settings,
         subquerySpec.SubqueryOptions,
-        queryContext->Logger.WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId),
+        queryContext->Logger.WithTag("ReadSessionId", chunkReadOptions.ReadSessionId),
         chunkReadOptions.ChunkReaderStatistics,
         std::move(statisticsCallback),
         std::move(readerFactory));

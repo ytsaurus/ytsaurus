@@ -122,9 +122,9 @@ public:
         , ClusterName_(replicaInfo->GetClusterName())
         , ReplicaPath_(replicaInfo->GetReplicaPath())
         , MountConfig_(tablet->GetSettings().MountConfig)
-        , Logger(TabletNodeLogger().WithTag("%v, ReplicaId: %v",
-            tablet->GetLoggingTag(),
-            ReplicaId_))
+        , Logger(TabletNodeLogger()
+            .WithTags(tablet->GetLoggingTags())
+            .WithTag("ReplicaId", ReplicaId_))
         , ReplicationLogParser_(CreateReplicationLogParser(
             TableSchema_,
             tablet->GetPhysicalSchema(),

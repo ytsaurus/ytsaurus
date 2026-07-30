@@ -46,7 +46,7 @@ public:
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ false,
             ENodeHeartbeatType::Exec,
-            ExecNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Exec))
+            ExecNodeLogger().WithTag("HeartbeatType", ENodeHeartbeatType::Exec))
         , Bootstrap_(bootstrap)
         , DynamicConfig_(New<TMasterConnectorDynamicConfig>())
     {

@@ -27,7 +27,7 @@ TGlobalChunkScanner::TGlobalChunkScanner(
 TGlobalChunkScanner::TGlobalChunkScanner(bool journal)
     : TGlobalChunkScanner(
         journal,
-        ChunkServerLogger().WithTag("Journal: %v", journal))
+        ChunkServerLogger().WithTag("Journal", journal))
 { }
 
 void TGlobalChunkScanner::Start(TGlobalChunkScanDescriptor descriptor)
@@ -184,9 +184,9 @@ TChunkScannerBase::TChunkScannerBase(
     bool journal)
     : TGlobalChunkScanner(
         journal,
-        ChunkServerLogger().WithTag("Kind: %v, Journal: %v",
-            kind,
-            journal))
+        ChunkServerLogger()
+            .WithTag("Kind", kind)
+            .WithTag("Journal", journal))
 {
     YT_VERIFY(kind != EChunkScanKind::GlobalStatisticsCollector);
 }

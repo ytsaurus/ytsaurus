@@ -1414,7 +1414,7 @@ TLookupSession::TLookupSession(
     , SnapshotStore_(snapshotStore)
     , ProfilingUser_(std::move(profilingUser))
     , Invoker_(std::move(invoker))
-    , Logger(TabletNodeLogger().WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId))
+    , Logger(TabletNodeLogger().WithTag("ReadSessionId", chunkReadOptions.ReadSessionId))
     , ChunkReadOptions_(std::move(chunkReadOptions))
 {
     TabletRequests_.reserve(tabletRequestCount);
@@ -1955,7 +1955,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
             /*isSystemWorkload*/ false);
         SessionChunkReadOptions_.AddStatisticsFrom(TabletChunkReadOptions_);
     })
-    , Logger(lookupSession->Logger().WithTag("TabletId: %v", TabletSnapshot_->TabletId))
+    , Logger(lookupSession->Logger().WithTag("TabletId", TabletSnapshot_->TabletId))
 {
     YT_VERIFY(SessionChunkReadOptions_.InitialQueryKind == EInitialQueryKind::LookupRows);
 }
@@ -2012,7 +2012,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
             counters->WastedUnmergedDataWeight.Increment(DataStatistics_.data_weight());
         }
     })
-    , Logger(logger.WithTag("TabletId: %v", TabletSnapshot_->TabletId))
+    , Logger(logger.WithTag("TabletId", TabletSnapshot_->TabletId))
 {
     YT_VERIFY(SessionChunkReadOptions_.InitialQueryKind == EInitialQueryKind::SelectRows);
 }

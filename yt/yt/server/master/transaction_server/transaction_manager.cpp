@@ -174,9 +174,9 @@ public:
             TraceGuard_.emplace(transaction->GetTraceContext());
             SequoiaGuard_.emplace(bootstrap, transaction->GetId(), transaction->SequoiaWriteSet());
             MessageTagGuard_.emplace(
-                Format("SequoiaTransactionId: %v, Phase: %v",
-                    transaction->GetId(),
-                    [&] {
+                NLogging::TLoggingTagList()
+                    .With("SequoiaTransactionId", transaction->GetId())
+                    .With("Phase", [&] {
                         auto state = transaction->GetPersistentState();
                         if (state == ETransactionState::Aborted) {
                             return "Abort";
@@ -185,7 +185,7 @@ public:
                         } else {
                             return "Prepare";
                         }
-                    } ()));
+                    }()));
         }
 
         bool needSequoiaRevision = false;

@@ -55,7 +55,7 @@ public:
         : Tablet_(tablet)
         , Context_(tabletContext)
         , Host_(Context_->GetTabletWriteManagerHost().Get())
-        , Logger(TabletNodeLogger().WithTag("TabletId: %v", Tablet_->GetId()))
+        , Logger(TabletNodeLogger().WithTag("TabletId", Tablet_->GetId()))
     {
         // May be null in unittests.
         if (const auto& memoryUsageTracker = Context_->GetNodeMemoryUsageTracker()) {
@@ -281,14 +281,14 @@ public:
         if (auto delay = mountConfig->Testing.SyncDelayInWriteTransactionCommit) {
             YT_LOG_DEBUG("Started sleeping in transaction commit "
                 "(%v, TransactionId: %v)",
-                Tablet_->GetLoggingTag(),
+                Tablet_->GetLoggingTags(),
                 transaction->GetId());
 
             Sleep(delay);
 
             YT_LOG_DEBUG("Finished sleeping in transaction commit "
                 "(%v, TransactionId: %v)",
-                Tablet_->GetLoggingTag(),
+                Tablet_->GetLoggingTags(),
                 transaction->GetId());
         }
 
@@ -1265,7 +1265,7 @@ private:
         if (IsReplicatorWrite(transaction)) {
             if (Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId()) == 0) {
                 YT_LOG_ALERT("Unknown replicator transaction committed (%v, TransactionId: %v)",
-                    Tablet_->GetLoggingTag(),
+                    Tablet_->GetLoggingTags(),
                     transaction->GetId());
             }
 
@@ -1308,7 +1308,7 @@ private:
         if (IsReplicatorWrite(transaction) && !writeState->LocklessWriteLog.Empty()) {
             if (Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId()) == 0) {
                 YT_LOG_DEBUG("Unknown replicator transaction aborted (%v, TransactionId: %v)",
-                    Tablet_->GetLoggingTag(),
+                    Tablet_->GetLoggingTags(),
                     transaction->GetId());
             }
 
@@ -1847,7 +1847,7 @@ private:
 
     TCodicilGuard MakeCodicilGuard()
     {
-        return TCodicilGuard(MakeNonOwningCodicilBuilder(Tablet_->GetLoggingTag()));
+        return TCodicilGuard(MakeOwningCodicilBuilder(ToString(Tablet_->GetLoggingTags())));
     }
 };
 

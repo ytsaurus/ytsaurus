@@ -82,7 +82,7 @@ TContext::TContext(
     : Api_(std::move(api))
     , Request_(std::move(request))
     , Response_(std::move(response))
-    , Logger(HttpProxyLogger().WithTag("RequestId: %v", Request_->GetRequestId()))
+    , Logger(HttpProxyLogger().WithTag("RequestId", Request_->GetRequestId()))
 {
     DriverRequest_.Id = Request_->GetRequestId();
 }
@@ -92,7 +92,7 @@ bool TContext::TryPrepare()
     ProcessDebugHeaders(Request_, Response_, Api_->GetCoordinator());
 
     if (auto correlationId = Request_->GetHeaders()->Find("X-YT-Correlation-ID")) {
-        Logger.AddTag("CorrelationId: %v", *correlationId);
+        Logger.AddTag("CorrelationId", *correlationId);
     }
 
     Response_->GetHeaders()->Set("Cache-Control", "no-store");

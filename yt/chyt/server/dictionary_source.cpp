@@ -61,7 +61,7 @@ public:
         , Path_(std::move(path))
         , NamesAndTypesList_(std::move(namesAndTypesList))
         , RevisionTracker_(path.GetPath(), Client_)
-        , Logger(ClickHouseYtLogger().WithTag("Path: %v", Path_))
+        , Logger(ClickHouseYtLogger().WithTag("Path", Path_))
         , Context_(context)
         , QueryBuilder_(std::make_shared<DB::ExternalQueryBuilder>(
             DictionaryStructure_,

@@ -35,7 +35,7 @@ public:
         , Channel_(std::move(channel))
         , SessionId_(sessionId.ChunkId ? sessionId : GenerateSessionId(Config_->MediumIndex))
         , Proxy_(Channel_)
-        , Logger(logger.WithTag("SessionId: %v", SessionId_))
+        , Logger(logger.WithTag("SessionId", SessionId_))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Invoker_);

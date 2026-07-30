@@ -59,10 +59,9 @@ public:
         , UnavailableError_(TError(NRpc::EErrorCode::Unavailable, "Chaos object channel is not available")
             << TErrorAttribute("endpoint", EndpointDescription_))
         , Logger(ChaosClientLogger()
-            .WithTag("ProviderId: %v, ChaosObjectId: %v, Type: %v",
-                TGuid::Create(),
-                chaosObjectId,
-                TypeFromId(chaosObjectId)))
+            .WithTag("ProviderId", TGuid::Create())
+            .WithTag("ChaosObjectId", chaosObjectId)
+            .WithTag("Type", TypeFromId(chaosObjectId)))
     {
         YT_UNUSED_FUTURE(synchronizer->Sync());
     }

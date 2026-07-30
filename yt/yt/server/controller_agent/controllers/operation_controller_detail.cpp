@@ -278,7 +278,7 @@ TOperationControllerBase::TOperationControllerBase(
     , UserTransactionId_(operation->GetUserTransactionId())
     , Logger([&] {
         auto logger = ControllerLogger();
-        logger = logger.WithTag("OperationId: %v", OperationId_);
+        logger = logger.WithTag("OperationId", OperationId_);
         if (spec->EnableTraceLogging) {
             logger = logger.WithMinLevel(ELogLevel::Trace);
         }
@@ -7719,7 +7719,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             InputManager_->GetClient(LocalClusterName),
             MakeUserObjectList(files),
             InputTransactions_->GetLocalInputTransactionId(),
-            Logger().WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
+            Logger().WithTag("TaskTitle", userJobSpec->TaskTitle),
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
                 .OmitInaccessibleRows = Spec_->OmitInaccessibleRows,
@@ -7895,7 +7895,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             file.RlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
                                 file.Schema,
                                 file.RowLevelAcl,
-                                Logger().WithTag("Path: %v", file.GetPath()));
+                                Logger().WithTag("Path", file.GetPath()));
 
                             YT_LOG_INFO_IF(
                                 file.RlsReadSpec,

@@ -58,8 +58,7 @@ public:
         YT_VERIFY(!Promise_);
         Promise_ = NewPromise<std::vector<TSharedRef>>();
 
-        Logger.AddTag("ReadSessionId: %v",
-            chunkReadOptions.ReadSessionId);
+        Logger.AddTag("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         auto dictionaryCompressionFactory = DictionaryCompressionFactory_.Lock();
         if (!dictionaryCompressionFactory) {
@@ -620,10 +619,10 @@ TFuture<TRowDigestedDictionary> ReadDigestedDictionary(
     bool suitableForCaching,
     NLogging::TLogger logger)
 {
-    logger.AddTag("ReadSessionId: %v, DictionaryId: %v, IsDecompression: %v",
-        chunkReadOptions.ReadSessionId,
-        dictionaryId,
-        isDecompression);
+    logger
+        .AddTag("ReadSessionId", chunkReadOptions.ReadSessionId)
+        .AddTag("DictionaryId", dictionaryId)
+        .AddTag("IsDecompression", isDecompression);
 
     const auto& Logger = logger;
 

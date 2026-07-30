@@ -80,8 +80,6 @@ public:
     {
         Logger = options.Logger;
 
-        ValidateLogger(Logger);
-
         if (JobSizeConstraints_->IsExplicitJobCount() && JobSizeConstraints_->GetJobCount() == 1) {
             SingleJob_ = true;
         }
@@ -749,9 +747,6 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(16, JobSizeAdjuster_,
         .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
 
-    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
-        ValidateLogger(this_->Logger);
-    });
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedChunkPool);

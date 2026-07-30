@@ -173,7 +173,7 @@ public:
         , Client_(ChunkReaderHost_->Client)
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
-        , Logger(TableClientLogger().WithTag("ReaderId: %v", TGuid::Create()))
+        , Logger(TableClientLogger().WithTag("ReaderId", TGuid::Create()))
     {
         if (chunkReadOptions.ReadSessionId) {
             ReadSessionId_ = chunkReadOptions.ReadSessionId;
@@ -181,8 +181,9 @@ public:
             ReadSessionId_ = TReadSessionId::Create();
         }
 
-        Logger.AddTag("StoreId: %v", GetObjectIdFromChunkSpec(ChunkSpec_));
-        Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
+        Logger
+            .AddTag("StoreId", GetObjectIdFromChunkSpec(ChunkSpec_))
+            .AddTag("ReadSessionId", ReadSessionId_);
 
         if (ChunkSpec_.has_row_index_is_absolute() && !ChunkSpec_.row_index_is_absolute()) {
             THROW_ERROR_EXCEPTION("Remote dynamic store reader expects absolute row indices in chunk spec");
@@ -714,7 +715,7 @@ public:
         , ChunkReadOptions_(chunkReadOptions)
         , ReaderMemoryManagerHolder_(std::move(readerMemoryManagerHolder))
         , ChunkReaderFactory_(chunkReaderFactory)
-        , Logger(TableClientLogger().WithTag("ReaderId: %v", TGuid::Create()))
+        , Logger(TableClientLogger().WithTag("ReaderId", TGuid::Create()))
     {
         if (ChunkReadOptions_.ReadSessionId) {
             ReadSessionId_ = ChunkReadOptions_.ReadSessionId;
@@ -722,8 +723,9 @@ public:
             ReadSessionId_ = TReadSessionId::Create();
         }
 
-        Logger.AddTag("StoreId: %v", GetObjectIdFromChunkSpec(ChunkSpec_));
-        Logger.AddTag("ReadSessionId: %v", ReadSessionId_);
+        Logger
+            .AddTag("StoreId", GetObjectIdFromChunkSpec(ChunkSpec_))
+            .AddTag("ReadSessionId", ReadSessionId_);
 
         YT_LOG_DEBUG("Retrying remote dynamic store reader created");
     }

@@ -23,10 +23,10 @@ TObjectAttributeCacheBase<TKey, TValue>::TObjectAttributeCacheBase(
     : TAsyncExpiringCache<TKey, TValue>(
         config,
         invoker,
-        ObjectClientLogger().WithTag("Cache: ObjectAttribute"),
+        ObjectClientLogger().WithTag("Cache", "ObjectAttribute"),
         std::move(profiler))
     , Config_(std::move(config))
-    , Logger(logger.WithTag("ObjectAttributeCacheId: %v", TGuid::Create()))
+    , Logger(logger.WithTag("ObjectAttributeCacheId", TGuid::Create()))
     , Connection_(connection)
     , Invoker_(std::move(invoker))
 { }

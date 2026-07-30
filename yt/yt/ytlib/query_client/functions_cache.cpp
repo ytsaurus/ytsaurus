@@ -1035,7 +1035,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             invoker,
-            QueryClientLogger().WithTag("Cache: CypressFunctionRegistry"))
+            QueryClientLogger().WithTag("Cache", "CypressFunctionRegistry"))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
     { }

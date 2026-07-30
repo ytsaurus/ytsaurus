@@ -113,11 +113,11 @@ TChunkLocationBase::TChunkLocationBase(
         HugePageManager_,
         Id_,
         Profiler_,
-        Logger.WithTag("LocationId: %v", Id_));
+        Logger.WithTag("LocationId", Id_));
     IOEngineModel_ = CreateIOModelInterceptor(
         Id_,
         DynamicIOEngine_,
-        Logger.WithTag("IOModel: %v", Id_));
+        Logger.WithTag("IOModel", Id_));
     IOEngine_ = IOEngineModel_;
 
     HealthChecker_ = New<TDiskHealthChecker>(

@@ -225,12 +225,12 @@ public:
         : StaticConfig_(std::move(staticConfig))
         , Config_(std::move(dynamicConfig))
         , Options_(options)
-        , LoggingTag_(Format("PrimaryCellTag: %v, ConnectionId: %v, ConnectionName: %v",
-            CellTagFromId(StaticConfig_->PrimaryMaster->CellId),
-            TGuid::Create(),
-            StaticConfig_->ConnectionName))
+        , LoggingTags_(NLogging::TLoggingTagList()
+            .With("PrimaryCellTag", CellTagFromId(StaticConfig_->PrimaryMaster->CellId))
+            .With("ConnectionId", TGuid::Create())
+            .With("ConnectionName", StaticConfig_->ConnectionName))
         , ClusterId_(MakeConnectionClusterId(StaticConfig_))
-        , Logger(ApiLogger().WithRawTag(LoggingTag_))
+        , Logger(ApiLogger().WithTags(LoggingTags_))
         , Profiler_(TProfiler("/connection").WithTag("connection_name", StaticConfig_->ConnectionName))
         , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
         , BannedReplicaTrackerCache_(CreateBannedReplicaTrackerCache(StaticConfig_->BannedReplicaTrackerCache, Logger))
@@ -480,9 +480,9 @@ public:
         return GetPrimaryMasterCellTag();
     }
 
-    const std::string& GetLoggingTag() const override
+    const NLogging::TLoggingTagList& GetLoggingTags() const override
     {
-        return LoggingTag_;
+        return LoggingTags_;
     }
 
     const std::string& GetClusterId() const override
@@ -1077,7 +1077,7 @@ private:
 
     TConnectionOptions Options_;
 
-    const std::string LoggingTag_;
+    const NLogging::TLoggingTagList LoggingTags_;
     const std::string ClusterId_;
 
     NRpc::IChannelFactoryPtr ChannelFactory_;

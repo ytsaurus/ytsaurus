@@ -3570,7 +3570,7 @@ public:
         , Invoker_(std::move(invoker))
         , MemoryTracker_(std::move(memoryTracker))
         , Logger(logger
-            .WithTag("TabletId: %v", TabletInfo_->TabletId))
+            .WithTag("TabletId", TabletInfo_->TabletId))
         , IsTrivial_(IsUpperTimestampReached(Options_, Request_.Progress, Logger))
         , ReplicationProgress_(std::move(Request_.Progress))
         , ReplicationRowIndex_(Request_.StartReplicationRowIndex)

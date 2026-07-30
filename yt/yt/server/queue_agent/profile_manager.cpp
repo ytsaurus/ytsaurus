@@ -510,7 +510,7 @@ private:
             partitionProfiler.Counters,
             profiler,
             subConsumerSnapshot->PartitionCount,
-            Logger().WithTag("Queue: %v", queuePath));
+            Logger().WithTag("Queue", queuePath));
     }
 
     TError CheckSnapshotCompatibility(const TConsumerSnapshotPtr& previousConsumerSnapshot, const TConsumerSnapshotPtr& currentConsumerSnapshot) const

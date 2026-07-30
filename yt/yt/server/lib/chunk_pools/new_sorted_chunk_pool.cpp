@@ -70,8 +70,6 @@ public:
     {
         Logger = options.Logger;
         StructuredLogger = options.StructuredLogger;
-        ValidateLogger(Logger);
-
         YT_VERIFY(RowBuffer_);
 
         if (options.JobSizeAdjusterConfig && JobSizeConstraints_->CanAdjustDataWeightPerJob()) {
@@ -870,7 +868,6 @@ void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::ChunkPoolStatistics));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
-        ValidateLogger(this_->Logger);
         this_->RowBuffer_ = New<TRowBuffer>();
     });
 }

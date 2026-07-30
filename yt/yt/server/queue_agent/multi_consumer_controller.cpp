@@ -71,7 +71,7 @@ public:
         , MultiConsumerTable_(std::move(multiConsumerTable))
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(MultiConsumerControllerLogger().WithTag("MultiConsumer: %v", Path_))
+        , Logger(MultiConsumerControllerLogger().WithTag("MultiConsumer", Path_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TMultiConsumerController::Pass, MakeWeak(this)),

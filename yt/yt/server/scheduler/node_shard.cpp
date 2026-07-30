@@ -263,7 +263,7 @@ TNodeShard::TNodeShard(
     , ResourceStatisticsByTagsCache_(New<TResourceStatisticsByTagsCache>(
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
-    , Logger(NodeShardLogger().WithTag("NodeShardId: %v", Id_))
+    , Logger(NodeShardLogger().WithTag("NodeShardId", Id_))
     , RemoveOutdatedScheduleAllocationEntryExecutor_(New<TPeriodicExecutor>(
         GetInvoker(),
         BIND(&TNodeShard::RemoveOutdatedScheduleAllocationEntries, MakeWeak(this)),
@@ -1929,12 +1929,11 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
     auto operationState = FindOperationState(operationId);
 
     if (!allocation) {
-        auto Logger = SchedulerLogger().WithTag(
-            "Address: %v, AllocationId: %v, OperationId: %v, AllocationState: %v",
-            address,
-            allocationId,
-            operationId,
-            allocationState);
+        auto Logger = SchedulerLogger()
+            .WithTag("Address", address)
+            .WithTag("AllocationId", allocationId)
+            .WithTag("OperationId", operationId)
+            .WithTag("AllocationState", allocationState);
 
         // We can decide what to do with the allocation of an operation only when all allocations are revived.
         if ((operationState && operationState->WaitingForRevival) ||

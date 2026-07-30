@@ -44,7 +44,7 @@ TChunkListPool::TChunkListPool(
     , OperationId_(operationId)
     , TransactionId_(transactionId)
     , Kind_(kind)
-    , Logger(ControllerLogger().WithTag("OperationId: %v", operationId))
+    , Logger(ControllerLogger().WithTag("OperationId", operationId))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Client_);

@@ -78,7 +78,7 @@ TInstanceManager::TInstanceManager(
     , SpareInstanceAllocator_(std::move(spareInstanceAllocator))
     , Adapter_(adapter)
     , Mutations_(mutations)
-    , Logger(BundleControllerLogger().WithTag("Bundle: %v", BundleName_))
+    , Logger(BundleControllerLogger().WithTag("Bundle", BundleName_))
 { }
 
 void TInstanceManager::ManageInstances()

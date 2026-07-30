@@ -21,7 +21,7 @@ TDiscoveryBase::TDiscoveryBase(
         BIND(&TDiscoveryBase::DoUpdateListNonThrowing, MakeWeak(this)),
         Config_->UpdatePeriod))
     , BanTimeout_(std::move(Config_->BanTimeout))
-    , Logger(logger.WithTag("GroupId: %v", Config_->GroupId))
+    , Logger(logger.WithTag("GroupId", Config_->GroupId))
 { }
 
 THashMap<std::string, IAttributeDictionaryPtr> TDiscoveryBase::List(bool includeBanned) const

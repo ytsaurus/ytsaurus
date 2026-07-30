@@ -77,7 +77,7 @@ TNodeTagManager::TNodeTagManager(
     , Mutations_(mutations)
     , NodeTracker_(std::move(nodeTracker))
 
-    , Logger(BundleControllerLogger().WithTag("Bundle: %v", BundleName_))
+    , Logger(BundleControllerLogger().WithTag("Bundle", BundleName_))
 { }
 
 bool TNodeTagManager::ProcessNodeAssignment(const std::string& nodeAddress)

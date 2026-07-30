@@ -121,7 +121,7 @@ public:
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ true,
             ENodeHeartbeatType::Data,
-            DataNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Data))
+            DataNodeLogger().WithTag("HeartbeatType", ENodeHeartbeatType::Data))
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->DataNode->MasterConnector)
         , JobHeartbeatPeriod_(*Config_->JobHeartbeatPeriod)

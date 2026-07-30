@@ -108,7 +108,7 @@ public:
         , Statistics_(New<TDistributedChunkSessionReaderStatistics>())
         , ErrorBackoffStrategy_(Config_->ErrorBackoff)
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
-        , Logger(DistributedChunkSessionLogger().WithTag("ChunkId: %v", ChunkId_))
+        , Logger(DistributedChunkSessionLogger().WithTag("ChunkId", ChunkId_))
     {
         YT_VERIFY(ReadQuorum_ > 0);
         YT_VERIFY(startRecordIndex >= 0);

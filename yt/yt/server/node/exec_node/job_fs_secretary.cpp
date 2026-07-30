@@ -1039,7 +1039,7 @@ void TJobFSSecretary::ReleaseArtifacts()
 void TJobFSSecretary::OnNewJobStarted(TJobId jobId)
 {
     JobId_ = jobId;
-    Logger = BaseLogger_.WithTag("JobId: %v", jobId);
+    Logger = BaseLogger_.WithTag("JobId", jobId);
 
     RootVolumeDiskQuotaEnabled_ = false;
     DockerImageId_.reset();

@@ -1142,7 +1142,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto Logger = TableClientLogger();
     if (chunkReadOptions.ReadSessionId) {
-        Logger.AddTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId);
+        Logger.AddTag("ReadSessionId", chunkReadOptions.ReadSessionId);
     }
 
     const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];

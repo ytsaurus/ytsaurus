@@ -832,7 +832,7 @@ private:
         chunkPoolOptions.MinTeleportChunkSize = std::numeric_limits<i64>::max() / 4;
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.ShouldSliceByRowIndices = false;
-        chunkPoolOptions.Logger = Logger().WithTag("Name: %v", name);
+        chunkPoolOptions.Logger = Logger().WithTag("Name", name);
         return chunkPoolOptions;
     }
 

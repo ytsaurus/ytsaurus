@@ -66,7 +66,7 @@ public:
 
     TRspJoinGroup JoinGroup(const NKafka::TReqJoinGroup& request, const NLogging::TLogger& logger) override
     {
-        auto Logger = logger.WithTag("GroupId: %v", request.GroupId);
+        auto Logger = logger.WithTag("GroupId", request.GroupId);
 
         auto rebalanceTimeout = DynamicConfigStore_->GetDynamicConfig()->RebalanceTimeout;
 
@@ -213,8 +213,8 @@ public:
     TRspSyncGroup SyncGroup(const NKafka::TReqSyncGroup& request, const NLogging::TLogger& logger) override
     {
         auto Logger = logger
-            .WithTag("GroupId: %v", request.GroupId)
-            .WithTag("MemberId: %v", request.MemberId);
+            .WithTag("GroupId", request.GroupId)
+            .WithTag("MemberId", request.MemberId);
 
         auto checkState = [&] {
             auto state = State_.load();
@@ -323,8 +323,8 @@ public:
     TRspHeartbeat Heartbeat(const NKafka::TReqHeartbeat& request, const NLogging::TLogger& logger) override
     {
         auto Logger = logger
-            .WithTag("GroupId: %v", request.GroupId)
-            .WithTag("MemberId: %v", request.MemberId);
+            .WithTag("GroupId", request.GroupId)
+            .WithTag("MemberId", request.MemberId);
 
 
         auto checkState = [&] {

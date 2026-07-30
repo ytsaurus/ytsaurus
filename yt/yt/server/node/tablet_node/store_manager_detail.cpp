@@ -63,9 +63,9 @@ TStoreManagerBase::TStoreManagerBase(
 {
     YT_VERIFY(StructuredLogger_);
 
-    Logger.AddTag("%v, CellId: %v",
-        Tablet_->GetLoggingTag(),
-        TabletContext_->GetCellId());
+    Logger
+        .AddTags(Tablet_->GetLoggingTags())
+        .AddTag("CellId", TabletContext_->GetCellId());
 }
 
 bool TStoreManagerBase::HasActiveLocks() const

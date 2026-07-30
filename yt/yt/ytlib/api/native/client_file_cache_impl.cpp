@@ -157,7 +157,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
             transaction->GetId());
     }
 
-    Logger.AddTag("TransactionId: %v", transaction->GetId());
+    Logger.AddTag("TransactionId", transaction->GetId());
 
     // Acquire lock.
     TYPath objectIdPath;
@@ -259,7 +259,9 @@ TPutFileToCacheResult TClient::DoPutFileToCache(
     const std::string& expectedMD5,
     const TPutFileToCacheOptions& options)
 {
-    auto Logger = this->Logger().WithTag("Path: %v, Command: PutFileToCache", path);
+    auto Logger = this->Logger()
+        .WithTag("Path", path)
+        .WithTag("Command", "PutFileToCache");
 
     int retryAttempts = 0;
     while (true) {

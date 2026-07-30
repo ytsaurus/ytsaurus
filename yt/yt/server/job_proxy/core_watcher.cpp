@@ -118,7 +118,7 @@ TCoreWatcher::TCoreWatcher(
     , Transaction_(transaction)
     , ChunkList_(chunkList)
     , SchemaId_(schemaId)
-    , Logger(CoreWatcherLogger().WithTag("JobId: %v", JobHost_->GetJobId()))
+    , Logger(CoreWatcherLogger().WithTag("JobId", JobHost_->GetJobId()))
 {
     PeriodicExecutor_->Start();
 }
@@ -259,9 +259,9 @@ void TCoreWatcher::DoProcessLinuxCore(const std::string& coreName, int coreIndex
 {
     YT_ASSERT_INVOKER_AFFINITY(IOInvoker_);
 
-    auto Logger = this->Logger().WithTag("CoreName: %v, CoreIndex: %v",
-        coreName,
-        coreIndex);
+    auto Logger = this->Logger()
+        .WithTag("CoreName", coreName)
+        .WithTag("CoreIndex", coreIndex);
 
     TCoreInfo coreInfo;
     coreInfo.set_core_index(coreIndex);
@@ -363,9 +363,9 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const std::
 {
     YT_ASSERT_INVOKER_AFFINITY(IOInvoker_);
 
-    auto Logger = this->Logger().WithTag("CoreName: %v, CoreIndex: %v",
-        coreName,
-        coreIndex);
+    auto Logger = this->Logger()
+        .WithTag("CoreName", coreName)
+        .WithTag("CoreIndex", coreIndex);
 
     TBlobTableWriter blobTableWriter(
         GetCoreBlobTableSchema(),

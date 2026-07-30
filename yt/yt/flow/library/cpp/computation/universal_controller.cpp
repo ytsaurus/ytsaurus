@@ -515,7 +515,7 @@ THashMap<TStreamId, ISourceControllerPtr> TUniversalComputationController::Creat
         sourceContext->SourceSpec = sourceSpec;
         sourceContext->Profiler = sourceContext->Profiler.WithPrefix("/source").WithTag("stream_id", streamId.Underlying());
         sourceContext->StatusProfiler = sourceContext->StatusProfiler->WithPrefix(Format("/sources/%v", streamId));
-        sourceContext->Logger = sourceContext->Logger.WithTag("SourceStreamId: %v", streamId.Underlying());
+        sourceContext->Logger = sourceContext->Logger.WithTag("SourceStreamId", streamId);
         auto dynamicSourceContext = New<TDynamicSourceControllerContext>();
         dynamicSourceContext->DynamicSourceSpec = dynamicSourceSpec;
         sources[streamId] = TRegistry::Get()->CreateSourceController(sourceContext, dynamicSourceContext);
@@ -537,7 +537,7 @@ THashMap<TSinkId, ISinkControllerPtr> TUniversalComputationController::CreateSin
         sinkContext->SinkSpec = sinkSpec;
         sinkContext->Profiler = sinkContext->Profiler.WithPrefix("/sink").WithTag("sink_id", sinkId.Underlying());
         sinkContext->StatusProfiler = sinkContext->StatusProfiler->WithPrefix(Format("/sinks/%v", sinkId));
-        sinkContext->Logger = sinkContext->Logger.WithTag("SinkId: %v", sinkId.Underlying());
+        sinkContext->Logger = sinkContext->Logger.WithTag("SinkId", sinkId);
         auto dynamicSinkContext = New<TDynamicSinkControllerContext>();
         dynamicSinkContext->DynamicSinkSpec = dynamicSinkSpec;
         sinks[sinkId] = TRegistry::Get()->CreateSinkController(sinkContext, dynamicSinkContext);

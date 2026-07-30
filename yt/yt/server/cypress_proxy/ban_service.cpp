@@ -37,7 +37,7 @@ public:
         : TServiceBase(
             bootstrap->GetInvoker("BanService"),
             GetDescriptor(),
-            CypressProxyLogger().WithTag("BanService"),
+            CypressProxyLogger().WithTag("Component", "BanService"),
             NRpc::TServiceOptions{
                 .Authenticator = bootstrap->GetNativeAuthenticator(),
             })
@@ -251,7 +251,7 @@ private:
         CrossClusterReplicaLockWaiter_ = CreateCrossClusterReplicaLockWaiter(
             Bootstrap_->GetControlInvoker(),
             replicatedStateConfig,
-            CypressProxyLogger().WithTag("BanService"));
+            CypressProxyLogger().WithTag("Component", "BanService"));
 
         CrossClusterReplicatedState_ = CreateCrossClusterReplicatedState(
             CreateCrossClusterClient(
@@ -259,7 +259,7 @@ private:
                 replicatedStateConfig,
                 NApi::NNative::TClientOptions::FromUser(replicatedStateConfig->User)),
             CrossClusterReplicaLockWaiter_,
-            replicatedStateConfig, CypressProxyLogger().WithTag("BanService"));
+            replicatedStateConfig, CypressProxyLogger().WithTag("Component", "BanService"));
 
         WaitFor(CrossClusterReplicatedState_->ValidateStateDirectories())
             .ThrowOnError();

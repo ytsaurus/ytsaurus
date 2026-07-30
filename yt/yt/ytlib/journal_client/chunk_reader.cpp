@@ -126,7 +126,7 @@ public:
         , Client_(ChunkReaderHost_->Client)
         , ChunkId_(chunkId)
         , Codec_(codec)
-        , Logger(JournalClientLogger().WithTag("ChunkId: %v", ChunkId_))
+        , Logger(JournalClientLogger().WithTag("ChunkId", ChunkId_))
         , InitialReplicas_(std::move(replicas))
     {
         const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
@@ -157,9 +157,9 @@ public:
             , FirstBlockIndex_(firstBlockIndex)
             , BlockCount_(blockCount)
             , InitialReplicas_(Reader_->InitialReplicas_.Load())
-            , Logger(Reader_->Logger().WithTag("ReadSessionId: %v, ReadBlocksSessionId: %v",
-                Options_.ReadSessionId,
-                TGuid::Create()))
+            , Logger(Reader_->Logger()
+                .WithTag("ReadSessionId", Options_.ReadSessionId)
+                .WithTag("ReadBlocksSessionId", TGuid::Create()))
         {
             DoRetry();
         }
