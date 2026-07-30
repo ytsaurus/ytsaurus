@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
+#include <yt/yt/client/ypath/public.h>
+
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 
 namespace NYT::NControllerAgent {
@@ -165,19 +167,8 @@ struct TControllerAgentDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ELayerAccessMethod,
-    ((Unknown)  (1)     ("unknown"))
-    ((Local)    (2)     ("local"))
-    ((Nbd)      (3)     ("nbd"))
-);
-
-DEFINE_ENUM(ELayerFilesystem,
-    ((Unknown)      (1)     ("unknown"))
-    ((Archive)      (2)     ("archive"))
-    ((Ext3)         (3)     ("ext3"))
-    ((Ext4)         (4)     ("ext4"))
-    ((SquashFS)     (5)     ("squashfs"))
-);
+using NYPath::ELayerAccessMethod;
+using NYPath::ELayerFilesystem;
 
 ////////////////////////////////////////////////////////////////////////////////
 

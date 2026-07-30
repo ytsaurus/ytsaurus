@@ -419,32 +419,13 @@ void FormatValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<ELayerAccessMethod, ELayerFilesystem> GetAccessMethodAndFilesystemFromStrings(
-    const std::string& accessMethod,
-    const std::string& filesystem)
+void ValidateCompatibility(ELayerAccessMethod accessMethod, ELayerFilesystem filesystem)
 {
-    std::pair<ELayerAccessMethod, ELayerFilesystem> res;
-    try {
-        res.first = ParseEnum<ELayerAccessMethod>(accessMethod);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("\"access_method\" has invalid value %Qlv",
-            accessMethod) << ex;
-    }
-
-    try {
-        res.second = ParseEnum<ELayerFilesystem>(filesystem);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("\"filesystem\" has invalid value %Qv",
-            filesystem) << ex;
-    }
-
-    if (!AreCompatible(res.first, res.second)) {
+    if (!AreCompatible(accessMethod, filesystem)) {
         THROW_ERROR_EXCEPTION("Incompatible combination of access method %Qv and filesystem %Qv",
             accessMethod,
             filesystem);
     }
-
-    return res;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
