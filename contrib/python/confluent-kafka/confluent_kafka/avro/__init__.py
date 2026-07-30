@@ -16,46 +16,47 @@
 #
 
 """
-    Avro schema registry module: Deals with encoding and decoding of messages with avro schemas
+Avro schema registry module: Deals with encoding and decoding of messages with avro schemas
 """
 
 import warnings
 
-from confluent_kafka import Producer, Consumer
+from confluent_kafka import Consumer, Producer
+from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
 from confluent_kafka.avro.error import ClientError
 from confluent_kafka.avro.load import load, loads  # noqa
-from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
-from confluent_kafka.avro.serializer import (SerializerError,  # noqa
-                                             KeySerializerError,
-                                             ValueSerializerError)
+from confluent_kafka.avro.serializer import SerializerError  # noqa
+from confluent_kafka.avro.serializer import KeySerializerError, ValueSerializerError
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
 
 
 class AvroProducer(Producer):
     """
-        .. deprecated:: 2.0.2
+    .. deprecated:: 2.0.2
 
-        This class will be removed in a future version of the library.
+    This class will be removed in a future version of the library.
 
-        Kafka Producer client which does avro schema encoding to messages.
-        Handles schema registration, Message serialization.
+    Kafka Producer client which does avro schema encoding to messages.
+    Handles schema registration, Message serialization.
 
-        Constructor arguments:
+    Constructor arguments:
 
-        :param dict config: Config parameters containing url for schema registry (``schema.registry.url``)
-                            and the standard Kafka client configuration (``bootstrap.servers`` et.al).
-        :param str default_key_schema: Optional default avro schema for key
-        :param str default_value_schema: Optional default avro schema for value
+    :param dict config: Config parameters containing url for schema registry (``schema.registry.url``)
+                        and the standard Kafka client configuration (``bootstrap.servers`` et.al).
+    :param str default_key_schema: Optional default avro schema for key
+    :param str default_value_schema: Optional default avro schema for value
     """
 
-    def __init__(self, config, default_key_schema=None,
-                 default_value_schema=None, schema_registry=None, **kwargs):
+    def __init__(self, config, default_key_schema=None, default_value_schema=None, schema_registry=None, **kwargs):
         warnings.warn(
-            "AvroProducer has been deprecated. Use AvroSerializer instead.",
-            category=DeprecationWarning, stacklevel=2)
+            "AvroProducer has been deprecated. Use AvroSerializer instead.", category=DeprecationWarning, stacklevel=2
+        )
 
-        sr_conf = {key.replace("schema.registry.", ""): value
-                   for key, value in config.items() if key.startswith("schema.registry")}
+        sr_conf = {
+            key.replace("schema.registry.", ""): value
+            for key, value in config.items()
+            if key.startswith("schema.registry")
+        }
 
         if sr_conf.get("basic.auth.credentials.source") == 'SASL_INHERIT':
             # Fallback to plural 'mechanisms' for backward compatibility
@@ -64,8 +65,7 @@ class AvroProducer(Producer):
             sr_conf['sasl.password'] = config.get('sasl.password', '')
             sr_conf['auto.register.schemas'] = config.get('auto.register.schemas', True)
 
-        ap_conf = {key: value
-                   for key, value in config.items() if not key.startswith("schema.registry")}
+        ap_conf = {key: value for key, value in config.items() if not key.startswith("schema.registry")}
 
         if schema_registry is None:
             schema_registry = CachedSchemaRegistryClient(sr_conf)
@@ -79,19 +79,19 @@ class AvroProducer(Producer):
 
     def produce(self, **kwargs):
         """
-            Asynchronously sends message to Kafka by encoding with specified or default avro schema.
+        Asynchronously sends message to Kafka by encoding with specified or default avro schema.
 
-            :param str topic: topic name
-            :param object value: An object to serialize
-            :param str value_schema: Avro schema for value
-            :param object key: An object to serialize
-            :param str key_schema: Avro schema for key
+        :param str topic: topic name
+        :param object value: An object to serialize
+        :param str value_schema: Avro schema for value
+        :param object key: An object to serialize
+        :param str key_schema: Avro schema for key
 
-            Plus any other parameters accepted by confluent_kafka.Producer.produce
+        Plus any other parameters accepted by confluent_kafka.Producer.produce
 
-            :raises SerializerError: On serialization failure
-            :raises BufferError: If producer queue is full.
-            :raises KafkaException: For other produce failures.
+        :raises SerializerError: On serialization failure
+        :raises BufferError: If producer queue is full.
+        :raises KafkaException: For other produce failures.
         """
         # get schemas from  kwargs if defined
         key_schema = kwargs.pop('key_schema', self._key_schema)
@@ -137,11 +137,14 @@ class AvroConsumer(Consumer):
 
     def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None, **kwargs):
         warnings.warn(
-            "AvroConsumer has been deprecated. Use AvroDeserializer instead.",
-            category=DeprecationWarning, stacklevel=2)
+            "AvroConsumer has been deprecated. Use AvroDeserializer instead.", category=DeprecationWarning, stacklevel=2
+        )
 
-        sr_conf = {key.replace("schema.registry.", ""): value
-                   for key, value in config.items() if key.startswith("schema.registry")}
+        sr_conf = {
+            key.replace("schema.registry.", ""): value
+            for key, value in config.items()
+            if key.startswith("schema.registry")
+        }
 
         if sr_conf.get("basic.auth.credentials.source") == 'SASL_INHERIT':
             # Fallback to plural 'mechanisms' for backward compatibility
@@ -149,8 +152,7 @@ class AvroConsumer(Consumer):
             sr_conf['sasl.username'] = config.get('sasl.username', '')
             sr_conf['sasl.password'] = config.get('sasl.password', '')
 
-        ap_conf = {key: value
-                   for key, value in config.items() if not key.startswith("schema.registry")}
+        ap_conf = {key: value for key, value in config.items() if not key.startswith("schema.registry")}
 
         if schema_registry is None:
             schema_registry = CachedSchemaRegistryClient(sr_conf)
@@ -184,9 +186,9 @@ class AvroConsumer(Consumer):
                     decoded_key = self._serializer.decode_message(message.key(), is_key=True)
                     message.set_key(decoded_key)
             except SerializerError as e:
-                raise SerializerError("Message deserialization failed for message at {} [{}] offset {}: {}".format(
-                    message.topic(),
-                    message.partition(),
-                    message.offset(),
-                    e))
+                raise SerializerError(
+                    "Message deserialization failed for message at {} [{}] offset {}: {}".format(
+                        message.topic(), message.partition(), message.offset(), e
+                    )
+                )
         return message

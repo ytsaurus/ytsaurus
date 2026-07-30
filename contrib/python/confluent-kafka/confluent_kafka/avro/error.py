@@ -17,7 +17,7 @@
 
 
 class ClientError(Exception):
-    """ Error thrown by Schema Registry clients """
+    """Error thrown by Schema Registry clients"""
 
     def __init__(self, message, http_code=None):
         self.message = message

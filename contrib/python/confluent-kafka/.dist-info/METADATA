@@ -1,663 +1,8 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: confluent-kafka
-Version: 2.6.1
+Version: 2.15.0
 Summary: Confluent's Python client for Apache Kafka
 Author-email: "Confluent Inc." <support@confluent.io>
-License: ##############################################################################
-        # The source distribution of confluent-kafka-python is covered by the        #
-        # Apache 2.0 license.                                                        #
-        ##############################################################################
-        
-        Apache License
-                                   Version 2.0, January 2004
-                                http://www.apache.org/licenses/
-        
-           TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-        
-           1. Definitions.
-        
-              "License" shall mean the terms and conditions for use, reproduction,
-              and distribution as defined by Sections 1 through 9 of this document.
-        
-              "Licensor" shall mean the copyright owner or entity authorized by
-              the copyright owner that is granting the License.
-        
-              "Legal Entity" shall mean the union of the acting entity and all
-              other entities that control, are controlled by, or are under common
-              control with that entity. For the purposes of this definition,
-              "control" means (i) the power, direct or indirect, to cause the
-              direction or management of such entity, whether by contract or
-              otherwise, or (ii) ownership of fifty percent (50%) or more of the
-              outstanding shares, or (iii) beneficial ownership of such entity.
-        
-              "You" (or "Your") shall mean an individual or Legal Entity
-              exercising permissions granted by this License.
-        
-              "Source" form shall mean the preferred form for making modifications,
-              including but not limited to software source code, documentation
-              source, and configuration files.
-        
-              "Object" form shall mean any form resulting from mechanical
-              transformation or translation of a Source form, including but
-              not limited to compiled object code, generated documentation,
-              and conversions to other media types.
-        
-              "Work" shall mean the work of authorship, whether in Source or
-              Object form, made available under the License, as indicated by a
-              copyright notice that is included in or attached to the work
-              (an example is provided in the Appendix below).
-        
-              "Derivative Works" shall mean any work, whether in Source or Object
-              form, that is based on (or derived from) the Work and for which the
-              editorial revisions, annotations, elaborations, or other modifications
-              represent, as a whole, an original work of authorship. For the purposes
-              of this License, Derivative Works shall not include works that remain
-              separable from, or merely link (or bind by name) to the interfaces of,
-              the Work and Derivative Works thereof.
-        
-              "Contribution" shall mean any work of authorship, including
-              the original version of the Work and any modifications or additions
-              to that Work or Derivative Works thereof, that is intentionally
-              submitted to Licensor for inclusion in the Work by the copyright owner
-              or by an individual or Legal Entity authorized to submit on behalf of
-              the copyright owner. For the purposes of this definition, "submitted"
-              means any form of electronic, verbal, or written communication sent
-              to the Licensor or its representatives, including but not limited to
-              communication on electronic mailing lists, source code control systems,
-              and issue tracking systems that are managed by, or on behalf of, the
-              Licensor for the purpose of discussing and improving the Work, but
-              excluding communication that is conspicuously marked or otherwise
-              designated in writing by the copyright owner as "Not a Contribution."
-        
-              "Contributor" shall mean Licensor and any individual or Legal Entity
-              on behalf of whom a Contribution has been received by Licensor and
-              subsequently incorporated within the Work.
-        
-           2. Grant of Copyright License. Subject to the terms and conditions of
-              this License, each Contributor hereby grants to You a perpetual,
-              worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-              copyright license to reproduce, prepare Derivative Works of,
-              publicly display, publicly perform, sublicense, and distribute the
-              Work and such Derivative Works in Source or Object form.
-        
-           3. Grant of Patent License. Subject to the terms and conditions of
-              this License, each Contributor hereby grants to You a perpetual,
-              worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-              (except as stated in this section) patent license to make, have made,
-              use, offer to sell, sell, import, and otherwise transfer the Work,
-              where such license applies only to those patent claims licensable
-              by such Contributor that are necessarily infringed by their
-              Contribution(s) alone or by combination of their Contribution(s)
-              with the Work to which such Contribution(s) was submitted. If You
-              institute patent litigation against any entity (including a
-              cross-claim or counterclaim in a lawsuit) alleging that the Work
-              or a Contribution incorporated within the Work constitutes direct
-              or contributory patent infringement, then any patent licenses
-              granted to You under this License for that Work shall terminate
-              as of the date such litigation is filed.
-        
-           4. Redistribution. You may reproduce and distribute copies of the
-              Work or Derivative Works thereof in any medium, with or without
-              modifications, and in Source or Object form, provided that You
-              meet the following conditions:
-        
-              (a) You must give any other recipients of the Work or
-                  Derivative Works a copy of this License; and
-        
-              (b) You must cause any modified files to carry prominent notices
-                  stating that You changed the files; and
-        
-              (c) You must retain, in the Source form of any Derivative Works
-                  that You distribute, all copyright, patent, trademark, and
-                  attribution notices from the Source form of the Work,
-                  excluding those notices that do not pertain to any part of
-                  the Derivative Works; and
-        
-              (d) If the Work includes a "NOTICE" text file as part of its
-                  distribution, then any Derivative Works that You distribute must
-                  include a readable copy of the attribution notices contained
-                  within such NOTICE file, excluding those notices that do not
-                  pertain to any part of the Derivative Works, in at least one
-                  of the following places: within a NOTICE text file distributed
-                  as part of the Derivative Works; within the Source form or
-                  documentation, if provided along with the Derivative Works; or,
-                  within a display generated by the Derivative Works, if and
-                  wherever such third-party notices normally appear. The contents
-                  of the NOTICE file are for informational purposes only and
-                  do not modify the License. You may add Your own attribution
-                  notices within Derivative Works that You distribute, alongside
-                  or as an addendum to the NOTICE text from the Work, provided
-                  that such additional attribution notices cannot be construed
-                  as modifying the License.
-        
-              You may add Your own copyright statement to Your modifications and
-              may provide additional or different license terms and conditions
-              for use, reproduction, or distribution of Your modifications, or
-              for any such Derivative Works as a whole, provided Your use,
-              reproduction, and distribution of the Work otherwise complies with
-              the conditions stated in this License.
-        
-           5. Submission of Contributions. Unless You explicitly state otherwise,
-              any Contribution intentionally submitted for inclusion in the Work
-              by You to the Licensor shall be under the terms and conditions of
-              this License, without any additional terms or conditions.
-              Notwithstanding the above, nothing herein shall supersede or modify
-              the terms of any separate license agreement you may have executed
-              with Licensor regarding such Contributions.
-        
-           6. Trademarks. This License does not grant permission to use the trade
-              names, trademarks, service marks, or product names of the Licensor,
-              except as required for reasonable and customary use in describing the
-              origin of the Work and reproducing the content of the NOTICE file.
-        
-           7. Disclaimer of Warranty. Unless required by applicable law or
-              agreed to in writing, Licensor provides the Work (and each
-              Contributor provides its Contributions) on an "AS IS" BASIS,
-              WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-              implied, including, without limitation, any warranties or conditions
-              of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
-              PARTICULAR PURPOSE. You are solely responsible for determining the
-              appropriateness of using or redistributing the Work and assume any
-              risks associated with Your exercise of permissions under this License.
-        
-           8. Limitation of Liability. In no event and under no legal theory,
-              whether in tort (including negligence), contract, or otherwise,
-              unless required by applicable law (such as deliberate and grossly
-              negligent acts) or agreed to in writing, shall any Contributor be
-              liable to You for damages, including any direct, indirect, special,
-              incidental, or consequential damages of any character arising as a
-              result of this License or out of the use or inability to use the
-              Work (including but not limited to damages for loss of goodwill,
-              work stoppage, computer failure or malfunction, or any and all
-              other commercial damages or losses), even if such Contributor
-              has been advised of the possibility of such damages.
-        
-           9. Accepting Warranty or Additional Liability. While redistributing
-              the Work or Derivative Works thereof, You may choose to offer,
-              and charge a fee for, acceptance of support, warranty, indemnity,
-              or other liability obligations and/or rights consistent with this
-              License. However, in accepting such obligations, You may act only
-              on Your own behalf and on Your sole responsibility, not on behalf
-              of any other Contributor, and only if You agree to indemnify,
-              defend, and hold each Contributor harmless for any liability
-              incurred by, or claims asserted against, such Contributor by reason
-              of your accepting any such warranty or additional liability.
-        
-           END OF TERMS AND CONDITIONS
-        
-           APPENDIX: How to apply the Apache License to your work.
-        
-              To apply the Apache License to your work, attach the following
-              boilerplate notice, with the fields enclosed by brackets "{}"
-              replaced with your own identifying information. (Don't include
-              the brackets!)  The text should be enclosed in the appropriate
-              comment syntax for the file format. We also recommend that a
-              file or class name and description of purpose be included on the
-              same "printed page" as the copyright notice for easier
-              identification within third-party archives.
-        
-           Copyright {yyyy} {name of copyright owner}
-        
-           Licensed under the Apache License, Version 2.0 (the "License");
-           you may not use this file except in compliance with the License.
-           You may obtain a copy of the License at
-        
-               http://www.apache.org/licenses/LICENSE-2.0
-        
-           Unless required by applicable law or agreed to in writing, software
-           distributed under the License is distributed on an "AS IS" BASIS,
-           WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-           See the License for the specific language governing permissions and
-           limitations under the License.
-        
-        
-        
-        
-        ##############################################################################
-        # The binary wheel distribution of confluent-kafka-python contains           #
-        # additional software with the following licenses:                           #
-        ##############################################################################
-        
-        
-        ##############################################################################
-        # OpenSSL                                                                    #
-        ##############################################################################
-        
-        OpenSSL License
-        ---------------
-        
-        /* ====================================================================
-         * Copyright (c) 1998-2017 The OpenSSL Project.  All rights reserved.
-         *
-         * Redistribution and use in source and binary forms, with or without
-         * modification, are permitted provided that the following conditions
-         * are met:
-         *
-         * 1. Redistributions of source code must retain the above copyright
-         *    notice, this list of conditions and the following disclaimer. 
-         *
-         * 2. Redistributions in binary form must reproduce the above copyright
-         *    notice, this list of conditions and the following disclaimer in
-         *    the documentation and/or other materials provided with the
-         *    distribution.
-         *
-         * 3. All advertising materials mentioning features or use of this
-         *    software must display the following acknowledgment:
-         *    "This product includes software developed by the OpenSSL Project
-         *    for use in the OpenSSL Toolkit. (http://www.openssl.org/)"
-         *
-         * 4. The names "OpenSSL Toolkit" and "OpenSSL Project" must not be used to
-         *    endorse or promote products derived from this software without
-         *    prior written permission. For written permission, please contact
-         *    openssl-core@openssl.org.
-         *
-         * 5. Products derived from this software may not be called "OpenSSL"
-         *    nor may "OpenSSL" appear in their names without prior written
-         *    permission of the OpenSSL Project.
-         *
-         * 6. Redistributions of any form whatsoever must retain the following
-         *    acknowledgment:
-         *    "This product includes software developed by the OpenSSL Project
-         *    for use in the OpenSSL Toolkit (http://www.openssl.org/)"
-         *
-         * THIS SOFTWARE IS PROVIDED BY THE OpenSSL PROJECT ``AS IS'' AND ANY
-         * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-         * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-         * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE OpenSSL PROJECT OR
-         * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-         * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-         * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-         * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-         * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
-         * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-         * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
-         * OF THE POSSIBILITY OF SUCH DAMAGE.
-         * ====================================================================
-         *
-         * This product includes cryptographic software written by Eric Young
-         * (eay@cryptsoft.com).  This product includes software written by Tim
-         * Hudson (tjh@cryptsoft.com).
-         *
-         */
-        
-         Original SSLeay License
-         -----------------------
-        
-        /* Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-         * All rights reserved.
-         *
-         * This package is an SSL implementation written
-         * by Eric Young (eay@cryptsoft.com).
-         * The implementation was written so as to conform with Netscapes SSL.
-         * 
-         * This library is free for commercial and non-commercial use as long as
-         * the following conditions are aheared to.  The following conditions
-         * apply to all code found in this distribution, be it the RC4, RSA,
-         * lhash, DES, etc., code; not just the SSL code.  The SSL documentation
-         * included with this distribution is covered by the same copyright terms
-         * except that the holder is Tim Hudson (tjh@cryptsoft.com).
-         * 
-         * Copyright remains Eric Young's, and as such any Copyright notices in
-         * the code are not to be removed.
-         * If this package is used in a product, Eric Young should be given attribution
-         * as the author of the parts of the library used.
-         * This can be in the form of a textual message at program startup or
-         * in documentation (online or textual) provided with the package.
-         * 
-         * Redistribution and use in source and binary forms, with or without
-         * modification, are permitted provided that the following conditions
-         * are met:
-         * 1. Redistributions of source code must retain the copyright
-         *    notice, this list of conditions and the following disclaimer.
-         * 2. Redistributions in binary form must reproduce the above copyright
-         *    notice, this list of conditions and the following disclaimer in the
-         *    documentation and/or other materials provided with the distribution.
-         * 3. All advertising materials mentioning features or use of this software
-         *    must display the following acknowledgement:
-         *    "This product includes cryptographic software written by
-         *     Eric Young (eay@cryptsoft.com)"
-         *    The word 'cryptographic' can be left out if the rouines from the library
-         *    being used are not cryptographic related :-).
-         * 4. If you include any Windows specific code (or a derivative thereof) from 
-         *    the apps directory (application code) you must include an acknowledgement:
-         *    "This product includes software written by Tim Hudson (tjh@cryptsoft.com)"
-         * 
-         * THIS SOFTWARE IS PROVIDED BY ERIC YOUNG ``AS IS'' AND
-         * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-         * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-         * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
-         * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-         * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-         * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-         * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-         * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-         * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-         * SUCH DAMAGE.
-         * 
-         * The licence and distribution terms for any publically available version or
-         * derivative of this code cannot be changed.  i.e. this code cannot simply be
-         * copied and put under another distribution licence
-         * [including the GNU Public Licence.]
-         */
-        
-        
-        ##############################################################################
-        # zlib                                                                       #
-        ##############################################################################
-        
-          Copyright (C) 1995-1998 Jean-loup Gailly and Mark Adler
-        
-          This software is provided 'as-is', without any express or implied
-          warranty.  In no event will the authors be held liable for any damages
-          arising from the use of this software.
-        
-          Permission is granted to anyone to use this software for any purpose,
-          including commercial applications, and to alter it and redistribute it
-          freely, subject to the following restrictions:
-        
-          1. The origin of this software must not be misrepresented; you must not
-             claim that you wrote the original software. If you use this software
-             in a product, an acknowledgment in the product documentation would be
-             appreciated but is not required.
-          2. Altered source versions must be plainly marked as such, and must not be
-             misrepresented as being the original software.
-          3. This notice may not be removed or altered from any source distribution.
-        
-          Jean-loup Gailly        Mark Adler
-          jloup@gzip.org          madler@alumni.caltech.edu
-        
-        
-        
-        
-        ##############################################################################
-        # librdkafka licenses                                                        #
-        ##############################################################################
-        
-        LICENSE
-        --------------------------------------------------------------
-        librdkafka - Apache Kafka C driver library
-        
-        Copyright (c) 2012, Magnus Edenhill
-        All rights reserved.
-        
-        Redistribution and use in source and binary forms, with or without
-        modification, are permitted provided that the following conditions are met: 
-        
-        1. Redistributions of source code must retain the above copyright notice,
-           this list of conditions and the following disclaimer. 
-        2. Redistributions in binary form must reproduce the above copyright notice,
-           this list of conditions and the following disclaimer in the documentation
-           and/or other materials provided with the distribution. 
-        
-        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-        AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-        IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-        ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
-        LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
-        CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
-        SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-        INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
-        CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-        ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-        POSSIBILITY OF SUCH DAMAGE.
-        
-        
-        LICENSE.crc32c
-        --------------------------------------------------------------
-        # For src/crc32c.c copied (with modifications) from
-        # http://stackoverflow.com/a/17646775/1821055
-        
-        /* crc32c.c -- compute CRC-32C using the Intel crc32 instruction
-         * Copyright (C) 2013 Mark Adler
-         * Version 1.1  1 Aug 2013  Mark Adler
-         */
-        
-        /*
-          This software is provided 'as-is', without any express or implied
-          warranty.  In no event will the author be held liable for any damages
-          arising from the use of this software.
-        
-          Permission is granted to anyone to use this software for any purpose,
-          including commercial applications, and to alter it and redistribute it
-          freely, subject to the following restrictions:
-        
-          1. The origin of this software must not be misrepresented; you must not
-             claim that you wrote the original software. If you use this software
-             in a product, an acknowledgment in the product documentation would be
-             appreciated but is not required.
-          2. Altered source versions must be plainly marked as such, and must not be
-             misrepresented as being the original software.
-          3. This notice may not be removed or altered from any source distribution.
-        
-          Mark Adler
-          madler@alumni.caltech.edu
-         */
-        
-        
-        LICENSE.lz4
-        --------------------------------------------------------------
-        src/xxhash.[ch] src/lz4*.[ch]: git@github.com:lz4/lz4.git e2827775ee80d2ef985858727575df31fc60f1f3
-        
-        LZ4 Library
-        Copyright (c) 2011-2016, Yann Collet
-        All rights reserved.
-        
-        Redistribution and use in source and binary forms, with or without modification,
-        are permitted provided that the following conditions are met:
-        
-        * Redistributions of source code must retain the above copyright notice, this
-          list of conditions and the following disclaimer.
-        
-        * Redistributions in binary form must reproduce the above copyright notice, this
-          list of conditions and the following disclaimer in the documentation and/or
-          other materials provided with the distribution.
-        
-        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-        ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-        WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-        DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-        ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-        (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-        LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-        ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-        SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-        
-        
-        LICENSE.pycrc
-        --------------------------------------------------------------
-        The following license applies to the files rdcrc32.c and rdcrc32.h which
-        have been generated by the pycrc tool.
-        ============================================================================
-        
-        Copyright (c) 2006-2012, Thomas Pircher <tehpeh@gmx.net>
-        
-        Permission is hereby granted, free of charge, to any person obtaining a copy
-        of this software and associated documentation files (the "Software"), to deal
-        in the Software without restriction, including without limitation the rights
-        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-        copies of the Software, and to permit persons to whom the Software is
-        furnished to do so, subject to the following conditions:
-        
-        The above copyright notice and this permission notice shall be included in
-        all copies or substantial portions of the Software.
-        
-        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-        THE SOFTWARE.
-        
-        
-        LICENSE.queue
-        --------------------------------------------------------------
-        For sys/queue.h:
-        
-         * Copyright (c) 1991, 1993
-         *	The Regents of the University of California.  All rights reserved.
-         *
-         * Redistribution and use in source and binary forms, with or without
-         * modification, are permitted provided that the following conditions
-         * are met:
-         * 1. Redistributions of source code must retain the above copyright
-         *    notice, this list of conditions and the following disclaimer.
-         * 2. Redistributions in binary form must reproduce the above copyright
-         *    notice, this list of conditions and the following disclaimer in the
-         *    documentation and/or other materials provided with the distribution.
-         * 4. Neither the name of the University nor the names of its contributors
-         *    may be used to endorse or promote products derived from this software
-         *    without specific prior written permission.
-         *
-         * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
-         * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-         * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-         * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
-         * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-         * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-         * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-         * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-         * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-         * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-         * SUCH DAMAGE.
-         *
-         *	@(#)queue.h	8.5 (Berkeley) 8/20/94
-         * $FreeBSD$
-        
-        LICENSE.regexp
-        --------------------------------------------------------------
-        regexp.c and regexp.h from https://github.com/ccxvii/minilibs sha 875c33568b5a4aa4fb3dd0c52ea98f7f0e5ca684
-        
-        "
-        These libraries are in the public domain (or the equivalent where that is not possible). You can do anything you want with them. You have no legal obligation to do anything else, although I appreciate attribution.
-        "
-        
-        
-        LICENSE.snappy
-        --------------------------------------------------------------
-        ######################################################################
-        # LICENSE.snappy covers files: snappy.c, snappy.h, snappy_compat.h   #
-        # originally retrieved from http://github.com/andikleen/snappy-c     #
-        # git revision 8015f2d28739b9a6076ebaa6c53fe27bc238d219              #
-        ######################################################################
-        
-        The snappy-c code is under the same license as the original snappy source
-        
-        Copyright 2011 Intel Corporation All Rights Reserved.
-        
-        Redistribution and use in source and binary forms, with or without
-        modification, are permitted provided that the following conditions are
-        met:
-        
-            * Redistributions of source code must retain the above copyright
-        notice, this list of conditions and the following disclaimer.
-            * Redistributions in binary form must reproduce the above
-        copyright notice, this list of conditions and the following disclaimer
-        in the documentation and/or other materials provided with the
-        distribution.
-            * Neither the name of Intel Corporation nor the names of its
-        contributors may be used to endorse or promote products derived from
-        this software without specific prior written permission.
-        
-        THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-        "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-        LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-        A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-        OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-        SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-        LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-        DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-        THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-        (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-        OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-        
-        
-        
-        LICENSE.tinycthread
-        --------------------------------------------------------------
-        From https://github.com/tinycthread/tinycthread/README.txt c57166cd510ffb5022dd5f127489b131b61441b9
-        
-        License
-        -------
-        
-        Copyright (c) 2012 Marcus Geelnard
-                      2013-2014 Evan Nemerson
-        
-        This software is provided 'as-is', without any express or implied
-        warranty. In no event will the authors be held liable for any damages
-        arising from the use of this software.
-        
-        Permission is granted to anyone to use this software for any purpose,
-        including commercial applications, and to alter it and redistribute it
-        freely, subject to the following restrictions:
-        
-            1. The origin of this software must not be misrepresented; you must not
-            claim that you wrote the original software. If you use this software
-            in a product, an acknowledgment in the product documentation would be
-            appreciated but is not required.
-        
-            2. Altered source versions must be plainly marked as such, and must not be
-            misrepresented as being the original software.
-        
-            3. This notice may not be removed or altered from any source
-            distribution.
-        
-        
-        LICENSE.wingetopt
-        --------------------------------------------------------------
-        For the files wingetopt.c wingetopt.h downloaded from https://github.com/alex85k/wingetopt
-        
-        /*
-         * Copyright (c) 2002 Todd C. Miller <Todd.Miller@courtesan.com>
-         *
-         * Permission to use, copy, modify, and distribute this software for any
-         * purpose with or without fee is hereby granted, provided that the above
-         * copyright notice and this permission notice appear in all copies.
-         *
-         * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-         * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-         * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-         * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-         * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-         * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-         * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-         *
-         * Sponsored in part by the Defense Advanced Research Projects
-         * Agency (DARPA) and Air Force Research Laboratory, Air Force
-         * Materiel Command, USAF, under agreement number F39502-99-1-0512.
-         */
-        /*-
-         * Copyright (c) 2000 The NetBSD Foundation, Inc.
-         * All rights reserved.
-         *
-         * This code is derived from software contributed to The NetBSD Foundation
-         * by Dieter Baron and Thomas Klausner.
-         *
-         * Redistribution and use in source and binary forms, with or without
-         * modification, are permitted provided that the following conditions
-         * are met:
-         * 1. Redistributions of source code must retain the above copyright
-         *    notice, this list of conditions and the following disclaimer.
-         * 2. Redistributions in binary form must reproduce the above copyright
-         *    notice, this list of conditions and the following disclaimer in the
-         *    documentation and/or other materials provided with the distribution.
-         *
-         * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
-         * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-         * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-         * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
-         * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-         * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-         * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-         * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-         * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-         * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-         * POSSIBILITY OF SUCH DAMAGE.
-         */
-        
-        
-        
 Project-URL: Homepage, https://github.com/confluentinc/confluent-kafka-python
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
@@ -665,144 +10,435 @@ Classifier: License :: OSI Approved :: Apache Software License
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
-Requires-Python: >=3.7
+Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Provides-Extra: all
-Requires-Dist: psutil; extra == "all"
-Requires-Dist: opentelemetry-distro; extra == "all"
-Requires-Dist: opentelemetry-exporter-otlp; extra == "all"
-Requires-Dist: sphinx; extra == "all"
-Requires-Dist: sphinx-rtd-theme; extra == "all"
-Requires-Dist: confluent-kafka; extra == "all"
-Requires-Dist: fastapi; extra == "all"
-Requires-Dist: pydantic; extra == "all"
-Requires-Dist: uvicorn; extra == "all"
-Requires-Dist: six; extra == "all"
-Requires-Dist: jsonschema; extra == "all"
-Requires-Dist: protobuf; extra == "all"
-Requires-Dist: requests; extra == "all"
-Requires-Dist: flake8; extra == "all"
-Requires-Dist: pytest; extra == "all"
-Requires-Dist: pytest-timeout; extra == "all"
-Requires-Dist: requests-mock; extra == "all"
-Requires-Dist: avro<2,>=1.11.1; extra == "all"
-Requires-Dist: pyrsistent; extra == "all"
-Requires-Dist: pyrsistent==0.16.1; python_version < "3.0" and extra == "all"
-Requires-Dist: urllib3<2.0.0; python_version <= "3.7" and extra == "all"
-Requires-Dist: fastavro<1.8.0; python_version == "3.7" and extra == "all"
-Requires-Dist: pyrsistent; python_version > "3.0" and extra == "all"
-Requires-Dist: urllib3<3,>=2.0.0; python_version > "3.7" and extra == "all"
-Requires-Dist: fastavro<2; python_version > "3.7" and extra == "all"
+Requires-Dist: typing-extensions; python_version < "3.11"
+Provides-Extra: schemaregistry
+Requires-Dist: attrs>=21.2.0; extra == "schemaregistry"
+Requires-Dist: cachetools>=5.5.0; extra == "schemaregistry"
+Requires-Dist: certifi; extra == "schemaregistry"
+Requires-Dist: httpx>=0.26; extra == "schemaregistry"
+Requires-Dist: authlib>=1.0.0; extra == "schemaregistry"
+Provides-Extra: schema-registry
+Requires-Dist: attrs>=21.2.0; extra == "schema-registry"
+Requires-Dist: cachetools>=5.5.0; extra == "schema-registry"
+Requires-Dist: certifi; extra == "schema-registry"
+Requires-Dist: httpx>=0.26; extra == "schema-registry"
+Requires-Dist: authlib>=1.0.0; extra == "schema-registry"
+Provides-Extra: rules
+Requires-Dist: azure-identity; extra == "rules"
+Requires-Dist: azure-keyvault-keys; extra == "rules"
+Requires-Dist: boto3>=1.35; extra == "rules"
+Requires-Dist: cel-python>=0.4.0; extra == "rules"
+Requires-Dist: google-re2<1.1.20251105; extra == "rules"
+Requires-Dist: google-auth; extra == "rules"
+Requires-Dist: google-api-core; extra == "rules"
+Requires-Dist: google-cloud-kms; extra == "rules"
+Requires-Dist: hkdf==0.0.3; extra == "rules"
+Requires-Dist: hvac; extra == "rules"
+Requires-Dist: jsonata-python; extra == "rules"
+Requires-Dist: pyyaml>=6.0.0; extra == "rules"
+Requires-Dist: tink; extra == "rules"
+Requires-Dist: attrs>=21.2.0; extra == "rules"
+Requires-Dist: cachetools>=5.5.0; extra == "rules"
+Requires-Dist: certifi; extra == "rules"
+Requires-Dist: httpx>=0.26; extra == "rules"
+Requires-Dist: authlib>=1.0.0; extra == "rules"
 Provides-Extra: avro
+Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "avro"
+Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "avro"
 Requires-Dist: requests; extra == "avro"
 Requires-Dist: avro<2,>=1.11.1; extra == "avro"
-Requires-Dist: fastavro<1.8.0; python_version == "3.7" and extra == "avro"
-Requires-Dist: fastavro<2; python_version > "3.7" and extra == "avro"
+Requires-Dist: attrs>=21.2.0; extra == "avro"
+Requires-Dist: cachetools>=5.5.0; extra == "avro"
+Requires-Dist: certifi; extra == "avro"
+Requires-Dist: httpx>=0.26; extra == "avro"
+Requires-Dist: authlib>=1.0.0; extra == "avro"
+Provides-Extra: json
+Requires-Dist: jsonschema>=4.18.0; extra == "json"
+Requires-Dist: attrs>=21.2.0; extra == "json"
+Requires-Dist: cachetools>=5.5.0; extra == "json"
+Requires-Dist: certifi; extra == "json"
+Requires-Dist: httpx>=0.26; extra == "json"
+Requires-Dist: authlib>=1.0.0; extra == "json"
+Provides-Extra: json-fast
+Requires-Dist: jsonschema>=4.18.0; extra == "json-fast"
+Requires-Dist: orjson>=3.10; extra == "json-fast"
+Requires-Dist: attrs>=21.2.0; extra == "json-fast"
+Requires-Dist: cachetools>=5.5.0; extra == "json-fast"
+Requires-Dist: certifi; extra == "json-fast"
+Requires-Dist: httpx>=0.26; extra == "json-fast"
+Requires-Dist: authlib>=1.0.0; extra == "json-fast"
+Provides-Extra: protobuf
+Requires-Dist: googleapis-common-protos; extra == "protobuf"
+Requires-Dist: protobuf; extra == "protobuf"
+Requires-Dist: attrs>=21.2.0; extra == "protobuf"
+Requires-Dist: cachetools>=5.5.0; extra == "protobuf"
+Requires-Dist: certifi; extra == "protobuf"
+Requires-Dist: httpx>=0.26; extra == "protobuf"
+Requires-Dist: authlib>=1.0.0; extra == "protobuf"
+Provides-Extra: oauthbearer-aws
+Requires-Dist: boto3>=1.42.25; extra == "oauthbearer-aws"
 Provides-Extra: dev
 Requires-Dist: sphinx; extra == "dev"
 Requires-Dist: sphinx-rtd-theme; extra == "dev"
+Requires-Dist: tomli; python_version < "3.11" and extra == "dev"
+Requires-Dist: pandoc; extra == "dev"
 Requires-Dist: confluent-kafka; extra == "dev"
 Requires-Dist: fastapi; extra == "dev"
 Requires-Dist: pydantic; extra == "dev"
 Requires-Dist: uvicorn; extra == "dev"
 Requires-Dist: six; extra == "dev"
-Requires-Dist: jsonschema; extra == "dev"
-Requires-Dist: protobuf; extra == "dev"
+Requires-Dist: attrs; extra == "dev"
+Requires-Dist: cachetools; extra == "dev"
+Requires-Dist: httpx>=0.26; extra == "dev"
+Requires-Dist: authlib>=1.0.0; extra == "dev"
+Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "dev"
+Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "dev"
 Requires-Dist: requests; extra == "dev"
+Requires-Dist: avro<2,>=1.11.1; extra == "dev"
+Requires-Dist: jsonschema>=4.18.0; extra == "dev"
+Requires-Dist: googleapis-common-protos; extra == "dev"
+Requires-Dist: protobuf; extra == "dev"
+Requires-Dist: azure-identity; extra == "dev"
+Requires-Dist: azure-keyvault-keys; extra == "dev"
+Requires-Dist: boto3; extra == "dev"
+Requires-Dist: cel-python>=0.4.0; extra == "dev"
+Requires-Dist: google-auth; extra == "dev"
+Requires-Dist: google-api-core; extra == "dev"
+Requires-Dist: google-cloud-kms; extra == "dev"
+Requires-Dist: hkdf==0.0.3; extra == "dev"
+Requires-Dist: hvac; extra == "dev"
+Requires-Dist: jsonata-python; extra == "dev"
+Requires-Dist: pyyaml>=6.0.0; extra == "dev"
+Requires-Dist: tink; extra == "dev"
+Requires-Dist: urllib3<3; extra == "dev"
 Requires-Dist: flake8; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: attrs; extra == "dev"
+Requires-Dist: types-cachetools; extra == "dev"
+Requires-Dist: types-requests; extra == "dev"
 Requires-Dist: pytest; extra == "dev"
 Requires-Dist: pytest-timeout; extra == "dev"
 Requires-Dist: requests-mock; extra == "dev"
+Requires-Dist: respx; extra == "dev"
+Requires-Dist: pytest_cov; extra == "dev"
+Requires-Dist: pluggy<1.6.0; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: async-timeout; extra == "dev"
+Requires-Dist: black>=24.0.0; extra == "dev"
+Requires-Dist: isort>=5.13.0; extra == "dev"
+Requires-Dist: attrs>=21.2.0; extra == "dev"
+Requires-Dist: cachetools>=5.5.0; extra == "dev"
+Requires-Dist: certifi; extra == "dev"
+Requires-Dist: httpx>=0.26; extra == "dev"
+Requires-Dist: authlib>=1.0.0; extra == "dev"
+Requires-Dist: azure-identity; extra == "dev"
+Requires-Dist: azure-keyvault-keys; extra == "dev"
+Requires-Dist: boto3>=1.35; extra == "dev"
+Requires-Dist: cel-python>=0.4.0; extra == "dev"
+Requires-Dist: google-re2<1.1.20251105; extra == "dev"
+Requires-Dist: google-auth; extra == "dev"
+Requires-Dist: google-api-core; extra == "dev"
+Requires-Dist: google-cloud-kms; extra == "dev"
+Requires-Dist: hkdf==0.0.3; extra == "dev"
+Requires-Dist: hvac; extra == "dev"
+Requires-Dist: jsonata-python; extra == "dev"
+Requires-Dist: pyyaml>=6.0.0; extra == "dev"
+Requires-Dist: tink; extra == "dev"
+Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "dev"
+Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "dev"
+Requires-Dist: requests; extra == "dev"
 Requires-Dist: avro<2,>=1.11.1; extra == "dev"
-Requires-Dist: pyrsistent; extra == "dev"
-Requires-Dist: pyrsistent==0.16.1; python_version < "3.0" and extra == "dev"
-Requires-Dist: urllib3<2.0.0; python_version <= "3.7" and extra == "dev"
-Requires-Dist: fastavro<1.8.0; python_version == "3.7" and extra == "dev"
-Requires-Dist: pyrsistent; python_version > "3.0" and extra == "dev"
-Requires-Dist: urllib3<3,>=2.0.0; python_version > "3.7" and extra == "dev"
-Requires-Dist: fastavro<2; python_version > "3.7" and extra == "dev"
+Requires-Dist: jsonschema>=4.18.0; extra == "dev"
+Requires-Dist: googleapis-common-protos; extra == "dev"
+Requires-Dist: protobuf; extra == "dev"
+Requires-Dist: boto3>=1.42.25; extra == "dev"
 Provides-Extra: docs
 Requires-Dist: sphinx; extra == "docs"
 Requires-Dist: sphinx-rtd-theme; extra == "docs"
+Requires-Dist: tomli; python_version < "3.11" and extra == "docs"
+Requires-Dist: pandoc; extra == "docs"
+Requires-Dist: attrs>=21.2.0; extra == "docs"
+Requires-Dist: cachetools>=5.5.0; extra == "docs"
+Requires-Dist: certifi; extra == "docs"
+Requires-Dist: httpx>=0.26; extra == "docs"
+Requires-Dist: authlib>=1.0.0; extra == "docs"
+Requires-Dist: azure-identity; extra == "docs"
+Requires-Dist: azure-keyvault-keys; extra == "docs"
+Requires-Dist: boto3>=1.35; extra == "docs"
+Requires-Dist: cel-python>=0.4.0; extra == "docs"
+Requires-Dist: google-re2<1.1.20251105; extra == "docs"
+Requires-Dist: google-auth; extra == "docs"
+Requires-Dist: google-api-core; extra == "docs"
+Requires-Dist: google-cloud-kms; extra == "docs"
+Requires-Dist: hkdf==0.0.3; extra == "docs"
+Requires-Dist: hvac; extra == "docs"
+Requires-Dist: jsonata-python; extra == "docs"
+Requires-Dist: pyyaml>=6.0.0; extra == "docs"
+Requires-Dist: tink; extra == "docs"
+Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "docs"
+Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "docs"
 Requires-Dist: requests; extra == "docs"
 Requires-Dist: avro<2,>=1.11.1; extra == "docs"
-Requires-Dist: pyrsistent; extra == "docs"
-Requires-Dist: jsonschema; extra == "docs"
+Requires-Dist: jsonschema>=4.18.0; extra == "docs"
+Requires-Dist: googleapis-common-protos; extra == "docs"
 Requires-Dist: protobuf; extra == "docs"
-Requires-Dist: fastavro<1.8.0; python_version == "3.7" and extra == "docs"
-Requires-Dist: fastavro<2; python_version > "3.7" and extra == "docs"
+Provides-Extra: tests
+Requires-Dist: urllib3<3; extra == "tests"
+Requires-Dist: flake8; extra == "tests"
+Requires-Dist: mypy; extra == "tests"
+Requires-Dist: attrs; extra == "tests"
+Requires-Dist: types-cachetools; extra == "tests"
+Requires-Dist: types-requests; extra == "tests"
+Requires-Dist: pytest; extra == "tests"
+Requires-Dist: pytest-timeout; extra == "tests"
+Requires-Dist: requests-mock; extra == "tests"
+Requires-Dist: respx; extra == "tests"
+Requires-Dist: pytest_cov; extra == "tests"
+Requires-Dist: pluggy<1.6.0; extra == "tests"
+Requires-Dist: pytest-asyncio; extra == "tests"
+Requires-Dist: async-timeout; extra == "tests"
+Requires-Dist: black>=24.0.0; extra == "tests"
+Requires-Dist: isort>=5.13.0; extra == "tests"
+Requires-Dist: attrs>=21.2.0; extra == "tests"
+Requires-Dist: cachetools>=5.5.0; extra == "tests"
+Requires-Dist: certifi; extra == "tests"
+Requires-Dist: httpx>=0.26; extra == "tests"
+Requires-Dist: authlib>=1.0.0; extra == "tests"
+Requires-Dist: azure-identity; extra == "tests"
+Requires-Dist: azure-keyvault-keys; extra == "tests"
+Requires-Dist: boto3>=1.35; extra == "tests"
+Requires-Dist: cel-python>=0.4.0; extra == "tests"
+Requires-Dist: google-re2<1.1.20251105; extra == "tests"
+Requires-Dist: google-auth; extra == "tests"
+Requires-Dist: google-api-core; extra == "tests"
+Requires-Dist: google-cloud-kms; extra == "tests"
+Requires-Dist: hkdf==0.0.3; extra == "tests"
+Requires-Dist: hvac; extra == "tests"
+Requires-Dist: jsonata-python; extra == "tests"
+Requires-Dist: pyyaml>=6.0.0; extra == "tests"
+Requires-Dist: tink; extra == "tests"
+Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "tests"
+Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "tests"
+Requires-Dist: requests; extra == "tests"
+Requires-Dist: avro<2,>=1.11.1; extra == "tests"
+Requires-Dist: jsonschema>=4.18.0; extra == "tests"
+Requires-Dist: googleapis-common-protos; extra == "tests"
+Requires-Dist: protobuf; extra == "tests"
+Requires-Dist: boto3>=1.42.25; extra == "tests"
 Provides-Extra: examples
 Requires-Dist: confluent-kafka; extra == "examples"
 Requires-Dist: fastapi; extra == "examples"
 Requires-Dist: pydantic; extra == "examples"
 Requires-Dist: uvicorn; extra == "examples"
 Requires-Dist: six; extra == "examples"
-Requires-Dist: jsonschema; extra == "examples"
-Requires-Dist: protobuf; extra == "examples"
+Requires-Dist: attrs; extra == "examples"
+Requires-Dist: cachetools; extra == "examples"
+Requires-Dist: httpx>=0.26; extra == "examples"
+Requires-Dist: authlib>=1.0.0; extra == "examples"
+Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "examples"
+Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "examples"
 Requires-Dist: requests; extra == "examples"
-Requires-Dist: pyrsistent==0.16.1; python_version < "3.0" and extra == "examples"
-Requires-Dist: pyrsistent; python_version > "3.0" and extra == "examples"
-Provides-Extra: json
-Requires-Dist: pyrsistent; extra == "json"
-Requires-Dist: jsonschema; extra == "json"
-Requires-Dist: requests; extra == "json"
-Provides-Extra: protobuf
-Requires-Dist: protobuf; extra == "protobuf"
-Requires-Dist: requests; extra == "protobuf"
-Provides-Extra: schemaregistry
-Requires-Dist: requests; extra == "schemaregistry"
+Requires-Dist: avro<2,>=1.11.1; extra == "examples"
+Requires-Dist: jsonschema>=4.18.0; extra == "examples"
+Requires-Dist: googleapis-common-protos; extra == "examples"
+Requires-Dist: protobuf; extra == "examples"
+Requires-Dist: azure-identity; extra == "examples"
+Requires-Dist: azure-keyvault-keys; extra == "examples"
+Requires-Dist: boto3; extra == "examples"
+Requires-Dist: cel-python>=0.4.0; extra == "examples"
+Requires-Dist: google-auth; extra == "examples"
+Requires-Dist: google-api-core; extra == "examples"
+Requires-Dist: google-cloud-kms; extra == "examples"
+Requires-Dist: hkdf==0.0.3; extra == "examples"
+Requires-Dist: hvac; extra == "examples"
+Requires-Dist: jsonata-python; extra == "examples"
+Requires-Dist: pyyaml>=6.0.0; extra == "examples"
+Requires-Dist: tink; extra == "examples"
 Provides-Extra: soaktest
 Requires-Dist: psutil; extra == "soaktest"
 Requires-Dist: opentelemetry-distro; extra == "soaktest"
 Requires-Dist: opentelemetry-exporter-otlp; extra == "soaktest"
-Provides-Extra: tests
-Requires-Dist: flake8; extra == "tests"
-Requires-Dist: pytest; extra == "tests"
-Requires-Dist: pytest-timeout; extra == "tests"
-Requires-Dist: requests-mock; extra == "tests"
-Requires-Dist: requests; extra == "tests"
-Requires-Dist: avro<2,>=1.11.1; extra == "tests"
-Requires-Dist: pyrsistent; extra == "tests"
-Requires-Dist: jsonschema; extra == "tests"
-Requires-Dist: protobuf; extra == "tests"
-Requires-Dist: urllib3<2.0.0; python_version <= "3.7" and extra == "tests"
-Requires-Dist: fastavro<1.8.0; python_version == "3.7" and extra == "tests"
-Requires-Dist: urllib3<3,>=2.0.0; python_version > "3.7" and extra == "tests"
-Requires-Dist: fastavro<2; python_version > "3.7" and extra == "tests"
+Provides-Extra: all
+Requires-Dist: psutil; extra == "all"
+Requires-Dist: opentelemetry-distro; extra == "all"
+Requires-Dist: opentelemetry-exporter-otlp; extra == "all"
+Requires-Dist: sphinx; extra == "all"
+Requires-Dist: sphinx-rtd-theme; extra == "all"
+Requires-Dist: tomli; python_version < "3.11" and extra == "all"
+Requires-Dist: pandoc; extra == "all"
+Requires-Dist: confluent-kafka; extra == "all"
+Requires-Dist: fastapi; extra == "all"
+Requires-Dist: pydantic; extra == "all"
+Requires-Dist: uvicorn; extra == "all"
+Requires-Dist: six; extra == "all"
+Requires-Dist: attrs; extra == "all"
+Requires-Dist: cachetools; extra == "all"
+Requires-Dist: httpx>=0.26; extra == "all"
+Requires-Dist: authlib>=1.0.0; extra == "all"
+Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "all"
+Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "all"
+Requires-Dist: requests; extra == "all"
+Requires-Dist: avro<2,>=1.11.1; extra == "all"
+Requires-Dist: jsonschema>=4.18.0; extra == "all"
+Requires-Dist: googleapis-common-protos; extra == "all"
+Requires-Dist: protobuf; extra == "all"
+Requires-Dist: azure-identity; extra == "all"
+Requires-Dist: azure-keyvault-keys; extra == "all"
+Requires-Dist: boto3; extra == "all"
+Requires-Dist: cel-python>=0.4.0; extra == "all"
+Requires-Dist: google-auth; extra == "all"
+Requires-Dist: google-api-core; extra == "all"
+Requires-Dist: google-cloud-kms; extra == "all"
+Requires-Dist: hkdf==0.0.3; extra == "all"
+Requires-Dist: hvac; extra == "all"
+Requires-Dist: jsonata-python; extra == "all"
+Requires-Dist: pyyaml>=6.0.0; extra == "all"
+Requires-Dist: tink; extra == "all"
+Requires-Dist: urllib3<3; extra == "all"
+Requires-Dist: flake8; extra == "all"
+Requires-Dist: mypy; extra == "all"
+Requires-Dist: attrs; extra == "all"
+Requires-Dist: types-cachetools; extra == "all"
+Requires-Dist: types-requests; extra == "all"
+Requires-Dist: pytest; extra == "all"
+Requires-Dist: pytest-timeout; extra == "all"
+Requires-Dist: requests-mock; extra == "all"
+Requires-Dist: respx; extra == "all"
+Requires-Dist: pytest_cov; extra == "all"
+Requires-Dist: pluggy<1.6.0; extra == "all"
+Requires-Dist: pytest-asyncio; extra == "all"
+Requires-Dist: async-timeout; extra == "all"
+Requires-Dist: black>=24.0.0; extra == "all"
+Requires-Dist: isort>=5.13.0; extra == "all"
+Requires-Dist: attrs>=21.2.0; extra == "all"
+Requires-Dist: cachetools>=5.5.0; extra == "all"
+Requires-Dist: certifi; extra == "all"
+Requires-Dist: httpx>=0.26; extra == "all"
+Requires-Dist: authlib>=1.0.0; extra == "all"
+Requires-Dist: azure-identity; extra == "all"
+Requires-Dist: azure-keyvault-keys; extra == "all"
+Requires-Dist: boto3>=1.35; extra == "all"
+Requires-Dist: cel-python>=0.4.0; extra == "all"
+Requires-Dist: google-re2<1.1.20251105; extra == "all"
+Requires-Dist: google-auth; extra == "all"
+Requires-Dist: google-api-core; extra == "all"
+Requires-Dist: google-cloud-kms; extra == "all"
+Requires-Dist: hkdf==0.0.3; extra == "all"
+Requires-Dist: hvac; extra == "all"
+Requires-Dist: jsonata-python; extra == "all"
+Requires-Dist: pyyaml>=6.0.0; extra == "all"
+Requires-Dist: tink; extra == "all"
+Requires-Dist: fastavro<1.8.0,>=1.5.4; python_version == "3.7" and extra == "all"
+Requires-Dist: fastavro<2,>=1.5.4; python_version > "3.7" and extra == "all"
+Requires-Dist: requests; extra == "all"
+Requires-Dist: avro<2,>=1.11.1; extra == "all"
+Requires-Dist: jsonschema>=4.18.0; extra == "all"
+Requires-Dist: googleapis-common-protos; extra == "all"
+Requires-Dist: protobuf; extra == "all"
+Requires-Dist: boto3>=1.42.25; extra == "all"
+Dynamic: license-file
 
-Confluent's Python Client for Apache Kafka<sup>TM</sup>
-=======================================================
+# Confluent's Python Client for Apache Kafka®
 
-**confluent-kafka-python** provides a high-level Producer, Consumer and AdminClient compatible with all
-[Apache Kafka<sup>TM<sup>](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/)
-and [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
+[![Try Confluent Cloud - The Data Streaming Platform](https://images.ctfassets.net/8vofjvai1hpv/10bgcSfn5MzmvS4nNqr94J/af43dd2336e3f9e0c0ca4feef4398f6f/confluent-banner-v2.svg)](https://confluent.cloud/signup?utm_source=github&utm_medium=banner&utm_campaign=tm.plg.cflt-oss-repos&utm_term=confluent-kafka-python)
 
-- **Reliable** - It's a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) (provided automatically via binary wheels) which is widely deployed in a diverse set of production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/src/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io).
+**confluent-kafka-python** provides a high-level `Producer`, `Consumer` and `AdminClient` compatible with all [Apache Kafka](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/) and [Confluent Platform](https://www.confluent.io/product/compare/).
 
-- **Performant** - Performance is a key design consideration. Maximum throughput is on par with the Java client for larger message sizes (where the overhead of the Python interpreter has less impact). Latency is on par with the Java client.
+**Recommended for Production:** While this client works with any Kafka deployment, it's optimized for and fully supported with [Confluent Cloud](https://www.confluent.io/confluent-cloud/) (fully managed) and [Confluent Platform](https://www.confluent.io/product/compare/) (self-managed), which provide enterprise-grade security, monitoring, and support.
 
-- **Future proof** - Confluent, founded by the
-creators of Kafka, is building a [streaming platform](https://www.confluent.io/product/compare/)
-with Apache Kafka at its core. It's high priority for us that client features keep
-pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/compare/).
+## Why Choose Confluent's Python Client?
 
+Unlike the basic Apache Kafka Python client, `confluent-kafka-python` provides:
+
+- **Production-Ready Performance**: Built on `librdkafka` (C library) for maximum throughput and minimal latency, significantly outperforming pure Python implementations.
+- **Enterprise Features**: Schema Registry integration, transactions, exactly-once semantics, and advanced serialization support out of the box.
+- **AsyncIO Support**: Native async/await support for modern Python applications - not available in the Apache Kafka client.
+- **Comprehensive Serialization**: Built-in Avro, Protobuf, and JSON Schema support with automatic schema evolution handling.
+- **Professional Support**: Backed by Confluent's engineering team with enterprise SLAs and 24/7 support options.
+- **Active Development**: Continuously updated with the latest Kafka features and performance optimizations.
+- **Battle-Tested**: Used by thousands of organizations in production, from startups to Fortune 500 companies.
+
+**Performance Note:** The Apache Kafka Python client (`kafka-python`) is a pure Python implementation that, while functional, has significant performance limitations for high-throughput production use cases. `confluent-kafka-python` leverages the same high-performance C library (`librdkafka`) used by Confluent's other clients, providing enterprise-grade performance and reliability.
+
+## Key Features
+
+- **High Performance & Reliability**: Built on [`librdkafka`](https://github.com/confluentinc/librdkafka), the battle-tested C client for Apache Kafka, ensuring maximum throughput, low latency, and stability. The client is supported by Confluent and is trusted in mission-critical production environments.
+- **Comprehensive Kafka Support**: Full support for the Kafka protocol, transactions, and administration APIs.
+- **Queues for Kafka (Preview)**: A `ShareConsumer` ([KIP-932](https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka)) for queue-like, cooperative consumption with per-record acknowledgement. See the [Share Consumer guide](docs/kip-932-share-consumer.md). **Preview** — not recommended for production.
+- **AsyncIO Producer**: A fully asynchronous producer (`AIOProducer`) for seamless integration with modern Python applications using `asyncio`.
+- **Seamless Schema Registry Integration**: Synchronous and asynchronous clients for Confluent Schema Registry to handle schema management and serialization (Avro, Protobuf, JSON Schema).
+- **Improved Error Handling**: Detailed, context-aware error messages and exceptions to speed up debugging and troubleshooting.
+- **[Confluent Cloud] Automatic Zone Detection**: Producers automatically connect to brokers in the same availability zone, reducing latency and data transfer costs without requiring manual configuration.
+- **[Confluent Cloud] Simplified Configuration Profiles**: Pre-defined configuration profiles optimized for common use cases like high throughput or low latency, simplifying client setup.
+- **Enterprise Support**: Backed by Confluent's expert support team with SLAs and 24/7 assistance for production deployments.
 
 ## Usage
 
-For a step-by-step guide on using the client see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/).
+For a step-by-step guide on using the client, see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/).
 
-Aditional examples can be found in the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) github repo, which include demonstration of:
+### Choosing Your Kafka Deployment
+
+- **[Confluent Cloud](https://www.confluent.io/confluent-cloud/)** - Fully managed service with automatic scaling, security, and monitoring. Best for teams wanting to focus on applications rather than infrastructure.
+- **[Confluent Platform](https://www.confluent.io/product/compare/)** - Self-managed deployment with enterprise features, support, and tooling. Ideal for on-premises or hybrid cloud requirements.
+- **Apache Kafka** - Open source deployment. Requires manual setup, monitoring, and maintenance.
+
+Additional examples can be found in the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) GitHub repo, which include demonstrations of:
+
 - Exactly once data processing using the transactional API.
 - Integration with asyncio.
 - (De)serializing Protobuf, JSON, and Avro data with Confluent Schema Registry integration.
 - [Confluent Cloud](https://www.confluent.io/confluent-cloud/) configuration.
 
-Also refer to the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html).
+Also see the [Python client docs](https://docs.confluent.io/kafka-clients/python/current/overview.html) and the [API reference](https://docs.confluent.io/kafka-clients/python/current/).
 
 Finally, the [tests](tests) are useful as a reference for example usage.
+### AsyncIO Producer
 
-### Basic Producer Example
+Use the AsyncIO `Producer` inside async applications to avoid blocking the event loop.
+
+```python
+import asyncio
+from confluent_kafka.aio import AIOProducer
+
+async def main():
+    p = AIOProducer({"bootstrap.servers": "mybroker"})
+    try:
+        # produce() returns a Future; first await the coroutine to get the Future,
+        # then await the Future to get the delivered Message.
+        delivery_future = await p.produce("mytopic", value=b"hello")
+        delivered_msg = await delivery_future
+        # Optionally flush any remaining buffered messages before shutdown
+        await p.flush()
+    finally:
+        await p.close()
+
+asyncio.run(main())
+```
+
+Notes:
+
+- Batched async produce buffers messages; delivery callbacks, stats, errors, and logger run on the event loop.
+- Per-message headers are not supported in the batched async path. If headers are required, use the synchronous `Producer.produce(...)` (you can offload to a thread in async apps).
+
+For a more detailed example that includes both an async producer and consumer, see
+[`examples/asyncio_example.py`](examples/asyncio_example.py).
+
+**Architecture:** For implementation details and component architecture, see the [AIOProducer Architecture Overview](aio_producer_simple_diagram.md).
+
+#### When to use AsyncIO vs synchronous Producer
+
+- **Use AsyncIO `Producer`** when your code runs under an event loop (FastAPI/Starlette, aiohttp, Sanic, asyncio workers) and must not block.
+- **Use synchronous `Producer`** for scripts, batch jobs, and highest-throughput pipelines where you control threads/processes and can call `poll()`/`flush()` directly.
+- **In async servers**, prefer AsyncIO `Producer`; if you need headers, call sync `produce()` via `run_in_executor` for that path.
+
+#### AsyncIO with Schema Registry
+
+The AsyncIO producer and consumer integrate seamlessly with async Schema Registry serializers. See the [Schema Registry Integration](#schema-registry-integration) section below for full details.
+
+### Basic Producer example
 
 ```python
 from confluent_kafka import Producer
@@ -811,7 +447,7 @@ p = Producer({'bootstrap.servers': 'mybroker1,mybroker2'})
 
 def delivery_report(err, msg):
     """ Called once for each message produced to indicate delivery result.
-        Triggered by poll() or flush(). """
+        Triggered by poll() or flush()."""
     if err is not None:
         print('Message delivery failed: {}'.format(err))
     else:
@@ -834,9 +470,92 @@ p.flush()
 For a discussion on the poll based producer API, refer to the
 [Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/)
 blog post.
+### Schema Registry Integration
 
+This client provides full integration with Schema Registry for schema management and message serialization, and is compatible with both [Confluent Platform](https://docs.confluent.io/platform/current/schema-registry/index.html) and [Confluent Cloud](https://docs.confluent.io/cloud/current/sr/index.html). Both synchronous and asynchronous clients are available.
 
-### Basic Consumer Example
+#### Learn more
+
+- [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/) – step-by-step course with videos and labs.
+- [Schema Registry Basics](https://developer.confluent.io/learn-kafka/stream-processing/sr-schema-registry/) – short tutorial explaining subjects, compatibility, and serialization patterns.
+
+#### Synchronous Client & Serializers
+
+Use the synchronous `SchemaRegistryClient` with the standard `Producer` and `Consumer`.
+
+```python
+from confluent_kafka import Producer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
+
+# Configure Schema Registry Client
+schema_registry_conf = {'url': 'http://localhost:8081'}  # Confluent Platform
+# For Confluent Cloud, add: 'basic.auth.user.info': '<sr-api-key>:<sr-api-secret>'
+# See: https://docs.confluent.io/cloud/current/sr/index.html
+schema_registry_client = SchemaRegistryClient(schema_registry_conf)
+
+# 2. Configure AvroSerializer
+avro_serializer = AvroSerializer(schema_registry_client,
+                                 user_schema_str,
+                                 lambda user, ctx: user.to_dict())
+
+# 3. Configure Producer
+producer_conf = {
+    'bootstrap.servers': 'localhost:9092',
+}
+producer = Producer(producer_conf)
+
+# 4. Produce messages
+serialized_value = avro_serializer(some_user_object)
+producer.produce('my-topic', key='user1', value=serialized_value)
+producer.flush()
+```
+
+#### Asynchronous Client & Serializers (AsyncIO)
+
+Use the `AsyncSchemaRegistryClient` and `Async` serializers with `AIOProducer` and `AIOConsumer`. The configuration is the same as the synchronous client.
+
+```python
+from confluent_kafka.aio import AIOProducer
+from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
+from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
+
+# Setup async Schema Registry client and serializer
+# (See configuration options in the synchronous example above)
+schema_registry_conf = {'url': 'http://localhost:8081'}
+schema_client = AsyncSchemaRegistryClient(schema_registry_conf)
+serializer = await AsyncAvroSerializer(schema_client, schema_str=avro_schema)
+
+# Use with AsyncIO producer
+producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
+serialized_value = await serializer(data, SerializationContext("topic", MessageField.VALUE))
+delivery_future = await producer.produce("topic", value=serialized_value)
+```
+
+Available async serializers: `AsyncAvroSerializer`, `AsyncJSONSerializer`, `AsyncProtobufSerializer` (and corresponding deserializers).
+
+See also:
+
+- Example: [`examples/asyncio_avro_producer.py`](examples/asyncio_avro_producer.py)
+
+#### Import paths
+
+```python
+from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer, AsyncAvroDeserializer
+from confluent_kafka.schema_registry._async.json_schema import AsyncJSONSerializer, AsyncJSONDeserializer
+from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSerializer, AsyncProtobufDeserializer
+```
+
+**Client-Side Field Level Encryption (CSFLE):** To use Data Contracts rules (including CSFLE), install the `rules` extra (see Install section), and refer to the encryption examples in [`examples/README.md`](examples/README.md). For CSFLE-specific guidance, see the [Confluent Cloud CSFLE documentation](https://docs.confluent.io/cloud/current/security/encrypt/csfle/overview.html).
+
+**Note:** The async Schema Registry interface mirrors the synchronous client exactly - same configuration options, same calling patterns, no unexpected gotchas or limitations. Simply add `await` to method calls and use the `Async` prefixed classes.
+
+#### Troubleshooting
+
+- **401/403 Unauthorized when using Confluent Cloud:** Verify your `basic.auth.user.info` (SR API key/secret) is correct and that the Schema Registry URL is for your specific cluster. Ensure you are using an SR API key, not a Kafka API key.
+- **Schema not found:** Check that your `subject.name.strategy` configuration matches how your schemas are registered in Schema Registry, and that the topic and message field (key/value) pairing is correct.
+### Basic Consumer example
 
 ```python
 from confluent_kafka import Consumer
@@ -862,9 +581,7 @@ while True:
 
 c.close()
 ```
-
-
-### Basic AdminClient Example
+### Basic AdminClient example
 
 Create topics:
 
@@ -888,87 +605,83 @@ for topic, f in fs.items():
     except Exception as e:
         print("Failed to create topic {}: {}".format(topic, e))
 ```
+## Thread safety
 
-
-## Thread Safety
-
-The `Producer`, `Consumer` and `AdminClient` are all thread safe.
-
-
+The `Producer`, `Consumer`, and `AdminClient` are all thread safe. The
+`ShareConsumer` (Preview) is **not** thread safe — a single instance must not
+be used concurrently from multiple threads (see the
+[Share Consumer guide](docs/kip-932-share-consumer.md)).
 ## Install
 
-**Install self-contained binary wheels**
+```bash
+# Basic installation
+pip install confluent-kafka
 
-    $ pip install confluent-kafka
+# With Schema Registry support
+pip install "confluent-kafka[avro,schemaregistry]"     # Avro
+pip install "confluent-kafka[json,schemaregistry]"     # JSON Schema
+pip install "confluent-kafka[protobuf,schemaregistry]" # Protobuf
 
-**NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
-          If you need SASL Kerberos/GSSAPI support you must install librdkafka and
-          its dependencies using the repositories below and then build
-          confluent-kafka using the instructions in the
-          "Install from source" section below.
+# With Data Contract rules (includes CSFLE support)
+pip install "confluent-kafka[avro,schemaregistry,rules]"
+
+# With AWS IAM OAUTHBEARER authentication (mints JWTs via AWS STS GetWebIdentityToken)
+pip install "confluent-kafka[oauthbearer-aws]"
+```
+
+**Note:** Pre-built Linux wheels do not include SASL Kerberos/GSSAPI support. For Kerberos, see the source installation instructions in [INSTALL.md](INSTALL.md).
+To use Schema Registry with the Avro serializer/deserializer:
+
+```bash
+pip install "confluent-kafka[avro,schemaregistry]"
+```
+
+To use Schema Registry with the JSON serializer/deserializer:
+
+```bash
+pip install "confluent-kafka[json,schemaregistry]"
+```
+
+To use Schema Registry with the Protobuf serializer/deserializer:
+
+```bash
+pip install "confluent-kafka[protobuf,schemaregistry]"
+```
+
+When using Data Contract rules (including CSFLE) add the `rules`extra, e.g.:
+
+```bash
+pip install "confluent-kafka[avro,schemaregistry,rules]"
+```
+
+To authenticate to a Kafka cluster using AWS IAM (when running on EC2, EKS, ECS,
+Fargate, or Lambda with an IAM role attached), add the `oauthbearer-aws` extra:
+
+```bash
+pip install "confluent-kafka[oauthbearer-aws]"
+```
+
+Activation is config-only — set `sasl.oauthbearer.method=oidc`,
+`sasl.oauthbearer.metadata.authentication.type=aws_iam`, and
+`sasl.oauthbearer.config="region=...,audience=..."`. The client mints fresh
+JWTs via AWS STS on every token refresh — no static credentials, no Python-side
+imports. See [`examples/oauth_oidc_ccloud_aws_iam.py`](examples/oauth_oidc_ccloud_aws_iam.py)
+for a worked example.
 
 **Install from source**
 
 For source install, see the *Install from source* section in [INSTALL.md](INSTALL.md).
 
-
-## Broker Compatibility
+## Broker compatibility
 
 The Python client (as well as the underlying C library librdkafka) supports
-all broker versions &gt;= 0.8.
+all broker versions >= 0.8.
 But due to the nature of the Kafka protocol in broker versions 0.8 and 0.9 it
 is not safe for a client to assume what protocol version is actually supported
 by the broker, thus you will need to hint the Python client what protocol
 version it may use. This is done through two configuration settings:
 
- * `broker.version.fallback=YOUR_BROKER_VERSION` (default 0.9.0.1)
- * `api.version.request=true|false` (default true)
+- `broker.version.fallback=YOUR_BROKER_VERSION` (default 0.9.0.1)
+- `api.version.request=true|false` (default true)
 
 When using a Kafka 0.10 broker or later you don't need to do anything
-(`api.version.request=true` is the default).
-If you use Kafka broker 0.9 or 0.8 you must set
-`api.version.request=false` and set
-`broker.version.fallback` to your broker version,
-e.g `broker.version.fallback=0.9.0.1`.
-
-More info here:
-https://github.com/edenhill/librdkafka/wiki/Broker-version-compatibility
-
-
-## SSL certificates
-
-If you're connecting to a Kafka cluster through SSL you will need to configure
-the client with `'security.protocol': 'SSL'` (or `'SASL_SSL'` if SASL
-authentication is used).
-
-The client will use CA certificates to verify the broker's certificate.
-The embedded OpenSSL library will look for CA certificates in `/usr/lib/ssl/certs/`
-or `/usr/lib/ssl/cacert.pem`. CA certificates are typically provided by the
-Linux distribution's `ca-certificates` package which needs to be installed
-through `apt`, `yum`, et.al.
-
-If your system stores CA certificates in another location you will need to
-configure the client with `'ssl.ca.location': '/path/to/cacert.pem'`.
-
-Alternatively, the CA certificates can be provided by the [certifi](https://pypi.org/project/certifi/)
-Python package. To use certifi, add an `import certifi` line and configure the
-client's CA location with `'ssl.ca.location': certifi.where()`.
-
-
-## License
-
-[Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
-
-KAFKA is a registered trademark of The Apache Software Foundation and has been licensed for use
-by confluent-kafka-python. confluent-kafka-python has no affiliation with and is not endorsed by
-The Apache Software Foundation.
-
-
-## Developer Notes
-
-Instructions on building and testing confluent-kafka-python can be found [here](DEVELOPER.md).
-
-
-## Confluent Cloud
-
-For a step-by-step guide on using the Python client with Confluent Cloud see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/) on [Confluent Developer](https://developer.confluent.io/). 
