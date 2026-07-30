@@ -128,6 +128,27 @@ def is_locked(obj):
     return any(map(lambda lock: lock["mode"] in ("exclusive", "shared"), obj.attributes["locks"]))
 
 
+def _is_deletion_candidate(
+    age: datetime.timedelta,
+    obj_attributes,
+    args: argparse.Namespace,
+    object_to_attributes: dict,
+) -> bool:
+    if age < args.safe_age:
+        return False
+    if obj_attributes.clear_tmp_config is not None:
+        if obj_attributes.clear_tmp_config.get("dont_prune", False):
+            return False
+    if args.do_not_remove_objects_with_locks:
+        if obj_attributes.locks:
+            return False
+        if obj_attributes.type == "link":
+            target_path = obj_attributes.target_path
+            if target_path in object_to_attributes and object_to_attributes[target_path].locks:
+                return False
+    return True
+
+
 # TODO(ignat): refactor parameters of this method
 def collect_objects_to_remove(yt_client, root_dir, dirs, links, time_attribute_name, object_to_attributes, resources, resources_per_user, args):
     remaining_dir_sizes = dict((obj.name, obj.count) for obj in dirs)
@@ -153,11 +174,19 @@ def collect_objects_to_remove(yt_client, root_dir, dirs, links, time_attribute_n
             continue
         obj_attributes = ObjectAttributes(*[obj.attributes.get(attr) for attr in attributes_to_request])
         object_to_attributes[str(obj)] = obj_attributes
-        objects.append((get_age(obj.attributes[time_attribute_name]), is_empty(obj.attributes), str(obj), obj_attributes))
+        objects.append([None, get_age(obj.attributes[time_attribute_name]), is_empty(obj.attributes), str(obj), obj_attributes])
+
+    non_deletable_count = 0
+    for collected_object in objects:
+        _, age, empty, obj_name, obj_attributes = collected_object
+        collected_object[0] = _is_deletion_candidate(age, obj_attributes, args, object_to_attributes)
+        if not collected_object[0]:
+            non_deletable_count += 1
 
     objects.sort()
 
-    logger.info("Collected %d objects", len(objects))
+    logger.info("Collected %d objects (%d non-deletable, %d deletion candidates)",
+                len(objects), non_deletable_count, len(objects) - non_deletable_count)
 
     to_remove = []
     to_remove_set = set()
@@ -168,40 +197,29 @@ def collect_objects_to_remove(yt_client, root_dir, dirs, links, time_attribute_n
             to_remove.append((obj, reason))
             to_remove_set.add(obj)
 
-    for age, empty, obj_name, obj_attributes in objects:
-        has_locks = False
-        dont_prune = False
+    def _ensure_user_resources(owner: str, resources_per_user: dict, args: argparse.Namespace) -> None:
+        if owner not in resources_per_user:
+            resources_per_user[owner] = Resources(
+                max_disk_space=args.max_disk_space_per_owner,
+                max_node_count=args.max_node_count_per_owner,
+                max_chunk_count=args.max_chunk_count_per_owner,
+                tag=f"per owner '{owner}' ")
 
-        if obj_attributes.clear_tmp_config is not None:
-            dont_prune = obj_attributes.clear_tmp_config.get("dont_prune", False)
-
-        # filter by locks
-        if args.do_not_remove_objects_with_locks:
-            if obj_attributes.locks:
-                has_locks = True
-            if obj_attributes.type == "link":
-                target_path = obj_attributes.target_path
-                if target_path in object_to_attributes and object_to_attributes[target_path].locks:
-                    has_locks = True
-
-        reasons = []
-
+    for is_candidate, age, empty, obj_name, obj_attributes in objects:
         owner = obj_attributes.owner
         if owner is not None:
-            if owner not in resources_per_user:
-                resources_per_user[owner] = Resources(
-                    max_disk_space=args.max_disk_space_per_owner,
-                    max_node_count=args.max_node_count_per_owner,
-                    max_chunk_count=args.max_chunk_count_per_owner,
-                    tag=f"per owner '{owner}' ")
-            reasons += resources_per_user[owner].add(obj_attributes)
+            _ensure_user_resources(owner, resources_per_user, args)
 
-        need_to_skip = has_locks or age < args.safe_age or dont_prune
-        if not reasons or need_to_skip:
-            reasons += resources.add(obj_attributes)
-
-        if need_to_skip:
+        if not is_candidate:
+            if owner is not None:
+                resources_per_user[owner].add(obj_attributes)
+            resources.add(obj_attributes)
             continue
+
+        reasons = []
+        if owner is not None:
+            reasons += resources_per_user[owner].add(obj_attributes)
+        reasons += resources.add(obj_attributes)
 
         if age > args.max_age:
             reasons.append("max age violated")

@@ -6,6 +6,7 @@ TEST_SRCS(
     conftest.py
     test_portal.py
     test_common.py
+    test_quota_removal.py
 )
 
 PEERDIR(
