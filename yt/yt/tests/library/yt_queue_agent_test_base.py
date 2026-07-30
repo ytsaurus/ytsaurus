@@ -343,6 +343,9 @@ class MultiConsumerOrchid(ObjectOrchid):
         result = self.get_status()
         return result["queue_consumer_names"]
 
+    def get_named_consumer_status(self, consumer_name: str) -> dict:
+        return get(f"{self.orchid_path()}/status/consumers/{consumer_name}")
+
 
 class QueueAgentOrchid(OrchidWithRegularPasses):
     ENTITY_NAME = "queue_agent"

@@ -15,6 +15,7 @@ bool UpdateMultiConsumerController(
     IObjectControllerPtr& controller,
     NQueueClient::TConsumerTableRowConstPtr row,
     const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
+    const IObjectStore* store,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,
     const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker,
