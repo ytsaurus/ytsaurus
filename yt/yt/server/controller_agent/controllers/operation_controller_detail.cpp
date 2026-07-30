@@ -7878,14 +7878,16 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                                 auto accessMethod = file.Path.GetAccessMethod();
                                 if (!accessMethod) {
-                                    accessMethod = attributes.Find<std::string>("access_method");
+                                    accessMethod = attributes.Find<ELayerAccessMethod>("access_method");
                                 }
 
                                 // We deliberately do not support filesystem in file.Path
                                 // since filesystem is the property of the actual file not its path.
-                                std::tie(file.AccessMethod, file.Filesystem) = GetAccessMethodAndFilesystemFromStrings(
-                                    accessMethod.value_or(ToString(ELayerAccessMethod::Local)),
-                                    attributes.Find<std::string>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
+                                auto filesystem = attributes.Find<ELayerFilesystem>("filesystem").value_or(ELayerFilesystem::Archive);
+
+                                file.AccessMethod = accessMethod.value_or(ELayerAccessMethod::Local);
+                                file.Filesystem = filesystem;
+                                ValidateCompatibility(*file.AccessMethod, *file.Filesystem);
                             }
                             break;
 

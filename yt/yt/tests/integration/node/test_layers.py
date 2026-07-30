@@ -1950,6 +1950,66 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         for node in ls("//sys/cluster_nodes"):
             assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
 
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("access_method, filesystem", [
+        ("nbd", "archive"),
+        ("local", "ext3"),
+        ("local", "ext4"),
+    ])
+    def test_incompatible_access_method_and_filesystem(self, access_method, filesystem):
+        self.setup_files()
+
+        create("file", "//tmp/incompatible_layer", attributes={"replication_factor": 1})
+        write_file("//tmp/incompatible_layer", open("layers/squashfs.img", "rb").read())
+        set("//tmp/incompatible_layer/@access_method", access_method)
+        set("//tmp/incompatible_layer/@filesystem", filesystem)
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        with raises_yt_error("Incompatible combination of access method"):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/incompatible_layer"],
+                    },
+                },
+            )
+
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("attribute, value", [
+        ("access_method", "garbage"),
+        ("filesystem", "garbage"),
+    ])
+    def test_invalid_access_method_or_filesystem(self, attribute, value):
+        self.setup_files()
+
+        create("file", "//tmp/invalid_layer", attributes={"replication_factor": 1})
+        write_file("//tmp/invalid_layer", open("layers/squashfs.img", "rb").read())
+        set(f"//tmp/invalid_layer/@{attribute}", value)
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        with raises_yt_error():
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/invalid_layer"],
+                    },
+                },
+            )
+
     @authors("pogorelov")
     def test_squashfs_layer_deduplication(self):
         self.setup_files()
