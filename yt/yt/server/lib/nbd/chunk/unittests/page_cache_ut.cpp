@@ -33,21 +33,14 @@ const NLogging::TLogger Logger("PageCacheTest");
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A mock backend implementing IChunkHandler over an in-memory byte buffer.
-//!
-//! - Read serves bytes from the buffer (zero-initialized beyond written regions).
-//! - Write / WriteBatch record bytes into the buffer and log every call so tests
-//!   can assert on what reached the backend.
-//! - Flush records a call count.
-//! - Initialize / Finalize are no-ops that succeed.
-//! - Can be put into a failing mode where every Write returns an error.
+//! Records all writes and counts calls for test assertions.
 class TMockChunkHandler
     : public IChunkHandler
 {
 public:
     explicit TMockChunkHandler(i64 size)
         : Storage_(TSharedMutableRef::Allocate(size, {.InitializeStorage = true}))
-    {
-    }
+    { }
 
     TFuture<void> Initialize() override
     {
@@ -78,7 +71,7 @@ public:
             Storage_.Begin() + offset,
             Storage_.Begin() + offset + length,
             data.Begin());
-        return MakeFuture<TReadResponse>(TReadResponse(TSharedRef(std::move(data)), false));
+        return MakeFuture<TReadResponse>(TReadResponse{.Data = TSharedRef(std::move(data))});
     }
 
     TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
@@ -174,6 +167,16 @@ public:
     }
 
 private:
+    mutable YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
+    TSharedMutableRef Storage_;
+    bool Failing_ = false;
+    int ReadCallCount_ = 0;
+    int WriteCallCount_ = 0;
+    int WriteBatchCallCount_ = 0;
+    int FlushCallCount_ = 0;
+    int WrittenSubrequestCount_ = 0;
+    int FuaWriteCount_ = 0;
+
     void RecordWrite(i64 offset, const TSharedRef& data, bool flush)
     {
         YT_VERIFY(offset >= 0);
@@ -184,17 +187,6 @@ private:
             ++FuaWriteCount_;
         }
     }
-
-private:
-    mutable YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
-    TSharedMutableRef Storage_;
-    bool Failing_ = false;
-    int ReadCallCount_ = 0;
-    int WriteCallCount_ = 0;
-    int WriteBatchCallCount_ = 0;
-    int FlushCallCount_ = 0;
-    int WrittenSubrequestCount_ = 0;
-    int FuaWriteCount_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockChunkHandler)
@@ -228,15 +220,6 @@ T WaitForSync(TFuture<T> future)
 void WaitForSync(TFuture<void> future)
 {
     WaitFor(std::move(future)).ThrowOnError();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Byte-wise comparison of two TSharedRef / TRef values for EXPECT_TRUE.
-bool RefsEqual(const TRef& a, const TRef& b)
-{
-    return std::ssize(a) == std::ssize(b) &&
-        std::equal(a.Begin(), a.End(), b.Begin());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -325,7 +308,7 @@ TEST_F(TPageCacheTest, WriteThenReadReturnsWrittenData)
     Write(0, data);
 
     auto result = Read(0, PageSize);
-    EXPECT_TRUE(RefsEqual(result, data));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(result, data));
 }
 
 // A read of an unwritten region goes to the backend and returns its (zero) data.
@@ -363,7 +346,7 @@ TEST_F(TPageCacheTest, OverwriteReturnsLatestData)
     Write(0, MakeData(PageSize, 0x22));
 
     auto result = Read(0, PageSize);
-    EXPECT_TRUE(RefsEqual(result, MakeData(PageSize, 0x22)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(result, MakeData(PageSize, 0x22)));
 }
 
 // A partial (sub-page) write to an uncached page triggers read-before-write:
@@ -381,8 +364,8 @@ TEST_F(TPageCacheTest, PartialWriteReadsBeforeWrite)
     // Read the full page back: first 1 KB is our write, last 3 KB is backend data.
     auto result = Read(0, PageSize);
     EXPECT_EQ(std::ssize(result), PageSize);
-    EXPECT_TRUE(RefsEqual(result.Slice(0, 1_KB), MakeData(1_KB, 0xAB)));
-    EXPECT_TRUE(RefsEqual(result.Slice(1_KB, 4_KB), MakeData(3_KB, 0x77)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(result.Slice(0, 1_KB), MakeData(1_KB, 0xAB)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(result.Slice(1_KB, 4_KB), MakeData(3_KB, 0x77)));
 }
 
 // Flush writes all dirty pages to the backend and issues a backend Flush.
@@ -402,8 +385,8 @@ TEST_F(TPageCacheTest, FlushWritesBackAndFlushesBackend)
     EXPECT_EQ(Backend_->GetFlushCallCount(), 1);
 
     // Backend storage now reflects the written pages.
-    EXPECT_TRUE(RefsEqual(Backend_->ReadStorage(0, PageSize), MakeData(PageSize, 0x01)));
-    EXPECT_TRUE(RefsEqual(Backend_->ReadStorage(PageSize, PageSize), MakeData(PageSize, 0x02)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(Backend_->ReadStorage(0, PageSize), MakeData(PageSize, 0x01)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(Backend_->ReadStorage(PageSize, PageSize), MakeData(PageSize, 0x02)));
 }
 
 // After Flush, dirty pages become clean and can be evicted; a subsequent read
@@ -417,7 +400,7 @@ TEST_F(TPageCacheTest, FlushMakesPagesClean)
 
     // The backend now has the data; even if the page were evicted, a read
     // would return the correct bytes. Verify the backend was written.
-    EXPECT_TRUE(RefsEqual(Backend_->ReadStorage(0, PageSize), MakeData(PageSize, 0x42)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(Backend_->ReadStorage(0, PageSize), MakeData(PageSize, 0x42)));
 }
 
 // FUA write (Flush=true) writes directly to the backend with Flush=true and
@@ -429,7 +412,7 @@ TEST_F(TPageCacheTest, FuaWriteGoesDirectlyToBackend)
     Write(0, MakeData(PageSize, 0x55), /*flush*/ true);
 
     EXPECT_EQ(Backend_->GetFuaWriteCount(), 1);
-    EXPECT_TRUE(RefsEqual(Backend_->ReadStorage(0, PageSize), MakeData(PageSize, 0x55)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(Backend_->ReadStorage(0, PageSize), MakeData(PageSize, 0x55)));
 }
 
 // FUA write still updates the cache so a subsequent read is a cache hit.
@@ -442,7 +425,7 @@ TEST_F(TPageCacheTest, FuaWriteUpdatesCache)
     EXPECT_EQ(Backend_->GetReadCallCount(), 0);
     auto result = Read(0, PageSize);
     EXPECT_EQ(Backend_->GetReadCallCount(), 0);
-    EXPECT_TRUE(RefsEqual(result, MakeData(PageSize, 0x55)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(result, MakeData(PageSize, 0x55)));
 }
 
 // ReadBatch is not supported and returns an error.
@@ -543,7 +526,7 @@ TEST_F(TPageCacheTest, DirtyPageNotEvicted)
 
     // Page 0 is still cached (dirty) and reads back our written data.
     auto result = Read(0, PageSize);
-    EXPECT_TRUE(RefsEqual(result, MakeData(PageSize, 0x99)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(result, MakeData(PageSize, 0x99)));
 }
 
 // A zero-length read returns an empty buffer without touching the backend.
@@ -597,11 +580,11 @@ TEST_F(TPageCacheTest, UnalignedWriteSpansPages)
     // Read back the full two pages.
     auto result = Read(0, 2 * PageSize);
     // [0, 1 KB): backend 0x44
-    EXPECT_TRUE(RefsEqual(result.Slice(0, 1_KB), MakeData(1_KB, 0x44)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(result.Slice(0, 1_KB), MakeData(1_KB, 0x44)));
     // [1 KB, 5 KB): our write 0x88
-    EXPECT_TRUE(RefsEqual(result.Slice(1_KB, 5_KB), MakeData(4_KB, 0x88)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(result.Slice(1_KB, 5_KB), MakeData(4_KB, 0x88)));
     // [5 KB, 8 KB): backend 0x44
-    EXPECT_TRUE(RefsEqual(result.Slice(5_KB, 8_KB), MakeData(3_KB, 0x44)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(result.Slice(5_KB, 8_KB), MakeData(3_KB, 0x44)));
 }
 
 // After Finalize, all dirty pages are written back and the backend is flushed.
@@ -612,12 +595,11 @@ TEST_F(TPageCacheTest, FinalizeFlushesDirtyData)
     Write(0, MakeData(PageSize, 0x71));
     Write(PageSize, MakeData(PageSize, 0x72));
 
-    // Finalize is called in TearDown; here we just verify the effect afterwards
-    // by checking the backend before destruction. We call Finalize explicitly.
+    // Verify that Finalize flushes dirty data to the backend.
     WaitForSync(Cache_->Finalize());
 
-    EXPECT_TRUE(RefsEqual(Backend_->ReadStorage(0, PageSize), MakeData(PageSize, 0x71)));
-    EXPECT_TRUE(RefsEqual(Backend_->ReadStorage(PageSize, PageSize), MakeData(PageSize, 0x72)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(Backend_->ReadStorage(0, PageSize), MakeData(PageSize, 0x71)));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(Backend_->ReadStorage(PageSize, PageSize), MakeData(PageSize, 0x72)));
     EXPECT_GE(Backend_->GetFlushCallCount(), 1);
 
     // Prevent double-finalize in TearDown.
