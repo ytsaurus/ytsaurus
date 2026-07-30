@@ -88,13 +88,11 @@ class TestMaxYqlVersionConfigAttrWithQtWorker(test_simple.TestMaxYqlVersionConfi
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestNotTableResultWithQtWorker(test_simple.TestNotTableResult):
     YQL_QTWORKER = True
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestGetOperationLinkWithQtWorker(test_simple.TestGetOperationLink):
     YQL_QTWORKER = True
 
@@ -126,13 +124,27 @@ class TestComplexQueriesYqlWithQtWorker(test_simple.TestComplexQueriesYql):
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestExecutionModesYqlWithQtWorker(test_simple.TestExecutionModesYql):
     YQL_QTWORKER = True
 
+    @authors("mpereskokova")
+    def test_validate(self, query_tracker, yql_agent):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}, {"a": 43}]
+        write_table("//tmp/t1", rows)
+
+        for mode in ["validate", 0]:
+            query = self.start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": mode})
+            query.track()
+            result = query.get()
+            assert result["result_count"] == 0
+            # Unlike the native plugin, the plan is not returned here, which is the correct behavior.
+            assert "yql_plan" not in result["progress"]
+
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestYqlPluginWithQtWorker(test_simple.TestYqlPlugin):
     YQL_QTWORKER = True
 
@@ -148,7 +160,6 @@ class TestAllYqlAgentsOverloadWithQtWorker(test_simple.TestAllYqlAgentsOverload)
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestPartialYqlAgentsOverloadWithQtWorker(test_simple.TestPartialYqlAgentsOverload):
     YQL_QTWORKER = True
 
@@ -159,25 +170,21 @@ class TestQueriesYqlLimitedResultWithQtWorker(test_simple.TestQueriesYqlLimitedR
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestQueriesYqlResultTruncationWithQtWorker(test_simple.TestQueriesYqlResultTruncation):
     YQL_QTWORKER = True
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestQueriesYqlAuthWithQtWorker(test_simple.TestQueriesYqlAuth):
     YQL_QTWORKER = True
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestQueriesYqlWithSecretsWithQtWorker(test_simple.TestQueriesYqlWithSecrets):
     YQL_QTWORKER = True
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestQueriesYqlWithSecretProtectionWithQtWorker(test_simple.TestQueriesYqlWithSecretProtection):
     YQL_QTWORKER = True
 
@@ -203,13 +210,11 @@ class TestYqlColumnOrderSelectScalarsWithQtWorker(test_simple.TestYqlColumnOrder
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestYqlColumnOrderDifferentSourcesWithQtWorker(test_simple.TestYqlColumnOrderDifferentSources):
     YQL_QTWORKER = True
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestAssignedEngineWithQtWorker(test_simple.TestAssignedEngine):
     YQL_QTWORKER = True
 
@@ -220,19 +225,16 @@ class TestAstReturnsWithQtWorker(test_simple.TestAstReturns):
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestYqlVersionChangesWithQtWorker(test_simple.TestYqlVersionChanges):
     YQL_QTWORKER = True
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestAgentWithInvalidMaxYqlVersionWithQtWorker(test_simple.TestAgentWithInvalidMaxYqlVersion):
     YQL_QTWORKER = True
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestAgentWithUndefinedMaxYqlVersionWithQtWorker(test_simple.TestAgentWithUndefinedMaxYqlVersion):
     YQL_QTWORKER = True
 
@@ -273,25 +275,21 @@ class TestGetQueryTrackerInfoWithVisibleYqlVersionBothNotReleasedWithQtWorker(te
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestDeclareWithQtWorker(test_simple.TestDeclare):
     YQL_QTWORKER = True
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestsDDLWithQtWorker(test_simple.TestsDDL):
     YQL_QTWORKER = True
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestCrossClusterQueriesYqlWithQtWorker(test_simple.TestCrossClusterQueriesYql):
     YQL_QTWORKER = True
 
 
 @authors("mpereskokova")
-@pytest.mark.skip(reason="TODO@mpereskokova")
 class TestOperationOptionsWithQtWorker(test_simple.TestOperationOptions):
     YQL_QTWORKER = True
 

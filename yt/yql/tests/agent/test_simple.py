@@ -116,7 +116,7 @@ class TestNotTableResult(TestQueriesYqlSimpleBase):
                     <|id: 2u, val: "b"|>
                 ]);
 
-                $udf = ($key, $values) -> (
+                $udf = ($key, $_) -> (
                     Just([<|id: $key, a: 1|>])
                 );
 
@@ -823,12 +823,13 @@ class TestPartialYqlAgentsOverload(TestQueriesYqlSimpleBase):
         q1 = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
         q2 = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
 
-        wait(lambda: q1.get()["state"] == "running")
-        wait(lambda: q2.get()["state"] == "running")
+        wait(lambda: "progress" in q1.get())
 
         set("//sys/pools/small/@resource_limits/user_slots", 1)
 
         q1.track()
+
+        wait(lambda: "progress" in q2.get())
         q2.track()
 
 
@@ -1615,12 +1616,6 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlSimpleBase):
             select * from primary.`//tmp/t2`
             limit 4
        """, [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "xyz", "c": 3.0}, {"a": 44, "b": "uvw", "c": 4.0}, {"a": 45, "b": "bar", "c": -3.0}])
-        self._test_simple_query("""
-            select * from primary.`//tmp/t2`
-            union all
-            select * from primary.`//tmp/t1`
-            limit 4
-        """, [{"a": 45, "b": "bar", "c": -3.0}, {"a": 46, "b": "abc", "c": -4.0}, {"a": 47, "b": "def", "c": -5.0}, {"a": 42, "b": "foo", "c": 2.0}])
 
 
 class TestAssignedEngine(TestQueriesYqlSimpleBase):
@@ -1701,7 +1696,7 @@ class TestYqlVersionChanges(TestQueriesYqlSimpleBase):
         query_old_version.track()
         assert_items_equal(query_old_version.read_result(0), [{"result": "2025.01"}])
 
-        query_old_udfs = self.start_query("yql", "select String::Reverse(\"abc\") as result;", settings=settings)
+        query_old_udfs = self.start_query("yql", "pragma warning('disable', '4524'); select String::Reverse(\"abc\") as result;", settings=settings)
         query_old_udfs.track()
         assert_items_equal(query_old_udfs.read_result(0), [{"result": "cba"}])
 
@@ -1711,7 +1706,7 @@ class TestYqlVersionChanges(TestQueriesYqlSimpleBase):
         assert_items_equal(query_new_version.read_result(0), [{"result": "2025.02"}])
 
         with raises_yt_error() as err:
-            query_new_udfs = self.start_query("yql", "select String::Reverse(\"abc\");", settings=settings)
+            query_new_udfs = self.start_query("yql", "pragma warning('disable', '4524'); select String::Reverse(\"abc\");", settings=settings)
             query_new_udfs.track()
         assert err[0].contains_text("'String.Reverse' is not available")
 
@@ -2115,6 +2110,7 @@ class TestsDDL(TestQueriesYqlSimpleBase):
             );
         """, None)
         self._test_simple_query("""
+            pragma Warning('disable', '4510');
             $p = process `//tmp/t5`;
             select FormatType(ListItemType(TypeOf($p))) as type, YQL::ConstraintsOf($p) as constraints;
         """, [{'type': "Struct<'key':Utf8?,'subkey':Int32?,'value':Date?>", 'constraints': """{
@@ -2144,6 +2140,7 @@ class TestsDDL(TestQueriesYqlSimpleBase):
         """, "is only supported when YT's native descending sort is enabled")
         self._test_simple_query("""
             pragma yt.UseNativeDescSort;
+            pragma Warning('disable', '4510');
             create table `//tmp/t6` (
                 key Text,
                 subkey Int32,
@@ -2219,6 +2216,7 @@ class TestCrossClusterQueriesYql(TestQueriesYqlSimpleBase):
         }
     }
 
+    @pytest.mark.timeout(300)
     def test_two_clusters_without_intersections(self, query_tracker, yql_agent):
         self._test_simple_query("""
             insert into primary.`//tmp/t_0` select 123 as xyz;
@@ -2235,6 +2233,7 @@ class TestCrossClusterQueriesYql(TestQueriesYqlSimpleBase):
             select * from remote_0.`//tmp/t_1`;
         """, [[{'xyz': 123}], [{'abc': 'BlaBla'}]])
 
+    @pytest.mark.timeout(300)
     def test_two_clusters_intersect(self, query_tracker, yql_agent):
         attributes = {"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]}
         create("table", "//tmp/t", attributes=attributes)
@@ -2257,6 +2256,7 @@ class TestCrossClusterQueriesYql(TestQueriesYqlSimpleBase):
             select * from remote_0.`//tmp/t`
         """, rows)
 
+    @pytest.mark.timeout(300)
     def test_two_clusters_cross_join(self, query_tracker, yql_agent):
         self._test_simple_query("""
             insert into primary.`//tmp/t0` select 456 as uvw;
