@@ -87,11 +87,13 @@ public:
 
     TFuture<void> GetBlockFuture() const override
     {
+        YT_VERIFY(!Cookie_.IsActive());
         return Cookie_.GetValue().AsVoid();
     }
 
     TCachedBlock GetBlock() const override
     {
+        YT_VERIFY(!Cookie_.IsActive());
         const auto& future = Cookie_.GetValue();
         YT_VERIFY(future.GetOrCrash().IsOK());
         return future.GetOrCrash().Value()->CachedBlock();
@@ -103,6 +105,7 @@ public:
             return;
         }
 
+        YT_VERIFY(Cookie_.IsActive());
         auto cookie = std::move(Cookie_);
 
         if (blockOrError.IsOK()) {

@@ -1939,6 +1939,48 @@ TEST_F(TOversizedBlockCacheTest, DoesNotChargeBlockCacheMemory)
     EXPECT_EQ(GetDataNodeBootstrap()->GetNodeMemoryUsageTracker()->GetUsed(EMemoryCategory::BlockCache), 0);
 }
 
+class TConsumerCookieFailSessionTest
+    : public TDataNodeTest
+{
+public:
+    TConsumerCookieFailSessionTest()
+        : TDataNodeTest(
+            TDataNodeTest::TDataNodeTestParams {
+                .BlockCacheCapacity = 16_KB,
+            })
+    { }
+};
+
+TEST_F(TConsumerCookieFailSessionTest, FailedReadSessionDoesNotSetConsumerCookie)
+{
+    constexpr int ExistingBlockIndex = 0;
+    constexpr int MissingBlockIndex = 1;
+
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    auto blocks = FillWithRandomBlocks(sessionId, /*blockCount*/ 1, /*blockSize*/ 4_KB);
+    auto blockId = TBlockId(sessionId.ChunkId, ExistingBlockIndex);
+
+    // Keep the block pending outside the read session. The session must fail on the missing block
+    // without waiting for this block to become available.
+    std::unique_ptr<ICachedBlockCookie> producerCookie =
+        GetDataNodeBootstrap()->GetBlockCache()->GetBlockCookie(
+            blockId,
+            EBlockType::CompressedData);
+    ASSERT_TRUE(producerCookie->IsActive());
+
+    auto failedRspOrError = WaitFor(GetBlockSet(
+        sessionId.ChunkId,
+        /*blockIndices*/ std::vector<int>{ExistingBlockIndex, MissingBlockIndex},
+        /*populateCache*/ true,
+        /*fetchFromCache*/ true,
+        /*fetchFromDisk*/ true,
+        /*workloadDescriptor*/ {},
+        /*requestTimeout*/ TDuration::Seconds(1)));
+    ASSERT_FALSE(failedRspOrError.IsOK());
+
+    producerCookie->SetBlock(blocks[0]);
+}
+
 class TReadBlocksDeadlineTest
     : public TDataNodeTest
     , public ::testing::WithParamInterface<std::tuple</*failSession*/ bool, /*returnBlocks*/ bool>>
