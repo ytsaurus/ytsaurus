@@ -355,6 +355,7 @@ message TIndexOption
         IM_DISABLED = 0;
         IM_REMOVE_ONLY = 3;
         IM_BUILDING = 1;
+        IM_SHRINKING = 5;
         IM_ENABLED = 2;
     }
 
