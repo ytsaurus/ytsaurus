@@ -455,11 +455,21 @@ class Clique(object):
         def check_all_instance_pairs():
             clique_size_per_instance = []
             for instance in self.get_active_instances():
-                clique_size = self.make_direct_query(instance, "select count(*) from system.clique", verbose=False)[0][
-                    "count()"
-                ]
+                try:
+                    clique_size = self.make_direct_query(instance, "select count(*) from system.clique", verbose=False)[0][
+                        "count()"
+                    ]
+                except YtError as err:
+                    if not err.contains_code(InstanceUnavailableCode):
+                        raise
+                    # The discovery group is shared between incarnations of a clique with
+                    # the same alias, so it may contain a stale member of a dead instance
+                    # until its lease expires.
+                    return False
                 clique_size_per_instance.append(clique_size)
             # print_debug("Clique sizes over all instances: {}".format(clique_size_per_instance))
+            if not clique_size_per_instance:
+                return False
             return min(clique_size_per_instance) == self.instance_count
 
         wait(check_all_instance_pairs)
