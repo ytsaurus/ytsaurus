@@ -1,6 +1,7 @@
 #pragma once
 
-#include "public.h"
+#include <memory>
+#include <vector>
 
 namespace NYT {
 
@@ -29,17 +30,18 @@ public:
     T& operator[](size_t index);
     const T& operator[](size_t index) const;
 
+    // STL interop.
+    size_t size() const;
+    bool empty() const;
+
 private:
     struct TChunk
     {
         T Elements[ChunkSize];
     };
 
-    using TChunkPtr = TIntrusivePtr<TChunk>;
-
     std::vector<std::unique_ptr<TChunk>> Chunks_;
     size_t Size_ = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
