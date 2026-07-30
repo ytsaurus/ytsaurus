@@ -317,7 +317,7 @@ public:
             GetMasterChannelOrThrow(EMasterChannelKind::Follower),
             GetNetworks());
 
-        OffshoreDataGatewayChannel_ = NOffshoreDataGateway::CreateOffshoreDataGatewayChannel(
+        OffshoreDataGatewayChannelManager_ = NOffshoreDataGateway::CreateOffshoreDataGatewayChannelManager(
             config->OffshoreDataGateway,
             ChannelFactory_,
             this);
@@ -725,9 +725,14 @@ public:
         return TabletBalancerChannel_;
     }
 
-    const IChannelPtr& GetOffshoreDataGatewayChannel() override
+    IChannelPtr GetStickyOffshoreDataGatewayChannel() override
     {
-        return OffshoreDataGatewayChannel_;
+        return OffshoreDataGatewayChannelManager_->GetStickyChannel();
+    }
+
+    const IChannelPtr& GetNonStickyOffshoreDataGatewayChannel() override
+    {
+        return OffshoreDataGatewayChannelManager_->GetNonStickyChannel();
     }
 
     IChannelPtr GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind) override
@@ -1104,7 +1109,7 @@ private:
     IChannelPtr BundleControllerChannel_;
     IChannelPtr TabletBalancerChannel_;
 
-    IChannelPtr OffshoreDataGatewayChannel_;
+    NOffshoreDataGateway::IOffshoreDataGatewayChannelManagerPtr OffshoreDataGatewayChannelManager_;
 
     THashMap<std::string, IChannelPtr> QueueAgentChannels_;
     IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;

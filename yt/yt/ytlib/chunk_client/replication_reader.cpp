@@ -1215,7 +1215,7 @@ protected:
         }
 
         if (peerId.IsOffshore) {
-            return reader->Client_->GetNativeConnection()->GetOffshoreDataGatewayChannel();
+            return reader->Client_->GetNativeConnection()->GetNonStickyOffshoreDataGatewayChannel();
         }
 
         try {
