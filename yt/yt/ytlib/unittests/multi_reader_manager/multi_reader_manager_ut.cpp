@@ -88,11 +88,11 @@ ISchemalessChunkReaderPtr CreateReaderWithError(int filledRowCount)
     return New<TChunkReaderWithErrorMock>(std::move(readerData), TDuration::Zero());
 }
 
-class TCancellationTestChunkReader
+class TCancelationTestChunkReader
     : public TChunkReaderMock
 {
 public:
-    TCancellationTestChunkReader()
+    TCancelationTestChunkReader()
         : TChunkReaderMock({}, TDuration::Zero())
     { }
 
@@ -116,7 +116,7 @@ private:
     const TPromise<void> BlockedPromise_ = NewPromise<void>();
 };
 
-IMultiReaderManagerPtr CreateParallelMultiReaderManagerForCancellationTest(
+IMultiReaderManagerPtr CreateParallelMultiReaderManagerForCancelationTest(
     const ISchemalessChunkReaderPtr& reader)
 {
     auto config = New<TMultiChunkReaderConfig>();
@@ -215,9 +215,9 @@ TEST_P(TMultiReaderManagerTest, Interrupt)
 
 TEST(TParallelMultiReaderManagerTest, CancelationStress)
 {
-    for (int iteration = 0; iteration < 10000; ++iteration) {
-        auto reader = New<TCancellationTestChunkReader>();
-        auto manager = CreateParallelMultiReaderManagerForCancellationTest(reader);
+    for (int iteration = 0; iteration < 10'000; ++iteration) {
+        auto reader = New<TCancelationTestChunkReader>();
+        auto manager = CreateParallelMultiReaderManagerForCancelationTest(reader);
 
         manager->Open();
         WaitFor(manager->GetReadyEvent())
@@ -228,13 +228,13 @@ TEST(TParallelMultiReaderManagerTest, CancelationStress)
         YT_VERIFY(!manager->GetCurrentSession().Reader);
 
         // We test that the protocol is not broken by the cancelation:
-        // we don't care whether Apply will be called or not, we only care that
-        // if ReadyEvent did resolve to OK, it's safe to Read.
+        // we do not care whether Apply will be called or not, we only care
+        // that if ReadyEvent did resolve to OK, it's safe to Read.
         auto applied = manager->GetReadyEvent().Apply(BIND([manager] {
             manager->OnEmptyRead(/*readerFinished*/ false);
         }));
 
-        applied.Cancel(TError("Test external cancellation"));
+        applied.Cancel(TError("Test external cancelation"));
         Y_UNUSED(WaitFor(applied));
 
         reader->Unblock();
