@@ -1,4 +1,4 @@
-PY3_PROGRAM(gpu_sre_alerts)
+PY3_PROGRAM(scheduler_alerts_nodes_with_insufficient_resource_limits)
 
 PEERDIR(
     yt/odin/checks/lib/check_runner

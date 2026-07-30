@@ -8,7 +8,7 @@ def run_check(yt_client, logger, options, states):
         logger,
         options,
         states,
-        include_alert_types=("nodes_with_insufficient_resource_limits", "manage_scheduling_segments"),
+        include_alert_types=("nodes_with_insufficient_resource_limits",),
     )
 
 
