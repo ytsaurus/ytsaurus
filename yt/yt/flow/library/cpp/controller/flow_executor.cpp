@@ -298,9 +298,7 @@ void CheckPipelineSafeForSpecUpdate(
     bool force)
 {
     auto flowView = keeper->GetFlowView();
-    if (!flowView->IsSynced()) {
-        return;
-    }
+    flowView->EnsureIsSynced();
 
     const auto state = flowView->State->ExecutionSpec->PipelineState->GetValue();
     if (state == EPipelineState::Stopped || state == EPipelineState::Unknown) {
