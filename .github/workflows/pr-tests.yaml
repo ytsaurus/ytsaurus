@@ -22,6 +22,8 @@ env:
 jobs:
   fast-test:
     name: Fast tests
+    permissions:
+      contents: read
     with:
       runs-on-value: ${{ inputs.runs-on-value }}
       build-dir: build_ya-make_relwithdebinfo
@@ -33,6 +35,8 @@ jobs:
   notify-pr-tests-start:
     name: Notify PR integration tests started
     runs-on: trampoline
+    permissions:
+      issues: write
     needs:
       - fast-test
     if: ${{ needs.fast-test.result == 'success' }}
@@ -66,6 +70,8 @@ jobs:
       - fast-test
     if: ${{ needs.fast-test.result == 'success' }}
     runs-on: ${{ inputs.runs-on-value }}
+    permissions:
+      contents: read
     outputs:
       COMMENT_DATA: ${{ steps.run-tests.outputs.COMMENT_DATA }}
     env:
@@ -174,6 +180,8 @@ jobs:
 
   notify-pr-tests-finish:
     runs-on: trampoline
+    permissions:
+      issues: write
     needs:
       - integration-test
     if: always()
