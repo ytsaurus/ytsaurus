@@ -619,7 +619,13 @@ private:
 
     void InsertShortcut(TChaosObjectId chaosObjectId, TCellId chaosCellId, TReplicationEra era, EShortcutState state)
     {
-        Shortcuts_[chaosObjectId] = TShortcut{chaosCellId, era, state, {}};
+        Shortcuts_[chaosObjectId] = TShortcut{
+            .CellId = chaosCellId,
+            .Era = era,
+            .State = state,
+            .AliveTransactions = {},
+        };
+
         SnapshotStore_->UpdateShortcut(chaosObjectId, {era});
     }
 
