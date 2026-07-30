@@ -38,7 +38,7 @@ void TChunkedVector<T, ChunkSize>::PushBack(T value)
 template <class T, size_t ChunkSize>
 void TChunkedVector<T, ChunkSize>::PopBack()
 {
-    (*this)[Size_--] = T();
+    (*this)[--Size_] = T();
 }
 
 template <class T, size_t ChunkSize>
@@ -51,6 +51,18 @@ template <class T, size_t ChunkSize>
 const T& TChunkedVector<T, ChunkSize>::operator[](size_t index) const
 {
     return Chunks_[index / ChunkSize]->Elements[index % ChunkSize];
+}
+
+template <class T, size_t ChunkSize>
+size_t TChunkedVector<T, ChunkSize>::size() const
+{
+    return Size();
+}
+
+template <class T, size_t ChunkSize>
+bool TChunkedVector<T, ChunkSize>::empty() const
+{
+    return Empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

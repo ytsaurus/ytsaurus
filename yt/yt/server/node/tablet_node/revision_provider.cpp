@@ -2,8 +2,8 @@
 
 #include "private.h"
 
-#include <yt/yt/core/misc/chunked_vector.h>
-#include <yt/yt/core/misc/three_level_stable_vector.h>
+#include <library/cpp/yt/containers/chunked_vector.h>
+#include <library/cpp/yt/containers/three_level_stable_vector.h>
 
 namespace NYT::NTabletNode {
 namespace {

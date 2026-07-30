@@ -132,7 +132,6 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_expiring_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/time_formula_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/three_level_stable_vector_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/tls_destructor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/tls_expiring_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/topological_ordering_ut.cpp
