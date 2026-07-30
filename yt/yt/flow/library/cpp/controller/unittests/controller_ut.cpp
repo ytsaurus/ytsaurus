@@ -652,6 +652,66 @@ TEST_F(TControllerTest, SetSpecDoesNotRetryOnFlowCoreTargetMismatch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// A spec write lands in persisted state and the keeper's CurrentSpec, but the controller
+// ingests it into ExecutionSpec only on a scheduler iteration; until then the flow view is
+// desynced and the true pipeline state is unobservable. A new spec must be rejected in this
+// window, while an identical retry (e.g. the runner re-sending after a lost ack) must stay
+// a successful no-op.
+TEST_F(TControllerTest, SetSpecOnDesyncedFlowView)
+{
+    // Keep the flow view permanently desynced after the first spec write: the keeper is
+    // initialized before the warm-up sleep, so no scheduler iteration ever ingests specs.
+    ControllerConfig->WarmUpTime = TDuration::Hours(1);
+
+    Prepare();
+
+    YT_TLOG_INFO("Start SetSpecOnDesyncedFlowView");
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+
+        ASSERT_TRUE(Controller->GetFlowViewKeeper()->GetFlowView()->IsSynced());
+
+        constexpr TStringBuf firstSpec = R"({"binary_version"="first_version";})";
+
+        i64 firstVersion = -1;
+        {
+            // First-time spec set: the view is synced and the pipeline state is Unknown.
+            auto setReq = ControllerServiceProxy->SetSpec();
+            setReq->set_spec(std::string(firstSpec));
+            auto setRsp = WaitFor(setReq->Invoke()).ValueOrThrow();
+            firstVersion = setRsp->version();
+        }
+
+        ASSERT_FALSE(Controller->GetFlowViewKeeper()->GetFlowView()->IsSynced());
+
+        {
+            // Identical retry: short-circuits on no version change before the gate.
+            auto setReq = ControllerServiceProxy->SetSpec();
+            setReq->set_expected_version(firstVersion);
+            setReq->set_spec(std::string(firstSpec));
+            auto setRsp = WaitFor(setReq->Invoke()).ValueOrThrow();
+            ASSERT_EQ(setRsp->version(), firstVersion);
+        }
+
+        {
+            // A different spec must not pass while the controller has not ingested the
+            // previous one: the true pipeline state is unknown and may be Working.
+            auto setReq = ControllerServiceProxy->SetSpec();
+            setReq->set_expected_version(firstVersion);
+            setReq->set_spec(R"({"binary_version"="second_version";})");
+            auto setResult = WaitFor(setReq->Invoke());
+
+            ASSERT_FALSE(setResult.IsOK());
+            EXPECT_THAT(ToString(setResult), ::testing::HasSubstr("FlowView is not synced"));
+        }
+
+        StopLeading();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TControllerTest, WorkerExcludedFromSchedulingWhenFlowCoreTargetMismatches)
 {
     ControllerConfig->WarmUpTime = TDuration::MilliSeconds(10);
