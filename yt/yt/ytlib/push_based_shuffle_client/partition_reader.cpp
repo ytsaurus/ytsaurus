@@ -235,7 +235,9 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         if (!TerminalError_.IsOK()) {
-            if (!resultOrError.IsOK()) {
+            if (!resultOrError.IsOK() &&
+                !resultOrError.FindMatching(NYT::EErrorCode::Canceled))
+            {
                 YT_LOG_DEBUG(resultOrError, "Shuffle reader received subsequent failure");
             }
             return;
@@ -326,8 +328,7 @@ private:
                 try {
                     auto header = ReadShuffleRecordHeader(blob);
                     if (!SeenRecords_.emplace(header.MapperId, header.StartRow).second ||
-                        RecordHeaderFilter_ &&
-                        !RecordHeaderFilter_(header))
+                        (RecordHeaderFilter_ && !RecordHeaderFilter_(header)))
                     {
                         continue;
                     }
