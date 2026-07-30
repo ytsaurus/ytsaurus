@@ -1,16 +1,15 @@
 #include "helpers.h"
 
-#include <yt/yt/client/queue_client/queue_rowset.h>
-
 #include <yt/yt/client/complex_types/yson_format_conversion.h>
+
+#include <yt/yt/client/queue_client/queue_rowset.h>
+#include <yt/yt/client/queue_client/queue_rowset.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
-
-#include <yt/yt/client/queue_client/queue_rowset.h>
 
 #include <yt/yt/core/misc/blob_output.h>
 
@@ -92,17 +91,17 @@ TErrorOr<TRecordBatch> ConvertKafkaQueueRowsToRecordBatch(
             auto offsetValue = row[*rowIndexColumnId];
             YT_VERIFY(offsetValue.Type == EValueType::Int64);
             auto key = row[*keyColumnId];
-            if (key.Type != EValueType::String) {
+            if (key.Type != EValueType::Null && key.Type != EValueType::String) {
                 return TError("Row with offset %Qv has key that is not a string", offsetValue.Data.Uint64);
             }
             auto value = row[*valueColumnId];
-            if (value.Type != EValueType::String) {
+            if (value.Type != EValueType::Null && value.Type != EValueType::String) {
                 return TError("Row with offset %Qv has value that is not a string", offsetValue.Data.Uint64);
             }
             records.push_back({
                 .OffsetDelta = static_cast<i32>(offsetValue.Data.Uint64 - recordBatch.BaseOffset),
-                .Key = key.AsString(),
-                .Value = value.AsString(),
+                .Key = key.Type == EValueType::Null ? std::nullopt : std::make_optional(key.AsString()),
+                .Value = value.Type == EValueType::Null ? std::nullopt : std::make_optional(value.AsString()),
             });
             if (timestampColumnId) {
                 rowTimestamp = row[*timestampColumnId].Data.Uint64 / 1'000;  // Convert to milliseconds.
