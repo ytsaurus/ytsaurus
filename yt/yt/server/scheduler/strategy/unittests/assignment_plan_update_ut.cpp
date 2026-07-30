@@ -1569,6 +1569,61 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfNodesDuringPreemption)
     EXPECT_EQ(UnitResources * 9, operations[5]->AssignedResourceUsage());
 }
 
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestNodePenaltyAccountsForAllPreemptedAssignments)
+{
+    auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 2);
+    std::vector<TOperationPtr> operations{
+        CreateSimpleTestOperation(/*gpuCount*/ 6, /*allocationCount*/ 2),
+        CreateSimpleTestOperation(/*gpuCount*/ 1, /*allocationCount*/ 2),
+        CreateSimpleTestOperation(/*gpuCount*/ 2, /*allocationCount*/ 1),
+    };
+
+    auto now = TInstant::Seconds(10'000);
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes, GetTestConfig(), now);
+
+    ASSERT_EQ(UnitResources * 12, operations[0]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
+    ASSERT_EQ(UnitResources * 2, operations[2]->AssignedResourceUsage());
+
+    // Both 1-GPU assignments land on one node (X), the 2-GPU assignment on the other (Y).
+    auto smallAssignments = GetItems(operations[1]->Assignments());
+    ASSERT_EQ(2, std::ssize(smallAssignments));
+    ASSERT_EQ(smallAssignments[0]->Node, smallAssignments[1]->Node);
+    auto* nodeX = smallAssignments[0]->Node;
+
+    ASSERT_EQ(1, std::ssize(operations[2]->Assignments()));
+    auto bigAssignment = *operations[2]->Assignments().begin();
+    auto* nodeY = bigAssignment->Node;
+    ASSERT_NE(nodeX, nodeY);
+
+    // Fitting a 2-GPU allocation requires preempting both assignments on X
+    // (total penalty 100 + 2000 = 2100) but only one on Y (penalty 500 * 2 = 1000),
+    // so Y must be preferred.
+    smallAssignments[0]->Preemptible = true;
+    smallAssignments[0]->PreemptibleProgressStartTime = now - TDuration::Seconds(100);
+    smallAssignments[1]->Preemptible = true;
+    smallAssignments[1]->PreemptibleProgressStartTime = now - TDuration::Seconds(2000);
+
+    bigAssignment->Preemptible = true;
+    bigAssignment->PreemptibleProgressStartTime = now - TDuration::Seconds(500);
+
+    operations.push_back(CreateSimpleTestOperation(/*gpuCount*/ 2, /*allocationCount*/ 1));
+    operations.back()->SetStarving(true);
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes, GetTestConfig(), now);
+
+    EXPECT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
+    EXPECT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
+    EXPECT_EQ(UnitResources * 2, operations[3]->AssignedResourceUsage());
+
+    EXPECT_TRUE(GetNodePreemptedAssignments(nodeX->GetId()).empty());
+
+    const auto& nodeYPreemptedAssignments = GetNodePreemptedAssignments(nodeY->GetId());
+    EXPECT_EQ(1, std::ssize(nodeYPreemptedAssignments));
+    EXPECT_TRUE(nodeYPreemptedAssignments.contains(bigAssignment));
+}
+
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostRegularPreemption)
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 10);
