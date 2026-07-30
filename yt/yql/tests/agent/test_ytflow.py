@@ -374,7 +374,8 @@ class TestYtflowBase(TestQueueAgentBase):
                     endpoint=logbroker_endpoint,
                     token="dummy_token",
                     database=LogbrokerClient.LOGBROKER_DATABASE,
-                    config_manager_endpoint=logbroker_cm_endpoint
+                    config_manager_endpoint=logbroker_cm_endpoint,
+                    add_bearer_to_token=False
                 )]
             )
 
@@ -1162,9 +1163,10 @@ select {select_body} from $stream;
 
         out_topic_path = logbroker_client.create_topic()
 
+        # TODO (artemmashin): revert to 'select *' after fix in pq provider
         run_query(f"""
 insert into logbroker.`{out_topic_path}`
-select * from logbroker.`{input_topic_path}`;
+select Data from logbroker.`{input_topic_path}`;
 """)
 
         self._assert_logbroker_topic_content(out_topic_path, ["AB", "CD", "EF"], logbroker_client)
@@ -1281,7 +1283,7 @@ select * from $bad_stream;
         out_topic_path = logbroker_client.create_topic()
 
         run_query(f"""
-$stream = select * from logbroker.`{input_topic_path}`;
+$stream = select Data from logbroker.`{input_topic_path}`;
 
 $lambda = ($row) -> {{
     $row_type = TypeOf($row);
@@ -1317,7 +1319,7 @@ select * from $bad_stream;
         out_topics = [logbroker_client.create_topic() for _ in range(5)]
 
         run_query(f"""
-$stream = select * from logbroker.`{input_topic_path}`;
+$stream = select Data from logbroker.`{input_topic_path}`;
 
 $lambda = ($row) -> {{
     $row_type = TypeOf($row);
@@ -1352,7 +1354,7 @@ $stream0, $stream1, $stream2, $stream3, $stream4 = process $stream using $lambda
         out_topic_path = logbroker_client.create_topic()
 
         run_query(f"""
-$stream = select * from logbroker.`{input_topic_path}`;
+$stream = select Data from logbroker.`{input_topic_path}`;
 
 $lambda = ($row) -> {{
     $row_type = TypeOf($row);
