@@ -73,6 +73,46 @@ void TDynamicCommonQueueSinkParameters::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueueSinkTabletRoutingParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tablet_index_expression", &TThis::TabletIndexExpression)
+        .Default();
+    registrar.Parameter("tablet_index_routing_hash_expression", &TThis::TabletIndexRoutingHashExpression)
+        .Default();
+    registrar.Parameter("tablet_index_routing_hash_policy", &TThis::TabletIndexRoutingHashPolicy)
+        .Default();
+    registrar.Parameter("tablet_count", &TThis::TabletCount)
+        .Default();
+
+    registrar.Postprocessor([] (TQueueSinkTabletRoutingParameters* parameters) {
+        THROW_ERROR_EXCEPTION_IF(
+            parameters->TabletIndexExpression && parameters->TabletIndexRoutingHashExpression,
+            "At most one of \"tablet_index_expression\" and \"tablet_index_routing_hash_expression\" may be set");
+
+        if (parameters->TabletIndexExpression) {
+            THROW_ERROR_EXCEPTION_IF(
+                parameters->TabletIndexRoutingHashPolicy || parameters->TabletCount,
+                "\"tablet_index_routing_hash_policy\" and \"tablet_count\" are not applicable with "
+                "\"tablet_index_expression\"");
+        } else if (parameters->TabletIndexRoutingHashExpression) {
+            THROW_ERROR_EXCEPTION_UNLESS(
+                parameters->TabletIndexRoutingHashPolicy.has_value(),
+                "\"tablet_index_routing_hash_policy\" is required with \"tablet_index_routing_hash_expression\"");
+            THROW_ERROR_EXCEPTION_IF(
+                parameters->TabletCount.has_value() && *parameters->TabletCount <= 0,
+                "\"tablet_count\" must be positive, got %v",
+                *parameters->TabletCount);
+        } else {
+            THROW_ERROR_EXCEPTION_IF(
+                parameters->TabletIndexRoutingHashPolicy || parameters->TabletCount,
+                "\"tablet_index_routing_hash_policy\" and \"tablet_count\" require one of "
+                "\"tablet_index_expression\" / \"tablet_index_routing_hash_expression\" to be set");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSyncQueueSinkParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("column_filter", &TThis::ColumnFilter)
@@ -160,10 +200,23 @@ void TDynamicAsyncQueueWriterParameters::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateAsyncSinkTabletRoutingUnsupported(const TQueueSinkTabletRoutingParameters& parameters)
+{
+    THROW_ERROR_EXCEPTION_IF(
+        parameters.TabletIndexExpression || parameters.TabletIndexRoutingHashExpression ||
+            parameters.TabletIndexRoutingHashPolicy || parameters.TabletCount,
+        "Tablet routing is not supported on async queue sinks yet (tracked by YTFLOW-766); "
+        "use a sync queue sink");
+}
+
 void TAsyncQueueSinkParametersBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("column_filter", &TThis::ColumnFilter)
         .Default();
+
+    registrar.Postprocessor([] (TThis* parameters) {
+        ValidateAsyncSinkTabletRoutingUnsupported(*parameters);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

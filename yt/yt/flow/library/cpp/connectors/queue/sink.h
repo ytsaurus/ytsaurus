@@ -43,12 +43,15 @@ protected:
 private:
     const NTableClient::TNameTablePtr NameTable_;
     const std::optional<int> FlowMetaColumn_;
+    const std::optional<int> TabletIndexColumn_;
+    const TTabletRouterPtr TabletRouter_;
 
 private:
     void DoInit() final;
     void DoDistribute(NApi::IDynamicTableTransactionPtr transaction, const std::deque<TOutputMessageConstPtr>& messages) final;
 
     NTableClient::TNameTablePtr GenerateNameTable() const;
+    TTabletRouterPtr CreateTabletRouter() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSyncQueueSink);

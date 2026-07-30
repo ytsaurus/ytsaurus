@@ -83,7 +83,7 @@ class TestQueueConnector(FlowTestBase):
             ],
         )
 
-    def prepare_swift_pipeline_config(self, sync, source_filter=None):
+    def prepare_swift_pipeline_config(self, sync, source_filter=None, extra_sink_params=None):
         pipeline_config = get_yson_config(PIPELINE_SWIFT_CONFIG_PATH)
 
         pipeline_config["spec"]["computations"]["reader"]["source_streams"]["queue"]["parameters"].update(
@@ -102,6 +102,8 @@ class TestQueueConnector(FlowTestBase):
         else:
             sink_spec["sink_class_name"] = "NYT::NFlow::TAsyncQueueSink"
             sink_spec["parameters"]["producer_path"] = f"<cluster=primary>{self.producer}"
+        if extra_sink_params:
+            sink_spec["parameters"].update(extra_sink_params)
 
         self.patch_config(pipeline_config)
 
@@ -142,7 +144,9 @@ class TestQueueConnector(FlowTestBase):
 
         return min(watermarks.values())
 
-    def check(self, pipeline_config_path, workers_count, controllers_count, problems, expected=EXPECTED_DATA):
+    def check(
+        self, pipeline_config_path, workers_count, controllers_count, problems, expected=EXPECTED_DATA, sharded=False
+    ):
         self.prepare_environment()
         with self.start_flow_process_federation(
             pipeline_binary_args={"--config": pipeline_config_path},
@@ -160,6 +164,8 @@ class TestQueueConnector(FlowTestBase):
             rows = list(self.client.select_rows(expr))
             data = [row["data"] for row in rows if not row.get("flow_queue_meta", {}).get("pure_heartbeat", False)]
             watermarks = dict()
+            data_to_tablets = collections.defaultdict(set)
+            tablets_used = set()
             for row in rows:
                 tablet_index = row["$tablet_index"]
                 watermarks[tablet_index] = max(
@@ -167,9 +173,17 @@ class TestQueueConnector(FlowTestBase):
                 )
                 if not row.get("flow_queue_meta", {}).get("pure_heartbeat", False):
                     assert row.get("flow_queue_meta", {}).get("event_timestamp", 0) >= watermarks.get(tablet_index, 0)
+                    tablets_used.add(tablet_index)
+                    data_to_tablets[row["data"]].add(tablet_index)
 
             got = collections.Counter(data)
             assert got == expected
+
+            if sharded:
+                # Each key lands on exactly one tablet (deterministic routing) and routing spreads keys.
+                for key, tablets in data_to_tablets.items():
+                    assert len(tablets) == 1, (key, tablets)
+                assert len(tablets_used) > 1
 
     @pytest.mark.authors(["mikari"])
     @pytest.mark.parametrize(
@@ -278,3 +292,22 @@ class TestQueueConnector(FlowTestBase):
     def test_trimmed_queue_no_loss(self, workers_count, controllers_count, problems):
         pipeline_config_path = self.prepare_swift_pipeline_config(True)
         self.check_trimmed(pipeline_config_path, workers_count, controllers_count, problems, trim_per_tablet=3)
+
+    @pytest.mark.authors(["pechatnov"])
+    @pytest.mark.parametrize(
+        ("workers_count", "controllers_count", "problems"),
+        [
+            pytest.param(4, 2, True, id="2c_4w_unstable"),
+        ],
+    )
+    def test_sharded_write_sync(self, workers_count, controllers_count, problems):
+        # Exercises TSyncQueueSink's single-pass $tablet_index write (payload columns written directly).
+        pipeline_config_path = self.prepare_swift_pipeline_config(
+            True,
+            extra_sink_params={
+                "tablet_index_routing_hash_policy": "range",
+                "tablet_index_routing_hash_expression": "farm_hash(data)",
+                "tablet_count": TABLET_COUNT,
+            },
+        )
+        self.check(pipeline_config_path, workers_count, controllers_count, problems, sharded=True)

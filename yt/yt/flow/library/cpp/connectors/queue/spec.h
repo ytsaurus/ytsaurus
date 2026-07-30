@@ -95,9 +95,39 @@ DEFINE_REFCOUNTED_TYPE(TDynamicCommonQueueSinkParameters);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Optional expression-based routing of sync queue-sink rows to tablets via
+//! YT's column evaluator (builtins only). Neither expression set => no
+//! $tablet_index is written (today's behavior).
+struct TQueueSinkTabletRoutingParameters
+    : public virtual NYTree::TYsonStruct
+{
+    //! Verbatim mode: expression whose value is written to $tablet_index verbatim.
+    //! Mutually exclusive with |TabletIndexRoutingHashExpression|; unset both => routing off.
+    std::optional<std::string> TabletIndexExpression;
+
+    //! Hash mode: expression yielding a uint64 hash reduced to a tablet index by
+    //! |TabletIndexRoutingHashPolicy| over |TabletCount|.
+    std::optional<std::string> TabletIndexRoutingHashExpression;
+
+    //! Required with |TabletIndexRoutingHashExpression|; the hash reduction policy.
+    std::optional<EQueueTabletIndexRoutingHashPolicy> TabletIndexRoutingHashPolicy;
+
+    //! Optional for the hash mode; when unset the target queue's @tablet_count is resolved at init.
+    std::optional<i64> TabletCount;
+
+    REGISTER_YSON_STRUCT(TQueueSinkTabletRoutingParameters);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueSinkTabletRoutingParameters);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSyncQueueSinkParameters
     : public TSyncSinkBase::TParameters
     , public virtual TCommonQueueSinkParameters
+    , public virtual TQueueSinkTabletRoutingParameters
 {
     std::optional<THashSet<std::string>> ColumnFilter;
 
@@ -180,9 +210,17 @@ DEFINE_REFCOUNTED_TYPE(TDynamicAsyncQueueWriterParameters);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Routing is not supported on async queue sinks yet (tracked by YTFLOW-766). The routing params
+//! are mixed into the async spec only so they are recognized and this rejects them loudly instead
+//! of silently ignoring them.
+void ValidateAsyncSinkTabletRoutingUnsupported(const TQueueSinkTabletRoutingParameters& parameters);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TAsyncQueueSinkParametersBase
     : public TDelegatingAsyncSinkBase::TParameters
     , public virtual TAsyncQueueWriterParametersBase
+    , public virtual TQueueSinkTabletRoutingParameters
 {
     std::optional<THashSet<std::string>> ColumnFilter;
 
