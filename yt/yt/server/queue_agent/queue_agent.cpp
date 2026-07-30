@@ -9,13 +9,12 @@
 #include "queue_controller.h"
 #include "queue_export_manager.h"
 #include "snapshot.h"
+#include "ytree_helpers.h"
 
 #include <yt/yt/server/lib/alert_manager/alert_manager.h>
 
-#include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/config.h>
-
-#include <yt/yt/library/discovery_client/member_client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 
@@ -24,6 +23,8 @@
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/library/cypress_election/election_manager.h>
+
+#include <yt/yt/library/discovery_client/member_client.h>
 
 #include <yt/yt/library/orchid/orchid_ypath_service.h>
 
@@ -167,7 +168,7 @@ constinit const auto Logger = QueueAgentLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectMapBoundService
-    : public TVirtualMapBase
+    : public TVirtualMapPartBase
 {
 public:
     TObjectMapBoundService(
@@ -248,10 +249,9 @@ public:
         }
 
         if (!Owner_->ObjectsWithOurStage_[ObjectKind_].contains(ref)) {
-            // NB(apachee): It is possible to try to access queue using consumers orchid (and vice versa), e.g.
-            // //queue_agent/consumers/<queue>, and previously that would've let to redirect, but
-            // this condition short-circuits resolving of such paths.
-            THROW_ERROR_EXCEPTION("Type of the object %v does not match with the path used", ref);
+            // The object is of a different kind and belongs to a sibling part of the merged map;
+            // returning null lets the merged service consult it instead of short-circuiting here.
+            return nullptr;
         }
 
         const auto& objectAgentId = objectToHostIt->second;
@@ -294,6 +294,8 @@ private:
     };
     const TProxyConfig ProxyConfig_;
 };
+
+using TObjectMapBoundServicePtr = TIntrusivePtr<TObjectMapBoundService>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -516,18 +518,33 @@ TQueueAgent::TQueueAgent(
         Config_->QueueExportManager,
         DynamicConfig_->QueueExportManager))
 {
+    TEnumIndexedArray<EObjectKind, TObjectMapBoundServicePtr> objectServices;
+    TEnumIndexedArray<EObjectKind, TObjectMapBoundServicePtr> ownedObjectServices;
     for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
-        ObjectServiceNodes_[objectKind] = CreateVirtualNode(
-            New<TObjectMapBoundService>(
-                this,
-                objectKind,
-                /*enableProxy*/ true));
+        objectServices[objectKind] = New<TObjectMapBoundService>(
+            this,
+            objectKind,
+            /*enableProxy*/ true);
+        ownedObjectServices[objectKind] = New<TObjectMapBoundService>(
+            this,
+            objectKind,
+            /*enableProxy*/ false);
+    }
 
-        OwnedObjectServiceNodes_[objectKind] = CreateVirtualNode(
-            New<TObjectMapBoundService>(
-                this,
-                objectKind,
-                /*enableProxy*/ false));
+    for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+        if (objectKind == EObjectKind::Consumer) {
+            ObjectServiceNodes_[objectKind] = CreateVirtualNode(CreateMergedVirtualMapService({
+                objectServices[EObjectKind::Consumer],
+                objectServices[EObjectKind::MultiConsumer],
+            }));
+            OwnedObjectServiceNodes_[objectKind] = CreateVirtualNode(CreateMergedVirtualMapService({
+                ownedObjectServices[EObjectKind::Consumer],
+                ownedObjectServices[EObjectKind::MultiConsumer],
+            }));
+        } else {
+            ObjectServiceNodes_[objectKind] = CreateVirtualNode(objectServices[objectKind]);
+            OwnedObjectServiceNodes_[objectKind] = CreateVirtualNode(ownedObjectServices[objectKind]);
+        }
     }
 }
 
@@ -1127,6 +1144,7 @@ bool TQueueAgent::UpdateMultiConsumerController(
         controller,
         row,
         replicatedTableMappingRow,
+        /*store*/ this,
         DynamicConfig_->Controller,
         QAClientDirectory_,
         ControllerThreadPool_->GetInvoker(),

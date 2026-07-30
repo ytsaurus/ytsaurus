@@ -12,6 +12,7 @@ SRCS(
     multi_consumer_controller.cpp
     multi_consumer_profile_manager.cpp
     object.cpp
+    ytree_helpers.cpp
     pass_profiler.cpp
     performance_counters.cpp
     profile_manager.cpp

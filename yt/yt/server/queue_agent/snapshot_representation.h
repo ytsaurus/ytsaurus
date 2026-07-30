@@ -19,7 +19,19 @@ void BuildQueuePartitionListYson(const TQueueSnapshotPtr& snapshot, NYTree::TFlu
 
 void BuildConsumerStatusYson(const TConsumerSnapshotPtr& snapshot, NYTree::TFluentAny fluent);
 void BuildConsumerPartitionListYson(const TConsumerSnapshotPtr& snapshot, NYTree::TFluentAny fluent);
-void BuildMultiConsumerStatusYson(const TMultiConsumerSnapshotPtr& snapshot, const NAlertManager::IAlertManagerPtr& alertManager, NYTree::TFluentAny fluent);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void BuildChildOrErrorYson(
+    TStringBuf key,
+    NYTree::TFluentMap fluent,
+    const std::pair<const std::string, TErrorOr<NYTree::IMapNodePtr>>& pair);
+
+void BuildMultiConsumerStatusYson(
+    const TMultiConsumerSnapshotPtr& snapshot,
+    const THashMap<std::string, TErrorOr<NYTree::IMapNodePtr>>& consumerOrchids,
+    const NAlertManager::IAlertManagerPtr& alertManager,
+    NYTree::TFluentAny fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
 
