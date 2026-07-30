@@ -16,6 +16,7 @@
 #include <yql/essentials/providers/common/proto/gateways_config.pb.h>
 #include <yql/essentials/public/issue/yql_issue.h>
 #include <yql/essentials/public/issue/yql_issue_message.h>
+#include <yql/essentials/public/langver/yql_langver.h>
 #include <yql/essentials/utils/log/log.h>
 
 #include <yt/yt/core/yson/protobuf_interop.h>
@@ -138,6 +139,19 @@ public:
             ParseFromTextFormat(input, *StaticGatewaysSnapshot_, EParseFromTextFormatOption::AllowUnknownField);
         }
 
+        NYql::TLangVersionBuffer buf;
+        TStringBuf versionStringBuf;
+
+        if (!NYql::ParseLangVersion(options.MaxYqlLangVersion, MaxYqlLangVersionInitial_)) {
+            YQL_LOG(ERROR) << Format("Cannot parse maximum supported YQL version, version limit is disabled (Version: %v)", options.MaxYqlLangVersion);
+        }
+        MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
+        YQL_LOG(INFO) << Format("Maximum supported YQL version is set (Version: %v)", options.MaxYqlLangVersion);
+
+        DefaultYqlApiLangVersion_ = NYql::MinLangVersion;
+        NYql::FormatLangVersion(DefaultYqlApiLangVersion_, buf, versionStringBuf);
+        YQL_LOG(INFO) << Format("Default YQL version for API and CLI is set (Version: %v)", versionStringBuf);
+
         {
             if (StaticGatewaysSnapshot_) {
                 options.GatewayConfig = SerializeProtoToYson(StaticGatewaysSnapshot_->GetYt());
@@ -197,85 +211,13 @@ public:
 
         try {
             auto action = ExecuteModeToProto(executeMode);
-            auto callback = std::make_shared<TTaskEventCallback>();
-
-            NYql::NProto::TTaskData data;
-            data.SetId(ToString(queryId));
-            data.SetSyntax((queryType == NYqlClient::EQueryType::UdfMeta) ? NYql::NProto::ESyntax::UDF_META : NYql::NProto::ESyntax::SQLv1);
-            data.SetProgram(queryText);
-            data.SetUsername(user);
-            data.SetResultFormat(NYql::NProto::EDataFormat::YSON_TEXT);
-            data.SetAttributes(settings.ToString());
-            data.SetAuthData(SerializeCredentials(credentials));
-            data.SetIsSystemRequest(false);
-            data.SetFunctionRegistryData(FunctionRegistryData_.Load());
-
-            std::optional<NYql::TGatewaysConfig> gatewaysConfig;
-            {
-                TGuard guard(FlavorConfigsLock_);
-                // TODO(mpereskokova): Change to custom query flavor
-                if (auto snapshot = GatewaysConfigSnapshotByFlavor_.find("default"); snapshot != GatewaysConfigSnapshotByFlavor_.end()) {
-                    gatewaysConfig = snapshot->second;
-                }
-            }
-            if (!gatewaysConfig && StaticGatewaysSnapshot_) {
-                gatewaysConfig = *StaticGatewaysSnapshot_;
-            }
-
-            std::optional<TString> defaultTranslationCluster;
-            if (gatewaysConfig) {
-                TString fullTextProto;
-                if (!::google::protobuf::TextFormat::PrintToString(*gatewaysConfig, &fullTextProto)) {
-                    ythrow yexception() << "Failed to serialize gateways config to TextProto";
-                }
-
-                data.SetGatewaysConfig(fullTextProto);
-                defaultTranslationCluster = ExtractDefaultCluster(*gatewaysConfig);
-            }
-
-            auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
-            if (auto cluster = settingsMap.FindPtr("cluster")) {
-                defaultTranslationCluster = cluster->AsString();
-            }
-
-            if (defaultTranslationCluster) {
-                data.SetDefaultTranslationCluster(*defaultTranslationCluster);
-            }
-
-            for (const auto& file : files) {
-                auto* protoFile = data.MutableFiles()->Add();
-                protoFile->SetName(TString(file.Name));
-                protoFile->SetType(FileTypeToProto(file.Type));
-                protoFile->SetContent(TString(file.Content));
-            }
-
-            auto runTaskResult = WorkerApi_->RunTask(action, std::move(data), callback);
-            if (!runTaskResult) {
-                return TQueryResult{
-                    .YsonError = std::make_optional(
-                        MessageToYtErrorYson(TString{runTaskResult.error().GetMessage()})),
-                };
-            }
-            {
-                TGuard guard(ActiveQueriesLock_);
-                auto& activeQuery = ActiveQueries_[queryId];
-                activeQuery.Callback = callback;
-                activeQuery.TaskHandle = *runTaskResult;
-            }
-            NYT::NConcurrency::WaitFor(callback->GetDoneFuture())
-                .ThrowOnError();
+            auto data = BuildTaskData(queryId, user, queryText, settings, credentials, files, queryType);
+            auto callback = RunTaskToCompletion(queryId, action, std::move(data), /*persist*/ true);
 
             const auto snapshot = callback->GetTaskResult();
             auto progressYson = callback->GetProgress();
-            {
-                TGuard guard(ActiveQueriesLock_);
-                ActiveQueries_.erase(queryId);
-            }
             return TaskResultToYqlResult(snapshot, std::move(progressYson));
         } catch (const std::exception& ex) {
-            TGuard guard(ActiveQueriesLock_);
-            ActiveQueries_.erase(queryId);
-
             return TQueryResult{
                 .YsonError = MessageToYtErrorYson(TString{ex.what()})
             };
@@ -328,6 +270,19 @@ public:
 
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept override
     {
+        if (!config.MaxSupportedYqlVersion) {
+            MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
+        } else {
+            const auto maxVersionStr = config.MaxSupportedYqlVersion.ToString();
+            NYql::TLangVersion maxVersion;
+            if (NYql::ParseLangVersion(maxVersionStr, maxVersion)) {
+                MaxYqlLangVersion_ = maxVersion;
+            } else {
+                YQL_LOG(ERROR) << "Cannot parse config.MaxSupportedYqlVersion: " << maxVersionStr;
+                MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
+            }
+        }
+
         for (const auto& [flavor, protoConfig] : config.ProtoGatewaysConfigs) {
             NYql::TGatewaysConfig protoGatewaysConfig;
             TStringInput input(protoConfig);
@@ -392,13 +347,38 @@ public:
     }
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
-        TQueryId /*queryId*/,
-        TString /*user*/,
-        TString /*queryText*/,
-        TYsonString /*settings*/,
-        TYsonString /*credentials*/) override
+        TQueryId queryId,
+        TString user,
+        TString queryText,
+        TYsonString settings,
+        TYsonString credentials) override
     {
-        return TGetDeclaredParametersInfoResult{};
+        if (!WorkerApi_ || !WorkerApi_->IsHealthy()) {
+            ythrow yexception() << "No healthy workers";
+        }
+
+        auto data = BuildTaskData(queryId, user, queryText, settings, credentials, /*files*/ {});
+        auto callback = RunTaskToCompletion(
+            queryId,
+            NYql::NProto::ETaskAction::EXTRACT_PARAMS_META,
+            std::move(data),
+            /*persist*/ false);
+
+        const auto snapshot = callback->GetTaskResult();
+        if (snapshot.GetStatus() == NYql::NProto::ETaskStatus::ERROR) {
+            if (snapshot.IssuesSize() > 0) {
+                NYql::TIssues issues;
+                IssuesFromMessage(snapshot.GetIssues(), issues);
+                ythrow yexception() << IssuesToYtErrorYson(issues);
+            }
+            ythrow yexception() << "Failed to extract query parameters metadata on worker";
+        }
+
+        return TGetDeclaredParametersInfoResult{
+            .YsonParameters = snapshot.ResultsSize() > 0
+                ? std::make_optional(snapshot.GetResults(0))
+                : std::nullopt,
+        };
     }
 
     void RegisterQuery(TQueryId /*queryId*/) override
@@ -418,10 +398,129 @@ private:
 
     std::optional<NYql::TGatewaysConfig> StaticGatewaysSnapshot_;
 
+    std::atomic<NYql::TLangVersion> MaxYqlLangVersion_;
+    NYql::TLangVersion MaxYqlLangVersionInitial_;
+    NYql::TLangVersion DefaultYqlApiLangVersion_;
+
     TMutex FlavorConfigsLock_;
     THashMap<TString, NYql::TGatewaysConfig> GatewaysConfigSnapshotByFlavor_;
 
     NThreading::TAtomicObject<TString> FunctionRegistryData_;
+
+    NYql::NProto::TTaskData BuildTaskData(
+        TQueryId queryId,
+        const TString& user,
+        const TString& queryText,
+        const TYsonString& settings,
+        const TYsonString& credentials,
+        const std::vector<TQueryFile>& files,
+        NYqlClient::EQueryType queryType = NYqlClient::EQueryType::Regular)
+    {
+        NYql::NProto::TTaskData data;
+        data.SetId(ToString(queryId));
+        data.SetSyntax((queryType == NYqlClient::EQueryType::UdfMeta) ? NYql::NProto::ESyntax::UDF_META : NYql::NProto::ESyntax::SQLv1);
+        data.SetProgram(queryText);
+        data.SetUsername(user);
+        data.SetResultFormat(NYql::NProto::EDataFormat::YSON_TEXT);
+        data.SetAuthData(SerializeCredentials(credentials));
+        data.SetIsSystemRequest(false);
+        data.SetFunctionRegistryData(FunctionRegistryData_.Load());
+        data.SetPersistedId(true);
+
+        std::optional<NYql::TGatewaysConfig> gatewaysConfig;
+        {
+            TGuard guard(FlavorConfigsLock_);
+            // TODO(mpereskokova): Change to custom query flavor
+            if (auto snapshot = GatewaysConfigSnapshotByFlavor_.find("default"); snapshot != GatewaysConfigSnapshotByFlavor_.end()) {
+                gatewaysConfig = snapshot->second;
+            }
+        }
+        if (!gatewaysConfig && StaticGatewaysSnapshot_) {
+            gatewaysConfig = *StaticGatewaysSnapshot_;
+        }
+
+        std::optional<TString> defaultTranslationCluster;
+        if (gatewaysConfig) {
+            TString fullTextProto;
+            if (!::google::protobuf::TextFormat::PrintToString(*gatewaysConfig, &fullTextProto)) {
+                ythrow yexception() << "Failed to serialize gateways config to TextProto";
+            }
+
+            data.SetGatewaysConfig(fullTextProto);
+            defaultTranslationCluster = ExtractDefaultCluster(*gatewaysConfig);
+        }
+
+        auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
+        if (auto cluster = settingsMap.FindPtr("cluster")) {
+            defaultTranslationCluster = cluster->AsString();
+        }
+        if (auto maxLangVer = NYql::FormatLangVersion(MaxYqlLangVersion_.load())) {
+            data.SetMaxLangVer(*maxLangVer);
+        }
+        if (auto version = settingsMap.FindPtr("yql_version")) {
+            data.SetLangVer(version->AsString());
+        } else if (auto defaultLangVer = NYql::FormatLangVersion(DefaultYqlApiLangVersion_)) {
+            data.SetLangVer(*defaultLangVer);
+        }
+        if (auto parameters = settingsMap.FindPtr("declared_parameters")) {
+            data.SetParameters(parameters->AsString());
+        }
+
+        if (defaultTranslationCluster) {
+            data.SetDefaultTranslationCluster(*defaultTranslationCluster);
+            data.SetUrl(*defaultTranslationCluster);
+        }
+        data.SetRunner("yql-agent");
+
+        for (const auto& file : files) {
+            auto* protoFile = data.MutableFiles()->Add();
+            protoFile->SetName(TString(file.Name));
+            protoFile->SetType(FileTypeToProto(file.Type));
+            protoFile->SetContent(TString(file.Content));
+        }
+
+        return data;
+    }
+
+    std::shared_ptr<TTaskEventCallback> RunTaskToCompletion(
+        TQueryId queryId,
+        NYql::NProto::ETaskAction action,
+        NYql::NProto::TTaskData data,
+        bool persist)
+    {
+        auto callback = std::make_shared<TTaskEventCallback>();
+
+        auto runTaskResult = WorkerApi_->RunTask(action, std::move(data), callback);
+        if (!runTaskResult) {
+            ythrow yexception() << runTaskResult.error().GetMessage();
+        }
+
+        if (!persist) {
+            NYT::NConcurrency::WaitFor(callback->GetDoneFuture())
+                .ThrowOnError();
+            return callback;
+        }
+
+        {
+            TGuard guard(ActiveQueriesLock_);
+            auto& activeQuery = ActiveQueries_[queryId];
+            activeQuery.Callback = callback;
+            activeQuery.TaskHandle = *runTaskResult;
+        }
+
+        try {
+            NYT::NConcurrency::WaitFor(callback->GetDoneFuture())
+                .ThrowOnError();
+        } catch (...) {
+            TGuard guard(ActiveQueriesLock_);
+            ActiveQueries_.erase(queryId);
+            throw;
+        }
+
+        TGuard guard(ActiveQueriesLock_);
+        ActiveQueries_.erase(queryId);
+        return callback;
+    }
 
     TString SerializeCredentials(const TYsonString& credentials)
     {
