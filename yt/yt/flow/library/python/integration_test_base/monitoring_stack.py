@@ -29,8 +29,6 @@ import sys
 
 import yatest.common
 
-from library.python import resource
-
 import yt.wrapper as yt
 
 log = logging.getLogger("monitoring_stack")
@@ -204,6 +202,9 @@ class MonitoringStack:
             shutil.copyfile(os.path.join(MONITORING_DASHBOARDS_DIR, name), os.path.join(dst, name))
 
     def _materialize_assets(self):
+        # Keep Arcadia-only resource loading lazy so CMake tests can import the disabled monitoring stack.
+        from library.python import resource
+
         # Write the shared config into the log dir so docker can mount it: the compose file,
         # prometheus.yml, aggr_rules.py and the grafana provisioning (datasource + dashboards provider).
         for key in resource.resfs_files(prefix=_RESOURCE_PREFIX):
