@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Optional, Union
 
+from .._model import Node
 from .._util import ConversionUtil
 from ._acl import AclOperation
 
@@ -34,7 +36,13 @@ class DescribeClusterResult:
         AclOperations allowed for the cluster.
     """
 
-    def __init__(self, controller, nodes, cluster_id=None, authorized_operations=None):
+    def __init__(
+        self,
+        controller: Node,
+        nodes: List[Node],
+        cluster_id: Optional[str] = None,
+        authorized_operations: Optional[List[Union[str, int, AclOperation]]] = None,
+    ) -> None:
         self.cluster_id = cluster_id
         self.controller = controller
         self.nodes = nodes

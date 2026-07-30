@@ -14,6 +14,17 @@
  * limitations under the License.
  */
 
+/**
+ * ⚠️  WARNING: UPDATE TYPE STUBS WHEN MODIFYING INTERFACES ⚠️
+ *
+ * This file defines the NewTopic and NewPartitions classes.
+ * When changing method signatures, parameters, or defaults, you MUST
+ * also update the corresponding type definitions in:
+ *   src/confluent_kafka/cimpl.pyi
+ *
+ * Failure to keep both in sync will result in incorrect type hints.
+ */
+
 #include "confluent_kafka.h"
 
 #include <stdarg.h>
@@ -38,7 +49,7 @@
  *
  *
  ****************************************************************************/
-static int NewTopic_clear (NewTopic *self) {
+static int NewTopic_clear(NewTopic *self) {
         if (self->topic) {
                 free(self->topic);
                 self->topic = NULL;
@@ -54,7 +65,7 @@ static int NewTopic_clear (NewTopic *self) {
         return 0;
 }
 
-static void NewTopic_dealloc (NewTopic *self) {
+static void NewTopic_dealloc(NewTopic *self) {
         PyObject_GC_UnTrack(self);
 
         NewTopic_clear(self);
@@ -63,41 +74,41 @@ static void NewTopic_dealloc (NewTopic *self) {
 }
 
 
-static int NewTopic_init (PyObject *self0, PyObject *args,
-                          PyObject *kwargs) {
+static int NewTopic_init(PyObject *self0, PyObject *args, PyObject *kwargs) {
         NewTopic *self = (NewTopic *)self0;
         const char *topic;
-        static char *kws[] = { "topic",
-                               "num_partitions",
-                               "replication_factor",
-                               "replica_assignment",
-                               "config",
-                               NULL };
+        PyObject *replica_assignment = NULL, *config = NULL;
+        static char *kws[] = {"topic",
+                              "num_partitions",
+                              "replication_factor",
+                              "replica_assignment",
+                              "config",
+                              NULL};
 
-        self->num_partitions = -1;
+        self->num_partitions     = -1;
         self->replication_factor = -1;
         self->replica_assignment = NULL;
-        self->config = NULL;
+        self->config             = NULL;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iiOO", kws,
-                                         &topic, &self->num_partitions,
-                                         &self->replication_factor,
-                                         &self->replica_assignment,
-                                         &self->config))
+        if (!PyArg_ParseTupleAndKeywords(
+                args, kwargs, "s|iiOO", kws, &topic, &self->num_partitions,
+                &self->replication_factor, &replica_assignment, &config))
                 return -1;
 
 
 
-        if (self->config) {
-                if (!PyDict_Check(self->config)) {
+        if (config) {
+                if (!PyDict_Check(config)) {
                         PyErr_SetString(PyExc_TypeError,
                                         "config must be a dict of strings");
                         return -1;
                 }
-                Py_INCREF(self->config);
+                Py_INCREF(config);
+                self->config = config;
         }
 
-        Py_XINCREF(self->replica_assignment);
+        Py_XINCREF(replica_assignment);
+        self->replica_assignment = replica_assignment;
 
         self->topic = strdup(topic);
 
@@ -105,16 +116,15 @@ static int NewTopic_init (PyObject *self0, PyObject *args,
 }
 
 
-static PyObject *NewTopic_new (PyTypeObject *type, PyObject *args,
-                               PyObject *kwargs) {
+static PyObject *
+NewTopic_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         PyObject *self = type->tp_alloc(type, 1);
         return self;
 }
 
 
 
-static int NewTopic_traverse (NewTopic *self,
-                              visitproc visit, void *arg) {
+static int NewTopic_traverse(NewTopic *self, visitproc visit, void *arg) {
         if (self->replica_assignment)
                 Py_VISIT(self->replica_assignment);
         if (self->config)
@@ -124,45 +134,36 @@ static int NewTopic_traverse (NewTopic *self,
 
 
 static PyMemberDef NewTopic_members[] = {
-        { "topic", T_STRING, offsetof(NewTopic, topic), READONLY,
-          ":py:attribute:topic - Topic name (string)" },
-        { "num_partitions", T_INT, offsetof(NewTopic, num_partitions), 0,
-          ":py:attribute: Number of partitions (int).\n"
-          "Or -1 if a replica_assignment is specified" },
-        { "replication_factor", T_INT, offsetof(NewTopic, replication_factor),
-          0,
-          " :py:attribute: Replication factor (int).\n"
-          "Must be set to -1 if a replica_assignment is specified.\n" },
-        { "replica_assignment", T_OBJECT, offsetof(NewTopic, replica_assignment),
-          0,
-          ":py:attribute: Replication assignment (list of lists).\n"
-          "The outer list index represents the partition index, the inner "
-          "list is the replica assignment (broker ids) for that partition.\n"
-          "replication_factor and replica_assignment are mutually exclusive.\n"
-        },
-        { "config", T_OBJECT, offsetof(NewTopic, config),
-          0,
-          ":py:attribute: Optional topic configuration.\n"
-          "See http://kafka.apache.org/documentation.html#topicconfigs.\n"
-        },
-        { NULL }
-};
+    {"topic", T_STRING, offsetof(NewTopic, topic), READONLY,
+     ":py:attribute:topic - Topic name (string)"},
+    {"num_partitions", T_INT, offsetof(NewTopic, num_partitions), 0,
+     ":py:attribute: Number of partitions (int).\n"
+     "Or -1 if a replica_assignment is specified"},
+    {"replication_factor", T_INT, offsetof(NewTopic, replication_factor), 0,
+     " :py:attribute: Replication factor (int).\n"
+     "Must be set to -1 if a replica_assignment is specified.\n"},
+    {"replica_assignment", T_OBJECT, offsetof(NewTopic, replica_assignment), 0,
+     ":py:attribute: Replication assignment (list of lists).\n"
+     "The outer list index represents the partition index, the inner "
+     "list is the replica assignment (broker ids) for that partition.\n"
+     "replication_factor and replica_assignment are mutually exclusive.\n"},
+    {"config", T_OBJECT, offsetof(NewTopic, config), 0,
+     ":py:attribute: Optional topic configuration.\n"
+     "See http://kafka.apache.org/documentation.html#topicconfigs.\n"},
+    {NULL}};
 
 
-static PyObject *NewTopic_str0 (NewTopic *self) {
+static PyObject *NewTopic_str0(NewTopic *self) {
         if (self->num_partitions == -1) {
                 return cfl_PyUnistr(
-                _FromFormat("NewTopic(topic=%s)",
-                            self->topic));
+                    _FromFormat("NewTopic(topic=%s)", self->topic));
         }
-        return cfl_PyUnistr(
-                _FromFormat("NewTopic(topic=%s,num_partitions=%d)",
-                            self->topic, self->num_partitions));
+        return cfl_PyUnistr(_FromFormat("NewTopic(topic=%s,num_partitions=%d)",
+                                        self->topic, self->num_partitions));
 }
 
 
-static PyObject *
-NewTopic_richcompare (NewTopic *self, PyObject *o2, int op) {
+static PyObject *NewTopic_richcompare(NewTopic *self, PyObject *o2, int op) {
         NewTopic *a = self, *b;
         int tr, pr;
         int r;
@@ -177,8 +178,7 @@ NewTopic_richcompare (NewTopic *self, PyObject *o2, int op) {
 
         tr = strcmp(a->topic, b->topic);
         pr = a->num_partitions - b->num_partitions;
-        switch (op)
-        {
+        switch (op) {
         case Py_LT:
                 r = tr < 0 || (tr == 0 && pr < 0);
                 break;
@@ -208,7 +208,7 @@ NewTopic_richcompare (NewTopic *self, PyObject *o2, int op) {
 }
 
 
-static long NewTopic_hash (NewTopic *self) {
+static long NewTopic_hash(NewTopic *self) {
         PyObject *topic = cfl_PyUnistr(_FromString(self->topic));
         long r;
         if (self->num_partitions == -1) {
@@ -222,59 +222,62 @@ static long NewTopic_hash (NewTopic *self) {
 
 
 PyTypeObject NewTopicType = {
-        PyVarObject_HEAD_INIT(NULL, 0)
-        "cimpl.NewTopic",         /*tp_name*/
-        sizeof(NewTopic),       /*tp_basicsize*/
-        0,                         /*tp_itemsize*/
-        (destructor)NewTopic_dealloc, /*tp_dealloc*/
-        0,                         /*tp_print*/
-        0,                         /*tp_getattr*/
-        0,                         /*tp_setattr*/
-        0,                         /*tp_compare*/
-        (reprfunc)NewTopic_str0, /*tp_repr*/
-        0,                         /*tp_as_number*/
-        0,                         /*tp_as_sequence*/
-        0,                         /*tp_as_mapping*/
-        (hashfunc)NewTopic_hash, /*tp_hash */
-        0,                         /*tp_call*/
-        0,                         /*tp_str*/
-        PyObject_GenericGetAttr,   /*tp_getattro*/
-        0,                         /*tp_setattro*/
-        0,                         /*tp_as_buffer*/
-        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
-        Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-        "NewTopic specifies per-topic settings for passing to "
-        "AdminClient.create_topics().\n"
-        "\n"
-        ".. py:function:: NewTopic(topic, [num_partitions], [replication_factor], [replica_assignment], [config])\n"
-        "\n"
-        "  Instantiate a NewTopic object.\n"
-        "\n"
-        "  :param string topic: Topic name\n"
-        "  :param int num_partitions: Number of partitions to create, or -1 if replica_assignment is used.\n"
-        "  :param int replication_factor: Replication factor of partitions, or -1 if replica_assignment is used.\n"
-        "  :param list replica_assignment: List of lists with the replication assignment for each new partition.\n"
-        "  :param dict config: Dict (str:str) of topic configuration. See http://kafka.apache.org/documentation.html#topicconfigs\n"
-        "  :rtype: NewTopic\n"
-        "\n"
-        "\n", /*tp_doc*/
-        (traverseproc)NewTopic_traverse, /* tp_traverse */
-        (inquiry)NewTopic_clear,       /* tp_clear */
-        (richcmpfunc)NewTopic_richcompare, /* tp_richcompare */
-        0,                         /* tp_weaklistoffset */
-        0,                         /* tp_iter */
-        0,                         /* tp_iternext */
-        0,                         /* tp_methods */
-        NewTopic_members,/* tp_members */
-        0,                         /* tp_getset */
-        0,                         /* tp_base */
-        0,                         /* tp_dict */
-        0,                         /* tp_descr_get */
-        0,                         /* tp_descr_set */
-        0,                         /* tp_dictoffset */
-        NewTopic_init,       /* tp_init */
-        0,                         /* tp_alloc */
-        NewTopic_new         /* tp_new */
+    PyVarObject_HEAD_INIT(NULL, 0) "cimpl.NewTopic", /*tp_name*/
+    sizeof(NewTopic),                                /*tp_basicsize*/
+    0,                                               /*tp_itemsize*/
+    (destructor)NewTopic_dealloc,                    /*tp_dealloc*/
+    0,                                               /*tp_print*/
+    0,                                               /*tp_getattr*/
+    0,                                               /*tp_setattr*/
+    0,                                               /*tp_compare*/
+    (reprfunc)NewTopic_str0,                         /*tp_repr*/
+    0,                                               /*tp_as_number*/
+    0,                                               /*tp_as_sequence*/
+    0,                                               /*tp_as_mapping*/
+    (hashfunc)NewTopic_hash,                         /*tp_hash */
+    0,                                               /*tp_call*/
+    0,                                               /*tp_str*/
+    PyObject_GenericGetAttr,                         /*tp_getattro*/
+    0,                                               /*tp_setattro*/
+    0,                                               /*tp_as_buffer*/
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+    "NewTopic specifies per-topic settings for passing to "
+    "AdminClient.create_topics().\n"
+    "\n"
+    ".. py:function:: NewTopic(topic, [num_partitions], [replication_factor], "
+    "[replica_assignment], [config])\n"
+    "\n"
+    "  Instantiate a NewTopic object.\n"
+    "\n"
+    "  :param string topic: Topic name\n"
+    "  :param int num_partitions: Number of partitions to create, or -1 if "
+    "replica_assignment is used.\n"
+    "  :param int replication_factor: Replication factor of partitions, or -1 "
+    "if replica_assignment is used.\n"
+    "  :param list replica_assignment: List of lists with the replication "
+    "assignment for each new partition.\n"
+    "  :param dict config: Dict (str:str) of topic configuration. See "
+    "http://kafka.apache.org/documentation.html#topicconfigs\n"
+    "  :rtype: NewTopic\n"
+    "\n"
+    "\n",                              /*tp_doc*/
+    (traverseproc)NewTopic_traverse,   /* tp_traverse */
+    (inquiry)NewTopic_clear,           /* tp_clear */
+    (richcmpfunc)NewTopic_richcompare, /* tp_richcompare */
+    0,                                 /* tp_weaklistoffset */
+    0,                                 /* tp_iter */
+    0,                                 /* tp_iternext */
+    0,                                 /* tp_methods */
+    NewTopic_members,                  /* tp_members */
+    0,                                 /* tp_getset */
+    0,                                 /* tp_base */
+    0,                                 /* tp_dict */
+    0,                                 /* tp_descr_get */
+    0,                                 /* tp_descr_set */
+    0,                                 /* tp_dictoffset */
+    NewTopic_init,                     /* tp_init */
+    0,                                 /* tp_alloc */
+    NewTopic_new                       /* tp_new */
 };
 
 
@@ -288,7 +291,7 @@ PyTypeObject NewTopicType = {
  *
  *
  ****************************************************************************/
-static int NewPartitions_clear (NewPartitions *self) {
+static int NewPartitions_clear(NewPartitions *self) {
         if (self->topic) {
                 free(self->topic);
                 self->topic = NULL;
@@ -300,7 +303,7 @@ static int NewPartitions_clear (NewPartitions *self) {
         return 0;
 }
 
-static void NewPartitions_dealloc (NewPartitions *self) {
+static void NewPartitions_dealloc(NewPartitions *self) {
         PyObject_GC_UnTrack(self);
 
         NewPartitions_clear(self);
@@ -309,19 +312,17 @@ static void NewPartitions_dealloc (NewPartitions *self) {
 }
 
 
-static int NewPartitions_init (PyObject *self0, PyObject *args,
-                          PyObject *kwargs) {
+static int
+NewPartitions_init(PyObject *self0, PyObject *args, PyObject *kwargs) {
         NewPartitions *self = (NewPartitions *)self0;
         const char *topic;
-        static char *kws[] = { "topic",
-                               "new_total_count",
-                               "replica_assignment",
-                               NULL };
+        static char *kws[] = {"topic", "new_total_count", "replica_assignment",
+                              NULL};
 
         self->replica_assignment = NULL;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "si|O", kws,
-                                         &topic, &self->new_total_count,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "si|O", kws, &topic,
+                                         &self->new_total_count,
                                          &self->replica_assignment))
                 return -1;
 
@@ -332,16 +333,16 @@ static int NewPartitions_init (PyObject *self0, PyObject *args,
 }
 
 
-static PyObject *NewPartitions_new (PyTypeObject *type, PyObject *args,
-                               PyObject *kwargs) {
+static PyObject *
+NewPartitions_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         PyObject *self = type->tp_alloc(type, 1);
         return self;
 }
 
 
 
-static int NewPartitions_traverse (NewPartitions *self,
-                              visitproc visit, void *arg) {
+static int
+NewPartitions_traverse(NewPartitions *self, visitproc visit, void *arg) {
         if (self->replica_assignment)
                 Py_VISIT(self->replica_assignment);
         return 0;
@@ -349,29 +350,27 @@ static int NewPartitions_traverse (NewPartitions *self,
 
 
 static PyMemberDef NewPartitions_members[] = {
-        { "topic", T_STRING, offsetof(NewPartitions, topic), READONLY,
-          ":py:attribute:topic - Topic name (string)" },
-        { "new_total_count", T_INT, offsetof(NewPartitions, new_total_count), 0,
-          ":py:attribute: Total number of partitions (int)" },
-        { "replica_assignment", T_OBJECT, offsetof(NewPartitions, replica_assignment),
-          0,
-          ":py:attribute: Replication assignment (list of lists).\n"
-          "The outer list index represents the partition index, the inner "
-          "list is the replica assignment (broker ids) for that partition.\n"
-        },
-        { NULL }
-};
+    {"topic", T_STRING, offsetof(NewPartitions, topic), READONLY,
+     ":py:attribute:topic - Topic name (string)"},
+    {"new_total_count", T_INT, offsetof(NewPartitions, new_total_count), 0,
+     ":py:attribute: Total number of partitions (int)"},
+    {"replica_assignment", T_OBJECT,
+     offsetof(NewPartitions, replica_assignment), 0,
+     ":py:attribute: Replication assignment (list of lists).\n"
+     "The outer list index represents the partition index, the inner "
+     "list is the replica assignment (broker ids) for that partition.\n"},
+    {NULL}};
 
 
-static PyObject *NewPartitions_str0 (NewPartitions *self) {
+static PyObject *NewPartitions_str0(NewPartitions *self) {
         return cfl_PyUnistr(
-                _FromFormat("NewPartitions(topic=%s,new_total_count=%d)",
-                            self->topic, self->new_total_count));
+            _FromFormat("NewPartitions(topic=%s,new_total_count=%d)",
+                        self->topic, self->new_total_count));
 }
 
 
 static PyObject *
-NewPartitions_richcompare (NewPartitions *self, PyObject *o2, int op) {
+NewPartitions_richcompare(NewPartitions *self, PyObject *o2, int op) {
         NewPartitions *a = self, *b;
         int tr, pr;
         int r;
@@ -386,8 +385,7 @@ NewPartitions_richcompare (NewPartitions *self, PyObject *o2, int op) {
 
         tr = strcmp(a->topic, b->topic);
         pr = a->new_total_count - b->new_total_count;
-        switch (op)
-        {
+        switch (op) {
         case Py_LT:
                 r = tr < 0 || (tr == 0 && pr < 0);
                 break;
@@ -417,77 +415,75 @@ NewPartitions_richcompare (NewPartitions *self, PyObject *o2, int op) {
 }
 
 
-static long NewPartitions_hash (NewPartitions *self) {
+static long NewPartitions_hash(NewPartitions *self) {
         PyObject *topic = cfl_PyUnistr(_FromString(self->topic));
-        long r = PyObject_Hash(topic) ^ self->new_total_count;
+        long r          = PyObject_Hash(topic) ^ self->new_total_count;
         Py_DECREF(topic);
         return r;
 }
 
 
 PyTypeObject NewPartitionsType = {
-        PyVarObject_HEAD_INIT(NULL, 0)
-        "cimpl.NewPartitions",         /*tp_name*/
-        sizeof(NewPartitions),       /*tp_basicsize*/
-        0,                         /*tp_itemsize*/
-        (destructor)NewPartitions_dealloc, /*tp_dealloc*/
-        0,                         /*tp_print*/
-        0,                         /*tp_getattr*/
-        0,                         /*tp_setattr*/
-        0,                         /*tp_compare*/
-        (reprfunc)NewPartitions_str0, /*tp_repr*/
-        0,                         /*tp_as_number*/
-        0,                         /*tp_as_sequence*/
-        0,                         /*tp_as_mapping*/
-        (hashfunc)NewPartitions_hash, /*tp_hash */
-        0,                         /*tp_call*/
-        0,                         /*tp_str*/
-        PyObject_GenericGetAttr,   /*tp_getattro*/
-        0,                         /*tp_setattro*/
-        0,                         /*tp_as_buffer*/
-        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
-        Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-        "NewPartitions specifies per-topic settings for passing to "
-        "passed to AdminClient.create_partitions().\n"
-        "\n"
-        ".. py:function:: NewPartitions(topic, new_total_count, [replica_assignment])\n"
-        "\n"
-        "  Instantiate a NewPartitions object.\n"
-        "\n"
-        "  :param string topic: Topic name\n"
-        "  :param int new_total_count: Increase the topic's partition count to this value.\n"
-        "  :param list replica_assignment: List of lists with the replication assignment for each new partition.\n"
-        "  :rtype: NewPartitions\n"
-        "\n"
-        "\n", /*tp_doc*/
-        (traverseproc)NewPartitions_traverse, /* tp_traverse */
-        (inquiry)NewPartitions_clear,       /* tp_clear */
-        (richcmpfunc)NewPartitions_richcompare, /* tp_richcompare */
-        0,                         /* tp_weaklistoffset */
-        0,                         /* tp_iter */
-        0,                         /* tp_iternext */
-        0,                         /* tp_methods */
-        NewPartitions_members,/* tp_members */
-        0,                         /* tp_getset */
-        0,                         /* tp_base */
-        0,                         /* tp_dict */
-        0,                         /* tp_descr_get */
-        0,                         /* tp_descr_set */
-        0,                         /* tp_dictoffset */
-        NewPartitions_init,       /* tp_init */
-        0,                         /* tp_alloc */
-        NewPartitions_new         /* tp_new */
+    PyVarObject_HEAD_INIT(NULL, 0) "cimpl.NewPartitions", /*tp_name*/
+    sizeof(NewPartitions),                                /*tp_basicsize*/
+    0,                                                    /*tp_itemsize*/
+    (destructor)NewPartitions_dealloc,                    /*tp_dealloc*/
+    0,                                                    /*tp_print*/
+    0,                                                    /*tp_getattr*/
+    0,                                                    /*tp_setattr*/
+    0,                                                    /*tp_compare*/
+    (reprfunc)NewPartitions_str0,                         /*tp_repr*/
+    0,                                                    /*tp_as_number*/
+    0,                                                    /*tp_as_sequence*/
+    0,                                                    /*tp_as_mapping*/
+    (hashfunc)NewPartitions_hash,                         /*tp_hash */
+    0,                                                    /*tp_call*/
+    0,                                                    /*tp_str*/
+    PyObject_GenericGetAttr,                              /*tp_getattro*/
+    0,                                                    /*tp_setattro*/
+    0,                                                    /*tp_as_buffer*/
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+    "NewPartitions specifies per-topic settings for passing to "
+    "passed to AdminClient.create_partitions().\n"
+    "\n"
+    ".. py:function:: NewPartitions(topic, new_total_count, "
+    "[replica_assignment])\n"
+    "\n"
+    "  Instantiate a NewPartitions object.\n"
+    "\n"
+    "  :param string topic: Topic name\n"
+    "  :param int new_total_count: Increase the topic's partition count to "
+    "this value.\n"
+    "  :param list replica_assignment: List of lists with the replication "
+    "assignment for each new partition.\n"
+    "  :rtype: NewPartitions\n"
+    "\n"
+    "\n",                                   /*tp_doc*/
+    (traverseproc)NewPartitions_traverse,   /* tp_traverse */
+    (inquiry)NewPartitions_clear,           /* tp_clear */
+    (richcmpfunc)NewPartitions_richcompare, /* tp_richcompare */
+    0,                                      /* tp_weaklistoffset */
+    0,                                      /* tp_iter */
+    0,                                      /* tp_iternext */
+    0,                                      /* tp_methods */
+    NewPartitions_members,                  /* tp_members */
+    0,                                      /* tp_getset */
+    0,                                      /* tp_base */
+    0,                                      /* tp_dict */
+    0,                                      /* tp_descr_get */
+    0,                                      /* tp_descr_set */
+    0,                                      /* tp_dictoffset */
+    NewPartitions_init,                     /* tp_init */
+    0,                                      /* tp_alloc */
+    NewPartitions_new                       /* tp_new */
 };
-
-
-
 
 
 
 /**
  * @brief Finalize type objects
  */
-int AdminTypes_Ready (void) {
+int AdminTypes_Ready(void) {
         int r;
 
         r = PyType_Ready(&NewTopicType);
@@ -500,7 +496,7 @@ int AdminTypes_Ready (void) {
 }
 
 
-static void AdminTypes_AddObjectsConfigSource (PyObject *m) {
+static void AdminTypes_AddObjectsConfigSource(PyObject *m) {
         /* rd_kafka_ConfigSource_t */
         PyModule_AddIntConstant(m, "CONFIG_SOURCE_UNKNOWN_CONFIG",
                                 RD_KAFKA_CONFIG_SOURCE_UNKNOWN_CONFIG);
@@ -508,100 +504,150 @@ static void AdminTypes_AddObjectsConfigSource (PyObject *m) {
                                 RD_KAFKA_CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG);
         PyModule_AddIntConstant(m, "CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG",
                                 RD_KAFKA_CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG);
-        PyModule_AddIntConstant(m, "CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG",
-                                RD_KAFKA_CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG);
+        PyModule_AddIntConstant(
+            m, "CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG",
+            RD_KAFKA_CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG);
         PyModule_AddIntConstant(m, "CONFIG_SOURCE_STATIC_BROKER_CONFIG",
                                 RD_KAFKA_CONFIG_SOURCE_STATIC_BROKER_CONFIG);
         PyModule_AddIntConstant(m, "CONFIG_SOURCE_DEFAULT_CONFIG",
                                 RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG);
+        PyModule_AddIntConstant(m, "CONFIG_SOURCE_GROUP_CONFIG",
+                                RD_KAFKA_CONFIG_SOURCE_GROUP_CONFIG);
 }
 
 
-static void AdminTypes_AddObjectsResourceType (PyObject *m) {
+static void AdminTypes_AddObjectsResourceType(PyObject *m) {
         /* rd_kafka_ResourceType_t */
-        PyModule_AddIntConstant(m, "RESOURCE_UNKNOWN", RD_KAFKA_RESOURCE_UNKNOWN);
+        PyModule_AddIntConstant(m, "RESOURCE_UNKNOWN",
+                                RD_KAFKA_RESOURCE_UNKNOWN);
         PyModule_AddIntConstant(m, "RESOURCE_ANY", RD_KAFKA_RESOURCE_ANY);
         PyModule_AddIntConstant(m, "RESOURCE_TOPIC", RD_KAFKA_RESOURCE_TOPIC);
         PyModule_AddIntConstant(m, "RESOURCE_GROUP", RD_KAFKA_RESOURCE_GROUP);
         PyModule_AddIntConstant(m, "RESOURCE_BROKER", RD_KAFKA_RESOURCE_BROKER);
-        PyModule_AddIntConstant(m, "RESOURCE_TRANSACTIONAL_ID", RD_KAFKA_RESOURCE_TRANSACTIONAL_ID);
+        PyModule_AddIntConstant(m, "RESOURCE_TRANSACTIONAL_ID",
+                                RD_KAFKA_RESOURCE_TRANSACTIONAL_ID);
 }
 
-static void AdminTypes_AddObjectsResourcePatternType (PyObject *m) {
+static void AdminTypes_AddObjectsResourcePatternType(PyObject *m) {
         /* rd_kafka_ResourcePatternType_t */
-        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_UNKNOWN", RD_KAFKA_RESOURCE_PATTERN_UNKNOWN);
-        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_ANY", RD_KAFKA_RESOURCE_PATTERN_ANY);
-        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_MATCH", RD_KAFKA_RESOURCE_PATTERN_MATCH);
-        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_LITERAL", RD_KAFKA_RESOURCE_PATTERN_LITERAL);
-        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_PREFIXED", RD_KAFKA_RESOURCE_PATTERN_PREFIXED);
+        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_UNKNOWN",
+                                RD_KAFKA_RESOURCE_PATTERN_UNKNOWN);
+        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_ANY",
+                                RD_KAFKA_RESOURCE_PATTERN_ANY);
+        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_MATCH",
+                                RD_KAFKA_RESOURCE_PATTERN_MATCH);
+        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_LITERAL",
+                                RD_KAFKA_RESOURCE_PATTERN_LITERAL);
+        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_PREFIXED",
+                                RD_KAFKA_RESOURCE_PATTERN_PREFIXED);
 }
 
-static void AdminTypes_AddObjectsAclOperation (PyObject *m) {
+static void AdminTypes_AddObjectsAclOperation(PyObject *m) {
         /* rd_kafka_AclOperation_t */
-        PyModule_AddIntConstant(m, "ACL_OPERATION_UNKNOWN", RD_KAFKA_ACL_OPERATION_UNKNOWN);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_ANY", RD_KAFKA_ACL_OPERATION_ANY);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_ALL", RD_KAFKA_ACL_OPERATION_ALL);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_READ", RD_KAFKA_ACL_OPERATION_READ);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_WRITE", RD_KAFKA_ACL_OPERATION_WRITE);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_CREATE", RD_KAFKA_ACL_OPERATION_CREATE);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_DELETE", RD_KAFKA_ACL_OPERATION_DELETE);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_ALTER", RD_KAFKA_ACL_OPERATION_ALTER);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_DESCRIBE", RD_KAFKA_ACL_OPERATION_DESCRIBE);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_CLUSTER_ACTION", RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_DESCRIBE_CONFIGS", RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_ALTER_CONFIGS", RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS);
-        PyModule_AddIntConstant(m, "ACL_OPERATION_IDEMPOTENT_WRITE", RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_UNKNOWN",
+                                RD_KAFKA_ACL_OPERATION_UNKNOWN);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_ANY",
+                                RD_KAFKA_ACL_OPERATION_ANY);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_ALL",
+                                RD_KAFKA_ACL_OPERATION_ALL);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_READ",
+                                RD_KAFKA_ACL_OPERATION_READ);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_WRITE",
+                                RD_KAFKA_ACL_OPERATION_WRITE);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_CREATE",
+                                RD_KAFKA_ACL_OPERATION_CREATE);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_DELETE",
+                                RD_KAFKA_ACL_OPERATION_DELETE);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_ALTER",
+                                RD_KAFKA_ACL_OPERATION_ALTER);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_DESCRIBE",
+                                RD_KAFKA_ACL_OPERATION_DESCRIBE);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_CLUSTER_ACTION",
+                                RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_DESCRIBE_CONFIGS",
+                                RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_ALTER_CONFIGS",
+                                RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_IDEMPOTENT_WRITE",
+                                RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE);
 }
 
-static void AdminTypes_AddObjectsAclPermissionType (PyObject *m) {
+static void AdminTypes_AddObjectsAclPermissionType(PyObject *m) {
         /* rd_kafka_AclPermissionType_t */
-        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_UNKNOWN", RD_KAFKA_ACL_PERMISSION_TYPE_UNKNOWN);
-        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_ANY", RD_KAFKA_ACL_PERMISSION_TYPE_ANY);
-        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_DENY", RD_KAFKA_ACL_PERMISSION_TYPE_DENY);
-        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_ALLOW", RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW);
+        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_UNKNOWN",
+                                RD_KAFKA_ACL_PERMISSION_TYPE_UNKNOWN);
+        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_ANY",
+                                RD_KAFKA_ACL_PERMISSION_TYPE_ANY);
+        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_DENY",
+                                RD_KAFKA_ACL_PERMISSION_TYPE_DENY);
+        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_ALLOW",
+                                RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW);
 }
 
-static void AdminTypes_AddObjectsConsumerGroupStates (PyObject *m) {
+static void AdminTypes_AddObjectsConsumerGroupStates(PyObject *m) {
         /* rd_kafka_consumer_group_state_t */
-        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_UNKNOWN", RD_KAFKA_CONSUMER_GROUP_STATE_UNKNOWN);
-        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_PREPARING_REBALANCE", RD_KAFKA_CONSUMER_GROUP_STATE_PREPARING_REBALANCE);
-        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_COMPLETING_REBALANCE", RD_KAFKA_CONSUMER_GROUP_STATE_COMPLETING_REBALANCE);
-        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_STABLE", RD_KAFKA_CONSUMER_GROUP_STATE_STABLE);
-        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_DEAD", RD_KAFKA_CONSUMER_GROUP_STATE_DEAD);
-        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_EMPTY", RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_UNKNOWN",
+                                RD_KAFKA_CONSUMER_GROUP_STATE_UNKNOWN);
+        PyModule_AddIntConstant(
+            m, "CONSUMER_GROUP_STATE_PREPARING_REBALANCE",
+            RD_KAFKA_CONSUMER_GROUP_STATE_PREPARING_REBALANCE);
+        PyModule_AddIntConstant(
+            m, "CONSUMER_GROUP_STATE_COMPLETING_REBALANCE",
+            RD_KAFKA_CONSUMER_GROUP_STATE_COMPLETING_REBALANCE);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_STABLE",
+                                RD_KAFKA_CONSUMER_GROUP_STATE_STABLE);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_DEAD",
+                                RD_KAFKA_CONSUMER_GROUP_STATE_DEAD);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_EMPTY",
+                                RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY);
 }
 
-static void AdminTypes_AddObjectsConsumerGroupTypes (PyObject *m) {
+static void AdminTypes_AddObjectsConsumerGroupTypes(PyObject *m) {
         /* rd_kafka_consumer_group_type_t */
-        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_UNKNOWN", RD_KAFKA_CONSUMER_GROUP_TYPE_UNKNOWN);
-        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_CONSUMER", RD_KAFKA_CONSUMER_GROUP_TYPE_CONSUMER);
-        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_CLASSIC", RD_KAFKA_CONSUMER_GROUP_TYPE_CLASSIC);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_UNKNOWN",
+                                RD_KAFKA_CONSUMER_GROUP_TYPE_UNKNOWN);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_CONSUMER",
+                                RD_KAFKA_CONSUMER_GROUP_TYPE_CONSUMER);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_CLASSIC",
+                                RD_KAFKA_CONSUMER_GROUP_TYPE_CLASSIC);
 }
 
-static void AdminTypes_AddObjectsAlterConfigOpType (PyObject *m) {
-        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_SET", RD_KAFKA_ALTER_CONFIG_OP_TYPE_SET);
-        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_DELETE", RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE);
-        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_APPEND", RD_KAFKA_ALTER_CONFIG_OP_TYPE_APPEND);
-        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_SUBTRACT", RD_KAFKA_ALTER_CONFIG_OP_TYPE_SUBTRACT);
+static void AdminTypes_AddObjectsAlterConfigOpType(PyObject *m) {
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_SET",
+                                RD_KAFKA_ALTER_CONFIG_OP_TYPE_SET);
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_DELETE",
+                                RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE);
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_APPEND",
+                                RD_KAFKA_ALTER_CONFIG_OP_TYPE_APPEND);
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_SUBTRACT",
+                                RD_KAFKA_ALTER_CONFIG_OP_TYPE_SUBTRACT);
 }
 
-static void AdminTypes_AddObjectsScramMechanismType (PyObject *m) {
-        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_UNKNOWN", RD_KAFKA_SCRAM_MECHANISM_UNKNOWN);
-        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_256", RD_KAFKA_SCRAM_MECHANISM_SHA_256);
-        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_512", RD_KAFKA_SCRAM_MECHANISM_SHA_512);
+static void AdminTypes_AddObjectsScramMechanismType(PyObject *m) {
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_UNKNOWN",
+                                RD_KAFKA_SCRAM_MECHANISM_UNKNOWN);
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_256",
+                                RD_KAFKA_SCRAM_MECHANISM_SHA_256);
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_512",
+                                RD_KAFKA_SCRAM_MECHANISM_SHA_512);
 }
 
-static void AdminTypes_AddObjectsIsolationLevel (PyObject *m) {
+static void AdminTypes_AddObjectsIsolationLevel(PyObject *m) {
         /* rd_kafka_IsolationLevel_t */
-        PyModule_AddIntConstant(m,"ISOLATION_LEVEL_READ_COMMITTED", RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED);
-        PyModule_AddIntConstant(m,"ISOLATION_LEVEL_READ_UNCOMMITTED", RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED);
+        PyModule_AddIntConstant(m, "ISOLATION_LEVEL_READ_COMMITTED",
+                                RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED);
+        PyModule_AddIntConstant(m, "ISOLATION_LEVEL_READ_UNCOMMITTED",
+                                RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED);
 }
 
-static void AdminTypes_AddObjectsOffsetSpec (PyObject *m) {
+static void AdminTypes_AddObjectsOffsetSpec(PyObject *m) {
         /* rd_kafka_OffsetSpec_t */
-        PyModule_AddIntConstant(m,"OFFSET_SPEC_MAX_TIMESTAMP", RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP);
-        PyModule_AddIntConstant(m,"OFFSET_SPEC_EARLIEST", RD_KAFKA_OFFSET_SPEC_EARLIEST);
-        PyModule_AddIntConstant(m,"OFFSET_SPEC_LATEST", RD_KAFKA_OFFSET_SPEC_LATEST);
+        PyModule_AddIntConstant(m, "OFFSET_SPEC_MAX_TIMESTAMP",
+                                RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP);
+        PyModule_AddIntConstant(m, "OFFSET_SPEC_EARLIEST",
+                                RD_KAFKA_OFFSET_SPEC_EARLIEST);
+        PyModule_AddIntConstant(m, "OFFSET_SPEC_LATEST",
+                                RD_KAFKA_OFFSET_SPEC_LATEST);
 }
 
 static void AdminTypes_AddObjectsElectionType(PyObject *m) {
@@ -612,10 +658,20 @@ static void AdminTypes_AddObjectsElectionType(PyObject *m) {
                                 RD_KAFKA_ELECTION_TYPE_UNCLEAN);
 }
 
+static void AdminTypes_AddObjectsShareAcknowledgeType(PyObject *m) {
+        /* rd_kafka_share_AcknowledgeType_t */
+        PyModule_AddIntConstant(m, "SHARE_ACKNOWLEDGE_TYPE_ACCEPT",
+                                RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT);
+        PyModule_AddIntConstant(m, "SHARE_ACKNOWLEDGE_TYPE_RELEASE",
+                                RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_RELEASE);
+        PyModule_AddIntConstant(m, "SHARE_ACKNOWLEDGE_TYPE_REJECT",
+                                RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_REJECT);
+}
+
 /**
  * @brief Add Admin types to module
  */
-void AdminTypes_AddObjects (PyObject *m) {
+void AdminTypes_AddObjects(PyObject *m) {
         Py_INCREF(&NewTopicType);
         PyModule_AddObject(m, "NewTopic", (PyObject *)&NewTopicType);
         Py_INCREF(&NewPartitionsType);
@@ -633,4 +689,5 @@ void AdminTypes_AddObjects (PyObject *m) {
         AdminTypes_AddObjectsIsolationLevel(m);
         AdminTypes_AddObjectsOffsetSpec(m);
         AdminTypes_AddObjectsElectionType(m);
+        AdminTypes_AddObjectsShareAcknowledgeType(m);
 }
