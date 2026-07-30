@@ -16,7 +16,7 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` before 1.75.2) | `true` | Writing of tables with a schema in [type_v3](../../../../../user-guide/storage/data-types.md) format instead of `type_v1`. | 1.75.3 |
 | `spark.yt.read.vectorized.capacity` | `1000` | Maximum number of rows in a batch for reading via the `wire` protocol. | - |
 | `spark.yt.read.arrow.enabled` | `true` | Use the `arrow` format to read data (if possible). | - |
-| `spark.hadoop.yt.timeout` | `300 seconds` | Timeout on reads from {{product-name}}. | - |
+| `spark.hadoop.yt.timeout` | `30 seconds` | Timeout on reads from {{product-name}}. | - |
 | `spark.yt.read.typeV3.enabled` (`spark.yt.read.parsingTypeV3.enabled` before 1.75.2) | `true` | Reading of tables with a schema in [type_v3](../../../../../user-guide/storage/data-types.md) format instead of `type_v1`. | 1.75.3 |
 | `spark.yt.read.keyColumnsFilterPushdown.enabled` | `true` | Use Spark query filters to selectively read from {{product-name}}. | - |
 | `spark.yt.read.keyColumnsFilterPushdown.union.enabled` | `false` | Combine all filters into a continuous range for selective reading. | - |
