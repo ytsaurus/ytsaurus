@@ -216,7 +216,7 @@ private:
             builder->AppendFormat("{Id: %v, OutBarrierCreationTime: %v}", inBarrier.Id_, inBarrier.OutBarrierCreationTime_);
         }
 
-        template <CInvocable<void(const TError&)> TCallback>
+        template <NMpl::CInvocable<void(const TError&)> TCallback>
         void Wait(TCallback&& onCanceled) const;
 
         void Cancel(const TError& error) const;
@@ -603,7 +603,7 @@ private:
 
     template <
         class TAllocationEvent,
-        CInvocable<void(
+        NMpl::CInvocable<void(
             TStringBuf reason,
             TAllocationEvent event,
             TJobTracker::TNodeInfo* nodeInfo,

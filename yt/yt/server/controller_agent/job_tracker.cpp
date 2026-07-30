@@ -729,7 +729,7 @@ TJobTracker::TInBarrier::TInBarrier(const TOutBarrier& outBarrier)
     , OutBarrierCreationTime_(outBarrier.CreatedAt_)
 { }
 
-template <CInvocable<void(const TError&)> TCallback>
+template <NMpl::CInvocable<void(const TError&)> TCallback>
 void TJobTracker::TInBarrier::Wait(TCallback&& onCanceled) const
 {
     if (Future_.IsSet()) {
@@ -3420,7 +3420,7 @@ void TJobTracker::ProcessAllocationEvents(
 
 template <
     class TAllocationEvent,
-    CInvocable<void(
+    NMpl::CInvocable<void(
         TStringBuf reason,
         TAllocationEvent event,
         TJobTracker::TNodeInfo* nodeInfo,
