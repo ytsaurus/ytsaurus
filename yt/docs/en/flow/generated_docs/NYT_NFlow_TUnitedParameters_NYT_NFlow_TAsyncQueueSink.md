@@ -20,6 +20,14 @@ Path to the queue producer with the cluster specified. ||
 || `require_sync_replica` | **Type**: `bool`
 **Default value**: `true`
 The eponymous parameter when writing to the queue. Whether write to the queue without synchronous replicas is allowed. ||
+|| `tablet_index_expression` | **Type**: `std::optional<std::string>`
+Verbatim routing mode. A QL expression (builtins only, e.g. `farm_hash`) over the message columns whose value is written to the system column `$tablet_index` verbatim. Mutually exclusive with `tablet_index_routing_hash_expression`; when neither expression is set, routing is off (`$tablet_index` is not written and the tablet is chosen by the driver). Sharded queues are inconvenient to operate (object&rarr;tablet affinity is tightly coupled and a reshard remaps keys), so enable routing only when genuinely needed. Routing is supported only on sync queue sinks; async sinks reject the routing params at spec load (YTFLOW-766). ||
+|| `tablet_index_routing_hash_expression` | **Type**: `std::optional<std::string>`
+Hash routing mode. A QL expression (builtins only, e.g. `farm_hash`) yielding a `uint64` hash that is reduced to a tablet index by `tablet_index_routing_hash_policy` over `tablet_count`. Mutually exclusive with `tablet_index_expression`. Supported only on sync queue sinks; async sinks reject the routing params (YTFLOW-766). ||
+|| `tablet_index_routing_hash_policy` | **Type**: `std::optional<`[NYT::NFlow::EQueueTabletIndexRoutingHashPolicy](./all_yson_structs#NYT_NFlow_EQueueTabletIndexRoutingHashPolicy)`>`
+The policy for reducing the `tablet_index_routing_hash_expression` hash to a tablet index. Required together with it. `range` &mdash; contiguous equal-width hash ranges (rangeSize = 2^64 / tablet_count), recommended: a consumer range-partitioned by the same key reads only its own tablet. `modulo` &mdash; `hash % tablet_count`; discouraged: Flow computations are range-partitioned by key, so a modulo-partitioned queue forces every reader to read every tablet (a full mesh on read). ||
+|| `tablet_count` | **Type**: `std::optional<long>`
+The number of tablets used to reduce `tablet_index_routing_hash_expression` to a tablet index. Optional. When unset, the sink periodically re-reads the target queue's `@tablet_count` (from the master cache) and follows a reshard without a restart. When set explicitly, the value is fixed (no queue read) and a reshard is reflected only by changing the config. ||
 || `at_most_once_strategy` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyParameters)`>`
  ||
 || `column_filter` | **Type**: `std::optional<THashSet<std::string>>`

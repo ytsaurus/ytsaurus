@@ -8,6 +8,7 @@
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
 #include <yt/yt/flow/library/cpp/connectors/common/flow_queue_meta.h>
+#include <yt/yt/flow/library/cpp/connectors/queue/tablet_router.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -28,16 +29,19 @@ namespace NYT::NFlow {
 
 namespace {
 
-template <class TMessageContainer>
-TSharedRange<NTableClient::TUnversionedRow> PackRows(
-    const TMessageContainer& messages,
+// Writes payload rows directly (base queue layout). With |router| set, the tablet index is
+// computed per message and written to |tabletIndexColumn| (single pass, no grouping).
+void AppendPackedRows(
+    std::vector<NTableClient::TUnversionedRow>& rows,
+    const NTableClient::TRowBufferPtr& buffer,
+    const std::deque<TOutputMessageConstPtr>& messages,
     const NTableClient::TNameTablePtr& nameTable,
-    std::optional<int> flowMetaColumn)
+    std::optional<int> flowMetaColumn,
+    std::optional<int> tabletIndexColumn,
+    TTabletRouter* router)
 {
-    auto buffer = New<NTableClient::TRowBuffer>();
-    std::vector<NTableClient::TUnversionedRow> rows;
     for (const auto& message : messages) {
-        NTableClient::TUnversionedRowBuilder builder(message->PayloadSchema->GetColumnCount() + 1);
+        NTableClient::TUnversionedRowBuilder builder(message->PayloadSchema->GetColumnCount() + 2);
         for (int i = 0; i < message->Payload.Underlying().GetCount(); ++i) {
             const auto& column = message->PayloadSchema->Columns()[i];
             if (auto id = nameTable->FindId(column.Name())) {
@@ -51,10 +55,12 @@ TSharedRange<NTableClient::TUnversionedRow> PackRows(
             const auto serializedMeta = NYson::ConvertToYsonString(meta, NYson::EYsonFormat::Binary);
             builder.AddValue(buffer->CaptureValue(NTableClient::MakeUnversionedAnyValue(serializedMeta.AsStringBuf(), *flowMetaColumn)));
         }
+        if (tabletIndexColumn) {
+            builder.AddValue(NTableClient::MakeUnversionedInt64Value(router->GetTabletIndex(message->Payload), *tabletIndexColumn));
+        }
         // Values has been already captured.
         rows.push_back(buffer->CaptureRow(builder.GetRow(), /*captureValues*/ false));
     }
-    return MakeSharedRange(std::move(rows), std::move(buffer));
 }
 
 } // namespace
@@ -71,17 +77,32 @@ TSyncQueueSink::TSyncQueueSink(
         GetParameters()->WriteFlowQueueMeta
             ? NameTable_->FindId(GetParameters()->FlowQueueMetaColumn)
             : std::nullopt)
+    , TabletIndexColumn_(
+        IsTabletRoutingEnabled(*GetParameters())
+            ? std::optional<int>(NameTable_->GetIdOrThrow(NTableClient::TabletIndexColumnName))
+            : std::nullopt)
+    , TabletRouter_(CreateTabletRouter())
 { }
 
 void TSyncQueueSink::DoInit()
-{ }
+{
+    if (TabletRouter_) {
+        TabletRouter_->Start();
+    }
+}
 
 void TSyncQueueSink::DoDistribute(NApi::IDynamicTableTransactionPtr transaction, const std::deque<TOutputMessageConstPtr>& messages)
 {
     YT_TLOG_INFO("Synchronously writing messages to queue")
         .With("MessagesCount", std::ssize(messages));
-    auto range = PackRows(messages, NameTable_, FlowMetaColumn_);
-    transaction->WriteRows(GetParameters()->QueuePath.GetPath(), NameTable_, std::move(range));
+
+    auto buffer = New<NTableClient::TRowBuffer>();
+    std::vector<NTableClient::TUnversionedRow> rows;
+    AppendPackedRows(rows, buffer, messages, NameTable_, FlowMetaColumn_, TabletIndexColumn_, TabletRouter_.Get());
+    transaction->WriteRows(
+        GetParameters()->QueuePath.GetPath(),
+        NameTable_,
+        MakeSharedRange(std::move(rows), std::move(buffer)));
 }
 
 NTableClient::TNameTablePtr TSyncQueueSink::GenerateNameTable() const
@@ -109,7 +130,23 @@ NTableClient::TNameTablePtr TSyncQueueSink::GenerateNameTable() const
     if (GetParameters()->WriteFlowQueueMeta) {
         nameTable->RegisterNameOrThrow(GetParameters()->FlowQueueMetaColumn);
     }
+    if (IsTabletRoutingEnabled(*GetParameters())) {
+        nameTable->RegisterNameOrThrow(NTableClient::TabletIndexColumnName);
+    }
     return nameTable;
+}
+
+TTabletRouterPtr TSyncQueueSink::CreateTabletRouter() const
+{
+    auto streamId = *GetSpec()->InputStreamIds.begin();
+    auto schema = GetContext()->StreamSpecStorage->GetSchema(streamId);
+    return NYT::NFlow::CreateTabletRouter(
+        *GetParameters(),
+        GetParameters()->QueuePath,
+        GetParameters()->UpdatePartitionCountPeriod,
+        schema,
+        GetContext(),
+        Logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

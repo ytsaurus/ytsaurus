@@ -23,5 +23,11 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `catchup_speedup_multiplier` | **Type**: `double`
 **Default value**: `1.2`
  ||
+|| `finite` | **Type**: `bool`
+**Default value**: `true`
+ ||
+|| `full_final_pass` | **Type**: `bool`
+**Default value**: `true`
+ ||
 |#
 

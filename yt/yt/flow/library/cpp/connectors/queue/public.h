@@ -8,6 +8,21 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Reduces the tablet_index_routing_hash_expression uint64 hash to a queue tablet index.
+DEFINE_ENUM(EQueueTabletIndexRoutingHashPolicy,
+    // Reduce the hash to contiguous equal-width ranges (rangeSize = 2^64 / tabletCount). Recommended:
+    // a consumer range-partitioned by the same key reads only its own tablet.
+    ((Range)  (0))
+    // Reduce as hash % tabletCount. Discouraged: Flow computations are range-partitioned by key, so a
+    // modulo-partitioned queue forces every reader to read every tablet (a full mesh on read).
+    ((Modulo) (1))
+);
+
+DECLARE_REFCOUNTED_CLASS(TTabletIndexEvaluator);
+DECLARE_REFCOUNTED_CLASS(TTabletRouter);
+
+DECLARE_REFCOUNTED_STRUCT(TQueueSinkTabletRoutingParameters);
+
 DECLARE_REFCOUNTED_STRUCT(TQueueInfoSpec);
 DECLARE_REFCOUNTED_STRUCT(TQueueInfoControllerState);
 DECLARE_REFCOUNTED_CLASS(TQueueInfoController);

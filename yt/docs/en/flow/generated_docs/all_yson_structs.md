@@ -70,6 +70,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_EProcessingMode.md) %}
 
+{% include [_](./NYT_NFlow_EQueueTabletIndexRoutingHashPolicy.md) %}
+
 {% include [_](./NYT_NFlow_ETimeType.md) %}
 
 {% include [_](./NYT_NFlow_ETimestampFormat.md) %}
