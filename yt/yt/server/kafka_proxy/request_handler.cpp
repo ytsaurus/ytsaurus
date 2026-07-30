@@ -806,6 +806,7 @@ private:
         auto fillResponse = [&](NKafka::EErrorCode errorCode = NKafka::EErrorCode::UnknownServerError) {
             for (const auto& topic : request.Topics) {
                 auto& topicResponse = response.Topics.emplace_back();
+                topicResponse.Name = topic.Name;
                 topicResponse.Partitions.reserve(topic.Partitions.size());
                 for (const auto& partition : topic.Partitions) {
                     auto& partitionResponse = topicResponse.Partitions.emplace_back();
@@ -845,7 +846,6 @@ private:
                     } else {
                         fillResponse();
                     }
-                    fillResponse();
                     return response;
                 }
             }
