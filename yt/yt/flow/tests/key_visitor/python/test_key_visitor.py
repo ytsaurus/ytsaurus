@@ -60,11 +60,11 @@ class Test(FlowTestPythonBase):
         expected_latest = {k: p for k, p in v2}
 
         pipeline_config_path = self.prepare_pipeline_config(period_ms=20000, finite=True)
+        self.send_keys(v1)
+        self.send_keys(v2)
         with self.start_flow_process_federation(
             pipeline_binary_args={"--config": pipeline_config_path},
         ):
-            self.send_keys(v1)
-            self.send_keys(v2)
             self.wait_pipeline_state("completed", timeout=240)
 
             latest = {}
