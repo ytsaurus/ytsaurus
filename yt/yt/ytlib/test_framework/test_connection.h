@@ -218,7 +218,8 @@ public:
     MOCK_METHOD(NSignature::ISignatureGeneratorPtr, GetSignatureGenerator, (), (const, override));
     MOCK_METHOD(void, SetSignatureGenerator, (NSignature::ISignatureGeneratorPtr), (override));
     MOCK_METHOD(NApi::NNative::IClientPtr, CreateNativeClient, (const NApi::NNative::TClientOptions& options), (override));
-    MOCK_METHOD(const NRpc::IChannelPtr&, GetOffshoreDataGatewayChannel, (), (override));
+    MOCK_METHOD(NRpc::IChannelPtr, GetStickyOffshoreDataGatewayChannel, (), (override));
+    MOCK_METHOD(const NRpc::IChannelPtr&, GetNonStickyOffshoreDataGatewayChannel, (), (override));
 
     const NApi::NNative::TConnectionStaticConfigPtr& GetStaticConfig() const override;
     const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const override;

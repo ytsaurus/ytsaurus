@@ -424,7 +424,12 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NRpc::IChannelPtr& GetOffshoreDataGatewayChannel() override
+    NRpc::IChannelPtr GetStickyOffshoreDataGatewayChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const NRpc::IChannelPtr& GetNonStickyOffshoreDataGatewayChannel() override
     {
         YT_UNIMPLEMENTED();
     }

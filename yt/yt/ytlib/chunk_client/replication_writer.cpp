@@ -1017,8 +1017,7 @@ private:
 
         IChannelPtr channel;
         if (isOffshore) {
-            // TODO(aleksandra-zh): Separate nonbalancing channel for writes.
-            channel = Client_->GetNativeConnection()->GetOffshoreDataGatewayChannel();
+            channel = Client_->GetNativeConnection()->GetStickyOffshoreDataGatewayChannel();
         } else {
             channel = CreateRetryingChannel(
                 Config_->NodeChannel,

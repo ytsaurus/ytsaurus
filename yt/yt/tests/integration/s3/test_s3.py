@@ -50,7 +50,7 @@ class TestS3MediumBase(YTEnvSetup):
 
     NUM_SCHEDULERS = 1
 
-    NUM_OFFSHORE_DATA_GATEWAYS = 1
+    NUM_OFFSHORE_DATA_GATEWAYS = 3
 
     USE_DYNAMIC_TABLES = True
 
@@ -113,29 +113,34 @@ class TestS3MediumBase(YTEnvSetup):
         },
     }
     CLUSTER_CONNECTION_DELTA = {
-        "medium_directory_synchronizer": MEDIUM_DIRECTORY_SYNCHRONIZER_DELTA
+        "medium_directory_synchronizer": MEDIUM_DIRECTORY_SYNCHRONIZER_DELTA,
+        "offshore_data_gateway": {
+            "data_gateway_update_period": 1000,  # 1 second
+            "testing": {
+                "bypass_cache": True,
+            },
+        },
+    }
+    COMMON_CONFIG_DELTA = {
+        "cluster_connection": CLUSTER_CONNECTION_DELTA,
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "forbid_operations_on_offshore_media": True,
         },
-        "cluster_connection": CLUSTER_CONNECTION_DELTA
+        "cluster_connection": {
+            "medium_directory_synchronizer": MEDIUM_DIRECTORY_SYNCHRONIZER_DELTA,
+        },
     }
-    DELTA_DRIVER_CONFIG = {
-        "medium_directory_synchronizer": MEDIUM_DIRECTORY_SYNCHRONIZER_DELTA
-    }
-    DELTA_RPC_DRIVER_CONFIG = {
-        "medium_directory_synchronizer": MEDIUM_DIRECTORY_SYNCHRONIZER_DELTA
-    }
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": CLUSTER_CONNECTION_DELTA
-    }
+    DELTA_DRIVER_CONFIG = CLUSTER_CONNECTION_DELTA
+    DELTA_RPC_DRIVER_CONFIG = CLUSTER_CONNECTION_DELTA
+    DELTA_RPC_PROXY_CONFIG = COMMON_CONFIG_DELTA
+    DELTA_NODE_CONFIG = COMMON_CONFIG_DELTA
     DELTA_OFFSHORE_DATA_GATEWAY_CONFIG = {
-        "cluster_connection": CLUSTER_CONNECTION_DELTA
-    }
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": CLUSTER_CONNECTION_DELTA
+        "cluster_connection": {
+            "medium_directory_synchronizer": MEDIUM_DIRECTORY_SYNCHRONIZER_DELTA,
+        },
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {

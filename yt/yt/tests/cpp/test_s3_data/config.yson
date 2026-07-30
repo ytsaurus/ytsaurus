@@ -1,7 +1,7 @@
 {
     NUM_MASTERS = 1;
     NUM_NODES = 3;
-    NUM_OFFSHORE_DATA_GATEWAYS = 1;
+    NUM_OFFSHORE_DATA_GATEWAYS = 3;
     NUM_SCHEDULERS = 0;
     NUM_CONTROLLER_AGENTS = 0;
 
@@ -9,6 +9,12 @@
         cluster_connection = {
             medium_directory_synchronizer = {
                 sync_period = 10;
+                testing = {
+                    bypass_cache = %true;
+                };
+            };
+            offshore_data_gateway = {
+                data_gateway_update_period = 1000;
                 testing = {
                     bypass_cache = %true;
                 };
@@ -33,6 +39,12 @@
                     bypass_cache = %true;
                 };
             };
+            offshore_data_gateway = {
+                data_gateway_update_period = 1000;
+                testing = {
+                    bypass_cache = %true;
+                };
+            };
         };
     };
 
@@ -49,6 +61,12 @@
     DELTA_DRIVER_CONFIG = {
         medium_directory_synchronizer = {
             sync_period = 10;
+            testing = {
+                bypass_cache = %true;
+            };
+        };
+        offshore_data_gateway = {
+            data_gateway_update_period = 1000;
             testing = {
                 bypass_cache = %true;
             };
