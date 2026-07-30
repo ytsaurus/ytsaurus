@@ -136,8 +136,12 @@ private:
                     // NB: In multiplexing writer, there are multiple value consumers pointing to the same writer.
                     // That's why we have to double-check writer's readiness to avoid writing to it concurrently
                     // with another value consumer waiting writer to become ready.
-                    while (!writer->GetReadyEvent().IsSet() || !writer->GetReadyEvent().GetOrCrash().IsOK()) {
-                        WaitFor(writer->GetReadyEvent())
+                    while (true) {
+                        auto readyEvent = writer->GetReadyEvent();
+                        if (auto readyResult = readyEvent.TryGet(); readyResult && readyResult->IsOK()) {
+                            break;
+                        }
+                        WaitFor(readyEvent)
                             .ThrowOnError();
                     }
 
