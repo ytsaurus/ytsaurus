@@ -42,7 +42,7 @@ public:
         , ReadThrottler_(std::move(readThrottler))
         , WriteThrottler_(std::move(writeThrottler))
         , Invoker_(std::move(invoker))
-        , Logger(logger.WithTag("ExportId: %v", ExportId_))
+        , Logger(logger.WithTag("ExportId", ExportId_))
         , ChunkHandler_(CreateRequestHandler(
             this,
             Config_,

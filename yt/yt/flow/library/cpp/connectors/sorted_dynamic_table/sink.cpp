@@ -100,7 +100,7 @@ TSyncSink::TSyncSink(
     TSinkContextPtr context,
     TDynamicSinkContextPtr dynamicContext)
     : TSyncSinkBase(std::move(context), std::move(dynamicContext))
-    , Logger(TSyncSinkBase::Logger.WithTag("TablePath: %v", GetParameters()->TablePath))
+    , Logger(TSyncSinkBase::Logger.WithTag("TablePath", GetParameters()->TablePath))
     , NameTable_(GenerateNameTable(GetContext(), GetSpec(), GetParameters()))
 { }
 

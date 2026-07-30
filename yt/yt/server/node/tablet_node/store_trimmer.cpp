@@ -65,7 +65,7 @@ public:
         TChaosTabletDataPtr chaosTabletData,
         TCancelableContextPtr tabletCancelableContext,
         const TLogger& logger)
-        : Logger(logger.WithTag("TrimGuardId: %v", TGuid::Create()))
+        : Logger(logger.WithTag("TrimGuardId", TGuid::Create()))
         , TabletCancelableContext_(std::move(tabletCancelableContext))
         , ChaosTabletData_(std::move(chaosTabletData))
     {
@@ -237,7 +237,7 @@ private:
         }
 
         auto logger = TabletNodeLogger()
-            .WithTag("%v", tablet->GetLoggingTag());
+            .WithTags(tablet->GetLoggingTags());
         auto finallyGuard = TChaosDataTrimProgressGuard(
             nullptr,
             tablet->GetCancelableContext(),
@@ -271,7 +271,7 @@ private:
         auto tabletId = tablet->GetId();
         auto tabletChaosData = tablet->ChaosData();
 
-        auto Logger = TabletNodeLogger().WithTag("%v", tablet->GetLoggingTag());
+        auto Logger = TabletNodeLogger().WithTags(tablet->GetLoggingTags());
 
         if (tabletChaosData->IsTrimInProgress.load()) {
             YT_LOG_DEBUG("Skipping replication log trimming because previous iteration is not finished yet");
@@ -426,7 +426,7 @@ private:
         auto tabletId = tablet->GetId();
 
         auto Logger = TabletNodeLogger()
-            .WithTag("%v", tablet->GetLoggingTag());
+            .WithTags(tablet->GetLoggingTags());
 
         try {
             YT_LOG_INFO("Trimming tablet stores (StoreIds: %v)",
@@ -456,7 +456,7 @@ private:
                 YT_LOG_INFO("Tablet trim transaction created (TransactionId: %v)",
                     transaction->GetId());
 
-                Logger.AddTag("TransactionId: %v", transaction->GetId());
+                Logger.AddTag("TransactionId", transaction->GetId());
             }
 
             tablet->ThrottleTabletStoresUpdate(slot, Logger);

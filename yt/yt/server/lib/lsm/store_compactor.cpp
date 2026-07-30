@@ -373,7 +373,7 @@ private:
 
         YT_LOG_DEBUG("Found partition with expired stores (%v, PartitionId: %v, PartitionIndex: %v, "
             "PartitionMaxTimestamp: %v, MajorTimestamp: %v, StoreCount: %v)",
-            tablet->GetLoggingTag(),
+            tablet->LoggingTags(),
             partition->GetId(),
             partition->GetIndex(),
             partitionMaxTimestamp,
@@ -547,10 +547,10 @@ private:
         const auto* tablet = partition->GetTablet();
         auto mountConfig = tablet->GetMountConfig();
 
-        auto Logger = NLsm::Logger().WithTag("%v, PartitionId: %v, Eden: %v",
-            tablet->GetLoggingTag(),
-            partition->GetId(),
-            partition->IsEden());
+        auto Logger = NLsm::Logger()
+            .WithTags(tablet->LoggingTags())
+            .WithTag("PartitionId", partition->GetId())
+            .WithTag("Eden", partition->IsEden());
 
         YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
             "Picking stores for compaction");
@@ -874,7 +874,7 @@ private:
         if (CurrentTime_ > config.StartTime + config.Duration) {
             YT_LOG_DEBUG_IF(store->GetTablet()->GetMountConfig()->EnableLsmVerboseLogging,
                 "Found store that was supposed to be compacted by now (%v, StoreId: %v, StartTime: %v, Duration: %v, Now: %v)",
-                store->GetTablet()->GetLoggingTag(),
+                store->GetTablet()->LoggingTags(),
                 store->GetId(),
                 config.StartTime,
                 config.Duration,

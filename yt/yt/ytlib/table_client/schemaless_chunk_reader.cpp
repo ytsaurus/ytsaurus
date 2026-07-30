@@ -337,12 +337,12 @@ public:
         , KeyWideningOptions_(keyWideningOptions)
         , Sampler_(CreateSampler(chunkId, Config_->SamplingRate, Config_->SamplingSeed))
         , VirtualValues_(virtualValues)
-        , Logger(TableClientLogger().WithTag("ChunkReaderId: %v, ChunkId: %v",
-            TGuid::Create(),
-            chunkId))
+        , Logger(TableClientLogger()
+            .WithTag("ChunkReaderId", TGuid::Create())
+            .WithTag("ChunkId", chunkId))
     {
         if (chunkReadOptions.ReadSessionId) {
-            Logger.AddTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId);
+            Logger.AddTag("ReadSessionId", chunkReadOptions.ReadSessionId);
         }
 
         MemoryGuard_ = TMemoryUsageTrackerGuard::Build(chunkReadOptions.MemoryUsageTracker);

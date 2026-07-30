@@ -156,7 +156,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            TabletServerLogger().WithTag("Cache: BundleHealth"))
+            TabletServerLogger().WithTag("Cache", "BundleHealth"))
     { }
 
 protected:
@@ -185,7 +185,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            TabletServerLogger().WithTag("Cache: ClusterLivenessCheck"))
+            TabletServerLogger().WithTag("Cache", "ClusterLivenessCheck"))
     { }
 
 protected:

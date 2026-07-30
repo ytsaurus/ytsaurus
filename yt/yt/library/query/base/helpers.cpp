@@ -34,7 +34,7 @@ void CheckStackDepth()
 
 TLogger MakeQueryLogger(TGuid queryId)
 {
-    return QueryClientLogger().WithTag("FragmentId: %v", queryId);
+    return QueryClientLogger().WithTag("FragmentId", queryId);
 }
 
 TLogger MakeQueryLogger(TConstBaseQueryPtr query)

@@ -216,7 +216,7 @@ TInputCluster::TInputCluster(
     TClusterName name,
     TLogger logger)
     : Name_(std::move(name))
-    , Logger(logger.WithTag("Cluster: %v", Name_))
+    , Logger(logger.WithTag("Cluster", Name_))
 { }
 
 void TInputCluster::InitializeClient(IClientPtr localClient)
@@ -961,7 +961,7 @@ void TInputManager::FetchInputTablesAttributes()
         table->RlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
             table->Schema,
             table->RowLevelAcl,
-            Logger().WithTag("TableIndex: %v", index));
+            Logger().WithTag("TableIndex", index));
         YT_LOG_INFO_IF(
             table->RlsReadSpec,
             "Input table has non-trivial RLS read spec (Path: %v, TableIndex: %v, RlsReadSpec: %v)",
@@ -1112,7 +1112,7 @@ void TInputManager::InitInputChunkScrapers()
                 MakeWeak(Host_),
                 BIND(&TInputManager::OnInputChunkBatchLocated, MakeWeak(this))),
             Host_->GetChunkAvailabilityPolicy(),
-            Logger.WithTag("Cluster: %v", clusterName));
+            Logger.WithTag("Cluster", clusterName));
     }
 
     for (const auto& [chunkId, chunkDescriptor] : InputChunkMap_) {
@@ -1508,7 +1508,7 @@ std::pair<NTableClient::IChunkSliceFetcherPtr, TUnavailableChunksWatcherPtr> TIn
                 fetcherChunkScrapers.back(),
                 cluster->Client(),
                 Host_->GetRowBuffer(),
-                Logger.WithTag("Cluster: %v", clusterName)));
+                Logger.WithTag("Cluster", clusterName)));
     }
 
     std::vector<int> tableIndexToFetcherIndex;

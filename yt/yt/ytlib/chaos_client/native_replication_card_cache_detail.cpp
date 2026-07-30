@@ -161,9 +161,8 @@ public:
         , Key_ (key)
         , Timeout_(timeout)
         , Logger(logger
-            .WithTag("ReplicationCardId: %v, CacheSessionId: %v",
-                Key_.CardId,
-                sessionId))
+            .WithTag("ReplicationCardId", Key_.CardId)
+            .WithTag("CacheSessionId", sessionId))
     { }
 
     TReplicationCardPtr Run()

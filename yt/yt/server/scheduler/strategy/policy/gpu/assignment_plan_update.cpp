@@ -965,9 +965,9 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ca
 {
     const bool isDetailedLoggingEnabled = Host_->Context_->IsDetailedLoggingEnabled(Operation_);
     const auto& Logger = Host_->Logger
-        .WithTag("Node: %v", node->Address())
-        .WithTag("OperationId: %v", Operation_->GetId())
-        .WithTag("AllocationGroup: %v", AllocationGroupName_);
+        .WithTag("Node", node->Address())
+        .WithTag("OperationId", Operation_->GetId())
+        .WithTag("AllocationGroup", AllocationGroupName_);
 
     const auto& nodeTags = node->Descriptor()->Tags;
     if (!Operation_->SchedulingTagFilter().CanSchedule(nodeTags)) {

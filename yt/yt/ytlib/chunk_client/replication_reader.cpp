@@ -316,8 +316,7 @@ public:
         , RpsThrottler_(chunkReaderHost->RpsThrottler)
         , MediumThrottler_(chunkReaderHost->MediumThrottler)
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
-        , Logger(ChunkClientLogger().WithTag("ChunkId: %v",
-            ChunkId_))
+        , Logger(ChunkClientLogger().WithTag("ChunkId", ChunkId_))
         , RequestBatcher_(CreateRequestBatcher(MakeWeak(this)))
         , InitialSeeds_(std::move(seedReplicas))
     {
@@ -990,20 +989,20 @@ protected:
         , MediumThrottler_(std::move(mediumThrottler))
         , CombinedDataByteThrottler_(CreateCombinedDataByteThrottler())
         , RequestBatcher_(reader->RequestBatcher_)
-        , Logger(ChunkClientLogger().WithTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
-            TGuid::Create(),
-            SessionOptions_.ReadSessionId,
-            ChunkId_))
+        , Logger(ChunkClientLogger()
+            .WithTag("SessionId", TGuid::Create())
+            .WithTag("ReadSessionId", SessionOptions_.ReadSessionId)
+            .WithTag("ChunkId", ChunkId_))
     {
         YT_VERIFY(SessionInvoker_);
         YT_VERIFY(SessionInvoker_ != GetSyncInvoker());
 
         if (WorkloadDescriptor_.CompressionFairShareTag) {
-            Logger.AddTag("CompressionFairShareTag: %v", WorkloadDescriptor_.CompressionFairShareTag);
+            Logger.AddTag("CompressionFairShareTag", WorkloadDescriptor_.CompressionFairShareTag);
         }
 
         if (SessionOptions_.Cookie) {
-            Logger.AddTag("Cookie: %x", *SessionOptions_.Cookie);
+            Logger.AddTag("Cookie", *SessionOptions_.Cookie, "%x");
         }
 
         SessionOptions_.ChunkReaderStatistics->RecordSession();
@@ -4022,9 +4021,9 @@ public:
         , CodecId_(codecId)
         , EstimatedSize_(estimatedSize)
     {
-        Logger.AddTag("TableId: %v, Revision: %x",
-            Options_->TableId,
-            Options_->MountRevision);
+        Logger
+            .AddTag("TableId", Options_->TableId)
+            .AddTag("Revision", Options_->MountRevision, "%x");
 
         auto writer = CreateWireProtocolWriter();
         writer->WriteUnversionedRowset(TRange(LookupKeys_));

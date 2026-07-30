@@ -37,9 +37,9 @@ TBlobTableWriter::TBlobTableWriter(
     IThroughputThrottlerPtr throttler,
     IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
     : PartSize_(blobTableWriterConfig->MaxPartSize)
-    , Logger(TableClientLogger().WithTag("TransactionId: %v, ChunkListId: %v",
-        transactionId,
-        chunkListId))
+    , Logger(TableClientLogger()
+        .WithTag("TransactionId", transactionId)
+        .WithTag("ChunkListId", chunkListId))
 {
     YT_LOG_INFO("Creating blob writer");
 

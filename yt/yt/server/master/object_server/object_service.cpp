@@ -482,7 +482,7 @@ public:
         , Codicil_(Format("RequestId: %v, %v",
             RequestId_,
             Identity_))
-        , Logger(ObjectServerLogger().WithTag("RequestId: %v", RequestId_))
+        , Logger(ObjectServerLogger().WithTag("RequestId", RequestId_))
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(Bootstrap_, Logger))
         , PrematureBackoffAlarmProbability_(Owner_->GetPrematureBackoffAlarmProbability())

@@ -69,7 +69,7 @@ public:
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ true,
             ENodeHeartbeatType::Tablet,
-            TabletNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Tablet))
+            TabletNodeLogger().WithTag("HeartbeatType", ENodeHeartbeatType::Tablet))
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetTabletNodeConfig()->MasterConnector)
     {

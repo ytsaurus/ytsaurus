@@ -68,7 +68,7 @@ public:
             config,
             std::move(upstreamChannel),
             profiler.WithPrefix("/upstream_channel")))
-        , Logger(logger.WithTag("RealmId: %v", masterCellId))
+        , Logger(logger.WithTag("RealmId", masterCellId))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10'000)

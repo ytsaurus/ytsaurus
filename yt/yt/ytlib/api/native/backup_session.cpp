@@ -42,8 +42,8 @@ TClusterBackupSession::TClusterBackupSession(
     , Timestamp_(timestamp)
     , Direction_(direction)
     , Logger(logger
-        .WithTag("SessionId: %v", TGuid::Create())
-        .WithTag("Cluster: %v", ClusterName_))
+        .WithTag("SessionId", TGuid::Create())
+        .WithTag("Cluster", ClusterName_))
 { }
 
 TClusterBackupSession::~TClusterBackupSession()

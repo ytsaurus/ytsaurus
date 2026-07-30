@@ -196,7 +196,7 @@ TControllerExternalStateBundle BuildControllerExternalStateBundle(
         context->PipelinePath = pipelinePath;
         context->SerializedInvoker = perRequestInvoker;
         context->StatusProfiler = statusProfiler;
-        context->Logger = logger.WithTag("ExternalStateManager: %v", name);
+        context->Logger = logger.WithTag("ExternalStateManager", name);
 
         auto dynamicContext = New<TDynamicExternalStateManagerContext>();
         auto specIt = computationDynamicSpec->ExternalStateManagers.find(name);
@@ -221,7 +221,7 @@ TControllerExternalStateBundle BuildControllerExternalStateBundle(
         context->PipelinePath = pipelinePath;
         context->SerializedInvoker = perRequestInvoker;
         context->StatusProfiler = statusProfiler;
-        context->Logger = logger.WithTag("ExternalStateJoiner: %v", name);
+        context->Logger = logger.WithTag("ExternalStateJoiner", name);
 
         auto dynamicContext = New<TDynamicExternalStateJoinerContext>();
         auto specIt = computationDynamicSpec->ExternalStateJoiners.find(name);

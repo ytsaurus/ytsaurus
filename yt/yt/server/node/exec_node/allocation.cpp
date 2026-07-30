@@ -196,10 +196,9 @@ TAllocation::TAllocation(
     , Bootstrap_(bootstrap)
     , Id_(id)
     , OperationId_(operationId)
-    , Logger(ExecNodeLogger().WithTag(
-        "AllocationId: %v, OperationId: %v",
-        id,
-        operationId))
+    , Logger(ExecNodeLogger()
+        .WithTag("AllocationId", id)
+        .WithTag("OperationId", operationId))
     , RequestedGpu_(resourceDemand.Gpu)
     , RequestedCpu_(resourceDemand.Cpu)
     , RequestedMemory_(resourceDemand.UserMemory)

@@ -30,9 +30,9 @@ public:
         , CellManager_(std::move(cellManager))
         , ChangelogId_(changelogId)
         , MinRecordCount_(minRecordCount)
-        , Logger(HydraLogger().WithTag("ChangelogId: %v, CellId: %v",
-            ChangelogId_,
-            CellManager_->GetCellId()))
+        , Logger(HydraLogger()
+            .WithTag("ChangelogId", ChangelogId_)
+            .WithTag("CellId", CellManager_->GetCellId()))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(CellManager_);
@@ -153,9 +153,9 @@ public:
         : Config_(config)
         , CellManager_(cellManager)
         , ChangelogId_(changelogId)
-        , Logger(HydraLogger().WithTag("ChangelogId: %v, CellId: %v",
-            ChangelogId_,
-            CellManager_->GetCellId()))
+        , Logger(HydraLogger()
+            .WithTag("ChangelogId", ChangelogId_)
+            .WithTag("CellId", CellManager_->GetCellId()))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(CellManager_);

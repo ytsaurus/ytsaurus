@@ -83,7 +83,6 @@ public:
         , BuildFirstJobOnFinishedInput_(options.BuildFirstJobOnFinishedInput)
     {
         Logger = options.Logger;
-        ValidateLogger(Logger);
         // TODO(max42): why do we need row buffer in unordered pool at all?
         YT_VERIFY(RowBuffer_);
 
@@ -1044,9 +1043,6 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(24, FreeCompressedDataSizeCounter_);
     PHOENIX_REGISTER_FIELD(25, BuildFirstJobOnFinishedInput_);
 
-    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
-        ValidateLogger(this_->Logger);
-    });
 }
 
 PHOENIX_DEFINE_TYPE(TUnorderedChunkPool);

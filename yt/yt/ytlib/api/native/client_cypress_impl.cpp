@@ -1068,9 +1068,9 @@ public:
         const NLogging::TLogger& logger)
         : TCrossCellExecutor(
             std::move(client),
-            logger.WithTag("SrcPath: %v, DstPath: %v",
-                srcPath,
-                dstPath))
+            logger
+                .WithTag("SrcPath", srcPath)
+                .WithTag("DstPath", dstPath))
         , SrcPath_(std::move(srcPath))
         , DstPath_(std::move(dstPath))
         , Options_(options)
@@ -1162,9 +1162,9 @@ public:
         const NLogging::TLogger& logger)
         : TCrossCellExecutor(
             std::move(client),
-            logger.WithTag("Path: %v, CellTag: %v",
-                path,
-                cellTag))
+            logger
+                .WithTag("Path", path)
+                .WithTag("CellTag", cellTag))
         , Path_(std::move(path))
         , Options_(options)
     {

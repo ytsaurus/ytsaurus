@@ -118,7 +118,7 @@ public:
         , TimestampProvider_(std::move(timestampProvider))
         , ParticipantProviders_(std::move(participantProviders))
         , Authenticator_(std::move(authenticator))
-        , Logger(TransactionSupervisorLogger().WithTag("CellId: %v", SelfCellId_))
+        , Logger(TransactionSupervisorLogger().WithTag("CellId", SelfCellId_))
         , StrongOrderingManager_(Logger)
         , TransactionSupervisorService_(New<TTransactionSupervisorService>(this))
         , TransactionParticipantService_(New<TTransactionParticipantService>(this))
@@ -310,7 +310,7 @@ private:
                 NRpc::TDispatcher::Get()->GetLightInvoker(),
                 BIND(&TWrappedParticipant::OnProbation, MakeWeak(this)),
                 Config_->ParticipantProbationPeriod))
-            , Logger(logger.WithTag("ParticipantCellId: %v", CellId_))
+            , Logger(logger.WithTag("ParticipantCellId", CellId_))
         {
             ProbationExecutor_->Start();
         }

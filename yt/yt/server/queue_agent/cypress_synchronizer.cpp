@@ -1056,7 +1056,7 @@ public:
                 DynamicState_,
                 ClientDirectory_,
                 alertCollector,
-                Logger().WithTag("PassIndex: %v", PassIndex_))
+                Logger().WithTag("PassIndex", PassIndex_))
                 .Build();
             PassError_ = TError();
         } catch (const std::exception& ex) {

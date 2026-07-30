@@ -304,7 +304,7 @@ TExternalStateManagerContextPtr TJobStateManager::CreateExternalStateManagerCont
     result->PipelinePath = context->PipelinePath;
     result->SerializedInvoker = context->SerializedInvoker;
     result->StatusProfiler = context->StatusProfiler;
-    result->Logger = context->Logger.WithTag("ExternalStateManager: %v", name);
+    result->Logger = context->Logger.WithTag("ExternalStateManager", name);
     return result;
 }
 
@@ -327,7 +327,7 @@ TExternalStateJoinerContextPtr TJobStateManager::CreateExternalStateJoinerContex
     result->SerializedInvoker = context->SerializedInvoker;
     result->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/external_state_joiner/%v", name));
     result->Profiler = context->Profiler.WithTag("external_state_joiner", name);
-    result->Logger = context->Logger.WithTag("ExternalStateJoiner: %v", name);
+    result->Logger = context->Logger.WithTag("ExternalStateJoiner", name);
     return result;
 }
 
@@ -421,7 +421,7 @@ TJobStateClientContextPtr TJobStateManager::CreateStateJoinerClientContext(
     // The lookup key is the target computation's group-by key; ``key_schema_override`` names
     // which of our own columns carry it (defaulting to our own group-by key when omitted).
     context->KeySchema = spec->JoinOn->KeySchemaOverride ? spec->JoinOn->KeySchemaOverride : Context_->KeySchema;
-    context->Logger = Context_->Logger.WithTag("StateJoiner: %v", name);
+    context->Logger = Context_->Logger.WithTag("StateJoiner", name);
     context->Profiler = Context_->Profiler.WithTag("state_joiner", name);
     // The joiner's TTL cache is keyed by this client name, so it never collides with the
     // owning computation's own state cache.
@@ -439,7 +439,7 @@ TJobStateClientContextPtr TJobStateManager::CreateStateClientContext(const std::
     auto context = New<TJobStateClientContext>();
     context->ComputationId = Context_->ComputationId;
     context->KeySchema = Context_->KeySchema;
-    context->Logger = Context_->Logger.WithTag("State: %v", name);
+    context->Logger = Context_->Logger.WithTag("State", name);
     context->Profiler = Context_->Profiler.WithTag("state", name);
     if (Context_->StateCache) {
         context->StateCache = Context_->StateCache->WithName(name);

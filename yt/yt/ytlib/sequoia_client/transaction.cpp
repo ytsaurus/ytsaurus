@@ -672,7 +672,7 @@ private:
             Logger,
             /*useUniformPrepareSignatures*/ false);
 
-        Logger.AddTag("TransactionId: %v", Transaction_->GetId());
+        Logger.AddTag("TransactionId", Transaction_->GetId());
 
         YT_LOG_DEBUG("Transaction started (StartTimestamp: %v, PrerequisiteTransactionIds: %v)",
             Transaction_->GetStartTimestamp(),

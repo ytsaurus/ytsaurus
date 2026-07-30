@@ -148,7 +148,7 @@ public:
         , MaxPullQueueResponseDataWeight_(maxPullQueueResponseDataWeight)
         , ProfilingUser_(std::move(profilingUser))
         , Invoker_(std::move(invoker))
-        , Logger(TabletNodeLogger().WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId))
+        , Logger(TabletNodeLogger().WithTag("ReadSessionId", chunkReadOptions.ReadSessionId))
         , ChunkReadOptions_(std::move(chunkReadOptions))
         , Writer_(TabletSnapshot_, ChunkReadOptions_)
         , LeftRowCount_(maxRowCount)

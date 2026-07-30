@@ -666,7 +666,7 @@ void TQueueAgent::Pass()
     PassProfiler_.OnStart(PassIndex_, PassInstant_);
 
     auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgent"));
-    auto Logger = QueueAgentLogger().WithTag("PassIndex: %v", PassIndex_);
+    auto Logger = QueueAgentLogger().WithTag("PassIndex", PassIndex_);
 
     YT_LOG_INFO("Pass started");
 

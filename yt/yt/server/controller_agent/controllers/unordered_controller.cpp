@@ -350,7 +350,7 @@ protected:
         options.MinTeleportChunkDataWeight = options.MinTeleportChunkSize;
         options.JobSizeConstraints = JobSizeConstraints_;
         options.SliceErasureChunksByParts = Spec_->SliceErasureChunksByParts;
-        options.Logger = Logger().WithTag("Name: Root");
+        options.Logger = Logger().WithTag("Name", "Root");
 
         return options;
     }

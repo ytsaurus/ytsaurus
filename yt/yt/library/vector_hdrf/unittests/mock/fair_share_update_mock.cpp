@@ -15,7 +15,7 @@ TJobResources CreateCpuResourceLimits(double cpu)
 
 TElementMock::TElementMock(std::string id)
     : Id_(std::move(id))
-    , Logger(FairShareLogger.WithTag("Id: %v", Id_))
+    , Logger(FairShareLogger.WithTag("Id", Id_))
 { }
 
 const TJobResources& TElementMock::GetResourceDemand() const

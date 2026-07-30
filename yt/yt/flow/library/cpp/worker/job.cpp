@@ -130,10 +130,10 @@ public:
         , TraverseData_(std::move(traverseData))
         , WatermarkState_(std::move(watermarkState))
         , Logger(
-            WorkerLogger().WithTag("JobId: %v, PartitionId: %v, ComputationId: %v",
-                JobSpec_->Job->JobId,
-                JobSpec_->Partition->PartitionId,
-                JobSpec_->Partition->ComputationId))
+            WorkerLogger()
+                .WithTag("JobId", JobSpec_->Job->JobId)
+                .WithTag("PartitionId", JobSpec_->Partition->PartitionId)
+                .WithTag("ComputationId", JobSpec_->Partition->ComputationId))
         , Profiler(
             WorkerProfiler()
                 .WithTag("computation_id", JobSpec_->Partition->ComputationId.Underlying())

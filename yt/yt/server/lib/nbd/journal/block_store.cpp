@@ -461,7 +461,7 @@ private:
             : Owner_(MakeWeak(owner))
             , Buffer_(std::move(buffer))
             , BlockCount_(blockCount)
-            , Logger(owner->Logger.WithTag("WriteSessionId: %v", TGuid::Create()))
+            , Logger(owner->Logger.WithTag("WriteSessionId", TGuid::Create()))
             , BackoffStrategy_(owner->Config_->WriteBackoff)
         { }
 

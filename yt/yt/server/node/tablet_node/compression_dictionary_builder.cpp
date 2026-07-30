@@ -101,9 +101,9 @@ public:
         , StoreWeights_(std::move(storeWeights))
         , SemaphoreGuard_(std::move(semaphoreGuard))
         , Logger(TabletNodeLogger()
-            .WithTag("Policy: %v", Policy_)
-            .WithTag("CellId: %v", Slot_->GetCellId())
-            .WithTag("%v", tablet->GetLoggingTag()))
+            .WithTag("Policy", Policy_)
+            .WithTag("CellId", Slot_->GetCellId())
+            .WithTags(tablet->GetLoggingTags()))
     {
         YT_VERIFY(!StoreIds_.empty());
         YT_VERIFY(StoreIds_.size() == StoreWeights_.size());
@@ -121,8 +121,7 @@ public:
                 EMemoryCategory::TabletBackground),
         };
 
-        Logger.AddTag("ReadSessionId: %v",
-            chunkReadOptions.ReadSessionId);
+        Logger.AddTag("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         auto traceContext = TTraceContext::NewRoot("CompressionDictionaryBuilder");
         TTraceContextGuard traceContextGuard(traceContext);
@@ -318,8 +317,7 @@ private:
             transactionOptions))
             .ValueOrThrow();
 
-        Logger.AddTag("TransactionId: %v",
-            transaction->GetId());
+        Logger.AddTag("TransactionId", transaction->GetId());
 
         YT_LOG_DEBUG("Compression dictionary building transaction created (TransactionId: %v)",
             transaction->GetId());
@@ -1091,7 +1089,7 @@ private:
         YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
             "Added compression dictionary build request "
             "(%v, Policy: %v, StoreCount: %v)",
-            tablet->GetLoggingTag(),
+            tablet->GetLoggingTags(),
             policy,
             request.StoreIds.size());
     }
@@ -1126,7 +1124,7 @@ private:
 
         YT_LOG_DEBUG("Compression dictionary builder started new task "
             "(%v, Policy: %v, DictionaryRebuildBackoffTime: %v, StoreCount: %v)",
-            tablet->GetLoggingTag(),
+            tablet->GetLoggingTags(),
             request.Policy,
             request.DictionaryRebuildBackoffTime,
             request.StoreIds.size());

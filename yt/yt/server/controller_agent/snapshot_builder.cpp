@@ -351,7 +351,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
     auto operationId = job->OperationId;
 
     auto Logger = this->Logger
-        .WithTag("OperationId: %v", operationId);
+        .WithTag("OperationId", operationId);
 
     try {
         YT_LOG_INFO("Started uploading snapshot");

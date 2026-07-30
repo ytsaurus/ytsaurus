@@ -117,9 +117,9 @@ public:
             MemoryManagerHolder_ = TChunkReaderMemoryManager::CreateHolder(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
         }
 
-        Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
+        Logger.AddTag("ChunkId", ChunkReader_->GetChunkId());
         if (ChunkReadOptions_.ReadSessionId) {
-            Logger.AddTag("ReadSessionId: %v", ChunkReadOptions_.ReadSessionId);
+            Logger.AddTag("ReadSessionId", ChunkReadOptions_.ReadSessionId);
         }
 
         YT_LOG_DEBUG("Creating file chunk reader (StartOffset: %v, EndOffset: %v)",

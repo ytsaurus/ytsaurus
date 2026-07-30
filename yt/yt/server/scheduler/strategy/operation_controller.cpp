@@ -22,7 +22,7 @@ TOperationController::TOperationController(
     const std::vector<IInvokerPtr>& nodeShardInvokers)
     : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
-    , Logger(StrategyLogger().WithTag("OperationId: %v", OperationId_))
+    , Logger(StrategyLogger().WithTag("OperationId", OperationId_))
     , Config_(config)
     , NodeShardInvokers_(nodeShardInvokers)
     , ScheduleAllocationControllerThrottlingBackoff_(

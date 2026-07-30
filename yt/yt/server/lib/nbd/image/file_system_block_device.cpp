@@ -52,7 +52,7 @@ public:
         , Config_(std::move(config))
         , Reader_(std::move(reader))
         , Invoker_(std::move(invoker))
-        , Logger(logger.WithTag("ExportId: %v", ExportId_))
+        , Logger(logger.WithTag("ExportId", ExportId_))
         , TagSet_(TNbdProfilerCounters::MakeTagSet(Reader_->GetPath()))
         , TraceContext_(GetOrCreateTraceContext("FileSystemBlockDevice"))
     {

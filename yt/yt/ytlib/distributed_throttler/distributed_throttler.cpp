@@ -420,7 +420,9 @@ public:
             config->ObsoleteMembersRemovalPeriod))
         , Throttlers_(std::move(throttlers))
         , ShardCount_(shardCount)
-        , Logger(logger.WithTag("GroupId: %v, ShardCount: %v", GroupId_, ShardCount_))
+        , Logger(logger
+            .WithTag("GroupId", GroupId_)
+            .WithTag("ShardCount", ShardCount_))
         , Config_(std::move(config))
         , MemberShards_(ShardCount_)
         , ThrottlerShards_(ShardCount_)
@@ -1292,10 +1294,10 @@ public:
             BIND(&TDistributedThrottlerFactory::UpdateThrottlersAttributes, MakeWeak(this)),
             config->ThrottlersAttributesUpdatePeriod))
         , RealmId_(TGuid::Create())
-        , Logger(logger.WithTag("SelfMemberId: %v, GroupId: %v, RealmId: %v",
-            MemberId_,
-            GroupId_,
-            RealmId_))
+        , Logger(logger
+            .WithTag("SelfMemberId", MemberId_)
+            .WithTag("GroupId", GroupId_)
+            .WithTag("RealmId", RealmId_))
         , Profiler_(std::move(profiler))
         , Config_(config)
         , DistributedThrottlerService_(New<TDistributedThrottlerService>(

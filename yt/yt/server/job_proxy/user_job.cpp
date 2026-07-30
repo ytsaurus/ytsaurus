@@ -504,7 +504,7 @@ public:
         int permissions)
     {
         auto Logger = this->Logger
-            .WithTag("ArtifactName: %v", artifactName);
+            .WithTag("ArtifactName", artifactName);
 
         YT_LOG_INFO("Preparing artifact");
 

@@ -493,9 +493,8 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
 
         auto Logger = TabletNodeLogger()
-            .WithTag("%v, StoreId: %v",
-                tablet->GetLoggingTag(),
-                store->GetId());
+            .WithTags(tablet->GetLoggingTags())
+            .WithTag("StoreId", store->GetId());
 
         auto traceId = task->Info->TaskId;
         auto traceContext = TTraceContext::NewRoot("StoreFlusher", traceId);

@@ -26,9 +26,9 @@ public:
         , CellManager_(std::move(cellManager))
         , MaxSnapshotId_(maxSnapshotId)
         , ExactId_(exactId)
-        , Logger(HydraLogger().WithTag("CellId: %v, SelfPeerId: %v",
-            CellManager_->GetCellId(),
-            CellManager_->GetSelfPeerId()))
+        , Logger(HydraLogger()
+            .WithTag("CellId", CellManager_->GetCellId())
+            .WithTag("SelfPeerId", CellManager_->GetSelfPeerId()))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(CellManager_);

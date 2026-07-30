@@ -285,7 +285,7 @@ void TThrottlerManager::UpdateDistributedThrottlers()
 
 void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 {
-    auto Logger = this->Logger.WithTag("UpdateClusterThrottlersConfigTag: %v", TGuid::Create());
+    auto Logger = this->Logger.WithTag("UpdateClusterThrottlersConfigTag", TGuid::Create());
 
     YT_LOG_DEBUG("Try update cluster throttlers config");
 
@@ -505,10 +505,10 @@ IThroughputThrottlerPtr TThrottlerManager::DoGetOrCreateThrottler(
     EThrottlerTrafficType trafficType,
     TClusterName clusterName)
 {
-    auto Logger = this->Logger.WithTag("Kind: %v, TrafficType: %v, ClusterName: %v",
-        kind,
-        trafficType,
-        clusterName);
+    auto Logger = this->Logger
+        .WithTag("Kind", kind)
+        .WithTag("TrafficType", trafficType)
+        .WithTag("ClusterName", clusterName);
 
     IThroughputThrottlerPtr localThrottler;
     IThroughputThrottlerPtr distributedThrottler;

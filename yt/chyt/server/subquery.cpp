@@ -1065,7 +1065,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
             TUnorderedChunkPoolOptions{
                 .JobSizeConstraints = jobSizeSpec.JobSizeConstraints,
                 .RowBuffer = queryContext->RowBuffer,
-                .Logger = queryContext->Logger.WithTag("Name: Root"),
+                .Logger = queryContext->Logger.WithTag("Name", "Root"),
             },
             TInputStreamDirectory({TInputStreamDescriptor(false /*isTeleportable*/, true /*isPrimary*/, false /*isVersioned*/)}));
     } else if (queryAnalysisResult.PoolKind == EPoolKind::Sorted) {
@@ -1095,7 +1095,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
                 },
                 .JobSizeConstraints = jobSizeSpec.JobSizeConstraints,
                 .RowBuffer = queryContext->RowBuffer,
-                .Logger = queryContext->Logger.WithTag("Name: Root"),
+                .Logger = queryContext->Logger.WithTag("Name", "Root"),
             },
             CreateCallbackChunkSliceFetcherFactory(BIND([chunkSliceFetcher = std::move(chunkSliceFetcher)] {
                 return chunkSliceFetcher;

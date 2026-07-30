@@ -253,7 +253,9 @@ public:
         TEphemeralObjectPtr<TChunkOwnerBase> node,
         i64 configVersion,
         TWeakPtr<IMergeChunkVisitorHost> chunkVisitorHost)
-        : Logger(ChunkServerLogger().WithTag("NodeId: %v, AccountId: %v", node->GetId(), node->Account()->GetId()))
+        : Logger(ChunkServerLogger()
+            .WithTag("NodeId", node->GetId())
+            .WithTag("AccountId", node->Account()->GetId()))
         , Bootstrap_(bootstrap)
         , Node_(std::move(node))
         , NodeId_(Node_->GetId())

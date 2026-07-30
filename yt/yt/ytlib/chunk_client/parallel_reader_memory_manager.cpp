@@ -41,7 +41,7 @@ public:
         , Host_(std::move(host))
         , Invoker_(std::move(invoker))
         , Logger(ReaderMemoryManagerLogger()
-            .WithTag("ManagerId: %v", Id_))
+            .WithTag("ManagerId", Id_))
         , ProfilingTagList_(std::move(Options_.ProfilingTagList))
         , Profiler_(
             Options_.EnableProfiling

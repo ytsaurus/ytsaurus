@@ -280,7 +280,7 @@ public:
         , LogicalTime_(Owner_->GetLogicalTime())
         , SelfPeerId_(owner->GetEpochContext()->CellManager->GetSelfPeerId())
     {
-        Logger = Owner_->Logger().WithTag("SnapshotId: %v", SnapshotId_);
+        Logger = Owner_->Logger().WithTag("SnapshotId", SnapshotId_);
     }
 
     ~TSnapshotBuilderBase()
@@ -1164,9 +1164,9 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
 
     TFiberMinLogLevelGuard minLogLevelGuard(Config_->Get()->RecoveryMinLogLevel);
     TFiberMessageTagGuard messageTagGuard(
-        Format("PhysicalMutationVersion: %v, Recovery: %v",
-            mutationVersion,
-            true),
+        NLogging::TLoggingTagList()
+            .With("PhysicalMutationVersion", mutationVersion)
+            .With("Recovery", true),
         TFiberMessageTagGuard::EMode::Replace);
 
     TMutationApplicationResult result;
@@ -1369,7 +1369,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
 
     TMutationApplicationResult result;
     TFiberMessageTagGuard messageTagGuard(
-        Format("PhysicalMutationVersion: %v", mutation->Version),
+        NLogging::TLoggingTagList().With("PhysicalMutationVersion", mutation->Version),
         TFiberMessageTagGuard::EMode::Replace);
 
     {
@@ -1424,7 +1424,17 @@ void TDecoratedAutomaton::DoApplyMutation(
         auto logicalMutationVersion = mutationContext->GetVersion();
 
         TCodicilGuard codicilGuard([&] (TCodicilFormatter* formatter) {
-            formatter->AppendString(Logger.GetTag());
+            NLogging::TTaggedPayloadReader tagReader(NLogging::AsView(Logger.GetTags().GetPayload()));
+            bool firstTag = true;
+            while (auto tag = tagReader.TryReadTag()) {
+                if (!firstTag) {
+                    formatter->AppendString(", "_sb);
+                }
+                firstTag = false;
+                formatter->AppendString(tag->Key);
+                formatter->AppendString(": "_sb);
+                formatter->AppendString(tag->Value);
+            }
             formatter->AppendString(", Version: ");
             formatter->AppendNumber(logicalMutationVersion.SegmentId);
             formatter->AppendString(":");

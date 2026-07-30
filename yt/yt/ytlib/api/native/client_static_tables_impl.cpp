@@ -229,7 +229,9 @@ TMultiTablePartitions TClient::DoPartitionTables(
         options,
         Options_.GetAuthenticatedUser(),
         // TODO(galtsev): OperationId
-        Logger().WithTag("Name: Root").WithTag("OperationId: %v", NJobTrackerClient::NullOperationId));
+        Logger()
+            .WithTag("Name", "Root")
+            .WithTag("OperationId", NJobTrackerClient::NullOperationId));
 
     return partitioner.PartitionTables();
 }

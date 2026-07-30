@@ -217,7 +217,7 @@ private:
     const TGuid ServerId_ = TGuid::Create();
 
     const NLogging::TLogger Logger = NbdLogger()
-        .WithTag("ServerId: %v", ServerId_);
+        .WithTag("ServerId", ServerId_);
 
     const TNbdServerConfigPtr Config_;
     const IPollerPtr Poller_;
@@ -252,7 +252,7 @@ private:
             IConnectionPtr connection)
             : Server_(std::move(server))
             , Connection_(std::move(connection))
-            , Logger(Server_->GetLogger().WithTag("ConnectionId: %v", ConnectionId_))
+            , Logger(Server_->GetLogger().WithTag("ConnectionId", ConnectionId_))
             , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->GetInvoker(), /*maxConcurrentInvocations*/ 1))
         { }
 
@@ -481,7 +481,7 @@ private:
                 status.ExportName = name;
             });
 
-            Logger.AddTag("DeviceName: %v", name);
+            Logger.AddTag("DeviceName", name);
 
             auto flags =
                 ETransmissionFlags::NBD_FLAG_HAS_FLAGS |

@@ -46,12 +46,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A helper function for chunk pool logger validation.
-//! Yes, we are that serious when it comes to logging.
-void ValidateLogger(const NLogging::TLogger& logger);
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Merges multiple stripe lists into a single stripe list.
 // If partition tags are present, deduplicates chunks and accumulates partition tags and statistics.
 // If partition tags are absent, preserves all stripes without deduplication (for testing purposes).

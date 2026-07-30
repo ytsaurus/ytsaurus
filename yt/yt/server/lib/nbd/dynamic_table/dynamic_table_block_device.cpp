@@ -292,7 +292,7 @@ public:
         : DeviceId_(CityHash64(deviceId.data(), deviceId.size()))
         , DeviceConfig_(std::move(deviceConfig))
         , Client_(std::move(client))
-        , Logger(logger.WithTag("DeviceId: %v", deviceId))
+        , Logger(logger.WithTag("DeviceId", deviceId))
         , BlockCache_(New<TBlockCache>(DeviceId_, DeviceConfig_, Client_, Logger))
     { }
 

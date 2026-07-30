@@ -454,7 +454,7 @@ private:
         if (mountRevision != tablet->GetMountRevision()) {
             YT_LOG_DEBUG("Mount revision mismatch; write ignored "
                 "(%v, TransactionId: %v, MutationMountRevision: %x, CurrentMountRevision: %x)",
-                tablet->GetLoggingTag(),
+                tablet->GetLoggingTags(),
                 transactionId,
                 mountRevision,
                 tablet->GetMountRevision());
@@ -475,7 +475,7 @@ private:
             if (!lostHunkStoreIds.empty()) {
                 YT_LOG_ALERT("Hunk store locks are lost; write ignored "
                     "(%v, TransactionId: %v, HunkStoreIds: %v)",
-                    tablet->GetLoggingTag(),
+                    tablet->GetLoggingTags(),
                     transactionId,
                     lostHunkStoreIds);
                 return;
@@ -548,7 +548,7 @@ private:
                 if (tablet->GetState() == ETabletState::Orphaned) {
                     YT_LOG_DEBUG("Tablet is orphaned; non-atomic write ignored "
                         "(%v, TransactionId: %v)",
-                        tablet->GetLoggingTag(),
+                        tablet->GetLoggingTags(),
                         transactionId);
                     return;
                 }
@@ -750,7 +750,7 @@ private:
         TReqWriteRows request)
     {
         YT_LOG_DEBUG("Forwarding writes to sibling servant (%v, TransactionId: %v)",
-            tablet->GetLoggingTag(),
+            tablet->GetLoggingTags(),
             transactionId);
 
         TTransactionExternalizationToken token(tablet->SmoothMovementData().GetSiblingAvenueEndpointId());
@@ -1019,7 +1019,7 @@ private:
             if (tabletWriteManager->HasWriteState(transaction)) {
                 YT_LOG_ALERT("Tablet still has transation write state on transaction finish "
                     "(%v, TransactionId: %v)",
-                    tablet->GetLoggingTag(),
+                    tablet->GetLoggingTags(),
                     transaction->GetId());
             }
         }

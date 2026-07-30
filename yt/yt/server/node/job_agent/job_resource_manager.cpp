@@ -1780,7 +1780,7 @@ TResourceHolder::TResourceHolder(
     const TJobResources& resources)
     : ResourcesConsumerType(resourceConsumerType)
     , Id_(id)
-    , Logger(NJobAgent::Logger().WithTag("ResourceHolderId: %v", id))
+    , Logger(NJobAgent::Logger().WithTag("ResourceHolderId", id))
     , ResourceManagerImpl_(static_cast<TJobResourceManager::TImpl*>(jobResourceManager))
     , BaseResourceUsage_(resources)
     , AdditionalResourceUsage_(ZeroJobResources())

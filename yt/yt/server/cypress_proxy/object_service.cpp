@@ -294,7 +294,7 @@ public:
         , ForceUseTargetCellTag_(
             targetCellTag != Owner_->Connection_->GetPrimaryMasterCellTag())
         , DynamicConfig_(Owner_->GetDynamicConfig())
-        , Logger(Owner_->Logger.WithTag("RequestId: %v", RpcContext_->GetRequestId()))
+        , Logger(Owner_->Logger.WithTag("RequestId", RpcContext_->GetRequestId()))
     { }
 
     void Run()

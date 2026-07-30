@@ -221,7 +221,7 @@ private:
                 return self ? self->Priority_.load(std::memory_order::relaxed) : TPriority{0};
             },
             StatusProfiler_->WithPrefix(Format("/%v", throttlerName)),
-            Logger_.WithTag("ThrottlerName: %v", throttlerName),
+            Logger_.WithTag("ThrottlerName", throttlerName),
             Profiler_
                 .WithTag("throttler_id", TString(throttlerName)));
     }

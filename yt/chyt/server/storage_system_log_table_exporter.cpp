@@ -746,7 +746,7 @@ void RegisterStorageSystemLogTableExporter(
         auto exportersConfig = host->GetConfig()->SystemLogTableExporters;
         auto config = GetOrDefault(exportersConfig->Tables, args.table_id.table_name, exportersConfig->Default);
 
-        auto logger = SystemLogTableExporterLogger().WithTag("TableName: %v", args.table_id.getFullTableName());
+        auto logger = SystemLogTableExporterLogger().WithTag("TableName", args.table_id.getFullTableName());
 
         TSystemLogExporterPtr logExporter;
         if (config->Enabled) {

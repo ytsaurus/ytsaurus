@@ -82,8 +82,8 @@ public:
         YT_VERIFY(node->IsCellarNode());
 
         auto Logger = CellServerLogger()
-            .WithTag("NodeId: %v", node->GetId())
-            .WithTag("Address: %v", node->GetDefaultAddress());
+            .WithTag("NodeId", node->GetId())
+            .WithTag("Address", node->GetDefaultAddress());
 
         THashSet<ECellarType> seenCellarTypes;
         for (auto& cellarInfo : *request->mutable_cellars()) {

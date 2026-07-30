@@ -56,7 +56,7 @@ public:
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TChunkServiceProxy::GetDescriptor(),
-            ClusterNodeLogger().WithTag("CellTag: %v", CellTagFromId(cellId)),
+            ClusterNodeLogger().WithTag("CellTag", CellTagFromId(cellId)),
             TServiceOptions{
                 .RealmId = cellId,
                 .Authenticator = std::move(authenticator),

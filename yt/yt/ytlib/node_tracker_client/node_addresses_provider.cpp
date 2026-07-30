@@ -80,7 +80,7 @@ public:
                 .Period = syncPeriod,
                 .Splay = syncPeriodSplay,
             }))
-        , Logger(NodeTrackerClientLogger().WithTag("NodeRole: %v", NodeRole_))
+        , Logger(NodeTrackerClientLogger().WithTag("NodeRole", NodeRole_))
         , NullChannel_(ChannelBuilder_({}))
     { }
 

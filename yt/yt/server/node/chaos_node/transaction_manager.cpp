@@ -80,7 +80,7 @@ public:
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
-        Logger = ChaosNodeLogger().WithTag("CellId: %v", slot->GetCellId());
+        Logger = ChaosNodeLogger().WithTag("CellId", slot->GetCellId());
 
         YT_LOG_INFO("Set transaction manager clock cluster tag (ClockClusterTag: %v)",
             ClockClusterTag_);

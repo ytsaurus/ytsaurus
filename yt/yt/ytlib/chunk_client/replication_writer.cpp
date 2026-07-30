@@ -386,7 +386,7 @@ public:
         , Throttler_(std::move(throttler))
         , BlockCache_(std::move(blockCache))
         , TrafficMeter_(std::move(trafficMeter))
-        , Logger(ChunkClientLogger().WithTag("ChunkId: %v", SessionId_))
+        , Logger(ChunkClientLogger().WithTag("ChunkId", SessionId_))
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , WindowSlots_(New<TAsyncSemaphore>(Config_->SendWindowSize))
         , UploadReplicationFactor_(Config_->UploadReplicationFactor)

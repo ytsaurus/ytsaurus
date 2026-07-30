@@ -63,7 +63,7 @@ INodePtr ConvertToNodeWithUtf8Decoding(const Py::Object& obj)
 
 TDriverBase::TDriverBase()
     : Id_(TGuid::Create())
-    , Logger(NYT::NPython::Logger().WithTag("DriverId: %v", Id_))
+    , Logger(NYT::NPython::Logger().WithTag("DriverId", Id_))
 { }
 
 void TDriverBase::Initialize(const IDriverPtr& driver, const INodePtr& configNode)

@@ -235,7 +235,7 @@ struct TTabletSnapshot
     NHydra::TCellId CellId;
     TWeakPtr<NHydra::ISimpleHydraManager> HydraManager;
     NTabletClient::TTabletId TabletId;
-    std::string LoggingTag;
+    NLogging::TLoggingTagList LoggingTags;
     NYPath::TYPath TablePath;
     TTableSettings Settings;
     TRawTableSettings RawSettings;
@@ -904,7 +904,7 @@ public:
 
     void UpdateReplicaCounters();
 
-    const std::string& GetLoggingTag() const;
+    const NLogging::TLoggingTagList& GetLoggingTags() const;
 
     std::optional<std::string> GetPoolTagByMemoryCategory(EMemoryCategory category) const;
 
@@ -1021,7 +1021,7 @@ private:
 
     TTableSettings Settings_;
 
-    std::string LoggingTag_;
+    NLogging::TLoggingTagList LoggingTags_;
 
     IStoreManagerPtr StoreManager_;
 

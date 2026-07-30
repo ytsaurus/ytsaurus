@@ -320,7 +320,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const std::string& GetLoggingTag() const override
+    const NLogging::TLoggingTagList& GetLoggingTags() const override
     {
         YT_UNIMPLEMENTED();
     }

@@ -488,7 +488,7 @@ private:
         context->ResourceManager = MakeWeak(this);
         context->PipelineAuthenticator = ManagerContext_->PipelineAuthenticator;
         context->Invoker = Invoker_;
-        context->Logger = Logger.WithTag("Resource: %v", resourceId.Underlying());
+        context->Logger = Logger.WithTag("Resource", resourceId);
         context->Profiler = ManagerContext_->Profiler.WithTag("resource", resourceId.Underlying()).WithPrefix("/resource");
         context->StatusProfiler = ManagerContext_->StatusProfiler->WithPrefix(Format("/resources/%v", resourceId));
 

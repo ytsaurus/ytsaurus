@@ -876,14 +876,14 @@ private:
             Config_->InThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
             InThrottler_ = CreateFairThrottler(
                 Config_->InThrottler,
-                ClusterNodeLogger().WithTag("Direction: %v", "In"),
+                ClusterNodeLogger().WithTag("Direction", "In"),
                 ClusterNodeProfiler().WithPrefix("/in_throttler"));
             DefaultInThrottler_ = CreateInThrottler("default");
 
             Config_->OutThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
             OutThrottler_ = CreateFairThrottler(
                 Config_->OutThrottler,
-                ClusterNodeLogger().WithTag("Direction: %v", "Out"),
+                ClusterNodeLogger().WithTag("Direction", "Out"),
                 ClusterNodeProfiler().WithPrefix("/out_throttler"));
             DefaultOutThrottler_ = CreateOutThrottler("default");
         } else {

@@ -770,7 +770,8 @@ TLayerMeta TLayerLocation::DoImportLayer(const TArtifactKey& artifactKey, const 
     auto dynamicConfig = DynamicConfig_.Acquire();
 
     auto Logger = ExecNodeLogger()
-        .WithTag("Tag: %v, LayerId: %v", tag, layerId);
+        .WithTag("Tag", tag)
+        .WithTag("LayerId", layerId);
 
     LayerImportsInProgress_.fetch_add(1);
 
@@ -895,7 +896,8 @@ void TLayerLocation::DoRemoveLayer(const TLayerId& layerId)
     auto layerMetaPath = GetLayerMetaPath(layerId);
 
     auto Logger = ExecNodeLogger()
-        .WithTag("LayerId: %v, LayerPath: %v", layerId, layerPath);
+        .WithTag("LayerId", layerId)
+        .WithTag("LayerPath", layerPath);
 
     {
         auto guard = Guard(SpinLock_);
@@ -961,10 +963,9 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
     std::string mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
     auto Logger = ExecNodeLogger()
-        .WithTag("Tag: %v, VolumeType: %v, VolumeId: %v",
-            tag,
-            volumeType,
-            volumeId);
+        .WithTag("Tag", tag)
+        .WithTag("VolumeType", volumeType)
+        .WithTag("VolumeId", volumeId);
 
     try {
         YT_LOG_DEBUG("Creating volume");
@@ -1319,11 +1320,10 @@ void TLayerLocation::DoRemoveVolume(
     auto volumeMetaPath = GetVolumeMetaPath(volumeId, portoPlacePath);
 
     auto Logger = ExecNodeLogger()
-        .WithTag("VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v, PortoPlacePath: %v",
-            volumeId,
-            volumePath,
-            volumeMetaPath,
-            portoPlacePath);
+        .WithTag("VolumeId", volumeId)
+        .WithTag("VolumePath", volumePath)
+        .WithTag("VolumeMetaPath", volumeMetaPath)
+        .WithTag("PortoPlacePath", portoPlacePath);
 
     YT_LOG_DEBUG("Removing volume");
 
@@ -1500,7 +1500,7 @@ void TLayerLocation::RemoveLayers(
     auto portoPlace = (!Config_->LocationIsAbsolute && !place.starts_with("//") ? "//" : "") + place;
 
     auto Logger = ExecNodeLogger()
-        .WithTag("Place: %v", portoPlace);
+        .WithTag("Place", portoPlace);
 
     YT_LOG_DEBUG(
         "Removing layers from porto place (Timeout: %v)",
@@ -1564,7 +1564,7 @@ void TLayerLocation::RemoveVolumes(
     auto deadline = startTime + timeout;
 
     auto Logger = ExecNodeLogger()
-        .WithTag("Path: %v", path);
+        .WithTag("Path", path);
 
     YT_LOG_DEBUG(
         "Removing volumes from path (Deadline: %v)",

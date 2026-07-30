@@ -322,7 +322,7 @@ TInputTableInfo CollectInputTableInfo(
     const TGetUserObjectBasicAttributesOptions& getBasicAttributesOptions,
     const TLogger& logger)
 {
-    auto Logger = logger.WithTag("Path: %v", path.GetPath());
+    auto Logger = logger.WithTag("Path", path.GetPath());
 
     TUserObject userObject(path);
 

@@ -260,7 +260,7 @@ private:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgentShardingManager"));
 
-        auto Logger = QueueAgentShardingManagerLogger().WithTag("PassIndex: %v", PassIndex_);
+        auto Logger = QueueAgentShardingManagerLogger().WithTag("PassIndex", PassIndex_);
 
         YT_LOG_INFO("Pass started");
         auto logFinally = Finally([&] {

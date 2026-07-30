@@ -123,7 +123,7 @@ TCompactionHintFetcher::TCompactionHintFetcher(
         .FinishedRequestCount = Profiler_.Counter("/finished_request_count"),
         .FailedRequestCount = Profiler_.Counter("/failed_request_count"),
         .ParseCumulativeTime = Profiler_.TimeCounter("/parse_cumulative_time"),
-        .Logger = std::move(logger).WithTag("CellId: %v", cellId),
+        .Logger = std::move(logger).WithTag("CellId", cellId),
     }
     , Logger(Context_.Logger)
 { }

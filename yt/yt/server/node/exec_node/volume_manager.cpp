@@ -547,10 +547,9 @@ public:
         auto userSandboxOptions = options.UserSandboxOptions;
 
         auto Logger = ExecNodeLogger()
-            .WithTag("Tag: %v, JobId: %v, LayerCount: %v",
-                tag,
-                options.JobId,
-                overlayDataArray.size());
+            .WithTag("Tag", tag)
+            .WithTag("JobId", options.JobId)
+            .WithTag("LayerCount", overlayDataArray.size());
 
         YT_LOG_DEBUG("Preparing root volume");
 
@@ -956,10 +955,9 @@ private:
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
         auto Logger = ExecNodeLogger()
-            .WithTag("Tag: %v, JobId: %v, OverlayDataArraySize: %v",
-                tag,
-                jobId,
-                overlayDataArray.size());
+            .WithTag("Tag", tag)
+            .WithTag("JobId", jobId)
+            .WithTag("OverlayDataArraySize", overlayDataArray.size());
 
         YT_LOG_DEBUG("Creating overlay volume");
 

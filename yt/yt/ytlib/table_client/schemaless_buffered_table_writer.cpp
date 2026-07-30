@@ -68,7 +68,7 @@ public:
             EmptyBuffers_.push(buffer.get());
         }
 
-        Logger.AddTag("Path: %v", Path_);
+        Logger.AddTag("Path", Path_);
 
         FlushExecutor_->Start();
     }

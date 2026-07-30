@@ -166,7 +166,9 @@ TQueryHandlerBase::TQueryHandlerBase(
     , SettingsNode_(ConvertToNode(activeQuery.Settings))
     , IsIndexed_(activeQuery.IsIndexed)
     , AcquisitionTime_(TInstant::Now())
-    , Logger(NQueryTracker::Logger().WithTag("QueryId: %v, Engine: %v", activeQuery.Key.QueryId, activeQuery.Engine))
+    , Logger(NQueryTracker::Logger()
+        .WithTag("QueryId", activeQuery.Key.QueryId)
+        .WithTag("Engine", activeQuery.Engine))
     , ProgressWriter_(New<TPeriodicExecutor>(ControlInvoker_, BIND(&TQueryHandlerBase::TryWriteProgress, MakeWeak(this)), Config_->QueryProgressWritePeriod))
     , NotIndexedQueriesTTL_(notIndexedQueriesTTL)
 {

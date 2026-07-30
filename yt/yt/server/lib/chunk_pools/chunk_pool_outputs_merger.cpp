@@ -46,8 +46,6 @@ public:
         , RowCounterGuard_(RowCounter_)
         , DataSliceCounterGuard_(DataSliceCounter_)
     {
-        ValidateLogger(Logger);
-
         for (int poolIndex : std::views::iota(0, std::ssize(ChunkPools_))) {
             const auto& chunkPool = ChunkPools_[poolIndex];
 

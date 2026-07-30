@@ -160,9 +160,8 @@ public:
         , PivotKey_(tablet->GetPivotKey())
         , NextPivotKey_(tablet->GetNextPivotKey())
         , Logger(TabletNodeLogger()
-            .WithTag("%v, UpstreamReplicaId: %v",
-                tablet->GetLoggingTag(),
-                ReplicaId_))
+            .WithTags(tablet->GetLoggingTags())
+            .WithTag("UpstreamReplicaId", ReplicaId_))
         , ReplicationThrottler_(CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger))
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeInThrottler),

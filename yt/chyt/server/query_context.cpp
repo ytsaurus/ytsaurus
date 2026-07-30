@@ -129,7 +129,7 @@ TFuture<std::vector<TErrorOr<TObjectLock>>> DoAcquireSnapshotLocksAsync(
 TStorageContext::TStorageContext(int index, DB::ContextPtr context, TQueryContext* queryContext)
     : Index(index)
     , QueryContext(queryContext)
-    , Logger(queryContext->Logger.WithTag("StorageIndex: %v", Index))
+    , Logger(queryContext->Logger.WithTag("StorageIndex", Index))
 {
     YT_LOG_INFO("Storage context created");
 
@@ -198,9 +198,9 @@ TQueryContext::TQueryContext(
     , AdditionalQueryIds_(std::move(additionalQueryIds))
     , HttpHeaders_(std::move(httpHeaders))
 {
-    Logger.AddTag("QueryId: %v", QueryId);
+    Logger.AddTag("QueryId", QueryId);
     if (DataLensRequestId) {
-        Logger.AddTag("DataLensRequestId: %v", DataLensRequestId);
+        Logger.AddTag("DataLensRequestId", DataLensRequestId);
     }
 
     YT_LOG_INFO("Query context created (User: %v, QueryKind: %v)", User, QueryKind);
@@ -238,8 +238,9 @@ TQueryContext::TQueryContext(
 
         QueryDepth = secondaryQueryHeader->QueryDepth;
 
-        Logger.AddTag("InitialQueryId: %v", InitialQueryId);
-        Logger.AddTag("ParentQueryId: %v", ParentQueryId);
+        Logger
+            .AddTag("InitialQueryId", InitialQueryId)
+            .AddTag("ParentQueryId", ParentQueryId);
     }
     Interface = static_cast<EInterface>(clientInfo.interface);
     if (Interface == EInterface::HTTP) {

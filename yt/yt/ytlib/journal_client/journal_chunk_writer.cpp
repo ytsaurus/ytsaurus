@@ -71,7 +71,7 @@ public:
         , ReplicaCount_(GetReplicaCount(Options_))
         , Invoker_(CreateSerializedInvoker(std::move(invoker)))
         , WriteTargets_(std::move(targets))
-        , Logger(logger.WithTag("ChunkId: %v", ChunkId_))
+        , Logger(logger.WithTag("ChunkId", ChunkId_))
     {
         YT_VERIFY(IsJournalFormat(chunkFormat));
         if (WriteTargets_) {

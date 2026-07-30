@@ -459,7 +459,7 @@ public:
             /*bypassArtifactCache*/ false);
 
         auto Logger = ExecNodeLogger()
-            .WithTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId);
+            .WithTag("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         // NB: Artifact key is being formatted as prototext and is pretty verbose.
         // We avoid annotating each relevant line with the full key and log the key
@@ -690,7 +690,7 @@ private:
         auto cookieValue = cookie.GetValue();
         auto canPrepareSingleChunk = CanPrepareSingleChunk(key);
         auto chunkId = GetOrCreateArtifactId(key, canPrepareSingleChunk);
-        Logger.AddTag("ChunkId: %v", chunkId);
+        Logger.AddTag("ChunkId", chunkId);
 
         auto [location, lockedChunkGuard] = AcquireNewChunkLocation(chunkId);
         if (!location) {
@@ -700,7 +700,7 @@ private:
             return;
         }
 
-        Logger.AddTag("LocationId: %v", location->GetId());
+        Logger.AddTag("LocationId", location->GetId());
 
         YT_LOG_INFO("Loading artifact into cache");
 
@@ -751,9 +751,9 @@ private:
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
 
-        Logger.AddTag("ChunkId: %v, LocationId: %v",
-            chunkId,
-            location->GetId());
+        Logger
+            .AddTag("ChunkId", chunkId)
+            .AddTag("LocationId", location->GetId());
 
         if (!CanPrepareSingleChunk(key)) {
             YT_LOG_INFO("Skipping validation for multi-chunk artifact");

@@ -439,28 +439,28 @@ TError TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDir
                 hint.SmoothMovementRedirectionHint.CellDescriptor = ConvertToNode(cellDescriptor);
             } else {
                 YT_LOG_DEBUG("Sibling servant cell descriptor is missing in cell directory (%v)",
-                    LoggingTag);
+                    LoggingTags);
             }
 
             return error
                 << TErrorAttribute("redirection_hint", hint);
         } else if (smoothMovementData.TargetActivationFuture) {
             YT_LOG_DEBUG("Started waiting for target servant activation future (%v)",
-                LoggingTag);
+                LoggingTags);
             if (auto activationError = WaitFor(smoothMovementData.TargetActivationFuture);
                 !activationError.IsOK())
             {
                 return activationError;
             }
             YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
-                LoggingTag);
+                LoggingTags);
 
             // NB: Violation of this condition is not critical and will not cause any
             // read anomalies though should be examined.
             YT_LOG_ALERT_UNLESS(
                 smoothMovementData.IsActiveServant.load(),
                 "Tablet servant is not active after waiting for servant activation future is completed (%v)",
-                    LoggingTag);
+                    LoggingTags);
         }
 
         if (!smoothMovementData.IsActiveServant.load()) {
@@ -898,7 +898,7 @@ TTablet::TTablet(
     , Context_(context)
     , LockManager_(New<TLockManager>())
     , HunkLockManager_(CreateHunkLockManager(this, Context_))
-    , Logger(TabletNodeLogger().WithTag("TabletId: %v", Id_))
+    , Logger(TabletNodeLogger().WithTag("TabletId", Id_))
     , Settings_(TTableSettings::CreateNew())
 {
     LookupHeavyHitters_.RowCount = New<TRowHeavyHitters>(Settings_.MountConfig->LookupHeavyHitters);
@@ -948,7 +948,7 @@ TTablet::TTablet(
     , IdGenerator_(idGenerator)
     , LockManager_(New<TLockManager>())
     , HunkLockManager_(CreateHunkLockManager(this, Context_))
-    , Logger(TabletNodeLogger().WithTag("TabletId: %v", Id_))
+    , Logger(TabletNodeLogger().WithTag("TabletId", Id_))
     , Settings_(std::move(settings))
     , Eden_(std::make_unique<TPartition>(
         this,
@@ -2172,7 +2172,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     }
 
     snapshot->TabletId = Id_;
-    snapshot->LoggingTag = LoggingTag_;
+    snapshot->LoggingTags = LoggingTags_;
     snapshot->MountRevision = MountRevision_;
     snapshot->TablePath = TablePath_;
     snapshot->TableId = TableId_;
@@ -2370,10 +2370,10 @@ void TTablet::Initialize()
         New<TThroughputThrottlerConfig>(),
         Logger);
 
-    LoggingTag_ = Format("TabletId: %v, TableId: %v, TablePath: %v",
-        Id_,
-        TableId_,
-        TablePath_);
+    LoggingTags_ = NLogging::TLoggingTagList()
+        .With("TabletId", Id_)
+        .With("TableId", TableId_)
+        .With("TablePath", TablePath_);
 }
 
 void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
@@ -2570,9 +2570,9 @@ void TTablet::ReconfigureChunkFragmentReader(const ITabletSlotPtr& slot)
     ChunkFragmentReader_ = slot->CreateChunkFragmentReader(this);
 }
 
-const std::string& TTablet::GetLoggingTag() const
+const NLogging::TLoggingTagList& TTablet::GetLoggingTags() const
 {
-    return LoggingTag_;
+    return LoggingTags_;
 }
 
 std::optional<std::string> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
@@ -2776,7 +2776,7 @@ void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp, std
         YT_LOG_DEBUG("Mount revision mismatch during advancement of the transient conflict horizon timestamp, "
             "skipping update (%v, ExpectedMountRevision: %v, CurrentMountRevision: %v, "
             "CurrentPersistentConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, AdvancingTimestamp: %v)",
-            GetLoggingTag(),
+            GetLoggingTags(),
             *expectedMountRevision,
             MountRevision_,
             PersistentConflictHorizonTimestamp_,
@@ -2793,7 +2793,7 @@ void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp, std
     YT_LOG_FATAL_IF(timestamp > PersistentConflictHorizonTimestamp_,
         "Advancing TransientConflictHorizonTimestamp would cause it to exceed TransientConflictHorizonTimestamp "
         "(%v, NextTransientConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, PersistentConflictHorizonTimestamp: %v)",
-        GetLoggingTag(),
+        GetLoggingTags(),
         timestamp,
         TransientConflictHorizonTimestamp_,
         PersistentConflictHorizonTimestamp_);
@@ -2965,7 +2965,7 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
             YT_LOG_ALERT("Replicated content concains nonzero reserved "
                 "dynamic store count with unknown reason "
                 "(%v, Reason: %v, Count: %v)",
-                GetLoggingTag(),
+                GetLoggingTags(),
                 reason,
                 count);
         }
@@ -2979,7 +2979,7 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
         auto replicationCardId = GetReplicationCardId();
 
         YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
-            GetLoggingTag(),
+            GetLoggingTags(),
             replicationCardId,
             progress);
 
@@ -3011,7 +3011,7 @@ i64 TTablet::Unlock(ETabletLockType lockType)
     YT_LOG_FATAL_IF(TabletLockCount_[lockType] <= 0 || TotalTabletLockCount_ <= 0,
         "Attempted to unlock tablet with nonpositive lock count "
         "(%v, LockType: %lv, TotalTabletLockCount: %v, LockCountPerType: %v)",
-        GetLoggingTag(),
+        GetLoggingTags(),
         lockType,
         TotalTabletLockCount_,
         MakeFormattableView(
@@ -3072,7 +3072,7 @@ void TTablet::PushDynamicStoreIdToPool(
     DynamicStoreIdPool_.push_back(storeId);
 
     YT_LOG_DEBUG("Dynamic store id added to pool (%v, StoreId: %v, Reason: %lv)",
-        LoggingTag_,
+        LoggingTags_,
         storeId,
         reservationReason);
 
@@ -3093,7 +3093,7 @@ void TTablet::ReleaseReservedDynamicStoreId(
     EDynamicStoreIdReservationReason reason)
 {
     YT_LOG_DEBUG("Reserved dynamic store id released from pool (%v, Reason: %lv)",
-        LoggingTag_,
+        LoggingTags_,
         reason);
 
     YT_VERIFY(ReservedDynamicStoreIdCount_[reason] > 0);
@@ -3257,7 +3257,7 @@ void TTablet::RecomputeCommittedReplicationRowIndices()
 void TTablet::CheckedSetBackupStage(EBackupStage previous, EBackupStage next)
 {
     YT_LOG_DEBUG("Tablet backup stage changed (%v, BackupStage: %v -> %v)",
-        GetLoggingTag(),
+        GetLoggingTags(),
         previous,
         next);
     YT_VERIFY(GetBackupStage() == previous);

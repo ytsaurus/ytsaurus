@@ -23,7 +23,9 @@ TS3UploadSessionBase::TS3UploadSessionBase(
     const NLogging::TLogger& logger)
     : Client_(std::move(client))
     , ObjectPlacement_(std::move(objectPlacement))
-    , Logger(logger.WithTag("Bucket: %v, Key: %v", ObjectPlacement_.Bucket, ObjectPlacement_.Key))
+    , Logger(logger
+        .WithTag("Bucket", ObjectPlacement_.Bucket)
+        .WithTag("Key", ObjectPlacement_.Key))
     , UnderlyingInvoker_(std::move(invoker))
     , UploadSessionCancelableContext_(New<TCancelableContext>())
 {

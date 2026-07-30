@@ -81,8 +81,7 @@ TBlockFetcher::TBlockFetcher(
     }
 
     if (ChunkReadOptions_.ReadSessionId) {
-        Logger.AddTag("ReadSessionId: %v",
-            ChunkReadOptions_.ReadSessionId);
+        Logger.AddTag("ReadSessionId", ChunkReadOptions_.ReadSessionId);
     }
 
     auto getBlockDescriptor = [&] (const TBlockInfo& blockInfo) {

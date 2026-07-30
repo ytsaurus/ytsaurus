@@ -1089,10 +1089,9 @@ void TSlotLocation::OnArtifactPreparationFailed(
     const TError& error)
 {
     auto Logger = this->Logger
-        .WithTag("JobId: %v, ArtifactName: %v, SandboxKind: %v",
-            jobId,
-            artifactName,
-            sandboxKind);
+        .WithTag("JobId", jobId)
+        .WithTag("ArtifactName", artifactName)
+        .WithTag("SandboxKind", sandboxKind);
 
     bool slotWithQuota = false;
     {

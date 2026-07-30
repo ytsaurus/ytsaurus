@@ -200,10 +200,10 @@ TTableReadSpec FetchSingleTableReadSpec(
     const auto& path = userObject->Path;
     auto tablePath = path.GetPath();
 
-    auto Logger = TableClientLogger().WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
-        tablePath,
-        options.TransactionId,
-        options.ReadSessionId);
+    auto Logger = TableClientLogger()
+        .WithTag("Path", tablePath)
+        .WithTag("TransactionId", options.TransactionId)
+        .WithTag("ReadSessionId", options.ReadSessionId);
 
     YT_LOG_INFO("Fetching table read spec");
 

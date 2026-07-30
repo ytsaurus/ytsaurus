@@ -509,10 +509,10 @@ TError ValidateCheckPermissionsResults(
     auto Logger = logger;
 
     if (operationId) {
-        Logger.AddTag("OperationId: %v", operationId);
+        Logger.AddTag("OperationId", operationId);
     }
     if (jobId) {
-        Logger.AddTag("JobId: %v", jobId);
+        Logger.AddTag("JobId", jobId);
     }
 
     for (const auto& result : results) {
@@ -605,10 +605,10 @@ TError CheckOperationAccessByAcl(
     auto Logger = logger;
 
     if (operationId) {
-        Logger.AddTag("OperationId: %v", operationId);
+        Logger.AddTag("OperationId", operationId);
     }
     if (jobId) {
-        Logger.AddTag("JobId: %v", jobId);
+        Logger.AddTag("JobId", jobId);
     }
 
     if (checkBaseAco) {

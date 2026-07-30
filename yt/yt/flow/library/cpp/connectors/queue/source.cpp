@@ -78,7 +78,7 @@ TQueueSourceController::TQueueSourceController(
         GetParameters(),
         GetContext()->ClientsCache->GetClient(*GetParameters()->QueuePath.GetCluster()),
         GetContext()->Invoker,
-        GetContext()->Logger.WithTag("QueuePath: %v", GetParameters()->QueuePath),
+        GetContext()->Logger.WithTag("QueuePath", GetParameters()->QueuePath),
         GetContext()->StatusProfiler->WithPrefix("/queue_info")))
 {
 }
@@ -148,10 +148,10 @@ TQueueSourceImpl::TQueueSourceImpl(
     TDynamicSourceContextPtr dynamicContext)
     : TIntegerOffsetOrderedSourceBase(std::move(context), std::move(dynamicContext))
     , PartitionIndex_(ExtractQueuePartitionIndex(GetContext()->SourceKey))
-    , Logger(TOrderedSourceBase::Logger.WithTag("QueuePath: %v, ConsumerPath: %v, PartitionIndex: %v",
-        GetParameters()->QueuePath,
-        GetParameters()->ConsumerPath,
-        PartitionIndex_))
+    , Logger(TOrderedSourceBase::Logger
+            .WithTag("QueuePath", GetParameters()->QueuePath)
+            .WithTag("ConsumerPath", GetParameters()->ConsumerPath)
+            .WithTag("PartitionIndex", PartitionIndex_))
     , ConsumerClient_(GetContext()->ClientsCache->GetClient(*GetParameters()->ConsumerPath.GetCluster()))
     , QueueClient_(GetContext()->ClientsCache->GetClient(*GetParameters()->QueuePath.GetCluster()))
     , SubConsumerClient_(NQueueClient::CreateSubConsumerClient(

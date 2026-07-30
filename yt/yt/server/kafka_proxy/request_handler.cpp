@@ -192,7 +192,7 @@ public:
             auto response = DoSaslAuthenticate(
                 connectionState,
                 TReqSaslAuthenticate{.AuthBytes = request.ToString()},
-                Logger.WithTag("RequestType: %v", ERequestType::SaslAuthenticate));
+                Logger.WithTag("RequestType", ERequestType::SaslAuthenticate));
 
             if (!response.ErrorMessage) {
                 response.ErrorMessage = "Authentication failed";
@@ -317,9 +317,9 @@ private:
             typedRequest.Deserialize(requestReader, requestHeader.ApiVersion);
 
             auto Logger = logger
-                .WithTag("RequestType: %v", typedRequest.RequestType)
-                .WithTag("CorrelationId: %v", requestHeader.CorrelationId)
-                .WithTag("ClientId: %v", requestHeader.ClientId);
+                .WithTag("RequestType", typedRequest.RequestType)
+                .WithTag("CorrelationId", requestHeader.CorrelationId)
+                .WithTag("ClientId", requestHeader.ClientId);
 
             metrics.OnStart();
             TWallTimer timer;

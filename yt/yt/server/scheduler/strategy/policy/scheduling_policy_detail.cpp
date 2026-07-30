@@ -852,9 +852,9 @@ TScheduleAllocationsContext::TScheduleAllocationsContext(
     , DynamicAttributesListSnapshot_(GetPoolTreeSnapshotState(TreeSnapshot_)->GetDynamicAttributesListSnapshot())
     , StrategyHost_(strategyHost)
     , ScheduleAllocationsDeadlineReachedCounter_(scheduleAllocationsDeadlineReachedCounter)
-    , Logger(logger.WithTag("NodeAddress: %v, NodeId: %v",
-        SchedulingHeartbeatContext_->GetNodeDescriptor()->GetDefaultAddress(),
-        SchedulingHeartbeatContext_->GetNodeDescriptor()->Id))
+    , Logger(logger
+        .WithTag("NodeAddress", SchedulingHeartbeatContext_->GetNodeDescriptor()->GetDefaultAddress())
+        .WithTag("NodeId", SchedulingHeartbeatContext_->GetNodeDescriptor()->Id))
     , DynamicAttributesManager_(GetPoolTreeSnapshotState(TreeSnapshot_))
 {
     YT_LOG_DEBUG_IF(
@@ -2685,7 +2685,7 @@ void TSchedulingPolicy::RegisterOperation(const TPoolTreeOperationElement* eleme
         New<TOperationSharedState>(
             StrategyHost_,
             element->Spec()->UpdatePreemptibleAllocationsListLoggingPeriod,
-            Logger().WithTag("OperationId: %v", operationId)));
+            Logger().WithTag("OperationId", operationId)));
 }
 
 void TSchedulingPolicy::UnregisterOperation(const TPoolTreeOperationElement* element)

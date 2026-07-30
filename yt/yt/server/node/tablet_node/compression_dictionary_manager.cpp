@@ -49,8 +49,7 @@ public:
             ->ValueDictionaryCompression->MaxAcceptableCompressionRatio)
         , ElectRandomPolicy_(tabletSnapshot->Settings.MountConfig
             ->ValueDictionaryCompression->ElectRandomPolicy)
-        , Logger(TabletNodeLogger().WithTag("%v",
-            tabletSnapshot->LoggingTag))
+        , Logger(TabletNodeLogger().WithTags(tabletSnapshot->LoggingTags))
         , RowDictionaryCompressors_(std::move(rowDictionaryCompressors))
     {
         if (presetPolicy) {
@@ -326,8 +325,7 @@ public:
         return NTableClient::CreateDictionaryDecompressionSession(
             MakeWeak(this),
             tabletSnapshot->Settings.HunkReaderConfig,
-            TabletNodeLogger().WithTag("%v",
-                tabletSnapshot->LoggingTag));
+            TabletNodeLogger().WithTags(tabletSnapshot->LoggingTags));
     }
 
     TFuture<THashMap<TChunkId, TRowDictionaryDecompressor>> GetDecompressors(
@@ -661,8 +659,7 @@ private:
         TCookie cookie,
         EDictionaryCompressionPolicy policy)
     {
-        auto Logger = TabletNodeLogger().WithTag("%v",
-            tabletSnapshot->LoggingTag);
+        auto Logger = TabletNodeLogger().WithTags(tabletSnapshot->LoggingTags);
 
         auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetClient(),

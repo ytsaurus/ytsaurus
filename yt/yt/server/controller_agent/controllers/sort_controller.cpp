@@ -1359,7 +1359,7 @@ protected:
                 TUnorderedChunkPoolOptions{
                     .JobSizeConstraints = std::move(jobSizeConstraints),
                     .RowBuffer = controller->RowBuffer_,
-                    .Logger = Logger().WithTag("Name: SimpleSort"),
+                    .Logger = Logger().WithTag("Name", "SimpleSort"),
                     // Build the first job from finished input to reliably determine the total job count.
                     // This prevents incorrect strategy selection caused by the unordered chunk pool's
                     // unpredictable behavior, which could otherwise cause job count estimates to
@@ -1925,8 +1925,9 @@ protected:
 
             return MergeChunkPoolOutputs(
                 std::move(physicalPartitionsToMerge),
-                Logger().WithTag(
-                    "Name: PartitionsMerger[%v][%v][%v]",
+                Logger().WithTagFormat(
+                    "Name",
+                    "PartitionsMerger[%v][%v][%v]",
                     intermediatePartition->GetLevel(),
                     intermediatePartition->GetIndex(),
                     physicalPartitionIndices[0]));
@@ -2362,7 +2363,7 @@ protected:
                     .JobSizeConstraints = RootPartitionPoolJobSizeConstraints_,
                     .EnablePeriodicYielder = true,
                     .ShouldSliceByRowIndices = true,
-                    .Logger = Logger().WithTag("Name: RootPartition"),
+                    .Logger = Logger().WithTag("Name", "RootPartition"),
                     .JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig),
                 },
                 IntermediateInputStreamDirectory);
@@ -2373,7 +2374,7 @@ protected:
                 .JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig),
                 .JobSizeConstraints = RootPartitionPoolJobSizeConstraints_,
                 .RowBuffer = RowBuffer_,
-                .Logger = Logger().WithTag("Name: RootPartition"),
+                .Logger = Logger().WithTag("Name", "RootPartition"),
             },
             GetInputStreamDirectory());
     }
@@ -2806,7 +2807,7 @@ protected:
             Options_,
             GetOutputTablePaths().size(),
             ExpectedPartitionCount_);
-        chunkPoolOptions.Logger = Logger().WithTag("Name: %v", name);
+        chunkPoolOptions.Logger = Logger().WithTag("Name", name);
         if (Config_->EnableSortedMergeInSortJobSizeAdjustment) {
             chunkPoolOptions.JobSizeAdjusterConfig = Options_->SortedMergeJobSizeAdjuster;
         }

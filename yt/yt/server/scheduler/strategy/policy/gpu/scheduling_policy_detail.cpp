@@ -1212,10 +1212,9 @@ TLogger TSchedulingPolicy::MakeNodeLogger(const TExecNodeDescriptorPtr& nodeDesc
 {
     YT_VERIFY(nodeDescriptor);
 
-    return Logger.WithTag(
-        "NodeId: %v, NodeAddress: %v",
-        nodeDescriptor->Id,
-        nodeDescriptor->GetDefaultAddress());
+    return Logger
+        .WithTag("NodeId", nodeDescriptor->Id)
+        .WithTag("NodeAddress", nodeDescriptor->GetDefaultAddress());
 }
 
 void TSchedulingPolicy::DoProcessSchedulingHeartbeat(
@@ -1360,7 +1359,7 @@ void TSchedulingPolicy::ScheduleAllocations(
         }
 
         auto operationId = assignment->OperationId;
-        const auto Logger = NodeLogger.WithTag("OperationId: %v", operationId);
+        const auto Logger = NodeLogger.WithTag("OperationId", operationId);
         ++statistics->AttemptStatistics.AttemptCount;
 
         auto operationElement = treeSnapshot->FindEnabledOperationElement(operationId);
@@ -1600,7 +1599,7 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     const auto NodeLogger = MakeNodeLogger(node->Descriptor());
-    const auto Logger = NodeLogger.WithTag("OperationId: %v", operationElement->GetOperationId());
+    const auto Logger = NodeLogger.WithTag("OperationId", operationElement->GetOperationId());
 
     MaybeDelay(operationElement->Spec()->TestingOperationOptions->ScheduleAllocationDelayScheduler);
 
