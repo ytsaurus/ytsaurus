@@ -57,8 +57,7 @@ IResourcePtr TRuntimeInitContext::GetStaticResource(const TResourceId& resourceI
 {
     auto iter = StaticResources_.find(resourceId);
     if (iter == StaticResources_.end()) {
-        THROW_ERROR_EXCEPTION("Static resource is not found")
-            << TErrorAttribute("resource_id", resourceId);
+        THROW_ERROR_EXCEPTION("Static resource %Qv is not found", resourceId);
     }
     return iter->second;
 }
