@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef RUNTIME_INIT_CONTEXT_INL_H_
     #error "Direct inclusion of this file is not allowed, include runtime_init_context.h"
     // For the sake of sane code completion.
