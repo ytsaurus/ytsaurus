@@ -742,7 +742,7 @@ void TChunkLocation::UpdateUsedMemory(
     i64 result;
     result = PerformanceCounters_->UsedMemory[direction][category].fetch_add(delta) + delta;
 
-    YT_LOG_TRACE("Used memory updated Direction: %v, Category: %v, UsedMemory: %v, Delta: %v)",
+    YT_LOG_TRACE("Used memory updated (Direction: %v, Category: %v, UsedMemory: %v, Delta: %v)",
         direction,
         category,
         result,
