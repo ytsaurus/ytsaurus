@@ -11,5 +11,7 @@ Source: [yt/yt/flow/library/cpp/worker/config.h]({{source-root}}/yt/yt/flow/libr
 || `message_service_threads` | **Type**: `int`
 **Default value**: `3`
  ||
+|| `file_storage` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NFileStorage::TFileStorageConfig](./all_yson_structs#NYT_NFlow_NFileStorage_TFileStorageConfig)`>`
+Optional persistent local cache for raw file-resource payloads. It is required when this worker loads a file resource. ||
 |#
 

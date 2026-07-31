@@ -11,6 +11,7 @@ RECURSE(
     connectors
     controller
     controller/describe
+    file_storage
     multiplexer
     misc
     parsers

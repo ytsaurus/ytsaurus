@@ -574,6 +574,9 @@ private:
     {
         auto context = New<TResourceManagerContext>();
         context->PipelineAuthenticator = Context_->PipelineAuthenticator;
+        context->ClientsCache = Context_->ClientsCache;
+        context->PipelinePath = Context_->PipelinePath;
+        context->FileStorage = Context_->FileStorage;
         context->Logger = WorkerLogger().WithTag("Manager", "Resource");
         context->Invoker = JobThreadPool_->GetInvoker("ResourceManager");
         context->Profiler = WorkerProfiler();

@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/http/public.h>
 
+#include <yt/yt/flow/library/cpp/file_storage/public.h>
+
 namespace NYT::NFlow::NWorker {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,6 +41,7 @@ struct TJobTrackerContext
     NYT::NHttp::IClientPtr HttpsClient;
     NYT::NConcurrency::IPollerPtr Poller;
     IStatusProfilerPtr StatusProfiler;
+    NFileStorage::IFileStoragePtr FileStorage;
 
     //! Returns the current channel to the controller's distributed-throttler
     //! service, or null if disconnected. Forwarded into each computation's

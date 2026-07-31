@@ -337,6 +337,7 @@ struct TWorkerResourceStatus
     std::optional<i64> AppliedRevisionId;
     //! Id of the delivered target revision the resource is switching to.
     std::optional<i64> TargetRevisionId;
+    std::optional<EFileResourceUpdateState> UpdateState;
 
     REGISTER_YSON_STRUCT(TWorkerResourceStatus);
 

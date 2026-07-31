@@ -2,7 +2,12 @@
 
 #include "public.h"
 
+#include <yt/yt/flow/library/cpp/file_storage/public.h>
+
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/client/cache/public.h>
+#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -16,6 +21,9 @@ struct TResourceManagerContext
     : public TRefCounted
 {
     IPipelineAuthenticatorPtr PipelineAuthenticator;
+    NClient::NCache::IClientsCachePtr ClientsCache;
+    NYPath::TRichYPath PipelinePath;
+    NFileStorage::IFileStoragePtr FileStorage;
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
     IStatusProfilerPtr StatusProfiler;

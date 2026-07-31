@@ -8,6 +8,7 @@ SRCS(
     message_distributor_ut.cpp
     traced_invoker_ut.cpp
     buffer_state_manager_ut.cpp
+    file_storage_ut.cpp
 )
 
 PEERDIR(

@@ -20,4 +20,6 @@ PEERDIR(
 
 END()
 
+RECURSE(file)
+
 RECURSE_FOR_TESTS(unittests)

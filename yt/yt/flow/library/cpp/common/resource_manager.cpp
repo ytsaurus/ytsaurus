@@ -272,27 +272,24 @@ public:
     THashMap<TResourceId, TWorkerResourceStatusPtr> CollectResourceStatuses() override
     {
         THashMap<TResourceId, TWorkerResourceStatusPtr> result;
-        THashMap<TResourceId, IResourcePtr> loadedResources;
+        THashMap<TResourceId, IResourcePtr> scheduledResources;
         {
             auto guard = Guard(Lock_);
 
             for (const auto& [resourceId, resourceStatus] : ResourceStatuses_) {
                 EmplaceOrCrash(result, resourceId, resourceStatus.Collect());
             }
-            // Applied revisions are reported only for successfully loaded resources: every
-            // resource in the spec is constructed and receives targets, but an unloaded
-            // instance does not serve anything.
+            // Report resources whose load was scheduled, including a pending initial load.
             for (const auto& [resourceId, future] : ResourcesInitializationFutures_) {
-                if (auto error = future.TryGet(); error && error->IsOK()) {
-                    loadedResources.emplace(resourceId, GetOrCrash(Resources_, resourceId));
-                }
+                Y_UNUSED(future);
+                scheduledResources.emplace(resourceId, GetOrCrash(Resources_, resourceId));
             }
         }
 
         // Revision states are queried outside the lock: GetRevisionState is overridable.
-        for (const auto& [resourceId, resource] : loadedResources) {
+        for (const auto& [resourceId, resource] : scheduledResources) {
             auto revisionState = resource->GetRevisionState();
-            if (!revisionState.AppliedRevisionId && !revisionState.TargetRevisionId) {
+            if (!revisionState.AppliedRevisionId && !revisionState.TargetRevisionId && !revisionState.UpdateState) {
                 continue;
             }
             auto& status = result[resourceId];
@@ -301,6 +298,7 @@ public:
             }
             status->AppliedRevisionId = revisionState.AppliedRevisionId;
             status->TargetRevisionId = revisionState.TargetRevisionId;
+            status->UpdateState = revisionState.UpdateState;
         }
 
         return result;
@@ -487,6 +485,9 @@ private:
         context->ResourceSpec = resourceSpec;
         context->ResourceManager = MakeWeak(this);
         context->PipelineAuthenticator = ManagerContext_->PipelineAuthenticator;
+        context->ClientsCache = ManagerContext_->ClientsCache;
+        context->PipelinePath = ManagerContext_->PipelinePath;
+        context->FileStorage = ManagerContext_->FileStorage;
         context->Invoker = Invoker_;
         context->Logger = Logger.WithTag("Resource", resourceId);
         context->Profiler = ManagerContext_->Profiler.WithTag("resource", resourceId.Underlying()).WithPrefix("/resource");

@@ -173,7 +173,7 @@ NLogging::TLogManagerConfigPtr BuildVanillaJobLoggingConfig()
             .EndList()
         .EndMap();
     // clang-format on
-    return ConvertTo<NLogging::TLogManagerConfigPtr>(std::move(node));
+    return ConvertTo<NLogging::TLogManagerConfigPtr>(node);
 }
 
 //! Whether the local file carries an executable bit; a job file delivered with one (the flow binary,
@@ -358,7 +358,7 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
             .Item("abort_on_unrecognized_options").Value(false)
         .EndMap();
     // clang-format on
-    auto config = ConvertTo<TFlowNodeConfigPtr>(std::move(node));
+    auto config = ConvertTo<TFlowNodeConfigPtr>(node);
     config->SetSingletonConfig(BuildVanillaJobLoggingConfig());
     return config;
 }

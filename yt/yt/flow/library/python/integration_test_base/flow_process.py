@@ -5,6 +5,8 @@ import requests
 import logging
 import sys
 
+import mergedeep
+
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -62,6 +64,7 @@ class FlowSimpleProcess(BulliedProcess):
         companion_port: int,
         companion_monitoring_port: int,
         env: dict[str, str],
+        config_override: dict | None = None,
         **kwargs,
     ):
         self.rpc_port = rpc_port
@@ -91,6 +94,8 @@ class FlowSimpleProcess(BulliedProcess):
                 },
             },
         }
+        if config_override is not None:
+            mergedeep.merge(config_patch, config_override)
         dump_yson_config(config_patch, os.path.join(logs_dir, f"{mode.value}_{process_index}_config_patch.yson"))
 
         Path(self._ports_dir).mkdir(parents=True, exist_ok=True)
@@ -243,6 +248,7 @@ class FlowSimpleProcessFederation:
         companion_binary_args: Optional[list[str]] = None,
         companion_cluster_url: Optional[str] = None,
         companion_pipeline_path: Optional[str] = None,
+        worker_node_config_overrides: list[dict] | None = None,
         client=None,
     ):
         self._binary_path = binary_path
@@ -257,7 +263,11 @@ class FlowSimpleProcessFederation:
         self._companion_binary_args = companion_binary_args
         self._companion_cluster_url = companion_cluster_url
         self._companion_pipeline_path = companion_pipeline_path
+        self._worker_node_config_overrides = worker_node_config_overrides
         self._client = client
+
+        if self._worker_node_config_overrides is not None and len(self._worker_node_config_overrides) != workers_count:
+            raise ValueError("worker_node_config_overrides must contain exactly one entry per worker")
 
         # Validation: companion_binary_path is required when run_companion_externally is True.
         assert (
@@ -360,6 +370,9 @@ class FlowSimpleProcessFederation:
                 companion_port=companion_port,
                 companion_monitoring_port=companion_monitoring_port,
                 env=self._env,
+                config_override=(
+                    self._worker_node_config_overrides[i] if self._worker_node_config_overrides is not None else None
+                ),
                 start_watcher_thread=start_watcher_thread,
                 problems_config=worker_problems_config,
                 random_generator=self._random_generator,

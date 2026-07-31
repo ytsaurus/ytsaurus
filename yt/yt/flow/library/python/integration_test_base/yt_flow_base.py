@@ -446,6 +446,7 @@ class FlowTestBase:
         run_companion_externally: bool = False,
         companion_binary_path: Optional[str] = None,
         companion_binary_args: Optional[list[str]] = None,
+        worker_node_config_overrides: list[dict] | None = None,
         leader_wait_timeout: Optional[int] = None,
     ):
         if node_config is None:
@@ -507,6 +508,7 @@ class FlowTestBase:
                 self.cluster_name_to_url[self.primary_cluster_name] if run_companion_externally else None
             ),
             companion_pipeline_path=self.pipeline_path if run_companion_externally else None,
+            worker_node_config_overrides=worker_node_config_overrides,
             client=self.client,
         ) as federation:
             monitoring = (
