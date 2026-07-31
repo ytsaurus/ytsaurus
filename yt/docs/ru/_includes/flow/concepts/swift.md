@@ -89,3 +89,4 @@ Passthrough-компьютейшен — наследник `TSwiftOrderedSource
 - [Computation (C++)](../../../flow/cpp/computation.md)
 - [Computation (Java)](../../../flow/java/computation.md)
 - [Computation (Python)](../../../flow/python/computation.md)
+- [Computation (Go)](../../../flow/go/computation.md)

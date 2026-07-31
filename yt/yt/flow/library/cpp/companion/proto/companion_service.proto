@@ -2,6 +2,7 @@ package NYT.NFlow.NProto.NCompanion;
 
 option java_package = "tech.ytsaurus.flow.rpc";
 option java_multiple_files = true;
+option go_package = "go.ytsaurus.tech/yt/go/proto/flow/companion";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt/flow/library/cpp/common/proto/message.proto";

@@ -48,7 +48,7 @@ INPUT_ROWS = [{"data": f"row_{i}", "event_ts": EVENT_TS, "$tablet_index": 0} for
 
 class Test(FlowTestPythonBase):
     PYTHON_COMPANION_BINARY = yatest.common.binary_path(
-        "yt/yt/flow/tests/companion/passthrough_transform/passthrough_transform"
+        "yt/yt/flow/tests/companion/passthrough_transform/python/passthrough_transform"
     )
 
     def _prepare_pipeline_config(self, input_queue, input_consumer, output_queue):

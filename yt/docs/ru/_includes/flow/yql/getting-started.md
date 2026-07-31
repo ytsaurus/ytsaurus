@@ -1,6 +1,6 @@
 # Быстрый старт в {{product-name}} Flow (YQL)
 
-YQL over Flow позволяет описать [пайплайн](../../../flow/concepts/glossary.md#pipeline) потоковой обработки данных в виде декларативного SQL-запроса — без написания кода на [C++](../../../flow/cpp/getting-started.md), [Java](../../../flow/java/getting-started.md) или [Python](../../../flow/python/getting-started.md). Пайплайн запускается как ванилла операция на выбранном кластере {{product-name}}.
+YQL over Flow позволяет описать [пайплайн](../../../flow/concepts/glossary.md#pipeline) потоковой обработки данных в виде декларативного SQL-запроса — без написания кода на [C++](../../../flow/cpp/getting-started.md), [Java](../../../flow/java/getting-started.md), [Go](../../../flow/go/getting-started.md) или [Python](../../../flow/python/getting-started.md). Пайплайн запускается как ванилла операция на выбранном кластере {{product-name}}.
 
 {% note warning %}
 

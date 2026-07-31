@@ -55,6 +55,7 @@ Passthrough реализуется в Flow нативно на C++ и не тр�
 - **C++**: наследование от базовых классов (`TTransformComputation`, `TSwiftMapComputation` и т.д.) с переопределением методов `DoProcessMessage`/`DoProcessTimer`. [Подробнее →](../../../flow/cpp/computation.md)
 - **Java**: реализация интерфейсов `RowFunction` или `BatchFunction` с методами `onMessage`/`onTimer`. [Подробнее →](../../../flow/java/computation.md)
 - **Python**: наследование от `RowFunction` или `BatchFunction` с методами `on_message`/`on_timer`. [Подробнее →](../../../flow/python/computation.md)
+- **Go**: реализация интерфейсов `flow.RowFunction` (`OnMessage`) или `flow.BatchFunction` (`OnMessages`); таймеры — отдельными интерфейсами `flow.RowTimerFunction`/`flow.BatchTimerFunction`. [Подробнее →](../../../flow/go/computation.md)
 - **YQL**: компьютейшны генерируются автоматически по декларативному описанию. [Подробнее →](../../../flow/yql/getting-started.md)
 
 ## См. также
@@ -66,4 +67,5 @@ Passthrough реализуется в Flow нативно на C++ и не тр�
 - [Computation (C++)](../../../flow/cpp/computation.md)
 - [Computation (Java)](../../../flow/java/computation.md)
 - [Computation (Python)](../../../flow/python/computation.md)
+- [Computation (Go)](../../../flow/go/computation.md)
 - [Computation (YQL)](../../../flow/yql/features.md)

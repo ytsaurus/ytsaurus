@@ -61,6 +61,8 @@ IF (NOT OPENSOURCE)
     )
 
     RECURSE(
+        key_visitor/go
+        key_visitor/go/pipeline
         key_visitor/java
         key_visitor/java/companion
         key_visitor/java_external

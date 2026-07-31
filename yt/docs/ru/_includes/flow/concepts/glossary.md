@@ -198,7 +198,7 @@ Flow взаимодействует с внешними системами (оч
 
 ### Companion (компаньон) {#companion}
 
-Отдельный процесс, запускаемый на одном хосте с [воркером](#worker) и выполняющий пользовательский код на [Python](../../../flow/python/getting-started.md), [Java или Kotlin](../../../flow/java/getting-started.md). Взаимодействует с [воркером](#worker) по gRPC. Позволяет реализовывать [компьютейшены](#computation) на языках, отличных от C++.
+Отдельный процесс, запускаемый на одном хосте с [воркером](#worker) и выполняющий пользовательский код на [Python](../../../flow/python/getting-started.md), [Go](../../../flow/go/getting-started.md), [Java или Kotlin](../../../flow/java/getting-started.md). Взаимодействует с [воркером](#worker) по gRPC. Позволяет реализовывать [компьютейшены](#computation) на языках, отличных от C++.
 
 Подробнее в разделе [Companion](../../../flow/concepts/companion.md).
 

@@ -112,6 +112,7 @@
 - Python: [`examples/python/static_table_join`]({{source-root}}/yt/yt/flow/examples/python/static_table_join)
 - Java: [`examples/java/static_table_join`]({{source-root}}/yt/yt/flow/examples/java/static_table_join)
 - Kotlin: [`examples/kotlin/static_table_join`]({{source-root}}/yt/yt/flow/examples/kotlin/static_table_join)
+- Go: [`examples/go/static_table_join`]({{source-root}}/yt/yt/flow/examples/go/static_table_join)
 
 ## Альтернативы {#alternatives}
 
@@ -137,6 +138,7 @@
 - Python: [`examples/python/external_state_join`]({{source-root}}/yt/yt/flow/examples/python/external_state_join)
 - Java: [`examples/java/external_state_join`]({{source-root}}/yt/yt/flow/examples/java/external_state_join)
 - Kotlin: [`examples/kotlin/external_state_join`]({{source-root}}/yt/yt/flow/examples/kotlin/external_state_join)
+- Go: [`examples/go/external_state_join`]({{source-root}}/yt/yt/flow/examples/go/external_state_join)
 
 В тестах примеров `yt_sync` сначала собирает `reference.v1` и линкует `current → reference.v1`, пайплайн обогащает событие значением `v1`, затем собирается `reference.v2`, симлинк атомарно перенаправляется на новую версию, и для **того же ключа** пайплайн начинает отдавать значение `v2`.
 

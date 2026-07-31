@@ -26,6 +26,11 @@
   * `pipeline` — jar-лаунчер + компаньон.
   * `flow_server` — серверный бинарь Flow (`yt/yt/flow/bin/flow_server`), работающий контроллером и воркером; путь к нему передаётся раннеру через `--flow-bin`. Компаньон доставляется в джобу автоматически.
 
+- Go
+
+  * `pipeline` — Go-бинарь: лаунчер + компаньон.
+  * `flow_server` — серверный бинарь Flow (`yt/yt/flow/bin/flow_server`), работающий контроллером и воркером; путь к нему передаётся раннеру через `--flow-bin`. Компаньон доставляется в джобу автоматически.
+
 {% endlist %}
 
 ## Как включить {#enable}
@@ -98,6 +103,12 @@
 
   ```bash
   ./pipeline RunnerMain --config pipeline.yson --flow-bin flow_server
+  ```
+
+- Go
+
+  ```bash
+  ./pipeline --config pipeline.yson --flow-bin flow_server
   ```
 
 {% endlist %}
