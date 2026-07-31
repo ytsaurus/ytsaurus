@@ -694,35 +694,10 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TransactionIdToTransientWriteState_.clear();
-
-        auto clearWriteLog = [this] (TTransaction* transaction, TTransactionWriteLog* writeLog) {
-            for (const auto& writeRecord : *writeLog) {
-                UpdateWriteRecordCounters(transaction, writeRecord, /*multiplier*/ -1);
-            }
-
-            auto guard = TWriteLogMemoryAccountingGuard(
-                this,
-                *writeLog);
-
-            writeLog->Clear();
-        };
-
-        auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
-            ? TTransactionExternalizationToken(
-                GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId()))
-            : TTransactionExternalizationToken{};
-
-        const auto& transactionManager = Host_->GetTransactionManager();
-        for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
-            auto* transaction = transactionManager->GetPersistentTransaction(transactionId, externalizationToken);
-
-            clearWriteLog(transaction, &writeState->LockedWriteLog);
-            clearWriteLog(transaction, &writeState->LocklessWriteLog);
-        }
-
         TransactionIdToPersistentWriteState_.clear();
 
-        YT_ASSERT(WriteLogsMemoryTrackerGuard_.GetSize() == 0);
+        // TODO(tea-mur): Proper validation of write log memory accounting. See YT-29082
+        IncreaseAccountedWriteLogMemory(-WriteLogsMemoryTrackerGuard_.GetSize());
     }
 
     void Save(TSaveContext& context) const override
