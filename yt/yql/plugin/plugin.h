@@ -40,13 +40,13 @@ struct TYqlNativePluginOptions
     NYson::TYsonString OperationAttributes;
     NYson::TYsonString Libraries;
 
+    NYson::TYsonString InitialDynamicConfig;
+
     TString YTTokenPath;
 
     THolder<TLogBackend> LogBackend;
 
     std::optional<TString> YqlPluginSharedLibrary;
-
-    std::string MaxYqlLangVersion;
 
     bool StartDqManager;
 };
@@ -58,14 +58,6 @@ struct TYqlQTWorkerPluginOptions
     THolder<TLogBackend> QtWorkerLogBackend;
     int QtWorkerInspectorPort = 32391;
     TString GatewaysConfigPath;
-};
-
-struct TYqlPluginDynamicConfig
-{
-    NYson::TYsonString GatewaysConfig;
-    NYson::TYsonString MaxSupportedYqlVersion;
-
-    THashMap<TString, TString> ProtoGatewaysConfigs;
 };
 
 struct TQueryResult
@@ -139,7 +131,7 @@ struct IYqlPlugin
 
     virtual TAbortResult Abort(TQueryId queryId) = 0;
 
-    virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) = 0;
+    virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr config) = 0;
 
     virtual void OnUdfMetaChanged(TUdfMetaPtr udfMeta) = 0;
 
@@ -162,9 +154,9 @@ struct IYqlPlugin
 
 TYqlNativePluginOptions ConvertToNativePluginOptions(
     TYqlPluginConfigPtr config,
+    TYqlPluginDynamicConfigPtr initialDynamicConfig,
     NYson::TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
-    std::string maxSupportedYqlVersion,
     bool startDqManager = false);
 
 TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(

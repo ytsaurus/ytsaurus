@@ -68,20 +68,13 @@ protected:
 
         auto options = ConvertToNativePluginOptions(
             config->PluginConfig,
+            config->PluginDynamicConfig,
             NYson::ConvertToYsonString(config->SingletonsConfig),
             NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
-            config->MaxSupportedYqlVersion,
             false);
 
         auto yqlPlugin = CreateYqlPlugin(std::move(options));
         yqlPlugin->Start();
-
-        if (config->DynamicGatewaysConfig) {
-            yqlPlugin->OnDynamicConfigChanged(TYqlPluginDynamicConfig{
-                .GatewaysConfig = *config->DynamicGatewaysConfig,
-                .MaxSupportedYqlVersion = NYson::TYsonString(config->MaxSupportedYqlVersion),
-            });
-        }
 
         auto yqlPluginService = CreateYqlPluginService(controlInvoker_, std::move(yqlPlugin));
         auto rpcServer = NRpc::NBus::CreateBusServer(NBus::NTcp::CreateBusServer(config->BusServer));

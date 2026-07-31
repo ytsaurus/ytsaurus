@@ -1,8 +1,8 @@
-from common import TestQueriesYqlBase
+from common import TestQueriesYqlBase, TestUpdateYqlAgentDynamicConfigMixin
 
 import yql.library.langver.python as langver
 
-from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_update
+from yt.environment.helpers import assert_items_equal
 
 from yt_commands import (authors, create, create_user, sync_mount_table, get_driver,
                          write_table, insert_rows, alter_table, raises_yt_error,
@@ -411,16 +411,10 @@ class TestYqlAgentBan(TestQueriesYqlSimpleBase):
         long_query.track()
 
 
-class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase):
+class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase, TestUpdateYqlAgentDynamicConfigMixin):
     NUM_TEST_PARTITIONS = 16
     CLASS_TEST_LIMIT = 30 * 60
     NUM_YQL_AGENTS = 1
-
-    def _update_dyn_config(self, yql_agent, dyn_config):
-        config = get("//sys/yql_agent/config")
-        config["yql_agent"] = dyn_config
-        set("//sys/yql_agent/config", config)
-        wait_for_dynamic_config_update(yql_agent.yql_agent.client, config, "//sys/yql_agent/instances")
 
     @authors("lucius")
     @pytest.mark.timeout(180)
@@ -577,6 +571,47 @@ class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase):
             },
             """Bad "QueryCacheChunkLimit" setting for "primary" cluster""",
         )
+
+
+class TestYqlAgentInitialDynConfig(TestQueriesYqlSimpleBase, TestUpdateYqlAgentDynamicConfigMixin):
+    YQL_AGENT_INITIAL_DYNAMIC_CONFIG = {
+        "gateways": {
+            "yt": {
+                "cluster_mapping": [
+                    {
+                        "name": "primary",
+                        "settings": [
+                            {"name": "ValidatePool", "value": "true"},
+                            {"name": "Pool", "value": "non-existent"}
+                        ],
+                    },
+                ],
+            },
+        },
+    }
+
+    @authors("ziganshinmr")
+    @pytest.mark.timeout(180)
+    def test_yql_agent_initial_dyn_config(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        with raises_yt_error("Pool \"non-existent\" not found"):
+            self._test_simple_query("select * from primary.`//tmp/t` WHERE a = 42", rows)
+
+        # should work after fixing
+        self._update_dyn_config(yql_agent, {
+            "gateways": {
+                "yt": {
+                    "cluster_mapping": [
+                    ],
+                },
+            },
+        })
+        self._test_simple_query("select * from primary.`//tmp/t` WHERE a = 42", rows)
 
 
 class TestComplexQueriesYql(TestQueriesYqlSimpleBase):
@@ -2041,6 +2076,11 @@ class TestYqlAgentWithProcesses(TestYqlAgent):
 
 @authors("staketd")
 class TestYqlAgentDynConfigWithProcesses(TestYqlAgentDynConfig):
+    YQL_SUBPROCESS_COUNT = 8
+
+
+@authors("ziganshinmr")
+class TestYqlAgentInitialDynConfigWithProcesses(TestYqlAgentInitialDynConfig):
     YQL_SUBPROCESS_COUNT = 8
 
 

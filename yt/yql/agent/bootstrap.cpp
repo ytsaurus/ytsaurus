@@ -158,6 +158,16 @@ void TBootstrap::DoRun()
 
     DynamicConfigManager_->Start();
 
+    {
+        YT_LOG_INFO("Loading dynamic config for the first time");
+        auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
+        YT_LOG_FATAL_UNLESS(
+            error.IsOK(),
+            error,
+            "Unexpected failure while waiting for the first dynamic config loaded");
+        YT_LOG_INFO("Dynamic config loaded");
+    }
+
     YqlAgent_ = CreateYqlAgent(
         this,
         Config_,

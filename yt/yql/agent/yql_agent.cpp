@@ -335,11 +335,18 @@ public:
 
         InitYqlVersions();
 
+        TYqlPluginDynamicConfigPtr pluginInitialDynamicConfig = New<TYqlPluginDynamicConfig>();
+        pluginInitialDynamicConfig->GatewaysConfig = DynamicConfig_->GatewaysConfig
+            ? ConvertToYsonString(DynamicConfig_->GatewaysConfig)
+            : TYsonString();
+        pluginInitialDynamicConfig->MaxSupportedYqlVersion = MaxSupportedYqlVersionStr_;
+        pluginInitialDynamicConfig->ProtoGatewaysConfigs = ReadProtoDynamicGatewaysConfigs();
+
         auto options = ConvertToNativePluginOptions(
             Config_,
+            pluginInitialDynamicConfig,
             singletonsConfigString,
             CreateArcadiaLogBackend(TLogger("YqlPlugin")),
-            MaxSupportedYqlVersionStr_,
             Config_->EnableDQ);
 
         if (Config_->UseQtWorkerYqlPlugin) {
@@ -354,7 +361,7 @@ public:
             // due to python udf loading
             using TSignature = void(TYqlNativePluginOptions);
             auto coroutine = TCoroutine<TSignature>(
-                BIND([this, bootstrap, singletonsConfigDefaultLogging](
+                BIND([this, bootstrap, singletonsConfigDefaultLogging, pluginInitialDynamicConfig](
                     TCoroutine<TSignature>& /*self*/,
                     TYqlNativePluginOptions options
                 ) {
@@ -362,8 +369,8 @@ public:
                         ? CreateProcessYqlPlugin(
                             Config_,
                             singletonsConfigDefaultLogging,
+                            pluginInitialDynamicConfig,
                             bootstrap->GetClusterConnectionConfig(),
-                            TString(MaxSupportedYqlVersionStr_),
                             YqlAgentProfiler().WithPrefix("/process_yql_plugin"))
                         : CreateYqlPlugin(std::move(options));
                 }),
@@ -407,10 +414,9 @@ public:
         }
 
         auto protoDynamicGatewaysConfigs = ReadProtoDynamicGatewaysConfigs();
-        TYqlPluginDynamicConfig pluginDynamicConfig{
-            .ProtoGatewaysConfigs = std::move(protoDynamicGatewaysConfigs),
-        };
-        YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with ProtoGatewaysConfigs: %v", pluginDynamicConfig.ProtoGatewaysConfigs);
+        TYqlPluginDynamicConfigPtr pluginDynamicConfig = New<TYqlPluginDynamicConfig>();
+        pluginDynamicConfig->ProtoGatewaysConfigs = std::move(protoDynamicGatewaysConfigs);
+        YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with ProtoGatewaysConfigs: %v", pluginDynamicConfig->ProtoGatewaysConfigs);
         YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
     }
 
@@ -434,25 +440,27 @@ public:
         if (Config_->UseQtWorkerYqlPlugin) {
             YT_LOG_ERROR("Old GatewaysConfig is deprecated with qtworker plugin and has been ignored");
 
-            TYqlPluginDynamicConfig pluginDynamicConfig{
-                .MaxSupportedYqlVersion = TYsonString(MaxSupportedYqlVersionStr_),
-            };
+            TYqlPluginDynamicConfigPtr pluginDynamicConfig = New<TYqlPluginDynamicConfig>();
+            pluginDynamicConfig->MaxSupportedYqlVersion = MaxSupportedYqlVersionStr_;
             YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
         } else {
             // TODO(mpereskokova): Remove with native plugin
-            TYqlPluginDynamicConfig pluginDynamicConfig{
-                .GatewaysConfig = DynamicConfig_->GatewaysConfig
+            TYqlPluginDynamicConfigPtr pluginDynamicConfig = New<TYqlPluginDynamicConfig>();
+            pluginDynamicConfig->GatewaysConfig = DynamicConfig_->GatewaysConfig
                     ? ConvertToYsonString(DynamicConfig_->GatewaysConfig)
-                    : TYsonString(),
-                .MaxSupportedYqlVersion = TYsonString(MaxSupportedYqlVersionStr_),
-            };
-            YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with GatewaysConfig: %v", pluginDynamicConfig.GatewaysConfig.AsStringBuf());
+                    : TYsonString();
+            pluginDynamicConfig->MaxSupportedYqlVersion = MaxSupportedYqlVersionStr_;
+            YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with GatewaysConfig: %v", pluginDynamicConfig->GatewaysConfig.AsStringBuf());
             YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
         }
     }
 
     THashMap<TString, TString> ReadProtoDynamicGatewaysConfigs()
     {
+        if (!Config_->UseQtWorkerYqlPlugin) {
+            return {};
+        }
+
         THashMap<TString, TString> configs;
         for (const auto& flavor : SupportedFlavors_) {
             auto path = Format("%v/%v.conf", ProtoDynamicConfigsPath_, flavor);

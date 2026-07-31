@@ -2,6 +2,7 @@
 
 #include "helpers.h"
 
+#include <yt/yql/plugin/config.h>
 #include <yt/yql/plugin/native/plugin.h>
 
 #include <yt/yql/plugin/lib/error_helpers.h>
@@ -142,15 +143,13 @@ public:
         NYql::TLangVersionBuffer buf;
         TStringBuf versionStringBuf;
 
-        if (!NYql::ParseLangVersion(options.MaxYqlLangVersion, MaxYqlLangVersionInitial_)) {
-            YQL_LOG(ERROR) << Format("Cannot parse maximum supported YQL version, version limit is disabled (Version: %v)", options.MaxYqlLangVersion);
-        }
-        MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
-        YQL_LOG(INFO) << Format("Maximum supported YQL version is set (Version: %v)", options.MaxYqlLangVersion);
-
         DefaultYqlApiLangVersion_ = NYql::MinLangVersion;
         NYql::FormatLangVersion(DefaultYqlApiLangVersion_, buf, versionStringBuf);
         YQL_LOG(INFO) << Format("Default YQL version for API and CLI is set (Version: %v)", versionStringBuf);
+
+        auto initialDynamicConfig = New<TYqlPluginDynamicConfig>();
+        initialDynamicConfig->Load(NYTree::ConvertToNode(options.InitialDynamicConfig));
+        YT_VERIFY(initialDynamicConfig->MaxSupportedYqlVersion);
 
         {
             if (StaticGatewaysSnapshot_) {
@@ -172,6 +171,9 @@ public:
             coroutine.Run(std::move(options));
             YT_VERIFY(coroutine.IsCompleted());
         }
+
+        OnDynamicConfigChanged(std::move(initialDynamicConfig));
+        MaxYqlLangVersionInitial_ = MaxYqlLangVersion_;
     }
 
     void Start() override
@@ -268,29 +270,29 @@ public:
         return {};
     }
 
-    void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept override
+    void OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr config) noexcept override
     {
-        if (!config.MaxSupportedYqlVersion) {
+        if (!config->MaxSupportedYqlVersion) {
             MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
         } else {
-            const auto maxVersionStr = config.MaxSupportedYqlVersion.ToString();
             NYql::TLangVersion maxVersion;
-            if (NYql::ParseLangVersion(maxVersionStr, maxVersion)) {
+            if (NYql::ParseLangVersion(config->MaxSupportedYqlVersion, maxVersion)) {
                 MaxYqlLangVersion_ = maxVersion;
             } else {
-                YQL_LOG(ERROR) << "Cannot parse config.MaxSupportedYqlVersion: " << maxVersionStr;
+                YQL_LOG(ERROR) << "Cannot parse config.MaxSupportedYqlVersion: " << config->MaxSupportedYqlVersion;
                 MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
             }
         }
 
-        for (const auto& [flavor, protoConfig] : config.ProtoGatewaysConfigs) {
+        for (const auto& [flavor, protoConfig] : config->ProtoGatewaysConfigs) {
             NYql::TGatewaysConfig protoGatewaysConfig;
             TStringInput input(protoConfig);
             ParseFromTextFormat(input, protoGatewaysConfig, EParseFromTextFormatOption::AllowUnknownField);
 
             if (flavor == "default") {
-                config.GatewaysConfig = SerializeProtoToYson(protoGatewaysConfig);
-                YqlPluginForGetUsedClusters_->OnDynamicConfigChanged(config);
+                auto defaultConfig = CloneYsonStruct(config);
+                defaultConfig->GatewaysConfig = SerializeProtoToYson(protoGatewaysConfig);
+                YqlPluginForGetUsedClusters_->OnDynamicConfigChanged(std::move(defaultConfig));
             }
 
             {

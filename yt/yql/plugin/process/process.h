@@ -58,7 +58,7 @@ public:
 
     TAbortResult Abort(TQueryId queryId) override;
 
-    void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override;
+    void OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr config) override;
 
     void OnUdfMetaChanged(TUdfMetaPtr udfMeta) override;
 

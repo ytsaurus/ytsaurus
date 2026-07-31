@@ -231,7 +231,7 @@ int TYqlExecutorProcess::DynamicConfigVersion() const
     return DynamicConfigVersion_;
 }
 
-void TYqlExecutorProcess::OnDynamicConfigChanged(TYqlPluginDynamicConfig /*config*/)
+void TYqlExecutorProcess::OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr /*config*/)
 {
     // do nothing
 }

@@ -50,7 +50,6 @@ TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOpt
         .OperationAttributes = TYsonString(TStringBuf(bridgeOptions->OperationAttributes, bridgeOptions->OperationAttributesLength)),
         .Libraries = libraries,
         .YTTokenPath = TString(bridgeOptions->YTTokenPath),
-        .MaxYqlLangVersion = bridgeOptions->MaxYqlLangVersion,
         .StartDqManager = bridgeOptions->StartDqManager,
     };
     options.LogBackend = std::move(*reinterpret_cast<THolder<TLogBackend>*>(bridgeOptions->LogBackend));
@@ -87,11 +86,10 @@ void BridgeFreeQueryResult(TBridgeQueryResult* result)
     delete result;
 }
 
-void BridgeOnDynamicConfigChanged(TBridgeYqlPlugin* plugin, const /*TYqlPluginDynamicConfig*/ void* config)
+void BridgeOnDynamicConfigChanged(TBridgeYqlPlugin* /*plugin*/, const /*TYqlPluginDynamicConfig*/ void* /*config*/)
 {
-    auto* nativePlugin = reinterpret_cast<IYqlPlugin*>(plugin);
-    auto* nativeConfig = reinterpret_cast<const TYqlPluginDynamicConfig*>(config);
-    nativePlugin->OnDynamicConfigChanged(*nativeConfig);
+    // Dynamic linking for YQL plugin is deprecated
+    Y_UNREACHABLE();
 }
 
 void FillString(const char*& str, ssize_t& strLength, const std::optional<TString>& original)
