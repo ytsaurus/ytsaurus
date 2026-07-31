@@ -132,7 +132,10 @@ void TYtDatabaseBase::dropTable(DB::ContextPtr context, const String& name, bool
 
     DB::StorageID tableId(getDatabaseName(), name);
     if (queryContext->LastResolvedDictionaryName == name) {
-        host->GetCypressObjectRepository()->DeleteDictionary(context, tableId);
+        host->GetCypressObjectRepository()->DeleteDictionary(
+            context,
+            tableId,
+            queryContext->LastResolvedDictionaryRevision);
         return;
     }
 
@@ -318,6 +321,9 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
 
     if (result != nullptr && result->isDictionary()) {
         queryContext->LastResolvedDictionaryName = name;
+        auto revision = queryContext->Host->GetCypressObjectRepository()->TryGetDictionaryRevision(storageId);
+        YT_VERIFY(revision);
+        queryContext->LastResolvedDictionaryRevision = *revision;
     }
 
     return result;
