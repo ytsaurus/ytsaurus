@@ -18,11 +18,16 @@ using namespace NConcurrency;
 TNodeId CreateQueueConsumerNode(
     const NApi::IClientPtr& client,
     const NYPath::TYPath& path,
+    bool isMultiConsumer,
     const NApi::TCreateNodeOptions& options)
 {
     auto transaction = [&] {
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Create queue consumer %v", path));
+        attributes->Set(
+            "title",
+            isMultiConsumer
+                ? Format("Create queue multi consumer %v", path)
+                : Format("Create queue consumer %v", path));
         TTransactionStartOptions startOptions{
             .ParentId = options.TransactionId,
             .Attributes = std::move(attributes),
@@ -36,7 +41,7 @@ TNodeId CreateQueueConsumerNode(
 
         attributes->Set("dynamic", true);
         attributes->Set("treat_as_queue_consumer", true);
-        attributes->Set("schema", GetConsumerSchema());
+        attributes->Set("schema", isMultiConsumer ? GetMultiConsumerSchema() : GetConsumerSchema());
 
         auto createNodeOptions = options;
         createNodeOptions.Attributes = std::move(attributes);
