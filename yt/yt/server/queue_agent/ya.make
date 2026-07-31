@@ -10,6 +10,7 @@ SRCS(
     dynamic_config_manager.cpp
     helpers.cpp
     multi_consumer_controller.cpp
+    multi_consumer_names_garbage_collector.cpp
     multi_consumer_profile_manager.cpp
     object.cpp
     ytree_helpers.cpp
