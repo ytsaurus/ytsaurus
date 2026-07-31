@@ -27,6 +27,10 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 || `payload_column` | **Type**: `std::string`
 **Default value**: `data`
  ||
+|| `attributes_column` | **Type**: `std::optional<std::string>`
+Column holding a yson map of user attributes (`{name -> string}`) written into the logbroker message attributes next to `flow_queue_meta_name`. Build its value with `NYT::NFlow::PackLogbrokerAttributes()`, which validates globally reserved names and the absolute logbroker limits. The sink validates the final metadata together with `flow_queue_meta_name` before sending the message.
+
+If the parameter is not set, no user attributes are written. A `null` column value means no attributes. The names flow owns (the `_ytflow_` prefix and the legacy `flow_queue_meta`) and the names YDB interprets (the `__` prefix) are rejected. Framing sinks do not support this parameter and reject it when the spec is parsed: they pack a batch of messages into a single logbroker message, leaving no way to pick the attributes of the result. ||
 || `logbroker_max_memory_usage_bytes` | **Type**: `long`
 **Default value**: `52428800`
  ||
@@ -40,7 +44,7 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 **Default value**: `false`
  ||
 || `flow_queue_meta_name` | **Type**: `std::string`
-**Default value**: `flow_queue_meta`
+**Default value**: `_ytflow_queue_meta`
  ||
 |#
 
