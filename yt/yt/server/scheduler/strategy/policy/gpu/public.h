@@ -9,6 +9,7 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 DEFINE_ENUM(EGpuAssignmentPlanningStage,
     (FullHostModuleBound)
+    (FullHostNonGang)
     (Normal)
     (WithExtraResources)
     (LimitsCheck)

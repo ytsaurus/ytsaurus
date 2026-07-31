@@ -18,22 +18,49 @@ using TPreemptionPenalty = i64;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TModuleReservation final
+{
+public:
+    using TReservationItem = std::variant<TOperationPtr, TAssignmentPtr>;
+    DEFINE_BYVAL_RO_PROPERTY(TReservationItem, Item);
+    DEFINE_BYVAL_RO_PROPERTY(int, NodeCount);
+
+public:
+    explicit TModuleReservation(const TOperationPtr& operation);
+    explicit TModuleReservation(const TAssignmentPtr& assignment);
+
+    bool IsPriorityModuleBoundOperation() const;
+};
+
+using TModuleReservationPtr = TIntrusivePtr<TModuleReservation>;
+
+void FormatValue(TStringBuilderBase* builder, const TModuleReservation& reservation, TStringBuf spec);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TModuleState
 {
 public:
     // NB(eshcherbin): This vector can and will be sorted in-place.
     DEFINE_BYREF_RW_PROPERTY(std::vector<TNode*>, AvailableNodes);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TOperation*>, FullHostBoundOperations);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TModuleReservationPtr>, ModuleReservations);
+
+    using TOperationToReservationMap = THashMap<TOperation*, TModuleReservationPtr>;
+    DEFINE_BYREF_RO_PROPERTY(TOperationToReservationMap, FullHostBoundOperationReservations);
+    DEFINE_BYVAL_RO_PROPERTY(int, FullHostNonGangAssignmentCount);
 
 public:
     int GetNodeCount() const;
     int GetUnreservedNodeCount() const;
 
     void AddFullHostBoundOperation(const TOperationPtr& operation);
-    void RemoveFullHostBoundOperation(const TOperationPtr& operation);
+    void AddAssignment(const TAssignmentPtr& assignment);
+    void RemoveReservation(const TModuleReservationPtr& reservation);
 
 private:
     int ReservedNodeCount_ = 0;
+
+    void AddReservation(TModuleReservationPtr reservation);
 };
 
 using TModuleStateMap = THashMap<std::string, TModuleState>;
@@ -48,7 +75,7 @@ struct TOperationModuleBindingOutcome
     const int RemainingUnreservedNodeCount = 0;
 
     const int TotalEvictionPenalty = 0;
-    const std::vector<TOperation*> OperationsToEvict;
+    const std::vector<TModuleReservation*> ReservationsToEvict;
 };
 
 bool operator<(const TOperationModuleBindingOutcome& lhs, const TOperationModuleBindingOutcome& rhs);
@@ -69,7 +96,7 @@ struct IAssignmentPlanUpdateContext
     virtual const TNodeMap& Nodes() const = 0;
     virtual const TGpuPlanUpdateStatisticsPtr& GetStatistics() const = 0;
 
-    virtual void AddPlannedAssignment(
+    virtual TAssignmentPtr AddPlannedAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
@@ -119,6 +146,7 @@ private:
 
     //! Full-host module-bound operations planning.
     void ProcessFullHostModuleBoundOperations();
+    void ProcessFullHostNonGangOperations();
     void PlanFullHostModuleBoundOperations(
         std::vector<TOperationPtr>& operationsToPlan,
         bool priorityModuleBinding = false);
@@ -128,6 +156,10 @@ private:
     bool ShouldUsePriorityModuleBinding(const TOperationPtr& operation) const;
 
     bool ShouldResetModule(const TOperationPtr& operation) const;
+    void EvictReservation(
+        const NDetail::TModuleReservationPtr& reservation,
+        const std::string& preemptionDescription,
+        const std::string& evictionModule);
     void EvictOperationFromSchedulingModule(const TOperationPtr& operation, const std::string& preemptionDescription);
     bool BindFullHostOperationToModule(const TOperationPtr& operation, bool priorityModuleBinding);
 
@@ -139,11 +171,12 @@ private:
         const TOperationPtr& operation,
         const std::string& module,
         bool priorityModuleBinding) const;
-    bool FindOperationsToEvict(
-        const std::vector<TOperation*>& availableOperations,
+    bool FindReservationsToEvict(
+        const std::vector<NDetail::TModuleReservation*>& availableReservations,
         int neededNodeCount,
-        std::vector<TOperation*>* operationsToEvict,
+        std::vector<NDetail::TModuleReservation*>* reservationsToEvict,
         int* freedNodeCount) const;
+    THashMap<std::string, int> DistributeAssignmentCountBetweenModules(const TAllocationGroupResources& resources) const;
 
     //! Other operations planning.
     void ProcessRegularOperations();
@@ -163,20 +196,24 @@ private:
         const TAllocationGroupResources& allocationGroupResources) const;
 
     //! NB: These methods sort |availableNodes| in-place.
-    void PlanAllocationGroup(
+    //! NB: AllocationGroupResources are taken by copy, because planning may modify them.
+    std::vector<TAssignmentPtr> PlanAllocationGroup(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
+        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes,
         EGpuAssignmentPlanningStage stage);
-    void PlanAllocationGroupWithPreemption(
+    std::vector<TAssignmentPtr> PlanAllocationGroupWithPreemption(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
+        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes,
         EGpuAssignmentPlanningStage stage,
         bool useFullHostAggressivePreemption = false);
-    void PlanPreemptibleAllocationGroup(
+    std::vector<TAssignmentPtr> PlanPreemptibleAllocationGroup(
         const TOperationPtr& operation,
         const std::string& allocationGroupName,
+        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes,
         EGpuAssignmentPlanningStage stage);
 
@@ -185,7 +222,7 @@ private:
     class TAllocationGroupPlannerBase
     {
     public:
-        DEFINE_BYVAL_RO_PROPERTY(int, PlannedAssignmentCount);
+        DEFINE_BYREF_RO_PROPERTY(std::vector<TAssignmentPtr>, PlannedAssignments);
 
     public:
         TAllocationGroupPlannerBase(
@@ -197,6 +234,8 @@ private:
         virtual ~TAllocationGroupPlannerBase() = default;
 
         void Run();
+
+        int GetPlannedAssignmentCount() const;
 
     protected:
         const TOperationPtr& Operation_;

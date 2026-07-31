@@ -1271,11 +1271,12 @@ class TestAllocatingGpuPolicyNetworkPriority(AllocatingGpuSchedulingPolicyBaseCo
         full_module_op.abort()
 
         # 1 job x 8 GPU; share = 1/5 = 0.2 => priority 1.
-        # Single-allocation vanilla is full-host module-bound without is_gang.
+        # Single-allocation gang is full-host module-bound
         from_barriers = self.write_log_barriers_on_all_nodes()
         one_node_op = run_sleeping_vanilla(
             job_count=1,
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"is_gang": True},
         )
         wait(lambda: len(one_node_op.get_running_jobs()) == 1)
 
@@ -1849,7 +1850,8 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
     def test_specified_modules(self):
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
-            spec={"scheduling_modules": ["VLA"]},
+            spec={"scheduling_modules": ["VLA"], "is_gang": True},
+            job_count=1,
         )
 
         wait(lambda: len(op.get_running_jobs()) == 1)
@@ -1863,14 +1865,14 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
         operation = get_operation_from_gpu_policy_orchid(op)
         check_operation_from_gpu_policy_orchid(
             operation=operation,
-            is_gang=False,
+            is_gang=True,
             group_name="task",
             allocation_count=1,
             min_needed_gpu_per_allocation=8,
             assigned_gpu_usage=8,
             assignment_count=1,
             enabled=True,
-            scheduling_module="VLA"
+            scheduling_module="VLA",
         )
 
         job_id = list(op.get_running_jobs())[0]
@@ -2148,6 +2150,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
         op = run_sleeping_vanilla(
             job_count=1,
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"is_gang": True},
         )
         wait(lambda: get_operation_from_gpu_policy_orchid(op).get("scheduling_module") in self.DATA_CENTERS)
         module = get_operation_from_gpu_policy_orchid(op)["scheduling_module"]
@@ -2224,6 +2227,7 @@ class TestAllocatingGpuSchedulingPolicyMetrics(AllocatingGpuSchedulingPolicyMult
         module_total_nodes = module_profiler.gauge(module_prefix + "total_nodes_count")
         module_unreserved_nodes = module_profiler.gauge(module_prefix + "unreserved_nodes_count")
         module_full_host_bound_operations = module_profiler.gauge(module_prefix + "full_host_module_bound_operations_count")
+        module_full_host_non_gang_assignments = module_profiler.gauge(module_prefix + "full_host_non_gang_assignments_count")
 
         _ = run_sleeping_vanilla(
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
@@ -2249,7 +2253,9 @@ class TestAllocatingGpuSchedulingPolicyMetrics(AllocatingGpuSchedulingPolicyMult
         # The single full-host operation reserves one of the module's nodes.
         wait(lambda: module_total_nodes.get() == self.NUM_NODES)
         wait(lambda: module_unreserved_nodes.get() == 0)
-        wait(lambda: module_full_host_bound_operations.get() == 1)
+        wait(lambda: module_full_host_bound_operations.get() == 0)
+        wait(lambda: module_full_host_non_gang_assignments.get() == 1)
+
 
 ##################################################################
 
@@ -3495,67 +3501,389 @@ class TestProcessAllocationUpdateAfterFinishRace(YTEnvSetup):
 ##################################################################
 
 
-class TestAllocatingGpuSchedulingPolicyZeroGpuPreemption(AllocatingGpuSchedulingPolicyBaseConfig):
-    ENABLE_MULTIDAEMON = False
-    NUM_NODES = 1
+class TestAllocatingGpuSchedulingFullHostNonGangOperations(AllocatingGpuSchedulingPolicyMultiModuleBaseConfig):
+    @authors("severovv")
+    def test_mapper_preempts_non_full_host(self):
+        blocking_ops = []
+        for node in ls("//sys/cluster_nodes"):
+            blocking_ops.append(run_sleeping_vanilla(job_count=1, task_patch={"gpu_limit": 4}, spec={"scheduling_tag_filter": node}))
+        for op in blocking_ops:
+            wait(lambda: len(op.get_running_jobs()) == 1)
 
-    @authors("yaishenka")
-    def test_preemption_with_zero_gpu_assignment(self):
-        create_pool(
-            "low",
-            pool_tree="gpu",
-            attributes={"mode": "fifo"},
-            wait_for_orchid=False,
-        )
-        create_pool(
-            "high",
-            pool_tree="gpu",
-            wait_for_orchid=False,
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        # Full-host non-gang planning/preemption is attributed to the
+        # "full_host_non_gang" stage.
+        fhng_profiler = profiler_factory().at_scheduler(
+            fixed_tags={"tree": "gpu", "stage": "full_host_non_gang"})
+        preempted_fhng = fhng_profiler.counter("scheduler/gpu_policy/preempted_assignments_count")
+        planned_fhng = fhng_profiler.counter("scheduler/gpu_policy/planned_assignments_count")
+
+        full_host_mapper_a = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out1",
+            spec={"job_count": 1, "mapper": {"gpu_limit": 8, "enable_gpu_layers": False}},
+            track=False,
         )
 
-        # Occupy all GPUs of the single node.
-        op_gpu = run_sleeping_vanilla(
-            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        full_host_mapper_b = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out2",
+            spec={"job_count": 1, "mapper": {"gpu_limit": 8, "enable_gpu_layers": False}},
+            track=False,
+        )
+
+        wait(lambda: len(full_host_mapper_a.get_running_jobs()) == 1)
+        wait(lambda: len(full_host_mapper_b.get_running_jobs()) == 1)
+        wait(lambda: preempted_fhng.get_delta() == 2)
+        wait(lambda: planned_fhng.get_delta() == 2)
+
+    @authors("severovv")
+    def test_single_allocation_vanilla_preempts_non_full_host(self):
+        blocking_ops = []
+        for node in ls("//sys/cluster_nodes"):
+            blocking_ops.append(run_sleeping_vanilla(job_count=1, task_patch={"gpu_limit": 4}, spec={"scheduling_tag_filter": node}))
+        for op in blocking_ops:
+            wait(lambda: len(op.get_running_jobs()) == 1)
+
+        fhng_profiler = profiler_factory().at_scheduler(
+            fixed_tags={"tree": "gpu", "stage": "full_host_non_gang"})
+        preempted_fhng = fhng_profiler.counter("scheduler/gpu_policy/preempted_assignments_count")
+        planned_fhng = fhng_profiler.counter("scheduler/gpu_policy/planned_assignments_count")
+
+        single_allocation_vanilla_a = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        single_allocation_vanilla_b = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+
+        wait(lambda: len(single_allocation_vanilla_a.get_running_jobs()) == 1)
+        wait(lambda: len(single_allocation_vanilla_b.get_running_jobs()) == 1)
+        wait(lambda: preempted_fhng.get_delta() == 2)
+        wait(lambda: planned_fhng.get_delta() == 2)
+
+    @authors("severovv")
+    def test_mapper_respects_module_capacity(self):
+        sas_nodes = [
+            n for n in ls("//sys/cluster_nodes")
+            if get(f"//sys/cluster_nodes/{n}/@data_center") == "SAS"
+        ]
+        assert len(sas_nodes) == 2
+
+        # run gang to occupy module capacity without real allocations starting
+        gang_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=1,
+            spec={
+                "is_gang": True,
+                "scheduling_modules": ["SAS"],
+                "scheduling_tag_filter": "nonexistent_tag",
+            },
+        )
+        wait(lambda: get_operation_from_gpu_policy_orchid(gang_op).get("scheduling_module", None) == "SAS")
+
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+
+        # only one job should start
+        mapper = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "job_count": 4,
+                "mapper": {"gpu_limit": 8, "enable_gpu_layers": False},
+                "scheduling_tag_filter": f"{sas_nodes[0]}|{sas_nodes[1]}",
+            },
+            track=False,
+        )
+
+        time.sleep(2)
+        wait(lambda: len(mapper.get_running_jobs()) == 1)
+
+    @authors("severovv")
+    def test_priority_module_binding_with_mapper(self):
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/priority_module_binding_timeout", 1000)
+
+        sas_nodes = [
+            n for n in ls("//sys/cluster_nodes")
+            if get(f"//sys/cluster_nodes/{n}/@data_center") == "SAS"
+        ]
+        assert len(sas_nodes) == 2
+
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+
+        mapper = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "job_count": 1,
+                "mapper": {"gpu_limit": 8, "enable_gpu_layers": False},
+                "scheduling_tag_filter": sas_nodes[0],
+            },
+            track=False,
+        )
+        wait(lambda: len(mapper.get_running_jobs()) == 1)
+
+        # Module eviction (whatever gets evicted) and full-host-module-bound
+        # planning are only ever attributed to the "full_host_module_bound" stage.
+        fhmb_profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "gpu", "stage": "full_host_module_bound"})
+        preempted_fhmb = fhmb_profiler.counter("scheduler/gpu_policy/preempted_assignments_count")
+        planned_fhmb = fhmb_profiler.counter("scheduler/gpu_policy/planned_assignments_count")
+        wait(lambda: preempted_fhmb.get_delta() == 0)
+        wait(lambda: planned_fhmb.get_delta() == 0)
+
+        create_pool("gang_pool", pool_tree="gpu", attributes={"enable_priority_scheduling_segment_module_assignment": True})
+        gang_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
             job_count=2,
-            spec={"pool": "low"},
+            spec={
+                "pool": "gang_pool",
+                "is_gang": True,
+                "scheduling_modules": ["SAS"],
+            },
         )
-        wait(lambda: len(op_gpu.get_running_jobs()) == 2)
-        wait(lambda: get(scheduler_orchid_operation_path(op_gpu.id, tree="gpu") + "/resource_usage/gpu", default=None) == 8)
 
-        # A zero-GPU operation in the same FIFO pool runs above its fair share,
-        # so its assignment is preemptible with zero preemption penalty.
-        op_zero = run_sleeping_vanilla(
-            task_patch={"cpu_limit": 1, "enable_gpu_layers": False},
+        wait(lambda: len(gang_op.get_running_jobs()) == 2)
+        wait(lambda: len(mapper.get_running_jobs()) == 0)
+        wait(lambda: preempted_fhmb.get_delta() == 1)
+        wait(lambda: planned_fhmb.get_delta() == 2)
+
+    @authors("severovv")
+    def test_gang_binding_blocked_by_mapper_reservation(self):
+        sas_nodes = [
+            n for n in ls("//sys/cluster_nodes")
+            if get(f"//sys/cluster_nodes/{n}/@data_center") == "SAS"
+        ]
+        assert len(sas_nodes) == 2
+
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        # Take both SAS nodes with mappers first
+        mapper_a = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out1",
+            spec={
+                "job_count": 1,
+                "mapper": {"gpu_limit": 8, "enable_gpu_layers": False},
+                "scheduling_tag_filter": sas_nodes[0],
+            },
+            track=False,
+        )
+        mapper_b = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out2",
+            spec={
+                "job_count": 1,
+                "mapper": {"gpu_limit": 8, "enable_gpu_layers": False},
+                "scheduling_tag_filter": sas_nodes[1],
+            },
+            track=False,
+        )
+        wait(lambda: len(mapper_a.get_running_jobs()) == 1)
+        wait(lambda: len(mapper_b.get_running_jobs()) == 1)
+
+        create_pool(
+            "gang_pool",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 16}},
+        )
+
+        # No priority module binding is configured, so no scheduling should happen
+        # the gang op must keep waiting rather than binding on a stale view of
+        # unreserved capacity and getting stuck unable to place anything.
+        gang_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=2,
+            spec={
+                "pool": "gang_pool",
+                "is_gang": True,
+                "scheduling_modules": ["SAS"],
+            },
+        )
+
+        time.sleep(2)
+        wait(lambda: get_operation_from_gpu_policy_orchid(gang_op).get("scheduling_module", yson.YsonEntity()) == yson.YsonEntity())
+        wait(lambda: len(gang_op.get_running_jobs()) == 0)
+
+    @authors("severovv")
+    def test_mapper_packs_used_module_before_free_one(self):
+        sas_nodes = [n for n in ls("//sys/cluster_nodes") if get(f"//sys/cluster_nodes/{n}/@data_center") == "SAS"]
+        assert len(sas_nodes) == 2
+        vla_nodes = [n for n in ls("//sys/cluster_nodes") if get(f"//sys/cluster_nodes/{n}/@data_center") == "VLA"]
+        assert len(vla_nodes) == 2
+
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        # Claim one SAS node, leaving SAS partially packed while VLA stays
+        # fully free.
+        mapper_a = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out1",
+            spec={
+                "job_count": 1,
+                "mapper": {"gpu_limit": 8, "enable_gpu_layers": False},
+                "scheduling_tag_filter": sas_nodes[0],
+            },
+            track=False,
+        )
+        wait(lambda: len(mapper_a.get_running_jobs()) == 1)
+
+        # must prefer the already-packed SAS module over fully-free
+        mapper_b = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out2",
+            spec={
+                "job_count": 1,
+                "mapper": {"gpu_limit": 8, "enable_gpu_layers": False},
+            },
+            track=False,
+        )
+        wait(lambda: len(mapper_b.get_running_jobs()) == 1)
+
+        wait_for_assignments_in_gpu_policy_orchid(mapper_b, 1, exactly=True)
+        assignment = get_operation_from_gpu_policy_orchid(mapper_b)["assignments"][0]
+        assert assignment["node_address"] == sas_nodes[1]
+
+        # gang is planned to other scheduling module without any issues
+        create_pool(
+            "gang_pool",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 16}},
+        )
+        gang_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=2,
+            spec={
+                "pool": "gang_pool",
+                "is_gang": True,
+            },
+        )
+        wait(lambda: len(gang_op.get_running_jobs()) == 2)
+        assert len(mapper_a.get_running_jobs()) == 1
+        assert len(mapper_b.get_running_jobs()) == 1
+
+    @authors("severovv")
+    def test_starving_mapper_respects_partial_module_reservation(self):
+        # starving operation launch multiple planning stages, so we need to separately test
+        # that total amount of planned assignments is less than free module capacity
+
+        sas_nodes = [
+            n for n in ls("//sys/cluster_nodes")
+            if get(f"//sys/cluster_nodes/{n}/@data_center") == "SAS"
+        ]
+        assert len(sas_nodes) == 2
+
+        sas_reservation_gang = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
             job_count=1,
-            spec={"pool": "low"},
+            spec={
+                "is_gang": True,
+                "scheduling_modules": ["SAS"],
+                "scheduling_tag_filter": "nonexistent_tag",
+            },
         )
-        wait(lambda: len(op_zero.get_running_jobs()) == 1)
+        wait(lambda: get_operation_from_gpu_policy_orchid(sas_reservation_gang).get("scheduling_module", None) == "SAS")
 
-        wait_for_operations_in_gpu_policy_orchid(operation_count=2)
-        wait_for_assignments_in_gpu_policy_orchid(op_zero, assignment_count=1, exactly=True)
-
-        def zero_gpu_assignment_is_preemptible():
-            assignments = get_operation_gpu_assignments_from_gpu_policy_orchid(op_zero)
-            return len(assignments) == 1 and \
-                assignments[0]["resource_usage"]["gpu"] == 0 and \
-                assignments[0]["preemptible"]
-
-        wait(zero_gpu_assignment_is_preemptible)
-
-        # A starving operation triggers preemptive assignment planning on the node
-        # with the zero-GPU preemptible assignment. It must not hang the scheduler.
-        op_starving = run_sleeping_vanilla(
-            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        sas_short_gang = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
             job_count=1,
-            spec={"pool": "high"},
+            spec={
+                "is_gang": True,
+                "scheduling_modules": ["SAS"],
+            },
         )
+        wait(lambda: len(sas_short_gang.get_running_jobs()) == 1)
+        wait_for_assignments_in_gpu_policy_orchid(sas_short_gang, assignment_count=1, exactly=True)
 
-        wait(lambda: len(op_starving.get_running_jobs()) == 1)
-        wait(lambda: get(scheduler_orchid_operation_path(op_starving.id, tree="gpu") + "/resource_usage/gpu", default=None) == 4)
-        wait(lambda: len(op_gpu.get_running_jobs()) == 1)
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        mapper = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "job_count": 2,
+                "mapper": {"gpu_limit": 8, "enable_gpu_layers": False},
+                "scheduling_tag_filter": f"{sas_nodes[0]}|{sas_nodes[1]}",
+            },
+            track=False,
+        )
+        wait(lambda: get_operation_from_gpu_policy_orchid(mapper).get("starving", False))
 
-        # The zero-GPU assignment has the smallest preemption penalty, so it is preempted
-        # as well, but the operation is rescheduled shortly after.
-        wait(lambda: len(op_zero.get_running_jobs()) == 1)
+        sas_short_gang.abort()
+        time.sleep(2)
+        wait(lambda: len(mapper.get_running_jobs()) == 1)
 
-##################################################################
+    @authors("severovv")
+    def test_mapper_respects_module_distribution(self):
+        # mapper has to prefer module with 1 unreserved node
+        # distribution will be sas: 1, vla: 0
+        # no assignment has to be planned for vla, op has to wait for aggressive preemption in sas
+
+        sas_nodes = [
+            n for n in ls("//sys/cluster_nodes")
+            if get(f"//sys/cluster_nodes/{n}/@data_center") == "SAS"
+        ]
+        assert len(sas_nodes) == 2
+
+        sas_reservation_gang = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=1,
+            spec={
+                "is_gang": True,
+                "scheduling_modules": ["SAS"],
+                "scheduling_tag_filter": "nonexistent_tag",
+            },
+        )
+        wait(lambda: get_operation_from_gpu_policy_orchid(sas_reservation_gang).get("scheduling_module", None) == "SAS")
+
+        for node in sas_nodes:
+            sas_blocking_op = run_sleeping_vanilla(
+                job_count=1,
+                task_patch={"gpu_limit": 4},
+                spec={"scheduling_tag_filter": node},
+            )
+            wait(lambda: len(sas_blocking_op.get_running_jobs()) == 1)
+
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        mapper = map(
+            command="sleep 100; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "job_count": 1,
+                "mapper": {"gpu_limit": 8, "enable_gpu_layers": False},
+            },
+            track=False,
+        )
+        wait(lambda: len(mapper.get_running_jobs()) == 1)
+
+        wait_for_assignments_in_gpu_policy_orchid(mapper, 1, exactly=True)
+        assignment = get_operation_from_gpu_policy_orchid(mapper)["assignments"][0]
+        assert assignment["node_address"] in sas_nodes

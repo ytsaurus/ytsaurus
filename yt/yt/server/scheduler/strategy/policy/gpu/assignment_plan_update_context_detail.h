@@ -23,7 +23,7 @@ class TAssignmentHandler
 public:
     explicit TAssignmentHandler(NLogging::TLogger logger);
 
-    void AddPlannedAssignment(
+    TAssignmentPtr AddPlannedAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
@@ -60,7 +60,7 @@ public:
     const TNodeMap& Nodes() const override;
     const TGpuPlanUpdateStatisticsPtr& GetStatistics() const override;
 
-    void AddPlannedAssignment(
+    TAssignmentPtr AddPlannedAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,

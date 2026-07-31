@@ -177,6 +177,7 @@ public:
 
     bool IsFullHost() const;
     bool IsFullHostModuleBound() const;
+    bool IsFullHostNonGang() const;
 
     int GetInitialNeededAllocationCount() const;
     int GetReadyToAssignNeededAllocationCount() const;
@@ -313,6 +314,7 @@ struct TGpuModuleStatistics final
     int TotalNodes = 0;
     int UnreservedNodes = 0;
     int FullHostModuleBoundOperations = 0;
+    int FullHostNonGangAssignments = 0;
 };
 
 void Serialize(const TGpuModuleStatistics& node, NYson::IYsonConsumer* consumer);
@@ -324,7 +326,8 @@ struct TGpuPlanUpdateStatistics final
     NProfiling::TWallTimer Timer;
 
     TDuration UpdatingOperationResourcesDuration;
-    TDuration FullHostPlanningDuration;
+    TDuration FullHostModuleBoundPlanningDuration;
+    TDuration FullHostNonGangPlanningDuration;
     TDuration RegularPlanningDuration;
     TDuration ExtraPlanningDuration;
 

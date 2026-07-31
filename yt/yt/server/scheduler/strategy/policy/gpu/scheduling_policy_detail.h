@@ -49,6 +49,7 @@ struct TModuleProfilingCounters
     NProfiling::TGauge TotalModuleNodes;
     NProfiling::TGauge ModuleUnreservedNodes;
     NProfiling::TGauge ModuleFullHostModuleBoundOperations;
+    NProfiling::TGauge ModuleFullHostNonGangAssignments;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +68,8 @@ struct TGpuSchedulingProfilingCounters
 
     NProfiling::TEventTimer TotalPlanningTime;
     NProfiling::TEventTimer OperationResourcesUpdateTime;
-    NProfiling::TEventTimer FullHostPlanningTime;
+    NProfiling::TEventTimer FullHostModuleBoundPlanningTime;
+    NProfiling::TEventTimer FullHostNonGangPlanningTime;
     NProfiling::TEventTimer RegularPlanningTime;
     NProfiling::TEventTimer ExtraPlanningTime;
 

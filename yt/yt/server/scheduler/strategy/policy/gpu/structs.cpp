@@ -182,9 +182,12 @@ bool TOperation::IsFullHost() const
 
 bool TOperation::IsFullHostModuleBound() const
 {
-    bool singleAllocationVanilla = GetType() == EOperationType::Vanilla &&
-        GetInitialNeededAllocationCount() == 1;
-    return IsFullHost() && (IsGang() || singleAllocationVanilla);
+    return IsFullHost() && IsGang();
+}
+
+bool TOperation::IsFullHostNonGang() const
+{
+    return IsFullHost() && !IsGang();
 }
 
 int TOperation::GetInitialNeededAllocationCount() const
@@ -517,6 +520,7 @@ void Serialize(const TGpuModuleStatistics& statistic, NYson::IYsonConsumer* cons
             .Item("node_count").Value(statistic.TotalNodes)
             .Item("unreserved_node_count").Value(statistic.UnreservedNodes)
             .Item("full_host_bound_operation_count").Value(statistic.FullHostModuleBoundOperations)
+            .Item("full_host_non_gang_assignment_count").Value(statistic.FullHostNonGangAssignments)
         .EndMap();
 }
 

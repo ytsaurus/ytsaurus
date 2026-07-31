@@ -848,7 +848,7 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
 
         assignments_counter = profiler.gauge(prefix + "/assignments_count")
         planned_assignments_counter = profiler.counter(prefix + "/planned_assignments_count")
-        planned_assignments_full_host_counter = profiler.counter(prefix + "/planned_assignments_count", tags={"stage": "full_host_module_bound"})
+        planned_assignments_full_host_module_bound_counter = profiler.counter(prefix + "/planned_assignments_count", tags={"stage": "full_host_module_bound"})
         planned_assignments_normal_counter = profiler.counter(prefix + "/planned_assignments_count", tags={"stage": "normal"})
         preempted_assignments_counter = profiler.counter(prefix + "/preempted_assignments_count", tags={"stage": "normal"})
         enabled_operations_counter = profiler.gauge(prefix + "/enabled_operations_count")
@@ -871,11 +871,12 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
 
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"is_gang": True},
         )
 
         wait(lambda: assignments_counter.get() == 1)
         wait(lambda: planned_assignments_counter.get() == 1)
-        wait(lambda: planned_assignments_full_host_counter.get() == 1)
+        wait(lambda: planned_assignments_full_host_module_bound_counter.get() == 1)
         wait(lambda: planned_assignments_normal_counter.get() == 0)
         wait(lambda: enabled_operations_counter.get() == 1)
         wait(lambda: full_host_module_bound_operations_counter.get() == 1)
@@ -1522,7 +1523,7 @@ class TestDryRunGpuSchedulingPolicyMultiModule(YTEnvSetup):
     def test_specified_modules(self):
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
-            spec={"scheduling_modules": ["VLA"]},
+            spec={"scheduling_modules": ["VLA"], "is_gang": True},
         )
 
         wait(lambda: len(op.get_running_jobs()) == 1)
@@ -1533,7 +1534,7 @@ class TestDryRunGpuSchedulingPolicyMultiModule(YTEnvSetup):
         operation = get_operation_from_gpu_policy_orchid(op)
         check_operation_from_gpu_policy_orchid(
             operation=operation,
-            is_gang=False,
+            is_gang=True,
             group_name="task",
             allocation_count=1,
             min_needed_gpu_per_allocation=8,

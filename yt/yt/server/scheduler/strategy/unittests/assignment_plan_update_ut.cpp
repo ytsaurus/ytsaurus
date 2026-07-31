@@ -173,14 +173,14 @@ public:
         EmplaceOrCrash(OperationIdToLimit_, operation->GetId(), limit);
     }
 
-    void AddPlannedAssignment(
+    TAssignmentPtr AddPlannedAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
         TNode* node,
         bool preemptible = false) override
     {
-        AssignmentHandler_.AddPlannedAssignment(std::move(allocationGroupName), resourceUsage, operation, node, preemptible);
+        return AssignmentHandler_.AddPlannedAssignment(std::move(allocationGroupName), resourceUsage, operation, node, preemptible);
     }
 
     void PreemptAssignment(
@@ -643,7 +643,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, ReinitializeWithChangedNeededReso
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimpleFullHost)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    auto operation = CreateFullHostTestOperation();
+    auto operation = CreateFullHostTestOperation(/*allocationCount*/ 1, EOperationType::Vanilla, /*gang*/ true);
 
     EXPECT_TRUE(operation->IsFullHost());
     EXPECT_EQ(1, operation->GetInitialNeededAllocationCount());
@@ -1628,7 +1628,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostRegularPreemption)
     EXPECT_EQ(UnitResources, operations[0]->AssignedResourceUsage());
     EXPECT_EQ(TestNodeResources * 9, operations[1]->AssignedResourceUsage());
 
-    operations.push_back(CreateFullHostTestOperation());
+    operations.push_back(CreateFullHostTestOperation(/*allocationCount*/ 1, EOperationType::Vanilla, /*gang*/ true));
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
@@ -1904,12 +1904,12 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostSingleAllocationOpera
         EXPECT_EQ(TestNodeResources, operation->AssignedResourceUsage());
     }
 
-    const auto& module = operations[0]->SchedulingModule();
-    ASSERT_TRUE(module);
+    const auto& firstModule = (*operations[0]->Assignments().begin())->Node->SchedulingModule();
+    ASSERT_TRUE(firstModule);
 
     for (const auto& operation : operations) {
-        EXPECT_EQ(module, operation->SchedulingModule());
-        CheckOperationAssignmentsAreInCorrectModule(operation);
+        ASSERT_EQ(1, std::ssize(operation->Assignments()));
+        EXPECT_EQ(firstModule, (*operation->Assignments().begin())->Node->SchedulingModule());
     }
 }
 
@@ -1938,8 +1938,10 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostSingleAllocationOpera
 
     const auto& secondModule = operations[1]->SchedulingModule();
     ASSERT_TRUE(secondModule);
-    EXPECT_EQ(secondModule, operations[0]->SchedulingModule());
-    EXPECT_EQ(secondModule, operations[4]->SchedulingModule());
+    ASSERT_EQ(1, std::ssize(operations[0]->Assignments()));
+    EXPECT_EQ(secondModule, (*operations[0]->Assignments().begin())->Node->SchedulingModule());
+    ASSERT_EQ(1, std::ssize(operations[4]->Assignments()));
+    EXPECT_EQ(secondModule, (*operations[4]->Assignments().begin())->Node->SchedulingModule());
 
     for (const auto& operation : operations) {
         CheckOperationAssignmentsAreInCorrectModule(operation);
@@ -1963,7 +1965,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostSpecifiedModules)
             operations.push_back(CreateFullHostTestOperation(
                 /*allocationCount*/ allocationCount,
                 EOperationType::Vanilla,
-                /*gang*/ {},
+                /*gang*/ true,
                 std::move(specifiedSchedulingModules)));
         };
     }
@@ -2002,7 +2004,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostLessSpecifiedModulesG
             operations.push_back(CreateFullHostTestOperation(
                 /*allocationCount*/ allocationCount,
                 EOperationType::Vanilla,
-                /*gang*/ {},
+                /*gang*/ true,
                 std::move(specifiedSchedulingModules)));
         };
     }
@@ -2037,7 +2039,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBinding)
             operations.push_back(CreateFullHostTestOperation(
                 /*allocationCount*/ allocationCount,
                 EOperationType::Vanilla,
-                /*gang*/ {},
+                /*gang*/ true,
                 std::move(specifiedSchedulingModules)));
         };
     }
@@ -2166,7 +2168,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBindingOtherPri
             operations.push_back(CreateFullHostTestOperation(
                 /*allocationCount*/ allocationCount,
                 EOperationType::Vanilla,
-                /*gang*/ {},
+                /*gang*/ true,
                 std::move(specifiedSchedulingModules)));
         };
     }
@@ -2222,16 +2224,74 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostMap)
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
-    EXPECT_EQ(TestNodeResources * 14, operations[0]->AssignedResourceUsage());
+    // Map ops are now fhng and run before regular planning, so the mapper takes all 15 remaining
+    // nodes and the small regular op has nowhere to go.
+    EXPECT_EQ(TestNodeResources * 15, operations[0]->AssignedResourceUsage());
     EXPECT_EQ(TestNodeResources * 7, operations[1]->AssignedResourceUsage());
     EXPECT_EQ(TestNodeResources * 8, operations[2]->AssignedResourceUsage());
-    EXPECT_EQ(UnitResources, operations[3]->AssignedResourceUsage());
+    EXPECT_EQ(TJobResources(), operations[3]->AssignedResourceUsage());
 
-    EXPECT_EQ(1, operations[0]->GetReadyToAssignNeededAllocationCount());
+    EXPECT_EQ(0, operations[0]->GetReadyToAssignNeededAllocationCount());
 
     for (const auto& operation : operations) {
         CheckOperationAssignmentsAreInCorrectModule(operation);
     }
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostNonGangAssignmentsArePackedIntoSmallerModules)
+{
+    auto nodes = CreateMultiModuleTestNodes({
+        {"ALA", 2},
+        {"BEG", 5},
+        {"EVN", 10},
+    });
+    auto operation = CreateFullHostTestOperation(
+        /*allocationCount*/ 6,
+        EOperationType::Map,
+        /*gang*/ false);
+
+    DoAllocationAssignmentPlanUpdate({operation}, nodes);
+
+    THashMap<std::string, int> assignmentCountPerModule;
+    for (const auto& assignment : operation->Assignments()) {
+        ++assignmentCountPerModule[*assignment->Node->SchedulingModule()];
+    }
+
+    EXPECT_EQ(2, assignmentCountPerModule["ALA"]);
+    EXPECT_EQ(4, assignmentCountPerModule["BEG"]);
+    EXPECT_FALSE(assignmentCountPerModule.contains("EVN"));
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostNonGangIgnoresOverfilledModules)
+{
+    auto nodes = CreateMultiModuleTestNodes({
+        {"ALA", 2},
+        {"BEG", 2},
+    });
+    auto moduleBoundOperation = CreateFullHostTestOperation(
+        /*allocationCount*/ 2,
+        EOperationType::Vanilla,
+        /*gang*/ true);
+
+    DoAllocationAssignmentPlanUpdate({moduleBoundOperation}, nodes);
+
+    ASSERT_EQ("ALA", moduleBoundOperation->SchedulingModule());
+
+    auto vanishedNodeIt = std::ranges::find_if(nodes, [] (const TNodePtr& node) {
+        return node->SchedulingModule() == "ALA";
+    });
+    ASSERT_NE(nodes.end(), vanishedNodeIt);
+    nodes.erase(vanishedNodeIt);
+
+    auto nonGangOperation = CreateFullHostTestOperation(
+        /*allocationCount*/ 1,
+        EOperationType::Map,
+        /*gang*/ false);
+
+    DoAllocationAssignmentPlanUpdate({moduleBoundOperation, nonGangOperation}, nodes);
+
+    ASSERT_EQ(1, std::ssize(nonGangOperation->Assignments()));
+    EXPECT_EQ("BEG", (*nonGangOperation->Assignments().begin())->Node->SchedulingModule());
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAndLaterReturnsToSameModule)
@@ -2324,7 +2384,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAnd
     operations.pop_back();
 
     // Add operation that will block us from binding to the old module.
-    operations.push_back(CreateFullHostTestOperation());
+    operations.push_back(CreateFullHostTestOperation(/*allocationCount*/ 1, EOperationType::Vanilla, /*gang*/ true));
 
     DoAllocationAssignmentPlanUpdate(operations, nodes);
 
