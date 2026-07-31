@@ -11,8 +11,8 @@ import (
 	"go.ytsaurus.tech/yt/chyt/controller/test/helpers"
 )
 
-func scrapeSolomonSensors(t *testing.T, client *helpers.RequestClient) map[string]float64 {
-	rsp := client.MakeGetRequest("solomon", api.RequestParams{})
+func scrapeMetrics(t *testing.T, client *helpers.RequestClient) map[string]float64 {
+	rsp := client.MakeGetRequest("metrics", api.RequestParams{})
 	require.Equal(t, http.StatusOK, rsp.StatusCode)
 
 	var dump struct {
@@ -30,8 +30,8 @@ func scrapeSolomonSensors(t *testing.T, client *helpers.RequestClient) map[strin
 	return sensors
 }
 
-func scrapeSolomonHistogramTotal(t *testing.T, client *helpers.RequestClient, sensor string) (total int64, found bool) {
-	rsp := client.MakeGetRequest("solomon", api.RequestParams{})
+func scrapeMetricsHistogramTotal(t *testing.T, client *helpers.RequestClient, sensor string) (total int64, found bool) {
+	rsp := client.MakeGetRequest("metrics", api.RequestParams{})
 	require.Equal(t, http.StatusOK, rsp.StatusCode)
 
 	var dump struct {
@@ -57,18 +57,18 @@ func scrapeSolomonHistogramTotal(t *testing.T, client *helpers.RequestClient, se
 	return 0, false
 }
 
-func waitSolomonSensor(t *testing.T, client *helpers.RequestClient, sensor string, expected float64) {
+func waitMetric(t *testing.T, client *helpers.RequestClient, sensor string, expected float64) {
 	helpers.Wait(t, func() bool {
-		value, ok := scrapeSolomonSensors(t, client)[sensor]
+		value, ok := scrapeMetrics(t, client)[sensor]
 		return ok && value == expected
 	})
 }
 
-func TestSolomonOpletCountSensors(t *testing.T) {
-	env, agent, client := helpers.PrepareSolomonMonitoring(t)
+func TestMetricsOpletCountSensors(t *testing.T) {
+	env, agent, client := helpers.PrepareMetricsMonitoring(t)
 	t.Cleanup(agent.Stop)
 
-	sensors := scrapeSolomonSensors(t, client)
+	sensors := scrapeMetrics(t, client)
 	require.Equal(t, float64(0), sensors["oplet_count"])
 	require.Equal(t, float64(0), sensors["failed_oplet_count"])
 
@@ -76,21 +76,21 @@ func TestSolomonOpletCountSensors(t *testing.T) {
 	agent.Start()
 	waitAliases(t, env, []string{"monitoring_test1"})
 
-	waitSolomonSensor(t, client, "oplet_count", 1)
+	waitMetric(t, client, "oplet_count", 1)
 
-	require.Equal(t, float64(0), scrapeSolomonSensors(t, client)["pass_error_count"])
+	require.Equal(t, float64(0), scrapeMetrics(t, client)["pass_error_count"])
 
 	agent.Stop()
-	sensors = scrapeSolomonSensors(t, client)
+	sensors = scrapeMetrics(t, client)
 	require.Equal(t, float64(0), sensors["oplet_count"])
 	require.Equal(t, float64(0), sensors["failed_oplet_count"])
 }
 
-func TestSolomonPassDurationSensors(t *testing.T) {
-	env, agent, client := helpers.PrepareSolomonMonitoring(t)
+func TestMetricsPassDurationSensors(t *testing.T) {
+	env, agent, client := helpers.PrepareMetricsMonitoring(t)
 	t.Cleanup(agent.Stop)
 
-	total, found := scrapeSolomonHistogramTotal(t, client, "oplet_pass_duration_seconds")
+	total, found := scrapeMetricsHistogramTotal(t, client, "oplet_pass_duration_seconds")
 	require.True(t, found)
 	require.Equal(t, int64(0), total)
 
@@ -99,10 +99,10 @@ func TestSolomonPassDurationSensors(t *testing.T) {
 	waitAliases(t, env, []string{"monitoring_test2"})
 
 	helpers.Wait(t, func() bool {
-		total, _ := scrapeSolomonHistogramTotal(t, client, "oplet_pass_duration_seconds")
+		total, _ := scrapeMetricsHistogramTotal(t, client, "oplet_pass_duration_seconds")
 		return total > 0
 	})
 	helpers.Wait(t, func() bool {
-		return scrapeSolomonSensors(t, client)["last_pass_duration_seconds"] > 0
+		return scrapeMetrics(t, client)["last_pass_duration_seconds"] > 0
 	})
 }
