@@ -256,6 +256,16 @@ spec_template = {
         "mount_hunk_storage_tablet_probability": 0.2,
         "change_hunk_storage_probability": 0.8,
         "unlink_hunk_storage_probability": 0.2,
+        # Replicated queues (replicated_table + replica tables). When creating a queue, this
+        # is the chance it is created as a replicated queue instead of a plain one. Each
+        # replica gets a mode (sync/async) and independently may have hunks (its own linked
+        # hunk storage). Phase 1: replicated queues do create/write/read/remove only — the
+        # heavier operations (copy/move/alter/sort/merge/relink/mount-chaos) skip them.
+        "create_replicated_probability": 0.3,
+        "replicated_min_replicas": 1,
+        "replicated_max_replicas": 3,
+        "replica_sync_probability": 0.5,
+        "replica_hunks_probability": 0.5,
         "create_probability": 0.2,
         "copy_probability": 0.3,
         "move_probability": 0.3,
