@@ -987,7 +987,7 @@ class TestSmoothMovement(SmoothMovementBase):
         # tablet4 has different reign from the start and should not be moved.
         h4 = SmoothMovementHelper("//tmp/t4")
         h4.start()
-        with raises_yt_error("Replicated content reign .* differs from current reign .*"):
+        with raises_yt_error("differs from current reign"):
             h4.wait_for_action()
 
         assert exists(f"#{src_cell_id}/orchid/tablets/{tablet2}")
