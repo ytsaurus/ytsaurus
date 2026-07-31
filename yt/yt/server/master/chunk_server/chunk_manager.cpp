@@ -419,6 +419,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraScheduleChunkSeal, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraCreateChunkLists, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraAttachChunkTrees, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraDetachChunkTrees, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageChunkTree, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageExpiredChunks, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens, Unretained(this)));
@@ -774,6 +775,15 @@ public:
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
             &TChunkManager::HydraAttachChunkTrees,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateDetachChunkTreesMutation(TCtxDetachChunkTreesPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraDetachChunkTrees,
             this);
     }
 
@@ -5597,6 +5607,32 @@ private:
         TRspAttachChunkTrees* response)
     {
         ExecuteAttachChunkTreesSubrequest(request, response);
+    }
+
+    void HydraDetachChunkTrees(
+        const TCtxDetachChunkTreesPtr& /*context*/,
+        TReqDetachChunkTrees* request,
+        TRspDetachChunkTrees* /*response*/)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        auto parentId = FromProto<TChunkListId>(request->parent_id());
+        auto* parent = GetChunkListOrThrow(parentId);
+
+        auto policy = DeriveChunkTreeDetachPolicy(parent);
+
+        std::vector<TChunkTreeRawPtr> children;
+        children.reserve(request->child_ids_size());
+        for (const auto& protoChildId : request->child_ids()) {
+            children.push_back(GetChunkTreeOrThrow(FromProto<TChunkTreeId>(protoChildId)));
+        }
+
+        DetachFromChunkList(parent, children, policy);
+
+        YT_LOG_DEBUG("Chunk trees detached (ParentId: %v, ChildIds: %v, Policy: %v)",
+            parentId,
+            MakeShrunkFormattableView(children, TObjectIdFormatter(), 500),
+            policy);
     }
 
     void ExecuteCreateChunkSubrequest(

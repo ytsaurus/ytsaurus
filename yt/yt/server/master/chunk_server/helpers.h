@@ -62,6 +62,9 @@ void AttachToChunkList(
     TChunkList* chunkList,
     TRange<TChunkTreeRawPtr> children,
     bool updateChunkListStatistics = true);
+
+EChunkDetachPolicy DeriveChunkTreeDetachPolicy(const TChunkList* chunkList);
+
 void DetachFromChunkList(
     TChunkList* chunkList,
     TRange<TChunkTreeRawPtr> children,

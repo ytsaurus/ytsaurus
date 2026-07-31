@@ -138,6 +138,8 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachChunkTrees)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DetachChunkTrees)
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch)
             .SetCancelable(true)
             .SetHeavy(true)
@@ -862,6 +864,25 @@ private:
             chunkManager->CreateAttachChunkTreesMutation(context),
             enableMutationBoomerangs,
             AreCypressTransactionsInSequoiaEnabled());
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, DetachChunkTrees)
+    {
+        auto parentId = FromProto<TChunkListId>(request->parent_id());
+
+        context->SetRequestInfo(
+            "ParentId: %v, "
+            "ChildCount: %v",
+            parentId,
+            request->child_ids_size());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mutation = chunkManager->CreateDetachChunkTreesMutation(context);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UnstageChunkTree)

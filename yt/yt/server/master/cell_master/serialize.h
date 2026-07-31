@@ -212,6 +212,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixBoomerangWaveEviction)                                     (3337))  // babenko
     ((DropHasHunkChunkListUserAttribute)                            (3338))  // babenko
     ((FixWaitableLocksAccumulation)                                 (3339))  // ivpiskarev
+    ((DetachChunkTrees)                                             (3340))  // babenko
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

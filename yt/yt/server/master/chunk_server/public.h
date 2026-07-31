@@ -51,6 +51,8 @@ class TReqUnstageChunkTree;
 class TRspUnstageChunkTree;
 class TReqAttachChunkTrees;
 class TRspAttachChunkTrees;
+class TReqDetachChunkTrees;
+class TRspDetachChunkTrees;
 
 } // namespace NYT::NChunkClient::NProto
 
@@ -269,6 +271,8 @@ DEFINE_ENUM(EChunkDetachPolicy,
     ((HunkTablet)          (3))
     // For hunk chunks of ordered tablets.
     ((OrderedTabletHunk)   (4))
+    // For arbitrary chunks of scratch chunk lists.
+    ((Scratch)             (5))
 );
 
 inline static const EChunkScanKind DelegatedScanKinds = EChunkScanKind::Refresh | EChunkScanKind::RequisitionUpdate;

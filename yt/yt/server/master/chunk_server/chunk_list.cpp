@@ -477,7 +477,8 @@ bool TChunkList::HasChildToIndexMapping() const
         Kind_ == EChunkListKind::Hunk ||
         Kind_ == EChunkListKind::JournalRoot ||
         Kind_ == EChunkListKind::HunkStorageRoot ||
-        Kind_ == EChunkListKind::HunkTablet;
+        Kind_ == EChunkListKind::HunkTablet ||
+        Kind_ == EChunkListKind::Scratch;
 }
 
 bool TChunkList::HasChild(TChunkTree* child) const
