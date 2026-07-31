@@ -1426,6 +1426,35 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         wait(lambda: self._get_operation_module(ops_in_large_module[2]) == large_module)
         wait(lambda: self._get_operation_module(ops_in_large_module[1]) != large_module)
 
+    @authors("yaishenka")
+    def test_module_assignment_with_exactly_fitting_demand(self):
+        update_pool_tree_config_option(
+            "default",
+            "scheduling_segments/module_assignment_heuristic",
+            "min_remaining_feasible_capacity")
+
+        module = self._get_all_modules()[0]
+
+        # NB(yaishenka): The fair shares of the three operations are each 0.1, but their sum
+        # is slightly greater than 0.3 due to a floating point error. The computed remaining
+        # capacity of the module then falls slightly below 16.0, and an operation demanding
+        # exactly 16 GPUs must still be assigned to the module.
+        for _ in range(3):
+            op = run_sleeping_vanilla(
+                spec={"pool": "large_gpu", "scheduling_segment_modules": [module]},
+                task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            )
+            wait(lambda: are_almost_equal(self._get_dominant_usage_share(op.id), 0.1))
+            wait(lambda: self._get_operation_module(op) == module)
+
+        exactly_fitting_op = run_sleeping_vanilla(
+            job_count=2,
+            spec={"pool": "large_gpu", "scheduling_segment_modules": [module]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: self._get_operation_module(exactly_fitting_op) == module)
+        wait(lambda: are_almost_equal(self._get_dominant_usage_share(exactly_fitting_op.id), 0.2))
+
     @authors("eshcherbin")
     def test_module_reset_on_zero_fair_share(self):
         update_pool_tree_config_option("default", "scheduling_segments/enable_module_reset_on_zero_fair_share_and_usage", True)
