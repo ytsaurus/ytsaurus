@@ -6,11 +6,16 @@ when password-less ssh to localhost is unavailable.
 """
 
 import contextlib
+import hashlib
 import importlib.util
+import io
 import os
 import shlex
 import subprocess
+import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
+from unittest import mock
 
 
 ARCADIA_PATH = "yt/yt/tools/logslice/logslice.py"
@@ -272,11 +277,9 @@ class ParseUserTimeTest(unittest.TestCase):
     through that C++ parser too."""
 
     def setUp(self):
-        from datetime import datetime
         self.datetime = datetime
 
     def test_now_is_recent(self):
-        from datetime import datetime, timedelta
         now = logslice.parse_user_time("now")
         self.assertIsNotNone(now)
         self.assertLess(abs(datetime.now() - now), timedelta(seconds=5))
@@ -330,7 +333,6 @@ class ParseUserTimeTest(unittest.TestCase):
     def test_iso_utc_is_converted_to_local(self):
         # 2019-09-19T11:46:04.848360Z as a UTC-aware instant, then made naive
         # local; comparing the epoch is timezone-independent.
-        from datetime import datetime, timezone
         got = logslice.parse_user_time("2019-09-19T11:46:04.848360Z")
         expected_utc = datetime(2019, 9, 19, 11, 46, 4, 848360, tzinfo=timezone.utc)
         self.assertEqual(got.replace(tzinfo=None),
@@ -396,6 +398,335 @@ class SplitTimeRangeTest(unittest.TestCase):
             ("11:27", "11:28 - 11:29"))
 
 
+class FileMd5Test(unittest.TestCase):
+    """_file_md5 is the local-side of the binary-reuse check."""
+
+    def test_stable_hex(self):
+        content = b"logslice binary contents\n"
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            f.write(content)
+            path = f.name
+        try:
+            md5 = logslice._file_md5(path)
+            self.assertRegex(md5, r"^[0-9a-f]{32}$")
+            self.assertEqual(md5, hashlib.md5(content).hexdigest())  # matches stdlib
+            self.assertEqual(md5, logslice._file_md5(path))  # idempotent
+        finally:
+            os.unlink(path)
+
+    def test_changes_with_content(self):
+        with tempfile.NamedTemporaryFile(delete=False) as fa:
+            fa.write(b"a")
+            pa = fa.name
+        with tempfile.NamedTemporaryFile(delete=False) as fb:
+            fb.write(b"b")
+            pb = fb.name
+        try:
+            self.assertNotEqual(logslice._file_md5(pa), logslice._file_md5(pb))
+        finally:
+            os.unlink(pa)
+            os.unlink(pb)
+
+
+class _RecordingSsh(logslice.Ssh):
+    """An Ssh that records remote calls and answers md5sum/run from a script,
+    without touching the network. Used to test copy_binary's md5-skip + the
+    cat-based copy path."""
+    def __init__(self, remote_md5_value):
+        super().__init__("unused")
+        self._remote_md5_value = remote_md5_value
+        self.calls = []
+        self.copies = []  # list of (local_path, remote_path) passed to _copy_via_ssh
+
+    def run(
+            self,
+            argv,
+            capture=True,
+            check=True,
+            warn_on_error=False,
+            retries=0,
+            retry_delay=1.0,
+            retry_on_empty=False):
+        self.calls.append(argv)
+        if argv[:2] == ["sh", "-c"] and "md5sum" in argv[2]:
+            remote_path = argv[-1]
+            return (self._remote_md5_value + "  " + remote_path + "\n"
+                    if self._remote_md5_value else "")
+        return ""
+
+    def _copy_via_ssh(self, local_path, remote_path):
+        # stub the actual network copy — just record that it was attempted.
+        self.copies.append((local_path, remote_path))
+
+
+class CopyBinaryTest(unittest.TestCase):
+    """copy_binary reuses the ssh socket (cat, not scp) and skips the copy when
+    the remote md5 already matches the local binary (the YTADMIN-13042 fix)."""
+
+    def _local_bin(self, content=b"binary v1"):
+        import tempfile
+        f = tempfile.NamedTemporaryFile(delete=False)
+        f.write(content)
+        f.close()
+        return f.name
+
+    def test_skips_copy_when_remote_md5_matches(self):
+        local = self._local_bin()
+        try:
+            local_md5 = logslice._file_md5(local)
+            ssh = _RecordingSsh(remote_md5_value=local_md5)
+            ssh.copy_binary(local, "/tmp/logslice")
+            self.assertEqual(ssh.calls[0][-1], "/tmp/logslice")
+            self.assertEqual(ssh.copies, [])
+        finally:
+            os.unlink(local)
+
+    def test_attempts_copy_when_remote_differs(self):
+        local = self._local_bin(b"binary v1")
+        try:
+            ssh = _RecordingSsh(remote_md5_value="0" * 32)  # different md5
+            ssh.copy_binary(local, "/tmp/logslice")
+            self.assertEqual(ssh.calls[0][-1], "/tmp/logslice")
+            self.assertEqual(ssh.copies, [(local, "/tmp/logslice")])
+        finally:
+            os.unlink(local)
+
+    def test_copy_when_remote_file_absent(self):
+        local = self._local_bin(b"binary v1")
+        try:
+            ssh = _RecordingSsh(remote_md5_value=None)  # md5sum returns ""
+            ssh.copy_binary(local, "/tmp/logslice")
+            # remote_md5 returns None -> must copy.
+            self.assertEqual(ssh.copies, [(local, "/tmp/logslice")])
+        finally:
+            os.unlink(local)
+
+
+class AtomicCopyTest(unittest.TestCase):
+    def test_upload_uses_temporary_file_and_atomic_replace(self):
+        completed = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=b"", stderr=b"")
+        ssh = logslice.Ssh("unused")
+        with tempfile.NamedTemporaryFile() as local:
+            with mock.patch.object(
+                    logslice.subprocess, "run", return_value=completed) as run:
+                ssh._copy_via_ssh(local.name, "/tmp/logslice")
+
+        command = run.call_args.args[0][-1]
+        self.assertIn('cat > "$tmp"', command)
+        self.assertIn('chmod +x "$tmp"', command)
+        self.assertIn('mv -f -- "$tmp" /tmp/logslice', command)
+        self.assertNotIn("cat > /tmp/logslice", command)
+
+
+class RemoteMd5Test(unittest.TestCase):
+    def test_only_reuses_executable_file(self):
+        ssh = _RecordingSsh(remote_md5_value="abcdef0123456789abcdef0123456789")
+        ssh.remote_md5("/tmp/logslice")
+        self.assertIn('[ -x "$1" ]', ssh.calls[0][2])
+
+    def test_parses_md5_token(self):
+        ssh = _RecordingSsh(remote_md5_value="abcdef0123456789abcdef0123456789")
+        self.assertEqual(ssh.remote_md5("/tmp/logslice"),
+                         "abcdef0123456789abcdef0123456789")
+
+    def test_returns_none_when_absent(self):
+        # md5sum on a missing file prints nothing to stdout (check=False) -> None.
+        ssh = _RecordingSsh(remote_md5_value=None)
+        self.assertIsNone(ssh.remote_md5("/tmp/missing"))
+
+    def test_rejects_non_hex(self):
+        ssh = _RecordingSsh(remote_md5_value="not-an-md5")
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertIsNone(ssh.remote_md5("/tmp/logslice"))
+
+    def test_warns_on_unparseable_md5_output(self):
+        # md5sum exits 0 but prints a non-hex token (corrupted binary / wrong
+        # tool): remote_md5 returns None but must WARN, not stay silent.
+        ssh = _RecordingSsh(remote_md5_value="garbage-not-hex-at-all")
+        # _RecordingSsh.run returns the stored string with exit 0; remote_md5
+        # must surface a warning about the unparseable output.
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            self.assertIsNone(ssh.remote_md5("/tmp/logslice"))
+        self.assertIn("unparseable output", buf.getvalue())
+
+
+class SshRunTest(unittest.TestCase):
+    """Guard against silent error swallowing: every non-zero exit / probe
+    failure must surface its stderr, never return empty as if nothing happened."""
+
+    @staticmethod
+    def _result(returncode, stdout="", stderr=""):
+        return subprocess.CompletedProcess(
+            args=[], returncode=returncode, stdout=stdout, stderr=stderr)
+
+    def test_run_check_false_surfaces_stderr_warning(self):
+        ssh = logslice.Ssh("unused")
+        result = self._result(1, stderr="md5sum: /tmp/x: Permission denied")
+        buf = io.StringIO()
+        with mock.patch.object(logslice.subprocess, "run", return_value=result):
+            with contextlib.redirect_stderr(buf):
+                out = ssh.run(
+                    ["md5sum", "/tmp/x"],
+                    check=False,
+                    capture=True,
+                    warn_on_error=True)
+        self.assertEqual(out, "")                      # non-fatal: empty stdout
+        self.assertIn("Permission denied", buf.getvalue())  # but stderr surfaced
+        self.assertIn("non-fatal", buf.getvalue())
+
+    def test_run_check_false_silent_by_default(self):
+        # The common case (ls of a missing archive dir) must stay silent: a
+        # non-zero exit with stderr is NOT warned unless warn_on_error=True, so
+        # a clean run isn't polluted with "No such file or directory" noise.
+        ssh = logslice.Ssh("unused")
+        result = self._result(
+            2, stderr="ls: cannot access '/x': No such file or directory")
+        buf = io.StringIO()
+        with mock.patch.object(logslice.subprocess, "run", return_value=result):
+            with contextlib.redirect_stderr(buf):
+                out = ssh.run(["ls", "-1", "/x"], check=False, capture=True)
+        self.assertEqual(out, "")
+        self.assertEqual(buf.getvalue(), "")            # silent by default
+
+    def test_run_check_false_reports_failure_without_stderr(self):
+        # A non-zero exit is still visible when the remote command supplied no
+        # diagnostic text of its own.
+        ssh = logslice.Ssh("unused")
+        result = self._result(2)
+        buf = io.StringIO()
+        with mock.patch.object(logslice.subprocess, "run", return_value=result):
+            with contextlib.redirect_stderr(buf):
+                out = ssh.run(
+                    ["ls", "-1", "/no/such/dir"],
+                    check=False,
+                    capture=True,
+                    warn_on_error=True)
+        self.assertEqual(out, "")
+        self.assertIn("no stderr", buf.getvalue())
+
+    def test_retry_always_warns_on_total_failure(self):
+        # Even without --verbose, a probe that fails every retry must print why
+        # (not swallow the stderr). Regression for the verbose-gated message.
+        ssh = logslice.Ssh("unused")
+        results = [self._result(1, stderr="Broken pipe") for _ in range(3)]
+        buf = io.StringIO()
+        with mock.patch.object(
+                logslice.subprocess, "run", side_effect=results) as run:
+            with contextlib.redirect_stderr(buf):
+                out = ssh.run(
+                    ["logslice", "--info", "/p"],
+                    check=False,
+                    warn_on_error=True,
+                    retries=2,
+                    retry_delay=0,
+                    retry_on_empty=True)
+        self.assertEqual(out, "")
+        self.assertEqual(run.call_count, 3)
+        msg = buf.getvalue()
+        self.assertIn("after 3 attempt(s)", msg)
+        self.assertIn("Broken pipe", msg)
+
+    def test_retry_quiet_after_transient_failures(self):
+        ssh = logslice.Ssh("unused")
+        results = [
+            self._result(1, stderr="Broken pipe"),
+            self._result(0, stdout=""),
+            self._result(0, stdout="first: x\nlast: y\n"),
+        ]
+        buf = io.StringIO()
+        with mock.patch.object(
+                logslice.subprocess, "run", side_effect=results) as run:
+            with contextlib.redirect_stderr(buf):
+                out = ssh.run(
+                    ["logslice", "--info", "/p"],
+                    check=False,
+                    warn_on_error=True,
+                    retries=2,
+                    retry_delay=0,
+                    retry_on_empty=True)
+        self.assertEqual(out, "first: x\nlast: y\n")
+        self.assertEqual(run.call_count, 3)
+        self.assertEqual(buf.getvalue(), "")
+
+    def test_streaming_command_rejects_retries(self):
+        ssh = logslice.Ssh("unused")
+        with self.assertRaisesRegex(ValueError, "capture=True"):
+            ssh.run(["true"], capture=False, retries=1)
+
+
+class SshOptionsTest(unittest.TestCase):
+    """SSH socket and timeout settings are configurable with stable defaults."""
+
+    def test_uses_supplied_control_socket(self):
+        ssh = logslice.Ssh("h", control_socket="/tmp/socket")
+        self.assertIn("ControlPath=/tmp/socket", ssh._base_opts)
+
+    def test_connect_probes_even_when_socket_path_exists(self):
+        ssh = logslice.Ssh("h", control_socket="/tmp/socket")
+        with mock.patch.object(ssh, "run") as run:
+            with contextlib.redirect_stderr(io.StringIO()):
+                ssh.connect()
+        run.assert_called_once_with(["true"])
+
+    def test_default_socket_and_timeouts(self):
+        ssh = logslice.Ssh("h")
+        self.assertIn("%r@%h:%p", ssh._control_path)
+        self.assertIn(
+            "ControlPersist={}".format(logslice.CONTROL_PERSIST_DEFAULT),
+            ssh._base_opts)
+        self.assertIn(
+            "ConnectTimeout={}".format(logslice.CONNECT_TIMEOUT_DEFAULT),
+            ssh._base_opts)
+
+    def test_custom_timeouts(self):
+        ssh = logslice.Ssh("h", control_persist=90, connect_timeout=7)
+        self.assertIn("ControlPersist=90", ssh._base_opts)
+        self.assertIn("ConnectTimeout=7", ssh._base_opts)
+
+
+class _InfoSsh:
+    def __init__(self, output):
+        self.output = output
+        self.calls = []
+
+    def run(self, argv, **kwargs):
+        self.calls.append((argv, kwargs))
+        return self.output
+
+
+class InfoFallbackTest(unittest.TestCase):
+    def test_info_returns_none_none_on_probe_failure_without_abort(self):
+        # A FileSelector whose --info probe always fails: info() must return
+        # (None, None) and not sys.exit, so the selector falls back to hints.
+        files = [logslice.LogFile(
+            name="m.debug.log.2026-06-19_11-00.zst", base="m", channel="debug",
+            rotation=".2026-06-19_11-00.zst", directory="/d")]
+        ssh = _InfoSsh("")
+        sel = logslice.FileSelector(ssh, "/tmp/logslice", files)
+        warning = io.StringIO()
+        with contextlib.redirect_stderr(warning):
+            first, last = sel.info(0)
+        self.assertIsNone(first)
+        self.assertIsNone(last)
+        self.assertIn("falling back", warning.getvalue())
+        self.assertEqual(ssh.calls[0][1]["retries"], 2)
+        self.assertTrue(ssh.calls[0][1]["retry_on_empty"])
+
+    def test_info_parses_when_probe_succeeds(self):
+        files = [logslice.LogFile(
+            name="m.debug.log.2026-06-19_11-00.zst", base="m", channel="debug",
+            rotation=".2026-06-19_11-00.zst", directory="/d")]
+        ssh = _InfoSsh(
+            "first: 2026-06-19 10:30:00,000000\n"
+            "last: 2026-06-19 11:00:00,000000\n")
+        sel = logslice.FileSelector(ssh, "/tmp/logslice", files)
+        first, last = sel.info(0)
+        self.assertEqual(first, datetime(2026, 6, 19, 10, 30))
+        self.assertEqual(last, datetime(2026, 6, 19, 11, 0))
+
+
 def _info_time(hour, minute):
     """A logslice --info timestamp on the incident day, matching INFO_RE."""
     return "2026-06-19 {:02d}:{:02d}:00,000000".format(hour, minute)
@@ -414,7 +745,15 @@ class FakeSsh:
         self._info = info
         self.info_calls = []
 
-    def run(self, argv, capture=True, check=True):
+    def run(
+            self,
+            argv,
+            capture=True,
+            check=True,
+            warn_on_error=False,
+            retries=0,
+            retry_delay=1.0,
+            retry_on_empty=False):
         if argv[:2] == ["ls", "-1"]:
             directory = argv[2]
             if directory not in self._listings:
