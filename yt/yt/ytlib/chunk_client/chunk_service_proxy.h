@@ -37,6 +37,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, CreateChunkLists);
     DEFINE_RPC_PROXY_METHOD(NProto, UnstageChunkTree);
     DEFINE_RPC_PROXY_METHOD(NProto, AttachChunkTrees);
+    DEFINE_RPC_PROXY_METHOD(NProto, DetachChunkTrees);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

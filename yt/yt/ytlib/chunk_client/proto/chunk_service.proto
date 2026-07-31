@@ -356,6 +356,17 @@ message TRspAttachChunkTrees
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqDetachChunkTrees
+{
+    required NYT.NProto.TGuid parent_id = 1;
+    repeated NYT.NProto.TGuid child_ids = 2;
+}
+
+message TRspDetachChunkTrees
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 // COMPAT(aleksandra-zh)
 message TReqExecuteBatch
 {

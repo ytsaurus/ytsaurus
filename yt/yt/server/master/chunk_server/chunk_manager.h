@@ -112,6 +112,11 @@ struct IChunkManager
         NChunkClient::NProto::TRspCreateChunkLists>;
     using TCtxCreateChunkListsPtr = TIntrusivePtr<TCtxCreateChunkLists>;
 
+    using TCtxDetachChunkTrees = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqDetachChunkTrees,
+        NChunkClient::NProto::TRspDetachChunkTrees>;
+    using TCtxDetachChunkTreesPtr = TIntrusivePtr<TCtxDetachChunkTrees>;
+
     using TCtxUnstageChunkTree = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqUnstageChunkTree,
         NChunkClient::NProto::TRspUnstageChunkTree>;
@@ -136,6 +141,8 @@ struct IChunkManager
         TCtxScheduleChunkSealPtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateCreateChunkListsMutation(
         TCtxCreateChunkListsPtr context) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateDetachChunkTreesMutation(
+        TCtxDetachChunkTreesPtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateUnstageChunkTreeMutation(
         TCtxUnstageChunkTreePtr context) = 0;
     virtual std::unique_ptr<NHydra::TMutation> CreateAttachChunkTreesMutation(
