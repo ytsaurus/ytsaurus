@@ -260,7 +260,6 @@ public:
         return SnapshotQueue_->GetInvoker();
     }
 
-
     TObjectId GenerateId(EObjectType type) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -302,8 +301,9 @@ public:
             this,
             Bootstrap_);
 
-        auto clockClusterTag = Occupant_->GetOptions()->ClockClusterTag != InvalidCellTag
-            ? Occupant_->GetOptions()->ClockClusterTag
+        auto occupantClockClusterTag = Occupant_->GetOptions()->ClockClusterTag;
+        auto clockClusterTag = occupantClockClusterTag != InvalidCellTag
+            ? occupantClockClusterTag
             : Bootstrap_->GetConnection()->GetClusterTag();
 
         TransactionManager_ = CreateTransactionManager(
@@ -545,10 +545,8 @@ IChaosSlotPtr CreateChaosSlot(
     IBootstrap* bootstrap,
     const std::string& cellBundleName)
 {
-    auto creationContext = TChaosSlotCreationContext(slotIndex, cellBundleName);
-
     return New<TChaosSlot>(
-        creationContext,
+        TChaosSlotCreationContext(slotIndex, cellBundleName),
         config,
         bootstrap);
 }
