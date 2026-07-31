@@ -269,7 +269,7 @@ yt admin metrics <validate|dump|replay> [options]
 
 Спецификация описывает, какие метрики выгружать. Структура файла:
 
-- `defaults.step` — шаг дискретизации по умолчанию (можно переопределить опцией `--step`).
+- `defaults.step` — шаг дискретизации по умолчанию (можно переопределить опцией `--step`). Если поле отсутствует или секция `defaults` пуста, используется `15s`. Значение задаётся целым числом с единицей измерения: `ms`, `s`, `m`, `h`, `d`, `w` или `y`, например `500ms`, `30s` или `5m`.
 - `targets` — список таргетов, каждый со своим `type`:
   - `type: metric` — задаёт PromQL-запрос в поле `query`; из запроса извлекаются селекторы.
   - `type: dashboard` — путь до JSON-файла дашборда Grafana в поле `path` (относительно `spec.yaml`); из всех панелей дашборда извлекаются `expr`. Значения переменных дашборда берутся из его `templating` и могут быть переопределены словарём `params`.
@@ -287,7 +287,7 @@ targets:
   - type: dashboard
     path: master-accounts.json
     params:
-      cluster: clusrer-name
+      cluster: cluster-name
       account: sys
       left_medium: default
       right_medium: ssd_blobs
@@ -325,7 +325,8 @@ yt admin metrics validate --spec spec.yaml [--target '<json>' ...]
 ```bash
 yt admin metrics dump --spec spec.yaml \
   --from-ts <ISO8601> --to-ts <ISO8601> \
-  --prometheus-url <url> [--step <step>] [--output metrics.zip] [--max-series N] [--force]
+  --prometheus-url <url> [--step <duration>] [--output metrics.zip] \
+  [--max-series N] [--max-points-per-series N] [--force]
 ```
 
 | Параметр | По умолчанию | Описание |
@@ -334,10 +335,11 @@ yt admin metrics dump --spec spec.yaml \
 | `--from-ts <ISO8601>` | — | Начало интервала (обязательный) |
 | `--to-ts <ISO8601>` | — | Конец интервала (обязательный) |
 | `--prometheus-url <url>` | — | Базовый URL Prometheus (обязательный) |
-| `--step <step>` | из spec | Шаг дискретизации |
+| `--step <duration>` | `defaults.step` или `15s` | Шаг дискретизации, например `500ms`, `30s` или `5m` |
 | `--target <json>` | — | Дополнительный inline-таргет |
 | `--output <path>` | `metrics.zip` | Путь до выходного архива |
 | `--max-series <N>` | `100000` | Если суммарное число временных рядов для выгрузки превышает это значение, запрашивается подтверждение |
+| `--max-points-per-series <N>` | `11000` | Максимальное число точек одной серии в одном запросе; `0` отключает проверку |
 | `--force` | — | Пропустить подтверждение при превышении `--max-series` |
 
 {% note info "Примечание" %}
