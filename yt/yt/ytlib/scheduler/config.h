@@ -2159,6 +2159,11 @@ struct TSortOperationSpecBase
 
     std::optional<int> PartitionJobCount;
 
+    //! Hard limit on the number of partition jobs (map jobs in map-reduce).
+    //! Unlike |PartitionJobCount|, which pins the exact job count,
+    //! this option only caps the job count inferred from data size heuristics.
+    std::optional<int> MaxPartitionJobCount;
+
     //! Data size per shuffle job.
     i64 DataWeightPerShuffleJob;
 
