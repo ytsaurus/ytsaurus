@@ -59,9 +59,31 @@ void TPageCacheConfig::Register(TRegistrar registrar)
                 config->PageSize,
                 config->MaxDirtyDataPerWrite);
         }
-        // MaxDirtyDataPerWritebackCapacityFraction * Capacity is rounded down to a page
-        // multiple in TPageCache, so the effective budget always maps to a whole number of pages.
-        i64 maxDirtyDataPerWriteback = static_cast<i64>(config->MaxDirtyDataPerWritebackCapacityFraction * config->Capacity) / config->PageSize * config->PageSize;
+        // Fraction * Capacity is rounded down to a page multiple in TPageCache, so the
+        // effective value always maps to a whole number of pages.
+        auto roundToPageMultiple = [&] (i64 capacity, double fraction) {
+            return static_cast<i64>(fraction * capacity) / config->PageSize * config->PageSize;
+        };
+
+        i64 dirtyDataSoftLimit = roundToPageMultiple(config->Capacity, config->DirtyDataSoftLimitCapacityFraction);
+        if (dirtyDataSoftLimit <= 0) {
+            THROW_ERROR_EXCEPTION(
+                "\"dirty_data_soft_limit_capacity_fraction\" (%v) is too small for \"capacity\" (%v) and \"page_size\" (%v): effective limit is 0",
+                config->DirtyDataSoftLimitCapacityFraction,
+                config->Capacity,
+                config->PageSize);
+        }
+
+        i64 dirtyDataHardLimit = roundToPageMultiple(config->Capacity, config->DirtyDataHardLimitCapacityFraction);
+        if (dirtyDataHardLimit <= 0) {
+            THROW_ERROR_EXCEPTION(
+                "\"dirty_data_hard_limit_capacity_fraction\" (%v) is too small for \"capacity\" (%v) and \"page_size\" (%v): effective limit is 0",
+                config->DirtyDataHardLimitCapacityFraction,
+                config->Capacity,
+                config->PageSize);
+        }
+
+        i64 maxDirtyDataPerWriteback = roundToPageMultiple(config->Capacity, config->MaxDirtyDataPerWritebackCapacityFraction);
         if (maxDirtyDataPerWriteback <= 0) {
             THROW_ERROR_EXCEPTION(
                 "\"max_dirty_data_per_writeback_capacity_fraction\" (%v) is too small for \"capacity\" (%v) and \"page_size\" (%v): effective budget is 0",
@@ -69,6 +91,7 @@ void TPageCacheConfig::Register(TRegistrar registrar)
                 config->Capacity,
                 config->PageSize);
         }
+
         // DirtyDataSoftLimitCapacityFraction must not exceed DirtyDataHardLimitCapacityFraction.
         if (config->DirtyDataSoftLimitCapacityFraction > config->DirtyDataHardLimitCapacityFraction) {
             THROW_ERROR_EXCEPTION(
@@ -76,6 +99,7 @@ void TPageCacheConfig::Register(TRegistrar registrar)
                 config->DirtyDataSoftLimitCapacityFraction,
                 config->DirtyDataHardLimitCapacityFraction);
         }
+
         // A single merged write must not exceed what one writeback processes: the merge cap
         // (MaxDirtyDataPerWrite) is applied within a writeback task that itself covers at most
         // maxDirtyDataPerWriteback bytes, so a larger per-write cap could never be reached and
@@ -88,14 +112,12 @@ void TPageCacheConfig::Register(TRegistrar registrar)
                 config->MaxDirtyDataPerWritebackCapacityFraction,
                 config->Capacity);
         }
-        // MaxDirtyDataPerWriteback must not exceed Capacity. The fraction is already
-        // constrained to (0, 1] by the parameter validator, so this is a structural
-        // invariant, but we check the effective byte value explicitly for a clear
-        // error message in case of rounding edge cases.
+
+        // MaxDirtyDataPerWriteback must not exceed Capacity.
         if (maxDirtyDataPerWriteback > config->Capacity) {
             THROW_ERROR_EXCEPTION(
-                "\"max_dirty_data_per_writeback_capacity_fraction\" (%v) must not exceed \"capacity\" (%v)",
-                config->MaxDirtyDataPerWritebackCapacityFraction,
+                "effective \"max_dirty_data_per_writeback\" (%v) must not exceed \"capacity\" (%v)",
+                maxDirtyDataPerWriteback,
                 config->Capacity);
         }
     });
