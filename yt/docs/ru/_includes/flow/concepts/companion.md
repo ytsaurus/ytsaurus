@@ -5,7 +5,7 @@
 ## Области применения компаньонов
 ### Используется сейчас
 
-- Поддержка вычислений на языках, отличных от [C++](../../../flow/cpp/getting-started.md), таких как [Python](../../../flow/python/getting-started.md) и [Java и Kotlin](../../../flow/java/getting-started.md).
+- Поддержка вычислений на языках, отличных от [C++](../../../flow/cpp/getting-started.md), таких как [Python](../../../flow/python/getting-started.md) и [Java и Kotlin](../../../flow/java/getting-started.md), а также [Go](../../../flow/go/getting-started.md).
 
 ### Планы
 
@@ -18,7 +18,7 @@
 
 {% note info %}
 
-Вся бизнес-логика разрабатывается на выбранном языке программирования на стороне компаньона, а форма пайплайна по-прежнему конфигурируется через [спеку](../../../flow/concepts/spec.md). В этой схеме работы воркер становится инфраструктурным бинарником, который не зависит от логики пайплайна, то есть при использовании Python, Java или Kotlin пользовательский код на C++ писать **не нужно**.
+Вся бизнес-логика разрабатывается на выбранном языке программирования на стороне компаньона, а форма пайплайна по-прежнему конфигурируется через [спеку](../../../flow/concepts/spec.md). В этой схеме работы воркер становится инфраструктурным бинарником, который не зависит от логики пайплайна, то есть при использовании Python, Go, Java или Kotlin пользовательский код на C++ писать **не нужно**.
 
 {% endnote %}
 
@@ -122,10 +122,11 @@ int main(int argc, const char** argv)
 - `NYT::NFlow::NCompanion::TSwiftOrderedSourceCompanionComputation`: Реализация [TSwiftOrderedSourceComputation](../../../flow/concepts/computation.md#tswiftorderedsourcecomputation) делегирующая обработку данных процессу-компаньону.
 - `NYT::NFlow::NCompanion::TTransformCompanionComputation`: Реализация [TTransformComputation](../../../flow/concepts/computation.md#ttransformcomputation) делегирующая обработку данных процессу-компаньону.
 
-Подробнее о реализации пайплайнов с использованием компаньонов: [Java и Kotlin](../../../flow/java/getting-started.md), [Python](../../../flow/python/getting-started.md).
+Подробнее о реализации пайплайнов с использованием компаньонов: [Java и Kotlin](../../../flow/java/getting-started.md), [Python](../../../flow/python/getting-started.md), [Go](../../../flow/go/getting-started.md).
 
 ## См. также
 
 - [Computation](../../../flow/concepts/computation.md)
 - [Быстрый старт (Java)](../../../flow/java/getting-started.md)
 - [Быстрый старт (Python)](../../../flow/python/getting-started.md)
+- [Быстрый старт (Go)](../../../flow/go/getting-started.md)

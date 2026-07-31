@@ -6,6 +6,7 @@ IF (
         bench
         discovery
         docker_registry
+        flow
         pproflog
         tar2squash
         ytprof

@@ -114,6 +114,32 @@ def on_timers(self, timers, output, ctx):
 
 Подробнее — в разделе [Computation (Python)](../../../flow/python/computation.md).
 
+### Go {#api-go}
+
+```go
+// Создать таймер в OnMessage:
+out.AddTimer(flow.TimerRequest{
+    TriggerTimestamp: msg.EventTimestamp + 30*60_000_000_000,
+    EventTimestamp:   msg.EventTimestamp,
+})
+
+// Обработать сработавший таймер (RowFunction):
+func (f myFunction) OnTimer(
+    ctx context.Context,
+    rt flow.Runtime,
+    timer flow.Timer,
+    out flow.OutputCollector,
+) error {
+    // timer.Key, timer.EventTimestamp, timer.TriggerTimestamp, timer.StreamID
+    return nil
+}
+
+// Для BatchFunction:
+func (f myFunction) OnTimers(ctx context.Context, rt flow.Runtime, timers []flow.Timer, out flow.OutputCollector) error { ... }
+```
+
+Подробнее — в разделе [Computation (Go)](../../../flow/go/computation.md).
+
 ## Примеры {#examples}
 
 Пример реализации джойна с ожиданием (показ + клик, таймаут 30 минут):
@@ -121,6 +147,7 @@ def on_timers(self, timers, output, ctx):
 - [C++](../../../flow/cpp/examples/wait_click_join.md)
 - [Java](../../../flow/java/examples/wait_click_join.md)
 - [Python](../../../flow/python/examples/wait_click_join.md)
+- [Go](../../../flow/go/examples/wait_click_join.md)
 
 ## Ограничения и известные проблемы {#limitations}
 
@@ -140,3 +167,4 @@ def on_timers(self, timers, output, ctx):
 - [Computation (C++)](../../../flow/cpp/computation.md)
 - [Computation (Java)](../../../flow/java/computation.md)
 - [Computation (Python)](../../../flow/python/computation.md)
+- [Computation (Go)](../../../flow/go/computation.md)

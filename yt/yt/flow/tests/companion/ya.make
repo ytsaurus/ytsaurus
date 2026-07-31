@@ -11,6 +11,8 @@ IF (NOT OPENSOURCE)
         all_states
         jvm_options
         retries
+        types/go
+        types/go/pipeline
         types/java
         types/java/companion
     )

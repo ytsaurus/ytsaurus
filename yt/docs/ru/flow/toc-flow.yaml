@@ -158,6 +158,42 @@ items:
           - name: Logbroker Wait Click Join
             href: python/examples/lb_wait_click_join.md
             when: audience == "internal"
+  - name: Go
+    items:
+      - name: Быстрый старт
+        href: go/getting-started.md
+      - name: Computation
+        href: go/computation.md
+      - name: Флаг distribute
+        href: go/distribute.md
+      - name: Работа со стейтами
+        href: go/state.md
+      - name: State Accessor
+        href: go/state-accessor.md
+      - name: Internal State
+        href: go/internal-state.md
+      - name: External State
+        href: go/external-state.md
+      - name: Тестирование
+        href: go/testing.md
+      - name: Примеры
+        items:
+          - name: Word Count
+            href: go/examples/wordcount.md
+          - name: Shuffle
+            href: go/examples/shuffle.md
+          - name: Static Table Join
+            href: go/examples/static_table_join.md
+          - name: External State Join
+            href: go/examples/external_state_join.md
+          - name: Async Request
+            href: go/examples/async_request.md
+          - name: Retryable Async Request
+            href: go/examples/retryable_async_request.md
+          - name: Wait Click Join
+            href: go/examples/wait_click_join.md
+          - name: URL Downloader
+            href: go/examples/url_downloader.md
   - name: YQL
     items:
       - name: Быстрый старт

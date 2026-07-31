@@ -26,15 +26,17 @@ Lineage используется фреймворком в двух целях:
 
 ## API {#api}
 
-Lineage устанавливается через метод `SetParents` / `set_parent_ids` / `setParentIds` на объекте `OutputCollector`. Метод возвращает **новый** коллектор с привязанным контекстом lineage — все вызовы `AddMessage` / `add_message` / `addMessage` на нём будут нести этот lineage.
+Lineage устанавливается через метод `SetParents` / `set_parent_ids` / `setParentIds` / `WithParentIDs` на объекте `OutputCollector`. Метод возвращает **новый** коллектор с привязанным контекстом lineage — все вызовы `AddMessage` / `add_message` / `addMessage` на нём будут нести этот lineage.
 
 Подробнее об использовании в каждом языке:
 - [C++](../../../flow/cpp/computation.md#output-collector)
 - [Java](../../../flow/java/computation.md#output-collector)
 - [Python](../../../flow/python/computation.md#output-collector)
+- [Go](../../../flow/go/computation.md#output-collector)
 
 ## См. также
 
 - [Порядок обработки сообщений](../../../flow/concepts/ordering.md)
 - [Computation](../../../flow/concepts/computation.md)
 - [Основные понятия (глоссарий)](../../../flow/concepts/glossary.md)
+- [Computation (Go)](../../../flow/go/computation.md)

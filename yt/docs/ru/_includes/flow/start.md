@@ -18,6 +18,7 @@
    - C++: [WordCount](../../flow/cpp/examples/word_count.md), [Shuffle](../../flow/cpp/examples/shuffle.md), [WaitClickJoin](../../flow/cpp/examples/wait_click_join.md)
    - Java: [WordCount](../../flow/java/examples/wordcount.md), [Shuffle](../../flow/java/examples/shuffle.md), [WaitClickJoin](../../flow/java/examples/wait_click_join.md)
    - Python: [WordCount](../../flow/python/examples/wordcount.md), [Shuffle](../../flow/python/examples/shuffle.md), [WaitClickJoin](../../flow/python/examples/wait_click_join.md)
+   - Go: [WordCount](../../flow/go/examples/wordcount.md), [Shuffle](../../flow/go/examples/shuffle.md), [WaitClickJoin](../../flow/go/examples/wait_click_join.md)
    - YQL: [Быстрый старт](../../flow/yql/getting-started.md)
 
 5. **Ознакомьтесь с доступными [коннекторами](../../flow/connectors/about.md)** — очереди, статические таблицы{% if audience == "internal" %}, Logbroker{% endif %} и др.
@@ -32,6 +33,7 @@
    - [C++](../../flow/cpp/testing.md)
    - [Java](../../flow/java/testing.md)
    - [Python](../../flow/python/testing.md)
+   - [Go](../../flow/go/testing.md)
 
 10. **Запустите пайплайн** и следите за ним через UI {{product-name}}. Детально про релизы можно прочитать в [Релизы и управление пайплайном](../../flow/devops/vanilla/releases.md#release-and-configure-basic-rules).
 
