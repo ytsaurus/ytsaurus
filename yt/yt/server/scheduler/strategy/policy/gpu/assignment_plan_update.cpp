@@ -522,7 +522,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessFullHostNonGangOperation
                 auto& moduleState = GetOrCrash(ModuleStates_, module);
                 allocationGroupResources.AllocationCount = assignmentCount;
 
-                auto processPlannedAssignments = [&](const std::vector<TAssignmentPtr>& assignments) {
+                auto processPlannedAssignments = [&] (const std::vector<TAssignmentPtr>& assignments) {
                     for (const auto& assignment : assignments) {
                         YT_VERIFY(assignment->Node->SchedulingModule() == module);
                         moduleState.AddAssignment(assignment);

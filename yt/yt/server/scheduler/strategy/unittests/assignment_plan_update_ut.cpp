@@ -2281,6 +2281,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostNonGangIgnoresOverfil
         return node->SchedulingModule() == "ALA";
     });
     ASSERT_NE(nodes.end(), vanishedNodeIt);
+    auto vanishedNode = *vanishedNodeIt;
     nodes.erase(vanishedNodeIt);
 
     auto nonGangOperation = CreateFullHostTestOperation(
