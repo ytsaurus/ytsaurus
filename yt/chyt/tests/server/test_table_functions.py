@@ -1,4 +1,4 @@
-from yt_commands import (create, authors, write_table, get,
+from yt_commands import (create, authors, write_table, get, set,
                          raises_yt_error)
 
 from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
@@ -261,6 +261,100 @@ class TestTableFunctions(ClickHouseTestBase):
                 {"$path": "//tmp/dir1/1d/2021-01-02"},
                 {"$path": "//tmp/dir1/1d/2021-01-03"},
             ]
+
+    @authors("iharbychyk")
+    def test_yt_list_queue_exports(self):
+        queue_path = "//tmp/queue"
+        queue_id = create(
+            "table",
+            queue_path,
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "data", "type": "string"},
+                ],
+            },
+        )
+
+        export_dir = "//tmp/export"
+        create("map_node", export_dir)
+        set(f"{export_dir}/@queue_static_export_destination", {"originating_queue_id": queue_id})
+
+        cron_export_dir = "//tmp/cron_export"
+        create("map_node", cron_export_dir)
+        set(f"{cron_export_dir}/@queue_static_export_destination", {"originating_queue_id": queue_id})
+
+        period = 3600
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": period * 1000,
+            },
+            "cron": {
+                "export_directory": cron_export_dir,
+                "export_cron_schedule": "0 * * * *",
+            },
+        })
+
+        def create_export_table(unix_ts):
+            path = f"{export_dir}/{unix_ts}-{period}"
+            create(
+                "table",
+                path,
+                attributes={
+                    "schema": [
+                        {"name": "a", "type": "int64"},
+                    ],
+                },
+            )
+            return path
+
+        t0 = 1609459200  # 2021-01-01T00:00:00Z
+        table_paths = [
+            create_export_table(t0),
+            create_export_table(t0 + period),
+            create_export_table(t0 + 2 * period),
+        ]
+
+        with Clique(1) as clique:
+            query = f"select $path from ytListQueueExports('{export_dir}') order by $key"
+            assert clique.make_query(query) == [{"$path": path} for path in table_paths]
+
+            query = f"select $path from ytListQueueExports('{export_dir}', '2021-01-01T01:00:00') order by $key"
+            assert clique.make_query(query) == [{"$path": path} for path in table_paths[1:]]
+
+            query = f"select $path from ytListQueueExports('{export_dir}', '', '2021-01-01T02:00:00') order by $key"
+            assert clique.make_query(query) == [{"$path": path} for path in table_paths[:-1]]
+
+            query = (
+                f"select $path from ytListQueueExports('{export_dir}', "
+                "'2021-01-01T01:00:00', '2021-01-01T02:00:00') order by $key"
+            )
+            assert clique.make_query(query) == [{"$path": path} for path in table_paths[1:-1]]
+
+            query = (
+                f"select $path from ytListQueueExports('{export_dir}', "
+                "'2021-01-01T00:15:00', '2021-01-01T02:25:00') order by $key"
+            )
+            assert clique.make_query(query) == [{"$path": path} for path in table_paths]
+
+            query = (
+                f"select $path from ytListQueueExports('{export_dir}', "
+                "'2021-01-01T01:10:00', '2021-01-01T01:45:00') order by $key"
+            )
+            assert clique.make_query(query) == [{"$path": table_paths[1]}]
+
+            create("map_node", "//tmp/not_an_export_dir")
+            with raises_yt_error("does not correspond to a queue static export directory", code=QueryFailedError):
+                clique.make_query("select $path from ytListQueueExports('//tmp/not_an_export_dir')")
+
+            create("map_node", "//tmp/unconfigured_export")
+            set("//tmp/unconfigured_export/@queue_static_export_destination", {"originating_queue_id": queue_id})
+            with raises_yt_error("No static export configured with export directory", code=QueryFailedError):
+                clique.make_query("select $path from ytListQueueExports('//tmp/unconfigured_export')")
+
+            with raises_yt_error("uses a CRON schedule", code=QueryFailedError):
+                clique.make_query(f"select $path from ytListQueueExports('{cron_export_dir}')")
 
     @authors("dakovalkov", "buyval01")
     def test_yt_tables(self):

@@ -131,6 +131,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/subquery_spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_list_log_tables.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_list_queue_exports.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_node_attributes.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_secondary_query.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_tables.cpp
