@@ -184,6 +184,7 @@ public:
     TPersistedStateControlPtr<std::string> PersistedControl;
     TFlowViewPtr FlowView;
     IJobManagerPtr JobManager;
+    IStatusProfilerPtr StatusProfiler;
     NConcurrency::IFairShareThreadPoolPtr ThreadPool;
 
     void Prepare(const TPipelineSpecPtr& spec, const TDynamicPipelineSpecPtr& dynamicSpec)
@@ -198,7 +199,8 @@ public:
         context->Invoker = ThreadPool->GetInvoker("Balancer");
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
-        context->StatusProfiler = CreateSyncStatusProfiler();
+        StatusProfiler = CreateSyncStatusProfiler();
+        context->StatusProfiler = StatusProfiler;
         JobManager = CreateJobManager(context, spec, dynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
     }
 
@@ -229,6 +231,80 @@ std::vector<typename TMap::mapped_type> MapValues(const TMap& map)
     }
     return values;
 }
+
+TEST_F(TJobManagerTest, ReportsAndClearsInsufficientWorkers)
+{
+    auto spec = New<TPipelineSpec>();
+    spec->Computations["computation"] = CreateGenericComputationSpec<TSimpleComputation>();
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    dynamicSpec->JobManager->MinimumWorkerCount = 2;
+    Prepare(spec, dynamicSpec);
+
+    auto addWorker = [&] (const std::string& address) {
+        auto worker = New<NFlow::TWorker>();
+        worker->RpcAddress = address;
+        FlowView->State->Workers[address] = std::move(worker);
+    };
+    auto distributeJobs = [&] {
+        FlowView->State->StartMutation();
+        JobManager->DistributeJobs(FlowView);
+        FlowView->State->CommitMutation();
+    };
+
+    addWorker("worker-0");
+    distributeJobs();
+
+    auto errors = StatusProfiler->GetStatus().Errors;
+    ASSERT_EQ(errors.size(), 1u);
+    ASSERT_TRUE(errors.contains("/insufficient_workers/default"));
+    EXPECT_EQ(errors.at("/insufficient_workers/default").GetMessage(), "Too few workers (Count: 1, Required: 2)");
+
+    addWorker("worker-1");
+    distributeJobs();
+
+    EXPECT_TRUE(StatusProfiler->GetStatus().Errors.empty());
+}
+
+TEST_F(TJobManagerTest, ReportsEachWorkerGroupMinimum)
+{
+    const TWorkerGroupId workerGroup("gpu");
+    auto spec = New<TPipelineSpec>();
+    spec->Computations["default-computation"] = CreateGenericComputationSpec<TSimpleComputation>();
+    spec->Computations["gpu-computation"] = CreateGenericComputationSpec<TSimpleComputation>(workerGroup);
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    dynamicSpec->JobManager->MinimumWorkerCount = 2;
+    auto groupOverride = New<TDynamicJobManagerSpec>();
+    groupOverride->MinimumWorkerCount = 3;
+    dynamicSpec->JobManager->WorkerGroupOverride[workerGroup] = groupOverride;
+    Prepare(spec, dynamicSpec);
+
+    auto defaultWorker = New<NFlow::TWorker>();
+    defaultWorker->RpcAddress = "default-worker";
+    FlowView->State->Workers[defaultWorker->RpcAddress] = std::move(defaultWorker);
+    for (int index = 0; index < 2; ++index) {
+        auto worker = New<NFlow::TWorker>();
+        worker->RpcAddress = Format("gpu-worker-%v", index);
+        worker->Groups.push_back(workerGroup);
+        FlowView->State->Workers[worker->RpcAddress] = std::move(worker);
+    }
+
+    FlowView->State->StartMutation();
+    JobManager->DistributeJobs(FlowView);
+    FlowView->State->CommitMutation();
+
+    const auto errors = StatusProfiler->GetStatus().Errors;
+    ASSERT_EQ(errors.size(), 2u);
+    ASSERT_TRUE(errors.contains("/insufficient_workers/default"));
+    EXPECT_EQ(
+        errors.at("/insufficient_workers/default").GetMessage(),
+        "Too few workers (Count: 1, Required: 2)");
+    ASSERT_TRUE(errors.contains("/insufficient_workers/groups/gpu"));
+    EXPECT_EQ(
+        errors.at("/insufficient_workers/groups/gpu").GetMessage(),
+        "Too few workers in worker group \"gpu\" (Count: 2, Required: 3)");
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TJobBalancerTest
     : public TJobManagerTest

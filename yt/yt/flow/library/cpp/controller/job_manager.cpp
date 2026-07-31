@@ -163,6 +163,13 @@ public:
 
         for (const auto& workerGroup : workerGroups) {
             EmplaceOrCrash(BalanceSynchronizers_, workerGroup, NBalancer::CreateBalanceAsyncSynchronizer(Profiler_.WithPrefix("/job_balancer"), workerGroup));
+            auto errorStatePath = workerGroup.Underlying().empty()
+                ? "/insufficient_workers/default"
+                : Format("/insufficient_workers/groups/%v", workerGroup.Underlying());
+            EmplaceOrCrash(
+                InsufficientWorkersErrorStates_,
+                workerGroup,
+                Context_->StatusProfiler->ErrorState(errorStatePath));
         }
         ActualizeBalancing();
     }
@@ -811,6 +818,7 @@ public:
         // computations cannot run) while the overall worker count looks healthy. The required count
         // is taken from the group's override when present, so it can be tuned per worker group (set
         // it to 0 for a group that is allowed to run with no workers).
+        bool hasInsufficientWorkers = false;
         for (const auto& [workerGroup, balanceSynchronizer] : BalanceSynchronizers_) {
             const TDynamicJobManagerGroupSpec* groupJobManagerSpec = DynamicSpec_->JobManager.Get();
             if (auto* overrideSpec = DynamicSpec_->JobManager->WorkerGroupOverride.FindPtr(workerGroup)) {
@@ -823,13 +831,28 @@ public:
                     ++workersInGroup;
                 }
             }
+            const auto& errorState = GetOrCrash(InsufficientWorkersErrorStates_, workerGroup);
             if (workersInGroup < minimumWorkerCount) {
+                hasInsufficientWorkers = true;
+                auto error = workerGroup.Underlying().empty()
+                    ? TError("Too few workers (Count: %v, Required: %v)",
+                        workersInGroup,
+                        minimumWorkerCount)
+                    : TError("Too few workers in worker group %Qv (Count: %v, Required: %v)",
+                        workerGroup.Underlying(),
+                        workersInGroup,
+                        minimumWorkerCount);
+                errorState->SetError(std::move(error));
                 YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Too few workers in worker group")
                     .With("WorkerGroup", workerGroup)
                     .With("Count", workersInGroup)
                     .With("Required", minimumWorkerCount);
-                return StopAllJobs(flowView);
+            } else {
+                errorState->ClearError();
             }
+        }
+        if (hasInsufficientWorkers) {
+            return StopAllJobs(flowView);
         }
 
         ssize_t stopCount = 0;
@@ -1006,6 +1029,7 @@ private:
     const IResourceManagerPtr ResourceManager_;
 
     THashMap<TComputationId, IComputationControllerPtr> ComputationControllers_;
+    THashMap<TWorkerGroupId, IStatusErrorStatePtr> InsufficientWorkersErrorStates_;
 
     struct TResourceControllerEntry
     {
