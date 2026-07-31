@@ -206,4 +206,21 @@ DEFINE_REFCOUNTED_TYPE(TYqlPluginConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TYqlPluginDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    NYson::TYsonString GatewaysConfig;
+    TString MaxSupportedYqlVersion;
+
+    THashMap<TString, TString> ProtoGatewaysConfigs;
+
+    REGISTER_YSON_STRUCT(TYqlPluginDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TYqlPluginDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYqlPlugin

@@ -1,14 +1,11 @@
 import test_simple
 import test_udfs
 
-from common import TestQueriesYqlBase
-from conftest import merge_old_dynconfig_into_new_static
+from common import TestQueriesYqlBase, TestUpdateYqlAgentQtWorkerDynamicConfigMixin
 
 from yt.environment.helpers import assert_items_equal
 
-from yt_commands import authors, create, create_user, write_file, write_table, raises_yt_error, wait, update_access_control_object_acl
-
-from google.protobuf.text_format import MessageToString
+from yt_commands import authors, create, create_user, write_table, raises_yt_error, wait, update_access_control_object_acl
 
 from dirty_equals import AnyThing
 
@@ -39,18 +36,8 @@ class TestYqlAgentWithQtWorker(test_simple.TestYqlAgent):
 
 
 @authors("mpereskokova")
-class TestYqlAgentDynConfigWithQtWorker(test_simple.TestYqlAgentDynConfig):
+class TestYqlAgentDynConfigWithQtWorker(TestUpdateYqlAgentQtWorkerDynamicConfigMixin, test_simple.TestYqlAgentDynConfig):
     YQL_QTWORKER = True
-
-    def _update_dyn_config(self, yql_agent, dyn_config):
-        if "gateways" in dyn_config:
-            config = yql_agent.render_gateways_conf(yql_agent.yql_agent.env)
-            merge_old_dynconfig_into_new_static(config, dyn_config["gateways"])
-            filename = "//sys/yql_agent/proto_gateways/default.conf"
-            create("file", filename, recursive=True, force=True)
-            write_file(filename, MessageToString(config).encode('utf-8'))
-
-        super()._update_dyn_config(yql_agent, dyn_config)
 
     def _safe_test_query(self, query, rows):
         try:
@@ -80,6 +67,11 @@ class TestYqlAgentDynConfigWithQtWorker(test_simple.TestYqlAgentDynConfig):
             },
         })
         wait(lambda: self._safe_test_query("select * from primary.`//tmp/t`", rows))
+
+
+@authors("ziganshinmr")
+class TestYqlAgentInitialDynConfigWithQtWorker(TestUpdateYqlAgentQtWorkerDynamicConfigMixin, test_simple.TestYqlAgentInitialDynConfig):
+    YQL_QTWORKER = True
 
 
 @authors("mpereskokova")

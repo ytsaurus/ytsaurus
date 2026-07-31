@@ -13,12 +13,10 @@ void TProcessYqlPluginInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("plugin_options", &TThis::PluginConfig)
         .DefaultNew();
 
-    registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion);
-
     registrar.Parameter("singletons_config", &TThis::SingletonsConfig);
 
-    registrar.Parameter("dynamic_gateways_config", &TThis::DynamicGatewaysConfig)
-        .Default();
+    registrar.Parameter("plugin_dynamic_config", &TThis::PluginDynamicConfig)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

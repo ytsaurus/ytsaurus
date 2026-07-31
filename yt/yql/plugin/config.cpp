@@ -475,4 +475,16 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TYqlPluginDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("gateways_config", &TThis::GatewaysConfig)
+        .Default();
+    registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion)
+        .Default();
+    registrar.Parameter("proto_gateways_configs", &TThis::ProtoGatewaysConfigs)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYqlPlugin

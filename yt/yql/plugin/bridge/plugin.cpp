@@ -2,6 +2,7 @@
 
 #include "interface.h"
 
+#include <yt/yql/plugin/config.h>
 #include <yt/yql/plugin/plugin.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -30,8 +31,7 @@ std::optional<TString> ToString(const char* str, size_t strLength)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Each YQL plugin ABI change should be listed here. Either a compat should be added
-// or MinSupportedYqlPluginAbiVersion should be promoted.
+// NB: dynamic linking for YQL plugin is deprecated and no longer used
 DEFINE_ENUM(EYqlPluginAbiVersion,
     ((Invalid)                    (-1))
     ((TheBigBang)                  (0))
@@ -146,7 +146,6 @@ public:
             .LogBackend = &options.LogBackend,
             .Libraries = options.Libraries.AsStringBuf().data(),
             .LibrariesLength = options.Libraries.AsStringBuf().size(),
-            .MaxYqlLangVersion = options.MaxYqlLangVersion.data(),
             .StartDqManager = options.StartDqManager
         };
 
@@ -312,9 +311,10 @@ public:
         return queryResult;
     }
 
-    void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept override
+    void OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr /*config*/) noexcept override
     {
-        BridgeOnDynamicConfigChanged(BridgePlugin_, &config);
+        // Dynamic linking for YQL plugin is deprecated
+        Y_UNREACHABLE();
     }
 
     void OnUdfMetaChanged(TUdfMetaPtr /*udfMeta*/) override

@@ -19,9 +19,9 @@ IMapNodePtr IYqlPlugin::GetOrchidNode() const
 
 TYqlNativePluginOptions ConvertToNativePluginOptions(
     TYqlPluginConfigPtr config,
+    TYqlPluginDynamicConfigPtr initialDynamicConfig,
     TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
-    std::string maxSupportedYqlVersion,
     bool startDqManager)
 {
     auto options = TYqlNativePluginOptions {
@@ -37,9 +37,9 @@ TYqlNativePluginOptions ConvertToNativePluginOptions(
         .YtAccessProviderConfig = ConvertToYsonString(config->YtAccessProviderConfig),
         .OperationAttributes = ConvertToYsonString(config->OperationAttributes),
         .Libraries = ConvertToYsonString(config->Libraries),
+        .InitialDynamicConfig = ConvertToYsonString(initialDynamicConfig),
         .YTTokenPath = config->YTTokenPath,
         .YqlPluginSharedLibrary = config->YqlPluginSharedLibrary,
-        .MaxYqlLangVersion = maxSupportedYqlVersion,
         .StartDqManager = startDqManager,
     };
 

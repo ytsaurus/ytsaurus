@@ -12,8 +12,8 @@ namespace NYT::NYqlPlugin::NProcess {
 std::unique_ptr<IYqlPlugin> CreateProcessYqlPlugin(
     TYqlPluginConfigPtr pluginConfig,
     TSingletonsConfigPtr singletonsConfig,
+    TYqlPluginDynamicConfigPtr pluginInitialDynamicConfig,
     NApi::NNative::TConnectionCompoundConfigPtr clusterConnectionConfig,
-    TString maxSupportedYqlVersion,
     const NProfiling::TProfiler& profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
