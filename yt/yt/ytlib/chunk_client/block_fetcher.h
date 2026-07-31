@@ -156,7 +156,7 @@ private:
 
         TMemoryUsageGuardPtr MemoryUsageGuard;
 
-        std::atomic_flag FetchStarted = ATOMIC_FLAG_INIT;
+        std::atomic_flag FetchStarted;
     };
 
     std::unique_ptr<TWindowSlot[]> Window_;
