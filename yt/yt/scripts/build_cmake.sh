@@ -149,6 +149,16 @@ cmd_move_binaries() {
         fi
     done
 
+    for flow_unittest_dir in $(find yt/yt/flow/examples/cpp -type d -name unittest); do
+        for flow_unittest_binary in "${flow_unittest_dir}"/*; do
+            if [ -f "${flow_unittest_binary}" ] && [ -x "${flow_unittest_binary}" ]; then
+                strip "${flow_unittest_binary}"
+                mkdir -p "${output_build_path}/${flow_unittest_dir}"
+                mv "${flow_unittest_binary}" "${output_build_path}/${flow_unittest_dir}"
+            fi
+        done
+    done
+
     local scheduler_simulator="yt/yt/tools/scheduler_simulator/bin/scheduler_simulator"
     strip "${scheduler_simulator}"
     mv "${scheduler_simulator}" "${output_build_path}"
