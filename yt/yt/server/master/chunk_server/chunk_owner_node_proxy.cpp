@@ -710,21 +710,22 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetWritable(true)
         .SetReplicated(true)
         .SetExternal(isExternal));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerStatus)
-        .SetExternal(isExternal)
-        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableSkynetSharing)
         .SetWritable(true)
         .SetReplicated(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerTraversalInfo)
-        .SetExternal(isExternal)
-        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::VersionedResourceUsage)
         .SetPresent(!isTrunk));
     descriptors->emplace_back(EInternedAttributeKey::ScheduleReincarnation)
         .SetWritable(!isExternal)
         .SetPresent(false);
     descriptors->emplace_back(EInternedAttributeKey::TableBackupEnabled);
+
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerStatus)
+        .SetExternal(isExternal)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerInfo)
+        .SetExternal(isExternal)
+        .SetOpaque(true));
 }
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
@@ -956,16 +957,18 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
                 .Value(node->GetEnableSkynetSharing());
             return true;
 
-        case EInternedAttributeKey::ChunkMergerTraversalInfo: {
+        case EInternedAttributeKey::ChunkMergerInfo: {
             if (isExternal) {
                 break;
             }
 
-            const auto& traversalInfo = node->ChunkMergerTraversalInfo();
+            const auto& info = node->ChunkMergerInfo();
             BuildYsonFluently(consumer)
                 .BeginMap()
-                    .Item("chunk_count").Value(traversalInfo.ChunkCount)
-                    .Item("config_version").Value(traversalInfo.ConfigVersion)
+                    .Item("chunk_count").Value(info.TraversalInfo.ChunkCount)
+                    .Item("config_version").Value(info.TraversalInfo.ConfigVersion)
+                    .Item("updated_since_last_merge").Value(info.UpdatedSinceLastMerge)
+                    .Item("revision").Value(info.Revision)
                 .EndMap();
             return true;
         }
