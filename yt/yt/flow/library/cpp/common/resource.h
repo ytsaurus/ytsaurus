@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/flow/library/cpp/file_storage/public.h>
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NFlow {
@@ -37,6 +38,7 @@ struct TResourceRevisionState
     std::optional<i64> AppliedRevisionId;
     //! Id of the delivered target revision the instance is switching to.
     std::optional<i64> TargetRevisionId;
+    std::optional<EFileResourceUpdateState> UpdateState;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +53,9 @@ struct TResourceContext
 
     // Common infrastructure.
     IPipelineAuthenticatorPtr PipelineAuthenticator;
+    NClient::NCache::IClientsCachePtr ClientsCache;
+    NYPath::TRichYPath PipelinePath;
+    NFileStorage::IFileStoragePtr FileStorage;
     IInvokerPtr Invoker;
 
     // Observability.

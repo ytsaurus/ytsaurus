@@ -268,6 +268,24 @@ void TRegistry::RegisterResource()
 }
 
 template <class T>
+void TRegistry::RegisterFileSource()
+{
+    static_assert(std::is_base_of_v<IFileSource, T>);
+
+    ValidateParametersType<typename T::TParameters, typename T::TParametersPtr>();
+
+    EmplaceDescriptorOrCrash<T>(
+        TypeNameToFileSourceDescriptor_,
+        TFileSourceDescriptor{
+            .Factory = &New<T, const TFileSourceContextPtr&>,
+            .ParametersFactory = &New<typename T::TParameters>,
+            .ValidateSpec = [] (const TFileSourceSpec& spec) {
+                T::TValidator::Validate(spec);
+            },
+        });
+}
+
+template <class T>
 void TRegistry::RegisterExternalStateManager()
 {
     static_assert(std::is_base_of_v<IExternalStateManager, T>);

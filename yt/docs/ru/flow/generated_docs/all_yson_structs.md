@@ -100,6 +100,8 @@
 
 {% include [_](./NYT_NFlow_NDeltaCodecs_ECodec.md) %}
 
+{% include [_](./NYT_NFlow_NFileStorage_TFileStorageConfig.md) %}
+
 {% include [_](./NYT_NFlow_NStaticTableConnector_TTableTimestampLocatorSpec.md) %}
 
 {% include [_](./NYT_NFlow_NWorker_TWorkerConfig.md) %}
@@ -239,6 +241,12 @@
 {% include [_](./NYT_NFlow_TExternalStateManagerSpec.md) %}
 
 {% include [_](./NYT_NFlow_TFetcherInJoinerSpec.md) %}
+
+{% include [_](./NYT_NFlow_TFileResourceDynamicParameters.md) %}
+
+{% include [_](./NYT_NFlow_TFileResourceParameters.md) %}
+
+{% include [_](./NYT_NFlow_TFileSourceSpec.md) %}
 
 {% include [_](./NYT_NFlow_TFlowNodeConfig.md) %}
 

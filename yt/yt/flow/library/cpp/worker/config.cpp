@@ -12,6 +12,8 @@ void TWorkerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("message_service_threads", &TThis::MessageServiceThreads)
         .Default(3);
+    registrar.Parameter("file_storage", &TThis::FileStorage)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

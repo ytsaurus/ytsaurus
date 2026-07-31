@@ -8,6 +8,9 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/client/cache/public.h>
+#include <yt/yt/client/ypath/rich.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NFlow {
@@ -22,6 +25,8 @@ struct TResourceControllerContext
     TResourceSpecPtr ResourceSpec;
 
     // Common infrastructure.
+    NClient::NCache::IClientsCachePtr ClientsCache;
+    NYPath::TRichYPath PipelinePath;
     IInvokerPtr Invoker;
 
     // Observability.

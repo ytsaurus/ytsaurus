@@ -2,6 +2,7 @@ RECURSE(
     async_request
     companion_word_count
     external_state_join
+    file_resource
     noop
     retryable_async_request
     shuffle

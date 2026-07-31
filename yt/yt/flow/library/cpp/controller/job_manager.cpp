@@ -131,6 +131,8 @@ public:
             auto resourceControllerContext = New<TResourceControllerContext>();
             resourceControllerContext->ResourceId = resourceId;
             resourceControllerContext->ResourceSpec = resourceSpec;
+            resourceControllerContext->ClientsCache = Context_->ClientsCache;
+            resourceControllerContext->PipelinePath = Context_->PipelinePath;
             resourceControllerContext->Invoker = Context_->MainCycleInvoker;
             resourceControllerContext->Logger = Logger().WithTag("ResourceController", resourceId);
             resourceControllerContext->Profiler = WithPipelineRelatedTags(
@@ -1049,6 +1051,8 @@ private:
     {
         auto context = New<TResourceManagerContext>();
         context->PipelineAuthenticator = PipelineAuthenticator_;
+        context->ClientsCache = Context_->ClientsCache;
+        context->PipelinePath = Context_->PipelinePath;
         context->Logger = Logger().WithTag("Manager", "Resource");
         context->Invoker = Context_->MainCycleInvoker;
         context->Profiler = WithPipelineRelatedTags(ControllerProfiler());

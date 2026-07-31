@@ -524,6 +524,8 @@ void TWorkerResourceStatus::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("target_revision_id", &TThis::TargetRevisionId)
         .Default();
+    registrar.Parameter("update_state", &TThis::UpdateState)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

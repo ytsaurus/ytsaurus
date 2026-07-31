@@ -6,6 +6,7 @@ SRCS(
     buffer_state_manager.cpp
     config.cpp
     controller_connector.cpp
+    file_storage.cpp
     input_buffer.cpp
     input_buffer_detail.cpp
     input_manager.cpp
@@ -24,6 +25,7 @@ PEERDIR(
     library/cpp/yt/string
 
     yt/yt/library/heavy_hitters
+    yt/yt/flow/library/cpp/file_storage
     yt/yt/library/profiling/sensors_owner
     yt/yt/library/query/engine
     yt/yt/library/ytprof

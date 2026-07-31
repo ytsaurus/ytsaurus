@@ -342,6 +342,18 @@ DECLARE_REFCOUNTED_STRUCT(TResourceControllerContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicResourceControllerContext);
 DECLARE_REFCOUNTED_STRUCT(IResourceController);
 
+DECLARE_REFCOUNTED_STRUCT(TFileSourceSpec);
+DECLARE_REFCOUNTED_STRUCT(TFileSourceRevision);
+DECLARE_REFCOUNTED_STRUCT(TFileSourceContext);
+DECLARE_REFCOUNTED_STRUCT(IFileSource);
+
+DEFINE_ENUM(EFileResourceUpdateState,
+    ((Downloading)     (0))
+    ((Initializing)    (1))
+    ((Validating)      (2))
+    ((WaitingForRetry) (3))
+);
+
 using TVersionedResourceTargetRevisions = TVersionedValue<THashMap<TResourceId, TResourceRevisionPtr>>;
 DECLARE_REFCOUNTED_TYPE(TVersionedResourceTargetRevisions);
 

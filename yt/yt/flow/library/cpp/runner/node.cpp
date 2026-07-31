@@ -26,6 +26,7 @@
 #include <yt/yt/flow/library/cpp/worker/buffer_state_manager.h>
 #include <yt/yt/flow/library/cpp/worker/config.h>
 #include <yt/yt/flow/library/cpp/worker/controller_connector.h>
+#include <yt/yt/flow/library/cpp/worker/file_storage.h>
 #include <yt/yt/flow/library/cpp/worker/input_manager.h>
 #include <yt/yt/flow/library/cpp/worker/job.h>
 #include <yt/yt/flow/library/cpp/worker/job_tracker.h>
@@ -80,6 +81,7 @@
 
 #include <yt/yt/core/https/client.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -199,6 +201,8 @@ private:
     NWorker::IInputManagerPtr InputManager_;
     NConcurrency::IThreadPoolPtr MessageServiceThreadPool_;
     NWorker::IMessageDistributorPtr MessageDistributor_;
+    NConcurrency::TActionQueuePtr FileStorageActionQueue_;
+    NFileStorage::IFileStoragePtr FileStorage_;
     NWorker::IJobTrackerPtr JobTracker_;
     NWorker::IControllerConnectorPtr ControllerConnector_;
 
@@ -469,6 +473,27 @@ private:
             {},
             NWorker::WorkerProfiler());
 
+        FileStorageActionQueue_ = New<TActionQueue>("FileStorage");
+        if (Config_->Worker->FileStorage) {
+            FileStorage_ = WaitFor(BIND([
+                config = Config_->Worker->FileStorage,
+                invoker = FileStorageActionQueue_->GetInvoker(),
+                statusProfiler = WorkerStatusProfiler_
+            ] {
+                return NWorker::CreateWorkerFileStorage(
+                    config,
+                    invoker,
+                    NWorker::WorkerLogger().WithTag("Component", "FileStorage"),
+                    NWorker::WorkerProfiler().WithPrefix("/file_storage"),
+                    statusProfiler->WithPrefix("/file_storage"));
+            })
+                    .AsyncVia(FileStorageActionQueue_->GetInvoker())
+                    .Run())
+                .ValueOrThrow();
+        } else {
+            FileStorage_ = NWorker::CreateThrowingFileStorage();
+        }
+
         const auto converterCache = CreatePayloadConverterCache(CreateFastColumnEvaluatorCache());
 
         const auto streamSpecStorage = New<TStreamSpecStorage>(converterCache);
@@ -506,6 +531,7 @@ private:
         for (const auto& group : workerGroups) {
             jobTrackerContext->WorkerGroups.push_back(TWorkerGroupId(group));
         }
+        jobTrackerContext->FileStorage = FileStorage_;
         // ControllerConnector_ is created just below; at call time it is always
         // initialized (jobs start running only after worker setup is complete).
         jobTrackerContext->DistributedThrottlerChannel = [this] () -> NRpc::IChannelPtr {

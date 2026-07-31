@@ -269,7 +269,7 @@ class TestComputation(FlowTestBase):
             wait(lambda: self._reader_state_identities() & original_identities, timeout=180)
 
             self.client.stop_pipeline(self.pipeline_path)
-            wait(lambda: self.client.get_pipeline_state(self.pipeline_path) == "stopped", timeout=180)
+            self.wait_pipeline_state("stopped")
 
             static_spec = self.client.get_pipeline_spec(self.pipeline_path)["spec"]
             reader_params = static_spec["computations"]["reader"]["source_streams"]["queue"]["parameters"]
