@@ -3,17 +3,17 @@
 #include "object.h"
 #include "pass_profiler.h"
 
-#include <yt/yt/library/cypress_election/public.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
-#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/library/cypress_election/public.h>
 
 #include <yt/yt/core/rpc/bus/public.h>
+
+#include <yt/yt/core/ytree/public.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -56,7 +56,6 @@ public:
         std::string queueAgentUser,
         IInvokerPtr controlInvoker,
         NQueueClient::TDynamicStatePtr dynamicState,
-        NCypressElection::ICypressElectionManagerPtr electionManager,
         NAlertManager::IAlertCollectorPtr alertCollector,
         std::string agentId);
 
@@ -86,7 +85,6 @@ private:
     const TQueueAgentClientDirectoryPtr QAClientDirectory_;
     const IInvokerPtr ControlInvoker_;
     const NQueueClient::TDynamicStatePtr DynamicState_;
-    const NCypressElection::ICypressElectionManagerPtr ElectionManager_;
     const NAlertManager::IAlertCollectorPtr AlertCollector_;
     const NConcurrency::IThreadPoolPtr ControllerThreadPool_;
     const NConcurrency::TPeriodicExecutorPtr PassExecutor_;

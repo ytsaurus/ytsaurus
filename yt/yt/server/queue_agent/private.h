@@ -24,6 +24,7 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueStaticTableExporterLogger, "Queue
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExportManagerLogger, "QueueExportManager");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentShardingManagerLogger, "QueueAgentShardingManager");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressSynchronizerLogger, "CypressSynchronizer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, MultiConsumerNamesGarbageCollectorLogger, "MultiConsumerNamesGarbageCollector");
 
 YT_DEFINE_GLOBAL(const NProfiling::TProfiler, QueueAgentProfiler, "/queue_agent");
 YT_DEFINE_GLOBAL(const NProfiling::TProfiler, QueueAgentProfilerGlobal, QueueAgentProfiler().WithGlobal());
@@ -50,6 +51,8 @@ YT_DEFINE_ERROR_ENUM(
     ((QueueAgentShardingManagerPassFailed)                          (3050))
 
     ((QueueAgentMultiConsumerControllerPassFailed)                  (3060))
+
+    ((QueueAgentMultiConsumerNamesGarbageCollectorPassFailed)       (3070))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +72,9 @@ DECLARE_REFCOUNTED_STRUCT(ICypressSynchronizer)
 DECLARE_REFCOUNTED_CLASS(TCypressSynchronizer)
 DECLARE_REFCOUNTED_STRUCT(TCypressSynchronizerConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressSynchronizerDynamicConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IMultiConsumerNamesGarbageCollector)
+DECLARE_REFCOUNTED_STRUCT(TMultiConsumerNamesGarbageCollectorDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IQueueAgentShardingManager)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentShardingManagerDynamicConfig)
