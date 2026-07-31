@@ -109,6 +109,7 @@ SRCS(
     subquery_spec.cpp
     table.cpp
     table_function_yt_list_log_tables.cpp
+    table_function_yt_list_queue_exports.cpp
     table_function_yt_node_attributes.cpp
     table_function_yt_secondary_query.cpp
     table_function_yt_tables.cpp

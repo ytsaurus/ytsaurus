@@ -8,6 +8,7 @@ void RegisterTableFunctionsConcat();
 void RegisterTableFunctionsListDir();
 void RegisterTableFunctionYtListLogTables();
 void RegisterTableFunctionYtNodeAttributes();
+void RegisterTableFunctionYtQueueExports();
 void RegisterTableFunctionYtSecondaryQuery();
 void RegisterTableFunctionYtTables();
 
