@@ -12,6 +12,7 @@ import (
 
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/ttlog"
+	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ytrpc"
@@ -269,6 +270,7 @@ func (o *output) senderLoop() {
 
 func (o *output) createSession(ctx context.Context) {
 	var result *yt.CreateQueueProducerSessionResult
+	mutationID := yt.MutationID(guid.New())
 	retry(
 		func() error {
 			var err error
@@ -277,7 +279,9 @@ func (o *output) createSession(ctx context.Context) {
 				o.producerPath,
 				o.queuePath,
 				o.sessionID,
-				&yt.CreateQueueProducerSessionOptions{},
+				&yt.CreateQueueProducerSessionOptions{
+					MutatingOptions: &yt.MutatingOptions{MutationID: mutationID},
+				},
 			)
 			return err
 		},
