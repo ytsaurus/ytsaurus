@@ -5,6 +5,15 @@ types:
     table_group: resolve_tables
     type_name: TNodeIdToPath
     fields:
+      {% if version >= 7 %}
+      - cpp_name: NodeIdHash
+        cpp_type: ui64
+        column_name: node_id_hash
+        column_type: Uint64
+        sort_order: Ascending
+        expression: farm_hash(node_id)
+      {% endif %}
+
       - cpp_name: NodeId
         cpp_type: NCypressClient::TNodeId
         column_name: node_id

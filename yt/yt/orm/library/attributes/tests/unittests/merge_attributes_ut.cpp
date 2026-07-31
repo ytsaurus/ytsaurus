@@ -105,6 +105,52 @@ TEST(TMergeAttributesTest, ListForwardNestedLists)
     EXPECT_EQ(mergedYsonString, expectedYsonString);
 }
 
+TEST(TMergeAttributesTest, RepeatedViewMergedWithInnerField)
+{
+    NYson::TYsonString wholeViewYsonString{R"([{"a"="x";};{"a"="y";};])"sv};
+    NYson::TYsonString fieldYsonString{R"(["p"; "q";])"sv};
+
+    auto mergedYsonString = NewMergeAttributes({
+            {.Path = "", .Value = wholeViewYsonString},
+            {.Path = "/*/b", .Value = fieldYsonString},
+        });
+    NYson::TYsonString expectedYsonString{R"([{"a"="x";"b"="p";};{"a"="y";"b"="q";};])"sv};
+    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
+}
+
+TEST(TMergeAttributesTest, EmptyRepeatedViewMergedWithInnerField)
+{
+    NYson::TYsonString wholeViewYsonString{R"([])"sv};
+    NYson::TYsonString fieldYsonString{R"([])"sv};
+
+    auto mergedYsonString = NewMergeAttributes({
+            {.Path = "", .Value = wholeViewYsonString},
+            {.Path = "/*/b", .Value = fieldYsonString},
+        });
+    NYson::TYsonString expectedYsonString{R"([])"sv};
+    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
+}
+
+// A non-list value cannot be zipped with the wildcard expansion of the same node.
+TEST(TMergeAttributesTest, NonListRepeatedViewMergedWithInnerFieldThrows)
+{
+    NYson::TYsonString wholeViewYsonString{R"(#)"sv};
+    NYson::TYsonString fieldYsonString{R"(["p";])"sv};
+
+    for (auto mode : {EMergeAttributesMode::Old, EMergeAttributesMode::New}) {
+        EXPECT_THROW(
+            MergeAttributes(
+                {
+                    {.Path = "", .Value = wholeViewYsonString},
+                    {.Path = "/*/b", .Value = fieldYsonString},
+                },
+                NYson::EYsonFormat::Text,
+                EDuplicatePolicy::PrioritizeColumn,
+                mode),
+            TErrorException);
+    }
+}
+
 TEST(TMergeAttributesTest, EtcWithParent)
 {
     NYson::TYsonString etc0YsonStringBuf{R"({"a"="c";})"sv};

@@ -43,20 +43,19 @@ DEFINE_REFCOUNTED_TYPE(TShuffleReadBatch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Optional record-level filter. Runs synchronously during Read drain on
-//! the reader's serialized invoker — keep it cheap.
+//! Optional record-level filter. Duplicate records are discarded before this
+//! filter is applied.
 using TRecordHeaderFilter = std::function<bool(const TRecordHeader& header)>;
 
 struct IPushBasedPartitionReader
     : public virtual TRefCounted
 {
-    //! Drains ready batches up to MaxBytesPerRead; leftover ready chunks
-    //! defer to the next Read(). Cross-chunk record order is unspecified.
-    //! Records.empty() and Finished are independent — an empty batch with
-    //! Finished=false is valid.
+    //! Drains up to MaxBytesPerRead from ready chunks. Cross-chunk order is
+    //! unspecified. Deduplicates by (MapperId, StartRow) before decompression.
+    //! An empty batch may have Finished=false.
     //!
-    //! Callers MUST serialize Read() calls. The returned future is
-    //! uncancelable.
+    //! Reads must not overlap. Canceling a read cancels the reader; subsequent
+    //! reads return the same error.
     [[nodiscard]] virtual TFuture<TShuffleReadBatchPtr> Read() = 0;
 
     //! Declare a new chunk. AddChunk after SetNoMoreChunks() or with a
@@ -77,13 +76,15 @@ DEFINE_REFCOUNTED_TYPE(IPushBasedPartitionReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Optionally appends header-derived mapper and row identity values.
 IPushBasedPartitionReaderPtr CreatePushBasedPartitionReader(
     TPartitionReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     int readQuorum,
     IInvokerPtr invoker,
-    TRecordHeaderFilter recordHeaderFilter = {});
+    TRecordHeaderFilter recordHeaderFilter = {},
+    std::optional<TIdentityColumnIds> identityColumnIds = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

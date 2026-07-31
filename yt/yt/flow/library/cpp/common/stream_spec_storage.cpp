@@ -42,7 +42,7 @@ TStreamSpecs::TStreamSpecs(
             {
                 auto [it, inserted] = Specs_.try_emplace(specId, streamId, spec);
                 THROW_ERROR_EXCEPTION_IF(!inserted,
-                    "Found duplicating StreamSpecId (StreamSpecId: %v, FirstStreamId: %v, SecondStreamId: %v)",
+                    "Found duplicating stream spec id %v in streams %Qv and %Qv",
                     specId,
                     streamId,
                     it->second.StreamId);
@@ -50,13 +50,12 @@ TStreamSpecs::TStreamSpecs(
 
             {
                 auto [it, inserted] = SchemaToStreamSpecId_.try_emplace(spec->Schema, specId);
-                THROW_ERROR_EXCEPTION_IF(!inserted,
-                    "Found two StreamSpec versions with same schema (FirstStreamId: %v, SecondStreamId: %v FirstStreamSpecId: %v, SecondStreamSpecId: %v, Schema: %v)",
-                    streamId,
-                    GetOrDefault(Specs_, it->second, {.StreamId = {}}).StreamId,
-                    specId,
-                    it->second,
-                    spec->Schema);
+                THROW_ERROR_EXCEPTION_IF(!inserted, "Found two stream spec versions with same schema")
+                    << TErrorAttribute("first_stream_id", streamId)
+                    << TErrorAttribute("second_stream_id", GetOrDefault(Specs_, it->second, {.StreamId = {}}).StreamId)
+                    << TErrorAttribute("first_stream_spec_id", specId)
+                    << TErrorAttribute("second_stream_spec_id", it->second)
+                    << TErrorAttribute("schema", spec->Schema);
             }
         }
     }

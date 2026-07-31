@@ -40,6 +40,7 @@ def get_dashboards_meta():
         "controller",
         "worker",
         "computation",
+        "key-visitor",
         "one-worker",
         "message-transfering",
         "state-cache",

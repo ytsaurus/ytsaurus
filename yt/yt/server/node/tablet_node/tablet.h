@@ -38,8 +38,6 @@
 
 #include <yt/yt/core/actions/public.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/concurrency/async_barrier.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -54,6 +52,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/ref_tracked.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -235,7 +235,7 @@ struct TTabletSnapshot
     NHydra::TCellId CellId;
     TWeakPtr<NHydra::ISimpleHydraManager> HydraManager;
     NTabletClient::TTabletId TabletId;
-    std::string LoggingTag;
+    NLogging::TLoggingTagList LoggingTags;
     NYPath::TYPath TablePath;
     TTableSettings Settings;
     TRawTableSettings RawSettings;
@@ -904,7 +904,7 @@ public:
 
     void UpdateReplicaCounters();
 
-    const std::string& GetLoggingTag() const;
+    const NLogging::TLoggingTagList& GetLoggingTags() const;
 
     std::optional<std::string> GetPoolTagByMemoryCategory(EMemoryCategory category) const;
 
@@ -1021,7 +1021,7 @@ private:
 
     TTableSettings Settings_;
 
-    std::string LoggingTag_;
+    NLogging::TLoggingTagList LoggingTags_;
 
     IStoreManagerPtr StoreManager_;
 

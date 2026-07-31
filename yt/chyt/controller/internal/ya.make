@@ -4,6 +4,7 @@ RECURSE(
     app
     auth
     chyt
+    discovery
     httpserver
     jupyt
     livy
@@ -11,3 +12,9 @@ RECURSE(
     sleep
     strawberry
 )
+
+IF (NOT OPENSOURCE)
+    RECURSE(
+        dq
+    )
+ENDIF()

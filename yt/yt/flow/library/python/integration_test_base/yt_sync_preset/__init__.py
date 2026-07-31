@@ -12,6 +12,7 @@ def run_yt_sync(
     add_output_queue=False,
     output_queue_schema=None,
     output_queue_tablet_count=1,
+    output_queues=None,
 ):
     """Run yt_sync that bootstraps Cypress nodes for a flow integration test.
 
@@ -20,8 +21,10 @@ def run_yt_sync(
     If ``add_input_queue_and_consumer`` is set, additionally creates a queue
     named ``input_queue`` and a consumer named ``consumer`` attached to it.
 
-    If ``add_output_queue`` is set, additionally creates a queue named
-    ``output_queue`` (no consumer attached).
+    Output queues (no consumers attached) are requested either as the single
+    queue named ``output_queue`` via ``add_output_queue``, or as arbitrarily
+    named ones via ``output_queues``: a list of dicts, each ``{"name": str,
+    "schema": list, "tablet_count": int}`` (``tablet_count`` defaults to 1).
     """
     pipelines = {
         "pipeline": {
@@ -46,21 +49,24 @@ def run_yt_sync(
         },
     }
 
+    requested_queues = list(output_queues or [])
+    if add_output_queue:
+        if output_queue_schema is None:
+            raise ValueError("output_queue_schema is required when add_output_queue is True")
+
+        requested_queues.append(
+            {"name": "output_queue", "schema": output_queue_schema, "tablet_count": output_queue_tablet_count}
+        )
+
     tables = {}
     consumers = {}
     if add_input_queue_and_consumer:
         if input_queue_schema is None:
             raise ValueError("input_queue_schema is required when add_input_queue_and_consumer is True")
 
-        tables["input_queue"] = {
-            "default": {
-                "$merge_presets": ["builtin:table_preset"],
-                "schema": input_queue_schema,
-                "clusters": {
-                    "_all_data_clusters": {"attributes": {"tablet_count": input_queue_tablet_count}},
-                },
-            },
-        }
+        requested_queues.append(
+            {"name": "input_queue", "schema": input_queue_schema, "tablet_count": input_queue_tablet_count}
+        )
         consumers["consumer"] = {
             "default": {
                 "$merge_presets": ["builtin:consumer_preset"],
@@ -68,16 +74,16 @@ def run_yt_sync(
             },
         }
 
-    if add_output_queue:
-        if output_queue_schema is None:
-            raise ValueError("output_queue_schema is required when add_output_queue is True")
+    for queue in requested_queues:
+        if queue["name"] in tables:
+            raise ValueError(f"duplicate queue name: {queue['name']}")
 
-        tables["output_queue"] = {
+        tables[queue["name"]] = {
             "default": {
                 "$merge_presets": ["builtin:table_preset"],
-                "schema": output_queue_schema,
+                "schema": queue["schema"],
                 "clusters": {
-                    "_all_data_clusters": {"attributes": {"tablet_count": output_queue_tablet_count}},
+                    "_all_data_clusters": {"attributes": {"tablet_count": queue.get("tablet_count", 1)}},
                 },
             },
         }

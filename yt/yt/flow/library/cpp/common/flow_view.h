@@ -239,12 +239,27 @@ THashMap<TComputationId, TAggregatedNodeInputMetricsPtr> AggregateInputMetricsBy
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Keys of the per-limit maps in #TJobStatus::InputLimits and OutputLimits.
+inline constexpr TStringBuf InputBufferBytesLimitType = "input_buffer_bytes";
+inline constexpr TStringBuf OutputBufferBytesLimitType = "output_buffer_bytes";
+inline constexpr TStringBuf OutputStoreBytesLimitType = "output_store_bytes";
+inline constexpr TStringBuf OutputStoreCountLimitType = "output_store_count";
+//! Not a buffer: the controller withholding a stream. Carries a blocked-time
+//! share and nothing else.
+inline constexpr TStringBuf ControllerLimitType = "controller";
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobEntityLimitStatus
     : public NYTree::TYsonStructLite
 {
     i64 Limit{};
     i64 Used{};
     std::optional<i64> Pending;
+    //! Share of the time the job spent with this buffer blocking the epoch loop,
+    //! averaged over the window from the spec. Normalized by the job lifetime, so
+    //! a job blocked since its start reports ~1 however young it is.
+    double BlockedTimeShare{};
 
     REGISTER_YSON_STRUCT_LITE(TJobEntityLimitStatus);
 
@@ -316,6 +331,13 @@ struct TWorkerResourceStatus
     std::optional<double> QueuePushRate10m;
     std::optional<double> QueueFetchRate30s;
     std::optional<double> QueueFetchRate10m;
+
+    //! Id of the revision this resource actually serves on the worker; missing when the
+    //! resource does not track revisions.
+    std::optional<i64> AppliedRevisionId;
+    //! Id of the delivered target revision the resource is switching to.
+    std::optional<i64> TargetRevisionId;
+    std::optional<EFileResourceUpdateState> UpdateState;
 
     REGISTER_YSON_STRUCT(TWorkerResourceStatus);
 
@@ -496,6 +518,7 @@ DEFINE_REFCOUNTED_TYPE(TVersionedWatermarkState);
 DEFINE_REFCOUNTED_TYPE(TVersionedPipelineState);
 DEFINE_REFCOUNTED_TYPE(TVersionedStreamsTraverse);
 DEFINE_REFCOUNTED_TYPE(TVersionedFlowCoreTarget);
+DEFINE_REFCOUNTED_TYPE(TVersionedResourceTargetRevisions);
 
 struct TExecutionSpec
     : public NYTree::TYsonStruct
@@ -518,6 +541,9 @@ struct TExecutionSpec
 
     TVersionedStreamsTraversePtr InputStreamsTraverse;
     TVersionedWatermarkStatePtr WatermarkState;
+
+    //! Target revisions published by the resource controllers, delivered to every worker.
+    TVersionedResourceTargetRevisionsPtr ResourceTargetRevisions;
 
     void AttachToControl(TPersistedStateControlPtr<std::string> control);
     void SetAsSlave();
@@ -557,6 +583,7 @@ struct TExecutionSpecVersions
 
     TVersion InputStreamsTraverseVersion;
     TVersion WatermarkStateVersion;
+    TVersion ResourceTargetRevisionsVersion;
 
     REGISTER_YSON_STRUCT(TExecutionSpecVersions);
 
@@ -630,6 +657,32 @@ DEFINE_REFCOUNTED_TYPE(TFlowFeedback);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! The dynamic per-partition spec delivered to the job with every heartbeat:
+//! generic job-control fields owned by the controller's job manager plus opaque
+//! computation-type-specific parameters owned by the computation controller
+//! (parsed on the job via YT_FLOW_EXTEND_DYNAMIC_PARTITION_SPEC).
+struct TDynamicPartitionSpec
+    : public NYTree::TYsonStruct
+{
+    //! Finish the job after its current epoch (graceful rebalance): set by the
+    //! job manager, cleared by it when the job is recreated on the target worker.
+    bool FinishAfterCurrentEpoch = false;
+
+    //! Computation-type-specific parameters. Null until the computation
+    //! controller sets them; the spec is not delivered to the worker (and the
+    //! job is not started) until then — in particular, a source partition's job
+    //! never starts without its ActiveSource.
+    NYTree::IMapNodePtr ComputationPartitionSpec;
+
+    REGISTER_YSON_STRUCT(TDynamicPartitionSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicPartitionSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPartitionEphemeralState
     : public NYTree::TYsonStruct
 {
@@ -641,7 +694,7 @@ struct TPartitionEphemeralState
 
     TInstant PreviousRebalancingInstant;
 
-    NYTree::IMapNodePtr DynamicPartitionSpec;
+    TDynamicPartitionSpecPtr DynamicPartitionSpec;
 
     //! If set, the partition is being gracefully migrated to this worker address.
     //! The current job will finish after its current epoch, then a new job will be
@@ -724,6 +777,8 @@ struct TFlowEphemeralState
     TMessageTransferingInfoPtr MessageTransferingInfo;
     NYPath::TRichYPath PipelinePath;
     THashSet<TComputationId> TraverseUncoveredComputations;
+
+    THashMap<TResourceId, NYTree::IMapNodePtr> ResourceControllerViews;
 
     //! Workers excluded from scheduling due to FlowCoreTarget mismatch, grouped by their FlowCoreVersion.
     struct TFlowCoreTargetMismatchedVersionGroup

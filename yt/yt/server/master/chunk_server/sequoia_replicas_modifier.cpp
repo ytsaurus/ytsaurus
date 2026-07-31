@@ -86,7 +86,7 @@ public:
 
     TFuture<void> ModifyReplicas() override
     {
-        return Bootstrap_
+        auto result = Bootstrap_
             ->GetSequoiaConnection()
             ->CreateClient(NRpc::GetRootAuthenticationIdentity())
             ->StartTransaction(
@@ -94,6 +94,13 @@ public:
                 {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND(&TSequoiaReplicasModifier::DoModifyReplicas, MakeStrong(this))
                 .AsyncVia(TDispatcher::Get()->GetHeavyInvoker()));
+
+        if (Config_->EnableInGhostMode) {
+            YT_VERIFY(!Config_->Enable);
+            return MakeFuture<void>(TError());
+        } else {
+            return result;
+        }
     }
 
 private:
@@ -151,6 +158,7 @@ private:
         auto modifyRequest = std::make_unique<TReqModifyReplicas>();
         modifyRequest->set_node_id(ReplaceLocationRequest_->node_id());
         modifyRequest->set_caused_by_node_disposal(ReplaceLocationRequest_->caused_by_node_disposal());
+        modifyRequest->set_caused_by_validation(ReplaceLocationRequest_->is_validation());
         Requests_.push_back(std::move(modifyRequest));
 
         GatherReplacedLocationReplicasDifference();
@@ -469,6 +477,9 @@ private:
         if (!ReplaceLocationRequest_->is_validation()) {
             return false;
         }
+        if (Config_->EnableInGhostMode) {
+            return false;
+        }
 
         auto nodeId = FromProto<TNodeId>(ReplaceLocationRequest_->node_id());
 
@@ -514,7 +525,7 @@ private:
 
             // We need 2 messages to be able to override some of them to debug.
             if (IsIncrementalHeartbeat_) {
-                YT_LOG_TRACE(
+                YT_LOG_DEBUG(
                     "Sequoia chunk replicas changed during incremental heartbeat (ChunkId: %v, StoredReplicasDiff: %v, LastSeenReplicasDiff: %v)",
                     chunkId,
                     MakeFormattableView(chunkModifiedReplicas.AddedReplicas, TChunkReplicaWithLocationIndexAndStateFormatter()),
@@ -579,6 +590,7 @@ private:
             }
         }
 
+
         for (auto& request : Requests_) {
             // We always clean master request to avoid additional work in automaton thread.
             auto addedChunksEndIt = std::remove_if(
@@ -606,20 +618,22 @@ private:
             }
         }
 
-        if (Requests_.size() == 1) {
-            // COMPAT(grphil)
-            Transaction_->AddTransactionAction(
-                Bootstrap_->GetCellTag(),
-                NTransactionClient::MakeTransactionActionData(*Requests_[0]));
-        } else {
-            TReqModifyReplicasBatch batchRequest;
-            for (auto& request : Requests_) {
-                *batchRequest.add_requests() = std::move(*request);
-            }
+        if (Config_->Enable) {
+            if (Requests_.size() == 1) {
+                // COMPAT(grphil)
+                Transaction_->AddTransactionAction(
+                    Bootstrap_->GetCellTag(),
+                    NTransactionClient::MakeTransactionActionData(*Requests_[0]));
+            } else {
+                TReqModifyReplicasBatch batchRequest;
+                for (auto& request : Requests_) {
+                    *batchRequest.add_requests() = std::move(*request);
+                }
 
-            Transaction_->AddTransactionAction(
-                Bootstrap_->GetCellTag(),
-                NTransactionClient::MakeTransactionActionData(batchRequest));
+                Transaction_->AddTransactionAction(
+                    Bootstrap_->GetCellTag(),
+                    NTransactionClient::MakeTransactionActionData(batchRequest));
+            }
         }
 
 

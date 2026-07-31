@@ -556,7 +556,7 @@ TExternalCellTagInfo GroupByExternalCellTag(
 
         THROW_ERROR_EXCEPTION_IF(
             basicAttributeIt == basicAttributes.end(),
-            "Could not find basic attribute for UDF (Name: %v, CypressPath: %v)",
+            "Could not find basic attribute for UDF %Qv at %v",
             nameAndPath,
             filepath);
 
@@ -609,7 +609,7 @@ void FetchChunks(
             auto it = resultIndices.find(function);
             THROW_ERROR_EXCEPTION_IF(
                 it == resultIndices.end(),
-                "Could not find UDF (NameAndPath: %v)",
+                "Could not find UDF %Qv",
                 function);
             i64 resultIndex = it->second;
 
@@ -1035,7 +1035,7 @@ public:
         : TAsyncExpiringCache(
             std::move(config),
             invoker,
-            QueryClientLogger().WithTag("Cache: CypressFunctionRegistry"))
+            QueryClientLogger().WithTag("Cache", "CypressFunctionRegistry"))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
     { }

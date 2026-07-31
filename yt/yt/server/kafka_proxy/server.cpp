@@ -201,7 +201,7 @@ private:
             response = RequestHandler_->Handle(
                 connectionState->Info,
                 request,
-                Logger().WithTag("ConnectionId: %v", connection->GetConnectionId()));
+                Logger().WithTag("ConnectionId", connection->GetConnectionId()));
         }
 
         YT_UNUSED_FUTURE(connection->PostMessage(response)

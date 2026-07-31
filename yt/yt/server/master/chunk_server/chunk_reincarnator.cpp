@@ -616,6 +616,7 @@ public:
             bootstrap,
             EAutomatonThreadQueue::ChunkReincarnator)
         , ChunkScanner_(
+            bootstrap,
             EChunkScanKind::Reincarnation,
             /*journal*/ false)
         , TransactionRotator_(bootstrap, "Chunk reincarnator transaction")

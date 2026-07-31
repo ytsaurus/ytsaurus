@@ -21,7 +21,7 @@
 
 #include <yt/yt/library/containers/cri/config.h>
 
-#include <yt/yt/library/tracing/jaeger/tracer.h>
+#include <yt/yt/library/tracing/jaeger/config.h>
 
 #include <yt/yt/client/file_client/config.h>
 

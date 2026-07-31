@@ -16,6 +16,7 @@ class IFunctionRegistry;
 class TBuiltinFunctionRegistry;
 
 constexpr std::string_view RandomMTResource = "MTRand";
+constexpr std::string_view ErasedResourceTag = "_Erased";
 constexpr std::string_view ResourceQueuePrefix = "TResourceQueue:";
 constexpr std::string_view BlockStorageResourcePrefix = "TBlockStorage:";
 constexpr std::string_view BlockMapJoinIndexResourcePrefix = "TBlockMapJoinIndex:";
@@ -307,6 +308,7 @@ public:
     TRuntimeNode BlockWay(TRuntimeNode variant);
     TRuntimeNode BlockVariant(TRuntimeNode item, ui32 tupleIndex, TType* variantType);
     TRuntimeNode BlockVariant(TRuntimeNode item, const std::string_view& memberName, TType* variantType);
+    TRuntimeNode BlockVariantItem(TRuntimeNode variant);
     TRuntimeNode BlockIf(TRuntimeNode condition, TRuntimeNode thenBranch, TRuntimeNode elseBranch);
     TRuntimeNode BlockJust(TRuntimeNode data);
 
@@ -688,6 +690,12 @@ public:
     TRuntimeNode NewMTRand(TRuntimeNode seed);
     // returns tuple of (ui64 random value, resource)
     TRuntimeNode NextMTRand(TRuntimeNode rand);
+
+    //-- type erasure
+    // boxes a value together with its MiniKQL type into an opaque Resource<_Erased>
+    TRuntimeNode AsErased(TRuntimeNode value);
+    // recovers the boxed value as Optional<U> when the requested type matches, empty optional otherwise
+    TRuntimeNode PeekErased(TRuntimeNode resource, TType* expectedType);
 
     //-- aggregation functions
     TRuntimeNode AggrCountInit(TRuntimeNode value);

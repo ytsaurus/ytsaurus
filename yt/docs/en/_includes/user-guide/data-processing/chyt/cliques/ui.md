@@ -1,58 +1,84 @@
-# A clique in the {{product-name}} web interface
+# The clique web interface in {{product-name}}
 
-Cliques don't have their own web interface, but you can view all clique-related objects using the {{product-name}} web interface.
+The web interface is a convenient way to manage [cliques](../../../../../user-guide/data-processing/chyt/general.md). It is suitable for:
 
-## Strawberry Node
+- Quick one‑off tasks.
+- Visual monitoring of the clique’s status.
+- Configuration without writing scripts.
+- Quick parameter review enabled by a clear visual structure.
 
-The clique's configuration and persistent state are stored in Cypress at `//sys/strawberry/chyt/<alias>`.
+## How to open the clique interface { #where }
 
-The node description provides housekeeping information: whether the clique is running, in what pool, what the status of the corresponding {{product-name}} operation is, and so on. This node also contains a YSON document called speclet, which stores all the clique settings set with the `yt clickhouse ctl set-option` command.
+1. In the main menu of {{product-name}}, on the left, select **Cliques**.
+1. In the **CHYT cliques** section, select the required clique from the list or [create a new one](../../../../../user-guide/data-processing/chyt/how-to-guides/create-start.md#create).
 
-In addition, you can retrieve information from the strawberry node using the `yt clickhouse ctl get-speclet` and `yt clickhouse ctl status` commands in our CLI.
+    {% note info %}
 
-<!-- ![](../../../../../../images/chyt_strawberry_node.png) -->
+    To get familiar with the web interface, use the public clique `ch_public`. This is a publicly accessible clique that runs on every {{product-name}} cluster.
 
-## Access Control Object Node
+    {% endnote %}
 
-The clique's ACL is stored in a specialized access control object node located at `//sys/access_control_object_namespaces/chyt/<alias>`. In this node, you can view all the accesses granted for the clique.
+## Main sections of the web interface { #ui }
 
-<!-- ![](../../../../../../images/chyt_clique_access_control_object_node.png) -->
+![UI](../../../../../../images/clique-ui-os.png){ .center }
 
-## YT Operation
+_1. [Header](#header) — displays the clique name._  
+_2. [Action buttons](#action-menu) — use them to manage cliques._  
+_3. [Clique characteristics block](#params) — here you can view the clique’s status._  
+_4. [Tabs panel](#tabs) — links to the speclet (configuration), ACL, and logs tabs._
 
-To access the web interface of the {{product-name}} system operation used to start the clique instances, follow the link from the strawberry node description or the link from the `yt clickhouse ctl status` command output.
+### Header {#header}
 
-There is a lot of useful information on the operation page to help with the operation of CHYT.
+The header (1) displays basic information:
 
-### Description { #description }
+- The name of the cluster where the clique is located, and a button to change it.
+- The name of section — **CHYT cliques**.
+- Buttons:
+  - ![add to favourites](../../../../../../images/add-to-favourites-btn.png){width=24 height=24} _Add to favourites_ — add the clique to your favourites.
+  - ![view favourites](../../../../../../images/view-favourites-btn.png){width=24 height=24} _View favourites_ — view your favourite cliques.
+- The clique name.
+- The **Create clique** button for [creating a new clique](../../../../../user-guide/data-processing/chyt/how-to-guides/create-start.md#create).
 
-The **Description** section contains various system information about the clique and a number of links.
+### Action buttons {#action-menu}
 
-- `ytserver-log-tailer`, `ytserver-clickhouse`, `clickhouse-trampoline` &mdash; these sections describe versions of various components of the CHYT server code.
+On the right, there is an action buttons block (2):
 
-### Specification { #specification }
+- ![sql](../../../../../../images/sql-btn.png){width=24 height=24} _SQL_ — go to the web interface for running queries — [Query Tracker](../../../../../user-guide/query-tracker/about.md).
+- ![start](../../../../../../images/start-btn.png){width=24 height=24} _Start_ — start the clique.
+- ![stop](../../../../../../images/stop-btn.png){width=24 height=24} _Stop_ — stop the clique.
+- ![remove](../../../../../../images/remove-btn.png){width=24 height=24} _Remove_ — delete the clique.
+- ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} _Edit speclet_ — edit the [speclet](../../../../../user-guide/data-processing/chyt/cliques/configs.md#speclet) — the clique’s configuration file.
 
-The **Specification** section contains information about how exactly the clique was started.
+### Clique characteristics {#params}
 
-![](../../../../../../images/chyt_operation_specification.png){ .center }
+Below the header is the clique characteristics block (3). Key parameters:
 
-- **Wrapper version**: Contains the version of the launcher that started the clique.
-- **Command**: Contains the clique start string.
+- `Health` — shows the operational status of the clique. The parameter can have the following values:
+  - `Good` — the clique is healthy and ready to accept queries.
+  - `Pending` — this is the state before `Good`, indicating that the clique is waiting to start.
+  - `Failed` — the clique is unavailable due to a failure.
 
-The last two values are very useful if you need, for example, to restart a more recent version of the clique. You can either address the user who started it or reproduce the start command yourself.
+  {% note info %}
+  
+  When the `Health` parameter is set to `Failed`, the [Strawberry Controller](../../../../../user-guide/data-processing/chyt/controller.md) restarts the Vanilla operation. If the issue is resolved, `Health` will change to `Pending` and then to `Good`, or back to `Failed`, in which case the controller will try to restart the Vanilla operation again.
 
-### Jobs { #jobs }
+  {% endnote %}
+  
+- `State` — the clique state: `Active` / `Inactive`. Shows whether the clique is running or stopped.
+- `Pool` — the name of the compute [pool](../../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md#scheduler), which is a link to pool's web interface.
+- `Instances`, `Cores`, `Memory` — the number of instances and computing resources (CPU cores and RAM) allocated to the clique.
+- `YT operation Id` — a link to the [YT operation](../../../../../user-guide/data-processing/chyt/cliques/yt-operation-ui.md) interface that corresponds to the clique.
 
-The **Jobs** section contains information about the jobs of the operation in which the clique was started. Remember that one job corresponds to one instance in a clique, that is, one ClickHouse server.
+Other characteristics are for reference only and help to clarify the main metrics and identify the causes of failures.
 
-![](../../../../../../images/chyt_operation_jobs.png){ .center }
+### Tabs panel {#tabs}
 
-In this section, in terms of CHYT instances:
+Key information about the clique is displayed in block (4) on the tabs:
 
-- `total`: The total number of instances in a clique.
-- `pending`: The number of instances out of the total number that have not yet been started. A non-zero number in this section means that the clique does not have enough resources to keep all instances running at once — a bad situation for the clique.
-- `running`: The number of running instances out of the total number, i.e. `running + pending = total`.
-- `completed`: The number of *gracefully preempted* instances. This includes those instances that were subject to preemption and were able to complete all the queries running on them before they were forcibly aborted.
-- `failed`: The number of failed instances. Instances can fail for various reasons and the most common are: OOM (out of memory) or bugs in the CHYT or ClickHouse code.
-- `aborted`: The number of aborted instances. Some aborts happen due to insurmountable circumstances (for example, a node failed) and nothing can be done with them. If there are jobs aborted due to `preemption`, this is a bad sign that indicates a lack of resources.
-- `lost`: Jobs must not occur in the clique.
+- **Speclet** — shows the contents of the YSON document with the clique’s settings ([speclet](../../../../../user-guide/data-processing/chyt/cliques/configs.md#speclet)).
+- **ACL** — shows which access permissions to the clique have been granted and for which user groups. For more details, see the [Access permissions](../../../../../user-guide/data-processing/chyt/cliques/access.md) section.
+- **Query Logs** — opens the query logs table. For more details, see [Getting Query Logs](../../../../../user-guide/data-processing/chyt/how-to-guides/query-logs.md).
+
+## Useful links
+
+[Clique settings](../../../../../user-guide/data-processing/chyt/cliques/configs.md)

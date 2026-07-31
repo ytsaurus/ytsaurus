@@ -87,4 +87,5 @@ IF (NOT OPENSOURCE)
     RECURSE(
         yandex-specific
     )
+
 ENDIF()

@@ -138,7 +138,7 @@ private:
         auto tabletId = tablet->GetId();
 
         auto Logger = TabletNodeLogger()
-            .WithTag("%v", tablet->GetLoggingTag());
+            .WithTags(tablet->GetLoggingTags());
 
         try {
             YT_LOG_INFO("Sweeping tablet hunk chunks (ChunkIds: %v)",
@@ -168,7 +168,7 @@ private:
                 YT_LOG_INFO("Tablet hunk chunks sweep transaction created (TransactionId: %v)",
                     transaction->GetId());
 
-                Logger.AddTag("TransactionId: %v", transaction->GetId());
+                Logger.AddTag("TransactionId", transaction->GetId());
             }
 
             tablet->ThrottleTabletStoresUpdate(slot, Logger);

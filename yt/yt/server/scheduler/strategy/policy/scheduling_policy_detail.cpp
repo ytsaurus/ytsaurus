@@ -2,6 +2,8 @@
 
 #include "helpers.h"
 
+#include <yt/yt/server/scheduler/strategy/policy/gpu/persistent_state.h>
+
 #include <yt/yt/server/scheduler/strategy/helpers.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree.h>
 #include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
@@ -12,12 +14,13 @@
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/core/misc/heap.h>
-#include <yt/yt/core/misc/string_builder.h>
 
 #include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
+
+#include <library/cpp/yt/string/string_builder.h>
 
 #include <library/cpp/yt/yson/consumer.h>
 
@@ -849,9 +852,9 @@ TScheduleAllocationsContext::TScheduleAllocationsContext(
     , DynamicAttributesListSnapshot_(GetPoolTreeSnapshotState(TreeSnapshot_)->GetDynamicAttributesListSnapshot())
     , StrategyHost_(strategyHost)
     , ScheduleAllocationsDeadlineReachedCounter_(scheduleAllocationsDeadlineReachedCounter)
-    , Logger(logger.WithTag("NodeAddress: %v, NodeId: %v",
-        SchedulingHeartbeatContext_->GetNodeDescriptor()->GetDefaultAddress(),
-        SchedulingHeartbeatContext_->GetNodeDescriptor()->Id))
+    , Logger(logger
+        .WithTag("NodeAddress", SchedulingHeartbeatContext_->GetNodeDescriptor()->GetDefaultAddress())
+        .WithTag("NodeId", SchedulingHeartbeatContext_->GetNodeDescriptor()->Id))
     , DynamicAttributesManager_(GetPoolTreeSnapshotState(TreeSnapshot_))
 {
     YT_LOG_DEBUG_IF(
@@ -2682,7 +2685,7 @@ void TSchedulingPolicy::RegisterOperation(const TPoolTreeOperationElement* eleme
         New<TOperationSharedState>(
             StrategyHost_,
             element->Spec()->UpdatePreemptibleAllocationsListLoggingPeriod,
-            Logger().WithTag("OperationId: %v", operationId)));
+            Logger().WithTag("OperationId", operationId)));
 }
 
 void TSchedulingPolicy::UnregisterOperation(const TPoolTreeOperationElement* element)
@@ -3119,6 +3122,12 @@ void TSchedulingPolicy::InitPersistentState(INodePtr persistentState)
 
     if (persistentState) {
         try {
+            // COMPAT(bystrovserg)
+            if (!IsClassicPersistentState(persistentState)) {
+                YT_LOG_INFO("Converting GPU scheduling policy persistent state to classic format");
+                persistentState = NGpu::ConvertGpuToClassicPersistentState(persistentState);
+            }
+
             InitialPersistentState_ = ConvertTo<TPersistentStatePtr>(persistentState);
         } catch (const std::exception& ex) {
             InitialPersistentState_ = New<TPersistentState>();
@@ -4093,13 +4102,19 @@ void TSchedulingPolicy::ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedul
 
 void TSchedulingPolicy::CheckMinNodeResourceLimits()
 {
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::Strategy));
+
     static const int MaxViolatingNodesInError = 10;
 
     if (!TreeHost_->IsConnected()) {
         return;
     }
 
-    std::vector<std::string> violatingNodes;
+    auto now = TInstant::Now();
+    auto gracePeriod = Config_->MinNodeResourceLimitsViolationTimeout;
+    auto minResourceLimits = ToJobResources(Config_->MinNodeResourceLimits, TJobResources());
+
+    THashSet<std::string> currentlyViolatingAddresses;
     for (const auto& [nodeId, state] : GetNodeStateMapSnapshot()) {
         if (!state->Descriptor) {
             continue;
@@ -4110,8 +4125,29 @@ void TSchedulingPolicy::CheckMinNodeResourceLimits()
             continue;
         }
 
-        if (!Dominates(state->Descriptor->ResourceLimits, ToJobResources(Config_->MinNodeResourceLimits, TJobResources()))) {
-            violatingNodes.push_back(state->Descriptor->GetDefaultAddress());
+        if (!Dominates(state->Descriptor->ResourceLimits, minResourceLimits)) {
+            currentlyViolatingAddresses.insert(state->Descriptor->GetDefaultAddress());
+        }
+    }
+
+    std::vector<std::string> addressesToRemove;
+    for (const auto& [address, _] : NodeToResourceLimitsViolationStartTime_) {
+        if (!currentlyViolatingAddresses.contains(address)) {
+            addressesToRemove.push_back(address);
+        }
+    }
+    for (const auto& address : addressesToRemove) {
+        NodeToResourceLimitsViolationStartTime_.erase(address);
+    }
+
+    for (const auto& address : currentlyViolatingAddresses) {
+        NodeToResourceLimitsViolationStartTime_.emplace(address, now);
+    }
+
+    std::vector<std::string> violatingNodes;
+    for (const auto& [address, violationStartTime] : NodeToResourceLimitsViolationStartTime_) {
+        if (now >= violationStartTime + gracePeriod) {
+            violatingNodes.push_back(address);
         }
     }
 

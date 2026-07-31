@@ -385,11 +385,7 @@ public:
         outRows.reserve(batchRowCount);
 
         for (const auto& record : batch->Records) {
-            // A lost-ACK resend duplicates a whole record; dedup by (mapper_id, start_row).
-            // Duplicates are rare, hence [[likely]].
-            if (SeenRecords_.emplace(record.Header.MapperId, record.Header.StartRow).second) [[likely]] {
-                outRows.insert(outRows.end(), record.Rows.begin(), record.Rows.end());
-            }
+            outRows.insert(outRows.end(), record.Rows.begin(), record.Rows.end());
         }
 
         if (finished && outRows.empty()) {
@@ -414,9 +410,6 @@ private:
     const IPushBasedPartitionReaderPtr Reader_;
     const TNameTablePtr NameTable_;
     TFuture<TShuffleReadBatchPtr> PendingBatch_;
-    // Records already emitted, keyed by (mapper_id, start_row). Retained for the reader's
-    // lifetime; bounded by the record count in the partition.
-    THashSet<std::pair<i32, i64>> SeenRecords_;
     bool Drained_ = false;
 };
 

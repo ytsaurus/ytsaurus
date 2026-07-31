@@ -93,7 +93,7 @@
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/helpers.h>
 
-#include <yt/yt/library/profiling/solomon/registry.h>
+#include <yt/yt/library/profiling/solomon/exporter.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -606,7 +606,7 @@ public:
     EJobEnvironmentType GetJobEnvironmentType() const override
     {
         const auto& slotManagerConfig = Config_->ExecNode->SlotManager;
-        return slotManagerConfig->JobEnvironment.GetCurrentType();
+        return slotManagerConfig->JobEnvironment.GetType();
     }
 
     const THashSet<ENodeFlavor>& GetFlavors() const override
@@ -876,14 +876,14 @@ private:
             Config_->InThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
             InThrottler_ = CreateFairThrottler(
                 Config_->InThrottler,
-                ClusterNodeLogger().WithTag("Direction: %v", "In"),
+                ClusterNodeLogger().WithTag("Direction", "In"),
                 ClusterNodeProfiler().WithPrefix("/in_throttler"));
             DefaultInThrottler_ = CreateInThrottler("default");
 
             Config_->OutThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
             OutThrottler_ = CreateFairThrottler(
                 Config_->OutThrottler,
-                ClusterNodeLogger().WithTag("Direction: %v", "Out"),
+                ClusterNodeLogger().WithTag("Direction", "Out"),
                 ClusterNodeProfiler().WithPrefix("/out_throttler"));
             DefaultOutThrottler_ = CreateOutThrottler("default");
         } else {
@@ -1507,6 +1507,8 @@ private:
 
         BusServer_->Reconfigure(newConfig->BusServer);
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
+
+        ServiceLocator_->GetServiceOrThrow<TSolomonExporterPtr>()->Reconfigure(newConfig->SolomonExporter);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
         for (const auto& [_, service] : GetCachingObjectServices()) {

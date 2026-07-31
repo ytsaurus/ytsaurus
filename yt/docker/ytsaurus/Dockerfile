@@ -179,12 +179,14 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   openjdk-11-jdk \
   openjdk-17-jdk \
   openjdk-21-jdk \
+  openjdk-25-jdk \
   java-common
 
 RUN HOST_ARCH=$(dpkg --print-architecture) \
   && ln -s /usr/lib/jvm/java-11-openjdk-${HOST_ARCH} /opt/jdk11 \
   && ln -s /usr/lib/jvm/java-17-openjdk-${HOST_ARCH} /opt/jdk17 \
   && ln -s /usr/lib/jvm/java-21-openjdk-${HOST_ARCH} /opt/jdk21 \
+  && ln -s /usr/lib/jvm/java-25-openjdk-${HOST_ARCH} /opt/jdk25 \
   && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
 
 ##########################################################################################
@@ -254,12 +256,14 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   openjdk-11-jdk \
   openjdk-17-jdk \
   openjdk-21-jdk \
+  openjdk-25-jdk \
   java-common
 
 RUN HOST_ARCH=$(dpkg --print-architecture) \
   && ln -s /usr/lib/jvm/java-11-openjdk-${HOST_ARCH} /opt/jdk11 \
   && ln -s /usr/lib/jvm/java-17-openjdk-${HOST_ARCH} /opt/jdk17 \
   && ln -s /usr/lib/jvm/java-21-openjdk-${HOST_ARCH} /opt/jdk21 \
+  && ln -s /usr/lib/jvm/java-25-openjdk-${HOST_ARCH} /opt/jdk25 \
   && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.

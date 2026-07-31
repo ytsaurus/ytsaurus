@@ -74,9 +74,11 @@ public:
         IInvokerPtr invoker,
         IJobDirectoryPtr jobDirectory,
         TDynamicBufferStateManagerSpecPtr dynamicSpec,
-        std::function<TInstant()> timeProvider)
+        std::function<TInstant()> timeProvider,
+        std::vector<TWorkerGroupId> workerGroups)
         : JobDirectory_(std::move(jobDirectory))
         , TimeProvider_(std::move(timeProvider))
+        , WorkerGroups_(std::move(workerGroups))
         , DynamicSpec_(std::move(dynamicSpec))
         , BufferManagementExecutor_(New<TPeriodicExecutor>(
             invoker,
@@ -200,6 +202,20 @@ private:
         return std::nullopt;
     }
 
+    //! The side's base pool, replaced by the worker-group overrides: a worker in
+    //! several listed groups takes the max (the pool reflects the memory this
+    //! worker actually has). Requires #Lock_.
+    i64 EffectiveFairSharePool(const TDynamicBufferStateManagerSpec::TOneSideBufferSpecPtr& side)
+    {
+        std::optional<i64> best;
+        for (const auto& group : WorkerGroups_) {
+            if (auto it = side->WorkerGroupFairSharePoolOverrides.find(group); it != side->WorkerGroupFairSharePoolOverrides.end()) {
+                best = std::max<i64>(best.value_or(it->second), it->second);
+            }
+        }
+        return best.value_or(side->FairSharePool);
+    }
+
     double ComputeLimit(const TDynamicBufferStateManagerSpec::TOneSideBufferSpecPtr& parameters, double demand, double totalDemand, std::optional<double> overrideLimit)
     {
         if (overrideLimit.has_value()) {
@@ -209,7 +225,7 @@ private:
             std::min<double>(
                 std::max(parameters->JobGuarantee, parameters->JobLimit),
                 parameters->JobGuarantee + parameters->MaxDuration.SecondsFloat() * demand),
-            parameters->JobGuarantee + parameters->FairSharePool * demand / totalDemand);
+            parameters->JobGuarantee + static_cast<double>(EffectiveFairSharePool(parameters)) * demand / totalDemand);
     }
 
     void ApplyFairShareStrategyToBuffers(TGuard<TSpinLock>& /*guard*/)
@@ -291,6 +307,7 @@ private:
 private:
     const IJobDirectoryPtr JobDirectory_;
     const std::function<TInstant()> TimeProvider_;
+    const std::vector<TWorkerGroupId> WorkerGroups_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     TDynamicBufferStateManagerSpecPtr DynamicSpec_;
@@ -306,13 +323,15 @@ IBufferStateManagerPtr CreateBufferStateManager(
     IInvokerPtr invoker,
     IJobDirectoryPtr jobDirectory,
     TDynamicBufferStateManagerSpecPtr dynamicSpec,
-    std::function<TInstant()> timeProvider)
+    std::function<TInstant()> timeProvider,
+    std::vector<TWorkerGroupId> workerGroups)
 {
     auto manager = New<TBufferStateManager>(
         std::move(invoker),
         std::move(jobDirectory),
         std::move(dynamicSpec),
-        std::move(timeProvider));
+        std::move(timeProvider),
+        std::move(workerGroups));
     manager->Initialize();
     return manager;
 }

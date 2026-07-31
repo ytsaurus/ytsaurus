@@ -2,7 +2,11 @@ import yt_queries
 
 from yt_env_setup import YTEnvSetup, get_sanitizer_type
 
-from yt_commands import (create, write_file)
+from yt_commands import (create, get, set, write_file)
+
+from yt.environment.helpers import wait_for_dynamic_config_update
+
+from google.protobuf.text_format import MessageToString
 
 import hashlib
 import tarfile
@@ -15,6 +19,42 @@ SANITIZER_STUFF_PATH = "sanitizer-stuff"
 SANITIZER_STUFF_ARCHIVE_FILENAME = "sanitizer-stuff.tar"
 LLVM_SYMBOLIZER_FILENAME = "llvm-symbolizer"
 SUPPRESSIONS_FILENAME = "suppressions.txt"
+
+
+def convert_camel_to_snake(camel_str):
+    result = []
+    for i, ch in enumerate(camel_str):
+        if ch.isupper() and i > 0 and not camel_str[i - 1].isupper():
+            result.append("_")
+        result.append(ch.lower())
+    return "".join(result)
+
+
+def merge_old_dynconfig_into_new_static(config, override):
+    fields_by_snake = {convert_camel_to_snake(field.name): field for field in config.DESCRIPTOR.fields}
+    for key, value in override.items():
+        field = fields_by_snake[key]
+        if field.label == field.LABEL_REPEATED:
+            repeated = getattr(config, field.name)
+            name_field = field.message_type.fields_by_name.get("Name") if field.type == field.TYPE_MESSAGE else None
+            if name_field is not None and name_field.type == name_field.TYPE_STRING:
+                name_key = convert_camel_to_snake(name_field.name)
+                existing_by_name = {getattr(item, name_field.name): item for item in repeated}
+                for item in value:
+                    item_name = item.get(name_key)
+                    if item_name is not None and item_name in existing_by_name:
+                        merge_old_dynconfig_into_new_static(existing_by_name[item_name], item)
+                    else:
+                        merge_old_dynconfig_into_new_static(repeated.add(), item)
+            elif field.type == field.TYPE_MESSAGE:
+                for item in value:
+                    merge_old_dynconfig_into_new_static(repeated.add(), item)
+            else:
+                repeated.extend(value)
+        elif field.type == field.TYPE_MESSAGE:
+            merge_old_dynconfig_into_new_static(getattr(config, field.name), value)
+        else:
+            setattr(config, field.name, value)
 
 
 class TestQueriesYqlBase(YTEnvSetup):
@@ -145,3 +185,23 @@ pragma yt.JobEnv = '{{
         query = query_prefix + query
 
         return yt_queries.start_query(engine, query, **kwargs)
+
+
+class TestUpdateYqlAgentDynamicConfigMixin:
+    def _update_dyn_config(self, yql_agent, dyn_config):
+        config = get("//sys/yql_agent/config")
+        config["yql_agent"] = dyn_config
+        set("//sys/yql_agent/config", config)
+        wait_for_dynamic_config_update(yql_agent.yql_agent.client, config, "//sys/yql_agent/instances")
+
+
+class TestUpdateYqlAgentQtWorkerDynamicConfigMixin(TestUpdateYqlAgentDynamicConfigMixin):
+    def _update_dyn_config(self, yql_agent, dyn_config):
+        if "gateways" in dyn_config:
+            config = yql_agent.render_gateways_conf(yql_agent.yql_agent.env)
+            merge_old_dynconfig_into_new_static(config, dyn_config["gateways"])
+            filename = "//sys/yql_agent/proto_gateways/default.conf"
+            create("file", filename, recursive=True, force=True)
+            write_file(filename, MessageToString(config).encode('utf-8'))
+
+        super()._update_dyn_config(yql_agent, dyn_config)

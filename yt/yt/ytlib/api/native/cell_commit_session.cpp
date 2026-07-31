@@ -37,7 +37,7 @@ public:
                 ? std::make_unique<TUniformSignatureGenerator>()
                 : std::make_unique<TTransactionSignatureGenerator>(FinalTransactionSignature))
         , CommitSignatureGenerator_(/*targetSignature*/ FinalTransactionSignature)
-        , Logger(logger.WithTag("CellId: %v", cellId))
+        , Logger(logger.WithTag("CellId", cellId))
     { }
 
     TTransactionSignatureGenerator* GetPrepareSignatureGenerator() override

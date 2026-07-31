@@ -9,7 +9,7 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/ytlib/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/public.h>
 
 #include <yt/yt/ytlib/queue_client/public.h>
 
@@ -240,6 +240,8 @@ struct TQueueAgentDynamicConfig
     //! Controls whether replicated objects are handled by this queue agent instance.
     //! NB: Even when set to true, mutating requests are only performed for objects with the corresponding stage.
     bool HandleReplicatedObjects;
+
+    TDuration QueueAgentChannelRequestTimeout;
 
     REGISTER_YSON_STRUCT(TQueueAgentDynamicConfig);
 

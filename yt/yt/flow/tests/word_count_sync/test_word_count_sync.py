@@ -13,13 +13,15 @@ from .yt_sync import run_yt_sync
 
 PIPELINE_CONFIG_PATH = yatest.common.source_path(f"{yatest.common.context.project_path}/pipeline/pipeline.yson")
 
-# min_word_length in the spec is 4, so words shorter than 4 characters are skipped.
+# The StopWords resource in the spec drops "flow" and "to" entirely (regardless of
+# length); of the remaining words, min_word_length = 4 sends the short ones into the
+# skipped table.
 SENTENCES = [
     "hello to a world",
     "flow is on it",
 ]
-EXPECTED_COUNTS = {"hello": 1, "world": 1, "flow": 1}
-EXPECTED_SKIPPED = {"to": 2, "a": 1, "is": 2, "on": 2, "it": 2}
+EXPECTED_COUNTS = {"hello": 1, "world": 1}
+EXPECTED_SKIPPED = {"a": 1, "is": 2, "on": 2, "it": 2}
 
 ##################################################################
 
@@ -69,6 +71,7 @@ class Test(FlowTestBase):
         }
         logging.info("counts=%s skipped=%s", counts, skipped)
 
-        # Long words are counted; short words are skipped and written into the skipped table by Sync.
+        # Stop words vanish entirely; long words are counted; the remaining short words are
+        # written into the skipped table by Sync.
         assert counts == EXPECTED_COUNTS
         assert skipped == EXPECTED_SKIPPED

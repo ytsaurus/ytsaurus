@@ -171,6 +171,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replica_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replica.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replicator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_replication_queue.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_requisition.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_scanner.cpp

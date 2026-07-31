@@ -590,7 +590,7 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
     bool isCompleteSubquery,
     bool isLastSubquery)
 {
-    auto Logger = this->Logger.WithTag("SubqueryIndex: %v", subqueryIndex);
+    auto Logger = this->Logger.WithTag("SubqueryIndex", subqueryIndex);
 
     i64 totalRowCount = 0;
     i64 totalDataWeight = 0;

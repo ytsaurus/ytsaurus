@@ -7,6 +7,8 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
+        go
+        go/pipeline
         java
         java/pipeline
     )

@@ -10,6 +10,8 @@ from yt.wrapper import yson
 
 from yt.yt.flow.tools.draw_pipeline_graph.graph_model import EdgeLimitInfo
 from yt.yt.flow.tools.draw_pipeline_graph.graph_utils import (
+    MIN_VISIBLE_BLOCKED_TIME_SHARE,
+    format_limit_entry,
     get_group_by_columns,
     is_computation_warning,
     is_edge_warning,
@@ -120,33 +122,22 @@ def make_dot_computation_attributes(computation, graph):
     return attributes
 
 
-def _format_limit_status(status):
-    """Return a short human-readable string for an EntityLimitStatus."""
-    text = f"{status.used}/{status.limit} (fill={status.get_fill_rate():.3f})"
-    if status.pending is not None:
-        text += f" pending={status.pending}"
-    return text
-
-
 def make_dot_edge_attributes(edge: EdgeLimitInfo):
     attributes = {
         "color": "black",
     }
     label_parts = []
 
-    # Show all limit types that have a non-trivial fill rate, most critical first.
+    # Show all limit types that have a non-trivial fill rate or blocked-time
+    # share, most critical first.
     sorted_statuses = sorted(
         edge.by_type.items(),
-        key=lambda kv: kv[1].get_fill_rate(),
+        key=lambda kv: (kv[1].blocked_time_share, kv[1].get_fill_rate()),
         reverse=True,
     )
     for limit_type, status in sorted_statuses:
-        fill_rate = status.get_fill_rate()
-        if fill_rate >= 0.5:
-            part = f"{limit_type}: {_format_limit_status(status)}\n" f"partition_id={status.partition_id}"
-            label_parts.append(part)
-        elif fill_rate >= 1e-3:
-            label_parts.append(f"{limit_type}: fill={fill_rate:.3f}")
+        if status.get_fill_rate() >= 1e-3 or status.blocked_time_share >= MIN_VISIBLE_BLOCKED_TIME_SHARE:
+            label_parts.append(format_limit_entry(limit_type, status))
 
     attributes["label"] = "\n---------\n".join(label_parts)
 

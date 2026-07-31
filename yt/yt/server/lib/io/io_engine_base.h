@@ -57,6 +57,7 @@ struct TIOEngineConfigBase
     std::optional<TDuration> SicknessExpirationTimeout;
 
     EDirectIOPolicy UseDirectIOForReads;
+    EDirectIOPolicy UseDirectIOForWrites;
 
     i64 TotalRequestLimit;
     i64 WriteRequestLimit;
@@ -116,8 +117,8 @@ struct TIOEngineSensors final
         TInflightCounter HugePageInflightCounter;
     };
 
-    NProfiling::TCounter WrittenBytesCounter;
-    NProfiling::TCounter ReadBytesCounter;
+    TEnumIndexedArray<EWorkloadCategory, NProfiling::TCounter> WrittenBytesCounter;
+    TEnumIndexedArray<EWorkloadCategory, NProfiling::TCounter> ReadBytesCounter;
 
     NProfiling::TCounter KernelWrittenBytesCounter;
     NProfiling::TCounter KernelReadBytesCounter;
@@ -131,8 +132,11 @@ struct TIOEngineSensors final
     std::atomic<i64> TotalReadBytesCounter = 0;
     std::atomic<i64> TotalWrittenBytesCounter = 0;
 
-    void RegisterWrittenBytes(i64 count);
-    void RegisterReadBytes(i64 count);
+    TEnumIndexedArray<EWorkloadCategory, TInflightCounter> InflightReadRequestSensors;
+    TEnumIndexedArray<EWorkloadCategory, TInflightCounter> InflightWriteRequestSensors;
+
+    void RegisterWrittenBytes(i64 count, EWorkloadCategory category);
+    void RegisterReadBytes(i64 count, EWorkloadCategory category);
 
     void UpdateKernelStatistics();
 };
@@ -189,6 +193,7 @@ public:
     i64 GetTotalWrittenBytes() const override;
 
     EDirectIOPolicy UseDirectIOForReads() const override;
+    EDirectIOPolicy UseDirectIOForWrites() const override;
 
     bool IsInFlightRequestLimitExceeded() const override;
     bool IsInFlightReadRequestLimitExceeded() const override;
@@ -238,7 +243,7 @@ protected:
     TSharedMutableRef AllocateHugeBlob();
     void Reconfigure(const NYTree::INodePtr& node) override;
 
-    TRequestCounterGuard CreateInFlightRequestGuard(EIOEngineRequestType requestType);
+    TRequestCounterGuard CreateInFlightRequestGuard(EIOEngineRequestType requestType, EWorkloadCategory category);
 
 private:
     const TConfigPtr StaticConfig_;
@@ -279,7 +284,7 @@ class TRequestCounterGuard
 {
 public:
     TRequestCounterGuard();
-    TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, EIOEngineRequestType requestType);
+    TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, EIOEngineRequestType requestType, EWorkloadCategory category);
     TRequestCounterGuard(const TRequestCounterGuard& other) = delete;
     TRequestCounterGuard(TRequestCounterGuard&& other) noexcept;
     ~TRequestCounterGuard();
@@ -292,6 +297,7 @@ public:
 private:
     TIntrusivePtr<TIOEngineBase> Engine_;
     EIOEngineRequestType RequestType_;
+    EWorkloadCategory Category_;
 
     void MoveFrom(TRequestCounterGuard&& other);
 };

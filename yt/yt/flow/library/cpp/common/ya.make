@@ -11,6 +11,7 @@ SRCS(
     describe_traits.cpp
     distributing_tracker.cpp
     external_state_manager.cpp
+    file_source.cpp
     flow_core_build_info.cpp
     flow_core_version.cpp
     flow_view.cpp
@@ -29,6 +30,8 @@ SRCS(
     process_function.cpp
     public.cpp
     registry.cpp
+    resource.cpp
+    resource_controller.cpp
     resource_manager.cpp
     schema.cpp
     select_literals.cpp
@@ -52,8 +55,8 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/flow/lib/client
-    yt/yt/flow/lib/serializer
+    yt/yt/flow/library/cpp/client
+    yt/yt/flow/library/cpp/serializer
     yt/yt/flow/library/cpp/common/proto
     yt/yt/flow/library/cpp/common/controller/proto
     yt/yt/flow/library/cpp/common/worker/proto
@@ -67,6 +70,7 @@ PEERDIR(
     yt/yt/library/auth
     yt/yt/library/formats
     yt/yt/library/heavy_schema_validation
+    yt/yt/flow/library/cpp/file_storage
     yt/yt/library/query/engine_api
     yt/yt/library/tvm/service
     library/cpp/yt/memory

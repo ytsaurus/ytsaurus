@@ -18,8 +18,10 @@ namespace NYT::NDataNode {
 
 struct TNetworkCounters final
 {
-    std::atomic<NProfiling::TCpuInstant> UpdateTime{};
+    std::atomic<NProfiling::TCpuInstant> ReadUpdateTime{};
+    std::atomic<NProfiling::TCpuInstant> WriteUpdateTime{};
     NProfiling::TCounter ThrottledReadsCounter;
+    NProfiling::TCounter ThrottledWritesCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,12 +32,15 @@ public:
     explicit TNetworkStatistics(TDataNodeConfigPtr config);
 
     void IncrementReadThrottlingCounter(const std::string& name);
+    void IncrementWriteThrottlingCounter(const std::string& name);
     void UpdateStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics* statistics);
 
 private:
     const TDataNodeConfigPtr Config_;
 
     NConcurrency::TSyncMap<std::string, TIntrusivePtr<TNetworkCounters>> Counters_;
+
+    TNetworkCounters* GetOrCreateCounters(const std::string& name);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

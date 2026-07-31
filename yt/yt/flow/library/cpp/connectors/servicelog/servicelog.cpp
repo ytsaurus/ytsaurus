@@ -81,14 +81,18 @@ void TServiceLogSourceController::RebuildRanges(int partitionCount)
             range->Upper->Exclusive = true;
         }
 
-        YT_LOG_INFO("RebuildRange (Number: %v, Lower: %v, Upper: %v)", i, ConvertToYsonString(range->Lower, NYson::EYsonFormat::Pretty), ConvertToYsonString(range->Upper, NYson::EYsonFormat::Pretty));
+        YT_TLOG_INFO("RebuildRange")
+            .With("Number", i)
+            .With("Lower", ConvertToYsonString(range->Lower, NYson::EYsonFormat::Pretty))
+            .With("Upper", ConvertToYsonString(range->Upper, NYson::EYsonFormat::Pretty));
         State_->Ranges[TGuid::Create()] = range;
     }
 }
 
 void TServiceLogSourceController::EnsurePartitionsPresent()
 {
-    YT_LOG_INFO("Entered EnsurePartitionsPresent (RangeCount: %v)", State_->Ranges.size());
+    YT_TLOG_INFO("Entered EnsurePartitionsPresent")
+        .With("RangeCount", State_->Ranges.size());
     auto dynamicSpec = GetDynamicParameters();
     if (State_->CachedPartitionCount != dynamicSpec->DesiredPartitionCount) {
         RebuildRanges(dynamicSpec->DesiredPartitionCount);
@@ -99,7 +103,7 @@ void TServiceLogSourceController::EnsurePartitionsPresent()
         if (State_->WasPreviouslyFinite) {
             return;
         } else {
-            YT_LOG_INFO("Source just transitioned into finite mode, rebuilding ranges");
+            YT_TLOG_INFO("Source just transitioned into finite mode, rebuilding ranges");
             State_->WasPreviouslyFinite = true;
             RebuildRanges(dynamicSpec->DesiredPartitionCount);
         }
@@ -108,7 +112,7 @@ void TServiceLogSourceController::EnsurePartitionsPresent()
     }
 
     if (State_->Ranges.empty()) {
-        YT_LOG_INFO("All ranges are terminated, rebuilding");
+        YT_TLOG_INFO("All ranges are terminated, rebuilding");
         RebuildRanges(dynamicSpec->DesiredPartitionCount);
     }
 }
@@ -120,7 +124,9 @@ std::optional<THashMap<TKey, NYTree::IMapNodePtr>> TServiceLogSourceController::
     for (const auto& [id, range] : State_->Ranges) {
         auto partitionSpec = New<TDynamicServiceLogPartitionSpec>();
         partitionSpec->Range = range;
-        YT_LOG_INFO("Listing keys (Key: %v, Range: %v)", id, ConvertToYsonString(range, NYson::EYsonFormat::Pretty));
+        YT_TLOG_INFO("Listing keys")
+            .With("Key", id)
+            .With("Range", ConvertToYsonString(range, NYson::EYsonFormat::Pretty));
         result[MakeKey(ToString(id))] = ConvertTo<NYTree::IMapNodePtr>(partitionSpec);
     }
     return result;
@@ -140,10 +146,13 @@ void TServiceLogSourceController::ProcessPartitionStatuses(const THashMap<TKey, 
             auto range = std::move(State_->Ranges[id]);
             State_->StrayRanges.insert(range);
             EraseOrCrash(State_->Ranges, id);
-            YT_LOG_INFO("Range terminated (Key: %v, Range: %v)", id, ConvertToYsonString(range, NYson::EYsonFormat::Pretty));
+            YT_TLOG_INFO("Range terminated")
+                .With("Key", id)
+                .With("Range", ConvertToYsonString(range, NYson::EYsonFormat::Pretty));
         }
     }
-    YT_LOG_INFO("After processing partition statuses (RemainingRanges: %v)", State_->Ranges.size());
+    YT_TLOG_INFO("After processing partition statuses")
+        .With("RemainingRanges", State_->Ranges.size());
 }
 
 std::optional<TStreamTraverseDataPtr> TServiceLogSourceController::GetFutureKeysStreamTraverseData()
@@ -236,7 +245,7 @@ TFuture<std::vector<TServiceLogSource::TRecord>> TServiceLogSource::DoReadNextBa
     std::optional<TOffset> offsetLimitExclusive)
 {
     if (!Range_) {
-        YT_LOG_WARNING("Range is not initialized");
+        YT_TLOG_WARNING("Range is not initialized");
         return MakeFuture<std::vector<TRecord>>(std::vector<TRecord>());
     }
 
@@ -245,7 +254,7 @@ TFuture<std::vector<TServiceLogSource::TRecord>> TServiceLogSource::DoReadNextBa
     }
 
     if (Finished_) {
-        YT_LOG_INFO("Reading is already finished");
+        YT_TLOG_INFO("Reading is already finished");
         return MakeFuture<std::vector<TRecord>>(std::vector<TRecord>());
     }
 
@@ -253,7 +262,9 @@ TFuture<std::vector<TServiceLogSource::TRecord>> TServiceLogSource::DoReadNextBa
         .MaxOffsetExclusive = FinishedOffset_});
 
     nextOffset = std::max(MinNextBatchOffset_, nextOffset);
-    YT_LOG_INFO("Will be reading next batch (NextOffset: %v, OffsetLimit: %v)", nextOffset, offsetLimitExclusive);
+    YT_TLOG_INFO("Will be reading next batch")
+        .With("NextOffset", nextOffset)
+        .With("OffsetLimit", offsetLimitExclusive);
     const auto [now, uniqueSeqNo] = NConcurrency::WaitFor(GetContext()->TimeProvider->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
     i64 rowLimit = settings->MaxRowsPerBatch;
     auto schema = TableJoiner_->GetSchema();
@@ -284,7 +295,8 @@ TFuture<std::vector<TServiceLogSource::TRecord>> TServiceLogSource::DoReadNextBa
         ui64 tryAcquireBlocks = diffToHighHash / HashBlockSize_ + 1;
         ui64 acquiredBlocks = Throttler_->TryAcquireAvailable(tryAcquireBlocks);
         ui64 effectiveHighHash = highHash;
-        YT_LOG_INFO("Acquired blocks: %v", acquiredBlocks);
+        YT_TLOG_INFO("Acquired blocks")
+            .With("AcquiredBlocks", acquiredBlocks);
         if (acquiredBlocks < tryAcquireBlocks) {
             effectiveHighHash = lowHash + acquiredBlocks * HashBlockSize_;
         }
@@ -309,7 +321,8 @@ TFuture<std::vector<TServiceLogSource::TRecord>> TServiceLogSource::DoReadNextBa
             .CancelInputOnShortcut = false})
         .Apply(BIND([this, strongThis = MakeStrong(this), highHash] () -> TFuture<std::vector<TRecord>> {
             if (!ReadParsedCachedFuture_.IsSet()) {
-                YT_LOG_WARNING("Batch timed out. If this occurs frequently, consider increasing BatchDuration");
+                YT_TLOG_WARNING("Batch timed out. If this occurs frequently, consider increasing BatchDuration")
+                    .With("HighHash", highHash);
                 return MakeFuture(std::vector<TRecord>());
             }
             auto future = std::move(ReadParsedCachedFuture_);
@@ -318,7 +331,8 @@ TFuture<std::vector<TServiceLogSource::TRecord>> TServiceLogSource::DoReadNextBa
                 const auto& [rows, finished, effectiveHighHash] = result;
                 if (finished && effectiveHighHash == highHash) {
                     Finished_ = true;
-                    YT_LOG_INFO("Reached end of range");
+                    YT_TLOG_INFO("Reached end of range")
+                        .With("HighHash", highHash);
                 }
                 if (finished) {
                     MinNextBatchOffset_ = std::max(MinNextBatchOffset_, CreateOffset(MakeKey(effectiveHighHash), 0));
@@ -358,7 +372,8 @@ bool TServiceLogSource::IsFinite()
 
 i64 TServiceLogSource::DoGetEstimatedRowsAtOffset(TOffset offset)
 {
-    YT_LOG_INFO("Will be getting estimated rows at offset (Offset: %v)", offset);
+    YT_TLOG_INFO("Will be getting estimated rows at offset")
+        .With("Offset", offset);
     ui64 hash = 0;
     if (offset == FinishedOffset_) {
         hash = std::numeric_limits<ui64>::max();
@@ -372,7 +387,8 @@ i64 TServiceLogSource::DoGetEstimatedRowsAtOffset(TOffset offset)
     if (!ApproximateRowCountFuture_) {
         auto proc = [this, strongThis = MakeStrong(this)] {
             auto result = TableJoiner_->GetApproximateRowCount();
-            YT_LOG_INFO("Retrieved ApproximateRowCount (ApproximateRowCount: %v)", result);
+            YT_TLOG_INFO("Retrieved ApproximateRowCount")
+                .With("ApproximateRowCount", result);
             return result;
         };
         ApproximateRowCountFuture_ = BIND(proc)
@@ -387,7 +403,10 @@ i64 TServiceLogSource::DoGetEstimatedRowsAtOffset(TOffset offset)
     auto approximateRowCount = NConcurrency::WaitFor(NYT::AnySet(std::vector{ApproximateRowCountFuture_, delayedZero}, NYT::TFutureCombinerOptions{.PropagateCancelationToInput = false, .CancelInputOnShortcut = false})).ValueOrThrow();
 
     double hashesPerRow = static_cast<double>(std::numeric_limits<ui64>::max()) / approximateRowCount;
-    YT_LOG_INFO("ApproximateRowCount (ApproximateRowCount: %v, Hash: %v, HashesPerRow: %v)", approximateRowCount, hash, hashesPerRow);
+    YT_TLOG_INFO("ApproximateRowCount")
+        .With("ApproximateRowCount", approximateRowCount)
+        .With("Hash", hash)
+        .With("HashesPerRow", hashesPerRow);
 
     return hash / hashesPerRow;
 }
@@ -473,7 +492,8 @@ NConcurrency::TThroughputThrottlerConfigPtr TServiceLogSource::MakeThrottleConfi
 
     ui64 blockCount = (upperHash - lowerHash) / HashBlockSize_;
     double blocksPerSecond = blockCount / GetDynamicParameters()->DesiredCycleTime.SecondsFloat();
-    YT_LOG_INFO("Throttler limit reset (BlocksPerSecond: %v)", blocksPerSecond);
+    YT_TLOG_INFO("Throttler limit reset")
+        .With("BlocksPerSecond", blocksPerSecond);
 
     auto throttlerConfig = New<NConcurrency::TThroughputThrottlerConfig>();
     throttlerConfig->Limit = blocksPerSecond;

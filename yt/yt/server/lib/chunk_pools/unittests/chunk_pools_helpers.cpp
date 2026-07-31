@@ -104,7 +104,8 @@ TLogger TChunkPoolTestBase::GetTestLogger()
     const auto* testInfo = UnitTest::GetInstance()->current_test_info();
 
     return ChunkPoolLogger()
-        .WithTag("OperationId: %v, Name: %v::%v", TGuid::Create(), testInfo->name(), testInfo->test_suite_name());
+        .WithTag("OperationId", TGuid::Create())
+        .WithTagFormat("Name", "%v::%v", testInfo->name(), testInfo->test_suite_name());
 }
 
 void TChunkPoolTestBase::CheckCounter(const TConstProgressCounterPtr& actual, const TExpectedCounter& expected)

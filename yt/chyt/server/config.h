@@ -34,7 +34,9 @@
 
 #include <yt/yt/library/profiling/solomon/config.h>
 
-#include <yt/yt/library/clickhouse_discovery/config.h>
+#include <yt/yt/library/clickhouse_discovery/public.h>
+
+#include <yt/yt/library/cypress_election/config.h>
 
 #include <yt/yt/library/re2/public.h>
 
@@ -677,19 +679,19 @@ DEFINE_REFCOUNTED_TYPE(TUserDefinedSqlObjectsStorageConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDictionaryRepositoryConfig
+struct TCypressObjectRepositoryConfig
     : public NYTree::TYsonStruct
 {
     NYPath::TYPath RootPath;
 
     TDuration UpdatePeriod;
 
-    REGISTER_YSON_STRUCT(TDictionaryRepositoryConfig);
+    REGISTER_YSON_STRUCT(TCypressObjectRepositoryConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDictionaryRepositoryConfig)
+DEFINE_REFCOUNTED_TYPE(TCypressObjectRepositoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -842,6 +844,8 @@ struct TYtConfig
 
     THealthCheckerConfigPtr HealthChecker;
 
+    NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
+
     THashMap<TString, TString> DatabaseDirectories;
 
     TShowTablesConfigPtr ShowTables;
@@ -856,7 +860,7 @@ struct TYtConfig
 
     TUserDefinedSqlObjectsStorageConfigPtr UserDefinedSqlObjectsStorage;
 
-    TDictionaryRepositoryConfigPtr DictionaryRepository;
+    TCypressObjectRepositoryConfigPtr CypressObjectRepository;
 
     TDictionaryAccessControlConfigPtr DictionaryAccessControl;
 

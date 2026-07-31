@@ -37,6 +37,13 @@ struct IJournalChunkWriter
 
     virtual bool IsCloseDemanded() const = 0;
 
+    //! The replicas the writer targets, i.e. the ones holding the records it wrote.
+    /*!
+     *  Only valid once #Open has succeeded; the targets do not change afterwards, so this is safe to call
+     *  from any thread and remains valid even after the writer fails.
+     */
+    virtual std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors() const = 0;
+
     //! Fired (once) when the writer fails; the writer must not be used afterwards.
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed);
 };

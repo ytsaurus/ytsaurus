@@ -44,7 +44,9 @@ public:
         auto textKey = GetColumnValue<std::string>(message, "text_key");
         i64 value = GetColumnValue<i64>(message, "value");
         if (value % 2 == 0) {
-            YT_LOG_DEBUG("Clearing state (Key: %v, TextKey: %v)", key, textKey);
+            YT_TLOG_DEBUG("Clearing state")
+                .With("Key", key)
+                .With("TextKey", textKey);
             state->Clear();
         }
     }

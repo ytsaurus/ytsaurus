@@ -73,10 +73,9 @@ public:
                 {"group", Options_->GroupName},
                 {"path", Config_->LockTablePath},
             })))
-        , Logger(ChaosElectionLogger().WithTag(
-            "GroupName: %v, Path: %v",
-            Options_->GroupName,
-            Config_->LockTablePath))
+        , Logger(ChaosElectionLogger()
+            .WithTag("GroupName", Options_->GroupName)
+            .WithTag("Path", Config_->LockTablePath))
         , LockAcquisitionExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TChaosElectionManager::TryAcquireLock, MakeWeak(this)),

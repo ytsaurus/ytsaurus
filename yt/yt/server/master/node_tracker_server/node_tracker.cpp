@@ -2443,8 +2443,12 @@ private:
             NodeUnregistered_.Fire(node);
 
             if (propagate) {
-                if (IsLeader()) {
-                    NodeDisposalManager_->DisposeNodeWithSemaphore(node);
+                if (node->Flavors().contains(ENodeFlavor::Data)) {
+                    if (IsLeader()) {
+                        NodeDisposalManager_->DisposeNodeWithSemaphore(node);
+                    }
+                } else {
+                    NodeDisposalManager_->DisposeNodeCompletely(node);
                 }
 
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -2476,18 +2480,20 @@ private:
     void EnsureNodeDisposedOrRestarted(TNode* node)
     {
         if (node->GetLocalState() != ENodeState::Restarted && node->GetLocalState() != ENodeState::Offline) {
-            YT_LOG_ALERT("Node is not restarted or disposed when it should be (NodeId: %v, Address: %v)",
+            YT_LOG_ALERT("Node is not restarted or disposed when it should be (NodeId: %v, Address: %v, LocalState: %v)",
                 node->GetId(),
-                node->GetDefaultAddress());
+                node->GetDefaultAddress(),
+                node->GetLocalState());
         }
     }
 
     void EnsureNodeDisposed(TNode* node)
     {
         if (node->GetLocalState() != ENodeState::Offline) {
-            YT_LOG_ALERT("Node is not offline when it should be (NodeId: %v, Address: %v)",
+            YT_LOG_ALERT("Node is not offline when it should be (NodeId: %v, Address: %v, LocalState: %v)",
                 node->GetId(),
-                node->GetDefaultAddress());
+                node->GetDefaultAddress(),
+                node->GetLocalState());
         }
     }
 

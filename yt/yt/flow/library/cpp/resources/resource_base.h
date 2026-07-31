@@ -57,6 +57,11 @@ public:
     //! @see IResource::Reconfigure for details.
     void Reconfigure(const TDynamicResourceContextPtr& dynamicContext) final;
 
+    //! Reports both ids equal to the last delivered target revision, i.e. treats switching as
+    //! instant.
+    //! @see IResource::GetRevisionState for the contract.
+    TResourceRevisionState GetRevisionState() const override;
+
 protected:
     //! Reports queue activity for this resource to the resource manager.
     /*!

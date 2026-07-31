@@ -80,6 +80,7 @@ protected:
             BatchRowCount_,
             /*foreignSliceDataWeight*/ 0,
             SamplingRate_,
+            /*samplingSeed*/ std::nullopt,
             SamplingDataWeightPerJob_);
     }
 

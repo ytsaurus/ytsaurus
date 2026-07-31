@@ -7,7 +7,7 @@
 
 #include <yt/yt/library/profiling/solomon/proxy.h>
 #include <yt/yt/library/tcmalloc/config.h>
-#include <yt/yt/library/tracing/jaeger/tracer.h>
+#include <yt/yt/library/tracing/jaeger/config.h>
 
 #include <yt/yt/core/net/local_address.h>
 #include <yt/yt/core/ypath/helpers.h>

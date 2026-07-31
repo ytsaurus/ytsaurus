@@ -15,7 +15,7 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/tracing/jaeger/tracer.h>
+#include <yt/yt/library/tracing/jaeger/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 

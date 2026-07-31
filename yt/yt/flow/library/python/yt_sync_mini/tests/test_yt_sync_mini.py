@@ -3,7 +3,7 @@
 The Python-side schema catalogue
 (``yt/yt/flow/library/python/pipeline_tables/schemas.py``) is the
 single source of truth shared between ``yt_sync_mini`` and ``yt_sync``.
-The cpp counterpart is ``yt/yt/flow/lib/native_client/pipeline_init.cpp:GetTables()``;
+The cpp counterpart is ``yt/yt/flow/library/cpp/native_client/pipeline_init.cpp:GetTables()``;
 both must stay in sync.
 
 This test creates a pipeline via ``client.create("pipeline", ...)``
@@ -72,7 +72,7 @@ def test_python_catalogue_matches_cpp(yt_client):
     if missing_in_cpp:
         errors.append(
             f"Python catalogue lists {missing_in_cpp} but cpp ``GetTables()`` "
-            "(yt/yt/flow/lib/native_client/pipeline_init.cpp) does not create them."
+            "(yt/yt/flow/library/cpp/native_client/pipeline_init.cpp) does not create them."
         )
 
     for table_name in sorted(cpp_children & python_known):

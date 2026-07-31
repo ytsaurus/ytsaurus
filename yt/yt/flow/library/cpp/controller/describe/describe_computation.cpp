@@ -1,4 +1,6 @@
 #include "describe_computation.h"
+#include "describe_pipeline.h"
+#include "fill_graph_limits.h"
 #include "intermediate_description.h"
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
@@ -387,7 +389,11 @@ TExtendedComputationDescription DescribeComputation(
     const TFlowViewPtr& flowView,
     const TComputationId& computationId)
 {
-    auto computationIntermediateDescriptions = GetComputationPartitionIntermediateDescriptions(flowView, computationId);
+    // Every computation's partitions, not just this one's: the writer-blocked
+    // shares below come from the neighbors. One walk of the layout serves both.
+    auto intermediateDescriptions = GetComputationPartitionIntermediateDescriptions(flowView);
+    THashMap<TComputationId, std::vector<TPartitionIntermediateDescription>> computationIntermediateDescriptions{
+        {computationId, GetOrDefault(intermediateDescriptions, computationId)}};
     auto computationDescriptions = MakeComputationDescriptions(flowView, computationIntermediateDescriptions); // Do some useless work, but it is not too heavy.
     auto computationDescriptionIt = computationDescriptions.find(computationId);
     THROW_ERROR_EXCEPTION_IF(computationDescriptionIt == computationDescriptions.end(), "Computation %Qv not found", computationId);
@@ -410,6 +416,25 @@ TExtendedComputationDescription DescribeComputation(
     }
 
     FillPerformanceMessage(description, partitions);
+
+    // The renderer needs a pipeline description filled by RegisterStreams and
+    // FillGraphLimits; every computation is registered because the writer-blocked
+    // shares come from the neighbors.
+    {
+        const auto& pipelineSpec = flowView->State->ExecutionSpec->PipelineSpec->GetValue();
+        TDescribeTraitsContext describeTraitsContext{.PipelinePath = flowView->EphemeralState->PipelinePath};
+        TPipelineDescription bufferPipeline;
+        for (const auto& [otherComputationId, otherComputationSpec] : pipelineSpec->Computations) {
+            RegisterStreams(pipelineSpec, otherComputationId, bufferPipeline, bufferPipeline.Computations[otherComputationId], describeTraitsContext);
+        }
+        FillGraphLimits(flowView, intermediateDescriptions, bufferPipeline);
+        if (auto message = BuildBuffersAndBackpressureMessage(
+            bufferPipeline.Computations[computationId],
+            ComputeWriterBlockedTimeShares(bufferPipeline)))
+        {
+            description.Messages.push_back(std::move(*message));
+        }
+    }
 
     return description;
 }

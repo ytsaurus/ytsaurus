@@ -2219,7 +2219,7 @@ private:
         auto it = NodeIdToDescriptor_.find(nodeId);
         if (it == NodeIdToDescriptor_.end()) {
             THROW_ERROR_EXCEPTION_IF(NodeAddresses_.contains(nodeAddress),
-                "Duplicate node address found (Address: %v, NewNodeId: %v)",
+                "Duplicate node address %Qv found for new node id %v",
                 nodeAddress,
                 nodeId);
 

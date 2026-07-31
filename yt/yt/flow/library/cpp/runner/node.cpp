@@ -26,6 +26,7 @@
 #include <yt/yt/flow/library/cpp/worker/buffer_state_manager.h>
 #include <yt/yt/flow/library/cpp/worker/config.h>
 #include <yt/yt/flow/library/cpp/worker/controller_connector.h>
+#include <yt/yt/flow/library/cpp/worker/file_storage.h>
 #include <yt/yt/flow/library/cpp/worker/input_manager.h>
 #include <yt/yt/flow/library/cpp/worker/job.h>
 #include <yt/yt/flow/library/cpp/worker/job_tracker.h>
@@ -47,7 +48,7 @@
 #include <yt/yt/flow/library/cpp/misc/node_info.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
-#include <yt/yt/flow/lib/native_client/public.h>
+#include <yt/yt/flow/library/cpp/native_client/public.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/options.h>
@@ -68,7 +69,7 @@
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/library/program/program_setsid_mixin.h>
 
-#include <yt/yt/library/tracing/jaeger/tracer.h>
+#include <yt/yt/library/tracing/jaeger/config.h>
 
 #include <yt/yt/core/bus/server.h>
 
@@ -80,6 +81,7 @@
 
 #include <yt/yt/core/https/client.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -154,13 +156,14 @@ protected:
             DoRunNode();
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            YT_LOG_ERROR(error, "Flow node failed");
+            YT_TLOG_ERROR("Flow node failed")
+                .With(error);
             THROW_ERROR_EXCEPTION("Flow node failed") << error;
         }
     }
 
 private:
-    EFlowRunMode Mode_;
+    EFlowRunMode Mode_ = {};
     TFlowNodeConfigPtr Config_;
     NYTree::INodePtr ConfigNode_;
     TNodeInfoPtr NodeInfo_;
@@ -168,7 +171,8 @@ private:
     TRichYPath PipelinePath_;
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NYTree::IMapNodePtr OrchidRoot_;
-    IStatusProfilerPtr RootStatusProfiler_;
+    IStatusProfilerPtr ControllerStatusProfiler_;
+    IStatusProfilerPtr WorkerStatusProfiler_;
     NConcurrency::IEnumIndexedFairShareActionQueuePtr<NController::EControlQueue> ControlQueue_;
 
     NBus::IBusServerPtr BusServer_;
@@ -197,6 +201,8 @@ private:
     NWorker::IInputManagerPtr InputManager_;
     NConcurrency::IThreadPoolPtr MessageServiceThreadPool_;
     NWorker::IMessageDistributorPtr MessageDistributor_;
+    NConcurrency::TActionQueuePtr FileStorageActionQueue_;
+    NFileStorage::IFileStoragePtr FileStorage_;
     NWorker::IJobTrackerPtr JobTracker_;
     NWorker::IControllerConnectorPtr ControllerConnector_;
 
@@ -299,17 +305,19 @@ private:
             PrepareController();
         }
 
-        YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
 
-        YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+        YT_TLOG_INFO("Listening for RPC requests")
+            .With("Port", Config_->RpcPort);
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->Start();
 
         // Start the connector after all preparations to guarantee that
         // SubscribeLeadingStarted callbacks are initialized before the Controller election.
         if (ControllerYTConnector_) {
-            YT_LOG_INFO("Starting Controller-to-YT connector");
+            YT_TLOG_INFO("Starting Controller-to-YT connector");
             ControllerYTConnector_->Start();
         }
     }
@@ -433,18 +441,23 @@ private:
         }
         TSingletonManager::Configure(patchedSingletonsConfig);
 
-        RootStatusProfiler_ = CreateStatusProfiler();
-
         SetNodeByYPath(
             OrchidRoot_,
             "/status_profiler",
             CreateVirtualNode(
-                IYPathService::FromProducer(BIND([profiler = RootStatusProfiler_] (IYsonConsumer* consumer) {
-                    auto status = profiler->GetStatus();
+                IYPathService::FromProducer(BIND([this] (IYsonConsumer* consumer) {
+                    THashMap<std::string, TError> errors;
+                    if (ControllerStatusProfiler_) {
+                        errors = ControllerStatusProfiler_->GetStatus().Errors;
+                    }
+                    if (WorkerStatusProfiler_) {
+                        auto workerErrors = WorkerStatusProfiler_->GetStatus().Errors;
+                        errors.insert(workerErrors.begin(), workerErrors.end());
+                    }
                     // clang-format off
                     BuildYsonFluently(consumer)
                         .BeginMap()
-                            .Item("errors").Value(status.Errors)
+                            .Item("errors").Value(errors)
                         .EndMap();
                     // clang-format on
                 }))));
@@ -453,6 +466,33 @@ private:
     void PrepareWorker()
     {
         ChannelFactory_ = NRpc::NBus::CreateTcpBusChannelFactory(Config_->Worker->Bus);
+
+        WorkerStatusProfiler_ = CreateStatusProfiler(
+            ControlQueue_->GetInvoker(NController::EControlQueue::Default),
+            NWorker::WorkerLogger(),
+            {},
+            NWorker::WorkerProfiler());
+
+        FileStorageActionQueue_ = New<TActionQueue>("FileStorage");
+        if (Config_->Worker->FileStorage) {
+            FileStorage_ = WaitFor(BIND([
+                config = Config_->Worker->FileStorage,
+                invoker = FileStorageActionQueue_->GetInvoker(),
+                statusProfiler = WorkerStatusProfiler_
+            ] {
+                return NWorker::CreateWorkerFileStorage(
+                    config,
+                    invoker,
+                    NWorker::WorkerLogger().WithTag("Component", "FileStorage"),
+                    NWorker::WorkerProfiler().WithPrefix("/file_storage"),
+                    statusProfiler->WithPrefix("/file_storage"));
+            })
+                    .AsyncVia(FileStorageActionQueue_->GetInvoker())
+                    .Run())
+                .ValueOrThrow();
+        } else {
+            FileStorage_ = NWorker::CreateThrowingFileStorage();
+        }
 
         const auto converterCache = CreatePayloadConverterCache(CreateFastColumnEvaluatorCache());
 
@@ -487,7 +527,11 @@ private:
         jobTrackerContext->HttpClient = HttpClient_;
         jobTrackerContext->HttpsClient = HttpsClient_;
         jobTrackerContext->Poller = HttpPoller_;
-        jobTrackerContext->StatusProfiler = RootStatusProfiler_;
+        jobTrackerContext->StatusProfiler = WorkerStatusProfiler_;
+        for (const auto& group : workerGroups) {
+            jobTrackerContext->WorkerGroups.push_back(TWorkerGroupId(group));
+        }
+        jobTrackerContext->FileStorage = FileStorage_;
         // ControllerConnector_ is created just below; at call time it is always
         // initialized (jobs start running only after worker setup is complete).
         jobTrackerContext->DistributedThrottlerChannel = [this] () -> NRpc::IChannelPtr {
@@ -507,7 +551,7 @@ private:
             JobTracker_,
             streamSpecStorage,
             Config_->IgnoreSingletonsDynamicConfig,
-            RootStatusProfiler_);
+            WorkerStatusProfiler_);
         ControllerConnector_->Initialize();
 
         SetNodeByYPath(
@@ -534,6 +578,12 @@ private:
         ChannelFactory_ = NRpc::NBus::CreateTcpBusChannelFactory(Config_->Controller->Bus);
         ControllerYTConnector_ = CreateYTConnector(Config_->Controller, NodeInfo_, CommonYTConnector_, ControlQueue_);
 
+        ControllerStatusProfiler_ = CreateStatusProfiler(
+            ControlQueue_->GetInvoker(NController::EControlQueue::Default),
+            NController::PublicControllerLogger(),
+            {},
+            NController::ControllerProfiler());
+
         WorkerTracker_ = CreateWorkerTracker(ControlQueue_, ControllerYTConnector_, NodeInfo_);
         ControllerThreadPool_ = NConcurrency::CreateFairShareThreadPool(Config_->Controller->ControllerThreads, "Controller");
         PersistedStateManager_ = NController::CreatePersistedStateManager(ControllerYTConnector_, Config_->Controller->PersistedStateManager);
@@ -551,14 +601,14 @@ private:
             PipelineAuthenticator_,
             Config_->IgnoreSingletonsDynamicConfig,
             GetFlowTablesCellTag(),
-            RootStatusProfiler_);
+            ControllerStatusProfiler_);
         FlowExecutor_ = CreateFlowExecutor(
             Controller_,
             PersistedStateManager_,
             ControllerYTConnector_,
             Config_->Controller->ControllerService,
             OrchidRoot_,
-            RootStatusProfiler_,
+            ControllerStatusProfiler_,
             ControllerThreadPool_->GetInvoker("FlowExecutor"),
             HttpClient_,
             ChannelFactory_,
@@ -639,22 +689,20 @@ private:
                     auto value = FromString<ssize_t>(keyValue[1]);
                     capabilities[std::string(keyValue[0])] = value;
                 } catch (...) {
-                    YT_LOG_FATAL(TError(std::string(CurrentExceptionMessage()), TError::DisableFormat),
-                        "Failed to parse worker capability value "
-                        "(EnvVar: %v, Pair: %v, Key: %v, Value: %v)",
-                        envName,
-                        pair,
-                        keyValue[0],
-                        keyValue[1]);
+                    YT_TLOG_FATAL("Failed to parse worker capability value")
+                        .With("EnvVar", envName)
+                        .With("Pair", pair)
+                        .With("Key", keyValue[0])
+                        .With("Value", keyValue[1])
+                        .With(TError(std::string(CurrentExceptionMessage()), TError::DisableFormat));
                 }
             } else if (keyValue.size() == 1) {
                 // Treat "key1,key2,key3" as "key1:0,key2:0,key3:0".
                 capabilities[std::string(keyValue[0])] = 0;
             } else {
-                YT_LOG_FATAL("Malformed worker capability entry "
-                    "(EnvVar: %v, Pair: %v)",
-                    envName,
-                    pair);
+                YT_TLOG_FATAL("Malformed worker capability entry")
+                    .With("EnvVar", envName)
+                    .With("Pair", pair);
             }
         }
 
@@ -671,13 +719,16 @@ private:
         while (true) {
             try {
                 auto bundleInfo = WaitFor(CommonYTConnector_->GetFlowTablesBundle()).ValueOrThrow();
-                YT_LOG_INFO("Found flow tables bundle clock cluster tag (Bundle: %v, ClockClusterTag: %v)",
-                    bundleInfo.Bundle,
-                    bundleInfo.ClockClusterTag);
+                YT_TLOG_INFO("Found flow tables bundle clock cluster tag")
+                    .With("Bundle", bundleInfo.Bundle)
+                    .With("ClockClusterTag", bundleInfo.ClockClusterTag);
                 return bundleInfo.ClockClusterTag.value_or(NObjectClient::InvalidCellTag);
             } catch (const TErrorException& ex) {
                 backoffStrategy.Next();
-                YT_LOG_ERROR(ex, "Unable to confirm bundles clock cell tag (Attempt: %v, RetryAfter: %v)", backoffStrategy.GetInvocationIndex() - 1, backoffStrategy.GetBackoff());
+                YT_TLOG_ERROR("Unable to confirm bundles clock cell tag")
+                    .With("Attempt", backoffStrategy.GetInvocationIndex() - 1)
+                    .With("RetryAfter", backoffStrategy.GetBackoff())
+                    .With(ex);
                 TDelayedExecutor::WaitForDuration(backoffStrategy.GetBackoff());
             }
         }
@@ -695,7 +746,10 @@ private:
                 return WaitFor(ytConnector->GetPipelineAttributes()).ValueOrThrow();
             } catch (const TErrorException& ex) {
                 backoffStrategy.Next();
-                YT_LOG_ERROR(ex, "Unable to get pipeline attributes (Attempt: %v, RetryAfter: %v)", backoffStrategy.GetInvocationIndex() - 1, backoffStrategy.GetBackoff());
+                YT_TLOG_ERROR("Unable to get pipeline attributes")
+                    .With("Attempt", backoffStrategy.GetInvocationIndex() - 1)
+                    .With("RetryAfter", backoffStrategy.GetBackoff())
+                    .With(ex);
                 TDelayedExecutor::WaitForDuration(backoffStrategy.GetBackoff());
             }
         }
@@ -704,7 +758,7 @@ private:
     TJaegerTracerConfigPtr GetTracerConfig(TFlowNodeConfigPtr config, IPipelineAuthenticatorPtr authenticator, ICommonYTConnectorPtr ytConnector)
     {
         if (!authenticator->GetTvmService()) {
-            YT_LOG_INFO("Tracing can not be automatically configured, because TVM is not configured");
+            YT_TLOG_INFO("Tracing can not be automatically configured, because TVM is not configured");
             return nullptr; // If tvm is not configured, tracer can not be initialized.
         }
 

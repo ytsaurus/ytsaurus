@@ -1319,14 +1319,12 @@ void TPartitionDistributionData::CalculateWorkerCoefs()
             double percent = (avgJobInterval - startSwitchToUnsafe) / (endSwitchToUnsafe - startSwitchToUnsafe);
             WorkerCoefs_[address] = std::lerp(safeWorkerCoef, avgCoef, percent);
         }
-        YT_LOG_EVENT(
-            NController::BalancerLogger,
-            NLogging::ELogLevel::Debug,
-            "Worker coef calculated (Worker: %v, Safe: 1, Unsafe: %v, AvgInterval: %v, WorkerCoef: %v)",
-            address,
-            avgCoef,
-            avgJobInterval,
-            WorkerCoefs_[address]);
+        YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Worker coef calculated")
+            .With("Worker", address)
+            .With("Safe", "1")
+            .With("Unsafe", avgCoef)
+            .With("AvgInterval", avgJobInterval)
+            .With("WorkerCoef", WorkerCoefs_[address]);
     }
 }
 
@@ -1589,23 +1587,23 @@ void TDistributionEmulation::ApplyAll(const TRebalanceActions& actions, const TP
         const auto& [type, partitionId, workerAddress, info] = action;
 
         if (!GetInfo().All.Partitions.contains(partitionId)) {
-            YT_LOG_ERROR("Requested applying partition, while it is not present among executing partitions (Partition: %v, Worker: %s)",
-                partitionId,
-                workerAddress);
+            YT_TLOG_ERROR("Requested applying partition, while it is not present among executing partitions")
+                .With("Partition", partitionId)
+                .With("Worker", workerAddress, "%s");
             return;
         }
         if (!Workers().contains(workerAddress)) {
-            YT_LOG_ERROR("Requested applying partition, while it the worker is not present (Partition: %v, Worker: %s)",
-                partitionId,
-                workerAddress);
+            YT_TLOG_ERROR("Requested applying partition, while it the worker is not present")
+                .With("Partition", partitionId)
+                .With("Worker", workerAddress, "%s");
             return;
         }
 
         if (type == ERebalanceActionType::Del) {
             if (GetStrayInfo().All.Partitions.contains(partitionId)) {
-                YT_LOG_ERROR("Requested deleting partition, while it is not already assigned to a worker (Partition: %v, Worker: %s)",
-                    partitionId,
-                    workerAddress);
+                YT_TLOG_ERROR("Requested deleting partition, while it is not already assigned to a worker")
+                    .With("Partition", partitionId)
+                    .With("Worker", workerAddress, "%s");
                 return;
             }
             DelPartition(partitionId, partitionData.PartitionInfos().at(partitionId), workerAddress);
@@ -1614,9 +1612,9 @@ void TDistributionEmulation::ApplyAll(const TRebalanceActions& actions, const TP
 
         if (type == ERebalanceActionType::Add) {
             if (!GetStrayInfo().All.Partitions.contains(partitionId)) {
-                YT_LOG_ERROR("Requested adding partition, while it is already assigned to a worker (Partition: %v, Worker: %s)",
-                    partitionId,
-                    workerAddress);
+                YT_TLOG_ERROR("Requested adding partition, while it is already assigned to a worker")
+                    .With("Partition", partitionId)
+                    .With("Worker", workerAddress, "%s");
                 return;
             }
             DelStrayPartition(partitionId, partitionData.PartitionInfos().at(partitionId));
@@ -1681,12 +1679,9 @@ TRebalanceActions TBalancer::KickPartitionsFromOvercountedWorkers()
                 Emulation_.DelPartition(partitionId, info, workerAddress);
                 Emulation_.AddStrayPartition(partitionId, info);
                 result.EmplaceAsTransaction(ERebalanceActionType::Del, partitionId, workerAddress, info);
-                YT_LOG_EVENT(
-                    NController::BalancerLogger,
-                    NLogging::ELogLevel::Info,
-                    "Job was kicked because worker is overloaded (JobId: %v, Worker: %v)",
-                    info.JobId,
-                    workerAddress);
+                YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Job was kicked because worker is overloaded")
+                    .With("JobId", info.JobId)
+                    .With("Worker", workerAddress);
             }
         }
     }
@@ -1917,7 +1912,7 @@ TRebalanceActions TBalancer::RelieveWorker(const TComputationId& computationId, 
         }
 
         finegrainedReports << "\nFinegrained report for worker " << myWorkerAddress << " terminates\n\n";
-        YT_LOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Trace, finegrainedReports.Str());
+        YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Trace, finegrainedReports.Str());
     }
 
     TRebalanceActions result;
@@ -1955,7 +1950,7 @@ std::optional<TComputationId> TBalancer::AdvanceContextComputation()
         PersistentManager_->GetLoopContext().Computation = {randomGen(), TInstant::Now()};
         return PersistentManager_->GetLoopContext().Computation.value().Id;
     } else {
-        YT_LOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "All computations are balanced");
+        YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "All computations are balanced");
         return std::nullopt;
     }
 }
@@ -1969,7 +1964,8 @@ bool TBalancer::ProceedWithWorker(std::vector<std::string>& workerAddresses)
     auto workerAddress = workerAddresses.back();
     workerAddresses.pop_back();
     const TComputationId& computationId = PersistentManager_->GetLoopContext().Computation.value().Id;
-    YT_LOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "ProceedWithWorker started (Worker: %v)", workerAddress);
+    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "ProceedWithWorker started")
+        .With("Worker", workerAddress);
     auto actions = RelieveWorker(computationId, workerAddress);
 
     if (double score = AssessScore(actions, computationId); score < PersistentManager_->ActionBufferScore) {
@@ -2066,7 +2062,7 @@ std::string TBalancer::GenerateInterimReport()
 
 TRebalanceActions TBalancer::DoFastBalancing()
 {
-    YT_LOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Entered fast balancing");
+    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Entered fast balancing");
     TRebalanceActions result;
 
     // The even-load gate (WorkerLoadUneven) also gates the fast (count-based) rebalancing: when
@@ -2076,22 +2072,20 @@ TRebalanceActions TBalancer::DoFastBalancing()
     if (HasStrayPartitions() || WorkerLoadUneven()) {
         result.Merge(KickPartitionsFromOvercountedWorkers());
     } else {
-        YT_LOG_EVENT(
-            NController::BalancerLogger,
-            NLogging::ELogLevel::Info,
-            "Skipping overcount kick: worker load is even and no stray partitions (RelativeDeviation: %v)",
-            Emulation_.GetWorkerDistributionOverall().RelativeDeviation());
+        YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Skipping overcount kick: worker load is even and no stray partitions")
+            .With("RelativeDeviation", Emulation_.GetWorkerDistributionOverall().RelativeDeviation());
     }
     result.Merge(DistributeStrayPartitions());
     AlreadyApplied_.Merge(result);
-    YT_LOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Passed fast balancing (Transactions: %v)", result.Transactions.size());
+    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Passed fast balancing")
+        .With("Transactions", result.Transactions.size());
 
     return result;
 }
 
 TRebalanceActions TBalancer::DoSlowBalancing(const TInstant& until)
 {
-    YT_LOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Entered slow balancing");
+    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Entered slow balancing");
 
     PersistentManager_->ActionsBuffer = Verifier_.VerifyWithPreapplied(AlreadyApplied_, PersistentManager_->ActionsBuffer);
     PersistentManager_->ActionBufferScore = std::numeric_limits<double>::infinity();
@@ -2102,7 +2096,7 @@ TRebalanceActions TBalancer::DoSlowBalancing(const TInstant& until)
     TRebalanceActions result;
 
     auto finishedComputation = [&] (const TComputationId&) {
-        YT_LOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, GenerateInterimReport());
+        YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, GenerateInterimReport());
 
         Emulation_.ApplyAll(PersistentManager_->ActionsBuffer, Data_);
         AlreadyApplied_.Merge(PersistentManager_->ActionsBuffer);
@@ -2142,12 +2136,13 @@ TRebalanceActions TBalancer::DoSlowBalancing(const TInstant& until)
 
             auto advanceResult = AdvanceContextComputation();
             if (!advanceResult.has_value()) {
-                YT_LOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Cannot advance context computation at the moment");
+                YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Cannot advance context computation at the moment");
                 NConcurrency::TDelayedExecutor::WaitForDuration(until - TInstant::Now());
                 return result;
             }
             computationId = advanceResult.value();
-            YT_LOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Selected computation for slow balancing (Computation: %s)", computationId);
+            YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Selected computation for slow balancing")
+                .With("Computation", computationId, "%s");
 
             std::vector<std::pair<std::string, double>> overallData;
             for (const auto& [workerAddress, worker] : Emulation_.Workers()) {
@@ -2165,7 +2160,8 @@ TRebalanceActions TBalancer::DoSlowBalancing(const TInstant& until)
         }
     }
 
-    YT_LOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Slow balancing iteration terminated (NewTransactions: %v)", result.Transactions.size());
+    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Slow balancing iteration terminated")
+        .With("NewTransactions", result.Transactions.size());
 
     return result;
 }
@@ -2279,18 +2275,17 @@ bool ShouldApplySlowActionsNow(
     balancer.ApplyAll(alreadyApplied);
 
     if (!balancer.WorkerLoadUneven()) {
-        YT_LOG_EVENT(
-            NController::BalancerLogger,
-            NLogging::ELogLevel::Info,
-            "Skipping deferred merge: worker load is even (RelativeDeviation: %v)",
-            balancer.GetWorkerDistributionOverall().RelativeDeviation());
+        YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Skipping deferred merge: worker load is even")
+            .With("RelativeDeviation", balancer.GetWorkerDistributionOverall().RelativeDeviation());
         return false;
     }
 
     double currentScore = balancer.GetTotalScore();
     balancer.ApplyAll(alreadyAppliedDeferred);
     double deferredScore = balancer.GetTotalScore();
-    YT_LOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Calculated scores (Current: %v, Deferred: %v)", currentScore, deferredScore);
+    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Calculated scores")
+        .With("Current", currentScore)
+        .With("Deferred", deferredScore);
     return deferredScore < currentScore - balancerSpec->RebalanceTargetDeviation;
 }
 
@@ -2521,17 +2516,15 @@ public:
         size_t originalCount = AppliedActions_.Transactions.size();
         auto maxAppliedSequenceId = GetOrDefault(flowView->EphemeralState->MaxAppliedBalancerSequenceIds, WorkerGroup_, TSequenceId(0));
         AppliedActions_.DropAlreadyApplied(maxAppliedSequenceId);
-        YT_LOG_EVENT(
-            NController::BalancerLogger,
-            NLogging::ELogLevel::Info,
-            "FlowView pushed (SequenceId: %v, Dropped: %v)",
-            maxAppliedSequenceId.Underlying(),
-            originalCount - AppliedActions_.Transactions.size());
+        YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "FlowView pushed")
+            .With("SequenceId", maxAppliedSequenceId.Underlying())
+            .With("Dropped", originalCount - AppliedActions_.Transactions.size());
         TRebalanceActionsVerifier verifier(flowView);
         AppliedActions_ = verifier.Verify(AppliedActions_);
         DeferredAppliedActions_ = verifier.VerifyWithPreapplied(AppliedActions_, DeferredAppliedActions_);
 
-        YT_LOG_INFO("Updated StartData (Epoch: %lu)", FlowViewEpoch_);
+        YT_TLOG_INFO("Updated StartData")
+            .With("Epoch", FlowViewEpoch_, "%lu");
     }
 
     void StartBalancing(const IInvokerPtr& invoker) override
@@ -2590,58 +2583,37 @@ public:
                         continue;
                     }
 
-                    YT_LOG_EVENT(
-                        NController::BalancerLogger,
-                        NLogging::ELogLevel::Debug,
-                        "Going to balancing with already applied actions (FastActions: %v, DeferredActions: %v)",
-                        alreadyApplied.Transactions.size(),
-                        alreadyAppliedDeferred.Transactions.size());
+                    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Going to balancing with already applied actions")
+                        .With("FastActions", alreadyApplied.Transactions.size())
+                        .With("DeferredActions", alreadyAppliedDeferred.Transactions.size());
 
                     auto [fastActions, slowActions] = RebalanceJobs(startData.FlowView, startData.Controllers, startData.BalancerSpec, strongThis->WorkerGroup_, TInstant::Now() + startData.BalancerSpec->RebalanceSyncPeriod, PersistentManager_, alreadyApplied, alreadyAppliedDeferred);
-                    YT_LOG_EVENT(
-                        NController::BalancerLogger,
-                        NLogging::ELogLevel::Debug,
-                        "Returned from balancing (FastActions: %v, DeferredActions: %v)",
-                        fastActions.Transactions.size(),
-                        slowActions.Transactions.size());
+                    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Returned from balancing")
+                        .With("FastActions", fastActions.Transactions.size())
+                        .With("DeferredActions", slowActions.Transactions.size());
 
                     auto appliedActionsLock = Guard(AppliedActionsLock_);
                     AppliedActions_.Merge(fastActions);
-                    YT_LOG_EVENT(
-                        NController::BalancerLogger,
-                        NLogging::ELogLevel::Debug,
-                        "Fast actions merge completed (SequenceId: %v)",
-                        AppliedActions_.GetSequenceId());
+                    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Fast actions merge completed")
+                        .With("SequenceId", AppliedActions_.GetSequenceId());
                     DeferredAppliedActions_ = slowActions;
                     TRebalanceActionsVerifier verifier(startData.FlowView);
                     DeferredAppliedActions_ = verifier.VerifyWithPreapplied(AppliedActions_, DeferredAppliedActions_);
                     if (ShouldApplySlowActionsNow(startData.FlowView, startData.Controllers, startData.BalancerSpec, strongThis->WorkerGroup_, PersistentManager_, AppliedActions_, DeferredAppliedActions_)) {
                         AppliedActions_.Merge(DeferredAppliedActions_);
                         DeferredAppliedActions_ = TRebalanceActions(DeferredSequenceIdGenerator_);
-                        YT_LOG_EVENT(
-                            NController::BalancerLogger,
-                            NLogging::ELogLevel::Debug,
-                            "Merged deferred actions (SequenceId: %v)",
-                            AppliedActions_.GetSequenceId());
+                        YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Merged deferred actions")
+                            .With("SequenceId", AppliedActions_.GetSequenceId());
                     }
-                    YT_LOG_EVENT(
-                        NController::BalancerLogger,
-                        NLogging::ELogLevel::Debug,
-                        "Total merged size after balancing updated (Size: %v)",
-                        AppliedActions_.Transactions.size());
-                    YT_LOG_EVENT(
-                        NController::BalancerLogger,
-                        NLogging::ELogLevel::Debug,
-                        "Total deferred size after balancing updated (Size: %v)",
-                        DeferredAppliedActions_.Transactions.size());
+                    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Total merged size after balancing updated")
+                        .With("Size", AppliedActions_.Transactions.size());
+                    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, "Total deferred size after balancing updated")
+                        .With("Size", DeferredAppliedActions_.Transactions.size());
 
                     appliedActionsLock.Release();
                 } catch (const std::exception& ex) {
-                    YT_LOG_EVENT(
-                        NController::BalancerLogger,
-                        NLogging::ELogLevel::Error,
-                        "Async balancer iteration failed; the fiber stays alive and retries (Error: %v)",
-                        TError(ex));
+                    YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Error, "Async balancer iteration failed; the fiber stays alive and retries")
+                        .With("Error", TError(ex));
                     NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
                 }
                 NConcurrency::Yield();
@@ -2665,7 +2637,7 @@ public:
 
     TRebalanceActions PullActionsUnverified()
     {
-        YT_LOG_INFO("Pulling actions from synchronizer");
+        YT_TLOG_INFO("Pulling actions from synchronizer");
         auto appliedActionsLock = Guard(AppliedActionsLock_);
         auto actions = AppliedActions_;
         return actions;
@@ -2725,24 +2697,24 @@ public:
 
                 bool shouldDoPull = false;
                 if (foundStrayPartitions) {
-                    YT_LOG_INFO("Found stray partitions, applying rebalance actions immediately");
+                    YT_TLOG_INFO("Found stray partitions, applying rebalance actions immediately");
                     shouldDoPull = true;
                 } else if (!timeSinceSynced.has_value()) {
-                    YT_LOG_INFO("Pipeline is not in sync yet, delaying rebalance");
+                    YT_TLOG_INFO("Pipeline is not in sync yet, delaying rebalance");
                 } else if (targetState == EPipelineState::Stopped || targetState == EPipelineState::Paused) {
-                    YT_LOG_INFO("Pipeline is stopping, will not balance if possible");
+                    YT_TLOG_INFO("Pipeline is stopping, will not balance if possible");
                 } else if (timeSinceSynced < balancerSpec->RebalanceDelayAfterPipelineSync) {
-                    YT_LOG_INFO("Pipeline is in sync not long enough, delaying rebalance");
+                    YT_TLOG_INFO("Pipeline is in sync not long enough, delaying rebalance");
                 } else {
-                    YT_LOG_INFO("Pipeline is deemed stable, applying rebalance buffer");
+                    YT_TLOG_INFO("Pipeline is deemed stable, applying rebalance buffer");
                     shouldDoPull = true;
                 }
 
                 if (shouldDoPull) {
                     rebalanceResult = PullActionsVerify(flowView);
-                    YT_LOG_INFO("Pulled rebalance actions (Count: %v, SequenceId: %v)",
-                        rebalanceResult.Actions.size(),
-                        rebalanceResult.SequenceId);
+                    YT_TLOG_INFO("Pulled rebalance actions")
+                        .With("Count", rebalanceResult.Actions.size())
+                        .With("SequenceId", rebalanceResult.SequenceId);
                 }
             } else {
                 rebalanceResult = DoBalanceSync(flowView, controllers, balancerSpec);
@@ -2780,7 +2752,7 @@ public:
 TPersistentBalanceManager::TPersistentBalanceManager()
     : Timestamp_(TInstant::Now())
 {
-    YT_LOG_INFO("Persistent balance manager created");
+    YT_TLOG_INFO("Persistent balance manager created");
 }
 
 TBalancerLoopContext& TPersistentBalanceManager::GetLoopContext()

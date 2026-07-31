@@ -15,9 +15,9 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/yson/public.h>
 

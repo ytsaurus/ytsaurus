@@ -12,12 +12,22 @@ void TPageCacheConfig::Register(TRegistrar registrar)
         .Default(4_KB)
         .GreaterThan(0);
     registrar.Parameter("capacity", &TThis::Capacity)
+        .Default(64_MB)
         .GreaterThan(0);
-    registrar.Parameter("flush_period", &TThis::FlushPeriod)
-        .Default(TDuration::Seconds(10));
-    registrar.Parameter("max_dirty_data_per_flush", &TThis::MaxDirtyDataPerFlush)
-        .Default(4_MB)
-        .GreaterThan(0);
+    registrar.Parameter("writeback_period", &TThis::WritebackPeriod)
+        .Default(TDuration::Seconds(2));
+    registrar.Parameter("dirty_data_soft_limit_capacity_fraction", &TThis::DirtyDataSoftLimitCapacityFraction)
+        .Default(0.25)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0);
+    registrar.Parameter("dirty_data_hard_limit_capacity_fraction", &TThis::DirtyDataHardLimitCapacityFraction)
+        .Default(0.5)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0);
+    registrar.Parameter("max_dirty_data_per_writeback_capacity_fraction", &TThis::MaxDirtyDataPerWritebackCapacityFraction)
+        .Default(0.0625)
+        .GreaterThan(0.0)
+        .LessThanOrEqual(1.0);
     registrar.Parameter("max_dirty_data_per_write", &TThis::MaxDirtyDataPerWrite)
         .Default(1_MB)
         .GreaterThan(0);
@@ -49,23 +59,66 @@ void TPageCacheConfig::Register(TRegistrar registrar)
                 config->PageSize,
                 config->MaxDirtyDataPerWrite);
         }
-        // MaxDirtyDataPerFlush must be a positive multiple of PageSize so it maps to a
-        // whole number of pages per flush.
-        if (config->MaxDirtyDataPerFlush % config->PageSize != 0) {
+        // Fraction * Capacity is rounded down to a page multiple in TPageCache, so the
+        // effective value always maps to a whole number of pages.
+        auto roundToPageMultiple = [&] (i64 capacity, double fraction) {
+            return static_cast<i64>(fraction * capacity) / config->PageSize * config->PageSize;
+        };
+
+        i64 dirtyDataSoftLimit = roundToPageMultiple(config->Capacity, config->DirtyDataSoftLimitCapacityFraction);
+        if (dirtyDataSoftLimit <= 0) {
             THROW_ERROR_EXCEPTION(
-                "\"max_dirty_data_per_flush\" must be a positive multiple of \"page_size\" (%v), got %v",
-                config->PageSize,
-                config->MaxDirtyDataPerFlush);
+                "\"dirty_data_soft_limit_capacity_fraction\" (%v) is too small for \"capacity\" (%v) and \"page_size\" (%v): effective limit is 0",
+                config->DirtyDataSoftLimitCapacityFraction,
+                config->Capacity,
+                config->PageSize);
         }
-        // A single merged write must not exceed what one flush processes: the merge cap
-        // (MaxDirtyDataPerWrite) is applied within a flush task that itself covers at most
-        // MaxDirtyDataPerFlush bytes, so a larger per-write cap could never be reached and
-        // would be misleading.
-        if (config->MaxDirtyDataPerWrite > config->MaxDirtyDataPerFlush) {
+
+        i64 dirtyDataHardLimit = roundToPageMultiple(config->Capacity, config->DirtyDataHardLimitCapacityFraction);
+        if (dirtyDataHardLimit <= 0) {
             THROW_ERROR_EXCEPTION(
-                "\"max_dirty_data_per_write\" (%v) must not exceed \"max_dirty_data_per_flush\" (%v)",
+                "\"dirty_data_hard_limit_capacity_fraction\" (%v) is too small for \"capacity\" (%v) and \"page_size\" (%v): effective limit is 0",
+                config->DirtyDataHardLimitCapacityFraction,
+                config->Capacity,
+                config->PageSize);
+        }
+
+        i64 maxDirtyDataPerWriteback = roundToPageMultiple(config->Capacity, config->MaxDirtyDataPerWritebackCapacityFraction);
+        if (maxDirtyDataPerWriteback <= 0) {
+            THROW_ERROR_EXCEPTION(
+                "\"max_dirty_data_per_writeback_capacity_fraction\" (%v) is too small for \"capacity\" (%v) and \"page_size\" (%v): effective budget is 0",
+                config->MaxDirtyDataPerWritebackCapacityFraction,
+                config->Capacity,
+                config->PageSize);
+        }
+
+        // DirtyDataSoftLimitCapacityFraction must not exceed DirtyDataHardLimitCapacityFraction.
+        if (config->DirtyDataSoftLimitCapacityFraction > config->DirtyDataHardLimitCapacityFraction) {
+            THROW_ERROR_EXCEPTION(
+                "\"dirty_data_soft_limit_capacity_fraction\" (%v) must not exceed \"dirty_data_hard_limit_capacity_fraction\" (%v)",
+                config->DirtyDataSoftLimitCapacityFraction,
+                config->DirtyDataHardLimitCapacityFraction);
+        }
+
+        // A single merged write must not exceed what one writeback processes: the merge cap
+        // (MaxDirtyDataPerWrite) is applied within a writeback task that itself covers at most
+        // maxDirtyDataPerWriteback bytes, so a larger per-write cap could never be reached and
+        // would be misleading.
+        if (config->MaxDirtyDataPerWrite > maxDirtyDataPerWriteback) {
+            THROW_ERROR_EXCEPTION(
+                "\"max_dirty_data_per_write\" (%v) must not exceed the effective max dirty data per writeback (%v, from \"max_dirty_data_per_writeback_capacity_fraction\" %v of \"capacity\" %v)",
                 config->MaxDirtyDataPerWrite,
-                config->MaxDirtyDataPerFlush);
+                maxDirtyDataPerWriteback,
+                config->MaxDirtyDataPerWritebackCapacityFraction,
+                config->Capacity);
+        }
+
+        // MaxDirtyDataPerWriteback must not exceed Capacity.
+        if (maxDirtyDataPerWriteback > config->Capacity) {
+            THROW_ERROR_EXCEPTION(
+                "effective \"max_dirty_data_per_writeback\" (%v) must not exceed \"capacity\" (%v)",
+                maxDirtyDataPerWriteback,
+                config->Capacity);
         }
     });
 }

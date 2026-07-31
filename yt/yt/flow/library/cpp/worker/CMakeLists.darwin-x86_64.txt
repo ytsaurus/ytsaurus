@@ -35,12 +35,13 @@ target_link_libraries(library-cpp-worker PUBLIC
   cpp-yt-memory
   cpp-yt-string
   yt-library-heavy_hitters
+  library-cpp-file_storage
   library-profiling-sensors_owner
   library-query-engine
   yt-library-ytprof
   yt-yt-core
   yt-yt-client
-  flow-lib-client
+  library-cpp-client
   library-cpp-common
   cpp-common-worker
   library-cpp-computation
@@ -53,6 +54,7 @@ target_sources(library-cpp-worker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/buffer_state_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/controller_connector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/file_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/input_buffer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/input_buffer_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/input_manager.cpp

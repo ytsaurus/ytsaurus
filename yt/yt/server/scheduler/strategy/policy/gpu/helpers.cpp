@@ -21,7 +21,7 @@ NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLog
 
 NLogging::TLogger GetLogger(const std::string& treeId)
 {
-    return GpuSchedulingPolicyLogger().WithTag("TreeId: %v", treeId);
+    return GpuSchedulingPolicyLogger().WithTag("TreeId", treeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

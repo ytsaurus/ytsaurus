@@ -157,7 +157,7 @@
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
-#include <yt/yt/ytlib/discovery_client/config.h>
+#include <yt/yt/library/discovery_client/config.h>
 
 #include <yt/yt/library/orchid/orchid_service.h>
 
@@ -1247,6 +1247,10 @@ void TBootstrap::DoStart()
         orchidRoot,
         "/ground_update_queue_manager",
         CreateVirtualNode(GroundUpdateQueueManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/multicell_manager",
+        CreateVirtualNode(MulticellManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
         "/reign",

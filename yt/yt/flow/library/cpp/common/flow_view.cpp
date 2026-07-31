@@ -3,8 +3,7 @@
 #include "private.h"
 
 #include "checksum.h"
-
-#include <yt/yt/flow/library/cpp/misc/version_helpers.h>
+#include "resource.h"
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
@@ -28,6 +27,9 @@
 
 #include <util/digest/multi.h>
 #include <util/generic/map.h>
+
+#include <algorithm>
+#include <limits>
 #include <vector>
 
 namespace NYT::NFlow {
@@ -430,6 +432,9 @@ void TJobEntityLimitStatus::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("pending", &TThis::Pending)
         .Default();
+    registrar.Parameter("blocked_time_share", &TThis::BlockedTimeShare)
+        .DontSerializeDefault()
+        .Default(0.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -514,6 +519,12 @@ void TWorkerResourceStatus::Register(TRegistrar registrar)
     registrar.Parameter("queue_fetch_rate_30s", &TThis::QueueFetchRate30s)
         .Default();
     registrar.Parameter("queue_fetch_rate_10m", &TThis::QueueFetchRate10m)
+        .Default();
+    registrar.Parameter("applied_revision_id", &TThis::AppliedRevisionId)
+        .Default();
+    registrar.Parameter("target_revision_id", &TThis::TargetRevisionId)
+        .Default();
+    registrar.Parameter("update_state", &TThis::UpdateState)
         .Default();
 }
 
@@ -670,12 +681,12 @@ void TFlowLayout::CreatePartition(TPartitionPtr partition)
     Y_ENSURE(!partition->ComputationId.Underlying().empty());
     Y_ENSURE(partition->StateTimestamp);
     Y_ENSURE(!partition->CurrentJobId);
-    YT_LOG_INFO("CreatePartition (PartitionId: %v, ComputationId: %v, LowerKey: %Qv, UpperKey: %Qv, SourceKey: %Qv)",
-        partition->PartitionId,
-        partition->ComputationId,
-        partition->LowerKey,
-        partition->UpperKey,
-        partition->SourceKey);
+    YT_TLOG_INFO("CreatePartition")
+        .With("PartitionId", partition->PartitionId)
+        .With("ComputationId", partition->ComputationId)
+        .With("LowerKey", partition->LowerKey, "%Qv")
+        .With("UpperKey", partition->UpperKey, "%Qv")
+        .With("SourceKey", partition->SourceKey, "%Qv");
     THROW_ERROR_EXCEPTION_UNLESS(Partitions.emplace(partition->PartitionId, partition).second == true, "PartitionId duplicate");
     ++Updated_;
     if (MutationNotifier_) {
@@ -694,18 +705,18 @@ void TFlowLayout::UpdatePartition(TPartitionPtr partition)
     if (oldPartition->CurrentJobId) {
         auto job = GetOrCrash(Jobs, *oldPartition->CurrentJobId);
         EraseOrCrash(Jobs, job->JobId);
-        YT_LOG_INFO("RemoveJob during UpdatePartition (JobId: %v, PartitionId: %v, ComputationId: %v)",
-            job->JobId,
-            partition->PartitionId,
-            partition->ComputationId);
+        YT_TLOG_INFO("RemoveJob during UpdatePartition")
+            .With("JobId", job->JobId)
+            .With("PartitionId", partition->PartitionId)
+            .With("ComputationId", partition->ComputationId);
         if (MutationNotifier_) {
             MutationNotifier_->OnRemoveJob(job, EJobFinishReason::PartitionUpdated);
         }
     }
-    YT_LOG_INFO("UpdatePartition (PartitionId: %v, OldState: %v, NewState: %v)",
-        partition->PartitionId,
-        oldPartition->State,
-        partition->State);
+    YT_TLOG_INFO("UpdatePartition")
+        .With("PartitionId", partition->PartitionId)
+        .With("OldState", oldPartition->State)
+        .With("NewState", partition->State);
     Partitions.insert_or_assign(partition->PartitionId, partition);
     ++Updated_;
     if (MutationNotifier_) {
@@ -730,15 +741,16 @@ void TFlowLayout::RemovePartition(const TPartitionId& id)
     if (oldPartition->CurrentJobId) {
         auto job = GetOrCrash(Jobs, *oldPartition->CurrentJobId);
         EraseOrCrash(Jobs, job->JobId);
-        YT_LOG_INFO("RemoveJob during RemovePartition (JobId: %v, PartitionId: %v, ComputationId: %v)",
-            job->JobId,
-            oldPartition->PartitionId,
-            oldPartition->ComputationId);
+        YT_TLOG_INFO("RemoveJob during RemovePartition")
+            .With("JobId", job->JobId)
+            .With("PartitionId", oldPartition->PartitionId)
+            .With("ComputationId", oldPartition->ComputationId);
         if (MutationNotifier_) {
             MutationNotifier_->OnRemoveJob(job, EJobFinishReason::PartitionUpdated);
         }
     }
-    YT_LOG_INFO("RemovePartition (PartitionId: %v)", id);
+    YT_TLOG_INFO("RemovePartition")
+        .With("PartitionId", id);
     Partitions.erase(id);
     ++Updated_;
     if (MutationNotifier_) {
@@ -752,11 +764,11 @@ void TFlowLayout::CreateJob(TJobPtr job)
     Y_ENSURE(!oldPartition->CurrentJobId);
     auto newPartition = CloneYsonStruct(oldPartition);
     newPartition->CurrentJobId = job->JobId;
-    YT_LOG_INFO("CreateJob (JobId: %v, PartitionId: %v, ComputationId: %v, WorkerAddress: %v)",
-        job->JobId,
-        job->PartitionId,
-        newPartition->ComputationId,
-        job->WorkerAddress);
+    YT_TLOG_INFO("CreateJob")
+        .With("JobId", job->JobId)
+        .With("PartitionId", job->PartitionId)
+        .With("ComputationId", newPartition->ComputationId)
+        .With("WorkerAddress", job->WorkerAddress);
     Partitions.insert_or_assign(newPartition->PartitionId, std::move(newPartition));
     THROW_ERROR_EXCEPTION_UNLESS(Jobs.emplace(job->JobId, job).second == true, "JobId duplicate");
     ++Updated_;
@@ -767,11 +779,11 @@ void TFlowLayout::CreateJob(TJobPtr job)
 
 void TFlowLayout::UpdateJob(TJobPtr job)
 {
-    YT_LOG_INFO("UpdateJob (JobId: %v, PartitionId: %v, ComputationId: %v, WorkerAddress: %v)",
-        job->JobId,
-        job->PartitionId,
-        GetOrCrash(Partitions, job->PartitionId)->ComputationId,
-        job->WorkerAddress);
+    YT_TLOG_INFO("UpdateJob")
+        .With("JobId", job->JobId)
+        .With("PartitionId", job->PartitionId)
+        .With("ComputationId", GetOrCrash(Partitions, job->PartitionId)->ComputationId)
+        .With("WorkerAddress", job->WorkerAddress);
     // TODO: check GetOrCrash
     auto oldJob = GetOrCrash(Jobs, job->JobId);
     Jobs.insert_or_assign(job->JobId, job);
@@ -783,9 +795,9 @@ void TFlowLayout::UpdateJob(TJobPtr job)
 
 void TFlowLayout::UpdateJob(TJobId id, TLeaseId leaseId)
 {
-    YT_LOG_INFO("UpdateJobLease (JobId: %v, LeaseId: %v)",
-        id,
-        leaseId);
+    YT_TLOG_INFO("UpdateJobLease")
+        .With("JobId", id)
+        .With("LeaseId", leaseId);
     const auto& oldJob = GetOrCrash(Jobs, id);
     Y_ENSURE(oldJob->LeaseId == NullLeaseId);
     auto newJob = CloneYsonStruct(oldJob);
@@ -799,12 +811,12 @@ void TFlowLayout::RemoveJob(const TJobId& id, EJobFinishReason jobFinishReason)
     auto oldPartition = GetOrCrash(Partitions, job->PartitionId);
     auto newPartition = CloneYsonStruct(oldPartition);
     newPartition->CurrentJobId = {};
-    YT_LOG_INFO("RemoveJob (JobId: %v, PartitionId: %v, ComputationId: %v, WorkerAddress: %v, Reason: %v)",
-        job->JobId,
-        job->PartitionId,
-        oldPartition->ComputationId,
-        job->WorkerAddress,
-        jobFinishReason);
+    YT_TLOG_INFO("RemoveJob")
+        .With("JobId", job->JobId)
+        .With("PartitionId", job->PartitionId)
+        .With("ComputationId", oldPartition->ComputationId)
+        .With("WorkerAddress", job->WorkerAddress)
+        .With("Reason", jobFinishReason);
     Partitions.insert_or_assign(newPartition->PartitionId, std::move(newPartition));
     EraseOrCrash(Jobs, id);
     ++Updated_;
@@ -892,13 +904,38 @@ TSystemTimestamp TWatermarkState::GetAlignmentSystemWatermark(const TWatermarkAl
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+i64 ComputeExecutionSpecEpoch(
+    i64 pipelineStateVersion,
+    i64 pipelineSpecVersion,
+    i64 extendedPipelineSpecVersion,
+    i64 dynamicPipelineSpecVersion,
+    i64 layoutVersion)
+{
+    const auto clockVersion = std::max({
+        pipelineStateVersion,
+        pipelineSpecVersion,
+        extendedPipelineSpecVersion,
+        dynamicPipelineSpecVersion,
+    });
+    YT_VERIFY(layoutVersion >= 0);
+    YT_VERIFY(clockVersion <= std::numeric_limits<i64>::max() - layoutVersion);
+    return clockVersion + layoutVersion;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 i64 TExecutionSpec::GetEpoch() const
 {
-    return PipelineState->GetVersion().Underlying() +
-        PipelineSpec->GetVersion().Underlying() +
-        ExtendedPipelineSpec->GetVersion().Underlying() +
-        DynamicPipelineSpec->GetVersion().Underlying() +
-        Layout->GetVersion().Underlying();
+    return ComputeExecutionSpecEpoch(
+        PipelineState->GetVersion().Underlying(),
+        PipelineSpec->GetVersion().Underlying(),
+        ExtendedPipelineSpec->GetVersion().Underlying(),
+        DynamicPipelineSpec->GetVersion().Underlying(),
+        Layout->GetVersion().Underlying());
 }
 
 void TExecutionSpec::AttachToControl(TPersistedStateControlPtr<std::string> control)
@@ -969,27 +1006,30 @@ void TExecutionSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("watermark_state", &TThis::WatermarkState)
         .DefaultNew();
+
+    registrar.Parameter("resource_target_revisions", &TThis::ResourceTargetRevisions)
+        .DefaultNew();
 }
 
 //! Checks whether the flow-core binary version matches the target set by user.
 bool CheckFlowCoreTarget(const TFlowCoreTarget& flowCoreTarget, const std::string& actualFlowCoreVersion)
 {
     if (flowCoreTarget.Underlying().empty()) {
-        YT_LOG_DEBUG("Skipping CheckFlowCoreTarget: flow core target is not set");
+        YT_TLOG_DEBUG("Skipping CheckFlowCoreTarget: flow core target is not set");
         return true;
     }
 
     if (flowCoreTarget.Underlying() == actualFlowCoreVersion) {
-        YT_LOG_DEBUG("Flow core version matches target (FlowCoreVersion: %v, FlowCoreTarget: %v)",
-            actualFlowCoreVersion,
-            flowCoreTarget);
+        YT_TLOG_DEBUG("Flow core version matches target")
+            .With("FlowCoreVersion", actualFlowCoreVersion)
+            .With("FlowCoreTarget", flowCoreTarget);
 
         return true;
     }
 
-    YT_LOG_INFO("Flow core version mismatches target (FlowCoreVersion: %v, FlowCoreTarget: %v)",
-        actualFlowCoreVersion,
-        flowCoreTarget);
+    YT_TLOG_INFO("Flow core version mismatches target")
+        .With("FlowCoreVersion", actualFlowCoreVersion)
+        .With("FlowCoreTarget", flowCoreTarget);
 
     return false;
 }
@@ -1006,11 +1046,12 @@ bool CheckFlowCoreTarget(const TFlowViewPtr& flowView, const std::string& actual
 
 i64 TExecutionSpecVersions::GetEpoch() const
 {
-    return PipelineStateVersion.Underlying() +
-        PipelineSpecVersion.Underlying() +
-        ExtendedPipelineSpecVersion.Underlying() +
-        DynamicPipelineSpecVersion.Underlying() +
-        LayoutVersion.Underlying();
+    return ComputeExecutionSpecEpoch(
+        PipelineStateVersion.Underlying(),
+        PipelineSpecVersion.Underlying(),
+        ExtendedPipelineSpecVersion.Underlying(),
+        DynamicPipelineSpecVersion.Underlying(),
+        LayoutVersion.Underlying());
 }
 
 void TExecutionSpecVersions::Register(TRegistrar registrar)
@@ -1038,6 +1079,9 @@ void TExecutionSpecVersions::Register(TRegistrar registrar)
 
     registrar.Parameter("watermark_state_version", &TThis::WatermarkStateVersion)
         .Default();
+
+    registrar.Parameter("resource_target_revisions_version", &TThis::ResourceTargetRevisionsVersion)
+        .Default();
 }
 
 TExecutionSpecVersionsPtr BuildExecutionSpecVersions(const TExecutionSpecPtr& executionSpec)
@@ -1051,6 +1095,7 @@ TExecutionSpecVersionsPtr BuildExecutionSpecVersions(const TExecutionSpecPtr& ex
     versions->StreamSpecStorageStateVersion = executionSpec->StreamSpecStorageState->GetVersion();
     versions->InputStreamsTraverseVersion = executionSpec->InputStreamsTraverse->GetVersion();
     versions->WatermarkStateVersion = executionSpec->WatermarkState->GetVersion();
+    versions->ResourceTargetRevisionsVersion = executionSpec->ResourceTargetRevisions->GetVersion();
     return versions;
 }
 
@@ -1070,6 +1115,7 @@ std::pair<TExecutionSpecPtr, std::vector<TPersistedStateStorageRow<std::string>>
     FLOW_VIEW_PREPARE_UPDATE(StreamSpecStorageState);
     FLOW_VIEW_PREPARE_UPDATE(InputStreamsTraverse);
     FLOW_VIEW_PREPARE_UPDATE(WatermarkState);
+    FLOW_VIEW_PREPARE_UPDATE(ResourceTargetRevisions);
 
     std::vector<TPersistedStateStorageRow<std::string>> stateUpdate;
     if (versions->LayoutVersion != current->Layout->GetVersion()) {
@@ -1099,6 +1145,7 @@ TExecutionSpecPtr ApplyExecutionSpecUpdate(const TExecutionSpecPtr& current, con
     FLOW_VIEW_APPLY_UPDATE(StreamSpecStorageState);
     FLOW_VIEW_APPLY_UPDATE(InputStreamsTraverse);
     FLOW_VIEW_APPLY_UPDATE(WatermarkState);
+    FLOW_VIEW_APPLY_UPDATE(ResourceTargetRevisions);
 
     newExecutionSpec->Layout = current->Layout;
     newExecutionSpec->Layout->Apply(stateUpdate);
@@ -1178,6 +1225,16 @@ const TJobStatusPtr& TFlowFeedback::GetCurrentJobStatus(const TPartitionId& part
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicPartitionSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("finish_after_current_epoch", &TThis::FinishAfterCurrentEpoch)
+        .Default(false);
+    registrar.Parameter("computation_partition_spec", &TThis::ComputationPartitionSpec)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TPartitionEphemeralState::Register(TRegistrar registrar)
 {
     registrar.Parameter("previous_job_finish_reason", &TThis::PreviousJobFinishReason)
@@ -1194,7 +1251,7 @@ void TPartitionEphemeralState::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("dynamic_partition_spec", &TThis::DynamicPartitionSpec)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("pending_graceful_rebalance_worker_address", &TThis::PendingGracefulRebalanceWorkerAddress)
         .Default();
@@ -1266,6 +1323,8 @@ void TFlowEphemeralState::Register(TRegistrar registrar)
     registrar.Parameter("pipeline_path", &TThis::PipelinePath)
         .Default();
     registrar.Parameter("traverse_uncovered_computations", &TThis::TraverseUncoveredComputations)
+        .Default();
+    registrar.Parameter("resource_controller_views", &TThis::ResourceControllerViews)
         .Default();
 }
 
@@ -1642,19 +1701,19 @@ void TPipelineImportantVersions::EnsureEqual(const TPipelineImportantVersions& a
     THROW_ERROR_EXCEPTION_UNLESS(
         PipelineSpecVersion == actual.PipelineSpecVersion,
         NFlow::EErrorCode::SpecVersionMismatch,
-        "Spec version mismatch (Expected: %v, Actual: %v)",
+        "Spec version mismatch: expected %v, actual %v",
         PipelineSpecVersion,
         actual.PipelineSpecVersion);
     THROW_ERROR_EXCEPTION_UNLESS(
         PipelineStateVersion == actual.PipelineStateVersion,
         NFlow::EErrorCode::PipelineStateVersionMismatch,
-        "Pipeline state version mismatch (Expected: %v, Actual: %v)",
+        "Pipeline state version mismatch: expected %v, actual %v",
         PipelineStateVersion,
         actual.PipelineStateVersion);
     THROW_ERROR_EXCEPTION_UNLESS(
         FlowCoreTargetVersion == actual.FlowCoreTargetVersion,
         NFlow::EErrorCode::FlowCoreTargetVersionMismatch,
-        "FlowCoreTarget version mismatch (Expected: %v, Actual: %v)",
+        "FlowCoreTarget version mismatch: expected %v, actual %v",
         FlowCoreTargetVersion,
         actual.FlowCoreTargetVersion);
 

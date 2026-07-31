@@ -1671,13 +1671,13 @@ TFairShareUpdateContext::TFairShareUpdateContext(
 TFairShareUpdateExecutor::TFairShareUpdateExecutor(
     const TRootElementPtr& rootElement,
     TFairShareUpdateContext* context,
-    const std::optional<std::string>& loggingTag)
+    const std::optional<NLogging::TLoggingTagList>& loggingTags)
     : RootElement_(rootElement)
     , Logger(FairShareLogger)
     , Context_(context)
 {
-    if (loggingTag) {
-        Logger.AddRawTag(*loggingTag);
+    if (loggingTags) {
+        Logger.AddTags(*loggingTags);
     }
 }
 

@@ -73,10 +73,10 @@ public:
             .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
             .MemoryUsageTracker = std::move(memoryUsageTracker),
         }
-        , Logger(ApiLogger().WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
-            Path_,
-            Options_.TransactionId,
-            ChunkReadOptions_.ReadSessionId))
+        , Logger(ApiLogger()
+            .WithTag("Path", Path_)
+            .WithTag("TransactionId", Options_.TransactionId)
+            .WithTag("ReadSessionId", ChunkReadOptions_.ReadSessionId))
     {
         if (Options_.TransactionId) {
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);

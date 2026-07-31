@@ -17,6 +17,8 @@ from yt.yql.tests.common.test_framework.test_utils import infer_yt_schema
 from yt.yql.tests.sql.runners.common import (
     DATA_PATH,
     add_table_clusters,
+    iter_out_tables_for_canon,
+    maybe_append_table_attr_canon,
     patch_cfg_file,
     read_sql_query,
     resolve_langver,
@@ -24,6 +26,7 @@ from yt.yql.tests.sql.runners.common import (
 )
 
 ASTDIFF_PATH = yql_binary_path('yql/essentials/tools/astdiff/astdiff')
+YSONDIFF_PATH = yql_binary_path('yql/essentials/tools/ysondiff/ysondiff')
 
 
 def file_diff(expected_file, actual_file):
@@ -139,11 +142,13 @@ def run_test(suite, case, cfg, tmpdir, what, yql_http_file_server):
         if os.path.exists(res.results_file):
             stable_result_file(res)
             to_canonize.append(yatest.common.canonical_file(res.results_file))
-        for table in tables_res:
-            if os.path.exists(tables_res[table].file):
-                stable_table_file(tables_res[table])
-                to_canonize.append(yatest.common.canonical_file(tables_res[table].file))
-                to_canonize.append(yatest.common.canonical_file(tables_res[table].yqlrun_file + ".attr"))
+        _, out_tables = get_tables(suite, config, DATA_PATH, def_attr=KSV_ATTR, attr_postprocess=infer_yt_schema)
+        for table in iter_out_tables_for_canon(out_tables, tables_res):
+            table_res = tables_res[table.full_name]
+            if os.path.exists(table_res.file):
+                stable_table_file(table_res)
+                to_canonize.append(yatest.common.canonical_file(table_res.file, diff_tool=YSONDIFF_PATH))
+                maybe_append_table_attr_canon(to_canonize, table_res.yqlrun_file, diff_tool=YSONDIFF_PATH)
         if res.std_err:
             to_canonize.append(normalize_source_code_path(res.std_err))
 

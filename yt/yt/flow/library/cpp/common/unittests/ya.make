@@ -43,5 +43,6 @@ SIZE(MEDIUM)
 END()
 
 RECURSE(
+    binary_checksum_override
     mock
 )

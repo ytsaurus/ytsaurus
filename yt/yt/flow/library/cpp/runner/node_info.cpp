@@ -100,15 +100,13 @@ protected:
         std::string addressStr;
         if (addressResolverConfig->EnableIPv6) {
             THROW_ERROR_EXCEPTION_UNLESS(address.IsIP6(),
-                "Address resolved from FQDN is not IPv6 address "
-                "(LocalFqdn: %v, ResolvedAddress: %v)",
+                "Local FQDN %v resolved to non-IPv6 address %v",
                 localFqdn,
                 address);
             addressStr = ToString(address.ToIP6Address());
         } else {
             THROW_ERROR_EXCEPTION_UNLESS(address.IsIP4(),
-                "Address resolved from FQDN is not IPv4 address "
-                "(LocalFqdn: %v, ResolvedAddress: %v)",
+                "Local FQDN %v resolved to non-IPv4 address %v",
                 localFqdn,
                 address);
             addressStr = ToString(address, {.IncludePort = false, .IncludeTcpProtocol = false});
@@ -177,11 +175,13 @@ protected:
         try {
             if (VcpuFactor_) {
                 double value = FromString(VcpuFactor_);
-                YT_LOG_DEBUG("Extracted vcpu factor from YDeploy environment (VCpuFactor: %v)", value);
+                YT_TLOG_DEBUG("Extracted vcpu factor from YDeploy environment")
+                    .With("VCpuFactor", value);
                 return value;
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to determine vcpu factor");
+            YT_TLOG_WARNING("Failed to determine vcpu factor")
+                .With(ex);
         }
         return std::nullopt;
     }
@@ -191,11 +191,13 @@ protected:
         try {
             if (VcpuLimit_) {
                 double value = FromString(VcpuLimit_);
-                YT_LOG_DEBUG("Extracted vcpu limit from YDeploy environment (VCpuLimit: %v)", value);
+                YT_TLOG_DEBUG("Extracted vcpu limit from YDeploy environment")
+                    .With("VCpuLimit", value);
                 return value;
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to determine vcpu limit");
+            YT_TLOG_WARNING("Failed to determine vcpu limit")
+                .With(ex);
         }
         return std::nullopt;
     }
@@ -231,13 +233,11 @@ protected:
         auto addressResolverConfig = Config->GetSingletonConfig<NNet::TAddressResolverConfig>();
         if (addressResolverConfig->EnableIPv6) {
             THROW_ERROR_EXCEPTION_UNLESS(address.IsIP6(),
-                "YT_IP_ADDRESS_DEFAULT is not an IPv6 address but enable_ipv6 is set "
-                "(IP: %v)",
+                "YT_IP_ADDRESS_DEFAULT %Qv is not an IPv6 address but \"enable_ipv6\" is set",
                 Ip_);
         } else {
             THROW_ERROR_EXCEPTION_UNLESS(address.IsIP4(),
-                "YT_IP_ADDRESS_DEFAULT is not an IPv4 address but enable_ipv4 is set "
-                "(IP: %v)",
+                "YT_IP_ADDRESS_DEFAULT %Qv is not an IPv4 address but \"enable_ipv4\" is set",
                 Ip_);
         }
 
@@ -259,11 +259,13 @@ protected:
         try {
             if (VcpuFactor_) {
                 double value = FromString(VcpuFactor_);
-                YT_LOG_DEBUG("Extracted vcpu factor from YT environment (VCpuFactor: %v)", value);
+                YT_TLOG_DEBUG("Extracted vcpu factor from YT environment")
+                    .With("VCpuFactor", value);
                 return value;
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to determine vcpu factor");
+            YT_TLOG_WARNING("Failed to determine vcpu factor")
+                .With(ex);
         }
 
         // TODO(YTFLOW-587): drop this fallback once YT sets YT_CPU_TO_VCPU_FACTOR in the vanilla
@@ -277,11 +279,13 @@ protected:
         try {
             if (VcpuLimit_) {
                 double value = FromString(VcpuLimit_);
-                YT_LOG_DEBUG("Extracted vcpu limit from YT environment (VCpuLimit: %v)", value);
+                YT_TLOG_DEBUG("Extracted vcpu limit from YT environment")
+                    .With("VCpuLimit", value);
                 return value;
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to determine vcpu limit");
+            YT_TLOG_WARNING("Failed to determine vcpu limit")
+                .With(ex);
         }
         return std::nullopt;
     }
@@ -313,10 +317,12 @@ private:
                 .ValueOrThrow();
 
             auto value = NYTree::ConvertTo<double>(factorYson);
-            YT_LOG_DEBUG("Fetched vcpu factor from exec node annotations (VCpuFactor: %v)", value);
+            YT_TLOG_DEBUG("Fetched vcpu factor from exec node annotations")
+                .With("VCpuFactor", value);
             return value;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to fetch vcpu factor from exec node annotations");
+            YT_TLOG_WARNING("Failed to fetch vcpu factor from exec node annotations")
+                .With(ex);
             return std::nullopt;
         }
     }
@@ -342,8 +348,8 @@ TNodeInfoPtr GetNodeInfo(const TFlowNodeConfigPtr& config, const TLogger& logger
     auto addressResolverConfig = config->GetSingletonConfig<NNet::TAddressResolverConfig>();
     THROW_ERROR_EXCEPTION_IF(
         addressResolverConfig->EnableIPv4 == addressResolverConfig->EnableIPv6,
-        "Exactly one of enable_ipv4 or enable_ipv6 must be set in address_resolver config "
-        "(EnableIPv4: %v, EnableIPv6: %v)",
+        "Exactly one of \"enable_ipv4\" and \"enable_ipv6\" must be set in address resolver config: "
+        "enable_ipv4 is %v, enable_ipv6 is %v",
         addressResolverConfig->EnableIPv4,
         addressResolverConfig->EnableIPv6);
 
@@ -352,22 +358,23 @@ TNodeInfoPtr GetNodeInfo(const TFlowNodeConfigPtr& config, const TLogger& logger
     auto defaultResolver = TNodeInfoResolver(config, logger);
 
     if (vanillaJobResolver.IsEnvironmentRecognized() && deployResolver.IsEnvironmentRecognized()) {
-        YT_LOG_FATAL("Environment is recognized ambiguously: as YDeploy and as vanilla job");
+        YT_TLOG_FATAL("Environment is recognized ambiguously: as YDeploy and as vanilla job");
     }
 
     TNodeInfoPtr nodeInfo = nullptr;
     if (vanillaJobResolver.IsEnvironmentRecognized()) {
-        YT_LOG_INFO("Node environment is recognized as vanilla job");
+        YT_TLOG_INFO("Node environment is recognized as vanilla job");
         nodeInfo = vanillaJobResolver.Resolve();
     } else if (deployResolver.IsEnvironmentRecognized()) {
-        YT_LOG_INFO("Node environment is recognized as YDeploy box");
+        YT_TLOG_INFO("Node environment is recognized as YDeploy box");
         nodeInfo = deployResolver.Resolve();
     } else {
-        YT_LOG_INFO("Node environment is not recognized, default node info resolver is used");
+        YT_TLOG_INFO("Node environment is not recognized, default node info resolver is used");
         nodeInfo = defaultResolver.Resolve();
     }
 
-    YT_LOG_INFO("Node info is resolved (NodeInfo: %v)", ConvertToYsonString(nodeInfo, NYson::EYsonFormat::Text));
+    YT_TLOG_INFO("Node info is resolved")
+        .With("NodeInfo", ConvertToYsonString(nodeInfo, NYson::EYsonFormat::Text));
 
     return nodeInfo;
 }

@@ -153,6 +153,36 @@ TEST_F(TTimeProviderTest, SeqNoRangeIsCachedBetweenCalls)
     EXPECT_EQ(TimestampProvider_->GetCallCount(), callCount);
 }
 
+TEST_F(TTimeProviderTest, SeqNoCarriesTheClusterWallClock)
+{
+    auto provider = CreateProvider();
+
+    auto seqNo = provider->GenerateSeqNo();
+    EXPECT_EQ(UnixTimeFromTimestamp(seqNo), StartUnixTime);
+}
+
+TEST_F(TTimeProviderTest, SeqNoNeverRunsAheadOfTheClock)
+{
+    auto provider = CreateProvider();
+
+    for (int i = 0; i < 100; ++i) {
+        auto seqNo = provider->GenerateSeqNo();
+        EXPECT_LE(static_cast<TTimestamp>(seqNo), TimestampProvider_->GetLatestTimestamp(NObjectClient::InvalidCellTag));
+    }
+}
+
+TEST_F(TTimeProviderTest, SeqNoKeepsIncreasingAcrossLeaderChange)
+{
+    auto leader = CreateProvider();
+    i64 last = 0;
+    for (int i = 0; i < 100; ++i) {
+        last = leader->GenerateSeqNo();
+    }
+
+    auto successor = CreateProvider();
+    EXPECT_GT(successor->GenerateSeqNo(), last);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

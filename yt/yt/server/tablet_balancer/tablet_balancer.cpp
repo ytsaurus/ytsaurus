@@ -136,7 +136,7 @@ public:
 
         return Throttlers_.emplace(cellTag, CreateReconfigurableThroughputThrottler(
             Config_,
-            Logger().WithTag("CellTag: %v", cellTag),
+            Logger().WithTag("CellTag", cellTag),
             TabletBalancerProfiler()
                 .WithPrefix("/master_request_throttler")
                 .WithTag("cell_tag", ToString(cellTag)))).first->second;
@@ -2162,7 +2162,7 @@ TFuture<std::vector<TLegacyOwningKey>> TTabletBalancer::PickReshardPivotKeysIfNe
         table->Path,
         descriptor->TabletCount,
         options,
-        PivotKeysPickerLogger().WithTag("CorrelationId: %v", descriptor->CorrelationId),
+        PivotKeysPickerLogger().WithTag("CorrelationId", descriptor->CorrelationId),
         enableVerboseLogging || table->TableConfig->EnableVerboseLogging)
         .AsyncVia(PivotPickerPool_->GetInvoker())
         .Run();

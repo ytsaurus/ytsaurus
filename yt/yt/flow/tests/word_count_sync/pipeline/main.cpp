@@ -10,6 +10,8 @@
 
 #include <yt/yt/flow/library/cpp/computation/simple_external_state_manager.h>
 
+#include <yt/yt/flow/library/cpp/resources/resource_base.h>
+
 #include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
 
 #include <yt/yt/flow/library/cpp/runner/init.h>
@@ -27,6 +29,8 @@
 #include <library/cpp/yt/memory/shared_range.h>
 
 #include <util/string/split.h>
+
+#include <algorithm>
 
 namespace NYT::NFlow::NWordCountSync {
 
@@ -73,6 +77,44 @@ struct TWordCountParameters
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Parameters of TStopWordsResource.
+struct TStopWordsParameters
+    : public NYTree::TYsonStruct
+{
+    std::vector<std::string> StopWords;
+
+    REGISTER_YSON_STRUCT(TStopWordsParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("stop_words", &TThis::StopWords)
+            .Default();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A trivial worker-shared resource carrying the configured set of words to ignore
+//! entirely. Exercises IRuntimeInitContext::GetStaticResource end to end: declared in
+//! the spec's `resources`, listed in the counter computation's `required_resource_ids`
+//! and fetched by the process function in Init.
+class TStopWordsResource
+    : public TResourceBase
+{
+public:
+    YT_FLOW_EXTEND_PARAMETERS(TStopWordsParameters);
+
+    using TResourceBase::TResourceBase;
+
+    bool IsStopWord(const std::string& word) const
+    {
+        const auto& words = GetParameters()->StopWords;
+        return std::find(words.begin(), words.end(), word) != words.end();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Splits each input text message into words and emits one TWordMessage per word.
 class TTextReadFunction
     : public IProcessFunction
@@ -94,8 +136,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Counts word occurrences in external state, but skips words shorter than the configured
-//! length: each skipped word and its length is buffered and, in the end-of-epoch sync phase,
+//! Counts word occurrences in external state. Words from the stop-words resource are
+//! dropped entirely; of the rest, words shorter than the configured length are skipped:
+//! each skipped word and its length is buffered and, in the end-of-epoch sync phase,
 //! written into the skipped-words dynamic table within the same transaction.
 class TWordCountFunction
     : public IProcessFunction
@@ -107,6 +150,7 @@ public:
         auto parameters = initContext->GetParameters<TWordCountParameters>();
         MinWordLength_ = parameters->MinWordLength;
         SkippedWordsTablePath_ = parameters->SkippedWordsTablePath;
+        StopWords_ = initContext->GetStaticResource("StopWords")->As<TStopWordsResource>();
         initContext->InitExternalStateClient(StateClient_, "/state");
     }
 
@@ -116,6 +160,9 @@ public:
         const IRuntimeContextPtr& /*context*/) override
     {
         auto word = GetColumnValue<std::string>(message, "word");
+        if (StopWords_->IsStopWord(word)) {
+            return;
+        }
         if (std::ssize(word) < MinWordLength_) {
             Skipped_.emplace_back(word, std::ssize(word));
             return;
@@ -163,6 +210,7 @@ public:
 private:
     i64 MinWordLength_ = 0;
     NYPath::TRichYPath SkippedWordsTablePath_;
+    TIntrusivePtr<TStopWordsResource> StopWords_;
     TMutableStateKeyClient<TSimpleExternalState> StateClient_;
     std::vector<std::pair<std::string, i64>> Skipped_;
 };
@@ -171,6 +219,7 @@ private:
 
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TTextReadFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TWordCountFunction, TWordCountParameters);
+YT_FLOW_DEFINE_RESOURCE(TStopWordsResource);
 
 ////////////////////////////////////////////////////////////////////////////////
 

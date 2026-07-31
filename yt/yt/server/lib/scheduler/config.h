@@ -536,6 +536,7 @@ struct TStrategyTreeConfig
     TJobResourcesConfigPtr MinNodeResourceLimits;
 
     TDuration MinNodeResourceLimitsCheckPeriod;
+    TDuration MinNodeResourceLimitsViolationTimeout;
 
     bool AllowGangOperationsOnlyInFifoPools;
 

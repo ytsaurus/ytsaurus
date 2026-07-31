@@ -14,8 +14,8 @@ PEERDIR(
     yql/essentials/providers/common/metrics
     yt/yql/providers/dq/runtime
     contrib/ydb/library/yql/providers/dq/runtime
-    contrib/ydb/library/yql/providers/dq/service
-    contrib/ydb/library/yql/providers/dq/stats_collector
+    yt/yql/providers/dq/service
+    yt/yql/providers/dq/stats_collector
     contrib/ydb/library/yql/providers/dq/task_runner
     yql/essentials/public/udf/service/terminate_policy
     yql/essentials/utils

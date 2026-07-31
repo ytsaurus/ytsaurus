@@ -161,7 +161,7 @@ private:
             }
         }
 
-        Logger.AddTag("Pod: %v", *PodDescriptor_);
+        Logger.AddTag("Pod", *PodDescriptor_);
 
         YT_LOG_DEBUG("Creating container (Container: %v)",
             ContainerSpec_->Name);
@@ -169,7 +169,7 @@ private:
         ContainerDescriptor_ = WaitFor(Executor_->CreateContainer(ContainerSpec_, PodDescriptor_, PodSpec_))
             .ValueOrThrow();
 
-        Logger.AddTag("Container: %v", ContainerDescriptor_);
+        Logger.AddTag("Container", ContainerDescriptor_);
 
         YT_LOG_DEBUG("Spawning process (Command: %v, Environment: %v)",
             ContainerSpec_->Command[0],

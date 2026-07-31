@@ -33,12 +33,12 @@ target_link_libraries(library-cpp-runner PUBLIC
   yutil
   library-cpp-vanilla
   library-cpp-worker
-  library-cpp-client
+  library-cpp-pipeline_helpers
   library-cpp-controller
   library-cpp-companion
   library-cpp-common
   library-cpp-misc
-  flow-lib-native_client
+  library-cpp-native_client
   yt-client-cache
   yt-library-auth
   yt-library-coredumper

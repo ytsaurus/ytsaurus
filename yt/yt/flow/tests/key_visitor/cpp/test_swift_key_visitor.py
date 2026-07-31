@@ -61,10 +61,10 @@ class Test(FlowTestBase):
         expected_payloads = dict(seeded)
 
         pipeline_config_path = self.prepare_pipeline_config(period_ms=20000, finite=True)
+        self.send_keys(seeded)
         with self.start_flow_process_federation(
             pipeline_binary_args={"--config": pipeline_config_path},
         ):
-            self.send_keys(seeded)
             self.wait_pipeline_state("completed", timeout=240)
 
             rows = list(self.client.select_rows(f"`key`, `payload`, `visit_count` from [{self.state}]"))

@@ -1,0 +1,67 @@
+{
+    "spec" = {
+        "computations" = {
+            "enricher" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+                "processing_function" = "NYT::NFlow::NFileResourceTest::TEnrichWithFileFunction";
+                "output_stream_ids" = ["enriched"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=primary>//path/to/input";
+                            "consumer_path" = "<cluster=primary>//path/to/consumer";
+                            "finite" = %false;
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "text" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["enriched"];
+                        "parameters" = {
+                            "queue_path" = "<cluster=primary>//path/to/output";
+                        };
+                    };
+                };
+            };
+        };
+        "resources" = {
+            "text" = {
+                "resource_class_name" = "NYT::NFlow::NFileResourceTest::TTestFileResource";
+                "parameters" = {
+                    "file_source" = {
+                        "file_source_class_name" = "NYT::NFlow::TYTFileSource";
+                        "parameters" = {
+                            "path" = "<cluster=primary>//path/to/file";
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "enricher" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 1;
+                };
+            };
+        };
+        "resources" = {
+            "text" = {
+                "parameters" = {
+                    "discover_period" = 100;
+                    "update_retry_period" = 100;
+                };
+            };
+        };
+    };
+}

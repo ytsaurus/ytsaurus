@@ -1,7 +1,5 @@
 PROTO_LIBRARY()
 
-INCLUDE(${ARCADIA_ROOT}/yt/gradle.inc)
-
 PROTO_NAMESPACE(yt)
 
 SRCS(

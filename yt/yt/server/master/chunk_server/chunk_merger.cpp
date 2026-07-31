@@ -253,7 +253,9 @@ public:
         TEphemeralObjectPtr<TChunkOwnerBase> node,
         i64 configVersion,
         TWeakPtr<IMergeChunkVisitorHost> chunkVisitorHost)
-        : Logger(ChunkServerLogger().WithTag("NodeId: %v, AccountId: %v", node->GetId(), node->Account()->GetId()))
+        : Logger(ChunkServerLogger()
+            .WithTag("NodeId", node->GetId())
+            .WithTag("AccountId", node->Account()->GetId()))
         , Bootstrap_(bootstrap)
         , Node_(std::move(node))
         , NodeId_(Node_->GetId())
@@ -276,9 +278,10 @@ public:
             EAutomatonThreadQueue::ChunkMerger);
 
         const auto& config = GetDynamicConfig();
-        const auto& info = Node_->ChunkMergerTraversalInfo();
+        auto* info = Node_->MutableChunkMergerInfo();
+        const auto& traversalInfo = info->TraversalInfo;
         TraversalStatistics_.ConfigVersion = ConfigVersion_;
-        TraversalStatistics_.ChunkCount = TraversalStatistics_.ConfigVersion == info.ConfigVersion ? info.ChunkCount : 0;
+        TraversalStatistics_.ChunkCount = TraversalStatistics_.ConfigVersion == traversalInfo.ConfigVersion ? traversalInfo.ChunkCount : 0;
         TraversalStatistics_.ChunkCount -= config->MaxChunkCount;
         TraversalStatistics_.ChunkCount = std::max(TraversalStatistics_.ChunkCount, 0);
 
@@ -966,7 +969,12 @@ void TChunkMerger::TweakTraversalInfoAfterRebalance(
 
     for (auto owningNodes : {rootChunkList->TrunkOwningNodes(), rootChunkList->BranchedOwningNodes()}) {
         for (auto owningNode : owningNodes) {
-            auto& chunkCount = owningNode->ChunkMergerTraversalInfo().ChunkCount;
+            if (!owningNode->HasChunkMergerInfo()) {
+                continue;
+            }
+
+            auto* info = owningNode->MutableChunkMergerInfo();
+            auto& chunkCount = info->TraversalInfo.ChunkCount;
             chunkCount = std::min(chunkCount, rebalanceStatistics.UntouchedPrefixChunkCount);
         }
     }
@@ -1196,15 +1204,17 @@ void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
+    // We'll need it anyway.
+    auto* info = chunkOwner->MutableChunkMergerInfo();
     if (NodesBeingMerged_.contains(chunkOwner->GetId())) {
-        chunkOwner->SetUpdatedSinceLastMerge(true);
+        info->UpdatedSinceLastMerge = true;
         return;
     }
 
-    if (chunkOwner->GetUpdatedSinceLastMerge()) {
+    if (info->UpdatedSinceLastMerge) {
         YT_LOG_ALERT("Node is marked as updated, but has no running merge sessions (NodeId: %v)",
             chunkOwner->GetId());
-        chunkOwner->SetUpdatedSinceLastMerge(false);
+        info->UpdatedSinceLastMerge = false;
     }
 
     auto accountId = chunkOwner->Account()->GetId();
@@ -2264,6 +2274,9 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         newRootChunkList->GetId(),
         accountId);
 
+    auto* info = chunkOwner->MutableChunkMergerInfo();
+    ++info->Revision;
+
     // NB: This may destroy old chunk list, so be sure to schedule requisition
     // update beforehand.
     chunkOwner->SetChunkList(newRootChunkList);
@@ -2328,8 +2341,9 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
             continue;
         }
 
-        auto nodeTouched = chunkOwner->GetUpdatedSinceLastMerge();
-        chunkOwner->SetUpdatedSinceLastMerge(false);
+        auto* info = chunkOwner->MutableChunkMergerInfo();
+        auto nodeTouched = info->UpdatedSinceLastMerge;
+        info->UpdatedSinceLastMerge = false;
 
         YT_VERIFY(chunkOwner->GetType() == EObjectType::Table);
         auto* table = chunkOwner->As<TTableNode>();
@@ -2351,7 +2365,8 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         }
 
         if (subrequest.has_traversal_info()) {
-            FromProto(&chunkOwner->ChunkMergerTraversalInfo(), subrequest.traversal_info());
+            auto& traversalInfo = info->TraversalInfo;
+            FromProto(&traversalInfo, subrequest.traversal_info());
         }
         auto jobCount = subrequest.job_count();
 

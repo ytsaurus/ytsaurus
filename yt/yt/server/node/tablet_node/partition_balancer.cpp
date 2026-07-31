@@ -436,7 +436,7 @@ private:
                 YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                     "Will not merge partitions due to improper partition state "
                     "(%v, InitialPartitionId: %v, PartitionId: %v, PartitionIndex: %v, PartitionState: %v)",
-                    tablet->GetLoggingTag(),
+                    tablet->GetLoggingTags(),
                     partition->GetId(),
                     tablet->PartitionList()[index]->GetId(),
                     index,
@@ -451,11 +451,10 @@ private:
 
         tablet->GetTableProfiler()->GetLsmCounters()->ProfilePartitionMerge();
 
-        auto Logger = TabletNodeLogger();
-        Logger.AddTag("%v, CellId: %v, PartitionIds: %v",
-            partition->GetTablet()->GetLoggingTag(),
-            slot->GetCellId(),
-            MakeFormattableView(
+        auto Logger = TabletNodeLogger()
+            .WithTags(partition->GetTablet()->GetLoggingTags())
+            .WithTag("CellId", slot->GetCellId())
+            .WithTag("PartitionIds", MakeFormattableView(
                 TRange(
                     tablet->PartitionList().data() + firstPartitionIndex,
                     tablet->PartitionList().data() + lastPartitionIndex + 1),
@@ -724,10 +723,10 @@ private:
         const ITabletSlotPtr& slot,
         TPartition* partition)
     {
-        return TabletNodeLogger().WithTag("%v, CellId: %v, PartitionId: %v",
-            partition->GetTablet()->GetLoggingTag(),
-            slot->GetCellId(),
-            partition->GetId());
+        return TabletNodeLogger()
+            .WithTags(partition->GetTablet()->GetLoggingTags())
+            .WithTag("CellId", slot->GetCellId())
+            .WithTag("PartitionId", partition->GetId());
     }
 };
 

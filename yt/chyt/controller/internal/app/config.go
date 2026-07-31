@@ -44,6 +44,7 @@ type Config struct {
 
 	HTTPAPIEndpoint        *string `yson:"http_api_endpoint"`
 	HTTPMonitoringEndpoint *string `yson:"http_monitoring_endpoint"`
+	HTTPMetricsEndpoint    *string `yson:"http_metrics_endpoint"`
 	// HTTPControllerMappings contains rules of mapping a host to a controller family.
 	// See https://github.com/go-chi/hostrouter/blob/master/README.md for key examples.
 	HTTPControllerMappings map[string]string `yson:"http_controller_mappings"`
@@ -59,6 +60,7 @@ type Config struct {
 const (
 	DefaultHTTPAPIEndpoint        = ":80"
 	DefaultHTTPMonitoringEndpoint = ":2223"
+	DefaultHTTPMetricsEndpoint    = ":3423"
 )
 
 func (c *Config) HTTPAPIEndpointOrDefault() string {
@@ -73,4 +75,11 @@ func (c *Config) HTTPMonitoringEndpointOrDefault() string {
 		return *c.HTTPMonitoringEndpoint
 	}
 	return DefaultHTTPMonitoringEndpoint
+}
+
+func (c *Config) HTTPMetricsEndpointOrDefault() string {
+	if c.HTTPMetricsEndpoint != nil {
+		return *c.HTTPMetricsEndpoint
+	}
+	return DefaultHTTPMetricsEndpoint
 }

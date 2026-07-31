@@ -126,13 +126,6 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<NYTree::IAttributeDictionaryPtr> FetchSingleObjectAttributes(
-    const NApi::NNative::IClientPtr& client,
-    NCypressClient::TVersionedObjectId objectId,
-    const NYTree::TAttributeFilter& attributeFilter);
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::string GetRequestQueueNameForKey(const std::pair<std::string, EUserWorkloadType>& userNameAndWorkloadType);
 
 std::string GetDistributedWeightThrottlerId(const std::string& prefix);

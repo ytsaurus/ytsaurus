@@ -92,10 +92,10 @@
     XX(ChunkLocations, chunk_locations) \
     XX(ChunkMediaStatistics, chunk_media_statistics) \
     XX(ChunkMergerCriteria, chunk_merger_criteria) \
+    XX(ChunkMergerInfo, chunk_merger_info) \
     XX(ChunkMergerMode, chunk_merger_mode) \
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
     XX(ChunkMergerStatus, chunk_merger_status) \
-    XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
     XX(ChunkMergerUsage, chunk_merger_usage) \
     XX(ChunkReader, chunk_reader) \
     XX(ChunkRefreshEnabled, chunk_refresh_enabled) \
@@ -193,6 +193,7 @@
     XX(EnableStepFunctionForGangOperations, enable_step_function_for_gang_operations) \
     XX(EnableStripedErasure, enable_striped_erasure) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
+    XX(EnableVerboseLogging, enable_verbose_logging) \
     XX(EndorsementRequired, endorsement_required) \
     XX(EntranceCellTag, entrance_cell_tag) \
     XX(EntranceNodeId, entrance_node_id) \
@@ -213,9 +214,11 @@
     XX(ExpectedState, expected_state) \
     XX(ExpectedTabletState, expected_tablet_state) \
     XX(ExpirationTime, expiration_time) \
+    XX(ExpirationTimeArmingTime, expiration_time_arming_time) \
     XX(ExpirationTimeLastResetTime, expiration_time_last_reset_time) \
     XX(ExpirationTimeUser, expiration_time_user) \
     XX(ExpirationTimeout, expiration_timeout) \
+    XX(ExpirationTimeoutArmingTime, expiration_timeout_arming_time) \
     XX(ExpirationTimeoutLastResetTime, expiration_timeout_last_reset_time) \
     XX(ExpirationTimeoutUser, expiration_timeout_user) \
     XX(ExportRefCounter, export_ref_counter) \
@@ -251,6 +254,7 @@
     XX(Freeze, freeze) \
     XX(Full, full) \
     XX(FullNodeCount, full_node_count) \
+    XX(HasHunkChunkList, has_hunk_chunk_list) \
     XX(HasRowLevelAce, has_row_level_ace) \
     XX(HashedPassword, hashed_password) \
     XX(Health, health) \

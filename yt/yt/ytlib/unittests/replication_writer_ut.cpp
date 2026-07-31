@@ -217,6 +217,12 @@ public:
         bool flushBlocks = request->flush_blocks();
         i64 cumulativeBlockSize = request->cumulative_block_size();
 
+        if (request->has_io_fair_share_weight()) {
+            LastIoFairShareWeight_.store(request->io_fair_share_weight());
+        } else {
+            LastIoFairShareWeight_.store(-1);
+        }
+
         if (UseProbePutBlocks_) {
             YT_VERIFY(MaxCumulativeBlockSize_ >= cumulativeBlockSize);
         }
@@ -296,6 +302,9 @@ public:
         ToProto(req->mutable_session_id(), *SessionId_);
         req->set_first_block_index(firstBlockIndex);
         req->set_cumulative_block_size(cumulativeBlockSize);
+        if (request->has_io_fair_share_weight()) {
+            req->set_io_fair_share_weight(request->io_fair_share_weight());
+        }
 
         std::vector<TBlock> blocks;
         blocks.reserve(blockCount);
@@ -393,6 +402,11 @@ public:
         return ReportedWriterBytes_.load();
     }
 
+    double GetLastIoFairShareWeight() const
+    {
+        return LastIoFairShareWeight_.load();
+    }
+
 private:
     const int ThrottledBlockCount_;
     const bool AlwaysFail_;
@@ -413,6 +427,7 @@ private:
     i64 DataBytesPerFlush_ = 0;
     i64 MetaBytesPerFinish_ = 0;
     std::atomic<i64> ReportedWriterBytes_ = 0;
+    std::atomic<double> LastIoFairShareWeight_ = -1;
 
     // Weak Pointer because of circular dependency
     TWeakPtr<IChannelFactory> ChannelFactory_ = nullptr;
@@ -443,6 +458,7 @@ struct TWriterTestCase
     std::set<int> NetThrottlingNodes;
     std::set<int> ThrottlingNodes;
     std::set<int> FailedNodes;
+    std::optional<double> IoFairShareWeight;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -550,6 +566,7 @@ public:
         config->MinUploadReplicationFactor = replicationFactor;
         config->UploadReplicationFactor = nodeCount;
         config->UseSendBlocks = testCase.UseSendBlocks;
+        config->IoFairShareWeight = testCase.IoFairShareWeight;
         config->NodeChannel = New<TRetryingChannelConfig>();
         config->NodeChannel->RetryAttempts = 5;
 
@@ -852,6 +869,53 @@ INSTANTIATE_TEST_SUITE_P(
             .ReplicationFactor = 3,
             .NodeCount = 3,
             .BlockCount = 16,
+        }));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIoFairShareWeightWriterTest
+    : public TReplicationWriterTest
+{ };
+
+TEST_P(TIoFairShareWeightWriterTest, ReportsIoFairShareWeight)
+{
+    IChunkWriter::TWriteBlocksOptions writeOptions;
+    TWorkloadDescriptor workloadDescriptor;
+
+    Writer->Open()
+        .Apply(BIND([&] {
+            EXPECT_TRUE(Writer->WriteBlocks(writeOptions, workloadDescriptor, GeneratedBlocks));
+            return Writer->GetReadyEvent();
+        }))
+        .Apply(BIND([&] {
+            auto deferredMeta = New<TDeferredChunkMeta>();
+            deferredMeta->set_type(0);
+            deferredMeta->set_format(0);
+            *deferredMeta->mutable_extensions() = {};
+            return Writer->Close(writeOptions, {}, deferredMeta);
+        }))
+        .BlockingWait(TDuration::Seconds(120));
+
+    for (const auto& service : Services) {
+        EXPECT_EQ(service->GetLastIoFairShareWeight(), 2.5);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TIoFairShareWeightWriterTest,
+    TIoFairShareWeightWriterTest,
+    ::testing::Values(
+        TWriterTestCase{
+            .ReplicationFactor = 1,
+            .NodeCount = 1,
+            .BlockCount = 16,
+            .IoFairShareWeight = 2.5,
+        },
+        TWriterTestCase{
+            .ReplicationFactor = 3,
+            .NodeCount = 3,
+            .BlockCount = 16,
+            .IoFairShareWeight = 2.5,
         }));
 
 ////////////////////////////////////////////////////////////////////////////////

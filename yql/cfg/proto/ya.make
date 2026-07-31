@@ -13,7 +13,7 @@ PEERDIR(
     yql/essentials/utils/log/proto
     yt/yql/providers/yt/lib/access_provider/proto
     yt/yql/providers/yt/lib/tvm_client/proto
-    contrib/ydb/library/yql/providers/dq/config
+    yt/yql/providers/dq/config
 )
 
 EXCLUDE_TAGS(GO_PROTO)

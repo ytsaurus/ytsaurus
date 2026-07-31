@@ -103,15 +103,16 @@ TSwiftMapComputation::TSwiftMapComputation(
 void TSwiftMapComputation::DoPrepare(const IComputationRunContextPtr& context)
 {
     if (GetParameters()->AllowBatchingWithRelaxedGuarantees) {
-        YT_LOG_WARNING("AllowBatchingWithRelaxedGuarantees is enabled: outputs may merge several parents, per-key MessageId order "
+        YT_TLOG_WARNING(
+            "AllowBatchingWithRelaxedGuarantees is enabled: outputs may merge several parents, per-key MessageId order "
             "is not preserved and downstream must tolerate at-least-once delivery");
     }
-    InitOutputStoreDistribution(context, /*allowOutputDuplicates*/ true);
+    InitOutputStoreDistribution(context);
 }
 
 void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, TTraceContextGuard&& initTraceContextGuard)
 {
-    YT_LOG_INFO("Started DoExecute");
+    YT_TLOG_INFO("Started DoExecute");
     YT_VERIFY(InputStore_);
     YT_VERIFY(TimerStore_);
     WaitFor(InputStore_->Init()).ThrowOnError();
@@ -131,7 +132,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
     }
 
     initTraceContextGuard.Release();
-    YT_LOG_INFO("Init completed");
+    YT_TLOG_INFO("Init completed");
 
     while (!isFinished) {
         auto iterGuard = StartRunIteration(context);
@@ -167,16 +168,16 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
                 }
             }
         }
-        YT_LOG_INFO("Got batch (Inputs: %v, Timers: %v, Visits: %v)",
-            inputs.size(),
-            inputTimers.size(),
-            inputVisits.size());
+        YT_TLOG_INFO("Got batch")
+            .With("Inputs", inputs.size())
+            .With("Timers", inputTimers.size())
+            .With("Visits", inputVisits.size());
 
         auto unprocessedInputs = [&] () {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Deduplicate"));
             auto [processedInput, unprocessedInputs] = InputStore_->Filter(inputs, /*checkState*/ false);
-            YT_LOG_INFO("Filtered already processed (Inputs: %v)",
-                processedInput.size());
+            YT_TLOG_INFO("Filtered already processed")
+                .With("Inputs", processedInput.size());
             context->MarkPersisted(processedInput);
             return unprocessedInputs;
         }();
@@ -212,7 +213,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             outputParents.reserve(result.OutputMessages.size());
             for (auto&& [outputMessage, parents] : Zip(result.OutputMessages, result.OutputMessagesParentMessageIds)) {
                 if (parents->ParentMessages.empty() || !parents->ParentTimers.empty()) {
-                    THROW_ERROR_EXCEPTION("Output message must have at least one parent message and no parent timers (ParentMessages: %v, ParentTimers: %v)",
+                    THROW_ERROR_EXCEPTION("Output message must have at least one parent message and no parent timers: got %v parent messages and %v parent timers",
                         parents->ParentMessages.size(),
                         parents->ParentTimers.size());
                 }
@@ -228,23 +229,22 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
         {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.Start"));
 
-            // unprocessedInputs owns the keys for the rest of this iteration, so raw pointers are fine.
-            absl::flat_hash_map<const TInputMessage*, int> inputMessageIndices;
-            inputMessageIndices.reserve(unprocessedInputs.size());
-            for (int i = 0; i < std::ssize(unprocessedInputs); ++i) {
-                inputMessageIndices[unprocessedInputs[i].Get()] = i;
-            }
-
-            // One tracker per input parent. A parent is marked persisted only after all its children have been distributed.
-            std::vector<TDistributingTracker> parentTrackers;
-            parentTrackers.reserve(unprocessedInputs.size());
-            for (const auto& input : unprocessedInputs) {
-                parentTrackers.emplace_back([this, messageId = input->MessageId] {
-                    YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker,
-                        "Callback must be called only from ProcessDistributedMessages() or in Activate() synchronously");
-                    PersistedInputMessageIds_.push_back(messageId);
-                });
-            }
+            // A parent is marked persisted only after all its children have been distributed.
+            // Trackers are created lazily, keyed by the parent message (unprocessedInputs owns
+            // the keys for the rest of this iteration): a childless input needs no tracker at
+            // all and is persisted right at the activation pass.
+            absl::flat_hash_map<const TInputMessage*, TDistributingTracker> parentTrackers;
+            auto getParentTracker = [&] (const auto& parent) -> TDistributingTracker& {
+                auto [it, inserted] = parentTrackers.try_emplace(parent.Get());
+                if (inserted) {
+                    it->second = TDistributingTracker([this, messageId = parent->MessageId] {
+                        YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker,
+                            "Callback must be called only from ProcessDistributedMessages() or in Activate() synchronously");
+                        PersistedInputMessageIds_.push_back(messageId);
+                    });
+                }
+                return it->second;
+            };
 
             // Batching: one merge tracker per unique TMessageParents pointer with multiple parents. The same
             // parents pointer is shared by all outputs emitted from one SetParents() call, so dedup by raw
@@ -262,8 +262,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
                 std::vector<TOnDistributedCallback> parentCallbacks;
                 parentCallbacks.reserve(parents->ParentMessages.size());
                 for (const auto& parent : parents->ParentMessages) {
-                    const int parentIdx = GetOrCrash(inputMessageIndices, parent.Get());
-                    parentCallbacks.push_back(parentTrackers[parentIdx].AddDestination());
+                    parentCallbacks.push_back(getParentTracker(parent).AddDestination());
                 }
                 it->second = TDistributingTracker([callbacks = std::move(parentCallbacks)] () mutable {
                     for (auto& callback : callbacks) {
@@ -275,8 +274,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             // Wire every output to its single parent's tracker, or to its merge tracker when it has many.
             for (auto&& [outputMessage, parents] : Zip(outputMessages, outputParents)) {
                 if (parents->ParentMessages.size() == 1) {
-                    const int parentIdx = GetOrCrash(inputMessageIndices, parents->ParentMessages[0].Get());
-                    outputMessage->OnDistributedCallback = parentTrackers[parentIdx].AddDestination();
+                    outputMessage->OnDistributedCallback = getParentTracker(parents->ParentMessages[0]).AddDestination();
                 } else {
                     outputMessage->OnDistributedCallback = mergeTrackers.at(parents.Get()).AddDestination();
                 }
@@ -285,17 +283,25 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             for (auto& [_, tracker] : mergeTrackers) {
                 tracker.Activate();
             }
-            for (auto& tracker : parentTrackers) {
-                tracker.Activate();
+            int activatedCount = 0;
+            for (const auto& input : unprocessedInputs) {
+                if (auto it = parentTrackers.find(input.Get()); it != parentTrackers.end()) {
+                    it->second.Activate();
+                    ++activatedCount;
+                } else {
+                    PersistedInputMessageIds_.push_back(input->MessageId);
+                }
             }
+            // Every tracker must belong to an unprocessed input, or it would never activate.
+            YT_VERIFY(activatedCount == std::ssize(parentTrackers));
 
             // Register all output messages in one batch.
             std::vector<TOutputMessageConstPtr> outputMessagesBase(outputMessages.begin(), outputMessages.end());
             OutputStore_->TryRegisterBatch(outputMessagesBase, /*persist=*/false);
             RegisterOutputMessages(context, outputMessagesBase, std::nullopt, dynamicSpec);
 
-            YT_LOG_INFO("Process completed (OutputMessages: %v)",
-                outputMessages.size());
+            YT_TLOG_INFO("Process completed")
+                .With("OutputMessages", outputMessages.size());
         }
 
         ValidateTimerStoreLimits(dynamicSpec);

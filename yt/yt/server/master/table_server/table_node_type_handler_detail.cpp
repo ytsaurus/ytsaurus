@@ -142,7 +142,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto replicationProgress = combinedAttributes->FindAndRemove<TReplicationProgress>("replication_progress");
     auto trimmedRowCounts = combinedAttributes->GetAndRemove<std::vector<i64>>("trimmed_row_counts", {});
     auto hunkStorageId = combinedAttributes->FindAndRemove<TObjectId>("hunk_storage_id");
-    auto hasHunkChunkList = combinedAttributes->Find<bool>("has_hunk_chunk_list");
+    auto hasHunkChunkList = combinedAttributes->FindAndRemove<bool>("has_hunk_chunk_list");
     bool commitOrderingIsExplicit = context.ExplicitAttributes->Contains(EInternedAttributeKey::CommitOrdering.Unintern());
     auto commitOrdering = combinedAttributes->FindAndRemove<NTransactionClient::ECommitOrdering>(EInternedAttributeKey::CommitOrdering.Unintern());
 

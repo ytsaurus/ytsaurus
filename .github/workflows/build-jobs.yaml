@@ -10,10 +10,6 @@ on:
         # cmake or ya-make
         type: string
         default: ''
-      build-strawberry:
-        default: false
-        required: false
-        type: boolean
       build-ytsaurus:
         default: false
         required: false
@@ -76,18 +72,6 @@ jobs:
         run: |
           python3.11 -m venv ../venv
 
-  strawberry:
-    needs: venv
-    runs-on: ${{ inputs.runs-on-value }}
-    if: ${{ inputs.build-strawberry }}
-    timeout-minutes: 480
-    steps:
-      - name: Build strawberry controller
-        run: |
-          cd ../ytsaurus/ytsaurus/yt/chyt/controller/cmd/chyt-controller
-          export HOME=${RUNNER_WORKSPACE}
-          /opt/go/bin/go build
-
   gpuagent:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
@@ -125,61 +109,40 @@ jobs:
       - name: Configure ytsaurus (${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
         run: |
-          mkdir -p ~/.conan2/
-          cat > ~/.conan2/global.conf <<EOF
-          core.net.http:timeout=5
-          core.sources:download_urls=["origin", "https://c3i.jfrog.io/artifactory/conan-center-backup-sources"]
-          EOF
-
           CMAKE_BUILD_TYPE="RelWithDebInfo"
           if [ "${{ matrix.build-type }}" = "release" ]; then
             CMAKE_BUILD_TYPE="Release"
           fi
-
-          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
-          cmake \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
-            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DREQUIRED_LLVM_TOOLING_VERSION=18 \
-            -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=./cmake/conan_provider.cmake \
-            ../ytsaurus/ytsaurus
-
-          ccache --set-config base_dir="$(realpath ..)"
-          ccache --set-config remote_only=true
-          ccache --set-config remote_storage="http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel"
-
+          READ_ONLY=""
           if [ "${{ inputs.update-remote-cache }}" == "false" ]; then
-            ccache --set-config read_only=true
+            READ_ONLY="--read-only-cache"
           fi
+          ./ytsaurus/yt/yt/scripts/build_cmake.sh configure \
+            --source-path ../ytsaurus/ytsaurus \
+            --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+            --build-type "${CMAKE_BUILD_TYPE}" \
+            --ccache-remote-storage "http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel" \
+            ${READ_ONLY}
 
       - name: Build Python packages (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-python }}
         run: |
-          build_dir=../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
-          cd ${build_dir}
-          ninja yson_lib driver_lib driver_rpc_lib
-
-          strip yt/yt/python/yson_shared/libyson_lib.so
-          strip yt/yt/python/driver/native_shared/libdriver_lib.so
-          strip yt/yt/python/driver/rpc_shared/libdriver_rpc_lib.so
-
-          cd ../ytsaurus
-
-          source ../venv/bin/activate
-          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${build_dir}
+          ./ytsaurus/yt/yt/scripts/build_cmake.sh build-python \
+            --source-path ../ytsaurus/ytsaurus \
+            --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+            --venv-path ../venv \
+            --commit-hash ${GITHUB_SHA}
 
       - name: Build ytsaurus (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
         run: |
-          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type}}
-          if [ "${{ matrix.build-type }}" == "release" ]; then
-            ninja
-          else
-            ninja ytserver-all ytserver-clickhouse
+          TARGETS=""
+          if [ "${{ matrix.build-type }}" != "relwithdebinfo" ]; then
+            TARGETS="ytserver-all ytserver-clickhouse"
           fi
+          ./ytsaurus/yt/yt/scripts/build_cmake.sh build \
+            --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+            --targets "${TARGETS}"
 
       - name: Build YQL agent (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
@@ -229,7 +192,7 @@ jobs:
       - name: Calculate variables
         id: vars
         run: |
-          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
+          BUILD_FLAGS="--thinlto --stat -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
             BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
@@ -273,15 +236,16 @@ jobs:
 
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=yes -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON -DPYTHON_CONFIG=python3.11-config -DPYTHON_BIN=python3.11"
 
+          PYTHON_SHARED_TARGETS="\
+            ../ytsaurus/ytsaurus/yt/yt/python/yson_shared \
+            ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared \
+            ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared"
+
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
-            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
-            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ${PYTHON_SHARED_TARGETS}
           fi
 
-          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
-          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
-          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ${PYTHON_SHARED_TARGETS}
 
           if [ "${{ inputs.skip-python-packages }}" == "false" ]; then
             cd ../ytsaurus
@@ -297,24 +261,22 @@ jobs:
 
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
 
+          YTSAURUS_TARGETS="\
+            ../ytsaurus/ytsaurus/yt/yt/server/all \
+            ../ytsaurus/ytsaurus/yt/chyt/server/bin \
+            ../ytsaurus/ytsaurus/yt/chyt/trampoline \
+            ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive \
+            ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state \
+            ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state"
+
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/chyt/trampoline
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ${YTSAURUS_TARGETS}
           fi
 
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/trampoline
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${YTSAURUS_TARGETS}
 
       - name: Build ytsaurus tests dependencies (ya-make, ${{ matrix.build-type }})
-        if: ${{ (inputs.build-ytsaurus || inputs.build-query-tracker) && inputs.build-ytsaurus-tests && (matrix.build-type == 'release') }}
+        if: ${{ (inputs.build-ytsaurus || inputs.build-query-tracker) && inputs.build-ytsaurus-tests && (matrix.build-type == 'relwithdebinfo') }}
         run: |
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
@@ -346,6 +308,31 @@ jobs:
             fi
             ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare
           done
+
+          # Programs and C++ unit tests required by the exported Flow examples.
+          FLOW_PROGRAM_TARGETS="../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server"
+          for test_dir in ../ytsaurus/ytsaurus/yt/yt/flow/examples/{cpp,go}/*/test; do
+            if [ -d "${test_dir}" ]; then
+              FLOW_PROGRAM_TARGETS="${FLOW_PROGRAM_TARGETS} $(dirname "${test_dir}")"
+            fi
+          done
+
+          FLOW_CPP_UNITTEST_TARGETS=""
+          for unittest_dir in \
+            ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp/*/unittest \
+            ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp/*/pipeline/unittest
+          do
+            if [ -d "${unittest_dir}" ]; then
+              FLOW_CPP_UNITTEST_TARGETS="${FLOW_CPP_UNITTEST_TARGETS} ${unittest_dir}"
+            fi
+          done
+
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. --bazel-remote-put ${FLOW_PROGRAM_TARGETS}
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare --bazel-remote-put ${FLOW_CPP_UNITTEST_TARGETS}
+          fi
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${FLOW_PROGRAM_TARGETS}
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FLOW_CPP_UNITTEST_TARGETS}
 
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}

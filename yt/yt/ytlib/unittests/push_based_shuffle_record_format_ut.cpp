@@ -4,6 +4,7 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <library/cpp/yt/memory/blob.h>
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 namespace NYT::NPushBasedShuffleClient {
@@ -126,6 +127,81 @@ TEST(ShuffleRecordFormat, RoundTripMixedTypesLz4)
         EXPECT_DOUBLE_EQ(row[1].Data.Double, 3.14);
         EXPECT_EQ(row[2].Type, EValueType::Null);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(ShuffleRecordFormat, ParseAppendsIdentityValues)
+{
+    TShuffleRecordBuilder builder(/*mapperId*/ 7, /*startRowId*/ 100);
+
+    TUnversionedRowBuilder rowBuilder;
+    rowBuilder.AddValue(MakeUnversionedInt64Value(1, /*id*/ 0));
+    rowBuilder.AddValue(MakeUnversionedInt64Value(10, /*id*/ 1));
+    builder.AddRow(rowBuilder.GetRow());
+
+    rowBuilder.Reset();
+    rowBuilder.AddValue(MakeUnversionedInt64Value(2, /*id*/ 0));
+    rowBuilder.AddValue(MakeUnversionedInt64Value(20, /*id*/ 1));
+    builder.AddRow(rowBuilder.GetRow());
+
+    auto record = builder.FlushRecord();
+    ASSERT_TRUE(record);
+
+    TChunkedMemoryPool pool;
+    auto parsed = ParseShuffleRecord(
+        std::move(*record),
+        &pool,
+        TIdentityColumnIds{
+            .MapperId = 10,
+            .RowId = 11,
+        });
+
+    ASSERT_EQ(std::ssize(parsed.Rows), 2);
+    for (int index = 0; index < 2; ++index) {
+        auto row = parsed.Rows[index];
+        ASSERT_EQ(row.GetCount(), 4u);
+        EXPECT_EQ(row[0].Data.Int64, index + 1);
+        EXPECT_EQ(row[1].Data.Int64, (index + 1) * 10);
+        EXPECT_EQ(row[2].Id, 10u);
+        EXPECT_EQ(row[2].Type, EValueType::Int64);
+        EXPECT_EQ(row[2].Data.Int64, 7);
+        EXPECT_EQ(row[3].Id, 11u);
+        EXPECT_EQ(row[3].Type, EValueType::Int64);
+        EXPECT_EQ(row[3].Data.Int64, 100 + index);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(ShuffleRecordFormat, SingleRefOverloads)
+{
+    constexpr auto Codec = NCompression::ECodec::Lz4;
+
+    TShuffleRecordBuilder builder(/*mapperId*/ 7, /*startRowId*/ 100);
+    TUnversionedRowBuilder rowBuilder;
+    rowBuilder.AddValue(MakeUnversionedInt64Value(42, /*id*/ 0));
+    builder.AddRow(rowBuilder.GetRow());
+
+    auto record = builder.FlushRecord();
+    ASSERT_TRUE(record);
+    auto wire = MergeRefsToRef<TDefaultBlobTag>(CompressShuffleRecord(*record, Codec));
+
+    auto header = ReadShuffleRecordHeader(wire);
+    EXPECT_EQ(header.MapperId, 7);
+    EXPECT_EQ(header.StartRow, 100);
+    EXPECT_EQ(header.RowCount, 1);
+
+    auto decompressed = DecompressShuffleRecord(wire, Codec);
+    EXPECT_EQ(decompressed.Header.MapperId, 7);
+    EXPECT_EQ(decompressed.Header.StartRow, 100);
+    EXPECT_EQ(decompressed.Header.RowCount, 1);
+
+    TChunkedMemoryPool pool;
+    auto parsed = ParseShuffleRecord(std::move(decompressed), &pool);
+    ASSERT_EQ(std::ssize(parsed.Rows), 1);
+    ASSERT_EQ(parsed.Rows[0].GetCount(), 1u);
+    EXPECT_EQ(parsed.Rows[0][0].Data.Int64, 42);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

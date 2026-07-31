@@ -24,11 +24,13 @@ DEPENDS(
     yql/essentials/udfs/common/streaming
     yql/essentials/udfs/common/string
     yql/essentials/udfs/common/yson2
+    yql/essentials/udfs/test/simple
 )
 
 PEERDIR(
     library/python/port_manager
     yql/library/langver/python
+    yql/essentials/providers/common/proto
     yt/yt/tests/conftest_lib
     yt/python/yt/environment/components/yql_agent
 )

@@ -118,7 +118,7 @@ public:
         , TimestampProvider_(std::move(timestampProvider))
         , ParticipantProviders_(std::move(participantProviders))
         , Authenticator_(std::move(authenticator))
-        , Logger(TransactionSupervisorLogger().WithTag("CellId: %v", SelfCellId_))
+        , Logger(TransactionSupervisorLogger().WithTag("CellId", SelfCellId_))
         , StrongOrderingManager_(Logger)
         , TransactionSupervisorService_(New<TTransactionSupervisorService>(this))
         , TransactionParticipantService_(New<TTransactionParticipantService>(this))
@@ -310,7 +310,7 @@ private:
                 NRpc::TDispatcher::Get()->GetLightInvoker(),
                 BIND(&TWrappedParticipant::OnProbation, MakeWeak(this)),
                 Config_->ParticipantProbationPeriod))
-            , Logger(logger.WithTag("ParticipantCellId: %v", CellId_))
+            , Logger(logger.WithTag("ParticipantCellId", CellId_))
         {
             ProbationExecutor_->Start();
         }
@@ -2664,7 +2664,12 @@ private:
                 commit->GetPersistentState(),
                 NRpc::GetCurrentAuthenticationIdentity());
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Coordinator failure; ignored (TransactionId: %v, State: %v, %v)",
+            auto stronglyOrdered = commit->IsStronglyOrderedForCell(SelfCellId_);
+            YT_LOG_EVENT(
+                Logger(),
+                stronglyOrdered ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Alert,
+                ex,
+                "Coordinator failure (TransactionId: %v, State: %v, %v)",
                 transactionId,
                 commit->GetPersistentState(),
                 NRpc::GetCurrentAuthenticationIdentity());

@@ -14,7 +14,7 @@ class TChaosLease
 {
 public:
     TChaosLease(
-        IClientPtr client,
+        NApi::IClientPtr client,
         NRpc::IChannelPtr channel,
         TChaosLeaseId id,
         TDuration timeout,

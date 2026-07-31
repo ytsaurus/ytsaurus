@@ -19,7 +19,8 @@ public:
     TRuntimeInitContext(
         IJobInitContextPtr underlying,
         TJobStateManagerPtr stateManager,
-        NYTree::IMapNodePtr parametersNode = {});
+        NYTree::IMapNodePtr parametersNode = {},
+        THashMap<TResourceId, IResourcePtr> staticResources = {});
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override;
     TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override;
@@ -32,6 +33,8 @@ public:
 
     NYTree::IMapNodePtr GetParametersNode() const override;
 
+    IResourcePtr GetStaticResource(const TResourceId& resourceId) const override;
+
 protected:
     IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const override;
     IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const override;
@@ -40,6 +43,7 @@ private:
     const IJobInitContextPtr Underlying_;
     const TJobStateManagerPtr StateManager_;
     const NYTree::IMapNodePtr ParametersNode_;
+    const THashMap<TResourceId, IResourcePtr> StaticResources_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

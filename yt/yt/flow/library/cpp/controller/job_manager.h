@@ -21,6 +21,7 @@ struct TJobManagerContext
     IInvokerPtr Invoker;
     IInvokerPtr MainCycleInvoker;
     ITimeProviderPtr TimeProvider;
+    IVersionProviderPtr VersionProvider;
     IStatusProfilerPtr StatusProfiler;
 };
 
@@ -38,6 +39,9 @@ struct IJobManager
     virtual void AggregateTraverseData(const TFlowViewPtr& flowView) = 0;
     virtual void UpdateInputStreamsTraverse(const TFlowViewPtr& flowView) = 0;
     virtual void UpdateWatermarkState(const TFlowViewPtr& flowView) = 0;
+    //! Feeds worker statuses to the resource controllers, publishes the target revisions they
+    //! build and reflects their views into the flow state.
+    virtual void UpdateResourceControllers(const TFlowViewPtr& flowView) = 0;
 
     virtual bool CheckPipelineStopped(const TFlowViewPtr& flowView) = 0;
     virtual bool CheckPipelineCompleted(const TFlowViewPtr& flowView) = 0;

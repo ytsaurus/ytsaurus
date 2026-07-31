@@ -10,6 +10,8 @@
 #include <library/cpp/yt/memory/range.h>
 #include <library/cpp/yt/memory/ref.h>
 
+#include <util/generic/hash_set.h>
+
 #include <optional>
 #include <vector>
 
@@ -26,6 +28,20 @@ struct TRecordHeader
 };
 
 static_assert(sizeof(TRecordHeader) == 16, "sizeof(TRecordHeader) != 16");
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TValidMapperIds = THashSet<i32>;
+
+struct TIdentityColumnIds
+{
+    int MapperId = -1;
+    int RowId = -1;
+
+    bool AreValid() const noexcept;
+};
+
+constexpr int IdentityColumnCount = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,6 +93,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Reads the 16-byte header from the front of a wire shuffle record.
+TRecordHeader ReadShuffleRecordHeader(const TSharedRef& wire);
 TRecordHeader ReadShuffleRecordHeader(TRange<TSharedRef> wire);
 
 std::vector<TSharedRef> CompressShuffleRecord(
@@ -84,13 +101,19 @@ std::vector<TSharedRef> CompressShuffleRecord(
     NCompression::ECodec codec);
 
 TShuffleRecord DecompressShuffleRecord(
+    const TSharedRef& wire,
+    NCompression::ECodec codec);
+
+TShuffleRecord DecompressShuffleRecord(
     TRange<TSharedRef> wire,
     NCompression::ECodec codec);
 
-//! Materializes the rows of a shuffle record.
+//! Materializes rows and optionally appends mapper and row identity values.
 TParsedRecord ParseShuffleRecord(
     TShuffleRecord record,
-    TChunkedMemoryPool* pool);
+    TChunkedMemoryPool* pool,
+    std::optional<TIdentityColumnIds> identityColumnIds = {},
+    bool validateIdentityColumnIds = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

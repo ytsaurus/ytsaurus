@@ -21,7 +21,7 @@ using namespace NYTree;
 THunkStore::THunkStore(TStoreId storeId, THunkTablet* tablet)
     : TObjectBase(storeId)
     , Tablet_(tablet)
-    , Logger(Tablet_->GetLogger().WithTag("StoreId: %v", storeId))
+    , Logger(Tablet_->GetLogger().WithTag("StoreId", storeId))
     , LockingState_(/*objectId*/ storeId)
 { }
 

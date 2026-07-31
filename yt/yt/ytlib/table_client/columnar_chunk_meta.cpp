@@ -169,7 +169,7 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
 
 const TSharedRange<TUnversionedRow>& TColumnarChunkMeta::BlockLastKeys() const
 {
-    THROW_ERROR_EXCEPTION_IF(CompressedBlockLastKeys_, "Unsupported in compress_block_last_keys mode")
+    THROW_ERROR_EXCEPTION_IF(CompressedBlockLastKeys_, "Unsupported in compress_block_last_keys mode");
     return BlockLastKeys_;
 }
 

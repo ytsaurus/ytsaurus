@@ -360,7 +360,7 @@ public:
         , RequestTimeout_(requestTimeout)
         , ReadQuorum_(readQuorum)
         , ChannelFactory_(std::move(channelFactory))
-        , Logger(JournalClientLogger().WithTag("ChunkId: %v", ChunkId_))
+        , Logger(JournalClientLogger().WithTag("ChunkId", ChunkId_))
     { }
 
 protected:

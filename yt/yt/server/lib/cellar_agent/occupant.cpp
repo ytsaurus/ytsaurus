@@ -1093,9 +1093,9 @@ private:
 
     NLogging::TLogger MakeLogger() const
     {
-        return CellarAgentLogger().WithTag("CellId: %v, PeerId: %v",
-            CellDescriptor_.CellId,
-            PeerId_);
+        return CellarAgentLogger()
+            .WithTag("CellId", CellDescriptor_.CellId)
+            .WithTag("PeerId", PeerId_);
     }
 };
 

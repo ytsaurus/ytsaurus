@@ -60,13 +60,23 @@ DB::ASTPtr TryBuildAdditionalFilterAST(
         return nullptr;
     }
 
+    struct Projection
+    {
+        DB::QueryTreeNodePtr node;
+        std::string outputName;
+    };
+    std::unordered_map<std::string, Projection> executionNameToProjection;
     std::unordered_set<std::string> projectionNames;
-    for (const auto& col : queryNode->getProjectionColumns()) {
-        projectionNames.insert(col.name);
-    }
-    std::unordered_map<std::string, DB::QueryTreeNodePtr> execution_name_to_projection_query_tree;
-    for (const auto & node : queryNode->getProjection()) {
-        execution_name_to_projection_query_tree[DB::calculateActionNodeName(node, *plannerContext)] = node;
+    {
+        const auto& projectionNodes = queryNode->getProjection().getNodes();
+        const auto& projectionColumns = queryNode->getProjectionColumns();
+        YT_VERIFY(projectionNodes.size() == projectionColumns.size());
+        for (size_t index = 0; index < projectionNodes.size(); ++index) {
+            projectionNames.insert(projectionColumns[index].name);
+
+            auto executionName = DB::calculateActionNodeName(projectionNodes[index], *plannerContext);
+            executionNameToProjection[executionName] = {projectionNodes[index], projectionColumns[index].name};
+        }
     }
 
     std::unordered_map<const DB::ActionsDAG::Node*, DB::ASTPtr> nodeToAst;
@@ -136,9 +146,15 @@ DB::ASTPtr TryBuildAdditionalFilterAST(
             if (projectionNames.contains(node->result_name)) {
                 res = std::make_shared<DB::ASTIdentifier>(node->result_name);
             } else {
-                auto it = execution_name_to_projection_query_tree.find(node->result_name);
-                if (it != execution_name_to_projection_query_tree.end()) {
-                    res = it->second->toAST();
+                auto it = executionNameToProjection.find(node->result_name);
+                if (it != executionNameToProjection.end()) {
+                    // For a plain column projection, reference the unqualified projection output
+                    // name instead of the qualified column AST.
+                    if (it->second.node->getNodeType() == DB::QueryTreeNodeType::COLUMN) {
+                        res = std::make_shared<DB::ASTIdentifier>(it->second.outputName);
+                    } else {
+                        res = it->second.node->toAST();
+                    }
                 }
             }
         }

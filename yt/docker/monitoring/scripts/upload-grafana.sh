@@ -52,7 +52,7 @@ for dashboard_file in "$DASHBOARDS_DIR"/*.json; do
         sed "s/\${PROMETHEUS_DS_UID}/$GRAFANA_DATASOURCE_UID/g" "$dashboard_file" > "$temp_file"
         
         payload_file=$(mktemp)
-        jq -n --argjson dash "$(<"$temp_file")" '{dashboard: $dash, overwrite: true}' > "$payload_file"
+        jq '{dashboard: ., overwrite: true}' "$temp_file" > "$payload_file"
         
         response=$(curl -s -X POST \
             -H "Authorization: Bearer $GRAFANA_TOKEN" \

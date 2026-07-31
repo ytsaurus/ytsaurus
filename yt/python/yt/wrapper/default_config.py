@@ -4,7 +4,7 @@ from . import common
 from .config_remote_patch import (RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean,
                                   RemotePatchableInteger, _validate_operation_link_pattern,
                                   _validate_query_link_pattern)
-from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION, ENCRYPT_PICKLE_FILES, STARTED_BY_COMMAND_LENGTH_LIMIT
+from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION, ENCRYPT_PICKLE_FILES, STARTED_BY_COMMAND_LENGTH_LIMIT, CONFIG_FORCED_SHORTCUTS
 from .errors import YtConfigError
 from .mappings import VerifiedDict
 
@@ -13,6 +13,7 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.yson import YsonEntity, YsonMap
 
+import functools
 import os
 import typing
 from copy import deepcopy
@@ -110,6 +111,7 @@ class DefaultConfigType(TypedDict, total=False):
         commands_with_framing: List[str]
 
     proxy: DefaultConfigProxyType
+    annotate_objects: Dict[str, Any]
     dynamic_table_retries: DefaultConfigRetriesType
     max_row_count_for_local_sampling: int
     tablets_ready_timeout: int
@@ -189,6 +191,7 @@ class DefaultConfigType(TypedDict, total=False):
         ignore_system_modules: bool
         system_module_patterns: List[Any]
         encrypt_pickle_files: int
+        encryption_engine: str
 
     pickling: DefaultConfigPicklingType
     is_local_mode: Optional[Any]
@@ -560,6 +563,9 @@ default_config = {
         ],
     },
 
+    # Annotate objects with attributes
+    "annotate_objects": {},
+
     # Parameters for dynamic table requests retries.
     "dynamic_table_retries": get_dynamic_table_retries(),
 
@@ -751,6 +757,8 @@ default_config = {
         ],
         # Encrypt files with pickle data (None - disabled, 1 - enabled, 2 - enabled with key in "secure vault")
         "encrypt_pickle_files": RemotePatchableInteger(ENCRYPT_PICKLE_FILES, "python_encrypt_pickle_files"),
+        # Pickle encryption engine: "cryptography_fernet" (default) or "native_chacha" (ctypes+OpenSSL with pure Python fallback).
+        "encryption_engine": "cryptography_fernet",
     },
 
     # Enables special behavior if client works with local mode cluster.
@@ -1151,7 +1159,7 @@ def get_default_config() -> DefaultConfigType:
         transform_func=transform_value)
     config = VerifiedDict(
         template_dict=template_dict,
-        keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer", "user_job_spec_defaults"],
+        keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer", "user_job_spec_defaults", "annotate_objects"],
         transform_func=transform_value)
 
     _update_from_env_vars(config, FORCED_SHORTCUTS)
@@ -1163,7 +1171,11 @@ FORCED_SHORTCUTS = {
     "YT_BASE_LAYER" : "operation_base_layer",
     "YT_HTTP_PROXY_ROLE": "proxy/http_proxy_role",
     "YT_RPC_PROXY_ROLE": "proxy/rpc_proxy_role",
+    "YT_ANNOTATE_OBJECTS": "annotate_objects",
 }
+
+
+FORCED_SHORTCUTS.update(CONFIG_FORCED_SHORTCUTS)
 
 
 SHORTCUTS = {
@@ -1248,6 +1260,7 @@ SHORTCUTS = {
     "YT_CONFIG_PROFILE": "config_profile",
 
     "YT_ENCRYPT_PICKLE": "pickling/encrypt_pickle_files",
+    "YT_ENCRYPTION_ENGINE": "pickling/encryption_engine",
 
     "YT_ADMIN_PROMETHEUS_IMAGE": "admin/prometheus_image",
     "YT_ADMIN_GRAFANA_IMAGE": "admin/grafana_image",
@@ -1273,7 +1286,21 @@ def _update_from_env_vars(
     config: VerifiedDict,
     shortcuts: Optional[dict] = None
 ):
-    def _get_var_type(config_value, type_hint_value):
+
+    def _parse_string_to_struct(default_obj_type: Optional[typing.Callable[[], None]], obj: str):
+        if not obj:
+            if default_obj_type:
+                return default_obj_type()
+            else:
+                return None
+
+        try:
+            data = yson._loads_from_native_str(obj)
+        except yson.YsonError:
+            data = yson.json_to_yson(json.loads(obj))
+        return data
+
+    def _get_var_type(config_value, type_hint_value) -> typing.Callable[[str], Any]:
         var_type = type(config_value)
         # Using int we treat "0" as false, "1" as "true"
         if var_type == bool:
@@ -1288,14 +1315,13 @@ def _update_from_env_vars(
                 if get_origin(type_hint_value) == Union:
                     type_hint_value = get_args(type_hint_value)[0]
 
-                if type_hint_value in (int, str, float, bool, list, dict, tuple):
-                    var_type = type_hint_value
+                type_hint = typing.get_origin(type_hint_value) or type_hint_value
+                if type_hint in (int, str, float, bool, list, dict, tuple):
+                    var_type = type_hint
                 else:
                     var_type = str
             else:
                 var_type = str
-        elif var_type == dict or var_type == YsonMap:
-            var_type = lambda obj: yson.json_to_yson(json.loads(obj)) if obj else {}  # noqa
         elif isinstance(config_value, RemotePatchableValueBase):
             var_type = type(config_value.value)
 
@@ -1317,6 +1343,8 @@ def _update_from_env_vars(
     def _get(d, key):
         parts = key.split("/")
         for k in parts:
+            if typing.get_origin(d):
+                break
             d = d.get(k)
         return d
 
@@ -1332,11 +1360,9 @@ def _update_from_env_vars(
         shortcuts = SHORTCUTS
 
     for key, value in os.environ.items():
-        if not key.startswith("YT_"):
-            continue
-
         if key in shortcuts:
             name = shortcuts[key]
+            var_type = None
             if name == "driver_config":
                 var_type = yson._loads_from_native_str
             elif name == "proxy/aliases":
@@ -1344,7 +1370,12 @@ def _update_from_env_vars(
                     return yson.yson_to_json(yson.loads(value.encode()))
                 var_type = parse_proxy_aliases
             else:
-                var_type = _get_var_type(_get(config, name), _get(config_type_hints, name))
+                var_type = _get_var_type(
+                    config_value=_get(config, name),
+                    type_hint_value=_get(config_type_hints, name),
+                )
+            if var_type in (list, dict, tuple, YsonMap):
+                var_type = functools.partial(_parse_string_to_struct, var_type)
             # NB: it is necessary to set boolean variable as 0 or 1.
             if var_type is bool:
                 value = int(value)

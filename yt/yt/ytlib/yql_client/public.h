@@ -1,7 +1,8 @@
 #pragma once
 
 #include <yt/yt/core/misc/common.h>
-#include <yt/yt/core/misc/error_code.h>
+
+#include <library/cpp/yt/error/error_code.h>
 
 namespace NYT::NYqlClient {
 
@@ -12,6 +13,11 @@ DEFINE_ENUM(EExecuteMode,
     ((Validate)    (0))
     ((Optimize)    (1))
     ((Run)         (2))
+);
+
+DEFINE_ENUM(EQueryType,
+    ((Regular)    (0))
+    ((UdfMeta)    (1))
 );
 
 YT_DEFINE_ERROR_ENUM(

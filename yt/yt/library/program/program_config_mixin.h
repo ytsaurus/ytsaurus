@@ -7,6 +7,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <library/cpp/yt/misc/enum.h>
+
 #include <library/cpp/yt/string/enum.h>
 
 #include <library/cpp/yt/system/exit.h>
@@ -14,6 +16,21 @@
 #include <util/stream/file.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EConfigFormat,
+    (Yson)
+    (Json)
+    (Yaml)
+);
+
+//! Derives the config format from the file name extension
+//! (`.yson`, `.json`, `.yaml`/`.yml`); returns `std::nullopt` for an unknown extension.
+std::optional<EConfigFormat> DeriveConfigFormatFromFileName(TStringBuf path);
+
+//! Loads a config file at |path| and parses it, according to |format|, into a node.
+NYTree::INodePtr ParseConfigNode(const std::string& path, EConfigFormat format);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,11 +91,25 @@ protected:
                         TEnumTraits<NYTree::EUnrecognizedStrategy>::GetDomainValues(),
                         [] (TStringBuilderBase* builder, NYTree::EUnrecognizedStrategy strategy) {
                             builder->AppendString(FormatEnum(strategy));
-                        },
-                        TStringBuf(", "))))
+                        })))
             .DefaultValue(FormatEnum(UnrecognizedStrategy_))
             .template Handler1T<TStringBuf>([&] (TStringBuf value) {
                 UnrecognizedStrategy_ = ParseEnum<NYTree::EUnrecognizedStrategy>(value);
+            });
+
+        opts
+            .AddLongOption(
+                Format("%v-format", argumentName),
+                Format("Format of %v file, one of {%v}; derived from the file extension by default",
+                    argumentName,
+                    JoinToString(
+                        TEnumTraits<EConfigFormat>::GetDomainValues(),
+                        [] (TStringBuilderBase* builder, EConfigFormat format) {
+                            builder->AppendString(FormatEnum(format));
+                        })))
+            .RequiredArgument("FORMAT")
+            .template Handler1T<TStringBuf>([&] (TStringBuf value) {
+                ConfigFormat_ = ParseEnum<EConfigFormat>(value);
             });
 
         if constexpr (!std::is_same_v<TDynamicConfig, void>) {
@@ -134,6 +165,7 @@ private:
 
     bool ConfigFlag_;
     std::string ConfigPath_;
+    std::optional<EConfigFormat> ConfigFormat_;
     bool ConfigSchemaFlag_ = false;
     std::string ConfigSchema_;
     bool ConfigTemplateFlag_;
@@ -149,18 +181,23 @@ private:
     TIntrusivePtr<TConfig> Config_;
     NYTree::INodePtr ConfigNode_;
 
+    EConfigFormat ResolveConfigFormat() const
+    {
+        if (ConfigFormat_) {
+            return *ConfigFormat_;
+        }
+        // Fall back to YSON for backward compatibility with extensionless paths.
+        return DeriveConfigFormatFromFileName(ConfigPath_).value_or(EConfigFormat::Yson);
+    }
+
     void LoadConfigNode()
     {
-        using namespace NYTree;
-
         if (!ConfigFlag_) {
             THROW_ERROR_EXCEPTION("Missing %qv option", ArgumentName_);
         }
 
         try {
-            // NB: TIFStream's buffered wrapper does not accept std::string.
-            TIFStream stream{TString(ConfigPath_)};
-            ConfigNode_ = ConvertToNode(&stream);
+            ConfigNode_ = ParseConfigNode(ConfigPath_, ResolveConfigFormat());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing %v file %v",
                 ArgumentName_,

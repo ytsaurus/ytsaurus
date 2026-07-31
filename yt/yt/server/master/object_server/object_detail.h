@@ -19,10 +19,10 @@
 
 #include <yt/yt/ytlib/security_client/acl.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/ytree/system_attribute_provider.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NObjectServer {
 
@@ -66,7 +66,7 @@ protected:
     // NB: the only cases of using the same object proxy from different threads
     // is master object proxy. This flag is meaningless for it but we have to
     // use atomic here to make TSAN happy.
-    std::atomic_flag ModificationTrackingSuppressed_ = {};
+    std::atomic_flag ModificationTrackingSuppressed_;
     NYTree::IAttributeDictionary* CustomAttributes_ = nullptr;
 
     struct TGetBasicAttributesContext

@@ -12,6 +12,7 @@ import spyt.standalone
 import spyt.utils
 import sys
 
+from contextlib import contextmanager
 from yt.wrapper import YtClient
 from yt.wrapper.http_helpers import get_user_name
 
@@ -87,6 +88,15 @@ def read_jdbc(args, spark, db):
 
         ret = ret.option('password', password)
 
+    if args.jdbc_partition_column:
+        if not (args.jdbc_lower_bound and args.jdbc_upper_bound and args.jdbc_num_partitions):
+            error_exit("--jdbc-partition-column requires --jdbc-lower-bound, "
+                       "--jdbc-upper-bound and --jdbc-num-partitions")
+        ret = ret.option('partitionColumn', args.jdbc_partition_column) \
+                 .option('lowerBound', args.jdbc_lower_bound) \
+                 .option('upperBound', args.jdbc_upper_bound) \
+                 .option('numPartitions', args.jdbc_num_partitions)
+
     return ret
 
 def split_by(inp, sep):
@@ -156,6 +166,24 @@ def write_output(data, output_path):
     data_write.yt(out)
 
 
+@contextmanager
+def _create_spark_session(args, spark_conf):
+    # When import.py is launched by spark-submit (for example
+    # `spark-submit --master ytsaurus://... --deploy-mode cluster import.py ...`),
+    # the JVM gateway is started by spark-submit and PYSPARK_GATEWAY_PORT is set in the
+    # environment; reuse the SparkSession and master provided by spark-submit.
+    # Otherwise (plain `python import.py ...`) start a direct-submit session ourselves.
+    if "PYSPARK_GATEWAY_PORT" in os.environ:
+        spark = pyspark.sql.SparkSession.builder.config(conf=spark_conf).getOrCreate()
+        try:
+            yield spark
+        finally:
+            spark.stop()
+    else:
+        with spyt.direct_spark_session(args.proxy, spark_conf) as spark:
+            yield spark
+
+
 def main():
     parser = spyt.utils.get_default_arg_parser(prog="import.py")
 
@@ -191,6 +219,15 @@ def main():
     parser.add_argument("--jdbc-server", required=False)
     parser.add_argument("--jdbc-user", required=False, default='')
     parser.add_argument("--jdbc-password", required=False)
+    parser.add_argument("--jdbc-partition-column", required=False,
+                        help="Numeric/date column to split the JDBC read into " \
+                        "parallel ranges (Spark partitionColumn)")
+    parser.add_argument("--jdbc-lower-bound", required=False,
+                        help="Lower bound of --jdbc-partition-column")
+    parser.add_argument("--jdbc-upper-bound", required=False,
+                        help="Upper bound of --jdbc-partition-column")
+    parser.add_argument("--jdbc-num-partitions", required=False,
+                        help="Number of parallel partitions (JDBC connections) for the read")
     parser.add_argument("--extra-conf", required=False)
 
     parser.add_argument("--s3-access-key", required=False, help="S3 access key")
@@ -215,7 +252,7 @@ def main():
         validate_args(args, in_table, out_table)
 
     spark_conf = _create_spark_conf(args)
-    with spyt.direct_spark_session(args.proxy, spark_conf) as spark:
+    with _create_spark_session(args, spark_conf) as spark:
         for (in_table, out_table) in zip(args.input, args.output):
             input_data = read_input(args, spark, in_table)
             write_output(input_data, out_table)

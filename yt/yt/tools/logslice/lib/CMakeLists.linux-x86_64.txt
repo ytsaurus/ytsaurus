@@ -31,8 +31,9 @@ target_link_libraries(tools-logslice-lib PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yt-yt-core
   cpp-streams-zstd
+  cpp-yt-assert
+  cpp-yt-error
 )
 
 target_sources(tools-logslice-lib PRIVATE

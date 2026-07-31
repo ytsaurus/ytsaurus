@@ -74,6 +74,7 @@ namespace NHp::NStructs {
         TThreadLocalOwner() = default;
 
         ~TThreadLocalOwner() {
+            OwnerAlive_ = false;
             auto current = EntrySet_.begin();
             while (current != EntrySet_.end()) {
                 auto prev = current++;
@@ -162,6 +163,10 @@ namespace NHp::NStructs {
 
     template <class TValue>
     void TThreadLocalList<TValue>::DetachThread() {
+        if (Y_UNLIKELY(!OwnerAlive_)) {
+            // Owner_'s destructor already ran and detached the thread
+            return;
+        }
         Owner_.Detach(this);
     }
 

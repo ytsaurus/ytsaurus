@@ -178,7 +178,7 @@ TError DoValidateMessageMeta(const TMessageMeta& meta, TStringBuf fieldPrefix)
             if (timestamp == InfinitySystemTimestamp) {
                 return TError("%v%v is infinity", fieldPrefix, field);
             }
-            return TError("%v%v is too large (Value: %v)", fieldPrefix, field, TInstant::Seconds(timestamp.Underlying()));
+            return TError("%v%v value %v is too large", fieldPrefix, field, TInstant::Seconds(timestamp.Underlying()));
         }
         return TError();
     };

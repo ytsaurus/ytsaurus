@@ -150,10 +150,9 @@ public:
         , Type_(ToString(TypeFromId(objectId)))
         , CellTag_(cellTag)
         , Logger(logger
-            .WithTag("ObjectId: %v, Type: %v, CacheSessionId: %v",
-                ObjectId_,
-                Type_,
-                TGuid::Create()))
+            .WithTag("ObjectId", ObjectId_)
+            .WithTag("Type", Type_)
+            .WithTag("CacheSessionId", TGuid::Create()))
     { }
 
     virtual TFuture<TCellTag> Run() = 0;

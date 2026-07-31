@@ -11,7 +11,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
 
-#include <yt/yt/flow/lib/serializer/state.h>
+#include <yt/yt/flow/library/cpp/serializer/state.h>
 
 namespace NYT::NFlow {
 

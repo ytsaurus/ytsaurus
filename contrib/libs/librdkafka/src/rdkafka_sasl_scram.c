@@ -54,9 +54,10 @@
  * @brief Per-connection state
  */
 struct rd_kafka_sasl_scram_state {
-        enum { RD_KAFKA_SASL_SCRAM_STATE_CLIENT_FIRST_MESSAGE,
-               RD_KAFKA_SASL_SCRAM_STATE_SERVER_FIRST_MESSAGE,
-               RD_KAFKA_SASL_SCRAM_STATE_CLIENT_FINAL_MESSAGE,
+        enum {
+                RD_KAFKA_SASL_SCRAM_STATE_CLIENT_FIRST_MESSAGE,
+                RD_KAFKA_SASL_SCRAM_STATE_SERVER_FIRST_MESSAGE,
+                RD_KAFKA_SASL_SCRAM_STATE_CLIENT_FINAL_MESSAGE,
         } state;
         rd_chariov_t cnonce;         /* client c-nonce */
         rd_chariov_t first_msg_bare; /* client-first-message-bare */

@@ -102,6 +102,7 @@ SRCS(
     chunk_server/chunk_replica_fetcher.cpp
     chunk_server/chunk_replica.cpp
     chunk_server/chunk_replicator.cpp
+    chunk_server/chunk_statistics.cpp
     chunk_server/chunk_replication_queue.cpp
     chunk_server/chunk_requisition.cpp
     chunk_server/chunk_scanner.cpp

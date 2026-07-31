@@ -16,8 +16,6 @@ void TChunkLocationConfigBase::ApplyDynamicInplace(const TChunkLocationDynamicCo
 
     UpdateYsonStructField(DiskHealthChecker, DiskHealthChecker->ApplyDynamic(*dynamicConfig.DiskHealthChecker));
 
-    UpdateYsonStructField(LegacyWriteMemoryLimit, dynamicConfig.LegacyWriteMemoryLimit);
-
     UpdateYsonStructField(ReadMemoryLimit, dynamicConfig.ReadMemoryLimit);
 
     UpdateYsonStructField(TotalMemoryLimit, dynamicConfig.TotalMemoryLimit);
@@ -53,10 +51,6 @@ void TChunkLocationConfigBase::Register(TRegistrar registrar)
 
     registrar.Parameter("reset_uuid", &TThis::ResetUuid)
         .Default(false);
-
-    registrar.Postprocessor([] (TThis* config) {
-        config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,10 +74,6 @@ void TChunkLocationDynamicConfigBase::Register(TRegistrar registrar)
 
     registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
         .Optional();
-
-    registrar.Postprocessor([] (TThis* config) {
-        config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

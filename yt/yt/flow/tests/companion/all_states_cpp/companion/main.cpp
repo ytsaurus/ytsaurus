@@ -1,0 +1,62 @@
+#include <yt/yt/flow/library/cpp/common/message.h>
+#include <yt/yt/flow/library/cpp/common/process_function.h>
+#include <yt/yt/flow/library/cpp/common/runtime_context.h>
+#include <yt/yt/flow/library/cpp/common/runtime_init_context.h>
+
+#include <yt/yt/flow/library/cpp/computation/simple_external_state_manager.h>
+
+#include <yt/yt/flow/library/cpp/companion/server/companion_main.h>
+#include <yt/yt/flow/library/cpp/companion/server/pipeline.h>
+
+namespace NYT::NFlow::NCompanionTest {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Counts words per key: increments the internal "word-state" counter, mirrors
+//! the count into the external state table, and emits the word downstream on
+//! its first occurrence (output uniqueness is asserted by the test).
+class TWordCountAllStatesFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        initContext->InitClient(Counter_, "word-state");
+        initContext->InitExternalStateClient(External_, "/word-state-external");
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        auto count = Counter_.GetState(message);
+        *count += 1;
+
+        auto external = External_.GetState(message->Key);
+        {
+            TPayloadBuilder builder(external->Schema);
+            builder.Set(*count, "count");
+            external->Payload = builder.Finish();
+        }
+
+        if (*count == 1) {
+            output->AddMessage(context->ConvertToOutputMessage(*message));
+        }
+    }
+
+private:
+    TMutableStateKeyClient<i64> Counter_;
+    TMutableStateKeyClient<TSimpleExternalState> External_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NCompanionTest
+
+int main(int argc, const char** argv)
+{
+    NYT::NFlow::NCompanionServer::TPipeline pipeline;
+    pipeline.AddTransform<NYT::NFlow::NCompanionTest::TWordCountAllStatesFunction>("counter");
+    return NYT::NFlow::NCompanionServer::RunCompanionMain(argc, argv, std::move(pipeline));
+}

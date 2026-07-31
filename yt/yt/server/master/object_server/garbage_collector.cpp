@@ -17,7 +17,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/range_formatters.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NObjectServer {
 
@@ -356,6 +357,13 @@ bool TGarbageCollector::IsEphemeralGhost(TObject* object) const
     VerifyPersistentStateRead();
 
     return EphemeralGhosts_.contains(object);
+}
+
+bool TGarbageCollector::IsWeakGhost(TObject* object) const
+{
+    VerifyPersistentStateRead();
+
+    return WeakGhosts_.contains(object->GetId());
 }
 
 void TGarbageCollector::RegisterRemovalAwaitingCellsSyncObject(TObject* object, const TCellTagSet& cellTags)

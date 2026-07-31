@@ -160,9 +160,9 @@ private:
             , RefreshPrimaryRevision_(refreshPrimaryRevision)
             , RefreshSecondaryRevision_(refreshSecondaryRevision)
             , IsPeriodicUpdate_(isPeriodicUpdate)
-            , Logger(logger.WithTag("Path: %v, CacheSessionId: %v",
-                Path_,
-                TGuid::Create()))
+            , Logger(logger
+                .WithTag("Path", Path_)
+                .WithTag("CacheSessionId", TGuid::Create()))
         { }
 
         TTableMountInfoPtr Run()

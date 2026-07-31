@@ -675,7 +675,7 @@ protected:
         chunkPoolOptions.RowBuffer = RowBuffer_;
         chunkPoolOptions.SortedJobOptions = jobOptions;
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
-        chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
+        chunkPoolOptions.Logger = Logger().WithTag("Name", "Root");
         chunkPoolOptions.StructuredLogger = ChunkPoolStructuredLogger()
             .WithStructuredTag("operation_id", OperationId_);
         chunkPoolOptions.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;

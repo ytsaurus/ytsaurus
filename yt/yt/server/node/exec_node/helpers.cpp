@@ -210,9 +210,10 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     auto attributeDictionaryPtr = ConvertToAttributes(NYson::TYsonString(getAttributesRsp->value()));
     const auto& attributes = *attributeDictionaryPtr;
 
-    auto [accessMethod, filesystem] = GetAccessMethodAndFilesystemFromStrings(
-        attributes.Find<std::string>("access_method").value_or(ToString(ELayerAccessMethod::Local)),
-        attributes.Find<std::string>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
+    auto accessMethod = attributes.Find<ELayerAccessMethod>("access_method").value_or(ELayerAccessMethod::Local);
+    auto filesystem = attributes.Find<ELayerFilesystem>("filesystem").value_or(ELayerFilesystem::Archive);
+
+    ValidateCompatibility(accessMethod, filesystem);
 
     // Create artifact key.
     TArtifactKey layerKey;

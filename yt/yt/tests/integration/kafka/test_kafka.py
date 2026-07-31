@@ -706,14 +706,15 @@ class TestKafkaProxy(KafkaProxyBase):
         wait(lambda: get("//tmp/queue/bar/@tablet_count_by_state/mounted") == 1)
 
     @authors("panesher")
-    def test_request_metrics(self):
+    @pytest.mark.parametrize("expected_kafka_error", [KafkaError.TOPIC_AUTHORIZATION_FAILED, KafkaError.UNKNOWN])
+    def test_request_metrics(self, expected_kafka_error):
         username = "u"
         create_user(username)
         token, _ = issue_token(username)
 
         self._create_cells()
 
-        queue_path = "primary://tmp/queue"
+        queue_path = f'primary:{self.create_queue_path("error")}'
 
         TestKafkaProxy._create_kafka_queue(queue_path)
 
@@ -723,7 +724,7 @@ class TestKafkaProxy(KafkaProxyBase):
 
         request_count = profiler.counter("kafka_proxy/requests/count")
         failed_request_count = profiler.counter("kafka_proxy/requests/failed_count")
-        error_count = profiler.counter(
+        authorization_error_count = profiler.counter(
             "kafka_proxy/requests/error_count",
             tags={"error_code": "topic_authorization_failed"})
         unknown_error_count = profiler.counter(
@@ -743,33 +744,43 @@ class TestKafkaProxy(KafkaProxyBase):
         wait(lambda: request_count.get_delta() > 0)
         wait(lambda: sum(bin["count"] for bin in request_time.get_bins()) > 0)
         assert failed_request_count.get_delta() == 0
-        assert error_count.get_delta() == 0
+        assert authorization_error_count.get_delta() == 0
+        assert unknown_error_count.get_delta() == 0
 
-        # No write permission.
-        set(f"{queue_path}/@inherit_acl", False)
+        if expected_kafka_error == KafkaError.TOPIC_AUTHORIZATION_FAILED:
+            set(f"{queue_path}/@inherit_acl", False)
+        elif expected_kafka_error == KafkaError.UNKNOWN:
+            sync_unmount_table(queue_path)
+        else:
+            assert False, "Invalid expected Kafka error"
 
-        p.produce(topic=queue_path,
-                  key=serializer("key_1"),
-                  value=serializer("value_1"),
-                  on_delivery=functools.partial(_check_error, KafkaError.TOPIC_AUTHORIZATION_FAILED))
-        p.flush()
+        def produce_fails_with_expected_error():
+            error = None
 
-        wait(lambda: failed_request_count.get_delta() > 0)
-        wait(lambda: error_count.get_delta() > 0)
+            def set_errror(err, msg):
+                nonlocal error
+                error = err
 
-        set(f"{queue_path}/@inherit_acl", True)
+            p.produce(
+                topic=queue_path,
+                key=serializer("key_1"),
+                value=serializer("value_1"),
+                on_delivery=set_errror,
+            )
+            p.flush()
 
-        sync_unmount_table(queue_path)
+            if error is not None:
+                return isinstance(error, KafkaError) and error.code() == expected_kafka_error
 
-        p.produce(topic=queue_path,
-                  key=serializer("key_2"),
-                  value=serializer("value_2"),
-                  on_delivery=functools.partial(_check_error, KafkaError.UNKNOWN))
-        p.flush()
+            if failed_request_count.get_delta() == 0:
+                return False
 
-        wait(lambda: unknown_error_count.get_delta() > 0)
+            if expected_kafka_error == KafkaError.TOPIC_AUTHORIZATION_FAILED:
+                return authorization_error_count.get_delta() > 0
+            elif expected_kafka_error == KafkaError.UNKNOWN:
+                return unknown_error_count.get_delta() > 0
 
-        sync_mount_table(queue_path)
+        wait(produce_fails_with_expected_error)
 
     @authors("panesher")
     @with_additional_threads

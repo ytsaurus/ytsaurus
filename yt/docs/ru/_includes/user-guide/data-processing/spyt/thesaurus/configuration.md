@@ -15,7 +15,7 @@
 | `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` до 1.75.2) | `true` | Запись таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1` | 1.75.3 |
 | `spark.yt.read.vectorized.capacity` | `1000` | Максимальное количество строк в батче при чтении через `wire` протокол | - |
 | `spark.yt.read.arrow.enabled` | `true` | Использовать `arrow` формат для чтения данных (если это возможно) | - |
-| `spark.hadoop.yt.timeout` | `300 seconds` | Таймаут на чтение из {{product-name}} | - |
+| `spark.hadoop.yt.timeout` | `30 seconds` | Таймаут на чтение из {{product-name}} | - |
 | `spark.yt.read.typeV3.enabled` (`spark.yt.read.parsingTypeV3.enabled` до 1.75.2) | `true` | Чтение таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1` | 1.75.3 |
 | `spark.yt.read.keyColumnsFilterPushdown.enabled` | `true` | Использовать фильтры Spark-запроса для выборочного чтения из {{product-name}} | - |
 | `spark.yt.read.keyColumnsFilterPushdown.union.enabled` | `false` | Объединять все фильтры в непрерывный диапазон при выборочном чтении | - |
@@ -40,6 +40,11 @@
 | `spark.yt.write.distributed.enabled` | `false` | Использовать распределенное API для записи данных в {{product-name}}. Данный способ позволяет уменьшить количество обращений к мастеру {{product-name}} при записи, но применим только к работе со статическими таблицами | 2.8.0 |
 | `spark.yt.read.ytOmitInaccessibleRows.enabled` | `true` | Пропускать строки, к которым нет доступа, вместо ошибки | 2.9.0 |
 | `spark.yt.read.ytOmitInaccessibleColumns.enabled` | `true` | Пропускать колонки, к которым нет доступа, вместо ошибки | 2.9.0 |
+| `spark.ytsaurus.throttling.maxConcurrency` | `100` | Максимальное количество одновременно выполняемых операций в {{product-name}}. Значение `0` снимает ограничение | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.requests.enabled` | `true` | Повторять запросы, отклонённые перегруженной прокси. Применяется к клиентам с фиксированным адресом прокси, в том числе к job proxy: клиенты с обнаружением прокси повторяют запросы и без этой опции. Повторяются ответы с кодами `RequestQueueSizeLimitExceeded`, `RpcRequestQueueSizeLimitExceeded` и `TooManyRequests`, а также сетевые таймауты и обрывы соединения, причём последние — без паузы. Повторяются только унарные запросы: чтение и запись данных идут потоком и не повторяются | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.maxRetries` | `3` | Сколько раз запрос повторяется после первой неудачной попытки | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.initialBackoff` | `3 seconds` | Пауза перед первым повтором | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.maxBackoff` | `30 seconds` | Верхняя граница паузы, которая удваивается после каждого повтора. Применяется только к коду `RequestQueueSizeLimitExceeded`, остальные повторяются через `initialBackoff` | 2.11.0 |
 
 {wide-content title="Основные опции"}
 

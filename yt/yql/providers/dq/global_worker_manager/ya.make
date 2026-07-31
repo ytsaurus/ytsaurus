@@ -1,28 +1,27 @@
 LIBRARY()
 
 PEERDIR(
-    yql/essentials/utils/failure_injector
-    yql/essentials/providers/common/config
-    yql/essentials/providers/common/gateway
-    yql/essentials/providers/common/metrics
     contrib/ydb/library/yql/providers/dq/actors
     contrib/ydb/library/yql/providers/dq/api/grpc
     contrib/ydb/library/yql/providers/dq/api/protos
-    contrib/ydb/library/yql/providers/dq/config
     contrib/ydb/library/yql/providers/dq/counters
     contrib/ydb/library/yql/providers/dq/runtime
     contrib/ydb/library/yql/providers/dq/task_runner
+    yql/essentials/providers/common/config
+    yql/essentials/providers/common/gateway
+    yql/essentials/providers/common/metrics
+    yql/essentials/utils/failure_injector
     yt/yql/providers/dq/actors
     yt/yql/providers/dq/actors/yt
+    yt/yql/providers/dq/config
     yt/yql/providers/dq/scheduler
-    contrib/ydb/library/yql/providers/dq/service
+    yt/yql/providers/dq/service
 )
 
 YQL_LAST_ABI_VERSION()
 
 SET(
     SOURCE
-    benchmark.cpp
     global_worker_manager.cpp
     service_node_pinger.cpp
     workers_storage.cpp
@@ -53,5 +52,8 @@ END()
 IF (NOT OPENSOURCE OR OPENSOURCE_PROJECT == "ydb")
     RECURSE_FOR_TESTS(
         ut
+    )
+    RECURSE(
+        benchmark
     )
 ENDIF()

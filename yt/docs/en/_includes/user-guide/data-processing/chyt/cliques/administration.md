@@ -13,7 +13,7 @@ This article describes how to administer your own clique and which manifestation
 
 Users are authenticated in CHYT in the same way as in {{product-name}} — using a token from {{product-name}} (for more information, see [Authentication](../../../../../user-guide/storage/auth.md)). CHYT checks permissions of two types.
 
-First, when accepting a query, the clique checks that the user under which the query is made has the permission to use the clique, which is due to the ACL for the operation in which the clique has been  started. For the user to be able to run queries in the clique, the `read` permissions are required. This check prevents you from using the computing resources of other cliques. The `manage` permissions still mean that you can control the operation, for example, stop the clique or suspend the clique instances.
+First, when accepting a query, the clique checks that the user under which the query is made has the permission to use the clique, which is due to the ACL for the operation in which the clique has been started. For the user to be able to run queries in the clique, the `read` permissions are required. This check prevents you from using the computing resources of other cliques. The `manage` permissions still mean that you can control the operation, for example, stop the clique or suspend the clique instances.
 
 For example, if an ACL of the following form was specified when the operation was started:
 
@@ -44,9 +44,9 @@ To change the ACL, use the `update_op_parameters` command (link?). To do this, y
 
    ![find_operation_by_alias](../../../../../../images/find_op_by_alias.png){ .center }
 
-2. Go to the operation page, copy `Id`.
+1. Go to the operation page, copy `Id`.
 
-3. Execute the command that completely replaces the operation acl. Insert `Id` from point 3.
+1. Execute the command that completely replaces the operation acl. Insert `Id` from point 3.
 
    ```bash
    yt --proxy <cluster_name> update-op-parameters --operation <operation_id> '{acl = [{subjects=[robot-1; robot-2; robot-3]; action=allow; permissions=[read]};{subjects=[<subject>]; action=allow; permissions=[read;manage]}]}'

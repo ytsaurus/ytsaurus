@@ -134,6 +134,8 @@ message TReqPutBlocks
     optional int64 cumulative_block_size = 9;
 
     optional int64 io_consumed = 10;
+
+    optional double io_fair_share_weight = 11;
 }
 
 message TPutBlocksStatistics
@@ -162,6 +164,8 @@ message TReqSendBlocks
     optional int64 cumulative_block_size = 6;
 
     optional int64 io_consumed = 7;
+
+    optional double io_fair_share_weight = 8;
 }
 
 message TRspSendBlocks
@@ -254,6 +258,8 @@ message TReqProbeBlockSet
     optional bool fetch_node_descriptors = 6 [default = false];
 
     optional int64 io_consumed = 7;
+
+    optional double io_fair_share_weight = 8;
 }
 
 message TRspProbeBlockSet
@@ -294,6 +300,8 @@ message TReqGetBlockSet
 
     optional int64 io_consumed = 17;
 
+    optional double io_fair_share_weight = 18;
+
     reserved 3, 4, 9;
 }
 
@@ -327,6 +335,8 @@ message TReqGetBlockRange
     optional TChunkReplicaSpec replica_spec = 7;
 
     optional int64 io_consumed = 8;
+
+    optional double io_fair_share_weight = 9;
 }
 
 message TRspGetBlockRange
@@ -427,6 +437,8 @@ message TReqLookupRows
 
     optional int64 io_consumed = 15;
 
+    optional double io_fair_share_weight = 16;
+
     // Lookup keys are passed via attachments.
 
     reserved 12;
@@ -489,6 +501,8 @@ message TReqGetChunkMeta
     optional TChunkReplicaSpec replica_spec = 10;
 
     optional int64 io_consumed = 11;
+
+    optional double io_fair_share_weight = 12;
 }
 
 message TRspGetChunkMeta

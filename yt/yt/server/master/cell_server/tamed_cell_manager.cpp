@@ -1544,7 +1544,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellarType = FromProto<ECellarType>(request->type());
-        auto Logger = CellServerLogger().WithTag("CellarType: %v", cellarType);
+        auto Logger = CellServerLogger().WithTag("CellarType", cellarType);
 
         // Various request helpers.
         auto requestCreateSlot = [&] (const TCellBase* cell) {

@@ -3,9 +3,9 @@
 #include "config.h"
 #include "pass_profiler.h"
 
-#include <yt/yt/ytlib/discovery_client/helpers.h>
-#include <yt/yt/ytlib/discovery_client/discovery_client.h>
-#include <yt/yt/ytlib/discovery_client/member_client.h>
+#include <yt/yt/library/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/discovery_client.h>
+#include <yt/yt/library/discovery_client/member_client.h>
 
 #include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
@@ -260,7 +260,7 @@ private:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgentShardingManager"));
 
-        auto Logger = QueueAgentShardingManagerLogger().WithTag("PassIndex: %v", PassIndex_);
+        auto Logger = QueueAgentShardingManagerLogger().WithTag("PassIndex", PassIndex_);
 
         YT_LOG_INFO("Pass started");
         auto logFinally = Finally([&] {

@@ -1,8 +1,0 @@
-package NKikimrCountersInfoProto;
-
-message TEvCountersInfoRequest {
-}
-
-message TEvCountersInfoResponse {
-    optional bytes Response = 1;
-}

@@ -78,7 +78,7 @@ TInstanceManager::TInstanceManager(
     , SpareInstanceAllocator_(std::move(spareInstanceAllocator))
     , Adapter_(adapter)
     , Mutations_(mutations)
-    , Logger(BundleControllerLogger().WithTag("Bundle: %v", BundleName_))
+    , Logger(BundleControllerLogger().WithTag("Bundle", BundleName_))
 { }
 
 void TInstanceManager::ManageInstances()
@@ -962,10 +962,7 @@ void TInstanceManager::InitNewDeallocations(
     auto instanceCountToDeallocate = std::ssize(aliveInstances) - targetInstanceCount;
     auto& deallocationsState = Adapter_->DeallocationsState();
 
-    std::vector<std::string> offlineInstances;
-    if (!Input_.Config->HasInstanceAllocatorService) {
-        offlineInstances = Adapter_->GetOfflineInstances(Input_, dataCenterName);
-    }
+    auto offlineInstances = Adapter_->GetOfflineInstancesToDeallocate(Input_, dataCenterName);
 
     if (instanceCountToDeallocate <= 0 && offlineInstances.empty()) {
         return;

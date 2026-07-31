@@ -102,6 +102,8 @@ private:
 
     void GetSelf(TReqGet* /*request*/, TRspGet* response, const TCtxGetPtr& context) override
     {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
         const auto* schema = GetThisImpl();
 
         const auto& tableManager = Bootstrap_->GetTableManager();

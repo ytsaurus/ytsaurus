@@ -54,11 +54,12 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NQueryClient {
 
@@ -785,6 +786,13 @@ private:
             &sdk,
             options);
 
+        auto executePlanCallback = GetExecutePlanCallback(
+            externalCGInfo,
+            options,
+            requestFeatureFlags);
+
+        auto topQuerySubqueryResults = New<TMpscStack<TQueryStatistics>>();
+
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(query);
 
         int splitCount = std::ssize(groupedDataSplits);
@@ -839,11 +847,20 @@ private:
                 TFuture<TFeatureFlags> responseFeatureFlags) -> TQueryStatistics
             {
                 YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", frontQuery->Id);
+
+                auto joinProfilerRegistry = TJoinProfilerRegistry(
+                    executePlanCallback,
+                    [topQuerySubqueryResults] (TQueryStatistics statistics) mutable {
+                        topQuerySubqueryResults->Enqueue(std::move(statistics));
+                    },
+                    MemoryChunkProvider_,
+                    Logger);
+
                 return Evaluator_->Run(
                     frontQuery,
                     reader,
                     writer,
-                    TJoinProfilerRegistry({}, {}, MemoryChunkProvider_, Logger),
+                    joinProfilerRegistry,
                     functionGenerators,
                     aggregateGenerators,
                     sdk,
@@ -922,6 +939,11 @@ private:
                     evaluateBottom,
                     getEvaluateTop(frontQuery),
                     subplanHolders);
+            }
+
+            TQueryStatistics dequeuedTopSubqueryStatistics;
+            while (topQuerySubqueryResults->TryDequeue(&dequeuedTopSubqueryStatistics)) {
+                statistics.AddInnerStatistics(std::move(dequeuedTopSubqueryStatistics));
             }
 
             if (TQueryStatistics::IsDepthAggregate(options.StatisticsAggregation)) {

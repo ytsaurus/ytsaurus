@@ -137,6 +137,10 @@ private:
     const NLogging::TLogger Logger;
     const NProfiling::TGauge ListedSizeGauge_;
     const NProfiling::TCounter ReaderOpensCounter_;
+    //! 1 while the source is gated after a failed read, 0 while it is readable.
+    const NProfiling::TGauge SourceUnavailableGauge_;
+    //! Failed source reads; the immediate resolves served from the gate do not count.
+    const NProfiling::TCounter FailedReadsCounter_;
 
     TInstant NextAttemptTime_;
     TError LastSourceError_;

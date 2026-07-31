@@ -1,0 +1,8 @@
+self-hosted-runner:
+  labels:
+    - trampoline
+
+paths:
+  ".github/workflows/*.yaml":
+    ignore:
+      - "invalid for branch and tag names"

@@ -413,7 +413,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
         originatingNode->SnapshotStatistics() = branchedNode->SnapshotStatistics();
         *originatingNode->MutableDeltaStatistics() = branchedNode->DeltaStatistics();
-        originatingNode->ChunkMergerTraversalInfo() = {};
+        if (originatingNode->HasChunkMergerInfo()) {
+            originatingNode->MutableChunkMergerInfo()->TraversalInfo = {};
+        }
     } else {
         YT_VERIFY(branchedMode == EUpdateMode::Append);
 

@@ -88,6 +88,11 @@ void rd_kafka_transport_set_blocked(rd_kafka_transport_t *rktrans,
         } while (0)
 #endif
 
+static RD_INLINE RD_UNUSED rd_bool_t
+rd_kafka_transport_error_disconnected(const char *errstr) {
+        return strncmp(errstr, "Disconnected", 12) == 0;
+}
+
 
 void rd_kafka_transport_init(void);
 

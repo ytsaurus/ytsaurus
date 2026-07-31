@@ -1,3 +1,4 @@
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 #include <yt/yt/flow/library/cpp/controller/controller.h>
 #include <yt/yt/flow/library/cpp/controller/controller_service.h>
 #include <yt/yt/flow/library/cpp/controller/flow_executor.h>
@@ -15,11 +16,12 @@
 
 #include <yt/yt/client/cache/cache.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/unittests/mock/client.h>
 #include <yt/yt/client/unittests/mock/timestamp_provider.h>
 #include <yt/yt/client/unittests/mock/transaction.h>
 
-#include <yt/yt/flow/lib/client/controller/controller_service_proxy.h>
+#include <yt/yt/flow/library/cpp/client/controller/controller_service_proxy.h>
 
 #include <yt/yt/core/actions/invoker_util.h>
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
@@ -172,6 +174,8 @@ class TControllerTest
     : public ::testing::Test
 {
 public:
+    static constexpr ui64 InitialClockUnixTime = 1'000'000;
+
     void Prepare()
     {
         EXPECT_CALL(*YTConnector, SubscribeLeadingStarted(_))
@@ -261,8 +265,13 @@ public:
             .WillRepeatedly(Return(MakeFuture<NApi::ITransactionPtr>(transaction)));
         auto client = New<StrictMock<NApi::TMockClient>>();
         auto timestampProvider = New<StrictMock<NTransactionClient::TMockTimestampProvider>>();
+        auto currentTimestamp = std::make_shared<std::atomic<NTransactionClient::TTimestamp>>(
+            NTransactionClient::TimestampFromUnixTime(InitialClockUnixTime));
         EXPECT_CALL(*timestampProvider, GenerateTimestamps(_, _))
-            .WillRepeatedly(Return(MakeFuture<NTransactionClient::TTimestamp>(0)));
+            .WillRepeatedly([currentTimestamp] (int count, NObjectClient::TCellTag /*clockClusterTag*/) {
+                return MakeFuture<NTransactionClient::TTimestamp>(currentTimestamp->fetch_add(
+                    static_cast<NTransactionClient::TTimestamp>(count) << NTransactionClient::TimestampCounterWidth));
+            });
         client->SetTimestampProvider(timestampProvider);
         EXPECT_CALL(*client, AttachTransaction(_, _))
             .WillRepeatedly(Return(NApi::ITransactionPtr(transaction)));
@@ -302,7 +311,8 @@ public:
                 Y_UNUSED(Controller->GetFlowViewKeeper()->GetFlowView());
                 break;
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Still wait until controller starts leading");
+                YT_TLOG_INFO("Still wait until controller starts leading")
+                    .With(ex);
                 NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
             }
         }
@@ -344,7 +354,7 @@ public:
             authenticator,
             /*ignoreSingletonsDynamicConfig*/ false,
             /*clockClusterTag*/ NObjectClient::InvalidCellTag,
-            CreateStatusProfiler());
+            CreateSyncStatusProfiler());
 
         LocalServer = NRpc::CreateLocalServer();
 
@@ -354,7 +364,7 @@ public:
             YTConnector,
             New<TControllerServiceConfig>(),
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
         const auto service = CreateControllerService(
             flowExecutor,
@@ -395,7 +405,7 @@ public:
 TEST_F(TControllerTest, WaitPersist)
 {
     Prepare();
-    YT_LOG_INFO("Start");
+    YT_TLOG_INFO("Start");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -417,7 +427,7 @@ TEST_F(TControllerTest, WaitPersist)
             // Just random option.
             setReq->set_spec(R"({"controller_connector"={"controller_wait_timeout"=1234;};})");
             auto setRsp = WaitFor(setReq->Invoke()).ValueOrThrow();
-            ASSERT_EQ(getRsp->version() + 1, setRsp->version());
+            ASSERT_GT(setRsp->version(), getRsp->version());
 
             auto getDynamicVersion = [state = PersistedStateManagerLocalState] {
                 auto guard = Guard(state->Lock);
@@ -426,7 +436,7 @@ TEST_F(TControllerTest, WaitPersist)
 
             NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
             while (getDynamicVersion() != setRsp->version()) {
-                YT_LOG_INFO("Still wait until update of dynamic spec will be available in flow view.");
+                YT_TLOG_INFO("Still wait until update of dynamic spec will be available in flow view.");
                 NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
             }
         }
@@ -451,7 +461,7 @@ TEST_F(TControllerTest, WaitPersist)
                     // Just random option.
                     setReq->set_spec(R"({"binary_version"="random_version";})");
                     auto setRsp = WaitFor(setReq->Invoke()).ValueOrThrow();
-                    ASSERT_EQ(getRsp->version() + 1, setRsp->version());
+                    ASSERT_GT(setRsp->version(), getRsp->version());
                     targetVersion = setRsp->version();
                     return;
                 } catch (const TErrorException& exception) {
@@ -469,7 +479,7 @@ TEST_F(TControllerTest, WaitPersist)
 
             NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
             while (getVersion() != targetVersion) {
-                YT_LOG_INFO("Still wait until update of spec will be available in flow view.");
+                YT_TLOG_INFO("Still wait until update of spec will be available in flow view.");
                 NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
             }
         }
@@ -495,7 +505,7 @@ TEST_F(TControllerTest, RecoverFlowCoreTargetIsReloadedOnEachIteration)
             return New<TVersionedFlowCoreTarget>();
         });
 
-    YT_LOG_INFO("Start RecoverFlowCoreTargetIsReloadedOnEachIteration");
+    YT_TLOG_INFO("Start RecoverFlowCoreTargetIsReloadedOnEachIteration");
 
     ExecuteViaControlQueue([&] {
         StartLeading();
@@ -525,11 +535,11 @@ TEST_F(TControllerTest, SetSpecFailsWhenFlowCoreTargetMismatches)
     EXPECT_CALL(*PersistedStateManager, RecoverFlowCoreTarget())
         .WillRepeatedly([] {
             auto target = New<TVersionedFlowCoreTarget>();
-            target->SetValue(TFlowCoreTarget(std::string("mismatch_version")));
+            target->TrySetValue(TFlowCoreTarget(std::string("mismatch_version")), TestVersionProvider());
             return target;
         });
 
-    YT_LOG_INFO("Start SetSpecFailsWhenFlowCoreTargetMismatches");
+    YT_TLOG_INFO("Start SetSpecFailsWhenFlowCoreTargetMismatches");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -572,7 +582,7 @@ TEST_F(TControllerTest, SetSpecDoesNotRetryOnFlowCoreTargetMismatch)
 
     Prepare();
 
-    YT_LOG_INFO("Start SetSpecDoesNotRetryOnFlowCoreTargetMismatch");
+    YT_TLOG_INFO("Start SetSpecDoesNotRetryOnFlowCoreTargetMismatch");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -599,7 +609,7 @@ TEST_F(TControllerTest, SetSpecDoesNotRetryOnFlowCoreTargetMismatch)
             .WillRepeatedly([recoverFlowCoreTargetCallCount] {
                 recoverFlowCoreTargetCallCount->fetch_add(1);
                 auto target = New<TVersionedFlowCoreTarget>();
-                target->SetValue(TFlowCoreTarget(std::string("mismatch_version")));
+                target->TrySetValue(TFlowCoreTarget(std::string("mismatch_version")), TestVersionProvider());
                 return target;
             });
 
@@ -615,7 +625,7 @@ TEST_F(TControllerTest, SetSpecDoesNotRetryOnFlowCoreTargetMismatch)
             YTConnector,
             serviceConfig,
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
 
         TSetPipelineSpecsArg arg;
@@ -642,13 +652,73 @@ TEST_F(TControllerTest, SetSpecDoesNotRetryOnFlowCoreTargetMismatch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// A spec write lands in persisted state and the keeper's CurrentSpec, but the controller
+// ingests it into ExecutionSpec only on a scheduler iteration; until then the flow view is
+// desynced and the true pipeline state is unobservable. A new spec must be rejected in this
+// window, while an identical retry (e.g. the runner re-sending after a lost ack) must stay
+// a successful no-op.
+TEST_F(TControllerTest, SetSpecOnDesyncedFlowView)
+{
+    // Keep the flow view permanently desynced after the first spec write: the keeper is
+    // initialized before the warm-up sleep, so no scheduler iteration ever ingests specs.
+    ControllerConfig->WarmUpTime = TDuration::Hours(1);
+
+    Prepare();
+
+    YT_TLOG_INFO("Start SetSpecOnDesyncedFlowView");
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+
+        ASSERT_TRUE(Controller->GetFlowViewKeeper()->GetFlowView()->IsSynced());
+
+        constexpr TStringBuf firstSpec = R"({"binary_version"="first_version";})";
+
+        i64 firstVersion = -1;
+        {
+            // First-time spec set: the view is synced and the pipeline state is Unknown.
+            auto setReq = ControllerServiceProxy->SetSpec();
+            setReq->set_spec(std::string(firstSpec));
+            auto setRsp = WaitFor(setReq->Invoke()).ValueOrThrow();
+            firstVersion = setRsp->version();
+        }
+
+        ASSERT_FALSE(Controller->GetFlowViewKeeper()->GetFlowView()->IsSynced());
+
+        {
+            // Identical retry: short-circuits on no version change before the gate.
+            auto setReq = ControllerServiceProxy->SetSpec();
+            setReq->set_expected_version(firstVersion);
+            setReq->set_spec(std::string(firstSpec));
+            auto setRsp = WaitFor(setReq->Invoke()).ValueOrThrow();
+            ASSERT_EQ(setRsp->version(), firstVersion);
+        }
+
+        {
+            // A different spec must not pass while the controller has not ingested the
+            // previous one: the true pipeline state is unknown and may be Working.
+            auto setReq = ControllerServiceProxy->SetSpec();
+            setReq->set_expected_version(firstVersion);
+            setReq->set_spec(R"({"binary_version"="second_version";})");
+            auto setResult = WaitFor(setReq->Invoke());
+
+            ASSERT_FALSE(setResult.IsOK());
+            EXPECT_THAT(ToString(setResult), ::testing::HasSubstr("FlowView is not synced"));
+        }
+
+        StopLeading();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TControllerTest, WorkerExcludedFromSchedulingWhenFlowCoreTargetMismatches)
 {
     ControllerConfig->WarmUpTime = TDuration::MilliSeconds(10);
     ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
 
     // Set FlowCoreTarget to the controller's own binary checksum.
-    PersistedStateManagerLocalState->FlowCoreTarget->SetValue(TFlowCoreTarget(GetBinaryChecksum()));
+    PersistedStateManagerLocalState->FlowCoreTarget->TrySetValue(TFlowCoreTarget(GetBinaryChecksum()), TestVersionProvider());
 
     Prepare();
 
@@ -668,7 +738,7 @@ TEST_F(TControllerTest, WorkerExcludedFromSchedulingWhenFlowCoreTargetMismatches
     EXPECT_CALL(*WorkerTracker, GetWorkers())
         .WillRepeatedly(Return(std::vector<TWorkerInfo>{matchingWorker, mismatchingWorker}));
 
-    YT_LOG_INFO("Start WorkerExcludedFromSchedulingWhenFlowCoreTargetMismatches");
+    YT_TLOG_INFO("Start WorkerExcludedFromSchedulingWhenFlowCoreTargetMismatches");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -725,7 +795,7 @@ TEST_F(TControllerTest, WorkerIncludedWhenFlowCoreTargetEmpty)
     EXPECT_CALL(*WorkerTracker, GetWorkers())
         .WillRepeatedly(Return(std::vector<TWorkerInfo>{worker1, worker2}));
 
-    YT_LOG_INFO("Start WorkerIncludedWhenFlowCoreTargetEmpty");
+    YT_TLOG_INFO("Start WorkerIncludedWhenFlowCoreTargetEmpty");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -758,7 +828,7 @@ TEST_F(TControllerTest, WorkerWithEmptyFlowCoreVersionExcludedWhenTargetSet)
     ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
 
     // Set FlowCoreTarget to a specific value.
-    PersistedStateManagerLocalState->FlowCoreTarget->SetValue(TFlowCoreTarget(GetBinaryChecksum()));
+    PersistedStateManagerLocalState->FlowCoreTarget->TrySetValue(TFlowCoreTarget(GetBinaryChecksum()), TestVersionProvider());
 
     Prepare();
 
@@ -772,7 +842,7 @@ TEST_F(TControllerTest, WorkerWithEmptyFlowCoreVersionExcludedWhenTargetSet)
     EXPECT_CALL(*WorkerTracker, GetWorkers())
         .WillRepeatedly(Return(std::vector<TWorkerInfo>{oldWorker}));
 
-    YT_LOG_INFO("Start WorkerWithEmptyFlowCoreVersionExcludedWhenTargetSet");
+    YT_TLOG_INFO("Start WorkerWithEmptyFlowCoreVersionExcludedWhenTargetSet");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -814,10 +884,6 @@ class TFlowCoreTargetMismatchTest
     , public ::testing::WithParamInterface<TFlowCoreTargetMismatchTestParam>
 { };
 
-// Simulates a controller restart where the persisted FlowCoreTarget does not
-// match the running binary's FlowCoreVersion. The mismatch is seeded into the
-// persistent state BEFORE leadership starts, so the very first scheduling
-// iteration observes the mismatch and force-pauses the pipeline.
 TEST_P(TFlowCoreTargetMismatchTest, PipelineIsPausedOnMismatch)
 {
     const auto& param = GetParam();
@@ -827,20 +893,20 @@ TEST_P(TFlowCoreTargetMismatchTest, PipelineIsPausedOnMismatch)
 
     Prepare();
 
-    // Persist the initial PipelineState and TargetState before the controller starts leading.
+    auto versionProvider = New<TFakeVersionProvider>(InitialClockUnixTime - 1);
+
     PersistedStateManagerLocalState->FlowView->State->ExecutionSpec
-        ->PipelineState->SetValue(param.PipelineState);
+        ->PipelineState->TrySetValue(param.PipelineState, versionProvider);
     auto dynamicSpec = New<TDynamicPipelineSpec>();
     dynamicSpec->TargetState = param.TargetState;
-    PersistedStateManagerLocalState->DynamicSpec->SetValue(dynamicSpec);
+    PersistedStateManagerLocalState->DynamicSpec->TrySetValue(dynamicSpec, versionProvider);
 
-    // Seed a FlowCoreTarget that does not match the controller's FlowCoreVersion.
     PersistedStateManagerLocalState->FlowCoreTarget
-        ->SetValue(TFlowCoreTarget(std::string("mismatch_version")));
+        ->TrySetValue(TFlowCoreTarget(std::string("mismatch_version")), versionProvider);
 
-    YT_LOG_INFO("Start PipelineIsPausedOnMismatch (PipelineState: %v, TargetState: %v)",
-        param.PipelineState,
-        param.TargetState);
+    YT_TLOG_INFO("Start PipelineIsPausedOnMismatch")
+        .With("PipelineState", param.PipelineState)
+        .With("TargetState", param.TargetState);
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -851,7 +917,8 @@ TEST_P(TFlowCoreTargetMismatchTest, PipelineIsPausedOnMismatch)
         };
 
         while (getPipelineState() != EPipelineState::Paused) {
-            YT_LOG_INFO("Waiting for pipeline to reach Paused after mismatch (CurrentState: %v)", getPipelineState());
+            YT_TLOG_INFO("Waiting for pipeline to reach Paused after mismatch")
+                .With("CurrentState", getPipelineState());
             NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
         }
 
@@ -921,11 +988,11 @@ TEST(TControllerHelpersTest, SyncTraverseDataWithSpec)
 
 
     auto flowView = New<TFlowView>();
-    flowView->CurrentSpec->SetValue(spec);
-    flowView->CurrentDynamicSpec->SetValue(dynamicSpec);
-    flowView->State->ExecutionSpec->PipelineSpec->SetValue(spec);
-    flowView->State->ExecutionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(spec));
-    flowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(dynamicSpec);
+    flowView->CurrentSpec->TrySetValue(spec, TestVersionProvider());
+    flowView->CurrentDynamicSpec->TrySetValue(dynamicSpec, TestVersionProvider());
+    flowView->State->ExecutionSpec->PipelineSpec->TrySetValue(spec, TestVersionProvider());
+    flowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(spec), TestVersionProvider());
+    flowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(dynamicSpec, TestVersionProvider());
     flowView->State->CurrentTimestamp = TSystemTimestamp(10);
 
     SyncTraverseDataWithSpec(flowView);
@@ -945,7 +1012,7 @@ TEST(TControllerHelpersTest, SyncTraverseDataWithSpec)
         {TStreamId("prepared"), createStreamSpec()},
     };
 
-    flowView->State->ExecutionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(spec));
+    flowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(spec), TestVersionProvider());
     flowView->State->CurrentTimestamp = TSystemTimestamp(40);
 
     SyncTraverseDataWithSpec(flowView);
@@ -972,7 +1039,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetFailsOnSpecVersionMismatch)
                 "Spec version mismatch (simulated)");
         });
 
-    YT_LOG_INFO("Start SetFlowCoreTargetFailsOnSpecVersionMismatch");
+    YT_TLOG_INFO("Start SetFlowCoreTargetFailsOnSpecVersionMismatch");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -986,7 +1053,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetFailsOnSpecVersionMismatch)
             YTConnector,
             New<TControllerServiceConfig>(),
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
 
         EXPECT_THROW_WITH_ERROR_CODE(
@@ -1013,7 +1080,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetFailsOnFlowCoreTargetVersionMismatch)
                 "Flow core target mismatches");
         });
 
-    YT_LOG_INFO("Start SetFlowCoreTargetFailsOnFlowCoreTargetVersionMismatch");
+    YT_TLOG_INFO("Start SetFlowCoreTargetFailsOnFlowCoreTargetVersionMismatch");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -1027,7 +1094,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetFailsOnFlowCoreTargetVersionMismatch)
             YTConnector,
             New<TControllerServiceConfig>(),
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
 
         EXPECT_THROW_WITH_ERROR_CODE(
@@ -1061,7 +1128,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetIsIdempotentForSameValue)
                 persistCallCount->fetch_add(1);
             });
 
-    YT_LOG_INFO("Start SetFlowCoreTargetIsIdempotentForSameValue");
+    YT_TLOG_INFO("Start SetFlowCoreTargetIsIdempotentForSameValue");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -1072,7 +1139,7 @@ TEST_F(TControllerTest, SetFlowCoreTargetIsIdempotentForSameValue)
             YTConnector,
             New<TControllerServiceConfig>(),
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
 
         TSetFlowCoreTargetArg arg;
@@ -1115,11 +1182,11 @@ TEST_F(TControllerTest, StartPipelineFailsOnFlowCoreTargetMismatch)
     EXPECT_CALL(*PersistedStateManager, RecoverFlowCoreTarget())
         .WillRepeatedly([] {
             auto target = New<TVersionedFlowCoreTarget>();
-            target->SetValue(TFlowCoreTarget(std::string("mismatch_version")));
+            target->TrySetValue(TFlowCoreTarget(std::string("mismatch_version")), TestVersionProvider());
             return target;
         });
 
-    YT_LOG_INFO("Start StartPipelineFailsOnFlowCoreTargetMismatch");
+    YT_TLOG_INFO("Start StartPipelineFailsOnFlowCoreTargetMismatch");
 
     ExecuteViaControlQueue([&] {
         StartLeadingAndWaitReady();
@@ -1130,7 +1197,7 @@ TEST_F(TControllerTest, StartPipelineFailsOnFlowCoreTargetMismatch)
             YTConnector,
             New<TControllerServiceConfig>(),
             /*orchidRoot*/ nullptr,
-            CreateStatusProfiler(),
+            CreateSyncStatusProfiler(),
             GetSyncInvoker());
 
         TSetTargetPipelineStateArg arg;

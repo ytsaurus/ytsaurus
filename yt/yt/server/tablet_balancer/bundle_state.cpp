@@ -417,10 +417,10 @@ void CheckBundleSnapshotInvariants(const TBundleSnapshotPtr& bundleSnapshot)
     THashSet<TTabletId> tabletIdsFromTabletCells;
 
     auto Logger = TabletBalancerLogger()
-        .WithTag("BundleName: %v", bundleSnapshot->Bundle->Name)
-        .WithTag("StateFetchTime: %v", bundleSnapshot->StateFetchTime)
-        .WithTag("StatisticsFetchTime: %v", bundleSnapshot->StatisticsFetchTime)
-        .WithTag("PerformanceCountersFetchTime: %v", bundleSnapshot->PerformanceCountersFetchTime);
+        .WithTag("BundleName", bundleSnapshot->Bundle->Name)
+        .WithTag("StateFetchTime", bundleSnapshot->StateFetchTime)
+        .WithTag("StatisticsFetchTime", bundleSnapshot->StatisticsFetchTime)
+        .WithTag("PerformanceCountersFetchTime", bundleSnapshot->PerformanceCountersFetchTime);
 
     YT_LOG_FATAL_UNLESS(
         bundleSnapshot->Bundle->Config,
@@ -790,7 +790,7 @@ TBundleState::TBundleState(
     IClusterStateProviderPtr clusterStateProvider,
     IMulticellThrottlerPtr throttler,
     const IAttributeDictionary* initialAttributes)
-    : Logger(TabletBalancerLogger().WithTag("BundleName: %v", name))
+    : Logger(TabletBalancerLogger().WithTag("BundleName", name))
     , Profiler_(TabletBalancerProfiler().WithTag("tablet_cell_bundle", name))
     , Name_(std::move(name))
     , Client_(bootstrap->GetClient())

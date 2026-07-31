@@ -19,8 +19,8 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/discovery_client/member_client.h>
-#include <yt/yt/ytlib/discovery_client/discovery_client.h>
+#include <yt/yt/library/discovery_client/member_client.h>
+#include <yt/yt/library/discovery_client/discovery_client.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>

@@ -859,6 +859,26 @@ std::string InferName(TConstBaseQueryPtr query, const TInferNameOptions& options
         }
     }
 
+    if (auto derivedQuery = dynamic_cast<const TQuery*>(query.Get())) {
+        for (const auto& hierarchicalJoin : derivedQuery->HierarchicalJoinsAfterGroupBy) {
+            clauses.push_back(Format(
+                "%v HIERARCHICAL JOIN AFTER GROUP BY [result: %v, keys: %v, subquery: %v]",
+                hierarchicalJoin->IsLeft ? "LEFT" : "INNER",
+                hierarchicalJoin->ResultColumnName,
+                InferName(hierarchicalJoin->SelfSideJoinKeys, options),
+                InferName(hierarchicalJoin->JoiningSubquery, options)));
+        }
+    } else if (auto derivedQuery = dynamic_cast<const TFrontQuery*>(query.Get())) {
+        for (const auto& hierarchicalJoin : derivedQuery->HierarchicalJoinsAfterGroupBy) {
+            clauses.push_back(Format(
+                "%v HIERARCHICAL JOIN AFTER GROUP BY [result: %v, keys: %v, subquery: %v]",
+                hierarchicalJoin->IsLeft ? "LEFT" : "INNER",
+                hierarchicalJoin->ResultColumnName,
+                InferName(hierarchicalJoin->SelfSideJoinKeys, options),
+                InferName(hierarchicalJoin->JoiningSubquery, options)));
+        }
+    }
+
     if (query->OrderClause) {
         clauses.push_back(std::string("ORDER BY ") + JoinToString(query->OrderClause->OrderItems, orderItemFormatter));
     }

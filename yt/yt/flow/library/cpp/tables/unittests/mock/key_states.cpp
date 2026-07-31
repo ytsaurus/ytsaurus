@@ -2,7 +2,7 @@
 
 #include <yt/yt/flow/library/cpp/tables/state.h>
 
-#include <yt/yt/flow/lib/serializer/state.h>
+#include <yt/yt/flow/library/cpp/serializer/state.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>

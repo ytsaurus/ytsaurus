@@ -160,9 +160,8 @@ public:
         , PivotKey_(tablet->GetPivotKey())
         , NextPivotKey_(tablet->GetNextPivotKey())
         , Logger(TabletNodeLogger()
-            .WithTag("%v, UpstreamReplicaId: %v",
-                tablet->GetLoggingTag(),
-                ReplicaId_))
+            .WithTags(tablet->GetLoggingTags())
+            .WithTag("UpstreamReplicaId", ReplicaId_))
         , ReplicationThrottler_(CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger))
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeInThrottler),
@@ -651,12 +650,15 @@ private:
             const auto& progress = result.ReplicationProgress;
             const auto& nameTable = result.Rowset->GetNameTable();
 
+            bool updateProgress = !IsReplicationProgressGreaterOrEqual(*replicationProgress, progress);
+
             YT_LOG_DEBUG("Pulled rows "
-                "(RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplicationRowIndexes: %v, "
+                "(RowCount: %v, DataWeight: %v, NewProgress: %v, UpdateProgress: %v, EndReplicationRowIndexes: %v, "
                 "ThrottleTime: %v, RelativeThrottleTime: %v)",
                 rowCount,
                 dataWeight,
                 progress,
+                updateProgress,
                 endReplicationRowIndexes,
                 throttlingTimes.ThrottleTime,
                 throttlingTimes.RelativeThrottleTime);
@@ -745,7 +747,10 @@ private:
                         << HardErrorAttribute;
                 }
 
-                if (MountConfig_->ValidateRowIndexInChaosReplication && !endReplicationRowIndexes.empty()) {
+                if (MountConfig_->ValidateRowIndexInChaosReplication &&
+                    updateProgress &&
+                    !endReplicationRowIndexes.empty())
+                {
                     i64 currentRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
                     i64 endReplicationRowIndex = endReplicationRowIndexes.begin()->second;
                     if (currentRowCount + rowCount != endReplicationRowIndex) {
@@ -769,13 +774,13 @@ private:
                 }
             }
 
-            // Update progress even if no rows pulled.
-            if (IsReplicationProgressGreaterOrEqual(*replicationProgress, progress)) {
+            if (!updateProgress) {
                 YT_VERIFY(resultRows.empty());
                 UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
                 return;
             }
 
+            // Newer progress must be set even there are no rows to write.
             {
                 TEventTimerGuard timerGuard(counters->WriteTime);
 

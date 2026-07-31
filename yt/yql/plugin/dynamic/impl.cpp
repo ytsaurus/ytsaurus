@@ -1,6 +1,8 @@
 #include <yt/yql/plugin/bridge/interface.h>
 #include <yt/yql/plugin/native/plugin.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <type_traits>
 
 using namespace NYT::NYqlPlugin;
@@ -48,7 +50,6 @@ TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOpt
         .OperationAttributes = TYsonString(TStringBuf(bridgeOptions->OperationAttributes, bridgeOptions->OperationAttributesLength)),
         .Libraries = libraries,
         .YTTokenPath = TString(bridgeOptions->YTTokenPath),
-        .MaxYqlLangVersion = bridgeOptions->MaxYqlLangVersion,
         .StartDqManager = bridgeOptions->StartDqManager,
     };
     options.LogBackend = std::move(*reinterpret_cast<THolder<TLogBackend>*>(bridgeOptions->LogBackend));
@@ -85,11 +86,10 @@ void BridgeFreeQueryResult(TBridgeQueryResult* result)
     delete result;
 }
 
-void BridgeOnDynamicConfigChanged(TBridgeYqlPlugin* plugin, const /*TYqlPluginDynamicConfig*/ void* config)
+void BridgeOnDynamicConfigChanged(TBridgeYqlPlugin* /*plugin*/, const /*TYqlPluginDynamicConfig*/ void* /*config*/)
 {
-    auto* nativePlugin = reinterpret_cast<IYqlPlugin*>(plugin);
-    auto* nativeConfig = reinterpret_cast<const TYqlPluginDynamicConfig*>(config);
-    nativePlugin->OnDynamicConfigChanged(*nativeConfig);
+    // Dynamic linking for YQL plugin is deprecated
+    Y_UNREACHABLE();
 }
 
 void FillString(const char*& str, ssize_t& strLength, const std::optional<TString>& original)
@@ -160,7 +160,8 @@ TBridgeQueryResult* BridgeRun(
     int bridgeFileCount,
     int executeMode,
     const char* credentials,
-    int credentialsLength)
+    int credentialsLength,
+    int queryType)
 {
     static const auto EmptyMap = TYsonString(TString("{}"));
 
@@ -184,7 +185,8 @@ TBridgeQueryResult* BridgeRun(
         TString(queryText),
         settings ? TYsonString(TString(settings, settingsLength)) : EmptyMap,
         files,
-        executeMode);
+        executeMode,
+        NYT::FromProto<NYT::NYqlClient::EQueryType>(queryType));
     FOR_EACH_QUERY_RESULT_STRING_FIELD(FILL_STRING_FIELD);
 
     return bridgeResult;

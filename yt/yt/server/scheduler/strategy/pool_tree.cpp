@@ -295,7 +295,7 @@ public:
         , ConfigNode_(ConvertToNode(Config_))
         , ControllerConfig_(std::move(controllerConfig))
         , TreeId_(std::move(treeId))
-        , Logger(StrategyLogger().WithTag("TreeId: %v", TreeId_))
+        , Logger(StrategyLogger().WithTag("TreeId", TreeId_))
         , Host_(host)
         , StrategyHost_(strategyHost)
         , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
@@ -1084,7 +1084,7 @@ public:
         }
 
         result->SchedulingPolicyState = SchedulingPolicy_->BuildPersistentState();
-        result->GpuSchedulingPolicyState = DryRunGpuSchedulingPolicy_->BuildPersistentState();
+        result->DryRunGpuSchedulingPolicyState = DryRunGpuSchedulingPolicy_->BuildPersistentState();
 
         return result;
     }
@@ -1111,7 +1111,7 @@ public:
         }
 
         SchedulingPolicy_->InitPersistentState(persistentState->SchedulingPolicyState);
-        DryRunGpuSchedulingPolicy_->InitPersistentState(persistentState->GpuSchedulingPolicyState);
+        DryRunGpuSchedulingPolicy_->InitPersistentState(persistentState->DryRunGpuSchedulingPolicyState);
     }
 
     TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) override
@@ -1940,7 +1940,7 @@ private:
                     TFairShareUpdateExecutor updateExecutor(
                         rootElement,
                         &fairShareUpdateContext,
-                        /*loggingTag*/ Format("TreeId: %v", treeId));
+                        /*loggingTags*/ NLogging::TLoggingTagList().With("TreeId", treeId));
                     updateExecutor.Run();
                     fairShareUpdateResult.Errors = std::move(fairShareUpdateContext.Errors);
 
@@ -3124,7 +3124,7 @@ private:
 
     void LogOperationsInfo(const TPoolTreeSnapshotPtr& treeSnapshot) const
     {
-        auto Logger = this->Logger().WithTag("TreeSnapshotId: %v", treeSnapshot->GetId());
+        auto Logger = this->Logger().WithTag("TreeSnapshotId", treeSnapshot->GetId());
 
         auto doLogOperationsInfo = [&] (const auto& operationIdToElement) {
             for (const auto& [operationId, element] : operationIdToElement) {
@@ -3141,7 +3141,7 @@ private:
 
     void LogPoolsInfo(const TPoolTreeSnapshotPtr& treeSnapshot) const
     {
-        auto Logger = this->Logger().WithTag("TreeSnapshotId: %v", treeSnapshot->GetId());
+        auto Logger = this->Logger().WithTag("TreeSnapshotId", treeSnapshot->GetId());
 
         for (const auto& [poolName, element] : treeSnapshot->PoolMap()) {
             YT_LOG_DEBUG("FairShareInfo: %v (Pool: %v)",

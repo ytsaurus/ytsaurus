@@ -1,4 +1,5 @@
 #include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
@@ -57,7 +58,7 @@ public:
         Spec->Computations[ComputationId] = ComputationSpec;
 
         FlowView = New<TFlowView>();
-        FlowView->State->ExecutionSpec->PipelineSpec->SetValue(Spec);
+        FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(Spec, TestVersionProvider());
 
         Layout = FlowView->State->ExecutionSpec->Layout;
 

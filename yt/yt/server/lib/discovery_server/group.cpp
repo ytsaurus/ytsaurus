@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/ytree/attributes.h>
 
-#include <yt/yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/helpers.h>
 
 namespace NYT::NDiscoveryServer {
 
@@ -17,7 +17,7 @@ TGroup::TGroup(
     const NLogging::TLogger& Logger)
     : Id_(id)
     , OnGroupEmptied_(std::move(onGroupEmptied))
-    , Logger(Logger().WithTag("GroupId: %v", Id_))
+    , Logger(Logger().WithTag("GroupId", Id_))
 { }
 
 TMemberPtr TGroup::AddOrUpdateMember(

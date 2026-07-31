@@ -3,7 +3,7 @@
 #include "clickhouse_config.h"
 #include "clickhouse_singletons.h"
 #include "config_repository.h"
-#include "cypress_config_repository.h"
+#include "cypress_object_repository.h"
 #include "config.h"
 #include "helpers.h"
 #include "host.h"
@@ -12,6 +12,8 @@
 #include "poco_config.h"
 #include "tcp_handler.h"
 #include "user_defined_sql_objects_storage.h"
+#include "yt_database.h"
+#include "yt_directory_database.h"
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -277,10 +279,10 @@ private:
 
         Host_->PopulateSystemDatabase(SystemDatabase_.get());
 
-        DB::DatabaseCatalog::instance().attachDatabase("YT", Host_->CreateYTDatabase());
+        DB::DatabaseCatalog::instance().attachDatabase("YT", CreateYTDatabase());
 
-        for (const auto& databasePtr : Host_->CreateUserDefinedDatabases()) {
-            DB::DatabaseCatalog::instance().attachDatabase(databasePtr->getDatabaseName(), databasePtr);
+        for (const auto& [databaseName, root] : Host_->GetConfig()->DatabaseDirectories) {
+            DB::DatabaseCatalog::instance().attachDatabase(databaseName, CreateDirectoryDatabase(databaseName, root));
         }
 
         ServerContext_->setCurrentDatabase(Config_->DefaultDatabase);
@@ -318,11 +320,11 @@ private:
 
         auto& dictionariesLoader = ServerContext_->getExternalDictionariesLoader();
         DictionaryGuard_ = dictionariesLoader.addConfigRepository(CreateDictionaryConfigRepository(Config_->Dictionaries, Config_->DefaultDatabase));
-        if (Host_->GetConfig()->DictionaryRepository) {
+        if (Host_->GetConfig()->CypressObjectRepository) {
             YT_LOG_DEBUG("Adding repository for loading dictionaries from Cypress");
 
             CypressDictionaryGuard_ = dictionariesLoader.addConfigRepository(
-                CreateExternalLoaderFromCypressConfigRepository(Host_->GetCypressDictionaryConfigRepository()));
+                CreateExternalLoaderFromCypressObjectRepository(Host_->GetCypressObjectRepository()));
         }
         if (Host_->GetConfig()->DictionaryAccessControl) {
             // By default, CH lazily creates dictionaries in memory on the first access.

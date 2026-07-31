@@ -3,6 +3,8 @@ import re
 
 from yt.yt.flow.tools.draw_pipeline_graph.graph_model import EdgeLimitInfo
 from yt.yt.flow.tools.draw_pipeline_graph.graph_utils import (
+    MIN_VISIBLE_BLOCKED_TIME_SHARE,
+    format_limit_entry,
     get_group_by_columns,
     is_computation_warning,
     is_edge_warning,
@@ -50,9 +52,11 @@ def _mermaid_safe_label(text):
 def _mermaid_safe_edge_label(text):
     """Sanitize text for use inside a Mermaid edge label (inside -->|...|).
 
-    The pipe character | terminates the label, and double-quotes break parsing.
+    The pipe character | terminates the label, double-quotes break parsing, and
+    braces are node syntax; they are escaped as HTML entities, like the node
+    labels do it.
     """
-    return text.replace("|", "/").replace('"', "'")
+    return text.replace("|", "/").replace('"', "'").replace("{", "&lbrace;").replace("}", "&rbrace;")
 
 
 def _make_computation_label(computation):
@@ -112,16 +116,16 @@ def _make_stream_label(stream):
 
 def _make_edge_label(edge: EdgeLimitInfo):
     parts = []
-    # Show all limit types with non-trivial fill rate, most critical first.
+    # Show all limit types with non-trivial fill rate or blocked-time share,
+    # most critical first.
     sorted_statuses = sorted(
         edge.by_type.items(),
-        key=lambda kv: kv[1].get_fill_rate(),
+        key=lambda kv: (kv[1].blocked_time_share, kv[1].get_fill_rate()),
         reverse=True,
     )
     for limit_type, status in sorted_statuses:
-        fill_rate = status.get_fill_rate()
-        if fill_rate >= 1e-3:
-            parts.append(f"{limit_type}={fill_rate:.3f}")
+        if status.get_fill_rate() >= 1e-3 or status.blocked_time_share >= MIN_VISIBLE_BLOCKED_TIME_SHARE:
+            parts.append(format_limit_entry(limit_type, status))
     return " ".join(parts)
 
 
@@ -156,7 +160,7 @@ def build_mermaid_computations_graph(graph, orientation="vertical"):
             s_node = "s_" + _mermaid_safe_id(stream_id)
             edge = graph.input_edges.get((computation.computation_id, stream_id), EdgeLimitInfo())
             label = _make_edge_label(edge)
-            arrow = "-->|" + label + "|" if label else "-->"
+            arrow = "-->|" + _mermaid_safe_edge_label(label) + "|" if label else "-->"
             lines.append(f"  {s_node} {arrow} {c_node}")
             if is_edge_warning(edge):
                 warning_edge_indices.append(edge_index)
@@ -165,7 +169,7 @@ def build_mermaid_computations_graph(graph, orientation="vertical"):
             s_node = "s_" + _mermaid_safe_id(stream_id)
             edge = graph.output_edges.get((computation.computation_id, stream_id), EdgeLimitInfo())
             label = _make_edge_label(edge)
-            arrow = "-->|" + label + "|" if label else "-->"
+            arrow = "-->|" + _mermaid_safe_edge_label(label) + "|" if label else "-->"
             lines.append(f"  {c_node} {arrow} {s_node}")
             if is_edge_warning(edge):
                 warning_edge_indices.append(edge_index)
@@ -253,7 +257,7 @@ def build_mermaid_streams_graph(graph, orientation="vertical"):
                     s_node = "s_" + _mermaid_safe_id(output_stream_id)
                     edge = graph.output_edges.get((computation_id, output_stream_id), EdgeLimitInfo())
                     edge_label = _make_edge_label(edge)
-                    arrow = "-->|" + edge_label + "|" if edge_label else "-->"
+                    arrow = "-->|" + _mermaid_safe_edge_label(edge_label) + "|" if edge_label else "-->"
                     lines.append(f"  {mermaid_node_id} {arrow} {s_node}")
                     if is_edge_warning(edge):
                         warning_edge_indices.append(edge_index)
@@ -263,7 +267,7 @@ def build_mermaid_streams_graph(graph, orientation="vertical"):
             s_node = "s_" + _mermaid_safe_id(stream.stream_id)
             edge = graph.input_edges.get((computation_id, stream.stream_id), EdgeLimitInfo())
             edge_label = _make_edge_label(edge)
-            arrow = "-->|" + edge_label + "|" if edge_label else "-->"
+            arrow = "-->|" + _mermaid_safe_edge_label(edge_label) + "|" if edge_label else "-->"
             lines.append(f"  {s_node} {arrow} {mermaid_node_id}")
             if is_edge_warning(edge):
                 warning_edge_indices.append(edge_index)

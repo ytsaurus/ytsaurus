@@ -3506,6 +3506,30 @@ TRuntimeNode TProgramBuilder::NextMTRand(TRuntimeNode rand) {
     return TRuntimeNode(callableBuilder.Build(), /*isImmediate=*/false);
 }
 
+TRuntimeNode TProgramBuilder::AsErased(TRuntimeNode value) {
+    if constexpr (RuntimeVersion < 83U) {
+        THROW yexception() << "Runtime version (" << RuntimeVersion << ") too old for " << __func__;
+    }
+
+    TCallableBuilder callableBuilder(Env_, __func__, NewResourceType(ErasedResourceTag));
+    callableBuilder.Add(value);
+    return TRuntimeNode(callableBuilder.Build(), /*isImmediate=*/false);
+}
+
+TRuntimeNode TProgramBuilder::PeekErased(TRuntimeNode resource, TType* expectedType) {
+    if constexpr (RuntimeVersion < 83U) {
+        THROW yexception() << "Runtime version (" << RuntimeVersion << ") too old for " << __func__;
+    }
+
+    auto resType = AS_TYPE(TResourceType, resource);
+    MKQL_ENSURE(resType->GetTag() == ErasedResourceTag, "Expected _Erased resource");
+
+    TCallableBuilder callableBuilder(Env_, __func__, NewOptionalType(expectedType));
+    callableBuilder.Add(resource);
+    callableBuilder.Add(TRuntimeNode(expectedType, /*isImmediate=*/true));
+    return TRuntimeNode(callableBuilder.Build(), /*isImmediate=*/false);
+}
+
 TRuntimeNode TProgramBuilder::AggrCountInit(TRuntimeNode value) {
     TCallableBuilder callableBuilder(Env_, __func__, NewDataType(NUdf::TDataType<ui64>::Id));
     callableBuilder.Add(value);
@@ -6419,6 +6443,24 @@ TRuntimeNode TProgramBuilder::BlockVariant(TRuntimeNode item, const std::string_
     TCallableBuilder callableBuilder(Env_, __func__, returnType);
     callableBuilder.Add(item);
     callableBuilder.Add(NewDataLiteral<ui32>(structIndex));
+    return TRuntimeNode(callableBuilder.Build(), /*isImmediate=*/false);
+}
+
+TRuntimeNode TProgramBuilder::BlockVariantItem(TRuntimeNode variant) {
+    if constexpr (RuntimeVersion < 82) {
+        THROW yexception() << "Runtime version (" << RuntimeVersion << ") too old for " << __func__;
+    }
+    auto blockType = AS_TYPE(TBlockType, variant.GetStaticType());
+    auto inputItemType = blockType->GetItemType();
+    bool isOptional;
+    auto unpacked = UnpackOptional(inputItemType, isOptional);
+    auto variantType = AS_TYPE(TVariantType, unpacked);
+    auto alternativeType = variantType->GetAlternativeType(0);
+    auto itemReturnType = isOptional ? NewOptionalType(alternativeType) : alternativeType;
+    auto returnType = NewBlockType(itemReturnType, blockType->GetShape());
+
+    TCallableBuilder callableBuilder(Env_, __func__, returnType);
+    callableBuilder.Add(variant);
     return TRuntimeNode(callableBuilder.Build(), /*isImmediate=*/false);
 }
 

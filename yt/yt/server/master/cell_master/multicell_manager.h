@@ -74,6 +74,8 @@ struct IMulticellManager
 {
     virtual void Initialize() = 0;
 
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
+
     virtual bool IsPrimaryMaster() const = 0;
     virtual bool IsSecondaryMaster() const = 0;
     virtual bool IsMulticell() const = 0;

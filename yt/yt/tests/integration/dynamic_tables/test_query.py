@@ -3027,6 +3027,75 @@ class TestQuery(DynamicTablesBase):
         )
         assert actual == [{"pk": 1}, {"pk": 3}]
 
+    @authors("dtorilov")
+    def test_hierarchical_join_after_group_by(self):
+        sync_create_cells(1)
+
+        left_table_rows = [
+            {"pk": 1, "grp": 1, "fk": 10},
+            {"pk": 2, "grp": 1, "fk": 20},
+            {"pk": 3, "grp": 1, "fk": 99},
+            {"pk": 4, "grp": 2, "fk": 30},
+            {"pk": 5, "grp": 2, "fk": 40},
+            {"pk": 6, "grp": 3, "fk": 55},
+        ]
+
+        right_table_rows = [
+            {"x": 10, "c": 100},
+            {"x": 20, "c": 200},
+            {"x": 30, "c": 300},
+            {"x": 40, "c": 400},
+        ]
+
+        self._create_table(
+            "//tmp/l",
+            [
+                {"name": "pk", "type": "int64", "sort_order": "ascending"},
+                {"name": "grp", "type": "int64"},
+                {"name": "fk", "type": "int64"},
+            ],
+            left_table_rows,
+        )
+        self._create_table(
+            "//tmp/r",
+            [
+                {"name": "x", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"},
+            ],
+            right_table_rows,
+        )
+
+        right_by_key = {row["x"]: row["c"] for row in right_table_rows}
+
+        groups = {}
+        for row in left_table_rows:
+            groups.setdefault(row["grp"], []).append(row["fk"])
+
+        expected = []
+        for grp, fks in sorted(groups.items()):
+            joined = []
+            for fk in fks:
+                if fk in right_by_key:
+                    joined.append({"fk": fk, "r.c": right_by_key[fk]})
+            expected.append({"grp": grp, "joined_data": joined})
+
+        actual = select_rows(
+            """
+            l.grp as grp,
+            (select fk, r.c
+                from (array_agg(l.fk, true) as fk)
+                join `//tmp/r` as r on fk = r.x
+            ) as joined_data
+            from `//tmp/l` as l
+            group by grp
+            order by grp
+            limit 100
+            """,
+            expression_builder_version=2,
+            syntax_version=2,
+        )
+        assert expected == actual
+
 
 class TestQueryRpcProxy(TestQuery):
     ENABLE_MULTIDAEMON = True

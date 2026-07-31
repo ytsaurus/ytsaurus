@@ -59,8 +59,7 @@ public:
             ChunkMeta_->HashTableChunkIndexMeta()->IndexedBlockFormatDetail.GetGroupIndexesToRead(SchemaIdMapping_))
         , HasHunkColumns_(ChunkMeta_->ChunkSchema()->HasHunkColumns())
         , TestingOptions_(std::move(testingOptions))
-        , Logger(logger.WithTag("ChunkId: %v",
-            ChunkId_))
+        , Logger(logger.WithTag("ChunkId", ChunkId_))
         , MemoryPool_(THashTableChunkIndexReadControllerTag{})
     {
         RowReader_.emplace(

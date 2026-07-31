@@ -575,28 +575,6 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<IAttributeDictionaryPtr> FetchSingleObjectAttributes(
-   const NNative::IClientPtr& client,
-   NCypressClient::TVersionedObjectId objectId,
-   const TAttributeFilter& attributeFilter)
-{
-   auto requestTemplate = TYPathProxy::Get("&/@");
-   if (attributeFilter) {
-       ToProto(requestTemplate->mutable_attributes(), attributeFilter);
-   }
-
-   SetSuppressAccessTracking(requestTemplate, true);
-   SetSuppressExpirationTimeoutRenewal(requestTemplate, true);
-
-   auto batcher = TMasterYPathProxy::CreateGetBatcher(client, requestTemplate, {objectId.ObjectId}, objectId.TransactionId);
-   return batcher.Invoke().Apply(BIND([=] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& rsp) {
-        const auto& value = GetOrCrash(rsp, objectId.ObjectId).ValueOrThrow();
-        return ConvertToAttributes(NYson::TYsonString(value->value()));
-   }));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::string GetRequestQueueNameForKey(const std::pair<std::string, EUserWorkloadType>& userNameAndWorkloadType)
 {
     return Format(

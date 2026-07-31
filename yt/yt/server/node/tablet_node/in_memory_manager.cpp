@@ -369,11 +369,10 @@ private:
         auto mode = store->GetInMemoryMode();
 
         auto Logger = TabletNodeLogger()
-            .WithTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-                tablet->GetLoggingTag(),
-                store->GetId(),
-                mode,
-                readSessionId);
+            .WithTags(tablet->GetLoggingTags())
+            .WithTag("StoreId", store->GetId())
+            .WithTag("Mode", mode)
+            .WithTag("ReadSessionId", readSessionId);
 
         auto traceContext = TTraceContext::NewRoot("InMemoryManager");
         TTraceContextGuard traceContextGuard(traceContext);
@@ -517,11 +516,10 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     auto mode = mountConfig->InMemoryMode;
 
     auto Logger = TabletNodeLogger()
-        .WithTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
-            tabletSnapshot->LoggingTag,
-            store->GetId(),
-            mode,
-            readSessionId);
+        .WithTags(tabletSnapshot->LoggingTags)
+        .WithTag("StoreId", store->GetId())
+        .WithTag("Mode", mode)
+        .WithTag("ReadSessionId", readSessionId);
 
     YT_LOG_INFO("Store preload started");
 

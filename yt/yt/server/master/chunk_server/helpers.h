@@ -62,6 +62,9 @@ void AttachToChunkList(
     TChunkList* chunkList,
     TRange<TChunkTreeRawPtr> children,
     bool updateChunkListStatistics = true);
+
+EChunkDetachPolicy DeriveChunkTreeDetachPolicy(const TChunkList* chunkList);
+
 void DetachFromChunkList(
     TChunkList* chunkList,
     TRange<TChunkTreeRawPtr> children,
@@ -208,6 +211,10 @@ EChunkReplicaState GetAddedChunkReplicaState(
 
 bool IsSealNeeded(const TChunk* chunk);
 
+NLogging::ELogLevel GetChunkLogLevel(
+    const TChunk* chunk,
+    const IChunkManagerPtr& chunkManager);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkSequoiaConfig
@@ -230,6 +237,17 @@ bool IsHunkChunkFormat(NChunkClient::EChunkFormat chunkFormat);
 i64 ComputeDiskSpaceFromDataSize(i64 dataSize, NErasure::ECodec erasureCodec);
 
 void AccumulateNewlyReferencedHunkStatistics(TChunk* hunkChunk, i64 dataWeightDelta, i64 dataSizeDelta);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsReplicaDecommissioned(TChunkLocation* replica);
+bool IsReplicaOnPendingRestartNode(TChunkLocation* replica);
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define YT_VERBOSE_LOG_CHUNK_EVENT(chunk, ...)                      YT_LOG_EVENT(Logger(), GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()), __VA_ARGS__)
+#define YT_VERBOSE_LOG_CHUNK_EVENT_IF(condition, chunk, ...)        if (condition)    YT_VERBOSE_LOG_CHUNK_EVENT(__VA_ARGS__)
+#define YT_VERBOSE_LOG_CHUNK_EVENT_UNLESS(condition, chunk, ...)    if (!(condition)) YT_VERBOSE_LOG_CHUNK_EVENT(__VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
 

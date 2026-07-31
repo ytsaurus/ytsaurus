@@ -1,5 +1,4 @@
 #include "table_puller_helpers.h"
-#include "tablet.h"
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>

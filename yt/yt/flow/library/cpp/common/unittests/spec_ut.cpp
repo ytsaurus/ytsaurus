@@ -342,6 +342,11 @@ struct TNullResource
     void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
     { }
 
+    TResourceRevisionState GetRevisionState() const override
+    {
+        return {};
+    }
+
     size_t GetDependenciesCount() const
     {
         return 0;
@@ -2275,6 +2280,18 @@ TEST(TSpecYTPathOwnershipTest, UnsetEmbeddedExclusiveWritePathsOk)
     )"""");
     auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
     ValidatePipelineSpec(spec);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TPipelineSpecTest, ComputationIdMustNotContainColon)
+{
+    // The colon is reserved for the "resource:<id>" keys of resource-controller states.
+    auto badYson = TYsonStringBuf(R"({computations = {"resource:x" = {computation_class_name = "Foo"}}})");
+    EXPECT_THROW(ConvertTo<TPipelineSpecPtr>(badYson), NYT::TErrorException);
+
+    auto okYson = TYsonStringBuf(R"({computations = {x = {computation_class_name = "Foo"}}})");
+    EXPECT_NO_THROW(ConvertTo<TPipelineSpecPtr>(okYson));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

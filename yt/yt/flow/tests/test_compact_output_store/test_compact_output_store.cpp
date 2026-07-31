@@ -16,6 +16,7 @@
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_client.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_client_spec.h>
+#include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -26,6 +27,7 @@
 #include <yt/yt/core/ypath/helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/size.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -162,7 +164,20 @@ protected:
     {
         auto tx = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
             .ValueOrThrow();
-        store->Sync(tx);
+        // These tests stay under the default MaxEraseRowsPerEpochTransaction, so no erase overflows
+        // into async transactions — every erase rides the epoch tx.
+        auto asyncEraseTransactions = store->Sync(tx);
+        YT_VERIFY(asyncEraseTransactions.empty());
+        WaitFor(tx->Commit()).ThrowOnError();
+    }
+
+    // Commits one async erase transaction returned by Sync() for real: replays its ops into a
+    // tablet transaction (as the host's transaction manager would) and commits it.
+    void CommitRetryable(const IRetryableTransactionPtr& retryable)
+    {
+        auto tx = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+            .ValueOrThrow();
+        retryable->DoAttempt(tx);
         WaitFor(tx->Commit()).ThrowOnError();
     }
 
@@ -262,6 +277,56 @@ TEST_W(TTestCompactOutputStore, RegisterKeyedSyncAndInit)
     EXPECT_EQ(loaded[0].first->MessageId, TMessageId("msg-keyed"));
     ASSERT_TRUE(loaded[0].second.has_value());
     EXPECT_EQ(*loaded[0].second, key);
+}
+
+// Erase GC that overflows the epoch-tx budget drains via async retryable transactions committed
+// after the epoch. Uses small injectable caps so a handful of chunks trigger the overflow.
+TEST_W(TTestCompactOutputStore, EraseOverflowDrainsViaAsyncTransactions)
+{
+    constexpr int ChunkCount = 5;
+    constexpr int EpochEraseBudget = 2;
+
+    auto context = PrepareOutputStoreContext();
+    context->MaxEraseRowsPerEpochTransaction = EpochEraseBudget;
+    context->MaxEraseRowsPerAsyncTransaction = 2;
+
+    auto spec = New<TDynamicOutputStoreSpec>();
+    spec->MaxChunkMessageCount = NYTree::TSize(1); // One message per chunk ⇒ one row per message.
+    auto store = CreateCompactOutputStore(context, spec);
+    WaitFor(store->Init(/*loadKeyState*/ false)).ThrowOnError();
+
+    std::vector<TOutputMessageConstPtr> messages;
+    for (int i = 0; i < ChunkCount; ++i) {
+        messages.push_back(MakeMessage(Format("overflow-%v", i)));
+    }
+    store->RegisterBatch(messages, /*persist*/ true);
+    SyncStore(store); // Writes only, no erases yet.
+
+    // Deliver all ⇒ ChunkCount erases; only EpochEraseBudget fit the epoch tx, the rest overflow.
+    for (const auto& message : messages) {
+        store->TryUnregisterBatch(std::array{&message->GetMeta()});
+    }
+    auto tx = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+    auto asyncEraseTransactions = store->Sync(tx);
+    EXPECT_FALSE(asyncEraseTransactions.empty());
+    WaitFor(tx->Commit()).ThrowOnError();
+
+    // After the epoch tx only its budget of rows is erased; the overflow still sits in the table.
+    {
+        auto storeCheck = CreateCompactOutputStore(context, spec);
+        auto loaded = WaitFor(storeCheck->Init(/*loadKeyState*/ false)).ValueOrThrow();
+        EXPECT_EQ(std::ssize(loaded), ChunkCount - EpochEraseBudget);
+    }
+
+    // Commit every async erase transaction ⇒ the overflow drains within the same epoch.
+    for (const auto& asyncEraseTransaction : asyncEraseTransactions) {
+        CommitRetryable(asyncEraseTransaction);
+    }
+
+    auto store2 = CreateCompactOutputStore(context, spec);
+    auto loaded = WaitFor(store2->Init(/*loadKeyState*/ false)).ValueOrThrow();
+    EXPECT_TRUE(loaded.empty());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -219,6 +219,10 @@ class TestChunkMerger(YTEnvSetup):
 
         _wait_for_merge("//tmp/t", None)
 
+        traversal_info = get("//tmp/t/@chunk_merger_info")
+        revision = traversal_info["revision"]
+        assert revision > 0
+
         chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#{}/@data_weight".format(chunk_id)) > 0
 
@@ -621,7 +625,7 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@chunk_count") == 4)
         wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
 
-        traversal_info1 = get("//tmp/t/@chunk_merger_traversal_info")
+        traversal_info1 = get("//tmp/t/@chunk_merger_info")
         assert traversal_info1["chunk_count"] > 0
 
         write_table("<append=true>//tmp/t", {"c": "d"})
@@ -630,8 +634,8 @@ class TestChunkMerger(YTEnvSetup):
         # [{"a": "b"}, {"b": "c"}], [{"c": "d"}, {"q": "d"}], rows, rows, [{"c": "d"}, {"q": "d"}]
         wait(lambda: get("//tmp/t/@chunk_count") == 5)
 
-        wait(lambda: get("//tmp/t/@chunk_merger_traversal_info")["chunk_count"] > traversal_info1["chunk_count"])
-        traversal_info2 = get("//tmp/t/@chunk_merger_traversal_info")
+        wait(lambda: get("//tmp/t/@chunk_merger_info")["chunk_count"] > traversal_info1["chunk_count"])
+        traversal_info2 = get("//tmp/t/@chunk_merger_info")
         assert traversal_info2["config_version"] == traversal_info1["config_version"]
 
         set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 10)
@@ -643,7 +647,7 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@chunk_count") == 1)
         wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
 
-        traversal_info3 = get("//tmp/t/@chunk_merger_traversal_info")
+        traversal_info3 = get("//tmp/t/@chunk_merger_info")
         assert traversal_info3["config_version"] > traversal_info2["config_version"]
 
     @authors("aleksandra-zh")

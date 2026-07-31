@@ -64,8 +64,11 @@ struct IJobSizeConstraints
     //! Approximate primary compressed data size per job. Has meaning only in context of sorted operation.
     virtual i64 GetPrimaryCompressedDataSizePerJob() const = 0;
 
-    //! A sampling rate if it was specified in a job spec, otherwise null.
+    //! A sampling rate if it was specified in an operation spec, otherwise null.
     virtual std::optional<double> GetSamplingRate() const = 0;
+
+    //! A sampling seed if it was specified in an operation spec, otherwise null.
+    virtual std::optional<ui64> GetSamplingSeed() const = 0;
 
     //! NB(apollo1321): Using compressed data size here is likely more semantically correct.
     //! When sampling is on, we initially create jobs of this data weight, sample them according to a given rate
@@ -121,6 +124,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     std::optional<i64> batchRowCount,
     i64 foreignSliceDataWeight,
     std::optional<double> samplingRate,
+    std::optional<ui64> samplingSeed = std::nullopt,
     i64 samplingDataWeightPerJob = -1,
     i64 samplingPrimaryDataWeightPerJob = -1,
     i64 maxBuildRetryCount = 5,

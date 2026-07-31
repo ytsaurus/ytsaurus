@@ -11,8 +11,6 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/server/node/cluster_node/public.h>
 
 #include <yt/yt/ytlib/misc/public.h>
@@ -20,6 +18,8 @@
 #include <yt/yt/ytlib/chunk_client/proto/location_indexes.pb.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>

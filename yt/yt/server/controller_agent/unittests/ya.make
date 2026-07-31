@@ -7,6 +7,7 @@ ALLOCATOR(TCMALLOC)
 SRCS(
     auto_merge_ut.cpp
     docker_image_ut.cpp
+    experiments_ut.cpp
     job_monitoring_index_manager_ut.cpp
     input_statistics_collector_ut.cpp
     job_splitter_ut.cpp

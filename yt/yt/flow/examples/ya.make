@@ -1,5 +1,6 @@
 RECURSE(
     cpp
+    go
     python
 )
 

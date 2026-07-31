@@ -52,7 +52,7 @@
 
 #include <yt/yt/library/program/config.h>
 
-#include <yt/yt/library/tracing/jaeger/tracer.h>
+#include <yt/yt/library/tracing/jaeger/config.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 

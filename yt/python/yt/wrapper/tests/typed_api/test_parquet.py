@@ -212,8 +212,9 @@ class TestParquet(object):
             yt.create("table", table, attributes={"schema": [{"name": "key", "type": "string"}]})
             yt.dump_parquet(table, filename, enable_several_files=False)
 
-            destination = yt.smart_upload_file(filename)
-            assert yt.read_file(destination).read() == b""
+            parsed_table = pyarrow.parquet.read_table(filename)
+            assert parsed_table.column_names == ["key"]
+            assert parsed_table.num_rows == 0
 
     @authors("nadya02")
     @pytest.mark.parametrize("enable_parallel", [True, False])

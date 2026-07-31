@@ -286,31 +286,14 @@ protected:
     }
 };
 
-// Read blocks via the replication reader (offshore read path), retrying on
-// "No such medium" errors that can occur while the ODG syncs the medium directory.
-std::vector<TBlock> ReadBlocksWithRetries(
+std::vector<TBlock> ReadBlocks(
     IChunkReaderAllowingRepairPtr reader,
     const std::vector<int>& blockIndexes)
 {
-    std::vector<TBlock> blocks;
     IChunkReader::TReadBlocksOptions readOptions;
-    for (int retry = 0; retry < 5; ++retry) {
-        auto readResult = WaitFor(reader->ReadBlocks(readOptions, blockIndexes));
-        if (readResult.IsOK()) {
-            return readResult.Value();
-        }
-
-        bool isMediumNotFound = readResult.FindMatching([] (const TError& error) {
-            return error.GetMessage().contains("is not an S3 medium") ||
-                   error.GetMessage().contains("No such medium");
-        }).has_value();
-        if (!isMediumNotFound) {
-            readResult.ThrowOnError();
-        }
-
-        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(500));
-    }
-    THROW_ERROR_EXCEPTION("Failed to read blocks after retries");
+    auto readResult = WaitFor(reader->ReadBlocks(readOptions, blockIndexes));
+    return readResult
+        .ValueOrThrow();
 }
 
 TEST_F(TS3DataTest, TestReplicationReader)
@@ -334,16 +317,14 @@ TEST_F(TS3DataTest, TestReplicationReader)
     std::vector<int> blockIndexes(GeneratedBlocks_.size());
     std::iota(blockIndexes.begin(), blockIndexes.end(), 0);
 
-    auto blocks = ReadBlocksWithRetries(ReplicationReader_, blockIndexes);
+    auto blocks = ReadBlocks(ReplicationReader_, blockIndexes);
 
     for (ssize_t blockIndex = 0; blockIndex < std::ssize(GeneratedBlocks_); ++blockIndex) {
         ASSERT_EQ(blocks[blockIndex].GetOrComputeChecksum(), GeneratedBlocks_[blockIndex].GetOrComputeChecksum());
     }
 }
 
-// Write blocks through the Offshore Data Gateway (TReplicationWriter → gateway
-// → TS3Writer → S3) and read them back through it as well.
-TEST_F(TS3DataTest, TestReplicationWriterRoundtrip)
+TEST_F(TS3DataTest, TestReplicationWriter)
 {
     auto nativeClient = DynamicPointerCast<NNative::IClient>(Client_);
 
@@ -351,7 +332,6 @@ TEST_F(TS3DataTest, TestReplicationWriterRoundtrip)
     TChunkId writeChunkId = MakeRandomId(EObjectType::Chunk, TCellTag(0xf003));
     TSessionId sessionId{writeChunkId, MediumDescriptor_->GetIndex()};
 
-    // Single offshore replica — the gateway handles the write.
     TChunkReplicaWithMediumList targets = {
         TChunkReplicaWithMedium(
             OffshoreNodeId,
@@ -374,58 +354,18 @@ TEST_F(TS3DataTest, TestReplicationWriterRoundtrip)
         nativeClient,
         /*localHostName*/ "localhost");
 
-    // Open → write blocks → close.
-    // Retries handle the case where the gateway hasn't yet synced the medium
-    // directory and returns "No such medium".
-    TError writeError;
-    for (int retry = 0; retry < 5; ++retry) {
-        writeError = WaitFor(
-            replicationWriter->Open()
-                .Apply(BIND([&] {
-                    EXPECT_TRUE(replicationWriter->WriteBlocks({}, {}, GeneratedBlocks_));
-                    return replicationWriter->GetReadyEvent();
-                }))
-                .Apply(BIND([&] {
-                    return replicationWriter->Close({}, {}, MakeEmptyChunkMeta());
-                })));
 
-        if (writeError.IsOK()) {
-            break;
-        }
+    WaitFor(
+    replicationWriter->Open()
+        .Apply(BIND([&] {
+            EXPECT_TRUE(replicationWriter->WriteBlocks({}, {}, GeneratedBlocks_));
+            return replicationWriter->GetReadyEvent();
+        }))
+        .Apply(BIND([&] {
+            return replicationWriter->Close({}, {}, MakeEmptyChunkMeta());
+        })))
+        .ThrowOnError();
 
-        bool isMediumNotFound = writeError.FindMatching([] (const TError& error) {
-            return error.GetMessage().contains("is not an S3 medium") ||
-                   error.GetMessage().contains("No such medium");
-        }).has_value();
-        if (!isMediumNotFound) {
-            break;
-        }
-
-        // Recreate the writer for the next attempt (sessions are one-shot).
-        TChunkId retryChunkId = MakeRandomId(EObjectType::Chunk, TCellTag(0xf003));
-        sessionId = TSessionId{retryChunkId, MediumDescriptor_->GetIndex()};
-        targets = {TChunkReplicaWithMedium(
-            OffshoreNodeId,
-            GenericChunkReplicaIndex,
-            MediumDescriptor_->GetIndex())};
-        writeChunkId = retryChunkId;
-
-        auto cfg = New<TReplicationWriterConfig>();
-        cfg->UploadReplicationFactor = 1;
-        cfg->MinUploadReplicationFactor = 1;
-        auto opts = New<TRemoteWriterOptions>();
-        opts->AllowAllocatingNewTargetNodes = false;
-        replicationWriter = CreateReplicationWriter(
-            std::move(cfg),
-            std::move(opts),
-            sessionId,
-            std::move(targets),
-            nativeClient,
-            /*localHostName*/ "localhost");
-
-        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(500));
-    }
-    ASSERT_TRUE(writeError.IsOK()) << writeError.GetMessage();
 
     // Read back using the replication reader (offshore read path).
     // The chunk is never registered on master, so the reader must stick
@@ -446,7 +386,7 @@ TEST_F(TS3DataTest, TestReplicationWriterRoundtrip)
     std::vector<int> blockIndexes(GeneratedBlocks_.size());
     std::iota(blockIndexes.begin(), blockIndexes.end(), 0);
 
-    auto readBlocks = ReadBlocksWithRetries(readReader, blockIndexes);
+    auto readBlocks = ReadBlocks(readReader, blockIndexes);
 
     ASSERT_EQ(std::ssize(readBlocks), std::ssize(GeneratedBlocks_));
     for (ssize_t i = 0; i < std::ssize(GeneratedBlocks_); ++i) {

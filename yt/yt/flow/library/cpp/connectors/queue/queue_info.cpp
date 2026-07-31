@@ -60,23 +60,16 @@ void TQueueInfoController::TryUpdatePartitionCount()
 {
     try {
         TGetNodeOptions options;
-        options.Attributes = {"tablet_count", "type"};
+        options.Attributes = {"tablet_count"};
         auto ysonString = WaitFor(Client_->GetNode(Spec_->QueuePath.GetPath(), options))
             .ValueOrThrow();
         auto node = NYTree::ConvertToNode(ysonString);
-        const auto& attributes = node->Attributes();
-        auto type = attributes.Get<NObjectClient::EObjectType>("type");
-        if (type == NObjectClient::EObjectType::ChaosReplicatedTable) {
-            THROW_ERROR_EXCEPTION("No support for chaos yet")
-                << TErrorAttribute("queue_path", Spec_->QueuePath);
-        }
-        State_->CachedPartitionCount = attributes.Get<int>("tablet_count");
-        YT_LOG_INFO("Queue topic partition count was updated (CurrentPartitionCount: %v)",
-            State_->CachedPartitionCount);
+        State_->CachedPartitionCount = node->Attributes().Get<int>("tablet_count");
+        YT_TLOG_INFO("Queue topic partition count was updated")
+            .With("CurrentPartitionCount", State_->CachedPartitionCount);
         ErrorState_->ClearError();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to update partition count") << ex;
-        YT_LOG_ERROR(error);
         ErrorState_->SetError(error);
     }
 }

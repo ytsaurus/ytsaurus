@@ -1116,7 +1116,6 @@ struct TDataNodeDynamicConfig
     bool UseDisableSendBlocks;
     bool UseProbePutBlocks;
     bool PreallocateDiskSpace;
-    bool UseDirectIO;
 
     bool WaitPrecedingBlocksReceived;
 
@@ -1160,7 +1159,7 @@ struct TDataNodeDynamicConfig
     //! If |true|, write throttling is reflected in CheckWritable / GetIOWeight.
     std::optional<bool> EnableWriteThrottlingWritableCheck;
 
-    //! if |true|, network in_throttler queue size is checked on StartChunk.
+    //! If |true|, network in_throttler queue size is checked on StartChunk and ProbePutBlocks.
     std::optional<bool> EnableInThrottlerQueueWritableCheck;
 
     std::optional<bool> EnableSequentialIORequests;

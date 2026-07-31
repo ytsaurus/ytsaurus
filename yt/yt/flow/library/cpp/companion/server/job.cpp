@@ -1,0 +1,252 @@
+#include "job.h"
+
+#include "codec.h"
+#include "output_collector.h"
+#include "runtime_context.h"
+#include "runtime_init_context.h"
+
+#include <yt/yt/flow/library/cpp/common/column_evaluator_cache.h>
+#include <yt/yt/flow/library/cpp/common/input_context.h>
+
+#include <yt/yt/flow/library/cpp/process_function/host/computation.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
+#include <util/generic/map.h>
+
+namespace NYT::NFlow::NCompanionServer {
+
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStreamSpecsPtr BuildStreamSpecs(
+    const google::protobuf::RepeatedPtrField<NProto::NCompanion::TStream>& protoStreams)
+{
+    THashMap<TStreamId, TMap<TStreamSpecId, TStreamSpecPtr>> streamSpecs;
+    for (const auto& protoStream : protoStreams) {
+        auto streamSpec = New<TStreamSpec>();
+        streamSpec->Schema = ConvertTo<NTableClient::TTableSchemaPtr>(
+            NYson::TYsonStringBuf(protoStream.schema()));
+        streamSpecs[TStreamId(protoStream.stream_id())]
+                   [TStreamSpecId(protoStream.stream_spec_id())] = std::move(streamSpec);
+    }
+    return New<TStreamSpecs>(streamSpecs);
+}
+
+TStreamSpecsPtr TStreamSpecCache::Resolve(
+    const google::protobuf::RepeatedPtrField<NProto::NCompanion::TStream>& protoStreams)
+{
+    THashMap<TStreamId, TMap<TStreamSpecId, TStreamSpecPtr>> streamSpecs;
+    for (const auto& protoStream : protoStreams) {
+        auto key = std::pair(
+            TStreamId(protoStream.stream_id()),
+            TStreamSpecId(protoStream.stream_spec_id()));
+        auto& cached = Specs_[key];
+        if (!cached.Spec || cached.SchemaBytes != protoStream.schema()) {
+            auto streamSpec = New<TStreamSpec>();
+            streamSpec->Schema = ConvertTo<NTableClient::TTableSchemaPtr>(
+                NYson::TYsonStringBuf(protoStream.schema()));
+            cached = {TString(protoStream.schema()), std::move(streamSpec)};
+        }
+        streamSpecs[key.first][key.second] = cached.Spec;
+    }
+    return New<TStreamSpecs>(streamSpecs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+THashSet<std::string> ExtractInternalStateNames(const TComputationSpecPtr& spec)
+{
+    THashSet<std::string> result;
+    if (!spec->Parameters) {
+        return result;
+    }
+    if (auto child = spec->Parameters->FindChild("internal_states")) {
+        for (const auto& name : ConvertTo<std::vector<std::string>>(child)) {
+            result.insert(name);
+        }
+    }
+    return result;
+}
+
+template <typename TSpecMap>
+THashSet<std::string> ExtractKeys(const TSpecMap& specMap)
+{
+    THashSet<std::string> result;
+    for (const auto& [name, spec] : specMap) {
+        result.insert(name);
+    }
+    return result;
+}
+
+} // namespace
+
+TJob::TJob(
+    TJobId jobId,
+    TComputationId computationId,
+    const NProto::NCompanion::TJobInfo& jobInfo)
+    : JobId_(jobId)
+    , ComputationId_(std::move(computationId))
+    , ConverterCache_(CreatePayloadConverterCache(CreateFastColumnEvaluatorCache()))
+{
+    try {
+        Spec_ = ConvertTo<TComputationSpecPtr>(NYson::TYsonStringBuf(jobInfo.spec()));
+        DynamicSpec_ = ConvertTo<TDynamicComputationSpecPtr>(
+            NYson::TYsonStringBuf(jobInfo.dynamic_spec()));
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to parse job specs")
+            << TErrorAttribute("job_id", JobId_)
+            << TErrorAttribute("computation_id", ComputationId_)
+            << ex;
+    }
+    StreamSpecs_ = BuildStreamSpecs(jobInfo.streams());
+
+    InternalStateNames_ = ExtractInternalStateNames(Spec_);
+    ExternalStateNames_ = ExtractKeys(Spec_->ExternalStateManagers);
+    JoinedStateNames_ = ExtractKeys(Spec_->ExternalStateJoiners);
+}
+
+const TJobId& TJob::GetJobId() const
+{
+    return JobId_;
+}
+
+const TComputationId& TJob::GetComputationId() const
+{
+    return ComputationId_;
+}
+
+const TComputationSpecPtr& TJob::GetSpec() const
+{
+    return Spec_;
+}
+
+const TDynamicComputationSpecPtr& TJob::GetDynamicSpec() const
+{
+    return DynamicSpec_;
+}
+
+const TStreamSpecsPtr& TJob::GetStreamSpecs() const
+{
+    return StreamSpecs_;
+}
+
+const THashSet<std::string>& TJob::GetInternalStateNames() const
+{
+    return InternalStateNames_;
+}
+
+const THashSet<std::string>& TJob::GetExternalStateNames() const
+{
+    return ExternalStateNames_;
+}
+
+const THashSet<std::string>& TJob::GetJoinedStateNames() const
+{
+    return JoinedStateNames_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJob::EnsureInitialized()
+{
+    if (Initialized_) {
+        return;
+    }
+
+    // Validated with a throw before the host helpers, whose YT_VERIFY is meant
+    // for worker-side specs pre-validated at pipeline submission; here the
+    // spec is wire input and must fail the request instead.
+    THROW_ERROR_EXCEPTION_UNLESS(Spec_->ProcessingFunction,
+        "Computation %Qv spec does not name a processing function; "
+        "the C++ companion hosts process functions only",
+        ComputationId_);
+
+    auto function = CreateProcessFunction(Spec_);
+    THROW_ERROR_EXCEPTION_IF(
+        ViewProcessFunctionAsSync(Spec_, function),
+        "Process function %Qv overrides Sync; "
+        "sync process functions are not supported in companions",
+        *Spec_->ProcessingFunction);
+
+    StateStore_ = New<TCompanionStateStore>(
+        InternalStateNames_,
+        ExternalStateNames_,
+        JoinedStateNames_,
+        Spec_->GroupBySchema);
+
+    auto initContext = New<TCompanionRuntimeInitContext>(
+        StateStore_,
+        Spec_->ProcessingFunctionParameters);
+    function->Init(initContext);
+
+    BatchFunction_ = WrapAsBatch(function);
+    RuntimeContext_ = New<TCompanionRuntimeContext>(
+        Spec_,
+        New<TComputationStreamSpecStorage>(
+            StreamSpecs_,
+            Spec_->GroupBySchema,
+            ConverterCache_),
+        Spec_->GroupBySchema,
+        ConverterCache_,
+        /*throttlerFactory*/ nullptr);
+    Initialized_ = true;
+}
+
+void TJob::ProcessBatch(
+    const NProto::NCompanion::TReqProcessBatch& request,
+    NProto::NCompanion::TResponseData* data)
+{
+    EnsureInitialized();
+
+    // Source batches override the stream specs; message payloads are encoded
+    // against the override when present.
+    bool hasStreamOverride = request.streams_size() > 0;
+    auto messageStreamSpecs = hasStreamOverride
+        ? OverrideSpecCache_.Resolve(request.streams())
+        : StreamSpecs_;
+
+    auto input = ParseProcessBatchRequest(request, messageStreamSpecs, Spec_->GroupBySchema);
+    StateStore_->LoadBatch(input);
+
+    auto runtimeContext = hasStreamOverride
+        ? New<TCompanionRuntimeContext>(
+            Spec_,
+            New<TComputationStreamSpecStorage>(
+                messageStreamSpecs,
+                Spec_->GroupBySchema,
+                ConverterCache_),
+            Spec_->GroupBySchema,
+            ConverterCache_,
+            /*throttlerFactory*/ nullptr)
+        : RuntimeContext_;
+    runtimeContext->RefreshEpochState(
+        BuildWatermarkState(input.Watermarks),
+        DynamicSpec_->ProcessingFunctionParameters);
+
+    auto outputCollector = TGroupingOutputCollector::CreateRoot(
+        input.Messages,
+        input.Timers,
+        input.Visits);
+
+    auto inputContext = New<TInputContext>(input.Messages, input.Timers, input.Visits);
+    BatchFunction_->Process(inputContext, outputCollector, runtimeContext);
+
+    std::vector<NCompanion::TStateHolder<std::string>> internalStates;
+    std::vector<NCompanion::TStateHolder<TPayload>> externalStates;
+    StateStore_->CollectModified(&internalStates, &externalStates);
+
+    SerializeProcessBatchResponse(
+        data,
+        outputCollector->TakeGroups(),
+        internalStates,
+        externalStates,
+        messageStreamSpecs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow::NCompanionServer

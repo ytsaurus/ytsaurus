@@ -20,8 +20,6 @@ SRCS(
     web_json_writer_ut.cpp
     yamred_dsv_parser_ut.cpp
     yamred_dsv_writer_ut.cpp
-    yaml_parser_ut.cpp
-    yaml_writer_ut.cpp
     yamr_parser_ut.cpp
     yamr_writer_ut.cpp
     yson_helpers.cpp

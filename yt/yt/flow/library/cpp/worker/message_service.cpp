@@ -97,9 +97,9 @@ private:
         auto now = TInstant::Now();
         for (auto iter = ConnectionIdToConnectionState_.begin(); iter != ConnectionIdToConnectionState_.end();) {
             if (iter->second.UpdateTimestamp + TDuration::Minutes(5) < now) {
-                YT_LOG_DEBUG("Dropping old connection (ConnectionId: %v, UpdateTimestamp: %v)",
-                    iter->first,
-                    iter->second.UpdateTimestamp);
+                YT_TLOG_DEBUG("Dropping old connection")
+                    .With("ConnectionId", iter->first)
+                    .With("UpdateTimestamp", iter->second.UpdateTimestamp);
                 ConnectionIdToConnectionState_.erase(iter++);
             } else {
                 ++iter;
@@ -142,16 +142,16 @@ private:
             auto connectionStateIt = ConnectionIdToConnectionState_.find(connectionId);
             if (connectionStateIt == ConnectionIdToConnectionState_.end()) {
                 if (request->has_connection_id()) {
-                    YT_LOG_DEBUG("Resetting old connection (ConnectionId: %v)",
-                        connectionId);
+                    YT_TLOG_DEBUG("Resetting old connection")
+                        .With("ConnectionId", connectionId);
                     response->set_reset(true);
                     // NB: Recreate connectionId to avoid race during processing of two simultaneous requests
                     // with same connection ids after message service restart.
                     connectionId = TGuid::Create();
                 }
 
-                YT_LOG_DEBUG("Received new connection id in PushMessages (ConnectionId: %v)",
-                    connectionId);
+                YT_TLOG_DEBUG("Received new connection id in PushMessages")
+                    .With("ConnectionId", connectionId);
 
                 connectionStateIt = EmplaceOrCrash(
                     ConnectionIdToConnectionState_,
@@ -168,8 +168,8 @@ private:
                 YT_VERIFY(committedOffset <= connectionState.LastAckedOffset + std::ssize(connectionState.ProcessedTasks));
                 THROW_ERROR_EXCEPTION_UNLESS(
                     connectionState.LastAckedOffset <= committedOffset,
-                    "Invalid committed_offset, probably the order in which requests were processed is broken "
-                    "(CommittedOffset: %v, LastAckedOffset: %v, ProcessedTasks: %v)",
+                    "Committed offset %v is less than last acked offset %v with %v processed tasks; "
+                    "probably the order in which requests were processed is broken",
                     committedOffset,
                     connectionState.LastAckedOffset,
                     std::ssize(connectionState.ProcessedTasks));
@@ -194,11 +194,10 @@ private:
                     break;
                 }
                 ++reported;
-                YT_LOG_DEBUG("MessageLifeCycle.InputMessageService: notifying distributor that message is processed "
-                    "(MessageId: %v, DestinationJobId: %v, ConnectionId: %v)",
-                    processedMessage.MessageId,
-                    processedMessage.JobId,
-                    connectionId);
+                YT_TLOG_DEBUG("MessageLifeCycle.InputMessageService: notifying distributor that message is processed")
+                    .With("MessageId", processedMessage.MessageId)
+                    .With("DestinationJobId", processedMessage.JobId)
+                    .With("ConnectionId", connectionId);
 
                 processedMessageIdsByJob[processedMessage.JobId].push_back(&processedMessage.MessageId);
             }
@@ -223,16 +222,16 @@ private:
             auto& workerOffer = jobIdToWorkerOffer[jobId];
             for (const auto& streamOffer : jobData.offers()) {
                 const auto streamId = streamSpecs->GetStreamId(FromProto<TStreamSpecId>(streamOffer.stream_spec_id()));
-                THROW_ERROR_EXCEPTION_UNLESS(IsSorted(streamOffer.min_order_timestamps().begin(), streamOffer.min_order_timestamps().end()),
-                    "Buckets of stream offer must be sorted (JobId: %v, StreamId: %v, Offer: %v)",
-                    jobId,
-                    streamId,
-                    NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
-                THROW_ERROR_EXCEPTION_UNLESS(streamOffer.min_order_timestamps_size() == streamOffer.inflated_byte_sizes_size(),
-                    "Got invalid request, sizes mismatch (JobId: %v, StreamId: %v, Offer: %v)",
-                    jobId,
-                    streamId,
-                    NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
+                THROW_ERROR_EXCEPTION_UNLESS(IsSorted(streamOffer.min_order_timestamps().begin(), streamOffer.min_order_timestamps().end()), "Buckets of stream offer must be sorted")
+                    << TErrorAttribute("job_id", jobId)
+                    << TErrorAttribute("stream_id", streamId)
+                    << TErrorAttribute("offer", NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
+                if (streamOffer.min_order_timestamps_size() != streamOffer.inflated_byte_sizes_size()) {
+                    THROW_ERROR_EXCEPTION("Invalid request: sizes of \"min_order_timestamps\" and \"inflated_byte_sizes\" mismatch")
+                        << TErrorAttribute("job_id", jobId)
+                        << TErrorAttribute("stream_id", streamId)
+                        << TErrorAttribute("offer", NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
+                }
 
                 auto& offer = workerOffer[streamId];
                 offer.reserve(streamOffer.min_order_timestamps_size());
@@ -285,11 +284,10 @@ private:
                 inboundMessages.pop_front();
 
                 if (!inputBuffer) {
-                    YT_LOG_DEBUG("MessageLifeCycle.InputMessageService: message was declined because job is unknown "
-                        "(JobId: %v, MessageId: %v, ConnectionId: %v)",
-                        jobId,
-                        message.MessageId,
-                        connectionId);
+                    YT_TLOG_DEBUG("MessageLifeCycle.InputMessageService: message was declined because job is unknown")
+                        .With("JobId", jobId)
+                        .With("MessageId", message.MessageId)
+                        .With("ConnectionId", connectionId);
                     continue;
                 }
 
@@ -302,11 +300,10 @@ private:
             }
 
             for (const auto& message : inputMessages) {
-                YT_LOG_DEBUG("MessageLifeCycle.InputMessageService: message was received "
-                    "(JobId: %v, MessageId: %v, ConnectionId: %v)",
-                    jobId,
-                    message->MessageId,
-                    connectionId);
+                YT_TLOG_DEBUG("MessageLifeCycle.InputMessageService: message was received")
+                    .With("JobId", jobId)
+                    .With("MessageId", message->MessageId)
+                    .With("ConnectionId", connectionId);
             }
 
             addMessagesFutures.push_back(inputBuffer->AddMessages(
@@ -389,12 +386,11 @@ private:
                 .JobId = jobId,
             });
 
-            YT_LOG_DEBUG("MessageLifeCycle.InputMessageService: message was processed, scheduled notification "
-                "(MessageId: %v, DestinationJobId: %v, ConnectionId: %v, CurrentOffset: %v)",
-                connectionState.ProcessedTasks.back().MessageId,
-                jobId,
-                connectionId,
-                connectionState.LastAckedOffset + connectionState.ProcessedTasks.size());
+            YT_TLOG_DEBUG("MessageLifeCycle.InputMessageService: message was processed, scheduled notification")
+                .With("MessageId", connectionState.ProcessedTasks.back().MessageId)
+                .With("DestinationJobId", jobId)
+                .With("ConnectionId", connectionId)
+                .With("CurrentOffset", connectionState.LastAckedOffset + connectionState.ProcessedTasks.size());
         }
     }
 };

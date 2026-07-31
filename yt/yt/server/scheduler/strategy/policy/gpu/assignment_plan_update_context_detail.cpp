@@ -18,7 +18,7 @@ TAssignmentHandler::TAssignmentHandler(TLogger logger)
     : Logger(std::move(logger))
 { }
 
-void TAssignmentHandler::AddPlannedAssignment(
+TAssignmentPtr TAssignmentHandler::AddPlannedAssignment(
     std::string allocationGroupName,
     TJobResourcesWithQuota resourceUsage,
     TOperation* operation,
@@ -47,6 +47,8 @@ void TAssignmentHandler::AddPlannedAssignment(
         assignment->Node->Address(),
         assignment->Preemptible,
         assignment->Operation->GetId());
+
+    return assignment;
 }
 
 void TAssignmentHandler::PreemptAssignment(
@@ -133,9 +135,9 @@ TAssignmentPlanUpdateContext::TAssignmentPlanUpdateContext(
 {
     InitializeRecursiveAttributes(TreeSnapshot_->RootElement().Get());
 
-    // Stamp the diagnostic priority module binding attribute on each operation.
+    // Update the priority module binding attribute on each operation
     for (const auto& [_, operation] : SchedulableOperations_) {
-        operation->SetPriorityModuleBindingEnabled(IsPriorityModuleBindingEnabled(operation));
+        operation->PriorityModuleBindingEnabled() = IsPriorityModuleBindingEnabled(operation);
     }
 }
 
@@ -157,7 +159,7 @@ const TGpuPlanUpdateStatisticsPtr& TAssignmentPlanUpdateContext::GetStatistics()
     return Statistics_;
 }
 
-void TAssignmentPlanUpdateContext::AddPlannedAssignment(
+TAssignmentPtr TAssignmentPlanUpdateContext::AddPlannedAssignment(
     std::string allocationGroupName,
     TJobResourcesWithQuota resourceUsage,
     TOperation* operation,
@@ -165,7 +167,12 @@ void TAssignmentPlanUpdateContext::AddPlannedAssignment(
     bool preemptible)
 {
     IncreaseOperationUsage(operation, resourceUsage);
-    AssignmentHandler_.AddPlannedAssignment(std::move(allocationGroupName), resourceUsage, operation, node, preemptible);
+    return AssignmentHandler_.AddPlannedAssignment(
+        std::move(allocationGroupName),
+        resourceUsage,
+        operation,
+        node,
+        preemptible);
 }
 
 void TAssignmentPlanUpdateContext::PreemptAssignment(
@@ -202,14 +209,6 @@ TJobResources TAssignmentPlanUpdateContext::GetAvailableOperationLimits(const TO
         treeElement = treeElement->GetParent();
     }
     return Max(availableLimits, TJobResources{});
-}
-
-bool TAssignmentPlanUpdateContext::IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const
-{
-    const TPoolTreeElement* treeElement = FindOperationElement(operation);
-    YT_VERIFY(treeElement);
-
-    return AttributesList_.AttributesOf(treeElement).PriorityModuleBindingEnabled;
 }
 
 std::optional<std::string> TAssignmentPlanUpdateContext::FindLimitViolatingParentId(const TPoolTreeElement* element) const
@@ -352,7 +351,8 @@ void TAssignmentPlanUpdateContext::UpdateOperationResources(const TOperationPtr&
                 ++readyToAssignResources.AllocationCount;
                 readyToAssignShare += allocationUsageShare;
             } else {
-                if (operation->IsFullHostModuleBound()) {
+                // NB(severovv): extra resources are not allowed for full-host operations.
+                if (operation->IsFullHost()) {
                     break;
                 }
                 ++extraResources.AllocationCount;
@@ -567,6 +567,14 @@ void TAssignmentPlanUpdateContext::PreemptAllOperationAssignments(
     for (const auto& assignment : GetItems(operation->Assignments())) {
         PreemptAssignment(assignment, preemptionReason, preemptionDescription);
     }
+}
+
+bool TAssignmentPlanUpdateContext::IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const
+{
+    const auto* treeElement = FindOperationElement(operation);
+    YT_VERIFY(treeElement);
+
+    return AttributesList_.AttributesOf(treeElement).PriorityModuleBindingEnabled;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

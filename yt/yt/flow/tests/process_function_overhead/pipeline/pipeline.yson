@@ -41,7 +41,6 @@
                 "batch_duration" = 100;
                 "max_rows_per_batch" = "50K";
                 "max_bytes_per_batch" = "1Gi";
-                "output_store_count_limit" = "150K";
             };
             "Reducer" = {
                 "batch_duration" = 10;

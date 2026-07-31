@@ -35,7 +35,7 @@ public:
         , Channel_(std::move(channel))
         , SessionId_(sessionId.ChunkId ? sessionId : GenerateSessionId(Config_->MediumIndex))
         , Proxy_(Channel_)
-        , Logger(logger.WithTag("SessionId: %v", SessionId_))
+        , Logger(logger.WithTag("SessionId", SessionId_))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Invoker_);
@@ -111,8 +111,10 @@ public:
         req->SetMultiplexingBand(EMultiplexingBand::Interactive);
         req->SetMultiplexingParallelism(Config_->MultiplexingParallelism);
 
-        return req->Invoke().Apply(BIND([] (const TErrorOr<TDataNodeNbdServiceProxy::TRspFlushPtr>& rspOrError) {
+        auto startTime = TInstant::Now();
+        return req->Invoke().Apply(BIND([startTime, Logger = Logger] (const TErrorOr<TDataNodeNbdServiceProxy::TRspFlushPtr>& rspOrError) {
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+            YT_LOG_DEBUG("Flushed chunk handler (Duration: %v)", TInstant::Now() - startTime);
         }));
     }
 

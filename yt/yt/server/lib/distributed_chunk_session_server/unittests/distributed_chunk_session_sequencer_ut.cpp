@@ -56,6 +56,11 @@ public:
         return false;
     }
 
+    std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors() const override
+    {
+        YT_ABORT();
+    }
+
     DEFINE_SIGNAL_OVERRIDE(void(const TError&), Failed);
 
     void SetClosed()

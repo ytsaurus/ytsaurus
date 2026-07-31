@@ -71,6 +71,7 @@ class EntityLimitStatus:
     limit: float = 0
     pending: Optional[float] = None
     partition_id: str = ""
+    blocked_time_share: float = 0
 
     def get_fill_rate(self):
         return self.used / max(1, self.limit)
@@ -94,6 +95,11 @@ class EdgeLimitInfo:
         if not self.by_type:
             return 0.0
         return max(s.get_fill_rate() for s in self.by_type.values())
+
+    def get_max_blocked_time_share(self):
+        if not self.by_type:
+            return 0.0
+        return max(s.blocked_time_share for s in self.by_type.values())
 
     def get_status(self, limit_type: str) -> EntityLimitStatus:
         return self.by_type.get(limit_type, EntityLimitStatus())
@@ -176,9 +182,13 @@ def _update_edge_limit_info(
         limit=raw_status.get("limit", 0),
         pending=raw_status.get("pending"),
         partition_id=partition_id,
+        blocked_time_share=raw_status.get("blocked_time_share", 0),
     )
     existing = edge_limit_info.by_type.get(limit_type)
-    if existing is None or new_status.get_fill_rate() > existing.get_fill_rate():
+    if existing is None or (new_status.blocked_time_share, new_status.get_fill_rate()) > (
+        existing.blocked_time_share,
+        existing.get_fill_rate(),
+    ):
         edge_limit_info.by_type[limit_type] = new_status
 
 
@@ -299,7 +309,8 @@ def get_graph(args):
                 edge = input_edges.setdefault((computation_id, full_stream_id), EdgeLimitInfo())
                 _update_edge_limit_info(edge, limit_type, full_stream_id, raw_status, partition_id)
 
-        # Output limits (output_buffer_bytes, output_store_bytes, output_store_count, etc.).
+        # Output limits (output_buffer_bytes, output_store_bytes, output_store_count,
+        # controller, etc.).
         for limit_type, streams_statuses in current_job_status.get("output_limits", {}).items():
             for raw_stream_id, raw_status in streams_statuses.items():
                 full_stream_id = stream_id_map.get(raw_stream_id, raw_stream_id)

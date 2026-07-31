@@ -3233,41 +3233,24 @@ TExprNode::TPtr ExpandMux(const TExprNode::TPtr& node, TExprContext& ctx) {
     return node;
 }
 
-bool IsOptimizerExpandLMapOrShuffleByKeysViaBlockAllowed(const TTypeAnnotationContext& types) {
-    static const char Flag[] = "ExpandLMapOrShuffleByKeysViaBlock";
-    return !IsOptimizerDisabled<Flag>(types);
-}
-
-TExprNode::TPtr ExpandLMapOrShuffleByKeys(const TExprNode::TPtr& node, TExprContext& ctx, TTypeAnnotationContext& types) {
+TExprNode::TPtr ExpandLMapOrShuffleByKeys(const TExprNode::TPtr& node, TExprContext& ctx) {
     YQL_CLOG(DEBUG, CorePeepHole) << "Expand " << node->Content();
-    if (IsOptimizerExpandLMapOrShuffleByKeysViaBlockAllowed(types)) {
-        return ctx.Builder(node->Pos())
-            .Callable("Block")
-                .Lambda(0)
-                    .Param("parent")
-                    .Callable("Collect")
-                        .Apply(0, node->Tail())
-                            .With(0)
-                                .Callable("Iterator")
-                                    .Add(0, node->HeadPtr())
-                                    .Callable(1, "DependsOn")
-                                        .Arg(0, "parent")
-                                    .Seal()
+    return ctx.Builder(node->Pos())
+        .Callable("Block")
+            .Lambda(0)
+                .Param("parent")
+                .Callable("Collect")
+                    .Apply(0, node->Tail())
+                        .With(0)
+                            .Callable("Iterator")
+                                .Add(0, node->HeadPtr())
+                                .Callable(1, "DependsOn")
+                                    .Arg(0, "parent")
                                 .Seal()
-                            .Done()
-                        .Seal()
+                            .Seal()
+                        .Done()
                     .Seal()
                 .Seal()
-            .Seal().Build();
-    }
-    return ctx.Builder(node->Pos())
-        .Callable("Collect")
-            .Apply(0, node->Tail())
-                .With(0)
-                    .Callable("Iterator")
-                        .Add(0, node->HeadPtr())
-                    .Seal()
-                .Done()
             .Seal()
         .Seal().Build();
 }
@@ -3279,14 +3262,14 @@ bool IsExpandLMapOrShuffleByKeysPromoted(const TTypeAnnotationContext& types) {
 
 TExprNode::TPtr ExpandLMapOrShuffleByKeysAtCommonStage(const TExprNode::TPtr& node, TExprContext& ctx, TTypeAnnotationContext& types) {
     if (IsExpandLMapOrShuffleByKeysPromoted(types)) {
-        return ExpandLMapOrShuffleByKeys(node, ctx, types);
+        return ExpandLMapOrShuffleByKeys(node, ctx);
     }
     return node;
 }
 
 TExprNode::TPtr ExpandLMapOrShuffleByKeysAtFinalStage(const TExprNode::TPtr& node, TExprContext& ctx, TTypeAnnotationContext& types) {
     if (!IsExpandLMapOrShuffleByKeysPromoted(types)) {
-        return ExpandLMapOrShuffleByKeys(node, ctx, types);
+        return ExpandLMapOrShuffleByKeys(node, ctx);
     }
     return node;
 }
@@ -6478,7 +6461,8 @@ private:
         bool isSuitableGuess = NKikimr::NMiniKQL::RuntimeVersion >= 79 && node->IsCallable("Guess");
         bool isSuitableWay = NKikimr::NMiniKQL::RuntimeVersion >= 80 && node->IsCallable("Way");
         bool isSuitableVariant = NKikimr::NMiniKQL::RuntimeVersion >= 81 && node->IsCallable("Variant");
-        if (node->IsList() || rewriteAsIs || isSuitableGuess || isSuitableWay || isSuitableVariant ||
+        bool isSuitableVariantItem = NKikimr::NMiniKQL::RuntimeVersion >= 82 && node->IsCallable("VariantItem");
+        if (node->IsList() || rewriteAsIs || isSuitableGuess || isSuitableWay || isSuitableVariant || isSuitableVariantItem ||
             node->IsCallable({"DecimalMul", "DecimalDiv", "DecimalMod", "And", "Or", "Xor", "Not", "Coalesce", "Exists", "If", "Just", "AsStruct", "Member", "Nth", "ToPg", "FromPg", "PgResolvedCall", "PgResolvedOp"})) {
             if (node->IsCallable() && !IsSupportedAsBlockType(node->Pos(), *node->GetTypeAnn(), Ctx_, Types_, /*reportUnspported=*/true)) {
                 YQL_CLOG(TRACE, CorePeepHole) << Log(node) << "Type are not supported";

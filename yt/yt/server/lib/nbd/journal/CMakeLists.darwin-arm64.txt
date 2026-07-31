@@ -12,6 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(Python3 REQUIRED)
+
 add_library(lib-nbd-journal)
 
 
@@ -28,9 +30,10 @@ target_compile_options(lib-nbd-journal PRIVATE
 target_link_libraries(lib-nbd-journal PUBLIC
   contrib-libs-cxxsupp
   yutil
-  server-lib-nbd
   yt-yt-client
+  server-lib-nbd
   yt-yt-ytlib
+  library-query-engine
 )
 
 target_sources(lib-nbd-journal PRIVATE
@@ -41,5 +44,35 @@ target_sources(lib-nbd-journal PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/block_store_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/dirty_block_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/journal_block_device.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/snapshot_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/snapshot_writer.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/nbd/journal/records/snapshot_block.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/nbd/journal/records/snapshot_block.record.h
 )
 
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/nbd/journal/records/snapshot_block.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/nbd/journal/records/snapshot_block.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/records/snapshot_block.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
+  COMMAND
+  ${Python3_EXECUTABLE}
+  -B
+  -m
+  yt_record_codegen.bin
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/records/snapshot_block.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/lib/nbd/journal/records/snapshot_block.record.cpp
+)

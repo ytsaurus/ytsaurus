@@ -18,7 +18,6 @@
 #include <yt/yt/library/auth_server/helpers.h>
 #include <yt/yt/library/auth_server/token_authenticator.h>
 
-#include <yt/yt/library/clickhouse_discovery/config.h>
 #include <yt/yt/library/clickhouse_discovery/discovery.h>
 #include <yt/yt/library/clickhouse_discovery/helpers.h>
 
@@ -304,14 +303,14 @@ private:
                 result = TUserAndToken{.User=std::move(userAndToken[0]), .Token=std::move(userAndToken[1])};
             } else {
                 return TError(
-                    "Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected (CredentialsDecoded: %v)",
-                    credentialsDecoded);
+                    "Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected")
+                    << TErrorAttribute("credentials_decoded", credentialsDecoded);
             }
 
         } else {
-            return TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
-                authorizationType,
-                authorizationTypeAndCredentials.size());
+            return TError("Unsupported authorization header type %Qv",
+                authorizationType)
+                << TErrorAttribute("token_count", authorizationTypeAndCredentials.size());
         }
         YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
 
@@ -733,7 +732,7 @@ private:
         config->WriteQuorum = 1;
         config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
 
-        auto discovery = NClickHouseServer::CreateDiscovery(
+        auto discovery = NClickHouseServer::CreateDiscoveryFromNativeConnection(
             std::move(config),
             Bootstrap_->GetNativeConnection(),
             Bootstrap_->GetNativeConnection()->GetChannelFactory(),
@@ -1255,7 +1254,7 @@ void TClickHouseHandler::HandleRequest(
     const IResponseWriterPtr& response)
 {
     auto Logger = ClickHouseUnstructuredLogger()
-        .WithTag("RequestId: %v", request->GetRequestId());
+        .WithTag("RequestId", request->GetRequestId());
 
     if (!Coordinator_->CanHandleHeavyRequests()) {
         // We intentionally read the body of the request and drop it to make sure

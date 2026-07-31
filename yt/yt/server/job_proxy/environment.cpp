@@ -1640,11 +1640,11 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     const std::string& jobProxySlotPath,
     std::function<void(TError)> failedSidecarCallback)
 {
-    switch (config->JobEnvironment.GetCurrentType()) {
+    switch (config->JobEnvironment.GetType()) {
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
             return New<TPortoJobProxyEnvironment>(
-                config->JobEnvironment.TryGetConcrete<TPortoJobEnvironmentConfig>(),
+                config->JobEnvironment.GetConcrete<TPortoJobEnvironmentConfig>(),
                 invoker,
                 jobProxySlotPath,
                 failedSidecarCallback);
@@ -1654,19 +1654,19 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
             return New<TSimpleJobProxyEnvironment>();
 
         case EJobEnvironmentType::Testing:
-            return New<TTestingJobProxyEnvironment>(config->JobEnvironment.TryGetConcrete<TTestingJobEnvironmentConfig>());
+            return New<TTestingJobProxyEnvironment>(config->JobEnvironment.GetConcrete<TTestingJobEnvironmentConfig>());
 
         case EJobEnvironmentType::Cri:
             return New<TCriJobProxyEnvironment>(
                 TCriJobProxyConfig(config),
-                config->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>(),
+                config->JobEnvironment.GetConcrete<TCriJobEnvironmentConfig>(),
                 std::move(invoker),
                 jobProxySlotPath,
                 std::move(failedSidecarCallback));
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",
-                config->JobEnvironment.GetCurrentType());
+                config->JobEnvironment.GetType());
     }
 }
 

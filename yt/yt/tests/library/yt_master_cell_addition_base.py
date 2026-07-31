@@ -197,6 +197,10 @@ class MasterCellAdditionBase(YTEnvSetup):
 
     def _reset_dynamically_propagated_master_cells(self):
         def check_reliability_status(node):
+            master_address = ls("//sys/primary_masters")[0]
+            dynamically_propagated_master_cells = get(f"//sys/primary_masters/{master_address}/orchid/multicell_manager/dynamically_propagated_master_cells")
+            dynamically_propagated_master_cells = [str(cell_tag) for cell_tag in dynamically_propagated_master_cells]
+
             if get(f"//sys/cluster_nodes/{node}/@state") == "offline":
                 return True
 
@@ -204,6 +208,10 @@ class MasterCellAdditionBase(YTEnvSetup):
             for master in reliabilities.keys():
                 if reliabilities[master] == "during_propagation":
                     return False
+                if reliabilities[master] == "statically_known":
+                    assert master not in dynamically_propagated_master_cells
+                if reliabilities[master] == "dynamically_discovered":
+                    assert master in dynamically_propagated_master_cells
             return True
 
         nodes = ls("//sys/cluster_nodes")
@@ -720,7 +728,7 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
             lambda: get("//sys/accounts/acc_async_remove/@resource_usage/master_memory/total") > 0
             and get("//sys/accounts/acc_async_remove/@resource_usage/node_count") > 0
         )
-        with raises_yt_error("Cannot remove an account \"acc_async_remove\" because its usage is not zero"):
+        with raises_yt_error("Cannot remove account \"acc_async_remove\" because its usage is not zero"):
             remove_account("acc_async_remove", sync=False)
 
         yield

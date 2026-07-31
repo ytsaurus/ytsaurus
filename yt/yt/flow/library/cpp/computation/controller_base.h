@@ -33,7 +33,8 @@ std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
     const std::vector<TNodeTraverseDataPtr>& nodes,
     const TComputationSpecPtr& spec,
     const NProfiling::TSensorsOwner& sensorsOwner,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger,
+    const IStatusErrorStatePtr& watermarkStallErrorState);
 
 std::vector<TNodeTraverseDataPtr> ApplyLateDataPartitionsRule(
     const std::vector<TNodeTraverseDataPtr>& nodes,
@@ -45,7 +46,8 @@ std::vector<TNodeTraverseDataPtr> ApplyEventWatermarkComputeRule(
     const THashMap<std::string, std::vector<TNodeTraverseDataPtr>>& nodesByAvailabilityGroup,
     const TComputationSpecPtr& spec,
     const NProfiling::TSensorsOwner& sensorsOwner,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger,
+    const IStatusErrorStatePtr& watermarkStallErrorState);
 
 std::optional<TSystemTimestamp> GetPartitionLastIdleTimestamp(
     const TNodeTraverseDataPtr& traverseData,
@@ -110,6 +112,8 @@ public:
         const TKey& upperKey,
         const NYTree::IMapNodePtr& dynamicComputationPartitionSpec);
 
+    //! Replaces the computation-owned part of the partition's dynamic spec; the
+    //! job-manager-owned fields (e.g. FinishAfterCurrentEpoch) are carried over.
     void UpdateDynamicPartitionSpec(
         const TFlowViewPtr& flowView,
         const TPartitionId& partitionId,
@@ -141,6 +145,8 @@ private:
     const TComputationControllerContextPtr Context_;
     const IComputationController::TParametersPtr Parameters_;
     const NProfiling::TSensorsOwner SensorsOwner_;
+    //! Persistent error state raised while too many idle source partitions gate the watermark.
+    const IStatusErrorStatePtr IdlePartitionsWatermarkStallErrorState_;
     TAtomicIntrusivePtr<TDynamicComputationControllerContext> DynamicContext_;
     TAtomicIntrusivePtr<IComputationController::TDynamicParameters> DynamicParameters_;
 };

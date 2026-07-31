@@ -34,6 +34,7 @@ PY_SRCS(
     yt_dashboards/flow/distributed_throttler.py
     yt_dashboards/flow/event_time.py
     yt_dashboards/flow/general.py
+    yt_dashboards/flow/key_visitor.py
     yt_dashboards/flow/message_transfering.py
     yt_dashboards/flow/one_worker.py
     yt_dashboards/flow/state_cache.py

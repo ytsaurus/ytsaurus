@@ -998,7 +998,7 @@ private:
 
         const auto& agentDescriptor = context->ControllerAgentConnector->GetDescriptor();
 
-        auto Logger = NExecNode::Logger().WithTag("ControllerAgentDescriptor: %v", agentDescriptor);
+        auto Logger = NExecNode::Logger().WithTag("ControllerAgentDescriptor", agentDescriptor);
 
         ToProto(request->mutable_controller_agent_incarnation_id(), agentDescriptor.IncarnationId);
 
@@ -1229,7 +1229,7 @@ private:
 
         const auto& agentDescriptor = context->ControllerAgentConnector->GetDescriptor();
 
-        auto Logger = NExecNode::Logger().WithTag("ControllerAgentDescriptor: %v", agentDescriptor);
+        auto Logger = NExecNode::Logger().WithTag("ControllerAgentDescriptor", agentDescriptor);
 
         for (const auto& protoJobToStore : response->jobs_to_store()) {
             auto jobToStore = FromProto<NControllerAgent::TJobToStore>(protoJobToStore);
@@ -1688,9 +1688,9 @@ private:
         if (const auto& allocation = job->GetAllocation();
             !allocation || allocation->IsFinished())
         {
-            auto Logger = NExecNode::Logger().WithTag("JobId: %v", job->GetId());
+            auto Logger = NExecNode::Logger().WithTag("JobId", job->GetId());
             if (allocation) {
-                Logger.AddTag("AllocationId: %v", allocation->GetId());
+                Logger.AddTag("AllocationId", allocation->GetId());
             }
 
             YT_LOG_INFO("Job abortion skipped since it is not settled in running allocation");
@@ -1725,9 +1725,9 @@ private:
         if (const auto& allocation = job->GetAllocation();
             !allocation || allocation->IsFinished())
         {
-            auto Logger = NExecNode::Logger().WithTag("JobId: %v", job->GetId());
+            auto Logger = NExecNode::Logger().WithTag("JobId", job->GetId());
             if (allocation) {
-                Logger.AddTag("AllocationId: %v", allocation->GetId());
+                Logger.AddTag("AllocationId", allocation->GetId());
             }
 
             YT_LOG_INFO("Job interruption skipped since it is not settled in running allocation");

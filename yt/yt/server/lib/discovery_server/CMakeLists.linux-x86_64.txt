@@ -48,8 +48,8 @@ target_link_libraries(server-lib-discovery_server PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
+  yt-library-discovery_client
   yt-yt-ytlib
-  yt-ytlib-discovery_client
   contrib-libs-protobuf
 )
 

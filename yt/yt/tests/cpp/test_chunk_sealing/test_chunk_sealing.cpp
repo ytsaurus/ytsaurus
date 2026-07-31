@@ -29,6 +29,10 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/library/profiling/testing.h>
+
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -50,6 +54,7 @@ using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NProfiling;
 
 using testing::HasSubstr;
 
@@ -106,7 +111,14 @@ protected:
 
     // Creates an unattached journal chunk on master, allocates write targets,
     // writes records via TJournalChunkWriter, and closes the writer.
-    TChunkWriteResult CreateAndWriteJournalChunk(int recordCount, int recordSize)
+    // With burstWrite the records are written without awaiting each other,
+    // exercising flush pipelining when the config allows it.
+    TChunkWriteResult CreateAndWriteJournalChunk(
+        int recordCount,
+        int recordSize,
+        TJournalChunkWriterConfigPtr writerConfig = nullptr,
+        bool burstWrite = false,
+        TJournalWriterPerformanceCounters counters = {})
     {
         // Create chunk on master.
         auto channel = NativeClient_->GetMasterChannelOrThrow(
@@ -154,14 +166,16 @@ protected:
         writerOptions->WriteQuorum = WriteQuorum;
         writerOptions->ReadQuorum = ReadQuorum;
 
-        auto writerConfig = New<TJournalChunkWriterConfig>();
+        if (!writerConfig) {
+            writerConfig = New<TJournalChunkWriterConfig>();
+        }
 
         auto writer = CreateJournalChunkWriter(
             NativeClient_,
             sessionId,
             writerOptions,
             writerConfig,
-            /*counters*/ {},
+            std::move(counters),
             ActionQueue_->GetInvoker(),
             targets,
             EChunkFormat::JournalDistributed,
@@ -176,13 +190,21 @@ protected:
         result.Replicas = targets;
         result.Records.reserve(recordCount);
 
+        std::vector<TFuture<void>> recordFutures;
         for (int i = 0; i < recordCount; ++i) {
             auto record = MakeRandomString(recordSize);
             result.TotalDataSize += record.size();
             result.Records.push_back(record);
-            WaitFor(writer->WriteRecord(TSharedRef::FromString(record)))
-                .ThrowOnError();
+            auto recordFuture = writer->WriteRecord(TSharedRef::FromString(record)).AsVoid();
+            if (burstWrite) {
+                recordFutures.push_back(std::move(recordFuture));
+            } else {
+                WaitFor(recordFuture)
+                    .ThrowOnError();
+            }
         }
+        WaitFor(AllSucceeded(std::move(recordFutures)))
+            .ThrowOnError();
 
         // Close writer — waits for quorum flush.
         WaitFor(writer->Close())
@@ -359,6 +381,37 @@ TEST_F(TChunkSealingTest, HappyPathSealWithExactInfo)
     EXPECT_GT(GetChunkDiskSpace(result.ChunkId), 0);
 
     // After sealing with exact info, every replica must contain all records.
+    VerifyAllReplicasContainRecords(result.ChunkId, result.Records);
+}
+
+TEST_F(TChunkSealingTest, PipelinedWriteSealAndVerify)
+{
+    auto writerConfig = New<TJournalChunkWriterConfig>();
+    writerConfig->MaxInFlightFlushCount = 4;
+    writerConfig->MaxBatchRowCount = 1;
+    writerConfig->MaxBatchDelay = TDuration::Zero();
+
+    auto registry = New<TSolomonRegistry>();
+    TJournalWriterPerformanceCounters counters(TProfiler(registry, "/journal_writer_test"));
+
+    auto result = CreateAndWriteJournalChunk(
+        /*recordCount*/ 500,
+        /*recordSize*/ 100,
+        writerConfig,
+        /*burstWrite*/ true,
+        counters);
+
+    // Flushes must have actually overlapped, not degenerated to one in flight.
+    EXPECT_GT(TTesting::ReadCounter(counters.PipelinedFlushCount), 0);
+
+    SealChunkWithInfo(
+        result.ChunkId,
+        /*rowCount*/ std::ssize(result.Records),
+        /*dataSize*/ result.TotalDataSize);
+
+    ASSERT_TRUE(IsChunkSealed(result.ChunkId));
+
+    // Pipelined flushes must not lose, reorder or duplicate records.
     VerifyAllReplicasContainRecords(result.ChunkId, result.Records);
 }
 

@@ -13,11 +13,13 @@
 # changes in this file.
 
 add_subdirectory(async_request)
+add_subdirectory(companion_word_count)
+add_subdirectory(word_count)
 add_subdirectory(external_state_join)
+add_subdirectory(file_resource)
 add_subdirectory(retryable_async_request)
 add_subdirectory(shuffle)
 add_subdirectory(static_table_join)
 add_subdirectory(url_downloader)
 add_subdirectory(wait_click_join)
-add_subdirectory(word_count)
 add_subdirectory(noop)

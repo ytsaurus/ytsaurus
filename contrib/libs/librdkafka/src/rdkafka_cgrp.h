@@ -126,6 +126,11 @@ typedef struct rd_kafka_cgrp_s {
         rd_kafka_q_t *rkcg_q;            /* Application poll queue */
         rd_kafka_q_t *rkcg_ops;          /* Manager ops queue */
         rd_kafka_q_t *rkcg_wait_coord_q; /* Ops awaiting coord */
+        /* TODO KIP-932: rkcg_flags is written by the main thread (heartbeat
+         * builder/response handler) and read lock-free by the app thread on
+         * every poll via rd_kafka_app_polled(). TSAN flags this as a data
+         * race because the writer and reader are on different threads with
+         * no synchronization between them. */
         int rkcg_flags;
 #define RD_KAFKA_CGRP_F_TERMINATE 0x1 /* Terminate cgrp (async) */
 #define RD_KAFKA_CGRP_F_LEAVE_ON_UNASSIGN_DONE                                 \
@@ -226,13 +231,48 @@ typedef struct rd_kafka_cgrp_s {
         /** The actual topics subscribed (after metadata+wildcard matching).
          *  Sorted. */
         rd_list_t *rkcg_subscribed_topics; /**< (rd_kafka_topic_info_t *) */
-        /** Subscribed topics that are errored/not available. */
+        /** Subscribed topics that are errored/not available.
+         *
+         *  Two roles share this field, exclusively per cgrp protocol:
+         *
+         *  - Classic consumer: cross-cycle dedup memo.
+         *    rd_kafka_propagate_consumer_topic_errors wholesale-replaces
+         *    it with the current cycle's errored set after emitting.
+         *
+         *  - Share consumer (KIP-932): per-metadata-cycle (topic, err)
+         *    accumulator. Populated by rd_kafka_share_toppar_enq_error
+         *    and drained (then re-emptied) by
+         *    rd_kafka_share_topic_err_propagate at cycle end. */
         rd_kafka_topic_partition_list_t *rkcg_errored_topics;
         /** If a SUBSCRIBE op is received during a COOPERATIVE rebalance,
          *  actioning this will be postponed until after the rebalance
-         *  completes. The waiting subscription is stored here.
-         *  Mutually exclusive with rkcg_next_subscription. */
+         *  completes. The waiting subscription is stored here. */
         rd_kafka_topic_partition_list_t *rkcg_next_subscription;
+
+        /**
+         * Subscription regex pattern. All the provided regex patterns are
+         * stored as a single string with each pattern separated by '|'.
+         *
+         * Only applicable for the consumer protocol introduced in KIP-848.
+         *
+         * rkcg_subscription = rkcg_subscription_topics +
+         * rkcg_subscription_regex
+         */
+        rd_kafkap_str_t *rkcg_subscription_regex;
+
+        /**
+         * Full topic names extracted out from the rkcg_subscription.
+         *
+         * Only applicable for the consumer protocol introduced in KIP-848.
+         *
+         *  For the consumer protocol, this field doesn't include regex
+         *  subscriptions. For that please refer `rkcg_subscription_regex`
+         *
+         * rkcg_subscription = rkcg_subscription_topics +
+         * rkcg_subscription_regex
+         */
+        rd_kafka_topic_partition_list_t *rkcg_subscription_topics;
+
         /** If a (un)SUBSCRIBE op is received during a COOPERATIVE rebalance,
          *  actioning this will be posponed until after the rebalance
          *  completes. This flag is used to signal a waiting unsubscribe
@@ -312,6 +352,8 @@ typedef struct rd_kafka_cgrp_s {
          *  incremental unassign. */
         rd_bool_t rkcg_rebalance_rejoin;
 
+        rd_ts_t rkcg_ts_last_err;          /* Timestamp of last error
+                                            * propagated to application */
         rd_kafka_resp_err_t rkcg_last_err; /* Last error propagated to
                                             * application.
                                             * This is for silencing
@@ -333,6 +375,8 @@ typedef struct rd_kafka_cgrp_s {
 
         rd_atomic32_t rkcg_terminated; /**< Consumer has been closed */
 
+        rd_atomic32_t rkcg_subscription_version; /**< Subscription version */
+
         /* Protected by rd_kafka_*lock() */
         struct {
                 rd_ts_t ts_rebalance;       /* Timestamp of
@@ -349,6 +393,90 @@ typedef struct rd_kafka_cgrp_s {
         /* Timestamp of last rebalance start */
         rd_ts_t rkcg_ts_rebalance_start;
 
+        struct {
+                size_t last_partition_picked;            /* For round-robin
+                                                          * partition picking */
+                rd_kafka_timer_t share_fetch_fanout_tmr; /**< Timer for
+                                                          *   share fetch
+                                                          *   fanout */
+                rd_bool_t
+                    share_fetch_more_records; /**< Global fetch-in-flight
+                                               *   guard. When rd_true, a
+                                               *   fetch is already in
+                                               *   progress and new FANOUT
+                                               *   ops should not send
+                                               *   another fetch request. */
+                int share_should_fetch_ops_in_flight_cnt; /**< Number of
+                                                           * SHARE_FETCH ops
+                                                           * with
+                                                           * should_fetch=true
+                                                           *   currently
+                                                           * in-flight.
+                                                           *   Incremented when
+                                                           * enqueuing,
+                                                           *   decremented on
+                                                           * reply.
+                                                           *   @locality main
+                                                           * thread */
+                int share_session_leave_remaining_cnt;    /**< Number of
+                                                           * session leave requests
+                                                           * which are either
+                                                           * pending to be sent or
+                                                           * are in-flight.
+                                                           * Populated when cgrp
+                                                           * termination op    is
+                                                           * received and
+                                                           * decremented    whenever
+                                                           * we receive a reply    to
+                                                           * a leave request
+                                                           *    @locality main
+                                                           * thread */
+                int64_t commit_sync_request_id_counter; /**< Global counter for
+                                                         *   commit_sync request
+                                                         *   IDs. Starts at 1,
+                                                         *   wraps to 1 at
+                                                         *   INT64_MAX.
+                                                         *   @locality main
+                                                         *   thread */
+                rd_ts_t
+                    fetch_stall_logged_last_ts; /**< Last time the
+                                                 *   main-thread re-trigger
+                                                 *   loop logged a "fetch
+                                                 *   stalled" condition;
+                                                 *   rate-limits that log.
+                                                 *   0 = not currently
+                                                 *   logged.
+                                                 *   @locality main thread */
+        } rkcg_share;
+
+        /**
+         * Current commit_sync request state.
+         * Only one commit_sync can be active at a time since
+         * the app thread blocks until the main thread sends
+         * the response.
+         * @locality main thread
+         */
+        struct {
+                int64_t id;          /**< Current request ID from
+                                      *   rkcg_share.commit_sync_request_id_counter.
+                                      *   Set on each new commit_sync call.
+                                      *   Reset to 0 when the reply is sent.
+                                      *   0 means no active request. */
+                rd_ts_t abs_timeout; /**< Absolute timeout for the
+                                      *   commit_sync request. */
+                rd_kafka_topic_partition_list_t
+                    *results; /**< Partition-to-error mapping.
+                               *   Populated as broker replies
+                               *   arrive. */
+                int brokers_awaiting_result_cnt; /**< Number of broker
+                                                  *   results still
+                                                  *   pending. */
+                rd_kafka_q_t *replyq;            /**< App thread's temp queue
+                                                  *   to send response to. */
+                rd_kafka_timer_t tmr;            /**< Timeout timer. Fires at
+                                                  *   abs_timeout to send
+                                                  *   timeout response. */
+        } rkcg_commit_sync_request;
 } rd_kafka_cgrp_t;
 
 
@@ -401,8 +529,26 @@ void rd_kafka_cgrp_coord_dead(rd_kafka_cgrp_t *rkcg,
                               const char *reason);
 void rd_kafka_cgrp_metadata_update_check(rd_kafka_cgrp_t *rkcg,
                                          rd_bool_t do_join);
+
+/**
+ * TODO KIP-932: Think of correct placing for this function.
+ */
+void rd_kafka_share_topic_err_propagate(rd_kafka_cgrp_t *rkcg);
+
 #define rd_kafka_cgrp_get(rk) ((rk)->rk_cgrp)
 
+#define rd_kafka_cgrp_same_subscription_version(rk_cgrp,                       \
+                                                cgrp_subscription_version)     \
+        ((rk_cgrp) &&                                                          \
+         (cgrp_subscription_version == -1 ||                                   \
+          rd_atomic32_get(&(rk_cgrp)->rkcg_subscription_version) ==            \
+              cgrp_subscription_version))
+
+void rd_kafka_cgrp_partition_add(rd_kafka_cgrp_t *rkcg,
+                                 rd_kafka_toppar_t *rktp);
+
+void rd_kafka_cgrp_partition_del(rd_kafka_cgrp_t *rkcg,
+                                 rd_kafka_toppar_t *rktp);
 
 void rd_kafka_cgrp_assigned_offsets_commit(
     rd_kafka_cgrp_t *rkcg,

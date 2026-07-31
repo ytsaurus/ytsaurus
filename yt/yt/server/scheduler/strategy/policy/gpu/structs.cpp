@@ -182,9 +182,12 @@ bool TOperation::IsFullHost() const
 
 bool TOperation::IsFullHostModuleBound() const
 {
-    bool singleAllocationVanilla = GetType() == EOperationType::Vanilla &&
-        GetInitialNeededAllocationCount() == 1;
-    return IsFullHost() && (IsGang() || singleAllocationVanilla);
+    return IsFullHost() && IsGang();
+}
+
+bool TOperation::IsFullHostNonGang() const
+{
+    return IsFullHost() && !IsGang();
 }
 
 int TOperation::GetInitialNeededAllocationCount() const
@@ -360,7 +363,7 @@ void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer)
             .Item("initial_grouped_needed_resources").Value(operation.InitialGroupedNeededResources())
             .Item("assigned_resource_usage").Value(operation.AssignedResourceUsage())
             .Item("specified_scheduling_modules").Value(operation.SpecifiedSchedulingModules())
-            .Item("priority_module_binding_enabled").Value(operation.IsPriorityModuleBindingEnabled())
+            .Item("priority_module_binding_enabled").Value(operation.PriorityModuleBindingEnabled())
             .Item("waiting_for_module_binding_since").Value(operation.WaitingForModuleBindingSince())
             .Item("waiting_for_assignments_since").Value(operation.WaitingForAssignmentsSince())
             .Item("preemptible").Value(operation.IsPreemptible())
@@ -517,6 +520,7 @@ void Serialize(const TGpuModuleStatistics& statistic, NYson::IYsonConsumer* cons
             .Item("node_count").Value(statistic.TotalNodes)
             .Item("unreserved_node_count").Value(statistic.UnreservedNodes)
             .Item("full_host_bound_operation_count").Value(statistic.FullHostModuleBoundOperations)
+            .Item("full_host_non_gang_assignment_count").Value(statistic.FullHostNonGangAssignments)
         .EndMap();
 }
 

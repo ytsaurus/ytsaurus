@@ -165,7 +165,7 @@ public:
         , NodeDirectory_(Host_->Client->GetNativeConnection()->GetNodeDirectory())
         , NodeStatusDirectory_(Host_->Client->GetNativeConnection()->GetNodeStatusDirectory())
         , Networks_(Host_->Client->GetNativeConnection()->GetNetworks())
-        , Logger(ChunkClientLogger().WithTag("ChunkFragmentReaderId: %v", TGuid::Create()))
+        , Logger(ChunkClientLogger().WithTag("ChunkFragmentReaderId", TGuid::Create()))
         , ReaderInvoker_(TDispatcher::Get()->GetReaderInvoker())
         , PeerInfoCache_(New<TPeerInfoCache>(
             Config_->PeerInfoExpirationTimeout,
@@ -550,7 +550,7 @@ private:
                 TryUpdateChunkReplicas(chunkIdWithIndex.Id, subresponse);
 
                 if (!subresponse.has_complete_chunk()) {
-                    YT_LOG_WARNING("Chunk is missing from node (ChunkId: %v, Address: %v)",
+                    YT_LOG_DEBUG("Chunk is missing from node (ChunkId: %v, Address: %v)",
                         chunkIdWithIndex,
                         peerInfo->Address);
                     continue;
@@ -734,7 +734,7 @@ public:
         : TProbingSessionBase(
             reader,
             MakeOptions(),
-            reader->Logger().WithTag("PeriodicProbingSessionId: %v", TGuid::Create()))
+            reader->Logger().WithTag("PeriodicProbingSessionId", TGuid::Create()))
     { }
 
     void Run()
@@ -1862,9 +1862,9 @@ public:
         : Reader_(std::move(reader))
         , Options_(std::move(options))
         , SessionInvoker_(CreateSerializedInvoker(Reader_->ReaderInvoker_))
-        , Logger(Reader_->Logger().WithTag("ChunkFragmentReadSessionId: %v, ReadSessionId: %v",
-            TGuid::Create(),
-            Options_.ReadSessionId))
+        , Logger(Reader_->Logger()
+            .WithTag("ChunkFragmentReadSessionId", TGuid::Create())
+            .WithTag("ReadSessionId", Options_.ReadSessionId))
     {
         State_->Requests = std::move(requests);
         State_->Response.Fragments.resize(State_->Requests.size());

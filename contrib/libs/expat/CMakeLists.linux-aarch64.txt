@@ -30,6 +30,7 @@ target_include_directories(contrib-libs-expat PRIVATE
 target_link_libraries(contrib-libs-expat PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-libc_compat
+  cpp-sanitizer-include
 )
 
 target_sources(contrib-libs-expat PRIVATE

@@ -488,57 +488,6 @@ class CreateTableAction(CreateNodeAction):
                 f"Parent path {self.parent_path} doesn't exist")
 
 
-class CreateTabletCellsAction(Action):
-    """Create specified number of YT tablet cells."""
-
-    def __init__(self, tablet_cell_bundle: str, cell_count: int) -> None:
-        self._bundle_name = tablet_cell_bundle
-        self._count = cell_count
-
-    def _get_current_count(self, app: SequoiaTool) -> int:
-        path = yt.ypath_join("//sys/tablet_cell_bundles",
-                             self._bundle_name,
-                             "@tablet_cell_count")
-        return cast(int, app.ground_client.get(path))
-
-    def _get_remaining_count(self, app: SequoiaTool) -> int:
-        return max(0, self._count - self._get_current_count(app))
-
-    @override
-    def execute(self, app: SequoiaTool) -> None:
-        ids = []
-        try:
-            for _ in range(self._get_remaining_count(app)):
-                id = app.ground_client.create(
-                    type="tablet_cell",
-                    attributes={"tablet_cell_bundle": self._bundle_name})
-                ids.append(id)
-        finally:
-            if ids:
-                logging.info(f"Created tablet cells: {ids}")
-
-    @override
-    def describe(self) -> str:
-        return (f'Create tablet cells in the "{self._bundle_name}" bundle')
-
-    @override
-    def validate_state(self, app: SequoiaTool) -> None:
-        current = self._get_current_count(app)
-        if current != self._count:
-            raise ValidationFailed(
-                f"Tablet cell count mismatch: {current} != {self._count}")
-
-    @override
-    def dry_run(self, app: SequoiaTool) -> None:
-        remaining = self._get_remaining_count(app)
-        if remaining > 0:
-            log_dry_run(f"Would create {remaining} tablet cells in the"
-                        f'"{self._bundle_name}" bundle', logger)
-        elif self.check_state(app):
-            log_dry_run("Enough tablet cells exist in the "
-                        f'"{self._bundle_name}" bundle', logger)
-
-
 class MountTabletAction(Action):
     def __init__(
         self,

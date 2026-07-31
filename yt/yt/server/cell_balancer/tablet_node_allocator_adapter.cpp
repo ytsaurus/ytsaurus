@@ -512,18 +512,38 @@ public:
         return Dummy;
     }
 
-    std::vector<std::string> GetOfflineInstances(
-        const TSchedulerInputState& /*input*/,
+    std::vector<std::string> GetOfflineInstancesToDeallocate(
+        const TSchedulerInputState& input,
         const std::string& dataCenterName) const
     {
+        std::optional<TDuration> offlineThreshold;
+        if (input.Config->HasInstanceAllocatorService) {
+            offlineThreshold = input.DynamicConfig->DeallocateOfflineInstanceAfter;
+        } else {
+            // In mode without allocations we must remove offline nodes
+            // from the bundle immediately to force allocation of new nodes.
+            offlineThreshold = TDuration::Zero();
+        }
+        if (!offlineThreshold) {
+            return {};
+        }
+
         std::vector<std::string> result;
 
         const auto& aliveInstances = GetAliveInstances(dataCenterName);
+        auto now = TInstant::Now();
 
         for (const auto& address : GetInstances(dataCenterName)) {
-            if (!aliveInstances.contains(address)) {
-                result.push_back(address);
+            if (aliveInstances.contains(address)) {
+                continue;
             }
+
+            const auto& nodeInfo = GetOrCrash(input.TabletNodes, address);
+            if (now - nodeInfo->LastSeenTime < *offlineThreshold) {
+                continue;
+            }
+
+            result.push_back(address);
         }
 
         return result;

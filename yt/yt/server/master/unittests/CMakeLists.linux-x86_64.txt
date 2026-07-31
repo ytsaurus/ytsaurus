@@ -63,6 +63,7 @@ target_sources(unittester-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_requisition_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_balancer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_traversing_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_tree_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_view_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/cumulative_statistics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/helpers.cpp

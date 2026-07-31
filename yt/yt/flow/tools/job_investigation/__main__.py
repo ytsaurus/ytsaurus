@@ -293,10 +293,10 @@ def get_data(args):
             return result
 
         input_buffer_metrics = fill_buffer_metrics_from_limits(
-            status.get("input_limits", {}).get("input_buffer", {}), input_stream_data
+            status.get("input_limits", {}).get("input_buffer_bytes", {}), input_stream_data
         )
         output_buffer_metrics = fill_buffer_metrics_from_limits(
-            status.get("output_limits", {}).get("output_buffer", {}), output_stream_data
+            status.get("output_limits", {}).get("output_buffer_bytes", {}), output_stream_data
         )
 
         # Fill epoch part times from flow_view, normalized so that sum == 1 per job.

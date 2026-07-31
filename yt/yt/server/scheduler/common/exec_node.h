@@ -18,11 +18,11 @@
 
 #include <yt/yt/core/concurrency/lease_manager.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 

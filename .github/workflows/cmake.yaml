@@ -1,0 +1,104 @@
+name: CMake CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_types:
+        description: 'JSON array of build types. Keep ["relwithdebinfo"] so cmake unittests are built with debug symbols.'
+        required: false
+        default: '["relwithdebinfo"]'
+        type: string
+  push:
+    branches:
+      - main
+      - stable/*
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+jobs:
+  start-vm:
+    name: Start VM
+    runs-on: trampoline
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: start
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: ${{ vars.YC_FOLDER_ID }}
+          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          zone-id: ${{ vars.YC_ZONE_ID }}
+          subnet-id: ${{ vars.YC_SUBNET_ID }}
+          cores: 16
+          memory: 64GB
+          core-fraction: 100
+          disk-type: network-ssd-nonreplicated
+          disk-size: 744GB
+          user: ${{ secrets.YC_VM_USERNAME }}
+          ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+          public-ip: false
+          ttl: PT24H
+          runner-home-dir: /actions-runner
+
+  checkout:
+    name: Checkout sources
+    needs: start-vm
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Checkout ytsaurus
+        uses: actions/checkout@v4
+        with:
+          path: ytsaurus
+          fetch-depth: 256
+
+  build-check-cmake:
+    name: CMake build and check
+    needs:
+      - start-vm
+      - checkout
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      build-types: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.build_types || '["relwithdebinfo"]' }}
+      run-unittests: true
+      run-integration-tests: true
+      run-python-tests: true
+      run-odin-tests: true
+    secrets:
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+    uses: ./.github/workflows/cmake-action.yaml
+
+  stop-vm:
+    name: Stop VM
+    needs:
+      - start-vm
+      - build-check-cmake
+    runs-on: trampoline
+    if: ${{ always() }}
+    steps:
+      - name: Stop YC runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: stop
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-vm.outputs.label }}
+          instance-id: ${{ needs.start-vm.outputs.instance-id }}
+
+  send-alert:
+    needs:
+      - build-check-cmake
+    if: always()
+    uses: ./.github/workflows/check-status-and-send-alert.yaml
+    with:
+      is_failure: ${{ contains(join(needs.*.result, ','), 'failure') }}
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

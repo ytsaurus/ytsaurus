@@ -1914,6 +1914,41 @@ class TestClientConfigFromCluster(object):
         env_alias_client = yt.YtClient(config=config)
         assert env_alias_client.get(node_path) == "value"
 
+    @authors("denvr")
+    def test_config_annotations(self):
+        DIR = "//tmp/dir1"
+        FILE = "//tmp/file1"
+        DOCUMENT = "//tmp/doc1"
+        TABLE = "//tmp/table1"
+        TABLE_DST = "//tmp/table1_dst"
+
+        with mock.patch.dict(os.environ, {"YT_ANNOTATE_OBJECTS": "{some_bad_attr=some_val;_some_attr=some_str_val;_some_attr_with_attr=<attr1=val1>some_str_val_2;}"}):
+            client = yt.YtClient(config=yt.config.config)
+            client.create("map_node", DIR)
+            client.create("file", FILE)
+            client.create("document", DOCUMENT)
+            client.create("table", TABLE)
+        for path in [DIR, FILE, TABLE]:
+            attrs = yt.get(path, attributes=["some_bad_attr", "_some_attr", "_some_attr_with_attr"]).attributes
+            assert attrs["_some_attr"] == "some_str_val"
+            assert attrs["_some_attr_with_attr"] == yson.loads(b"<attr1=val1>some_str_val_2")
+            assert "some_bad_attr" not in attrs["_some_attr"]
+        for path in [DOCUMENT]:
+            attrs = yt.get(path, attributes=["some_bad_attr", "_some_attr"]).attributes
+            assert attrs == {}
+
+        with mock.patch.dict(os.environ, {"YT_ANNOTATE_OBJECTS": "{\"_some_attr_2\": {\"some_key\": \"some_str_val_2\"}}"}):
+            client.run_map(
+                "cat",
+                source_table=TABLE,
+                destination_table=TABLE_DST,
+                format="yson"
+            )
+        attrs = yt.get(TABLE_DST, attributes=["some_bad_attr", "_some_attr", "_some_attr_2"]).attributes
+        assert attrs["_some_attr_2"] == {"some_key": "some_str_val_2"}
+        assert "some_bad_attr" not in attrs["_some_attr"]
+        assert "_some_attr" not in attrs["_some_attr"]
+
 
 class _ConfigFile:
     def __init__(self, content: bytes, is_readable: bool, file_name: str):
@@ -2283,6 +2318,13 @@ def test_operations_with_other_cluster(yt_env_multicluster_v4):  # noqa
 
 @pytest.mark.usefixtures("yt_env")
 class TestProxyDiscovery(object):
+
+    def setup_method(self, method):
+        self._config = deepcopy(yt.config.config)
+
+    def teardown_method(self, method):
+        yt.config.config = self._config
+
     @authors("nadya73")
     def test_hosts(self):
         if yt.config["backend"] == "native":
@@ -2301,8 +2343,11 @@ class TestProxyDiscovery(object):
         if yt.config["backend"] == "native":
             pytest.skip()
 
+        yt.config["proxy"]["enable_proxy_discovery"] = True
         yt.config["proxy"]["allow_light_proxy_for_heavy_requests"] = False
         yt.config["proxy"]["proxy_discovery_url"] = "api/v4/discover_proxies?type=http"
+        yt.config["proxy"]["http_proxy_role"] = None
+        yt.config["proxy"]["network_name"] = None
 
         table = TEST_DIR + "/table"
 
@@ -2315,7 +2360,8 @@ class TestProxyDiscovery(object):
         yt.config["proxy"]["http_proxy_role"] = "data"
         check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
 
-        with pytest.raises(yt.YtError, match="There are no heavy proxies and using light proxy is forbidden"):
+        with pytest.raises(yt.YtError, match="No proxies found for role \"unknown_role\" on cluster "
+                           "and using light proxy is forbidden"):
             yt.config["proxy"]["http_proxy_role"] = "unknown_role"
             yt.read_table(table)
 
@@ -2323,6 +2369,75 @@ class TestProxyDiscovery(object):
         yt.config["proxy"]["network_name"] = "default"
         check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
 
-        with pytest.raises(yt.YtError, match="There are no heavy proxies and using light proxy is forbidden"):
+        with pytest.raises(yt.YtError, match="No proxies found for role \"data\" on cluster "
+                           "and using light proxy is forbidden"):
             yt.config["proxy"]["network_name"] = "unknown_network"
+            yt.read_table(table)
+
+    @authors("asklit")
+    def test_proxy_role_change(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        yt.config["proxy"]["enable_proxy_discovery"] = True
+        yt.config["proxy"]["proxy_discovery_url"] = "api/v4/discover_proxies?type=http"
+        yt.config["proxy"]["http_proxy_role"] = None
+        yt.config["proxy"]["network_name"] = None
+        yt.config["proxy"]["allow_light_proxy_for_heavy_requests"] = True
+
+        table = TEST_DIR + "/table"
+        yt.create("table", table)
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        yt.config["proxy"]["http_proxy_role"] = "data"
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+        yt.config["proxy"]["http_proxy_role"] = "unknown_role_fly"
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+        yt.config["proxy"]["http_proxy_role"] = "data"
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+    @authors("asklit")
+    def test_proxy_role_fallback_logging(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        yt.config["proxy"]["enable_proxy_discovery"] = True
+        yt.config["proxy"]["proxy_discovery_url"] = "api/v4/discover_proxies?type=http"
+        yt.config["proxy"]["http_proxy_role"] = None
+        yt.config["proxy"]["network_name"] = None
+        yt.config["proxy"]["allow_light_proxy_for_heavy_requests"] = True
+
+        table = TEST_DIR + "/table"
+        yt.create("table", table)
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        yt.config["proxy"]["http_proxy_role"] = "unknown_role_log"
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+        check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(table))
+
+        if yatest_common is not None:
+            log_content = "".join(open(yatest_common.test_output_path() + ".log").read())
+            warning_message = "No proxies found for role \"unknown_role_log\" on cluster, falling back to light proxy"
+            assert log_content.count(warning_message) == 1
+
+    @authors("asklit")
+    def test_unknown_proxy_role_raises_error_without_allow_light(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        yt.config["proxy"]["enable_proxy_discovery"] = True
+        yt.config["proxy"]["proxy_discovery_url"] = "api/v4/discover_proxies?type=http"
+        yt.config["proxy"]["http_proxy_role"] = None
+        yt.config["proxy"]["network_name"] = None
+
+        table = TEST_DIR + "/table"
+        yt.create("table", table)
+        yt.write_table(table, [{"x": 1}, {"y": 2}])
+
+        yt.config["proxy"]["allow_light_proxy_for_heavy_requests"] = False
+        yt.config["proxy"]["http_proxy_role"] = "unknown_role"
+        with pytest.raises(yt.YtError, match="No proxies found for role \"unknown_role\" on cluster "
+                           "and using light proxy is forbidden"):
             yt.read_table(table)

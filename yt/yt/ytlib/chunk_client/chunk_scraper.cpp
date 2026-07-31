@@ -282,9 +282,9 @@ public:
     , SerializedInvoker_(std::move(serializedInvoker))
     , HeavyInvoker_(std::move(heavyInvoker))
     , AvailabilityPolicy_(availabilityPolicy)
-    , Logger(std::move(logger).WithTag("ScraperTaskId: %v, CellTag: %v",
-        TGuid::Create(),
-        CellTag_))
+    , Logger(std::move(logger)
+        .WithTag("ScraperTaskId", TGuid::Create())
+        .WithTag("CellTag", CellTag_))
     , Looper_(New<TAsyncLooper>(
         SerializedInvoker_,
         // There should be called BIND_NO_PROPAGATE, but currently we store allocation tags in trace context :(
@@ -296,7 +296,7 @@ public:
             return TFuture<void>();
         }),
         /*syncFinish*/ BIND(&TScraperTask::LocateChunksSync, MakeWeak(this)),
-        Logger.WithTag("AsyncLooper: %v", "ScraperTask")))
+        Logger.WithTag("AsyncLooper", "ScraperTask")))
     , Proxy_(std::move(masterChannel))
     , ChunkIdsQueue_(CreateQueue(Config_->PrioritizeUnavailableChunks))
     { }

@@ -71,7 +71,7 @@ private:
                 if (storeManager->GetLastPeriodicRotationTime() != request.ExpectedLastPeriodicRotationTime) {
                     YT_LOG_DEBUG("Last periodic rotation time mismatch, aborting rotation "
                         "(%v, ExpectedTime: %v, ActualTime: %v)",
-                        tablet->GetLoggingTag(),
+                        tablet->GetLoggingTags(),
                         request.ExpectedLastPeriodicRotationTime,
                         storeManager->GetLastPeriodicRotationTime());
                     return;

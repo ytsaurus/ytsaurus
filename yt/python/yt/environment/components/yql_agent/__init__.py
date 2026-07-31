@@ -27,13 +27,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self._qtworker_enabled = False
         self._qtworker_processes = []
         self._qtworker_binary = None
-        self._qtworker_worker_conf = None
-        self._qtworker_fs_conf = None
-        self._qtworker_gateways_conf = None
-        self._qtworker_socket_dir = None
-        self._qtworker_run_dir = None
-        self._qtworker_tasks_dir = None
-        self._qtworker_filecache_dir = None
+        self._qtworker_inspector_ports = {}
+        self._qtworker_instances = []
 
     def prepare(self, env, config, remote_envs=[]):
         logger.info("Preparing yql agent")
@@ -80,36 +75,65 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             file.write(yql_agent_token)
 
         if self.config.get("enable_qtworker", False):
+            self._prepare_proto_dynamic_configs()
             self._prepare_qtworker()
 
         logger.info("Yql agent prepared")
 
-    def _prepare_qtworker_fs_conf(self):
+    def render_gateways_conf(self, index=0):
+        gw_src = self.config.get("qtworker_gateways_conf")
+        if not gw_src:
+            raise YtError("qtworker_gateways_conf is not specified in config")
+
+        with open(gw_src) as gw_file:
+            gw_text = gw_file.read()
+        gw_text = gw_text.replace("${cluster_name}", self.env.id)
+        gw_text = gw_text.replace("${cluster_address}", self.env.get_http_proxy_address())
+        gw_text = gw_text.replace("${mr_job_bin}", self._resolve_mrjob())
+        gw_text = gw_text.replace(
+            "${yt_debug_log_file}",
+            os.path.join(self.env.logs_path, "qtworker_{}_yt_debug.log".format(index)))
+
+        if len(self.remote_envs) > 0:
+            gw_text = gw_text.replace("${remote_cluster_name}", self.remote_envs[0].id)
+            gw_text = gw_text.replace("${remote_cluster_address}", self.remote_envs[0].get_http_proxy_address())
+
+        return gw_text
+
+    def _prepare_proto_dynamic_configs(self):
+        gw_text = self.render_gateways_conf()
+
+        filename = "//sys/yql_agent/proto_gateways/default.conf"
+        self.client.create("file", filename, recursive=True, force=True)
+        self.client.write_file(filename, gw_text.encode('utf-8'))
+
+    def _prepare_qtworker_fs_conf(self, instance):
         fs_src = self.config.get("qtworker_fs_conf")
         if not fs_src:
             raise YtError("qtworker_fs_conf is not specified in config")
 
         with open(fs_src) as fs_file:
             fs_text = fs_file.read()
-        fs_text = fs_text.replace("${filecache}", os.path.join(self._instance_root, "filecache"))
+        fs_text = fs_text.replace("${filecache}", os.path.join(instance["instance_root"], "filecache"))
 
-        self._qtworker_fs_conf = os.path.join(self.env.configs_path, "qtworker_fs.conf")
-        with open(self._qtworker_fs_conf, "w") as fs_out:
+        fs_conf = os.path.join(self.env.configs_path, "qtworker_fs_{}.conf".format(instance["index"]))
+        with open(fs_conf, "w") as fs_out:
             fs_out.write(fs_text)
+        instance["fs_conf"] = fs_conf
 
-    def _prepare_qtworker_worker_conf(self):
-        self._qtworker_run_dir = os.path.join(self._instance_root, "run")
-        self._qtworker_tasks_dir = os.path.join(self._instance_root, "qtworker-tasks")
-        self._qtworker_filecache_dir = os.path.join(self._instance_root, "filecache")
-        self._qtworker_socket_dir = os.path.join(self._instance_root, "qt_socket_dir")
+    def _prepare_qtworker_worker_conf(self, instance):
+        instance_root = instance["instance_root"]
+        socket_dir = os.path.join(instance_root, "qt_socket_dir")
 
-        makedirp(self._qtworker_run_dir)
-        makedirp(self._qtworker_tasks_dir)
-        makedirp(self._qtworker_filecache_dir)
-        makedirp(self._qtworker_socket_dir)
+        makedirp(os.path.join(instance_root, "run"))
+        makedirp(os.path.join(instance_root, "qtworker-tasks"))
+        makedirp(os.path.join(instance_root, "filecache"))
+        makedirp(socket_dir)
 
-        self._qtworker_core_port = next(self.env._open_port_iterator)
-        self._qtworker_core_task_port = next(self.env._open_port_iterator)
+        instance["socket_dir"] = socket_dir
+
+        core_port = next(self.env._open_port_iterator)
+        core_task_port = next(self.env._open_port_iterator)
 
         udfs_dir = self._resolve_udfs_dir()
 
@@ -125,43 +149,35 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             raise YtError("qtworker_worker_conf is not specified in config")
         with open(worker_template) as template_file:
             worker_text = template_file.read()
-        qtworker_log_file = os.path.join(self.env.logs_path, "qtworker.log")
+        qtworker_log_file = os.path.join(self.env.logs_path, "qtworker_{}.log".format(instance["index"]))
 
         for key, value in [
-            ("${instance_root}", self._instance_root),
+            ("${instance_root}", instance_root),
             ("${udfs_dir}", udfs_dir),
             ("${udf_resolver_path}", udf_resolver),
             ("${udf_dep_stub_path}", stub),
             ("${yql_yt_token_path}", self.token_path),
             ("${qtworker_log_file}", qtworker_log_file),
-            ("${qt_socket_dir}", self._qtworker_socket_dir),
-            ("${inspector_port}", str(self._qtworker_inspector_port)),
-            ("${core_port}", str(self._qtworker_core_port)),
-            ("${core_task_port}", str(self._qtworker_core_task_port)),
+            ("${qt_socket_dir}", socket_dir),
+            ("${inspector_port}", str(instance["inspector_port"])),
+            ("${core_port}", str(core_port)),
+            ("${core_task_port}", str(core_task_port)),
         ]:
             worker_text = worker_text.replace(key, value)
 
-        self._qtworker_worker_conf = os.path.join(self.env.configs_path, "qtworker_worker.conf")
-        with open(self._qtworker_worker_conf, "w") as worker_out:
+        worker_conf = os.path.join(self.env.configs_path, "qtworker_worker_{}.conf".format(instance["index"]))
+        with open(worker_conf, "w") as worker_out:
             worker_out.write(worker_text)
+        instance["worker_conf"] = worker_conf
 
-    def _prepare_qtworker_gateways_conf(self):
-        mr_job_bin = self._resolve_mrjob()
+    def _prepare_qtworker_gateways_conf(self, instance):
+        gw_text = self.render_gateways_conf(instance["index"])
+        gw_text = gw_text.replace("${instance_root}", instance["instance_root"])
 
-        gw_src = self.config.get("qtworker_gateways_conf")
-        if not gw_src:
-            raise YtError("qtworker_gateways_conf is not specified in config")
-
-        with open(gw_src) as gw_file:
-            gw_text = gw_file.read()
-        gw_text = gw_text.replace("${instance_root}", self._instance_root)
-        gw_text = gw_text.replace("${yt_debug_log_file}", os.path.join(self.env.logs_path, "qtworker_yt_debug.log"))
-        gw_text = gw_text.replace("${cluster_name}", self.env.id)
-        gw_text = gw_text.replace("${cluster_address}", self.env.get_http_proxy_address())
-        gw_text = gw_text.replace("${mr_job_bin}", mr_job_bin)
-        self._qtworker_gateways_conf = os.path.join(self.env.configs_path, "qtworker_gateways.conf")
-        with open(self._qtworker_gateways_conf, "w") as gw_out:
+        gw_conf = os.path.join(self.env.configs_path, "qtworker_gateways_{}.conf".format(instance["index"]))
+        with open(gw_conf, "w") as gw_out:
             gw_out.write(gw_text)
+        instance["gateways_conf"] = gw_conf
 
     def _prepare_qtworker(self):
         binary = self.config.get("qtworker_path")
@@ -169,23 +185,33 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self._qtworker_enabled = True
         self._qtworker_binary = binary
         self._qtworker_processes = []
+        self._qtworker_instances = []
 
-        self._instance_root = os.path.join(self.env.path, "qtworker_instance")
-        self._prepare_qtworker_fs_conf()
-        self._prepare_qtworker_gateways_conf()
-        self._prepare_qtworker_worker_conf()
+        # Start a dedicated qtworker per yql agent instance, each bound to that
+        # agent's inspector port and using isolated ports, sockets and paths.
+        for index in sorted(self._qtworker_inspector_ports):
+            instance = {
+                "index": index,
+                "inspector_port": self._qtworker_inspector_ports[index],
+                "instance_root": os.path.join(self.env.path, "qtworker_instance_{}".format(index)),
+            }
+            self._prepare_qtworker_fs_conf(instance)
+            self._prepare_qtworker_gateways_conf(instance)
+            self._prepare_qtworker_worker_conf(instance)
+            self._qtworker_instances.append(instance)
 
     def run(self):
         logger.info("Starting yql agent")
         super(YqlAgent, self).run()
         if self._qtworker_enabled:
-            logger.info("Starting qtworker")
-            self._start_qtworker()
-            logger.info("Qtworker started")
+            logger.info("Starting qtworkers")
+            for instance in self._qtworker_instances:
+                self._start_qtworker(instance)
+            logger.info("Qtworkers started")
         logger.info("Yql agent started")
 
-    def _run_qtworker_role(self, role: str):
-        lowercase_name = f"qtworker_{role}"
+    def _run_qtworker_role(self, instance, role: str):
+        lowercase_name = "qtworker_{}_{}".format(role, instance["index"])
         self._qtworker_processes.append(lowercase_name)
 
         self.env.prepare_external_component(
@@ -199,24 +225,24 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             "--role",
             role,
             "--cfg",
-            self._qtworker_worker_conf,
+            instance["worker_conf"],
             "--fs-cfg",
-            self._qtworker_fs_conf,
+            instance["fs_conf"],
             "--gateways-cfg",
-            self._qtworker_gateways_conf,
+            instance["gateways_conf"],
         ]
 
         self.env.run_external_component(name=lowercase_name, args=args)
 
-    def _start_qtworker(self):
-        self._run_qtworker_role("master")
+    def _start_qtworker(self, instance):
+        self._run_qtworker_role(instance, "master")
 
         for role in ["forker", "core"]:
-            socket_path = os.path.join(self._qtworker_socket_dir, f"{role}.socket")
+            socket_path = os.path.join(instance["socket_dir"], f"{role}.socket")
             wait(lambda: os.path.exists(socket_path), ignore_exceptions=True)
 
-        self._run_qtworker_role("forker")
-        self._run_qtworker_role("core")
+        self._run_qtworker_role(instance, "forker")
+        self._run_qtworker_role(instance, "core")
 
     def wait(self):
         logger.info("Waiting for yql agent to become ready")
@@ -361,7 +387,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "grpc_port": 31001,
                 "yt_backends": [
                     {
-                        "cluster_name": self.env.get_http_proxy_address(),
+                        "cluster_name": self.env.id,
+                        "proxy_address": self.env.get_http_proxy_address(),
                         "vanilla_job_lite": dq_vanilla_job_lite,
                         "vanilla_job_file": [
                             {
@@ -377,7 +404,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                     },
                 ],
                 "yt_coordinator": {
-                    "cluster_name": self.env.get_http_proxy_address(),
+                    "cluster_name": self.env.id,
+                    "proxy_address": self.env.get_http_proxy_address(),
                     "prefix": "//sys/yql_agent/dq_coord",
                     "token_file": self.token_path,
                     "user": self.USER_NAME,
@@ -400,8 +428,12 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if self.config.get("enable_qtworker", False):
             config["yql_agent"]["use_qtworker_yql_plugin"] = True
 
-            self._qtworker_inspector_port = next(self.env._open_port_iterator)
-            config["yql_agent"]["qtworker_inspector_port"] = self._qtworker_inspector_port
+            inspector_port = next(self.env._open_port_iterator)
+            self._qtworker_inspector_ports[instance_index] = inspector_port
+            config["yql_agent"]["qtworker_inspector_port"] = inspector_port
+            config["yql_agent"]["qtworker_gateways_config_path"] = os.path.join(self.env.configs_path, "qtworker_gateways_{}.conf".format(instance_index))
+
+            config["yql_agent"]["udf_meta_user"] = self.USER_NAME
 
         if process_plugin_config:
             config["yql_agent"]["process_plugin_config"] = process_plugin_config

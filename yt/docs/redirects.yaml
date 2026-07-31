@@ -29,6 +29,13 @@ common:
     - from: /user-guide/data-processing/spyt/structured-streaming.md
       to: /user-guide/data-processing/spyt/structured-streaming/index.md
       type: redirect
+    - from: /user-guide/data-processing/spyt/diagnostics.md
+      to: /user-guide/data-processing/spyt/diagnostics/index.md
+      type: redirect
+    # Dynamit tables
+    - from: /user-guide/dynamic-tables/index.md
+      to: /user-guide/dynamic-tables/overview.md
+      type: redirect
 ru:
     - from: /api/c\+\+/c\+\+_api.md
       to: /api/cpp/description.md
@@ -245,7 +252,7 @@ ru:
     - from: /description/common/yson.md
       to: /user-guide/storage/yson.md
       type: redirect
-
+   
     - from: /description/dynamic_tables/bulk_insert.md
       to: /user-guide/dynamic-tables/bulk-insert.md
       type: redirect
@@ -754,6 +761,11 @@ ru:
       to: /user-guide/problems/woodpeckers.md
       type: redirect
 
+    # Flow published URL cleanup (YTFLOW-718)
+    - from: /yandex-specific/flow/(.*)
+      to: /flow/$1
+      type: redirect
+
     # Flow docs reorg (YTFLOW-483)
     - from: /flow/examples/lb2lb.md
       to: /flow/cpp/examples/lb_wait_click_join.md
@@ -761,10 +773,6 @@ ru:
 
     - from: /flow/cpp/examples/lb2lb.md
       to: /flow/cpp/examples/lb_wait_click_join.md
-      type: redirect
-
-    - from: /yandex-specific/flow/cpp/examples/lb2lb
-      to: /yandex-specific/flow/cpp/examples/lb_wait_click_join
       type: redirect
 
     - from: /flow/examples/shuffle.md
@@ -825,15 +833,15 @@ ru:
 
     # Flow: connectors → extensions split
     - from: /flow/connectors/logbroker.md
-      to: /flow/yandex/extensions/logbroker.md
+      to: /flow/extensions/logbroker.md
       type: redirect
 
     - from: /flow/connectors/bigrt.md
-      to: /flow/yandex/extensions/bigrt.md
+      to: /flow/extensions/bigrt.md
       type: redirect
 
     - from: /flow/connectors/grut-watchlog.md
-      to: /flow/yandex/extensions/grut-watchlog.md
+      to: /flow/extensions/grut-watchlog.md
       type: redirect
 
     # Redirects for Cluster Access article
@@ -882,103 +890,66 @@ ru:
       to: /admin-guide/cluster-access-proxy/index.md
       type: redirect
 
-    - from: /yandex-specific/flow/extensions/solomon.md
-      to: /yandex-specific/flow/yandex/extensions/monium.md
+    - from: /flow/extensions/solomon.md
+      to: /flow/extensions/monium.md
       type: redirect
 
-    # Flow: wholly-internal pages moved under yandex/ (YTFLOW-649)
-    - from: /yandex-specific/flow/ai-agent.md
-      to: /yandex-specific/flow/yandex/ai-agent.md
+    - from: /flow/release/launch-vanilla.md
+      to: /flow/devops/vanilla/initial-deploy.md
       type: redirect
 
-    - from: /yandex-specific/flow/extensions/bigrt.md
-      to: /yandex-specific/flow/yandex/extensions/bigrt.md
+    - from: /flow/release/cli.md
+      to: /flow/tools/cli.md
       type: redirect
 
-    - from: /yandex-specific/flow/extensions/grut-watchlog.md
-      to: /yandex-specific/flow/yandex/extensions/grut-watchlog.md
-      type: redirect
-
-    - from: /yandex-specific/flow/release/ui.md
-      to: /yandex-specific/flow/yandex/release/ui.md
-      type: redirect
-
-    - from: /yandex-specific/flow/other/framework_users.md
-      to: /yandex-specific/flow/yandex/other/framework_users.md
-      type: redirect
-
-    - from: /yandex-specific/flow/other/video-posts.md
-      to: /yandex-specific/flow/yandex/other/video-posts.md
-      type: redirect
-
-    - from: /flow/ai-agent.md
-      to: /flow/yandex/ai-agent.md
-      type: redirect
-
-    - from: /flow/extensions/bigrt.md
-      to: /flow/yandex/extensions/bigrt.md
-      type: redirect
-
-    - from: /flow/extensions/grut-watchlog.md
-      to: /flow/yandex/extensions/grut-watchlog.md
-      type: redirect
-
-    - from: /flow/release/ui.md
-      to: /flow/yandex/release/ui.md
-      type: redirect
-
-    - from: /flow/other/framework_users.md
-      to: /flow/yandex/other/framework_users.md
-      type: redirect
-
-    - from: /flow/other/video-posts.md
-      to: /flow/yandex/other/video-posts.md
-      type: redirect
-
-    - from: /yandex-specific/flow/extensions/about.md
-      to: /yandex-specific/flow/yandex/extensions/about.md
-      type: redirect
-
-    - from: /yandex-specific/flow/extensions/logbroker.md
-      to: /yandex-specific/flow/yandex/extensions/logbroker.md
-      type: redirect
-
-    - from: /yandex-specific/flow/extensions/monium.md
-      to: /yandex-specific/flow/yandex/extensions/monium.md
-      type: redirect
-
-    - from: /yandex-specific/flow/extensions/serializable-profile.md
-      to: /yandex-specific/flow/yandex/extensions/serializable-profile.md
-      type: redirect
-
-    - from: /yandex-specific/flow/other/comparison.md
-      to: /yandex-specific/flow/yandex/other/comparison.md
-      type: redirect
-
-    - from: /yandex-specific/flow/release/yp.md
-      to: /yandex-specific/flow/yandex/release/yp.md
-      type: redirect
-
-    - from: /flow/extensions/about.md
-      to: /flow/yandex/extensions/about.md
-      type: redirect
-
-    - from: /flow/extensions/logbroker.md
-      to: /flow/yandex/extensions/logbroker.md
-      type: redirect
-
-    - from: /flow/extensions/monium.md
-      to: /flow/yandex/extensions/monium.md
-      type: redirect
-
-    - from: /flow/extensions/serializable-profile.md
-      to: /flow/yandex/extensions/serializable-profile.md
-      type: redirect
-
-    - from: /flow/other/comparison.md
-      to: /flow/yandex/other/comparison.md
+    - from: /flow/release/launch-infractl.md
+      to: /flow/devops/deploy/initial-deploy.md
       type: redirect
 
     - from: /flow/release/yp.md
-      to: /flow/yandex/release/yp.md
+      to: /flow/devops/deploy/initial-deploy.md
+      type: redirect
+
+    - from: /flow/release/monitoring.md
+      to: /flow/devops/deploy/diagnostics/monitoring.md
+      type: redirect
+
+    - from: /flow/release/ui.md
+      to: /flow/devops/deploy/diagnostics/ui.md
+      type: redirect
+
+    - from: /flow/release/state-tables-choice.md
+      to: /flow/devops/state-tables-choice.md
+      type: redirect
+
+    - from: /flow/release/basic-rules.md
+      to: /flow/devops/vanilla/releases.md
+      type: redirect
+
+    - from: /flow/release/flow-core-target.md
+      to: /flow/devops/vanilla/releases.md
+      type: redirect
+
+    - from: /flow/release/problems.md#diagnostic-tools
+      to: /flow/devops/deploy/diagnostics/profiling.md
+      type: redirect
+
+    - from: /flow/release/problems.md#ytprof
+      to: /flow/devops/deploy/diagnostics/profiling.md#ytprof
+      type: redirect
+
+    - from: /flow/release/problems.md#draw-pipeline-graph-tool
+      to: /flow/devops/deploy/diagnostics/profiling.md#draw-pipeline-graph-tool
+      type: redirect
+
+    - from: /flow/release/problems.md#slow-processing
+      to: /flow/devops/problems/slow-processing.md
+      type: redirect
+
+    - from: /flow/release/problems.md
+      to: /flow/devops/problems/index.md
+      type: redirect
+
+    - from: /flow/yandex/(.*)
+      to: /flow/$1
       type: redirect

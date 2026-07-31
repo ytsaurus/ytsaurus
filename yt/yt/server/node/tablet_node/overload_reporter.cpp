@@ -92,7 +92,7 @@ class TOverloadReporter
 public:
     TOverloadReporter(IBootstrap* const bootstrap)
         : Bootstrap_(bootstrap)
-        , Logger(TabletNodeLogger().WithTag("OverloadReporter"))
+        , Logger(TabletNodeLogger().WithTag("Reporter", "Overload"))
         , Config_(Bootstrap_->GetTabletNodeDynamicConfig()->OverloadReporter)
         , EvaluatorCache_(Config_.Acquire()->MaxEvaluatorCacheSize)
     { }
@@ -251,7 +251,7 @@ private:
         if (!metricValueOrError.IsOK()) {
             YT_LOG_DEBUG(metricValueOrError, "Failed to calculate if tablet is overloaded, ignored "
                 "(%v, Metric: %v)",
-                tabletSnapshot->LoggingTag,
+                tabletSnapshot->LoggingTags,
                 metric);
 
             return false;
@@ -267,7 +267,7 @@ private:
             bool overloaded = metricValue > limit;
 
             YT_LOG_DEBUG_IF(overloaded, "Tablet is overloaded (%v, Metric: %v, MetricValue: %v, Limit: %v)",
-                tabletSnapshot->LoggingTag,
+                tabletSnapshot->LoggingTags,
                 metric,
                 metricValue,
                 limit);
@@ -276,7 +276,7 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to extract metric value calculating tablet is overloaded "
                 "(%v, Metric: %v)",
-                tabletSnapshot->LoggingTag,
+                tabletSnapshot->LoggingTags,
                 metric);
 
             return false;
@@ -394,7 +394,7 @@ private:
         if (groupIt == bundleConfig->Groups.end()) {
             YT_LOG_DEBUG("Cannot report tablet overload: balancing group not found in bundle config"
                 "(%v, BundleName: %v, GroupName: %v)",
-                tabletSnapshot->LoggingTag,
+                tabletSnapshot->LoggingTags,
                 tabletSnapshot->TabletCellBundle,
                 *groupName);
             return std::nullopt;

@@ -219,12 +219,19 @@ void TDynamicKeyVisitorStreamSpec::Register(TRegistrar registrar)
     registrar.Parameter("max_scan_rows_per_iteration", &TThis::MaxScanRowsPerIteration)
         .GreaterThan(NYTree::TSize(0))
         .Default(NYTree::TSize(10'000));
+    registrar.Parameter("background_fill_period", &TThis::BackgroundFillPeriod)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::MilliSeconds(500));
     registrar.Parameter("catchup_lag_threshold", &TThis::CatchupLagThreshold)
         .GreaterThanOrEqual(TDuration::Zero())
         .Default(TDuration::Minutes(1));
     registrar.Parameter("catchup_speedup_multiplier", &TThis::CatchupSpeedupMultiplier)
         .GreaterThan(1.0)
         .Default(1.2);
+    registrar.Parameter("finite", &TThis::Finite)
+        .Default(true);
+    registrar.Parameter("full_final_pass", &TThis::FullFinalPass)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -559,6 +566,16 @@ void TPipelineSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("streams", &TThis::Streams)
         .Default();
+
+    registrar.Postprocessor([] (TThis* spec) {
+        for (const auto& [computationId, computationSpec] : spec->Computations) {
+            // The colon is reserved: resource-controller states live in the computation-state
+            // namespace under "resource:<id>" keys.
+            THROW_ERROR_EXCEPTION_IF(computationId.Underlying().find(':') != std::string::npos,
+                "Computation id %Qv must not contain a colon",
+                computationId);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -791,6 +808,9 @@ void TDynamicComputationSpec::Register(TRegistrar registrar)
     registrar.Parameter("output_store_byte_size_limit", &TThis::OutputStoreByteSizeLimit)
         .Default(NYTree::TSize(100_GB));
 
+    registrar.Parameter("blocked_time_window", &TThis::BlockedTimeWindow)
+        .Default(TDuration::Minutes(10));
+
     registrar.Parameter("input_rows_throttler_id", &TThis::InputRowsThrottlerId)
         .Default();
     registrar.Parameter("input_bytes_throttler_id", &TThis::InputBytesThrottlerId)
@@ -934,7 +954,7 @@ void TDynamicJobBalancerSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDynamicJobManagerSpec::Register(TRegistrar registrar)
+void TDynamicJobManagerGroupSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("minimum_worker_count", &TThis::MinimumWorkerCount)
         .Default(1);
@@ -944,6 +964,12 @@ void TDynamicJobManagerSpec::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("faulty_address_attempts", &TThis::FaultyAddressAttempts)
         .Default(5);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicJobManagerSpec::Register(TRegistrar registrar)
+{
     registrar.Parameter("worker_group_override", &TThis::WorkerGroupOverride)
         .Default();
 }
@@ -954,6 +980,8 @@ void TDynamicBufferStateManagerSpec::TOneSideBufferSpec::Register(TRegistrar reg
 {
     registrar.Parameter("fair_share_pool", &TThis::FairSharePool)
         .Default(NYTree::TSize(3_GB));
+    registrar.Parameter("worker_group_fair_share_pool_overrides", &TThis::WorkerGroupFairSharePoolOverrides)
+        .Default();
     registrar.Parameter("job_guarantee", &TThis::JobGuarantee)
         .Default(NYTree::TSize(5_MB));
     registrar.Parameter("job_limit", &TThis::JobLimit)

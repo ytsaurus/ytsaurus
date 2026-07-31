@@ -1542,6 +1542,9 @@ class TestMultipleAgents(TestQueueAgentBase):
     ])
     @pytest.mark.timeout(120)
     def test_trimming_with_sharded_objects(self, consumer_paths_and_names):
+        if not self._is_multi_consumer_supported() and any(name is not None for _, name in consumer_paths_and_names):
+            pytest.skip("Multi consumer controller is not supported in this version.")
+
         queue = "//tmp/q"
         self._create_queue(queue, mount=False)
         table_is_multi_consumer = dict((x[0], bool(x[1])) for x in consumer_paths_and_names)
@@ -2957,6 +2960,9 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
 
     @authors("apachee")
     def test_trim_chaos_replica_with_partition_count_mismatch(self):
+        if not self._is_multi_consumer_supported():
+            pytest.skip("Partition count mismatch alert is not supported in this version.")
+
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
@@ -4558,6 +4564,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
     def test_export_table_name_uniqueness_invariant_violated(self):
         if getattr(self, "USE_OLD_QUEUE_EXPORTER_IMPL"):
             pytest.skip()
+
+        if not self._is_multi_consumer_supported():
+            pytest.skip("Output table name uniqueness invariant check is not supported in this version.")
 
         orchid = QueueAgentOrchid()
 

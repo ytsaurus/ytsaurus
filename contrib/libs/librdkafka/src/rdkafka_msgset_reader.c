@@ -517,14 +517,65 @@ rd_kafka_msgset_reader_decompress(rd_kafka_msgset_reader_t *msetr,
 err:
         /* Enqueue error messsage:
          * Create op and push on temporary queue. */
-        rd_kafka_consumer_err(
-            &msetr->msetr_rkq, msetr->msetr_broker_id, err,
-            msetr->msetr_tver->version, NULL, rktp, Offset,
-            "Decompression (codec 0x%x) of message at %" PRIu64 " of %" PRIusz
-            " bytes failed: %s",
-            codec, Offset, compressed_size, rd_kafka_err2str(err));
+        if (!RD_KAFKA_IS_SHARE_CONSUMER(msetr->msetr_rkb->rkb_rk)) {
+                /* Regular consumer */
+                rd_kafka_consumer_err(
+                    &msetr->msetr_rkq, msetr->msetr_broker_id, err,
+                    msetr->msetr_tver->version, NULL, rktp, Offset,
+                    "Decompression (codec 0x%x) of message at %" PRIu64
+                    " of %" PRIusz " bytes failed: %s",
+                    codec, Offset, compressed_size, rd_kafka_err2str(err));
+                return err;
+        } else {
+                /**
+                 *  v0/v1 MessageSet: single error
+                 * TODO KIP-932: Check the handling in case of v0/v1 messages
+                 * for Share Consumers.
+                 */
+                if (msetr->msetr_v2_hdr == NULL) {
+                        rd_kafka_consumer_err(
+                            &msetr->msetr_rkq, msetr->msetr_broker_id, err,
+                            msetr->msetr_tver->version, NULL, rktp, Offset,
+                            "Decompression (codec 0x%x) of message at %" PRIu64
+                            " of %" PRIusz " bytes failed: %s",
+                            codec, Offset, compressed_size,
+                            rd_kafka_err2str(err));
+                } else {
+                        /* Share consumer with MessageSet v2: report error for
+                         * the entire batch with RELEASE acknowledgement —
+                         * decompression capability varies by consumer, so
+                         * another consumer might succeed on the same batch. */
+                        int64_t LastOffset =
+                            msetr->msetr_v2_hdr->BaseOffset +
+                            msetr->msetr_v2_hdr->LastOffsetDelta;
 
-        return err;
+                        /**
+                         * TODO KIP-932: Add a TODO to translate errors inside
+                         * this function. _BAD_COMPRESSION and _BAD_MSG should
+                         * be sent as INVALID_MSG, and _CRIT_SYS_RESOURCE should
+                         * be sent as _CRIT_SYS_RESOURCE.
+                         */
+                        rd_kafka_share_msgset_err_ops(
+                            &msetr->msetr_rkq, msetr->msetr_broker_id, err,
+                            msetr->msetr_tver->version, rktp,
+                            msetr->msetr_v2_hdr->BaseOffset, LastOffset,
+                            RD_KAFKA_SHARE_INTERNAL_ACK_RELEASE,
+                            "Decompression (codec 0x%x) of MessageSet at "
+                            "offsets "
+                            "%" PRId64 "-%" PRId64 " of %" PRIusz
+                            " bytes failed: %s",
+                            codec, msetr->msetr_v2_hdr->BaseOffset, LastOffset,
+                            compressed_size, rd_kafka_err2str(err));
+                }
+        }
+
+        /**
+         * In case of Share Consumers the errors are propagated
+         * as ops on the queue, but we return no error to make sure the
+         * MessageSet parser continues parsing the next messagesets, which might
+         * succeed even if this one failed.
+         */
+        return RD_KAFKA_RESP_ERR_NO_ERROR;
 }
 
 
@@ -535,6 +586,8 @@ err:
  * @returns RD_KAFKA_RESP_ERR_NO_ERROR on success or on single-message errors,
  *          or any other error code when the MessageSet parser should stop
  *          parsing (such as for partial Messages).
+ * TODO KIP-932: We might need to check the handling of error ops
+ *               for share consumers with v0/v1 messagesets.
  */
 static rd_kafka_resp_err_t
 rd_kafka_msgset_reader_msg_v0_1(rd_kafka_msgset_reader_t *msetr) {
@@ -653,7 +706,8 @@ rd_kafka_msgset_reader_msg_v0_1(rd_kafka_msgset_reader_t *msetr) {
          *       we cant perform this offset check here
          *       in that case. */
         if (!relative_offsets &&
-            hdr.Offset < rktp->rktp_offsets.fetch_pos.offset)
+            hdr.Offset < rktp->rktp_offsets.fetch_pos.offset &&
+            !RD_KAFKA_IS_SHARE_CONSUMER(msetr->msetr_rkb->rkb_rk))
                 return RD_KAFKA_RESP_ERR_NO_ERROR; /* Continue with next msg */
 
         /* Handle compressed MessageSet */
@@ -734,7 +788,13 @@ rd_kafka_msgset_reader_msg_v2(rd_kafka_msgset_reader_t *msetr) {
                 ? LOG_DEBUG
                 : 0;
         size_t message_end;
+        size_t record_start_pos;
         rd_kafka_fetch_pos_t msetr_pos;
+
+        /* Capture buffer position before reading length varint so we can
+         * compute the total wire-format size of this record (length varint
+         * size + body bytes) for share consumer fetch.size telemetry. */
+        record_start_pos = rd_slice_offset(&rkbuf->rkbuf_reader);
 
         rd_kafka_buf_read_varint(rkbuf, &hdr.Length);
         message_end =
@@ -751,8 +811,11 @@ rd_kafka_msgset_reader_msg_v2(rd_kafka_msgset_reader_t *msetr) {
          * epoch is different the fetch will fail (KIP-320) and if offset leader
          * epoch is different it'll return an empty fetch (KIP-595). If we
          * checked it, it's possible to have a loop when moving from a broker
-         * that supports leader epoch to one that doesn't. */
-        if (hdr.Offset < rktp->rktp_offsets.fetch_pos.offset) {
+         * that supports leader epoch to one that doesn't.
+         * Share consumers may receive re-delivered records at earlier offsets
+         * after RELEASE, so skip this check for them. */
+        if (hdr.Offset < rktp->rktp_offsets.fetch_pos.offset &&
+            !RD_KAFKA_IS_SHARE_CONSUMER(msetr->msetr_rkb->rkb_rk)) {
                 rd_rkb_dbg(
                     msetr->msetr_rkb, MSG, "MSG",
                     "%s [%" PRId32
@@ -765,7 +828,11 @@ rd_kafka_msgset_reader_msg_v2(rd_kafka_msgset_reader_t *msetr) {
                 return RD_KAFKA_RESP_ERR_NO_ERROR; /* Continue with next msg */
         }
 
-        /* Handle control messages */
+        /**
+         * Handle control messages
+         * TODO KIP-932: GA: This branch shouldn't hit for share consumers,
+         * as we skip control messages for share consumers.
+         */
         if (msetr->msetr_v2_hdr->Attributes & RD_KAFKA_MSGSET_V2_ATTR_CONTROL) {
                 struct {
                         int64_t KeySize;
@@ -951,6 +1018,12 @@ rd_kafka_msgset_reader_msg_v2(rd_kafka_msgset_reader_t *msetr) {
         }
 
 
+        /* Cache the wire-format size of this record (length varint +
+         * body) on the rkm.
+         * Used by share consumer fetch.size telemetry. */
+        rkm->rkm_u.consumer.wire_size =
+            (int32_t)(message_end - record_start_pos);
+
         /* Enqueue message on temporary queue */
         rd_kafka_q_enq(&msetr->msetr_rkq, rko);
         msetr->msetr_msgcnt++;
@@ -1084,19 +1157,89 @@ rd_kafka_msgset_reader_v2(rd_kafka_msgset_reader_t *msetr) {
                 if (unlikely((uint32_t)hdr.Crc != calc_crc)) {
                         /* Propagate CRC error to application and
                          * continue with next message. */
-                        rd_kafka_consumer_err(
-                            &msetr->msetr_rkq, msetr->msetr_broker_id,
-                            RD_KAFKA_RESP_ERR__BAD_MSG,
-                            msetr->msetr_tver->version, NULL, rktp,
-                            hdr.BaseOffset,
-                            "MessageSet at offset %" PRId64 " (%" PRId32
-                            " bytes) "
-                            "failed CRC32C check "
-                            "(original 0x%" PRIx32
-                            " != "
-                            "calculated 0x%" PRIx32 ")",
-                            hdr.BaseOffset, hdr.Length, hdr.Crc, calc_crc);
-                        rd_kafka_buf_skip_to(rkbuf, crc_len);
+                        if (!RD_KAFKA_IS_SHARE_CONSUMER(
+                                msetr->msetr_rkb->rkb_rk)) {
+                                rd_kafka_consumer_err(
+                                    &msetr->msetr_rkq, msetr->msetr_broker_id,
+                                    RD_KAFKA_RESP_ERR__BAD_MSG,
+                                    msetr->msetr_tver->version, NULL, rktp,
+                                    hdr.BaseOffset,
+                                    "MessageSet at offset %" PRId64 " (%" PRId32
+                                    " bytes) "
+                                    "failed CRC32C check "
+                                    "(original 0x%" PRIx32
+                                    " != "
+                                    "calculated 0x%" PRIx32 ")",
+                                    hdr.BaseOffset, hdr.Length, hdr.Crc,
+                                    calc_crc);
+                                /* Skip to end of MessageSet */
+                                /**
+                                 * FIXME: `crc_len` is a byte *length*
+                                 * (Length - 4 - 1 - 4), but
+                                 * rd_kafka_buf_skip_to() interprets its
+                                 * argument as an absolute slice position.
+                                 * The current call leaves the reader 21
+                                 * bytes short of the end of the MessageSet
+                                 * (when the slice base offset is 0), and
+                                 * for any subsequent MessageSet within
+                                 * the same slice the size_t subtraction
+                                 * inside skip_to underflows and triggers
+                                 * a spurious __UNDERFLOW. The intended
+                                 * target is end-of-MessageSet, i.e.
+                                 * `len_start + hdr.Length` — see the
+                                 * share-consumer branch below which does
+                                 * this correctly. Replace with:
+                                 *     rd_kafka_buf_skip_to(rkbuf,
+                                 *         len_start + hdr.Length);
+                                 */
+                                rd_kafka_buf_skip_to(rkbuf, crc_len);
+
+                        } else {
+                                int16_t Attributes;
+                                int32_t LastOffsetDelta;
+
+                                /* Read LastOffsetDelta to
+                                 * determine full offset range.
+                                 *
+                                 * TODO KIP-932: These bytes come from
+                                 * within the CRC-covered region of the
+                                 * MessageSet body, and the CRC has
+                                 * just failed — so `Attributes` and
+                                 * `LastOffsetDelta` may be corrupt. A
+                                 * garbage `LastOffsetDelta` can:
+                                 *  - be huge → fan-out emits millions of
+                                 *    error ops for offsets that don't
+                                 *    exist (memory/queue blowup);
+                                 *  - be negative → `LastOffset <
+                                 *    BaseOffset`, fan-out loop is a
+                                 *    silent no-op (no error surfaced);
+                                 *  - look valid but be off → REJECT ops
+                                 *    issued for the wrong offset range.
+                                 */
+                                rd_kafka_buf_read_i16(rkbuf, &Attributes);
+                                rd_kafka_buf_read_i32(rkbuf, &LastOffsetDelta);
+                                LastOffset = hdr.BaseOffset + LastOffsetDelta;
+
+                                rd_kafka_share_msgset_err_ops(
+                                    &msetr->msetr_rkq, msetr->msetr_broker_id,
+                                    RD_KAFKA_RESP_ERR__BAD_MSG,
+                                    msetr->msetr_tver->version, rktp,
+                                    hdr.BaseOffset, LastOffset,
+                                    RD_KAFKA_SHARE_INTERNAL_ACK_REJECT,
+                                    "MessageSet at offsets %" PRId64 "-%" PRId64
+                                    " (%" PRId32
+                                    " bytes) "
+                                    "failed CRC32C check "
+                                    "(original 0x%" PRIx32
+                                    " != "
+                                    "calculated 0x%" PRIx32 ")",
+                                    hdr.BaseOffset, LastOffset, hdr.Length,
+                                    hdr.Crc, calc_crc);
+                                /* Skip to end of MessageSet */
+                                rd_kafka_buf_skip_to(rkbuf,
+                                                     len_start + hdr.Length);
+                        }
+
                         rd_atomic64_add(&msetr->msetr_rkb->rkb_c.rx_err, 1);
                         return RD_KAFKA_RESP_ERR_NO_ERROR;
                 }
@@ -1125,8 +1268,11 @@ rd_kafka_msgset_reader_v2(rd_kafka_msgset_reader_t *msetr) {
                     rktp->rktp_rkt->rkt_topic->str, rktp->rktp_partition,
                     hdr.BaseOffset, payload_size);
 
-        /* If entire MessageSet contains old outdated offsets, skip it. */
-        if (LastOffset < rktp->rktp_offsets.fetch_pos.offset) {
+        /* If entire MessageSet contains old outdated offsets, skip it.
+         * Share consumers may receive re-delivered records at earlier offsets
+         * after RELEASE, so skip this check for them. */
+        if (LastOffset < rktp->rktp_offsets.fetch_pos.offset &&
+            !RD_KAFKA_IS_SHARE_CONSUMER(msetr->msetr_rkb->rkb_rk)) {
                 rd_kafka_buf_skip(rkbuf, payload_size);
                 goto done;
         }
@@ -1177,7 +1323,8 @@ done:
          * to avoid getting stuck on compacted MessageSets where the last
          * Message in the MessageSet has an Offset < MessageSet header's
          * last offset.  See KAFKA-5443 */
-        msetr->msetr_next_offset = LastOffset + 1;
+        if (!RD_KAFKA_IS_SHARE_CONSUMER(msetr->msetr_rkb->rkb_rk))
+                msetr->msetr_next_offset = LastOffset + 1;
 
         msetr->msetr_v2_hdr = NULL;
 
@@ -1236,25 +1383,72 @@ rd_kafka_msgset_reader_peek_msg_version(rd_kafka_msgset_reader_t *msetr,
                            (int)*MagicBytep, Offset, read_offset,
                            rd_slice_size(&rkbuf->rkbuf_reader));
 
-                if (Offset >=
-                    msetr->msetr_rktp->rktp_offsets.fetch_pos.offset) {
-                        rd_kafka_consumer_err(
+                if (!RD_KAFKA_IS_SHARE_CONSUMER(msetr->msetr_rkb->rkb_rk)) {
+                        if (Offset >=
+                            msetr->msetr_rktp->rktp_offsets.fetch_pos.offset) {
+                                rd_kafka_consumer_err(
+                                    &msetr->msetr_rkq, msetr->msetr_broker_id,
+                                    RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED,
+                                    msetr->msetr_tver->version, NULL, rktp,
+                                    Offset,
+                                    "Unsupported Message(Set) MagicByte %d "
+                                    "at offset %" PRId64,
+                                    (int)*MagicBytep, Offset);
+                                /* Skip message(set) */
+                                msetr->msetr_rktp->rktp_offsets.fetch_pos
+                                    .offset = Offset + 1;
+                        }
+
+                        /* Skip this Message(Set).
+                         * If the message is malformed, the skip may trigger
+                         * err_parse and return ERR__BAD_MSG. */
+                        rd_kafka_buf_read_i32(rkbuf, &Length);
+                        rd_kafka_buf_skip(rkbuf, Length);
+                } else {
+                        /* Share consumer: peek further into the MessageSet v2
+                         * header so we can compute the full offset range,
+                         * emit a REJECT range-error op, and skip the
+                         * remainder. Speculatively assumes the v2 header
+                         * layout is preserved for any future MessageSet
+                         * version above v2 (the only versions reaching this
+                         * branch — v0/v1 are filtered by the MagicByte
+                         * bounds check above).
+                         * TODO KIP-932: Check if this handling is correct as
+                         * we dont know the magic byte, and we are assuming
+                         * its v2.*/
+                        int32_t PartitionLeaderEpoch;
+                        int8_t MagicByteActual;
+                        int32_t Crc;
+                        int16_t Attributes;
+                        int32_t LastOffsetDelta;
+                        int64_t LastOffset;
+                        /* Bytes consumed below from the MessageSet body
+                         * (everything counted by Length): PartitionLeaderEpoch
+                         * (4) + MagicByte (1) + Crc (4) + Attributes (2) +
+                         * LastOffsetDelta (4). */
+                        const size_t header_bytes_read = 4 + 1 + 4 + 2 + 4;
+
+                        rd_kafka_buf_read_i32(rkbuf, &Length);
+                        rd_kafka_buf_read_i32(rkbuf, &PartitionLeaderEpoch);
+                        rd_kafka_buf_read_i8(rkbuf, &MagicByteActual);
+                        rd_kafka_buf_read_i32(rkbuf, &Crc);
+                        rd_kafka_buf_read_i16(rkbuf, &Attributes);
+                        rd_kafka_buf_read_i32(rkbuf, &LastOffsetDelta);
+
+                        /* Skip remaining bytes in MessageSet. */
+                        rd_kafka_buf_skip(rkbuf, Length - header_bytes_read);
+
+                        LastOffset = Offset + LastOffsetDelta;
+
+                        rd_kafka_share_msgset_err_ops(
                             &msetr->msetr_rkq, msetr->msetr_broker_id,
                             RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED,
-                            msetr->msetr_tver->version, NULL, rktp, Offset,
-                            "Unsupported Message(Set) MagicByte %d "
-                            "at offset %" PRId64,
-                            (int)*MagicBytep, Offset);
-                        /* Skip message(set) */
-                        msetr->msetr_rktp->rktp_offsets.fetch_pos.offset =
-                            Offset + 1;
+                            msetr->msetr_tver->version, rktp, Offset,
+                            LastOffset, RD_KAFKA_SHARE_INTERNAL_ACK_REJECT,
+                            "Unsupported Message(Set) MagicByte %d at offsets "
+                            "%" PRId64 "-%" PRId64,
+                            (int)MagicByteActual, Offset, LastOffset);
                 }
-
-                /* Skip this Message(Set).
-                 * If the message is malformed, the skip may trigger err_parse
-                 * and return ERR__BAD_MSG. */
-                rd_kafka_buf_read_i32(rkbuf, &Length);
-                rd_kafka_buf_skip(rkbuf, Length);
 
                 return RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;
         }
@@ -1297,8 +1491,16 @@ rd_kafka_msgset_reader(rd_kafka_msgset_reader_t *msetr) {
                                  * due to its use of sendfile(2). */
                                 return RD_KAFKA_RESP_ERR_NO_ERROR;
 
-                        /* Continue on unsupported MsgVersions, the
-                         * MessageSet will be skipped. */
+                        /* For share consumer: continue on unsupported
+                         * MsgVersions, the MessageSet will be skipped. Reset
+                         * error so loop continues parsing remaining
+                         * MessageSets. For regular consumer: stop parsing (old
+                         * behavior). */
+                        if (RD_KAFKA_IS_SHARE_CONSUMER(
+                                msetr->msetr_rkb->rkb_rk) &&
+                            err == RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED) {
+                                err = RD_KAFKA_RESP_ERR_NO_ERROR;
+                        }
                         continue;
                 }
 
@@ -1327,6 +1529,14 @@ static void rd_kafka_msgset_reader_postproc(rd_kafka_msgset_reader_t *msetr,
         if (rko) {
                 *last_offsetp = rko->rko_u.fetch.rkm.rkm_offset;
 
+                /*
+                 * TODO KIP-932: Though we shouldn't reach here for share
+                 * consumers as msetr_relative_offsets is set to true only
+                 * for MsgVersion v1 but still check if MsgVersion v1 is
+                 * possible with share consumer. If not, this handling can
+                 * be skipped safely. If yes, then we should use negative
+                 * offset in place of min_offset instead of fetch_pos.offset.
+                 */
                 if (*last_offsetp != -1 && msetr->msetr_relative_offsets) {
                         /* Update messages to absolute offsets
                          * and purge any messages older than the current
@@ -1381,6 +1591,11 @@ rd_kafka_msgset_reader_run(rd_kafka_msgset_reader_t *msetr) {
                                 err = RD_KAFKA_RESP_ERR_NO_ERROR;
 
                 } else if (rktp->rktp_fetch_msg_max_bytes < (1 << 30)) {
+                        /* TODO KIP-932: Skip this branch for share consumers.
+                         * ShareFetch has no per-partition MaxBytes field, so
+                         * growing rktp_fetch_msg_max_bytes never changes what
+                         * the broker returns.
+                         */
                         rktp->rktp_fetch_msg_max_bytes *= 2;
                         rd_rkb_dbg(msetr->msetr_rkb, FETCH, "CONSUME",
                                    "Topic %s [%" PRId32
@@ -1394,15 +1609,35 @@ rd_kafka_msgset_reader_run(rd_kafka_msgset_reader_t *msetr) {
                                 err = RD_KAFKA_RESP_ERR_NO_ERROR;
 
                 } else if (!err && msetr->msetr_aborted_cnt == 0) {
-                        rd_kafka_consumer_err(
-                            &msetr->msetr_rkq, msetr->msetr_broker_id,
-                            RD_KAFKA_RESP_ERR_MSG_SIZE_TOO_LARGE,
-                            msetr->msetr_tver->version, NULL, rktp,
-                            rktp->rktp_offsets.fetch_pos.offset,
-                            "Message at offset %" PRId64
-                            " might be too large to fetch, try increasing "
-                            "receive.message.max.bytes",
-                            rktp->rktp_offsets.fetch_pos.offset);
+                        if (!RD_KAFKA_IS_SHARE_CONSUMER(
+                                msetr->msetr_rkb->rkb_rk)) {
+                                rd_kafka_consumer_err(
+                                    &msetr->msetr_rkq, msetr->msetr_broker_id,
+                                    RD_KAFKA_RESP_ERR_MSG_SIZE_TOO_LARGE,
+                                    msetr->msetr_tver->version, NULL, rktp,
+                                    rktp->rktp_offsets.fetch_pos.offset,
+                                    "Message at offset %" PRId64
+                                    " might be too large to fetch, try "
+                                    "increasing receive.message.max.bytes",
+                                    rktp->rktp_offsets.fetch_pos.offset);
+                        } else {
+                                /* Share consumer: fetch_pos.offset is not
+                                 * meaningful, and the temp_fetchq
+                                 * acquired-range filter would drop any op
+                                 * without a valid offset. Enqueue the error
+                                 * directly onto the cgrp queue served by
+                                 * rd_kafka_share_poll so the app
+                                 * sees the partition-level failure. */
+                                rd_kafka_consumer_err(
+                                    msetr->msetr_rkb->rkb_rk->rk_cgrp->rkcg_q,
+                                    msetr->msetr_broker_id,
+                                    RD_KAFKA_RESP_ERR_MSG_SIZE_TOO_LARGE,
+                                    msetr->msetr_tver->version, NULL, rktp,
+                                    RD_KAFKA_OFFSET_INVALID,
+                                    "Message might be too large to fetch, "
+                                    "try increasing "
+                                    "receive.message.max.bytes");
+                        }
 
                 } else if (msetr->msetr_aborted_cnt > 0) {
                         /* Noop */
@@ -1422,36 +1657,60 @@ rd_kafka_msgset_reader_run(rd_kafka_msgset_reader_t *msetr) {
                         err = RD_KAFKA_RESP_ERR_NO_ERROR;
         }
 
-        rd_rkb_dbg(msetr->msetr_rkb, MSG | RD_KAFKA_DBG_FETCH, "CONSUME",
-                   "Enqueue %i %smessage(s) (%" PRId64
-                   " bytes, %d ops) on %s [%" PRId32
-                   "] fetch queue (qlen %d, v%d, last_offset %" PRId64
-                   ", %d ctrl msgs, %d aborted msgsets, %s)",
-                   msetr->msetr_msgcnt, msetr->msetr_srcname,
-                   msetr->msetr_msg_bytes, rd_kafka_q_len(&msetr->msetr_rkq),
-                   rktp->rktp_rkt->rkt_topic->str, rktp->rktp_partition,
-                   rd_kafka_q_len(msetr->msetr_par_rkq),
-                   msetr->msetr_tver->version, last_offset,
-                   msetr->msetr_ctrl_cnt, msetr->msetr_aborted_cnt,
-                   msetr->msetr_compression
-                       ? rd_kafka_compression2str(msetr->msetr_compression)
-                       : "uncompressed");
+        if (!RD_KAFKA_IS_SHARE_CONSUMER(msetr->msetr_rkb->rkb_rk)) {
+                rd_rkb_dbg(
+                    msetr->msetr_rkb, MSG | RD_KAFKA_DBG_FETCH, "CONSUME",
+                    "Enqueue %i %smessage(s) (%" PRId64
+                    " bytes, %d ops) on %s [%" PRId32
+                    "] fetch queue (qlen %d, v%d, last_offset %" PRId64
+                    ", %d ctrl msgs, %d aborted msgsets, %s)",
+                    msetr->msetr_msgcnt, msetr->msetr_srcname,
+                    msetr->msetr_msg_bytes, rd_kafka_q_len(&msetr->msetr_rkq),
+                    rktp->rktp_rkt->rkt_topic->str, rktp->rktp_partition,
+                    rd_kafka_q_len(msetr->msetr_par_rkq),
+                    msetr->msetr_tver->version, last_offset,
+                    msetr->msetr_ctrl_cnt, msetr->msetr_aborted_cnt,
+                    msetr->msetr_compression
+                        ? rd_kafka_compression2str(msetr->msetr_compression)
+                        : "uncompressed");
+        } else {
+                rd_rkb_dbg(
+                    msetr->msetr_rkb, MSG | RD_KAFKA_DBG_FETCH, "CONSUME",
+                    "Enqueue %i %smessage(s) (%" PRId64
+                    " bytes, %d ops) on %s [%" PRId32
+                    "] temp fetchq (qlen %d, last_offset %" PRId64
+                    ", %d ctrl msgs, %s)",
+                    msetr->msetr_msgcnt, msetr->msetr_srcname,
+                    msetr->msetr_msg_bytes, rd_kafka_q_len(&msetr->msetr_rkq),
+                    rktp->rktp_rkt->rkt_topic->str, rktp->rktp_partition,
+                    rd_kafka_q_len(msetr->msetr_par_rkq), last_offset,
+                    msetr->msetr_ctrl_cnt,
+                    msetr->msetr_compression
+                        ? rd_kafka_compression2str(msetr->msetr_compression)
+                        : "uncompressed");
+        }
 
         /* Concat all messages&errors onto the parent's queue
          * (the partition's fetch queue) */
         if (rd_kafka_q_concat(msetr->msetr_par_rkq, &msetr->msetr_rkq) != -1) {
                 /* Update partition's fetch offset based on
                  * last message's offest. */
-                if (likely(last_offset != -1))
+                if (likely(last_offset != -1) &&
+                    !RD_KAFKA_IS_SHARE_CONSUMER(msetr->msetr_rkb->rkb_rk))
                         rktp->rktp_offsets.fetch_pos.offset = last_offset + 1;
         }
 
         /* Adjust next fetch offset if outlier code has indicated
          * an even later next offset. */
-        if (msetr->msetr_next_offset > rktp->rktp_offsets.fetch_pos.offset)
-                rktp->rktp_offsets.fetch_pos.offset = msetr->msetr_next_offset;
+        if (!RD_KAFKA_IS_SHARE_CONSUMER(msetr->msetr_rkb->rkb_rk)) {
+                if (msetr->msetr_next_offset >
+                    rktp->rktp_offsets.fetch_pos.offset)
+                        rktp->rktp_offsets.fetch_pos.offset =
+                            msetr->msetr_next_offset;
 
-        rktp->rktp_offsets.fetch_pos.leader_epoch = msetr->msetr_leader_epoch;
+                rktp->rktp_offsets.fetch_pos.leader_epoch =
+                    msetr->msetr_leader_epoch;
+        }
 
         rd_kafka_q_destroy_owner(&msetr->msetr_rkq);
 
@@ -1482,6 +1741,40 @@ rd_kafka_msgset_parse(rd_kafka_buf_t *rkbuf,
 
         rd_kafka_msgset_reader_init(&msetr, rkbuf, rktp, tver, aborted_txns,
                                     rktp->rktp_fetchq);
+
+        /* Parse and handle the message set */
+        err = rd_kafka_msgset_reader_run(&msetr);
+
+        rd_atomic64_add(&rktp->rktp_c.rx_msgs, msetr.msetr_msgcnt);
+        rd_atomic64_add(&rktp->rktp_c.rx_msg_bytes, msetr.msetr_msg_bytes);
+
+        rd_avg_add(&rktp->rktp_rkt->rkt_avg_batchcnt,
+                   (int64_t)msetr.msetr_msgcnt);
+        rd_avg_add(&rktp->rktp_rkt->rkt_avg_batchsize,
+                   (int64_t)msetr.msetr_msg_bytes);
+
+        return err;
+}
+
+
+/**
+ * @brief Parse one MessageSet at the current buffer read position,
+ *        enqueueing messages, propagating errors, etc.
+ * @remark The current rkbuf_reader slice must be limited to the MessageSet size
+ *
+ * @returns see rd_kafka_msgset_reader_run()
+ */
+rd_kafka_resp_err_t
+rd_kafka_share_msgset_parse(rd_kafka_buf_t *rkbuf,
+                            rd_kafka_toppar_t *rktp,
+                            rd_kafka_aborted_txns_t *aborted_txns,
+                            const struct rd_kafka_toppar_ver *tver,
+                            rd_kafka_q_t *response_message_q) {
+        rd_kafka_msgset_reader_t msetr;
+        rd_kafka_resp_err_t err;
+
+        rd_kafka_msgset_reader_init(&msetr, rkbuf, rktp, tver, aborted_txns,
+                                    response_message_q);
 
         /* Parse and handle the message set */
         err = rd_kafka_msgset_reader_run(&msetr);

@@ -10,10 +10,10 @@
 #include <yt/yt/server/lib/discovery_server/config.h>
 #include <yt/yt/server/lib/discovery_server/discovery_server.h>
 
-#include <yt/yt/ytlib/discovery_client/public.h>
-#include <yt/yt/ytlib/discovery_client/helpers.h>
-#include <yt/yt/ytlib/discovery_client/discovery_client.h>
-#include <yt/yt/ytlib/discovery_client/member_client.h>
+#include <yt/yt/library/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/discovery_client.h>
+#include <yt/yt/library/discovery_client/member_client.h>
 
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/local_server.h>

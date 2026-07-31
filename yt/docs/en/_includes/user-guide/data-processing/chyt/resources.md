@@ -1,6 +1,6 @@
 # Resources and preemption
 
-A CHYT clique is a Vanilla {{product-name}} operation and instances are run in the jobs of this operation and consume resources. A typical CHYT instance runs on about 10 CPU cores and about 60 GB of RAM.
+A CHYT clique is a Vanilla {{product-name}} operation and instances are run in the jobs of this operation and consume resources.
 
 Before continuing with this article, consider reading about the [Scheduler and pools](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md) first.
 
@@ -21,6 +21,7 @@ ClickHouse instances do not process any input in the usual way for {{product-nam
 When receiving the signal, the instance goes into completion mode, sends this information to the others using gossip, and no longer accepts any new queries, but continues executing those that are already in progress. After all current queries are executed, the instance will end with the `completed` status.
 
 ## Regular preemption and graceful preemption { #preemption-dif }
+
 
 The {{product-name}} scheduler preempts jobs based on the following logic: if a node has jobs whose operations have a lower `fair_share` than their `usage_share`, this job is considered `preemptible`. If the scheduler has a job of the starving operation that can be run on a node if preemptible jobs are preempted, then it does it — it preempts the required number of preemptible jobs and plans new ones in their place. In this model, it is unacceptable to wait very long to preempt jobs, so the `interruption_timeout` is only 15 seconds.
 

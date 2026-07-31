@@ -269,7 +269,12 @@ dashboards = {
     },
     "data-nodes-common": {
         "func": build_data_nodes_common,
-        "monitoring": {},
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
     },
     "data-node-local": {
         "func": build_data_node_local,
@@ -374,6 +379,15 @@ dashboards = {
     },
     "flow-distributed-throttler": {
         "func": flow.build_flow_distributed_throttler,
+        "monitoring": {
+            "args": ["monitoring"],
+        },
+        "grafana": {
+            "args": ["grafana"],
+        },
+    },
+    "flow-key-visitor": {
+        "func": flow.build_flow_key_visitor,
         "monitoring": {
             "args": ["monitoring"],
         },

@@ -39,6 +39,8 @@
 
 #include <yt/yt/library/clickhouse_discovery/discovery.h>
 
+#include <yt/yt/library/cypress_election/election_manager.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -88,6 +90,7 @@ using namespace NConcurrency;
 using namespace NYPath;
 using namespace NServer;
 using namespace NCypressClient;
+using namespace NCypressElection;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -163,7 +166,7 @@ public:
         YT_VERIFY(Config_->Discovery->Version == 2);
         auto groupId = (Config_->CliqueAlias.empty()) ? ToString(Config_->CliqueId) : Config_->CliqueAlias;
         Config_->Discovery->GroupId = "/chyt/" + groupId;
-        Discovery_ = CreateDiscovery(
+        Discovery_ = CreateDiscoveryFromNativeConnection(
             Config_->Discovery,
             Connection_,
             ChannelFactory_,
@@ -172,15 +175,26 @@ public:
             Logger(),
             ClickHouseYtProfiler().WithPrefix("/discovery"));
 
-        if (Config_->DictionaryRepository) {
-            CypressDictionaryConfigRepository_ = New<TCypressDictionaryConfigRepository>(
+        if (Config_->CypressObjectRepository) {
+            CypressObjectRepository_ = New<TCypressObjectRepository>(
                 DictionariesClient_,
-                Config_->DictionaryRepository,
+                Config_->CypressObjectRepository,
                 FetcherInvoker_);
         }
 
         if (Config_->DictionaryAccessControl) {
             DictionaryAccessControl_ = CreateDictionaryAccessControl(PermissionCache_, Config_->DictionaryAccessControl, FetcherInvoker_);
+        }
+
+        if (Config_->ElectionManager) {
+            auto electionOptions = New<TCypressElectionManagerOptions>();
+            electionOptions->GroupName = "clique";
+            electionOptions->MemberName = ToString(InstanceCookie_);
+            ElectionManager_ = CreateCypressElectionManager(
+                RootClient_,
+                ControlInvoker_,
+                Config_->ElectionManager,
+                std::move(electionOptions));
         }
 
         ClickHouseYtProfiler().AddFuncGauge(
@@ -276,12 +290,16 @@ public:
         GossipExecutor_->Start();
         HealthChecker_->Start();
 
-        if (CypressDictionaryConfigRepository_) {
-            CypressDictionaryConfigRepository_->Start();
+        if (CypressObjectRepository_) {
+            CypressObjectRepository_->Start();
         }
 
         if (Config_->DictionaryAccessControl) {
             DictionaryAccessControl_->Start(getContext());
+        }
+
+        if (ElectionManager_) {
+            ElectionManager_->Start();
         }
 
         CreateOrchidNode();
@@ -590,6 +608,11 @@ public:
         return InstanceCookie_;
     }
 
+    bool IsLeader() const
+    {
+        return !ElectionManager_ || ElectionManager_->IsLeader();
+    }
+
     const IInvokerPtr& GetControlInvoker() const
     {
         return ControlInvoker_;
@@ -717,21 +740,6 @@ public:
             /*relative_table_path*/ "");
     }
 
-    DB::DatabasePtr CreateYTDatabase() const
-    {
-        return NYT::NClickHouseServer::CreateYTDatabase();
-    }
-
-    std::vector<DB::DatabasePtr> CreateUserDefinedDatabases() const
-    {
-        std::vector<DB::DatabasePtr> result;
-        result.reserve(Config_->DatabaseDirectories.size());
-        for (const auto& [databaseName, root] : Config_->DatabaseDirectories) {
-            result.push_back(NYT::NClickHouseServer::CreateDirectoryDatabase(databaseName, root));
-        }
-        return result;
-    }
-
     std::vector<TString> GetUserDefinedDatabaseNames() const
     {
         std::vector<TString> result;
@@ -825,7 +833,7 @@ public:
         YT_LOG_DEBUG("Reloading dictionary on all instances (ConfigPath: %v)", configPath);
 
         const auto& externalDictionariesLoader = GetContext()->getExternalDictionariesLoader();
-        externalDictionariesLoader.reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName, configPath);
+        externalDictionariesLoader.reloadConfig(TCypressObjectRepository::CypressConfigRepositoryName, configPath);
 
         auto instances = Discovery_->List();
         using TResponse = NRpc::TTypedClientResponse<TRspReloadDictionary>::TResult;
@@ -852,12 +860,12 @@ public:
             .ThrowOnError();
     }
 
-    TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository()
+    TCypressObjectRepositoryPtr GetCypressObjectRepository()
     {
         THROW_ERROR_EXCEPTION_IF(
-            !CypressDictionaryConfigRepository_,
-            "Clique doesn't have configured CypressDictionaryConfigRepository");
-        return CypressDictionaryConfigRepository_;
+            !CypressObjectRepository_,
+            "Clique doesn't have configured CypressObjectRepository");
+        return CypressObjectRepository_;
     }
 
     void PrepareClickHouseUser(const std::string& userName)
@@ -937,6 +945,8 @@ private:
     IDiscoveryPtr Discovery_;
     int InstanceCookie_;
 
+    ICypressElectionManagerPtr ElectionManager_;
+
     NRpc::IChannelFactoryPtr ChannelFactory_;
 
     THashSet<std::string> KnownInstances_;
@@ -944,7 +954,7 @@ private:
 
     IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
 
-    TCypressDictionaryConfigRepositoryPtr CypressDictionaryConfigRepository_;
+    TCypressObjectRepositoryPtr CypressObjectRepository_;
     IDictionaryAccessControlPtr DictionaryAccessControl_;
 
     NProfiling::TEventTimer AttributeFetchTimeCounter_;
@@ -1333,6 +1343,11 @@ int THost::GetInstanceCookie() const
     return Impl_->GetInstanceCookie();
 }
 
+bool THost::IsLeader() const
+{
+    return Impl_->IsLeader();
+}
+
 void THost::HandleCrashSignal() const
 {
     return Impl_->HandleCrashSignal();
@@ -1386,16 +1401,6 @@ EInstanceState THost::GetInstanceState() const
 void THost::PopulateSystemDatabase(DB::IDatabase* systemDatabase) const
 {
     return Impl_->PopulateSystemDatabase(systemDatabase);
-}
-
-std::shared_ptr<DB::IDatabase> THost::CreateYTDatabase() const
-{
-    return Impl_->CreateYTDatabase();
-}
-
-std::vector<DB::DatabasePtr> THost::CreateUserDefinedDatabases() const
-{
-    return Impl_->CreateUserDefinedDatabases();
 }
 
 std::vector<TString> THost::GetUserDefinedDatabaseNames() const
@@ -1456,8 +1461,9 @@ void THost::ReloadDictionaryGlobally(const std::string& configPath) const
     Impl_->ReloadDictionaryGlobally(configPath);
 }
 
-TCypressDictionaryConfigRepositoryPtr THost::GetCypressDictionaryConfigRepository() {
-    return Impl_->GetCypressDictionaryConfigRepository();
+TCypressObjectRepositoryPtr THost::GetCypressObjectRepository() const
+{
+    return Impl_->GetCypressObjectRepository();
 }
 
 void THost::PrepareClickHouseUser(const std::string& userName)

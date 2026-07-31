@@ -113,18 +113,34 @@ class ChaosTestBase(DynamicTablesBase):
         orchid_path = self._get_chaos_cell_orchid_path(cell_id, driver=driver)
         return get("{0}{1}".format(orchid_path, path), driver=driver)
 
-    def _wait_for_card_era(self, path, card_id, era=1, check_write=False, driver=None):
+    def _wait_for_card_era(self, replica, card_id, era=1, driver=None):
         import logging
         logger = logging.getLogger()
 
+        def _find_replica(card, cluster_name, path):
+            replica = next(filter(lambda r: r["cluster_name"] == cluster_name and r["replica_path"] == path, card["replicas"].values()), None)
+            assert replica, f"Replica {cluster_name}:{path} is not found in the replication card"
+            return replica
+
+        def _enabled(replica):
+            return replica["enabled"] if "enabled" in replica else (replica["state"] in ["enabled", "enabling"])
+
         def _check():
             nonlocal era
+            nonlocal replica
+
+            check_write = replica["mode"] == "sync" and _enabled(replica)
+            path = replica["replica_path"]
+
             for orchid in self._get_table_orchids(path, driver=driver):
                 if not orchid["replication_card"] or orchid["replication_card"]["era"] != era:
                     logger.debug("Waiting {0} for era {1} got {2}".format(path, era, orchid["replication_card"]["era"] if orchid["replication_card"] else None))
                     if orchid["replication_card"] and orchid["replication_card"]["era"] > era:
                         logger.debug("Renewing replication card era")
-                        era = self._sync_replication_card(card_id)["era"]
+                        card = self._sync_replication_card(card_id)
+                        era = card["era"]
+                        cluster_name = replica["cluster_name"]
+                        replica = _find_replica(card, cluster_name, path)
                     return False
                 if check_write and orchid["write_mode"] != "direct":
                     logger.debug("Waiting {0} for direct write mode but got {1}".format(path, orchid["write_mode"]))
@@ -260,16 +276,13 @@ class ChaosTestBase(DynamicTablesBase):
 
         def _present(replica):
             return any([r["cluster_name"] == replica["cluster_name"] and r["replica_path"] == replica["replica_path"] for r in replicas])
+
         replicas = [replica for replica in card_replicas if _present(replica)] if replicas else card_replicas
 
-        def _enabled(replica):
-            return replica["enabled"] if "enabled" in replica else (replica["state"] in ["enabled", "enabling"])
-
         def _wait_for_replica(replica):
-            path = replica["replica_path"]
-            driver = get_driver(cluster=replica["cluster_name"])
-            check_write = replica["mode"] == "sync" and _enabled(replica)
-            self._wait_for_card_era(path, card_id, era=replication_card["era"], check_write=check_write, driver=driver)
+            cluster_name = replica["cluster_name"]
+            driver = get_driver(cluster=cluster_name)
+            self._wait_for_card_era(replica, card_id, era=replication_card["era"], driver=driver)
 
         map_in_parallel(_wait_for_replica, replicas)
 

@@ -2724,6 +2724,15 @@ def add_chyt_parser(root_subparsers):
         add_strawberry_ctl_parser(add_clickhouse_subparser, "chyt")
 
 
+def add_dq_parser(root_subparsers):
+    parser = populate_argument_help(root_subparsers.add_parser(
+        "dq", description="DQ clique commands"))
+
+    dq_subparsers = parser.add_subparsers(metavar="dq_command", **SUBPARSER_KWARGS)
+    add_dq_subparser = add_subparser(dq_subparsers, params_argument=False)
+    add_strawberry_ctl_parser(add_dq_subparser, "dq")
+
+
 def add_jupyt_parser(root_subparsers):
     parser = populate_argument_help(root_subparsers.add_parser(
         "jupyt", description="Jupyter over YT commands"))
@@ -2942,7 +2951,10 @@ def show_flow_describe_result(**kwargs):
     """Execute YT Flow describe-pipeline command
 
     :param pipeline_path: path to pipeline.
+    :param status_only: describe only the pipeline status and its messages.
     """
+    if kwargs.pop("status_only"):
+        kwargs["flow_argument"] = {"status_only": True}
     result = yt.flow_execute(**kwargs, flow_command="describe-pipeline")
     if kwargs["output_format"] is None:
         result = dump_data(result)
@@ -2953,6 +2965,8 @@ def add_flow_describe_parser(add_parser):
     parser = add_parser("describe-pipeline", show_flow_describe_result,
                         help="Execute YT Flow describe command")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    parser.add_argument("--status-only", action="store_true",
+                        help="Describe only the pipeline status and its messages")
     add_structured_format_argument(parser, "--output-format")
 
 
@@ -3335,6 +3349,7 @@ def _prepare_parser():
     add_run_command_with_lock_parser(add_parser)
 
     add_chyt_parser(subparsers)
+    add_dq_parser(subparsers)
     add_jupyt_parser(subparsers)
     add_spark_parser(subparsers)
     add_flow_parser(subparsers)

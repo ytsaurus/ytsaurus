@@ -36,7 +36,7 @@ TTransformCompanionComputation::TTransformCompanionComputation(
 
 void TTransformCompanionComputation::DoInit(IJobInitContextPtr initContext)
 {
-    YT_LOG_DEBUG("DoInit started");
+    YT_TLOG_DEBUG("DoInit started");
     FetchAndValidateCompanionInfo();
 
     PutJobInfoToCompanionWithReconfigure();
@@ -44,35 +44,38 @@ void TTransformCompanionComputation::DoInit(IJobInitContextPtr initContext)
     // Init internal states clients.
     if (GetParameters()->InternalStates) {
         for (const auto& stateName : GetParameters()->InternalStates.value()) {
-            YT_LOG_DEBUG("Initializing KeyStateClient (StateName: %v)", stateName);
+            YT_TLOG_DEBUG("Initializing KeyStateClient")
+                .With("StateName", stateName);
             initContext->InitClient<TCompanionState>(InternalStateClients_[stateName], stateName);
         }
     }
     // Init external state clients — names come from the spec's
     // ``external_state_managers`` block.
     for (const auto& stateName : GetKeys(GetSpec()->ExternalStateManagers)) {
-        YT_LOG_DEBUG("Initializing ExternalStateClient (StateName: %v)", stateName);
+        YT_TLOG_DEBUG("Initializing ExternalStateClient")
+            .With("StateName", stateName);
         initContext->InitExternalStateClient(ExternalStateClients_[stateName], stateName);
     }
     // Init read-only external state joiners — names come from the spec's
     // ``external_state_joiners`` block.
     for (const auto& stateName : GetKeys(GetSpec()->ExternalStateJoiners)) {
-        YT_LOG_DEBUG("Initializing ExternalStateJoiner (StateName: %v)", stateName);
+        YT_TLOG_DEBUG("Initializing ExternalStateJoiner")
+            .With("StateName", stateName);
         initContext->InitExternalStateClient(ExternalStateJoiners_[stateName], stateName);
     }
-    YT_LOG_DEBUG("DoInit finished");
+    YT_TLOG_DEBUG("DoInit finished");
 }
 
 void TTransformCompanionComputation::DoProcess(
     IInputContextPtr input,
     IOutputCollectorPtr output)
 {
-    YT_LOG_DEBUG("Starting DoProcess (MessagesSize: %v, TimersSize: %v, VisitsSize: %v)",
-        input->GetMessages().size(),
-        input->GetTimers().size(),
-        input->GetVisits().size());
+    YT_TLOG_DEBUG("Starting DoProcess")
+        .With("MessagesSize", input->GetMessages().size())
+        .With("TimersSize", input->GetTimers().size())
+        .With("VisitsSize", input->GetVisits().size());
     if (input->GetMessages().empty() && input->GetTimers().empty() && input->GetVisits().empty()) {
-        YT_LOG_DEBUG("Empty inputs. Returning.");
+        YT_TLOG_DEBUG("Empty inputs. Returning.");
         return;
     }
     auto request = CreateCompanionRequest<TCompanionProcessRequest>();
@@ -287,7 +290,7 @@ void TTransformCompanionComputation::DoProcess(
         }
     }
 
-    YT_LOG_DEBUG("DoProcess finished");
+    YT_TLOG_DEBUG("DoProcess finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

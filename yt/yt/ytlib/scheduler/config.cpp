@@ -543,6 +543,9 @@ void TSamplingConfig::Register(TRegistrar registrar)
     registrar.Parameter("io_block_size", &TThis::IOBlockSize)
         .Default(16_MB);
 
+    registrar.Parameter("sampling_seed", &TThis::SamplingSeed)
+        .Default();
+
     registrar.Postprocessor([] (TSamplingConfig* config) {
         if (config->SamplingRate && (*config->SamplingRate < 0.0 || *config->SamplingRate > 1.0)) {
             THROW_ERROR_EXCEPTION("Sampling rate should be in range [0.0, 1.0]")
@@ -752,7 +755,7 @@ void TJobFailsTolerance::Register(TRegistrar registrar)
             for (const auto& [key, value] : field) {
                 THROW_ERROR_EXCEPTION_UNLESS(
                     value >= 0,
-                    "Maximum value of fails for each exit code must be non-negative! (ExitCode: %v, MaxFailsCount: %v)",
+                    "Maximum number of fails for exit code %v must be non-negative, got %v",
                     key,
                     value);
             }
@@ -2041,6 +2044,9 @@ void TSortOperationSpec::Register(TRegistrar registrar)
     registrar.BaseClassParameter("partition_job_count", &TSortOperationSpec::PartitionJobCount)
         .Default()
         .GreaterThan(0);
+    registrar.BaseClassParameter("max_partition_job_count", &TSortOperationSpec::MaxPartitionJobCount)
+        .Default()
+        .GreaterThan(0);
     registrar.BaseClassParameter("data_weight_per_partition_job", &TSortOperationSpec::DataWeightPerPartitionJob)
         .Alias("data_size_per_partition_job")
         .Default()
@@ -2125,6 +2131,9 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
 
     // Provide custom names for shared settings.
     registrar.BaseClassParameter("map_job_count", &TMapReduceOperationSpec::PartitionJobCount)
+        .Default()
+        .GreaterThan(0);
+    registrar.BaseClassParameter("max_map_job_count", &TMapReduceOperationSpec::MaxPartitionJobCount)
         .Default()
         .GreaterThan(0);
     registrar.BaseClassParameter("data_weight_per_map_job", &TMapReduceOperationSpec::DataWeightPerPartitionJob)

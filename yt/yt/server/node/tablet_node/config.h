@@ -551,6 +551,7 @@ struct TRowCacheControllerDynamicConfig
     i64 MemoryLimitGapInBytes;
     double MemoryLimitGapFraction;
     double RotationMemoryThreshold;
+    bool AllowFillingAvailableMemory;
 
     REGISTER_YSON_STRUCT(TRowCacheControllerDynamicConfig);
 
@@ -755,6 +756,8 @@ struct TTabletNodeDynamicConfig
 
     NChaosClient::TChaosReplicationCardUpdatesBatcherDynamicConfigPtr ChaosReplicationCardUpdatesBatcher;
 
+    TSlruCacheDynamicConfigPtr ClientCache;
+
     TTestingTabletNodeDynamicConfig Testing;
 
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
@@ -844,6 +847,8 @@ struct TTabletNodeConfig
     //! Used for local mode. If false, node will crash when recovering
     //! a tablet cell from the different reign.
     bool AllowReignChange;
+
+    TSlruCacheConfigPtr ClientCache;
 
     REGISTER_YSON_STRUCT(TTabletNodeConfig);
 

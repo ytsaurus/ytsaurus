@@ -15,6 +15,7 @@ import (
 const (
 	DefaultTextFileLineLimit = 16 * 1024 * 1024
 	DefaultQueueBatchSize    = 16 * 1024 * 1024
+	DefaultSkippedRowsMaxAge = 7 * 24 * time.Hour
 )
 
 type Config struct {
@@ -22,15 +23,19 @@ type Config struct {
 
 	YtTokenFile string          `yaml:"yt_token_file"`
 	JSONLogs    []JSONLogConfig `yaml:"json_logs"`
+	YSONLogs    []YSONLogConfig `yaml:"yson_logs"`
 }
 
 func (c *Config) SetDefaults() {
 	for i := range c.JSONLogs {
 		c.JSONLogs[i].SetDefaults()
 	}
+	for i := range c.YSONLogs {
+		c.YSONLogs[i].SetDefaults()
+	}
 }
 
-type JSONLogConfig struct {
+type BaseLogConfig struct {
 	timbertruck.StreamConfig `yaml:",inline"`
 
 	// QueueBatchSize is the buffer size at which a flush to the output is triggered.
@@ -54,20 +59,31 @@ type JSONLogConfig struct {
 	YtQueue []ytqueue.Config `yaml:"yt_queue"`
 }
 
-func (c *JSONLogConfig) SetDefaults() {
+func (c *BaseLogConfig) SetDefaults() {
 	if c.TextFileLineLimit == 0 {
 		c.TextFileLineLimit = DefaultTextFileLineLimit
 	}
 	if c.QueueBatchSize == 0 {
 		c.QueueBatchSize = DefaultQueueBatchSize
 	}
+	if c.SkippedRowsMaxAge == 0 {
+		c.SkippedRowsMaxAge = DefaultSkippedRowsMaxAge
+	}
+}
+
+type JSONLogConfig struct {
+	BaseLogConfig `yaml:",inline"`
+}
+
+type YSONLogConfig struct {
+	BaseLogConfig `yaml:",inline"`
 }
 
 func sessionID(hostname, filepath string) string {
 	return fmt.Sprintf("%v:%v", hostname, filepath)
 }
 
-func newOutput(config *Config, logConfig JSONLogConfig, task timbertruck.TaskArgs) (output pipelines.Output[pipelines.Row], err error) {
+func newOutput(config *Config, logConfig BaseLogConfig, task timbertruck.TaskArgs) (output pipelines.Output[pipelines.Row], err error) {
 	ctx := task.Context
 	var outputList []pipelines.Output[pipelines.Row]
 
@@ -133,7 +149,7 @@ func main() {
 
 	for _, jsonLogConfig := range config.JSONLogs {
 		app.AddStream(jsonLogConfig.StreamConfig, func(task timbertruck.TaskArgs) (p *pipelines.Pipeline, err error) {
-			output, err := newOutput(config, jsonLogConfig, task)
+			output, err := newOutput(config, jsonLogConfig.BaseLogConfig, task)
 			if err != nil {
 				return
 			}
@@ -142,6 +158,22 @@ func main() {
 					QueueBatchSize:         jsonLogConfig.QueueBatchSize,
 					QueueBatchFlushTimeout: jsonLogConfig.QueueBatchFlushTimeout,
 					TextFileLineLimit:      jsonLogConfig.TextFileLineLimit,
+				}})
+			return
+		})
+	}
+
+	for _, ysonLogConfig := range config.YSONLogs {
+		app.AddStream(ysonLogConfig.StreamConfig, func(task timbertruck.TaskArgs) (p *pipelines.Pipeline, err error) {
+			output, err := newOutput(config, ysonLogConfig.BaseLogConfig, task)
+			if err != nil {
+				return
+			}
+			p, err = ytlog.NewYSONLogPipeline(task, output, ytlog.YSONLogPipelineOptions{
+				BaseLogPipelineOptions: ytlog.BaseLogPipelineOptions{
+					QueueBatchSize:         ysonLogConfig.QueueBatchSize,
+					QueueBatchFlushTimeout: ysonLogConfig.QueueBatchFlushTimeout,
+					TextFileLineLimit:      ysonLogConfig.TextFileLineLimit,
 				}})
 			return
 		})

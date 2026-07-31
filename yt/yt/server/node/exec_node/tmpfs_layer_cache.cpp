@@ -247,7 +247,7 @@ void TTmpfsLayerCache::UpdateLayers()
 
     auto tag = TGuid::Create();
     auto Logger = ExecNodeLogger()
-        .WithTag("Tag: %v", tag);
+        .WithTag("Tag", tag);
 
     YT_LOG_INFO("Started updating tmpfs layers");
 

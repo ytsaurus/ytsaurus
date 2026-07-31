@@ -39,7 +39,7 @@ TDynamicConfigManagerBase<TConfig>::TDynamicConfigManagerBase(
         Invoker_,
         BIND(&TDynamicConfigManagerBase<TConfig>::DoUpdateConfig, MakeWeak(this)),
         Config_->UpdatePeriod))
-    , Logger(DynamicConfigLogger().WithTag("DynamicConfigManagerName: %v", Options_.Name))
+    , Logger(DynamicConfigLogger().WithTag("DynamicConfigManagerName", Options_.Name))
     , AppliedConfigNode_(BaseConfigNode_->AsMap())
 {
     AppliedConfig_ = New<TConfig>();
@@ -299,7 +299,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
     TError unrecognizedOptionsError;
     if (unrecognizedOptions && unrecognizedOptions->GetChildCount() > 0 && Config_->EnableUnrecognizedOptionsAlert) {
         unrecognizedOptionsError = TError(NDynamicConfig::EErrorCode::UnrecognizedDynamicConfigOption,
-            "Found unrecognized options in dynamic config (DynamicConfigName: %v)",
+            "Found unrecognized options in dynamic config %Qv",
             Options_.Name)
             << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, NYson::EYsonFormat::Text));
         YT_LOG_WARNING(unrecognizedOptionsError);

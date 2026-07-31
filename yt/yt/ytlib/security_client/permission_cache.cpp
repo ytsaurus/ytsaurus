@@ -98,7 +98,7 @@ TPermissionCache::TPermissionCache(
     : TAsyncExpiringCache(
         config,
         NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-        SecurityClientLogger().WithTag("Cache: Permission"),
+        SecurityClientLogger().WithTag("Cache", "Permission"),
         std::move(profiler))
     , Config_(std::move(config))
     , Connection_(std::move(connection))

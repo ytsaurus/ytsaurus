@@ -107,7 +107,7 @@ public:
         , SnapThreadTagsGuard_(RegisterThreadGuard(
             creationContext.SnapshotThreadName,
             creationContext.BundleNameTags))
-        , Logger(ChaosNodeLogger().WithTag("SlotName: %v", creationContext.AutomatonThreadName))
+        , Logger(ChaosNodeLogger().WithTag("SlotName", creationContext.AutomatonThreadName))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
@@ -121,9 +121,9 @@ public:
         YT_VERIFY(!Occupant_);
 
         Occupant_ = std::move(occupant);
-        Logger.AddTag("CellId: %v, PeerId: %v",
-            Occupant_->GetCellId(),
-            Occupant_->GetPeerId());
+        Logger
+            .AddTag("CellId", Occupant_->GetCellId())
+            .AddTag("PeerId", Occupant_->GetPeerId());
     }
 
     TCellId GetCellId() const override
@@ -260,7 +260,6 @@ public:
         return SnapshotQueue_->GetInvoker();
     }
 
-
     TObjectId GenerateId(EObjectType type) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -302,8 +301,9 @@ public:
             this,
             Bootstrap_);
 
-        auto clockClusterTag = Occupant_->GetOptions()->ClockClusterTag != InvalidCellTag
-            ? Occupant_->GetOptions()->ClockClusterTag
+        auto occupantClockClusterTag = Occupant_->GetOptions()->ClockClusterTag;
+        auto clockClusterTag = occupantClockClusterTag != InvalidCellTag
+            ? occupantClockClusterTag
             : Bootstrap_->GetConnection()->GetClusterTag();
 
         TransactionManager_ = CreateTransactionManager(
@@ -545,10 +545,8 @@ IChaosSlotPtr CreateChaosSlot(
     IBootstrap* bootstrap,
     const std::string& cellBundleName)
 {
-    auto creationContext = TChaosSlotCreationContext(slotIndex, cellBundleName);
-
     return New<TChaosSlot>(
-        creationContext,
+        TChaosSlotCreationContext(slotIndex, cellBundleName),
         config,
         bootstrap);
 }

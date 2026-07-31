@@ -337,12 +337,12 @@ public:
         , KeyWideningOptions_(keyWideningOptions)
         , Sampler_(CreateSampler(chunkId, Config_->SamplingRate, Config_->SamplingSeed))
         , VirtualValues_(virtualValues)
-        , Logger(TableClientLogger().WithTag("ChunkReaderId: %v, ChunkId: %v",
-            TGuid::Create(),
-            chunkId))
+        , Logger(TableClientLogger()
+            .WithTag("ChunkReaderId", TGuid::Create())
+            .WithTag("ChunkId", chunkId))
     {
         if (chunkReadOptions.ReadSessionId) {
-            Logger.AddTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId);
+            Logger.AddTag("ReadSessionId", chunkReadOptions.ReadSessionId);
         }
 
         MemoryGuard_ = TMemoryUsageTrackerGuard::Build(chunkReadOptions.MemoryUsageTracker);
@@ -1147,6 +1147,8 @@ public:
         std::optional<TPartitionTags> partitionTags = {},
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
+    void InitializeRefCounted();
+
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
 private:
@@ -1472,6 +1474,10 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
 
     ApplyLimits();
     ComputeBlockIndexes(PrefixRange_);
+}
+
+void THorizontalSchemalessKeyRangesChunkReader::InitializeRefCounted()
+{
     InitBlocks();
 }
 

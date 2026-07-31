@@ -196,6 +196,9 @@ protected:
 
     const NProfiling::TProfiler& GetProfiler() const;
 
+    double GetSourceTotalCount() const;
+    double GetSourceTotalBytes() const;
+
 public:
     enum class EMessageState
     {

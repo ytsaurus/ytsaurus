@@ -55,6 +55,18 @@ bool GetSuppressAccessTracking(const TRequestHeader& header)
         : false;
 }
 
+void SetSuppressAccessLogging(const IClientRequestPtr& request, bool value)
+{
+    request->Header().SetExtension(TAccessTrackingExt::suppress_access_logging, value);
+}
+
+bool GetSuppressAccessLogging(const TRequestHeader& header)
+{
+    return header.HasExtension(TAccessTrackingExt::suppress_access_logging)
+        ? header.GetExtension(TAccessTrackingExt::suppress_access_logging)
+        : false;
+}
+
 void SetSuppressModificationTracking(const IClientRequestPtr& request, bool value)
 {
     SetSuppressModificationTracking(&request->Header(), value);

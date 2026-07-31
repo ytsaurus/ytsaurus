@@ -17,8 +17,9 @@
 
 #include <yt/yt/core/crypto/crypto.h>
 
-#include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/intern_registry.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NChunkServer {
 
@@ -41,12 +42,6 @@ public:
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, bool, EnableStripedErasure);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, bool, EnableSkynetSharing);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NChunkClient::EChunkMergerMode, ChunkMergerMode);
-
-    // TODO(aleksandra-zh): Merger stuff, wrap that.
-    // If chunk owner is changed, while it is being merged, it should be marked updated
-    // to initiate another merge after the current one is finished.
-    DEFINE_BYVAL_RW_PROPERTY(bool, UpdatedSinceLastMerge, false);
-    DEFINE_BYREF_RW_PROPERTY(TChunkMergerTraversalInfo, ChunkMergerTraversalInfo);
 
 public:
     using TCypressNode::TCypressNode;
@@ -71,6 +66,10 @@ public:
 
     const TChunkOwnerDataStatistics& DeltaStatistics() const;
     TChunkOwnerDataStatistics* MutableDeltaStatistics();
+
+    bool HasChunkMergerInfo() const;
+    const TChunkMergerInfo& ChunkMergerInfo() const;
+    TChunkMergerInfo* MutableChunkMergerInfo();
 
     NSecurityServer::TSecurityTags ComputeSecurityTags() const;
 
@@ -152,6 +151,8 @@ private:
     std::unique_ptr<TChunkOwnerDataStatistics> DeltaStatistics_;
     TEnumIndexedArray<EChunkListContentType, TChunkListPtr> ChunkLists_;
 
+    std::unique_ptr<TChunkMergerInfo> ChunkMergerInfo_;
+
     TChunkOwnerDataStatistics ComputeUpdateStatistics() const;
 
     NSecurityServer::TClusterResources GetDiskUsage(const TChunkOwnerDataStatistics& statistics) const;
@@ -160,7 +161,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TChunkOwnerBase, 576);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TChunkOwnerBase, 568);
 
 ////////////////////////////////////////////////////////////////////////////////
 

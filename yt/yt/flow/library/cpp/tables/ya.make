@@ -18,7 +18,7 @@ SRCS(
 
 PEERDIR(
     library/cpp/yt/misc
-    yt/yt/flow/lib/serializer
+    yt/yt/flow/library/cpp/serializer
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/misc
     yt/yt/library/profiling/sensors_owner

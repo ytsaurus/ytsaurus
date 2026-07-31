@@ -1425,7 +1425,7 @@ void TApiService::InitContext(TApiServiceContext<TRequestMessage, TResponseMessa
     using TContext = NYT::NRpcProxy::TApiServiceContext<TRequestMessage, TResponseMessage>;
 
     context->SetLogger(Logger
-        .WithTag("RequestId: %v", context->GetRequestId()));
+        .WithTag("RequestId", context->GetRequestId()));
 
     // First, recover request path from the typed request context using the incredible power of C++20 concepts.
     std::optional<TYPath> requestPath;

@@ -67,12 +67,37 @@ struct TPartitionReaderConfig
     //! rejects. Not a cap on decompressed or returned-batch size.
     i64 MaxBytesPerRead;
 
+    //! Checks that decoded values do not use configured identity column ids.
+    bool ValidateIdentityColumnIds;
+
     REGISTER_YSON_STRUCT(TPartitionReaderConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPartitionReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSortReaderConfig
+    : public NYTree::TYsonStruct
+{
+    //! Rows per sort bucket.
+    int BucketRowCount;
+
+    //! Output batch limits. The data-weight limit is soft.
+    i64 MaxRowsPerRead;
+    i64 MaxDataWeightPerRead;
+
+    //! CPU time between merge yields.
+    TDuration MergeYieldPeriod;
+
+    REGISTER_YSON_STRUCT(TSortReaderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSortReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

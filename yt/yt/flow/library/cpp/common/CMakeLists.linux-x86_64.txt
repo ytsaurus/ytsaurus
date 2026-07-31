@@ -37,8 +37,8 @@ target_link_libraries(library-cpp-common PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  flow-lib-client
-  flow-lib-serializer
+  library-cpp-client
+  library-cpp-serializer
   cpp-common-proto
   common-controller-proto
   common-worker-proto
@@ -52,6 +52,7 @@ target_link_libraries(library-cpp-common PUBLIC
   yt-library-auth
   yt-library-formats
   yt-library-heavy_schema_validation
+  library-cpp-file_storage
   library-query-engine_api
   library-tvm-service
   cpp-yt-memory
@@ -70,6 +71,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/describe_traits.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/distributing_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/external_state_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/file_source.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/flow_core_build_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/flow_core_version.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/flow_view.cpp
@@ -88,6 +90,8 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/process_function.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/registry.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/resource.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/resource_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/resource_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/select_literals.cpp

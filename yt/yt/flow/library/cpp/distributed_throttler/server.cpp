@@ -61,7 +61,7 @@ public:
             throttlerConfig,
             drainPeriod,
             NConcurrency::CreateSerializedInvoker(Invoker_),
-            TServiceBase::Logger.WithTag("Throttler: %v", name),
+            TServiceBase::Logger.WithTag("Throttler", name),
             Profiler_.WithTag("throttler_id", TString(name)));
         bucket->Start();
         return bucket;

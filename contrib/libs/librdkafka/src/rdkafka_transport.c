@@ -278,10 +278,17 @@ static ssize_t rd_kafka_transport_socket_recvmsg(rd_kafka_transport_t *rktrans,
         if (unlikely(r <= 0)) {
                 if (r == -1 && rd_socket_errno == EAGAIN)
                         return 0;
-                else if (r == 0 || (r == -1 && rd_socket_errno == ECONNRESET)) {
+                else if (r == 0) {
                         /* Receive 0 after POLLIN event means
                          * connection closed. */
-                        rd_snprintf(errstr, errstr_size, "Disconnected");
+                        rd_snprintf(errstr, errstr_size,
+                                    "Disconnected: connection closed by "
+                                    "peer: receive 0 after POLLIN");
+                        return -1;
+                } else if (r == -1 && rd_socket_errno == ECONNRESET) {
+                        rd_snprintf(errstr, errstr_size,
+                                    "Disconnected: connection "
+                                    "reset by peer");
                         return -1;
                 } else if (r == -1) {
                         rd_snprintf(errstr, errstr_size, "%s",
@@ -335,7 +342,9 @@ static ssize_t rd_kafka_transport_socket_recv0(rd_kafka_transport_t *rktrans,
                 } else if (unlikely(r == 0)) {
                         /* Receive 0 after POLLIN event means
                          * connection closed. */
-                        rd_snprintf(errstr, errstr_size, "Disconnected");
+                        rd_snprintf(errstr, errstr_size,
+                                    "Disconnected: connection closed by "
+                                    "peer: receive 0 after POLLIN");
                         return -1;
                 }
 
@@ -543,33 +552,6 @@ void rd_kafka_transport_post_connect_setup(rd_kafka_transport_t *rktrans) {
         rd_kafka_broker_t *rkb = rktrans->rktrans_rkb;
         unsigned int slen;
 
-        /* Set socket send & receive buffer sizes if configuerd */
-        if (rkb->rkb_rk->rk_conf.socket_sndbuf_size != 0) {
-                if (setsockopt(
-                        rktrans->rktrans_s, SOL_SOCKET, SO_SNDBUF,
-                        (void *)&rkb->rkb_rk->rk_conf.socket_sndbuf_size,
-                        sizeof(rkb->rkb_rk->rk_conf.socket_sndbuf_size)) ==
-                    RD_SOCKET_ERROR)
-                        rd_rkb_log(rkb, LOG_WARNING, "SNDBUF",
-                                   "Failed to set socket send "
-                                   "buffer size to %i: %s",
-                                   rkb->rkb_rk->rk_conf.socket_sndbuf_size,
-                                   rd_socket_strerror(rd_socket_errno));
-        }
-
-        if (rkb->rkb_rk->rk_conf.socket_rcvbuf_size != 0) {
-                if (setsockopt(
-                        rktrans->rktrans_s, SOL_SOCKET, SO_RCVBUF,
-                        (void *)&rkb->rkb_rk->rk_conf.socket_rcvbuf_size,
-                        sizeof(rkb->rkb_rk->rk_conf.socket_rcvbuf_size)) ==
-                    RD_SOCKET_ERROR)
-                        rd_rkb_log(rkb, LOG_WARNING, "RCVBUF",
-                                   "Failed to set socket receive "
-                                   "buffer size to %i: %s",
-                                   rkb->rkb_rk->rk_conf.socket_rcvbuf_size,
-                                   rd_socket_strerror(rd_socket_errno));
-        }
-
         /* Get send and receive buffer sizes to allow limiting
          * the total number of bytes passed with iovecs to sendmsg()
          * and recvmsg(). */
@@ -598,19 +580,6 @@ void rd_kafka_transport_post_connect_setup(rd_kafka_transport_t *rktrans) {
         } else if (rktrans->rktrans_sndbuf_size < 1024 * 64)
                 rktrans->rktrans_sndbuf_size =
                     1024 * 64; /* Use at least 64KB */
-
-
-#ifdef TCP_NODELAY
-        if (rkb->rkb_rk->rk_conf.socket_nagle_disable) {
-                int one = 1;
-                if (setsockopt(rktrans->rktrans_s, IPPROTO_TCP, TCP_NODELAY,
-                               (void *)&one, sizeof(one)) == RD_SOCKET_ERROR)
-                        rd_rkb_log(rkb, LOG_WARNING, "NAGLE",
-                                   "Failed to disable Nagle (TCP_NODELAY) "
-                                   "on socket: %s",
-                                   rd_socket_strerror(rd_socket_errno));
-        }
-#endif
 }
 
 
@@ -746,7 +715,9 @@ static void rd_kafka_transport_io_event(rd_kafka_transport_t *rktrans,
                 if (r == 0 /* handshake still in progress */ &&
                     (events & POLLHUP)) {
                         rd_kafka_broker_conn_closed(
-                            rkb, RD_KAFKA_RESP_ERR__TRANSPORT, "Disconnected");
+                            rkb, RD_KAFKA_RESP_ERR__TRANSPORT,
+                            "Disconnected: during "
+                            "SSL connection handshake");
                         return;
                 }
 
@@ -770,7 +741,8 @@ static void rd_kafka_transport_io_event(rd_kafka_transport_t *rktrans,
                 if (events & POLLHUP) {
                         rd_kafka_broker_fail(rkb, LOG_ERR,
                                              RD_KAFKA_RESP_ERR__AUTHENTICATION,
-                                             "Disconnected");
+                                             "Disconnected: hung up from "
+                                             "peer in state AUTH_LEGACY");
 
                         return;
                 }
@@ -781,7 +753,6 @@ static void rd_kafka_transport_io_event(rd_kafka_transport_t *rktrans,
         case RD_KAFKA_BROKER_STATE_AUTH_HANDSHAKE:
         case RD_KAFKA_BROKER_STATE_AUTH_REQ:
         case RD_KAFKA_BROKER_STATE_UP:
-        case RD_KAFKA_BROKER_STATE_UPDATE:
 
                 if (events & POLLIN) {
                         while (rkb->rkb_state >= RD_KAFKA_BROKER_STATE_UP &&
@@ -795,7 +766,9 @@ static void rd_kafka_transport_io_event(rd_kafka_transport_t *rktrans,
 
                 if (events & POLLHUP) {
                         rd_kafka_broker_conn_closed(
-                            rkb, RD_KAFKA_RESP_ERR__TRANSPORT, "Disconnected");
+                            rkb, RD_KAFKA_RESP_ERR__TRANSPORT,
+                            "Disconnected: connection closed by "
+                            "peer: POLLHUP");
                         return;
                 }
 
@@ -1080,6 +1053,45 @@ rd_kafka_transport_t *rd_kafka_transport_new(rd_kafka_broker_t *rkb,
                                    rd_socket_strerror(rd_socket_errno));
         }
 #endif
+
+#ifdef TCP_NODELAY
+        if (rkb->rkb_rk->rk_conf.socket_nagle_disable) {
+                int one = 1;
+                if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (void *)&one,
+                               sizeof(one)) == RD_SOCKET_ERROR)
+                        rd_rkb_log(rkb, LOG_WARNING, "NAGLE",
+                                   "Failed to disable Nagle (TCP_NODELAY) "
+                                   "on socket: %s",
+                                   rd_socket_strerror(rd_socket_errno));
+        }
+#endif
+
+        /* Set socket send & receive buffer sizes if configuerd */
+        if (rkb->rkb_rk->rk_conf.socket_sndbuf_size != 0) {
+                if (setsockopt(
+                        s, SOL_SOCKET, SO_SNDBUF,
+                        (void *)&rkb->rkb_rk->rk_conf.socket_sndbuf_size,
+                        sizeof(rkb->rkb_rk->rk_conf.socket_sndbuf_size)) ==
+                    RD_SOCKET_ERROR)
+                        rd_rkb_log(rkb, LOG_WARNING, "SNDBUF",
+                                   "Failed to set socket send "
+                                   "buffer size to %i: %s",
+                                   rkb->rkb_rk->rk_conf.socket_sndbuf_size,
+                                   rd_socket_strerror(rd_socket_errno));
+        }
+
+        if (rkb->rkb_rk->rk_conf.socket_rcvbuf_size != 0) {
+                if (setsockopt(
+                        s, SOL_SOCKET, SO_RCVBUF,
+                        (void *)&rkb->rkb_rk->rk_conf.socket_rcvbuf_size,
+                        sizeof(rkb->rkb_rk->rk_conf.socket_rcvbuf_size)) ==
+                    RD_SOCKET_ERROR)
+                        rd_rkb_log(rkb, LOG_WARNING, "RCVBUF",
+                                   "Failed to set socket receive "
+                                   "buffer size to %i: %s",
+                                   rkb->rkb_rk->rk_conf.socket_rcvbuf_size,
+                                   rd_socket_strerror(rd_socket_errno));
+        }
 
         /* Set the socket to non-blocking */
         if ((r = rd_fd_set_nonblocking(s))) {

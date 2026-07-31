@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/profiling/solomon/config.h>
+
 #include <yt/yt/server/lib/chaos_node/public.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
@@ -504,6 +506,8 @@ struct TClusterNodeDynamicConfig
     TNodeMemoryTrackerConfigPtr NodeMemoryTracker;
 
     std::optional<int> AuxPollerThreadCount;
+
+    NProfiling::TSolomonExporterDynamicConfigPtr SolomonExporter;
 
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <yt/yt/core/misc/mpl.h>
+#include <library/cpp/yt/mpl/concepts.h>
+#include <library/cpp/yt/mpl/type_traits.h>
 
 #include <util/generic/fwd.h>
 

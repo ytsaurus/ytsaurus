@@ -16,9 +16,10 @@
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/digest.h>
-#include <yt/yt/core/misc/string_builder.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/string/string_builder.h>
 
 #include <util/generic/ymath.h>
 
@@ -1242,9 +1243,9 @@ TPoolTreePoolElement::TPoolTreePoolElement(
         treeId,
         id,
         EResourceTreeElementKind::Pool,
-        logger.WithTag("Pool: %v, SchedulingMode: %v",
-            id,
-            config->Mode))
+        logger
+            .WithTag("Pool", id)
+            .WithTag("SchedulingMode", config->Mode))
     , TPoolTreePoolElementFixedState(id, objectId)
 {
     DoSetConfig(std::move(config));
@@ -1817,7 +1818,7 @@ TPoolTreeOperationElement::TPoolTreeOperationElement(
         treeId,
         ToString(operation->GetId()),
         EResourceTreeElementKind::Operation,
-        logger.WithTag("OperationId: %v", operation->GetId()))
+        logger.WithTag("OperationId", operation->GetId()))
     , TPoolTreeOperationElementFixedState(
         std::move(operation),
         std::move(controllerConfig),
@@ -2653,9 +2654,9 @@ TPoolTreeRootElement::TPoolTreeRootElement(
         treeId,
         RootPoolName,
         EResourceTreeElementKind::Root,
-        logger.WithTag("Pool: %v, SchedulingMode: %v",
-            RootPoolName,
-            ESchedulingMode::FairShare))
+        logger
+            .WithTag("Pool", RootPoolName)
+            .WithTag("SchedulingMode", ESchedulingMode::FairShare))
 {
     Mode_ = ESchedulingMode::FairShare;
 }

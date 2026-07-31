@@ -89,7 +89,7 @@ public:
         , CreateDistributedChunkWriter_(std::move(createDistributedChunkWriter))
         , MapperId_(mapperId)
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
-        , Logger(PushBasedShuffleLogger().WithTag("MapperId: %v", MapperId_))
+        , Logger(PushBasedShuffleLogger().WithTag("MapperId", MapperId_))
         , Partitions_(Partitioner_->GetPartitionCount())
         , SeededSessions_(std::move(seededSessions))
         , BuildersBudget_(static_cast<i64>(Config_->MemoryBudget * Config_->BuildersBudgetFraction))

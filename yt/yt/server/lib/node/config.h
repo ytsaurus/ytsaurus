@@ -29,10 +29,6 @@ struct TChunkLocationConfigBase
 
     bool ResetUuid;
 
-    //! Limit on the maximum memory used in location writes with legacy protocol without probing.
-    // COMPAT(vvshlyaga): Remove after rolling writer with probing on all nodes.
-    i64 LegacyWriteMemoryLimit;
-
     //! Limit on the maximum memory used of location reads.
     i64 ReadMemoryLimit;
 
@@ -61,10 +57,6 @@ struct TChunkLocationDynamicConfigBase
     NYTree::INodePtr IOConfig;
 
     NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
-
-    //! Limit on the maximum memory used in location writes with legacy protocol without probing.
-    // COMPAT(vvshlyaga): Remove after rolling writer with probing on all nodes.
-    std::optional<i64> LegacyWriteMemoryLimit;
 
     //! Limit on the maximum memory used by location reads.
     std::optional<i64> ReadMemoryLimit;

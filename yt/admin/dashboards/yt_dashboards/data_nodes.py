@@ -10,39 +10,88 @@ from .common.sensors import (
     yt_host,
 )
 
+try:
+    from .constants import (
+        DATA_NODES_COMMON_DASHBOARD_DEFAULT_CLUSTER,
+        DATA_NODES_COMMON_DASHBOARD_DEFAULT_HOST,
+    )
+except ImportError:
+    from .yandex_constants import (
+        DATA_NODES_COMMON_DASHBOARD_DEFAULT_CLUSTER,
+        DATA_NODES_COMMON_DASHBOARD_DEFAULT_HOST,
+    )
+
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.sensor import Sensor, MultiSensor, Text
 from yt_dashboard_generator.taggable import NotEquals, SystemFields
+from yt_dashboard_generator.specific_tags.tags import TemplateTag
 
+from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter, MonitoringExpr, PlainMonitoringExpr
+
+from functools import partial
 
 
 def _build_sensor(name, sensor, hidden=False):
-    return DatNodeAll(sensor)      \
-        .value("host", "{{host}}") \
+    return DatNodeAll(sensor)               \
+        .value("host", TemplateTag("host")) \
         .name(name)
 
 
-def _build_percentile_sensor(sensor, percentiles=[99.9, 99, 95, 90, 75, 50]):
-    sensors = []
-    sensor = sensor.hidden(True)
-    sensors.append(sensor)
+def _make_percentile_sensor(backend, sensor, percentiles=None):
+    if percentiles is None:
+        percentiles = [99.9, 99, 95, 90, 75, 50]
 
-    sensors.append(MonitoringExpr(MonitoringExpr.NodeType.Terminal, sensor.get_tags()[SystemFields.Name]) \
-        .name(str(percentiles))                                                                            \
-        .series_percentile(percentiles))
+    if backend == "monitoring":
+        sensor = sensor.hidden(True)
+        return MultiSensor(
+            sensor,
+            MonitoringExpr(MonitoringExpr.NodeType.Terminal, sensor.get_tags()[SystemFields.Name])
+                .name(str(percentiles))
+                .series_percentile(percentiles)
+        )
 
-    return MultiSensor(*sensors)
+    return MultiSensor(*[
+        MonitoringExpr(sensor)
+            .series_percentile(percentile)
+            .legend_format(f"p{percentile}")
+        for percentile in percentiles
+    ])
 
 
-def _build_memory_category(name, category):
-    return _build_percentile_sensor(
+def _make_throttling_ratio(backend, throttled_name, throttled_sensor, total_name, total_sensor, ratio_name):
+    if backend == "monitoring":
+        return MultiSensor(
+            _build_sensor(throttled_name, throttled_sensor)
+                .hidden(True)
+                .name(throttled_name),
+            _build_sensor(total_name, total_sensor)
+                .hidden(True)
+                .name(total_name),
+            (MonitoringExpr(MonitoringExpr.NodeType.Terminal, 100) * MonitoringExpr(MonitoringExpr.NodeType.Terminal, throttled_name).series_sum("medium") /
+                (MonitoringExpr(MonitoringExpr.NodeType.Terminal, throttled_name).series_sum("medium") + MonitoringExpr(MonitoringExpr.NodeType.Terminal, total_name).series_sum("medium")))
+                .name(ratio_name)
+        )
+
+    throttled = MonitoringExpr(_build_sensor(throttled_name, throttled_sensor)).series_sum("medium")
+    total = MonitoringExpr(_build_sensor(total_name, total_sensor)).series_sum("medium")
+    return (MonitoringExpr(MonitoringExpr.NodeType.Terminal, 100) * throttled / (throttled + total)) \
+        .legend_format("{{medium}}")
+
+
+def _make_memory_category(backend, name, category):
+    return _make_percentile_sensor(
+        backend,
         _build_sensor(name, "yt.cluster_node.memory_usage.used")
             .hidden(True)
             .value("category", category))
 
 
-def _build_versions(d):
+def _build_versions(d, backend):
+    _build_percentile_sensor = partial(_make_percentile_sensor, backend)
+    _build_memory_category = partial(_make_memory_category, backend)
+    _build_throttling_ratio = partial(_make_throttling_ratio, backend)
+
     d.add(Rowset().row(height=3).cell("", Text("Memory")))
     d.add(Rowset()
         .stack(False)
@@ -246,21 +295,21 @@ def _build_versions(d):
             .cell("GetChunkMeta Rpc attachment size",
                 MonitoringExpr(_build_sensor("GetChunkMetaRpcAttachmentSize", "yt.rpc.server.response_message_body_bytes.rate|yt.rpc.server.response_message_attachment_bytes.rate")
                     .value("method", "GetChunkMeta")
-                    .value("queue", "*"))
-                    .series_sum(["queue"])
+                    .all("queue"))
+                    .series_sum("queue")
                     .stack(True)
             )
             .cell("GetBlockSet Rpc attachment size",
                 MonitoringExpr(_build_sensor("GetBlockSetRpcAttachmentSize", "yt.rpc.server.response_message_body_bytes.rate|yt.rpc.server.response_message_attachment_bytes.rate")
                     .value("method", "GetBlockSet")
-                    .value("queue", "*"))
-                    .series_sum(["queue"])
+                    .all("queue"))
+                    .series_sum("queue")
                     .stack(True)
             )
             .cell("PutBlocks Rpc attachment size",
                 MonitoringExpr(_build_sensor("PutBlocksRpcAttachmentSize", "yt.rpc.server.request_message_attachment_bytes.rate|yt.rpc.server.request_message_body_bytes.rate")
                     .value("method", "PutBlocks")
-                    .value("queue", "-"))
+                    .aggr("queue"))
                     .series_sum()
                     .stack(True)
             )
@@ -422,35 +471,21 @@ def _build_versions(d):
 
     d.add(Rowset().row(height=3).cell("", Text("IO")))
     d.add(Rowset()
-        .value("medium", "*")
+        .all("medium")
         .aggr("location_id")
         .value("location_type", "store")
         .stack(False)
         .row()
             .cell("Throttling Writes",
-                MultiSensor(
-                    _build_sensor("ThrottlingWrites", "yt.location.throttled_writes.rate")
-                        .hidden(True)
-                        .name("ThrottlingWrites"),
-                    _build_sensor("Writes", "yt.location.write.request_count.rate")
-                        .hidden(True)
-                        .name("Writes"),
-                    (MonitoringExpr(MonitoringExpr.NodeType.Terminal, 100) * MonitoringExpr(MonitoringExpr.NodeType.Terminal, "ThrottlingWrites").series_sum("medium") /
-                        (MonitoringExpr(MonitoringExpr.NodeType.Terminal, "ThrottlingWrites").series_sum("medium") + MonitoringExpr(MonitoringExpr.NodeType.Terminal, "Writes").series_sum("medium")))
-                        .name("WritePercent")
-                ))
+                _build_throttling_ratio(
+                    "ThrottlingWrites", "yt.location.throttled_writes.rate",
+                    "Writes", "yt.location.write.request_count.rate",
+                    "WritePercent"))
             .cell("Throttling Reads",
-                MultiSensor(
-                    _build_sensor("ThrottlingReads", "yt.location.throttled_reads.rate")
-                        .hidden(True)
-                        .name("ThrottlingReads"),
-                    _build_sensor("Reads", "yt.location.read.request_count.rate")
-                        .hidden(True)
-                        .name("Reads"),
-                    (MonitoringExpr(MonitoringExpr.NodeType.Terminal, 100) * MonitoringExpr(MonitoringExpr.NodeType.Terminal, "ThrottlingReads").series_sum("medium") /
-                        (MonitoringExpr(MonitoringExpr.NodeType.Terminal, "ThrottlingReads").series_sum("medium") + MonitoringExpr(MonitoringExpr.NodeType.Terminal, "Reads").series_sum("medium")))
-                        .name("ReadPercent")
-                ))
+                _build_throttling_ratio(
+                    "ThrottlingReads", "yt.location.throttled_reads.rate",
+                    "Reads", "yt.location.read.request_count.rate",
+                    "ReadPercent"))
         .row()
             .cell("Disk in queue size",
                 MonitoringExpr(_build_sensor("DiskInQueueSize", "yt.location.disk_throttler.*in*.queue_size"))
@@ -465,12 +500,12 @@ def _build_versions(d):
     )
 
     d.add(Rowset()
-        .value("medium", "*")
+        .all("medium")
         .value("location_type", "store")
         .stack(False)
         .row()
             .aggr("location_id")
-            .value("disk_family", "*")
+            .all("disk_family")
             .cell("Disk in value rate",
                 MonitoringExpr(_build_sensor("DiskInValueRate", "yt.location.disk_throttler.*in*.value.rate"))
                     .series_sum("medium", "sensor")
@@ -482,7 +517,7 @@ def _build_versions(d):
                     .stack(True)
             )
         .row()
-            .value("category", "*")
+            .all("category")
             .cell("Used memory for writes",
                 MonitoringExpr(_build_sensor("UsedMemoryForWrites", "yt.location.used_memory")
                     .value("direction", "write"))
@@ -498,14 +533,15 @@ def _build_versions(d):
     )
 
 
-def build_data_nodes_common():
+def build_data_nodes_common(backend="monitoring"):
     d = Dashboard()
 
-    _build_versions(d)
+    _build_versions(d, backend)
 
     d.set_monitoring_serializer_options(dict(default_row_height=8))
+    d.set_grafana_serializer_options(dict(default_row_height=8))
 
-    d.set_title("Data Nodes Common [AUTOGENERATED]")
+    d.set_title("Data Nodes Common [Autogenerated]")
 
     d.add_parameter(
         "cluster",
@@ -513,7 +549,15 @@ def build_data_nodes_common():
         MonitoringLabelDashboardParameter(
             "yt",
             "cluster",
-            "freud")
+            DATA_NODES_COMMON_DASHBOARD_DEFAULT_CLUSTER),
+        backends=["monitoring"],
+    )
+
+    d.add_parameter(
+        "cluster",
+        "Cluster",
+        GrafanaTextboxDashboardParameter(DATA_NODES_COMMON_DASHBOARD_DEFAULT_CLUSTER),
+        backends=["grafana"],
     )
 
     d.add_parameter(
@@ -522,7 +566,15 @@ def build_data_nodes_common():
         MonitoringLabelDashboardParameter(
             "yt",
             "host",
-            "Aggr")
+            DATA_NODES_COMMON_DASHBOARD_DEFAULT_HOST),
+        backends=["monitoring"],
+    )
+
+    d.add_parameter(
+        "host",
+        "Host",
+        GrafanaTextboxDashboardParameter(DATA_NODES_COMMON_DASHBOARD_DEFAULT_HOST),
+        backends=["grafana"],
     )
 
     return d

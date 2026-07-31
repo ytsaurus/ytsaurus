@@ -19,12 +19,12 @@ SRCS(
 PEERDIR(
     yt/yt/flow/library/cpp/vanilla
     yt/yt/flow/library/cpp/worker
-    yt/yt/flow/library/cpp/client
+    yt/yt/flow/library/cpp/pipeline_helpers
     yt/yt/flow/library/cpp/controller
     yt/yt/flow/library/cpp/companion
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/misc
-    yt/yt/flow/lib/native_client
+    yt/yt/flow/library/cpp/native_client
     yt/yt/client/cache
     yt/yt/library/auth
     yt/yt/library/coredumper

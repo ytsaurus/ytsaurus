@@ -82,7 +82,7 @@ public:
         : UnderlyingWriter_(std::move(underlyingWriter))
         , ChunkMeta_(New<TDeferredChunkMeta>())
         , Options_(std::move(options))
-        , Logger(ChunkClientLogger().WithTag("ChunkId: %v", UnderlyingWriter_->GetChunkId()))
+        , Logger(ChunkClientLogger().WithTag("ChunkId", UnderlyingWriter_->GetChunkId()))
     {
         MiscExt_.set_compression_codec(ToProto(Options_->CompressionCodec));
         MiscExt_.set_erasure_codec(ToProto(UnderlyingWriter_->GetErasureCodecId()));

@@ -230,7 +230,7 @@ private:
         lsmTablet->SetMounted(tablet->GetState() == ETabletState::Mounted);
         lsmTablet->SetMountConfig(tablet->GetSettings().MountConfig);
         lsmTablet->SetMountRevision(tablet->GetMountRevision());
-        lsmTablet->SetLoggingTag(tablet->GetLoggingTag());
+        lsmTablet->LoggingTags() = tablet->GetLoggingTags();
         lsmTablet->SetIsOutOfBandRotationRequested(tablet->GetOutOfBandRotationRequested());
 
         lsmTablet->SetIsForcedRotationPossible(storeManager->IsForcedRotationPossible());

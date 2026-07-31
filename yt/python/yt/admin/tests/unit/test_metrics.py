@@ -1,6 +1,13 @@
-from yt.admin.metrics.config import DashboardInfo, MetricsDumpConfig
+from yt.admin.metrics.config import (
+    DATASOURCE_UID,
+    DEFAULT_MAX_POINTS_PER_SERIES,
+    GRAFANA_PROVISIONING_FILE,
+    DashboardInfo,
+    MetricsDumpConfig,
+    parse_duration_ms,
+)
 from yt.admin.metrics.dump import MetricsDumper, _selectors_from_extra_targets
-from yt.admin.metrics.grafana import build_dashboard_url
+from yt.admin.metrics.grafana import GrafanaProvisioner, build_dashboard_url
 from yt.admin.metrics.openmetrics import OpenMetricsWriter
 from yt.admin.metrics.promql import (
     _parse_matchers_from_tokens,
@@ -15,6 +22,7 @@ from yt.admin.metrics.promql import (
 from yt.admin.metrics.spec import SpecLoader, params_by_dashboard, walk_exprs
 
 import pytest
+import yaml
 
 import json
 import os
@@ -73,7 +81,9 @@ class TestPromql:
                 ],
             ),
             ('{cluster="someclustername", service=~"yt-master.*"}', ['{cluster="someclustername",service=~"yt-master.*"}']),
-            (r'foo_total{b="x\"y",a="back\\slash",c="line\nbreak"}', [r'foo_total{a="back\\slash",b="x\"y",c="linenbreak"}']),
+            (r'foo_total{b="x\"y",a="back\\slash",c="line\nbreak"}', [r'foo_total{a="back\\slash",b="x\"y",c="line\nbreak"}']),
+            (r'metric{x=~"a\nb"}', [r'metric{x=~"a\nb"}']),
+            (r'metric{x=~"foo\\.bar"}', [r'metric{x=~"foo\\.bar"}']),
             ("foo{a='single quoted',b=`raw\\value`}", [r'foo{a="single quoted",b="raw\\value"}']),
             ("rate(foo_total[5m]) + increase(bar_total[1h])", ["foo_total", "bar_total"]),
         ],
@@ -119,6 +129,17 @@ class TestPromql:
                 ],
             ),
             ('metric{label=~"val"}', [("IDENT", "metric"), ("LBRACE", "{"), ("IDENT", "label"), ("OP", "=~"), ("STRING", "val"), ("RBRACE", "}")]),
+            (r'"line\nbreak"', [("STRING", "line\nbreak")]),
+            (r'"tab\there"', [("STRING", "tab\there")]),
+            (r'"bell\a backspace\b feed\f cr\r vtab\v"', [("STRING", "bell\a backspace\b feed\f cr\r vtab\v")]),
+            (r'"hex\x41"', [("STRING", "hexA")]),
+            ('"uni\\u00e9"', [("STRING", "unié")]),
+            (r'"uni\U0001F600"', [("STRING", "uni\U0001F600")]),
+            (r'"oct\101"', [("STRING", "octA")]),
+            (r'"unknown\qesc"', [("STRING", r"unknown\qesc")]),
+            (r'"bad\xZZhex"', [("STRING", r"bad\xZZhex")]),
+            (r'"truncated\u12"', [("STRING", r"truncated\u12")]),
+            (r"`raw\n\x41`", [("STRING", r"raw\n\x41")]),
         ],
     )
     def test_tokenize_all_paths(self, expr, expected_tokens):
@@ -144,10 +165,11 @@ class TestPromql:
     @pytest.mark.parametrize(
         "selector, expected_metric, expected_matchers",
         [
-            ('foo_total{a="1", b=~"2"}', "foo_total", {"a": ("=", "1"), "b": ("=~", "2")}),
-            ('foo_total', "foo_total", {}),
-            ('{a="1"}', None, {"a": ("=", "1")}),
-            ('', None, {}),
+            ('foo_total{a="1", b=~"2"}', "foo_total", [("a", "=", "1"), ("b", "=~", "2")]),
+            ('foo_total', "foo_total", []),
+            ('{a="1"}', None, [("a", "=", "1")]),
+            ('', None, []),
+            ('foo{env="prod",env=~".*"}', "foo", [("env", "=", "prod"), ("env", "=~", ".*")]),
         ],
     )
     def test_parse_selector(self, selector, expected_metric, expected_matchers):
@@ -286,10 +308,48 @@ class TestPromql:
                     '{__name__="yt_accounts", account=~".*"}',
                 ],
             ),
+            (
+                [
+                    'foo{env="prod",env=~".*"}',
+                    'foo{env="dev"}',
+                ],
+                [
+                    'foo{env="dev"}',
+                    'foo{env="prod",env=~".*"}',
+                ],
+            ),
+            (
+                [
+                    'foo{pod!="p-tmp",pod=~".*"}',
+                    'foo{pod="p-tmp"}',
+                ],
+                [
+                    'foo{pod="p-tmp"}',
+                    'foo{pod!="p-tmp",pod=~".*"}',
+                ],
+            ),
         ],
     )
     def test_eliminate_subsets(self, selectors, expected):
         assert eliminate_subsets(selectors) == expected
+
+
+class TestDuration:
+    @pytest.mark.parametrize(
+        "text, expected",
+        [
+            ("15s", 15000),
+            ("1m", 60000),
+            ("1h", 3600000),
+            ("1d", 86400000),
+            ("2w", 1209600000),
+            ("1y", 31536000000),
+            ("100ms", 100),
+            ("  15s  ", 15000),
+        ],
+    )
+    def test_parse_duration_ms(self, text, expected):
+        assert parse_duration_ms(text) == expected
 
 
 class TestSpecLoader:
@@ -338,7 +398,7 @@ targets:
 
         spec = SpecLoader(str(spec_path)).load()
 
-        assert spec.step == "30s"
+        assert spec.step_ms == 30000
         assert spec.selectors == [
             'foo_total{cluster="someclustername",pod=~"p.*"}',
             "bar_total",
@@ -346,9 +406,19 @@ targets:
         assert spec.dashboards == []
         assert spec.raw["defaults"]["step"] == "30s"
 
-    def test_uses_default_step_when_missing(self, tmp_path):
+    @pytest.mark.parametrize(
+        "defaults_section",
+        [
+            "",
+            "defaults:\n",
+            "defaults: {}\n",
+            "defaults: null\n",
+            "defaults:\n  # step: 30s\n",
+        ],
+    )
+    def test_uses_default_step_when_missing(self, tmp_path, defaults_section):
         spec_path = tmp_path / "spec.yaml"
-        spec_path.write_text("""
+        spec_path.write_text(defaults_section + """
 targets:
 - type: metric
   query: foo_total
@@ -356,7 +426,7 @@ targets:
 
         spec = SpecLoader(str(spec_path)).load()
 
-        assert spec.step == "15s"
+        assert spec.step_ms == 15000
         assert spec.selectors == ["foo_total"]
 
     def test_loads_dashboard_targets_replaces_variables_and_keeps_dashboard(self, tmp_path):
@@ -403,7 +473,7 @@ targets:
 
         spec = SpecLoader(str(spec_path)).load()
 
-        assert spec.step == "10s"
+        assert spec.step_ms == 10000
         assert spec.selectors == [
             '{__name__=~"yt_scheduler_pool_metric",cluster=~"someclustername",pool=~"default-pool"}',
             'direct_metric{pod="p1"}',
@@ -491,6 +561,48 @@ class TestGrafana:
     )
     def test_build_dashboard_url(self, dashboard, variables, from_ms, to_ms, expected):
         assert build_dashboard_url("http://localhost:3000", dashboard, variables, from_ms=from_ms, to_ms=to_ms) == expected
+
+    def test_dump_patched_dashboards_without_dashboards_dir(self, tmp_path):
+        provisioner = GrafanaProvisioner(str(tmp_path))
+        assert provisioner._dump_patched_dashboards() == []
+
+    def test_write_provisions_datasource_without_dashboards(self, tmp_path):
+        provisioner = GrafanaProvisioner(str(tmp_path))
+
+        assert provisioner.write("http://fake-prometheus:9090") == []
+
+        assert os.path.isdir(provisioner.grafana_dashboards_patched_path)
+        assert os.listdir(provisioner.grafana_dashboards_patched_path) == []
+
+        datasource_path = os.path.join(provisioner.grafana_provisioning_path, "datasources", GRAFANA_PROVISIONING_FILE)
+        with open(datasource_path) as f:
+            datasource = yaml.safe_load(f)
+        assert datasource["datasources"][0]["url"] == "http://fake-prometheus:9090"
+        assert datasource["datasources"][0]["uid"] == DATASOURCE_UID
+
+        providers_path = os.path.join(provisioner.grafana_provisioning_path, "dashboards", GRAFANA_PROVISIONING_FILE)
+        assert os.path.isfile(providers_path)
+
+    def test_dump_patched_dashboards_patches_and_lists(self, tmp_path):
+        src = tmp_path / "dashboards"
+        src.mkdir()
+        (src / "d.json").write_text(
+            json.dumps(
+                {
+                    "uid": "u1",
+                    "title": "My Dash",
+                    "panels": [{"datasource": {"uid": "${PROMETHEUS_DS_UID}"}}],
+                }
+            )
+        )
+        provisioner = GrafanaProvisioner(str(tmp_path))
+        os.makedirs(provisioner.grafana_dashboards_patched_path, exist_ok=True)
+
+        result = provisioner._dump_patched_dashboards()
+
+        assert [(d.file, d.uid, d.title, d.slug) for d in result] == [("d.json", "u1", "My Dash", "my-dash")]
+        patched = (tmp_path / "grafana-dashboards-patched" / "d.json").read_text()
+        assert "${PROMETHEUS_DS_UID}" not in patched
 
 
 class TestOpenMetrics:
@@ -625,11 +737,12 @@ targets:
             spec_path=str(spec_path),
             from_ts=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             to_ts=datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-            step=None,
+            step_ms=None,
             extra_targets=None,
             output=str(output_path),
             max_series=100,
             force=False,
+            max_points_per_series=DEFAULT_MAX_POINTS_PER_SERIES,
         )
 
         MetricsDumper(prom).run(cfg)
@@ -641,7 +754,7 @@ targets:
                 'foo_total{pod="p1"}',
                 datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc).timestamp(),
                 datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc).timestamp(),
-                "30s",
+                30000,
             ),
         ]
 
@@ -652,7 +765,7 @@ targets:
             ]
 
             meta = json.loads(zf.read("meta.json").decode("utf-8"))
-            assert meta["step"] == "30s"
+            assert meta["step"] == "30000ms"
             assert meta["selectors"] == [
                 'foo_total{pod="p1"}',
             ]
@@ -682,19 +795,20 @@ targets:
             spec_path=str(spec_path),
             from_ts=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             to_ts=datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-            step="5s",
+            step_ms=parse_duration_ms("5s"),
             extra_targets=None,
             output=str(output_path),
             max_series=100,
             force=False,
+            max_points_per_series=DEFAULT_MAX_POINTS_PER_SERIES,
         )
 
         MetricsDumper(prom).run(cfg)
 
-        assert prom.query_range_calls[0][3] == "5s"
+        assert prom.query_range_calls[0][3] == 5000
         with zipfile.ZipFile(str(output_path), "r") as zf:
             meta = json.loads(zf.read("meta.json").decode("utf-8"))
-            assert meta["step"] == "5s"
+            assert meta["step"] == "5000ms"
 
     def test_adds_extra_targets_to_dump(self, tmp_path):
         spec_path = tmp_path / "spec.yaml"
@@ -711,13 +825,14 @@ targets:
             spec_path=str(spec_path),
             from_ts=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             to_ts=datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-            step=None,
+            step_ms=None,
             extra_targets=[
                 '{"type": "metric", "query": "bar_total{pod=\\"p1\\"}"}',
             ],
             output=str(output_path),
             max_series=100,
             force=False,
+            max_points_per_series=DEFAULT_MAX_POINTS_PER_SERIES,
         )
 
         MetricsDumper(prom).run(cfg)
@@ -758,11 +873,12 @@ targets:
             spec_path=str(spec_path),
             from_ts=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             to_ts=datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-            step=None,
+            step_ms=None,
             extra_targets=None,
             output=str(output_path),
             max_series=100,
             force=False,
+            max_points_per_series=DEFAULT_MAX_POINTS_PER_SERIES,
         )
 
         MetricsDumper(prom).run(cfg)
@@ -784,11 +900,12 @@ targets: []
             spec_path=str(spec_path),
             from_ts=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             to_ts=datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-            step=None,
+            step_ms=None,
             extra_targets=None,
             output=str(output_path),
             max_series=100,
             force=False,
+            max_points_per_series=DEFAULT_MAX_POINTS_PER_SERIES,
         )
 
         MetricsDumper(prom).run(cfg)
@@ -809,15 +926,77 @@ targets:
             spec_path=str(spec_path),
             from_ts=datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
             to_ts=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-            step=None,
+            step_ms=None,
             extra_targets=None,
             output=str(tmp_path / "metrics.zip"),
             max_series=100,
             force=False,
+            max_points_per_series=DEFAULT_MAX_POINTS_PER_SERIES,
         )
 
         with pytest.raises(ValueError, match="--to-ts must be greater than --from-ts"):
             MetricsDumper(self.FakePrometheusClient()).run(cfg)
+
+    def _resolution_cfg(self, tmp_path, days, step_ms=None, max_points_per_series=DEFAULT_MAX_POINTS_PER_SERIES):
+        spec_path = tmp_path / "spec.yaml"
+        spec_path.write_text("""
+targets:
+- type: metric
+  query: foo_total
+""")
+        return MetricsDumpConfig(
+            spec_path=str(spec_path),
+            from_ts=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            to_ts=datetime(2026, 1, 1 + days, tzinfo=timezone.utc),
+            step_ms=step_ms,
+            extra_targets=None,
+            output=str(tmp_path / "metrics.zip"),
+            max_series=100,
+            force=False,
+            max_points_per_series=max_points_per_series,
+        )
+
+    def test_resolution_cfg_too_many_points(self, tmp_path):
+        prom = self.FakePrometheusClient()
+        cfg = self._resolution_cfg(tmp_path, days=7)
+
+        with pytest.raises(ValueError) as excinfo:
+            MetricsDumper(prom).run(cfg)
+
+        message = str(excinfo.value)
+        assert "40320 points per series" in message
+        assert "limit of 11000" in message
+        assert "--step 55s" in message
+        assert "--max-points-per-series" in message
+
+        assert prom.count_series_calls == []
+        assert prom.query_range_calls == []
+        assert not (tmp_path / "metrics.zip").exists()
+
+    def test_resolution_cfg_raised_limit(self, tmp_path):
+        prom = self.FakePrometheusClient()
+        cfg = self._resolution_cfg(tmp_path, days=7, max_points_per_series=100000)
+
+        MetricsDumper(prom).run(cfg)
+
+        assert prom.query_range_calls
+
+    def test_resolution_cfg_check_disabled(self, tmp_path):
+        prom = self.FakePrometheusClient()
+        cfg = self._resolution_cfg(tmp_path, days=7, max_points_per_series=0)
+
+        MetricsDumper(prom).run(cfg)
+
+        assert prom.query_range_calls
+
+    def test_resolution_cfg_non_positive_step(self, tmp_path):
+        prom = self.FakePrometheusClient()
+        cfg = self._resolution_cfg(tmp_path, days=1, step_ms=0)
+
+        with pytest.raises(ValueError, match="--step must be positive"):
+            MetricsDumper(prom).run(cfg)
+
+        assert prom.count_series_calls == []
 
     def test_skips_failed_prometheus_queries(self, tmp_path):
         class PartiallyFailingPrometheusClient(self.FakePrometheusClient):
@@ -846,11 +1025,12 @@ targets:
             spec_path=str(spec_path),
             from_ts=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             to_ts=datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-            step=None,
+            step_ms=None,
             extra_targets=None,
             output=str(output_path),
             max_series=100,
             force=False,
+            max_points_per_series=DEFAULT_MAX_POINTS_PER_SERIES,
         )
 
         MetricsDumper(prom).run(cfg)
@@ -876,11 +1056,12 @@ targets:
             spec_path=str(spec_path),
             from_ts=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             to_ts=datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-            step=None,
+            step_ms=None,
             extra_targets=None,
             output=str(output_path),
             max_series=1,
             force=False,
+            max_points_per_series=DEFAULT_MAX_POINTS_PER_SERIES,
         )
 
         MetricsDumper(prom).run(cfg)
@@ -907,11 +1088,12 @@ targets:
             spec_path=str(spec_path),
             from_ts=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             to_ts=datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-            step=None,
+            step_ms=None,
             extra_targets=None,
             output=str(output_path),
             max_series=10,
             force=True,
+            max_points_per_series=DEFAULT_MAX_POINTS_PER_SERIES,
         )
 
         MetricsDumper(prom).run(cfg)
@@ -933,11 +1115,12 @@ targets:
             spec_path=str(spec_path),
             from_ts=datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
             to_ts=datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc),
-            step=None,
+            step_ms=None,
             extra_targets=None,
             output=str(output_path),
             max_series=100,
             force=False,
+            max_points_per_series=DEFAULT_MAX_POINTS_PER_SERIES,
         )
 
         MetricsDumper(prom).run(cfg)

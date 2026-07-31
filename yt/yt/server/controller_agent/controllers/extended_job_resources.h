@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/yson/consumer.h>
 
-#include <yt/yt/core/misc/property.h>
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NControllerAgent {
 

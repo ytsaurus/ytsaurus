@@ -216,11 +216,10 @@ protected:
             state->OffsetSchema &&
             *currentOffsetSchema != *state->OffsetSchema)
         {
-            YT_LOG_INFO("Offset schema changed, restarting iteration from scratch "
-                "(Key: %v, OldSchema: %v, NewSchema: %v)",
-                timer.Key,
-                *state->OffsetSchema,
-                *currentOffsetSchema);
+            YT_TLOG_INFO("Offset schema changed, restarting iteration from scratch")
+                .With("Key", timer.Key)
+                .With("OldSchema", *state->OffsetSchema)
+                .With("NewSchema", *currentOffsetSchema);
             state->Offset = std::nullopt;
             state->InitialStartOffset = std::nullopt;
             state->InSecondPhase = false;

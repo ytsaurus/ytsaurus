@@ -34,6 +34,7 @@ class TDQYTBackend
 {
 public:
     TString ClusterName;
+    TString ProxyAddress;
     ui32 JobsPerOperation;
     ui32 MaxJobs;
     TString VanillaJobLite;
@@ -71,6 +72,7 @@ class TDQYTCoordinator
 {
 public:
     TString ClusterName;
+    TString ProxyAddress;
     TString Prefix;
     TString TokenFile;
     TString User;
@@ -201,6 +203,23 @@ struct TYqlPluginConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TYqlPluginConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TYqlPluginDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    NYson::TYsonString GatewaysConfig;
+    TString MaxSupportedYqlVersion;
+
+    THashMap<TString, TString> ProtoGatewaysConfigs;
+
+    REGISTER_YSON_STRUCT(TYqlPluginDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TYqlPluginDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

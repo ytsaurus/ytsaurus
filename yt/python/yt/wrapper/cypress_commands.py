@@ -18,7 +18,7 @@ from yt.yson import is_unicode, get_bytes
 import builtins
 import string
 from copy import deepcopy, copy as shallowcopy
-from typing import Union, Optional, Literal, Callable, Any, List, Dict, Tuple
+from typing import Union, Optional, Literal, Callable, Any, List, Dict, Tuple, Mapping
 
 
 # XXX(asaitgalin): Used in get_attribute function for `default` argument
@@ -542,7 +542,29 @@ def create(
 
     .. seealso:: `create in the docs <https://ytsaurus.tech/docs/en/api/commands#create>`_
     """
+    def _get_object_annotations(type, client):
+        if type in ["table", "file", "map_node"]:
+            annotate_objects = get_config(client)["annotate_objects"]
+            if annotate_objects and isinstance(annotate_objects, Mapping):
+                annotate_objects = dict([(name, value) for name, value in annotate_objects.items() if name.startswith("_")])
+                # YT-28611
+                if "_nirvana_meta" in annotate_objects:
+                    annotate_objects["_nirvana_meta"] = {
+                        "block_url": annotate_objects["_nirvana_meta"].get("block_url")
+                    }
+                return annotate_objects
+        return None
+
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
+
+    annotate_objects = _get_object_annotations(type, client)
+    if annotate_objects:
+        if attributes:
+            attributes = deepcopy(attributes)
+            attributes.update(annotate_objects)
+        else:
+            attributes = annotate_objects
+
     params = {
         "type": type,
     }

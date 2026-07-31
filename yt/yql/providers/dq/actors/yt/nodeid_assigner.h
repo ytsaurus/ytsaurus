@@ -9,7 +9,7 @@
 namespace NYql {
 
 struct TAssignNodeIdOptions {
-    TString ClusterName;
+    TString ProxyAddress;
     TString User;
     TString Token;
     TString Prefix;

@@ -311,7 +311,8 @@ public:
            const ICoordinationHelper::TPtr& coordinator,
            const TVector<TResourceManagerOptions>& resourceUploaderOptions,
            IMetricsRegistryPtr metricsRegistry,
-           const NProto::TDqConfig::TScheduler& schedulerConfig)
+           const NProto::TDqConfig::TScheduler& schedulerConfig,
+           TDuration scheduleInterval)
        : TWorkerManagerCommon<TGlobalWorkerManager>(&TGlobalWorkerManager::Initialization)
         , Coordinator(coordinator)
         , LeaderResolver(std::make_shared<TSingleNodeResolver>())
@@ -320,9 +321,11 @@ public:
         , LatencyHistogram(Metrics->GetHistogram("LeaderLatency", ExponentialHistogram(10, 2, 1)))
         , Workers(Coordinator->GetNodeId(), Metrics, metricsRegistry->GetSensors()->GetSubgroup("counters", "workers"))
         , Scheduler(NDq::IScheduler::Make(schedulerConfig, metricsRegistry))
+        , MaxRequestsPerTick(schedulerConfig.GetMaxRequestsPerTick())
         , Revision(ToString(GetProgramCommitId()))
         , ResourceUploaderOptions(resourceUploaderOptions)
         , WaitListSize(nullptr)
+        , ScheduleInterval(scheduleInterval)
     { }
 
 private:
@@ -597,7 +600,7 @@ private:
 
         if (!hasExeFile && LeaderRevision != Revision) {
             Send(ev->Sender, new TEvAllocateWorkersResponse(
-                Sprintf("Wrong revision %s!=%s", LeaderRevision.c_str(), Revision.c_str()), NYql::NDqProto::StatusIds::BAD_REQUEST));
+                Sprintf("Wrong revision %s!=%s", LeaderRevision.c_str(), Revision.c_str()), NYql::NDqProto::StatusIds::UNSUPPORTED));
         } else {
             ev->Get()->Record.SetIsForwarded(true);
             ctx.Send(ev->Forward(MakeWorkerManagerActorID(LeaderId)));
@@ -838,7 +841,14 @@ private:
             ScheduleWaitCount = 0U;
             DeadOperations.clear();
         } else if (Workers.FreeSlots() >= ScheduleWaitCount) {
+            size_t processed = 0;
+            bool hitLimit = false;
             Scheduler->Process(Workers.Capacity(), Workers.FreeSlots(), [&] (const auto& item) {
+                if (processed >= MaxRequestsPerTick) {
+                    hitLimit = true;
+                    return false; // keep in queue, process on next tick
+                }
+                ++processed;
                 auto maybeDead = DeadOperations.find(item.Request.GetResourceId());
                 if (maybeDead != DeadOperations.end()) {
                     DeadOperations.erase(maybeDead);
@@ -852,6 +862,14 @@ private:
             });
             ScheduleWaitCount = std::numeric_limits<size_t>::max();
             DeadOperations.clear();
+            if (hitLimit) {
+                // Remaining requests stay in queue — trigger processing on the next tick.
+                MarkDirty(0);
+                if (TryResumeThrottledCounter) {
+                    *TryResumeThrottledCounter += 1;
+                }
+                YQL_CLOG(DEBUG, ProviderDq) << "TryResume hit per-tick limit=" << MaxRequestsPerTick;
+            }
         }
     }
 
@@ -1088,6 +1106,7 @@ private:
             info->SetCount(item.Request.GetCount());
             info->SetOperationId(item.Request.GetTraceId());
             info->SetUserName(item.Request.GetUser());
+            info->SetEnqueueTime(item.StartTime.ToString());
 
             THashMap<TString, Yql::DqsProto::ClusterStatusResponse::File> files;
 
@@ -1337,6 +1356,9 @@ private:
         if (!WaitListSize) {
             WaitListSize = Metrics->GetSubgroup("component", "lists")->GetCounter("WaitListSize");
         }
+        if (!TryResumeThrottledCounter) {
+            TryResumeThrottledCounter = Metrics->GetSubgroup("component", "scheduler")->GetCounter("TryResumeThrottled", /*derivative=*/true);
+        }
         *WaitListSize = Scheduler->UpdateMetrics();
         Workers.UpdateMetrics();
     }
@@ -1372,6 +1394,8 @@ private:
     TDqResourceId CurrentResourceId;
 
     const NDq::IScheduler::TPtr Scheduler;
+    // Max queued requests processed per TryResume call (from Scheduler.MaxRequestsPerTick).
+    const size_t MaxRequestsPerTick;
     const TString Revision;
 
     THashMap<TActorId, TVector<TString>> UploadProcesses; // actorId -> objects
@@ -1399,21 +1423,24 @@ private:
     THashMap<TString, TInstant> LastUploadCache;
 
     // Don't reschedule too frequently to avoid GWM hanging
-    TDuration ScheduleInterval = TDuration::MilliSeconds(100);
+    TDuration ScheduleInterval;
     size_t ScheduleWaitCount = std::numeric_limits<size_t>::max(); // max - no, 0 - any, > 0 count
     TInstant LastCleanTime;
     TDuration CleanInterval = TDuration::Seconds(2);
     bool TerminatingMode = false;
     const TString Address = HostName();
     const ui32 Pid = GetPID();
+
+    TDynamicCounters::TCounterPtr TryResumeThrottledCounter;
 };
 
 NActors::IActor* CreateGlobalWorkerManager(
         const ICoordinationHelper::TPtr& coordinator,
         const TVector<TResourceManagerOptions>& resourceUploaderOptions,
         IMetricsRegistryPtr metricsRegistry,
-        const NProto::TDqConfig::TScheduler& schedulerConfig) {
-    return new TGlobalWorkerManager(coordinator, resourceUploaderOptions, std::move(metricsRegistry), schedulerConfig);
+        const NProto::TDqConfig::TScheduler& schedulerConfig,
+        TDuration scheduleInterval) {
+    return new TGlobalWorkerManager(coordinator, resourceUploaderOptions, std::move(metricsRegistry), schedulerConfig, scheduleInterval);
 }
 
 } // namespace NYql

@@ -207,10 +207,9 @@ class AccessLogDeduplicator(yt.TypedJob):
                 raise Exception("Unordered input stream")
             if current.timestamp - self.last.timestamp < DEDUPLICATION_WINDOW:
                 return
-        else:
-            current.expand()
-            self.last = current
-            yield current
+        current.expand()
+        self.last = current
+        yield current
 
 
 @yt.reduce_aggregator

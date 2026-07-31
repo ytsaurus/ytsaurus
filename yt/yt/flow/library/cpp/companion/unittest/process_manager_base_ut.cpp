@@ -27,7 +27,7 @@ public:
         std::function<TError(int healthCheckIndex)> healthCheckScript,
         bool spawnFailingProcess = false,
         bool invalidParameters = false,
-        IStatusProfilerPtr statusProfiler = CreateStatusProfiler())
+        IStatusProfilerPtr statusProfiler = CreateSyncStatusProfiler())
         : TProcessManagerBase(
             invoker,
             /*companionClient*/ nullptr,

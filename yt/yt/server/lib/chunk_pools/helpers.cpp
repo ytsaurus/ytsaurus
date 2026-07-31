@@ -79,17 +79,6 @@ PHOENIX_DEFINE_TYPE(TSuspendableStripe);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateLogger(const TLogger& logger)
-{
-    YT_VERIFY(logger);
-    const auto& tag = logger.GetTag();
-    YT_VERIFY(tag.find("Name:") != std::string::npos);
-    // OperationId for YT controllers, QueryId for CHYT.
-    YT_VERIFY(tag.find("OperationId:") != std::string::npos || tag.find("QueryId:") != std::string::npos);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChunkStripeListPtr MergeStripeLists(const std::vector<TChunkStripeListPtr>& stripeLists)
 {
     // Track seen chunks by their IDs to detect duplicates.

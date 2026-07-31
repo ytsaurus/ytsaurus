@@ -206,7 +206,7 @@ message TLocalAttributeMigration
     optional string old_lock_group = 4;
 }
 
-// Next field number 60.
+// Next field number 61.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 34, 35, 37, 38, 46;
@@ -245,6 +245,9 @@ message TObjectTypeOption
     optional bool enable_finalizers = 51;
 
     optional EHashPolicy hash_policy = 24;
+
+    // Specifies expression for hash column (e.g. "farm_hash([meta.id])"). Mutually exclusive with hash_policy.
+    optional string hash_expression = 60;
     optional THistoryOptions history = 43;
     repeated TWatchLogOption watch_logs = 8;
 
@@ -352,6 +355,7 @@ message TIndexOption
         IM_DISABLED = 0;
         IM_REMOVE_ONLY = 3;
         IM_BUILDING = 1;
+        IM_SHRINKING = 5;
         IM_ENABLED = 2;
     }
 
@@ -479,6 +483,19 @@ message TEditionFlagOptions
     optional bool initial_value = 3 [default = false];
     // Human-readable summary for self-describing code and automated reports/nudges.
     optional string description = 4;
+}
+
+// Options for options! Set a |project_flag| field option on a boolean file option to require each ORM
+// instance (project) to make an explicit decision about it. It is NOT tied to any codegen edition and
+// never auto-flips: while the flag is left unset codegen keeps using |default_value| and keeps asking,
+// in its report, for the project to choose. The moment the project sets the flag explicitly (to either
+// value), the decision is recorded and the report goes quiet.
+message TProjectFlagOptions
+{
+    // Value used until the client records an explicit decision by setting the flag.
+    optional bool default_value = 1 [default = false];
+    // Human-readable summary shown in the report until the client sets the option explicitly.
+    optional string description = 2;
 }
 
 // Next field 30062.
@@ -1108,6 +1125,11 @@ extend google.protobuf.FieldOptions
     // Set only on flag declarations in the FileOptions extension block above.
     // Explicitly setting the flag in an ORM instance disables edition control over that flag.
     optional TEditionFlagOptions edition_flag = 31063;
+
+    // Marks the annotated FileOptions boolean flag as a project flag: codegen asks each project, in its
+    // report, to make an explicit decision, and keeps asking until the flag is set explicitly (to either
+    // value). Not tied to any edition. Set only on flag declarations in the FileOptions extension block above.
+    optional TProjectFlagOptions project_flag = 31064;
 
 }
 

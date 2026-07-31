@@ -9,6 +9,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/flow/library/cpp/common/unittests/mock
     yt/yt/flow/library/cpp/controller/unittests/mock
     yt/yt/flow/library/cpp/controller
     yt/yt/flow/library/cpp/connectors/random

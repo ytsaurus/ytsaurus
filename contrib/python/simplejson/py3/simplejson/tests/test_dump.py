@@ -1,3 +1,4 @@
+import sys
 from unittest import TestCase
 from simplejson.compat import StringIO, long_type, b, binary_type, text_type, PY3
 import simplejson as json
@@ -253,3 +254,200 @@ class TestDump(TestCase):
                               encoding=None, default=decode_iso_8859_15)
             self.assertRaises(UnicodeDecodeError, json.dumps, {b('\xa4'): 42},
                               encoding=None, skipkeys=True)
+
+
+class TestFrozenDict(TestCase):
+    """Test encoding of frozendict (CPython 3.15+ PEP 814)."""
+
+    def setUp(self):
+        # Skip on Python versions without frozendict
+        try:
+            frozendict  # noqa: F821
+        except NameError:
+            if sys.version_info >= (3, 15):
+                self.fail("frozendict should be available on Python 3.15+")
+            self.skipTest("frozendict not available")
+
+    def test_frozendict_toplevel(self):
+        self.assertEqual(
+            json.dumps(frozendict(x=1, y=2), sort_keys=True),
+            '{"x": 1, "y": 2}')
+
+    def test_frozendict_in_list(self):
+        lst = [{'x': 1}, frozendict(y=2)]
+        self.assertEqual(json.dumps(lst), '[{"x": 1}, {"y": 2}]')
+
+    def test_frozendict_nested(self):
+        data = {'x': dict(a=1), 'y': frozendict(b=2)}
+        self.assertEqual(
+            json.dumps(data, sort_keys=True),
+            '{"x": {"a": 1}, "y": {"b": 2}}')
+
+
+class TestDictEncodingPaths(TestCase):
+    """Verify that the PyDict_Next fast path (unsorted exact dict) and the
+    iterator slow path (sorted, dict subclass, or non-dict mapping) produce
+    identical output for a variety of edge cases."""
+
+    def _assert_same_output(self, data, **kwargs):
+        """Encode data and verify the result round-trips correctly."""
+        encoded = json.dumps(data, **kwargs)
+        decoded = json.loads(encoded)
+        # Keys are always strings after round-trip
+        expected = json.loads(json.dumps(data, **kwargs))
+        self.assertEqual(decoded, expected)
+        return encoded
+
+    def test_exact_dict_unsorted(self):
+        """Fast path: exact dict, sort_keys=False."""
+        d = {"b": 2, "a": 1, "c": 3}
+        result = json.loads(json.dumps(d))
+        self.assertEqual(result, d)
+
+    def test_exact_dict_sorted(self):
+        """Slow path: exact dict, sort_keys=True."""
+        d = {"b": 2, "a": 1, "c": 3}
+        self.assertEqual(
+            json.dumps(d, sort_keys=True),
+            '{"a": 1, "b": 2, "c": 3}')
+
+    def test_dict_subclass_unsorted(self):
+        """Slow path: dict subclass falls back to iterator path."""
+        class MyDict(dict):
+            pass
+        d = MyDict(b=2, a=1, c=3)
+        result = json.loads(json.dumps(d))
+        self.assertEqual(result, {"a": 1, "b": 2, "c": 3})
+
+    def test_dict_subclass_sorted(self):
+        """Slow path: dict subclass with sort_keys=True."""
+        class MyDict(dict):
+            pass
+        d = MyDict([("z", 26), ("a", 1), ("m", 13)])
+        self.assertEqual(
+            json.dumps(d, sort_keys=True),
+            '{"a": 1, "m": 13, "z": 26}')
+
+    def test_non_string_keys_fast_path(self):
+        """Fast path with non-string keys that get stringified."""
+        d = {1: "int", 2.5: "float", True: "bool", None: "none"}
+        result = json.loads(json.dumps(d))
+        # All keys become strings
+        for v in result.values():
+            self.assertIn(v, ["int", "float", "bool", "none"])
+
+    def test_non_string_keys_sorted(self):
+        """Slow path with non-string keys + sort_keys."""
+        d = {1: "a", 2: "b", 3: "c"}
+        self.assertEqual(
+            json.dumps(d, sort_keys=True),
+            '{"1": "a", "2": "b", "3": "c"}')
+
+    def test_skipkeys_fast_path(self):
+        """Fast path: skipkeys drops unencodable keys."""
+        d = {"ok": 1, json: "bad"}
+        result = json.dumps(d, skipkeys=True)
+        self.assertEqual(json.loads(result), {"ok": 1})
+
+    def test_skipkeys_slow_path(self):
+        """Slow path: skipkeys + sort_keys drops unencodable keys."""
+        d = {"ok": 1, json: "bad", "also_ok": 2}
+        result = json.dumps(d, skipkeys=True, sort_keys=True)
+        self.assertEqual(result, '{"also_ok": 2, "ok": 1}')
+
+    def test_empty_dict(self):
+        """Empty dict takes the early-return path."""
+        self.assertEqual(json.dumps({}), '{}')
+
+    def test_single_key(self):
+        """Single-key dict."""
+        self.assertEqual(json.dumps({"x": 1}), '{"x": 1}')
+
+    def test_nested_dicts(self):
+        """Nested dicts exercise recursive encoding within the dict loop."""
+        d = {"a": {"b": {"c": 1}}}
+        self.assertEqual(
+            json.dumps(d),
+            '{"a": {"b": {"c": 1}}}')
+
+    def test_mixed_value_types(self):
+        """All JSON value types as dict values."""
+        d = {
+            "str": "hello",
+            "int": 42,
+            "float": 3.14,
+            "bool": True,
+            "null": None,
+            "list": [1, 2, 3],
+            "dict": {"nested": True},
+        }
+        result = json.loads(json.dumps(d, sort_keys=True))
+        self.assertEqual(result, d)
+
+    def test_key_memo_cache_hit(self):
+        """Encoding a list of dicts with the same keys exercises the
+        key_memo cache in encoder_encode_dict_key."""
+        items = [{"name": "Alice", "age": 30},
+                 {"name": "Bob", "age": 25},
+                 {"name": "Carol", "age": 35}]
+        result = json.loads(json.dumps(items))
+        self.assertEqual(result, items)
+
+    def test_large_dict(self):
+        """Large dict stresses the PyDict_Next iteration path."""
+        d = {"key_%d" % i: i for i in range(1000)}
+        result = json.loads(json.dumps(d))
+        self.assertEqual(result, d)
+
+
+class TestListEncodingPaths(TestCase):
+    """Verify that the indexed fast path (exact list/tuple) and the
+    iterator slow path (subclasses, other iterables) produce identical
+    output."""
+
+    def test_exact_list(self):
+        """Fast path: exact list iterates by index."""
+        data = [1, "two", 3.0, True, None, [4, 5], {"k": "v"}]
+        self.assertEqual(json.loads(json.dumps(data)), data)
+
+    def test_exact_tuple(self):
+        """Fast path: exact tuple when tuple_as_array=True."""
+        data = (1, "two", 3.0, True, None)
+        self.assertEqual(
+            json.dumps(data, tuple_as_array=True),
+            '[1, "two", 3.0, true, null]')
+
+    def test_list_subclass(self):
+        """Slow path: list subclass uses iterator."""
+        class MyList(list):
+            pass
+        data = MyList([1, 2, 3])
+        self.assertEqual(json.dumps(data), '[1, 2, 3]')
+
+    def test_tuple_subclass(self):
+        """Slow path: tuple subclass uses iterator."""
+        class MyTuple(tuple):
+            pass
+        data = MyTuple((1, 2, 3))
+        self.assertEqual(
+            json.dumps(data, tuple_as_array=True),
+            '[1, 2, 3]')
+
+    def test_empty_list(self):
+        self.assertEqual(json.dumps([]), '[]')
+
+    def test_empty_tuple(self):
+        self.assertEqual(
+            json.dumps((), tuple_as_array=True), '[]')
+
+    def test_single_element(self):
+        self.assertEqual(json.dumps([42]), '[42]')
+
+    def test_nested_lists(self):
+        data = [[1, 2], [3, [4, 5]]]
+        self.assertEqual(json.loads(json.dumps(data)), data)
+
+    def test_large_list(self):
+        """Large list stresses the indexed fast path."""
+        data = list(range(1000))
+        self.assertEqual(json.loads(json.dumps(data)), data)

@@ -14,7 +14,7 @@ namespace NYT::NNbd {
 
 //! A convenience base for block devices providing the error-signal machinery.
 class TBlockDeviceBase
-    : public IBlockDevice
+    : public virtual IBlockDevice
 {
 public:
     TError GetError() const final;

@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/http/public.h>
 
+#include <yt/yt/flow/library/cpp/file_storage/public.h>
+
 namespace NYT::NFlow::NWorker {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,11 +34,14 @@ struct TJobTrackerContext
     IPipelineAuthenticatorPtr PipelineAuthenticator;
     TStreamSpecStoragePtr StreamSpecStorage;
     IJobDirectoryPtr JobDirectory;
+    //! Groups this worker belongs to; select the per-group buffer pool overrides.
+    std::vector<TWorkerGroupId> WorkerGroups;
     NObjectClient::TCellTag ClockClusterTag;
     NYT::NHttp::IClientPtr HttpClient;
     NYT::NHttp::IClientPtr HttpsClient;
     NYT::NConcurrency::IPollerPtr Poller;
     IStatusProfilerPtr StatusProfiler;
+    NFileStorage::IFileStoragePtr FileStorage;
 
     //! Returns the current channel to the controller's distributed-throttler
     //! service, or null if disconnected. Forwarded into each computation's
@@ -65,7 +70,7 @@ struct IJobTracker
 
     virtual void Reconfigure(
         TExecutionSpecPtr executionSpec,
-        const THashMap<TJobId, NYTree::IMapNodePtr>& dynamicComputationPartitionSpecs) = 0;
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& dynamicComputationPartitionSpecs) = 0;
 
     virtual void UpdateMessageTransferingInfo(TMessageTransferingInfoPtr messageTransferingInfo) = 0;
 

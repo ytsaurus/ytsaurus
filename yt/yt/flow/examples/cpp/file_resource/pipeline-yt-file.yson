@@ -1,0 +1,82 @@
+{
+    "cluster_url" = "cluster_name";
+    "path" = "//path/to/pipeline";
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["input"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=cluster_name>//path/to/input";
+                            "consumer_path" = "<cluster=cluster_name>//path/to/consumer";
+                            "finite" = %false;
+                        };
+                    };
+                };
+            };
+            "enricher" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NExample::TEnrichWithFileFunction";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(text)"; "type" = "uint64"; required = %true;};
+                    {"name" = "text"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["input"];
+                "output_stream_ids" = ["enriched"];
+                "required_resource_ids" = {
+                    "text" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["enriched"];
+                        "parameters" = {};
+                    };
+                };
+            };
+        };
+        "resources" = {
+            "text" = {
+                "resource_class_name" = "NYT::NFlow::NExample::TTextFileResource";
+                "parameters" = {
+                    "file_source" = {
+                        "file_source_class_name" = "NYT::NFlow::TYTFileSource";
+                        "parameters" = {
+                            "path" = "<cluster=cluster_name>//path/to/config-file";
+                        };
+                    };
+                };
+            };
+        };
+        "streams" = {
+            "input" = {
+                "schema" = [
+                    {"name" = "text"; "type" = "string";};
+                ];
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 1;
+                };
+            };
+            "enricher" = {
+                "batch_duration" = 100;
+                "parameters" = {
+                    "desired_partition_count" = 1;
+                };
+            };
+        };
+    };
+}

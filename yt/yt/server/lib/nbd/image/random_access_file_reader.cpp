@@ -47,7 +47,7 @@ public:
         , Path_(std::move(path))
         , ChunkReaderHost_(std::move(readerHost))
         , Invoker_(std::move(invoker))
-        , Logger(std::move(logger.WithTag("Path: %v", Path_)))
+        , Logger(std::move(logger.WithTag("Path", Path_)))
     { }
 
     void Initialize() override

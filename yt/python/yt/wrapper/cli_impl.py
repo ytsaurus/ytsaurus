@@ -1,5 +1,5 @@
 from .common import YtError
-from .auth_commands import encode_sha256, get_current_user
+from .auth_commands import encode_sha256, _get_current_user
 
 import yt.wrapper as yt
 import yt.logger as logger
@@ -65,7 +65,7 @@ def _validate_authentication_command_permissions(user, client=None):
     authenticated user is not allowed to run authentication commands on user.
     """
     # Follows TClient::ValidateAuthenticationCommandPermissions from native client.
-    current_user = get_current_user(client=client)
+    current_user = _get_current_user(client=client)
     current_user_login = current_user["user"]
     if yt.check_permission(current_user_login, "administer", "//sys/users/" + user)["action"] == "allow":
         logger.debug("Allowing user %s to run passwordless authentication command on %s by present "
@@ -122,5 +122,7 @@ def _list_user_tokens_interactive(user, client=None):
 
 def _whoami(client=None) -> str:
     """Invokes whoami command at YT API and returns login."""
-    current_user = get_current_user(client=client)
+    current_user = _get_current_user(client=client, raise_error=True)
+    if not current_user or current_user.get("user") is None:
+        raise YtError("Failed to get current user")
     return current_user.get("user")

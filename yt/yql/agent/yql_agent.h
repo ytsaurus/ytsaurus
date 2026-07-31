@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(IYqlAgent)
 
 IYqlAgentPtr CreateYqlAgent(
     TBootstrap* bootstrap,
-    TSingletonsConfigPtr singletonsConfig,
+    TYqlAgentServerConfigPtr serverConfig,
     TYqlAgentConfigPtr config,
     TYqlAgentDynamicConfigPtr dynamicConfig,
     NHiveClient::TClusterDirectoryPtr clusterDirectory,

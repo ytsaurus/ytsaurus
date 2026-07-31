@@ -1,5 +1,9 @@
 RECURSE(
+    pipeline_helpers
     client
+    delta_codecs
+    native_client
+    serializer
     common
     common/worker
     companion
@@ -7,6 +11,7 @@ RECURSE(
     connectors
     controller
     controller/describe
+    file_storage
     multiplexer
     misc
     parsers

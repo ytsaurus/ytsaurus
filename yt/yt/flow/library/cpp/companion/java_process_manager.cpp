@@ -67,12 +67,12 @@ TIntrusivePtr<TProcessBase> TJavaProcessManager::CreateProcessIncarnation()
 {
     auto effectiveJvmOptions = ResolveJvmOptions();
 
-    YT_LOG_INFO("Spawning java companion process (Classpath: %v, MainClass: %v, CompanionPort: %v, JdkBinPath: %v, JvmOptions: %v)",
-        Classpath_,
-        MainClass_,
-        CompanionConfig_->Port,
-        JdkBinPath_,
-        effectiveJvmOptions);
+    YT_TLOG_INFO("Spawning java companion process")
+        .With("Classpath", Classpath_)
+        .With("MainClass", MainClass_)
+        .With("CompanionPort", CompanionConfig_->Port)
+        .With("JdkBinPath", JdkBinPath_)
+        .With("JvmOptions", effectiveJvmOptions);
     auto process = New<TSimpleProcess>(JdkBinPath_, /*copyEnv*/ true);
 
     std::vector<std::string> args;
@@ -86,7 +86,8 @@ TIntrusivePtr<TProcessBase> TJavaProcessManager::CreateProcessIncarnation()
 
     auto confixTxt =
         NYson::ConvertToYsonString(CompanionConfig_, NYson::EYsonFormat::Text);
-    YT_LOG_INFO("Set companion config environment variable (Config: %v)", confixTxt);
+    YT_TLOG_INFO("Set companion config environment variable")
+        .With("Config", confixTxt);
     process->AddEnvVar(Format("YT_FLOW_COMPANION_CONFIG=%v", confixTxt));
     return process;
 }

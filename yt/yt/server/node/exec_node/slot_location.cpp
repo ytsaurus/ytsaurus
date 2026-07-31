@@ -541,6 +541,9 @@ void TSlotLocation::TakeIntoAccountTmpfsVolumes(
             continue;
         }
         tmpfsData.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(GetSlotPath(slotIndex), volumeMount->MountPath.Path().string())), (*volumeIt)->VolumeType);
+        if (rootVolume) {
+            tmpfsData.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(rootVolume->GetPath(), volumeMount->MountPath.Path().string())), (*volumeIt)->VolumeType);
+        }
     }
 }
 
@@ -1086,10 +1089,9 @@ void TSlotLocation::OnArtifactPreparationFailed(
     const TError& error)
 {
     auto Logger = this->Logger
-        .WithTag("JobId: %v, ArtifactName: %v, SandboxKind: %v",
-            jobId,
-            artifactName,
-            sandboxKind);
+        .WithTag("JobId", jobId)
+        .WithTag("ArtifactName", artifactName)
+        .WithTag("SandboxKind", sandboxKind);
 
     bool slotWithQuota = false;
     {

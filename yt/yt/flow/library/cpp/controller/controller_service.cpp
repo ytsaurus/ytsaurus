@@ -6,7 +6,7 @@
 #include "persisted_state_manager.h"
 #include "private.h"
 
-#include <yt/yt/flow/lib/client/controller/controller_service_proxy.h>
+#include <yt/yt/flow/library/cpp/client/controller/controller_service_proxy.h>
 
 #include <yt/yt/flow/library/cpp/common/authenticator.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>

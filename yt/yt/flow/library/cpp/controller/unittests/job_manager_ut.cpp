@@ -1,7 +1,9 @@
 #include <yt/yt/core/test_framework/framework.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
+#include <yt/yt/flow/library/cpp/common/resource.h>
 #include <yt/yt/flow/library/cpp/computation/controller_base.h>
 #include <yt/yt/flow/library/cpp/computation/transform_computation.h>
 #include <yt/yt/flow/library/cpp/controller/config.h>
@@ -9,7 +11,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
-#include <yt/yt/flow/lib/client/public.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
@@ -37,6 +39,54 @@ struct TSimpleComputation
         return {};
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TSimpleResource);
+
+// Minimal registered resource: the job manager instantiates a resource controller for every
+// resource in the spec, so the specs built by these tests must name a registered class.
+class TSimpleResource
+    : public IResource
+{
+public:
+    TSimpleResource(TResourceContextPtr /*context*/, TDynamicResourceContextPtr /*dynamicContext*/)
+    { }
+
+    TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
+    {
+        return OKFuture;
+    }
+
+    void Reconfigure(const TDynamicResourceContextPtr& /*dynamicContext*/) override
+    { }
+
+    TResourceRevisionState GetRevisionState() const override
+    {
+        return {};
+    }
+
+    NYTree::TYsonStructPtr GetParametersBase() const final
+    {
+        return nullptr;
+    }
+
+    NYTree::TYsonStructPtr GetDynamicParametersBase() const final
+    {
+        return nullptr;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSimpleResource);
+
+YT_FLOW_DEFINE_RESOURCE(TSimpleResource);
+
+static TResourceSpecPtr MakeSimpleResourceSpec()
+{
+    auto spec = New<TResourceSpec>();
+    spec->ResourceClassName = TypeName<TSimpleResource>();
+    return spec;
+}
 
 DEFINE_REFCOUNTED_TYPE(TSimpleComputation);
 
@@ -138,17 +188,17 @@ public:
 
     void Prepare(const TPipelineSpecPtr& spec, const TDynamicPipelineSpecPtr& dynamicSpec)
     {
-        FlowView->CurrentSpec->SetValue(spec);
-        FlowView->CurrentDynamicSpec->SetValue(dynamicSpec);
-        FlowView->State->ExecutionSpec->PipelineSpec->SetValue(spec);
-        FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(dynamicSpec);
-        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(spec));
+        FlowView->CurrentSpec->TrySetValue(spec, TestVersionProvider());
+        FlowView->CurrentDynamicSpec->TrySetValue(dynamicSpec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(spec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(dynamicSpec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(spec), TestVersionProvider());
         auto context = New<TJobManagerContext>();
         ThreadPool = NConcurrency::CreateFairShareThreadPool(MaxThreads, "Balancer");
         context->Invoker = ThreadPool->GetInvoker("Balancer");
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
-        context->StatusProfiler = CreateStatusProfiler();
+        context->StatusProfiler = CreateSyncStatusProfiler();
         JobManager = CreateJobManager(context, spec, dynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
     }
 
@@ -985,6 +1035,17 @@ TEST_F(TJobBalancerTest, WorkerGroupBrokenGroup)
             }
         }
         PrepareBalancerTest(workerGroupDescriptions, computationDescriptions, 1, TDuration::MilliSeconds(50), cpuAwareBalancer);
+        // The even-indexed computations target a deliberately empty "wrong group". Exempt it from the
+        // per-group minimum-worker check (set the minimum to 0) so the pipeline is not paused; those
+        // computations simply get no jobs.
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        for (int i = 0; i < std::ssize(workerCounts); ++i) {
+            if (i % 2 == 0) {
+                auto groupOverride = New<TDynamicJobManagerSpec>();
+                groupOverride->MinimumWorkerCount = 0;
+                dynamicSpec->JobManager->WorkerGroupOverride[TWorkerGroupId(Format("wrong group %v", i))] = groupOverride;
+            }
+        }
         SetCpuLoadUniform();
         FlowView->State->StartMutation();
         JobManager->DistributeJobs(FlowView);
@@ -1096,9 +1157,9 @@ TEST_F(TJobBalancerTest, WorkerGroupDifferentSpec)
     computationDescriptions.push_back(TComputationDescription{partCount, {}, GetWorkerGroupId(1)});
     PrepareBalancerTest(workerGroupDescriptions, computationDescriptions, 1, TDuration::MilliSeconds(50), false);
     auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
-    auto override0 = ConvertTo<TDynamicJobBalancerSpecPtr>(NYson::ConvertToYsonString(dynamicSpec->JobManager));
+    auto override0 = ConvertTo<TDynamicJobManagerSpecPtr>(NYson::ConvertToYsonString(dynamicSpec->JobManager));
     override0->BalancerType = EJobBalancerType::Greedy;
-    auto override1 = ConvertTo<TDynamicJobBalancerSpecPtr>(NYson::ConvertToYsonString(dynamicSpec->JobManager));
+    auto override1 = ConvertTo<TDynamicJobManagerSpecPtr>(NYson::ConvertToYsonString(dynamicSpec->JobManager));
     override1->BalancerType = EJobBalancerType::CpuAware;
     EmplaceOrCrash(dynamicSpec->JobManager->WorkerGroupOverride, GetWorkerGroupId(0), override0);
     EmplaceOrCrash(dynamicSpec->JobManager->WorkerGroupOverride, GetWorkerGroupId(1), override1);
@@ -1316,8 +1377,7 @@ TEST_F(TJobBalancerTest, GracefulShutdownErrorJobCompletesOnTargetWorker)
         EXPECT_FALSE((*ephemeralStatePtr)->PendingGracefulRebalanceWorkerAddress.has_value());
 
         if ((*ephemeralStatePtr)->DynamicPartitionSpec) {
-            auto spec = NYTree::ConvertTo<TUniversalComputationDynamicPartitionSpecPtr>((*ephemeralStatePtr)->DynamicPartitionSpec);
-            EXPECT_FALSE(spec->FinishAfterCurrentEpoch);
+            EXPECT_FALSE((*ephemeralStatePtr)->DynamicPartitionSpec->FinishAfterCurrentEpoch);
         }
 
         const auto& partition = layout->Partitions.at(partitionId);
@@ -1877,7 +1937,7 @@ TEST_F(TJobBalancerTest, PreloadAddActionAppliedToWorkerSpecs)
 
     // Build spec with one computation that requires a preloadable resource.
     auto spec = New<TPipelineSpec>();
-    auto resourceSpec = New<TResourceSpec>();
+    auto resourceSpec = MakeSimpleResourceSpec();
     resourceSpec->PreloadRequired = true;
     spec->Resources[resId] = resourceSpec;
 
@@ -1965,13 +2025,13 @@ TEST_F(TJobBalancerTest, PreloadDelActionAppliedToWorkerSpecs)
 
     // Build spec: computation does NOT require resId (resId is an orphaned preloadable resource).
     auto spec = New<TPipelineSpec>();
-    auto resourceSpec = New<TResourceSpec>();
+    auto resourceSpec = MakeSimpleResourceSpec();
     resourceSpec->PreloadRequired = true;
     spec->Resources[resId] = resourceSpec;
 
     // Computation uses a different (non-preloadable) resource.
     const TResourceId otherResId = TResourceId("res_other");
-    auto otherResourceSpec = New<TResourceSpec>();
+    auto otherResourceSpec = MakeSimpleResourceSpec();
     otherResourceSpec->PreloadRequired = false;
     spec->Resources[otherResId] = otherResourceSpec;
 
@@ -2041,10 +2101,10 @@ TEST_F(TJobBalancerTest, PreloadAddPreservesExistingResources)
     // Build spec: computation requires resIdB (preloadable).
     // resIdA is also preloadable but not required by any computation (already issued manually).
     auto spec = New<TPipelineSpec>();
-    auto resourceSpecA = New<TResourceSpec>();
+    auto resourceSpecA = MakeSimpleResourceSpec();
     resourceSpecA->PreloadRequired = true;
     spec->Resources[resIdA] = resourceSpecA;
-    auto resourceSpecB = New<TResourceSpec>();
+    auto resourceSpecB = MakeSimpleResourceSpec();
     resourceSpecB->PreloadRequired = true;
     spec->Resources[resIdB] = resourceSpecB;
 

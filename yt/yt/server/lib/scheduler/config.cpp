@@ -685,6 +685,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_node_resource_limits_check_period", &TThis::MinNodeResourceLimitsCheckPeriod)
         .Default(TDuration::Minutes(1));
 
+    registrar.Parameter("min_node_resource_limits_violation_grace_period", &TThis::MinNodeResourceLimitsViolationTimeout)
+        .Default(TDuration::Minutes(30));
+
     registrar.Parameter("allow_gang_operations_only_in_fifo_pools", &TThis::AllowGangOperationsOnlyInFifoPools)
         .Default(false);
 
@@ -1375,7 +1378,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(67);
+        .Default(68);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();

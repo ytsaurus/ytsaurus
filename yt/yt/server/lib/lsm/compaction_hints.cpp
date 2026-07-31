@@ -120,7 +120,7 @@ bool TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::TryApplyR
 {
     YT_LOG_DEBUG("Candidate store compaction hint lsm response provided "
         "(%v, StoreId: %v, StoreCompactionHintKind: %v, Timestamp: %v, Reason: %v)",
-        Store_->GetTablet()->GetLoggingTag(),
+        Store_->GetTablet()->LoggingTags(),
         Store_->GetId(),
         Hint_->StoreCompactionHintKind_,
         timestamp,
@@ -139,7 +139,7 @@ bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
         YT_LOG_DEBUG_IF(recalculated,
             "Store compaction hint lsm response was made "
             "(%v, StoreId: %v, StoreCompactionHintKind: %v, Timestamp: %v, Reason: %v, Revision: %v)",
-            store->GetTablet()->GetLoggingTag(),
+            store->GetTablet()->LoggingTags(),
             store->GetId(),
             StoreCompactionHintKind_,
             Timestamp_,
@@ -231,7 +231,7 @@ void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::T
 {
     YT_LOG_DEBUG("Candidate partition compaction hint lsm response provided "
         "(%v, PartitionId: %v, PartitionCompactionHintKind: %v, Timestamp: %v, Reason: %v, StoreSubset: %v)",
-        Partition_->GetTablet()->GetLoggingTag(),
+        Partition_->GetTablet()->LoggingTags(),
         Partition_->GetId(),
         Hint_->StoreCompactionHintKind_,
         timestamp,
@@ -275,7 +275,7 @@ bool TPartitionCompactionHint::RecalculateHint(TPartition* partition)
         YT_LOG_DEBUG_IF(recalculated,
             "Partition compaction hint lsm response was made "
             "(%v, PartitionId: %v, PartitionCompactionHintKind: %v, Timestamp: %v, Reason: %v, Revision: %v, StoreIds: %v)",
-            partition->GetTablet()->GetLoggingTag(),
+            partition->GetTablet()->LoggingTags(),
             partition->GetId(),
             PartitionCompactionHintKind_,
             Timestamp_,

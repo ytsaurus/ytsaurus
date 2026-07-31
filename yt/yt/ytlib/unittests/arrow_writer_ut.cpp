@@ -1821,6 +1821,41 @@ TEST(TArrowWriterTest, AnyMetadata)
     EXPECT_EQ(value, "yson");
 }
 
+TEST(TArrowWriterTest, EmptyTable)
+{
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"integer"};
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], EValueType::Int64),
+    }));
+
+    TColumnInteger column;
+
+    TStringStream writtenStream;
+    {
+        auto rows = MakeUnversionedIntegerRows({column}, columnNames);
+        auto writer = CreateArrowWriter(rows.NameTable, &writtenStream, tableSchemas);
+        EXPECT_TRUE(writer->Write(rows.Rows));
+        WaitForFast(writer->Close())
+            .ThrowOnError();
+    }
+
+    TStringStream notWrittenStream;
+    {
+        auto rows = MakeUnversionedIntegerRows({column}, columnNames);
+        auto writer = CreateArrowWriter(rows.NameTable, &notWrittenStream, tableSchemas);
+        WaitForFast(writer->Close())
+            .ThrowOnError();
+    }
+
+    EXPECT_EQ(writtenStream.Str(), notWrittenStream.Str());
+
+    auto batch = MakeBatch(notWrittenStream);
+    CheckColumnNames(batch, columnNames);
+    EXPECT_EQ(ReadInteger64Array(batch->column(0)), column);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TArrowWriterComplexTest, BasicStruct)

@@ -6,9 +6,9 @@
 #include <yt/yt/flow/library/cpp/vanilla/files.h>
 #include <yt/yt/flow/library/cpp/vanilla/spec.h>
 
-#include <yt/yt/flow/library/cpp/client/pipeline.h>
+#include <yt/yt/flow/library/cpp/pipeline_helpers/pipeline.h>
 
-#include <yt/yt/flow/lib/native_client/public.h>
+#include <yt/yt/flow/library/cpp/native_client/public.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -95,18 +95,20 @@ void ShutdownPriorVanillaOperation(
     try {
         opInfo = WaitFor(opClient->GetOperation(opIdOrAlias, getOpts)).ValueOrThrow();
     } catch (const std::exception& ex) {
-        YT_LOG_INFO(ex, "Prior vanilla operation lookup failed (Alias: %v)", prior->Alias);
+        YT_TLOG_INFO("Prior vanilla operation lookup failed")
+            .With("Alias", prior->Alias)
+            .With(ex);
         return;
     }
     if (!opInfo.State || IsVanillaOperationStateTerminal(*opInfo.State)) {
         return;
     }
     bool graceful = IsGracefulUpdateFromEnv();
-    YT_LOG_INFO("Shutting down prior vanilla operation (Alias: %v, OperationId: %v, State: %v, Graceful: %v)",
-        prior->Alias,
-        opInfo.Id,
-        *opInfo.State,
-        graceful);
+    YT_TLOG_INFO("Shutting down prior vanilla operation")
+        .With("Alias", prior->Alias)
+        .With("OperationId", opInfo.Id)
+        .With("State", *opInfo.State)
+        .With("Graceful", graceful);
     if (graceful) {
         WaitFor(pipelineClient->StopPipeline(pipelinePath)).ThrowOnError();
         WaitPipelineState(pipelineClient, pipelinePath, EPipelineState::Stopped, waitTimeout);
@@ -171,7 +173,7 @@ NLogging::TLogManagerConfigPtr BuildVanillaJobLoggingConfig()
             .EndList()
         .EndMap();
     // clang-format on
-    return ConvertTo<NLogging::TLogManagerConfigPtr>(std::move(node));
+    return ConvertTo<NLogging::TLogManagerConfigPtr>(node);
 }
 
 //! Whether the local file carries an executable bit; a job file delivered with one (the flow binary,
@@ -191,6 +193,17 @@ std::optional<std::string> BuildProxyUrlAliasingConfig(const THashMap<std::strin
         return std::string(yson.data(), yson.size());
     }
     if (auto fromEnv = GetEnv("YT_PROXY_URL_ALIASING_CONFIG"); !fromEnv.empty()) {
+        return std::string(fromEnv.data(), fromEnv.size());
+    }
+    return std::nullopt;
+}
+
+//! The forced binary checksum to propagate into the job environment. The launcher writes the
+//! pipeline's flow core target from its own version, so jobs that resolved a different checksum
+//! would never match that target: whoever forces the value must force the same one downstream.
+std::optional<std::string> GetBinaryChecksumOverride()
+{
+    if (auto fromEnv = GetEnv("YT_FLOW_BINARY_CHECKSUM_OVERRIDE"); !fromEnv.empty()) {
         return std::string(fromEnv.data(), fromEnv.size());
     }
     return std::nullopt;
@@ -345,7 +358,7 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
             .Item("abort_on_unrecognized_options").Value(false)
         .EndMap();
     // clang-format on
-    auto config = ConvertTo<TFlowNodeConfigPtr>(std::move(node));
+    auto config = ConvertTo<TFlowNodeConfigPtr>(node);
     config->SetSingletonConfig(BuildVanillaJobLoggingConfig());
     return config;
 }
@@ -387,6 +400,7 @@ void LaunchInVanillaJob(
 
     auto filesDir = GetVanillaFilesDir(pipelinePath.GetPath());
     auto aliasingConfig = BuildProxyUrlAliasingConfig(vanillaConfig->ProxyUrlAliasingRules);
+    auto binaryChecksumOverride = GetBinaryChecksumOverride();
 
     // The cache-backed files keyed by in-job name (binary + node config + user local files), so the
     // commit phase can stamp the durable vanilla/files copy from the shared cache. The md5 is
@@ -412,6 +426,9 @@ void LaunchInVanillaJob(
         task.SystemLayerPath = config->SystemLayerPath;
         if (aliasingConfig) {
             task.Environment["YT_PROXY_URL_ALIASING_CONFIG"] = *aliasingConfig;
+        }
+        if (binaryChecksumOverride) {
+            task.Environment["YT_FLOW_BINARY_CHECKSUM_OVERRIDE"] = *binaryChecksumOverride;
         }
         return task;
     };
@@ -484,10 +501,10 @@ void LaunchInVanillaJob(
         NScheduler::EOperationType::Vanilla,
         ConvertToYsonString(launchSpec)))
         .ValueOrThrow();
-    YT_LOG_INFO("Started vanilla operation (Alias: %v, Cluster: %v, OperationId: %v)",
-        alias,
-        runtimeCluster,
-        operationId);
+    YT_TLOG_INFO("Started vanilla operation")
+        .With("Alias", alias)
+        .With("Cluster", runtimeCluster)
+        .With("OperationId", operationId);
 
     // Commit: only now refresh the durable canon, persist the spec, and prune stale files. A failure
     // before this point leaves the pipeline reanimatable on the previous version, since the old
@@ -531,6 +548,7 @@ std::string StartFlowVanillaOperation(const TFlowVanillaOptions& options)
     auto client = NClient::NCache::CreateClient(runtimeCluster, proxyRole);
     auto cacheDir = options.CachePath.empty() ? NYPath::TYPath(VanillaFileCachePath) : options.CachePath;
     auto aliasingConfig = BuildProxyUrlAliasingConfig(options.ProxyUrlAliasingRules);
+    auto binaryChecksumOverride = GetBinaryChecksumOverride();
 
     // On a local (test) cluster the exec node shares this host's filesystem, so each job runs the
     // launcher binary straight from its on-disk path instead of receiving an uploaded multi-GB copy.
@@ -564,6 +582,9 @@ std::string StartFlowVanillaOperation(const TFlowVanillaOptions& options)
     auto buildTask = [&] (const std::string& name, const std::string& flowMode, TFlowVanillaTask task) {
         if (aliasingConfig) {
             task.Environment.emplace("YT_PROXY_URL_ALIASING_CONFIG", *aliasingConfig);
+        }
+        if (binaryChecksumOverride) {
+            task.Environment.emplace("YT_FLOW_BINARY_CHECKSUM_OVERRIDE", *binaryChecksumOverride);
         }
         return BuildTaskSpec(
             name,

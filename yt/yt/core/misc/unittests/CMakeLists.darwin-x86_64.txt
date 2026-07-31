@@ -83,7 +83,6 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/configurable_singleton_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/consistent_hashing_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/crash_handler_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/default_map_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/digest_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/duration_moving_average_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ema_counter_ut.cpp
@@ -108,7 +107,6 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/lru_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/maybe_inf_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/moving_average_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpl_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_fair_share_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_stack_ut.cpp
@@ -119,7 +117,6 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/random_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ref_counted_tracker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/relaxed_mpsc_queue_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ring_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/serialize_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/skip_list_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/slab_allocator_ut.cpp
@@ -130,7 +127,6 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_expiring_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/time_formula_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/three_level_stable_vector_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/tls_destructor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/tls_expiring_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/topological_ordering_ut.cpp

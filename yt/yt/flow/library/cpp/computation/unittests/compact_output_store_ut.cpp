@@ -13,6 +13,8 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
+#include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
+
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -148,7 +150,7 @@ TEST_F(TCompactOutputStoreTest, InitWithLoadKeyStateFalseDoesNotLoadKeyedMessage
         auto msg = MakeMessage("msg-keyed");
         auto key = MakeKey("some-key");
         store->TryRegisterKeyedBatch(std::array{msg}, key, /*persist*/ true);
-        store->Sync(/*tx*/ nullptr);
+        EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
     }
 
     // Verify the key table is non-empty.
@@ -194,7 +196,7 @@ TEST_F(TCompactOutputStoreTest, RegisterAndSyncWritesToPartitionTable)
     EXPECT_TRUE(loadBefore.empty());
 
     // After Sync — one chunk row with the message inside.
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     auto loadAfter = WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow();
     ASSERT_EQ(std::ssize(loadAfter), 1);
@@ -221,7 +223,7 @@ TEST_F(TCompactOutputStoreTest, RegisterKeyedAndSyncWritesToKeyTable)
     EXPECT_TRUE(loadBefore.empty());
 
     // After Sync — one chunk row with the message inside.
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     auto loadAfter = WaitFor(keyTable->LoadAll({.ComputationId = ComputationId})).ValueOrThrow();
     ASSERT_EQ(std::ssize(loadAfter), 1);
@@ -241,7 +243,7 @@ TEST_F(TCompactOutputStoreTest, UnregisterErasesFromPartitionTable)
 
     auto msg = MakeMessage("msg-1");
     store->RegisterBatch(std::array{msg}, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     // Verify it's in the table.
     auto loadAfterWrite = WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow();
@@ -249,7 +251,7 @@ TEST_F(TCompactOutputStoreTest, UnregisterErasesFromPartitionTable)
 
     // Unregister and sync — should erase from table.
     store->TryUnregisterBatch(std::array{&msg->GetMeta()});
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     auto loadAfterErase = WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow();
     EXPECT_TRUE(loadAfterErase.empty());
@@ -267,7 +269,7 @@ TEST_F(TCompactOutputStoreTest, UnregisterKeyedErasesFromKeyTable)
     auto msg = MakeMessage("msg-keyed");
     auto key = MakeKey("some-key");
     store->TryRegisterKeyedBatch(std::array{msg}, key, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     // Verify it's in the table.
     auto loadAfterWrite = WaitFor(keyTable->LoadAll({.ComputationId = ComputationId})).ValueOrThrow();
@@ -275,7 +277,7 @@ TEST_F(TCompactOutputStoreTest, UnregisterKeyedErasesFromKeyTable)
 
     // Unregister and sync — should erase from table.
     store->TryUnregisterBatch(std::array{&msg->GetMeta()});
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     auto loadAfterErase = WaitFor(keyTable->LoadAll({.ComputationId = ComputationId})).ValueOrThrow();
     EXPECT_TRUE(loadAfterErase.empty());
@@ -292,12 +294,12 @@ TEST_F(TCompactOutputStoreTest, SyncClearsBuffer)
 
     auto msg = MakeMessage("msg-1");
     store->RegisterBatch(std::array{msg}, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     auto writeCountAfterFirstSync = partitionTable->GetWriteChunkCount();
 
     // Second Sync without Register — buffer must be empty, nothing written.
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     EXPECT_EQ(partitionTable->GetWriteChunkCount(), writeCountAfterFirstSync);
 }
@@ -331,7 +333,7 @@ TEST_F(TCompactOutputStoreTest, ContainsReturnsFalseAfterUnregisterPersist)
 
     auto msg = MakeMessage("msg-1");
     store->RegisterBatch(std::array{msg}, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     // Verify it's in the table.
     ASSERT_EQ(
@@ -343,7 +345,7 @@ TEST_F(TCompactOutputStoreTest, ContainsReturnsFalseAfterUnregisterPersist)
     EXPECT_FALSE(store->Contains(*msg));
 
     // After Sync the table must be empty.
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
     EXPECT_TRUE(
         WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow().empty());
 }
@@ -360,7 +362,7 @@ TEST_F(TCompactOutputStoreTest, RegisterPersistFalseDoesNotWriteToTable)
     store->RegisterBatch(std::array{msg}, /*persist*/ false);
     EXPECT_TRUE(store->Contains(*msg));
 
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     // persist=false — nothing should be written to the table.
     EXPECT_EQ(partitionTable->GetWriteChunkCount(), 0);
@@ -397,7 +399,7 @@ TEST_F(TCompactOutputStoreTest, TryRegisterDoesNotThrowOnDuplicatePersist)
     // TryRegisterBatch on already-registered message must not throw.
     EXPECT_NO_THROW(store->TryRegisterBatch(std::array{msg}, /*persist*/ true));
 
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     // Exactly one chunk in the table (no duplicates).
     auto loaded = WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow();
@@ -433,7 +435,7 @@ TEST_F(TCompactOutputStoreTest, MultipleMessagesPackedIntoSingleChunk)
     WaitFor(store->Init(/*loadKeyState*/ false)).ThrowOnError();
 
     store->RegisterBatch(std::array{MakeMessage("msg-1"), MakeMessage("msg-2"), MakeMessage("msg-3")}, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     auto chunks = WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow();
     ASSERT_EQ(std::ssize(chunks), 1);
@@ -452,20 +454,20 @@ TEST_F(TCompactOutputStoreTest, ChunkErasedOnlyWhenAllMessagesUnregistered)
     auto msg1 = MakeMessage("msg-1");
     auto msg2 = MakeMessage("msg-2");
     store->RegisterBatch(std::array{msg1, msg2}, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     ASSERT_EQ(std::ssize(WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow()), 1);
 
     // Unregister first — chunk still present, processed_mask non-empty.
     store->TryUnregisterBatch(std::array{&msg1->GetMeta()});
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
     auto afterFirst = WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow();
     ASSERT_EQ(std::ssize(afterFirst), 1);
     EXPECT_FALSE(afterFirst[0].ProcessedMask.empty());
 
     // Unregister second — chunk row gone.
     store->TryUnregisterBatch(std::array{&msg2->GetMeta()});
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
     EXPECT_TRUE(WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow().empty());
 }
 
@@ -479,7 +481,7 @@ TEST_F(TCompactOutputStoreTest, InitLoadsMessagesFromChunks)
         auto store = CreateCompactOutputStore(context, New<TDynamicOutputStoreSpec>());
         WaitFor(store->Init(/*loadKeyState*/ false)).ThrowOnError();
         store->RegisterBatch(std::array{MakeMessage("msg-saved")}, /*persist*/ true);
-        store->Sync(/*tx*/ nullptr);
+        EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
     }
 
     auto store2 = CreateCompactOutputStore(context, New<TDynamicOutputStoreSpec>());
@@ -502,10 +504,10 @@ TEST_F(TCompactOutputStoreTest, InitSkipsProcessedPositions)
         auto msg1 = MakeMessage("msg-1");
         auto msg2 = MakeMessage("msg-2");
         store->RegisterBatch(std::array{msg1, msg2}, /*persist*/ true);
-        store->Sync(/*tx*/ nullptr);
+        EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
         // Mark msg1 as processed, leave msg2 in flight.
         store->TryUnregisterBatch(std::array{&msg1->GetMeta()});
-        store->Sync(/*tx*/ nullptr);
+        EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
     }
 
     // Reload: only msg2 should re-appear.
@@ -527,7 +529,7 @@ TEST_F(TCompactOutputStoreTest, MaskOnlyUpdateAvoidsRewritingData)
     auto msg1 = MakeMessage("msg-1");
     auto msg2 = MakeMessage("msg-2");
     store->RegisterBatch(std::array{msg1, msg2}, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     // The initial Sync packs and writes the chunk in full.
     const auto writesAfterFirstSync = partitionTable->GetWriteChunkCount();
@@ -537,7 +539,7 @@ TEST_F(TCompactOutputStoreTest, MaskOnlyUpdateAvoidsRewritingData)
     // Unregister one of the two messages — the chunk row stays (RemainingCount > 0),
     // but its processed_mask flipped. The next Sync must use UpdateMask, not Write.
     store->TryUnregisterBatch(std::array{&msg1->GetMeta()});
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     EXPECT_EQ(partitionTable->GetWriteChunkCount(), writesAfterFirstSync);
     EXPECT_EQ(partitionTable->GetUpdateMaskCount(), 1);
@@ -562,7 +564,7 @@ TEST_F(TCompactOutputStoreTest, MaskFlipBeforeFirstSyncFoldsIntoWrite)
     store->RegisterBatch(std::array{msg1, msg2}, /*persist*/ true);
     // Flip a bit before the chunk is ever flushed.
     store->TryUnregisterBatch(std::array{&msg1->GetMeta()});
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     EXPECT_EQ(partitionTable->GetWriteChunkCount(), 1);
     EXPECT_EQ(partitionTable->GetUpdateMaskCount(), 0);
@@ -584,7 +586,7 @@ TEST_F(TCompactOutputStoreTest, ChunkMessageCountLimit)
         batch.push_back(MakeMessage(Format("msg-%v", i)));
     }
     store->RegisterBatch(batch, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     auto chunks = WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow();
     ASSERT_EQ(std::ssize(chunks), 2);
@@ -608,11 +610,11 @@ TEST_F(TCompactOutputStoreTest, ReRegisterAfterPersistIsNoOp)
 
     auto msg = MakeMessage("msg-1");
     store->RegisterBatch(std::array{msg}, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
     EXPECT_EQ(partitionTable->GetWriteChunkCount(), 1);
 
     store->RegisterBatch(std::array{msg}, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
     EXPECT_EQ(partitionTable->GetWriteChunkCount(), 1);
 }
 
@@ -630,7 +632,7 @@ TEST_F(TCompactOutputStoreTest, PromoteKeyedFromKeysToPersist)
     auto key = MakeKey("some-key");
     store->TryRegisterKeyedBatch(std::array{msg}, key, /*persist*/ false);
     store->TryRegisterKeyedBatch(std::array{msg}, key, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     EXPECT_EQ(keyTable->GetWriteChunkCount(), 1);
     EXPECT_EQ(partitionTable->GetWriteChunkCount(), 0);
@@ -648,7 +650,7 @@ TEST_F(TCompactOutputStoreTest, IdempotentKeyedReRegister)
     auto key = MakeKey("some-key");
     store->TryRegisterKeyedBatch(std::array{msg}, key, /*persist*/ true);
     store->TryRegisterKeyedBatch(std::array{msg}, key, /*persist*/ true);
-    store->Sync(/*tx*/ nullptr);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
 
     EXPECT_EQ(keyTable->GetWriteChunkCount(), 1);
 }
@@ -682,10 +684,227 @@ TEST_F(TCompactOutputStoreTest, InconsistentKeyednessAborts)
         "YT_VERIFY");
 }
 
-// Randomized stress: exercise the state machine with a parallel reference
-// model, validating Contains() after every action and after every restart.
-// Designed to catch bugs in mask flip / chunk erase / AsyncEraseQueue drain
-// where the store's observable state diverges from the expected one.
+// Drains a returned async erase transaction into the mock tables: replays the structured ops the
+// store's tables registered via IRetryableTransaction::Apply() (the argument is ignored by those
+// callbacks). Not draining a retryable models a failed commit — its ops never reach storage.
+void DrainAsyncTx(const IRetryableTransactionPtr& asyncTx)
+{
+    asyncTx->DoAttempt(/*transaction*/ nullptr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Every erase beyond the epoch-tx budget is drained within the same epoch via the returned async
+// transactions — nothing is carried to a later epoch. Fails on a regression to cross-epoch carry.
+TEST_F(TCompactOutputStoreTest, AsyncEraseDrainsOverflowSameEpoch)
+{
+    constexpr int ChunkCount = 5;
+
+    auto partitionTable = New<NTables::TInMemoryCompactPartitionOutputMessages>();
+    auto keyTable = New<NTables::TInMemoryCompactOutputMessages>();
+    auto context = MakeContext(partitionTable, keyTable);
+    context->MaxEraseRowsPerEpochTransaction = 1;
+    context->MaxEraseRowsPerAsyncTransaction = 1;
+
+    auto spec = New<TDynamicOutputStoreSpec>();
+    spec->MaxChunkMessageCount = NYTree::TSize(1); // One message per chunk ⇒ one row per message.
+    auto store = CreateCompactOutputStore(context, spec);
+    WaitFor(store->Init(/*loadKeyState*/ false)).ThrowOnError();
+
+    // Epoch A: persist ChunkCount single-message chunks (writes apply on the spot).
+    std::vector<TOutputMessageConstPtr> messages;
+    for (int i = 0; i < ChunkCount; ++i) {
+        messages.push_back(MakeMessage(Format("msg-%v", i)));
+    }
+    store->RegisterBatch(messages, /*persist*/ true);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty()); // Writes alone, no erases yet.
+    ASSERT_EQ(std::ssize(WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow()), ChunkCount);
+
+    // Epoch B: deliver all ⇒ ChunkCount erases; only 1 fits the epoch tx, the rest overflow.
+    for (const auto& message : messages) {
+        store->TryUnregisterBatch(std::array{&message->GetMeta()});
+    }
+    auto asyncTxs = store->Sync(/*tx*/ nullptr);
+
+    // Drain-all: one erase rode the epoch tx (applied on the spot), ChunkCount-1 in async txs.
+    EXPECT_EQ(std::ssize(asyncTxs), ChunkCount - 1);
+    EXPECT_EQ(std::ssize(WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow()), ChunkCount - 1);
+
+    // Draining all async txs + the clear pass removes the rest in the SAME epoch.
+    for (const auto& asyncTx : asyncTxs) {
+        DrainAsyncTx(asyncTx);
+    }
+    EXPECT_TRUE(WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow().empty());
+
+    // A subsequent Sync is a no-op: the dirty sets are empty after a fully-committed epoch.
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
+    EXPECT_TRUE(WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow().empty());
+}
+
+// A failed (aborted) async erase commit leaves its rows in storage: the host ThrowOnErrors, the job
+// restarts, and a fresh Init reloads exactly those un-erased rows (the store's in-memory state was
+// already cleared inline in Sync, so recovery relies on YT, not on retained state).
+TEST_F(TCompactOutputStoreTest, AsyncEraseFailureLeavesRowsForReload)
+{
+    constexpr int ChunkCount = 3;
+
+    auto partitionTable = New<NTables::TInMemoryCompactPartitionOutputMessages>();
+    auto keyTable = New<NTables::TInMemoryCompactOutputMessages>();
+    auto context = MakeContext(partitionTable, keyTable);
+    context->MaxEraseRowsPerEpochTransaction = 1;
+    context->MaxEraseRowsPerAsyncTransaction = 1;
+
+    auto spec = New<TDynamicOutputStoreSpec>();
+    spec->MaxChunkMessageCount = NYTree::TSize(1);
+    auto store = CreateCompactOutputStore(context, spec);
+    WaitFor(store->Init(/*loadKeyState*/ false)).ThrowOnError();
+
+    std::vector<TOutputMessageConstPtr> messages;
+    for (int i = 0; i < ChunkCount; ++i) {
+        messages.push_back(MakeMessage(Format("msg-%v", i)));
+    }
+    store->RegisterBatch(messages, /*persist*/ true);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
+
+    // Deliver all; drain splits into 1 epoch-tx erase (applied on the spot) + (ChunkCount-1) async.
+    for (const auto& message : messages) {
+        store->TryUnregisterBatch(std::array{&message->GetMeta()});
+    }
+    auto asyncTxs = store->Sync(/*tx*/ nullptr);
+    ASSERT_EQ(std::ssize(asyncTxs), ChunkCount - 1);
+
+    // All async txs are drained except one that is aborted (commit failure) — its ops never reach
+    // storage, so its chunk survives in YT for the fresh Init below.
+    for (int i = 0; i + 1 < std::ssize(asyncTxs); ++i) {
+        DrainAsyncTx(asyncTxs[i]);
+    }
+
+    // Exactly the aborted tx's row survives.
+    ASSERT_EQ(std::ssize(WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow()), 1);
+
+    // Restart: a fresh store reloads exactly the un-erased row and can re-emit its erase.
+    auto store2 = CreateCompactOutputStore(context, spec);
+    auto loaded = WaitFor(store2->Init(/*loadKeyState*/ false)).ValueOrThrow();
+    ASSERT_EQ(std::ssize(loaded), 1);
+
+    store2->TryUnregisterBatch(std::array{&loaded[0].first->GetMeta()});
+    auto asyncTxs2 = store2->Sync(/*tx*/ nullptr);
+    for (const auto& asyncTx : asyncTxs2) {
+        DrainAsyncTx(asyncTx);
+    }
+    EXPECT_TRUE(WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow().empty());
+}
+
+// Hard write-atomicity invariant: new writes always land in the epoch tx, never in an async tx.
+TEST_F(TCompactOutputStoreTest, WritesNeverInAsyncTx)
+{
+    constexpr int OldCount = 3; // Persisted earlier, delivered now ⇒ erase overflow.
+    constexpr int NewCount = 2; // Fresh writes in the same epoch as the erase overflow.
+
+    auto partitionTable = New<NTables::TInMemoryCompactPartitionOutputMessages>();
+    auto keyTable = New<NTables::TInMemoryCompactOutputMessages>();
+    auto context = MakeContext(partitionTable, keyTable);
+    context->MaxEraseRowsPerEpochTransaction = 0; // Force ALL erases into async txs.
+    context->MaxEraseRowsPerAsyncTransaction = 1;
+
+    auto spec = New<TDynamicOutputStoreSpec>();
+    spec->MaxChunkMessageCount = NYTree::TSize(1);
+    auto store = CreateCompactOutputStore(context, spec);
+    WaitFor(store->Init(/*loadKeyState*/ false)).ThrowOnError();
+
+    std::vector<TOutputMessageConstPtr> oldMessages;
+    for (int i = 0; i < OldCount; ++i) {
+        oldMessages.push_back(MakeMessage(Format("old-%v", i)));
+    }
+    store->RegisterBatch(oldMessages, /*persist*/ true);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
+    ASSERT_EQ(partitionTable->GetWriteChunkCount(), OldCount);
+
+    // Same epoch: deliver the old messages (erase overflow) AND register new writes.
+    for (const auto& message : oldMessages) {
+        store->TryUnregisterBatch(std::array{&message->GetMeta()});
+    }
+    std::vector<TOutputMessageConstPtr> newMessages;
+    for (int i = 0; i < NewCount; ++i) {
+        newMessages.push_back(MakeMessage(Format("new-%v", i)));
+    }
+    store->RegisterBatch(newMessages, /*persist*/ true);
+
+    auto asyncTxs = store->Sync(/*tx*/ nullptr);
+    ASSERT_EQ(std::ssize(asyncTxs), OldCount); // All erases async, one row each.
+
+    // Every async tx carries erase-only ops (never a write) — it is non-empty but adds no writes.
+    for (const auto& asyncTx : asyncTxs) {
+        EXPECT_FALSE(asyncTx->IsEmpty());
+    }
+
+    // The epoch tx already applied all NewCount writes on the spot; none of the OldCount erases yet.
+    EXPECT_EQ(partitionTable->GetWriteChunkCount(), OldCount + NewCount);
+    auto afterEpoch = WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow();
+    EXPECT_EQ(std::ssize(afterEpoch), OldCount + NewCount);
+
+    // Draining the async txs changes only deletions — GetWriteChunkCount stays put.
+    for (const auto& asyncTx : asyncTxs) {
+        DrainAsyncTx(asyncTx);
+    }
+    EXPECT_EQ(partitionTable->GetWriteChunkCount(), OldCount + NewCount);
+    EXPECT_EQ(std::ssize(WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow()), NewCount);
+}
+
+// Unregister is now immediate: a still-pending message unregistered before Sync is dropped from
+// ToPersist_ and never written, even when persisted erases ahead of it overflow the epoch budget.
+TEST_F(TCompactOutputStoreTest, PendingMessageDroppedWhenUnregisteredBeforeSync)
+{
+    constexpr int OldCount = 2;
+
+    auto partitionTable = New<NTables::TInMemoryCompactPartitionOutputMessages>();
+    auto keyTable = New<NTables::TInMemoryCompactOutputMessages>();
+    auto context = MakeContext(partitionTable, keyTable);
+    context->MaxEraseRowsPerEpochTransaction = 1;
+    context->MaxEraseRowsPerAsyncTransaction = 1;
+
+    auto spec = New<TDynamicOutputStoreSpec>();
+    spec->MaxChunkMessageCount = NYTree::TSize(1);
+    auto store = CreateCompactOutputStore(context, spec);
+    WaitFor(store->Init(/*loadKeyState*/ false)).ThrowOnError();
+
+    std::vector<TOutputMessageConstPtr> oldMessages;
+    for (int i = 0; i < OldCount; ++i) {
+        oldMessages.push_back(MakeMessage(Format("old-%v", i)));
+    }
+    store->RegisterBatch(oldMessages, /*persist*/ true);
+    EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
+    const auto writesAfterOld = partitionTable->GetWriteChunkCount();
+    ASSERT_EQ(writesAfterOld, OldCount);
+
+    // Deliver the old messages (their erases overflow), register a new pending message,
+    // then unregister it BEFORE Sync — it must be dropped, never written.
+    for (const auto& message : oldMessages) {
+        store->TryUnregisterBatch(std::array{&message->GetMeta()});
+    }
+    auto pending = MakeMessage("pending");
+    store->RegisterBatch(std::array{pending}, /*persist*/ true);
+    store->TryUnregisterBatch(std::array{&pending->GetMeta()});
+
+    auto asyncTxs = store->Sync(/*tx*/ nullptr);
+
+    // The pending message produced no write (dropped); only the OldCount erases were emitted.
+    for (const auto& asyncTx : asyncTxs) {
+        DrainAsyncTx(asyncTx);
+    }
+
+    EXPECT_EQ(partitionTable->GetWriteChunkCount(), writesAfterOld);
+    EXPECT_TRUE(WaitFor(partitionTable->LoadAll({.PartitionId = PartitionId})).ValueOrThrow().empty());
+    EXPECT_FALSE(store->Contains(*pending));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Randomized stress: exercise the state machine against a parallel reference model, validating
+// Contains() after every action and, on every restart, that the reloaded set equals exactly the
+// committed-and-live rows. MaxEraseRowsPerEpochTransaction=0 routes all erases through async txs;
+// the restart action occasionally aborts the whole drain (models a post-commit erase failure →
+// job restart + Init reload), and the model asserts the un-erased rows come back verbatim.
 TEST_F(TCompactOutputStoreTest, RandomizedStress)
 {
     constexpr int MessageCount = 30;
@@ -702,29 +921,32 @@ TEST_F(TCompactOutputStoreTest, RandomizedStress)
     for (int i = 0; i < MessageCount; ++i) {
         messages.push_back(MakeMessage(Format("msg-%03d", i)));
     }
-    const std::vector<TKey> keys = {MakeKey("key-A"), MakeKey("key-B"), MakeKey("key-C")};
+    // Keys must fall inside the partition's [0, 100) reload range so keyed chunks reload on Init.
+    const std::vector<TKey> keys = {MakeKey<ui64>(10), MakeKey<ui64>(20), MakeKey<ui64>(30)};
 
     auto partitionTable = New<NTables::TInMemoryCompactPartitionOutputMessages>();
     auto keyTable = New<NTables::TInMemoryCompactOutputMessages>();
     auto context = MakeContext(partitionTable, keyTable);
+    context->MaxEraseRowsPerEpochTransaction = 0; // All erases via async txs (clean abort model).
+    context->MaxEraseRowsPerAsyncTransaction = 2;
 
     auto store = CreateCompactOutputStore(context, New<TDynamicOutputStoreSpec>());
     WaitFor(store->Init(/*loadKeyState*/ true)).ThrowOnError();
 
     // Reference model.
-    std::vector<bool> inflight(MessageCount, false);
-    std::vector<bool> asyncQueuedForErase(MessageCount, false);
+    std::vector<bool> inflight(MessageCount, false);         // Contains() expectation.
+    std::vector<bool> committed(MessageCount, false);        // Has a live (unmasked) committed row.
+    std::vector<bool> toPersistPending(MessageCount, false); // Queued persist, write not yet committed.
+    std::vector<bool> pendingErase(MessageCount, false);     // Unregistered, erase not yet committed.
     // Once registered keyed, must stay keyed (and same key); switching aborts via YT_VERIFY.
     std::vector<std::optional<bool>> wasKeyed(MessageCount);
     std::vector<std::optional<TKey>> assignedKey(MessageCount);
-    // RegisterBatch with ensure=true is only valid as the first Register on
-    // a message; re-registers must use the ensure=false variant.
+    // RegisterBatch with ensure=true is only valid as the first Register on a message.
     std::vector<bool> everRegistered(MessageCount, false);
 
     auto checkContains = [&] (int iter) {
         for (int i = 0; i < MessageCount; ++i) {
-            const bool expected = inflight[i] || asyncQueuedForErase[i];
-            ASSERT_EQ(store->Contains(*messages[i]), expected)
+            ASSERT_EQ(store->Contains(*messages[i]), inflight[i])
                 << "msg-" << i << " Contains() mismatch at iter " << iter;
         }
     };
@@ -734,7 +956,11 @@ TEST_F(TCompactOutputStoreTest, RandomizedStress)
         const int idx = rnd(0, MessageCount - 1);
 
         if (action < 35) {
-            // Register.
+            // Register. Skip re-registering a persisted-then-unregistered message (messy
+            // resurrection path the model deliberately avoids).
+            if (!inflight[idx] && committed[idx]) {
+                continue;
+            }
             const bool useKey = rnd(0, 2) > 0;
             const bool persist = rnd(0, 1);
 
@@ -746,50 +972,72 @@ TEST_F(TCompactOutputStoreTest, RandomizedStress)
                 if (assignedKey[idx].has_value() && *assignedKey[idx] != key) {
                     continue; // Would abort on key mismatch.
                 }
-                // Keyed-only path is always ensure=false (TryRegisterKeyedBatch).
                 store->TryRegisterKeyedBatch(std::array{messages[idx]}, key, persist);
                 assignedKey[idx] = key;
                 wasKeyed[idx] = true;
             } else if (!everRegistered[idx]) {
-                // First-time unkeyed → RegisterBatch (ensure=true) is the
-                // contract-correct call for genuinely new messages.
                 store->RegisterBatch(std::array{messages[idx]}, persist);
                 wasKeyed[idx] = false;
             } else {
-                // Re-register on an unkeyed msg already known to InflightStore_
-                // → must use ensure=false to stay idempotent.
                 store->TryRegisterBatch(std::array{messages[idx]}, persist);
                 wasKeyed[idx] = false;
             }
             inflight[idx] = true;
             everRegistered[idx] = true;
+            if (persist && !committed[idx]) {
+                toPersistPending[idx] = true;
+            }
         } else if (action < 65) {
-            // TryUnregister.
-            if (inflight[idx] && !asyncQueuedForErase[idx]) {
+            // TryUnregister (immediate).
+            if (inflight[idx]) {
                 store->TryUnregisterBatch(std::array{&messages[idx]->GetMeta()});
                 inflight[idx] = false;
-            }
-        } else if (action < 75) {
-            // AsyncUnregister: stays "inflight from observer's POV" until next Sync.
-            if (inflight[idx] && !asyncQueuedForErase[idx]) {
-                store->AsyncUnregisterBatch(std::array{&messages[idx]->GetMeta()});
-                inflight[idx] = false;
-                asyncQueuedForErase[idx] = true;
+                if (toPersistPending[idx]) {
+                    toPersistPending[idx] = false; // Pending-drop: never written.
+                } else if (committed[idx]) {
+                    pendingErase[idx] = true;
+                }
             }
         } else if (action < 90) {
-            // Sync: flushes AsyncEraseQueue (those become NotInflight).
-            store->Sync(/*tx*/ nullptr);
-            std::fill(asyncQueuedForErase.begin(), asyncQueuedForErase.end(), false);
+            // Sync (writes apply on the spot) + drain all async erase txs.
+            auto asyncTxs = store->Sync(/*tx*/ nullptr);
+            for (const auto& asyncTx : asyncTxs) {
+                DrainAsyncTx(asyncTx);
+            }
+            for (int i = 0; i < MessageCount; ++i) {
+                if (toPersistPending[i]) {
+                    committed[i] = true;
+                    toPersistPending[i] = false;
+                }
+                if (pendingErase[i]) {
+                    committed[i] = false;
+                    pendingErase[i] = false;
+                }
+            }
         } else {
-            // Restart: Sync, recreate store, Init, rebuild model from loaded set.
-            store->Sync(/*tx*/ nullptr);
-            std::fill(asyncQueuedForErase.begin(), asyncQueuedForErase.end(), false);
+            // Sync (writes apply on the spot) + (sometimes) abort the whole drain, then restart.
+            auto asyncTxs = store->Sync(/*tx*/ nullptr);
+            const bool abortDrain = !asyncTxs.empty() && rnd(0, 2) == 0;
+            if (!abortDrain) {
+                for (const auto& asyncTx : asyncTxs) {
+                    DrainAsyncTx(asyncTx);
+                }
+            }
+            // Writes always commit (epoch tx). Erases commit only when the drain was not aborted.
+            for (int i = 0; i < MessageCount; ++i) {
+                if (toPersistPending[i]) {
+                    committed[i] = true;
+                    toPersistPending[i] = false;
+                }
+                if (!abortDrain && pendingErase[i]) {
+                    committed[i] = false;
+                    pendingErase[i] = false;
+                }
+            }
 
             store = CreateCompactOutputStore(context, New<TDynamicOutputStoreSpec>());
             auto loaded = WaitFor(store->Init(/*loadKeyState*/ true)).ValueOrThrow();
 
-            // The loaded set must be a subset of what the model considered inflight
-            // (Init never resurrects an erased message). Stronger checks below.
             std::vector<bool> loadedFlag(MessageCount, false);
             for (const auto& [msg, key] : loaded) {
                 int found = -1;
@@ -800,7 +1048,6 @@ TEST_F(TCompactOutputStoreTest, RandomizedStress)
                     }
                 }
                 ASSERT_GE(found, 0) << "loaded message not in pool";
-                ASSERT_TRUE(inflight[found]) << "msg-" << found << " loaded after restart but model says not inflight";
                 ASSERT_EQ(key.has_value(), wasKeyed[found].value_or(false))
                     << "msg-" << found << " keyed-ness mismatch on reload";
                 if (key) {
@@ -808,11 +1055,14 @@ TEST_F(TCompactOutputStoreTest, RandomizedStress)
                 }
                 loadedFlag[found] = true;
             }
-            // Conversely, drop in-memory-only (persist=false / not Sync'd) inflight entries.
+            // The reloaded set must equal exactly the committed-and-live rows.
             for (int i = 0; i < MessageCount; ++i) {
-                if (inflight[i] && !loadedFlag[i]) {
-                    inflight[i] = false;
-                }
+                ASSERT_EQ(loadedFlag[i], committed[i])
+                    << "msg-" << i << " reload mismatch (loaded=" << loadedFlag[i]
+                    << ", committed=" << committed[i] << ") at iter " << iter;
+                inflight[i] = loadedFlag[i];
+                pendingErase[i] = false;
+                toPersistPending[i] = false;
             }
         }
 

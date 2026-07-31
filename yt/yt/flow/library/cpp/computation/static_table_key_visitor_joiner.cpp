@@ -62,10 +62,13 @@ TStaticTableKeyVisitorJoiner::TStaticTableKeyVisitorJoiner(
     , Logger(context->Logger)
     , ListedSizeGauge_(context->Profiler.Gauge("/static_table_key_visitor_joiner/listed_size"))
     , ReaderOpensCounter_(context->Profiler.Counter("/static_table_key_visitor_joiner/reader_opens"))
+    , SourceUnavailableGauge_(context->Profiler.Gauge("/static_table_key_visitor_joiner/source_unavailable"))
+    , FailedReadsCounter_(context->Profiler.Counter("/static_table_key_visitor_joiner/failed_reads"))
 {
     THROW_ERROR_EXCEPTION_IF(
         HasKeySchemaOverride(),
         "Key-visitor joiner does not support key_schema_override");
+    SourceUnavailableGauge_.Update(0);
 }
 
 bool TStaticTableKeyVisitorJoiner::IsVisitorDriven() const
@@ -90,8 +93,8 @@ void ValidateTableSchema(const TTableSchema& keySchema, const TTableSchema& tabl
         const auto& column = tableSchema.Columns()[i];
         if (column.Name() != keyColumn.Name()) {
             THROW_ERROR_EXCEPTION(
-                "Table schema differs from group-by schema "
-                "(ColumnName: %v, GroupByColumnName: %v)",
+                "Table schema differs from group-by schema: "
+                "column name %Qv does not match group-by column name %Qv",
                 column.Name(),
                 keyColumn.Name());
         }
@@ -99,8 +102,8 @@ void ValidateTableSchema(const TTableSchema& keySchema, const TTableSchema& tabl
         const auto& keyColumnType = *MakeOptionalIfNot(keyColumn.LogicalType());
         if (columnType != keyColumnType) {
             THROW_ERROR_EXCEPTION(
-                "Table schema differs from group-by schema "
-                "(ColumnName: %v, ColumnType: %v, GroupByColumnType: %v)",
+                "Table schema differs from group-by schema: "
+                "column %Qv has type %v while group-by column has type %v",
                 column.Name(),
                 columnType,
                 keyColumnType);
@@ -360,6 +363,7 @@ TFuture<IExternalStateJoiner::TListResult> TStaticTableKeyVisitorJoiner::List(
             YT_VERIFY(std::ssize(listed.Keys) == std::ssize(listed.Payloads));
             NextAttemptTime_ = TInstant::Zero();
             LastSourceError_ = {};
+            SourceUnavailableGauge_.Update(0);
             for (int i = 0; i < std::ssize(listed.Keys); ++i) {
                 Listed_[listed.Keys[i]] = TListedRow{
                     .Payload = std::move(listed.Payloads[i]),
@@ -372,9 +376,9 @@ TFuture<IExternalStateJoiner::TListResult> TStaticTableKeyVisitorJoiner::List(
                 ? listed.Keys.back()
                 : upper;
             AddListedRange(TKeyRange{.Lower = lower, .Upper = covered});
-            YT_LOG_DEBUG("Listed states (Count: %v, ListedSize: %v)",
-                listed.Keys.size(),
-                Listed_.size());
+            YT_TLOG_DEBUG("Listed states")
+                .With("Count", listed.Keys.size())
+                .With("ListedSize", Listed_.size());
             return TListResult{
                 .Keys = std::move(listed.Keys),
             };
@@ -388,8 +392,12 @@ TFuture<IExternalStateJoiner::TListResult> TStaticTableKeyVisitorJoiner::List(
                 auto guard = Guard(Lock_);
                 NextAttemptTime_ = TInstant::Now() + backoff;
                 LastSourceError_ = TError(result);
+                FailedReadsCounter_.Increment();
+                SourceUnavailableGauge_.Update(1);
             }
-            YT_LOG_WARNING(result, "Failed to list states; source marked unavailable (Backoff: %v)", backoff);
+            YT_TLOG_WARNING("Failed to list states; source marked unavailable")
+                .With("Backoff", backoff)
+                .With(result);
             return HandleFailedList(TError(result), lower, upper);
         }));
 }
@@ -420,8 +428,8 @@ void TStaticTableKeyVisitorJoiner::AddListedRange(const TKeyRange& range)
 TFuture<void> TStaticTableKeyVisitorJoiner::PreloadKeyStates(const THashSet<TKey>& keys)
 {
     auto guard = Guard(Lock_);
-    YT_LOG_DEBUG("Preloading visit keys (Count: %v)",
-        keys.size());
+    YT_TLOG_DEBUG("Preloading visit keys")
+        .With("Count", keys.size());
 
     for (const auto& key : keys) {
         if (auto it = Listed_.find(key); it != Listed_.end()) {
@@ -459,8 +467,8 @@ void TStaticTableKeyVisitorJoiner::Reset()
     States_.clear();
 
     ListedSizeGauge_.Update(std::ssize(Listed_));
-    YT_LOG_DEBUG("Reset key-visitor joiner (ListedSize: %v)",
-        Listed_.size());
+    YT_TLOG_DEBUG("Reset key-visitor joiner")
+        .With("ListedSize", Listed_.size());
 
     // The forward reader, the cached schema and #ListedRanges_ deliberately survive: Reset runs
     // once per epoch, whereas a sweep spans many epochs. Dropping the reader or the schema here

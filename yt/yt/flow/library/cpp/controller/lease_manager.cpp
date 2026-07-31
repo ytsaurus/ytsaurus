@@ -78,7 +78,8 @@ public:
 
         flush();
 
-        YT_LOG_INFO("Terminated %v leases", terminatedLeases);
+        YT_TLOG_INFO("Terminated leases")
+            .With("LeaseCount", terminatedLeases);
     }
 
     void CheckLeases(const TFlowViewPtr& flowView) override
@@ -111,22 +112,23 @@ public:
             layout->RemoveJob(job->JobId, EJobFinishReason::ExpiredLease);
 
             auto partition = GetOrCrash(layout->Partitions, job->PartitionId);
-            auto error = TError("Job is lost, lease is expired (JobId: %v, PartitionId: %v, ComputationId: %v, LeaseId: %v)",
-                job->JobId,
-                job->PartitionId,
-                partition->ComputationId,
-                job->LeaseId);
-            YT_LOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, error);
+            auto error = TError("Job is lost since its lease has expired")
+                << TErrorAttribute("job_id", job->JobId)
+                << TErrorAttribute("partition_id", job->PartitionId)
+                << TErrorAttribute("computation_id", partition->ComputationId)
+                << TErrorAttribute("lease_id", job->LeaseId);
+            YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "")
+                .With(error);
 
             auto partitionState = flowView->EphemeralState->GetPartitionState(job->PartitionId);
             partitionState->PreviousJobFailInstant = TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying());
             partitionState->PreviousJobFailError = std::move(error);
         }
 
-        YT_LOG_INFO("Check leases (Attached: %v, Expired: %v, Total: %v)",
-            attachedLeases,
-            expiredLeaseJobs.size(),
-            totalLeases);
+        YT_TLOG_INFO("Check leases")
+            .With("Attached", attachedLeases)
+            .With("Expired", expiredLeaseJobs.size())
+            .With("Total", totalLeases);
     }
 
     void PrepareLeases(const TFlowViewPtr& flowView) override
@@ -179,7 +181,8 @@ public:
         }
 
         flush();
-        YT_LOG_INFO("Prepared %v leases", createdLeases);
+        YT_TLOG_INFO("Prepared leases")
+            .With("LeaseCount", createdLeases);
     }
 
 private:

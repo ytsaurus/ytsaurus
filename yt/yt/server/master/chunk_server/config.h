@@ -339,8 +339,8 @@ struct TDynamicDataNodeTrackerConfig
     // COMPAT(grphil)
     bool IgnoreReplicasWithChangedStateDuringValidation;
 
-    // COMPAT(cherepashka)
     bool EnableChunkReplicasThrottlingInHeartbeats;
+    bool FlushBatchedIncrementalHeartbeatsOnThrottling;
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
 
@@ -600,6 +600,15 @@ struct TDynamicSequoiaChunkReplicasConfig
     int MaxUnsuccessfulLocationRefreshAttempts;
 
     bool ScheduleChunkSealInSequoiaChunkRefresh;
+
+    // If sequoia replicas are enabled in ghost mode, all data node heartbeats will trigger sequoia replicas modifications.
+    // These modifications will be run in background and will not affect master state.
+    // All actions with chunks will use master stored replicas, and the state of sequoia replicas will have no effect on master.
+    bool EnableInGhostMode;
+    bool GhostFullHeartbeats;
+    bool GhostIncrementalHeartbeats;
+    bool GhostValidationHeartbeats;
+    bool GhostEmptyValidationHeartbeats;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
@@ -900,7 +909,13 @@ struct TDynamicChunkManagerConfig
     // COMPAT(koloshmet)
     bool UpdateHistoricallyNonVitalInUnexport;
 
+    // COMPAT(danilalexeev)
+    bool UpdateHistoricallyNonVitalOnChunkCreationAndExport;
+
     bool AllowOffshoreMedia;
+
+    int MaxVerboselyLoggedChunks;
+    TDuration MaxVerboseLoggingEnabledDuration;
 
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 

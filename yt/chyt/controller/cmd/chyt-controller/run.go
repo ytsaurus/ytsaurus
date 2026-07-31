@@ -47,6 +47,8 @@ func doRun() error {
 	}
 	cfs["chyt"] = chytFactory
 
+	registerDQController(cfs, config)
+
 	// JUPYT controller is optional.
 
 	if jupytConfig, ok := config.Controllers["jupyt"]; ok {

@@ -96,13 +96,13 @@ void Serialize(const TRdmaDeviceInfo& rdmaDevice, NYson::IYsonConsumer* consumer
 
 IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoProviderConfig config)
 {
-    switch (config.GetCurrentType()) {
+    switch (config.GetType()) {
     case EGpuInfoProviderType::NvGpuManager:
-        return CreateNvManagerGpuInfoProvider(config.TryGetConcrete<EGpuInfoProviderType::NvGpuManager>());
+        return CreateNvManagerGpuInfoProvider(config.GetConcrete<EGpuInfoProviderType::NvGpuManager>());
     case EGpuInfoProviderType::NvidiaSmi:
         return CreateNvidiaSmiGpuInfoProvider();
     case EGpuInfoProviderType::GpuAgent:
-        return CreateGpuAgentGpuInfoProvider(config.TryGetConcrete<EGpuInfoProviderType::GpuAgent>());
+        return CreateGpuAgentGpuInfoProvider(config.GetConcrete<EGpuInfoProviderType::GpuAgent>());
     default:
         YT_ABORT();
     }

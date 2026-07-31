@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
-#include <yt/yt/ytlib/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -72,7 +72,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     NLogging::TLogger logger,
     NRpc::IAuthenticatorPtr authenticator,
     NProfiling::TProfiler profiler = {},
-    std::optional<i64> memberPriority = std::nullopt);
+    std::optional<i64> memberPriorityHint = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

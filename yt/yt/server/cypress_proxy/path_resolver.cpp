@@ -291,9 +291,8 @@ TResolveIterationResult ResolveByObjectId(
         }
 
         const auto& pathAttribute = NServer::EInternedAttributeKey::Path.Unintern();
-        auto asyncNodeAttributes = FetchSingleObjectAttributes(
-            session->GetNativeAuthenticatedClient(),
-            TVersionedObjectId{rootDesignator, session->GetCurrentCypressTransactionId()},
+        auto asyncNodeAttributes = session->FetchSingleObjectAttributes(
+            rootDesignator,
             TAttributeFilter({pathAttribute}));
 
         auto nodeAttributes = WaitFor(asyncNodeAttributes)
@@ -329,6 +328,10 @@ TResolveIterationResult ResolveByObjectId(
                 },
                 .RewrittenTargetPath = std::move(targetPath),
             };
+        }
+
+        if (TypeFromId(rootDesignator) == EObjectType::Scion && StartsWithAmpersand(pathSuffix)) {
+            pathSuffix.SkipPrefix("&"_sb);
         }
 
         if (resolvedNode->IsSnapshot) {

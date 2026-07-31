@@ -82,9 +82,9 @@ public:
         , EnableHashChunkIndex_(enableHashChunkIndex)
         , UseDirectIO_(useDirectIO)
         , CodecId_(codecId)
-        , Logger(DataNodeLogger().WithTag("ChunkId: %v, ReadSessionId: %v",
-            ChunkId_,
-            readSessionId))
+        , Logger(DataNodeLogger()
+            .WithTag("ChunkId", ChunkId_)
+            .WithTag("ReadSessionId", readSessionId))
     {
         Options_.ChunkReaderStatistics = ChunkReaderStatistics_;
         Options_.ReadSessionId = readSessionId;

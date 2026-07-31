@@ -760,7 +760,7 @@ IChunkReaderPtr CreateRemoteReader(
     // including medium index (which TChunkReplica truncates to 29 bits).
     auto replicas = FromProto<TChunkReplicaWithMediumList>(chunkSpec.replicas());
 
-    auto Logger = ChunkClientLogger().WithTag("ChunkId: %v", chunkId);
+    auto Logger = ChunkClientLogger().WithTag("ChunkId", chunkId);
 
     auto optionsPerChunk = New<TRemoteReaderOptions>();
     optionsPerChunk->AllowFetchingSeedsFromMaster = options->AllowFetchingSeedsFromMaster;

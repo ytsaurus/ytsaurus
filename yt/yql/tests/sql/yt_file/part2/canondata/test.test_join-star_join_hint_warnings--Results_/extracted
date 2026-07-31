@@ -9,3 +9,6 @@
     <tmp_path>/program.sql:<main>:5:1: Warning: Join side "d" cannot be added to a star join chain - must be effectively unique
     	select
 	^
+    <tmp_path>/program.sql:<main>:12:16: Warning: Join side "d" cannot be added to a star join chain
+    	from Input1 as a
+	               ^

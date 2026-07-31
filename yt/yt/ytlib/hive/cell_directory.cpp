@@ -2,7 +2,6 @@
 
 #include "cluster_directory.h"
 #include "config.h"
-#include "private.h"
 
 #include <yt/yt/ytlib/election/config.h>
 

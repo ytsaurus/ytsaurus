@@ -641,6 +641,69 @@ TEST_F(TDistributedChunkSessionTest, MultipleWriters)
     EnsureControllerIsDestroyed(std::move(controller));
 }
 
+TEST_F(TDistributedChunkSessionTest, MultipleWritersPipelinedFlushes)
+{
+    WriterOptions_->WriteQuorum = 2;
+    WriterOptions_->ReplicationFactor = 3;
+
+    // The sequencer flushes to journal replicas with several requests in flight.
+    WriterConfig_->MaxInFlightFlushCount = 4;
+    WriterConfig_->MaxBatchRowCount = 1;
+    WriterConfig_->MaxBatchDelay = TDuration::Zero();
+
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    auto startedSession = WaitFor(controller->StartSession())
+        .ValueOrThrow();
+
+    constexpr int WriterCount = 4;
+    constexpr int RecordsPerWriter = 50;
+    const int totalRecords = WriterCount * RecordsPerWriter;
+
+    std::vector<std::string> expectedRecords(totalRecords);
+    std::vector<TFuture<void>> writeFutures(totalRecords);
+
+    for (int writerIdx = 0; writerIdx < WriterCount; ++writerIdx) {
+        auto writer = CreateDistributedChunkWriter(
+            startedSession.SequencerNode,
+            startedSession.SessionId,
+            NativeConnection_,
+            New<TDistributedChunkWriterConfig>());
+
+        for (int recordIdx = 0; recordIdx < RecordsPerWriter; ++recordIdx) {
+            int idx = writerIdx * RecordsPerWriter + recordIdx;
+            expectedRecords[idx] = MakeRandomString(100);
+            writeFutures[idx] = writer->WriteRecord(TSharedRef::FromString(expectedRecords[idx]));
+        }
+    }
+
+    WaitFor(AllSucceeded(writeFutures))
+        .ThrowOnError();
+
+    auto reader = CreateQuorumReader(startedSession.SessionId.ChunkId);
+
+    auto blocks = WaitFor(reader->ReadBlocks(IChunkReader::TReadBlocksOptions{}, 0, totalRecords))
+        .ValueOrThrow();
+
+    ASSERT_EQ(std::ssize(blocks), totalRecords);
+
+    std::vector<std::string> actualRecords;
+    actualRecords.reserve(totalRecords);
+    for (const auto& block : blocks) {
+        actualRecords.push_back(std::string(block.Data.ToStringBuf()));
+    }
+
+    EXPECT_THAT(actualRecords, UnorderedElementsAreArray(expectedRecords));
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
 TEST_F(TDistributedChunkSessionTest, SessionTimeout)
 {
     auto controller = CreateDistributedChunkSessionController(

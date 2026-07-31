@@ -25,6 +25,7 @@ SPLIT_FACTOR(10)
 DEPENDS(
     yt/yql/tools/ytfilerun
     yql/essentials/tools/astdiff
+    yql/essentials/tools/ysondiff
     yql/essentials/tests/common/test_framework/udfs_deps
     yql/essentials/udfs/test/test_import
 )

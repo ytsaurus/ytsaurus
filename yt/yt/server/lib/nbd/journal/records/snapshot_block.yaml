@@ -1,0 +1,19 @@
+namespace: NYT::NNbd::NJournal::NRecords
+
+types:
+  - type_name: TSnapshotBlock
+    sorted: True
+    fields:
+      - cpp_name: BlockIndex
+        cpp_type: i64
+        column_name: block_index
+        column_type: Int64
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: Payload
+        cpp_type: std::string
+        column_name: payload
+        column_type: String
+        max_inline_hunk_size: 1
+        required: True

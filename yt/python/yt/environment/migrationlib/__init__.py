@@ -192,6 +192,7 @@ class TableInfo(object):
             "intermediate_data_account": account,
             "use_new_partitions_heuristic": True,
             "max_speculative_job_count_per_task": 20,
+            "max_compressed_data_size_per_job": 400 * 2**30,
         }
         if pool is not None:
             spec["pool"] = pool

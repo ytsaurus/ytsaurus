@@ -256,6 +256,16 @@ spec_template = {
         "mount_hunk_storage_tablet_probability": 0.2,
         "change_hunk_storage_probability": 0.8,
         "unlink_hunk_storage_probability": 0.2,
+        # Replicated queues (replicated_table + replica tables). When creating a queue, this
+        # is the chance it is created as a replicated queue instead of a plain one. Each
+        # replica gets a mode (sync/async) and independently may have hunks (its own linked
+        # hunk storage). Phase 1: replicated queues do create/write/read/remove only — the
+        # heavier operations (copy/move/alter/sort/merge/relink/mount-chaos) skip them.
+        "create_replicated_probability": 0.3,
+        "replicated_min_replicas": 1,
+        "replicated_max_replicas": 3,
+        "replica_sync_probability": 0.5,
+        "replica_hunks_probability": 0.5,
         "create_probability": 0.2,
         "copy_probability": 0.3,
         "move_probability": 0.3,
@@ -390,6 +400,11 @@ spec_template = {
         # cadence: a table expiring before the verifier reads it would look like a row_index
         # gap (false data-loss failure). Set to None to disable TTL entirely.
         "export_ttl_seconds": 14 * 24 * 3600,
+        # For auto-trim queues, never trim rows younger than this — the queue always keeps a
+        # rolling window of the most recent data (3 days by default) regardless of what has
+        # already been exported/consumed. Bounds queue growth while keeping recent data.
+        # Set to None to trim purely by export/consumer progress with no time floor.
+        "auto_trim_retained_lifetime_seconds": 3 * 24 * 3600,
         # Auto-flush period (ms) for the queue's dynamic stores. Kept small so the Queue
         # Agent has freshly flushed chunks to export (exports never see unflushed data).
         "flush_period_ms": 5000,

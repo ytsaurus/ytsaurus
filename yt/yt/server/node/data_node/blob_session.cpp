@@ -26,9 +26,10 @@
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/ring_queue.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 namespace NYT::NDataNode {
 
@@ -63,7 +64,8 @@ public:
             Location_->GetIOEngine(),
             chunkId,
             Location_->GetChunkPath(chunkId),
-            Options_.SyncOnClose))
+            Options_.SyncOnClose,
+            Options_.UseDirectIo))
     { }
 
 
@@ -340,7 +342,6 @@ TFuture<void> TBlobSession::DoStart()
     PendingBlockMemoryGuard_ = TMemoryUsageTrackerGuard::Build(Location_->GetWriteMemoryTracker());
 
     PendingBlockLocationMemoryGuard_ = Location_->AcquireLocationMemory(
-        UseProbePutBlocks_,
         /*memoryGuard*/ {},
         EIODirection::Write,
         Options_.WorkloadDescriptor,
@@ -602,7 +603,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
         DoPerformPutBlocks(std::move(fairShareQueueSlot));
         return AllSucceeded(std::vector{
             netThrottler->Throttle(totalSize),
-            diskThrottler->Throttle(totalSize)
+            diskThrottler->Throttle(totalSize),
         }).Apply(BIND([] {
             return NIO::TIOCounters{};
         }));
@@ -638,7 +639,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                 DoPerformPutBlocks(std::move(fairShareQueueSlot));
                 return AllSucceeded(std::vector{
                     netThrottler->Throttle(totalSize),
-                    diskThrottler->Throttle(totalSize)
+                    diskThrottler->Throttle(totalSize),
                 }).Apply(BIND([] {
                     return NIO::TIOCounters{};
                 }));
@@ -653,13 +654,13 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                 if (error.IsOK()) {
                     DoPerformPutBlocks(std::move(fairShareQueueSlot));
                 } else {
-                    YT_LOG_ALERT(error, "Error in allPrecedingBlocksReceivedFuture with fully async blocks writing. Session will be canceled");
+                    YT_LOG_ALERT(error, "Error in allPrecedingBlocksReceivedFuture with fully async blocks writing, session will be canceled");
                     Cancel(error);
                 }
             }).Via(SessionInvoker_));
         return AllSucceeded(std::vector{
             netThrottler->Throttle(totalSize),
-            diskThrottler->Throttle(totalSize)
+            diskThrottler->Throttle(totalSize),
         }).Apply(BIND([] {
             return NIO::TIOCounters{};
         }));
@@ -682,6 +683,7 @@ void TBlobSession::PreparePutBlocks(
     const auto& memoryTracker = Location_->GetWriteMemoryTracker();
 
     std::vector<int> receivedBlockIndexes;
+    i64 totalSize = 0;
     for (int localIndex = 0; localIndex < std::ssize(blocks); ++localIndex) {
         int blockIndex = startBlockIndex + localIndex;
         auto& block = blocks[localIndex];
@@ -742,7 +744,6 @@ void TBlobSession::PreparePutBlocks(
 
                 // Track memory per location - without memory tracker.
                 slot.LocationMemoryGuard = Location_->AcquireLocationMemory(
-                    /*useLegacyUsedMemory*/ true,
                     /*memoryGuard*/ {},
                     EIODirection::Write,
                     Options_.WorkloadDescriptor,
@@ -772,11 +773,11 @@ void TBlobSession::PreparePutBlocks(
             }
 
             Location_->UpdateUsedSpace(block.Size());
+            totalSize += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
         }
     }
 
-    auto totalSize = GetByteSize(blocks);
     TotalByteSize_.fetch_add(totalSize);
 
     YT_LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v, TotalSize: %v)",
@@ -898,7 +899,8 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
     int firstBlockIndex,
     int blockCount,
     i64 cumulativeBlockSize,
-    i64 ioConsumed,
+    std::optional<i64> ioConsumed,
+    std::optional<double> ioFairShareWeight,
     TDuration requestTimeout,
     bool instantReplyOnThrottling,
     const TNodeDescriptor& targetDescriptor)
@@ -919,7 +921,8 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
     ToProto(req->mutable_session_id(), SessionId_);
     req->set_first_block_index(firstBlockIndex);
     req->set_cumulative_block_size(cumulativeBlockSize);
-    req->set_io_consumed(ioConsumed);
+    YT_OPTIONAL_SET_PROTO(req, io_fair_share_weight, ioFairShareWeight);
+    YT_OPTIONAL_SET_PROTO(req, io_consumed, ioConsumed);
 
     i64 requestSize = 0;
 

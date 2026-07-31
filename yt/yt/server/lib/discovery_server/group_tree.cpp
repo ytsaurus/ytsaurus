@@ -10,8 +10,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/yt/ytlib/discovery_client/helpers.h>
-#include <yt/yt/ytlib/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/public.h>
 
 #include <library/cpp/yt/logging/logger.h>
 #include <library/cpp/yt/threading/rw_spin_lock.h>

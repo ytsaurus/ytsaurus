@@ -197,7 +197,7 @@ protected:
 TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
 {
     auto config = TGpuInfoProviderConfig(EGpuInfoProviderType::NvGpuManager);
-    auto nvManagerConfig = config.TryGetConcrete<EGpuInfoProviderType::NvGpuManager>();
+    auto nvManagerConfig = config.GetConcrete<EGpuInfoProviderType::NvGpuManager>();
     nvManagerConfig->Address = Address_;
     nvManagerConfig->ServiceName = ServiceName;
     nvManagerConfig->Channel->RetryBackoffTime = TDuration::MilliSeconds(500);
@@ -266,7 +266,7 @@ TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
 TEST_F(TNvManagerGpuInfoProviderTest, SimpleRdmaDeviceInfo)
 {
     auto config = TGpuInfoProviderConfig(EGpuInfoProviderType::NvGpuManager);
-    auto nvManagerConfig = config.TryGetConcrete<EGpuInfoProviderType::NvGpuManager>();
+    auto nvManagerConfig = config.GetConcrete<EGpuInfoProviderType::NvGpuManager>();
     nvManagerConfig->Address = Address_;
     nvManagerConfig->ServiceName = ServiceName;
     nvManagerConfig->GpuIndexesFromNvidiaSmi = false;

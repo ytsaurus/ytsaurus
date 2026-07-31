@@ -34,7 +34,7 @@ target_link_libraries(library-cpp-computation PUBLIC
   cpp-containers-insert_only_concurrent_cache
   library-cpp-iterator
   cpp-yt-misc
-  flow-lib-serializer
+  library-cpp-serializer
   library-query-base
   library-query-engine_api
   library-cpp-common
@@ -95,7 +95,7 @@ target_link_libraries(library-cpp-computation.global PUBLIC
   cpp-containers-insert_only_concurrent_cache
   library-cpp-iterator
   cpp-yt-misc
-  flow-lib-serializer
+  library-cpp-serializer
   library-query-base
   library-query-engine_api
   library-cpp-common

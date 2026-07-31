@@ -29,11 +29,16 @@ on:
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
+permissions:
+  contents: read
+
 jobs:
 
   notify-start:
     name: Notify PR start
     runs-on: trampoline
+    permissions:
+      issues: write
     outputs:
       comment-id: ${{ steps.notify-pr.outputs.comment-id }}
     steps:
@@ -90,43 +95,36 @@ jobs:
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Checkout ytsaurus
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.commit-sha }}
           fetch-depth: 2
           path: ytsaurus
+          allow-unsafe-pr-checkout: true
 
   build-strawberry:
     name: Build Strawberry controller
-    needs:
-      - start-vm
-      - checkout
+    permissions:
+      contents: read
     with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-strawberry: true
-      build-types: '["release"]'
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
+      runs-on-value: ubuntu-latest
+      checkout-ref: ${{ inputs.commit-sha }}
+    uses: ./.github/workflows/strawberry-action.yaml
 
-  build-cmake:
-    name: Build with cmake
+  build-check-cmake:
+    name: CMake build and check
     needs:
       - start-vm
       - checkout
-      - build-strawberry
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      build-ytsaurus: true
       build-chyt: ${{ github.ref_name == 'main' }}
-      build-python: true
-      build-types: '["release"]'
+      build-types: '["relwithdebinfo"]'
+      run-unittests: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
+    uses: ./.github/workflows/cmake-action.yaml
 
   build-ya-make:
     name: Build with ya-make
@@ -140,7 +138,7 @@ jobs:
       build-ytsaurus-tests: true
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
-      build-types: '["release"]'
+      build-types: '["relwithdebinfo"]'
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -150,11 +148,13 @@ jobs:
     name: PR tests
     needs:
       - start-vm
-      - build-strawberry
       - build-ya-make
       - notify-start
       - checkout
     if: ${{ needs.build-ya-make.result == 'success' }}
+    permissions:
+      contents: read
+      issues: write
     uses: ./.github/workflows/pr-tests.yaml
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
@@ -171,9 +171,11 @@ jobs:
       - run-tests
       - start-vm
       - build-ya-make
-      - build-cmake
+      - build-check-cmake
       - build-strawberry
     runs-on: trampoline
+    permissions:
+      issues: write
     if: ${{ always() }}
     steps:
       - name: Notify PR
@@ -183,7 +185,7 @@ jobs:
             const current_time = new Date().toLocaleString("ru-RU");
             const message = 'PR autocheck finished.\nStatuses:\n'
             const strawberry_status = 'Strawberry controller: ' + '${{ needs.build-strawberry.result }}' + '\n';
-            const cmake_status = 'CMake build: ' + '${{ needs.build-cmake.result }}' + '\n';
+            const cmake_status = 'CMake build+check: ' + '${{ needs.build-check-cmake.result }}' + '\n';
             const ya_make_status = 'Ya-make build: ' + '${{ needs.build-ya-make.result }}' + '\n';
             const tests_status = 'Tests: ' + '${{ needs.run-tests.result }}' + '\n';
             const comment = await github.rest.issues.getComment({
@@ -205,7 +207,7 @@ jobs:
     needs:
       - start-vm
       - build-ya-make
-      - build-cmake
+      - build-check-cmake
       - run-tests
       - notify-finish
     runs-on: trampoline

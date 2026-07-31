@@ -959,8 +959,8 @@ TSortedDynamicStore::TSortedDynamicStore(
         RowBuffer_->GetPool(),
         RowKeyComparer_))
     , RevisionProvider_(tablet->GetSerializationType() == ETabletTransactionSerializationType::Coarse
-        ? static_cast<IRevisionProviderPtr>(New<TTwoLevelRevisionProvider>())
-        : static_cast<IRevisionProviderPtr>(New<TThreeLevelRevisionProvider>()))
+        ? CreateTwoLevelRevisionProvider()
+        : CreateThreeLevelRevisionProvider())
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 

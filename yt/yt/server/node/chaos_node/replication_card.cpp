@@ -94,10 +94,7 @@ void TReplicationCard::Load(TLoadContext& context)
             Load(context, AwaitingCollocationId_);
         }
         // COMPAT(sabdenovch)
-        if (context.GetVersion() >= EChaosReign::SecondaryIndices ||
-            context.GetVersion() < EChaosReign::Start_26_2 &&
-            context.GetVersion() >= EChaosReign::SecondaryIndices_26_1)
-        {
+        if (context.GetVersion() >= EChaosReign::SecondaryIndices) {
             Load(context, SecondaryIndices_);
             Load(context, IndexTo_);
             if (context.GetVersion() >= EChaosReign::SecondaryIndexTransitionStates) {

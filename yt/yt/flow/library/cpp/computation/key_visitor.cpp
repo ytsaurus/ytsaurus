@@ -26,10 +26,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr TDuration BackgroundFillIdlePeriod = TDuration::MilliSeconds(50);
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 ui64 GetRangeHashLength(const TKeyRange& range)
@@ -114,7 +110,7 @@ TFuture<void> TKeyVisitor::Init()
         BackgroundFillExecutor_ = New<TPeriodicExecutor>(
             Context_->SerializedInvoker,
             BIND(&TKeyVisitor::RunBackgroundFillIteration, MakeWeak(this)),
-            BackgroundFillIdlePeriod);
+            DynamicContext_->DynamicSpec->BackgroundFillPeriod);
         BackgroundFillExecutor_->Start();
     })
         .AsyncVia(Context_->SerializedInvoker)
@@ -135,12 +131,29 @@ void TKeyVisitor::Reconfigure(TDynamicKeyVisitorContextPtr dynamicContext)
     YT_VERIFY(dynamicContext);
     DynamicContext_ = std::move(dynamicContext);
     Throttler_->Reconfigure(BuildThrottlerConfig());
+    if (BackgroundFillExecutor_) {
+        BackgroundFillExecutor_->SetPeriod(DynamicContext_->DynamicSpec->BackgroundFillPeriod);
+    }
 }
 
 void TKeyVisitor::SetUpstreamCompleted()
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->SerializedInvoker);
+    if (!DynamicContext_->DynamicSpec->Finite) {
+        // Dropped, not just ignored: a rotation must not inherit a signal taken back.
+        UpstreamCompleted_ = false;
+        return;
+    }
+    if (UpstreamCompleted_) {
+        return;
+    }
     UpstreamCompleted_ = true;
+    // A pass that has swept nothing yet began at or after the completion moment, so it can
+    // be the final one; a pass already in flight is left to finish and the rotation marks
+    // the next one instead — unless the caller waived that guarantee.
+    if (Store_->HasCurrentPassSweptNothing() || !DynamicContext_->DynamicSpec->FullFinalPass) {
+        Store_->MarkCurrentPassFinal();
+    }
     if (BackgroundFillExecutor_) {
         BackgroundFillExecutor_->ScheduleOutOfBand();
     }
@@ -358,9 +371,10 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
             }
             if (!joiner->IsVisitorDriven()) {
                 if (NonVisitorJoinerWarned_.insert(name).second) {
-                    YT_LOG_WARNING("Joiner %Qv referenced by key_visitor_stream external_names is "
-                        "not visitor-driven and will not be swept",
-                        name);
+                    YT_TLOG_WARNING(
+                        "Joiner referenced by key_visitor_stream external_names is "
+                        "not visitor-driven and will not be swept")
+                        .With("Joiner", name, "%Qv");
                 }
                 continue;
             }

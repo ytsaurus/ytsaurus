@@ -8,6 +8,9 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 
@@ -63,6 +66,18 @@ std::vector<TSharedRef> MakeRandomBlocks(int count, i64 blockSize)
     return blocks;
 }
 
+ITransactionPtr StartDeviceTransaction(const NNative::IClientPtr& client)
+{
+    const auto& connection = client->GetNativeConnection();
+    WaitFor(connection->GetMasterCellDirectorySynchronizer()->RecentSync())
+        .ThrowOnError();
+    TTransactionStartOptions options;
+    options.CoordinatorMasterCellTag = connection->GetRandomMasterCellTagWithRoleOrThrow(
+        NCellMasterClient::EMasterCellRole::ChunkHost);
+    return WaitFor(client->StartTransaction(ETransactionType::Master, options))
+        .ValueOrThrow();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockStoreTest
@@ -77,8 +92,7 @@ protected:
     {
         NativeClient_ = DynamicPointerCast<NNative::IClient>(Client_);
         ActionQueue_ = New<TActionQueue>("BlockStoreTest");
-        Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master))
-            .ValueOrThrow();
+        Transaction_ = StartDeviceTransaction(NativeClient_);
     }
 
     void TearDown() override
@@ -258,6 +272,66 @@ TEST_F(TBlockStoreTest, ChunkRotationOnDataSizeLimit)
     // The oversized chunks were retired, so the batches landed in more than one chunk.
     EXPECT_GT(std::ssize(chunkIndexes), 1);
     ExpectBlocksEqual(allBlocks, ReadBlocks(store, allIds));
+}
+
+TEST_F(TBlockStoreTest, FreeDropUnstagesFullyDeadChunk)
+{
+    // Staged under the transaction alone (no chunk list), so unstaging a fully-dead chunk destroys it.
+    constexpr i64 BlockSize = 4096;
+    auto config = CreateConfig(BlockSize);
+    config->BlockStore->WriteParallelism = 1;
+    config->BlockStore->MaxChunkDataSize = 2 * BlockSize;
+    config->BlockStore->ChunkMaintenancePeriod = TDuration::MilliSeconds(200);
+    config->BlockStore->DeadChunkRetentionDelay = TDuration::Zero();
+    auto store = CreateStore(config, CreateOptions());
+
+    auto blocks = MakeRandomBlocks(2, BlockSize);
+    auto blockIds = WriteBlocks(store, blocks);
+
+    auto refs = store->GetBlockRefs(blockIds);
+    auto chunkId = refs[0].ChunkId;
+    for (const auto& ref : refs) {
+        ASSERT_EQ(ref.ChunkId, chunkId);
+    }
+
+    auto chunkPath = "#" + ToString(chunkId);
+    ASSERT_TRUE(WaitFor(NativeClient_->NodeExists(chunkPath)).ValueOrThrow());
+
+    for (auto blockId : blockIds) {
+        store->ReleaseBlock(blockId);
+    }
+
+    bool destroyed = false;
+    for (int attempt = 0; attempt < 150; ++attempt) {
+        if (!WaitFor(NativeClient_->NodeExists(chunkPath)).ValueOrThrow()) {
+            destroyed = true;
+            break;
+        }
+        Sleep(TDuration::MilliSeconds(200));
+    }
+    EXPECT_TRUE(destroyed) << "dead chunk " << chunkPath << " was not unstaged";
+}
+
+TEST_F(TBlockStoreTest, FreeDropKeepsChunkWithLiveBlock)
+{
+    constexpr i64 BlockSize = 4096;
+    auto config = CreateConfig(BlockSize);
+    config->BlockStore->WriteParallelism = 1;
+    config->BlockStore->MaxChunkDataSize = 2 * BlockSize;
+    config->BlockStore->ChunkMaintenancePeriod = TDuration::MilliSeconds(200);
+    config->BlockStore->DeadChunkRetentionDelay = TDuration::Zero();
+    auto store = CreateStore(config, CreateOptions());
+
+    auto blocks = MakeRandomBlocks(2, BlockSize);
+    auto blockIds = WriteBlocks(store, blocks);
+    auto chunkId = store->GetBlockRefs(blockIds)[0].ChunkId;
+    auto chunkPath = "#" + ToString(chunkId);
+
+    store->ReleaseBlock(blockIds[0]);
+
+    Sleep(TDuration::Seconds(2));
+    ASSERT_TRUE(WaitFor(NativeClient_->NodeExists(chunkPath)).ValueOrThrow());
+    ExpectBlocksEqual({blocks[1]}, ReadBlocks(store, {blockIds[1]}));
 }
 
 TEST_F(TBlockStoreTest, EmptyWrite)

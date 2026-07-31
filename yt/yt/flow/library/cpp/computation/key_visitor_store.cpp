@@ -193,7 +193,10 @@ TFuture<void> TKeyVisitorStore::Init()
             try {
                 parsed = ConvertTo<TKeyVisitorIntervalPtr>(value);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to parse persisted key_visitor interval row, skipping (Key: %v, IsLower: %v)", tableKey.Key, tableKey.IsLower);
+                YT_TLOG_WARNING("Failed to parse persisted key_visitor interval row, skipping")
+                    .With("Key", tableKey.Key)
+                    .With("IsLower", tableKey.IsLower)
+                    .With(ex);
                 continue;
             }
             RemoteIntervals_.emplace(std::pair(tableKey.Key, tableKey.IsLower), std::move(parsed));
@@ -331,6 +334,36 @@ bool TKeyVisitorStore::IsCurrentPassFinal() const
         return false;
     }
     return Buckets_.front().Intervals.front().Interval->FinalPass;
+}
+
+bool TKeyVisitorStore::HasCurrentPassSweptNothing() const
+{
+    for (const auto& bucket : Buckets_) {
+        for (const auto& slot : bucket.Intervals) {
+            if (slot.State != EIntervalState::Pending) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+void TKeyVisitorStore::MarkCurrentPassFinal()
+{
+    // Replace rather than mutate: RemoteIntervals_ holds the very objects the buckets hold,
+    // so Sync's value diff would compare an interval against itself and never write the
+    // marker out. Flipping every interval at once also keeps CoalesceInplace happy, which
+    // merges only neighbours that agree on FinalPass.
+    for (auto& bucket : Buckets_) {
+        for (auto& slot : bucket.Intervals) {
+            if (slot.Interval->FinalPass) {
+                continue;
+            }
+            auto updated = NYTree::CloneYsonStruct(slot.Interval);
+            updated->FinalPass = true;
+            slot.Interval = std::move(updated);
+        }
+    }
 }
 
 const std::vector<TKeyVisitorStore::TBucket>& TKeyVisitorStore::GetBuckets() const

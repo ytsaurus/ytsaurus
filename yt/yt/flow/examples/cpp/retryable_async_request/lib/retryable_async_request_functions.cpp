@@ -103,9 +103,9 @@ void TRequestProcessor::TryRequest(
     if (!IsRequestSuccessful(state->Request->RequestId, state->FailedAttempts)) {
         state->FailedAttempts += 1;
         output->AddTimer(GetNextAttempt(context));
-        YT_LOG_DEBUG("Failed request (RequestId: %v, FailedAttempts: %v)",
-            state->Request->RequestId,
-            state->FailedAttempts);
+        YT_TLOG_DEBUG("Failed request")
+            .With("RequestId", state->Request->RequestId)
+            .With("FailedAttempts", state->FailedAttempts);
         return;
     }
 
@@ -113,9 +113,9 @@ void TRequestProcessor::TryRequest(
     response->RequestId = state->Request->RequestId;
     response->Key = state->Request->Key;
     response->Length = std::ssize(state->Request->Request);
-    YT_LOG_DEBUG("Processed request (RequestId: %v, FailedAttempts: %v)",
-        state->Request->RequestId,
-        state->FailedAttempts);
+    YT_TLOG_DEBUG("Processed request")
+        .With("RequestId", state->Request->RequestId)
+        .With("FailedAttempts", state->FailedAttempts);
     state.Clear();
     output->AddMessage(context->ConvertToMessage(response));
 }
@@ -142,10 +142,12 @@ void TStateKeeper::ProcessMessage(
         request->Key = event->Key;
         request->Request = event->Data;
         output->AddMessage(context->ConvertToMessage(request));
-        YT_LOG_DEBUG("Send request (RequestId: %v)", request->RequestId);
+        YT_TLOG_DEBUG("Send request")
+            .With("RequestId", request->RequestId);
     } else if (message->StreamId == "response") {
         auto response = context->ConvertToYsonMessage<TResponseMessage>(message);
-        YT_LOG_DEBUG("Received response (RequestId: %v)", response->RequestId);
+        YT_TLOG_DEBUG("Received response")
+            .With("RequestId", response->RequestId);
         auto state = StateClient_.GetState(message->Key);
         i64 totalLength = state->GetColumnValue<std::optional<i64>>("total_length").value_or(0);
         totalLength += response->Length;

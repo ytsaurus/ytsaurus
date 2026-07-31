@@ -40,7 +40,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/misc/heap.h>
-#include <yt/yt/core/misc/ring_queue.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 #include <util/generic/cast.h>
 
@@ -114,7 +115,7 @@ public:
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(host->GetAutomatonInvoker(), AutomatonThread);
 
-        Logger = TabletNodeLogger().WithTag("CellId: %v", host->GetCellId());
+        Logger = TabletNodeLogger().WithTag("CellId", host->GetCellId());
 
         YT_LOG_INFO("Set transaction manager clock cluster tag (ClockClusterTag: %v)",
             ClockClusterTag_);

@@ -38,6 +38,7 @@ public:
                 auto result = TGlobalUniqueSeqNo{
                     .Timestamp = TSystemTimestamp(NTransactionClient::UnixTimeFromTimestamp(timestamp)),
                     .UniqueSeqNo = TUniqueSeqNo(timestamp)};
+                UpdateSeqNoRange(result.UniqueSeqNo.Underlying());
                 UpdateCachedTimestamp(result.Timestamp);
                 return result;
             }));
@@ -84,13 +85,27 @@ private:
     const TDuration TimestampCacheTtl_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SeqNoLock_);
-    i64 CurrentSeqNo_ = 0;
-    i64 MaxSeqNo_ = 0;
-    TInstant LastSeqNoUpdate_ = TInstant::Zero();
+    mutable i64 CurrentSeqNo_ = 0;
+    mutable i64 MaxSeqNo_ = 0;
+    mutable TInstant LastSeqNoUpdate_ = TInstant::Zero();
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TimestampCacheLock_);
     mutable TSystemTimestamp CachedTimestamp_ = ZeroSystemTimestamp;
     mutable TInstant CachedTimestampGeneratedAt_ = TInstant::Zero();
+
+    void UpdateSeqNoRange(i64 newMax) const
+    {
+        auto guard = Guard(SeqNoLock_);
+        if (MaxSeqNo_ == 0) {
+            return;
+        }
+        MaxSeqNo_ = std::max(MaxSeqNo_, newMax);
+        if (CurrentSeqNo_ < MaxSeqNo_) {
+            YT_VERIFY(MaxSeqNo_ > MaxSeqNoHeadroom);
+            CurrentSeqNo_ = std::max(CurrentSeqNo_, MaxSeqNo_ - MaxSeqNoHeadroom);
+            LastSeqNoUpdate_ = TInstant::Now();
+        }
+    }
 
     void UpdateCachedTimestamp(TSystemTimestamp timestamp) const
     {
@@ -180,6 +195,34 @@ ITimeProviderPtr CreateRetryingTimeProvider(
     retryableClient->Reconfigure(spec);
 
     return New<TTimeProvider>(retryableClient->GetTimestampProvider(), clockClusterTag, DefaultTimestampCacheTtl);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+class TVersionProvider
+    : public IVersionProvider
+{
+public:
+    explicit TVersionProvider(ITimeProviderPtr timeProvider)
+        : TimeProvider_(std::move(timeProvider))
+    { }
+
+    TVersion GenerateVersion() override
+    {
+        return TVersion(TimeProvider_->GenerateSeqNo());
+    }
+
+private:
+    const ITimeProviderPtr TimeProvider_;
+};
+
+} // namespace
+
+IVersionProviderPtr CreateVersionProvider(ITimeProviderPtr timeProvider)
+{
+    return New<TVersionProvider>(std::move(timeProvider));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

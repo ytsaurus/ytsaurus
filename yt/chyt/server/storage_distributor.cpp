@@ -1611,6 +1611,13 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
             }
             keyColumns.emplace_back(identifier->getColumnName());
         }
+
+        DB::Names columnNames = args.columns.getNamesOfPhysical();
+        if (args.query.select != nullptr && std::mismatch(keyColumns.begin(), keyColumns.end(), columnNames.begin(), columnNames.end()).first != keyColumns.end()) {
+            THROW_ERROR_EXCEPTION("The sorting key columns must be a prefix of the schema")
+                << TErrorAttribute("key_columns", keyColumns)
+                << TErrorAttribute("table_columns", columnNames);
+        }
     }
 
     TRichYPath path = TRichYPath::Parse(TString(args.relative_data_path));

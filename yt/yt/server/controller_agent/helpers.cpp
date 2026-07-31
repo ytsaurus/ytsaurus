@@ -823,11 +823,11 @@ void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
     if (spec->DeprecatedDiskRequest) {
         if (spec->DeprecatedDiskRequest->NbdDisk) {
             newRootVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
-            const auto& diskRequest = newRootVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::Nbd>();
+            const auto& diskRequest = newRootVolume->DiskRequest->GetConcrete<NExecNode::EVolumeType::Nbd>();
             *diskRequest = spec->DeprecatedDiskRequest;
         } else {
             newRootVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
-            const auto& diskRequest = newRootVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
+            const auto& diskRequest = newRootVolume->DiskRequest->GetConcrete<NExecNode::EVolumeType::LocalDisk>();
             *diskRequest = spec->DeprecatedDiskRequest;
         }
     }
@@ -890,7 +890,7 @@ void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
 
     if (spec->DiskSpaceLimit) {
         newRootVolume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
-        const auto& diskRequest = newRootVolume->DiskRequest->TryGetConcrete<NExecNode::EVolumeType::LocalDisk>();
+        const auto& diskRequest = newRootVolume->DiskRequest->GetConcrete<NExecNode::EVolumeType::LocalDisk>();
 
         diskRequest->DiskSpace = *spec->DiskSpaceLimit;
         diskRequest->InodeCount = spec->InodeLimit;
@@ -967,14 +967,14 @@ void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
         }
 
         if (rootVolumeIds.contains(volumeId)) {
-            if (volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+            if (volume->DiskRequest->GetType() == NExecNode::EVolumeType::Tmpfs) {
                 THROW_ERROR_EXCEPTION("Root tmpfs are not supported")
                     << TErrorAttribute("volumes", spec->Volumes);
             }
             continue;
         }
 
-        if (auto volumeType = volume->DiskRequest->GetCurrentType(); volumeType == NExecNode::EVolumeType::Nbd) {
+        if (auto volumeType = volume->DiskRequest->GetType(); volumeType == NExecNode::EVolumeType::Nbd) {
             hasNonRootNbdVolume = true;
         }
     }
@@ -986,7 +986,7 @@ void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
             continue;
         }
         // COMPAT (krasovav)
-        volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()->TmpfsIndex = tmpfsVolumeIndex++;
+        volume->DiskRequest->GetConcrete<TTmpfsStorageRequest>()->TmpfsIndex = tmpfsVolumeIndex++;
     }
 
     std::vector<std::string> sidecarNames;
@@ -1000,11 +1000,11 @@ void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
         const auto& sidecar = GetOrCrash(spec->Sidecars, sidecarName);
         for (const auto& volumeMount : sidecar->SidecarVolumeMounts) {
             auto& volume = GetOrCrash(spec->Volumes, volumeMount->VolumeId);
-            if (!IsDiskRequestTmpfs(volume->DiskRequest) || volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()->TmpfsIndex) {
+            if (!IsDiskRequestTmpfs(volume->DiskRequest) || volume->DiskRequest->GetConcrete<TTmpfsStorageRequest>()->TmpfsIndex) {
                 continue;
             }
             // COMPAT (krasovav)
-            volume->DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()->TmpfsIndex = tmpfsVolumeIndex++;
+            volume->DiskRequest->GetConcrete<TTmpfsStorageRequest>()->TmpfsIndex = tmpfsVolumeIndex++;
         }
     }
 

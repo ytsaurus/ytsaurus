@@ -41,7 +41,7 @@ TChunkReaderBase::TChunkReaderBase(
     , ChunkReadOptions_(chunkReadOptions)
     , TraceContext_(CreateTraceContextFromCurrent("ChunkReader"))
     , FinishGuard_(TraceContext_)
-    , Logger(TableClientLogger().WithTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
+    , Logger(TableClientLogger().WithTag("ChunkId", UnderlyingReader_->GetChunkId()))
 {
     if (memoryManagerHolder) {
         MemoryManagerHolder_ = memoryManagerHolder;
@@ -52,7 +52,7 @@ TChunkReaderBase::TChunkReaderBase(
     MemoryManagerHolder_->Get()->AddReadSessionInfo(ChunkReadOptions_.ReadSessionId);
 
     if (ChunkReadOptions_.ReadSessionId) {
-        Logger.AddTag("ReadSessionId: %v", ChunkReadOptions_.ReadSessionId);
+        Logger.AddTag("ReadSessionId", ChunkReadOptions_.ReadSessionId);
     }
 }
 

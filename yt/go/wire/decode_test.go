@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"testing"
@@ -346,6 +347,34 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 			}
 		})
 	}
+}
+
+// textOrYSONString implements both yson.Unmarshaler and encoding.TextUnmarshaler.
+type textOrYSONString string
+
+// UnmarshalYSON intentionally returns error.
+func (s *textOrYSONString) UnmarshalYSON(data []byte) error {
+	return fmt.Errorf("some error")
+}
+
+func (s *textOrYSONString) UnmarshalText(data []byte) error {
+	*s = textOrYSONString(data)
+	return nil
+}
+
+func TestDecoder_TypeBytesPrefersTextUnmarshaler(t *testing.T) {
+	const guid = "55b5bba0-a41216a7-f24e2a37-cd6a0a7f"
+
+	type row struct {
+		ID textOrYSONString `yson:"id"`
+	}
+
+	d := NewDecoder(NameTable{{Name: "id"}}, nil)
+
+	var out row
+	err := d.UnmarshalRow(Row{NewBytes(0, []byte(guid))}, &out)
+	require.NoError(t, err, "should not call UnmarshalYSON")
+	require.Equal(t, textOrYSONString(guid), out.ID, "should call UnmarshalText")
 }
 
 func TestDecoder_CompositeTypes(t *testing.T) {

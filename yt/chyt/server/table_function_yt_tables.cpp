@@ -167,7 +167,9 @@ public:
             }
 
             if (TablePaths_.size() > maxPaths) {
-                THROW_ERROR_EXCEPTION("Too many tables to read in ytTables (MaxTables: %v)", maxPaths);
+                THROW_ERROR_EXCEPTION("Too many tables to read in ytTables: up to %v tables allowed, %v given",
+                    maxPaths,
+                    TablePaths_.size());
             }
         }
     }

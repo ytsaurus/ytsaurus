@@ -21,101 +21,58 @@ struct IRuntimeInitContext
 {
 public:
     template <class TStateHolder>
-    TFuture<TMutableStateKeyClient<TStateHolder>> CreateMutableStateKeyClient(TStringBuf name) const
-    {
-        return WithPrefix(name)->CreateMutableStateKeyClient<TStateHolder>();
-    }
+    TFuture<TMutableStateKeyClient<TStateHolder>> CreateMutableStateKeyClient(TStringBuf name) const;
 
     template <class TStateHolder>
-    TFuture<TMutableStateKeyClient<TStateHolder>> CreateMutableStateKeyClient() const
-    {
-        return CreateMutableStateKeyProvider(&New<TYsonSerializableStateHolder<TStateHolder>>)
-            .AsUnique()
-            .Apply(BIND([] (TErrorOr<IMutableStateKeyProviderPtr>&& result) {
-                return TMutableStateKeyClient<TStateHolder>(std::move(result.ValueOrThrow()));
-            }));
-    }
+    TFuture<TMutableStateKeyClient<TStateHolder>> CreateMutableStateKeyClient() const;
 
     template <class TStateHolder>
-    void InitClient(TMutableStateKeyClient<TStateHolder>& client) const
-    {
-        client = NConcurrency::WaitFor(CreateMutableStateKeyClient<TStateHolder>()).ValueOrThrow();
-    }
+    void InitClient(TMutableStateKeyClient<TStateHolder>& client) const;
 
     template <class TStateHolder>
-    void InitClient(TMutableStateKeyClient<TStateHolder>& client, TStringBuf name) const
-    {
-        WithPrefix(name)->InitClient<TStateHolder>(client);
-    }
+    void InitClient(TMutableStateKeyClient<TStateHolder>& client, TStringBuf name) const;
 
     //! Read-only join over another computation's internal state, declared in
     //! ``TComputationSpec::StateJoiners[GetPrefix()]``. ``TStateHolder`` must match the target
     //! computation's state type.
     template <class TStateHolder>
-    TFuture<TJoinedStateKeyClient<TStateHolder>> CreateJoinedStateKeyClient() const
-    {
-        return CreateJoinedStateKeyProvider(&New<TYsonSerializableStateHolder<TStateHolder>>)
-            .AsUnique()
-            .Apply(BIND([] (TErrorOr<IJoinedStateKeyProviderPtr>&& result) {
-                return TJoinedStateKeyClient<TStateHolder>(std::move(result.ValueOrThrow()));
-            }));
-    }
+    TFuture<TJoinedStateKeyClient<TStateHolder>> CreateJoinedStateKeyClient() const;
 
     template <class TStateHolder>
-    void InitClient(TJoinedStateKeyClient<TStateHolder>& client) const
-    {
-        client = NConcurrency::WaitFor(CreateJoinedStateKeyClient<TStateHolder>()).ValueOrThrow();
-    }
+    void InitClient(TJoinedStateKeyClient<TStateHolder>& client) const;
 
     template <class TStateHolder>
-    void InitClient(TJoinedStateKeyClient<TStateHolder>& client, TStringBuf name) const
-    {
-        WithPrefix(name)->InitClient<TStateHolder>(client);
-    }
+    void InitClient(TJoinedStateKeyClient<TStateHolder>& client, TStringBuf name) const;
 
     //! Looks up an external state manager declared in
     //! ``TComputationSpec::ExternalStateManagers[GetPrefix()]`` and wraps it in a typed key
     //! client. Throws if the prefix is not declared, or if the registered state class does
     //! not match ``TStateHolder``.
     template <class TStateHolder>
-    void InitExternalStateClient(TMutableStateKeyClient<TStateHolder>& client) const
-    {
-        auto manager = GetExternalStateManagerOrThrow(GetPrefix());
-        manager->ValidateStateClass(typeid(TStateHolder));
-        client = TMutableStateKeyClient<TStateHolder>(std::move(manager));
-    }
+    void InitExternalStateClient(TMutableStateKeyClient<TStateHolder>& client) const;
 
     template <class TStateHolder>
-    void InitExternalStateClient(TJoinedStateKeyClient<TStateHolder>& client) const
-    {
-        auto joiner = GetExternalStateJoinerOrThrow(GetPrefix());
-        joiner->ValidateStateClass(typeid(TStateHolder));
-        client = TJoinedStateKeyClient<TStateHolder>(std::move(joiner));
-    }
+    void InitExternalStateClient(TJoinedStateKeyClient<TStateHolder>& client) const;
 
     template <class TStateHolder>
-    void InitExternalStateClient(TMutableStateKeyClient<TStateHolder>& client, TStringBuf name) const
-    {
-        WithPrefix(name)->InitExternalStateClient<TStateHolder>(client);
-    }
+    void InitExternalStateClient(TMutableStateKeyClient<TStateHolder>& client, TStringBuf name) const;
 
     template <class TStateHolder>
-    void InitExternalStateClient(TJoinedStateKeyClient<TStateHolder>& client, TStringBuf name) const
-    {
-        WithPrefix(name)->InitExternalStateClient<TStateHolder>(client);
-    }
+    void InitExternalStateClient(TJoinedStateKeyClient<TStateHolder>& client, TStringBuf name) const;
 
     //! Deserializes the static ``function_parameters`` block of the computation spec into
     //! the user's YSON struct |T| (defaults applied if the block is absent).
     template <class T>
-    TIntrusivePtr<T> GetParameters() const
-    {
-        return NYTree::ConvertTo<TIntrusivePtr<T>>(GetParametersNode());
-    }
+    TIntrusivePtr<T> GetParameters() const;
 
     //! Raw ``function_parameters`` map from the static computation spec (never null; an empty
     //! map when the block is absent). Prefer the typed GetParameters<T>() helper.
     virtual NYTree::IMapNodePtr GetParametersNode() const = 0;
+
+    //! Returns a resource the hosting computation declared in its
+    //! ``required_resource_ids`` (worker side). Throws if the resource is not found there.
+    //! String literals convert implicitly (TResourceId is a semi-strong typedef).
+    virtual IResourcePtr GetStaticResource(const TResourceId& resourceId) const = 0;
 
     virtual TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;
     virtual TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;
@@ -136,3 +93,7 @@ DEFINE_REFCOUNTED_TYPE(IRuntimeInitContext)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
+
+#define RUNTIME_INIT_CONTEXT_INL_H_
+#include "runtime_init_context-inl.h"
+#undef RUNTIME_INIT_CONTEXT_INL_H_

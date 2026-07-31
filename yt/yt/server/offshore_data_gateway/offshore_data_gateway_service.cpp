@@ -285,11 +285,10 @@ private:
         auto mediumDescriptor = GetS3MediumDescriptor(sessionId.MediumIndex);
         auto s3Client = CreateS3ClientForMedium(mediumDescriptor);
 
-        auto writerConfig = New<TS3WriterConfig>();
         auto writer = NS3::CreateS3RegularChunkWriter(
             std::move(s3Client),
             mediumDescriptor,
-            std::move(writerConfig),
+            New<TS3WriterConfig>(),
             sessionId);
 
         WaitFor(writer->Open())

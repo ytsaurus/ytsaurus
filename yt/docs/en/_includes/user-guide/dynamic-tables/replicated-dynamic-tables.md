@@ -171,13 +171,15 @@ Asynchronous replication is possible without saving the start `timestamps`. To u
 1. You want to replicate data from multiple sources into one replica table.
 2. You want to manually change data in the replica table (patch, insert new data), bypassing the replication mechanism.
 
-### Automatic switching of the **synchronous** replica
+### Automatic switching of the synchronous replica {#sync-replica-switch}
 
 If the cluster on which the synchronous replica is located is unavailable, writing to the replicated dynamic table is stopped. To continue writing, the synchronous replica must be switched to another cluster. The {{product-name}} system can automatically switch a synchronous replica. To activate this feature, either create a replicated dynamic table with the `replicated_table_options={enable_replicated_table_tracker=%true}` attribute or add the specified attribute later using the `yt set` call. The {{product-name}} system will then monitor the table replicas and switch the synchronous replica to another cluster if necessary.
 
 There are two settings to specify the number of synchronous replicas: `min_sync_replica_count` and `max_sync_replica_count`. The automated system switches available replicas to synchronous mode, ensuring that there are no more than `max_sync_replica_count` synchronous replicas. The automated system also monitors that the number of synchronous replicas does not fall below `min_sync_replica_count`.
 If `min_sync_replica_count` and `max_sync_replica_count` are not specified, then both fields are equal to 1 by default. If only `min_sync_replica_count` is not specified, it will be equal to `max_sync_replica_count`. If only `max_sync_replica_count` is not specified, it will be equal to the total number of replicas. Thus, by default, the automated system supports exactly one synchronous replica.
 In case of chaos replication, there are special parameters (`min_sync_queue_replica_count` and `max_sync_queue_replica_count`) for replicas of type `queue`.
+
+The `sync_replica_lag_threshold` threshold determines when a lagging synchronous replica is considered unavailable: if the replica's lag exceeds the threshold, the automated system stops treating it as synchronous and switches to another replica if necessary. By default, the threshold is 10 minutes; 1 minute is recommended.
 
 There is a mode when the {{product-name}} system stops monitoring any table replica, but continues monitoring the remaining replicas. To enable this mode for a replica (`table_replica`), use the `yt set` call and set the `enable_replicated_table_tracker=%false` attribute.
 
@@ -331,9 +333,9 @@ All replicated tables are tables and they have a corresponding set of attributes
 | max_sync_queue_replica_count | integer | Similar to `max_sync_replica_count`, but for `queue` replicas (used in chaos replication). |
 | min_sync_queue_replica_count | integer | Similar to `min_sync_replica_count`, but for `queue` replicas (used in chaos replication). | |
 | preferred_sync_replica_clusters | list | List of preferred clusters for synchronous replicas |
-| sync_replica_lag_threshold | Duration | Maximum lag value up to which the replica is considered available. The default value is 10 minutes. This value may sometimes substantially prolong replication, in which case you should decrease it. |
+| sync_replica_lag_threshold | Duration | Maximum lag value up to which a synchronous replica is considered available. The default value is 10 minutes; the recommended value is 1 minute. |
 | enable_preload_state_check | bool | Whether to check the preload state of tables mounted in memory to see if they are available. The default value is `%false`. |
-| incomplete_preload_grace_period | Duration | When checking replica availability in terms of the preload state, the replica is considered available if the last preload was successfully completed no later than the value specified in this parameter. The default value is 5 minutes. This parameter is used to ensure that the short-term preload during tablet rebalancing does not interfere with the algorithm. |
+| incomplete_preload_grace_period | Duration | When checking replica availability in terms of the preload state, the replica is considered available if the last preload was successfully completed no later than the value specified in this parameter. The default value is 5 minutes. This parameter is used to ensure that the short-term preload during tablet rebalancing does not interfere with the algorithm. |
 
 Each replica is described by the `ReplicaInfo` dict with the following form:
 

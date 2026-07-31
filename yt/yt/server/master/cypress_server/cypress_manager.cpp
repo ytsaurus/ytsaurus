@@ -74,6 +74,7 @@
 
 #include <yt/yt/server/master/table_server/cypress_integration.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/replicated_table_node.h>
 #include <yt/yt/server/master/table_server/replicated_table_node_type_handler.h>
 #include <yt/yt/server/master/table_server/secondary_index.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
@@ -81,6 +82,7 @@
 #include <yt/yt/server/master/table_server/table_node_type_handler.h>
 
 #include <yt/yt/server/master/tablet_server/cypress_integration.h>
+#include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 #include <yt/yt/server/master/tablet_server/hunk_storage_node_type_handler.h>
 // COMPAT(shakurov)
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
@@ -167,6 +169,12 @@ static const INodeTypeHandlerPtr NullTypeHandler;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManager;
+
+DEFINE_ENUM(ELockCheckResult,
+    (Inconclusive)
+    (Conflict)
+    (OK)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1713,20 +1721,12 @@ public:
 
     bool CanLock(TCypressNode* trunkNode, const TLockRequest& request, bool recursive) override
     {
-        return CheckLock(
+        auto checkResult = CheckLock(
             trunkNode,
             /*transaction*/ nullptr,
             request,
-            recursive)
-            .IsOK();
-    }
-
-    TError CheckLock(
-        TCypressNode* trunkNode,
-        TTransaction* transaction,
-        const TLockRequest& lockRequest) override
-    {
-        return CheckLock(trunkNode, transaction, lockRequest, /*recursive*/ false);
+            recursive);
+        return std::holds_alternative<TCheckLockSuccess>(checkResult);
     }
 
     TError AcquirePrelock(
@@ -1735,13 +1735,21 @@ public:
         TCypressNode* trunkNode,
         const TLockRequest& request) override
     {
-        auto error = CheckLock(trunkNode, lockingTransaction, request);
-        if (error.IsOK()) {
-            const auto& prelockTracker = Bootstrap_->GetPrelockTracker();
-            prelockTracker->AcquirePrelockUnchecked(owningTransaction, lockingTransaction, trunkNode->GetId(), request);
-        }
+        auto checkResult = CheckLock(
+            trunkNode,
+            lockingTransaction,
+            request,
+            /*recursive*/ false);
 
-        return error;
+        return Visit(std::move(checkResult),
+            [&] (TCheckLockSuccess) {
+                const auto& prelockTracker = Bootstrap_->GetPrelockTracker();
+                prelockTracker->AcquirePrelockUnchecked(owningTransaction, lockingTransaction, trunkNode->GetId(), request);
+                return TError();
+            },
+            [&] (auto error) {
+                return std::move(error).Error;
+            });
     }
 
     TCypressNode* LockNode(
@@ -1757,8 +1765,13 @@ public:
         YT_VERIFY(!recursive || request.Key.Kind == ELockKeyKind::None);
         YT_VERIFY(!transaction || IsObjectAlive(transaction));
 
-        CheckLock(trunkNode, transaction, request, recursive)
-            .ThrowOnError();
+        auto checkResult = CheckLock(trunkNode, transaction, request, recursive);
+
+        Visit(std::move(checkResult),
+            [&] (TCheckLockSuccess) { },
+            [&] (auto error) {
+                THROW_ERROR std::move(error).Error;
+            });
 
         if (IsLockRedundant(trunkNode, transaction, request)) {
             return GetVersionedNode(trunkNode, transaction);
@@ -2102,7 +2115,7 @@ public:
     }
 
     //! Traverses a transaction tree. The root transaction does not have to be topmost.
-    template <CInvocable<void(TTransaction*)> F>
+    template <NMpl::CInvocable<void(TTransaction*)> F>
     void VisitTransactionTree(TTransaction* rootTransaction, F&& processTransaction)
     {
         // BFS queue.
@@ -2175,26 +2188,39 @@ public:
         }
 
         // Try to lock without waiting in the queue.
-        auto error = CheckLock(
+        auto checkResult = CheckLock(
             trunkNode,
             transaction,
             request,
-            false);
+            /*recursive*/ false);
 
-        // Is it OK?
-        if (error.IsOK()) {
-            auto* lock = DoCreateLock(trunkNode, transaction, request, false, lockIdHint);
-            auto* branchedNode = DoAcquireLock(lock);
-            return {lock, branchedNode};
-        }
-
-        // Should we wait?
-        if (!waitable || error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
-            THROW_ERROR error;
-        }
-
-        // Will wait.
-        return {DoCreateLock(trunkNode, transaction, request, false, lockIdHint), nullptr};
+        return Visit(std::move(checkResult),
+            // Is it OK?
+            [&] (TCheckLockSuccess) -> TCreateLockResult {
+                auto* lock = DoCreateLock(trunkNode, transaction, request, false, lockIdHint);
+                auto* branchedNode = DoAcquireLock(lock);
+                return {lock, branchedNode};
+            },
+            [&] (TCheckLockErrorConflict error) -> TCreateLockResult {
+                // Should we wait?
+                if (!waitable ||
+                    error.Error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) // TODO(ivpiskarev): remove after YT-28954.
+                {
+                    THROW_ERROR std::move(error).Error;
+                }
+                // Will wait.
+                return {DoCreateLock(trunkNode, transaction, request, false, lockIdHint), nullptr};
+            },
+            [&] (TCheckLockErrorTooManyLocks error) -> TCreateLockResult {
+                THROW_ERROR std::move(error).Error;
+            },
+            [&] (TCheckLockErrorInvalidLockRequest error) -> TCreateLockResult {
+                // TODO(ivpiskarev): disable waiting by default
+                if (!waitable) {
+                    THROW_ERROR std::move(error).Error;
+                }
+                return {DoCreateLock(trunkNode, transaction, request, false, lockIdHint), nullptr};
+            });
     }
 
     void SetModified(TCypressNode* node, EModificationType modificationType) override
@@ -2252,8 +2278,11 @@ public:
         Visit(time,
             [&] (TInstant time) {
                 auto* user = Bootstrap_->GetSecurityManager()->GetAuthenticatedUser();
+                auto* context = GetCurrentMutationContext();
+                auto armingTime = context->GetTimestamp();
+
                 auto expirationTimeProperties = TCypressNode::TExpirationTimePropertiesPtr(
-                    std::in_place, TUserPtr(user), time);
+                    std::in_place, TUserPtr(user), time, armingTime);
                 node->SetExpirationTimeProperties(std::move(expirationTimeProperties));
             },
             [&] (TSetExpirationResetTime) {
@@ -2270,7 +2299,7 @@ public:
 
         if (node->IsTrunk()) {
             Bootstrap_->GetExpirationTracker()
-                ->OnNodeExpirationTimeUpdated(node, oldExpirationTimeProperties);
+                ->OnNodeExpirationTimeUpdated(node, std::move(oldExpirationTimeProperties));
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
@@ -2283,7 +2312,7 @@ public:
 
 
         if (originatingNode->IsTrunk()) {
-            Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeUpdated(originatingNode, oldExpirationTime);
+            Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeUpdated(originatingNode, std::move(oldExpirationTime));
         }
     }
 
@@ -2297,8 +2326,11 @@ public:
         Visit(timeout,
             [&] (TDuration timeout) {
                 auto* user = Bootstrap_->GetSecurityManager()->GetAuthenticatedUser();
+                auto* context = GetCurrentMutationContext();
+                auto armingTime = context->GetTimestamp();
+
                 auto expirationTimeoutProperties = TCypressNode::TExpirationTimeoutPropertiesPtr(
-                    std::in_place, TUserPtr(user), timeout);
+                    std::in_place, TUserPtr(user), timeout, armingTime);
 
                 node->SetExpirationTimeoutProperties(std::move(expirationTimeoutProperties));
 
@@ -2333,7 +2365,7 @@ public:
 
         if (node->IsTrunk()) {
             Bootstrap_->GetExpirationTracker()->OnNodeExpirationTimeoutUpdated(
-                node, oldExpirationTimeoutProperties);
+                node, std::move(oldExpirationTimeoutProperties));
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
@@ -2360,7 +2392,7 @@ public:
 
         if (originatingNode->IsTrunk()) {
             Bootstrap_->GetExpirationTracker()
-                ->OnNodeExpirationTimeoutUpdated(originatingNode, oldExpirationTimeoutProperties);
+                ->OnNodeExpirationTimeoutUpdated(originatingNode, std::move(oldExpirationTimeoutProperties));
         }
     }
 
@@ -3292,6 +3324,8 @@ private:
 
         const auto& garbageCollector = Bootstrap_->GetObjectManager()->GetGarbageCollector();
 
+        auto nodeRefCounters = ComputeNodeRefCounters();
+
         THashMap<TTransactionId, TBranchedNodeSet> transactionToBranchedNodes;
         for (auto [transactionId, transaction] : Bootstrap_->GetTransactionManager()->Transactions()) {
             transactionToBranchedNodes[transactionId] = transaction->BranchedNodes();
@@ -3348,11 +3382,35 @@ private:
                 continue;
             }
 
+            auto expectedRefCounter = GetOrCrash(nodeRefCounters, node);
+            auto actualRefCounter = node->GetObjectRefCounter();
+            if (expectedRefCounter != actualRefCounter) {
+                // Refs for Sequoia nodes are determined based on reachability.
+                // However, during PrepareCreateNode, nodes in the BeingCreated state have an additional strong ref,
+                // whereas during MaterializeNode they do not.
+                // See sequoia_actions_executor for more details.
+                if (node->IsSequoia() && node->MutableSequoiaProperties() && node->MutableSequoiaProperties()->BeingCreated) {
+                    YT_LOG_ALERT_UNLESS(expectedRefCounter == actualRefCounter + 1,
+                "Node in BeingCreated state has unexpected ref counter "
+                        "(NodeId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
+                        node->GetId(),
+                        expectedRefCounter,
+                        actualRefCounter);
+                } else {
+                    YT_LOG_ALERT("Node has unexpected ref counter "
+                        "(NodeId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
+                        node->GetId(),
+                        expectedRefCounter,
+                        actualRefCounter);
+                }
+            }
+
             if (node->GetObjectRefCounter() == 0 &&
                 node->GetObjectWeakRefCounter() == 0 &&
                 node->GetObjectEphemeralRefCounter() == 0 &&
                 !garbageCollector->IsRegisteredZombie(node) &&
-                !garbageCollector->IsEphemeralGhost(node))
+                !garbageCollector->IsEphemeralGhost(node) &&
+                !garbageCollector->IsWeakGhost(node))
             {
                 YT_LOG_ALERT("Node leak detected (NodeId: %v)", node->GetId());
             }
@@ -3362,6 +3420,105 @@ private:
             for (auto node : branchNodeSet) {
                 YT_LOG_ALERT("Found a branch missing in the entity map, but held by a transaction (NodeId: %v)",
                     node->GetVersionedId());
+            }
+        }
+    }
+
+    THashMap<TCypressNode*, int> ComputeNodeRefCounters() const
+    {
+        const auto& garbageCollector = Bootstrap_->GetObjectManager()->GetGarbageCollector();
+
+        THashMap<TCypressNode*, int> nodeToRefCounter;
+
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!node->IsTrunk()) {
+               continue;
+            }
+
+            auto trunkRefCounter = 0;
+
+            if (garbageCollector->IsRegisteredZombie(node) || garbageCollector->IsEphemeralGhost(node) || garbageCollector->IsWeakGhost(node)) {
+                trunkRefCounter = 0;
+            } else if (node->IsBuiltin() || node->IsForeign()) {
+                trunkRefCounter = 1;
+            } else if (node->IsSequoia()) {
+                // Scion is also counted here.
+                trunkRefCounter = static_cast<int>(node->GetReachable() || (node->MutableSequoiaProperties() && node->MutableSequoiaProperties()->BeingCreated));
+            } else if (node->GetType() == EObjectType::PortalExit) {
+                trunkRefCounter = static_cast<int>(node->GetReachable());
+            }
+
+            EmplaceOrCrash(nodeToRefCounter, node, trunkRefCounter);
+        }
+
+        ComputeNodeRefCountersFromBranches(nodeToRefCounter);
+        ComputeNodeRefCountersFromTableNodes(nodeToRefCounter);
+        ComputeNodeRefCountersFromMapNodes(nodeToRefCounter);
+
+        return nodeToRefCounter;
+    }
+
+    void ComputeNodeRefCountersFromBranches(THashMap<TCypressNode*, int>& nodeToRefCounter) const
+    {
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!node->IsTrunk()) {
+                YT_LOG_ALERT_IF(node->GetObjectRefCounter() > 0, "Found a branch with non-zero RefCounter (NodeId: %v, RefCounter: %v)",
+                    node->GetVersionedId(),
+                    node->GetObjectRefCounter());
+
+                auto* trunkNode = node->GetTrunkNode();
+
+                YT_LOG_ALERT_UNLESS(nodeToRefCounter.contains(trunkNode),
+                    "Found a branch without trunk node (Node: %v)",
+                    node->GetVersionedId());
+
+                ++nodeToRefCounter[trunkNode];
+            }
+        }
+    }
+
+    void ComputeNodeRefCountersFromTableNodes(THashMap<TCypressNode*, int>& nodeToRefCounter) const
+    {
+        auto tryAddRefForHunkStorageNode = [&] (THunkStorageNode* hunkStorageNode) {
+            if (hunkStorageNode) {
+                ++nodeToRefCounter[hunkStorageNode->GetTrunkNode()];
+            }
+        };
+
+        for (auto [nodeId, node] : NodeMap_) {
+            if (node->GetType() == EObjectType::Table) {
+                auto* tableNode = node->As<TTableNode>();
+
+                tryAddRefForHunkStorageNode(tableNode->GetHunkStorage());
+            }
+
+            if (node->GetType() == EObjectType::ReplicatedTable) {
+                auto* replicatedTableNode = node->As<TReplicatedTableNode>();
+
+                tryAddRefForHunkStorageNode(replicatedTableNode->GetHunkStorage());
+            }
+        }
+    }
+
+    void ComputeNodeRefCountersFromMapNodes(THashMap<TCypressNode*, int>& nodeToRefCounter) const
+    {
+        THashSet<const TCypressMapNode::TChildren*> childrenMaps;
+        for (auto [nodeId, node] : NodeMap_) {
+            if (node->GetNodeType() != ENodeType::Map) {
+                continue;
+            }
+
+            if (node->IsSequoia()) {
+                continue;
+            }
+
+            auto* mapNode = node->As<TCypressMapNode>();
+            childrenMaps.emplace(mapNode->GetChildren());
+        }
+
+        for (const auto* childrenMap : childrenMaps) {
+            for (auto& [child, _] : childrenMap->ChildToKey()) {
+                ++nodeToRefCounter[child.Get()];
             }
         }
     }
@@ -3537,12 +3694,22 @@ private:
         ReleaseLocks(transaction, false);
     }
 
-    template <typename F>
-    TError CheckSubtreeTrunkNodes(
+
+
+
+    template <NMpl::CInvocable<void(TCypressNode*)> TDoCheck, NMpl::CInvocable<bool()> TIsCheckFinished>
+    struct TCheckSubtreeTrunkNodesTraverser
+    {
+        TDoCheck DoCheck;
+        TIsCheckFinished IsCheckFinished;
+    };
+
+    template <typename TTraverser>
+    void CheckSubtreeTrunkNodes(
         TCypressNode* trunkNode,
         TTransaction* transaction,
         bool recursive,
-        F doCheck)
+        TTraverser& traverser)
     {
         TSubtreeNodes nodes;
         if (recursive) {
@@ -3555,14 +3722,11 @@ private:
 
         for (auto* node : nodes) {
             auto* trunkNode = node->GetTrunkNode();
-
-            auto error = doCheck(trunkNode);
-            if (!error.IsOK()) {
-                return error;
+            traverser.DoCheck(trunkNode);
+            if (traverser.IsCheckFinished()) {
+                break;
             }
         }
-
-        return TError();
     }
 
     template <typename F>
@@ -3587,36 +3751,86 @@ private:
         }
     }
 
-    TError CheckLock(
+    struct TCheckLockSuccess
+    { };
+
+    struct TCheckLockErrorConflict
+    {
+        TError Error;
+    };
+
+    struct TCheckLockErrorTooManyLocks
+    {
+        TError Error;
+    };
+
+    struct TCheckLockErrorInvalidLockRequest
+    {
+        TError Error;
+    };
+
+    using TCheckLockResult = std::variant<
+        TCheckLockSuccess,
+        TCheckLockErrorConflict,
+        TCheckLockErrorTooManyLocks,
+        TCheckLockErrorInvalidLockRequest>;
+
+    TCheckLockResult CheckLock(
         TCypressNode* trunkNode,
         TTransaction* transaction,
         const TLockRequest& request,
-        bool recursive)
+        bool recursive,
+        bool checkLockCount = true)
     {
+        TCheckLockResult error;
         auto doCheck = [&] (TCypressNode* trunkNode) {
-            return DoCheckLock(trunkNode, transaction, request);
+            error = DoCheckLock(trunkNode, transaction, request, checkLockCount);
+        };
+        auto isCheckFinished = [&] {
+            return !std::holds_alternative<TCheckLockSuccess>(error);
+        };
+
+        TCheckSubtreeTrunkNodesTraverser traverser{
+            .DoCheck = doCheck,
+            .IsCheckFinished = isCheckFinished,
         };
 
         // Validate all potential locks to see if we need to take at least one of them.
         // This throws an exception in case the validation fails.
-        return CheckSubtreeTrunkNodes(trunkNode, transaction, recursive, doCheck);
+        CheckSubtreeTrunkNodes(trunkNode, transaction, recursive, traverser);
+
+        Visit(error,
+            [&] (const TCheckLockSuccess&) { },
+            [&] (const auto& error) {
+                YT_LOG_ALERT_IF(error.Error.IsOK(), "CheckLock failed with %v, but the TError inside is emtpy", TypeName(error));
+            });
+
+        return error;
     }
 
-    TError DoCheckLock(TCypressNode* trunkNode, TTransaction* transaction, const TLockRequest& request)
+    TCheckLockResult DoCheckLock(TCypressNode* trunkNode, TTransaction* transaction, const TLockRequest& request, bool checkLockCount)
     {
-        auto error = DoCheckLockWithoutPrelocks(trunkNode, transaction, request);
-        if (!error.IsOK()) {
-            return error;
+        {
+            auto checkResult = DoCheckLockWithoutPrelocks(trunkNode, transaction, request, checkLockCount);
+            if (!std::holds_alternative<TCheckLockSuccess>(checkResult)) {
+                return checkResult;
+            }
         }
-
-        const auto& prelockTracker = Bootstrap_->GetPrelockTracker();
-        return prelockTracker->CheckLock(transaction, trunkNode->GetId(), request);
+        {
+            const auto& prelockTracker = Bootstrap_->GetPrelockTracker();
+            auto error = prelockTracker->CheckLock(transaction, trunkNode->GetId(), request);
+            if (!error.IsOK()) {
+                return TCheckLockErrorConflict(std::move(error));
+            }
+        }
+        return TCheckLockSuccess();
     }
 
-    TError DoCheckLockWithoutPrelocks(
+    TCheckLockResult DoCheckLockWithoutPrelocks(
         TCypressNode* trunkNode,
         TTransaction* transaction,
-        const TLockRequest& request)
+        const TLockRequest& request,
+        bool checkLockCount)
     {
         YT_ASSERT(trunkNode->IsTrunk());
         YT_VERIFY(transaction || request.Mode != ELockMode::Snapshot);
@@ -3637,16 +3851,16 @@ private:
         if (transaction && lockingState.HasSnapshotLock(transaction)) {
             if (request.Mode == ELockMode::Snapshot) {
                 // Already taken by this transaction.
-                return TError();
+                return TCheckLockSuccess{};
             } else {
                 // Cannot take non-snapshot lock when a snapshot lock is already taken.
-                return TError(
+                return TCheckLockErrorInvalidLockRequest(TError(
                     NCypressClient::EErrorCode::SameTransactionLockConflict,
                     "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
                     request.Mode,
                     GetNodePath(trunkNode, transaction),
                     ELockMode::Snapshot,
-                    transaction->GetId());
+                    transaction->GetId()));
             }
         }
 
@@ -3655,37 +3869,37 @@ private:
             if (transaction) {
                 // Check if a non-snapshot lock is already taken by this transaction.
                 if (lockingState.HasExclusiveLock(transaction)) {
-                    return TError(
+                    return TCheckLockErrorInvalidLockRequest(TError(
                         NCypressClient::EErrorCode::SameTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
                         ELockMode::Exclusive,
-                        transaction->GetId());
+                        transaction->GetId()));
                 }
                 if (lockingState.HasSharedLock(transaction)) {
-                    return TError(
+                    return TCheckLockErrorInvalidLockRequest(TError(
                         NCypressClient::EErrorCode::SameTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
                         ELockMode::Shared,
-                        transaction->GetId());
+                        transaction->GetId()));
                 }
 
                 // Check if any nested transaction has taken a non-snapshot lock.
                 auto lockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, transaction);
                 if (lockModeBelow > ELockMode::Snapshot) {
-                    return TError(
+                    return TCheckLockErrorInvalidLockRequest(TError(
                         NCypressClient::EErrorCode::DescendantTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by a descendant transaction",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
-                        lockModeBelow);
+                        lockModeBelow));
                 }
             }
 
-            return TError();
+            return TCheckLockSuccess();
         }
 
         if (transaction) {
@@ -3693,18 +3907,18 @@ private:
             auto currentTransaction = transaction->GetParent();
             while (currentTransaction) {
                 if (lockingState.HasSnapshotLock(currentTransaction)) {
-                    return TError(
+                    return TCheckLockErrorInvalidLockRequest(TError(
                         NCypressClient::EErrorCode::SameTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by parent transaction %v",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
                         ELockMode::Snapshot,
-                        currentTransaction->GetId());
+                        currentTransaction->GetId()));
                 }
                 currentTransaction = currentTransaction->GetParent();
             }
 
-            if (trunkNode->IsNative()) {
+            if (checkLockCount && trunkNode->IsNative()) {
                 // Validate lock count.
                 const auto& config = GetDynamicConfig();
                 auto lockCountLimit = config->MaxLocksPerTransactionSubtree;
@@ -3712,92 +3926,130 @@ private:
                 while (currentTransaction) {
                     auto recursiveLockCount = currentTransaction->GetRecursiveLockCount();
                     if (recursiveLockCount >= lockCountLimit) {
-                        return TError(
+                        return TCheckLockErrorTooManyLocks(TError(
                             NCypressClient::EErrorCode::TooManyLocksOnTransaction,
                             "Cannot create %Qlv lock for node %v since transaction %v and its descendants already have %v locks associated with them",
                             request.Mode,
                             GetNodePath(trunkNode, transaction),
                             currentTransaction->GetId(),
-                            recursiveLockCount);
+                            recursiveLockCount));
                     }
                     currentTransaction = currentTransaction->GetParent();
                 }
             }
         }
 
+        auto enableMoreEfficientConflictCheck = GetDynamicConfig()->EnableMoreEfficientConflictCheck;
         auto checkExistingLock = [&] (const TLock* existingLock) {
             auto existingTransaction = existingLock->GetTransaction();
-            if (!IsConcurrentTransaction(transaction, existingTransaction)) {
-                return TError();
+            if (enableMoreEfficientConflictCheck &&
+                transaction == existingTransaction &&
+                request.Mode <= existingLock->Request().Mode)
+            {
+                // A stronger (or equal) lock is taken under the same transaction. No need to check the rest.
+                return ELockCheckResult::OK;
             }
+
+            if (!IsConcurrentTransaction(transaction, existingTransaction)) {
+                return ELockCheckResult::Inconclusive;
+            }
+
+            return ELockCheckResult::Conflict;
+        };
+
+        auto buildConflictErrorMessage = [&] (const TLock* existingLock) {
+            auto existingTransaction = existingLock->GetTransaction();
             switch (request.Key.Kind) {
                 case ELockKeyKind::None:
-                    return TError(
+                    return TCheckLockErrorConflict(TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is taken by concurrent transaction %v",
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
                         existingLock->Request().Mode,
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
+                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription()));
 
                 case ELockKeyKind::Child:
-                    return TError(
+                    return TCheckLockErrorConflict(TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                         "Cannot take lock for child %Qv of node %v since this child is locked by concurrent transaction %v",
                         request.Key.Name,
                         GetNodePath(trunkNode, transaction),
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
+                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription()));
 
                 case ELockKeyKind::Attribute:
-                    return TError(
+                    return TCheckLockErrorConflict(TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                         "Cannot take lock for attribute %Qv of node %v since this attribute is locked by concurrent transaction %v",
                         request.Key.Name,
                         GetNodePath(trunkNode, transaction),
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
+                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription()));
 
                 default:
                     YT_ABORT();
             }
         };
 
-        for (auto [transaction, existingLock] : transactionToExclusiveLocks) {
-            auto error = checkExistingLock(existingLock);
-            if (!error.IsOK()) {
-                return error;
+        auto enableEvenMoreEfficientConflictCheck = GetDynamicConfig()->EnableEvenMoreEfficientConflictCheck;
+        auto it = transactionToExclusiveLocks.begin();
+        while (it != transactionToExclusiveLocks.end()) {
+            auto checkResult = checkExistingLock(it->second);
+            if (checkResult == ELockCheckResult::OK) {
+                break;
+            } else if (checkResult == ELockCheckResult::Conflict) {
+                return buildConflictErrorMessage(it->second);
+            }
+
+            if (enableEvenMoreEfficientConflictCheck) {
+                it = transactionToExclusiveLocks.upper_bound(it->first);
+            } else {
+                ++it;
             }
         }
 
         switch (request.Mode) {
-            case ELockMode::Exclusive:
-                for (const auto& [transaction, lockKey, lock] : transactionAndKeyToSharedLocks) {
-                    auto error = checkExistingLock(lock);
-                    if (!error.IsOK()) {
-                        return error;
+            case ELockMode::Exclusive: {
+                auto it = transactionAndKeyToSharedLocks.begin();
+                while (it != transactionAndKeyToSharedLocks.end()) {
+                    auto checkResult = checkExistingLock(std::get<TLockRawPtr>(*it));
+                    if (checkResult == ELockCheckResult::OK) {
+                        break;
+                    } else if (checkResult == ELockCheckResult::Conflict) {
+                        return buildConflictErrorMessage(std::get<TLockRawPtr>(*it));
+                    }
+
+                    if (enableEvenMoreEfficientConflictCheck) {
+                        it = transactionAndKeyToSharedLocks.upper_bound(std::get<TTransactionRawPtr>(*it));
+                    } else {
+                        ++it;
                     }
                 }
                 break;
+            }
 
-            case ELockMode::Shared:
+            case ELockMode::Shared: {
                 if (request.Key.Kind != ELockKeyKind::None) {
                     auto range = keyToSharedLocks.equal_range(request.Key);
                     for (auto it = range.first; it != range.second; ++it) {
-                        auto error = checkExistingLock(it->second);
-                        if (!error.IsOK()) {
-                            return error;
+                        auto checkResult = checkExistingLock(it->second);
+                        if (checkResult == ELockCheckResult::OK) {
+                            break;
+                        } else if (checkResult == ELockCheckResult::Conflict) {
+                            return buildConflictErrorMessage(it->second);
                         }
                     }
                 }
                 break;
+            }
 
             default:
                 YT_ABORT();
         }
 
-        return TError();
+        return TCheckLockSuccess();
     }
 
     TError CheckUnlock(
@@ -3806,12 +4058,23 @@ private:
         bool recursive,
         bool explicitOnly)
     {
+        TError error;
         auto doCheck = [&] (TCypressNode* trunkNode) {
-            return DoCheckUnlock(trunkNode, transaction, explicitOnly);
+            error = DoCheckUnlock(trunkNode, transaction, explicitOnly);
+        };
+        auto isCheckFinished = [&] () {
+            return !error.IsOK();
+        };
+
+        TCheckSubtreeTrunkNodesTraverser traverser{
+            .DoCheck = doCheck,
+            .IsCheckFinished = isCheckFinished,
         };
 
         // Check that unlocking nodes won't drop any data.
-        return CheckSubtreeTrunkNodes(trunkNode, transaction, recursive, doCheck);
+        CheckSubtreeTrunkNodes(trunkNode, transaction, recursive, traverser);
+
+        return error;
     }
 
     TError DoCheckUnlock(
@@ -4358,12 +4621,13 @@ private:
         while (trunkNode->HasLockingState() && it != lockingState.PendingLocks.end()) {
             // Be prepared to possible iterator invalidation.
             auto lock = *it++;
-            auto error = CheckLock(
+            auto checkResult = CheckLock(
                 trunkNode,
                 lock->GetTransaction(),
                 lock->Request(),
-                false);
-            if (error.IsOK()) {
+                /*recursive*/ false,
+                /*checkLockCount*/ false);
+            if (std::holds_alternative<TCheckLockSuccess>(checkResult)) {
                 DoAcquireLock(lock);
             }
         }
@@ -4430,7 +4694,7 @@ private:
         multicellManager->PostToMaster(request, externalCellTag);
     }
 
-    template <CInvocable<bool(TCypressNode*)> TFilter>
+    template <NMpl::CInvocable<bool(TCypressNode*)> TFilter>
     void ListSubtreeNodes(
         TCypressNode* trunkNode,
         TTransaction* transaction,
@@ -5007,22 +5271,23 @@ private:
         }
         lockRequest.Timestamp = static_cast<TTimestamp>(request->timestamp());
 
-        auto error = CheckLock(
+        auto checkResult = CheckLock(
             trunkNode,
             transaction,
             lockRequest,
-            false);
-        if (!error.IsOK()) {
-            YT_LOG_ALERT(error, "Cannot lock foreign node (NodeId: %v, TransactionId: %v, Mode: %v, Key: %v)",
-                nodeId,
-                transactionId,
-                lockRequest.Mode,
-                lockRequest.Key);
-            return;
-        }
-
-        auto* lock = DoCreateLock(trunkNode, transaction, lockRequest, false);
-        DoAcquireLock(lock);
+            /*recursive*/ false);
+        Visit(checkResult,
+            [&] (const TCheckLockSuccess&) {
+                auto* lock = DoCreateLock(trunkNode, transaction, lockRequest, false);
+                DoAcquireLock(lock);
+            },
+            [&] (const auto& error) {
+                YT_LOG_ALERT(error.Error, "Cannot lock foreign node (NodeId: %v, TransactionId: %v, Mode: %v, Key: %v)",
+                    nodeId,
+                    transactionId,
+                    lockRequest.Mode,
+                    lockRequest.Key);
+            });
     }
 
     void HydraUnlockForeignNode(NProto::TReqUnlockForeignNode* request) noexcept

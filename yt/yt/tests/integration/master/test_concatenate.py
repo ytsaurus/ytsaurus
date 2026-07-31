@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, get, set, remove, concatenate, start_transaction, abort_transaction,
     commit_transaction, lock,
-    read_table, write_table, alter_table,
+    read_table, write_table, alter_table, wait, wait_for_sys_config_sync,
     merge, sort, get_singular_chunk_id, raises_yt_error)
 
 from yt_type_helpers import make_schema, normalize_schema, list_type
@@ -797,6 +797,66 @@ class TestConcatenateMulticell(TestConcatenate):
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
     }
+
+    @authors("danilalexeev")
+    def test_concatenate_historically_non_vital_chunk(self):
+        update_enabled_path = "//sys/@config/chunk_manager/enable_chunk_requisition_update"
+        update_historically_non_vital_path = (
+            "//sys/@config/chunk_manager/"
+            "update_historically_non_vital_on_chunk_creation_and_export")
+
+        set(update_historically_non_vital_path, False)
+        set(update_enabled_path, False)
+        wait_for_sys_config_sync()
+
+        try:
+            # Simulate a chunk created before the compatibility flag was enabled.
+            create("table", "//tmp/t1", attributes={
+                "external_cell_tag": 11,
+                "replication_factor": 1,
+            })
+            write_table(
+                "//tmp/t1",
+                {"a": "b"},
+                table_writer={"upload_replication_factor": 1})
+            chunk_id = get_singular_chunk_id("//tmp/t1")
+
+            assert not get(f"#{chunk_id}/@historically_non_vital")
+
+            set(update_historically_non_vital_path, True)
+            wait_for_sys_config_sync()
+
+            create("table", "//tmp/created_with_flag", attributes={
+                "external_cell_tag": 11,
+                "replication_factor": 1,
+            })
+            write_table(
+                "//tmp/created_with_flag",
+                {"a": "b"},
+                table_writer={"upload_replication_factor": 1})
+            created_with_flag_chunk_id = get_singular_chunk_id("//tmp/created_with_flag")
+            assert get(f"#{created_with_flag_chunk_id}/@historically_non_vital")
+
+            create("table", "//tmp/durable", attributes={"external_cell_tag": 11})
+            write_table("//tmp/durable", {"a": "b"})
+            durable_chunk_id = get_singular_chunk_id("//tmp/durable")
+            assert not get(f"#{durable_chunk_id}/@historically_non_vital")
+
+            create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
+            concatenate(["//tmp/t1"], "//tmp/t2")
+
+            assert len(get(f"#{chunk_id}/@exports")) == 1
+            assert get(f"#{chunk_id}/@historically_non_vital")
+        finally:
+            set(update_enabled_path, True)
+            set(update_historically_non_vital_path, False)
+            wait_for_sys_config_sync()
+
+        wait(lambda: any(
+            requisition["replication_policy"]["replication_factor"] == 3
+            for requisition in get(f"#{chunk_id}/@requisition")))
+        assert get(f"#{chunk_id}/@vital")
+        assert get(f"#{chunk_id}/@historically_non_vital")
 
     @authors("gritukan")
     def test_concatenate_imported_chunks(self):

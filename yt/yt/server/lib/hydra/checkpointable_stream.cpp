@@ -321,8 +321,8 @@ private:
     {
         auto sharedBuffer = TSharedRef::MakeCopy<TBufferTag>(TRef(data, length));
         auto future = UnderlyingStream_->Write(std::move(sharedBuffer));
-        WaitForWithStrategy(std::move(future), Strategy_)
-            .ThrowOnError();
+        WaitUntilSet(future, {.Strategy = Strategy_});
+        future.GetOrCrash().ThrowOnError();
     }
 
     size_t GetBufferSpaceLeft() const
@@ -373,8 +373,8 @@ protected:
             return;
         }
         auto writeFuture = UnderlyingStream_->Write(Buffer_.Slice(0, CurrentBufferSize_));
-        WaitForWithStrategy(std::move(writeFuture), Strategy_)
-            .ThrowOnError();
+        WaitUntilSet(writeFuture, {.Strategy = Strategy_});
+        writeFuture.GetOrCrash().ThrowOnError();
         Reset();
     }
 };

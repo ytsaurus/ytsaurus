@@ -22,6 +22,7 @@ RECURSE(
     deps
     dockertest
     examples
+    flow
     # genproto
     guid
     mapreduce

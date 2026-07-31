@@ -6,9 +6,9 @@
 
 #include <yt/yt/client/queue_client/common.h>
 
-#include <yt/yt/core/logging/log.h>
-
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NQueueAgent {
 
@@ -95,6 +95,8 @@ DECLARE_REFCOUNTED_STRUCT(IObjectStore)
 DECLARE_REFCOUNTED_STRUCT(IObjectController)
 DECLARE_REFCOUNTED_STRUCT(IQueueController)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentClientDirectory)
+
+DECLARE_REFCOUNTED_CLASS(TVirtualMapPartBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 

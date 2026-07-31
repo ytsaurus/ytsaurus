@@ -27,6 +27,12 @@ struct TBlockInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A one-shot handle for producing or consuming a cached block.
+/*!
+ *  An initially inactive cookie is a consumer. It may call #GetBlockFuture and #GetBlock.
+ *  An initially active cookie is a producer. The first #SetBlock call consumes its insertion state.
+ *  Repeated #SetBlock calls are allowed, but getters must not be called on the producer cookie after completion.
+ */
 struct ICachedBlockCookie
 {
     virtual ~ICachedBlockCookie() = default;

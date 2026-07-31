@@ -140,11 +140,12 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
     std::function<void(bool, std::vector<NYPath::TYPath>)> mismatchCallback)
 {
     std::vector<TAttributeValue> result;
+    std::vector<TAttributeValue> nonWildcardAttributes;
     THashMap<NYPath::TYPath, std::vector<TAttributeValue>> attributesToExpand;
     for (auto& attributeValue : attributeValues) {
         auto split = SplitByAsterisk(attributeValue.Path);
         if (!split.has_value()) {
-            result.push_back(std::move(attributeValue));
+            nonWildcardAttributes.push_back(std::move(attributeValue));
             continue;
         }
         auto [before, after] = *split;
@@ -152,6 +153,20 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
             .Path = NYPath::TYPath{after},
             .Value = std::move(attributeValue.Value),
         });
+    }
+
+    // A repeated view may be requested without a wildcard (e.g. "/spec/view")
+    // together with a field inside it ("/spec/view/*/field").
+    for (auto& attributeValue : nonWildcardAttributes) {
+        auto it = attributesToExpand.find(attributeValue.Path);
+        if (it != attributesToExpand.end()) {
+            it->second.push_back(TAttributeValue{
+                .Path = NYPath::TYPath{},
+                .Value = std::move(attributeValue.Value),
+            });
+        } else {
+            result.push_back(std::move(attributeValue));
+        }
     }
 
     for (auto& [path, attributesOnPath] : attributesToExpand) {

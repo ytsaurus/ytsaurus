@@ -113,11 +113,11 @@ TChunkLocationBase::TChunkLocationBase(
         HugePageManager_,
         Id_,
         Profiler_,
-        Logger.WithTag("LocationId: %v", Id_));
+        Logger.WithTag("LocationId", Id_));
     IOEngineModel_ = CreateIOModelInterceptor(
         Id_,
         DynamicIOEngine_,
-        Logger.WithTag("IOModel: %v", Id_));
+        Logger.WithTag("IOModel", Id_));
     IOEngine_ = IOEngineModel_;
 
     HealthChecker_ = New<TDiskHealthChecker>(
@@ -134,14 +134,6 @@ const NIO::IIOEnginePtr& TChunkLocationBase::GetIOEngine() const
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return IOEngine_;
-}
-
-i64 TChunkLocationBase::GetLegacyWriteMemoryLimit() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto config = GetRuntimeConfig();
-    return config->LegacyWriteMemoryLimit;
 }
 
 i64 TChunkLocationBase::GetReadMemoryLimit() const

@@ -68,7 +68,7 @@ TChaosAutomatonPart::TChaosAutomatonPart(
     , Bootstrap_(bootstrap)
 {
     Logger = ChaosNodeLogger()
-        .WithTag("CellId: %v", Slot_->GetCellId());
+        .WithTag("CellId", Slot_->GetCellId());
 }
 
 bool TChaosAutomatonPart::ValidateSnapshotVersion(int version)

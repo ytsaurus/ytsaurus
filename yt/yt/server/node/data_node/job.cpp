@@ -145,10 +145,9 @@ TMasterJobBase::TMasterJobBase(
     , JobId_(jobId)
     , JobSpec_(jobSpec)
     , JobTrackerAddress_(jobTrackerAddress)
-    , Logger(DataNodeLogger().WithTag(
-        "JobId: %v, JobType: %v",
-        jobId,
-        FromProto<EJobType>(jobSpec.type())))
+    , Logger(DataNodeLogger()
+        .WithTag("JobId", jobId)
+        .WithTag("JobType", FromProto<EJobType>(jobSpec.type())))
     , ResourceHolder_(TResourceHolder::CreateResourceHolder(
         jobId.Underlying(),
         bootstrap->GetJobResourceManager().Get(),
@@ -424,7 +423,7 @@ public:
         , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
         , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->RemoveChunkJob)
     {
-        Logger.AddTag("ChunkId: %v", ChunkId_);
+        Logger.AddTag("ChunkId", ChunkId_);
     }
 
 private:
@@ -514,7 +513,7 @@ public:
         , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
         , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->ReplicateChunkJob)
     {
-        Logger.AddTag("ChunkId: %v", ChunkId_);
+        Logger.AddTag("ChunkId", ChunkId_);
     }
 
 private:
@@ -774,7 +773,7 @@ public:
         , Sensors_(std::move(sensors))
         , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->RepairChunkJob)
     {
-        Logger.AddTag("ChunkId: %v", ChunkId_);
+        Logger.AddTag("ChunkId", ChunkId_);
     }
 
 private:
@@ -1096,7 +1095,7 @@ public:
         , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
         , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->SealChunkJob)
     {
-        Logger.AddTag("ChunkId: %v", ChunkId_);
+        Logger.AddTag("ChunkId", ChunkId_);
     }
 
 private:
@@ -2891,9 +2890,8 @@ private:
 
             auto future = BIND([&, index, jobLogger = Logger] {
                 auto Logger = jobLogger
-                    .WithTag("TailChunkId: %v, WriterIndex: %v",
-                        TailChunkId_,
-                        index);
+                    .WithTag("TailChunkId", TailChunkId_)
+                    .WithTag("WriterIndex", index);
 
                 auto& chunkWriter = writer.ChunkWriter;
 

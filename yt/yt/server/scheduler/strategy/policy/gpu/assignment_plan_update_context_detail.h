@@ -23,7 +23,7 @@ class TAssignmentHandler
 public:
     explicit TAssignmentHandler(NLogging::TLogger logger);
 
-    void AddPlannedAssignment(
+    TAssignmentPtr AddPlannedAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
@@ -60,7 +60,7 @@ public:
     const TNodeMap& Nodes() const override;
     const TGpuPlanUpdateStatisticsPtr& GetStatistics() const override;
 
-    void AddPlannedAssignment(
+    TAssignmentPtr AddPlannedAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
@@ -78,8 +78,6 @@ public:
     bool IsDetailedLoggingEnabled(const TOperationPtr& operation) const override;
 
     std::optional<std::string> FindLimitViolatingParentId(const TPoolTreeElement* element) const;
-
-    bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const override;
 
     void UpdatePreemptionStatuses() const;
     void FillOperationUsage();
@@ -129,6 +127,7 @@ private:
         EAllocationPreemptionReason preemptionReason,
         const std::string& preemptionDescription);
 
+    bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

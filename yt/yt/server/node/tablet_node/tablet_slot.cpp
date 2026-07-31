@@ -778,9 +778,9 @@ private:
 
     NLogging::TLogger GetLogger() const
     {
-        return TabletNodeLogger().WithTag("CellId: %v, PeerId: %v",
-            Occupant_->GetCellId(),
-            Occupant_->GetPeerId());
+        return TabletNodeLogger()
+            .WithTag("CellId", Occupant_->GetCellId())
+            .WithTag("PeerId", Occupant_->GetPeerId());
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

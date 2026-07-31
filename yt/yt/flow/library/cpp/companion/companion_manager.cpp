@@ -82,7 +82,7 @@ TProcessManagerBasePtr TCompanionManager::CreateProcessManager()
 TFuture<void> TCompanionManager::Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/)
 {
     if (!GetParameters()->RunProcess) {
-        YT_LOG_INFO("Companion process running is disabled");
+        YT_TLOG_INFO("Companion process running is disabled");
         return OKFuture;
     }
     ProcessManager_ = CreateProcessManager();

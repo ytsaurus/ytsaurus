@@ -14,8 +14,10 @@ import heapq
 import logging
 import threading
 
+from botocore.exceptions import ClientError
+
 from s3transfer.compat import seekable
-from s3transfer.exceptions import RetriesExceededError
+from s3transfer.exceptions import RetriesExceededError, S3DownloadFailedError
 from s3transfer.futures import IN_MEMORY_DOWNLOAD_TAG
 from s3transfer.tasks import SubmissionTask, Task
 from s3transfer.utils import (
@@ -346,17 +348,23 @@ class DownloadSubmissionTask(SubmissionTask):
         :param bandwidth_limiter: The bandwidth limiter to use when
             downloading streams
         """
-        if transfer_future.meta.size is None:
-            # If a size was not provided figure out the size for the
-            # user.
+        if (
+            transfer_future.meta.size is None
+            or transfer_future.meta.etag is None
+        ):
             response = client.head_object(
                 Bucket=transfer_future.meta.call_args.bucket,
                 Key=transfer_future.meta.call_args.key,
                 **transfer_future.meta.call_args.extra_args,
             )
+            # If a size was not provided figure out the size for the
+            # user.
             transfer_future.meta.provide_transfer_size(
                 response['ContentLength']
             )
+            # Provide an etag to ensure a stored object is not modified
+            # during a multipart download.
+            transfer_future.meta.provide_object_etag(response.get('ETag'))
 
         download_output_manager = self._get_download_output_manager_cls(
             transfer_future, osutil
@@ -479,9 +487,12 @@ class DownloadSubmissionTask(SubmissionTask):
                 part_size, i, num_parts
             )
 
-            # Inject the Range parameter to the parameters to be passed in
-            # as extra args
-            extra_args = {'Range': range_parameter}
+            # Inject extra parameters to be passed in as extra args
+            extra_args = {
+                'Range': range_parameter,
+            }
+            if transfer_future.meta.etag is not None:
+                extra_args['IfMatch'] = transfer_future.meta.etag
             extra_args.update(call_args.extra_args)
             finalize_download_invoker.increment()
             # Submit the ranged downloads
@@ -593,6 +604,15 @@ class GetObjectTask(Task):
                     else:
                         return
                 return
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code')
+                if error_code == "PreconditionFailed":
+                    raise S3DownloadFailedError(
+                        f'Contents of stored object "{key}" in bucket '
+                        f'"{bucket}" did not match expected ETag.'
+                    )
+                else:
+                    raise
             except S3_RETRYABLE_DOWNLOAD_ERRORS as e:
                 logger.debug(
                     "Retrying exception caught (%s), "
@@ -750,7 +770,7 @@ class DeferQueue:
 
     def __init__(self):
         self._writes = []
-        self._pending_offsets = set()
+        self._pending_offsets = {}
         self._next_offset = 0
 
     def request_writes(self, offset, data):
@@ -766,23 +786,49 @@ class DeferQueue:
         each method call.
 
         """
-        if offset < self._next_offset:
+        if offset + len(data) <= self._next_offset:
             # This is a request for a write that we've already
             # seen.  This can happen in the event of a retry
             # where if we retry at at offset N/2, we'll requeue
             # offsets 0-N/2 again.
             return []
         writes = []
+        if offset < self._next_offset:
+            # This is a special case where the write request contains
+            # both seen AND unseen data. This can happen in the case
+            # that we queue part of a chunk due to an incomplete read,
+            # then pop the incomplete data for writing, then we receive the retry
+            # for the incomplete read which contains both the previously-seen
+            # partial chunk followed by the rest of the chunk (unseen).
+            #
+            # In this case, we discard the bytes of the data we've already
+            # queued before, and only queue the unseen bytes.
+            seen_bytes = self._next_offset - offset
+            data = data[seen_bytes:]
+            offset = self._next_offset
         if offset in self._pending_offsets:
-            # We've already queued this offset so this request is
-            # a duplicate.  In this case we should ignore
-            # this request and prefer what's already queued.
-            return []
-        heapq.heappush(self._writes, (offset, data))
-        self._pending_offsets.add(offset)
-        while self._writes and self._writes[0][0] == self._next_offset:
-            next_write = heapq.heappop(self._writes)
-            writes.append({'offset': next_write[0], 'data': next_write[1]})
-            self._pending_offsets.remove(next_write[0])
-            self._next_offset += len(next_write[1])
+            queued_data = self._pending_offsets[offset]
+            if len(data) <= len(queued_data):
+                # We already have a write request queued with the same offset
+                # with at least as much data that is present in this
+                # request. In this case we should ignore this request
+                # and prefer what's already queued.
+                return []
+            else:
+                # We have a write request queued with the same offset,
+                # but this request contains more data. This can happen
+                # in the case of a retried request due to an incomplete
+                # read, followed by a retry containing the full response
+                # body. In this case, we should overwrite the queued
+                # request with this one since it contains more data.
+                self._pending_offsets[offset] = data
+        else:
+            heapq.heappush(self._writes, offset)
+            self._pending_offsets[offset] = data
+        while self._writes and self._writes[0] == self._next_offset:
+            next_write_offset = heapq.heappop(self._writes)
+            next_write = self._pending_offsets[next_write_offset]
+            writes.append({'offset': next_write_offset, 'data': next_write})
+            del self._pending_offsets[next_write_offset]
+            self._next_offset += len(next_write)
         return writes

@@ -5,7 +5,7 @@
 
 #include <yt/yt/flow/library/cpp/misc/versioned_value.h>
 
-#include <yt/yt/flow/lib/client/public.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
 
 #include <yt/yt/client/transaction_client/public.h>
 
@@ -66,6 +66,7 @@ static constexpr auto InfinitySystemTimestamp = TSystemTimestamp(0xfffffffffffff
 static constexpr auto ZeroSystemTimestamp = TSystemTimestamp(0);
 
 DECLARE_REFCOUNTED_STRUCT(ITimeProvider);
+DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionSpec);
 
 struct TMessageMeta;
 struct TMessage;
@@ -252,6 +253,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionTracerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicResourceSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicThrottlerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicJobBalancerSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicJobManagerGroupSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicJobManagerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicBufferStateManagerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicMessageDistributorSpec);
@@ -335,6 +337,25 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicResourceContext);
 DECLARE_REFCOUNTED_STRUCT(IResource);
 DECLARE_REFCOUNTED_STRUCT(TResourceManagerContext);
 DECLARE_REFCOUNTED_STRUCT(IResourceManager);
+DECLARE_REFCOUNTED_STRUCT(TResourceRevision);
+DECLARE_REFCOUNTED_STRUCT(TResourceControllerContext);
+DECLARE_REFCOUNTED_STRUCT(TDynamicResourceControllerContext);
+DECLARE_REFCOUNTED_STRUCT(IResourceController);
+
+DECLARE_REFCOUNTED_STRUCT(TFileSourceSpec);
+DECLARE_REFCOUNTED_STRUCT(TFileSourceRevision);
+DECLARE_REFCOUNTED_STRUCT(TFileSourceContext);
+DECLARE_REFCOUNTED_STRUCT(IFileSource);
+
+DEFINE_ENUM(EFileResourceUpdateState,
+    ((Downloading)     (0))
+    ((Initializing)    (1))
+    ((Validating)      (2))
+    ((WaitingForRetry) (3))
+);
+
+using TVersionedResourceTargetRevisions = TVersionedValue<THashMap<TResourceId, TResourceRevisionPtr>>;
+DECLARE_REFCOUNTED_TYPE(TVersionedResourceTargetRevisions);
 
 DECLARE_REFCOUNTED_CLASS(TInflightTracker);
 DECLARE_REFCOUNTED_CLASS(TMultiInflightTracker);

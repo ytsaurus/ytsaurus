@@ -70,7 +70,7 @@ ISource::TDynamicParametersPtr TSourceBase::GetDynamicParametersBase() const
 ISource::TDynamicPartitionSpecPtr TSourceBase::GetDynamicPartitionSpecBase() const
 {
     auto ptr = DynamicPartitionSpec_.Acquire();
-    YT_LOG_FATAL_UNLESS(ptr, "Dynamic partition spec is available only after first Reconfigure call");
+    YT_TLOG_FATAL_UNLESS(ptr, "Dynamic partition spec is available only after first Reconfigure call");
     return ptr;
 }
 

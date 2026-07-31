@@ -13,6 +13,8 @@ TEMP_DIR_BUILD := $(shell mktemp -d)
 TEMP_DIR_DASHBOARDS := $(shell mktemp -d)
 TEMP_GENERATOR = $(TEMP_DIR_BUILD)/yt/admin/dashboards/yt_dashboards/bin/generate_dashboards
 
+YA_MAKE_FLAGS ?=
+
 DASHBOARDS = master-accounts \
              scheduler-operation \
              bundle-ui-user-load \
@@ -32,14 +34,15 @@ DASHBOARDS = master-accounts \
              master-local \
              queue-metrics \
              queue-consumer-metrics \
-             http-proxies
+             http-proxies \
+             data-nodes-common
 
 CHART_DIR = ../charts/monitoring-chart
 CHART_PACKAGE = $(CHART_REPOSITORY)-$(VERSION).tgz
 
 .PHONY: prepare-dashboards
 prepare-dashboards:
-	../../../ya make ../../../yt/admin/dashboards/yt_dashboards/bin -o $(TEMP_DIR_BUILD)
+	../../../ya make ../../../yt/admin/dashboards/yt_dashboards/bin -o $(TEMP_DIR_BUILD) $(YA_MAKE_FLAGS)
 	mkdir -p $(TEMP_DIR_DASHBOARDS)/grafana
 	cd $(TEMP_DIR_DASHBOARDS) && for dashboard in $(DASHBOARDS); do \
 		$(TEMP_GENERATOR) json $$dashboard -f --backend grafana || exit 1; \

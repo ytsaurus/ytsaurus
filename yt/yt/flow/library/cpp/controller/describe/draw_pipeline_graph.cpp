@@ -116,6 +116,10 @@ std::string MermaidSafeEdgeLabel(const std::string& text)
             result += '/';
         } else if (c == '"') {
             result += '\'';
+        } else if (c == '{') {
+            result += "&lbrace;";
+        } else if (c == '}') {
+            result += "&rbrace;";
         } else {
             result += c;
         }
@@ -237,16 +241,23 @@ struct TMermaidBuilder
         const std::string& fromNode,
         const std::string& toNode,
         const THashMap<TGraphEntityId, THashMap<std::string, TStreamLimitStats>>& limitStats,
-        const TGraphEntityId& streamId)
+        const TGraphEntityId& streamId,
+        double writerBlocked = 0.0)
     {
         std::string edgeLabel = MakeEdgeLabel(limitStats, streamId);
+        if (writerBlocked >= MinVisibleBlockedTimeShare) {
+            edgeLabel += Format("%vwriter{blocked_share=%.2f}", edgeLabel.empty() ? "" : ", ", writerBlocked);
+        }
         std::string arrow = edgeLabel.empty()
             ? "-->"
             : "-->|" + MermaidSafeEdgeLabel(edgeLabel) + "|";
         Out.AppendFormat("  %v %v %v\n", fromNode, arrow, toNode);
 
         int idx = EdgeIndex++;
-        if (GetMaxFillRateForStream(limitStats, streamId) >= WarningFillRateThreshold) {
+        if (GetMaxFillRateForStream(limitStats, streamId) >= WarningFillRateThreshold ||
+            GetMaxBlockedTimeShareForStream(limitStats, streamId) >= WarningBlockedTimeShareThreshold ||
+            writerBlocked >= WarningBlockedTimeShareThreshold)
+        {
             WarningEdgeIndices.push_back(idx);
         }
         return idx;
@@ -335,6 +346,8 @@ std::string BuildMermaidComputationsGraph(
     const TPipelineDescription& pipeline,
     const TDrawPipelineGraphOptions& options)
 {
+    auto writerBlockedShares = ComputeWriterBlockedTimeShares(pipeline);
+
     TMermaidBuilder b;
     b.Out.AppendFormat("flowchart %v\n", MermaidDirection(options.Orientation));
 
@@ -363,7 +376,7 @@ std::string BuildMermaidComputationsGraph(
         inputStreams.insert(inputStreams.end(), computation.SourceStreams.begin(), computation.SourceStreams.end());
         std::sort(inputStreams.begin(), inputStreams.end());
         for (const auto& streamId : inputStreams) {
-            b.EmitEdge("s_" + MermaidSafeId(streamId.Underlying()), cNode, computation.InputLimitStats, streamId);
+            b.EmitEdge("s_" + MermaidSafeId(streamId.Underlying()), cNode, computation.InputLimitStats, streamId, GetOrDefault(writerBlockedShares, streamId, TWriterBlockedShare{}).Share);
         }
 
         // Output edges: computation → stream.
@@ -408,6 +421,8 @@ std::string BuildMermaidUnrolledGraph(
     const TPipelineDescription& pipeline,
     const TDrawPipelineGraphOptions& options)
 {
+    auto writerBlockedShares = ComputeWriterBlockedTimeShares(pipeline);
+
     TMermaidBuilder b;
     b.Out.AppendFormat("flowchart %v\n", MermaidDirection(options.Orientation));
 
@@ -454,7 +469,7 @@ std::string BuildMermaidUnrolledGraph(
             inputStreams.insert(inputStreams.end(), computation.SourceStreams.begin(), computation.SourceStreams.end());
             std::sort(inputStreams.begin(), inputStreams.end());
             for (const auto& streamId : inputStreams) {
-                b.EmitEdge("s_" + MermaidSafeId(streamId.Underlying()), baseNode, computation.InputLimitStats, streamId);
+                b.EmitEdge("s_" + MermaidSafeId(streamId.Underlying()), baseNode, computation.InputLimitStats, streamId, GetOrDefault(writerBlockedShares, streamId, TWriterBlockedShare{}).Share);
             }
             for (const auto& streamId : SortedElements(computation.OutputStreams)) {
                 b.EmitEdge(baseNode, "s_" + MermaidSafeId(streamId.Underlying()), computation.OutputLimitStats, streamId);
@@ -463,7 +478,7 @@ std::string BuildMermaidUnrolledGraph(
             // Unrolled: input_stream → sub-node → output_stream.
             ForEachDependencyPair(computation.StreamsDependency, [&] (const auto& outId, const auto& inId) {
                 std::string cNode = baseNode + "__i_" + MermaidSafeId(inId.Underlying()) + "__o_" + MermaidSafeId(outId.Underlying());
-                b.EmitEdge("s_" + MermaidSafeId(inId.Underlying()), cNode, computation.InputLimitStats, inId);
+                b.EmitEdge("s_" + MermaidSafeId(inId.Underlying()), cNode, computation.InputLimitStats, inId, GetOrDefault(writerBlockedShares, inId, TWriterBlockedShare{}).Share);
                 b.EmitEdge(cNode, "s_" + MermaidSafeId(outId.Underlying()), computation.OutputLimitStats, outId);
             });
         }

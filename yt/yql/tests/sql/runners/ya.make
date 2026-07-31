@@ -1,8 +1,4 @@
-RECURSE(
-    py3
-)
-
-PY23_LIBRARY()
+PY3_LIBRARY()
 
 PY_SRCS(
     common.py
@@ -12,10 +8,12 @@ PY_SRCS(
     yt_file.py
     yt_interaction.py
     yt_setup.py
+    ytflow_interaction.py
 )
 
 PEERDIR(
     contrib/python/urllib3
+    library/python/port_manager
     yql/essentials/core/file_storage/proto
     yql/essentials/providers/common/proto
     yql/essentials/tests/common/test_framework

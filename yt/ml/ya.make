@@ -5,5 +5,6 @@ IF (NOT OPENSOURCE)
         unn
         unn-docs
         retry_wrapper
+        tools
     )
 ENDIF()

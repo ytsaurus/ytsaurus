@@ -23,12 +23,14 @@ in-script time handling only needs to be good enough to pick the right files.
 """
 
 import argparse
+import hashlib
 import os
 import re
 import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime
 
 
@@ -42,7 +44,9 @@ ARCHIVE_DIR_DEFAULT = "/yt/master-logs-archive"
 
 # A debug logslice is hundreds of MiB; a release one is well under this. Anything
 # below the limit is assumed to be a usable release build.
-RELEASE_SIZE_LIMIT = 50 * 1024 * 1024
+RELEASE_SIZE_LIMIT = 3 * 1024 * 1024
+CONTROL_PERSIST_DEFAULT = 3600
+CONNECT_TIMEOUT_DEFAULT = 30
 
 # Path of this script inside Arcadia, used both to locate the binary and to
 # recover the Arcadia root when the script is run from an arbitrary directory.
@@ -133,7 +137,7 @@ def resolve_logslice(explicit_path):
 
 
 ########################################################################
-# SSH / SCP helpers (connection multiplexed so we authenticate once).
+# SSH helpers (connection multiplexed so we authenticate once).
 ########################################################################
 
 class Ssh:
@@ -143,22 +147,34 @@ class Ssh:
     # Do NOT add "awk" in this list (because of `system()` call).
     PIPELINE_WHITELIST = frozenset(["grep", "wc", "cut", "sed", "head", "tail"])
 
-    def __init__(self, host, verbose=False):
+    def __init__(
+            self,
+            host,
+            verbose=False,
+            control_socket=None,
+            control_persist=CONTROL_PERSIST_DEFAULT,
+            connect_timeout=CONNECT_TIMEOUT_DEFAULT):
         self.host = host
         self.verbose = verbose
-        self._control_path = os.path.join(
+        self._control_persist = control_persist
+        self._control_path = control_socket or os.path.join(
             tempfile.gettempdir(), "logslice_ssh_%r@%h:%p")
         self._base_opts = [
             "-o", "ControlMaster=auto",
             "-o", "ControlPath=" + self._control_path,
-            "-o", "ControlPersist=120",
+            "-o", "ControlPersist={}".format(control_persist),
             "-o", "StrictHostKeyChecking=no",
-            "-o", "ConnectTimeout=30",
+            "-o", "ConnectTimeout={}".format(connect_timeout),
         ]
 
     def connect(self):
         """Establishes the master connection (this is where the key touch
-        happens, exactly once)."""
+        happens, exactly once).
+
+        ssh automatically reuses a live caller-provided control socket. Running
+        the probe even when its path exists also detects stale sockets instead
+        of assuming that any filesystem entry is a usable master connection.
+        """
         eprint("Connecting to {} (you may need to touch your security key)..."
                .format(self.host))
         self.run(["true"])
@@ -166,24 +182,69 @@ class Ssh:
     def _remote_command(self, argv):
         return " ".join(shlex.quote(token) for token in argv)
 
-    def run(self, argv, capture=True, check=True):
+    def run(
+            self,
+            argv,
+            capture=True,
+            check=True,
+            warn_on_error=False,
+            retries=0,
+            retry_delay=1.0,
+            retry_on_empty=False):
         """Runs argv on the remote host. Returns stdout (text) when capture is
         set, otherwise streams stdout/stderr straight through.
 
         With check=False a non-zero exit is not fatal: the (possibly empty)
         stdout is returned instead of aborting. Used for optional probes such as
-        listing the log archive, which simply does not exist on most hosts."""
+        listing the log archive, which simply does not exist on most hosts —
+        that benign "No such file or directory" stays silent by default. Pass
+        warn_on_error=True to surface the stderr of a non-fatal failure (e.g.
+        md5sum, where a swallowed error would look like "file absent" and cause
+        a needless re-copy).
+
+        Captured commands may be retried. retry_on_empty additionally treats a
+        successful command with empty stdout as retryable; this is useful for
+        probes such as `logslice --info`, where empty output cannot be useful.
+        """
         cmd = ["ssh"] + self._base_opts + [self.host, self._remote_command(argv)]
-        if self.verbose:
-            eprint("Executing: {}".format(" ".join(shlex.quote(c) for c in cmd)))
-        if capture:
+        if not capture:
+            if retries or retry_on_empty:
+                raise ValueError("Retries require capture=True.")
+            if self.verbose:
+                eprint("Executing: {}".format(
+                    " ".join(shlex.quote(c) for c in cmd)))
+            return subprocess.run(cmd).returncode
+
+        result = None
+        for attempt in range(retries + 1):
+            if self.verbose:
+                suffix = " (attempt {})".format(attempt + 1) if attempt else ""
+                eprint("Executing{}: {}".format(
+                    suffix, " ".join(shlex.quote(c) for c in cmd)))
             result = subprocess.run(cmd, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, text=True)
-            if result.returncode != 0 and check:
-                sys.exit("ssh {} failed: {}".format(
-                    " ".join(argv), result.stderr.strip()))
-            return result.stdout
-        return subprocess.run(cmd).returncode
+            failed = result.returncode != 0
+            empty = retry_on_empty and not result.stdout.strip()
+            if not failed and not empty:
+                return result.stdout
+            if attempt < retries:
+                time.sleep(retry_delay)
+
+        assert result is not None
+        attempts = retries + 1
+        if result.returncode != 0:
+            error = result.stderr.strip() or "no stderr"
+            if check:
+                sys.exit("ssh {} failed after {} attempt(s): {}".format(
+                    " ".join(argv), attempts, error))
+            if warn_on_error:
+                eprint("Warning: ssh {} exited {} after {} attempt(s) "
+                       "(non-fatal): {}".format(
+                           " ".join(argv), result.returncode, attempts, error))
+        elif retry_on_empty and warn_on_error:
+            eprint("Warning: ssh {} returned empty output after {} attempt(s)."
+                   .format(" ".join(argv), attempts))
+        return result.stdout
 
     @classmethod
     def validate_pipeline(cls, stages):
@@ -217,15 +278,98 @@ class Ssh:
             return result.stdout
         return subprocess.run(cmd).returncode
 
-    def scp(self, local_path, remote_path):
-        cmd = (["scp"] + self._base_opts +
-               [local_path, "{}:{}".format(self.host, remote_path)])
+    def remote_md5(self, remote_path):
+        """Returns the md5 hex of an executable remote file, or None otherwise.
+
+        A missing or non-executable binary is a normal upload case and stays
+        silent. Connection, permission, and command failures remain visible.
+        Unparseable successful output is also reported before re-uploading.
+        """
+        command = 'if [ -x "$1" ]; then md5sum -- "$1"; fi'
+        out = self.run(
+            ["sh", "-c", command, "logslice-md5", remote_path],
+            check=False,
+            capture=True,
+            warn_on_error=True)
+        if not out or not out.strip():
+            return None
+        token = out.strip().split()[0]
+        if re.fullmatch(r"[0-9a-f]{32}", token):
+            return token
+        eprint("Warning: md5sum {} returned unparseable output {!r}; "
+               "treating remote binary as absent (will re-copy).".format(
+                   remote_path, out.strip()))
+        return None
+
+    def copy_binary(self, local_path, remote_path):
+        """Copy the local binary to the remote host, reusing the ssh control
+        socket (NOT a separate scp connection).
+
+        scp opens its own connection even with ControlMaster=auto, which on
+        Yubikey/TouchID-secured hosts demands a fresh key touch and fails
+        non-interactively. Piping the file through `ssh ... cat > remote_file`
+        reuses the master socket already opened by connect(), so no extra
+        touch is needed.
+
+        Skipped entirely when the remote already has the same binary (md5
+        match) — common when the same host is queried repeatedly in a session,
+        and the copy would just demand another key touch for nothing.
+        """
+        local_md5 = _file_md5(local_path)
+        remote_md5 = self.remote_md5(remote_path)
+        if remote_md5 == local_md5:
+            if self.verbose:
+                eprint("Remote {} already matches local binary (md5={}); "
+                       "skipping copy.".format(remote_path, local_md5[:8]))
+            return
+        self._copy_via_ssh(local_path, remote_path)
+
+    def _copy_via_ssh(self, local_path, remote_path):
+        """Upload through ssh and atomically replace the remote executable.
+
+        Writing directly to remote_path could leave a truncated executable when
+        two logslice invocations overlap or an upload is interrupted. A
+        per-remote-shell temporary file keeps the old binary usable until the
+        complete replacement is executable and ready to rename.
+        """
+        quoted_remote_path = shlex.quote(remote_path)
+        remote_command = (
+            "tmp={}.upload.$$; "
+            "trap 'rm -f -- \"$tmp\"' 0; "
+            "cat > \"$tmp\" && chmod +x \"$tmp\" && "
+            "mv -f -- \"$tmp\" {}"
+        ).format(quoted_remote_path, quoted_remote_path)
+        cmd = ["ssh"] + self._base_opts + [self.host, remote_command]
         if self.verbose:
-            eprint("Executing: {}".format(" ".join(shlex.quote(c) for c in cmd)))
-        result = subprocess.run(cmd, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, text=True)
+            eprint("Copying binary via: {}".format(
+                " ".join(shlex.quote(c) for c in cmd)))
+        with open(local_path, "rb") as f:
+            result = subprocess.run(cmd, stdin=f, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE)
         if result.returncode != 0:
-            sys.exit("scp failed: {}".format(result.stderr.strip()))
+            err = result.stderr.decode("utf-8", "replace").strip()
+            # A copy failure on a Yubikey/TouchID-secured host is almost always
+            # the control socket being gone / a needed key touch. Hint at the
+            # cause + the escape hatch instead of a bare "copy failed: lost
+            # connection" that gives no clue how to recover.
+            hint = ""
+            if ("lost connection" in err or "Broken pipe" in err
+                    or "timed out" in err):
+                hint = ("\n  This usually means the ssh control socket expired "
+                        "(ControlPersist) or the host needs a Yubikey/TouchID "
+                        "touch. Re-run, or open a long-lived socket once with: "
+                        "ssh -M -S <path> -o ControlPersist={} {} true "
+                        "and pass --control-socket <path>.".format(
+                            self._control_persist, self.host))
+            sys.exit("copy failed: {}{}".format(err, hint))
+
+
+def _file_md5(path):
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 ########################################################################
@@ -494,16 +638,42 @@ class FileSelector:
         self._info_cache = {}
 
     def info(self, index):
-        """Returns (first_dt, last_dt) for files[index], or (None, None)."""
+        """Returns (first_dt, last_dt) for files[index], or (None, None).
+
+        `logslice --info` intermittently fails on .zst files with a transient
+        broken-pipe / Bad-file-descriptor error (non-deterministic; a retry
+        usually succeeds). This retries a few times; if it still fails it
+        returns (None, None) and warns, so the selector falls back to the
+        rotation-timestamp hint for that file instead of aborting the whole
+        search — one flaky file must not kill the run.
+        """
         if index not in self._info_cache:
             path = self.files[index].path
-            out = self.ssh.run([self.remote_bin, "--info", path])
+            out = self.ssh.run(
+                [self.remote_bin, "--info", path],
+                check=False,
+                warn_on_error=True,
+                retries=2,
+                retry_on_empty=True)
             first = last = None
-            for line in out.splitlines():
-                if line.startswith("first:"):
-                    first = parse_info_time(line)
-                elif line.startswith("last:"):
-                    last = parse_info_time(line)
+            if not out:
+                # Probe failed after retries: don't abort — fall back to the
+                # hint-based bounds. Warn loudly so the empty result is not
+                # mistaken for "file has no timestamps".
+                eprint("Warning: `logslice --info {}` failed after retries; "
+                       "falling back to the rotation-timestamp hint for this "
+                       "file (it may be scanned even if it doesn't overlap the "
+                       "window).".format(path))
+            else:
+                for line in out.splitlines():
+                    if line.startswith("first:"):
+                        first = parse_info_time(line)
+                    elif line.startswith("last:"):
+                        last = parse_info_time(line)
+                if first is None and last is None:
+                    eprint("Warning: `logslice --info {}` returned no "
+                           "timestamps (empty output); falling back to the "
+                           "rotation-timestamp hint.".format(path))
             self._info_cache[index] = (first, last)
         return self._info_cache[index]
 
@@ -716,6 +886,25 @@ def main():
                              "logslice, e.g. \"grep Error | wc -l\". "
                              "Only whitelisted tools are allowed: "
                              + ", ".join(sorted(Ssh.PIPELINE_WHITELIST)))
+    parser.add_argument("--control-socket", dest="control_socket", default=None,
+                        help="path to an existing ssh ControlMaster socket for "
+                             "this host to reuse (no new connection or key touch "
+                             "when the socket is live). Open one with: ssh -M "
+                             "-S <path> -o ControlPersist={} "
+                             "<host> true, then pass <path> here across calls."
+                             .format(CONTROL_PERSIST_DEFAULT))
+    parser.add_argument(
+        "--control-persist",
+        type=int,
+        default=CONTROL_PERSIST_DEFAULT,
+        help="seconds to keep the ssh master alive after use (default: {})"
+             .format(CONTROL_PERSIST_DEFAULT))
+    parser.add_argument(
+        "--connect-timeout",
+        type=int,
+        default=CONNECT_TIMEOUT_DEFAULT,
+        help="ssh connection timeout in seconds (default: {})"
+             .format(CONNECT_TIMEOUT_DEFAULT))
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="print ssh commands to stderr")
     args = parser.parse_args(left)
@@ -753,10 +942,14 @@ def main():
         eprint("Warning: could not parse end time {!r}; "
                "scanning all files.".format(args.end))
 
-    ssh = Ssh(args.host, args.verbose)
+    ssh = Ssh(
+        args.host,
+        args.verbose,
+        control_socket=args.control_socket,
+        control_persist=args.control_persist,
+        connect_timeout=args.connect_timeout)
     ssh.connect()
-    ssh.scp(local_bin, REMOTE_BIN)
-    ssh.run(["chmod", "+x", REMOTE_BIN])
+    ssh.copy_binary(local_bin, REMOTE_BIN)
 
     # The archive (older, time-named files) is searched alongside the live logs;
     # discover_series returns them oldest -> newest and select_log_files selects

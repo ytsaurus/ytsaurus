@@ -1037,7 +1037,7 @@ void TExecNodeConfig::Register(TRegistrar registrar)
             for (int idx = 0; idx < std::ssize(config->JobProxyLogManager->Locations); ++idx) {
                 THROW_ERROR_EXCEPTION_IF(
                     config->JobProxyLogManager->Locations[idx]->Path.empty(),
-                    "Location has empty path (LocationIndex: %v)",
+                    "Location with index %v has empty path",
                     idx);
             }
         }

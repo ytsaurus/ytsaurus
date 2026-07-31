@@ -405,7 +405,7 @@ class TestTables(YTEnvSetup):
         content = b"some_data"
         create("file", "//tmp/file")
         write_file("//tmp/file", content)
-        with raises_yt_error("Invalid type of .*: expected any of .*, actual .*"):
+        with raises_yt_error("Invalid type of .*: expected .*, actual .*"):
             read_table("//tmp/file")
 
     @authors("psushin")

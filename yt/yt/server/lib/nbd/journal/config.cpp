@@ -10,6 +10,8 @@
 
 #include <util/generic/bitops.h>
 
+#include <limits>
+
 namespace NYT::NNbd::NJournal {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +45,8 @@ void TJournalBlockStoreConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_chunk_data_size", &TThis::MaxChunkDataSize)
         .Default(1_GB)
         .GreaterThan(0);
+    registrar.Parameter("dead_chunk_retention_delay", &TThis::DeadChunkRetentionDelay)
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("write_backoff", &TThis::WriteBackoff)
         .Default(TExponentialBackoffOptions{
             .InvocationCount = 10,
@@ -55,6 +59,20 @@ void TJournalBlockStoreConfig::Register(TRegistrar registrar)
             .MinBackoff = TDuration::Seconds(1),
             .MaxBackoff = TDuration::Seconds(30),
         });
+    registrar.Parameter("seal_backoff", &TThis::SealBackoff)
+        .Default(TExponentialBackoffOptions{
+            .InvocationCount = std::numeric_limits<int>::max(),
+            .MinBackoff = TDuration::MilliSeconds(500),
+            .MaxBackoff = TDuration::Seconds(10),
+        });
+    registrar.Parameter("seal_rpc_timeout", &TThis::SealRpcTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("seal_quorum_session_delay", &TThis::SealQuorumSessionDelay)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("snapshot_seal_timeout", &TThis::SnapshotSealTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("snapshot_flush_timeout", &TThis::SnapshotFlushTimeout)
+        .Default(TDuration::Seconds(15));
     registrar.Parameter("chunk_writer", &TThis::ChunkWriter)
         .DefaultNew();
     registrar.Parameter("chunk_reader", &TThis::ChunkReader)

@@ -302,7 +302,7 @@ class TPortoInstanceLauncher
 public:
     TPortoInstanceLauncher(std::string_view name, IPortoExecutorPtr executor)
         : Executor_(std::move(executor))
-        , Logger(ContainersLogger().WithTag("Container: %v", name))
+        , Logger(ContainersLogger().WithTag("Container", name))
     {
         Spec_.Name = name;
         Spec_.CGroupControllers = {
@@ -943,7 +943,7 @@ private:
         : Name_(std::move(name))
         , NetworkInterface_(std::move(networkInterface))
         , Executor_(std::move(executor))
-        , Logger(ContainersLogger().WithTag("Container: %v", Name_))
+        , Logger(ContainersLogger().WithTag("Container", Name_))
     { }
 
     void SetProperty(const std::string& key, const std::string& value)

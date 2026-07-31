@@ -96,7 +96,7 @@ private:
 
         YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
             "Partition balancer started tablet scan for splits (%v, CurrentMosc: %v)",
-            tablet->GetLoggingTag(),
+            tablet->LoggingTags(),
             currentMaxOverlappingStoreCount);
 
         int largestPartitionStoreCount = 0;
@@ -129,7 +129,7 @@ private:
         YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
             "Partition balancer started tablet scan for merges (%v, "
             "EstimatedMosc: %v, MaxAllowedOsc: %v)",
-            tablet->GetLoggingTag(),
+            tablet->LoggingTags(),
             estimatedMaxOverlappingStoreCount,
             maxAllowedOverlappingStoreCount);
 
@@ -374,10 +374,10 @@ private:
     static NLogging::TLogger BuildLogger(TPartition* partition)
     {
         auto* tablet = partition->GetTablet();
-        return Logger().WithTag("%v, CellId: %v, PartitionId: %v",
-            tablet->GetLoggingTag(),
-            tablet->GetCellId(),
-            partition->GetId());
+        return Logger()
+            .WithTags(tablet->LoggingTags())
+            .WithTag("CellId", tablet->GetCellId())
+            .WithTag("PartitionId", partition->GetId());
     }
 };
 

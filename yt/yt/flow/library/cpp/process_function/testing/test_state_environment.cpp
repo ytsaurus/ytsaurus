@@ -28,14 +28,17 @@ class TExternalAwareInitContext
 public:
     using TExternalManagerMap = THashMap<std::string, IExternalStateManagerPtr>;
     using TExternalJoinerMap = THashMap<std::string, IExternalStateJoinerPtr>;
+    using TStaticResourceMap = THashMap<TResourceId, IResourcePtr>;
 
     TExternalAwareInitContext(
         IRuntimeInitContextPtr underlying,
         std::shared_ptr<TExternalManagerMap> externalManagers,
-        std::shared_ptr<TExternalJoinerMap> externalJoiners)
+        std::shared_ptr<TExternalJoinerMap> externalJoiners,
+        std::shared_ptr<TStaticResourceMap> staticResources)
         : Underlying_(std::move(underlying))
         , ExternalManagers_(std::move(externalManagers))
         , ExternalJoiners_(std::move(externalJoiners))
+        , StaticResources_(std::move(staticResources))
     { }
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override
@@ -60,7 +63,7 @@ public:
 
     IRuntimeInitContextPtr WithPrefix(TStringBuf prefix) const override
     {
-        return New<TExternalAwareInitContext>(Underlying_->WithPrefix(prefix), ExternalManagers_, ExternalJoiners_);
+        return New<TExternalAwareInitContext>(Underlying_->WithPrefix(prefix), ExternalManagers_, ExternalJoiners_, StaticResources_);
     }
 
     const std::string& GetPrefix() const override
@@ -71,6 +74,15 @@ public:
     NYTree::IMapNodePtr GetParametersNode() const override
     {
         return Underlying_->GetParametersNode();
+    }
+
+    IResourcePtr GetStaticResource(const TResourceId& resourceId) const override
+    {
+        auto iter = StaticResources_->find(resourceId);
+        if (iter == StaticResources_->end()) {
+            THROW_ERROR_EXCEPTION("Static resource %Qv is not registered in the test environment", resourceId);
+        }
+        return iter->second;
     }
 
 protected:
@@ -96,6 +108,7 @@ private:
     const IRuntimeInitContextPtr Underlying_;
     const std::shared_ptr<TExternalManagerMap> ExternalManagers_;
     const std::shared_ptr<TExternalJoinerMap> ExternalJoiners_;
+    const std::shared_ptr<TStaticResourceMap> StaticResources_;
 };
 
 } // namespace
@@ -120,10 +133,12 @@ TTestStateEnvironment::TTestStateEnvironment(NTableClient::TTableSchemaPtr keySc
     StateManager_ = New<TJobStateManager>(ManagerContext_, std::move(dynamicContext));
     ExternalManagers_ = std::make_shared<TExternalManagerMap>();
     ExternalJoiners_ = std::make_shared<TExternalJoinerMap>();
+    StaticResources_ = std::make_shared<TStaticResourceMap>();
     InitContext_ = New<TExternalAwareInitContext>(
         New<TRuntimeInitContext>(StateManager_->CreateContext(), StateManager_),
         ExternalManagers_,
-        ExternalJoiners_);
+        ExternalJoiners_,
+        StaticResources_);
 }
 
 void TTestStateEnvironment::SetStaticParametersNode(NYTree::IMapNodePtr node)
@@ -131,7 +146,8 @@ void TTestStateEnvironment::SetStaticParametersNode(NYTree::IMapNodePtr node)
     InitContext_ = New<TExternalAwareInitContext>(
         New<TRuntimeInitContext>(StateManager_->CreateContext(), StateManager_, std::move(node)),
         ExternalManagers_,
-        ExternalJoiners_);
+        ExternalJoiners_,
+        StaticResources_);
 }
 
 IRuntimeInitContextPtr TTestStateEnvironment::MakeReloadedInitContext()
@@ -203,6 +219,11 @@ void TTestStateEnvironment::CommitEpoch(const std::function<void(const IRetryabl
 void TTestStateEnvironment::RegisterEpochCommit(std::function<void(const IRetryableTransactionPtr&)> commit)
 {
     EpochCommits_.push_back(std::move(commit));
+}
+
+void TTestStateEnvironment::RegisterStaticResource(const TResourceId& resourceId, IResourcePtr resource)
+{
+    EmplaceOrCrash(*StaticResources_, resourceId, std::move(resource));
 }
 
 void TTestStateEnvironment::RegisterExternalState(TStringBuf name, IExternalStateManagerPtr manager)

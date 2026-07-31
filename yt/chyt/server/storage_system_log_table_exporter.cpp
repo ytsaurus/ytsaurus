@@ -340,6 +340,7 @@ class TSystemLogExporter
 {
 public:
     TSystemLogExporter(
+        const THost* const host,
         DB::StorageID storageId,
         TYPath cypressTableDirectory,
         NNative::IClientPtr client,
@@ -349,7 +350,8 @@ public:
         TTableSchema schema,
         ITableExtenderPtr tableExtender,
         TLogger logger)
-        : StorageId_(std::move(storageId))
+        : Host_(host)
+        , StorageId_(std::move(storageId))
         , CypressTableDirectory_(std::move(cypressTableDirectory))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
@@ -361,26 +363,13 @@ public:
         , OutputSchema_(BuildOutputSchema(InputSchema_, tableExtender, NameTable_))
         , TableExtender_(std::move(tableExtender))
         , Logger(std::move(logger))
-    {
-        auto tablePath = EnsureTableReady();
-
-        auto handlerConfig = New<TArchiveHandlerConfig>();
-        handlerConfig->MaxInProgressDataSize = Config_->MaxInProgressDataSize;
-        handlerConfig->Path = tablePath;
-
-        ArchiveReporter_ = CreateArchiveReporter(
-            New<TArchiveVersionHolder>(),
-            Config_,
-            std::move(handlerConfig),
-            NameTable_,
-            StorageId_.getFullTableName(),
-            Client_,
-            Invoker_,
-            SystemLogTableExporterProfiler().WithTag("table_name", StorageId_.table_name));
-    }
+    { }
 
     void ConvertAndEnqueue(const DB::Block& header, const DB::Chunks& chunks)
     {
+        EnsureInitialized();
+        YT_VERIFY(ArchiveReporter_);
+
         auto extraRowBuffer = New<TRowBuffer>();
 
         for (const auto& chunk : chunks) {
@@ -406,6 +395,7 @@ public:
     }
 
 private:
+    const THost* const Host_;
     const DB::StorageID StorageId_;
     const TYPath CypressTableDirectory_;
     const NNative::IClientPtr Client_;
@@ -449,30 +439,59 @@ private:
         return TTableSchema(std::move(columns), inputSchema.IsStrict(), inputSchema.IsUniqueKeys());
     }
 
+    void EnsureInitialized()
+    {
+        // NB: System log flushing is performed in a single thread, so synchronization is not required.
+        if (ArchiveReporter_) {
+            return;
+        }
+
+        auto tablePath = EnsureTableReady();
+
+        auto handlerConfig = New<TArchiveHandlerConfig>();
+        handlerConfig->MaxInProgressDataSize = Config_->MaxInProgressDataSize;
+        handlerConfig->Path = tablePath;
+
+        ArchiveReporter_ = CreateArchiveReporter(
+            New<TArchiveVersionHolder>(),
+            Config_,
+            std::move(handlerConfig),
+            NameTable_,
+            StorageId_.getFullTableName(),
+            Client_,
+            Invoker_,
+            SystemLogTableExporterProfiler().WithTag("table_name", StorageId_.table_name));
+    }
+
     TYPath EnsureTableReady()
     {
-        int lastVersion;
         while (true) {
             auto [currentVersion, schema, tabletCount, mounted] = GetLatestTableInfo();
 
-            if (currentVersion == -1 || schema != OutputSchema_ || tabletCount != Config_->CreateTableTabletCount) {
-                ++currentVersion;
-                CreateVersionedTable(currentVersion);
-                mounted = MountVersionedTable(currentVersion);
-            } else if (!mounted) {
-                mounted = MountVersionedTable(currentVersion);
+            if (currentVersion != -1 && schema == OutputSchema_ && tabletCount == Config_->CreateTableTabletCount && mounted) {
+                return GetVersionedTablePath(currentVersion);
             }
 
-            if (!mounted) {
-                NConcurrency::TDelayedExecutor::WaitForDuration(Config_->StartupRetryBackoff);
-                continue;
+            if (Host_->IsLeader()) {
+                if (currentVersion == -1 || schema != OutputSchema_ || tabletCount != Config_->CreateTableTabletCount) {
+                    ++currentVersion;
+                    CreateVersionedTable(currentVersion);
+                    mounted = MountVersionedTable(currentVersion);
+                } else if (!mounted) {
+                    mounted = MountVersionedTable(currentVersion);
+                }
+
+                if (mounted) {
+                    return GetVersionedTablePath(currentVersion);
+                }
+            } else {
+                YT_LOG_DEBUG("Not a leader, waiting for leader to create/mount table (LastSeenVersion: %v, Mounted: %v)",
+                    currentVersion,
+                    mounted);
             }
 
-            lastVersion = currentVersion;
-            break;
+            NConcurrency::TDelayedExecutor::WaitForDuration(Config_->StartupRetryBackoff);
         }
-
-        return GetVersionedTablePath(lastVersion);
     }
 
     TYPath GetLatestTablePath() const
@@ -727,7 +746,7 @@ void RegisterStorageSystemLogTableExporter(
         auto exportersConfig = host->GetConfig()->SystemLogTableExporters;
         auto config = GetOrDefault(exportersConfig->Tables, args.table_id.table_name, exportersConfig->Default);
 
-        auto logger = SystemLogTableExporterLogger().WithTag("TableName: %v", args.table_id.getFullTableName());
+        auto logger = SystemLogTableExporterLogger().WithTag("TableName", args.table_id.getFullTableName());
 
         TSystemLogExporterPtr logExporter;
         if (config->Enabled) {
@@ -737,6 +756,7 @@ void RegisterStorageSystemLogTableExporter(
             auto tableExtender = CreateTableExtender(args.table_id.table_name, host);
 
             logExporter = New<TSystemLogExporter>(
+                host,
                 args.table_id,
                 Format("%v/%v", exportersConfig->CypressRootDirectory, ToYPathLiteral(args.table_id.table_name)),
                 client,

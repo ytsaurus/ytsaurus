@@ -25,7 +25,7 @@
 
 #include <yt/yt/library/auth_server/public.h>
 
-#include <yt/yt/library/tracing/jaeger/sampler.h>
+#include <yt/yt/library/tracing/jaeger/config.h>
 
 #include <yt/yt/library/profiling/solomon/proxy.h>
 

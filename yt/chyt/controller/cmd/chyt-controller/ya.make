@@ -10,4 +10,16 @@ SRCS(
     run.go
 )
 
+IF (OPENSOURCE)
+    SRCS(
+        dq_opensource.go
+    )
+ENDIF()
+
+IF (NOT OPENSOURCE)
+    SRCS(
+        dq_internal.go
+    )
+ENDIF()
+
 END()

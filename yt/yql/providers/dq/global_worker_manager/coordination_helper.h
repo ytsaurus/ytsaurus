@@ -5,7 +5,7 @@
 #include <yql/essentials/providers/common/metrics/metrics_registry.h>
 #include <yt/yql/providers/dq/global_worker_manager/service_node_resolver.h>
 #include <yt/yql/providers/dq/actors/yt/resource_manager.h>
-#include <contrib/ydb/library/yql/providers/dq/config/config.pb.h>
+#include <yt/yql/providers/dq/config/config.pb.h>
 
 #include <util/generic/ptr.h>
 
@@ -47,11 +47,11 @@ public:
 
     virtual const NProto::TDqConfig::TYtCoordinator& GetConfig() = 0;
 
-    virtual const NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem) = 0;
+    virtual NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem) = 0;
 
-    virtual const NActors::TActorId GetWrapper() = 0;
+    virtual NActors::TActorId GetWrapper() = 0;
 
-    virtual const NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& clusterName, const TString& user, const TString& token) = 0;
+    virtual NActors::TActorId GetWrapper(NActors::TActorSystem* actorSystem, const TString& proxyAddress, const TString& user, const TString& token) = 0;
 
     virtual TWorkerRuntimeData* GetRuntimeData() = 0;
 

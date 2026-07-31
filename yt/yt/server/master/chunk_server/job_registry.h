@@ -21,11 +21,12 @@
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 #include <functional>
 #include <deque>

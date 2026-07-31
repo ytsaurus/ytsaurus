@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/transaction_client/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NCypressElection {
@@ -15,6 +17,7 @@ struct TCypressElectionManagerConfig
 
     TDuration TransactionTimeout;
     TDuration TransactionPingPeriod;
+    NTransactionClient::EMasterTransactionExpirationMode MasterTransactionExpirationMode;
     TDuration LockAcquisitionPeriod;
     TDuration LeaderCacheUpdatePeriod;
 

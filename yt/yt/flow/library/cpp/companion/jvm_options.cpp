@@ -70,13 +70,13 @@ void WarnIfHeapDumpOptionsNotSet(const std::vector<std::string>& jvmOptions)
     }
 
     if (!hasHeapDumpOnOom || !hasHeapDumpPath) {
-        YT_LOG_WARNING("Heap dump options are not configured. "
+        YT_TLOG_WARNING(
+            "Heap dump options are not configured. "
             "It is recommended to set -XX:+HeapDumpOnOutOfMemoryError and -XX:HeapDumpPath=<path> "
             "via YT_FLOW_COMPANION_JVM_EXTRA_OPTS environment variable "
-            "to enable heap dump generation on OutOfMemoryError "
-            "(HasHeapDumpOnOutOfMemoryError: %v, HasHeapDumpPath: %v)",
-            hasHeapDumpOnOom,
-            hasHeapDumpPath);
+            "to enable heap dump generation on OutOfMemoryError")
+            .With("HasHeapDumpOnOutOfMemoryError", hasHeapDumpOnOom)
+            .With("HasHeapDumpPath", hasHeapDumpPath);
     }
 }
 
@@ -88,7 +88,8 @@ std::vector<std::string> BuildJvmOptions()
         NFS::MakeDirRecursive(logDir);
     }
     logDir = NFS::GetRealPath(logDir);
-    YT_LOG_INFO("Directory for JVM diagnostic info (LogDir: %v)", logDir);
+    YT_TLOG_INFO("Directory for JVM diagnostic info")
+        .With("LogDir", logDir);
 
     std::vector<std::string> result;
 

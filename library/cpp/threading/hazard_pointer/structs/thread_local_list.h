@@ -95,6 +95,7 @@ namespace NHp::NStructs {
         std::function<TDeleterSig> Deleter_;
 
         inline static thread_local TThreadLocalOwner Owner_{};
+        inline static thread_local bool OwnerAlive_{true};
     };
 
 } // namespace NHp::NStructs

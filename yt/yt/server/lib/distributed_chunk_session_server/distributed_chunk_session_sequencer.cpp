@@ -47,14 +47,14 @@ public:
             std::move(targets),
             EChunkFormat::JournalDistributed,
             DistributedChunkSessionServiceLogger()))
-        , Logger(DistributedChunkSessionServiceLogger().WithTag("(SessionId: %v)", sessionId))
+        , Logger(DistributedChunkSessionServiceLogger().WithTag("SessionId", sessionId))
     { }
 
     TDistributedChunkSessionSequencer(
         TSessionId sessionId,
         IJournalChunkWriterPtr writer)
         : Writer_(std::move(writer))
-        , Logger(DistributedChunkSessionServiceLogger().WithTag("(SessionId: %v)", sessionId))
+        , Logger(DistributedChunkSessionServiceLogger().WithTag("SessionId", sessionId))
     { }
 
     TFuture<void> Open() final

@@ -34,6 +34,7 @@ func doInitCluster() error {
 	if slices.Contains(config.Families, "livy") {
 		familyToInitializerFactory["livy"] = livy.NewClusterInitializer
 	}
+	registerDQClusterInitializer(familyToInitializerFactory, config.Families)
 
 	clusterInitializer := app.NewClusterInitializer(&config, familyToInitializerFactory)
 	return clusterInitializer.InitCluster()

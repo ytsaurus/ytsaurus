@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/yt/ytlib/discovery_client/public.h>
-#include <yt/yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/options.h>
@@ -263,6 +263,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const NSecurityClient::TQueryPoolPermissionCachePtr& GetQueryPoolPermissionCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NSecurityClient::TUserAttributeCachePtr& GetUserAttributeCache() override
     {
         YT_UNIMPLEMENTED();
@@ -315,7 +320,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const std::string& GetLoggingTag() const override
+    const NLogging::TLoggingTagList& GetLoggingTags() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -419,7 +424,12 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NRpc::IChannelPtr& GetOffshoreDataGatewayChannel() override
+    NRpc::IChannelPtr GetStickyOffshoreDataGatewayChannel() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const NRpc::IChannelPtr& GetNonStickyOffshoreDataGatewayChannel() override
     {
         YT_UNIMPLEMENTED();
     }

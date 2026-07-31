@@ -273,7 +273,7 @@ public:
 
                     YT_LOG_DEBUG("Tablet snapshot unregistered; eviction scheduled "
                         "(%v, MountRevision: %x, CellId: %v, EvictionTimeout: %v)",
-                        snapshot->LoggingTag,
+                        snapshot->LoggingTags,
                         snapshot->MountRevision,
                         slot->GetCellId(),
                         evictionTimeout);

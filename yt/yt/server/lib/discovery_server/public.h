@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/ytlib/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/public.h>
 
 namespace NYT::NDiscoveryServer {
 

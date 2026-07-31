@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "interop.h"
+#include "udf_meta_manager.h"
 
 #include <yt/yql/plugin/native/plugin.h>
 #include <yt/yql/plugin/process/plugin.h>
@@ -247,22 +248,32 @@ class TYqlAgent
 public:
     TYqlAgent(
         TBootstrap* bootstrap,
-        TSingletonsConfigPtr singletonsConfig,
+        TYqlAgentServerConfigPtr serverConfig,
         TYqlAgentConfigPtr yqlAgentConfig,
         TYqlAgentDynamicConfigPtr dynamicConfig,
         TClusterDirectoryPtr clusterDirectory,
         TClientDirectoryPtr clientDirectory,
         IInvokerPtr controlInvoker,
         TString agentId)
-        : SingletonsConfig_(std::move(singletonsConfig))
+        : SupportedFlavors_(serverConfig->SupportedFlavors)
+        , ProtoDynamicConfigsPath_(serverConfig->ProtoDynamicConfigsPath)
+        , SingletonsConfig_(std::move(serverConfig))
         , Config_(std::move(yqlAgentConfig))
         , ClusterDirectory_(std::move(clusterDirectory))
         , ClientDirectory_(std::move(clientDirectory))
         , ControlInvoker_(std::move(controlInvoker))
         , AgentId_(std::move(agentId))
+        , Client_(bootstrap->GetClient())
+        , ProtoConfigsUpdater_(New<TPeriodicExecutor>(
+            ControlInvoker_,
+            BIND(&TYqlAgent::UpdateProtoDynamicConfigs, MakeWeak(this))))
         , DynamicConfig_(std::move(dynamicConfig))
+        , UdfMetaManager_(New<TUdfMetaManager>(Config_->UdfMetaPath, Client_, ControlInvoker_))
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
     {
+        UdfMetaManager_->SubscribeBeforeConfigChanged(
+            BIND(&TYqlAgent::OnUdfMetaChanged, MakeWeak(this)));
+
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
         auto clustersConfig = Config_->GatewayConfig->AsMap()->GetChildOrThrow("cluster_mapping")->AsList();
@@ -324,25 +335,33 @@ public:
 
         InitYqlVersions();
 
+        TYqlPluginDynamicConfigPtr pluginInitialDynamicConfig = New<TYqlPluginDynamicConfig>();
+        pluginInitialDynamicConfig->GatewaysConfig = DynamicConfig_->GatewaysConfig
+            ? ConvertToYsonString(DynamicConfig_->GatewaysConfig)
+            : TYsonString();
+        pluginInitialDynamicConfig->MaxSupportedYqlVersion = MaxSupportedYqlVersionStr_;
+        pluginInitialDynamicConfig->ProtoGatewaysConfigs = ReadProtoDynamicGatewaysConfigs();
+
         auto options = ConvertToNativePluginOptions(
             Config_,
+            pluginInitialDynamicConfig,
             singletonsConfigString,
             CreateArcadiaLogBackend(TLogger("YqlPlugin")),
-            MaxSupportedYqlVersionStr_,
             Config_->EnableDQ);
 
         if (Config_->UseQtWorkerYqlPlugin) {
             auto qtOptions = ConvertToQtWorkerPluginOptions(
                 std::move(options),
                 CreateArcadiaLogBackend(TLogger("QtWorkerPlugin")),
-                Config_->QtWorkerInspectorPort);
+                Config_->QtWorkerInspectorPort,
+                *Config_->QtWorkerGatewaysConfigPath);
             YqlPlugin_ = CreateQtWorkerYqlPlugin(std::move(qtOptions));
         } else {
             // NB: under debug build this method does not fit in regular fiber stack
             // due to python udf loading
             using TSignature = void(TYqlNativePluginOptions);
             auto coroutine = TCoroutine<TSignature>(
-                BIND([this, bootstrap, singletonsConfigDefaultLogging](
+                BIND([this, bootstrap, singletonsConfigDefaultLogging, pluginInitialDynamicConfig](
                     TCoroutine<TSignature>& /*self*/,
                     TYqlNativePluginOptions options
                 ) {
@@ -350,8 +369,8 @@ public:
                         ? CreateProcessYqlPlugin(
                             Config_,
                             singletonsConfigDefaultLogging,
+                            pluginInitialDynamicConfig,
                             bootstrap->GetClusterConnectionConfig(),
-                            TString(MaxSupportedYqlVersionStr_),
                             YqlAgentProfiler().WithPrefix("/process_yql_plugin"))
                         : CreateYqlPlugin(std::move(options));
                 }),
@@ -371,7 +390,12 @@ public:
 
     void Start() override
     {
+        UdfMetaManager_->Start();
         YqlPlugin_->Start();
+        if (Config_->UseQtWorkerYqlPlugin) {
+            ProtoConfigsUpdater_->Start();
+        }
+
     }
 
     void Stop() override
@@ -381,6 +405,19 @@ public:
     {
         auto producer = BIND_NO_PROPAGATE(&TYqlAgent::BuildOrchid, MakeStrong(this));
         return IYPathService::FromProducer(producer);
+    }
+
+    void UpdateProtoDynamicConfigs()
+    {
+        if (!Config_->UseQtWorkerYqlPlugin) {
+            return;
+        }
+
+        auto protoDynamicGatewaysConfigs = ReadProtoDynamicGatewaysConfigs();
+        TYqlPluginDynamicConfigPtr pluginDynamicConfig = New<TYqlPluginDynamicConfig>();
+        pluginDynamicConfig->ProtoGatewaysConfigs = std::move(protoDynamicGatewaysConfigs);
+        YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with ProtoGatewaysConfigs: %v", pluginDynamicConfig->ProtoGatewaysConfigs);
+        YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
     }
 
     void OnDynamicConfigChanged(
@@ -397,16 +434,65 @@ public:
         }
         ActiveQueriesGuardFactory_->Update(DynamicConfig_->MaxSimultaneousQueries);
 
+        ProtoConfigsUpdater_->SetPeriod(DynamicConfig_->ProtoConfigsUpdatePeriod);
         InitYqlVersions();
 
-        if (DynamicConfig_->GatewaysConfig) {
-            TYqlPluginDynamicConfig pluginDynamicConfig{
-                .GatewaysConfig = ConvertToYsonString(DynamicConfig_->GatewaysConfig),
-                .MaxSupportedYqlVersion = TYsonString(MaxSupportedYqlVersionStr_),
-            };
-            YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with GatewaysConfig: %v", pluginDynamicConfig.GatewaysConfig.AsStringBuf());
+        if (Config_->UseQtWorkerYqlPlugin) {
+            YT_LOG_ERROR("Old GatewaysConfig is deprecated with qtworker plugin and has been ignored");
+
+            TYqlPluginDynamicConfigPtr pluginDynamicConfig = New<TYqlPluginDynamicConfig>();
+            pluginDynamicConfig->MaxSupportedYqlVersion = MaxSupportedYqlVersionStr_;
+            YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
+        } else {
+            // TODO(mpereskokova): Remove with native plugin
+            TYqlPluginDynamicConfigPtr pluginDynamicConfig = New<TYqlPluginDynamicConfig>();
+            pluginDynamicConfig->GatewaysConfig = DynamicConfig_->GatewaysConfig
+                    ? ConvertToYsonString(DynamicConfig_->GatewaysConfig)
+                    : TYsonString();
+            pluginDynamicConfig->MaxSupportedYqlVersion = MaxSupportedYqlVersionStr_;
+            YT_LOG_DEBUG("Call YqlPlugin_->OnDynamicConfigChanged with GatewaysConfig: %v", pluginDynamicConfig->GatewaysConfig.AsStringBuf());
             YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
         }
+    }
+
+    THashMap<TString, TString> ReadProtoDynamicGatewaysConfigs()
+    {
+        if (!Config_->UseQtWorkerYqlPlugin) {
+            return {};
+        }
+
+        THashMap<TString, TString> configs;
+        for (const auto& flavor : SupportedFlavors_) {
+            auto path = Format("%v/%v.conf", ProtoDynamicConfigsPath_, flavor);
+
+            try {
+                auto modificationTimeOrError = WaitFor(Client_->GetNode(path + "/@modification_time"));
+                if (modificationTimeOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    YT_LOG_DEBUG("Proto dynamic gateways config file does not exist (Flavor: %Qv, Path: %Qv)", flavor, path);
+                    continue;
+                }
+                auto modificationTime = modificationTimeOrError.ValueOrThrow().ToString();
+                if (ProtoConfigsModificationTime_.contains(flavor) && ProtoConfigsModificationTime_[flavor] == modificationTime) {
+                    continue;
+                }
+
+                auto fileReader = WaitFor(Client_->CreateFileReader(path)).ValueOrThrow();
+                configs[flavor] = TString(fileReader->ReadAll().ToStringBuf());
+
+                ProtoConfigsModificationTime_[flavor] = modificationTime;
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Failed to read proto dynamic gateways config (Flavor: %Qv, Path: %Qv)", flavor, path);
+            }
+        }
+
+        return configs;
+    }
+
+    void OnUdfMetaChanged(
+        const TUdfMetaPtr& /*oldMeta*/,
+        const TUdfMetaPtr& newMeta)
+    {
+        YqlPlugin_->OnUdfMetaChanged(newMeta);
     }
 
     TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request) override
@@ -504,12 +590,19 @@ public:
     }
 
 private:
+    const std::set<TString> SupportedFlavors_;
+    const TString ProtoDynamicConfigsPath_;
     const TSingletonsConfigPtr SingletonsConfig_;
     const TYqlAgentConfigPtr Config_;
     const TClusterDirectoryPtr ClusterDirectory_;
     const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr ControlInvoker_;
     const TString AgentId_;
+    const NApi::NNative::IClientPtr Client_;
+
+    const TPeriodicExecutorPtr ProtoConfigsUpdater_;
+
+    THashMap<TString, TString> ProtoConfigsModificationTime_;
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, YqlVersionLock_);
     NYql::TLangVersion MaxSupportedYqlVersion_;
@@ -517,6 +610,7 @@ private:
     std::string DefaultYqlUILangVersionStr_;
 
     TYqlAgentDynamicConfigPtr DynamicConfig_;
+    const TUdfMetaManagerPtr UdfMetaManager_;
 
     std::unique_ptr<IYqlPlugin> YqlPlugin_;
 
@@ -573,7 +667,7 @@ private:
 
         static const auto EmptyMap = TYsonString(TString("{}"));
 
-        const auto& Logger = YqlAgentLogger().WithTag("QueryId: %v", queryId);
+        const auto& Logger = YqlAgentLogger().WithTag("QueryId", queryId);
 
         const auto& yqlRequest = request.yql_request();
 
@@ -592,6 +686,9 @@ private:
                 << TErrorAttribute("query_id", queryId);
         };
 
+        auto queryType = FromProto<EQueryType>(yqlRequest.query_type());
+        YT_LOG_INFO("QueryType: %v", queryType);
+
         try {
             auto query = TString(yqlRequest.query());
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
@@ -609,40 +706,74 @@ private:
             YqlPlugin_->RegisterQuery(queryId);
             queryState.Registered = true;
 
-            auto clustersResult = YqlPlugin_->GetUsedClusters(queryId, query, settings, files);
-            if (clustersResult.YsonError) {
-                auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
-                THROW_ERROR error;
-            }
-
-            EraseNonYtClusters(clustersResult.Clusters);
-
-            THashMap<TString, IClientPtr> queryClients;
-            for (const auto& clusterName : clustersResult.Clusters) {
-                queryClients[clusterName.first] = ClusterDirectory_->GetConnectionOrThrow(clusterName.first)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
-            }
-
-            auto token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
-
-            queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
-            queryState.RefreshTokenExecutor->Start();
-
-            const auto defaultCluster = clustersResult.Clusters.front().first;
             // TODO(ngc224): revise after proper auth support in UI
-            THashMap<TString, THashMap<TString, TString>> credentials = {
-                {"default_yt", {{"category", "yt"}, {"content", token}}},
-                {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
-            };
+            THashMap<TString, THashMap<TString, TString>> credentials;
+            TString token;
+            TClustersResult clustersResult;
+            switch (queryType) {
+            case EQueryType::Regular: {
+                clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, query, settings, files);
+                if (clustersResult.YsonError) {
+                    auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
+                    THROW_ERROR error;
+                }
 
-            FillCredentials(
-                credentials,
-                yqlRequest.secrets(),
-                defaultCluster,
-                user,
-                queryClients);
+                EraseNonYtClusters(clustersResult.Clusters);
+
+                THashMap<TString, IClientPtr> queryClients;
+                for (const auto& clusterName : clustersResult.Clusters) {
+                    queryClients[clusterName.first] = ClusterDirectory_->GetConnectionOrThrow(clusterName.first)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
+                }
+
+                token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
+
+                queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
+                queryState.RefreshTokenExecutor->Start();
+
+                const auto defaultCluster = clustersResult.Clusters.front().first;
+                credentials = {
+                    {"default_yt", {{"category", "yt"}, {"content", token}}},
+                    {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
+                };
+
+                FillCredentials(
+                    credentials,
+                    yqlRequest.secrets(),
+                    defaultCluster,
+                    user,
+                    queryClients);
+                break;
+            }
+
+            case EQueryType::UdfMeta: {
+                if (!Config_->UdfMetaUser) {
+                    THROW_ERROR_EXCEPTION("UdfMetaUser must be specified for running %Qv queries", EQueryType::UdfMeta);
+                }
+
+                // Issue token for UdfMetaUser for native cluster
+                auto nativeCluster = std::optional<TString>(Client_->GetNativeConnection()->GetClusterName());
+                YT_VERIFY(nativeCluster);
+
+                THashMap<TString, IClientPtr> queryClients = {{
+                    *nativeCluster,
+                    ClusterDirectory_->GetConnectionOrThrow(*nativeCluster)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(Config_->UdfMetaUser))
+                }};
+                clustersResult.Clusters = {{*nativeCluster, ""}};
+
+                token = IssueToken(queryId, Config_->UdfMetaUser, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
+
+                queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, Config_->UdfMetaUser, token, queryClients), Config_->RefreshTokenPeriod);
+                queryState.RefreshTokenExecutor->Start();
+
+                credentials = {
+                    {"default_yt", {{"category", "yt"}, {"content", token}}},
+                };
+                break;
+            }
+            }
 
             // This is a long blocking call.
-            const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode());
+            const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode(), queryType);
 
             if (result.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
@@ -661,7 +792,16 @@ private:
             ValidateAndFillYqlResponseField(yqlResponse, result.TaskInfo, &TYqlResponse::mutable_task_info);
             ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
             if (request.build_rowsets() && result.YsonResult) {
-                auto rowsets = BuildRowsets(clustersResult.Clusters, clientOptions, *result.YsonResult, request.row_count_limit());
+                std::vector<TWireYqlRowset> rowsets;
+                switch (queryType) {
+                case EQueryType::Regular:
+                    rowsets = BuildRowsets(clustersResult.Clusters, clientOptions, *result.YsonResult, request.row_count_limit());
+                    break;
+
+                case EQueryType::UdfMeta:
+                    rowsets = {BuildRawYsonResultRowset(*result.YsonResult)};
+                    break;
+                }
 
                 for (const auto& rowset : rowsets) {
                     if (rowset.Error.IsOK()) {
@@ -850,6 +990,7 @@ private:
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("yql_plugin").Value(YqlPlugin_->GetOrchidNode())
+                .Item("udf_meta").Value(UdfMetaManager_->GetConfigNode())
             .EndMap();
     }
 
@@ -1153,7 +1294,7 @@ private:
 
 IYqlAgentPtr CreateYqlAgent(
     TBootstrap* bootstrap,
-    TSingletonsConfigPtr singletonsConfig,
+    TYqlAgentServerConfigPtr serverConfig,
     TYqlAgentConfigPtr config,
     TYqlAgentDynamicConfigPtr dynamicConfig,
     TClusterDirectoryPtr clusterDirectory,
@@ -1163,7 +1304,7 @@ IYqlAgentPtr CreateYqlAgent(
 {
     return New<TYqlAgent>(
         bootstrap,
-        std::move(singletonsConfig),
+        std::move(serverConfig),
         std::move(config),
         std::move(dynamicConfig),
         std::move(clusterDirectory),

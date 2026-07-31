@@ -85,9 +85,9 @@ TRangeId ExtractRangeId(const TKey& key)
 std::pair<i64, i64> GetRowIndexRange(const TRichYPath& path)
 {
     auto ranges = path.GetRanges();
-    THROW_ERROR_EXCEPTION_UNLESS(ranges.size() == 1, "Table rich path doesn't have exactly one range (Path: %v)", path);
-    THROW_ERROR_EXCEPTION_UNLESS(ranges[0].LowerLimit().HasRowIndex(), "Table rich path doesn't have lower row index (Path: %v)", path);
-    THROW_ERROR_EXCEPTION_UNLESS(ranges[0].UpperLimit().HasRowIndex(), "Table rich path doesn't have upper row index (Path: %v)", path);
+    THROW_ERROR_EXCEPTION_UNLESS(ranges.size() == 1, "Table rich path %v doesn't have exactly one range", path);
+    THROW_ERROR_EXCEPTION_UNLESS(ranges[0].LowerLimit().HasRowIndex(), "Table rich path %v doesn't have lower row index", path);
+    THROW_ERROR_EXCEPTION_UNLESS(ranges[0].UpperLimit().HasRowIndex(), "Table rich path %v doesn't have upper row index", path);
     return {ranges[0].LowerLimit().GetRowIndex(), ranges[0].UpperLimit().GetRowIndex()};
 }
 
@@ -130,7 +130,9 @@ TSource::TSource(
     TSourceContextPtr context,
     TDynamicSourceContextPtr dynamicContext)
     : TIntegerOffsetOrderedSourceBase(std::move(context), std::move(dynamicContext))
-    , Logger(TOrderedSourceBase::Logger.WithTag("Tables: %v, TablesPath: %v", GetParameters()->Tables, GetParameters()->TablesPath))
+    , Logger(TOrderedSourceBase::Logger
+            .WithTag("Tables", GetParameters()->Tables)
+            .WithTag("TablesPath", GetParameters()->TablesPath))
     , Throttler_(CreateReconfigurableThroughputThrottler(
         CreateThrottlerConfig(
             GetDynamicPartitionSpec()->RowsPerSecond,
@@ -143,8 +145,8 @@ TSource::TSource(
         BIND([=, this] (const TDynamicSourceContextPtr& /*dynamicContext*/) mutable {
             // Sanity check. These parameters are not changed during partition life.
             auto newDynamicPartitionSpec = GetDynamicPartitionSpec();
-            YT_LOG_INFO("Source got new dynamic source partition spec (newDynamicPartitionSpec: %v)",
-                ConvertToYsonString(newDynamicPartitionSpec, EYsonFormat::Text));
+            YT_TLOG_INFO("Source got new dynamic source partition spec")
+                .With("newDynamicPartitionSpec", ConvertToYsonString(newDynamicPartitionSpec, EYsonFormat::Text));
             if (previousDynamicPartitionSpec) {
                 YT_VERIFY(newDynamicPartitionSpec->Table.GetPath() == previousDynamicPartitionSpec->Table.GetPath());
                 YT_VERIFY(newDynamicPartitionSpec->EventTimestamp == previousDynamicPartitionSpec->EventTimestamp);
@@ -273,7 +275,7 @@ std::pair<NTableClient::TTableSchemaPtr, std::vector<int>> TSource::GetSchemaAnd
             } else {
                 THROW_ERROR_EXCEPTION_UNLESS(
                     observed == cellType,
-                    "Inconsistent types in batch (Type1: %v, Type2: %v)",
+                    "Inconsistent types in batch: %v vs %v",
                     observed,
                     cellType);
             }
@@ -337,7 +339,8 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
         auto table = dynamicSourcePartitionSpec->Table;
         SetRowIndexRange(table, nextOffset, maxOffsetExclusive);
 
-        YT_LOG_DEBUG("Create table reader (RichPath: %v)", table);
+        YT_TLOG_DEBUG("Create table reader")
+            .With("RichPath", table);
         auto readerConfig = NYT::New<NYT::NTableClient::TTableReaderConfig>();
         ReaderFuture_ = Client_->CreateTableReader(
             table,
@@ -385,7 +388,6 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
             << TErrorAttribute("current_offset", CurrentOffset_)
             << TErrorAttribute("max_offset_exclusive", maxOffsetExclusive);
         GetReadErrorState()->SetError(error);
-        YT_LOG_WARNING(error);
         ReaderFuture_ = {};
         return MakeFuture(std::vector<TSource::TRecord>{});
     }
@@ -395,7 +397,6 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
             auto error = NYT::TError(NYT::EErrorCode::Timeout, "Timeout of table reader; receiving empty batches for too long")
                 << TErrorAttribute("read_timeout", GetDynamicParameters()->ReadTimeout);
             GetReadErrorState()->SetError(error);
-            YT_LOG_WARNING(error);
             ReaderFuture_ = {};
         }
         return MakeFuture(std::vector<TSource::TRecord>{});
@@ -582,17 +583,17 @@ TSystemTimestamp TSourceController::ExtractTimestamp(
     TInstant instant;
     switch (locator->Format) {
         case ETimestampFormat::Iso8601:
-            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::String, "Expected string for iso8601 timestamp (ActualType: %v)", timestampNode->GetType());
+            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::String, "Expected string for iso8601 timestamp, got %v", timestampNode->GetType());
             if (TInstant::TryParseIso8601(timestampNode->AsString()->GetValue(), instant)) {
                 return TSystemTimestamp(instant.Seconds());
             }
-            THROW_ERROR_EXCEPTION("Can not parse timestamp string as iso8601 (TimestampString: %v)", timestampNode->AsString()->GetValue());
+            THROW_ERROR_EXCEPTION("Cannot parse timestamp string %Qv as iso8601", timestampNode->AsString()->GetValue());
         case ETimestampFormat::Seconds:
-            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::Uint64, "Expected ui64 for seconds timestamp (ActualType: %v)", timestampNode->GetType());
+            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::Uint64, "Expected ui64 for seconds timestamp, got %v", timestampNode->GetType());
             instant = TInstant::Seconds(timestampNode->AsUint64()->GetValue());
             return TSystemTimestamp(instant.Seconds());
         case ETimestampFormat::MilliSeconds:
-            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::Uint64, "Expected ui64 for milliseconds timestamp (ActualType: %v)", timestampNode->GetType());
+            THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::Uint64, "Expected ui64 for milliseconds timestamp, got %v", timestampNode->GetType());
             instant = TInstant::MilliSeconds(timestampNode->AsUint64()->GetValue());
             return TSystemTimestamp(instant.Seconds());
     }
@@ -622,7 +623,7 @@ std::pair<TRichYPath, INodePtr> TSourceController::ResolveTable(
     auto node = ConvertToNode(WaitFor(client->GetNode(table.GetPath() + NoFollowSymlinkSuffix, getOptions)).ValueOrThrow());
     THROW_ERROR_EXCEPTION_UNLESS(
         node->Attributes().Get<EObjectType>("type") == EObjectType::Table,
-        "Parameter \"tables\" requires every node to be a table, symlinks are not allowed (Path: %v)",
+        "Node %v listed in parameter \"tables\" must be a table, symlinks are not allowed",
         table);
     return {table, node};
 }
@@ -643,7 +644,7 @@ std::vector<TSourceControllerTablePtr> TSourceController::MakeTables(
         } else if (sourceParameters->SkipNonTableNodes && EObjectType::Table != nodeType) {
             continue;
         } else {
-            THROW_ERROR_EXCEPTION_UNLESS(EObjectType::Table == nodeType, "Parameter \"tables_path\" requires every node to be a table, symlinks are not allowed (Path: %v)", path);
+            THROW_ERROR_EXCEPTION_UNLESS(EObjectType::Table == nodeType, "Node %v under \"tables_path\" must be a table, symlinks are not allowed", path);
         }
 
         if (sourceParameters->TableNameFilter &&
@@ -684,6 +685,9 @@ void TSourceController::FilterTables(
 {
     EraseIf(tables, [&] (const TSourceControllerTablePtr& table) {
         if (dynamicSourceParameters->MinEventTimestamp.has_value() && table->EventTimestamp.Underlying() < *dynamicSourceParameters->MinEventTimestamp) {
+            return true;
+        }
+        if (dynamicSourceParameters->MaxEventTimestamp.has_value() && table->EventTimestamp.Underlying() > *dynamicSourceParameters->MaxEventTimestamp) {
             return true;
         }
         return table->GetOrderingKey() < lastProcessingTable->GetOrderingKey() || table->RowCount == 0;
@@ -751,14 +755,13 @@ void TSourceController::UpdateControllerState(
         ++it;
     } else {
         if (state->DistributingTable->GetNotDistributedRows() != 0) {
-            YT_LOG_EVENT(
+            YT_TLOG_EVENT_FLUENT(
                 publicLogger,
                 ELogLevel::Error,
-                "Data loss was detected, table was removed before it is fully read "
-                "(Table: %v, RowsLost: %v, RowsTotal: %v)",
-                state->DistributingTable->Path,
-                state->DistributingTable->GetNotDistributedRows(),
-                state->DistributingTable->RowCount);
+                "Data loss was detected, table was removed before it is fully read")
+                .With("Table", state->DistributingTable->Path)
+                .With("RowsLost", state->DistributingTable->GetNotDistributedRows())
+                .With("RowsTotal", state->DistributingTable->RowCount);
             state->LostTables += 1;
         } else if (!state->DistributionFinished) {
             state->ProcessedTables += 1;
@@ -782,19 +785,17 @@ void TSourceController::UpdateControllerState(
     }
 
     if (needStartNewTable) {
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT_FLUENT(
             publicLogger,
             ELogLevel::Info,
-            "Starting to read new table"
-            "(Table: %v, TableRows: %v, TableBytes: %v, TableEventTimestamp: %v, TableSystemTimestamp: %v, "
-            "QueuedTablesRows: %v, QueuedTablesBytes: %v)",
-            state->DistributingTable->Path,
-            state->DistributingTable->RowCount,
-            state->DistributingTable->ByteSize,
-            state->DistributingTable->EventTimestamp,
-            state->DistributingTable->SystemTimestamp,
-            state->PendingCount,
-            state->PendingBytes);
+            "Starting to read new table")
+            .With("Table", state->DistributingTable->Path)
+            .With("TableRows", state->DistributingTable->RowCount)
+            .With("TableBytes", state->DistributingTable->ByteSize)
+            .With("TableEventTimestamp", state->DistributingTable->EventTimestamp)
+            .With("TableSystemTimestamp", state->DistributingTable->SystemTimestamp)
+            .With("QueuedTablesRows", state->PendingCount)
+            .With("QueuedTablesBytes", state->PendingBytes);
     }
 }
 
@@ -805,24 +806,24 @@ void TSourceController::ApplyRestartInstantLogic(
 {
     auto now = TInstant::Now();
     if (restartInstant > now) {
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT_FLUENT(
             publicLogger,
             ELogLevel::Warning,
-            "Misconfiguration: restart instant in dynamic parameters is greater than now (RestartInstant: %v, Now: %v)",
-            restartInstant,
-            now);
+            "Misconfiguration: restart instant in dynamic parameters is greater than now")
+            .With("RestartInstant", restartInstant)
+            .With("Now", now);
     }
     if (restartInstant > state->EraStartInstant) {
         state->DistributingTable->SkipRemainingRows();
 
         state->Era += 1;
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT_FLUENT(
             publicLogger,
             ELogLevel::Warning,
-            "Starting new era (Era: %v, LastEraStartInstant: %v, NewEraStartInstant: %v)",
-            state->Era,
-            state->EraStartInstant,
-            now);
+            "Starting new era")
+            .With("Era", state->Era)
+            .With("LastEraStartInstant", state->EraStartInstant)
+            .With("NewEraStartInstant", now);
         state->EraStartInstant = now;
     }
 }
@@ -850,18 +851,20 @@ bool TSourceController::CheckDistributingTable()
                 CheckDistributingTableErrorState_->ClearError();
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to update distributing table") << ex;
-                YT_LOG_EVENT(
+                YT_TLOG_EVENT_FLUENT(
                     GetContext()->PublicLogger,
                     ELogLevel::Error,
-                    error);
+                    "Failed to update distributing table")
+                    .With(error);
                 CheckDistributingTableErrorState_->SetError(error);
             }
         } else {
             auto error = TError("Failed to get tables") << TablesFuture_.GetOrCrash();
-            YT_LOG_EVENT(
+            YT_TLOG_EVENT_FLUENT(
                 GetContext()->PublicLogger,
                 ELogLevel::Error,
-                error);
+                "Failed to get tables")
+                .With(error);
             CheckDistributingTableErrorState_->SetError(error);
         }
         TablesFuture_ = {};
@@ -905,11 +908,11 @@ void TSourceController::CheckDistributionFinished()
     } else if (distributingTable->GetNotDistributedRows() == 0 && distributingTable->DistributingRanges.empty()) {
         State_->DistributionFinished = true;
         State_->ProcessedTables += 1;
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT_FLUENT(
             GetContext()->PublicLogger,
             ELogLevel::Info,
-            "Table was processed (Table: %v)",
-            distributingTable->Path);
+            "Table was processed")
+            .With("Table", distributingTable->Path);
     }
 }
 

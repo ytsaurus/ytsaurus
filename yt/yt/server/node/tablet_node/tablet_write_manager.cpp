@@ -55,7 +55,7 @@ public:
         : Tablet_(tablet)
         , Context_(tabletContext)
         , Host_(Context_->GetTabletWriteManagerHost().Get())
-        , Logger(TabletNodeLogger().WithTag("TabletId: %v", Tablet_->GetId()))
+        , Logger(TabletNodeLogger().WithTag("TabletId", Tablet_->GetId()))
     {
         // May be null in unittests.
         if (const auto& memoryUsageTracker = Context_->GetNodeMemoryUsageTracker()) {
@@ -238,7 +238,7 @@ public:
         YT_VERIFY(!std::exchange(persistentWriteState->RowsPrepared, true));
 
         if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
-            persistentWriteState->LockedWriteLog.Freeze();
+            FreezeWriteLog(&persistentWriteState->LockedWriteLog);
         }
 
         InsertPreparedTransactionToBarrier(transaction, persistentWriteState.Get());
@@ -281,14 +281,14 @@ public:
         if (auto delay = mountConfig->Testing.SyncDelayInWriteTransactionCommit) {
             YT_LOG_DEBUG("Started sleeping in transaction commit "
                 "(%v, TransactionId: %v)",
-                Tablet_->GetLoggingTag(),
+                Tablet_->GetLoggingTags(),
                 transaction->GetId());
 
             Sleep(delay);
 
             YT_LOG_DEBUG("Finished sleeping in transaction commit "
                 "(%v, TransactionId: %v)",
-                Tablet_->GetLoggingTag(),
+                Tablet_->GetLoggingTags(),
                 transaction->GetId());
         }
 
@@ -696,7 +696,8 @@ public:
         TransactionIdToTransientWriteState_.clear();
         TransactionIdToPersistentWriteState_.clear();
 
-        WriteLogsMemoryTrackerGuard_.SetSize(0);
+        // TODO(tea-mur): Proper validation of write log memory accounting. See YT-29082
+        IncreaseAccountedWriteLogMemory(-WriteLogsMemoryTrackerGuard_.GetSize());
     }
 
     void Save(TSaveContext& context) const override
@@ -748,6 +749,9 @@ public:
             auto transactionId = Load<TTransactionId>(context);
             const auto& writeState = GetOrCrash(TransactionIdToPersistentWriteState_, transactionId);
             writeState->AsyncLoad(context);
+
+            IncreaseAccountedWriteLogMemory(writeState->LockedWriteLog.GetByteSize());
+            IncreaseAccountedWriteLogMemory(writeState->LocklessWriteLog.GetByteSize());
         }
     }
 
@@ -765,7 +769,7 @@ public:
             auto* transaction = transactionManager->GetPersistentTransaction(transactionId, externalizationToken);
 
             if (writeState->RowsPrepared && Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
-                writeState->LockedWriteLog.Freeze();
+                FreezeWriteLog(&writeState->LockedWriteLog);
             }
 
             for (const auto& writeRecord : writeState->LockedWriteLog) {
@@ -897,6 +901,29 @@ private:
     };
     using TTransactionTransientWriteStatePtr = TIntrusivePtr<TTransactionTransientWriteState>;
 
+    class TWriteLogMemoryAccountingGuard
+    {
+    public:
+        TWriteLogMemoryAccountingGuard(
+            TTabletWriteManager* owner,
+            const TTransactionWriteLog& writeLog)
+            : Owner_(owner)
+            , WriteLog_(writeLog)
+            , BytesUsedAtCreation_(WriteLog_.GetByteSize())
+        { }
+
+        ~TWriteLogMemoryAccountingGuard()
+        {
+            i64 delta = WriteLog_.GetByteSize() - BytesUsedAtCreation_;
+            Owner_->IncreaseAccountedWriteLogMemory(delta);
+        }
+
+    private:
+        TTabletWriteManager* Owner_;
+        const TTransactionWriteLog& WriteLog_;
+        i64 BytesUsedAtCreation_;
+    };
+
     THashMap<TTransactionId, TTransactionPersistentWriteStatePtr> TransactionIdToPersistentWriteState_;
     THashMap<TTransactionId, TTransactionTransientWriteStatePtr> TransactionIdToTransientWriteState_;
 
@@ -1002,6 +1029,23 @@ private:
         runtimeData->PreparedTransactionBarrier.Remove(cookie);
     }
 
+    void IncreaseAccountedWriteLogMemory(i64 delta)
+    {
+        WriteLogsMemoryTrackerGuard_.IncreaseSize(delta);
+        Tablet_->RuntimeData()->DynamicMemoryUsagePerType[ETabletDynamicMemoryType::WriteLogs].fetch_add(
+            delta,
+            std::memory_order::relaxed);
+    }
+
+    void FreezeWriteLog(TTransactionIndexedWriteLog* writeLog)
+    {
+        auto guard = TWriteLogMemoryAccountingGuard(
+            this,
+            *writeLog);
+
+        writeLog->Freeze();
+    }
+
     void UpdateWriteRecordCounters(
         TTransaction* transaction,
         const TTransactionWriteRecord& writeRecord,
@@ -1009,7 +1053,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        WriteLogsMemoryTrackerGuard_.IncreaseSize(writeRecord.GetByteSize() * multiplier);
+        IncreaseAccountedWriteLogMemory(writeRecord.GetByteSize() * multiplier);
         bool replicatorWrite = IsReplicatorWrite(transaction);
         IncrementTabletPendingWriteRecordCount(replicatorWrite, multiplier);
     }
@@ -1024,7 +1068,14 @@ private:
 
         auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
         auto* writeLog = lockless ? &persistentWriteState->LocklessWriteLog : &persistentWriteState->LockedWriteLog;
-        writeLog->Enqueue(writeRecord);
+
+        {
+            auto guard = TWriteLogMemoryAccountingGuard(
+                this,
+                *writeLog);
+
+            writeLog->Enqueue(writeRecord);
+        }
 
         UpdateWriteRecordCounters(transaction, writeRecord);
 
@@ -1046,6 +1097,11 @@ private:
         for (const auto& writeRecord : *writeLog) {
             UpdateWriteRecordCounters(transaction, writeRecord, /*multiplier*/ -1);
         }
+
+        auto guard = TWriteLogMemoryAccountingGuard(
+            this,
+            *writeLog);
+
         writeLog->Clear();
     }
 
@@ -1184,7 +1240,7 @@ private:
         if (IsReplicatorWrite(transaction)) {
             if (Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId()) == 0) {
                 YT_LOG_ALERT("Unknown replicator transaction committed (%v, TransactionId: %v)",
-                    Tablet_->GetLoggingTag(),
+                    Tablet_->GetLoggingTags(),
                     transaction->GetId());
             }
 
@@ -1227,7 +1283,7 @@ private:
         if (IsReplicatorWrite(transaction) && !writeState->LocklessWriteLog.Empty()) {
             if (Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId()) == 0) {
                 YT_LOG_DEBUG("Unknown replicator transaction aborted (%v, TransactionId: %v)",
-                    Tablet_->GetLoggingTag(),
+                    Tablet_->GetLoggingTags(),
                     transaction->GetId());
             }
 
@@ -1766,7 +1822,7 @@ private:
 
     TCodicilGuard MakeCodicilGuard()
     {
-        return TCodicilGuard(MakeNonOwningCodicilBuilder(Tablet_->GetLoggingTag()));
+        return TCodicilGuard(MakeOwningCodicilBuilder(ToString(Tablet_->GetLoggingTags())));
     }
 };
 

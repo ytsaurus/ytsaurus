@@ -13,11 +13,10 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_io_options.h>
 
-#include <yt/yt/core/misc/property.h>
-
 #include <yt/yt/core/ytree/public.h>
 
 #include <library/cpp/yt/misc/enum.h>
+#include <library/cpp/yt/misc/property.h>
 
 #include <optional>
 

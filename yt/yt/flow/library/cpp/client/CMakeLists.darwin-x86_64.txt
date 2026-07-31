@@ -12,8 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(flow_execute)
-
 add_library(library-cpp-client)
 
 
@@ -30,15 +28,11 @@ target_compile_options(library-cpp-client PRIVATE
 target_link_libraries(library-cpp-client PUBLIC
   contrib-libs-cxxsupp
   yutil
-  cpp-yt-logging
-  cpp-client-flow_execute
-  library-cpp-common
-  yt-yt-client
   yt-yt-core
-  flow-lib-native_client
+  flow-controller-proto
 )
 
 target_sources(library-cpp-client PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/client/pipeline.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/client/authentication.cpp
 )
 

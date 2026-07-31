@@ -17,6 +17,8 @@ public:
 
     std::optional<double> GetRate(TInstant now = TInstant::Now()) const;
 
+    double GetTotal() const;
+
     void SetWindow(TDuration window);
 
 private:

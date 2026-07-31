@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(2.6.1)
+VERSION(2.15.0)
 
 LICENSE(Apache-2.0)
 
@@ -19,6 +19,8 @@ NO_COMPILER_WARNINGS()
 NO_LINT()
 
 NO_CHECK_IMPORTS(
+    confluent_kafka._oauthbearer.aws.aws_autowire
+    confluent_kafka._oauthbearer.aws.aws_sts_token_provider
     confluent_kafka.avro.*
     confluent_kafka.schema_registry.*
 )
@@ -29,6 +31,7 @@ SRCS(
     confluent_kafka/src/Consumer.c
     confluent_kafka/src/Metadata.c
     confluent_kafka/src/Producer.c
+    confluent_kafka/src/ShareConsumer.c
     confluent_kafka/src/confluent_kafka.c
 )
 
@@ -40,8 +43,18 @@ PY_SRCS(
     TOP_LEVEL
     confluent_kafka/__init__.py
     confluent_kafka/_model/__init__.py
+    confluent_kafka/_oauthbearer/__init__.py
+    confluent_kafka/_oauthbearer/aws/__init__.py
+    confluent_kafka/_oauthbearer/aws/aws_autowire.py
+    confluent_kafka/_oauthbearer/aws/aws_iam_marker.py
+    confluent_kafka/_oauthbearer/aws/aws_oauthbearer_config.py
+    confluent_kafka/_oauthbearer/aws/aws_sts_token_provider.py
+    confluent_kafka/_oauthbearer/aws/jwt_extractor.py
+    confluent_kafka/_oauthbearer/aws/sasl_extensions_parser.py
+    confluent_kafka/_types.py
     confluent_kafka/_util/__init__.py
     confluent_kafka/_util/conversion_util.py
+    confluent_kafka/_util/librdkafka_string_parser.py
     confluent_kafka/_util/validation_util.py
     confluent_kafka/admin/__init__.py
     confluent_kafka/admin/_acl.py
@@ -54,20 +67,90 @@ PY_SRCS(
     confluent_kafka/admin/_resource.py
     confluent_kafka/admin/_scram.py
     confluent_kafka/admin/_topic.py
+    confluent_kafka/aio/_AIOConsumer.py
+    confluent_kafka/aio/__init__.py
+    confluent_kafka/aio/_common.py
+    confluent_kafka/aio/producer/_AIOProducer.py
+    confluent_kafka/aio/producer/__init__.py
+    confluent_kafka/aio/producer/_buffer_timeout_manager.py
+    confluent_kafka/aio/producer/_kafka_batch_executor.py
+    confluent_kafka/aio/producer/_message_batch.py
+    confluent_kafka/aio/producer/_producer_batch_processor.py
     confluent_kafka/avro/__init__.py
     confluent_kafka/avro/cached_schema_registry_client.py
     confluent_kafka/avro/error.py
     confluent_kafka/avro/load.py
     confluent_kafka/avro/serializer/__init__.py
     confluent_kafka/avro/serializer/message_serializer.py
+    confluent_kafka/cimpl.pyi
     confluent_kafka/deserializing_consumer.py
+    confluent_kafka/deserializing_share_consumer.py
     confluent_kafka/error.py
     confluent_kafka/schema_registry/__init__.py
+    confluent_kafka/schema_registry/_async/__init__.py
+    confluent_kafka/schema_registry/_async/avro.py
+    confluent_kafka/schema_registry/_async/json_schema.py
+    confluent_kafka/schema_registry/_async/mock_schema_registry_client.py
+    confluent_kafka/schema_registry/_async/protobuf.py
+    confluent_kafka/schema_registry/_async/schema_registry_client.py
+    confluent_kafka/schema_registry/_async/serde.py
+    confluent_kafka/schema_registry/_sync/__init__.py
+    confluent_kafka/schema_registry/_sync/avro.py
+    confluent_kafka/schema_registry/_sync/json_schema.py
+    confluent_kafka/schema_registry/_sync/mock_schema_registry_client.py
+    confluent_kafka/schema_registry/_sync/protobuf.py
+    confluent_kafka/schema_registry/_sync/schema_registry_client.py
+    confluent_kafka/schema_registry/_sync/serde.py
     confluent_kafka/schema_registry/avro.py
+    confluent_kafka/schema_registry/common/__init__.py
+    confluent_kafka/schema_registry/common/_oauthbearer.py
+    confluent_kafka/schema_registry/common/avro.py
+    confluent_kafka/schema_registry/common/json_schema.py
+    confluent_kafka/schema_registry/common/protobuf.py
+    confluent_kafka/schema_registry/common/schema_registry_client.py
+    confluent_kafka/schema_registry/common/serde.py
+    confluent_kafka/schema_registry/confluent/__init__.py
+    confluent_kafka/schema_registry/confluent/meta_pb2.py
+    confluent_kafka/schema_registry/confluent/types/__init__.py
+    confluent_kafka/schema_registry/confluent/types/decimal_pb2.py
     confluent_kafka/schema_registry/error.py
     confluent_kafka/schema_registry/json_schema.py
     confluent_kafka/schema_registry/protobuf.py
+    confluent_kafka/schema_registry/rule_registry.py
+    confluent_kafka/schema_registry/rules/__init__.py
+    confluent_kafka/schema_registry/rules/cel/__init__.py
+    confluent_kafka/schema_registry/rules/cel/cel_executor.py
+    confluent_kafka/schema_registry/rules/cel/cel_field_executor.py
+    confluent_kafka/schema_registry/rules/cel/cel_field_presence.py
+    confluent_kafka/schema_registry/rules/cel/constraints.py
+    confluent_kafka/schema_registry/rules/cel/extra_func.py
+    confluent_kafka/schema_registry/rules/cel/string_format.py
+    confluent_kafka/schema_registry/rules/encryption/__init__.py
+    confluent_kafka/schema_registry/rules/encryption/awskms/__init__.py
+    confluent_kafka/schema_registry/rules/encryption/awskms/aws_driver.py
+    confluent_kafka/schema_registry/rules/encryption/azurekms/__init__.py
+    confluent_kafka/schema_registry/rules/encryption/azurekms/azure_aead.py
+    confluent_kafka/schema_registry/rules/encryption/azurekms/azure_client.py
+    confluent_kafka/schema_registry/rules/encryption/azurekms/azure_driver.py
+    confluent_kafka/schema_registry/rules/encryption/dek_registry/__init__.py
+    confluent_kafka/schema_registry/rules/encryption/dek_registry/dek_registry_client.py
+    confluent_kafka/schema_registry/rules/encryption/dek_registry/mock_dek_registry_client.py
+    confluent_kafka/schema_registry/rules/encryption/encrypt_executor.py
+    confluent_kafka/schema_registry/rules/encryption/gcpkms/__init__.py
+    confluent_kafka/schema_registry/rules/encryption/gcpkms/gcp_client.py
+    confluent_kafka/schema_registry/rules/encryption/gcpkms/gcp_driver.py
+    confluent_kafka/schema_registry/rules/encryption/hcvault/__init__.py
+    confluent_kafka/schema_registry/rules/encryption/hcvault/hcvault_client.py
+    confluent_kafka/schema_registry/rules/encryption/hcvault/hcvault_driver.py
+    confluent_kafka/schema_registry/rules/encryption/kms_driver_registry.py
+    confluent_kafka/schema_registry/rules/encryption/localkms/__init__.py
+    confluent_kafka/schema_registry/rules/encryption/localkms/local_client.py
+    confluent_kafka/schema_registry/rules/encryption/localkms/local_driver.py
+    confluent_kafka/schema_registry/rules/jsonata/__init__.py
+    confluent_kafka/schema_registry/rules/jsonata/jsonata_executor.py
     confluent_kafka/schema_registry/schema_registry_client.py
+    confluent_kafka/schema_registry/serde.py
+    confluent_kafka/schema_registry/wildcard_matcher.py
     confluent_kafka/serialization/__init__.py
     confluent_kafka/serializing_producer.py
 )
@@ -76,6 +159,7 @@ RESOURCE_FILES(
     PREFIX contrib/python/confluent-kafka/
     .dist-info/METADATA
     .dist-info/top_level.txt
+    confluent_kafka/py.typed
 )
 
 END()

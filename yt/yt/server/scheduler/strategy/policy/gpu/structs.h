@@ -149,9 +149,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<TInstant>, WaitingForModuleBindingSince);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TInstant>, WaitingForAssignmentsSince);
 
-    //! Diagnostic-only: whether priority module binding is enabled for this operation
-    //! (derived from pool configuration). Stamped during assignment plan update.
-    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(PriorityModuleBindingEnabled);
+    //! Whether priority module binding is enabled for this operation
+    //! Updated from pool configuration every assignment plan update during context creation
+    //! Can be nullopt if plan update did not happen yet
+    DEFINE_BYREF_RW_PROPERTY(std::optional<bool>, PriorityModuleBindingEnabled);
 
     // Full-host module-bound operation is either fully preemptible or none of its assignments are preemptible.
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Preemptible);
@@ -176,6 +177,7 @@ public:
 
     bool IsFullHost() const;
     bool IsFullHostModuleBound() const;
+    bool IsFullHostNonGang() const;
 
     int GetInitialNeededAllocationCount() const;
     int GetReadyToAssignNeededAllocationCount() const;
@@ -312,6 +314,7 @@ struct TGpuModuleStatistics final
     int TotalNodes = 0;
     int UnreservedNodes = 0;
     int FullHostModuleBoundOperations = 0;
+    int FullHostNonGangAssignments = 0;
 };
 
 void Serialize(const TGpuModuleStatistics& node, NYson::IYsonConsumer* consumer);
@@ -323,7 +326,8 @@ struct TGpuPlanUpdateStatistics final
     NProfiling::TWallTimer Timer;
 
     TDuration UpdatingOperationResourcesDuration;
-    TDuration FullHostPlanningDuration;
+    TDuration FullHostModuleBoundPlanningDuration;
+    TDuration FullHostNonGangPlanningDuration;
     TDuration RegularPlanningDuration;
     TDuration ExtraPlanningDuration;
 

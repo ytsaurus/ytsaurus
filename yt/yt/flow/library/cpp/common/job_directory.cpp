@@ -55,9 +55,9 @@ std::optional<TKey> TJobDirectorySnapshot::ComputeMessageKey(
     auto it = GroupBySchemas_.find(computationId);
     if (it == GroupBySchemas_.end()) {
         // TODO(gryzlov-ad): Suppress warning on each iteration to avoid message flood when controller dies.
-        YT_LOG_WARNING("Trying to get job channel for an unknown computation (ComputationId: %v, StreamId: %v)",
-            computationId,
-            message.StreamId);
+        YT_TLOG_WARNING("Trying to get job channel for an unknown computation")
+            .With("ComputationId", computationId)
+            .With("StreamId", message.StreamId);
         return std::nullopt;
     }
 
@@ -214,15 +214,14 @@ public:
                     TKeyRange(*partition->LowerKey, *partition->UpperKey)));
             routableJobs.insert(jobId);
 
-            YT_LOG_DEBUG("Add job to job directory (ComputationId: %v, JobId: %v, PartitionId: %v, "
-                "LowerKey: %v, UpperKey: %v, WorkerAddress: %v, PartitionState: %v)",
-                partition->ComputationId,
-                jobId,
-                partition->PartitionId,
-                partition->LowerKey,
-                partition->UpperKey,
-                job->WorkerAddress,
-                partition->State);
+            YT_TLOG_DEBUG("Add job to job directory")
+                .With("ComputationId", partition->ComputationId)
+                .With("JobId", jobId)
+                .With("PartitionId", partition->PartitionId)
+                .With("LowerKey", partition->LowerKey)
+                .With("UpperKey", partition->UpperKey)
+                .With("WorkerAddress", job->WorkerAddress)
+                .With("PartitionState", partition->State);
         }
 
         // Jobs are iterated in unspecified order; sort each computation's routes by upper key for binary search.

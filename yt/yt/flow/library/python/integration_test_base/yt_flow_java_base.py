@@ -16,9 +16,9 @@ from yt.yt.flow.library.python.integration_test_base.helpers import (
 
 log = logging.getLogger("yt_flow_java_base")
 
-# Querying a JVM property launches a full JVM via run.sh. Under ASAN the cold
-# start is slow on loaded build hosts, so the budget is generous there.
-_JAVA_PROPERTY_QUERY_TIMEOUT = 60 if yatest.common.context.sanitize is not None else 15
+# Querying a JVM property launches a full JVM via run.sh. A cold start can be
+# slow on loaded build hosts, even without a sanitizer.
+_JAVA_PROPERTY_QUERY_TIMEOUT = 60
 
 
 @dataclasses.dataclass

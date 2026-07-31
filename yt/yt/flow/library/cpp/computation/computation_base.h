@@ -22,12 +22,13 @@
 #include <yt/yt/flow/library/cpp/common/timer.h>
 #include <yt/yt/flow/library/cpp/common/visit.h>
 #include <yt/yt/flow/library/cpp/common/yson_message.h>
+#include <yt/yt/flow/library/cpp/misc/counter.h>
 
 #include <yt/yt/flow/library/cpp/distributed_throttler/public.h>
 
 #include <yt/yt/flow/library/cpp/tables/transaction_manager.h>
 
-#include <yt/yt/flow/lib/serializer/serializer.h>
+#include <yt/yt/flow/library/cpp/serializer/serializer.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/rowset.h>
@@ -305,9 +306,6 @@ struct TUniversalComputationDynamicPartitionSpec
 public:
     NYTree::IMapNodePtr ActiveSource;
     THashSet<TStreamId> BlockedOutputStreams;
-    //! If set, the computation should finish after completing the current epoch
-    //! and report success. Used for graceful partition migration between workers.
-    bool FinishAfterCurrentEpoch{};
 
     REGISTER_YSON_STRUCT(TUniversalComputationDynamicPartitionSpec);
 
@@ -363,6 +361,40 @@ private:
 //! by at most one stream. Visitor-driven-ness comes from the registry trait, so unregistered
 //! classes are skipped (reported by #TRegistry::ValidateComputationSpec separately).
 void ValidateKeyVisitorJoinerBindings(const TComputationSpec& spec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Measures the share of the job lifetime spent blocked on each (limit type,
+//! stream), as reported in #TJobEntityLimitStatus::BlockedTimeShare.
+class TBlockedTimeAccountant
+{
+public:
+    struct TBlockedLimit
+    {
+        TStringBuf LimitType;
+        TStreamId StreamId;
+    };
+
+    explicit TBlockedTimeAccountant(TInstant startTime);
+
+    //! Charges the time since the previous call to |blocked|. Call once per epoch;
+    //! |window| is re-read every call to follow the dynamic spec. Counters left
+    //! uncharged need no upkeep: their rate decays on read, from the instant they
+    //! were last charged.
+    void Account(TInstant now, TDuration window, const std::vector<TBlockedLimit>& blocked);
+
+    //! Writes the nonzero shares into |limits|, keyed as #TJobStatus::OutputLimits is.
+    void FillShares(TInstant now, THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>>* limits) const;
+
+private:
+    const TInstant StartTime_;
+
+    THashMap<std::string, THashMap<TStreamId, TSimpleEmaCounter>> Counters_;
+    TSimpleEmaCounter Lifetime_;
+    std::optional<TInstant> LastUpdate_;
+
+    double GetShare(const TSimpleEmaCounter& blocked, TInstant now) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -478,7 +510,7 @@ protected:
 
     TCheckOutputLimitsResult CheckOutputLimits(
         const TDynamicComputationSpecPtr& dynamicSpec,
-        const TUniversalComputationDynamicPartitionSpecPtr& dynamicPartitionSpec) const;
+        const TUniversalComputationDynamicPartitionSpecPtr& dynamicPartitionSpec);
     void WaitForBackoff(
         const TDynamicComputationSpecPtr& dynamicSpec,
         const TCheckOutputLimitsResult& outputLimitsCheckResult,
@@ -496,7 +528,7 @@ protected:
         }));
     }
 
-    void InitOutputStoreDistribution(const IComputationRunContextPtr& context, bool allowOutputDuplicates);
+    void InitOutputStoreDistribution(const IComputationRunContextPtr& context);
 
     void Run(const IComputationRunContextPtr& context) final;
 
@@ -592,6 +624,9 @@ private:
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> InputLimits_;
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> OutputLimits_;
 
+    //! Touched from the run fiber only.
+    TBlockedTimeAccountant BlockedTimeAccountant_{StartTime_};
+
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     i64 RunIteration_ = -1;
     TPromise<void> RunIterationStartPromise_;
@@ -607,7 +642,6 @@ private:
     TStreamEventLagObserver OutputEventLagObserver_;
 
     TIntrusivePtr<TPendingDistributedOutputs> PendingProcessedOutputs_;
-    std::optional<bool> AllowOutputDuplicates_;
 
 private:
     std::optional<TStreamId> CreateActiveSourceStreamId();

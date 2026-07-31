@@ -27,6 +27,10 @@ void AccumulateLimits(
         stats.Max = status;
         stats.MaxPartitionId = partitionId;
     }
+    if (status.BlockedTimeShare > stats.MaxBlockedTimeShare) {
+        stats.MaxBlockedTimeShare = status.BlockedTimeShare;
+        stats.MaxBlockedPartitionId = partitionId;
+    }
     stats.Total.Used += status.Used;
     stats.Total.Limit += status.Limit;
     if (status.Pending) {
@@ -58,55 +62,36 @@ void AggregateLimits(
 
 void FillGraphLimits(
     const TFlowViewPtr& flowView,
-    const THashMap<TComputationId, std::vector<TPartitionIntermediateDescription>>& /*intermediateDescriptions*/,
+    const THashMap<TComputationId, std::vector<TPartitionIntermediateDescription>>& intermediateDescriptions,
     TPipelineDescription& pipeline)
 {
-    if (!flowView->Feedback) {
-        return;
-    }
-
     const auto& pipelineSpec = flowView->State->ExecutionSpec->PipelineSpec->GetValue();
 
-    // Buffer limits (filled only when per-partition Feedback is available).
-    //
     // Partitions of DIFFERENT computations may consume the same shared global input stream, so
-    // limits MUST be aggregated per (computation, stream) independently. We route each partition's
-    // limits to ITS OWN computation via the layout's Partitions container, restricted to the stream
-    // ids the spec declares for that computation.
-
-    const auto& layout = flowView->State->ExecutionSpec->Layout;
-
-    // Per-computation declared stream ids, used to drop ids unknown to the spec.
-    THashMap<TComputationId, THashSet<TStreamId>> inputStreamIds;
-    THashMap<TComputationId, THashSet<TStreamId>> outputStreamIds;
-    for (const auto& [computationId, computationSpec] : pipelineSpec->Computations) {
-        if (!pipeline.Computations.contains(computationId)) {
-            continue;
-        }
-        inputStreamIds[computationId] = computationSpec->InputStreamIds;
-        outputStreamIds[computationId] = computationSpec->OutputStreamIds;
-    }
-
-    for (const auto& [partitionId, partitionJobStatusPtr] : flowView->Feedback->PartitionJobStatuses) {
-        if (!partitionJobStatusPtr || !partitionJobStatusPtr->CurrentJobStatus) {
-            continue;
-        }
-        const auto* partition = layout->Partitions.FindPtr(partitionId);
-        if (!partition) {
-            // Partition is absent from the layout (e.g. removed); cannot route its limits.
-            continue;
-        }
-        const auto& computationId = (*partition)->ComputationId;
-
+    // limits MUST be aggregated per (computation, stream) independently. The intermediate
+    // descriptions already route each partition to its own computation, and we restrict the
+    // aggregation to the stream ids the spec declares for that computation.
+    for (const auto& [computationId, partitionDescriptions] : intermediateDescriptions) {
         auto computationIt = pipeline.Computations.find(computationId);
-        if (computationIt == pipeline.Computations.end()) {
+        auto specIt = pipelineSpec->Computations.find(computationId);
+        if (computationIt == pipeline.Computations.end() || specIt == pipelineSpec->Computations.end()) {
             continue;
         }
         auto& computation = computationIt->second;
+        const auto& computationSpec = specIt->second;
 
-        const auto& jobStatus = *partitionJobStatusPtr->CurrentJobStatus;
-        AggregateLimits(jobStatus.InputLimits, partitionId, inputStreamIds[computationId], computation.InputLimitStats);
-        AggregateLimits(jobStatus.OutputLimits, partitionId, outputStreamIds[computationId], computation.OutputLimitStats);
+        for (const auto& partitionDescription : partitionDescriptions) {
+            if (!partitionDescription.Partition ||
+                !partitionDescription.PartitionJobStatus ||
+                !partitionDescription.PartitionJobStatus->CurrentJobStatus)
+            {
+                continue;
+            }
+            const auto& partitionId = partitionDescription.Partition->PartitionId;
+            const auto& jobStatus = *partitionDescription.PartitionJobStatus->CurrentJobStatus;
+            AggregateLimits(jobStatus.InputLimits, partitionId, computationSpec->InputStreamIds, computation.InputLimitStats);
+            AggregateLimits(jobStatus.OutputLimits, partitionId, computationSpec->OutputStreamIds, computation.OutputLimitStats);
+        }
     }
 }
 
@@ -176,6 +161,258 @@ double GetMaxFillRateForStream(
     return maxRate;
 }
 
+THashMap<TGraphEntityId, TWriterBlockedShare> ComputeWriterBlockedTimeShares(const TPipelineDescription& pipeline)
+{
+    THashMap<TGraphEntityId, TWriterBlockedShare> shares;
+    for (const auto& [computationId, computation] : pipeline.Computations) {
+        for (const auto& [streamId, limitStats] : computation.OutputLimitStats) {
+            for (const auto& [limitType, stats] : limitStats) {
+                if (limitType == ControllerLimitType) {
+                    continue;
+                }
+                if (stats.MaxBlockedTimeShare <= 0) {
+                    continue;
+                }
+                auto& share = shares[streamId];
+                if (stats.MaxBlockedTimeShare > share.Share) {
+                    share = {stats.MaxBlockedTimeShare, stats.MaxBlockedPartitionId};
+                }
+            }
+        }
+    }
+    return shares;
+}
+
+namespace {
+
+std::string FormatBytesShort(i64 bytes)
+{
+    static constexpr std::array<TStringBuf, 5> Units{"B", "KB", "MB", "GB", "TB"};
+    double value = static_cast<double>(bytes);
+    size_t unit = 0;
+    while (std::abs(value) >= 1024 && unit + 1 < Units.size()) {
+        value /= 1024;
+        ++unit;
+    }
+    if (unit > 0 && std::abs(value) < 10) {
+        return Format("%.1f%v", value, Units[unit]);
+    }
+    return Format("%.0f%v", value, Units[unit]);
+}
+
+std::string FormatCountShort(i64 count)
+{
+    static constexpr std::array<TStringBuf, 4> Units{"", "K", "M", "G"};
+    double value = static_cast<double>(count);
+    size_t unit = 0;
+    while (std::abs(value) >= 1000 && unit + 1 < Units.size()) {
+        value /= 1000;
+        ++unit;
+    }
+    if (unit > 0 && std::abs(value) < 10) {
+        return Format("%.1f%v", value, Units[unit]);
+    }
+    return Format("%.0f%v", value, Units[unit]);
+}
+
+struct TRenderedKind
+{
+    double Severity = 0;
+    bool Blocks = false;
+    std::string Markdown;
+};
+
+//! Renders one buffer entry. A blocking entry names its own worst partition,
+//! since different limits may point at different partitions.
+std::optional<TRenderedKind> RenderKindStats(const std::string& kind, const TStreamLimitStats& stats, bool boldOverThreshold)
+{
+    double fill = stats.GetMaxFillRate();
+    double blocked = stats.MaxBlockedTimeShare;
+    if (fill < MinVisibleFillRate && blocked < MinVisibleBlockedTimeShare) {
+        return std::nullopt;
+    }
+    bool fillBlocks = fill >= WarningFillRateThreshold;
+    bool blockedBlocks = blocked >= WarningBlockedTimeShareThreshold;
+
+    TRenderedKind result;
+    result.Blocks = fillBlocks || blockedBlocks;
+    double fillScore = fill / WarningFillRateThreshold;
+    double blockedScore = blocked / WarningBlockedTimeShareThreshold;
+    result.Severity = std::max(fillScore, blockedScore);
+
+    // Count limits (e.g. output_store_count) are counts, not bytes.
+    bool isCount = kind.ends_with("_count");
+    auto formatValue = [&] (i64 value) {
+        return isCount ? FormatCountShort(value) : FormatBytesShort(value);
+    };
+
+    bool isController = kind == ControllerLimitType;
+
+    TStringBuilder sb;
+    sb.AppendFormat("%v{", kind);
+    if (blocked >= MinVisibleBlockedTimeShare) {
+        if (boldOverThreshold && blockedBlocks) {
+            sb.AppendFormat("blocked_share=**%.2f**", blocked);
+        } else {
+            sb.AppendFormat("blocked_share=%.2f", blocked);
+        }
+        if (!isController) {
+            sb.AppendString(", ");
+        }
+    }
+    if (isController) {
+        if (result.Blocks) {
+            sb.AppendFormat(", backpressured_partition=%v", stats.MaxBlockedPartitionId);
+        }
+        sb.AppendString("}");
+        result.Markdown = sb.Flush();
+        return result;
+    }
+    sb.AppendFormat("limit=%v, ", formatValue(stats.Max.Limit));
+    // Percentages of a zero limit are meaningless: fall back to absolute values.
+    auto ofLimit = [&] (i64 value) -> std::string {
+        if (stats.Max.Limit > 0) {
+            return Format("%.0f%%", 100.0 * static_cast<double>(value) / static_cast<double>(stats.Max.Limit));
+        }
+        return formatValue(value);
+    };
+    if (boldOverThreshold && fillBlocks) {
+        sb.AppendFormat("used=**%v**", ofLimit(stats.Max.Used));
+    } else {
+        sb.AppendFormat("used=%v", ofLimit(stats.Max.Used));
+    }
+    if (stats.Max.Pending) {
+        sb.AppendFormat(", pending=%v", ofLimit(*stats.Max.Pending));
+    }
+    if (result.Blocks) {
+        sb.AppendFormat(", backpressured_partition=%v",
+            blockedScore >= fillScore ? stats.MaxBlockedPartitionId : stats.MaxPartitionId);
+    }
+    sb.AppendString("}");
+    result.Markdown = sb.Flush();
+    return result;
+}
+
+struct TRenderedStream
+{
+    std::string Markdown;
+    bool Blocking = false;
+};
+
+std::optional<TRenderedStream> RenderStreamBuffers(
+    TStringBuf side,
+    const TGraphEntityId& streamId,
+    const THashMap<TGraphEntityId, THashMap<std::string, TStreamLimitStats>>& limitStats,
+    const TWriterBlockedShare& writerBlocked)
+{
+    std::vector<TRenderedKind> entries;
+    if (const auto* kinds = limitStats.FindPtr(streamId)) {
+        for (const auto& [kind, stats] : *kinds) {
+            if (auto rendered = RenderKindStats(kind, stats, /*boldOverThreshold*/ true)) {
+                entries.push_back(std::move(*rendered));
+            }
+        }
+    }
+
+    bool writerVisible = writerBlocked.Share >= MinVisibleBlockedTimeShare;
+    bool writerBlocks = writerBlocked.Share >= WarningBlockedTimeShareThreshold;
+    if (entries.empty() && !writerVisible) {
+        return std::nullopt;
+    }
+
+    std::sort(entries.begin(), entries.end(), [] (const auto& a, const auto& b) {
+        return std::tie(b.Severity, b.Markdown) < std::tie(a.Severity, a.Markdown);
+    });
+
+    TRenderedStream result;
+    TStringBuilder line;
+    line.AppendFormat("- %v `%v`:", side, streamId);
+    bool first = true;
+    for (const auto& entry : entries) {
+        line.AppendString(first ? " " : ", ");
+        line.AppendString(entry.Markdown);
+        first = false;
+        result.Blocking |= entry.Blocks;
+    }
+    if (writerVisible) {
+        // The share of time the stream's WRITER spends blocked on it: a full
+        // reader-side buffer never blocks its own job, it stalls the writer.
+        line.AppendString(first ? " writer{" : ", writer{");
+        if (writerBlocks) {
+            line.AppendFormat("blocked_share=**%.2f**, backpressured_partition=%v", writerBlocked.Share, writerBlocked.ExamplePartitionId);
+            result.Blocking = true;
+        } else {
+            line.AppendFormat("blocked_share=%.2f", writerBlocked.Share);
+        }
+        line.AppendString("}");
+    }
+    result.Markdown = line.Flush();
+    return result;
+}
+
+} // namespace
+
+std::optional<TMessage> BuildBuffersAndBackpressureMessage(
+    const TPipelineComputationDescription& computation,
+    const THashMap<TGraphEntityId, TWriterBlockedShare>& writerBlockedShares)
+{
+    TStringBuilder markdown;
+    bool any = false;
+    bool anyBlocking = false;
+
+    auto sortedStreams = [] (const THashSet<TGraphEntityId>& streams) {
+        std::vector<TGraphEntityId> result(streams.begin(), streams.end());
+        std::sort(result.begin(), result.end());
+        return result;
+    };
+
+    auto renderGroup = [&] (
+        TStringBuf side,
+        const THashSet<TGraphEntityId>& streams,
+        const THashMap<TGraphEntityId, THashMap<std::string, TStreamLimitStats>>& limitStats,
+        bool isReaderSide) {
+        for (const auto& streamId : sortedStreams(streams)) {
+            auto writerBlocked = isReaderSide
+                ? GetOrDefault(writerBlockedShares, streamId, TWriterBlockedShare{})
+                : TWriterBlockedShare{};
+            if (auto rendered = RenderStreamBuffers(side, streamId, limitStats, writerBlocked)) {
+                any = true;
+                anyBlocking |= rendered->Blocking;
+                markdown.AppendString(rendered->Markdown);
+                markdown.AppendChar('\n');
+            }
+        }
+    };
+    renderGroup("input", computation.InputStreams, computation.InputLimitStats, /*isReaderSide*/ true);
+    renderGroup("source", computation.SourceStreams, computation.InputLimitStats, /*isReaderSide*/ true);
+    renderGroup("timer", computation.TimerStreams, computation.InputLimitStats, /*isReaderSide*/ true);
+    renderGroup("output", computation.OutputStreams, computation.OutputLimitStats, /*isReaderSide*/ false);
+
+    if (!any) {
+        return std::nullopt;
+    }
+    TMessage message;
+    message.Text = "Stream buffers and backpressure";
+    message.MarkdownText = markdown.Flush();
+    message.Level = anyBlocking ? ELogLevel::Warning : ELogLevel::Info;
+    return message;
+}
+
+double GetMaxBlockedTimeShareForStream(
+    const THashMap<TGraphEntityId, THashMap<std::string, TStreamLimitStats>>& limitStats,
+    const TGraphEntityId& streamId)
+{
+    auto it = limitStats.find(streamId);
+    if (it == limitStats.end()) {
+        return 0.0;
+    }
+    double maxShare = 0.0;
+    for (const auto& [limitType, stats] : it->second) {
+        maxShare = std::max(maxShare, stats.MaxBlockedTimeShare);
+    }
+    return maxShare;
+}
+
 std::string MakeEdgeLabel(
     const THashMap<TGraphEntityId, THashMap<std::string, TStreamLimitStats>>& limitStats,
     const TGraphEntityId& streamId,
@@ -186,32 +423,26 @@ std::string MakeEdgeLabel(
         return {};
     }
 
-    std::vector<std::pair<double, std::string>> entries;
-    for (const auto& [limitType, stats] : it->second) {
-        double fillRate = stats.GetMaxFillRate();
-        if (fillRate >= MinVisibleFillRate) {
-            entries.emplace_back(fillRate, limitType);
+    std::vector<TRenderedKind> entries;
+    for (const auto& [kind, stats] : it->second) {
+        if (auto rendered = RenderKindStats(kind, stats, boldOverThreshold)) {
+            entries.push_back(std::move(*rendered));
         }
     }
     if (entries.empty()) {
         return {};
     }
-
     std::sort(entries.begin(), entries.end(), [] (const auto& a, const auto& b) {
-        return a.first > b.first;
+        return std::tie(b.Severity, b.Markdown) < std::tie(a.Severity, a.Markdown);
     });
 
     TStringBuilder sb;
     bool first = true;
-    for (const auto& [fillRate, limitType] : entries) {
+    for (const auto& entry : entries) {
         if (!first) {
-            sb.AppendChar(' ');
+            sb.AppendString(", ");
         }
-        if (boldOverThreshold && fillRate >= WarningFillRateThreshold) {
-            sb.AppendFormat("%v=**%.3f**", limitType, fillRate);
-        } else {
-            sb.AppendFormat("%v=%.3f", limitType, fillRate);
-        }
+        sb.AppendString(entry.Markdown);
         first = false;
     }
     return sb.Flush();
@@ -241,23 +472,47 @@ void FillExtendedStreams(const TFlowViewPtr& flowView, TPipelineDescription& pip
         }
     }
 
+    auto writerBlockedShares = ComputeWriterBlockedTimeShares(pipeline);
+
     auto makeEdge = [&] (
         const TGraphEntityId& streamId,
-        const THashMap<TGraphEntityId, THashMap<std::string, TStreamLimitStats>>& limitStats) -> TStreamEdge {
+        const THashMap<TGraphEntityId, THashMap<std::string, TStreamLimitStats>>& limitStats,
+        bool isReaderSide) -> TStreamEdge {
         TStreamEdge edge;
         edge.StreamGraphEntityId = streamId;
         if (auto it = streamStates.find(streamId); it != streamStates.end()) {
             edge.Completed = it->second == EStreamState::Completed;
             edge.Drained = it->second == EStreamState::Drained;
         }
-        edge.BackpressureDetected = GetMaxFillRateForStream(limitStats, streamId) >= WarningFillRateThreshold;
+        double writerBlocked = isReaderSide ? GetOrDefault(writerBlockedShares, streamId, TWriterBlockedShare{}).Share : 0.0;
+        edge.BackpressureDetected =
+            GetMaxFillRateForStream(limitStats, streamId) >= WarningFillRateThreshold ||
+            GetMaxBlockedTimeShareForStream(limitStats, streamId) >= WarningBlockedTimeShareThreshold ||
+            writerBlocked >= WarningBlockedTimeShareThreshold;
 
-        auto label = MakeEdgeLabel(limitStats, streamId);
+        auto appendWriterBlocked = [&] (std::string label, bool bold) -> std::string {
+            if (writerBlocked < MinVisibleBlockedTimeShare) {
+                return label;
+            }
+            TStringBuilder sb;
+            sb.AppendString(label);
+            if (!label.empty()) {
+                sb.AppendString(", ");
+            }
+            if (bold && writerBlocked >= WarningBlockedTimeShareThreshold) {
+                sb.AppendFormat("writer{blocked_share=**%.2f**}", writerBlocked);
+            } else {
+                sb.AppendFormat("writer{blocked_share=%.2f}", writerBlocked);
+            }
+            return sb.Flush();
+        };
+
+        auto label = appendWriterBlocked(MakeEdgeLabel(limitStats, streamId), /*bold*/ false);
         if (!label.empty()) {
             auto& message = edge.Messages.emplace_back();
-            message.Text = "fill ratio: " + label;
-            // Over-threshold fill ratios are bolded.
-            message.MarkdownText = "fill ratio: " + MakeEdgeLabel(limitStats, streamId, /*boldOverThreshold*/ true);
+            message.Text = "buffers: " + label;
+            message.MarkdownText = "buffers: " +
+                appendWriterBlocked(MakeEdgeLabel(limitStats, streamId, /*boldOverThreshold*/ true), /*bold*/ true);
             message.Level = edge.BackpressureDetected ? ELogLevel::Warning : ELogLevel::Info;
         }
         return edge;
@@ -271,41 +526,20 @@ void FillExtendedStreams(const TFlowViewPtr& flowView, TPipelineDescription& pip
 
     for (auto& [computationId, computation] : pipeline.Computations) {
         for (const auto& streamId : sortedStreams(computation.InputStreams)) {
-            computation.ExtendedInputStreams.push_back(makeEdge(streamId, computation.InputLimitStats));
+            computation.ExtendedInputStreams.push_back(makeEdge(streamId, computation.InputLimitStats, /*isReaderSide*/ true));
         }
         for (const auto& streamId : sortedStreams(computation.SourceStreams)) {
-            computation.ExtendedSourceStreams.push_back(makeEdge(streamId, computation.InputLimitStats));
+            computation.ExtendedSourceStreams.push_back(makeEdge(streamId, computation.InputLimitStats, /*isReaderSide*/ true));
         }
         for (const auto& streamId : sortedStreams(computation.OutputStreams)) {
-            computation.ExtendedOutputStreams.push_back(makeEdge(streamId, computation.OutputLimitStats));
+            computation.ExtendedOutputStreams.push_back(makeEdge(streamId, computation.OutputLimitStats, /*isReaderSide*/ false));
         }
         for (const auto& streamId : sortedStreams(computation.TimerStreams)) {
-            computation.ExtendedTimerStreams.push_back(makeEdge(streamId, computation.InputLimitStats));
+            computation.ExtendedTimerStreams.push_back(makeEdge(streamId, computation.InputLimitStats, /*isReaderSide*/ true));
         }
 
-        // For now, fold all per-edge messages into one concatenated computation message.
-        TStringBuilder markdown;
-        auto maxLevel = ELogLevel::Info;
-        bool hasMessages = false;
-        auto appendEdges = [&] (TStringBuf kind, const std::vector<TStreamEdge>& edges) {
-            for (const auto& edge : edges) {
-                for (const auto& message : edge.Messages) {
-                    hasMessages = true;
-                    maxLevel = std::max(maxLevel, message.Level);
-                    markdown.AppendFormat("- %v `%v`: %v\n", kind, edge.StreamGraphEntityId, message.MarkdownText.value_or(message.Text));
-                }
-            }
-        };
-        appendEdges("input", computation.ExtendedInputStreams);
-        appendEdges("source", computation.ExtendedSourceStreams);
-        appendEdges("output", computation.ExtendedOutputStreams);
-        appendEdges("timer", computation.ExtendedTimerStreams);
-
-        if (hasMessages) {
-            auto& message = computation.Messages.emplace_back();
-            message.Text = "Stream buffer fill ratios";
-            message.MarkdownText = markdown.Flush();
-            message.Level = maxLevel;
+        if (auto message = BuildBuffersAndBackpressureMessage(computation, writerBlockedShares)) {
+            computation.Messages.push_back(std::move(*message));
         }
     }
 }

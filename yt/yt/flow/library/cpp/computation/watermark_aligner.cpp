@@ -26,11 +26,11 @@ public:
         auto watermark = watermarkState->GetAlignmentEventWatermark(Spec_->GroupName);
         auto driftBound = Spec_->DriftBound;
         if (TInstant::Seconds(watermark.Underlying()) + driftBound < TInstant::Seconds(localReadWatermark.Underlying())) {
-            YT_LOG_DEBUG("Read too much ahead (AlignmentGroup: %v, LocalWatermark: %v, GroupWatermark: %v, DriftBound: %v)",
-                Spec_->GroupName,
-                localReadWatermark,
-                watermark,
-                driftBound);
+            YT_TLOG_DEBUG("Read too much ahead")
+                .With("AlignmentGroup", Spec_->GroupName)
+                .With("LocalWatermark", localReadWatermark)
+                .With("GroupWatermark", watermark)
+                .With("DriftBound", driftBound);
             return false;
         }
         return true;

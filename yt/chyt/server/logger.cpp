@@ -5,6 +5,8 @@
 #include <yt/yt/core/logging/log.h>
 #include <yt/yt/core/profiling/timing.h>
 
+#include <library/cpp/yt/logging/tagged_payload.h>
+
 #include <util/system/thread.h>
 
 namespace NYT::NClickHouseServer {
@@ -30,7 +32,7 @@ public:
         NLogging::TLogEvent event;
         event.Category = Logger.GetCategory();
         event.Level = GetLogLevel(message.getPriority());
-        event.MessageRef = TSharedRef::FromString(Format(
+        event.Payload = MakeTaggedPayloadFromMessage(Format(
             "[%v] %v",
             GetOriginalLevelLetter(message.getPriority()),
             TString(message.getText())));

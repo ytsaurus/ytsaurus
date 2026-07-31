@@ -45,6 +45,8 @@ public:
 
     void Visit(const std::function<void(const Yql::DqsProto::TFile&)>& visitor) const;
 
+    size_t GetFileCount() const { return static_cast<size_t>(Filter.GetFile().size()); }
+
 private:
     Yql::DqsProto::TWorkerFilter Filter;
     bool FullMatch;

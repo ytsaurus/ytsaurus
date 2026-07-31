@@ -469,3 +469,89 @@ class FlowDebugHelper:
                 f.write(worker_env_string + " ya gdb --args " + " ".join(flow_command))
 
             wait_for_debug()
+
+
+def to_cyson_nodes(y):
+    """Convert yt.yson (and plain) nodes to values that cyson.dumps handles correctly.
+
+    yt.yson.YsonBoolean subclasses int, so cyson would dump it as 0/1 unless converted
+    to cyson.YsonBoolean / bool. Same for uint64 -> YsonUInt64.
+    """
+    from cyson import (
+        YsonBoolean,
+        YsonEntity,
+        YsonFloat64,
+        YsonInt64,
+        YsonList,
+        YsonMap,
+        YsonString,
+        YsonUInt64,
+    )
+    from yt.yson import (
+        YsonBoolean as YtBoolean,
+        YsonDouble as YtDouble,
+        YsonEntity as YtEntity,
+        YsonInt64 as YtInt64,
+        YsonString as YtString,
+        YsonStringProxy as YtStringProxy,
+        YsonType as YtType,
+        YsonUint64 as YtUint64,
+        YsonUnicode as YtUnicode,
+    )
+
+    def attrs_of(obj):
+        if isinstance(obj, YtType) and obj.has_attributes():
+            return to_cyson_nodes(obj.attributes)
+        return None
+
+    def with_attrs(node, obj):
+        attrs = attrs_of(obj)
+        if attrs is not None:
+            node.attributes = attrs
+        return node
+
+    # Already cyson-typed nodes dump correctly.
+    if isinstance(y, (YsonBoolean, YsonEntity, YsonFloat64, YsonInt64, YsonList, YsonMap, YsonString, YsonUInt64)):
+        return y
+
+    # YtBoolean / YtUint64 / YtInt64 all subclass int — check before plain int fallthrough.
+    if isinstance(y, (bool, YtBoolean)):
+        return with_attrs(YsonBoolean(bool(y)), y)
+    if isinstance(y, YtUint64):
+        return with_attrs(YsonUInt64(int(y)), y)
+    if isinstance(y, YtInt64):
+        return with_attrs(YsonInt64(int(y)), y)
+    if isinstance(y, YtDouble):
+        return with_attrs(YsonFloat64(float(y)), y)
+    if isinstance(y, (YtString, YtUnicode, YtStringProxy)):
+        if isinstance(y, YtStringProxy):
+            value = y._bytes
+        elif isinstance(y, six.text_type):
+            value = y.encode('utf-8')
+        else:
+            value = bytes(y)
+        return with_attrs(YsonString(value), y)
+    if isinstance(y, YtEntity):
+        return YsonEntity(attributes=attrs_of(y))
+
+    if isinstance(y, list):
+        items = [to_cyson_nodes(i) for i in y]
+        attrs = attrs_of(y)
+        if attrs is None:
+            return items
+        node = YsonList([])
+        node.extend(items)
+        node.attributes = attrs
+        return node
+
+    if isinstance(y, dict):
+        items = {to_cyson_nodes(k): to_cyson_nodes(v) for k, v in six.iteritems(y)}
+        attrs = attrs_of(y)
+        if attrs is None:
+            return items
+        node = YsonMap({})
+        node.update(items)
+        node.attributes = attrs
+        return node
+
+    return y

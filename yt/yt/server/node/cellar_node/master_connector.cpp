@@ -62,7 +62,7 @@ public:
             bootstrap,
             /*reportHeartbeatsToAllSecondaryMasters*/ true,
             ENodeHeartbeatType::Cellar,
-            CellarNodeLogger().WithTag("HeartbeatType: %v", ENodeHeartbeatType::Cellar))
+            CellarNodeLogger().WithTag("HeartbeatType", ENodeHeartbeatType::Cellar))
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->CellarNode->MasterConnector)
     {

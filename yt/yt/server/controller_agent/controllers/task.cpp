@@ -123,7 +123,7 @@ void TTask::SetInputStreamDescriptors(std::vector<TInputStreamDescriptorPtr> str
 
 void TTask::Initialize()
 {
-    Logger.AddTag("Task: %v", GetTitle());
+    Logger.AddTag("Task", GetTitle());
 
     SetupCallbacks();
 
@@ -661,7 +661,7 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
     std::optional<TJobId> previousJobId,
     bool treeIsTentative)
 {
-    auto Logger = this->Logger.WithTag("AllocationId: %v", context.GetAllocationId());
+    auto Logger = this->Logger.WithTag("AllocationId", context.GetAllocationId());
     if (auto failReason = GetScheduleFailReason(context)) {
         return failReason;
     }
@@ -833,7 +833,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
             auto diskQuota = CreateDiskQuota(diskRequest, TaskHost_->GetMediumDirectory());
             // Do not set needed resources in case of NBD disk since we do not need these resources on exe nodes.
-            if (volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Nbd) {
+            if (volume->DiskRequest->GetType() != NExecNode::EVolumeType::Nbd) {
                 neededResources.DiskQuota() = diskQuota;
             }
             joblet->DiskRequestAccount = diskRequest->Account;
@@ -1972,7 +1972,7 @@ TJobResources TTask::ApplyMemoryReserve(
 void TTask::OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
 {
     auto Logger = this->Logger
-        .WithTag("JobId: %v", joblet->JobId);
+        .WithTag("JobId", joblet->JobId);
 
     auto& state = ResourceOverdraftedOutputCookieToState_[joblet->OutputCookie];
     const auto& userJobSpec = GetUserJobSpec();

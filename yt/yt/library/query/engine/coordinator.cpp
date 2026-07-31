@@ -62,6 +62,7 @@ std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const 
     frontQuery->Limit = query->Limit;
     frontQuery->IsFinal = query->IsFinal;
     frontQuery->ProjectClause = query->ProjectClause;
+    frontQuery->HierarchicalJoinsAfterGroupBy = query->HierarchicalJoinsAfterGroupBy;
     frontQuery->Schema = bottomQuery->GetTableSchema();
     frontQuery->IsReverseScan = query->IsReverseScan;
 

@@ -65,11 +65,12 @@ public:
     TProcessYqlPlugin(
         TYqlPluginConfigPtr config,
         TSingletonsConfigPtr singletonsConfig,
+        TYqlPluginDynamicConfigPtr initialDynamicConfig,
         TConnectionCompoundConfigPtr clusterConnectionConfig,
-        TString maxSupportedYqlVersion,
         const NProfiling::TProfiler& profiler)
         : Config_(std::move(config))
-        , ConfigTemplate_(BuildPluginConfigTemplate(Config_, singletonsConfig, clusterConnectionConfig, std::move(maxSupportedYqlVersion)))
+        , DynamicConfig_(std::move(initialDynamicConfig))
+        , ConfigTemplate_(BuildPluginConfigTemplate(Config_, singletonsConfig, clusterConnectionConfig))
         , DynamicConfigVersion_(0)
         , Queue_(New<TActionQueue>("YqlProcessPlugin"))
         , Invoker_(Queue_->GetInvoker())
@@ -81,7 +82,7 @@ public:
         , ProcessesLimitGauge_(profiler.Gauge("/processes_limit"))
     {
         if (Config_->EnableDQ) {
-            InitializeDqControllerYqlPlugin(singletonsConfig, maxSupportedYqlVersion);
+            InitializeDqControllerYqlPlugin(singletonsConfig);
         }
         ProcessesLimitGauge_.Update(Config_->ProcessPluginConfig->SlotCount);
         InitializeProcessPool();
@@ -122,7 +123,8 @@ public:
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) override
+        int executeMode,
+        NYqlClient::EQueryType queryType) override
     {
         auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
 
@@ -143,7 +145,8 @@ public:
             queryText,
             settings,
             files,
-            executeMode);
+            executeMode,
+            queryType);
 
         YT_LOG_INFO("Query finished (QueryId: %v, SlotIndex: %v)", queryId, pluginProcess->SlotIndex());
         return result;
@@ -220,19 +223,13 @@ public:
         return result;
     }
 
-    void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override
+    void OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr config) override
     {
         auto guard = WriterGuard(ProcessesLock_);
         YT_LOG_INFO("Updating dynamic config");
 
-        CurrentDynamicGatewaysConfig_ = config.GatewaysConfig;
+        DynamicConfig_ = config;
         ++DynamicConfigVersion_;
-
-        if (config.MaxSupportedYqlVersion) {
-            CurrentDynamicMaxYqlLangVersion_ = config.MaxSupportedYqlVersion.ToString();
-        } else {
-            CurrentDynamicMaxYqlLangVersion_.reset();
-        }
 
         if (DqControllerYqlPlugin_) {
             DqControllerYqlPlugin_->OnDynamicConfigChanged(config);
@@ -245,6 +242,11 @@ public:
         }
 
         YT_LOG_INFO("Dynamic config updated");
+    }
+
+    void OnUdfMetaChanged(TUdfMetaPtr /*udfMeta*/) override
+    {
+        // Not implemented
     }
 
     IMapNodePtr GetOrchidNode() const override
@@ -343,11 +345,10 @@ private:
     static TString SocketName;
 
     TYqlPluginConfigPtr Config_;
+    TYqlPluginDynamicConfigPtr DynamicConfig_;
     TProcessYqlPluginInternalConfigPtr ConfigTemplate_;
 
     int DynamicConfigVersion_;
-    std::optional<TYsonString> CurrentDynamicGatewaysConfig_;
-    std::optional<TString> CurrentDynamicMaxYqlLangVersion_;
 
     TActionQueuePtr Queue_;
     IInvokerPtr Invoker_;
@@ -579,11 +580,7 @@ private:
 
         config->SetSingletonConfig(config->SingletonsConfig->GetSingletonConfig<NLogging::TLogManagerConfig>());
 
-        config->DynamicGatewaysConfig = CurrentDynamicGatewaysConfig_;
-
-        if (CurrentDynamicMaxYqlLangVersion_.has_value()) {
-            config->MaxSupportedYqlVersion = CurrentDynamicMaxYqlLangVersion_.value();
-        }
+        config->PluginDynamicConfig = DynamicConfig_;
 
         return config;
     }
@@ -607,8 +604,7 @@ private:
     static TProcessYqlPluginInternalConfigPtr BuildPluginConfigTemplate(
         TYqlPluginConfigPtr config,
         TSingletonsConfigPtr singletonsConfig,
-        TConnectionCompoundConfigPtr clusterConnectionConfig,
-        TString maxSupportedYqlVersion)
+        TConnectionCompoundConfigPtr clusterConnectionConfig)
     {
         auto result = New<TProcessYqlPluginInternalConfig>();
 
@@ -620,18 +616,16 @@ private:
         result->ClusterConnection = clusterConnectionConfig;
 
         result->PluginConfig = config;
-        result->MaxSupportedYqlVersion = maxSupportedYqlVersion;
-
         return result;
     }
 
-    void InitializeDqControllerYqlPlugin(TSingletonsConfigPtr singletonsConfig, std::string maxSupportedYqlVersion)
+    void InitializeDqControllerYqlPlugin(TSingletonsConfigPtr singletonsConfig)
     {
         auto options = ConvertToNativePluginOptions(
             Config_,
+            DynamicConfig_,
             ConvertToYsonString(singletonsConfig),
             NYT::NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
-            maxSupportedYqlVersion,
             true);
         DqControllerYqlPlugin_ = CreateYqlPlugin(std::move(options));
     }
@@ -646,11 +640,16 @@ TString TProcessYqlPlugin::SocketName = "yql-plugin.sock";
 std::unique_ptr<IYqlPlugin> CreateProcessYqlPlugin(
     TYqlPluginConfigPtr pluginConfig,
     TSingletonsConfigPtr singletonsConfig,
+    TYqlPluginDynamicConfigPtr pluginInitialDynamicConfig,
     TConnectionCompoundConfigPtr clusterConnectionConfig,
-    TString maxSupportedYqlVersion,
     const NProfiling::TProfiler& profiler)
 {
-    return std::make_unique<TProcessYqlPlugin>(std::move(pluginConfig), singletonsConfig, clusterConnectionConfig, maxSupportedYqlVersion, profiler);
+    return std::make_unique<TProcessYqlPlugin>(
+        std::move(pluginConfig),
+        std::move(singletonsConfig),
+        std::move(pluginInitialDynamicConfig),
+        std::move(clusterConnectionConfig),
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

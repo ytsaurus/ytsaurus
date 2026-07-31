@@ -137,11 +137,11 @@ func ytTypeFor(typ reflect.Type) (ytTyp schema.Type, err error) {
 		return schema.TypeBytes, nil
 	}
 
-	if typ.Implements(typeOfTextMarshaler) || (typ.Kind() != reflect.Ptr && reflect.PtrTo(typ).Implements(typeOfTextMarshaler)) {
+	if typ.Implements(typeOfTextMarshaler) || (typ.Kind() != reflect.Ptr && reflect.PointerTo(typ).Implements(typeOfTextMarshaler)) {
 		return schema.TypeString, nil
 	}
 
-	if typ.Implements(typeOfBinaryMarshaler) || (typ.Kind() != reflect.Ptr && reflect.PtrTo(typ).Implements(typeOfBinaryMarshaler)) {
+	if typ.Implements(typeOfBinaryMarshaler) || (typ.Kind() != reflect.Ptr && reflect.PointerTo(typ).Implements(typeOfBinaryMarshaler)) {
 		return schema.TypeBytes, nil
 	}
 

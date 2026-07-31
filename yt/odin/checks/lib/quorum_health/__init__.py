@@ -14,6 +14,7 @@ WARN = 1
 CRIT = 2
 
 DEFAULT_CONCURRENCY = 10
+DEFAULT_SCHEME = 'http'
 
 
 class Hydra(object):
@@ -67,7 +68,7 @@ class Hydra(object):
 
 class Cell(object):
     def __init__(self, is_primary, cell_tag, masters):
-        # type: (bool, str, typing.List[Master]) -> typing.NoReturn
+        # type: (bool, str, typing.List[Hydra]) -> typing.NoReturn
 
         self.cell_tag = cell_tag
         self.is_primary = is_primary
@@ -89,9 +90,9 @@ def configure_timeout_and_retries(yt_client):
     yt_client.config['proxy']['retries']['backoff']['policy'] = 'rounded_up_to_request_timeout'
 
 
-def get_hydra_state(hydra, monitoring_port, logger):
+def get_hydra_state(hydra, monitoring_scheme, monitoring_port, logger):
     try:
-        url = "http://{}:{}/orchid/monitoring/hydra/state".format(hydra.hostname, monitoring_port)
+        url = "{}://{}:{}/orchid/monitoring/hydra/state".format(monitoring_scheme, hydra.hostname, monitoring_port)
         result = requests.get(url, timeout=(5, 15))
         if result.status_code == 200:
             hydra.set_state(str(yson.loads(result.content)), logger)
@@ -121,8 +122,9 @@ def build_cell_juggler_message(cell):
 
 
 def discover_clock(yt_client, options, logger):
-    # type: (YtClient, logging.Logger) -> typing.List[Hydra] or None
+    # type: (YtClient, dict, logging.Logger) -> typing.List[Hydra]
     monitoring_port = options["monitoring_port"]
+    monitoring_scheme = options.get("monitoring_scheme", DEFAULT_SCHEME)
     concurrency = options.get("concurrency", DEFAULT_CONCURRENCY)
     path = '//sys/timestamp_providers'
     clock = []
@@ -135,16 +137,17 @@ def discover_clock(yt_client, options, logger):
     with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
         futures = []
         for clock_instance in clock:
-            futures.append(pool.submit(get_hydra_state, clock_instance, monitoring_port, logger))
+            futures.append(pool.submit(get_hydra_state, clock_instance, monitoring_scheme, monitoring_port, logger))
         concurrent.futures.wait(futures)
 
     return clock
 
 
 def discover_masters(yt_client, options, logger):
-    # type: (YtClient, logging.Logger) -> typing.List[Cell] or None
+    # type: (YtClient, dict, logging.Logger) -> typing.Optional[typing.List[Cell]]
 
     monitoring_port = options["monitoring_port"]
+    monitoring_scheme = options.get("monitoring_scheme", DEFAULT_SCHEME)
     concurrency = options.get("concurrency", DEFAULT_CONCURRENCY)
 
     discovery_requests = [
@@ -183,14 +186,14 @@ def discover_masters(yt_client, options, logger):
         futures = []
         for cell in cells:
             for master in cell.masters:
-                futures.append(pool.submit(get_hydra_state, master, monitoring_port, logger))
+                futures.append(pool.submit(get_hydra_state, master, monitoring_scheme, monitoring_port, logger))
         concurrent.futures.wait(futures)
 
     return cells
 
 
 def check_cell_health(instances, current_datetime, logger):
-    # type: (Cell, datetime) -> int
+    # type: (Cell, datetime, logging.Logger) -> int
 
     leading = 0
     following = 0

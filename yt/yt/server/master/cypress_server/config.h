@@ -95,6 +95,13 @@ struct TDynamicCypressManagerConfig
     // This is an panic button if stronger validation check causes issues.
     bool UseWeakerAccessValidationCheck;
 
+    // COMPAT(h0pless)
+    // When the same lock as the one being taken is found during conflict resolution, stop the traversal.
+    bool EnableMoreEfficientConflictCheck;
+
+    // Instead of iterating over all known locks, check each transaction only once during conflict resolution.
+    bool EnableEvenMoreEfficientConflictCheck;
+
     NTableClient::EOptimizeFor DefaultOptimizeFor;
     NTableClient::EOptimizeFor DefaultDynamicTableOptimizeFor;
 

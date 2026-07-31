@@ -19,6 +19,7 @@ PEERDIR(
     contrib/ydb/library/yql/providers/solomon/scheme
     contrib/ydb/library/yql/providers/solomon/solomon_accessor/client
     contrib/ydb/library/yql/utils/actors
+    contrib/ydb/library/yverify_stream
     contrib/ydb/public/sdk/cpp/src/client/types/credentials
     yql/essentials/public/types
     yql/essentials/public/udf

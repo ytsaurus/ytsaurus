@@ -38,6 +38,8 @@ RECURSE(
     table_injector
     test_distributed_throttler
     test_distributed_throttler/pipeline
+    test_resource_control_channel
+    test_resource_control_channel/pipeline
     word_count_sync
     working_pipeline_telemetry
     working_pipeline_telemetry/pipeline
@@ -52,12 +54,15 @@ IF (NOT SANITIZER_TYPE)
 ENDIF()
 
 IF (NOT OPENSOURCE)
-    # Uses replicated tables — out of yt_sync_mini's scope.
+    # Use replicated/chaos tables — out of yt_sync_mini's scope.
     RECURSE(
+        read_chaos_tables
         sorted_dynamic_table
     )
 
     RECURSE(
+        key_visitor/go
+        key_visitor/go/pipeline
         key_visitor/java
         key_visitor/java/companion
         key_visitor/java_external

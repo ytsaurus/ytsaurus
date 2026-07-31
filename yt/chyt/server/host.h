@@ -3,7 +3,7 @@
 #include "cluster_nodes.h"
 #include "private.h"
 #include "config.h"
-#include "cypress_config_repository.h"
+#include "cypress_object_repository.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -115,6 +115,10 @@ public:
 
     int GetInstanceCookie() const;
 
+    //! Whether this instance currently holds the per-clique leader lock.
+    //! Used to gate work that must be performed by exactly one instance in the clique.
+    bool IsLeader() const;
+
     const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
 
     TYtConfigPtr GetConfig() const;
@@ -130,10 +134,6 @@ public:
     TFuture<void> GetIdleFuture() const;
 
     void PopulateSystemDatabase(DB::IDatabase* systemDatabase) const;
-    DB::DatabasePtr CreateYTDatabase() const;
-
-    //! Create rooted databases using names and rootes specified in the yt-config by user.
-    std::vector<DB::DatabasePtr> CreateUserDefinedDatabases() const;
 
     std::vector<TString> GetUserDefinedDatabaseNames() const;
 
@@ -153,7 +153,7 @@ public:
 
     void ReloadDictionaryGlobally(const std::string& configPath) const;
 
-    TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository();
+    TCypressObjectRepositoryPtr GetCypressObjectRepository() const;
 
     void PrepareClickHouseUser(const std::string& userName);
 

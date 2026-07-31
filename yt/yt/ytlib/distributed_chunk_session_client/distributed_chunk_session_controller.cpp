@@ -72,7 +72,7 @@ public:
         , WriterOptions_(std::move(writerOptions))
         , WriterConfig_(std::move(writerConfig))
         , Invoker_(std::move(invoker))
-        , Logger(DistributedChunkSessionLogger().WithTag("TransactionId: %v", TransactionId_))
+        , Logger(DistributedChunkSessionLogger().WithTag("TransactionId", TransactionId_))
     { }
 
     TFuture<TStartedSessionInfo> StartSession() final

@@ -1279,7 +1279,7 @@ auto CreateCache(
     // - QueueConsumerReplicaMappingLookup.
     static constexpr TStringBuf CacheNamePrefix = "QueueConsumer";
     logger = std::move(logger)
-        .WithTag("Cache: %v%v", CacheNamePrefix, TCache::CacheKind);
+        .WithTagFormat("Cache", "%v%v", CacheNamePrefix, TCache::CacheKind);
 
     profiler = profiler
         .WithPrefix("/lookup_cache")

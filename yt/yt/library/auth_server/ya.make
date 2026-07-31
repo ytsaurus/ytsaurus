@@ -36,13 +36,17 @@ IF (OS_WINDOWS)
     SRCS(
         ldap_authenticator_unsupported.cpp
     )
-ELSE()
+ELSEIF (NOT OPENSOURCE OR YT_CUSTOM_INTERNAL_BUILD)
     SRCS(
         ldap_authenticator.cpp
         ldap_helpers.cpp
     )
     PEERDIR(
         contrib/libs/openldap
+    )
+ELSE()
+    SRCS(
+        ldap_authenticator_unsupported.cpp
     )
 ENDIF()
 

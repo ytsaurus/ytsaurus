@@ -300,7 +300,7 @@ public:
                     getTabletSizes(minorTable),
                     table->PivotKeys,
                     minorTable->PivotKeys,
-                    Logger.WithTag("TableId: %v", minorTable->Id),
+                    Logger.WithTag("TableId", minorTable->Id),
                     EnableVerboseLogging_);
 
                 YT_VERIFY(std::ssize(minorMetrics) == std::ssize(majorMetrics));
@@ -406,8 +406,8 @@ public:
         const TLogger& logger)
         : Bundle_(std::move(bundle))
         , Logger(logger
-            .WithTag("BundleName: %v", Bundle_->Name)
-            .WithTag("Group: %v", groupName))
+            .WithTag("BundleName", Bundle_->Name)
+            .WithTag("Group", groupName))
         , Config_(std::move(config))
         , GroupName_(std::move(groupName))
         , MetricTracker_(std::move(metricTracker))
@@ -1262,8 +1262,8 @@ public:
         const TLogger& logger)
         : Bundle_(std::move(bundle))
         , Logger(logger
-            .WithTag("BundleName: %v", Bundle_->Name)
-            .WithTag("Group: %v", groupName))
+            .WithTag("BundleName", Bundle_->Name)
+            .WithTag("Group", groupName))
         , Config_(std::move(config))
         , GroupName_(std::move(groupName))
         , Calculator_(New<TParameterizedMetricsCalculator>(

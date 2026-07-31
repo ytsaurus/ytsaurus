@@ -61,7 +61,7 @@ public:
                 auto* sourceColumn = sourceSchema->FindColumn(column.Name());
                 if (sourceColumn) {
                     THROW_ERROR_EXCEPTION_UNLESS(sourceColumn->GetWireType() == column.GetWireType(),
-                        "Column %Qv has inconsistent types in source and target schemas (SourceColumnType: %v,  TargetColumnType: %v)",
+                        "Column %Qv has inconsistent types in source and target schemas: %Qlv in source, %Qlv in target",
                         column.Name(),
                         sourceColumn->GetWireType(),
                         column.GetWireType());

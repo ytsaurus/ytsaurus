@@ -1,4 +1,5 @@
 RECURSE(
+    all_states_cpp
     passthrough_transform
     types/common
     types/python
@@ -10,6 +11,8 @@ IF (NOT OPENSOURCE)
         all_states
         jvm_options
         retries
+        types/go
+        types/go/pipeline
         types/java
         types/java/companion
     )

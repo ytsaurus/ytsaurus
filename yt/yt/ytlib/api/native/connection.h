@@ -8,7 +8,7 @@
 
 #include <yt/yt/ytlib/chaos_client/public.h>
 
-#include <yt/yt/ytlib/discovery_client/public.h>
+#include <yt/yt/library/discovery_client/public.h>
 
 #include <yt/yt/library/query/base/public.h>
 
@@ -120,7 +120,15 @@ struct IConnection
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelPtr& GetBundleControllerChannel() = 0;
     virtual const NRpc::IChannelPtr& GetTabletBalancerChannel() = 0;
-    virtual const NRpc::IChannelPtr& GetOffshoreDataGatewayChannel() = 0;
+
+    //! Returns a channel bound to a single offshore data gateway peer.
+    //! Useful during a write session, since every request within it must go to the same peer.
+    virtual NRpc::IChannelPtr GetStickyOffshoreDataGatewayChannel() = 0;
+
+    //! Returns a stable channel to all known offshore data gateway peers.
+    //! NB: The known peers list is updated in the background without channel recreation.
+    virtual const NRpc::IChannelPtr& GetNonStickyOffshoreDataGatewayChannel() = 0;
+
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
 
     virtual NRpc::IChannelPtr GetChaosChannelByCellId(
@@ -146,6 +154,7 @@ struct IConnection
     virtual const NJobProberClient::TJobShellDescriptorCachePtr& GetJobShellDescriptorCache() = 0;
 
     virtual const NSecurityClient::TPermissionCachePtr& GetPermissionCache() = 0;
+    virtual const NSecurityClient::TQueryPoolPermissionCachePtr& GetQueryPoolPermissionCache() = 0;
     virtual const NSecurityClient::TUserAttributeCachePtr& GetUserAttributeCache() = 0;
 
     virtual const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() = 0;

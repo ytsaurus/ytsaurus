@@ -33,7 +33,7 @@ public:
         IRandomAccessFileReaderPtr reader,
         TLogger logger)
         : Reader_(std::move(reader))
-        , Logger(std::move(logger.WithTag("Path: %v", Reader_->GetPath())))
+        , Logger(std::move(logger.WithTag("Path", Reader_->GetPath())))
     { }
 
     void Initialize() override

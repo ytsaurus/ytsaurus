@@ -30,7 +30,28 @@ struct TStorageYtLogTablesOptions
     std::optional<TInstant> To;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TStorageYtQueueExportsOptions
+{
+    std::optional<TInstant> From;
+    std::optional<TInstant> To;
+
+    TDuration Period;
+
+    bool UseUpperBoundForTableNames = false;
+
+    std::string OutputTableNamePatternPrefix;
+    std::string OutputTableNamePatternSuffix;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DB::StoragePtr CreateStorageYtLogTables(TString logPath, TStorageYtLogTablesOptions options);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::StoragePtr CreateStorageYtQueueExports(const std::string& exportDirectory, const TStorageYtQueueExportsOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

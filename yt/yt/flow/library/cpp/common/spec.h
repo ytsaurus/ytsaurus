@@ -11,8 +11,8 @@
 #include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/flow/lib/client/public.h>
-#include <yt/yt/flow/lib/serializer/state.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
+#include <yt/yt/flow/library/cpp/serializer/state.h>
 
 #include <yt/yt/core/ytree/size.h>
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -70,9 +70,11 @@ struct TResourceSpec
     THashMap<TResourceId, TResourceDescriptionPtr> Dependencies;
     THashMap<std::string, ssize_t> RequiredCapabilities;
     bool PreloadRequired{};
-    //! When true, the resource is deployed on every unit regardless of which jobs are present,
-    //! and is never deallocated. Mutually exclusive with preload_required. Intended for node-wide singletons,
-    //! e.g. a resource exposing /reload and /ping for REX.
+    //! When true, the resource is loaded eagerly at unit startup and kept resident for the unit's
+    //! whole lifetime (never deallocated), rather than lazily on first use. It is loaded only on the
+    //! units where some computation requires it (see TResourceDescription::Worker / ::Controller):
+    //! a resource required only on the worker is not loaded on the controller, and a resource that
+    //! no computation requires is not loaded at all. Mutually exclusive with preload_required.
     bool AlwaysOn{};
 
     REGISTER_YSON_STRUCT(TResourceSpec);
@@ -311,6 +313,14 @@ struct TDynamicKeyVisitorStreamSpec
 
     NYTree::TSize MaxScanRowsPerIteration;
 
+    //! Idle delay between background fill iterations. Each idle iteration issues
+    //! one read per swept source, so this sets the visitor's baseline read
+    //! cadence (~1/BackgroundFillPeriod per source) independently of `Period`,
+    //! which only shapes the hash-range slice width of each read. Cap-hit and
+    //! pass-rollover iterations reschedule immediately, so the actual rate can
+    //! be higher under load.
+    TDuration BackgroundFillPeriod;
+
     //! Schedule-lag threshold above which the visitor switches into catch-up
     //! mode: each next read scans a slice wider than the throttler granted
     //! by `CatchupSpeedupMultiplier`, so the accumulated lag drains back to
@@ -321,6 +331,20 @@ struct TDynamicKeyVisitorStreamSpec
     //! Throughput multiplier applied on top of the base throttler rate while
     //! in catch-up mode. Must be strictly greater than 1.0.
     double CatchupSpeedupMultiplier{};
+
+    //! Whether the visitor follows the computation's upstreams, the way a source follows its
+    //! input: when set (the default), the pass that starts once the upstreams are Completed is
+    //! marked Final and the visit stream reports itself empty after it. Unset it for a periodic
+    //! scanner that must sweep for as long as the pipeline runs — a computation with no input
+    //! and no source streams has no upstream to follow, so leaving this set retires its
+    //! partitions after a single pass. Dynamic on purpose: it can be switched on a running
+    //! pipeline to ask a scanner to finish.
+    bool Finite{};
+
+    //! Whether the final pass must be a complete sweep started after the upstreams completed.
+    //! Set by default, which is the documented guarantee. Unset it to let the visitor finalize
+    //! the pass it already has in flight instead, trading the guarantee for a faster stop.
+    bool FullFinalPass{};
 
     REGISTER_YSON_STRUCT(TDynamicKeyVisitorStreamSpec);
 
@@ -853,6 +877,10 @@ struct TDynamicComputationSpec
     NYTree::TSize OutputStoreCountLimit;
     NYTree::TSize OutputStoreByteSizeLimit;
 
+    //! Averaging window of the blocked-time shares reported in
+    //! #TJobEntityLimitStatus::BlockedTimeShare.
+    TDuration BlockedTimeWindow;
+
     //! Optional throttlers for the input batch.
     //! Before each Process step the computation draws its batch row count
     //! and byte size from the respective throttler. Null means "no limit in
@@ -974,14 +1002,30 @@ DEFINE_REFCOUNTED_TYPE(TDynamicJobBalancerSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDynamicJobManagerSpec
+struct TDynamicJobManagerGroupSpec
     : public TDynamicJobBalancerSpec
 {
     ui64 MinimumWorkerCount{};
     TDuration LostJobTimeout;
     TDuration FaultyAddressWindow;
     ui64 FaultyAddressAttempts{};
-    THashMap<TWorkerGroupId, TDynamicJobBalancerSpecPtr> WorkerGroupOverride;
+
+    REGISTER_YSON_STRUCT(TDynamicJobManagerGroupSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicJobManagerGroupSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicJobManagerSpec
+    : public TDynamicJobManagerGroupSpec
+{
+    // Per-worker-group overrides of the settings above. The value type deliberately excludes
+    // WorkerGroupOverride itself, so the spec is not self-referential (nested overrides make no
+    // sense and would make the YSON schema infinitely recursive).
+    THashMap<TWorkerGroupId, TDynamicJobManagerGroupSpecPtr> WorkerGroupOverride;
 
     REGISTER_YSON_STRUCT(TDynamicJobManagerSpec);
 
@@ -999,6 +1043,11 @@ struct TDynamicBufferStateManagerSpec
         : public virtual NYTree::TYsonStruct
     {
         NYTree::TSize FairSharePool;
+        //! FairSharePool replacement for workers of the listed groups (for
+        //! installations whose worker flavours differ in memory). A worker in
+        //! several listed groups takes the max: the pool reflects the memory the
+        //! worker actually has, so the largest claim wins.
+        THashMap<TWorkerGroupId, NYTree::TSize> WorkerGroupFairSharePoolOverrides;
         NYTree::TSize JobGuarantee;
         NYTree::TSize JobLimit;
         TDuration MaxDuration;

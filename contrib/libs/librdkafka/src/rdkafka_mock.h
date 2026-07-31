@@ -221,6 +221,40 @@ rd_kafka_mock_broker_error_stack_cnt(rd_kafka_mock_cluster_t *mcluster,
                                      int16_t ApiKey,
                                      size_t *cntp);
 
+/**
+ * @brief Push \p cnt errors in the \p ... va-arg list onto the partition's
+ *        error stack for the given \p ApiKey.
+ *
+ * \p ApiKey is the Kafka protocol request type, e.g., ProduceRequest (0).
+ *
+ * The injected errors will be returned as the partition-level ErrorCode,
+ * one per request, in the order they were pushed, for requests of type
+ * \p ApiKey referencing this partition. Other partitions in the same
+ * request are not affected.
+ *
+ * @remark Cluster errors (rd_kafka_mock_push_request_errors()) and broker
+ *         errors (rd_kafka_mock_broker_push_request_error_rtts()) take
+ *         precedence over partition errors.
+ *
+ * @remark The error codes are not validated against the set of errors
+ *         the Apache Kafka protocol permits for the given \p ApiKey and
+ *         response field, that is the test's responsibility.
+ *
+ * @remark If \p topic does not exist in the mock cluster it is
+ *         auto-created, same as for the other mock partition APIs.
+ *
+ * @returns RD_KAFKA_RESP_ERR_NO_ERROR on success, or
+ *          RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART if \p topic exists
+ *          and \p partition is out of range.
+ */
+RD_EXPORT rd_kafka_resp_err_t
+rd_kafka_mock_partition_push_request_errors(rd_kafka_mock_cluster_t *mcluster,
+                                            const char *topic,
+                                            int32_t partition,
+                                            int16_t ApiKey,
+                                            size_t cnt,
+                                            ...);
+
 
 /**
  * @brief Set the topic error to return in protocol requests.
@@ -247,6 +281,47 @@ rd_kafka_mock_topic_create(rd_kafka_mock_cluster_t *mcluster,
                            const char *topic,
                            int partition_cnt,
                            int replication_factor);
+
+
+/**
+ * @brief Deletes a topic and all its partitions.
+ *
+ * Subsequent requests referencing the topic will receive
+ * UNKNOWN_TOPIC_OR_PARTITION.
+ *
+ * @param mcluster The mock cluster instance.
+ * @param topic The topic to delete.
+ *
+ * @return RD_KAFKA_RESP_ERR_NO_ERROR on success
+ *         RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART if the topic does not
+ * exist.
+ */
+RD_EXPORT rd_kafka_resp_err_t
+rd_kafka_mock_topic_delete(rd_kafka_mock_cluster_t *mcluster,
+                           const char *topic);
+
+
+/**
+ * @brief Delete records before \p before_offset in \p topic [\p partition].
+ *
+ * Advances the partition's start offset (log start offset) to
+ * \p before_offset and removes all message sets fully before that offset.
+ *
+ * @param mcluster      The mock cluster.
+ * @param topic         Topic name.
+ * @param partition     Partition id.
+ * @param before_offset Delete all records before this offset.
+ *                      The new start offset will be set to this value.
+ *
+ * @returns RD_KAFKA_RESP_ERR_NO_ERROR on success,
+ *          RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART if partition doesn't exist,
+ *          RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE if before_offset > end_offset.
+ */
+RD_EXPORT rd_kafka_resp_err_t
+rd_kafka_mock_partition_delete_records(rd_kafka_mock_cluster_t *mcluster,
+                                       const char *topic,
+                                       int32_t partition,
+                                       int64_t before_offset);
 
 
 /**
@@ -323,6 +398,22 @@ rd_kafka_mock_broker_set_down(rd_kafka_mock_cluster_t *mcluster,
                               int32_t broker_id);
 
 /**
+ * @brief Sets a new \p host and \p port for a given broker identified by
+ *        \p broker_id.
+ *
+ * @param mcluster Mock cluster instance.
+ * @param broker_id The id of the broker to modify.
+ * @param host The new hostname.
+ * @param port The new port.
+ */
+RD_EXPORT void
+rd_kafka_mock_broker_set_host_port(rd_kafka_mock_cluster_t *mcluster,
+                                   int32_t broker_id,
+                                   const char *host,
+                                   int port);
+
+
+/**
  * @brief Makes the broker accept connections again.
  *        This does NOT trigger leader change.
  *
@@ -356,6 +447,58 @@ rd_kafka_mock_broker_set_rack(rd_kafka_mock_cluster_t *mcluster,
                               int32_t broker_id,
                               const char *rack);
 
+
+
+/**
+ * @brief Remove and delete a mock broker from a cluster.
+ *        All partitions assigned to that broker will be
+ *        reassigned to other brokers.
+ *
+ * @param cluster The mock cluster containing the broker
+ * @param broker_id The broker to delete
+ * @returns 0 on success or -1 on error
+ */
+RD_EXPORT rd_kafka_resp_err_t
+rd_kafka_mock_broker_decommission(rd_kafka_mock_cluster_t *cluster,
+                                  int32_t broker_id);
+
+/**
+ * @brief Hide the broker from Metadata responses without dropping its
+ *        existing TCP connections or its listen socket.
+ *
+ *        Unlike rd_kafka_mock_broker_decommission(), the broker's connections
+ *        stay alive so any in-flight requests can still complete on the
+ *        broker side. The broker is removed from cluster metadata responses
+ *        and partitions are reassigned away from it. This lets a client's
+ *        metadata-driven decommission path observe the broker's removal
+ *        and fail in-flight requests with __DESTROY_BROKER, instead of
+ *        the connection-drop path failing them with __TRANSPORT.
+ *
+ *        The broker remains in the cluster's broker list; its struct is
+ *        not freed until the cluster is destroyed (or the broker is added
+ *        back via the appropriate API in the future).
+ *
+ * @param mcluster The mock cluster.
+ * @param broker_id The broker to hide from metadata.
+ *
+ * @returns Error value or 0 if no error occurred.
+ */
+RD_EXPORT rd_kafka_resp_err_t
+rd_kafka_mock_broker_remove_from_metadata(rd_kafka_mock_cluster_t *mcluster,
+                                          int32_t broker_id);
+
+/**
+ * @brief Add a new broker to the cluster.
+ *        Cluster partition will be reassigned to use the new broker
+ *        as well.
+ *
+ * @param mcluster The mock cluster
+ * @param broker_id The id of the broker to add
+ *
+ * @returns Error value or 0 if no error occurred
+ */
+RD_EXPORT rd_kafka_resp_err_t
+rd_kafka_mock_broker_add(rd_kafka_mock_cluster_t *mcluster, int32_t broker_id);
 
 
 /**
@@ -483,6 +626,239 @@ rd_kafka_mock_telemetry_set_requested_metrics(rd_kafka_mock_cluster_t *mcluster,
 RD_EXPORT rd_kafka_resp_err_t
 rd_kafka_mock_telemetry_set_push_interval(rd_kafka_mock_cluster_t *mcluster,
                                           int64_t push_interval_ms);
+
+typedef struct rd_kafka_mock_cgrp_consumer_target_assignment_s
+    rd_kafka_mock_cgrp_consumer_target_assignment_t;
+
+/**
+ * @brief Create a new target assignment for \p member_cnt members
+ *        given a member id and a member assignment for each member `i`,
+ *        specified in \p member_ids[i] and \p assignment[i].
+ *
+ * @remark used for mocking target assignment
+ *         in KIP-848 consumer group protocol.
+ *
+ * @param member_ids Array of member ids of size \p member_cnt.
+ * @param member_cnt Number of members.
+ * @param assignment Array of (rd_kafka_topic_partition_list_t *) of size \p
+ * member_cnt.
+ */
+RD_EXPORT rd_kafka_mock_cgrp_consumer_target_assignment_t *
+rd_kafka_mock_cgrp_consumer_target_assignment_new(
+    char **member_ids,
+    int member_cnt,
+    rd_kafka_topic_partition_list_t **assignment);
+
+/**
+ * @brief Destroy target assignment \p target_assignment .
+ */
+RD_EXPORT void rd_kafka_mock_cgrp_consumer_target_assignment_destroy(
+    rd_kafka_mock_cgrp_consumer_target_assignment_t *target_assignment);
+
+/**
+ * @brief Sets next target assignment for the group
+ *        identified by \p group_id to the
+ *        target assignment contained in \p target_assignment,
+ *        in the cluster \p mcluster.
+ *
+ * @remark used for mocking target assignment
+ *         in KIP-848 consumer group protocol.
+ *
+ * @param mcluster Mock cluster instance.
+ * @param group_id Group id.
+ * @param target_assignment Target assignment for all the members.
+ */
+RD_EXPORT void rd_kafka_mock_cgrp_consumer_target_assignment(
+    rd_kafka_mock_cluster_t *mcluster,
+    const char *group_id,
+    rd_kafka_mock_cgrp_consumer_target_assignment_t *target_assignment);
+
+/**
+ * @brief Sets group.consumer.session.timeout.ms
+ *        for the cluster \p mcluster to \p group_consumer_session_timeout_ms.
+ *
+ * @remark used in KIP-848 consumer group protocol.
+ *
+ * @param mcluster Mock cluster instance.
+ * @param group_consumer_session_timeout_ms Session timeout in milliseconds.
+ */
+RD_EXPORT void rd_kafka_mock_set_group_consumer_session_timeout_ms(
+    rd_kafka_mock_cluster_t *mcluster,
+    int group_consumer_session_timeout_ms);
+
+/**
+ * @brief Sets group.consumer.heartbeat.interval.ms
+ *        for the cluster \p mcluster to \p
+ * group_consumer_heartbeat_interval_ms.
+ *
+ * @remark used in KIP-848 consumer group protocol.
+ *
+ * @param mcluster Mock cluster instance.
+ * @param group_consumer_heartbeat_interval_ms Heartbeat interval in
+ * milliseconds.
+ */
+RD_EXPORT void rd_kafka_mock_set_group_consumer_heartbeat_interval_ms(
+    rd_kafka_mock_cluster_t *mcluster,
+    int group_consumer_heartbeat_interval_ms);
+
+/**
+ * @brief Set the sharegroup session timeout in milliseconds.
+ *
+ * @param mcluster Mock cluster instance.
+ * @param session_timeout_ms Session timeout in milliseconds.
+ */
+RD_EXPORT void
+rd_kafka_mock_sharegroup_set_session_timeout(rd_kafka_mock_cluster_t *mcluster,
+                                             int session_timeout_ms);
+
+/**
+ * @brief Set the sharegroup heartbeat interval in milliseconds.
+ *
+ * @param mcluster Mock cluster instance.
+ * @param heartbeat_interval_ms Heartbeat interval in milliseconds.
+ */
+RD_EXPORT void rd_kafka_mock_sharegroup_set_heartbeat_interval(
+    rd_kafka_mock_cluster_t *mcluster,
+    int heartbeat_interval_ms);
+
+/**
+ * @brief Set the maximum number of times a record can be acquired
+ *        before it is automatically archived (dead-lettered).
+ *
+ * Default is 5.  Set to 0 for unlimited deliveries.
+ *
+ * @param mcluster Mock cluster instance.
+ * @param max_attempts Maximum delivery attempts per record.
+ */
+RD_EXPORT void rd_kafka_mock_sharegroup_set_max_delivery_attempts(
+    rd_kafka_mock_cluster_t *mcluster,
+    int max_attempts);
+
+/**
+ * @brief Set the per-record lock duration in milliseconds.
+ *
+ * When a record is acquired, its lock expires after this duration.
+ * Default is 0, which falls back to the session timeout value.
+ *
+ * @param mcluster Mock cluster instance.
+ * @param lock_duration_ms Lock duration in milliseconds.
+ */
+RD_EXPORT void rd_kafka_mock_sharegroup_set_record_lock_duration(
+    rd_kafka_mock_cluster_t *mcluster,
+    int lock_duration_ms);
+
+/**
+ * @brief Set the share group isolation level for transactions.
+ *
+ * Controls how the share group handles transactional records:
+ *   0 = read_uncommitted (default) — reads up to HWM, no filtering
+ *   1 = read_committed — reads up to LSO, filters aborted transaction data
+ *
+ * @param mcluster Mock cluster instance.
+ * @param level    Isolation level (0 or 1).
+ */
+RD_EXPORT void
+rd_kafka_mock_sharegroup_set_isolation_level(rd_kafka_mock_cluster_t *mcluster,
+                                             int level);
+
+/**
+ * @brief Set the maximum number of members allowed in a share group.
+ *
+ * New members attempting to join via ShareGroupHeartbeat when the group
+ * is at capacity will receive GROUP_MAX_SIZE_REACHED.
+ *
+ * Default is 0 (unlimited).
+ *
+ * @param mcluster Mock cluster instance.
+ * @param max_size Maximum members allowed. 0 = unlimited.
+ */
+RD_EXPORT void
+rd_kafka_mock_sharegroup_set_max_size(rd_kafka_mock_cluster_t *mcluster,
+                                      int max_size);
+
+/**
+ * @brief Set the maximum number of fetch sessions allowed per broker.
+ *
+ * New sessions attempted via ShareFetch with epoch 0 when the broker
+ * is at capacity will receive SHARE_SESSION_LIMIT_REACHED.
+ *
+ * Default is 2000 (group.share.max.share.sessions).
+ *
+ * @param mcluster Mock cluster instance.
+ * @param max_fetch_sessions Maximum fetch sessions per broker. 0 = unlimited.
+ */
+RD_EXPORT void rd_kafka_mock_sharegroup_set_max_fetch_sessions(
+    rd_kafka_mock_cluster_t *mcluster,
+    int max_fetch_sessions);
+
+/**
+ * @brief Set the maximum number of in-flight record locks per share-partition.
+ *
+ * Once the limit is reached, no more records are acquired until existing
+ * locks are released (via ack, release, reject, or lock expiry).
+ *
+ * Default is 2000 (group.share.partition.max.record.locks).
+ *
+ * @param mcluster Mock cluster instance.
+ * @param max_record_locks Maximum in-flight records per partition. 0 =
+ * unlimited.
+ */
+RD_EXPORT void
+rd_kafka_mock_sharegroup_set_max_record_locks(rd_kafka_mock_cluster_t *mcluster,
+                                              int max_record_locks);
+
+/**
+ * @brief Set the auto offset reset policy for share groups.
+ *
+ * Controls where SPSO is initialized when a share-partition is first
+ * consumed.
+ *
+ * Default is 0 ("latest").
+ *
+ * @param mcluster Mock cluster instance.
+ * @param auto_offset_reset 0 = latest, 1 = earliest.
+ */
+RD_EXPORT void rd_kafka_mock_sharegroup_set_auto_offset_reset(
+    rd_kafka_mock_cluster_t *mcluster,
+    int auto_offset_reset);
+
+/**
+ * @brief Set a manual target assignment for a sharegroup.
+ *
+ * This allows tests to override the automatic partition assignment
+ * and manually specify which partitions each member should get.
+ *
+ * @param mcluster Mock cluster instance.
+ * @param group_id The sharegroup ID.
+ * @param member_ids Array of member IDs (strings).
+ * @param assignments Array of partition lists (one per member).
+ * @param member_cnt Number of members (length of both arrays).
+ */
+RD_EXPORT void rd_kafka_mock_sharegroup_target_assignment(
+    rd_kafka_mock_cluster_t *mcluster,
+    const char *group_id,
+    const char **member_ids,
+    rd_kafka_topic_partition_list_t **assignments,
+    size_t member_cnt);
+
+/**
+ * @brief Retrieve the member IDs from a sharegroup.
+ *
+ * @param mcluster Mock cluster instance.
+ * @param group_id The sharegroup ID.
+ * @param member_ids_out Output array of member IDs. Caller must free each
+ *                       string with rd_free() and the array itself.
+ * @param member_cnt_out Output count of members.
+ *
+ * @returns RD_KAFKA_RESP_ERR_NO_ERROR on success,
+ *          RD_KAFKA_RESP_ERR_GROUP_ID_NOT_FOUND if sharegroup not found.
+ */
+RD_EXPORT rd_kafka_resp_err_t
+rd_kafka_mock_sharegroup_get_member_ids(rd_kafka_mock_cluster_t *mcluster,
+                                        const char *group_id,
+                                        char ***member_ids_out,
+                                        size_t *member_cnt_out);
+
 /**@}*/
 
 #ifdef __cplusplus

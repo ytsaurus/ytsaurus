@@ -1,19 +1,14 @@
 RECURSE(
-    sql2yql
-    yt
+    dq_file
+    hybrid_file
+    runners
     yt_file
 )
 
-IF (NOT OPENSOURCE OR OPENSOURCE_PROJECT == "ydb")
-    RECURSE(
-        dq_file
-        hybrid_file
-    )
-ENDIF()
-
 IF (NOT OPENSOURCE)
     RECURSE(
-        runners
+        sql2yql
+        yt
         ytflow
     )
 ENDIF()

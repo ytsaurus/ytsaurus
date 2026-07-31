@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/concurrency/config.h>
 
-#include <yt/yt/core/misc/error_code.h>
+#include <library/cpp/yt/error/error_code.h>
 
 namespace NYT::NChunkServer {
 
@@ -353,6 +353,8 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_chunk_replicas_throttling_in_heartbeats", &TThis::EnableChunkReplicasThrottlingInHeartbeats)
         .Default(false);
+    registrar.Parameter("flush_batched_incremental_heartbeats_on_throttling", &TThis::FlushBatchedIncrementalHeartbeatsOnThrottling)
+        .Default(false);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
     registrar.Parameter("use_location_indexes_in_sequoia_chunk_confirmation", &TThis::UseLocationIndexesInSequoiaChunkConfirmation)
@@ -502,10 +504,10 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
 
     registrar.Parameter("max_requests_in_incremental_heartbeat_batch", &TThis::MaxRequestsInIncrementalHeartbeatBatch)
-        .Default(100);
+        .Default(5);
 
     registrar.Parameter("max_replicas_in_incremental_heartbeat_batch", &TThis::MaxReplicasInIncrementalHeartbeatBatch)
-        .Default(30000);
+        .Default(3000);
 
     // COMPAT(grphil).
     registrar.Parameter("compat_replicas_percentage", &TThis::CompatReplicasPercentage)
@@ -599,6 +601,17 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("schedule_chunk_seal_in_sequoia_refresh", &TThis::ScheduleChunkSealInSequoiaChunkRefresh)
         .Default(false);
 
+    registrar.Parameter("enable_in_ghost_mode", &TThis::EnableInGhostMode)
+        .Default(false);
+    registrar.Parameter("ghost_full_heartbeats", &TThis::GhostFullHeartbeats)
+        .Default(false);
+    registrar.Parameter("ghost_incremental_heartbeats", &TThis::GhostIncrementalHeartbeats)
+        .Default(false);
+    registrar.Parameter("ghost_validation_heartbeats", &TThis::GhostValidationHeartbeats)
+        .Default(false);
+    registrar.Parameter("ghost_empty_validation_heartbeats", &TThis::GhostEmptyValidationHeartbeats)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(grphil).
         if (!config->BlobReplicasStoreConfig) {
@@ -611,6 +624,10 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
             regularStoreConfig->ValidateSequoiaReplicasFetch = config->CompatValidateSequoiaReplicasFetch;
             regularStoreConfig->AllowExtraMasterReplicasDuringValidation = config->CompatAllowExtraMasterReplicasDuringValidation;
             config->BlobReplicasStoreConfig = regularStoreConfig;
+        }
+
+        if (config->Enable && config->EnableInGhostMode) {
+            THROW_ERROR_EXCEPTION("Can not have both enable and enable_in_ghost_mode for Sequoia chunk replicas");
         }
     });
 }
@@ -1028,8 +1045,20 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter(
+        "update_historically_non_vital_on_chunk_creation_and_export",
+        &TThis::UpdateHistoricallyNonVitalOnChunkCreationAndExport)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("allow_offshore_media", &TThis::AllowOffshoreMedia)
         .Default(false);
+
+    registrar.Parameter("max_verbosely_logged_chunks", &TThis::MaxVerboselyLoggedChunks)
+        .Default(50);
+
+    registrar.Parameter("max_verbose_logging_enabled_duration", &TThis::MaxVerboseLoggingEnabledDuration)
+        .Default(TDuration::Days(1));
 
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
@@ -1040,8 +1069,28 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
             }
         }
 
-        if (config->SequoiaChunkReplicas->Enable && config->AllowOffshoreMedia) {
+        const auto& sequoiaReplicasConfig = config->SequoiaChunkReplicas;
+        const auto& dataNodeTrackerConfig = config->DataNodeTracker;
+
+        if (sequoiaReplicasConfig->Enable && config->AllowOffshoreMedia) {
             THROW_ERROR_EXCEPTION("Offshore media and Sequoia replicas cannot coexist (yet)");
+        }
+
+        if (sequoiaReplicasConfig->Enable && sequoiaReplicasConfig->BatchIncrementalHeartbeat) {
+            if (dataNodeTrackerConfig->EnableChunkReplicasThrottlingInHeartbeats) {
+                if (dataNodeTrackerConfig->MaxConcurrentChunkReplicasDuringIncrementalHeartbeat <
+                    sequoiaReplicasConfig->MaxReplicasInIncrementalHeartbeatBatch * 2)
+                {
+                    // We should allow at least 2x of MaxReplicasInIncrementalHeartbeatBatch for batching not to stuck.
+                    THROW_ERROR_EXCEPTION("max_concurrent_chunk_replicas_during_incremental_heartbeat should be at lest 2x of Sequoia max_replicas_in_incremental_heartbeat_batch");
+                }
+            } else {
+                if (dataNodeTrackerConfig->MaxConcurrentIncrementalHeartbeats <=
+                    sequoiaReplicasConfig->MaxRequestsInIncrementalHeartbeatBatch)
+                {
+                    THROW_ERROR_EXCEPTION("max_concurrent_incremental_heartbeats should be grater than Sequoia max_requests_in_incremental_heartbeat_batch");
+                }
+            }
         }
     });
 }

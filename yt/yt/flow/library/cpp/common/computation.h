@@ -84,7 +84,7 @@ struct TDynamicComputationContextBase
 {
     i64 SpecGeneration;
     TDynamicComputationSpecPtr DynamicComputationSpec;
-    NYTree::IMapNodePtr DynamicPartitionSpec;
+    TDynamicPartitionSpecPtr DynamicPartitionSpec;
     THashMap<TThrottlerId, TDynamicThrottlerSpecPtr> Throttlers;
 };
 

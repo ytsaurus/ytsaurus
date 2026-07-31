@@ -51,12 +51,31 @@ struct TJournalBlockStoreConfig
     //! A writer is retired once its chunk grows past this size.
     i64 MaxChunkDataSize;
 
+    //! How long a fully-dead chunk (sealed with every block superseded) is retained before it is
+    //! unstaged. The delay outlives any in-flight read or write of the chunk, so freeing it cannot turn
+    //! such an operation into a failure.
+    TDuration DeadChunkRetentionDelay;
+
     //! Governs the per-record write retries (each attempt targets a random writer).
     TExponentialBackoffOptions WriteBackoff;
 
     //! Governs the retries when creating (topping up) a writable journal chunk. Once these are
     //! exhausted the store fails, so a persistent creation failure does not retry forever.
     TExponentialBackoffOptions ChunkCreationBackoff;
+
+    //! Paces the retries when sealing an abandoned chunk. Sealing must eventually succeed -- a snapshot
+    //! cannot reference an unsealed chunk -- so these retries are unbounded.
+    TExponentialBackoffOptions SealBackoff;
+
+    //! Timeouts for the per-replica requests backing a seal (session abort and quorum probe).
+    TDuration SealRpcTimeout;
+    TDuration SealQuorumSessionDelay;
+
+    //! How long a snapshot waits for the chunks it references to be sealed.
+    TDuration SnapshotSealTimeout;
+
+    //! How long a snapshot waits for its pre-snapshot dirty blocks to reach the store.
+    TDuration SnapshotFlushTimeout;
 
     NApi::TJournalChunkWriterConfigPtr ChunkWriter;
     NChunkClient::TChunkFragmentReaderConfigPtr ChunkReader;

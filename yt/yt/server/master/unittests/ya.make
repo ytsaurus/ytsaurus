@@ -13,6 +13,7 @@ SRCS(
     chunk_requisition_ut.cpp
     chunk_tree_balancer_ut.cpp
     chunk_tree_traversing_ut.cpp
+    chunk_tree_ut.cpp
     chunk_view_ut.cpp
     cumulative_statistics_ut.cpp
     helpers.cpp

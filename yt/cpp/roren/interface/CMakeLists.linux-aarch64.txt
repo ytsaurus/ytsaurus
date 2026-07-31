@@ -33,7 +33,7 @@ target_link_libraries(cpp-roren-interface PUBLIC
   cpp-yson-node
   cpp-yt-misc
   cpp-yt-string
-  flow-lib-serializer
+  library-cpp-serializer
   roren-library-bind
   library-timers-timer
   yt-yt-core

@@ -45,6 +45,7 @@ struct TSequoiaTransactionOptions
     bool SequenceTabletCommitSessions = false;
     bool EnableVerboseLogging = false;
     bool SuppressStronglyOrderedTransactionBarrier = false;
+    bool RetrySequoiaRetriableErrors = true;
     TSequoiaTransactionFeatures Features = {};
 };
 

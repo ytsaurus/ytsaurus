@@ -1,19 +1,17 @@
 #include "offshore_data_gateway_channel.h"
+
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/client/node_tracker_client/node_directory.h>
-
-#include <yt/yt/core/bus/tcp/config.h>
-#include <yt/yt/core/bus/tcp/client.h>
-
-#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/dynamic_channel_pool.h>
+#include <yt/yt/core/rpc/dynamic_channel_pool_provider.h>
+#include <yt/yt/core/rpc/peer_discovery.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/roaming_channel.h>
-#include <yt/yt/core/rpc/balancing_channel.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -22,23 +20,23 @@
 namespace NYT::NOffshoreDataGateway {
 
 using namespace NConcurrency;
-using namespace NRpc;
 using namespace NObjectClient;
+using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreDataGatewayChannelProvider
-    : public IRoamingChannelProvider
+class TOffshoreDataGatewayChannelManager
+    : public IOffshoreDataGatewayChannelManager
 {
 public:
-    TOffshoreDataGatewayChannelProvider(
+    TOffshoreDataGatewayChannelManager(
         TOffshoreDataGatewayChannelConfigPtr config,
         IChannelFactoryPtr channelFactory,
         NApi::NNative::IConnectionPtr connection)
-        : Config_(std::move(config))
-        , ChannelFactory_(std::move(channelFactory))
+        : Logger(OffshoreDataGatewayClientLogger())
+        , Config_(std::move(config))
         , Connection_(connection)
         , EndpointDescription_(Format("OffshoreDataGateway@%v", connection->GetClusterName()))
         , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
@@ -46,78 +44,95 @@ public:
                 .Item("offshore_data_gateway").Value(true)
                 .Item("cluster").Value(connection->GetClusterName())
             .EndMap()))
+        , ChannelPool_(New<TDynamicChannelPool>(
+            New<TDynamicChannelPoolConfig>(),
+            std::move(channelFactory),
+            EndpointDescription_,
+            EndpointAttributes_,
+            // NB: Offshore data gateway registers only DataNodeService for now,
+            // therefore dynamic channel pool's discovery should go there.
+            "DataNodeService",
+            CreateDefaultPeerDiscovery()))
+        , CachedNonStickyChannel_(CreateChannel(/*sticky*/ false))
     {
         if (Config_->DataGatewayUpdatePeriod) {
-            RefreshChannelExecutor_ = New<TPeriodicExecutor>(
-                GetCurrentInvoker(),
-                BIND(&TOffshoreDataGatewayChannelProvider::RefreshChannel, MakeWeak(this)),
+            YT_LOG_DEBUG("Start periodic offshore data gateway list updater (UpdatePeriod: %v)",
                 *Config_->DataGatewayUpdatePeriod);
-            RefreshChannelExecutor_->Start();
+
+            RefreshExecutor_ = New<TPeriodicExecutor>(
+                // TODO(ponasenko-rs): Use better specified invoker for refresh. See YT-29080.
+                GetCurrentInvoker(),
+                BIND(&TOffshoreDataGatewayChannelManager::Refresh, MakeWeak(this)),
+                *Config_->DataGatewayUpdatePeriod);
         }
     }
 
-    const std::string& GetEndpointDescription() const override
+    void InitializeRefCounted()
     {
-        return EndpointDescription_;
-    }
-
-    const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
-    {
-        return *EndpointAttributes_;
-    }
-
-    TFuture<IChannelPtr> GetChannel() override
-    {
-        {
-            auto guard = Guard(SpinLock_);
-            if (CachedChannel_) {
-                return MakeFuture(CachedChannel_);
-            }
+        if (RefreshExecutor_) {
+            RefreshExecutor_->Start();
         }
-
-        return DoCreateChannel();
     }
 
-    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
+    IChannelPtr GetStickyChannel() override
     {
-        return GetChannel();
+        return CreateChannel(/*sticky*/ true);
     }
 
-    TFuture<IChannelPtr> GetChannel(std::string /*serviceName*/) override
+    const IChannelPtr& GetNonStickyChannel() override
     {
-        return GetChannel();
-    }
-
-    void Terminate(const TError& error) override
-    {
-        auto guard = Guard(SpinLock_);
-        if (CachedChannel_) {
-            CachedChannel_->Terminate(error);
-        }
+        return CachedNonStickyChannel_;
     }
 
 private:
+    const NLogging::TLogger Logger;
+
     const TOffshoreDataGatewayChannelConfigPtr Config_;
-    const IChannelFactoryPtr ChannelFactory_;
+
     const TWeakPtr<NApi::NNative::IConnection> Connection_;
 
     const std::string EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
-    NConcurrency::TPeriodicExecutorPtr RefreshChannelExecutor_;
+    const TDynamicChannelPoolPtr ChannelPool_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    IChannelPtr CachedChannel_;
+    const IChannelPtr CachedNonStickyChannel_;
 
-    TFuture<IChannelPtr> DoCreateChannel()
+    TPeriodicExecutorPtr RefreshExecutor_;
+
+    IChannelPtr CreateChannel(bool sticky)
     {
-        auto connection = Connection_.Lock();
-        if (!connection) {
-            return MakeFuture<IChannelPtr>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
-        }
+        auto provider = sticky
+            ? CreateStickyDynamicChannelPoolProvider(
+                ChannelPool_,
+                EndpointDescription_,
+                EndpointAttributes_)
+            : CreateDynamicChannelPoolProvider(
+                ChannelPool_,
+                EndpointDescription_,
+                EndpointAttributes_);
 
-        NApi::TMasterReadOptions masterReadOptions;
-        masterReadOptions.ReadFrom = NApi::EMasterChannelKind::MasterSideCache;
+        return WrapChannel(CreateRoamingChannel(std::move(provider)));
+    }
+
+    IChannelPtr WrapChannel(IChannelPtr channel)
+    {
+        // TODO(achulkov2): Think about this properly. For now, I think we need these retries.
+        channel = CreateRetryingChannel(Config_, std::move(channel));
+        channel = CreateDefaultTimeoutChannel(std::move(channel), Config_->RpcTimeout);
+
+        return channel;
+    }
+
+    TFuture<TYPathProxy::TRspListPtr> ListOffshoreDataGatewayInstances(const NApi::NNative::IConnectionPtr& connection)
+    {
+        NApi::TMasterReadOptions masterReadOptions{
+            .ReadFrom = NApi::EMasterChannelKind::MasterSideCache,
+        };
+
+        if (Config_->Testing->BypassCache) {
+            masterReadOptions.ReadFrom = NApi::EMasterChannelKind::Follower;
+        }
 
         auto req = TYPathProxy::List("//sys/offshore_data_gateways/instances");
         SetCachingHeader(req, connection, masterReadOptions);
@@ -127,51 +142,47 @@ private:
             masterReadOptions.ReadFrom,
             PrimaryMasterCellTagSentinel,
             connection->GetStickyGroupSizeCache());
-        return proxy.Execute(req)
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TYPathProxy::TRspListPtr& rsp) -> IChannelPtr {
-                auto addresses = ConvertTo<std::vector<std::string>>(TYsonString(rsp->value()));
 
-                auto balancingChannelConfig = New<TBalancingChannelConfig>();
-                balancingChannelConfig->Addresses.emplace(std::move(addresses));
-
-                // This channel already detects failures internally.
-                auto channel = CreateBalancingChannel(
-                    balancingChannelConfig,
-                    ChannelFactory_,
-                    EndpointDescription_,
-                    EndpointAttributes_);
-
-                {
-                    auto guard = Guard(SpinLock_);
-                    CachedChannel_ = channel;
-                }
-
-                return channel;
-            }));
+        return proxy.Execute(req);
     }
 
-    void RefreshChannel()
+    void Refresh()
     {
-        YT_UNUSED_FUTURE(DoCreateChannel());
+        auto connection = Connection_.Lock();
+        if (!connection) {
+            return;
+        }
+
+        ListOffshoreDataGatewayInstances(connection)
+            .Subscribe(BIND([this, this_ = MakeStrong(this)] (
+                const TErrorOr<TYPathProxy::TRspListPtr>& rsp)
+            {
+                if (!rsp.IsOK()) {
+                    YT_LOG_WARNING(rsp, "Failed to refresh offshore data gateways list");
+                    return;
+                }
+
+                auto addresses = ConvertTo<std::vector<std::string>>(
+                    TYsonString(rsp.ValueOrCrash()->value()));
+
+                YT_LOG_DEBUG("Offshore data gateways list refreshed (Addresses: %v)",
+                    addresses);
+                ChannelPool_->SetPeers(addresses);
+            }));
     }
 };
 
-IChannelPtr CreateOffshoreDataGatewayChannel(
+////////////////////////////////////////////////////////////////////////////////
+
+IOffshoreDataGatewayChannelManagerPtr CreateOffshoreDataGatewayChannelManager(
     const TOffshoreDataGatewayChannelConfigPtr& config,
     IChannelFactoryPtr channelFactory,
     NApi::NNative::IConnectionPtr connection)
 {
-    auto channelProvider = New<TOffshoreDataGatewayChannelProvider>(
+    return New<TOffshoreDataGatewayChannelManager>(
         config,
         std::move(channelFactory),
         std::move(connection));
-    auto channel = CreateRoamingChannel(channelProvider);
-
-    // TODO(achulkov2): Think about this properly. For now, I think we need these retries.
-    channel = CreateRetryingChannel(config, channel);
-    channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
-
-    return channel;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

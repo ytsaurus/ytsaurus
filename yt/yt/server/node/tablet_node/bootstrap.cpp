@@ -53,6 +53,7 @@
 
 #include <yt/yt/server/lib/tablet_node/performance_counters.h>
 
+#include <yt/yt/ytlib/api/native/client_cache.h>
 #include <yt/yt/ytlib/api/native/pool_weight_provider.h>
 
 #include <yt/yt/ytlib/chaos_client/config.h>
@@ -87,6 +88,7 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NApi::NNative;
 using namespace NCellarAgent;
 using namespace NCellarClient;
 using namespace NCellarNode;
@@ -298,6 +300,9 @@ public:
         if (ReplicationCardUpdatesBatcher_) {
             ReplicationCardUpdatesBatcher_->Start();
         }
+        ClientCache_ = New<TClientCache>(
+            GetConfig()->TabletNode->ClientCache,
+            GetConnection());
 
         InitializeOverloadController();
 
@@ -620,6 +625,11 @@ public:
         return ReplicationCardUpdatesBatcher_;
     }
 
+    const NApi::NNative::TClientCachePtr& GetClientCache() const override
+    {
+        return ClientCache_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -669,6 +679,7 @@ private:
     NRpc::IOverloadControllerPtr OverloadController_;
     IAlienClusterClientCachePtr ReplicatorClientCache_;
     IReplicationCardUpdatesBatcherPtr ReplicationCardUpdatesBatcher_;
+    TClientCachePtr ClientCache_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -714,6 +725,8 @@ private:
                 GetConfig()->TabletNode->ChaosReplicationCardUpdatesBatcher->ApplyDynamic(
                     tabletNodeConfig->ChaosReplicationCardUpdatesBatcher));
         }
+
+        ClientCache_->Reconfigure(newConfig->TabletNode->ClientCache);
 
         NTesting::SetCurrentReignOverride(newConfig->TabletNode->Testing.ReignOverride);
 

@@ -28,6 +28,7 @@ import pytest
 from collections import defaultdict
 from random import shuffle
 import datetime
+import json
 import os
 import random
 
@@ -765,6 +766,89 @@ print("x={0}\ty={1}".format(x, y))
             assert read_table("//tmp/t2") == [{"foo": "bar"}]
         finally:
             remove("//sys/operations&/@acl/-1")
+
+    @authors("dagorokhov")
+    @not_implemented_in_sequoia
+    @pytest.mark.parametrize(
+        "output_format,extract_names,expected_error",
+        [
+            (yson.to_yson_type("web_json", attributes={"value_format": "yql", "column_names": ["name"]}),
+             lambda data: [row["name"][0] for row in json.loads(data)["rows"]],
+             "MapReduce operation with multiple intermediate streams"),
+            (yson.to_yson_type("web_json", attributes={"value_format": "schemaless", "column_names": ["name"]}),
+             lambda data: [row["name"]["$value"] for row in json.loads(data)["rows"]],
+             None),
+            (yson.to_yson_type("json"),
+             lambda data: [json.loads(line)["name"] for line in data.splitlines() if line.strip()],
+             None),
+            (yson.to_yson_type("yson"),
+             lambda data: [row["name"] for row in yson.loads(data, yson_type="list_fragment")],
+             None),
+            (yson.to_yson_type("dsv"),
+             lambda data: [line.split("=", 1)[1] for line in data.decode().splitlines()],
+             None),
+            (yson.to_yson_type("schemaful_dsv", attributes={"columns": ["name"]}),
+             lambda data: data.decode().splitlines(),
+             None),
+            (yson.to_yson_type("skiff", attributes={"table_skiff_schemas": [{
+                "wire_type": "tuple",
+                "children": [{"wire_type": "string32", "name": "name"}],
+            }] * 2}), None, "is not described by any table schema"),
+            (yson.to_yson_type("skiff", attributes={"table_skiff_schemas": [{
+                "wire_type": "tuple",
+                "children": [{"wire_type": "string32", "name": "name"}],
+            }]}), None, "is not described by Skiff schema"),
+            (yson.to_yson_type("arrow"), None, "has no schema"),
+        ],
+        ids=["web_json_yql", "web_json_schemaless", "plain_json", "yson", "dsv", "schemaful", "skiff_two_schemas", "skiff_one_schema", "arrow"],
+    )
+    def test_live_preview_multiple_intermediate_tables(self, output_format, extract_names, expected_error):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"foo": "bar"}])
+        create("table", "//tmp/t_out")
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", self.DROP_TABLE_INDEX_REDUCER)
+
+        name_schema = [make_column("name", "string", sort_order="ascending")]
+        op = map_reduce(
+            track=False,
+            mapper_command="""cat >/dev/null; echo '{"name": "bar"}' >&1; echo '{"name": "foo"}' >&4""",
+            reducer_command=with_breakpoint("BREAKPOINT; python3 reducer.py"),
+            reducer_file=["//tmp/reducer.py"],
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by=["name"],
+            spec={
+                "mapper": {
+                    "output_streams": [{"schema": name_schema}, {"schema": name_schema}],
+                    "format": "json",
+                },
+                "reducer": {"format": "json"},
+            },
+        )
+        wait(lambda: op.get_job_count("completed") == 1)
+
+        operation_path = op.get_path()
+        live_preview_paths = ["data_flow_graph/vertices/partition_map(0)/live_previews/0"]
+        if self.Env.get_component_version("ytserver-controller-agent").abi >= (23, 3):
+            live_preview_paths.append("live_previews/intermediate")
+
+        for live_preview_path in live_preview_paths:
+            preview_path = f"{operation_path}/controller_orchid/{live_preview_path}"
+            if expected_error is not None:
+                with raises_yt_error(expected_error):
+                    read_table(preview_path, output_format=output_format)
+                continue
+            data = read_table(preview_path, output_format=output_format)
+            if extract_names is None:
+                assert b"name" in data
+            else:
+                assert_items_equal(extract_names(data), ["bar", "foo"])
+
+        release_breakpoint()
+        op.track()
+        assert_items_equal(read_table("//tmp/t_out"), [{"name": "foo"}, {"name": "bar"}])
 
     @authors("ignat")
     def test_intermediate_compression_codec(self):
@@ -3579,6 +3663,47 @@ while True:
 
         assert read_table("//tmp/t_out") == []
 
+    @authors("apollo1321")
+    def test_empty_input_due_to_sampling_by_chunks(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        input_rows = [{"x": 1, "y": 2}, {"x": 3, "y": 4}]
+        write_table("//tmp/t_in", [input_rows[0]])
+        write_table("<append=%true>//tmp/t_in", [input_rows[1]])
+
+        def run_sampled_map_reduce(seed):
+            sampling = {"sampling_rate": 0.5}
+            if seed is not None:
+                sampling["sampling_seed"] = seed
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                reduce_by="x",
+                sort_by="x",
+                reducer_command="cat",
+                spec={"sampling": sampling},
+            )
+            return read_table("//tmp/t_out")
+
+        result = run_sampled_map_reduce(None)
+        assert all(row in input_rows for row in result)
+
+        # Find a seed for which chunk-level sampling discards the whole input:
+        # the operation must still complete, producing empty output.
+        empty_seed = None
+        for seed in range(5):
+            result = run_sampled_map_reduce(seed)
+            assert all(row in input_rows for row in result)
+            if not result:
+                empty_seed = seed
+                break
+
+        assert empty_seed is not None
+
+        # Sampling with a fixed seed is deterministic.
+        assert run_sampled_map_reduce(empty_seed) == []
+
     @authors("whatsername")
     def test_map_reduce_any(self):
         create(
@@ -3950,6 +4075,30 @@ for line in sys.stdin:
         tasks = get(op.get_path() + "/@progress/tasks")
         assert len(tasks) == 2
         assert {"partition", "partition_reduce"} == {task["job_type"] for task in tasks}
+
+    @authors("pavook")
+    def test_max_map_job_count(self):
+        create("table", "//tmp/t_in")
+
+        rows = [{"key": "{:015d}".format(i), "value": "x" * 100} for i in range(100)]
+        write_table("<append=%true>//tmp/t_in", rows)
+
+        max_map_job_count = 3
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="<create=%true>//tmp/t_out",
+            sort_by=["key"],
+            mapper_command="cat",
+            reducer_command="cat",
+            spec={
+                # Without the limit this would produce one job per row.
+                "data_weight_per_map_job": 1,
+                "max_map_job_count": max_map_job_count,
+            },
+        )
+
+        job_counter_path = op.get_path() + "/@progress/data_flow_graph/vertices/partition_map(0)/job_counter"
+        assert get(job_counter_path + "/completed/total") <= max_map_job_count
 
 
 ##################################################################

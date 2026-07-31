@@ -24,19 +24,18 @@ std::string ComputeFlowCoreVersion()
     const auto& commit = GetFlowCoreBuildInfo()->CommitHash;
     if (!commit.empty()) {
         auto value = Format("%v (commit hash)", commit);
-        YT_LOG_INFO("Resolved FlowCoreVersion from source control commit hash "
-            "(FlowCoreVersion: %v)",
-            value);
+        YT_TLOG_INFO("Resolved FlowCoreVersion from source control commit hash")
+            .With("FlowCoreVersion", value);
         return value;
     }
 
     auto checksum = GetBinaryChecksum();
     auto value = Format("%v (binary checksum)", checksum);
-    YT_LOG_INFO("Source control commit hash is unavailable (likely a local, "
+    YT_TLOG_INFO(
+        "Source control commit hash is unavailable (likely a local, "
         "distbuild --no-vcs-info, or tarball build outside a repo); "
-        "falling back to binary checksum "
-        "(FlowCoreVersion: %v)",
-        value);
+        "falling back to binary checksum")
+        .With("FlowCoreVersion", value);
     return value;
 }
 

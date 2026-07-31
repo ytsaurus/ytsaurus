@@ -63,13 +63,13 @@ public:
         if (messages.empty()) {
             return OKFuture;
         }
-        YT_LOG_DEBUG("Received message batch (SeqNo: %v, MinMessageId: %v, MaxMessageId: %v)",
-            seqNo,
-            messages.front()->MessageId,
-            messages.back()->MessageId);
+        YT_TLOG_DEBUG("Received message batch")
+            .With("SeqNo", seqNo)
+            .With("MinMessageId", messages.front()->MessageId)
+            .With("MaxMessageId", messages.back()->MessageId);
         if (!Storage_->empty() && Storage_->back().first >= seqNo) {
-            YT_LOG_DEBUG("SeqNo already commited (SeqNo: %v)",
-                seqNo);
+            YT_TLOG_DEBUG("SeqNo already commited")
+                .With("SeqNo", seqNo);
             return OKFuture;
         }
         std::vector<i64> data;

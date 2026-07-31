@@ -522,6 +522,11 @@ public:
         return Underlying_->UseDirectIOForReads();
     }
 
+    EDirectIOPolicy UseDirectIOForWrites() const override
+    {
+        return Underlying_->UseDirectIOForWrites();
+    }
+
     bool IsInFlightRequestLimitExceeded() const override
     {
         return Underlying_->IsInFlightRequestLimitExceeded();

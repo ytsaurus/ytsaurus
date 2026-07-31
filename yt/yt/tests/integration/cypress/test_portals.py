@@ -298,7 +298,7 @@ class TestPortals(YTEnvSetup):
             attributes={"account": "a", "external": True, "external_cell_tag": 12},
         )
         wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory/total") > 0)
-        with raises_yt_error("Cannot remove an account .* because its usage is not zero"):
+        with raises_yt_error("Cannot remove account .* because its usage is not zero"):
             remove("//sys/accounts/a")
         assert get("//sys/accounts/a/@life_stage") == "creation_committed"
         wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "creation_committed")
@@ -2363,7 +2363,7 @@ class TestCrossCellCopy(YTEnvSetup):
         self.create_file(src_path)
         account = get(f"{src_path}/@account")
         wait(lambda: get(f"//sys/accounts/{account}/@resource_usage/master_memory/total") > 0)
-        with raises_yt_error(f"Cannot remove an account \"{account}\" because its usage is not zero"):
+        with raises_yt_error(f"Cannot remove account \"{account}\" because its usage is not zero"):
             remove(f"//sys/accounts/{account}")
         assert get(f"//sys/accounts/{account}/@life_stage") == "creation_committed"
 

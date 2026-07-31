@@ -214,7 +214,12 @@ public:
     explicit TJobTracker(TJobTrackerContextPtr context)
         : Context_(std::move(context))
         , ExecutionSpec_(New<TExecutionSpec>())
-        , BufferStateManager_(CreateBufferStateManager(Context_->ControlInvoker, Context_->JobDirectory, GetDynamicPipelineSpec()->JobTracker->BufferStateManager))
+        , BufferStateManager_(CreateBufferStateManager(
+            Context_->ControlInvoker,
+            Context_->JobDirectory,
+            GetDynamicPipelineSpec()->JobTracker->BufferStateManager,
+            &TInstant::Now,
+            Context_->WorkerGroups))
         , EvaluatorCache_(CreateFastColumnEvaluatorCache())
         , JobControlThreadPool_(CreateFairShareThreadPool(GetDynamicPipelineSpec()->JobTracker->JobControlThreads, "JobControl"))
         , JobThreadPool_(CreateFairShareThreadPool(GetJobThreadPoolSize(GetDynamicPipelineSpec(), Context_->WorkerNodeInfo), "Jobs"))
@@ -232,7 +237,9 @@ public:
     {
         ResourceManager_ = CreateResourceManagerForPipelineSpec(
             ExecutionSpec_->PipelineSpec->GetValue()->Resources,
-            ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources);
+            ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
+            ExecutionSpec_->PipelineSpec->GetValue()->Computations,
+            ExecutionSpec_->ResourceTargetRevisions->GetValue());
 
         PerformanceCountersUpdater_->Start();
     }
@@ -253,8 +260,8 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        YT_LOG_INFO("Cancelling all jobs (JobCount: %v)",
-            JobIdToRuntimeState_.size());
+        YT_TLOG_INFO("Cancelling all jobs")
+            .With("JobCount", JobIdToRuntimeState_.size());
 
         for (const auto& [jobId, state] : JobIdToRuntimeState_) {
             YT_UNUSED_FUTURE(state.Job->Stop(error));
@@ -298,7 +305,7 @@ public:
 
     void Reconfigure(
         TExecutionSpecPtr newExecutionSpec,
-        const THashMap<TJobId, NYTree::IMapNodePtr>& newDynamicComputationPartitionSpecs) override
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& newDynamicComputationPartitionSpecs) override
     {
         YT_ASSERT_THREAD_AFFINITY(Control);
 
@@ -311,16 +318,15 @@ public:
         auto oldDynamicJobSpecs = DynamicJobSpecs_;
         DynamicJobSpecs_ = BuildNewJobSpecs(oldDynamicJobSpecs, newDynamicComputationPartitionSpecs, oldExecutionSpec, ExecutionSpec_);
 
-        if (oldExecutionSpec->DynamicPipelineSpec->GetVersion() != ExecutionSpec_->DynamicPipelineSpec->GetVersion()) {
+        bool dynamicPipelineSpecChanged =
+            oldExecutionSpec->DynamicPipelineSpec->GetVersion() != ExecutionSpec_->DynamicPipelineSpec->GetVersion();
+        if (dynamicPipelineSpecChanged) {
             const auto& jobTrackerSpec = ExecutionSpec_->DynamicPipelineSpec->GetValue()->JobTracker;
             JobControlThreadPool_->SetThreadCount(jobTrackerSpec->JobControlThreads);
             JobThreadPool_->SetThreadCount(GetJobThreadPoolSize(ExecutionSpec_->DynamicPipelineSpec->GetValue(), Context_->WorkerNodeInfo));
             BufferStateManager_->Reconfigure(jobTrackerSpec->BufferStateManager);
             LoadThroughputThrottler_->Reconfigure(jobTrackerSpec->LoadThroughputThrottler);
             StateCache_->Reconfigure(jobTrackerSpec->StateCache);
-
-            // Reconfigure resources.
-            ResourceManager_->Reconfigure(ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources);
             // Throttlers flow to computations through TDynamicComputationContext;
             // each computation's factory reconfigures itself on ApplyPendingStates.
         }
@@ -330,13 +336,25 @@ public:
             DropAllJobs();
             ResourceManager_ = CreateResourceManagerForPipelineSpec(
                 ExecutionSpec_->PipelineSpec->GetValue()->Resources,
-                ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources);
+                ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
+                ExecutionSpec_->PipelineSpec->GetValue()->Computations,
+                ExecutionSpec_->ResourceTargetRevisions->GetValue());
         } else {
             for (const auto& jobId : GetKeys(JobIdToRuntimeState_)) {
                 if (!ExecutionSpec_->Layout->Jobs.contains(jobId)) {
                     DropJob(jobId);
                 }
             }
+        }
+
+        // A no-op right after a manager rebuild: the new manager is constructed with the
+        // current state embedded.
+        if (dynamicPipelineSpecChanged ||
+            oldExecutionSpec->ResourceTargetRevisions->GetVersion() != ExecutionSpec_->ResourceTargetRevisions->GetVersion())
+        {
+            ResourceManager_->Reconfigure(
+                ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
+                ExecutionSpec_->ResourceTargetRevisions->GetValue());
         }
 
         // Update preloaded resources based on WorkerSpecs.
@@ -381,12 +399,12 @@ public:
                 continue;
             }
             auto job = jobIt->second;
-            YT_LOG_FATAL_UNLESS(
+            YT_TLOG_FATAL_UNLESS(
                 job->WorkerAddress == Context_->WorkerNodeInfo->RpcAddress && job->WorkerIncarnationId == Context_->WorkerNodeInfo->IncarnationId,
-                "Worker received invalid dynamic computation partition specs (WrongJobId: %v, ActualIncarnationId: %v, JobAssignedIncarnationId: %v)",
-                jobId,
-                Context_->WorkerNodeInfo->IncarnationId,
-                job->WorkerIncarnationId);
+                "Worker received invalid dynamic computation partition specs")
+                .With("WrongJobId", jobId)
+                .With("ActualIncarnationId", Context_->WorkerNodeInfo->IncarnationId)
+                .With("JobAssignedIncarnationId", job->WorkerIncarnationId);
             YT_UNUSED_FUTURE(StartJob(jobId));
         }
     }
@@ -423,7 +441,9 @@ public:
                 auto lag = now - stopTime;
                 if (lag > TDuration::Minutes(1)) {
                     ++hungStoppingJobs;
-                    YT_LOG_ERROR("Job can not stop in time (JobId: %v, StoppingLag: %v)", it->first, lag);
+                    YT_TLOG_ERROR("Job can not stop in time")
+                        .With("JobId", it->first)
+                        .With("StoppingLag", lag);
                 }
             }
             ++it;
@@ -548,15 +568,22 @@ private:
 
     IResourceManagerPtr CreateResourceManagerForPipelineSpec(
         const THashMap<TResourceId, TResourceSpecPtr>& resources,
-        const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs)
+        const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs,
+        const THashMap<TComputationId, TComputationSpecPtr>& computations,
+        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions)
     {
         auto context = New<TResourceManagerContext>();
         context->PipelineAuthenticator = Context_->PipelineAuthenticator;
-        context->Logger = WorkerLogger().WithTag("ResourceManager");
+        context->ClientsCache = Context_->ClientsCache;
+        context->PipelinePath = Context_->PipelinePath;
+        context->FileStorage = Context_->FileStorage;
+        context->Logger = WorkerLogger().WithTag("Manager", "Resource");
         context->Invoker = JobThreadPool_->GetInvoker("ResourceManager");
         context->Profiler = WorkerProfiler();
         context->StatusProfiler = Context_->StatusProfiler->WithPrefix("/resource_manager");
-        return CreateResourceManager(std::move(context), resources, dynamicResourceSpecs);
+        context->IsController = false;
+        context->Computations = computations;
+        return CreateResourceManager(std::move(context), resources, dynamicResourceSpecs, targetRevisions);
     }
 
     void UpdatePerformanceCounters()
@@ -583,10 +610,10 @@ private:
         const auto& job = GetOrCrash(ExecutionSpec_->Layout->Jobs, jobId);
         const auto& partition = GetOrCrash(ExecutionSpec_->Layout->Partitions, job->PartitionId);
 
-        YT_LOG_INFO("Executing start job (JobId: %v, PartitionId: %v, ComputationId: %v)",
-            jobId,
-            partition->PartitionId,
-            partition->ComputationId);
+        YT_TLOG_INFO("Executing start job")
+            .With("JobId", jobId)
+            .With("PartitionId", partition->PartitionId)
+            .With("ComputationId", partition->ComputationId);
 
         auto jobSpec = BuildJobSpec(jobId);
 
@@ -659,7 +686,8 @@ private:
                     traverseData,
                     watermarkState);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Job creation failed");
+                YT_TLOG_ERROR("Job creation failed")
+                    .With(ex);
                 return New<TFailedJob>(jobId, jobSpec->Partition->ComputationId, TError(ex));
             }
         }();
@@ -699,8 +727,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(Control);
 
-        YT_LOG_INFO("Executing drop job (JobId: %v)",
-            jobId);
+        YT_TLOG_INFO("Executing drop job")
+            .With("JobId", jobId);
 
         if (auto it = JobIdToRuntimeState_.find(jobId); it != JobIdToRuntimeState_.end()) {
             auto job = it->second.Job;
@@ -710,8 +738,8 @@ private:
             Context_->InputManager->RemoveJob(jobId);
             BufferStateManager_->RemoveJob(jobId);
         } else {
-            YT_LOG_WARNING("Unknown job (JobId: %v)",
-                jobId);
+            YT_TLOG_WARNING("Unknown job")
+                .With("JobId", jobId);
         }
     }
 
@@ -739,7 +767,7 @@ private:
 
     static THashMap<TJobId, TDynamicJobSpecPtr> BuildNewJobSpecs(
         const THashMap<TJobId, TDynamicJobSpecPtr>& oldDynamicJobSpecs,
-        const THashMap<TJobId, NYTree::IMapNodePtr>& newDynamicComputationPartitionSpecs,
+        const THashMap<TJobId, TDynamicPartitionSpecPtr>& newDynamicComputationPartitionSpecs,
         const TExecutionSpecPtr& oldExecutionSpec,
         const TExecutionSpecPtr& newExecutionSpec)
     {
@@ -769,7 +797,11 @@ private:
                 }
             }
 
-            if (oldDynamicJobSpec && AreNodesEqual(oldDynamicJobSpec->DynamicComputationPartitionSpec, newDynamicComputationPartitionSpec)) {
+            if (oldDynamicJobSpec &&
+                AreNodesEqual(
+                    ConvertToNode(oldDynamicJobSpec->DynamicComputationPartitionSpec),
+                    ConvertToNode(newDynamicComputationPartitionSpec)))
+            {
                 newDynamicJobSpec->DynamicComputationPartitionSpec = oldDynamicJobSpec->DynamicComputationPartitionSpec;
             } else {
                 newDynamicJobSpec->DynamicComputationPartitionSpec = newDynamicComputationPartitionSpec;
@@ -804,7 +836,8 @@ private:
                     streamTraverse->Epoch,
                     streamTraverse->SystemWatermark);
             } else {
-                YT_LOG_FATAL("Unexpected partition state (PartitionState: %v)", state);
+                YT_TLOG_FATAL("Unexpected partition state")
+                    .With("PartitionState", state);
             }
         }
         return traverse;

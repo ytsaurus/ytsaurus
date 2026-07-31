@@ -331,9 +331,9 @@ class TDistributedElectionManager::TVotingRound
 public:
     explicit TVotingRound(TDistributedElectionManagerPtr owner)
         : Owner_(std::move(owner))
-        , Logger(Owner_->Logger().WithTag("RoundId: %v, VoteEpochId: %v",
-            TGuid::Create(),
-            Owner_->VoteEpochId_))
+        , Logger(Owner_->Logger()
+            .WithTag("RoundId", TGuid::Create())
+            .WithTag("VoteEpochId", Owner_->VoteEpochId_))
     { }
 
     void Run()
@@ -581,7 +581,7 @@ TDistributedElectionManager::TDistributedElectionManager(
     : TServiceBase(
         controlInvoker,
         TElectionServiceProxy::GetDescriptor(),
-        ElectionLogger().WithTag("CellId: %v", cellManager->GetCellId()),
+        ElectionLogger().WithTag("CellId", cellManager->GetCellId()),
         TServiceOptions{
             .RealmId = cellManager->GetCellId(),
             .Authenticator = std::move(authenticator),
@@ -752,7 +752,7 @@ void TDistributedElectionManager::CancelContext()
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (EpochContext_) {
-        EpochContext_->CancelableContext->Cancel(TError("Election epoch canceled"));
+        EpochContext_->CancelableContext->Cancel(TError(NYT::EErrorCode::Canceled, "Election epoch canceled"));
     }
     EpochContext_.Reset();
 }

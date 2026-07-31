@@ -68,9 +68,8 @@ public:
         , LocalClient_(std::move(localClient))
         , ReplicationCardUpdatesBatcher_(std::move(replicationCardUpdatesBatcher))
         , Logger(TabletNodeLogger()
-            .WithTag("%v, ReplicationCardId: %v",
-                tablet->GetLoggingTag(),
-                replicationCardId))
+            .WithTags(tablet->GetLoggingTags())
+            .WithTag("ReplicationCardId", replicationCardId))
         , ConfigurationLock_(New<TAsyncSemaphore>(1))
         , SelfInvoker_(Tablet_->GetEpochAutomatonInvoker())
     { }

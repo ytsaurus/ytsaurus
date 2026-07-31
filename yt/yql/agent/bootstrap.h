@@ -45,6 +45,8 @@ public:
 
     const NApi::NNative::TConnectionCompoundConfigPtr GetClusterConnectionConfig() const;
 
+    const NApi::NNative::IClientPtr& GetClient() const;
+
 private:
     TAgentId AgentId_;
 

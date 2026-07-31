@@ -1,5 +1,6 @@
 #include "companion_client_detail.h"
 #include "companion_model.h"
+#include "state_codec.h"
 
 #include "private.h"
 
@@ -82,53 +83,19 @@ void AddStatesToRequest(
     const THashMap<std::string, TStateHolder<TStatePayload>>& States)
 {
     for (const auto& [stateName, state] : States) {
-        auto addStatePtr = mutableStates->Add();
-        addStatePtr->set_name(ToProto<TProtobufString>(stateName));
-        if (state.Schema) {
-            addStatePtr->set_schema(ToProto(NYson::ConvertToYsonString(state.Schema)));
-        }
-        for (const auto& stateItem : state.StateItems) {
-            auto addStateItemPtr = addStatePtr->add_stateitems();
-            ToProto(addStateItemPtr->mutable_key(), stateItem.Key);
-            addStateItemPtr->set_state(ToProto<TProtobufString>(stateItem.State));
-            addStateItemPtr->set_reset(false);
-        }
+        SerializeStateHolder(mutableStates->Add(), state, EStateDirection::Request);
     }
 }
 
-template <typename TProtoStatePayload, typename TStatePayload, typename TStatesPtr>
+template <typename TStatePayload, typename TStatesPtr>
 void ExtractStatesFromRequest(
     std::vector<TStateHolder<TStatePayload>>& states,
     const TStatesPtr& protoStates)
 {
     for (const auto& protoState : protoStates) {
-        auto stateName = FromProto<TProtobufString>(protoState.name());
-        std::vector<TStateItem<TStatePayload>> stateItems;
-        for (const auto& protoStateItem : protoState.stateitems()) {
-            auto stateItem = TStateItem<TStatePayload>{
-                .Key = FromProto<TKey>(protoStateItem.key()),
-                .Reset = protoStateItem.reset(),
-                .State = FromProto<TProtoStatePayload>(protoStateItem.state()),
-            };
-            // Validate for empty state.
-            constexpr auto isEmpty = [] (auto& state) {
-                if constexpr (requires { !state; }) {
-                    return !state;
-                } else {
-                    return state.empty();
-                }
-            };
-            if (!stateItem.Reset && isEmpty(stateItem.State)) {
-                THROW_ERROR_EXCEPTION("Empty state value for non-reset state response")
-                    << TErrorAttribute("state_name", stateName)
-                    << TErrorAttribute("key", stateItem.Key);
-            }
-            stateItems.push_back(std::move(stateItem));
-        }
-        states.push_back({
-            .StateName = std::move(stateName),
-            .StateItems = std::move(stateItems),
-        });
+        states.push_back(ParseStateHolder<TStatePayload>(
+            protoState,
+            EStateDirection::Response));
     }
 }
 
@@ -158,7 +125,7 @@ TCompanionClient::TCompanionClient(
     const IStatusProfilerPtr& statusProfiler)
     : Timeout_(timeout)
     , BackoffOptions_(backoffOptions)
-    , Logger(CompanionLogger().WithTag("CompanionClient"))
+    , Logger(CompanionLogger().WithTag("Client", "Companion"))
     , CompanionProxy_(CreateCompanionProxy(address))
     , StatusProfiler_(statusProfiler)
 { }
@@ -192,7 +159,8 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
             request,
             companionRequest->OverrideStreamSpecs,
             GetKeys(companionRequest->ComputationSpec->SourceStreams));
-        YT_LOG_DEBUG("Streams added to process batch request (Size: %v)", request->streams_size());
+        YT_TLOG_DEBUG("Streams added to process batch request")
+            .With("Size", request->streams_size());
     }
 
     if (companionRequest->SendJobInfo) {
@@ -203,7 +171,7 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
             companionRequest->DynamicComputationSpec);
 
         AddStreamsToRequest(jobInfo, companionRequest->JobStreamSpecs, inputOutputStreams);
-        YT_LOG_DEBUG("JobInfo added to process batch request");
+        YT_TLOG_DEBUG("JobInfo added to process batch request");
     }
 
     // Messages.
@@ -213,7 +181,8 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
         ToProto(addMessagePtr->mutable_message(), *msg, messageStreamSpecs);
         ToProto(addMessagePtr->mutable_key(), msg->Key);
     }
-    YT_LOG_DEBUG("Messages added to process batch request (Size: %v)", companionRequest->Messages.size());
+    YT_TLOG_DEBUG("Messages added to process batch request")
+        .With("Size", companionRequest->Messages.size());
 
     // Internal states.
     AddStatesToRequest(request->mutable_internal_states(), companionRequest->InternalStates);
@@ -226,14 +195,16 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
     for (const auto& timer : companionRequest->Timers) {
         ToProto(request->add_timers(), *timer);
     }
-    YT_LOG_DEBUG("Timers added to process batch request (Size: %v)", request->timers_size());
+    YT_TLOG_DEBUG("Timers added to process batch request")
+        .With("Size", request->timers_size());
 
     // Visits.
     request->mutable_visits()->Reserve(companionRequest->Visits.size());
     for (const auto& visit : companionRequest->Visits) {
         ToProto(request->add_visits(), static_cast<const TVisit&>(*visit));
     }
-    YT_LOG_DEBUG("Visits added to process batch request (Size: %v)", request->visits_size());
+    YT_TLOG_DEBUG("Visits added to process batch request")
+        .With("Size", request->visits_size());
 
     // Watermarks.
     request->mutable_watermarks()->Reserve(companionRequest->Watermarks.size());
@@ -242,7 +213,8 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
         addWatermarkPtr->set_stream_id(ToProto<TProtobufString>(watermark.StreamId));
         addWatermarkPtr->set_watermark(watermark.Watermark.Underlying());
     }
-    YT_LOG_DEBUG("Watermarks added to process batch request (Size: %v)", request->watermarks_size());
+    YT_TLOG_DEBUG("Watermarks added to process batch request")
+        .With("Size", request->watermarks_size());
 
     auto reqReqId = request->request_id();
     // Request itself with retry logic.
@@ -259,7 +231,8 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
     ReportMetrics(response, reporter);
 
     auto responseStatus = static_cast<ECompanionResponseStatus>(response->status());
-    YT_LOG_DEBUG("Received process batch response from companion (Status: %v)", responseStatus);
+    YT_TLOG_DEBUG("Received process batch response from companion")
+        .With("Status", responseStatus);
 
     auto companionResponse = New<TCompanionResponse>();
     // Status.
@@ -302,21 +275,21 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
                 .StreamId = FromProto<TStreamId>(protoTimer.stream_id()),
             });
         }
-        YT_LOG_DEBUG("Received group (MessageSize: %v, ParentIdsSize: %v, TimersSize: %v)",
-            group.Messages.size(),
-            group.ParentIds.size(),
-            group.Timers.size());
+        YT_TLOG_DEBUG("Received group")
+            .With("MessageSize", group.Messages.size())
+            .With("ParentIdsSize", group.ParentIds.size())
+            .With("TimersSize", group.Timers.size());
         companionResponse->Groups.push_back(std::move(group));
     }
 
     // Internal states.
-    ExtractStatesFromRequest<TProtobufString>(companionResponse->InternalStates, response->data().internal_states());
-    YT_LOG_DEBUG("Received internal states (Size: %v)",
-        companionResponse->InternalStates.size());
+    ExtractStatesFromRequest(companionResponse->InternalStates, response->data().internal_states());
+    YT_TLOG_DEBUG("Received internal states")
+        .With("Size", companionResponse->InternalStates.size());
     // External states.
-    ExtractStatesFromRequest<TPayload>(companionResponse->ExternalStates, response->data().external_states());
-    YT_LOG_DEBUG("Received external states (Size: %v)",
-        companionResponse->ExternalStates.size());
+    ExtractStatesFromRequest(companionResponse->ExternalStates, response->data().external_states());
+    YT_TLOG_DEBUG("Received external states")
+        .With("Size", companionResponse->ExternalStates.size());
 
     return companionResponse;
 }
@@ -336,7 +309,9 @@ TCompanionInfoPtr TCompanionClient::GetCompanionInfo()
     auto responseStatus = static_cast<ECompanionResponseStatus>(response->status());
 
     auto ysonPayload = NYson::TYsonString(FromProto<TProtobufString>(response->payload()));
-    YT_LOG_DEBUG("Received companion info response from companion (Status: %v, YsonPayload: %v)", responseStatus, ysonPayload);
+    YT_TLOG_DEBUG("Received companion info response from companion")
+        .With("Status", responseStatus)
+        .With("YsonPayload", ysonPayload);
     TCompanionInfoPtr result = NYT::NYTree::ConvertTo<TCompanionInfoPtr>(ysonPayload);
     return result;
 }
@@ -371,7 +346,8 @@ TCompanionPutJobResponsePtr TCompanionClient::PutJob(
     // Future.GetOrCrash called after WaitFor at ExecuteWithRetry function.
     auto response = responseFuture.GetOrCrash().Value();
     auto responseStatus = static_cast<ECompanionResponseStatus>(response->status());
-    YT_LOG_DEBUG("Received put job response from companion (Status: %v)", responseStatus);
+    YT_TLOG_DEBUG("Received put job response from companion")
+        .With("Status", responseStatus);
     auto putJobResponse = New<TCompanionPutJobResponse>();
     putJobResponse->Status = responseStatus;
     // Metrics.
@@ -399,11 +375,11 @@ TFuture<TResponse> TCompanionClient::ExecuteWithRetry(
             resultOrError.ThrowOnError();
         }
         auto backoff = backoffStrategy.GetBackoff();
-        YT_LOG_WARNING(resultOrError,
-            "%v failed, retrying (Attempt: %v, SleepDuration: %v)",
-            operationName,
-            backoffStrategy.GetInvocationIndex(),
-            backoff);
+        YT_TLOG_WARNING("Operation failed, retrying")
+            .With("Operation", operationName)
+            .With("Attempt", backoffStrategy.GetInvocationIndex())
+            .With("SleepDuration", backoff)
+            .With(resultOrError);
         NConcurrency::TDelayedExecutor::WaitForDuration(backoff);
     }
 }

@@ -70,7 +70,7 @@ public:
         , Options_(std::move(options))
         , Transaction_(std::move(transaction))
         , CellCommitSessionProvider_(std::move(cellCommitSessionProvider))
-        , Logger(logger.WithTag("TabletId: %v", tabletInfo->TabletId))
+        , Logger(logger.WithTag("TabletId", tabletInfo->TabletId))
         , CellCommitSession_(CellCommitSessionProvider_->GetOrCreateCellCommitSession(tabletInfo->CellId))
         , TabletInfo_(std::move(tabletInfo))
         , TableInfo_(std::move(tableInfo))

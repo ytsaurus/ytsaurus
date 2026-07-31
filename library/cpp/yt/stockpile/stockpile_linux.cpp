@@ -94,7 +94,8 @@ private:
     void RunWithFixedBreaks(i64 bufferSize, TDuration period)
     {
         auto returnCode = ::madvise(nullptr, bufferSize, MADV_STOCKPILE);
-        YT_LOG_DEBUG_IF(returnCode != 0, "System call \"madvise\" failed: %v", strerror(errno));
+        YT_TLOG_DEBUG_IF(returnCode != 0, "System call \"madvise\" failed")
+            .With("Error", strerror(errno));
 
         RestlessSleep(period);
     }
@@ -104,7 +105,8 @@ private:
         auto started = GetApproximateCpuInstant();
 
         auto returnCode = ::madvise(nullptr, bufferSize, MADV_STOCKPILE);
-        YT_LOG_DEBUG_IF(returnCode != 0, "System call \"madvise\" failed: %v", strerror(errno));
+        YT_TLOG_DEBUG_IF(returnCode != 0, "System call \"madvise\" failed")
+            .With("Error", strerror(errno));
 
         auto duration = CpuDurationToDuration(GetApproximateCpuInstant() - started);
         if (duration < period) {
@@ -122,7 +124,8 @@ private:
             return {Options_.BufferSize, Options_.Period};
         }
 
-        YT_LOG_DEBUG("System call \"madvise\" failed: %v", strerror(errno));
+        YT_TLOG_DEBUG("System call \"madvise\" failed")
+            .With("Error", strerror(errno));
         switch (errno) {
             case ENOMEM:
                 if (adjustedBufferSize / 2 >= PageSize_) {

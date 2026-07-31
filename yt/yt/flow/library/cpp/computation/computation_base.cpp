@@ -47,7 +47,7 @@
 #include <yt/yt/flow/library/cpp/tables/key_visitor_states.h>
 #include <yt/yt/flow/library/cpp/tables/partition_states.h>
 
-#include <yt/yt/flow/lib/client/public.h>
+#include <yt/yt/flow/library/cpp/client/public.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -102,13 +102,13 @@ TComputationBase::TComputationBase(
     , DynamicParameters_(DynamicPointerCast<IComputation::TDynamicParameters>(
         TRegistry::Get()->ParseDynamicComputationParameters(Context_->ComputationSpec, DynamicContext_->DynamicComputationSpec)))
     , DynamicPartitionSpec_(DynamicPointerCast<IComputation::TDynamicPartitionSpec>(
-        TRegistry::Get()->ParseDynamicComputationPartitionSpec(Context_->ComputationSpec, DynamicContext_->DynamicPartitionSpec)))
+        TRegistry::Get()->ParseDynamicComputationPartitionSpec(Context_->ComputationSpec, DynamicContext_->DynamicPartitionSpec->ComputationPartitionSpec)))
     , ThrottlerFactory_(NDistributedThrottler::CreateDistributedThrottlerFactory(
         Context_->DistributedThrottlerControllerChannelProvider,
         ToString(Context_->Job->JobId),
         ToFactoryThrottlers(DynamicContext_->Throttlers),
         Context_->StatusProfiler->WithPrefix("/throttlers"),
-        Logger.WithTag("ThrottlerFactory"),
+        Logger.WithTag("Factory", "Throttler"),
         Context_->Profiler.WithPrefix("/throttlers")))
 {
     YT_VERIFY(Parameters_);
@@ -352,7 +352,7 @@ void TComputationBase::ApplyPendingStates()
         if (pending->DynamicPartitionSpec != DynamicContext_->DynamicPartitionSpec) {
             mask |= EWatchReconfigure::DynamicPartitionSpec;
             DynamicPartitionSpec_ = DynamicPointerCast<IComputation::TDynamicPartitionSpec>(
-                TRegistry::Get()->ParseDynamicComputationPartitionSpec(GetSpec(), pending->DynamicPartitionSpec));
+                TRegistry::Get()->ParseDynamicComputationPartitionSpec(GetSpec(), pending->DynamicPartitionSpec->ComputationPartitionSpec));
             YT_VERIFY(DynamicPartitionSpec_);
         }
 
@@ -382,8 +382,8 @@ bool TComputationBase::UpdateTraverse(
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
 
-    YT_LOG_INFO("Building traverse (Inflights: %v)",
-        ConvertToYsonString(inflights, NYson::EYsonFormat::Text));
+    YT_TLOG_INFO("Building traverse")
+        .With("Inflights", ConvertToYsonString(inflights, NYson::EYsonFormat::Text));
 
     ValidateComputationInflights(inflights, GetSpec());
 
@@ -433,10 +433,11 @@ bool TComputationBase::UpdateTraverse(
         isFinished &= streamTraverse->State == EStreamState::Completed;
     }
 
-    YT_LOG_INFO("Built traverse (TraverseData: %v)",
-        ConvertToYsonString(traverseData, NYson::EYsonFormat::Text));
+    YT_TLOG_INFO("Built traverse")
+        .With("TraverseData", ConvertToYsonString(traverseData, NYson::EYsonFormat::Text));
     NodeTraverse_.Store(traverseData);
-    YT_LOG_INFO("Traverse updated (IsFinished: %v)", isFinished);
+    YT_TLOG_INFO("Traverse updated")
+        .With("IsFinished", isFinished);
 
     return isFinished;
 }
@@ -606,8 +607,6 @@ void TUniversalComputationDynamicPartitionSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("blocked_output_streams", &TThis::BlockedOutputStreams)
         .Default();
-    registrar.Parameter("finish_after_current_epoch", &TThis::FinishAfterCurrentEpoch)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -792,6 +791,64 @@ THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> TUniversalComp
     return {};
 }
 
+TBlockedTimeAccountant::TBlockedTimeAccountant(TInstant startTime)
+    : StartTime_(startTime)
+{ }
+
+void TBlockedTimeAccountant::Account(TInstant now, TDuration window, const std::vector<TBlockedLimit>& blocked)
+{
+    double elapsed = LastUpdate_ ? (now - *LastUpdate_).SecondsFloat() : 0.0;
+    if (!LastUpdate_) {
+        Lifetime_.Update(0, StartTime_);
+    }
+    LastUpdate_ = now;
+    Lifetime_.SetWindow(window);
+    Lifetime_.Inc(elapsed, now);
+
+    for (const auto& [limitType, streamId] : blocked) {
+        auto [it, inserted] = Counters_[std::string(limitType)].try_emplace(streamId, window);
+        if (inserted) {
+            // A counter measuring from its own creation would report the share of
+            // its own lifetime, so a job that starts blocking after an hour of
+            // work would look blocked all along. Anchoring it at the job start
+            // keeps every counter spanning the same interval as the lifetime one.
+            it->second.Update(0, StartTime_);
+        }
+        it->second.SetWindow(window);
+        it->second.Inc(elapsed, now);
+    }
+}
+
+void TBlockedTimeAccountant::FillShares(
+    TInstant now,
+    THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>>* limits) const
+{
+    for (const auto& [limitType, streamCounters] : Counters_) {
+        for (const auto& [streamId, counter] : streamCounters) {
+            // A stream that never blocked must not conjure a limit entry.
+            if (auto share = GetShare(counter, now); share > 0) {
+                (*limits)[limitType][streamId].BlockedTimeShare = share;
+            }
+        }
+    }
+}
+
+//! The blocked rate is divided by the lifetime rate rather than used as is: both
+//! counters warm up from zero over their first window, and the ratio cancels that
+//! warm-up, so a job blocked all along reports ~1 instead of ~0.86. Until the
+//! rates are available at all, the same ratio is taken over the totals.
+double TBlockedTimeAccountant::GetShare(const TSimpleEmaCounter& blocked, TInstant now) const
+{
+    auto blockedRate = blocked.GetRate(now);
+    auto lifetimeRate = Lifetime_.GetRate(now);
+    if (blockedRate && lifetimeRate && *lifetimeRate > 0) {
+        return std::min(*blockedRate / *lifetimeRate, 1.0);
+    }
+    return Lifetime_.GetTotal() > 0
+        ? std::min(blocked.GetTotal() / Lifetime_.GetTotal(), 1.0)
+        : 0.0;
+}
+
 bool TUniversalComputationBase::UpdateStatus(
     TSystemTimestamp reportTime,
     TSystemTimestamp systemWatermark,
@@ -810,16 +867,17 @@ bool TUniversalComputationBase::UpdateStatus(
     for (const auto& streamId : GetSpec()->OutputStreamIds) {
         auto [count, byteSize] = GetOrCrash(outputStoreCountAndByteSize, streamId);
         {
-            auto& entityLimitStatus = outputLimits["output_store_bytes"][streamId];
+            auto& entityLimitStatus = outputLimits[OutputStoreBytesLimitType][streamId];
             entityLimitStatus.Limit = GetDynamicSpec()->OutputStoreByteSizeLimit;
             entityLimitStatus.Used = byteSize;
         }
         {
-            auto& entityLimitStatus = outputLimits["output_store_count"][streamId];
+            auto& entityLimitStatus = outputLimits[OutputStoreCountLimitType][streamId];
             entityLimitStatus.Limit = GetDynamicSpec()->OutputStoreCountLimit;
             entityLimitStatus.Used = count;
         }
     }
+    BlockedTimeAccountant_.FillShares(TInstant::Now(), &outputLimits);
     {
         auto guard = Guard(LimitsLock_);
         InputLimits_ = std::move(inputLimits);
@@ -868,7 +926,7 @@ THashMap<TStreamId, TKeyVisitorPtr> TUniversalComputationBase::CreateKeyVisitors
         context->KeyVisitorStates = stateTable;
         context->TimeProvider = GetTimeProvider();
         context->SerializedInvoker = GetContext()->SerializedInvoker;
-        context->Logger = Logger.WithTag("KeyVisitorStreamId: %v", streamId);
+        context->Logger = Logger.WithTag("KeyVisitorStreamId", streamId);
         context->Profiler = GetContext()->Profiler.WithPrefix("/key_visitor_streams").WithTag("stream_id", streamId.Underlying());
         context->StatusProfiler = GetContext()->StatusProfiler->WithPrefix(Format("/key_visitor/%v", streamId));
 
@@ -945,7 +1003,7 @@ ISourcePtr TUniversalComputationBase::CreateActiveSource()
         auto [streamId, sourceKey] = SplitUniversalPartitionKey(*GetContext()->Partition->SourceKey);
         auto context = New<TSourceContext>();
         static_cast<TComputationContextBase&>(*context) = *GetContext();
-        context->Logger = context->Logger.WithTag("SourceStreamId: %v", streamId.Underlying());
+        context->Logger = context->Logger.WithTag("SourceStreamId", streamId);
         context->Profiler = context->Profiler.WithPrefix("/source_streams").WithTag("stream_id", streamId.Underlying());
         context->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/sources/%v", streamId));
         context->SourceStreamId = streamId;
@@ -1209,11 +1267,11 @@ void TUniversalComputationBase::RegisterInputBeforeProcessing(
         state.Counters->TotalMessages.Increment();
         InputEventLagObserver_.Observe(messageMeta.StreamId, messageMeta.EventTimestamp);
         if (messageMeta.EventTimestamp < state.Watermark) {
-            YT_LOG_WARNING("Input is late (MessageId: %v, StreamId: %v, EventTimestamp: %v, EventWatermark: %v)",
-                messageMeta.MessageId,
-                messageMeta.StreamId,
-                messageMeta.EventTimestamp,
-                state.Watermark);
+            YT_TLOG_WARNING("Input is late")
+                .With("MessageId", messageMeta.MessageId)
+                .With("StreamId", messageMeta.StreamId)
+                .With("EventTimestamp", messageMeta.EventTimestamp)
+                .With("EventWatermark", state.Watermark);
 
             state.Counters->LateMessages.Increment();
         }
@@ -1224,34 +1282,31 @@ void TUniversalComputationBase::RegisterInputBeforeProcessing(
             Y_PREFETCH_READ(message.Get(), 3);
         })
         .ForEach(inputMessages, [&] (const TInputMessageConstPtr& message) {
-            YT_LOG_DEBUG("MessageLifeCycle.Computation: message was taken to be processed in epoch "
-                "(MessageId: %v, Key: %v, StreamId: %v, SystemTimestamp: %v, EventTimestamp: %v)",
-                message->MessageId,
-                message->Key,
-                message->StreamId,
-                message->SystemTimestamp,
-                message->EventTimestamp);
+            YT_TLOG_DEBUG("MessageLifeCycle.Computation: message was taken to be processed in epoch")
+                .With("MessageId", message->MessageId)
+                .With("Key", message->Key)
+                .With("StreamId", message->StreamId)
+                .With("SystemTimestamp", message->SystemTimestamp)
+                .With("EventTimestamp", message->EventTimestamp);
             checkWatermark(*message);
         });
     for (auto& timer : inputTimers) {
-        YT_LOG_DEBUG("MessageLifeCycle.Computation: timer was taken to be processed in epoch "
-            "(MessageId: %v, Key: %v, StreamId: %v, SystemTimestamp: %v, EventTimestamp: %v, TriggerTimestamp: %v)",
-            timer->MessageId,
-            timer->Key,
-            timer->StreamId,
-            timer->SystemTimestamp,
-            timer->EventTimestamp,
-            timer->TriggerTimestamp);
+        YT_TLOG_DEBUG("MessageLifeCycle.Computation: timer was taken to be processed in epoch")
+            .With("MessageId", timer->MessageId)
+            .With("Key", timer->Key)
+            .With("StreamId", timer->StreamId)
+            .With("SystemTimestamp", timer->SystemTimestamp)
+            .With("EventTimestamp", timer->EventTimestamp)
+            .With("TriggerTimestamp", timer->TriggerTimestamp);
         checkWatermark(*timer);
     }
     for (auto& visit : inputVisits) {
-        YT_LOG_DEBUG("MessageLifeCycle.Computation: visit was taken to be processed in epoch "
-            "(MessageId: %v, Key: %v, StreamId: %v, SystemTimestamp: %v, EventTimestamp: %v)",
-            visit->MessageId,
-            visit->Key,
-            visit->StreamId,
-            visit->SystemTimestamp,
-            visit->EventTimestamp);
+        YT_TLOG_DEBUG("MessageLifeCycle.Computation: visit was taken to be processed in epoch")
+            .With("MessageId", visit->MessageId)
+            .With("Key", visit->Key)
+            .With("StreamId", visit->StreamId)
+            .With("SystemTimestamp", visit->SystemTimestamp)
+            .With("EventTimestamp", visit->EventTimestamp);
         checkWatermark(*visit);
     }
 }
@@ -1355,7 +1410,7 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
         InputStore_->AdvanceSystemWatermark(MergeStreamTraverseData(GetValues(GetInputTraverse()), EInflightMerge::None)->SystemWatermark);
     }
     promise.Set();
-    YT_LOG_INFO("Run iteration started");
+    YT_TLOG_INFO("Run iteration started");
     return {
         .TraceContext = std::move(epochTraceContext),
         .TraceContextGuard = std::move(epochTraceGuard),
@@ -1423,6 +1478,7 @@ IRetryableTransactionPtr TUniversalComputationBase::PrepareTransaction(const ICo
 void TUniversalComputationBase::Commit(IComputationRunContextPtr context, IRetryableTransactionPtr transaction)
 {
     YT_VERIFY(transaction);
+    std::vector<IRetryableTransactionPtr> asyncEraseTransactions;
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("FinalizeTransaction"));
         if (ActiveSource_) {
@@ -1431,7 +1487,7 @@ void TUniversalComputationBase::Commit(IComputationRunContextPtr context, IRetry
         if (InputStore_) {
             InputStore_->Sync(transaction);
         }
-        OutputStore_->Sync(transaction);
+        asyncEraseTransactions = OutputStore_->Sync(transaction);
         if (TimerStore_) {
             TimerStore_->Sync(transaction);
         }
@@ -1457,7 +1513,18 @@ void TUniversalComputationBase::Commit(IComputationRunContextPtr context, IRetry
         for (const auto& [sinkId, key, sink] : GetAllSinks()) {
             sink->Commit();
         }
-        YT_LOG_INFO("Transaction committed");
+        YT_TLOG_INFO("Transaction committed");
+
+        // Eager drain-all-or-fail of the output store's overflow GC erases: the epoch is already
+        // durable, so this runs off the sink-flush / exactly-once critical path. Commit EVERY
+        // returned async erase transaction; on the first failure throw loudly (epoch stays durable,
+        // only GC is stuck) so the job restarts and Init re-attempts. No carry, no time-box.
+        for (const auto& asyncEraseTransaction : asyncEraseTransactions) {
+            WaitFor(GetTransactionManager()->CommitTransaction(asyncEraseTransaction))
+                .ThrowOnError(
+                    "Post-commit async output GC erase transaction failed; "
+                    "epoch is already committed and durable, only garbage collection is stuck");
+        }
     }
 }
 
@@ -1466,13 +1533,13 @@ void TUniversalComputationBase::FinishRunIteration()
     TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Finish"));
     CurrentRunIterationPromise_.Set();
     CurrentRunIterationPromise_ = {};
-    YT_LOG_INFO("Run iteration finished");
+    YT_TLOG_INFO("Run iteration finished");
 
     // Graceful shutdown signal from controller (e.g. graceful rebalance):
     // the current iteration's commit is already done, exit the run loop via
     // a typed exception so the controller can distinguish this from a real
     // partition completion in job feedback.
-    if (GetDynamicPartitionSpec()->FinishAfterCurrentEpoch) {
+    if (GetDynamicContext()->DynamicPartitionSpec->FinishAfterCurrentEpoch) {
         THROW_ERROR_EXCEPTION(
             EErrorCode::GracefulShutdown,
             "Job finished by graceful shutdown signal");
@@ -1481,9 +1548,13 @@ void TUniversalComputationBase::FinishRunIteration()
 
 TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::CheckOutputLimits(
     const TDynamicComputationSpecPtr& dynamicSpec,
-    const TUniversalComputationDynamicPartitionSpecPtr& dynamicPartitionSpec) const
+    const TUniversalComputationDynamicPartitionSpecPtr& dynamicPartitionSpec)
 {
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+
     NTracing::TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Accounting"));
+
+    std::vector<TBlockedTimeAccountant::TBlockedLimit> blockedLimits;
 
     TCheckOutputLimitsResult result;
     THashSet<TStreamId> allowedOutputStreams(GetSpec()->OutputStreamIds.size());
@@ -1492,16 +1563,18 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
     for (const auto& streamId : GetSpec()->OutputStreamIds) {
         if (dynamicPartitionSpec && dynamicPartitionSpec->BlockedOutputStreams.contains(streamId)) {
             result.BlockedByController = true;
-            YT_LOG_INFO("Output stream is blocked by controller, "
-                "probably waiting for finishing previous overlapping partition "
-                "(StreamId: %v)",
-                streamId);
+            blockedLimits.push_back({ControllerLimitType, streamId});
+            YT_TLOG_INFO(
+                "Output stream is blocked by controller, "
+                "probably waiting for finishing previous overlapping partition")
+                .With("StreamId", streamId);
             continue;
         }
         if (!streamsAllowedByLimits.contains(streamId)) {
             result.OutputBufferOverflow = true;
-            YT_LOG_INFO("Output buffer is full for stream (StreamId: %v)",
-                streamId);
+            blockedLimits.push_back({OutputBufferBytesLimitType, streamId});
+            YT_TLOG_INFO("Output buffer is full for stream")
+                .With("StreamId", streamId);
             continue;
         }
         auto [count, byteSize] = outputStoreCountAndByteSize.at(streamId);
@@ -1509,17 +1582,22 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
             byteSize >= dynamicSpec->OutputStoreByteSizeLimit)
         {
             result.OutputStoreOverflow = true;
-            YT_LOG_INFO("Output store is full for stream "
-                "(StreamId: %v, Count: %v, CountLimit: %v, ByteSize: %v, ByteSizeLimit: %v)",
-                streamId,
-                count,
-                dynamicSpec->OutputStoreCountLimit,
-                byteSize,
-                dynamicSpec->OutputStoreByteSizeLimit);
+            auto limitType = byteSize >= dynamicSpec->OutputStoreByteSizeLimit
+                ? OutputStoreBytesLimitType
+                : OutputStoreCountLimitType;
+            blockedLimits.push_back({limitType, streamId});
+            YT_TLOG_INFO("Output store is full for stream")
+                .With("StreamId", streamId)
+                .With("Count", count)
+                .With("CountLimit", dynamicSpec->OutputStoreCountLimit)
+                .With("ByteSize", byteSize)
+                .With("ByteSizeLimit", dynamicSpec->OutputStoreByteSizeLimit);
             continue;
         }
         allowedOutputStreams.insert(streamId);
     }
+    BlockedTimeAccountant_.Account(TInstant::Now(), dynamicSpec->BlockedTimeWindow, blockedLimits);
+
     result.AllowedInputStreams = ComputeAllowedInputStreams(allowedOutputStreams, GetSpec());
     return result;
 }
@@ -1531,19 +1609,19 @@ void TUniversalComputationBase::WaitForBackoff(
 {
     if (outputLimitsCheckResult.OutputStoreOverflow) {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputStoreOverflow"));
-        YT_LOG_INFO("Output store overflow epoch");
+        YT_TLOG_INFO("Output store overflow epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (outputLimitsCheckResult.OutputBufferOverflow) {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputBufferOverflow"));
-        YT_LOG_INFO("Output buffer overflow epoch");
+        YT_TLOG_INFO("Output buffer overflow epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (outputLimitsCheckResult.BlockedByController) {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.BlockedByController"));
-        YT_LOG_INFO("Blocked by controller epoch");
+        YT_TLOG_INFO("Blocked by controller epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (emptyInput) {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Empty"));
-        YT_LOG_INFO("Empty epoch");
+        YT_TLOG_INFO("Empty epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     }
 }
@@ -1570,11 +1648,8 @@ ITimeProvider::TGlobalUniqueSeqNo TUniversalComputationBase::GenerateGlobalUniqu
     return WaitFor(GetTimeProvider()->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
 }
 
-void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRunContextPtr& context, bool allowOutputDuplicates)
+void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRunContextPtr& context)
 {
-    YT_VERIFY(!AllowOutputDuplicates_.has_value(), "InitOutputStoreDistribution must not be called twice");
-    AllowOutputDuplicates_ = allowOutputDuplicates;
-
     const bool loadKeyState = GetPartitionState() == EPartitionState::Executing || GetPartitionState() == EPartitionState::Completing;
 
     auto outputs = WaitFor(OutputStore_->Init(loadKeyState)).ValueOrThrow();
@@ -1613,7 +1688,7 @@ void TUniversalComputationBase::Run(const IComputationRunContextPtr& context)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
 
-    YT_LOG_INFO("Starting execution");
+    YT_TLOG_INFO("Starting execution");
     auto initTraceContextGuard = TTraceContextGuard(Tracer_->CreateInitTraceContext());
 
     DoPrepare(context);
@@ -1625,14 +1700,16 @@ void TUniversalComputationBase::Run(const IComputationRunContextPtr& context)
     } else if (GetPartitionState() == EPartitionState::Completing) {
         DoComplete(context, std::move(initTraceContextGuard));
     } else {
-        YT_LOG_FATAL("Unexpected partition state (PartitionState: %v)", GetPartitionState());
+        YT_TLOG_FATAL("Unexpected partition state")
+            .With("PartitionState", GetPartitionState());
     }
-    YT_LOG_INFO("Finished (FinishedPartitionState: %v)", ConvertToYsonString(GetPartitionState(), NYson::EYsonFormat::Text));
+    YT_TLOG_INFO("Finished")
+        .With("FinishedPartitionState", ConvertToYsonString(GetPartitionState(), NYson::EYsonFormat::Text));
 }
 
 void TUniversalComputationBase::DoInterrupt(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard)
 {
-    YT_LOG_INFO("Started DoInterrupt");
+    YT_TLOG_INFO("Started DoInterrupt");
 
     bool isFinished = true;
     {
@@ -1643,7 +1720,7 @@ void TUniversalComputationBase::DoInterrupt(const IComputationRunContextPtr& con
     }
 
     initTraceContextGuard.Release();
-    YT_LOG_INFO("Init completed");
+    YT_TLOG_INFO("Init completed");
 
     while (!isFinished) {
         auto iterGuard = StartRunIteration(context);
@@ -1662,20 +1739,21 @@ void TUniversalComputationBase::DoInterrupt(const IComputationRunContextPtr& con
 
     DoCleanup(context, /*eraseOwnedState*/ false);
 
-    YT_LOG_INFO("Completed DoInterrupt");
+    YT_TLOG_INFO("Completed DoInterrupt");
 }
 
 void TUniversalComputationBase::DoComplete(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard)
 {
-    YT_LOG_INFO("Started DoComplete");
+    YT_TLOG_INFO("Started DoComplete");
     initTraceContextGuard.Release();
     DoCleanup(context, /*eraseOwnedState*/ true);
-    YT_LOG_INFO("Completed DoComplete");
+    YT_TLOG_INFO("Completed DoComplete");
 }
 
 void TUniversalComputationBase::DoCleanup(const IComputationRunContextPtr& context, bool eraseOwnedState)
 {
-    YT_LOG_INFO("Started DoCleanup (EraseOwnedState: %v)", eraseOwnedState);
+    YT_TLOG_INFO("Started DoCleanup")
+        .With("EraseOwnedState", eraseOwnedState);
 
     auto iterGuard = StartRunIteration(context);
     TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Cleanup"));
@@ -1737,7 +1815,7 @@ void TUniversalComputationBase::DoCleanup(const IComputationRunContextPtr& conte
     WaitFor(GetTransactionManager()->Cleanup()).ThrowOnError();
 
     FinishRunIteration();
-    YT_LOG_INFO("Completed DoCleanup");
+    YT_TLOG_INFO("Completed DoCleanup");
 }
 
 ISinkPtr TUniversalComputationBase::GetOrCreateSink(const TSinkId& sinkId, const std::optional<TKey>& parentKey, const TDynamicComputationSpecPtr& dynamicSpec)
@@ -1752,7 +1830,7 @@ ISinkPtr TUniversalComputationBase::GetOrCreateSink(const TSinkId& sinkId, const
     static_cast<TComputationContextBase&>(*context) = *GetContext();
     context->Profiler = context->Profiler.WithPrefix("/sink").WithTag("sink_id", sinkId.Underlying());
     context->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/sinks/%v", sinkId));
-    context->Logger = context->Logger.WithTag("SinkId: %v", sinkId.Underlying());
+    context->Logger = context->Logger.WithTag("SinkId", sinkId);
     context->SinkSpec = GetOrCrash(GetSpec()->Sinks, sinkId);
     auto dynamicSinkContext = New<TDynamicSinkContext>();
     dynamicSinkContext->DynamicSinkSpec = GetOrDefault(dynamicSpec->Sinks, sinkId, New<TDynamicSinkSpec>());
@@ -1864,10 +1942,10 @@ void TUniversalComputationBase::PreloadKeyStates(const IInputContextPtr& inputCo
         return;
     }
 
-    YT_LOG_DEBUG("Preload key states (MessageCount: %v, TimerCount: %v, VisitCount: %v)",
-        inputContext->GetMessages().size(),
-        inputContext->GetTimers().size(),
-        inputContext->GetVisits().size());
+    YT_TLOG_DEBUG("Preload key states")
+        .With("MessageCount", inputContext->GetMessages().size())
+        .With("TimerCount", inputContext->GetTimers().size())
+        .With("VisitCount", inputContext->GetVisits().size());
     WaitFor(AllSucceeded(std::vector<TFuture<void>>{
             StateManager_->PreloadKeyStates(inputContext),
             StateManager_->PreloadVisitorDrivenJoiners(visitorDrivenJoinerKeys),
@@ -1940,23 +2018,17 @@ void TUniversalComputationBase::DrainDistributedOutputs(const IComputationRunCon
     // Atomically extract both pending deques under a single lock acquisition.
     auto [pending, initPending] = PendingProcessedOutputs_->Extract();
 
-    // OutputStore in-flight set drains via TryUnregister/AsyncUnregister below.
+    // OutputStore in-flight set drains via TryUnregister below.
     ProcessDistributedMessages(context, std::move(pending));
 
     // NOLINTNEXTLINE(bugprone-use-after-move): ProcessDistributedMessages takes an rvalue reference and does not move the deque.
     ClearAsynchronously(std::move(pending));
 
     if (!initPending.empty()) {
-        YT_VERIFY(AllowOutputDuplicates_.has_value());
-        const bool allowOutputDuplicates = *AllowOutputDuplicates_;
         std::vector<TOutputMessageConstPtr> initMessages(
             std::make_move_iterator(initPending.begin()),
             std::make_move_iterator(initPending.end()));
-        if (allowOutputDuplicates) {
-            OutputStore_->AsyncUnregisterBatch(initMessages);
-        } else {
-            OutputStore_->TryUnregisterBatch(initMessages);
-        }
+        OutputStore_->TryUnregisterBatch(initMessages);
     }
 }
 

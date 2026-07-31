@@ -86,8 +86,8 @@ public:
     //! Must be called once before GetNextBatch.
     TFuture<void> Init();
 
-    //! Updates dynamic settings: throttler rate from `period`/`max_keys_per_period`,
-    //! draining flag.
+    //! Updates dynamic settings: throttler rate from `period`, background fill
+    //! period, draining flag.
     void Reconfigure(TDynamicKeyVisitorContextPtr dynamicContext);
 
     //! Returns up to |batchSize| ready visits drained from the internal
@@ -95,9 +95,11 @@ public:
     //! When draining or out of work yields an empty vector.
     std::vector<TVisit> GetNextBatch(i64 batchSize);
 
-    //! Signals that all upstream non-visit streams are completed; the next
-    //! pass is started as Final, after which the visitor reports itself empty.
-    //! One-way and idempotent.
+    //! Signals that all upstream non-visit streams are completed; the first pass to
+    //! start at or after that moment is Final, after which the visitor reports itself
+    //! empty. Idempotent. Ignored by a non-finite stream: such a visitor never
+    //! finalizes, and switching a stream back to non-finite drops the signal — though a
+    //! pass already marked Final stays final.
     void SetUpstreamCompleted();
 
     //! Single-entry inflight map; Empty becomes true once the Final pass is

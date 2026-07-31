@@ -73,6 +73,7 @@ using namespace NHiveClient;
 using namespace NHiveClient::NProto;
 using namespace NHydra;
 using namespace NCellMaster::NProto;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,6 +129,24 @@ public:
 
         const auto& alertManager = Bootstrap_->GetAlertManager();
         alertManager->RegisterAlertSource(BIND_NO_PROPAGATE(&TMulticellManager::GetAlerts, MakeWeak(this)));
+    }
+
+        IYPathServicePtr GetOrchidService() override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromProducer(BIND(&TMulticellManager::BuildOrchid, MakeStrong(this)))
+            ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::MulticellManager));
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer) const
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("dynamically_propagated_master_cells").Value(DynamicallyPropagatedMasterCellTags_)
+            .EndMap();
     }
 
     bool IsPrimaryMaster() const override
@@ -316,7 +335,7 @@ public:
         // IsDynamicallyPropagatedMaster will not work.
         THROW_ERROR_EXCEPTION_UNLESS(IsLocalMasterCellRegistered(),
             NCellServer::EErrorCode::MasterCellNotReady,
-            "Master cell is not ready, it is not registered at primary yet")
+            "Master cell is not ready, it is not registered at primary yet");
     }
 
     EMasterCellRoles GetMasterCellRoles(TCellTag cellTag) const override
@@ -1312,7 +1331,7 @@ private:
             THROW_ERROR_EXCEPTION_IF(IsDynamicallyPropagatedMasterCell(cellTag) && newRoles != EMasterCellRoles::None,
                 "Attempted to set master cell roles %v to a dynamically propagated master cell %v",
                 newRoles,
-                cellTag)
+                cellTag);
 
             if (newConfig->MulticellManager->AllowMasterCellRoleInvariantCheck) {
                 auto canHostChunks = [] (auto roles) {

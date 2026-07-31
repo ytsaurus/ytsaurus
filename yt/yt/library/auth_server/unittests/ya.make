@@ -8,6 +8,14 @@ SRCS(
     secret_vault_ut.cpp
 )
 
+IF (NOT OS_WINDOWS)
+    IF (NOT OPENSOURCE OR YT_CUSTOM_INTERNAL_BUILD)
+        SRCS(
+            ldap_ut.cpp
+        )
+    ENDIF()
+ENDIF()
+
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(

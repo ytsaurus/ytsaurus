@@ -30,6 +30,7 @@
 
 #include "rdkafka_int.h"
 #include "rdkafka_feature.h"
+#include "rdunittest.h"
 
 #include <stdlib.h>
 
@@ -74,8 +75,8 @@ static const struct rd_kafka_feature_map {
         .feature = RD_KAFKA_FEATURE_MSGVER1,
         .depends =
             {
-                {RD_KAFKAP_Produce, 2, 2},
-                {RD_KAFKAP_Fetch, 2, 2},
+                {RD_KAFKAP_Produce, 2, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_Fetch, 2, RD_KAFKAP_RPC_VERSION_MAX},
                 {-1},
             },
     },
@@ -84,8 +85,8 @@ static const struct rd_kafka_feature_map {
         .feature = RD_KAFKA_FEATURE_MSGVER2,
         .depends =
             {
-                {RD_KAFKAP_Produce, 3, 3},
-                {RD_KAFKAP_Fetch, 4, 4},
+                {RD_KAFKAP_Produce, 3, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_Fetch, 4, RD_KAFKAP_RPC_VERSION_MAX},
                 {-1},
             },
     },
@@ -97,7 +98,7 @@ static const struct rd_kafka_feature_map {
         .feature = RD_KAFKA_FEATURE_APIVERSION,
         .depends =
             {
-                {RD_KAFKAP_ApiVersion, 0, 0},
+                {RD_KAFKAP_ApiVersion, 0, RD_KAFKAP_RPC_VERSION_MAX},
                 {-1},
             },
     },
@@ -106,22 +107,34 @@ static const struct rd_kafka_feature_map {
         .feature = RD_KAFKA_FEATURE_BROKER_GROUP_COORD,
         .depends =
             {
-                {RD_KAFKAP_FindCoordinator, 0, 0},
+                {RD_KAFKAP_FindCoordinator, 0, RD_KAFKAP_RPC_VERSION_MAX},
                 {-1},
             },
     },
     {
-        /* @brief >=0.9.0: Broker-based balanced consumer groups. */
+        /* @brief >=0.9.0: Broker-based balanced consumer groups (classic). */
         .feature = RD_KAFKA_FEATURE_BROKER_BALANCED_CONSUMER,
         .depends =
             {
-                {RD_KAFKAP_FindCoordinator, 0, 0},
-                {RD_KAFKAP_OffsetCommit, 1, 2},
-                {RD_KAFKAP_OffsetFetch, 1, 1},
-                {RD_KAFKAP_JoinGroup, 0, 0},
-                {RD_KAFKAP_SyncGroup, 0, 0},
-                {RD_KAFKAP_Heartbeat, 0, 0},
-                {RD_KAFKAP_LeaveGroup, 0, 0},
+                {RD_KAFKAP_FindCoordinator, 0, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_OffsetCommit, 1, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_OffsetFetch, 1, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_JoinGroup, 0, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_SyncGroup, 0, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_Heartbeat, 0, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_LeaveGroup, 0, RD_KAFKAP_RPC_VERSION_MAX},
+                {-1},
+            },
+    },
+    {
+        /* @brief Broker-based balanced consumer groups (KIP 848). */
+        .feature = RD_KAFKA_FEATURE_BROKER_BALANCED_CONSUMER,
+        .depends =
+            {
+                {RD_KAFKAP_ConsumerGroupHeartbeat, 0,
+                 RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_OffsetCommit, 9, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_OffsetFetch, 9, RD_KAFKAP_RPC_VERSION_MAX},
                 {-1},
             },
     },
@@ -130,8 +143,8 @@ static const struct rd_kafka_feature_map {
         .feature = RD_KAFKA_FEATURE_THROTTLETIME,
         .depends =
             {
-                {RD_KAFKAP_Produce, 1, 2},
-                {RD_KAFKAP_Fetch, 1, 2},
+                {RD_KAFKAP_Produce, 1, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_Fetch, 1, RD_KAFKAP_RPC_VERSION_MAX},
                 {-1},
             },
 
@@ -145,7 +158,18 @@ static const struct rd_kafka_feature_map {
         .feature = RD_KAFKA_FEATURE_SASL_GSSAPI,
         .depends =
             {
-                {RD_KAFKAP_JoinGroup, 0, 0},
+                {RD_KAFKAP_JoinGroup, 0, RD_KAFKAP_RPC_VERSION_MAX},
+                {-1},
+            },
+    },
+    {
+        /* @brief >=0.10.0: SASL (GSSAPI) authentication.
+         * Fallback in case JoinGroup is removed along with the
+         * "classic" consumer group protocol. */
+        .feature = RD_KAFKA_FEATURE_SASL_GSSAPI,
+        .depends =
+            {
+                {RD_KAFKAP_SaslHandshake, 0, RD_KAFKAP_RPC_VERSION_MAX},
                 {-1},
             },
     },
@@ -156,7 +180,7 @@ static const struct rd_kafka_feature_map {
         .feature = RD_KAFKA_FEATURE_SASL_HANDSHAKE,
         .depends =
             {
-                {RD_KAFKAP_SaslHandshake, 0, 0},
+                {RD_KAFKAP_SaslHandshake, 0, RD_KAFKAP_RPC_VERSION_MAX},
                 {-1},
             },
     },
@@ -170,7 +194,7 @@ static const struct rd_kafka_feature_map {
         .feature = RD_KAFKA_FEATURE_LZ4,
         .depends =
             {
-                {RD_KAFKAP_FindCoordinator, 0, 0},
+                {RD_KAFKAP_FindCoordinator, 0, RD_KAFKAP_RPC_VERSION_MAX},
                 {-1},
             },
     },
@@ -179,14 +203,14 @@ static const struct rd_kafka_feature_map {
      .feature = RD_KAFKA_FEATURE_OFFSET_TIME,
      .depends =
          {
-             {RD_KAFKAP_ListOffsets, 1, 1},
+             {RD_KAFKAP_ListOffsets, 1, RD_KAFKAP_RPC_VERSION_MAX},
              {-1},
          }},
     {/* @brief >=0.11.0.0: Idempotent Producer*/
      .feature = RD_KAFKA_FEATURE_IDEMPOTENT_PRODUCER,
      .depends =
          {
-             {RD_KAFKAP_InitProducerId, 0, 0},
+             {RD_KAFKAP_InitProducerId, 0, RD_KAFKAP_RPC_VERSION_MAX},
              {-1},
          }},
     {
@@ -194,8 +218,8 @@ static const struct rd_kafka_feature_map {
         .feature = RD_KAFKA_FEATURE_ZSTD,
         .depends =
             {
-                {RD_KAFKAP_Produce, 7, 7},
-                {RD_KAFKAP_Fetch, 10, 10},
+                {RD_KAFKAP_Produce, 7, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_Fetch, 10, RD_KAFKAP_RPC_VERSION_MAX},
                 {-1},
             },
     },
@@ -204,8 +228,8 @@ static const struct rd_kafka_feature_map {
         .feature = RD_KAFKA_FEATURE_SASL_AUTH_REQ,
         .depends =
             {
-                {RD_KAFKAP_SaslHandshake, 1, 1},
-                {RD_KAFKAP_SaslAuthenticate, 0, 1},
+                {RD_KAFKAP_SaslHandshake, 1, RD_KAFKAP_RPC_VERSION_MAX},
+                {RD_KAFKAP_SaslAuthenticate, 0, RD_KAFKAP_RPC_VERSION_MAX},
                 {-1},
             },
     },
@@ -273,20 +297,20 @@ int rd_kafka_get_legacy_ApiVersions(const char *broker_version,
                                     struct rd_kafka_ApiVersion **apisp,
                                     size_t *api_cntp,
                                     const char *fallback) {
+#define _VERMAP(PFX, APIS)                                                     \
+        { PFX, APIS, RD_ARRAYSIZE(APIS) }
         static const struct {
                 const char *pfx;
                 struct rd_kafka_ApiVersion *apis;
                 size_t api_cnt;
-        } vermap[] = {
-#define _VERMAP(PFX, APIS) {PFX, APIS, RD_ARRAYSIZE(APIS)}
-            _VERMAP("0.9.0", rd_kafka_ApiVersion_0_9_0),
-            _VERMAP("0.8.2", rd_kafka_ApiVersion_0_8_2),
-            _VERMAP("0.8.1", rd_kafka_ApiVersion_0_8_1),
-            _VERMAP("0.8.0", rd_kafka_ApiVersion_0_8_0),
-            {"0.7.", NULL}, /* Unsupported */
-            {"0.6.", NULL}, /* Unsupported */
-            _VERMAP("", rd_kafka_ApiVersion_Queryable),
-            {NULL}};
+        } vermap[] = {_VERMAP("0.9.0", rd_kafka_ApiVersion_0_9_0),
+                      _VERMAP("0.8.2", rd_kafka_ApiVersion_0_8_2),
+                      _VERMAP("0.8.1", rd_kafka_ApiVersion_0_8_1),
+                      _VERMAP("0.8.0", rd_kafka_ApiVersion_0_8_0),
+                      {"0.7.", NULL}, /* Unsupported */
+                      {"0.6.", NULL}, /* Unsupported */
+                      _VERMAP("", rd_kafka_ApiVersion_Queryable),
+                      {NULL}};
         int i;
         int fallback_i = -1;
         int ret        = 0;
@@ -459,3 +483,416 @@ const char *rd_kafka_features2str(int features) {
 
         return ret[reti];
 }
+
+int rd_ut_features_check_assert_features(const char *testname,
+                                         int features,
+                                         rd_bool_t all_enabled) {
+        int i;
+        for (i = 0; rd_kafka_feature_map[i].feature != 0; i++) {
+                rd_bool_t enabled =
+                    (features & rd_kafka_feature_map[i].feature) > 0;
+                RD_UT_ASSERT(
+                    enabled == all_enabled,
+                    "%s: Feature \"%s\" should %sbe enabled", testname,
+                    rd_kafka_features2str(rd_kafka_feature_map[i].feature),
+                    all_enabled ? "" : "not ");
+        }
+        return 0;
+}
+
+int rd_ut_features_check(void) {
+        rd_kafka_t rk         = RD_ZERO_INIT;
+        rd_kafka_broker_t rkb = RD_ZERO_INIT;
+        rkb.rkb_rk            = &rk;
+        int features;
+        int fails = 0;
+
+        /* ApiVersions must be sorted in these structs */
+
+        /* No ApiVersions for testing matching no feature */
+        struct rd_kafka_ApiVersion api_versions_none[] = {0};
+
+        /* ApiVersions removed in KIP-896 */
+        struct rd_kafka_ApiVersion api_versions_kip_896[] = {
+            {
+                .ApiKey = RD_KAFKAP_Produce,
+                .MinVer = 3,
+                .MaxVer = 12,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Fetch,
+                .MinVer = 4,
+                .MaxVer = 17,
+            },
+            {
+                .ApiKey = RD_KAFKAP_ListOffsets,
+                .MinVer = 1,
+                .MaxVer = 10,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Metadata,
+                .MinVer = 0,
+                .MaxVer = 13,
+            },
+            {
+                .ApiKey = RD_KAFKAP_OffsetCommit,
+                .MinVer = 2,
+                .MaxVer = 9,
+            },
+            {
+                .ApiKey = RD_KAFKAP_OffsetFetch,
+                .MinVer = 1,
+                .MaxVer = 9,
+            },
+            {
+                .ApiKey = RD_KAFKAP_FindCoordinator,
+                .MinVer = 0,
+                .MaxVer = 6,
+            },
+            {
+                .ApiKey = RD_KAFKAP_JoinGroup,
+                .MinVer = 2,
+                .MaxVer = 9,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Heartbeat,
+                .MinVer = 0,
+                .MaxVer = 4,
+            },
+            {
+                .ApiKey = RD_KAFKAP_LeaveGroup,
+                .MinVer = 0,
+                .MaxVer = 5,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SyncGroup,
+                .MinVer = 0,
+                .MaxVer = 5,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SaslHandshake,
+                .MinVer = 0,
+                .MaxVer = 1,
+            },
+            {
+                .ApiKey = RD_KAFKAP_ApiVersion,
+                .MinVer = 0,
+                .MaxVer = 4,
+            },
+            {
+                .ApiKey = RD_KAFKAP_InitProducerId,
+                .MinVer = 0,
+                .MaxVer = 5,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SaslAuthenticate,
+                .MinVer = 0,
+                .MaxVer = 2,
+            },
+        };
+
+        /* ApiVersions to remove in next Apache Kafka version
+         * (see baseline in KIP-896) */
+        struct rd_kafka_ApiVersion api_versions_next_apache_kafka_next[] = {
+            {
+                .ApiKey = RD_KAFKAP_Produce,
+                .MinVer = 7,
+                .MaxVer = 12,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Fetch,
+                .MinVer = 10,
+                .MaxVer = 17,
+            },
+            {
+                .ApiKey = RD_KAFKAP_ListOffsets,
+                .MinVer = 4,
+                .MaxVer = 10,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Metadata,
+                .MinVer = 7,
+                .MaxVer = 13,
+            },
+            {
+                .ApiKey = RD_KAFKAP_OffsetCommit,
+                .MinVer = 6,
+                .MaxVer = 9,
+            },
+            {
+                .ApiKey = RD_KAFKAP_OffsetFetch,
+                .MinVer = 5,
+                .MaxVer = 9,
+            },
+            {
+                .ApiKey = RD_KAFKAP_FindCoordinator,
+                .MinVer = 2,
+                .MaxVer = 6,
+            },
+            {
+                .ApiKey = RD_KAFKAP_JoinGroup,
+                .MinVer = 3,
+                .MaxVer = 9,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Heartbeat,
+                .MinVer = 2,
+                .MaxVer = 4,
+            },
+            {
+                .ApiKey = RD_KAFKAP_LeaveGroup,
+                .MinVer = 2,
+                .MaxVer = 5,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SyncGroup,
+                .MinVer = 2,
+                .MaxVer = 5,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SaslHandshake,
+                .MinVer = 1,
+                .MaxVer = 1,
+            },
+            {
+                .ApiKey = RD_KAFKAP_ApiVersion,
+                .MinVer = 2,
+                .MaxVer = 4,
+            },
+            {
+                .ApiKey = RD_KAFKAP_InitProducerId,
+                .MinVer = 1,
+                .MaxVer = 5,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SaslAuthenticate,
+                .MinVer = 0,
+                .MaxVer = 2,
+            },
+        };
+
+        /* ApiVersions don't overlap with those enabling the feature.
+         * At least one condition isn't matching */
+        struct rd_kafka_ApiVersion api_versions_no_overlap[] = {
+            {
+                .ApiKey = RD_KAFKAP_Produce,
+                .MinVer = 2,
+                .MaxVer = 2,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Fetch,
+                .MinVer = 0,
+                .MaxVer = 0,
+            },
+            {
+                .ApiKey = RD_KAFKAP_ListOffsets,
+                .MinVer = 0,
+                .MaxVer = 0,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Metadata,
+                .MinVer = 7,
+                .MaxVer = 13,
+            },
+            {
+                .ApiKey = RD_KAFKAP_OffsetCommit,
+                .MinVer = 6,
+                .MaxVer = 9,
+            },
+            {
+                .ApiKey = RD_KAFKAP_OffsetFetch,
+                .MinVer = 5,
+                .MaxVer = 8,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Heartbeat,
+                .MinVer = 2,
+                .MaxVer = 4,
+            },
+            {
+                .ApiKey = RD_KAFKAP_LeaveGroup,
+                .MinVer = 2,
+                .MaxVer = 5,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SyncGroup,
+                .MinVer = 2,
+                .MaxVer = 5,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SaslAuthenticate,
+                .MinVer = 0,
+                .MaxVer = 2,
+            },
+        };
+
+        /* ApiVersions where the maximum version corresponds to
+         * the minimum version necessary for enabling all features. */
+        struct rd_kafka_ApiVersion api_versions_overlap_by_one[] = {
+            {
+                .ApiKey = RD_KAFKAP_Produce,
+                .MinVer = 3,
+                .MaxVer = 7,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Fetch,
+                .MinVer = 4,
+                .MaxVer = 10,
+            },
+            {
+                .ApiKey = RD_KAFKAP_ListOffsets,
+                .MinVer = 1,
+                .MaxVer = 1,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Metadata,
+                .MinVer = 0,
+                .MaxVer = 13,
+            },
+            {
+                .ApiKey = RD_KAFKAP_OffsetCommit,
+                .MinVer = 2,
+                .MaxVer = 9,
+            },
+            {
+                .ApiKey = RD_KAFKAP_OffsetFetch,
+                .MinVer = 1,
+                .MaxVer = 9,
+            },
+            {
+                .ApiKey = RD_KAFKAP_FindCoordinator,
+                .MinVer = 0,
+                .MaxVer = 0,
+            },
+            {
+                .ApiKey = RD_KAFKAP_JoinGroup,
+                .MinVer = 0,
+                .MaxVer = 0,
+            },
+            {
+                .ApiKey = RD_KAFKAP_Heartbeat,
+                .MinVer = 0,
+                .MaxVer = 0,
+            },
+            {
+                .ApiKey = RD_KAFKAP_LeaveGroup,
+                .MinVer = 0,
+                .MaxVer = 0,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SyncGroup,
+                .MinVer = 0,
+                .MaxVer = 0,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SaslHandshake,
+                .MinVer = 0,
+                .MaxVer = 1,
+            },
+            {
+                .ApiKey = RD_KAFKAP_ApiVersion,
+                .MinVer = 0,
+                .MaxVer = 0,
+            },
+            {
+                .ApiKey = RD_KAFKAP_InitProducerId,
+                .MinVer = 0,
+                .MaxVer = 0,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SaslAuthenticate,
+                .MinVer = 0,
+                .MaxVer = 0,
+            },
+        };
+
+        /* ApiVersions where the classic way of enabling SASL_GSSAPI
+         * or BROKER_BALANCED_CONSUMER was removed. */
+        struct rd_kafka_ApiVersion api_versions_kip_848[] = {
+            {
+                .ApiKey = RD_KAFKAP_OffsetCommit,
+                .MinVer = 6,
+                .MaxVer = 9,
+            },
+            {
+                .ApiKey = RD_KAFKAP_OffsetFetch,
+                .MinVer = 5,
+                .MaxVer = 9,
+            },
+            {
+                .ApiKey = RD_KAFKAP_SaslHandshake,
+                .MinVer = 0,
+                .MaxVer = 1,
+            },
+            {
+                .ApiKey = RD_KAFKAP_ConsumerGroupHeartbeat,
+                .MinVer = 0,
+                .MaxVer = 1,
+            },
+        };
+
+        /* With empty ApiVersions. */
+        features = rd_kafka_features_check(&rkb, api_versions_none,
+                                           RD_ARRAY_SIZE(api_versions_none));
+        fails += rd_ut_features_check_assert_features("no API versions",
+                                                      features, rd_false);
+
+        /* Without KIP-896 removed versions. */
+        features = rd_kafka_features_check(&rkb, api_versions_kip_896,
+                                           RD_ARRAY_SIZE(api_versions_kip_896));
+        fails += rd_ut_features_check_assert_features("KIP-896 API versions",
+                                                      features, rd_true);
+
+        /* Without versions to remove in next Apache Kafka major version. */
+        features = rd_kafka_features_check(
+            &rkb, api_versions_next_apache_kafka_next,
+            RD_ARRAY_SIZE(api_versions_next_apache_kafka_next));
+        fails += rd_ut_features_check_assert_features(
+            "next Apache Kafka API versions", features, rd_true);
+
+        /* With a RPC version range non overlapping with the one necessary
+         * for the feature. */
+        features =
+            rd_kafka_features_check(&rkb, api_versions_no_overlap,
+                                    RD_ARRAY_SIZE(api_versions_no_overlap));
+        fails += rd_ut_features_check_assert_features(
+            "not overlapping API versions", features, rd_false);
+
+        /* Only a single RPC version is overlapping with broker
+         * supported ones. */
+        features =
+            rd_kafka_features_check(&rkb, api_versions_overlap_by_one,
+                                    RD_ARRAY_SIZE(api_versions_overlap_by_one));
+        fails += rd_ut_features_check_assert_features(
+            "overlapping API versions by one version", features, rd_true);
+
+        /* Even when removing the classic protocol and its APIs,
+         * these features must be enabled. */
+        features = rd_kafka_features_check(&rkb, api_versions_kip_848,
+                                           RD_ARRAY_SIZE(api_versions_kip_848));
+        if (!(features & RD_KAFKA_FEATURE_BROKER_BALANCED_CONSUMER) ||
+            !(features & RD_KAFKA_FEATURE_SASL_GSSAPI)) {
+                fails++;
+        }
+
+
+        if (fails)
+                return fails;
+
+        RD_UT_PASS();
+}
+
+/**
+ * @name Unit tests
+ * @{
+ *
+ */
+int unittest_feature(void) {
+        int fails = 0;
+
+        fails += rd_ut_features_check();
+
+        return fails;
+}
+
+/**@}*/

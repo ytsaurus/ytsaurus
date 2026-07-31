@@ -21,7 +21,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -30,6 +29,8 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -94,7 +95,7 @@ struct TEpochContext
     NConcurrency::TPeriodicExecutorPtr HeartbeatMutationCommitExecutor;
     NConcurrency::TPeriodicExecutorPtr AlivePeersUpdateExecutor;
 
-    std::atomic_flag Restarting = ATOMIC_FLAG_INIT;
+    std::atomic_flag Restarting;
     std::atomic<bool> LeaderSwitchStarted = false;
     std::atomic<bool> LeaderLeaseExpired = false;
     std::atomic<bool> AcquiringChangelog = false;

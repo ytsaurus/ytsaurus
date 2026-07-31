@@ -160,7 +160,7 @@ public:
             ClusterNodeBootstrap_,
             {
                 .LocalAddress = NNet::BuildServiceAddress(GetLocalHostName(), GetConfig()->RpcPort),
-                .Logger = ExecNodeLogger().WithTag("Component: ThrottlerManager"),
+                .Logger = ExecNodeLogger().WithTag("Component", "ThrottlerManager"),
                 .Profiler = ExecNodeProfiler().WithPrefix("/throttler_manager")
             }
         );

@@ -24,12 +24,25 @@ from fiber_attribution import (
 )
 
 # Scheduler / context-switch plumbing that wraps every parked fiber; skipped when
-# picking the "interesting" leaf frame for the concise roster.
+# picking the "interesting" leaf frame for the concise roster. Matched with
+# re.search against the demangled symbol (never anchor at the start: a template
+# symbol carries its return type up front). Generic names are pinned to their
+# namespaces so user code with a coincidental name (WaitForX, RunUntilSetup)
+# is not skipped; the suspend helpers keep getting renamed/split, hence the
+# \w+UntilSet family match instead of an exact list.
 _PLUMBING = (
-    "MachineContext", "SwitchTo", "SwitchFromFiber", "YieldFiber",
-    "WaitUntilSet", "WaitFor", "RunInFiberContext", "FiberTrampoline",
-    "TBindState", "TCallback", "TInvoker", "TRunnableAdapter",
+    r"MachineContext",
+    r"NYT::NConcurrency::NDetail::",
+    r"NYT::NConcurrency::SwitchTo",
+    r"NYT::NConcurrency::(?:\(anonymous namespace\)::)?\w+UntilSet",
+    r"NYT::NConcurrency::WaitFor",
+    r"NYT::NDetail::TBindState",
+    r"NYT::TCallback",
+    r"TInvoker",
+    r"TRunnableAdapter",
 )
+
+_PLUMBING_RE = re.compile("|".join(_PLUMBING))
 
 
 def _parked_fiber(index):
@@ -60,7 +73,7 @@ def _interesting_frame(lines):
             continue
         if fallback is None:
             fallback = sym
-        if not any(p in sym for p in _PLUMBING):
+        if not _PLUMBING_RE.search(sym):
             return sym
     return fallback or "?"
 
@@ -77,7 +90,7 @@ def _is_idle_fiber(lines):
         sym = _frame_symbol(line)
         if sym is None:
             continue
-        if any(p in sym for p in _PLUMBING) or any(m in sym for m in _IDLE_MARKERS):
+        if _PLUMBING_RE.search(sym) or any(m in sym for m in _IDLE_MARKERS):
             continue
         return False  # a real (user/work) frame -> not idle
     return True

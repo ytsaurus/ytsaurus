@@ -19,7 +19,7 @@ T LexicographicallyParse(TStringBuf serialized)
     TStringBuf mutableSerialized = serialized;
     LexicographicallyRead(mutableSerialized, destination);
     THROW_ERROR_EXCEPTION_UNLESS(mutableSerialized.empty(),
-        "Excess bytes in serialized (Serialized: %v, ExcessBytes: %v)",
+        "Serialized value %Qv contains %v excess bytes",
         serialized,
         mutableSerialized.size());
     return destination;

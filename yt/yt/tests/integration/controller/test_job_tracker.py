@@ -344,6 +344,83 @@ class TestJobTracker(YTEnvSetup):
 
         op.track()
 
+    @authors("apollo1321")
+    def test_revived_unstarted_job_time_limit(self):
+        update_controller_agent_config("snapshot_period", 200)
+        update_controller_agent_config("job_tracker/job_confirmation_timeout", 30000)
+        update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 30000)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={
+                "testing": {
+                    "settle_job_delay": {
+                        # Keep this below the node's 5-second SettleJob RPC timeout.
+                        "duration": 3000,
+                        "type": "async",
+                    },
+                },
+            },
+        )
+        op.ensure_running()
+
+        controller_agent_address = self._get_controller_agent(op)
+        inflight_settle_job_requests_path = (
+            self._get_job_tracker_orchid_path(controller_agent_address)
+            + "/inflight_settle_job_requests"
+        )
+
+        wait(lambda: len(ls(inflight_settle_job_requests_path)) == 1)
+        allocation_id, = ls(inflight_settle_job_requests_path)
+        wait(
+            lambda: get(inflight_settle_job_requests_path + "/" + allocation_id)["requests"][0]["stage"]
+            == "waiting_for_controller"
+        )
+
+        # Persist an allocation with a joblet before SafeSettleJob calls OnJobStarted.
+        op.wait_for_fresh_snapshot()
+        update_controller_agent_config("enable_snapshot_building", False)
+
+        wait_breakpoint()
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "controller_agent_connector": {
+                    "test_heartbeat_delay": 10000,
+                },
+            },
+        })
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            # Shorten the default only after the old controller is stopped. The
+            # revived controller therefore observes an already expired limit.
+            update_controller_agent_config(
+                "operation_time_limit",
+                1000,
+                wait_for_orchid=False,
+            )
+
+        controller_state_path = op.get_path() + "/controller_orchid/progress/state"
+        wait(lambda: get(controller_state_path) == "failing", ignore_exceptions=True)
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "controller_agent_connector": {
+                    "test_heartbeat_delay": 0,
+                },
+            },
+        })
+
+        wait(lambda: op.get_state() == "failed")
+
+        operation_path = (
+            self._get_job_tracker_orchid_path(controller_agent_address)
+            + "/operations/"
+            + op.id
+        )
+        wait(lambda: not exists(operation_path), ignore_exceptions=True)
+
     @authors("krasovav")
     def test_revival_node_disconnection_timeout(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
@@ -697,6 +774,9 @@ class TestJobTrackerRaces(YTEnvSetup):
         aborted_job_profiler = JobCountProfiler(
             "aborted",
             tags={"tree": "default", "job_type": "vanilla", "abort_reason": "allocation_finished"})
+        controller_agent = ls("//sys/controller_agents/instances")[0]
+        job_release_request_counter = profiler_factory().at_controller_agent(controller_agent).counter(
+            "controller_agent/job_tracker/job_release_request_count")
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
@@ -721,9 +801,9 @@ class TestJobTrackerRaces(YTEnvSetup):
 
         (allocation1, ) = ls(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations")
 
-        # We start new opertion for scheduler to preempt allocation of op1.
+        # We start new operation for scheduler to preempt allocation of op1.
         op2 = run_test_vanilla(
-            "sleep 0.1",
+            with_breakpoint("BREAKPOINT"),
             job_count=1,
             spec={
 
@@ -731,10 +811,14 @@ class TestJobTrackerRaces(YTEnvSetup):
             },
         )
 
+        wait_breakpoint()
         wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
 
         wait(lambda: not exists(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations/{allocation1}"))
+        time.sleep(1)
+        assert job_release_request_counter.get_delta() == 0
 
+        release_breakpoint()
         op2.track()
         op1.track()
 
@@ -848,7 +932,10 @@ class TestStoredJobRemoval(YTEnvSetup):
         job_release_request_counter = profiler.counter("controller_agent/job_tracker/job_release_request_count")
 
         wait(lambda: not exists(orchid_path))
-        wait(lambda: job_release_request_counter.get_delta() >= 1)
+        # The agent is freshly restarted, so its counter starts from zero; read the
+        # absolute value rather than a delta whose baseline may be captured after the
+        # release requests have already been sent during recovery.
+        wait(lambda: job_release_request_counter.get(default=0) >= 1)
 
         release_breakpoint()
         op.track()

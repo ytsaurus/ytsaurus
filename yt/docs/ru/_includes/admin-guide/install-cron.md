@@ -267,3 +267,6 @@ helm upgrade --install ytsaurus-cron oci://ghcr.io/ytsaurus/cron-chart \
 | `successfulJobsHistoryLimit` | Сколько успешных задач хранить                     |
 | `failedJobsHistoryLimit`     | Сколько неудачных задач хранить                    |
 | `ttlSecondsAfterFinished`    | Как долго объекты job будут храниться в Kubernetes |
+
+
+Инструкция по обновлению Cron подробно описана в статье [Обновление cron](../../admin-guide/update/update-cron.md).

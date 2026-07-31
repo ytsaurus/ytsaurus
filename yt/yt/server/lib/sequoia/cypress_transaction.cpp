@@ -651,7 +651,7 @@ public:
         CollectAndTopologicallySortAllAncestors(std::move(transactions));
     }
 
-    template <CInvocable<void(TRange<std::optional<NRecords::TTransaction>>)> F>
+    template <NMpl::CInvocable<void(TRange<std::optional<NRecords::TTransaction>>)> F>
     void IterateOverInnermostTransactionGroupedByCoordinator(F&& callback)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
@@ -1022,6 +1022,9 @@ private:
                     // should be already visible thanks to transaction
                     // sequencer.
                     .SuppressStronglyOrderedTransactionBarrier = true,
+                    // All retries should be done on client's side. server/lib
+                    // is definitely not a client.
+                    .RetrySequoiaRetriableErrors = false,
                     .Features = std::move(features),
                 })
             .AsUnique().Apply(

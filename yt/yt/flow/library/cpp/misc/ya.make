@@ -23,7 +23,6 @@ SRCS(
     retryable_client.cpp
     retryable_transaction.cpp
     status_profiler.cpp
-    version_helpers.cpp
     weighted_random.cpp
 )
 
@@ -36,7 +35,7 @@ PEERDIR(
     yt/yt/client
     yt/yt/core
     yt/yt/flow/library/cpp/misc/proto
-    yt/yt/flow/lib/client
+    yt/yt/flow/library/cpp/client
     yt/yt/library/backtrace_introspector
 )
 

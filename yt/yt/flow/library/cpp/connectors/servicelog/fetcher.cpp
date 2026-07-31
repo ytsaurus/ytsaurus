@@ -259,7 +259,8 @@ public:
                         break;
                     }
                     auto rows = batch->MaterializeRows();
-                    YT_LOG_DEBUG("Read subbatch (Size: %v)", std::ssize(rows));
+                    YT_TLOG_DEBUG("Read subbatch")
+                        .With("Size", std::ssize(rows));
                     YT_VERIFY(!rows.empty());
                     RowsCounter_.Increment(std::ssize(rows));
                     for (auto& row : rows) {
@@ -274,8 +275,7 @@ public:
                 } catch (const std::exception& e) {
                     CachedReader_ = std::nullopt;
 
-                    auto error = TError(e);
-                    YT_LOG_ERROR(error, "Error fetching batch");
+                    auto error = TError("Error fetching batch") << TError(e);
                     ReadErrorState_->SetError(error);
                     RetryableErrorsCounter_.Increment(1);
 
@@ -293,7 +293,8 @@ public:
             if (attemptsRemaining == 0) {
                 THROW_ERROR_EXCEPTION(lastError);
             }
-            YT_LOG_DEBUG("Retrieved rows (Count: %v)", std::ssize(result));
+            YT_TLOG_DEBUG("Retrieved rows")
+                .With("Count", std::ssize(result));
             return {
                 .Rows = result,
                 .Finished = finished};
@@ -321,9 +322,9 @@ public:
                         schema,
                         range,
                         rowLimit - std::ssize(result));
-                    YT_LOG_DEBUG("Prepare for fetch using SelectRows query (Query: %v, PlaceholderValues: %v)",
-                        parameterizedQuery.Query,
-                        ConvertToYsonString(parameterizedQuery.PlaceholderValues, NYson::EYsonFormat::Text));
+                    YT_TLOG_DEBUG("Prepare for fetch using SelectRows query")
+                        .With("Query", parameterizedQuery.Query)
+                        .With("PlaceholderValues", ConvertToYsonString(parameterizedQuery.PlaceholderValues, NYson::EYsonFormat::Text));
 
                     auto batch = NConcurrency::WaitFor(GetClient()->SelectRows(
                         parameterizedQuery.Query,
@@ -332,7 +333,8 @@ public:
                         }))
                         .ValueOrThrow();
                     const auto rows = batch.Rowset->GetRows();
-                    YT_LOG_DEBUG("Got subbatch (Size: %v)", std::ssize(rows));
+                    YT_TLOG_DEBUG("Got subbatch")
+                        .With("Size", std::ssize(rows));
                     RowsCounter_.Increment(std::ssize(rows));
                     for (auto& row : rows) {
                         result.push_back(NTableClient::TUnversionedOwningRow(row));
@@ -349,8 +351,7 @@ public:
                     range->Lower->Key = lastKey;
                     range->Lower->Exclusive = true;
                 } catch (const std::exception& e) {
-                    auto error = TError(e);
-                    YT_LOG_ERROR(error, "Error fetching batch");
+                    auto error = TError("Error fetching batch") << TError(e);
                     ReadErrorState_->SetError(error);
                     RetryableErrorsCounter_.Increment(1);
                     const auto& retryTimeout = Spec_->RetryTimeout;
@@ -366,7 +367,8 @@ public:
             if (attemptsRemaining == 0) {
                 THROW_ERROR_EXCEPTION(lastError);
             }
-            YT_LOG_DEBUG("Retrieved rows (Count: %v)", std::ssize(result));
+            YT_TLOG_DEBUG("Retrieved rows")
+                .With("Count", std::ssize(result));
             return {
                 .Rows = result,
                 .Finished = finished};
@@ -451,8 +453,7 @@ private:
                     SupplementaryErrorState_->ClearError();
                     break;
                 } catch (const std::exception& e) {
-                    auto error = TError(e);
-                    YT_LOG_ERROR(error, "Error retrieving schema");
+                    auto error = TError("Error retrieving schema") << TError(e);
                     SupplementaryErrorState_->SetError(error);
                     RetryableErrorsCounter_.Increment(1);
                     const auto& retryTimeout = Spec_->RetryTimeout;

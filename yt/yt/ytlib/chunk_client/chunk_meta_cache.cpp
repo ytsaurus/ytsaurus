@@ -61,7 +61,8 @@ public:
             for (int index = 1; index < std::ssize(*extensionTags); ++index) {
                 if (extensionTags.value()[index - 1] == extensionTags.value()[index]) {
                     return MakeFuture<TRefCountedChunkMetaPtr>(
-                        TError("Extension tags are not unique (Tags: %v)", *extensionTags));
+                        TError("Extension tags are not unique")
+                            << TErrorAttribute("extension_tags", *extensionTags));
                 }
             }
         }

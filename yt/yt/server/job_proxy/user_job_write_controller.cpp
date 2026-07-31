@@ -136,8 +136,12 @@ private:
                     // NB: In multiplexing writer, there are multiple value consumers pointing to the same writer.
                     // That's why we have to double-check writer's readiness to avoid writing to it concurrently
                     // with another value consumer waiting writer to become ready.
-                    while (!writer->GetReadyEvent().IsSet() || !writer->GetReadyEvent().GetOrCrash().IsOK()) {
-                        WaitFor(writer->GetReadyEvent())
+                    while (true) {
+                        auto readyEvent = writer->GetReadyEvent();
+                        if (auto readyResult = readyEvent.TryGet(); readyResult && readyResult->IsOK()) {
+                            break;
+                        }
+                        WaitFor(readyEvent)
                             .ThrowOnError();
                     }
 
@@ -253,7 +257,8 @@ void TUserJobWriteController::Init(TCpuInstant ioStartTime)
         auto& writeBlocksOptions = OutputWriteBlocksOptions_.emplace_back(
             TClientChunkWriteOptions{
                 .ChunkWriterStatistics = New<NChunkClient::TChunkWriterStatistics>(),
-                .JobIoMeter = Host_->GetJobIoMeter(),});
+                .JobIoMeter = Host_->GetJobIoMeter(),
+            });
 
         // ToDo(psushin): open writers in parallel.
         auto writer = userJobIOFactory->CreateWriter(

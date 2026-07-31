@@ -4,7 +4,7 @@
 
 #include "config.h"
 
-#include <yt/yt/flow/library/cpp/client/flow_execute/flow_execute.h>
+#include <yt/yt/flow/library/cpp/pipeline_helpers/flow_execute/flow_execute.h>
 
 #include <yt/yt/core/http/public.h>
 

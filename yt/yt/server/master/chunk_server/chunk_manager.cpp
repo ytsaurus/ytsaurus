@@ -419,6 +419,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraScheduleChunkSeal, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraCreateChunkLists, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraAttachChunkTrees, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraDetachChunkTrees, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageChunkTree, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraUnstageExpiredChunks, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens, Unretained(this)));
@@ -527,13 +528,13 @@ public:
 
         // This is a temporary measure to make sure solomon quota is at least somewhat stabilized.
         // The plan was to move these metrics into a separate shard. See original PR for details.
-        CrpBufferedProducer_ = New<TBufferedProducer>();
+        DetailedBufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler()
             .WithDefaultDisabled()
             .WithProducerRemoveSupport()
             .WithSparse()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
-            .AddProducer("", CrpBufferedProducer_);
+            .AddProducer("", DetailedBufferedProducer_);
 
         // NB: most ESequoiaTransactionType do not deal with replicas at all, hence WithDefaultDisabled.
         auto sequoiaReplicaModificationProfiler = ChunkServerProfiler()
@@ -774,6 +775,15 @@ public:
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
             &TChunkManager::HydraAttachChunkTrees,
+            this);
+    }
+
+    std::unique_ptr<TMutation> CreateDetachChunkTreesMutation(TCtxDetachChunkTreesPtr context) override
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TChunkManager::HydraDetachChunkTrees,
             this);
     }
 
@@ -1267,6 +1277,13 @@ public:
         auto requisitionIndex = ChunkRequisitionRegistry_.GetOrCreate(requisition, objectManager);
         chunk->SetLocalRequisitionIndex(requisitionIndex, GetChunkRequisitionRegistry(), objectManager);
 
+        // COMPAT(danilalexeev)
+        if (GetDynamicConfig()->UpdateHistoricallyNonVitalOnChunkCreationAndExport &&
+            !IsDurabilityRequiredForChunk(chunk, requisitionIndex))
+        {
+            chunk->SetHistoricallyNonVital(true);
+        }
+
         StageChunk(chunk, transaction, account);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1504,6 +1521,7 @@ public:
             Bootstrap_->GetObjectManager());
 
         UnregisterChunk(chunk);
+        VerboselyLoggedChunks_.erase(chunk->GetId());
 
         if (auto* location = chunk->GetLocationWithEndorsement()) {
             RemoveEndorsement(chunk, location);
@@ -1528,6 +1546,13 @@ public:
 
     void ExportChunk(TChunk* chunk, TCellTag destinationCellTag) override
     {
+        // COMPAT(danilalexeev): Covers chunks created before this flag was enabled.
+        if (GetDynamicConfig()->UpdateHistoricallyNonVitalOnChunkCreationAndExport &&
+            !IsDurabilityRequiredForChunk(chunk, chunk->GetAggregatedRequisitionIndex()))
+        {
+            chunk->SetHistoricallyNonVital(true);
+        }
+
         chunk->Export(destinationCellTag, GetChunkRequisitionRegistry());
     }
 
@@ -2716,6 +2741,26 @@ public:
         return DynamicStoreMap_;
     }
 
+    void SetVerboselyLogged(const TChunk* chunk, bool enable) override
+    {
+        auto chunkId = chunk->GetId();
+        if (enable) {
+            if (std::ssize(VerboselyLoggedChunks_) >= GetDynamicConfig()->MaxVerboselyLoggedChunks) {
+                THROW_ERROR_EXCEPTION("Too many chunks with verbose logging enabled")
+                    << TErrorAttribute("limit", GetDynamicConfig()->MaxVerboselyLoggedChunks);
+            }
+
+            VerboselyLoggedChunks_[chunkId] = GetCurrentMutationContext()->GetTimestamp();
+        } else {
+            VerboselyLoggedChunks_.erase(chunkId);
+        }
+    }
+
+    bool IsVerboselyLogged(const TChunk* chunk) const override
+    {
+        return VerboselyLoggedChunks_.contains(chunk->GetId());
+    }
+
 private:
     template <class T>
     class TEntityMapTypeTraits
@@ -2762,7 +2807,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
-    TBufferedProducerPtr CrpBufferedProducer_;
+    TBufferedProducerPtr DetailedBufferedProducer_;
 
     i64 ChunksCreated_ = 0;
     i64 ChunksDestroyed_ = 0;
@@ -2835,6 +2880,11 @@ private:
 
     TPeriodicExecutorPtr SequoiaReplicaRemovalExecutor_;
     THashMap<TChunkId, int> SequoiaChunkPurgatory_;
+
+    // Chunks with detailed logging enabled, mapped to the (deterministic)
+    // mutation timestamp at which logging was enabled.
+    THashMap<TChunkId, TInstant> VerboselyLoggedChunks_;
+
     // Transient.
     bool ChunksBeingPurged_ = false;
     bool IsFirstSequoiaReplicaRemovalIteration_ = true;
@@ -3027,6 +3077,9 @@ private:
                 .Item("endorsement_count").Value(EndorsementCount_)
                 .Item("chunk_replicator_enabled").Value(ChunkReplicator_->IsReplicatorEnabled())
                 .Item("sequoia_chunk_refresher_status").Value(ChunkReplicator_->GetSequoiaChunkRefresher()->GetStatus())
+                .Item("verbosely_logged_chunks").DoListFor(VerboselyLoggedChunks_, [&] (auto fluent, const auto& pair) {
+                    fluent.Item().Value(pair.first);
+                })
             .EndMap();
     }
 
@@ -3095,7 +3148,9 @@ private:
             auto isRemoteCopyResult = transaction && transaction->FindAttribute("operation_id");
 
             auto doAlert = [&] {
-                YT_LOG_ALERT("Encountered hunk chunk in unexpected state upon updating chunk weight statistics histogram "
+                YT_LOG_ALERT_UNLESS(
+                    FixHunkChunkWeightStatisticsHistogram_ && Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery(),
+                    "Encountered hunk chunk in unexpected state upon updating chunk weight statistics histogram "
                     "(Add: %v, ChunkId: %v, IsDictionary: %v, TransactionId: %v, IsRemoteCopyResult: %v, "
                     "DataWeight: %v, UncompressedDataSize: %v, CompressedDataSize: %v, RefCount: %v)",
                     add,
@@ -3765,6 +3820,11 @@ private:
 
     void DoValidatePrepareModifyReplicas(const TReqModifyReplicas& request)
     {
+        const auto& sequoiaReplicasConfig = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (!sequoiaReplicasConfig->Enable) {
+            YT_LOG_ALERT_AND_THROW("Sequoia replicas modification is called while Sequoia chunk replicas are disabled");
+        }
+
         auto nodeId = FromProto<TNodeId>(request.node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -3772,6 +3832,17 @@ private:
 
         if (!request.caused_by_node_disposal()) {
             node->ValidateRegistered();
+        }
+
+        if (request.is_incremental_heartbeat() || request.caused_by_validation()) {
+            if (!node->ReportedDataNodeHeartbeat()) {
+                THROW_ERROR_EXCEPTION(
+                    NNodeTrackerClient::EErrorCode::InvalidState,
+                    "Cannot process an incremental data node heartbeat or validation heartbeat until full data node heartbeat is sent"
+                    "(IsIncremental: %v, IsValidation: %v)",
+                    request.is_incremental_heartbeat(),
+                    request.caused_by_validation());
+            }
         }
     }
 
@@ -4098,7 +4169,7 @@ private:
         }
     }
 
-    void FlushWaitingSequoiaIncrementalHeartbeatRequests()
+    void FlushWaitingSequoiaIncrementalHeartbeatRequests() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -4144,14 +4215,18 @@ private:
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
 
+        auto isBatchFull = [&] {
+            const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+            return ssize(WaitingSequoiaIncrementalHeartbeatRequests_) >= config->MaxRequestsInIncrementalHeartbeatBatch ||
+                ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ >= config->MaxReplicasInIncrementalHeartbeatBatch;
+        };
+
         auto tryAddRequestToCurrentBatch = [&] () mutable {
             if (WaitingSequoiaIncrementalHeartbeatRequests_.contains(nodeId)) {
                 return false;
             }
 
-            const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
-            if (ssize(WaitingSequoiaIncrementalHeartbeatRequests_) >= config->MaxRequestsInIncrementalHeartbeatBatch ||
-                ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ >= config->MaxReplicasInIncrementalHeartbeatBatch)
+            if (isBatchFull())
             {
                 return false;
             }
@@ -4167,9 +4242,13 @@ private:
         };
 
         int retryCount = 0;
-        while (!tryAddRequestToCurrentBatch() && retryCount < MaxTryAddRequestToCurrentBatchRetries) {
+        while (IsActiveLeader() && !tryAddRequestToCurrentBatch() && retryCount < MaxTryAddRequestToCurrentBatchRetries) {
             FlushWaitingSequoiaIncrementalHeartbeatRequests();
             retryCount++;
+        }
+
+        if (!IsActiveLeader()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Peer is not leading");
         }
 
         // There should not be more than one retry.
@@ -4181,9 +4260,15 @@ private:
 
         YT_LOG_DEBUG("Added request to waiting Sequoia incremental heartbeat requests (NodeId: %v)", nodeId);
 
-        return BatchSequoiaIncrementalHeartbeatPromise_
+        auto result = BatchSequoiaIncrementalHeartbeatPromise_
             .ToFuture()
             .ToUncancelable();
+
+        if (isBatchFull()) {
+            FlushWaitingSequoiaIncrementalHeartbeatRequests();
+        }
+
+        return result;
     }
 
     TFuture<void> ModifySequoiaReplicas(
@@ -5524,6 +5609,32 @@ private:
         ExecuteAttachChunkTreesSubrequest(request, response);
     }
 
+    void HydraDetachChunkTrees(
+        const TCtxDetachChunkTreesPtr& /*context*/,
+        TReqDetachChunkTrees* request,
+        TRspDetachChunkTrees* /*response*/)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        auto parentId = FromProto<TChunkListId>(request->parent_id());
+        auto* parent = GetChunkListOrThrow(parentId);
+
+        auto policy = DeriveChunkTreeDetachPolicy(parent);
+
+        std::vector<TChunkTreeRawPtr> children;
+        children.reserve(request->child_ids_size());
+        for (const auto& protoChildId : request->child_ids()) {
+            children.push_back(GetChunkTreeOrThrow(FromProto<TChunkTreeId>(protoChildId)));
+        }
+
+        DetachFromChunkList(parent, children, policy);
+
+        YT_LOG_DEBUG("Chunk trees detached (ParentId: %v, ChildIds: %v, Policy: %v)",
+            parentId,
+            MakeShrunkFormattableView(children, TObjectIdFormatter(), 500),
+            policy);
+    }
+
     void ExecuteCreateChunkSubrequest(
         TReqCreateChunk* subrequest,
         TRspCreateChunk* subresponse)
@@ -5893,6 +6004,7 @@ private:
         SaveHistogramValues(context, ChunkDataWeightHistogram_.GetSnapshot());
 
         Save(context, SequoiaChunkPurgatory_);
+        Save(context, VerboselyLoggedChunks_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -5969,6 +6081,10 @@ private:
             }
         } else {
             Load(context, SequoiaChunkPurgatory_);
+        }
+
+        if (context.GetVersion() >= EMasterReign::VerboseChunkLogging) {
+            Load(context, VerboselyLoggedChunks_);
         }
 
         RecomputeHistoricallyNonVital_ = context.GetVersion() < EMasterReign::IncreaseVitalReplicationFactor;
@@ -6418,6 +6534,8 @@ private:
 
         LastSequoiaReplicasCommitTimestamp_ = NullTimestamp;
 
+        VerboselyLoggedChunks_.clear();
+
         RecomputeHunkRelatedChunkStatistics_ = false;
         RecomputeHunkRelatedChunkStatisticsAgain_ = false;
         FixHunkChunkWeightStatisticsHistogram_ = false;
@@ -6686,7 +6804,7 @@ private:
         TMasterAutomatonPart::OnRecoveryStarted();
 
         BufferedProducer_->SetEnabled(false);
-        CrpBufferedProducer_->SetEnabled(false);
+        DetailedBufferedProducer_->SetEnabled(false);
     }
 
     void OnRecoveryComplete() override
@@ -6694,7 +6812,7 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         BufferedProducer_->SetEnabled(true);
-        CrpBufferedProducer_->SetEnabled(true);
+        DetailedBufferedProducer_->SetEnabled(true);
     }
 
     void OnLeaderActive() override
@@ -7117,7 +7235,7 @@ private:
 
         YT_LOG_EVENT(
             Logger(),
-            reason == EAddReplicaReason::FullHeartbeat ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
+            reason == EAddReplicaReason::FullHeartbeat ? GetChunkLogLevel(chunk, this) : NLogging::ELogLevel::Debug,
             "Chunk replica added (ChunkId: %v, NodeId: %v, Address: %v, Reason: %v)",
             TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()),
             nodeId,
@@ -7203,7 +7321,8 @@ private:
             reason == ERemoveReplicaReason::NodeDisposed ||
             reason == ERemoveReplicaReason::ChunkDestroyed ||
             reason == ERemoveReplicaReason::SequoiaNodeDisposed
-            ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
+                ? GetChunkLogLevel(chunk, this)
+                : NLogging::ELogLevel::Debug,
             "Chunk replica removed "
             "(ChunkId: %v, Reason: %v, NodeId: %v, Address: %v, Approved: %v, TemporarilyUnavailable: %v)",
             TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()),
@@ -7548,12 +7667,12 @@ private:
     void OnProfiling()
     {
         BufferedProducer_->SetEnabled(true);
-        CrpBufferedProducer_->SetEnabled(true);
+        DetailedBufferedProducer_->SetEnabled(true);
 
         TSensorBuffer buffer;
-        TSensorBuffer crpBuffer;
+        TSensorBuffer detailedBuffer;
 
-        ChunkReplicator_->OnProfiling(&buffer, &crpBuffer);
+        ChunkReplicator_->OnProfiling(&buffer, &detailedBuffer);
         JobRegistry_->OnProfiling(&buffer);
 
         if (IsLeader()) {
@@ -7584,6 +7703,7 @@ private:
             buffer.AddGauge("/sequoia_chunks_awaiting_confirm", WaitingConfirmRequests_.size());
             buffer.AddGauge("/sequoia_waiting_incremental_heartbeats_count", WaitingSequoiaIncrementalHeartbeatRequests_.size());
             buffer.AddGauge("/sequoia_waiting_incremental_heartbeats_replica_count", ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_);
+            buffer.AddGauge("/verbosely_logged_chunk_count", VerboselyLoggedChunks_.size());
 
             {
                 TWithTagGuard guard(&buffer, "mode", "immediate");
@@ -7606,7 +7726,7 @@ private:
         }
 
         BufferedProducer_->Update(std::move(buffer));
-        CrpBufferedProducer_->Update(std::move(crpBuffer));
+        DetailedBufferedProducer_->Update(std::move(detailedBuffer));
     }
 
 
@@ -7885,6 +8005,17 @@ private:
         {
             auto chunkPlacementAlerts = ChunkPlacement_->GetAlerts();
             alerts.insert(alerts.end(), chunkPlacementAlerts.begin(), chunkPlacementAlerts.end());
+        }
+
+        auto now = TInstant::Now();
+        auto maxDuration = GetDynamicConfig()->MaxVerboseLoggingEnabledDuration;
+        for (const auto& [chunkId, enabledAt] : VerboselyLoggedChunks_) {
+            if (enabledAt + maxDuration < now) {
+                alerts.push_back(TError("Chunk stays in verbose logging set for too long")
+                    << TErrorAttribute("chunk_id", chunkId)
+                    << TErrorAttribute("enabled_at", enabledAt)
+                    << TErrorAttribute("max_duration", maxDuration));
+            }
         }
 
         return alerts;

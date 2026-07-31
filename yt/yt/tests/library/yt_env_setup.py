@@ -488,7 +488,6 @@ class YTEnvSetup(object):
         return cls.NUM_SECONDARY_MASTER_CELLS
 
     # To be redefined in successors
-    # TODO(pavel-bash): add modify_offshore_data_gateway_config when needed.
     @classmethod
     def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
         pass
@@ -1172,10 +1171,19 @@ class YTEnvSetup(object):
         assert ground_reign is not None
 
         with log_level_override(yt.logger.LOGGER, logging.ERROR):
-            yt_sequoia.initialization.initialize_ground(app, ground_reign)
+            for bundle in ("sequoia-cypress", "sequoia-chunks"):
+                yt_commands.create_tablet_cell_bundle(
+                    bundle,
+                    attributes=copy.deepcopy(yt_sequoia_helpers.CELL_BUNDLE_CONFIG),
+                    driver=ground_driver)
             ground_index = cluster_index + cls.get_ground_index_offset()
             cls._restore_sequoia_bundles_options(ground_index)
-            yt_commands.wait_for_cells(driver=ground_driver)
+            yt_sequoia.initialization.initialize_ground(app, ground_reign)
+            for bundle in ("sequoia-cypress", "sequoia-chunks"):
+                yt_commands.sync_create_cells(
+                    1,
+                    tablet_cell_bundle=bundle,
+                    driver=ground_driver)
             yt_sequoia.initialization.mount_tables(app, ground_reign)
 
     @classmethod

@@ -922,7 +922,7 @@ private:
             if (Config_->SimulatedMaxBytesPerRead) {
                 readSize = Min(readSize, *Config_->SimulatedMaxBytesPerRead);
             }
-            Sensors_->RegisterReadBytes(readSize);
+            Sensors_->RegisterReadBytes(readSize, request->Category);
             auto bufferSize = std::ssize(subrequestState.Buffer);
             subrequest.Offset += readSize;
             if (bufferSize == readSize) {
@@ -967,7 +967,7 @@ private:
         if (Config_->SimulatedMaxBytesPerWrite) {
             writtenSize = Min(writtenSize, *Config_->SimulatedMaxBytesPerWrite);
         }
-        Sensors_->RegisterWrittenBytes(writtenSize);
+        Sensors_->RegisterWrittenBytes(writtenSize, request->Category);
         request->WriteRequest.Offset += writtenSize;
         request->WrittenBytes += writtenSize;
 
@@ -1742,7 +1742,7 @@ public:
             uringRequest->Type = EUringRequestType::Write;
             uringRequest->Category = category;
             uringRequest->WriteRequest = std::move(slice);
-            uringRequest->RequestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Write);
+            uringRequest->RequestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Write, category);
 
             futures.push_back(uringRequest->Promise.ToFuture());
             uringRequests.push_back(std::move(uringRequest));
@@ -1836,7 +1836,7 @@ private:
                 uringRequest->ReadSubrequests.reserve(1);
                 uringRequest->ReadSubrequestStates.reserve(1);
                 uringRequest->PendingReadSubrequestIndexes.reserve(1);
-                uringRequest->RequestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Read);
+                uringRequest->RequestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Read, category);
 
                 uringRequest->PaddedBytes += GetPaddedSize(
                     slice.Request.Offset,

@@ -197,6 +197,9 @@ void TWorkerDescription::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("groups", &TThis::Groups)
         .Default();
+    // The name must match TWorker's serialization: the description is loaded from it.
+    registrar.Parameter("worker_groups", &TThis::WorkerGroups)
+        .Default();
     registrar.Parameter("register_time", &TThis::RegisterTime)
         .Default();
     registrar.Parameter("status", &TThis::Status)
@@ -620,6 +623,7 @@ void FillWorkerDescription(
 {
     description.Load(ConvertTo<IMapNodePtr>(worker)); // All fields of TWorker are included in TWorkerDescription now.
     description.Address = worker->RpcAddress;         // Compatibility for UI.
+    description.Groups = worker->Groups;              // Compatibility for UI.
 
     // Process pre-computed partition descriptions.
     for (const auto& partitionDesc : partitionDescriptions) {

@@ -107,7 +107,6 @@
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/authentication_identity.h>
@@ -119,6 +118,8 @@
 #include <yt/yt/library/profiling/producer.h>
 
 #include <library/cpp/yt/compact_containers/compact_queue.h>
+
+#include <library/cpp/yt/misc/range_formatters.h>
 
 namespace NYT::NTransactionServer {
 
@@ -173,9 +174,9 @@ public:
             TraceGuard_.emplace(transaction->GetTraceContext());
             SequoiaGuard_.emplace(bootstrap, transaction->GetId(), transaction->SequoiaWriteSet());
             MessageTagGuard_.emplace(
-                Format("SequoiaTransactionId: %v, Phase: %v",
-                    transaction->GetId(),
-                    [&] {
+                NLogging::TLoggingTagList()
+                    .With("SequoiaTransactionId", transaction->GetId())
+                    .With("Phase", [&] {
                         auto state = transaction->GetPersistentState();
                         if (state == ETransactionState::Aborted) {
                             return "Abort";
@@ -184,7 +185,7 @@ public:
                         } else {
                             return "Prepare";
                         }
-                    } ()));
+                    }()));
         }
 
         bool needSequoiaRevision = false;

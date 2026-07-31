@@ -1,8 +1,8 @@
 #include "skeleton.h"
 
-#include <yt/yt/core/misc/string_builder.h>
-
 #include <library/cpp/yt/misc/global.h>
+
+#include <library/cpp/yt/string/string_builder.h>
 
 #include <contrib/libs/re2/re2/re2.h>
 

@@ -1,6 +1,12 @@
 import yt.logger as logger
 from yt.admin._experimental import warn_experimental, EXPERIMENTAL_HELP_SUFFIX
-from yt.admin.metrics.config import DEFAULT_MAX_SERIES, MetricsDumpConfig, MetricsReplayConfig
+from yt.admin.metrics.config import (
+    DEFAULT_MAX_POINTS_PER_SERIES,
+    DEFAULT_MAX_SERIES,
+    MetricsDumpConfig,
+    MetricsReplayConfig,
+    parse_duration_ms,
+)
 from yt.admin.metrics.dump import MetricsDumper, _selectors_from_extra_targets
 from yt.admin.metrics.prometheus import PrometheusClient
 from yt.admin.metrics.promql import eliminate_subsets
@@ -21,7 +27,7 @@ def run_metrics_validate(spec, target, **_) -> None:
 
 
 @warn_experimental
-def run_metrics_dump(spec, from_ts, to_ts, prometheus_url, step, target, output, max_series, force, **_) -> None:
+def run_metrics_dump(spec, from_ts, to_ts, prometheus_url, step, target, output, max_series, force, max_points_per_series, **_) -> None:
     safe_from_ts = from_ts.replace("Z", "+00:00")
     safe_to_ts = to_ts.replace("Z", "+00:00")
 
@@ -29,11 +35,12 @@ def run_metrics_dump(spec, from_ts, to_ts, prometheus_url, step, target, output,
         spec_path=spec,
         from_ts=datetime.fromisoformat(safe_from_ts),
         to_ts=datetime.fromisoformat(safe_to_ts),
-        step=step,
+        step_ms=step,
         extra_targets=target,
         output=output,
         max_series=max_series,
         force=force,
+        max_points_per_series=max_points_per_series,
     )
     MetricsDumper(PrometheusClient(prometheus_url)).run(cfg)
 
@@ -59,11 +66,12 @@ def _add_metrics_dump_arguments(parser) -> None:
     parser.add_argument("--from-ts", type=str, required=True, metavar="ISO8601", help=f"Start timestamp (i.e. {current_time})")
     parser.add_argument("--to-ts", type=str, required=True, metavar="ISO8601", help=f"End timestamp (i.e. {current_time})")
     parser.add_argument("--prometheus-url", type=str, required=True, help="Prometheus base URL")
-    parser.add_argument("--step", type=str, default=None, help="Step (overrides spec defaults.step)")
+    parser.add_argument("--step", type=parse_duration_ms, default=None, metavar="DURATION", help="Step, e.g. 15s or 5m (overrides spec defaults.step)")
     parser.add_argument("--target", type=str, action="append", default=None, help='Additional inline target as JSON, e.g. \'{"type":"metric","query":"yt_x"}\'')
     parser.add_argument("--output", type=str, default="metrics.zip", help="Output archive path")
     parser.add_argument("--max-series", type=int, default=DEFAULT_MAX_SERIES, help="Confirmation threshold for total series count")
     parser.add_argument("--force", action="store_true", help="Skip confirmation when over --max-series")
+    parser.add_argument("--max-points-per-series", type=int, default=DEFAULT_MAX_POINTS_PER_SERIES, help="Maximum points per series a single query may return (0 to disable)")
 
 
 def _add_metrics_replay_arguments(parser) -> None:

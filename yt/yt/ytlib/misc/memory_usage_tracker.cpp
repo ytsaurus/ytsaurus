@@ -12,6 +12,8 @@
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
+#include <library/cpp/yt/logging/private.h>
+
 #include <tcmalloc/malloc_extension.h>
 
 #include <algorithm>

@@ -3,14 +3,26 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/client/security_client/public.h>
+
 #include <yt/yt/core/compression/codec.h>
 #include <yt/yt/core/misc/common.h>
+
+#include <yt/yt/core/ypath/public.h>
+
+#include <yt/yt/core/ytree/permission.h>
 
 namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr i64 MaxDyntableStringSize = 16_MB;
+
+//! Path to access control object namespace for QT.
+inline const NYPath::TYPath QueriesAcoNamespacePath = "//sys/access_control_object_namespaces/queries";
+
+//! Name of the access control object that manages access to privileged (non-regular) query types.
+inline const std::string AdminAccessControlObjectName = "admin";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +35,12 @@ NApi::TQuery PartialRecordToQuery(const TPartial& partialRecord);
 
 THashSet<std::string> GetUserSubjects(const std::string& user, const NApi::IClientPtr& client);
 void ConvertAcoToOldFormat(NApi::TQuery& query);
+
+NSecurityClient::ESecurityAction CheckAccessControl(
+    const std::string& user,
+    const std::optional<NYson::TYsonString>& accessControlObjects,
+    const NApi::IClientPtr& client,
+    NYTree::EPermission permission);
 
 ////////////////////////////////////////////////////////////////////////////////
 

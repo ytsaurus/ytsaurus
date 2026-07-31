@@ -101,7 +101,7 @@ TEST_F(TSwiftMergeMetaSetterTest, SingleParentDistinctOutputIndices)
     EXPECT_NE(out1.MessageId, out2.MessageId);
 }
 
-TEST_F(TSwiftMergeMetaSetterTest, MultiParentUsesOrderedIdAndMergedTimestamps)
+TEST_F(TSwiftMergeMetaSetterTest, MultiParentUsesDeterministicIdAndMergedTimestamps)
 {
     auto setter = MakeSetter();
     auto p1 = MakeParent("p1", /*systemTimestamp=*/100, /*eventTimestamp=*/80, /*alignmentTimestamp=*/95);
@@ -120,9 +120,59 @@ TEST_F(TSwiftMergeMetaSetterTest, MultiParentUsesOrderedIdAndMergedTimestamps)
     EXPECT_EQ(out.AlignmentTimestamp, TSystemTimestamp(95));
     EXPECT_EQ(out.EventTimestamp, TSystemTimestamp(70));
 
-    // Ordered ID format: "<16hex>-<stream>:<offset>".
-    EXPECT_TRUE(out.MessageId.Underlying().starts_with("000000000000002a-out:"))
-        << "MessageId=" << out.MessageId.Underlying();
+    // Merged ID format: "<min parent id>-<32-hex parent digest>-<stream>:<offset>"; derived from
+    // parents, NOT the seqno. The min-parent prefix keeps merged ids in the seqno-prefixed family.
+    const auto idView = out.MessageId.Underlying();
+    EXPECT_TRUE(idView.starts_with("p1-")) << "MessageId=" << idView;
+    EXPECT_NE(idView.find("-out:"), std::string_view::npos) << "MessageId=" << idView;
+    EXPECT_FALSE(idView.starts_with("000000000000002a-")) << "merged id must not derive from UniqueSeqNo";
+}
+
+TEST_F(TSwiftMergeMetaSetterTest, MultiParentMessageIdIsDeterministicAcrossSeqNo)
+{
+    // Regression: the merged MessageId must NOT depend on the per-epoch (non-deterministic) UniqueSeqNo.
+    // A replay after a job restart uses a fresh seq no but must produce the SAME id — otherwise the
+    // distributor loses the re-routed OnDistributed callback and the merge deadlocks (parents never
+    // persist; the stall amplifies up the graph via fan-in).
+    auto p1 = MakeParent("p1", 100, 80, 95);
+    auto p2 = MakeParent("p2", 150, 90, 110);
+    auto parents = New<TMessageParents>(
+        std::vector<TInputMessageConstPtr>{p1, p2},
+        std::vector<TInputTimerConstPtr>{},
+        std::vector<TInputVisitConstPtr>{});
+
+    auto setterA = CreateSwiftMergeMetaSetter(MakeSpec(), TUniqueSeqNo(42), CreateEventTimestampAssigner(/*spec=*/nullptr));
+    auto setterB = CreateSwiftMergeMetaSetter(MakeSpec(), TUniqueSeqNo(999999), CreateEventTimestampAssigner(/*spec=*/nullptr));
+
+    auto outA = MakeTrivialOutputMessage();
+    setterA->Fill(outA, parents);
+    auto outB = MakeTrivialOutputMessage();
+    setterB->Fill(outB, parents);
+
+    EXPECT_EQ(outA.MessageId, outB.MessageId) << "merged id must be independent of UniqueSeqNo";
+}
+
+TEST_F(TSwiftMergeMetaSetterTest, MultiParentDistinctParentSetsGiveDistinctIds)
+{
+    auto setter = MakeSetter();
+    auto p1 = MakeParent("p1", 100, 80, 95);
+    auto p2 = MakeParent("p2", 150, 90, 110);
+    auto p3 = MakeParent("p3", 120, 70, 100);
+    auto parentsAB = New<TMessageParents>(
+        std::vector<TInputMessageConstPtr>{p1, p2},
+        std::vector<TInputTimerConstPtr>{},
+        std::vector<TInputVisitConstPtr>{});
+    auto parentsAC = New<TMessageParents>(
+        std::vector<TInputMessageConstPtr>{p1, p3},
+        std::vector<TInputTimerConstPtr>{},
+        std::vector<TInputVisitConstPtr>{});
+
+    auto outAB = MakeTrivialOutputMessage();
+    setter->Fill(outAB, parentsAB);
+    auto outAC = MakeTrivialOutputMessage();
+    setter->Fill(outAC, parentsAC);
+
+    EXPECT_NE(outAB.MessageId, outAC.MessageId) << "different parent sets must yield different ids";
 }
 
 TEST_F(TSwiftMergeMetaSetterTest, MultiParentDistinctOutputIndices)
@@ -165,7 +215,12 @@ TEST_F(TSwiftMergeMetaSetterTest, MixedSingleAndMultiParentsShareTheSetter)
     setter->Fill(outMerged, mergedParents);
 
     EXPECT_TRUE(outSingle.MessageId.Underlying().starts_with(std::string(p1->MessageId.Underlying()) + "-out:"));
-    EXPECT_TRUE(outMerged.MessageId.Underlying().starts_with("000000000000002a-out:"));
+    // Merged id is the min parent id + the deterministic parent digest (not the seqno), and is distinct
+    // from the single one.
+    EXPECT_TRUE(outMerged.MessageId.Underlying().starts_with(std::string(p1->MessageId.Underlying()) + "-"));
+    EXPECT_NE(outMerged.MessageId.Underlying().find("-out:"), std::string_view::npos);
+    EXPECT_FALSE(outMerged.MessageId.Underlying().starts_with("000000000000002a-"));
+    EXPECT_NE(outSingle.MessageId, outMerged.MessageId);
     EXPECT_EQ(outSingle.SystemTimestamp, p1->SystemTimestamp);
     EXPECT_EQ(outMerged.SystemTimestamp, p2->SystemTimestamp); // max(100, 150).
 }

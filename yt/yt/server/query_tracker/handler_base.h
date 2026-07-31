@@ -58,7 +58,9 @@ protected:
     const i64 Incarnation_;
     const std::string User_;
     const EQueryEngine Engine_;
+    const std::optional<NYson::TYsonString> AccessControlObjects_;
     const NYTree::INodePtr SettingsNode_;
+    const bool IsIndexed_;
     const TInstant AcquisitionTime_;
 
     const NLogging::TLogger Logger;

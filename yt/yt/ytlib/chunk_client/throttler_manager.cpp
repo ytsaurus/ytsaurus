@@ -39,7 +39,7 @@ IThroughputThrottlerPtr TThrottlerManager::GetThrottler(TCellTag cellTag)
 
     auto throttler = CreateReconfigurableThroughputThrottler(
         Config_,
-        Logger_.WithTag("CellTag: %v", cellTag),
+        Logger_.WithTag("CellTag", cellTag),
         Profiler_.WithTag("cell_tag", ToString(cellTag)));
 
     YT_VERIFY(ThrottlerMap_.emplace(cellTag, throttler).second);

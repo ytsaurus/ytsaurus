@@ -776,7 +776,7 @@ private:
 
         auto error = TError("Static export config check failed");
         for (const auto& directory : duplicateDirectories) {
-            error <<= TError("Duplicate directory in config (Value: %v)", directory);
+            error <<= TError("Duplicate directory %v in config", directory);
         }
         return error;
     }
@@ -1234,7 +1234,9 @@ private:
             , Client(std::move(client))
             , AggregatedQueueExportsProgress(std::move(aggregatedQueueExportsProgress))
             , ObjectStore(objectStore)
-            , Logger(logger.WithTag("Replica: %v, ObjectPath: %v", Context.Path, Context.ObjectPath))
+            , Logger(logger
+                .WithTag("Replica", Context.Path)
+                .WithTag("ObjectPath", Context.ObjectPath))
         { }
 
         TFuture<void> Run()
@@ -1603,7 +1605,9 @@ bool UpdateQueueController(
     // Recreating an error controller on each iteration seems ok as it does
     // not have any state. By doing so we make sure that the error of a queue controller
     // is not stale.
-    const auto Logger = QueueControllerLogger().WithTag("Queue: %v, Leading: %v", row.Path, leading);
+    const auto Logger = QueueControllerLogger()
+        .WithTag("Queue", row.Path)
+        .WithTag("Leading", leading);
 
     if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
         auto snapshot = New<TQueueSnapshot>(row);

@@ -241,12 +241,11 @@ public:
         , ExportConfig_(std::move(exportConfig))
         , DynamicConfig_(std::move(dynamicConfig))
         , IsInitialInvocation_(isInitialInvocation)
-        , Logger(logger.WithTag(
-            "ExportDirectory: %v, ExportPeriod: %v, ExportCronSchedule: %v, IsInitialInvocation: %v",
-            ExportConfig_->ExportDirectory,
-            ExportConfig_->ExportPeriod,
-            ExportConfig_->ExportCronSchedule,
-            IsInitialInvocation_))
+        , Logger(logger
+            .WithTag("ExportDirectory", ExportConfig_->ExportDirectory)
+            .WithTag("ExportPeriod", ExportConfig_->ExportPeriod)
+            .WithTag("ExportCronSchedule", ExportConfig_->ExportCronSchedule)
+            .WithTag("IsInitialInvocation", IsInitialInvocation_))
     { }
 
     TFuture<void> Run()
@@ -781,12 +780,13 @@ private:
 
         auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             Client_,
-            TMasterReadOptions{},
             Connection_->GetNodeDirectory(),
             Connection_->GetInvoker(),
-            Connection_->GetConfig()->MaxChunksPerFetch,
-            Connection_->GetConfig()->MaxChunksPerLocateRequest,
-            prepareFetchRequest,
+            TMasterChunkSpecFetcherOptions{
+                .MaxChunksPerFetch = Connection_->GetConfig()->MaxChunksPerFetch,
+                .MaxChunksPerLocateRequest = Connection_->GetConfig()->MaxChunksPerLocateRequest,
+                .FetchRequestInitializer = prepareFetchRequest,
+            },
             Logger);
 
         chunkSpecFetcher->Add(
@@ -1200,9 +1200,9 @@ public:
                 &TQueueExporter::Pass,
                 MakeWeak(this)),
             DynamicConfig_.GetPeriodicExecutorOptions()))
-        , Logger(QueueExporterLogger().WithTag("%v, ExportName: %v",
-            logger.GetTag(),
-            ExportName_))
+        , Logger(QueueExporterLogger()
+            .WithTags(logger.GetTags())
+            .WithTag("ExportName", ExportName_))
     { }
 
     void Initialize() const

@@ -4,7 +4,10 @@
 
 #include <yt/yql/plugin/bridge/interface.h>
 
+#include <yt/yt/ytlib/yql_client/public.h>
+
 #include <yt/yt/core/ytree/public.h>
+#include <yt/yt/ytlib/yql_client/public.h>
 
 #include <library/cpp/logger/log.h>
 
@@ -37,13 +40,13 @@ struct TYqlNativePluginOptions
     NYson::TYsonString OperationAttributes;
     NYson::TYsonString Libraries;
 
+    NYson::TYsonString InitialDynamicConfig;
+
     TString YTTokenPath;
 
     THolder<TLogBackend> LogBackend;
 
     std::optional<TString> YqlPluginSharedLibrary;
-
-    std::string MaxYqlLangVersion;
 
     bool StartDqManager;
 };
@@ -54,12 +57,7 @@ struct TYqlQTWorkerPluginOptions
 {
     THolder<TLogBackend> QtWorkerLogBackend;
     int QtWorkerInspectorPort = 32391;
-};
-
-struct TYqlPluginDynamicConfig
-{
-    NYson::TYsonString GatewaysConfig;
-    NYson::TYsonString MaxSupportedYqlVersion;
+    TString GatewaysConfigPath;
 };
 
 struct TQueryResult
@@ -126,13 +124,16 @@ struct IYqlPlugin
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) = 0;
+        int executeMode,
+        NYqlClient::EQueryType queryType) = 0;
 
     virtual TQueryResult GetProgress(TQueryId queryId) = 0;
 
     virtual TAbortResult Abort(TQueryId queryId) = 0;
 
-    virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) = 0;
+    virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr config) = 0;
+
+    virtual void OnUdfMetaChanged(TUdfMetaPtr udfMeta) = 0;
 
     virtual TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
@@ -153,15 +154,16 @@ struct IYqlPlugin
 
 TYqlNativePluginOptions ConvertToNativePluginOptions(
     TYqlPluginConfigPtr config,
+    TYqlPluginDynamicConfigPtr initialDynamicConfig,
     NYson::TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
-    std::string maxSupportedYqlVersion,
     bool startDqManager = false);
 
 TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(
     TYqlNativePluginOptions nativeOptions,
     THolder<TLogBackend> qtWorkerLogBackend,
-    int qtWorkerInspectorPort);
+    int qtWorkerInspectorPort,
+    TString gatewaysConfigPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

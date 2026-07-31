@@ -106,6 +106,16 @@ QUEUE_SCHEMA = [
     {"name": "$cumulative_data_weight", "type": "int64"},
 ]
 
+# Same columns as QUEUE_SCHEMA but WITHOUT hunks. Used for the replicated_table itself
+# (metadata — hunks are a per-replica storage choice) and for replicas that should not
+# have hunks. Whether a replica may carry a different max_inline_hunk_size than the
+# replicated table is exactly what this feature exercises.
+QUEUE_SCHEMA_NO_HUNKS = [
+    {"name": "key", "type": "string"},
+    {"name": "value", "type": "string"},
+    {"name": "$cumulative_data_weight", "type": "int64"},
+]
+
 # Schema for queues created via alter_to_queue: no $cumulative_data_weight,
 # so altering an existing static table (which has key/value only) is a pure schema
 # relaxation. Static results are pre-created with strict=true so this alter is valid
@@ -356,7 +366,7 @@ class TableBase:
 
 
 class Queue(TableBase):
-    def __init__(self, base_path, name, tablet_count, history=None):
+    def __init__(self, base_path, name, tablet_count, history=None, replicas_plan=None, cluster_name=None):
         super().__init__(base_path, name, history=history)
         self.hunk_storage_name = None
         self.mount_state = MountState(tablet_count)
@@ -364,23 +374,125 @@ class Queue(TableBase):
         self.tablet_count = tablet_count
         self.written_row_count = [0] * tablet_count
 
+        # Replicated-queue support. replicas_plan (or None) is a list of {"mode", "hunks"}
+        # dicts describing the replicas to create. When set, self.path is a replicated_table
+        # and self.replicas holds the created replica descriptors. Data-plane reads (pull_queue,
+        # tablet infos) go to self.read_path — a sync replica — while writes go to self.path
+        # (the replicated_table).
+        self.replicas_plan = replicas_plan
+        self.replicated = replicas_plan is not None
+        self.replicas = []
+        self.read_path = self.path
+        self.cluster_name = cluster_name
+
     def create(self, attributes, erasure):
-        attributes = copy.deepcopy(attributes)
-        attributes["dynamic"] = True
-        attributes["enable_dynamic_store_read"] = True
-        attributes["schema"] = QUEUE_SCHEMA
-        attributes["tablet_count"] = self.tablet_count
+        if self.replicated:
+            self._create_replicated(attributes, erasure)
+        else:
+            attributes = copy.deepcopy(attributes)
+            attributes["dynamic"] = True
+            attributes["enable_dynamic_store_read"] = True
+            attributes["schema"] = QUEUE_SCHEMA
+            attributes["tablet_count"] = self.tablet_count
 
-        if erasure:
-            attributes["erasure_codec"] = "isa_reed_solomon_6_3"
+            if erasure:
+                attributes["erasure_codec"] = "isa_reed_solomon_6_3"
 
-        logger.info(f"Creating queue {self.path}")
-        yt.create("table", self.path, attributes=attributes)
+            logger.info(f"Creating queue {self.path}")
+            yt.create("table", self.path, attributes=attributes)
 
-        if yt.exists(f"{self.path}/@external_cell_tag"):
-            self.cell_tag = yt.get(f"{self.path}/@external_cell_tag")
+            if yt.exists(f"{self.path}/@external_cell_tag"):
+                self.cell_tag = yt.get(f"{self.path}/@external_cell_tag")
 
         self.create_data_table()
+
+    def _replica_path(self, index):
+        return f"{self.base_path}/{self.name}.replica_{index}"
+
+    def _replica_hunk_storage_path(self, index):
+        return f"{self.base_path}/{self.name}.replica_{index}.hunk_storage"
+
+    def _create_replicated(self, attributes, erasure):
+        logger.info(
+            f"Creating replicated queue {self.path} with replicas {self.replicas_plan}, erasure: {erasure}")
+
+        # The replicated_table itself is metadata (no hunks). Data lives on the replicas.
+        yt.create("replicated_table", self.path, attributes={
+            "dynamic": True,
+            "schema": QUEUE_SCHEMA_NO_HUNKS,
+            "tablet_count": self.tablet_count,
+        })
+        if yt.exists(f"{self.path}/@external_cell_tag"):
+            self.cell_tag = yt.get(f"{self.path}/@external_cell_tag")
+        yt.mount_table(self.path, sync=True)
+
+        assert self.cluster_name is not None
+        for index, plan in enumerate(self.replicas_plan):
+            replica_path = self._replica_path(index)
+            replica_id = yt.create("table_replica", attributes={
+                "table_path": self.path,
+                "cluster_name": self.cluster_name,
+                "replica_path": replica_path,
+                "mode": plan["mode"],
+            })
+
+            replica_attributes = {
+                "dynamic": True,
+                "enable_dynamic_store_read": True,
+                "upstream_replica_id": replica_id,
+                # A hunk replica carries max_inline_hunk_size on the value column; a plain
+                # replica does not — this is the "hunks on one replica, off on another" case.
+                "schema": QUEUE_SCHEMA if plan["hunks"] else QUEUE_SCHEMA_NO_HUNKS,
+                "tablet_count": self.tablet_count,
+            }
+            if erasure:
+                replica_attributes["erasure_codec"] = "isa_reed_solomon_6_3"
+
+            hunk_storage_name = None
+            if plan["hunks"]:
+                hunk_storage_path = self._replica_hunk_storage_path(index)
+                hunk_storage_name = hunk_storage_path.rsplit("/", 1)[-1]
+                hs_attributes = {"tablet_count": 1}
+                if self.cell_tag is not None:
+                    hs_attributes["external_cell_tag"] = self.cell_tag
+                logger.info(f"Creating hunk storage {hunk_storage_path} for replica {replica_path}")
+                hunk_storage_id = yt.create("hunk_storage", hunk_storage_path, attributes=hs_attributes)
+                yt.create("table", replica_path, attributes=replica_attributes)
+                yt.mount_table(hunk_storage_path, sync=True)
+                yt.set(f"{replica_path}/@hunk_storage_id", hunk_storage_id)
+            else:
+                yt.create("table", replica_path, attributes=replica_attributes)
+
+            yt.mount_table(replica_path, sync=True)
+            yt.alter_table_replica(replica_id, enabled=True)
+
+            self.replicas.append({
+                "index": index,
+                "path": replica_path,
+                "replica_id": replica_id,
+                "mode": plan["mode"],
+                "hunks": plan["hunks"],
+                "hunk_storage_name": hunk_storage_name,
+            })
+
+        # Reads/verification go against a sync replica (fully caught up after a sync write).
+        self.read_path = next(r["path"] for r in self.replicas if r["mode"] == "sync")
+
+        # The replicated table and all replicas were mounted synchronously above; reflect
+        # that in mount_state so write()/read() treat every tablet as sync-mounted.
+        self.mount_state.mount(tablet_index=None, sync=True)
+
+    def _input_path(self):
+        # Operations (sort/merge/map_reduce/merge_with) read the queue's data. For a plain
+        # queue this is self.path. For a replicated queue we read a SYNC replica (a normal
+        # ordered dynamic table — the replicated_table itself is metadata): a sync replica is
+        # always fully caught up, so its rows match the shadow. Pick a random sync replica each
+        # time so both hunk and no-hunk sync replicas get exercised as operation inputs.
+        path = self.read_path
+        if self.replicated:
+            sync_replicas = [r for r in self.replicas if r["mode"] == "sync"]
+            path = random.choice(sync_replicas)["path"]
+        return yt.TablePath(path, columns=["key", "value"])
 
     def create_data_table(self):
         yt.create("table", self.data_path, attributes={
@@ -392,12 +504,61 @@ class Queue(TableBase):
 
     def remove(self):
         logger.info(f"Removing queue {self.path}")
-        self.unmount()
-        yt.remove(self.path)
+        if self.replicated:
+            self._remove_replicated()
+        else:
+            self.unmount()
+            yt.remove(self.path)
         yt.unmount_table(self.data_path, sync=True)
         yt.remove(self.data_path)
 
+    def _remove_replicated(self):
+        # Unlink+drop each replica (and every hunk storage it ever used) first, then the
+        # replicated table itself (which drops the table_replica objects). Removing the
+        # replica table first frees its chunks, so previously-used (retired) hunk storages
+        # become unreferenced and removable.
+        for replica in self.replicas:
+            yt.unmount_table(replica["path"], sync=True)
+            if replica["hunk_storage_name"]:
+                yt.remove(f"{replica['path']}/@hunk_storage_id")
+            yt.remove(replica["path"])
+            hunk_storage_names = [replica["hunk_storage_name"]] if replica["hunk_storage_name"] else []
+            hunk_storage_names += replica.get("retired_hunk_storage_names", [])
+            for hunk_storage_name in hunk_storage_names:
+                hunk_storage_path = f"{self.base_path}/{hunk_storage_name}"
+                yt.unmount_table(hunk_storage_path, sync=True)
+                yt.remove(hunk_storage_path)
+        yt.unmount_table(self.path, sync=True)
+        yt.remove(self.path)
+
+    def relink_replica_hunk_storage(self, replica):
+        # Switch a hunk-replica to a freshly-created hunk storage (mirrors the plain-queue
+        # link/remount lifecycle, but per replica). The old storage is still referenced by the
+        # replica's existing hunk chunks, so keep it in retired_hunk_storage_names and drop it
+        # when the queue is removed (by then the replica — and its chunks — are gone).
+        replica["hunk_storage_gen"] = replica.get("hunk_storage_gen", 0) + 1
+        new_name = f"{self.name}.replica_{replica['index']}.hunk_storage_{replica['hunk_storage_gen']}"
+        new_path = f"{self.base_path}/{new_name}"
+        hs_attributes = {"tablet_count": 1}
+        if self.cell_tag is not None:
+            hs_attributes["external_cell_tag"] = self.cell_tag
+        logger.info(f"Relinking replica {replica['path']} hunk storage -> {new_path}")
+        new_hunk_storage_id = yt.create("hunk_storage", new_path, attributes=hs_attributes)
+        yt.mount_table(new_path, sync=True)
+        yt.set(f"{replica['path']}/@hunk_storage_id", new_hunk_storage_id)
+        yt.remount_table(replica["path"])
+        replica.setdefault("retired_hunk_storage_names", []).append(replica["hunk_storage_name"])
+        replica["hunk_storage_name"] = new_name
+
     def copy(self, name):
+        # Replicated queues are not copied: a yt.copy of a replica keeps its immutable
+        # @upstream_replica_id (so it stays a non-writable replica), and rebuilding a plain
+        # queue by replaying the shadow would exercise no copy machinery at all. Instead we
+        # run map/merge/sort operations over a replica into separate outputs (see run_operations
+        # / _input_path). The _copy pass skips replicated queues, so this is never reached for
+        # them; assert to be safe.
+        assert not self.replicated, "replicated queues are not copied"
+
         copy_path = f"{self.base_path}/{name}"
         new_history = _derive_history(self.history, "copy")
         logger.info(f"Copying queue {self.path} to {copy_path} (new history: {_format_history(new_history)})")
@@ -522,7 +683,7 @@ class Queue(TableBase):
             self.written_row_count[tablet_index] += row_count
 
         def check_written():
-            tablet_infos = yt.get_tablet_infos(self.path, tablets)["tablets"]
+            tablet_infos = yt.get_tablet_infos(self.read_path, tablets)["tablets"]
             for offset, tablet_index in enumerate(tablets):
                 if tablet_infos[offset]["total_row_count"] != self.written_row_count[tablet_index]:
                     return False
@@ -635,7 +796,7 @@ class Queue(TableBase):
             offset = 0
             while True:
                 actual_rows = list(yt.pull_queue(
-                    self.path, offset=offset, partition_index=tablet_index,
+                    self.read_path, offset=offset, partition_index=tablet_index,
                     max_data_weight=cfg.read_page_max_data_weight))
                 if len(actual_rows) == 0:
                     break
@@ -836,6 +997,14 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
     yt.config["dynamic_table_retries"]["backoff"] = {"policy": "constant_time", "constant_time": 0.1}
     yt.config["dynamic_table_retries"]["total_timeout"] = 180000
     yt.config["tablets_ready_timeout"] = 4 * 60 * 1000
+    # Give transactions a generous lifetime (default is 30s): operations run under a master
+    # transaction (sort/merge/map_reduce/alter) can take minutes, and a too-short timeout makes
+    # the transaction expire mid-operation ("No such transaction" on commit).
+    yt.config["transaction_timeout"] = 300000
+
+    # All table replicas created by this stress-test point to the current cluster.
+    # Resolve its name once per run instead of issuing a Cypress get for every new queue.
+    cluster_name = yt.get("//sys/@cluster_name")
 
     queues = {}
     hunk_storages = {}
@@ -856,9 +1025,31 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
     def _generate_table_name():
         return f"table_{len(tables) + removed_table_count}"
 
+    def _make_replicas_plan():
+        cfg = spec.queue_and_hunk_storage
+        count = random.randint(cfg.replicated_min_replicas, cfg.replicated_max_replicas)
+        modes = ["sync" if random.random() < cfg.replica_sync_probability else "async" for _ in range(count)]
+        # Need at least one sync replica: reads/verification are served from it.
+        if "sync" not in modes:
+            modes[random.randrange(count)] = "sync"
+        return [
+            {"mode": modes[i], "hunks": random.random() < cfg.replica_hunks_probability}
+            for i in range(count)
+        ]
+
     def _create_queue():
         queue_name = _generate_queue_name()
-        queue = Queue(base_path, queue_name, tablet_count=random.choice(range(1, 6)))
+        tablet_count = random.choice(range(1, 6))
+        replicas_plan = None
+        if random.random() < spec.queue_and_hunk_storage.create_replicated_probability:
+            replicas_plan = _make_replicas_plan()
+        queue = Queue(
+            base_path,
+            queue_name,
+            tablet_count=tablet_count,
+            replicas_plan=replicas_plan,
+            cluster_name=cluster_name,
+        )
         queue.create(attributes, erasure=random.choice([True, False]))
         queues[queue_name] = queue
 
@@ -876,10 +1067,20 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
         _create_hunk_storage()
 
     for queue in queues.values():
+        if queue.replicated:
+            continue
         link(queue, random.choice(list(hunk_storages.values())))
 
     def _relink():
         for queue in queues.values():
+            # Replicated queues manage hunks per replica: relink the hunk storage of each
+            # hunk-replica independently instead of the queue-level shared link.
+            if queue.replicated:
+                for replica in queue.replicas:
+                    if replica["hunks"] and \
+                            random.random() < spec.queue_and_hunk_storage.change_hunk_storage_probability:
+                        queue.relink_replica_hunk_storage(replica)
+                continue
             if random.random() >= spec.queue_and_hunk_storage.change_hunk_storage_probability:
                 continue
 
@@ -898,6 +1099,8 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
     def _remount():
         for queue in queues.values():
+            if queue.replicated:
+                continue
             if random.random() < spec.queue_and_hunk_storage.unmount_queue_probability:
                 queue.unmount()
             else:
@@ -1021,6 +1224,8 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
         altered_names = []
         for queue in list(queues.values()):
+            if queue.replicated:
+                continue
             if random.random() >= spec.queue_and_hunk_storage.alter_to_static_probability:
                 continue
 
@@ -1039,6 +1244,8 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
     def _flush():
         for queue in queues.values():
+            if queue.replicated:
+                continue
             if random.random() < spec.queue_and_hunk_storage.flush_probability:
                 queue.flush()
 
@@ -1093,6 +1300,10 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
     def _copy():
         queues_to_copy = []
         for queue in queues.values():
+            # Replicated queues are not copied (a copied replica stays a non-writable replica);
+            # they are instead exercised by running operations over a replica (see _operations).
+            if queue.replicated:
+                continue
             if random.random() < spec.queue_and_hunk_storage.copy_probability:
                 queues_to_copy += [queue]
         for queue in queues_to_copy:
@@ -1108,6 +1319,8 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
 
         queues_to_move = []
         for queue in queues.values():
+            if queue.replicated:
+                continue
             if random.random() < spec.queue_and_hunk_storage.move_probability:
                 queues_to_move += [queue]
         for queue in queues_to_move:

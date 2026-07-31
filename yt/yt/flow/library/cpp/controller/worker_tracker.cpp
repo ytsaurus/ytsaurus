@@ -86,10 +86,10 @@ public:
 
         auto guard = Guard(Lock_);
         if (auto existingWorker = GetOrDefault(AddressToWorker_, workerNodeInfo.RpcAddress)) {
-            YT_LOG_INFO("Kicking out worker due to address conflict (NewWorkerIdentifyingString: %v, ExistingWorkerIdentifyingString: %v, ExistingConnectionIncarnationId: %v)",
-                workerNodeInfo.GetIdentifyingString(),
-                existingWorker->GetInfo().GetIdentifyingString(),
-                existingWorker->GetInfo().ConnectionIncarnationId);
+            YT_TLOG_INFO("Kicking out worker due to address conflict")
+                .With("NewWorkerIdentifyingString", workerNodeInfo.GetIdentifyingString())
+                .With("ExistingWorkerIdentifyingString", existingWorker->GetInfo().GetIdentifyingString())
+                .With("ExistingConnectionIncarnationId", existingWorker->GetInfo().ConnectionIncarnationId);
             UnregisterWorker(existingWorker, guard);
         }
 
@@ -104,9 +104,9 @@ public:
             BIND_NO_PROPAGATE(&TWorkerTracker::OnWorkerLeaseExpired, MakeWeak(this), worker->GetInfo())
                 .Via(GetControlInvoker())));
 
-        YT_LOG_INFO("Worker registered (WorkerIdentifyingString: %v, ConnectionIncarnationId: %v)",
-            workerNodeInfo.GetIdentifyingString(),
-            connectionIncarnationId);
+        YT_TLOG_INFO("Worker registered")
+            .With("WorkerIdentifyingString", workerNodeInfo.GetIdentifyingString())
+            .With("ConnectionIncarnationId", connectionIncarnationId);
 
         return worker->GetInfo();
     }
@@ -148,21 +148,26 @@ public:
             return cache;
         };
 
-        YT_LOG_DEBUG("Worker heartbeat received (%v)", formatCommonLoggingTags());
+        YT_TLOG_DEBUG("Worker heartbeat received")
+            .With("CommonTags", formatCommonLoggingTags());
 
         if (worker->GetState() == EWorkerState::WaitingForInitialHeartbeat) {
             if (IsFaultyAddress(worker->GetInfo().RpcAddress, guard)) {
-                YT_LOG_WARNING("Worker registration confirmed by heartbeat but connection considered faulty (%v)", formatCommonLoggingTags());
+                YT_TLOG_WARNING("Worker registration confirmed by heartbeat but connection considered faulty")
+                    .With("CommonTags", formatCommonLoggingTags());
                 worker->SetState(EWorkerState::RegisteredFaulty);
             } else {
-                YT_LOG_INFO("Worker registration confirmed by heartbeat (%v)", formatCommonLoggingTags());
+                YT_TLOG_INFO("Worker registration confirmed by heartbeat")
+                    .With("CommonTags", formatCommonLoggingTags());
                 worker->SetState(EWorkerState::Registered);
             }
         } else if (worker->GetState() == EWorkerState::RegisteredFaulty) {
             if (IsFaultyAddress(worker->GetInfo().RpcAddress, guard)) {
-                YT_LOG_WARNING("Worker registration still faulty (%v)", formatCommonLoggingTags());
+                YT_TLOG_WARNING("Worker registration still faulty")
+                    .With("CommonTags", formatCommonLoggingTags());
             } else {
-                YT_LOG_INFO("Worker registration became good (%v)", formatCommonLoggingTags());
+                YT_TLOG_INFO("Worker registration became good")
+                    .With("CommonTags", formatCommonLoggingTags());
                 worker->SetState(EWorkerState::Registered);
             }
         }
@@ -238,10 +243,10 @@ private:
         EraseOrCrash(AddressToWorker_, worker->GetInfo().RpcAddress);
         RegisterWorkerFailure(worker->GetInfo().RpcAddress, guard);
 
-        YT_LOG_INFO("Worker unregistered (WorkerIdentifyingString: %v, ConnectionIncarnationId: %v, LastHeartbeatTime: %v)",
-            worker->GetInfo().GetIdentifyingString(),
-            worker->GetInfo().ConnectionIncarnationId,
-            worker->GetLastHeartbeatTime());
+        YT_TLOG_INFO("Worker unregistered")
+            .With("WorkerIdentifyingString", worker->GetInfo().GetIdentifyingString())
+            .With("ConnectionIncarnationId", worker->GetInfo().ConnectionIncarnationId)
+            .With("LastHeartbeatTime", worker->GetLastHeartbeatTime());
     }
 
     void OnWorkerLeaseExpired(TWorkerInfo workerInfo)
@@ -254,26 +259,23 @@ private:
         auto lastHeartbeatTime = worker ? worker->GetLastHeartbeatTime() : TInstant::Zero();
         guard.Release();
 
-        YT_LOG_EVENT(
-            PublicControllerLogger,
-            NLogging::ELogLevel::Warning,
-            "Worker lease timed out; unregistered (WorkerIdentifyingString: %v, LastHeartbeatTime: %v)",
-            workerInfo.GetIdentifyingString(),
-            lastHeartbeatTime);
+        YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Worker lease timed out; unregistered")
+            .With("WorkerIdentifyingString", workerInfo.GetIdentifyingString())
+            .With("LastHeartbeatTime", lastHeartbeatTime);
     }
 
     void OnLeadingStarted()
     {
         DoCleanup();
 
-        YT_LOG_INFO("Worker tracker activated");
+        YT_TLOG_INFO("Worker tracker activated");
     }
 
     void OnLeadingStopped()
     {
         DoCleanup();
 
-        YT_LOG_INFO("Worker tracker disabled");
+        YT_TLOG_INFO("Worker tracker disabled");
     }
 
     void DoCleanup()

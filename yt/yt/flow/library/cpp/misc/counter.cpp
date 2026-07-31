@@ -26,6 +26,11 @@ std::optional<double> TSimpleEmaCounter::GetRate(TInstant now) const
     return rate;
 }
 
+double TSimpleEmaCounter::GetTotal() const
+{
+    return Total_;
+}
+
 void TSimpleEmaCounter::SetWindow(TDuration window)
 {
     Counter_.WindowDurations[0] = window;

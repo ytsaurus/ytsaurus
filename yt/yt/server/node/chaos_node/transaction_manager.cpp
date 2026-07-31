@@ -35,7 +35,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/misc/heap.h>
-#include <yt/yt/core/misc/ring_queue.h>
+
+#include <library/cpp/yt/containers/ring_queue.h>
 
 namespace NYT::NChaosNode {
 
@@ -79,7 +80,7 @@ public:
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
-        Logger = ChaosNodeLogger().WithTag("CellId: %v", slot->GetCellId());
+        Logger = ChaosNodeLogger().WithTag("CellId", slot->GetCellId());
 
         YT_LOG_INFO("Set transaction manager clock cluster tag (ClockClusterTag: %v)",
             ClockClusterTag_);

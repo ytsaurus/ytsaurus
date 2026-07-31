@@ -282,7 +282,7 @@ public:
         IOThroughputMeter_ = CreateIOThroughputMeter(
             GetDynamicConfigManager(),
             ChunkStore_,
-            DataNodeLogger().WithTag("IOMeter"));
+            DataNodeLogger().WithTag("Meter", "IO"));
         JobController_->Initialize();
 
         auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager();
@@ -554,7 +554,7 @@ public:
             GetConfig()->DataNode->NetInThrottlingLimit);
         bool throttle = netQueueSize > netQueueLimit;
         if (throttle && incrementCounter) {
-            GetNetworkStatistics().IncrementReadThrottlingCounter(networkName);
+            GetNetworkStatistics().IncrementWriteThrottlingCounter(networkName);
         }
         return TNetThrottlingResult{.Enabled = throttle, .QueueSize = netQueueSize};
     }

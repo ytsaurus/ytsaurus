@@ -12,13 +12,10 @@ SRCS(
     speclet.go
 )
 
-IF (NOT OPENSOURCE)
-    SRCS(discovery_client.go)
-ELSE()
-    SRCS(static_discovery_client.go)
-ENDIF()
-
-GO_TEST_SRCS(resources_test.go)
+GO_TEST_SRCS(
+    controller_test.go
+    resources_test.go
+)
 
 END()
 

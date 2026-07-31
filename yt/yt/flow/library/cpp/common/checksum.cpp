@@ -5,6 +5,7 @@
 #include <util/digest/city.h>
 
 #include <util/stream/file.h>
+#include <util/system/env.h>
 #include <util/system/execpath.h>
 
 namespace NYT::NFlow {
@@ -14,6 +15,8 @@ namespace NYT::NFlow {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const TString BinaryChecksumOverrideEnvVar = "YT_FLOW_BINARY_CHECKSUM_OVERRIDE";
 
 std::string Hash128ToStr(const uint128& hash)
 {
@@ -42,7 +45,14 @@ std::string CalculateBinaryChecksum()
 
 const std::string& GetBinaryChecksum()
 {
-    static const std::string BinaryChecksum = CalculateBinaryChecksum();
+    static const std::string BinaryChecksum = [] {
+        // Hashing the binary reads all of it — gigabytes in a debug or sanitizer build. Tests
+        // that do not check the checksum itself force a value rather than pay for that read.
+        if (auto forced = GetEnv(BinaryChecksumOverrideEnvVar); !forced.empty()) {
+            return std::string(forced);
+        }
+        return CalculateBinaryChecksum();
+    }();
     return BinaryChecksum;
 }
 

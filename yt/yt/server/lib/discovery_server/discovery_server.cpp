@@ -5,8 +5,8 @@
 #include "helpers.h"
 #include "member.h"
 
-#include <yt/yt/ytlib/discovery_client/discovery_client_service_proxy.h>
-#include <yt/yt/ytlib/discovery_client/helpers.h>
+#include <yt/yt/library/discovery_client/discovery_client_service_proxy.h>
+#include <yt/yt/library/discovery_client/helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -244,7 +244,7 @@ public:
         , SelfAddress_(std::move(selfAddress))
         , Config_(std::move(config))
         , ChannelFactory_(std::move(channelFactory))
-        , Logger(DiscoveryServerLogger().WithTag("SelfAddress: %v", SelfAddress_))
+        , Logger(DiscoveryServerLogger().WithTag("SelfAddress", SelfAddress_))
         , GroupManager_(New<TGroupManager>(Logger, Config_))
         , GossipPeriodicExecutor_(New<TPeriodicExecutor>(
             std::move(gossipInvoker),

@@ -213,7 +213,7 @@ public:
             }))
         , Ports_(ports)
         , JobErrorPromise_(NewPromise<void>())
-        , JobEnvironmentType_(Config_->JobEnvironment.GetCurrentType())
+        , JobEnvironmentType_(Config_->JobEnvironment.GetType())
         , PipeIOPool_(CreateThreadPool(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker(), "user_job"))
@@ -504,7 +504,7 @@ public:
         int permissions)
     {
         auto Logger = this->Logger
-            .WithTag("ArtifactName: %v", artifactName);
+            .WithTag("ArtifactName", artifactName);
 
         YT_LOG_INFO("Preparing artifact");
 

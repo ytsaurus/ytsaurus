@@ -9,7 +9,7 @@
 #include <yt/yt/flow/library/cpp/common/timer.h>
 #include <yt/yt/flow/library/cpp/common/yson_message.h>
 
-#include <yt/yt/flow/lib/serializer/serializer.h>
+#include <yt/yt/flow/library/cpp/serializer/serializer.h>
 
 #include <yt/yt/client/table_client/public.h>
 

@@ -73,6 +73,7 @@ To start an internal Spark cluster, use the `spark-launch-yt` command and pass a
 | `--tcp-proxy-range-size` | no | 100 | Size of the range of ports used for the TCP proxy. | 1.72.0 |
 | `--enable-rpc-job-proxy`, `--disable-rpc-job-proxy` | no | `--enable-rpc-job-proxy` | Use an RPC proxy embedded in a job proxy. If this option is disabled, a general RPC proxy will be used, which may result in cluster performance degradation. | 1.77.0 |
 | `--enable-ytsaurus-shuffle`, `--disable-ytsaurus-shuffle` | no | `--disable-ytsaurus-shuffle` | Use the [{{product-name}} Shuffle service](../../../../../user-guide/data-processing/spyt/shuffle.md) | 2.7.2 |
+| `--enable-spark-shuffle`, `--disable-spark-shuffle` | no | `--enable-spark-shuffle` | Run the native external Spark shuffle service on the cluster (see [Shuffle service](../../../../../user-guide/data-processing/spyt/shuffle.md#enabling-standalone)) | 2.9.3 |
 | `--rpc-job-proxy-thread-pool-size` | no | 4 | Size of a thread pool for the RPC job proxy. | 1.77.0 |
 | `--group-id` | no | - | Discovery group ID. Used when starting a cluster with multiple operations. | - |
 | `--enable-squashfs`, `--disable-squashfs` | no | `--disable-squashfs` | Use pre-configured SquashFS layers in {{product-name}} jobs. | 2.6.0 |

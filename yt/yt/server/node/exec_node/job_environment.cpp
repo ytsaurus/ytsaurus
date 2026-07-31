@@ -237,7 +237,7 @@ public:
     {
         THROW_ERROR_EXCEPTION(
             "Running custom commands is not yet supported by %Qlv environment",
-            Config_.GetCurrentType());
+            Config_.GetType());
     }
 
     void OnDynamicConfigChanged(
@@ -300,7 +300,7 @@ protected:
             THROW_ERROR_EXCEPTION(
                 EErrorCode::JobEnvironmentDisabled,
                 "Job environment %Qlv is disabled",
-                Config_.GetCurrentType());
+                Config_.GetType());
         }
     }
 
@@ -452,7 +452,7 @@ public:
         TJobEnvironmentConfig config,
         IBootstrap* bootstrap)
         : TSimpleJobEnvironment(config, bootstrap)
-        , ConcreteConfig_(config.TryGetConcrete<TTestingJobEnvironmentConfig>())
+        , ConcreteConfig_(config.GetConcrete<TTestingJobEnvironmentConfig>())
     { }
 
     i64 GetMajorPageFaultCount() const override
@@ -486,7 +486,7 @@ public:
         TJobEnvironmentConfig config,
         IBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
-        , ConcreteConfig_(config.TryGetConcrete<TPortoJobEnvironmentConfig>())
+        , ConcreteConfig_(config.GetConcrete<TPortoJobEnvironmentConfig>())
         , PortoExecutor_(CreatePortoExecutor(
             ConcreteConfig_->PortoExecutor,
             "env_spawn",
@@ -1077,15 +1077,14 @@ public:
         TJobEnvironmentConfig config,
         IBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
-        , ConcreteConfig_(config.TryGetConcrete<TCriJobEnvironmentConfig>())
+        , ConcreteConfig_(config.GetConcrete<TCriJobEnvironmentConfig>())
         , Executor_(CreateCriExecutor(ConcreteConfig_->CriExecutor))
         , ImageCache_(CreateCriImageCache(ConcreteConfig_->CriImageCache, Executor_))
     { }
 
     void EnrichJobEnvironmentConfig(int slotIndex, TNonNullPtr<NJobProxy::TJobProxyInternalConfig> jobProxyConfig) const override
     {
-        auto criJobEnv = jobProxyConfig->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>();
-        YT_VERIFY(criJobEnv);
+        auto criJobEnv = jobProxyConfig->JobEnvironment.GetConcrete<TCriJobEnvironmentConfig>();
 
         criJobEnv->PodDescriptor = PodDescriptors_[slotIndex];
         criJobEnv->PodSpec = PodSpecs_[slotIndex];
@@ -1522,7 +1521,7 @@ private:
 
 IJobEnvironmentPtr CreateJobEnvironment(NJobProxy::TJobEnvironmentConfig config, IBootstrap* bootstrap)
 {
-    switch (config.GetCurrentType()) {
+    switch (config.GetType()) {
         case EJobEnvironmentType::Simple: {
             return New<TSimpleJobEnvironment>(
                 std::move(config),

@@ -973,6 +973,48 @@
             "uri": "https://{canondata_backend}/1931696/a373d9ad4820e6d749db963d1d16f3d6e9efda33/resource.tar.gz#test.test_join-yql-4275--Results_/results.txt"
         }
     ],
+    "test.test[join-yqloveryt-352/commonjoin_any_first_both_any--Debug]": [
+        {
+            "checksum": "5a1b728d5e4582cdeaf7d2338c5c65b1",
+            "size": 4407,
+            "uri": "https://{canondata_backend}/1881367/e5f2337434554190e573361b03f6ae51cdf8e09b/resource.tar.gz#test.test_join-yqloveryt-352_commonjoin_any_first_both_any--Debug_/opt.yql"
+        }
+    ],
+    "test.test[join-yqloveryt-352/commonjoin_any_first_both_any--Plan]": [
+        {
+            "checksum": "48a5b78ae57224a4858d8032c45c4a5b",
+            "size": 6573,
+            "uri": "https://{canondata_backend}/1881367/e5f2337434554190e573361b03f6ae51cdf8e09b/resource.tar.gz#test.test_join-yqloveryt-352_commonjoin_any_first_both_any--Plan_/plan.txt"
+        }
+    ],
+    "test.test[join-yqloveryt-352/commonjoin_any_first_both_any--Results]": [
+        {
+            "checksum": "5e6e34e83cfd17d7c6aae7d4faa2d8df",
+            "size": 1734,
+            "uri": "https://{canondata_backend}/1881367/e5f2337434554190e573361b03f6ae51cdf8e09b/resource.tar.gz#test.test_join-yqloveryt-352_commonjoin_any_first_both_any--Results_/results.txt"
+        }
+    ],
+    "test.test[join-yqloveryt-352/commonjoin_any_first_no_any--Debug]": [
+        {
+            "checksum": "0bebe808e20bea1c5d3140ad73e07fb2",
+            "size": 3975,
+            "uri": "https://{canondata_backend}/1881367/e5f2337434554190e573361b03f6ae51cdf8e09b/resource.tar.gz#test.test_join-yqloveryt-352_commonjoin_any_first_no_any--Debug_/opt.yql"
+        }
+    ],
+    "test.test[join-yqloveryt-352/commonjoin_any_first_no_any--Plan]": [
+        {
+            "checksum": "b6f594f055c84c6c490810b2aece556e",
+            "size": 5985,
+            "uri": "https://{canondata_backend}/1881367/e5f2337434554190e573361b03f6ae51cdf8e09b/resource.tar.gz#test.test_join-yqloveryt-352_commonjoin_any_first_no_any--Plan_/plan.txt"
+        }
+    ],
+    "test.test[join-yqloveryt-352/commonjoin_any_first_no_any--Results]": [
+        {
+            "checksum": "5e6e34e83cfd17d7c6aae7d4faa2d8df",
+            "size": 1734,
+            "uri": "https://{canondata_backend}/1881367/e5f2337434554190e573361b03f6ae51cdf8e09b/resource.tar.gz#test.test_join-yqloveryt-352_commonjoin_any_first_no_any--Results_/results.txt"
+        }
+    ],
     "test.test[key_filter-is_null_or_data--Debug]": [
         {
             "checksum": "b896f6492dc40a805e071d76b46ef6c8",

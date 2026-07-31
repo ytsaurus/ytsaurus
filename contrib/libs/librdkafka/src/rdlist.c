@@ -270,6 +270,23 @@ void rd_list_sort(rd_list_t *rl, int (*cmp)(const void *, const void *)) {
         rl->rl_flags |= RD_LIST_F_SORTED;
 }
 
+rd_bool_t rd_list_is_sorted(const rd_list_t *rl,
+                            int (*cmp)(const void *, const void *)) {
+        int i;
+
+        if (unlikely(rl->rl_elems == NULL || rl->rl_cnt < 2))
+                return rd_true;
+
+        if (rl->rl_flags & RD_LIST_F_SORTED)
+                return rd_true;
+
+        for (i = 0; i < rl->rl_cnt - 1; i++) {
+                if (cmp(rl->rl_elems[i], rl->rl_elems[i + 1]) > 0)
+                        return rd_false;
+        }
+        return rd_true;
+}
+
 static void rd_list_destroy_elems(rd_list_t *rl) {
         int i;
 

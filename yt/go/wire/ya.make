@@ -7,6 +7,7 @@ SRCS(
     encode.go
     reader.go
     row.go
+    row_proto.go
     writer.go
 )
 
@@ -14,6 +15,7 @@ GO_TEST_SRCS(
     decode_test.go
     encode_test.go
     row_test.go
+    row_proto_test.go
 )
 
 END()

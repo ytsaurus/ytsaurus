@@ -172,4 +172,25 @@ TEST(Transactions, TestPingErrors)
     EXPECT_TRUE(client->Exists("#" + GetGuidAsString(transactionId)));
 }
 
+TEST(Transactions, TestCommitOptions)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+
+    auto prerequisiteTx = client->StartTransaction();
+
+    auto commitOptions = TCommitTransactionOptions()
+        .AddPrerequisiteTransactionId(prerequisiteTx->GetId());
+
+    // Prerequisite transaction is alive, commit must succeed.
+    auto tx = client->StartTransaction();
+    EXPECT_NO_THROW(tx->Commit(commitOptions));
+
+    prerequisiteTx->Commit();
+
+    // Prerequisite transaction is no longer alive, commit must fail.
+    tx = client->StartTransaction();
+    EXPECT_THROW(tx->Commit(commitOptions), yexception);
+}
+
 ////////////////////////////////////////////////////////////////////////////////

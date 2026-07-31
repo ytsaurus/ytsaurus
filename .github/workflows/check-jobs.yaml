@@ -5,43 +5,63 @@ on:
       runs-on-value:
         required: true
         type: string
+      build-dir:
+        required: true
+        type: string
+      run-unittests:
+        default: false
+        required: false
+        type: boolean
+      run-integration-tests:
+        default: false
+        required: false
+        type: boolean
+      run-python-tests:
+        default: false
+        required: false
+        type: boolean
+      run-odin-tests:
+        default: false
+        required: false
+        type: boolean
 
 jobs:
   check:
     runs-on: ${{ inputs.runs-on-value }}
     steps:
-      - name: Unittests (cmake)
+      - name: Unittests
+        if: ${{ inputs.run-unittests }}
         shell: bash
         run: |
-          cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_cmake_release
-          ln -s $(pwd)/../build_cmake_release $(pwd)/../build
-          cd ../build
-          ./run_unittests.sh
+          ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../${{ inputs.build-dir }}
 
-      - name: Unittests (ya-make)
+      - name: Setup build symlink
+        if: ${{ inputs.run-integration-tests || inputs.run-python-tests || inputs.run-odin-tests }}
         shell: bash
         run: |
-          cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_ya-make_release
-          ln -s $(pwd)/../build_ya-make_release $(pwd)/../build
-          cd ../build
-          ./run_unittests.sh
-
-      - name: Prepare pytest environment
-        shell: bash
-        run: |
-          ytsaurus/yt/yt/scripts/prepare_pytest_environment.sh
+          rm -rf "$(pwd)/../build"
+          ln -sfn "$(pwd)/../${{ inputs.build-dir }}" "$(pwd)/../build"
 
       - name: Integration tests
+        if: ${{ false }}
         shell: bash
         run: |
-          ytsaurus/yt/yt/scripts/run_integration_tests.sh
+          ./ytsaurus/yt/yt/scripts/run_tests.sh integration
+
+      - name: Flow tests
+        if: ${{ inputs.run-integration-tests && !cancelled() }}
+        shell: bash
+        run: |
+          ./ytsaurus/yt/yt/scripts/run_tests.sh flow
 
       - name: Python tests
+        if: ${{ inputs.run-python-tests }}
         shell: bash
         run: |
-          ytsaurus/yt/yt/scripts/run_python_tests.sh
+          ./ytsaurus/yt/yt/scripts/run_tests.sh python
 
       - name: Odin tests
+        if: ${{ inputs.run-odin-tests }}
         shell: bash
         run: |
           ytsaurus/yt/odin/tests/run_tests.sh

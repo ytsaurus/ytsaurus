@@ -33,6 +33,12 @@ void SetSuppressAccessTracking(NRpc::NProto::TRequestHeader* header, bool value)
 //! Gets access tracking suppression flag.
 bool GetSuppressAccessTracking(const NRpc::NProto::TRequestHeader& header);
 
+//! Sets access logging suppression flag.
+void SetSuppressAccessLogging(const NRpc::IClientRequestPtr& request, bool value);
+
+//! Gets access logging suppression flag.
+bool GetSuppressAccessLogging(const NRpc::NProto::TRequestHeader& header);
+
 //! Sets modification tracking suppression flag.
 void SetSuppressModificationTracking(const NRpc::IClientRequestPtr& request, bool value);
 

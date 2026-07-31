@@ -146,8 +146,8 @@ static void rd_kafka_toppar_consumer_lag_req(rd_kafka_toppar_t *rktp) {
          * broker supports FETCH >= v5, since this will be set when
          * doing fetch requests.
          */
-        if (rd_kafka_broker_ApiVersion_supported(
-                rktp->rktp_broker, RD_KAFKAP_Fetch, 0, 5, NULL) == 5) {
+        if (rd_kafka_broker_ApiVersion_at_least(rktp->rktp_broker,
+                                                RD_KAFKAP_Fetch, 5)) {
                 rd_kafka_toppar_unlock(rktp);
                 return;
         }
@@ -197,6 +197,9 @@ static void rd_kafka_toppar_consumer_lag_tmr_cb(rd_kafka_timers_t *rkts,
  */
 void rd_kafka_toppar_op_version_bump(rd_kafka_toppar_t *rktp, int32_t version) {
         rd_kafka_op_t *rko;
+
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk))
+                return;
 
         rktp->rktp_op_version = version;
         rko                   = rd_kafka_op_new(RD_KAFKA_OP_BARRIER);
@@ -260,7 +263,11 @@ rd_kafka_toppar_t *rd_kafka_toppar_new0(rd_kafka_topic_t *rkt,
         rktp->rktp_ops             = rd_kafka_q_new(rkt->rkt_rk);
         rktp->rktp_ops->rkq_serve  = rd_kafka_toppar_op_serve;
         rktp->rktp_ops->rkq_opaque = rktp;
-        rd_atomic32_init(&rktp->rktp_version, 1);
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rkt->rkt_rk)) {
+                rd_atomic32_init(&rktp->rktp_version, 0);
+        } else {
+                rd_atomic32_init(&rktp->rktp_version, 1);
+        }
         rktp->rktp_op_version = rd_atomic32_get(&rktp->rktp_version);
 
         rd_atomic32_init(&rktp->rktp_msgs_inflight, 0);
@@ -376,14 +383,24 @@ void rd_kafka_toppar_set_fetch_state(rd_kafka_toppar_t *rktp, int fetch_state) {
 
         rktp->rktp_fetch_state = fetch_state;
 
-        if (fetch_state == RD_KAFKA_TOPPAR_FETCH_ACTIVE)
+        if (fetch_state == RD_KAFKA_TOPPAR_FETCH_ACTIVE) {
+                rktp->rktp_ts_fetch_backoff = 0;
+
+                /* Wake-up broker thread which might be idling on IO */
+                if (rktp->rktp_broker)
+                        rd_kafka_broker_wakeup(rktp->rktp_broker,
+                                               "fetch start");
+
                 rd_kafka_dbg(
                     rktp->rktp_rkt->rkt_rk, CONSUMER | RD_KAFKA_DBG_TOPIC,
                     "FETCH",
                     "Partition %.*s [%" PRId32 "] start fetching at %s",
                     RD_KAFKAP_STR_PR(rktp->rktp_rkt->rkt_topic),
                     rktp->rktp_partition,
-                    rd_kafka_fetch_pos2str(rktp->rktp_next_fetch_start));
+                    rd_kafka_fetch_pos2str(
+                        rd_kafka_toppar_fetch_decide_next_fetch_start_pos(
+                            rktp)));
+        }
 }
 
 
@@ -448,6 +465,65 @@ rd_kafka_toppar_t *rd_kafka_toppar_get2(rd_kafka_t *rk,
                         rd_kafka_log(rk, LOG_ERR, "TOPIC",
                                      "Failed to create local topic \"%s\": %s",
                                      topic, rd_strerror(errno));
+                        return NULL;
+                }
+        }
+
+        rd_kafka_wrunlock(rk);
+
+        rd_kafka_topic_wrlock(rkt);
+        rktp = rd_kafka_toppar_desired_add(rkt, partition);
+        rd_kafka_topic_wrunlock(rkt);
+
+        rd_kafka_topic_destroy0(rkt);
+
+        return rktp;
+}
+
+
+/**
+ * @brief Same as rd_kafka_toppar_get2() but looks up (or creates) the
+ *        topic by topic_id rather than by name.
+ *
+ *        Used by share-consumer paths where the heartbeat-derived
+ *        assignment is the source of truth and the topic id is the
+ *        canonical identity. Looking up by id avoids matching a
+ *        recreated topic's response to a different rkt that happens
+ *        to share its name.
+ *
+ *        topic_id must be non-zero; topic name may be NULL.
+ *
+ * @locality any
+ * @locks none
+ */
+rd_kafka_toppar_t *rd_kafka_toppar_get_by_id2(rd_kafka_t *rk,
+                                              const char *topic,
+                                              rd_kafka_Uuid_t topic_id,
+                                              int32_t partition,
+                                              int create_on_miss) {
+        rd_kafka_topic_t *rkt;
+        rd_kafka_toppar_t *rktp;
+
+        rd_dassert(!RD_KAFKA_UUID_IS_ZERO(topic_id));
+
+        rd_kafka_wrlock(rk);
+
+        rkt = rd_kafka_topic_find_by_topic_id(rk, topic_id);
+        if (unlikely(!rkt)) {
+                if (!create_on_miss) {
+                        rd_kafka_wrunlock(rk);
+                        return NULL;
+                }
+                rkt = rd_kafka_topic_new_with_id(rk, topic, topic_id,
+                                                 0 /*no-lock*/);
+                if (!rkt) {
+                        rd_kafka_wrunlock(rk);
+                        rd_kafka_log(rk, LOG_ERR, "TOPIC",
+                                     "Failed to create local topic \"%s\" "
+                                     "(id %s): %s",
+                                     topic ? topic : "(null)",
+                                     rd_kafka_Uuid_base64str(&topic_id),
+                                     rd_strerror(errno));
                         return NULL;
                 }
         }
@@ -1121,8 +1197,13 @@ static void rd_kafka_toppar_broker_migrate(rd_kafka_toppar_t *rktp,
          * prior to leaving the broker to avoid stalling
          * on the new broker waiting for a offset reply from
          * this old broker (that might not come and thus need
-         * to time out..slowly) */
-        if (rktp->rktp_fetch_state == RD_KAFKA_TOPPAR_FETCH_OFFSET_WAIT)
+         * to time out..slowly).
+         *
+         * Share consumers never enter OFFSET_WAIT so this branch is
+         * unreachable for them today; guard regardless so the offset
+         * machinery stays out of the share leader-change path. */
+        if (!RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk) &&
+            rktp->rktp_fetch_state == RD_KAFKA_TOPPAR_FETCH_OFFSET_WAIT)
                 rd_kafka_toppar_offset_retry(rktp, 500,
                                              "migrating to new broker");
 
@@ -1186,7 +1267,8 @@ void rd_kafka_toppar_broker_leave_for_remove(rd_kafka_toppar_t *rktp) {
          * on the new broker waiting for a offset reply from
          * this old broker (that might not come and thus need
          * to time out..slowly) */
-        if (rktp->rktp_fetch_state == RD_KAFKA_TOPPAR_FETCH_OFFSET_WAIT)
+        if (rktp->rktp_fetch_state == RD_KAFKA_TOPPAR_FETCH_OFFSET_WAIT &&
+            !RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk))
                 rd_kafka_toppar_set_fetch_state(
                     rktp, RD_KAFKA_TOPPAR_FETCH_OFFSET_QUERY);
 
@@ -1225,7 +1307,8 @@ void rd_kafka_toppar_broker_delegate(rd_kafka_toppar_t *rktp,
 
         /* Undelegated toppars are delgated to the internal
          * broker for bookkeeping. */
-        if (!rkb && !rd_kafka_terminating(rk)) {
+        if (!rd_kafka_terminating(rk) &&
+            (!rkb || rd_kafka_broker_termination_in_progress(rkb))) {
                 rkb               = rd_kafka_broker_internal(rk);
                 internal_fallback = 1;
         }
@@ -1338,7 +1421,7 @@ void rd_kafka_toppar_next_offset_handle(rd_kafka_toppar_t *rktp,
         if (rktp->rktp_query_pos.offset <= RD_KAFKA_OFFSET_TAIL_BASE) {
                 int64_t orig_offset = next_pos.offset;
                 int64_t tail_cnt    = llabs(rktp->rktp_query_pos.offset -
-                                         RD_KAFKA_OFFSET_TAIL_BASE);
+                                            RD_KAFKA_OFFSET_TAIL_BASE);
 
                 if (tail_cnt > next_pos.offset)
                         next_pos.offset = 0;
@@ -1359,10 +1442,6 @@ void rd_kafka_toppar_next_offset_handle(rd_kafka_toppar_t *rktp,
         rd_kafka_toppar_set_next_fetch_position(rktp, next_pos);
 
         rd_kafka_toppar_set_fetch_state(rktp, RD_KAFKA_TOPPAR_FETCH_ACTIVE);
-
-        /* Wake-up broker thread which might be idling on IO */
-        if (rktp->rktp_broker)
-                rd_kafka_broker_wakeup(rktp->rktp_broker, "ready to fetch");
 }
 
 
@@ -1568,6 +1647,13 @@ static void rd_kafka_toppar_offset_retry(rd_kafka_toppar_t *rktp,
         rd_ts_t tmr_next;
         int restart_tmr;
 
+        /* Share consumers never use the offset-query state machine.
+         * Callers must guard; this early-return is belt-and-suspenders
+         * so a stray future call doesn't arm the offset-query timer
+         * for a share-assigned rktp. */
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk))
+                return;
+
         /* (Re)start timer if not started or the current timeout
          * is larger than \p backoff_ms. */
         tmr_next = rd_kafka_timer_next(&rktp->rktp_rkt->rkt_rk->rk_timers,
@@ -1746,11 +1832,6 @@ static void rd_kafka_toppar_fetch_start(rd_kafka_toppar_t *rktp,
 
                 rd_kafka_toppar_set_fetch_state(rktp,
                                                 RD_KAFKA_TOPPAR_FETCH_ACTIVE);
-
-                /* Wake-up broker thread which might be idling on IO */
-                if (rktp->rktp_broker)
-                        rd_kafka_broker_wakeup(rktp->rktp_broker,
-                                               "fetch start");
         }
 
         rktp->rktp_offsets_fin.eof_offset = RD_KAFKA_OFFSET_INVALID;
@@ -2083,6 +2164,8 @@ static rd_kafka_op_res_t rd_kafka_toppar_op_serve(rd_kafka_t *rk,
         rd_kafka_toppar_t *rktp = NULL;
         int outdated            = 0;
 
+        rd_dassert(!RD_KAFKA_IS_SHARE_CONSUMER(rk));
+
         if (rko->rko_rktp)
                 rktp = rko->rko_rktp;
 
@@ -2160,6 +2243,7 @@ static rd_kafka_op_res_t rd_kafka_toppar_op_serve(rd_kafka_t *rk,
                 rd_kafka_toppar_lock(rktp);
 
                 if (rko->rko_err) {
+                        int actions;
                         rd_kafka_dbg(
                             rktp->rktp_rkt->rkt_rk, TOPIC, "OFFSET",
                             "Failed to fetch offset for "
@@ -2174,10 +2258,15 @@ static rd_kafka_op_res_t rd_kafka_toppar_op_serve(rd_kafka_t *rk,
                         rd_kafka_toppar_unlock(rktp);
 
 
-                        /* Propagate error to application */
+                        actions = rd_kafka_handle_OffsetFetch_err_action(
+                            NULL, rko->rko_err, NULL);
+                        /* Propagate error to application. Exclude
+                         * permanent errors that caused a coordinator
+                         * refresh like `NOT_COORDINATOR` */
                         if (rko->rko_err != RD_KAFKA_RESP_ERR__WAIT_COORD &&
                             rko->rko_err !=
-                                RD_KAFKA_RESP_ERR_UNSTABLE_OFFSET_COMMIT)
+                                RD_KAFKA_RESP_ERR_UNSTABLE_OFFSET_COMMIT &&
+                            !(actions & RD_KAFKA_ERR_ACTION_REFRESH))
                                 rd_kafka_consumer_err(
                                     rktp->rktp_fetchq, RD_KAFKA_NODEID_UA,
                                     rko->rko_err, 0, NULL, rktp,
@@ -2281,6 +2370,16 @@ rd_kafka_resp_err_t rd_kafka_toppar_op_fetch_start(rd_kafka_toppar_t *rktp,
                                                    rd_kafka_replyq_t replyq) {
         int32_t version;
 
+        rd_dassert(!RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk));
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk)) {
+                rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, TOPIC, "CONSUMER",
+                             "consume_start is not supported for share "
+                             "consumers: %s [%" PRId32 "]: ignored",
+                             rd_kafka_topic_name_safe(rktp->rktp_rkt),
+                             rktp->rktp_partition);
+                return RD_KAFKA_RESP_ERR_NO_ERROR;
+        }
+
         rd_kafka_q_lock(rktp->rktp_fetchq);
         if (fwdq && !(rktp->rktp_fetchq->rkq_flags & RD_KAFKA_Q_F_FWD_APP))
                 rd_kafka_q_fwd_set0(rktp->rktp_fetchq, fwdq, 0, /* no do_lock */
@@ -2313,6 +2412,16 @@ rd_kafka_resp_err_t rd_kafka_toppar_op_fetch_stop(rd_kafka_toppar_t *rktp,
                                                   rd_kafka_replyq_t replyq) {
         int32_t version;
 
+        rd_dassert(!RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk));
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk)) {
+                rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, TOPIC, "CONSUMER",
+                             "consume_stop is not supported for share "
+                             "consumers: %s [%" PRId32 "]: ignored",
+                             rd_kafka_topic_name_safe(rktp->rktp_rkt),
+                             rktp->rktp_partition);
+                return RD_KAFKA_RESP_ERR_NO_ERROR;
+        }
+
         /* Bump version barrier. */
         version = rd_kafka_toppar_version_new_barrier(rktp);
 
@@ -2341,6 +2450,16 @@ rd_kafka_resp_err_t rd_kafka_toppar_op_seek(rd_kafka_toppar_t *rktp,
                                             rd_kafka_fetch_pos_t pos,
                                             rd_kafka_replyq_t replyq) {
         int32_t version;
+
+        rd_dassert(!RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk));
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk)) {
+                rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, TOPIC, "CONSUMER",
+                             "seek is not supported for share consumers: "
+                             "%s [%" PRId32 "]: ignored",
+                             rd_kafka_topic_name_safe(rktp->rktp_rkt),
+                             rktp->rktp_partition);
+                return RD_KAFKA_RESP_ERR_NO_ERROR;
+        }
 
         /* Bump version barrier. */
         version = rd_kafka_toppar_version_new_barrier(rktp);
@@ -2371,7 +2490,20 @@ rd_kafka_resp_err_t rd_kafka_toppar_op_pause_resume(rd_kafka_toppar_t *rktp,
                                                     int flag,
                                                     rd_kafka_replyq_t replyq) {
         int32_t version;
-        rd_kafka_op_t *rko = rd_kafka_op_new(RD_KAFKA_OP_PAUSE);
+        rd_kafka_op_t *rko;
+
+        rd_dassert(!RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk));
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk)) {
+                rd_kafka_dbg(rktp->rktp_rkt->rkt_rk, TOPIC,
+                             pause ? "PAUSE" : "RESUME",
+                             "Pause/resume is not supported for share "
+                             "consumers: %s [%" PRId32 "]: ignored",
+                             rd_kafka_topic_name_safe(rktp->rktp_rkt),
+                             rktp->rktp_partition);
+                return RD_KAFKA_RESP_ERR_NO_ERROR;
+        }
+
+        rko = rd_kafka_op_new(RD_KAFKA_OP_PAUSE);
 
         if (!pause) {
                 /* If partitions isn't paused, avoid bumping its version,
@@ -2509,6 +2641,39 @@ rd_kafka_toppars_pause_resume(rd_kafka_t *rk,
 }
 
 
+/**
+ * @brief Share-consumer variant of rd_kafka_toppar_enq_error.
+ *
+ *        Records the (topic, err) on the cgrp's per-cycle accumulator
+ *        for delivery or logging at the end of the metadata cycle.
+ *        Multiple calls for the same topic in one cycle collapse to
+ *        a single entry.
+ *
+ * @locality rdkafka main thread
+ */
+static void rd_kafka_share_toppar_enq_error(rd_kafka_toppar_t *rktp,
+                                            rd_kafka_resp_err_t err) {
+        rd_kafka_cgrp_t *rkcg    = rktp->rktp_rkt->rkt_rk->rk_cgrp;
+        rd_kafka_topic_t *rkt    = rktp->rktp_rkt;
+        const char *topic        = rkt->rkt_topic->str;
+        rd_kafka_Uuid_t topic_id = rkt->rkt_topic_id;
+        rd_kafka_topic_partition_t *prev;
+
+        if (!rkcg || !rkcg->rkcg_errored_topics)
+                return;
+
+        prev = rd_kafka_topic_partition_list_find_topic_by_id(
+            rkcg->rkcg_errored_topics, topic_id);
+        if (prev) {
+                prev->err = err;
+        } else {
+                rd_kafka_topic_partition_list_add_with_topic_name_and_id(
+                    rkcg->rkcg_errored_topics, topic_id, topic,
+                    RD_KAFKA_PARTITION_UA)
+                    ->err = err;
+        }
+}
+
 
 /**
  * Propagate error for toppar
@@ -2518,6 +2683,11 @@ void rd_kafka_toppar_enq_error(rd_kafka_toppar_t *rktp,
                                const char *reason) {
         rd_kafka_op_t *rko;
         char buf[512];
+
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rktp->rktp_rkt->rkt_rk)) {
+                rd_kafka_share_toppar_enq_error(rktp, err);
+                return;
+        }
 
         rko           = rd_kafka_op_new(RD_KAFKA_OP_ERR);
         rko->rko_err  = err;
@@ -2582,7 +2752,34 @@ void rd_kafka_toppar_leader_unavailable(rd_kafka_toppar_t *rktp,
         rkt->rkt_flags |= RD_KAFKA_TOPIC_F_LEADER_UNAVAIL;
         rd_kafka_topic_wrunlock(rkt);
 
-        rd_kafka_topic_fast_leader_query(rkt->rkt_rk);
+        rd_kafka_topic_fast_leader_query(rkt->rkt_rk,
+                                         rd_false /* don't force */);
+}
+
+/**
+ * @locality any
+ */
+rd_bool_t rd_kafka_toppar_is_on_cgrp(rd_kafka_toppar_t *rktp,
+                                     rd_bool_t do_lock) {
+        rd_bool_t on_cgrp;
+        if (do_lock) {
+                rd_kafka_toppar_lock(rktp);
+        }
+        on_cgrp =
+            (rktp->rktp_flags & RD_KAFKA_TOPPAR_F_ON_CGRP) ? rd_true : rd_false;
+
+        if (do_lock) {
+                rd_kafka_toppar_unlock(rktp);
+        }
+
+        return on_cgrp;
+}
+
+/**
+ * @brief Toppar copier for rd_list_copy()
+ */
+void *rd_kafka_toppar_list_copy(const void *elem, void *opaque) {
+        return rd_kafka_toppar_keep((rd_kafka_toppar_t *)elem);
 }
 
 
@@ -2673,6 +2870,16 @@ rd_kafka_topic_partition_t *rd_kafka_topic_partition_new(const char *topic,
         rktpar->topic     = rd_strdup(topic);
         rktpar->partition = partition;
 
+        return rktpar;
+}
+
+rd_kafka_topic_partition_t *
+rd_kafka_topic_partition_new_with_id_and_name(rd_kafka_Uuid_t topic_id,
+                                              const char *topic,
+                                              int32_t partition) {
+        rd_kafka_topic_partition_t *rktpar =
+            rd_kafka_topic_partition_new(topic, partition);
+        rd_kafka_topic_partition_set_topic_id(rktpar, topic_id);
         return rktpar;
 }
 
@@ -3163,10 +3370,24 @@ rd_kafka_topic_partition_ensure_toppar(rd_kafka_t *rk,
 
         parpriv = rd_kafka_topic_partition_get_private(rktpar);
 
-        if (!parpriv->rktp)
+        if (parpriv->rktp)
+                return parpriv->rktp;
+
+        if (RD_KAFKA_IS_SHARE_CONSUMER(rk)) {
+                /* Share consumer identifies topics by id; looking up
+                 * the topic by name risks matching a stale rkt that
+                 * a recreated topic shares its name with. */
+                rd_dassert(!RD_KAFKA_UUID_IS_ZERO(parpriv->topic_id));
+                if (RD_KAFKA_UUID_IS_ZERO(parpriv->topic_id))
+                        return NULL;
+                parpriv->rktp = rd_kafka_toppar_get_by_id2(
+                    rk, rktpar->topic, parpriv->topic_id, rktpar->partition,
+                    create_on_miss);
+        } else {
                 parpriv->rktp = rd_kafka_toppar_get2(
                     rk, rktpar->topic, rktpar->partition,
                     0 /* not ua on miss */, create_on_miss);
+        }
 
         return parpriv->rktp;
 }
@@ -3674,11 +3895,12 @@ static rd_bool_t rd_kafka_topic_partition_list_get_leaders(
                 struct rd_kafka_partition_leader *leader;
                 const rd_kafka_metadata_topic_t *mtopic;
                 const rd_kafka_metadata_partition_t *mpart;
+                const rd_kafka_metadata_partition_internal_t *mdpi;
                 rd_bool_t topic_wait_cache;
 
                 rd_kafka_metadata_cache_topic_partition_get(
-                    rk, &mtopic, &mpart, rktpar->topic, rktpar->partition,
-                    0 /*negative entries too*/);
+                    rk, &mtopic, &mpart, &mdpi, rktpar->topic,
+                    rktpar->partition, 0 /*negative entries too*/);
 
                 topic_wait_cache =
                     !mtopic ||
@@ -3746,9 +3968,11 @@ static rd_bool_t rd_kafka_topic_partition_list_get_leaders(
                         rd_kafka_topic_partition_update(rktpar2, rktpar);
                 } else {
                         /* Make a copy of rktpar and add to partitions list */
-                        rd_kafka_topic_partition_list_add_copy(
+                        rktpar2 = rd_kafka_topic_partition_list_add_copy(
                             leader->partitions, rktpar);
                 }
+                rd_kafka_topic_partition_set_current_leader_epoch(
+                    rktpar2, mdpi->leader_epoch);
 
                 rktpar->err = RD_KAFKA_RESP_ERR_NO_ERROR;
 
@@ -3872,7 +4096,7 @@ rd_kafka_topic_partition_list_query_leaders_async_worker(rd_kafka_op_t *rko) {
                 rd_kafka_metadata_refresh_topics(
                     rk, NULL, &query_topics, rd_true /*force*/,
                     rd_false /*!allow_auto_create*/, rd_false /*!cgrp_update*/,
-                    "query partition leaders");
+                    -1, "query partition leaders");
         }
 
         rd_list_destroy(leaders);
@@ -4061,7 +4285,7 @@ rd_kafka_resp_err_t rd_kafka_topic_partition_list_query_leaders(
                         rd_kafka_metadata_refresh_topics(
                             rk, NULL, &query_topics, rd_true /*force*/,
                             rd_false /*!allow_auto_create*/,
-                            rd_false /*!cgrp_update*/,
+                            rd_false /*!cgrp_update*/, -1,
                             "query partition leaders");
                         ts_query = now;
                         query_cnt++;
@@ -4257,9 +4481,10 @@ const char *rd_kafka_topic_partition_list_str(
                                 "]"
                                 "%s"
                                 "%s",
-                                of == 0 ? "" : ", ", rktpar->topic,
-                                topic_id_str, rktpar->partition, offsetstr,
-                                errstr);
+                                of == 0 ? "" : ", ",
+                                rd_kafka_topic_name_str_safe(rktpar->topic),
+                                topic_id_str ? topic_id_str : "(null)",
+                                rktpar->partition, offsetstr, errstr);
 
                 if ((size_t)r >= dest_size - of) {
                         rd_snprintf(&dest[dest_size - 4], 4, "...");
@@ -4418,6 +4643,89 @@ int rd_kafka_topic_partition_list_regex_cnt(
                 cnt += *rktpar->topic == '^';
         }
         return cnt;
+}
+
+
+/**
+ * @brief Match function that returns true if topic is not a regex.
+ */
+static int rd_kafka_topic_partition_not_regex(const void *elem,
+                                              const void *opaque) {
+        const rd_kafka_topic_partition_t *rktpar = elem;
+        return *rktpar->topic != '^';
+}
+
+/**
+ * @brief Return a new list with all regex topics removed.
+ *
+ * @remark The caller is responsible for freeing the returned list.
+ */
+rd_kafka_topic_partition_list_t *rd_kafka_topic_partition_list_remove_regexes(
+    const rd_kafka_topic_partition_list_t *rktparlist) {
+        return rd_kafka_topic_partition_list_match(
+            rktparlist, rd_kafka_topic_partition_not_regex, NULL);
+}
+
+
+/**
+ * @brief Combine regexes present in the list into a single regex.
+ */
+rd_kafkap_str_t *rd_kafka_topic_partition_list_combine_regexes(
+    const rd_kafka_topic_partition_list_t *rktparlist) {
+        int i;
+        int combined_regex_len   = 1; /* 1 for null-terminator */
+        int regex_cnt            = 0;
+        int j                    = 1;
+        rd_bool_t is_first_regex = rd_true;
+        char *combined_regex_str;
+        rd_kafkap_str_t *combined_regex_kstr;
+
+        // Count the number of characters needed for the combined regex string
+        for (i = 0; i < rktparlist->cnt; i++) {
+                const rd_kafka_topic_partition_t *rktpar =
+                    &(rktparlist->elems[i]);
+                if (*rktpar->topic == '^') {
+                        combined_regex_len += strlen(rktpar->topic);
+                        regex_cnt++;
+                }
+        }
+
+        if (regex_cnt == 0)
+                return rd_kafkap_str_new("", 0);
+
+        combined_regex_len +=
+            3 * (regex_cnt - 1); /* 1 for each ')|(' separator */
+        combined_regex_len += 2; /* 2 for enclosing brackets */
+
+        // memory allocation for the combined regex string
+        combined_regex_str = rd_malloc(combined_regex_len);
+
+        // Construct the combined regex string
+        combined_regex_str[0] = '(';
+        for (i = 0; i < rktparlist->cnt; i++) {
+                const rd_kafka_topic_partition_t *rktpar =
+                    &(rktparlist->elems[i]);
+                char *topic = rktpar->topic;
+                if (*topic == '^') {
+                        if (!is_first_regex) {
+                                combined_regex_str[j++] = ')';
+                                combined_regex_str[j++] = '|';
+                                combined_regex_str[j++] = '(';
+                        }
+                        while (*topic) {
+                                combined_regex_str[j++] = *topic;
+                                topic++;
+                        }
+                        is_first_regex = rd_false;
+                }
+        }
+        combined_regex_str[j++] = ')';
+        combined_regex_str[j]   = '\0';
+
+        combined_regex_kstr =
+            rd_kafkap_str_new(combined_regex_str, combined_regex_len - 1);
+        rd_free(combined_regex_str);
+        return combined_regex_kstr;
 }
 
 

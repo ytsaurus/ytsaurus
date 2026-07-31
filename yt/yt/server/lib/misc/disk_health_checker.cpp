@@ -36,7 +36,7 @@ TDiskHealthChecker::TDiskHealthChecker(
         BIND(&TDiskHealthChecker::OnCheck, MakeWeak(this)),
         Config_.Acquire()->CheckPeriod))
 {
-    Logger.AddTag("Path: %v", Path_);
+    Logger.AddTag("Path", Path_);
 }
 
 void TDiskHealthChecker::Reconfigure(const TDiskHealthCheckerConfigPtr& newConfig)

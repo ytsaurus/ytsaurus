@@ -8,7 +8,7 @@
 
 #include <yt/yt/flow/library/cpp/tables/public.h>
 
-#include <yt/yt/flow/lib/serializer/public.h>
+#include <yt/yt/flow/library/cpp/serializer/public.h>
 
 #include <yt/yt/core/ytree/public.h>
 

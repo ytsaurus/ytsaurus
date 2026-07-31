@@ -42,32 +42,35 @@ def initialize_ground(app: sequoia_app.SequoiaTool, target_reign: int) -> None:
 
     def setup_component(ctx: builder.ComponentContext):
         result: list[actions.Action] = []
+        bundle = ctx.config.tablet_cell_bundle
+        tablet_cell_count = app.ground_client.get(
+            f"//sys/tablet_cell_bundles/{bundle}/@tablet_cell_count")
 
-        if ctx.config.tablet_cell_count > 0:
-            bundle = ctx.config.tablet_cell_bundle
+        if (
+            ctx.ground_config.tablet_node_static_config and
+            tablet_cell_count > 0
+        ):
+            def get_tablet_node_static_config(app: sequoia_app.SequoiaTool):
+                peer = helpers.get_tablet_cell_peer(app, bundle)
+                return app.ground_client.get(
+                    "//sys/tablet_nodes/{}/orchid/config".format(peer["address"]))
 
-            if ctx.ground_config.tablet_node_static_config:
-                def get_tablet_node_static_config(app: sequoia_app.SequoiaTool):
-                    peer = helpers.get_tablet_cell_peer(app, bundle)
-                    return app.ground_client.get(
-                        "//sys/tablet_nodes/{}/orchid/config".format(peer["address"]))
+            result.append(actions.ValidateConfigAction(
+                get_config=get_tablet_node_static_config,
+                description=f'Validate tablet node static config for bundle "{bundle}"',
+                expected=ctx.ground_config.tablet_node_static_config))
 
-                result.append(actions.ValidateConfigAction(
-                    get_config=get_tablet_node_static_config,
-                    description=f'Validate tablet node static config for bundle "{bundle}"',
-                    expected=ctx.ground_config.tablet_node_static_config))
+        if ctx.ground_config.tablet_node_dynamic_config:
+            def get_tablet_node_dynamic_config(app: sequoia_app.SequoiaTool):
+                peer = helpers.get_tablet_cell_peer(app, bundle)
+                return app.ground_client.get(
+                    "//sys/tablet_nodes/{}/orchid/dynamic_config_manager/effective_config"
+                    .format(peer["address"]))
 
-            if ctx.ground_config.tablet_node_dynamic_config:
-                def get_tablet_node_dynamic_config(app: sequoia_app.SequoiaTool):
-                    peer = helpers.get_tablet_cell_peer(app, bundle)
-                    return app.ground_client.get(
-                        "//sys/tablet_nodes/{}/orchid/dynamic_config_manager/effective_config"
-                        .format(peer["address"]))
-
-                result.append(actions.ValidateConfigAction(
-                    get_config=get_tablet_node_dynamic_config,
-                    description=f'Validate tablet node dynamic config for bundle "{bundle}"',
-                    expected=ctx.ground_config.tablet_node_dynamic_config))
+            result.append(actions.ValidateConfigAction(
+                get_config=get_tablet_node_dynamic_config,
+                description=f'Validate tablet node dynamic config for bundle "{bundle}"',
+                expected=ctx.ground_config.tablet_node_dynamic_config))
 
         return result
 
@@ -79,9 +82,6 @@ def initialize_ground(app: sequoia_app.SequoiaTool, target_reign: int) -> None:
                 actions.CreateTabletCellBundleAction(
                     ctx.config.tablet_cell_bundle,
                     ctx.config.tablet_cell_bundle_config),
-                actions.CreateTabletCellsAction(
-                    ctx.config.tablet_cell_bundle,
-                    ctx.config.tablet_cell_count),
             ])
         .with_component_factory(setup_component)
         .for_each_table()

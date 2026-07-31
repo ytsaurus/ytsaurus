@@ -8,8 +8,8 @@
 
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 
-#include <yt/yt/flow/lib/serializer/public.h>
-#include <yt/yt/flow/lib/serializer/state.h>
+#include <yt/yt/flow/library/cpp/serializer/public.h>
+#include <yt/yt/flow/library/cpp/serializer/state.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 

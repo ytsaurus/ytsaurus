@@ -78,7 +78,7 @@ TQueueSourceController::TQueueSourceController(
         GetParameters(),
         GetContext()->ClientsCache->GetClient(*GetParameters()->QueuePath.GetCluster()),
         GetContext()->Invoker,
-        GetContext()->Logger.WithTag("QueuePath: %v", GetParameters()->QueuePath),
+        GetContext()->Logger.WithTag("QueuePath", GetParameters()->QueuePath),
         GetContext()->StatusProfiler->WithPrefix("/queue_info")))
 {
 }
@@ -128,7 +128,9 @@ std::optional<THashMap<TKey, NYTree::IMapNodePtr>> TQueueSourceController::ListK
         keys[GenerateQueueKey(sourceIdentity, i)] = trivialSpec;
     }
     if (skipped != 0) {
-        YT_LOG_DEBUG("Skipped some partitions due to filter (Skipped: %v, Left: %v)", skipped, std::size(keys));
+        YT_TLOG_DEBUG("Skipped some partitions due to filter")
+            .With("Skipped", skipped)
+            .With("Left", std::size(keys));
     }
     return keys;
 }
@@ -146,10 +148,10 @@ TQueueSourceImpl::TQueueSourceImpl(
     TDynamicSourceContextPtr dynamicContext)
     : TIntegerOffsetOrderedSourceBase(std::move(context), std::move(dynamicContext))
     , PartitionIndex_(ExtractQueuePartitionIndex(GetContext()->SourceKey))
-    , Logger(TOrderedSourceBase::Logger.WithTag("QueuePath: %v, ConsumerPath: %v, PartitionIndex: %v",
-        GetParameters()->QueuePath,
-        GetParameters()->ConsumerPath,
-        PartitionIndex_))
+    , Logger(TOrderedSourceBase::Logger
+            .WithTag("QueuePath", GetParameters()->QueuePath)
+            .WithTag("ConsumerPath", GetParameters()->ConsumerPath)
+            .WithTag("PartitionIndex", PartitionIndex_))
     , ConsumerClient_(GetContext()->ClientsCache->GetClient(*GetParameters()->ConsumerPath.GetCluster()))
     , QueueClient_(GetContext()->ClientsCache->GetClient(*GetParameters()->QueuePath.GetCluster()))
     , SubConsumerClient_(NQueueClient::CreateSubConsumerClient(
@@ -296,7 +298,6 @@ void TQueueSourceImpl::TryUpdatePartitionInfo()
         UpdatePartitionInfoErrorState_->ClearError();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to update partition info") << TError(ex);
-        YT_LOG_ERROR(error);
         UpdatePartitionInfoErrorState_->SetError(error);
     }
 }
@@ -378,7 +379,6 @@ auto TQueueSourceImpl::DoReadNextBatch(
                         return future;
                     } else {
                         auto error = TError("Failed to read from partition") << future.GetOrCrash();
-                        YT_LOG_ERROR(error);
                         GetReadErrorState()->SetError(error);
                     }
                 }
@@ -407,17 +407,15 @@ auto TQueueSourceImpl::ParseData(
     for (auto row : rowset->GetRows()) {
         auto rowOffset = FromUnversionedValue<i64>(row[offsetColumnId]);
         if (rowOffset < initialOffset) {
-            YT_LOG_WARNING("Got offset less than initial committed, skipped. "
-                "Probably it is a start of reading old queue with empty yt flow state "
-                "(Offset: %v, InitialOffset: %v)",
-                rowOffset,
-                initialOffset);
+            YT_TLOG_WARNING("Got offset less than initial committed, skipped. Probably it is a start of reading old queue with empty yt flow state")
+                .With("Offset", rowOffset)
+                .With("InitialOffset", initialOffset);
             continue;
         }
         if (offsetLimit && rowOffset >= *offsetLimit) {
-            YT_LOG_WARNING("Got offset bigger than limit, skipped (Offset: %v, OffsetLimit: %v)",
-                rowOffset,
-                *offsetLimit);
+            YT_TLOG_WARNING("Got offset bigger than limit, skipped")
+                .With("Offset", rowOffset)
+                .With("OffsetLimit", *offsetLimit);
             continue;
         }
 
@@ -434,7 +432,9 @@ auto TQueueSourceImpl::ParseData(
                     meta = ConvertTo<TFlowQueueMeta>(*raw);
                 } catch (const std::exception& ex) {
                     if (GetParameters()->IgnoreMalformedFlowQueueMeta) {
-                        YT_LOG_WARNING(ex, "Failed to parse flow queue meta from %Qv", *raw);
+                        YT_TLOG_WARNING("Failed to parse flow queue meta")
+                            .With("RawMeta", *raw, "%Qv")
+                            .With(ex);
                     } else {
                         THROW_ERROR_EXCEPTION("Failed to parse flow queue meta from %Qv", *raw)
                             << TError(ex);

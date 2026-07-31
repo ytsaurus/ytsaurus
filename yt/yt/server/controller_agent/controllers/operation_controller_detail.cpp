@@ -278,7 +278,7 @@ TOperationControllerBase::TOperationControllerBase(
     , UserTransactionId_(operation->GetUserTransactionId())
     , Logger([&] {
         auto logger = ControllerLogger();
-        logger = logger.WithTag("OperationId: %v", OperationId_);
+        logger = logger.WithTag("OperationId", OperationId_);
         if (spec->EnableTraceLogging) {
             logger = logger.WithMinLevel(ELogLevel::Trace);
         }
@@ -1594,11 +1594,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive(bool suspended
 
     if (!Config_->EnableJobRevival) {
         if (HasJobUniquenessRequirements() && RunningJobCount_ != 0) {
-            OnJobUniquenessViolated(TError(
+            THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
                 "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
-                << TErrorAttribute("reason", EFailOnJobRestartReason::JobRevivalDisabled));
-            return result;
+                << TErrorAttribute("reason", EFailOnJobRestartReason::JobRevivalDisabled);
         }
 
         AbortAllJoblets(EAbortReason::JobRevivalDisabled, /*honestly*/ true);
@@ -5985,6 +5984,12 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
 
     auto joblet = GetJoblet(jobId);
     if (!joblet->IsStarted()) {
+        if (joblet->Revived) {
+            // A revived job that was not marked started in the snapshot may have
+            // actually started after the snapshot was built. Job tracker revives
+            // such a job, so it must be explicitly released once it finishes.
+            JobIdToReleaseFlags_.emplace(jobId, summary->ReleaseFlags);
+        }
         return;
     }
 
@@ -7403,34 +7408,35 @@ void TOperationControllerBase::FetchUserFiles()
         }
         chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             InputManager_->GetClient(LocalClusterName),
-            TMasterReadOptions{},
             InputManager_->GetNodeDirectory(LocalClusterName),
             GetCancelableInvoker(),
-            Config_->MaxChunksPerFetch,
-            Config_->MaxChunksPerLocateRequest,
-            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int fileIndex) {
-                const auto& file = *userFiles[fileIndex];
-                req->set_fetch_all_meta_extensions(false);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                if (file.Type == EObjectType::File && file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
-                    req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
-                }
-                if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
-                    req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
-                }
-                if (file.Dynamic) {
-                    if (!Spec_->EnableDynamicStoreRead.value_or(true)) {
-                        req->set_omit_dynamic_stores(true);
+            TMasterChunkSpecFetcherOptions{
+                .MaxChunksPerFetch = Config_->MaxChunksPerFetch,
+                .MaxChunksPerLocateRequest = Config_->MaxChunksPerLocateRequest,
+                .FetchRequestInitializer = [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int fileIndex) {
+                    const auto& file = *userFiles[fileIndex];
+                    req->set_fetch_all_meta_extensions(false);
+                    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                    if (file.Type == EObjectType::File && file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
+                        req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
                     }
-                    if (OperationType_ == EOperationType::RemoteCopy) {
-                        req->set_throw_on_chunk_views(true);
+                    if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
+                        req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
                     }
-                }
-                // NB: We always fetch parity replicas since
-                // erasure reader can repair data on flight.
-                req->set_fetch_parity_replicas(true);
-                AddCellTagToSyncWith(req, file.ObjectId);
-                SetTransactionId(req, file.ExternalTransactionId);
+                    if (file.Dynamic) {
+                        if (!Spec_->EnableDynamicStoreRead.value_or(true)) {
+                            req->set_omit_dynamic_stores(true);
+                        }
+                        if (OperationType_ == EOperationType::RemoteCopy) {
+                            req->set_throw_on_chunk_views(true);
+                        }
+                    }
+                    // NB: We always fetch parity replicas since
+                    // erasure reader can repair data on flight.
+                    req->set_fetch_parity_replicas(true);
+                    AddCellTagToSyncWith(req, file.ObjectId);
+                    SetTransactionId(req, file.ExternalTransactionId);
+                },
             },
             Logger);
     };
@@ -7713,7 +7719,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             InputManager_->GetClient(LocalClusterName),
             MakeUserObjectList(files),
             InputTransactions_->GetLocalInputTransactionId(),
-            Logger().WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
+            Logger().WithTag("TaskTitle", userJobSpec->TaskTitle),
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
                 .OmitInaccessibleRows = Spec_->OmitInaccessibleRows,
@@ -7872,14 +7878,16 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                                 auto accessMethod = file.Path.GetAccessMethod();
                                 if (!accessMethod) {
-                                    accessMethod = attributes.Find<std::string>("access_method");
+                                    accessMethod = attributes.Find<ELayerAccessMethod>("access_method");
                                 }
 
                                 // We deliberately do not support filesystem in file.Path
                                 // since filesystem is the property of the actual file not its path.
-                                std::tie(file.AccessMethod, file.Filesystem) = GetAccessMethodAndFilesystemFromStrings(
-                                    accessMethod.value_or(ToString(ELayerAccessMethod::Local)),
-                                    attributes.Find<std::string>("filesystem").value_or(ToString(ELayerFilesystem::Archive)));
+                                auto filesystem = attributes.Find<ELayerFilesystem>("filesystem").value_or(ELayerFilesystem::Archive);
+
+                                file.AccessMethod = accessMethod.value_or(ELayerAccessMethod::Local);
+                                file.Filesystem = filesystem;
+                                ValidateCompatibility(*file.AccessMethod, *file.Filesystem);
                             }
                             break;
 
@@ -7889,7 +7897,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             file.RlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
                                 file.Schema,
                                 file.RowLevelAcl,
-                                Logger().WithTag("Path: %v", file.GetPath()));
+                                Logger().WithTag("Path", file.GetPath()));
 
                             YT_LOG_INFO_IF(
                                 file.RlsReadSpec,
@@ -8234,7 +8242,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
 
     for (const auto& userJobSpec : GetUserJobSpecs()) {
         for (const auto& [_, volume] : userJobSpec->Volumes) {
-            if (!volume->DiskRequest || volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Tmpfs) {
+            if (!volume->DiskRequest || volume->DiskRequest->GetType() == NExecNode::EVolumeType::Tmpfs) {
                 continue;
             }
 
@@ -8257,7 +8265,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     }
                 }
                 if (Config_->DeprecatedMedia.contains(mediumName) &&
-                    volume->DiskRequest->GetCurrentType() != NExecNode::EVolumeType::Nbd)
+                    volume->DiskRequest->GetType() != NExecNode::EVolumeType::Nbd)
                 {
                     THROW_ERROR_EXCEPTION("Medium is deprecated to be used in disk requests")
                         << TErrorAttribute("medium_name", mediumName);
@@ -8266,7 +8274,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     accounts.insert(*diskRequest->Account);
                 }
 
-                if (volume->DiskRequest->GetCurrentType() == NExecNode::EVolumeType::Nbd) {
+                if (volume->DiskRequest->GetType() == NExecNode::EVolumeType::Nbd) {
                     // Allow only NBD media.
                     if (!Config_->NbdMedia.contains(mediumName)) {
                         THROW_ERROR_EXCEPTION("Inappropriate medium for NBD")
@@ -10659,7 +10667,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         } else if (auto localDiskRequest = volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
             ToProto(jobSpec->mutable_disk_request(), *localDiskRequest);
         } else {
-            YT_LOG_FATAL("Unknown volume type %v", volume->DiskRequest->GetCurrentType());
+            YT_LOG_FATAL("Unknown volume type %v", volume->DiskRequest->GetType());
         }
     }
 

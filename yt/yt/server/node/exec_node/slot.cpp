@@ -81,7 +81,7 @@ public:
         , NodeTag_(nodeTag)
         , JobProxyUnixDomainSocketPath_(GetJobProxyUnixDomainSocketPath())
         , NumaNodeAffinity_(numaNodeAffinity)
-        , Logger(SlotLogger().WithTag("SlotIndex: %v", SlotIndex_))
+        , Logger(SlotLogger().WithTag("SlotIndex", SlotIndex_))
     {
         Location_->IncreaseSessionCount();
         if (diskRequest.disk_space() > 0) {
@@ -454,7 +454,7 @@ public:
                     for (const auto& volume : volumeParams) {
                         if (!volume->LayerArtifactKeys.empty()) {
                             THROW_ERROR_EXCEPTION(
-                                "It is impossible to create a fake non-root volume if it contains a layer (VolumeId: %v)",
+                                "Cannot create fake non-root volume %v since it contains a layer",
                                 volume->VolumeId);
                         }
                     }
@@ -701,7 +701,7 @@ public:
     {
         VerifyEnabled();
 
-        Logger.AddTag("AllocationId: %v", allocationId);
+        Logger.AddTag("AllocationId", allocationId);
     }
 
     std::string GetJobProxyUnixDomainSocketPath() const override

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/flow/library/cpp/file_storage/config.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/bus/tcp/public.h>
@@ -16,6 +18,7 @@ struct TWorkerConfig
 {
     NBus::NTcp::TBusConfigPtr Bus;
     int MessageServiceThreads{};
+    NFileStorage::TFileStorageConfigPtr FileStorage;
 
     REGISTER_YSON_STRUCT(TWorkerConfig);
 

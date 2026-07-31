@@ -18,9 +18,10 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/async_slru_cache.h>
-#include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NExecNode {
 

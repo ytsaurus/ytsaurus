@@ -41,6 +41,26 @@ void TPartitionReaderConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_bytes_per_read", &TThis::MaxBytesPerRead)
         .Default(64_MB)
         .GreaterThan(0);
+    registrar.Parameter("validate_identity_column_ids", &TThis::ValidateIdentityColumnIds)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortReaderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bucket_row_count", &TThis::BucketRowCount)
+        .Default(10'000)
+        .GreaterThan(0);
+    registrar.Parameter("max_rows_per_read", &TThis::MaxRowsPerRead)
+        .Default(10'000)
+        .GreaterThan(0);
+    registrar.Parameter("max_data_weight_per_read", &TThis::MaxDataWeightPerRead)
+        .Default(16_MB)
+        .GreaterThan(0);
+    registrar.Parameter("merge_yield_period", &TThis::MergeYieldPeriod)
+        .Default(TDuration::MilliSeconds(10))
+        .GreaterThan(TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

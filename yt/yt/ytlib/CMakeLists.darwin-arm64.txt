@@ -29,7 +29,6 @@ get_built_tool_path(
 )
 
 add_subdirectory(admin)
-add_subdirectory(discovery_client)
 add_subdirectory(query_tracker_client)
 add_subdirectory(distributed_throttler)
 add_subdirectory(unittests)
@@ -75,6 +74,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   cpp-containers-absl
   library-erasure-impl
   yt-library-containers
+  yt-library-discovery_client
   yt-library-disk_manager
   yt-library-process
   yt-library-random
@@ -103,11 +103,10 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-vector_hdrf
   library-web_assembly-api
   yt-ytlib-admin
-  yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
-  flow-lib-client
-  flow-lib-native_client
+  library-cpp-client
+  library-cpp-native_client
 )
 
 target_sources(yt-yt-ytlib PRIVATE
@@ -375,6 +374,8 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/push_based_shuffle_client/session_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/push_based_shuffle_client/partition_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/push_based_shuffle_client/shuffle_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/push_based_shuffle_client/sort_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/push_based_shuffle_client/sorted_merging_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp
@@ -401,6 +402,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/permission_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/public.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/query_pool_permission_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/user_attribute_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/connection.cpp
@@ -1909,6 +1911,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   cpp-containers-absl
   library-erasure-impl
   yt-library-containers
+  yt-library-discovery_client
   yt-library-disk_manager
   yt-library-process
   yt-library-random
@@ -1937,11 +1940,10 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-vector_hdrf
   library-web_assembly-api
   yt-ytlib-admin
-  yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
-  flow-lib-client
-  flow-lib-native_client
+  library-cpp-client
+  library-cpp-native_client
 )
 
 target_sources(yt-yt-ytlib.global PRIVATE

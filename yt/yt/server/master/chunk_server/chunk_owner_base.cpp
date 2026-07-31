@@ -89,8 +89,12 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, DeltaSecurityTags_);
     Save(context, ChunkMergerMode_);
     Save(context, EnableSkynetSharing_);
-    Save(context, UpdatedSinceLastMerge_);
-    Save(context, ChunkMergerTraversalInfo_);
+    if (ChunkMergerInfo_) {
+        Save(context, true);
+        Save(context, *ChunkMergerInfo_);
+    } else {
+        Save(context, false);
+    }
     Save(context, HunkReplication_);
     Save(context, HunkPrimaryMediumIndex_);
 }
@@ -122,8 +126,22 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, DeltaSecurityTags_);
     Load(context, ChunkMergerMode_);
     Load(context, EnableSkynetSharing_);
-    Load(context, UpdatedSinceLastMerge_);
-    Load(context, ChunkMergerTraversalInfo_);
+    if (context.GetVersion() >= EMasterReign::ChunkMergerInfo) {
+        if (Load<bool>(context)) {
+            Load(context, *MutableChunkMergerInfo());
+        }
+    } else {
+        // COMPAT(aleksandra-zh).
+        auto updatedSinceLastMerge = Load<bool>(context);
+        TChunkMergerTraversalInfo traversalInfo;
+        Load(context, traversalInfo);
+        if (updatedSinceLastMerge || traversalInfo.ChunkCount > 0) {
+            auto* info = MutableChunkMergerInfo();
+            info->UpdatedSinceLastMerge = updatedSinceLastMerge;
+            info->TraversalInfo = traversalInfo;
+        }
+    }
+
     Load(context, HunkReplication_);
     Load(context, HunkPrimaryMediumIndex_);
 
@@ -145,6 +163,11 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
             "(ChunkOwnerNodeId: %v, HunkReplication: %v)",
             GetVersionedId(),
             HunkReplication());
+    }
+
+    // COMPAT(babenko)
+    if (context.GetVersion() < EMasterReign::DropHasHunkChunkListUserAttribute && GetAttributes()) {
+        GetMutableAttributes()->TryRemove("has_hunk_chunk_list");
     }
 }
 
@@ -471,6 +494,25 @@ TClusterResources TChunkOwnerBase::GetDiskUsage(const TChunkOwnerDataStatistics&
     }
     result.SetChunkCount(statistics.ChunkCount);
     return result;
+}
+
+bool TChunkOwnerBase::HasChunkMergerInfo() const
+{
+    return ChunkMergerInfo_.operator bool();
+}
+
+const TChunkMergerInfo& TChunkOwnerBase::ChunkMergerInfo() const
+{
+    static const TChunkMergerInfo Empty;
+    return ChunkMergerInfo_ ? *ChunkMergerInfo_ : Empty;
+}
+
+TChunkMergerInfo* TChunkOwnerBase::MutableChunkMergerInfo()
+{
+    if (!ChunkMergerInfo_) {
+        ChunkMergerInfo_ = std::make_unique<TChunkMergerInfo>();
+    }
+    return ChunkMergerInfo_.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -125,7 +125,7 @@ TLogFileReader::TLogFileReader(
     RecordBufferSize_ = profiler.Gauge("/buffer_size");
     WriteLag_ = profiler.Timer("/write_lag");
 
-    Logger.AddTag("LogFile: %v", Config_->Path);
+    Logger.AddTag("LogFile", Config_->Path);
 
     std::vector<TYPath> paths;
     for (const auto& tableConfig : Config_->Tables) {
@@ -135,7 +135,7 @@ TLogFileReader::TLogFileReader(
         }
         paths.emplace_back(path);
     }
-    Logger.AddTag("TablePaths: %v", paths);
+    Logger.AddTag("TablePaths", paths);
 
     try {
         DoOpenLogFile();

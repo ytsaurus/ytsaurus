@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/yt/ytlib/discovery_client/config.h>
+#include <yt/yt/library/discovery_client/config.h>
 
 #include <yt/yt/ytlib/queue_client/config.h>
 
@@ -159,6 +159,9 @@ void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
     registrar.Parameter("handle_replicated_objects", &TThis::HandleReplicatedObjects)
         .Default(false);
+    registrar.Parameter("queue_agent_channel_request_timeout", &TThis::QueueAgentChannelRequestTimeout)
+        .Default(TDuration::Minutes(1))
+        .GreaterThan(TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

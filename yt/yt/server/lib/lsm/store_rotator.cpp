@@ -148,7 +148,7 @@ private:
         {
             YT_LOG_DEBUG("Scheduling store rotation (Reason: %v, %v)",
                 rotationReason,
-                tablet->GetLoggingTag());
+                tablet->LoggingTags());
             YT_VERIFY(static_cast<bool>(tablet->FindActiveStore()));
 
             TRotateStoreRequest request{
@@ -238,7 +238,7 @@ private:
                 "GlobalMemory: %v, Bundle: %v, BundleMemory: %v, "
                 "TabletMemoryUsage: %v, ForcedRotationMemoryRatio: %v)",
                 reason,
-                store->GetTablet()->GetLoggingTag(),
+                store->GetTablet()->LoggingTags(),
                 MemoryDigest_,
                 bundleName,
                 bundleMemoryDigest,
@@ -319,7 +319,7 @@ private:
         if (passedPeriodCount > 1) {
             YT_LOG_DEBUG("More than one periodic rotation period passed between subsequent attempts "
                 "(%v, LastRotated: %v, RotationPeriod: %v, SkippedPeriodCount: %v)",
-                request->Tablet->GetLoggingTag(),
+                request->Tablet->LoggingTags(),
                 lastRotated,
                 period,
                 passedPeriodCount - 1);

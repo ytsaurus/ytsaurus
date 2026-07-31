@@ -11,6 +11,7 @@ SRCS(
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
+    yt/yt/library/profiling/solomon
     yt/yt/library/query/engine
     yt/yt/tests/cpp/test_base
     yt/yt/ytlib

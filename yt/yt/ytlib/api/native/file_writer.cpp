@@ -75,9 +75,9 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
-        , Logger(ApiLogger().WithTag("Path: %v, TransactionId: %v",
-            Path_.GetPath(),
-            Options_.TransactionId))
+        , Logger(ApiLogger()
+            .WithTag("Path", Path_.GetPath())
+            .WithTag("TransactionId", Options_.TransactionId))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
     { }
 

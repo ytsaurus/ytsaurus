@@ -3,7 +3,7 @@
 #include "files.h"
 #include "spec.h"
 
-#include <yt/yt/flow/lib/native_client/public.h>
+#include <yt/yt/flow/library/cpp/native_client/public.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -177,10 +177,10 @@ std::string ReanimateVanillaOperation(
         .ValueOrThrow();
     auto operationIdString = Format("%v", operationId);
 
-    YT_LOG_INFO("Reanimated pipeline (Path: %v, Cluster: %v, OperationId: %v)",
-        pipelinePath,
-        target,
-        operationIdString);
+    YT_TLOG_INFO("Reanimated pipeline")
+        .With("Path", pipelinePath)
+        .With("Cluster", target)
+        .With("OperationId", operationIdString);
 
     return operationIdString;
 }

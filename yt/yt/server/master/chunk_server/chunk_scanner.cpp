@@ -1,6 +1,8 @@
 #include "chunk_scanner.h"
+#include "chunk_manager.h"
 
 #include "chunk.h"
+#include "helpers.h"
 #include "private.h"
 
 #include <yt/yt/server/master/object_server/object_manager.h>
@@ -9,6 +11,7 @@
 
 namespace NYT::NChunkServer {
 
+using namespace NCellMaster;
 using namespace NLogging;
 using namespace NObjectServer;
 
@@ -24,7 +27,7 @@ TGlobalChunkScanner::TGlobalChunkScanner(
 TGlobalChunkScanner::TGlobalChunkScanner(bool journal)
     : TGlobalChunkScanner(
         journal,
-        ChunkServerLogger().WithTag("Journal: %v", journal))
+        ChunkServerLogger().WithTag("Journal", journal))
 { }
 
 void TGlobalChunkScanner::Start(TGlobalChunkScanDescriptor descriptor)
@@ -181,9 +184,9 @@ TChunkScannerBase::TChunkScannerBase(
     bool journal)
     : TGlobalChunkScanner(
         journal,
-        ChunkServerLogger().WithTag("Kind: %v, Journal: %v",
-            kind,
-            journal))
+        ChunkServerLogger()
+            .WithTag("Kind", kind)
+            .WithTag("Journal", journal))
 {
     YT_VERIFY(kind != EChunkScanKind::GlobalStatisticsCollector);
 }
@@ -200,8 +203,9 @@ bool TChunkScannerBase::IsRelevant(TChunk* chunk) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkScanQueueBase::TChunkScanQueueBase(EChunkScanKind kind)
-    : Kind_(kind)
+TChunkScanQueueBase::TChunkScanQueueBase(TBootstrap* bootstrap, EChunkScanKind kind)
+    : Bootstrap_(bootstrap)
+    , Kind_(kind)
 { }
 
 bool TChunkScanQueueBase::IsObjectAlive(TChunk* chunk)
@@ -216,11 +220,23 @@ bool TChunkScanQueueBase::GetScanFlag(TChunk* chunk) const
 
 void TChunkScanQueueBase::ClearScanFlag(TChunk* chunk)
 {
+    YT_LOG_EVENT(
+        ChunkServerLogger(),
+        GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()),
+        "Scan flag is cleared for chunk (ChunkId: %v, Kind: %v)",
+        chunk->GetId(),
+        Kind_);
     chunk->ClearScanFlag(Kind_);
 }
 
 void TChunkScanQueueBase::SetScanFlag(TChunk* chunk)
 {
+    YT_LOG_EVENT(
+        ChunkServerLogger(),
+        GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()),
+        "Scan flag is set for chunk (ChunkId: %v, Kind: %v)",
+        chunk->GetId(),
+        Kind_);
     chunk->SetScanFlag(Kind_);
 }
 

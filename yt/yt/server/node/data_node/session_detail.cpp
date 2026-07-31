@@ -64,9 +64,7 @@ void TProbePutBlocksRequestSupplier::ApproveRequest(TLocationMemoryGuard&& memor
     auto guard = Guard(Lock_);
 
     YT_VERIFY(request.CumulativeBlockSize > ApprovedMemory_);
-    YT_VERIFY(memoryGuard.GetUseLegacyUsedMemory() == false);
     YT_VERIFY(memoryGuard.GetSize() == request.CumulativeBlockSize - ApprovedMemory_);
-    YT_VERIFY(!MemoryGuard_ || MemoryGuard_.GetUseLegacyUsedMemory() == false);
 
     if (MemoryGuard_) {
         YT_VERIFY(memoryGuard.GetOwner() == MemoryGuard_.GetOwner());
@@ -131,11 +129,11 @@ TSessionBase::TSessionBase(
     , Lease_(std::move(lease))
     , MasterEpoch_(Bootstrap_->GetMasterEpoch())
     , SessionInvoker_(CreateSerializedInvoker(Location_->GetAuxPoolInvoker()))
-    , Logger(DataNodeLogger().WithTag("LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v",
-        Location_->GetId(),
-        Location_->GetUuid(),
-        Location_->GetIndex(),
-        SessionId_))
+    , Logger(DataNodeLogger()
+        .WithTag("LocationId", Location_->GetId())
+        .WithTag("LocationUuid", Location_->GetUuid())
+        .WithTag("LocationIndex", Location_->GetIndex())
+        .WithTag("ChunkId", SessionId_))
     , StartTime_(TInstant::Now())
     , LockedChunkGuard_(std::move(lockedChunkGuard))
     , WriteBlocksOptions_(std::move(writeBlocksOptions))
@@ -331,7 +329,7 @@ TLocationMemoryGuard TSessionBase::GetMemoryForPutBlocks(i64 memory)
 
     ProbePutBlocksRequestSupplier_->ReleaseResourcesForPutBlocks(memory);
 
-    return Location_->AcquireLocationMemory(true, {}, EIODirection::Write, GetWorkloadDescriptor(), memory);
+    return Location_->AcquireLocationMemory({}, EIODirection::Write, GetWorkloadDescriptor(), memory);
 }
 
 i64 TSessionBase::GetApprovedCumulativeBlockSize() const
@@ -401,7 +399,8 @@ TFuture<TSessionBase::TSendBlocksResult> TSessionBase::SendBlocks(
     int startBlockIndex,
     int blockCount,
     i64 cumulativeBlockSize,
-    i64 ioConsumed,
+    std::optional<i64> ioConsumed,
+    std::optional<double> ioFairShareWeight,
     TDuration requestTimeout,
     bool instantReplyOnThrottling,
     const TNodeDescriptor& targetDescriptor)
@@ -415,7 +414,7 @@ TFuture<TSessionBase::TSendBlocksResult> TSessionBase::SendBlocks(
             ValidateActive();
             Ping();
 
-            return DoSendBlocks(startBlockIndex, blockCount, cumulativeBlockSize, ioConsumed, requestTimeout, instantReplyOnThrottling, targetDescriptor);
+            return DoSendBlocks(startBlockIndex, blockCount, cumulativeBlockSize, ioConsumed, ioFairShareWeight, requestTimeout, instantReplyOnThrottling, targetDescriptor);
         })
         .AsyncVia(SessionInvoker_)
         .Run();

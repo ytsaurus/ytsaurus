@@ -1,3 +1,4 @@
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 #include <yt/yt/flow/library/cpp/controller/describe/common.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_computation.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_computations.h>
@@ -5,6 +6,7 @@
 #include <yt/yt/flow/library/cpp/controller/describe/describe_pipeline.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_worker.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_workers.h>
+#include <yt/yt/flow/library/cpp/controller/describe/draw_pipeline_graph.h>
 #include <yt/yt/flow/library/cpp/controller/describe/fill_graph_limits.h>
 #include <yt/yt/flow/library/cpp/controller/describe/pipeline_description_unroll.h>
 
@@ -208,17 +210,17 @@ public:
         Spec->Streams["output_stream"] = streamSpec;
         Spec->Postprocess();
 
-        FlowView->State->ExecutionSpec->PipelineSpec->SetValue(Spec);
-        FlowView->State->ExecutionSpec->DynamicPipelineSpec->SetValue(DynamicSpec);
-        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->SetValue(BuildExtendedPipelineSpec(Spec));
+        FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(Spec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, TestVersionProvider());
+        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(Spec), TestVersionProvider());
         ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 0u);
         auto context = New<TJobManagerContext>();
         context->Invoker = GetCurrentInvoker();
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
-        context->StatusProfiler = CreateStatusProfiler();
+        context->StatusProfiler = CreateSyncStatusProfiler();
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
-        FlowView->CurrentSpec->SetValue(Spec);
+        FlowView->CurrentSpec->TrySetValue(Spec, TestVersionProvider());
 
         FlowView->State->StartMutation();
         JobManager->DoPartitioning(FlowView);
@@ -822,6 +824,45 @@ TEST_W(TDescribeTest, DescribePipelineNoFlowView)
     EXPECT_THROW(DescribePipeline({.FlowView = nullptr, .Logger = TLogger("test")}), TErrorException);
 }
 
+TEST_W(TDescribeTest, DescribePipelineWarnsOnTooFewWorkers)
+{
+    Prepare();
+
+    // Prepare() registers one worker (WorkerCount == 1) with no declared groups, so it belongs to
+    // the default (empty) worker group, which is also the group used by all computations.
+
+    // Requiring more workers than are available surfaces a top-level error message.
+    DynamicSpec->JobManager->MinimumWorkerCount = 5;
+    FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, TestVersionProvider());
+    auto description = DescribeStatus();
+    EXPECT_TRUE(MessagesContain(description.Messages, "Too few workers (Count: 1, Required: 5)"))
+        << "Messages:" << ConvertToYsonString(description.Messages).ToString();
+
+    // When the requirement is met, no such message is emitted.
+    DynamicSpec->JobManager->MinimumWorkerCount = 1;
+    FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, TestVersionProvider());
+    description = DescribeStatus();
+    EXPECT_FALSE(MessagesContain(description.Messages, "Too few workers"))
+        << "Messages:" << ConvertToYsonString(description.Messages).ToString();
+
+    // The minimum is enforced per used worker group: pointing a computation at a group with no
+    // workers warns about that group even though the overall worker count is sufficient.
+    Spec->Computations["Computation_1"]->WorkerGroup = TWorkerGroupId("gpu");
+    FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(Spec, TestVersionProvider());
+    description = DescribeStatus();
+    EXPECT_TRUE(MessagesContain(description.Messages, "Too few workers in worker group \"gpu\" (Count: 0, Required: 1)"))
+        << "Messages:" << ConvertToYsonString(description.Messages).ToString();
+
+    // A per-group override sets the required count for that group independently of the top-level one.
+    auto gpuOverride = New<TDynamicJobManagerSpec>();
+    gpuOverride->MinimumWorkerCount = 3;
+    DynamicSpec->JobManager->WorkerGroupOverride[TWorkerGroupId("gpu")] = gpuOverride;
+    FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, TestVersionProvider());
+    description = DescribeStatus();
+    EXPECT_TRUE(MessagesContain(description.Messages, "Too few workers in worker group \"gpu\" (Count: 0, Required: 3)"))
+        << "Messages:" << ConvertToYsonString(description.Messages).ToString();
+}
+
 TEST_W(TDescribeTest, DescribeComputations)
 {
     Prepare();
@@ -1266,17 +1307,152 @@ TEST_F(TDescribeTest, FillExtendedStreams)
     const auto& loadedMsg = filled.ExtendedInputStreams[0].Messages[0];
     EXPECT_TRUE(filled.ExtendedInputStreams[0].BackpressureDetected);
     EXPECT_EQ(loadedMsg.Level, ELogLevel::Warning);
-    EXPECT_THAT(loadedMsg.MarkdownText.value(), AllOf(HasSubstr("fill ratio"), HasSubstr("**"))); // exceedance bolded
+    EXPECT_THAT(loadedMsg.MarkdownText.value(), AllOf(HasSubstr("buffers"), HasSubstr("**")));
 
     ASSERT_EQ(filled.ExtendedOutputStreams.size(), 1u);
     const auto& calmMsg = filled.ExtendedOutputStreams[0].Messages[0];
     EXPECT_FALSE(filled.ExtendedOutputStreams[0].BackpressureDetected);
     EXPECT_EQ(calmMsg.Level, ELogLevel::Info);
-    EXPECT_THAT(calmMsg.MarkdownText.value(), AllOf(HasSubstr("fill ratio"), Not(HasSubstr("**")))); // Below threshold, not bold.
+    EXPECT_THAT(calmMsg.MarkdownText.value(), AllOf(HasSubstr("buffers"), Not(HasSubstr("**"))));
 
-    // Per-edge messages are folded into one warning-level computation message.
     ASSERT_FALSE(filled.Messages.empty());
     EXPECT_EQ(filled.Messages.back().Level, ELogLevel::Warning);
+}
+
+TEST_F(TDescribeTest, BuildBuffersAndBackpressureMessage)
+{
+    auto in = MakeStreamGraphId(TStreamId("in"));
+    auto calm = MakeStreamGraphId(TStreamId("calm"));
+    auto out = MakeStreamGraphId(TStreamId("out"));
+    auto fillPartition = TPartitionId(TGuid::FromString("1-1-1-1"));
+    auto blockedPartition = TPartitionId(TGuid::FromString("2-2-2-2"));
+    auto writerPartition = TPartitionId(TGuid::FromString("3-3-3-3"));
+
+    TPipelineComputationDescription comp;
+    comp.InputStreams = {in, calm};
+    comp.OutputStreams = {out};
+
+    // Nearly full input: the fill blocks (bold) and names its worst partition.
+    auto& inStats = comp.InputLimitStats[in]["input_buffer_bytes"];
+    inStats.Max.Used = 97;
+    inStats.Max.Limit = 100;
+    inStats.Max.Pending = 500;
+    inStats.MaxPartitionId = fillPartition;
+
+    // Calm input: visible, not blocking.
+    auto& calmStats = comp.InputLimitStats[calm]["input_buffer_bytes"];
+    calmStats.Max.Used = 10;
+    calmStats.Max.Limit = 100;
+
+    // Output with a low fill but a blocking blocked-time share.
+    auto& outStats = comp.OutputLimitStats[out]["output_buffer_bytes"];
+    outStats.Max.Used = 20;
+    outStats.Max.Limit = 100;
+    outStats.MaxBlockedTimeShare = 0.6;
+    outStats.MaxBlockedPartitionId = blockedPartition;
+
+    // Zero limit with usage: percentages are meaningless, bytes are printed.
+    auto& storeStats = comp.OutputLimitStats[out]["output_store_bytes"];
+    storeStats.Max.Used = 5_MB;
+    storeStats.Max.Limit = 0;
+    storeStats.MaxPartitionId = blockedPartition;
+
+    // Count limits are formatted as counts, not bytes.
+    auto& countStats = comp.OutputLimitStats[out]["output_store_count"];
+    countStats.Max.Used = 12000;
+    countStats.Max.Limit = 50000;
+
+    THashMap<TGraphEntityId, TWriterBlockedShare> writerBlocked;
+    writerBlocked[in] = {0.56, writerPartition};
+
+    auto message = BuildBuffersAndBackpressureMessage(comp, writerBlocked);
+    ASSERT_TRUE(message.has_value());
+    EXPECT_EQ(message->Level, NLogging::ELogLevel::Warning);
+    const auto& markdown = *message->MarkdownText;
+
+    EXPECT_LT(markdown.find("- input"), markdown.find("- output"));
+    EXPECT_THAT(markdown, HasSubstr(Format("input_buffer_bytes{limit=100B, used=**97%%**, pending=500%%, backpressured_partition=%v}", fillPartition)));
+    EXPECT_THAT(markdown, HasSubstr(Format("writer{blocked_share=**0.56**, backpressured_partition=%v}", writerPartition)));
+    EXPECT_THAT(markdown, HasSubstr(Format("output_buffer_bytes{blocked_share=**0.60**, limit=100B, used=20%%, backpressured_partition=%v}", blockedPartition)));
+    EXPECT_THAT(markdown, HasSubstr("output_store_bytes{limit=0B, used=**5.0MB**"));
+    EXPECT_THAT(markdown, HasSubstr("output_store_count{limit=50K, used=24%}"));
+    // The calm stream is listed without bold or a partition.
+    EXPECT_THAT(markdown, HasSubstr("input_buffer_bytes{limit=100B, used=10%}\n"));
+
+    EXPECT_FALSE(BuildBuffersAndBackpressureMessage(TPipelineComputationDescription{}, {}).has_value());
+}
+
+TEST_F(TDescribeTest, MermaidGraphEscapesBraces)
+{
+    Prepare();
+
+    for (const auto& [computationId, computationSpec] : Spec->Computations) {
+        auto& computationDescription = Pipeline.Computations[computationId];
+        RegisterStreams(Spec, computationId, Pipeline, computationDescription, TDescribeTraitsContext{});
+        auto& stats = computationDescription.OutputLimitStats[MakeStreamGraphId(TStreamId("output_stream"))]["output_buffer_bytes"];
+        stats.Max.Limit = 100_MB;
+        stats.Max.Used = 90_MB;
+        stats.MaxBlockedTimeShare = 0.9;
+    }
+
+    // Braces are node syntax in mermaid and must reach the diagram as entities,
+    // not as lookalike fullwidth symbols.
+    auto diagram = BuildMermaidComputationsGraph(Pipeline);
+    EXPECT_THAT(diagram, HasSubstr("&lbrace;"));
+    EXPECT_THAT(diagram, HasSubstr("&rbrace;"));
+    EXPECT_THAT(diagram, Not(HasSubstr("{")));
+    EXPECT_THAT(diagram, Not(HasSubstr("\uff5b")));
+    EXPECT_THAT(diagram, Not(HasSubstr("\uff5d")));
+}
+
+TEST_F(TDescribeTest, BlockedTimeShareReachesDescribeFromJobStatus)
+{
+    Prepare();
+
+    // Charge a blocked-time share on one partition's output buffer, exactly the
+    // way a worker reports it, and check it survives the whole aggregation path
+    // into the rendered computation message.
+    TPartitionId blockedPartitionId;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId != TComputationId("Computation_1")) {
+            continue;
+        }
+        auto& jobStatus = FlowView->Feedback->PartitionJobStatuses[partitionId]->CurrentJobStatus;
+        auto& limitStatus = jobStatus->OutputLimits["output_buffer_bytes"][TStreamId("output_stream")];
+        limitStatus.Limit = 100_MB;
+        limitStatus.Used = 10_MB;
+        limitStatus.BlockedTimeShare = 0.75;
+        blockedPartitionId = partitionId;
+        break;
+    }
+    ASSERT_FALSE(blockedPartitionId == TPartitionId());
+
+    for (const auto& [computationId, computationSpec] : Spec->Computations) {
+        auto& computationDescription = Pipeline.Computations[computationId];
+        RegisterStreams(Spec, computationId, Pipeline, computationDescription, TDescribeTraitsContext{});
+    }
+    FillGraphLimits(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView), Pipeline);
+    FillExtendedStreams(FlowView, Pipeline);
+
+    const auto& computation = Pipeline.Computations.at(TComputationId("Computation_1"));
+    const TMessage* message = nullptr;
+    for (const auto& candidate : computation.Messages) {
+        if (candidate.Text == "Stream buffers and backpressure") {
+            message = &candidate;
+        }
+    }
+    ASSERT_TRUE(message);
+    EXPECT_EQ(message->Level, ELogLevel::Warning);
+    EXPECT_THAT(*message->MarkdownText, HasSubstr("blocked_share=**0.75**"));
+    EXPECT_THAT(*message->MarkdownText, HasSubstr(Format("backpressured_partition=%v", blockedPartitionId)));
+
+    // The consumers of that stream see the producer's blocked share as their own
+    // writer-side signal.
+    auto writerShares = ComputeWriterBlockedTimeShares(Pipeline);
+    const auto* share = writerShares.FindPtr(MakeStreamGraphId(TStreamId("output_stream")));
+    ASSERT_TRUE(share);
+    EXPECT_EQ(share->Share, 0.75);
+    EXPECT_EQ(share->ExamplePartitionId, blockedPartitionId);
 }
 
 TEST_F(TDescribeTest, FillStreamStatisticsMessages)
@@ -1427,6 +1603,34 @@ TEST(TBuildDeterministicTopologicalIndexTest, DeterministicAndStable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_W(TDescribeTest, DescribeWorkerShowsGroups)
+{
+    WorkerCount = 0;
+    Prepare();
+
+    auto worker = New<NFlow::TWorker>();
+    worker->RpcAddress = "[10.0.0.1]:81";
+    worker->MonitoringAddress = "[10.0.0.1]:80";
+    worker->IncarnationId = TIncarnationId(TGuid::Create());
+    worker->Groups = {TWorkerGroupId("HEAVY_WORKER"), TWorkerGroupId("misc")};
+    FlowView->State->Workers[worker->RpcAddress] = worker;
+
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    JobManager->DistributeJobs(FlowView);
+    FlowView->State->CommitMutation();
+
+    auto workersDescription = DescribeWorkers(FlowView);
+    ASSERT_EQ(workersDescription.Workers.size(), 1u);
+    const auto expected = std::vector<TWorkerGroupId>{TWorkerGroupId("HEAVY_WORKER"), TWorkerGroupId("misc")};
+    EXPECT_EQ(workersDescription.Workers[0].WorkerGroups, expected);
+    EXPECT_EQ(workersDescription.Workers[0].Groups, expected);
+
+    auto serialized = NYTree::ConvertToNode(workersDescription.Workers[0])->AsMap();
+    EXPECT_TRUE(serialized->FindChild("groups"));
+    EXPECT_TRUE(serialized->FindChild("worker_groups"));
+}
+
 TEST_W(TDescribeTest, DescribeWorkerWithIPv4Address)
 {
     // Override the default worker address to use IPv4 format produced by FormatNetworkAddress.
@@ -1470,7 +1674,7 @@ TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetNotSet)
 TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMatching)
 {
     Prepare();
-    FlowView->State->ExecutionSpec->FlowCoreTarget->SetValue(TFlowCoreTarget(GetBinaryChecksum()));
+    FlowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(GetBinaryChecksum()), TestVersionProvider());
 
     auto description = DescribeStatus();
 
@@ -1481,7 +1685,7 @@ TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMatching)
 TEST_W(TDescribeTest, DescribePipelineShowsControllerCommitInfo)
 {
     Prepare();
-    FlowView->State->ExecutionSpec->FlowCoreTarget->SetValue(TFlowCoreTarget(std::string("mismatched_version")));
+    FlowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(std::string("mismatched_version")), TestVersionProvider());
 
     auto description = DescribeStatus();
     auto contains = [&] (const std::string& text) {
@@ -1522,7 +1726,7 @@ TEST_W(TDescribeTest, DescribePipelineShowsControllerCommitInfo)
 TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMismatch)
 {
     Prepare();
-    FlowView->State->ExecutionSpec->FlowCoreTarget->SetValue(TFlowCoreTarget(std::string("mismatched_version")));
+    FlowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(std::string("mismatched_version")), TestVersionProvider());
 
     auto description = DescribeStatus();
     auto dump = [&] {
@@ -1546,7 +1750,7 @@ TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMismatch)
 TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMismatchedWorkers)
 {
     Prepare();
-    FlowView->State->ExecutionSpec->FlowCoreTarget->SetValue(TFlowCoreTarget(GetBinaryChecksum()));
+    FlowView->State->ExecutionSpec->FlowCoreTarget->TrySetValue(TFlowCoreTarget(GetBinaryChecksum()), TestVersionProvider());
     FlowView->EphemeralState->FlowCoreTargetMismatchedWorkers["old_version_1"] = {
         .ExampleAddress = "worker-old-1.net:81",
         .Count = 1,

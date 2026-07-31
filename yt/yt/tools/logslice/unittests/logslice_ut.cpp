@@ -14,6 +14,7 @@
 
 #include <library/cpp/yt/cpu_clock/clock.h>
 #include <library/cpp/yt/logging/logger.h>
+#include <library/cpp/yt/logging/tagged_payload.h>
 
 #include <util/stream/str.h>
 #include <util/string/split.h>
@@ -51,8 +52,7 @@ protected:
         event.Family = ELogFamily::PlainText;
         event.Category = GetTestCategory();
         event.Level = ELogLevel::Info;
-        event.MessageRef = TSharedRef::FromString(TString(message));
-        event.MessageKind = ELogMessageKind::Unstructured;
+        event.Payload = MakeTaggedPayloadFromMessage(message);
         event.Instant = InstantToCpuInstant(instant);
         return event;
     }

@@ -135,7 +135,7 @@ public:
 
 public:
     TPrimaryDomain(TStringBuf kind, TLogger logger, const TComparator& comparator)
-        : Logger(std::move(logger).WithTag("Domain: %v", kind))
+        : Logger(std::move(logger).WithTag("Domain", kind))
         , Comparator_(comparator)
     { }
 

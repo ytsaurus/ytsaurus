@@ -80,13 +80,13 @@ public:
                 BIND([this, this_ = MakeStrong(this)] (TWriteLockPtr&& guard) {
                     auto oldState = std::exchange(State_, EState::Initializing);
                     if (oldState != EState::Uninitialized) {
-                        YT_LOG_WARNING("Creating not uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, State: %v)",
+                        YT_LOG_WARNING("Creating not uninitialized NBD chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, State: %v)",
                             ChunkId_,
                             ChunkPath_,
                             ChunkSize_,
                             oldState);
 
-                        THROW_ERROR_EXCEPTION("Creating not uninitialized nbd chunk handler")
+                        THROW_ERROR_EXCEPTION("Creating not uninitialized NBD chunk handler")
                             << TErrorAttribute("chunk_id", ChunkId_)
                             << TErrorAttribute("chunk_path", ChunkPath_)
                             << TErrorAttribute("chunk_size", ChunkSize_)
@@ -140,13 +140,13 @@ public:
                 BIND([this, this_ = MakeStrong(this)] (TWriteLockPtr&& guard) {
                     auto oldState = std::exchange(State_, EState::Finalizing);
                     if (oldState != EState::Initialized) {
-                        YT_LOG_WARNING("Destroying not initialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, State: %v)",
+                        YT_LOG_WARNING("Destroying not initialized NBD chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, State: %v)",
                             ChunkId_,
                             ChunkPath_,
                             ChunkSize_,
                             oldState);
 
-                        THROW_ERROR_EXCEPTION("Destroying not initialized nbd chunk handler")
+                        THROW_ERROR_EXCEPTION("Destroying not initialized NBD chunk handler")
                             << TErrorAttribute("chunk_id", ChunkId_)
                             << TErrorAttribute("chunk_path", ChunkPath_)
                             << TErrorAttribute("chunk_size", ChunkSize_)
@@ -172,11 +172,11 @@ public:
 
                     try {
                         NFs::Remove(ChunkPath_);
-                        YT_LOG_DEBUG("Destroyed nbd chunk handler (ChunkId: %v, ChunkPath: %v)",
+                        YT_LOG_DEBUG("Destroyed NBD chunk handler (ChunkId: %v, ChunkPath: %v)",
                             ChunkId_,
                             ChunkPath_);
                     } catch (const std::exception& ex) {
-                        YT_LOG_WARNING(ex, "Failed to remove nbd chunk file (ChunkId: %v, ChunkPath: %v)",
+                        YT_LOG_WARNING(ex, "Failed to remove NBD chunk file (ChunkId: %v, ChunkPath: %v)",
                             ChunkId_,
                             ChunkPath_);
 
@@ -203,7 +203,7 @@ public:
                 BIND([=, this, this_ = MakeStrong(this), lockWaitTimer = std::move(lockWaitTimer)] (TReadLockPtr&& guard) {
                     auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
                     if (State_ != EState::Initialized) {
-                        YT_LOG_WARNING("Read from uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %x, State: %v)",
+                        YT_LOG_WARNING("Read from uninitialized NBD chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %x, State: %v)",
                             ChunkId_,
                             ChunkPath_,
                             ChunkSize_,
@@ -212,7 +212,7 @@ public:
                             cookie,
                             State_);
 
-                        THROW_ERROR_EXCEPTION("Read from uninitialized nbd chunk handler")
+                        THROW_ERROR_EXCEPTION("Read from uninitialized NBD chunk handler")
                             << TErrorAttribute("chunk_id", ChunkId_)
                             << TErrorAttribute("chunk_path", ChunkPath_)
                             << TErrorAttribute("chunk_size", ChunkSize_)
@@ -237,7 +237,7 @@ public:
                     TWallTimer throttleTimer;
                     auto throttleFuture = AllSucceeded(std::vector<TFuture<void>>{
                         ReadNetThrottler_->Throttle(length),
-                        ReadStoreThrottler_->Throttle(length)
+                        ReadStoreThrottler_->Throttle(length),
                     });
 
                     // Perform read and return result.
@@ -264,7 +264,7 @@ public:
                                         ioDuration,
                                         cookie);
 
-                                    YT_VERIFY(response.OutputBuffers.size() == 1);
+                                    YT_VERIFY(std::ssize(response.OutputBuffers) == 1);
                                     return TBlock(response.OutputBuffers[0]);
                                 }));
                         }));
@@ -283,7 +283,7 @@ public:
 
         YT_LOG_DEBUG("Started batch reading from NBD chunk (ChunkId: %v, SubrequestCount: %v, TotalLength: %v, Cookie: %x)",
             ChunkId_,
-            subrequests.size(),
+            std::ssize(subrequests),
             totalLength,
             cookie);
 
@@ -295,7 +295,7 @@ public:
                 BIND([=, this, this_ = MakeStrong(this), lockWaitTimer = std::move(lockWaitTimer)] (TReadLockPtr&& guard) mutable {
                     auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
                     if (State_ != EState::Initialized) {
-                        THROW_ERROR_EXCEPTION("ReadBatch from uninitialized nbd chunk handler")
+                        THROW_ERROR_EXCEPTION("ReadBatch from uninitialized NBD chunk handler")
                             << TErrorAttribute("chunk_id", ChunkId_)
                             << TErrorAttribute("state", State_);
                     }
@@ -310,11 +310,11 @@ public:
                         }
                     }
 
-                    // Throttle once for total bytes.
+                    // Throttle both network and disk read in parallel.
                     TWallTimer throttleTimer;
                     auto throttleFuture = AllSucceeded(std::vector<TFuture<void>>{
                         ReadNetThrottler_->Throttle(totalLength),
-                        ReadStoreThrottler_->Throttle(totalLength)
+                        ReadStoreThrottler_->Throttle(totalLength),
                     });
 
                     return throttleFuture.Apply(
@@ -342,14 +342,14 @@ public:
 
                                     YT_LOG_DEBUG("Finished batch reading from NBD chunk (ChunkId: %v, SubrequestCount: %v, TotalLength: %v, LockWaitDuration: %v, ThrottleDuration: %v, IODuration: %v, Cookie: %x)",
                                         ChunkId_,
-                                        subrequests.size(),
+                                        std::ssize(subrequests),
                                         totalLength,
                                         lockWaitDuration,
                                         throttleDuration,
                                         ioDuration,
                                         cookie);
 
-                                    YT_VERIFY(response.OutputBuffers.size() == subrequests.size());
+                                    YT_VERIFY(std::ssize(response.OutputBuffers) == std::ssize(subrequests));
                                     std::vector<TBlock> blocks;
                                     blocks.reserve(response.OutputBuffers.size());
                                     for (const auto& buf : response.OutputBuffers) {
@@ -378,7 +378,7 @@ public:
                 BIND([=, this, this_ = MakeStrong(this), lockWaitTimer = std::move(lockWaitTimer)] (TReadLockPtr&& guard) {
                     auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
                     if (State_ != EState::Initialized) {
-                        YT_LOG_WARNING("Write to uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %x, State: %v)",
+                        YT_LOG_WARNING("Write to uninitialized NBD chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %x, State: %v)",
                             ChunkId_,
                             ChunkPath_,
                             ChunkSize_,
@@ -387,7 +387,7 @@ public:
                             cookie,
                             State_);
 
-                        THROW_ERROR_EXCEPTION("Write to uninitialized nbd chunk handler")
+                        THROW_ERROR_EXCEPTION("Write to uninitialized NBD chunk handler")
                             << TErrorAttribute("chunk_id", ChunkId_)
                             << TErrorAttribute("chunk_path", ChunkPath_)
                             << TErrorAttribute("chunk_size", ChunkSize_)
@@ -462,7 +462,7 @@ public:
                 BIND([=, this, this_ = MakeStrong(this), lockWaitTimer = std::move(lockWaitTimer)] (TReadLockPtr&& guard) {
                     auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
                     if (State_ != EState::Initialized) {
-                        THROW_ERROR_EXCEPTION("Flush on uninitialized nbd chunk handler")
+                        THROW_ERROR_EXCEPTION("Flush on uninitialized NBD chunk handler")
                             << TErrorAttribute("chunk_id", ChunkId_)
                             << TErrorAttribute("state", State_);
                     }
@@ -501,7 +501,7 @@ public:
                 BIND([=, this, this_ = MakeStrong(this), lockWaitTimer = std::move(lockWaitTimer)] (TReadLockPtr&& guard) {
                     auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
                     if (State_ != EState::Initialized) {
-                        THROW_ERROR_EXCEPTION("FlushRange on uninitialized nbd chunk handler")
+                        THROW_ERROR_EXCEPTION("FlushRange on uninitialized NBD chunk handler")
                             << TErrorAttribute("chunk_id", ChunkId_)
                             << TErrorAttribute("state", State_);
                     }

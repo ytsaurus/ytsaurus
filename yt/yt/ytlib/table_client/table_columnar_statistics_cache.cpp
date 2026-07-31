@@ -214,19 +214,20 @@ public:
     {
         auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             Client_,
-            TMasterReadOptions{},
             New<TNodeDirectory>(),
             Invoker_,
-            Config_->MaxChunksPerFetch,
-            Config_->MaxChunksPerLocateRequest,
-            [=] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*tableIndex*/) {
-                req->set_fetch_all_meta_extensions(false);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
-                req->set_omit_dynamic_stores(true);
-                SetTransactionId(req, NullTransactionId);
-                SetSuppressAccessTracking(req, true);
-                SetSuppressExpirationTimeoutRenewal(req, true);
+            TMasterChunkSpecFetcherOptions{
+                .MaxChunksPerFetch = Config_->MaxChunksPerFetch,
+                .MaxChunksPerLocateRequest = Config_->MaxChunksPerLocateRequest,
+                .FetchRequestInitializer = [=] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*tableIndex*/) {
+                    req->set_fetch_all_meta_extensions(false);
+                    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
+                    req->set_omit_dynamic_stores(true);
+                    SetTransactionId(req, NullTransactionId);
+                    SetSuppressAccessTracking(req, true);
+                    SetSuppressExpirationTimeoutRenewal(req, true);
+                },
             },
             Logger);
         for (const auto& [index, key] : Enumerate(keys)) {
