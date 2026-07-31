@@ -240,7 +240,7 @@ private:
 
 DEFINE_MASTER_OBJECT_TYPE(TTableNode)
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 656);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 648);
 
 ////////////////////////////////////////////////////////////////////////////////
 

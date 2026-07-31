@@ -92,10 +92,10 @@
     XX(ChunkLocations, chunk_locations) \
     XX(ChunkMediaStatistics, chunk_media_statistics) \
     XX(ChunkMergerCriteria, chunk_merger_criteria) \
+    XX(ChunkMergerInfo, chunk_merger_info) \
     XX(ChunkMergerMode, chunk_merger_mode) \
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
     XX(ChunkMergerStatus, chunk_merger_status) \
-    XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
     XX(ChunkMergerUsage, chunk_merger_usage) \
     XX(ChunkReader, chunk_reader) \
     XX(ChunkRefreshEnabled, chunk_refresh_enabled) \
