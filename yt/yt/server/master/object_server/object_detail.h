@@ -66,7 +66,7 @@ protected:
     // NB: the only cases of using the same object proxy from different threads
     // is master object proxy. This flag is meaningless for it but we have to
     // use atomic here to make TSAN happy.
-    std::atomic_flag ModificationTrackingSuppressed_ = {};
+    std::atomic_flag ModificationTrackingSuppressed_;
     NYTree::IAttributeDictionary* CustomAttributes_ = nullptr;
 
     struct TGetBasicAttributesContext

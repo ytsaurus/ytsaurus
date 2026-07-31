@@ -95,7 +95,7 @@ struct TEpochContext
     NConcurrency::TPeriodicExecutorPtr HeartbeatMutationCommitExecutor;
     NConcurrency::TPeriodicExecutorPtr AlivePeersUpdateExecutor;
 
-    std::atomic_flag Restarting = ATOMIC_FLAG_INIT;
+    std::atomic_flag Restarting;
     std::atomic<bool> LeaderSwitchStarted = false;
     std::atomic<bool> LeaderLeaseExpired = false;
     std::atomic<bool> AcquiringChangelog = false;

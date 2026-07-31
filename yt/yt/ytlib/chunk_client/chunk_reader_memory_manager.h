@@ -142,7 +142,7 @@ private:
     std::atomic<i64> TotalMemorySize_ = TotalMemorySizeUnknown;
 
     std::atomic<bool> Finalized_ = false;
-    std::atomic_flag Unregistered_ = ATOMIC_FLAG_INIT;
+    std::atomic_flag Unregistered_;
 
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
 
