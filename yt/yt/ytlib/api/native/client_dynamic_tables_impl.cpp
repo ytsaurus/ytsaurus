@@ -1686,7 +1686,7 @@ TDuration TClient::CheckPermissionsForQuery(
 
     if (options.ExecutionPool) {
         auto key = NSecurityClient::TPermissionKey{
-            .Path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
+            .Path = TYPath::Join(QueryPoolsPath, '/', NYPath::ToYPathLiteral(*options.ExecutionPool)),
             .User = Options_.GetAuthenticatedUser(),
             .Permission = EPermission::Use,
         };
