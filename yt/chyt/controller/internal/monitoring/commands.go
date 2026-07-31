@@ -24,6 +24,6 @@ func NewServer(c HTTPMonitoringConfig, l log.Logger, leader LeaderChecker, healt
 	return httpserver.New(c.Endpoint, RegisterHTTPMonitoring(c, l, leader, healthers))
 }
 
-func NewSolomonServer(endpoint string, registry *solomon.Registry) *httpserver.HTTPServer {
+func NewMetricsServer(endpoint string, registry *solomon.Registry) *httpserver.HTTPServer {
 	return httpserver.New(endpoint, RegisterHTTPMetrics(registry))
 }
