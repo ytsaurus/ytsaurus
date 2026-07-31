@@ -29,6 +29,9 @@ common:
     - from: /user-guide/data-processing/spyt/structured-streaming.md
       to: /user-guide/data-processing/spyt/structured-streaming/index.md
       type: redirect
+    - from: /user-guide/data-processing/spyt/diagnostics.md
+      to: /user-guide/data-processing/spyt/diagnostics/index.md
+      type: redirect
     # Dynamit tables
     - from: /user-guide/dynamic-tables/index.md
       to: /user-guide/dynamic-tables/overview.md
