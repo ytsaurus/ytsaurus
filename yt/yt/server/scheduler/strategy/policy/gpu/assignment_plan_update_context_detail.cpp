@@ -18,7 +18,7 @@ TAssignmentHandler::TAssignmentHandler(TLogger logger)
     : Logger(std::move(logger))
 { }
 
-void TAssignmentHandler::AddPlannedAssignment(
+TAssignmentPtr TAssignmentHandler::AddPlannedAssignment(
     std::string allocationGroupName,
     TJobResourcesWithQuota resourceUsage,
     TOperation* operation,
@@ -47,6 +47,8 @@ void TAssignmentHandler::AddPlannedAssignment(
         assignment->Node->Address(),
         assignment->Preemptible,
         assignment->Operation->GetId());
+
+    return assignment;
 }
 
 void TAssignmentHandler::PreemptAssignment(
@@ -157,7 +159,7 @@ const TGpuPlanUpdateStatisticsPtr& TAssignmentPlanUpdateContext::GetStatistics()
     return Statistics_;
 }
 
-void TAssignmentPlanUpdateContext::AddPlannedAssignment(
+TAssignmentPtr TAssignmentPlanUpdateContext::AddPlannedAssignment(
     std::string allocationGroupName,
     TJobResourcesWithQuota resourceUsage,
     TOperation* operation,
@@ -165,7 +167,12 @@ void TAssignmentPlanUpdateContext::AddPlannedAssignment(
     bool preemptible)
 {
     IncreaseOperationUsage(operation, resourceUsage);
-    AssignmentHandler_.AddPlannedAssignment(std::move(allocationGroupName), resourceUsage, operation, node, preemptible);
+    return AssignmentHandler_.AddPlannedAssignment(
+        std::move(allocationGroupName),
+        resourceUsage,
+        operation,
+        node,
+        preemptible);
 }
 
 void TAssignmentPlanUpdateContext::PreemptAssignment(
@@ -344,7 +351,8 @@ void TAssignmentPlanUpdateContext::UpdateOperationResources(const TOperationPtr&
                 ++readyToAssignResources.AllocationCount;
                 readyToAssignShare += allocationUsageShare;
             } else {
-                if (operation->IsFullHostModuleBound()) {
+                // NB(severovv): extra resources are not allowed for full-host operations.
+                if (operation->IsFullHost()) {
                     break;
                 }
                 ++extraResources.AllocationCount;
