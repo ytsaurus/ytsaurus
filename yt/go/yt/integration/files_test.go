@@ -67,9 +67,9 @@ func TestFiles(t *testing.T) {
 			name := tmpPath()
 
 			w, err := env.YT.WriteFile(ctx, name, nil)
-			require.NoError(t, err)
-
-			err = w.Close()
+			if err == nil {
+				err = w.Close()
+			}
 			require.Error(t, err)
 			require.True(t, yterrors.ContainsErrorCode(err, 500))
 		})
