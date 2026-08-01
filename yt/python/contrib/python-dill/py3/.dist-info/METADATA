@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: dill
-Version: 0.4.0
+Version: 0.4.1
 Summary: serialize all of Python
 Home-page: https://github.com/uqfoundation/dill
 Download-URL: https://pypi.org/project/dill/#files
@@ -20,23 +20,23 @@ Classifier: Intended Audience :: Developers
 Classifier: Intended Audience :: Science/Research
 Classifier: License :: OSI Approved :: BSD License
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Topic :: Scientific/Engineering
 Classifier: Topic :: Software Development
-Requires-Python: >=3.8
+Requires-Python: >=3.9
 License-File: LICENSE
-Provides-Extra: graph
-Requires-Dist: objgraph >=1.7.2 ; extra == 'graph'
-Provides-Extra: profile
-Requires-Dist: gprof2dot >=2022.7.29 ; extra == 'profile'
 Provides-Extra: readline
+Provides-Extra: graph
+Requires-Dist: objgraph>=1.7.2; extra == "graph"
+Provides-Extra: profile
+Requires-Dist: gprof2dot>=2022.7.29; extra == "profile"
 
 -----------------------------
 dill: serialize all of Python
@@ -148,7 +148,7 @@ Requirements
 
 ``dill`` requires:
 
-    - ``python`` (or ``pypy``), **>=3.8**
+    - ``python`` (or ``pypy``), **>=3.9**
     - ``setuptools``, **>=42**
 
 Optional requirements:
