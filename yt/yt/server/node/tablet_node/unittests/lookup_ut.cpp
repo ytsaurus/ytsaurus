@@ -15,6 +15,8 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NTabletNode {
@@ -27,6 +29,9 @@ using namespace NChunkClient;
 using namespace NObjectClient;
 
 using namespace NTableClient::NProto;
+
+using NYT::NTransactionClient::operator""_ts;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -154,7 +159,6 @@ private:
 
     TTableSchemaPtr TableSchema_;
 
-
     TChunkData ConstructChunkData(
         const std::vector<TVersionedOwningRow>& rows,
         const TTableSchemaPtr& chunkSchema)
@@ -181,8 +185,8 @@ private:
         }
 
         NChunkClient::NProto::TMiscExt miscExt;
-        miscExt.set_min_timestamp(minTimestamp);
-        miscExt.set_max_timestamp(maxTimestamp);
+        miscExt.set_min_timestamp(ToProto(minTimestamp));
+        miscExt.set_max_timestamp(ToProto(maxTimestamp));
         miscExt.set_sorted(true);
         miscExt.set_row_count(rows.size());
         miscExt.set_data_weight(dataWeight);
@@ -318,7 +322,7 @@ TEST_F(TLookupTest, RetentionTimestamp)
         DoLookupRows(
             {YsonToKey("0")},
             /*timestamp*/ SyncLastCommittedTimestamp,
-            /*retentionTimestamp*/ TTimestamp(200))[0]);
+            /*retentionTimestamp*/ 200_ts)[0]);
 }
 
 TEST_F(TLookupTest, ColumnFilter)
@@ -378,11 +382,11 @@ TEST_F(TLookupTest, DeletedRow)
             YsonToVersionedRow(
                 "<id=0> 0",
                 "",
-                {TTimestamp(200)}),
+                {200_ts}),
             YsonToVersionedRow(
                 "<id=0> 1",
                 "",
-                {TTimestamp(200)}),
+                {200_ts}),
         });
 
     OnChunkStoresAdded();
@@ -402,7 +406,7 @@ TEST_F(TLookupTest, ExplicitTimestamp)
             YsonToVersionedRow(
                 "<id=0> 1",
                 "<id=1;ts=100> 1",
-                {TTimestamp(200)}),
+                {200_ts}),
         });
     AddChunkStore(
         /*eden*/ false,
@@ -417,7 +421,7 @@ TEST_F(TLookupTest, ExplicitTimestamp)
     EXPECT_EQ(
         DoLookupRows(
             {YsonToKey("0"), YsonToKey("1")},
-            TTimestamp(150)),
+            150_ts),
         std::vector<TUnversionedOwningRow>({BuildRow("k=0;v=0"), BuildRow("k=1;v=1")}));
 }
 

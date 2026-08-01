@@ -719,7 +719,7 @@ private:
                             *timestampColumnIndex);
                     }
 
-                    auto rowTimestamp = row[*timestampColumnIndex].Data.Uint64;
+                    auto rowTimestamp = TTimestamp(row[*timestampColumnIndex].Data.Uint64);
 
                     if (progressTimestamp >= rowTimestamp || previousTimestamp > rowTimestamp) {
                         counters->FatalErrorCount.Increment();

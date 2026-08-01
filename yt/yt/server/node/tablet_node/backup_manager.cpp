@@ -35,10 +35,9 @@ using namespace NApi;
 using namespace NTabletClient;
 using namespace NObjectClient;
 
-using NYT::ToProto;
-using NYT::FromProto;
-
 using NLsm::EStoreRotationReason;
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 /**
@@ -372,7 +371,7 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-        auto timestamp = request->timestamp();
+        auto timestamp = FromProto<NTransactionClient::TTimestamp>(request->timestamp());
         auto mode = FromProto<EBackupMode>(request->backup_mode());
         auto clockClusterTag = request->has_clock_cluster_tag()
             ? std::make_optional(FromProto<TClusterTag>(request->clock_cluster_tag()))
@@ -481,7 +480,7 @@ private:
         // Confirmed.
         for (const auto& confirmedInfo : request->confirmed_tablets()) {
             auto tabletId = FromProto<TTabletId>(confirmedInfo.tablet_id());
-            auto timestamp = confirmedInfo.timestamp();
+            auto timestamp = FromProto<NTransactionClient::TTimestamp>(confirmedInfo.timestamp());
 
             auto* tablet = tabletManager->FindTablet(tabletId);
             if (!tablet) {
@@ -669,7 +668,7 @@ private:
 
                 auto* confirmedInfo = req.add_confirmed_tablets();
                 ToProto(confirmedInfo->mutable_tablet_id(), tablet->GetId());
-                confirmedInfo->set_timestamp(tablet->GetBackupCheckpointTimestamp());
+                confirmedInfo->set_timestamp(ToProto(tablet->GetBackupCheckpointTimestamp()));
             } else {
                 YT_LOG_DEBUG("Transiently rejected backup checkpoint feasibility "
                     "(TabletId: %v, CheckpointTimestamp: %v, CurrentTimestamp: %v, "

@@ -4657,7 +4657,7 @@ private:
             default:
                 break;
         }
-        request.set_timestamp(lock->Request().Timestamp);
+        request.set_timestamp(ToProto(lock->Request().Timestamp));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, externalCellTag);

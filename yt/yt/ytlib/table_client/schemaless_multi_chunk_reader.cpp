@@ -90,10 +90,9 @@ using namespace NScheduler;
 using namespace NApi;
 using namespace NLogging;
 
+using NChunkClient::NProto::TMiscExt;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TReadRange;
-using NChunkClient::NProto::TMiscExt;
-
 using NYT::FromProto;
 using NYT::TRange;
 
@@ -1338,15 +1337,15 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             .BlockCache = chunkReaderHost->BlockCache,
             .ChunkSpec = chunkSpec,
             .ChunkMeta = versionedChunkMeta,
-            .OverrideTimestamp = chunkSpec.has_override_timestamp() ? chunkSpec.override_timestamp() : NullTimestamp,
+            .OverrideTimestamp = FromProto<NTransactionClient::TTimestamp>(chunkSpec.override_timestamp()),
             .TableSchema = versionedReadSchema,
             .DataSource = dataSource,
         });
 
         auto effectiveTimestamp = timestamp;
         if (chunkSpec.has_max_clip_timestamp()) {
-            YT_ASSERT(chunkSpec.max_clip_timestamp() != NullTimestamp);
-            effectiveTimestamp = std::min(effectiveTimestamp, chunkSpec.max_clip_timestamp());
+            YT_ASSERT(FromProto<NTransactionClient::TTimestamp>(chunkSpec.max_clip_timestamp()) != NullTimestamp);
+            effectiveTimestamp = std::min(effectiveTimestamp, FromProto<NTransactionClient::TTimestamp>(chunkSpec.max_clip_timestamp()));
         }
 
         if (versionedChunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {

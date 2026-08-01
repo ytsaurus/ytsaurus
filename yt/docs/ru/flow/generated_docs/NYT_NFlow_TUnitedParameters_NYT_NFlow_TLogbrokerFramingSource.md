@@ -40,11 +40,15 @@
 **Значение по умолчанию**: `true`
  ||
 || `flow_queue_meta_name` | **Тип**: `std::string`
-**Значение по умолчанию**: `flow_queue_meta`
+**Значение по умолчанию**: `_ytflow_queue_meta`
  ||
 || `ignore_malformed_flow_queue_meta` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
  ||
+|| `attributes_column` | **Тип**: `std::optional<std::string>`
+Колонка, в которую складываются атрибуты прочитанного сообщения Logbroker в виде yson-мапы вида `{имя -> строка}`. Читать её удобно функцией `NYT::NFlow::UnpackLogbrokerAttributes()`. Атрибуты, которыми владеет flow, и атрибуты, которые интерпретирует YDB, в колонку не попадают. Если имя встречается несколько раз, сохраняется первое значение.
+
+Если параметр не задан, колонка не создаётся. ||
 || `partition_filter` | **Тип**: `std::optional<std::vector<std::pair<int, int>>>`
  ||
 || `framing_format` | **Тип**: [NYT::NFlow::EFramingFormat](./all_yson_structs#NYT_NFlow_EFramingFormat)

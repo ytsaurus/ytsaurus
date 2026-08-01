@@ -708,10 +708,10 @@ void TNestedTableMerger::UnpackKeyColumns(
         int startOffset = 0;
         for (int i = 0; i < std::ssize(EndOffsets_); ++i) {
             if (startOffset == EndOffsets_[i]) {
-                Timestamps_.push_back(i);
+                Timestamps_.push_back(NTransactionClient::TTimestamp(i));
             } else {
                 while (startOffset < EndOffsets_[i]) {
-                    Timestamps_.push_back(i);
+                    Timestamps_.push_back(NTransactionClient::TTimestamp(i));
                     ++startOffset;
                 }
             }

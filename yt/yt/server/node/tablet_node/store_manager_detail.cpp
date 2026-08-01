@@ -40,7 +40,6 @@ using namespace NTransactionClient;
 using namespace NCypressClient;
 
 using NLsm::EStoreRotationReason;
-
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -496,7 +495,7 @@ void TStoreManagerBase::Mount(
         const auto& extensions = descriptor->chunk_meta().extensions();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
         if (miscExt.has_max_timestamp()) {
-            Tablet_->UpdateLastCommitTimestamp(miscExt.max_timestamp());
+            Tablet_->UpdateLastCommitTimestamp(FromProto<NTransactionClient::TTimestamp>(miscExt.max_timestamp()));
         }
     }
 
@@ -931,7 +930,7 @@ bool TStoreManagerBase::IsRecovery() const
 TTimestamp TStoreManagerBase::GenerateMonotonicCommitTimestamp(TTimestamp timestampHint)
 {
     auto lastCommitTimestamp = Tablet_->GetLastCommitTimestamp();
-    auto monotonicTimestamp = std::max(lastCommitTimestamp + 1, timestampHint);
+    auto monotonicTimestamp = std::max(NTransactionClient::TTimestamp(lastCommitTimestamp.Underlying() + 1), timestampHint);
     Tablet_->UpdateLastCommitTimestamp(monotonicTimestamp);
     return monotonicTimestamp;
 }

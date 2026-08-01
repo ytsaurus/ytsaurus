@@ -1184,7 +1184,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // NB: This is a fast path for in-memory readers to avoid extra wrapper.
     // We could do the same for ext-memory readers but there is no need.
     bool needKeyRangeFiltering = skippedBefore > 0 || skippedAfter > 0;
-    bool needTimestampResetting = OverrideTimestamp_;
+    bool needTimestampResetting = OverrideTimestamp_ != NullTimestamp;
     if (!needKeyRangeFiltering && !needTimestampResetting) {
         // Check for in-memory reads.
         if (auto chunkState = FindPreloadedChunkState()) {
@@ -1374,11 +1374,11 @@ void TSortedChunkStore::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* 
     }
 
     if (OverrideTimestamp_) {
-        chunkViewDescriptor->set_override_timestamp(OverrideTimestamp_);
+        chunkViewDescriptor->set_override_timestamp(ToProto(OverrideTimestamp_));
     }
 
     if (MaxClipTimestamp_) {
-        chunkViewDescriptor->set_max_clip_timestamp(MaxClipTimestamp_);
+        chunkViewDescriptor->set_max_clip_timestamp(ToProto(MaxClipTimestamp_));
     }
 }
 

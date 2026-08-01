@@ -25,6 +25,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NCypressProxy {
@@ -259,7 +260,7 @@ void CreateNode(
     NCypressServer::NProto::TReqCreateNode reqCreateNode;
     reqCreateNode.set_type(ToProto(type));
     ToProto(reqCreateNode.mutable_node_id(), nodeId.ObjectId);
-    reqCreateNode.set_path(path.ToRealPath().Underlying());
+    reqCreateNode.set_path(ToProto(path.ToRealPath()));
     ToProto(reqCreateNode.mutable_node_attributes(), *explicitAttributes);
     ToProto(reqCreateNode.mutable_transaction_id(), nodeId.TransactionId);
     ToProto(reqCreateNode.mutable_parent_id(), parentId);
@@ -305,7 +306,7 @@ TNodeId CopyNode(
     NCypressServer::NProto::TReqCloneNode reqCloneNode;
     ToProto(reqCloneNode.mutable_src_id(), sourceNodeId);
     ToProto(reqCloneNode.mutable_dst_id(), destinationNodeId);
-    reqCloneNode.set_dst_path(destinationNodePath.ToRealPath().Underlying());
+    reqCloneNode.set_dst_path(ToProto(destinationNodePath.ToRealPath()));
     ToProto(reqCloneNode.mutable_options(), options);
     ToProto(reqCloneNode.mutable_dst_parent_id(), destinationParentId);
     ToProto(reqCloneNode.mutable_transaction_id(), cypressTransactionId);
@@ -351,7 +352,7 @@ void MaterializeNodeInSequoia(
     NCypressServer::NProto::TReqFinishNodeMaterialization reqFinishNodeMaterialization;
     ToProto(reqFinishNodeMaterialization.mutable_node_id(), nodeId.ObjectId);
     ToProto(reqFinishNodeMaterialization.mutable_parent_id(), parentId);
-    reqFinishNodeMaterialization.set_path(path.ToRealPath().Underlying());
+    reqFinishNodeMaterialization.set_path(ToProto(path.ToRealPath()));
 
     reqFinishNodeMaterialization.set_preserve_acl(preserveAcl);
     reqFinishNodeMaterialization.set_preserve_modification_time(preserveModificationTime);
@@ -538,7 +539,7 @@ TLockId ExplicitlyLockNodeInMaster(
     if (attributeKey) {
         request.set_attribute_key(*attributeKey);
     }
-    request.set_timestamp(timestamp);
+    request.set_timestamp(ToProto(timestamp));
     request.set_waitable(waitable);
     auto lockId = sequoiaTransaction->GenerateObjectId(
         EObjectType::Lock,

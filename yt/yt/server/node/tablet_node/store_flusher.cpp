@@ -576,7 +576,7 @@ private:
                     ToProto(updateTabletStoresReq.mutable_unleashed_backing_store_id(), store->GetId());
                 }
 
-                updateTabletStoresReq.set_conflict_horizon_timestamp(store->GetMaxTimestamp());
+                updateTabletStoresReq.set_conflict_horizon_timestamp(ToProto(store->GetMaxTimestamp()));
             }
 
             updateTabletStoresReq.set_create_hunk_chunks_during_prepare(true);
@@ -610,7 +610,7 @@ private:
             }
 
             if (tabletSnapshot->Settings.MountConfig->MergeRowsOnFlush) {
-                updateTabletStoresReq.set_retained_timestamp(retainedTimestamp);
+                updateTabletStoresReq.set_retained_timestamp(ToProto(retainedTimestamp));
             }
 
             tablet->GetStructuredLogger()->LogEvent("end_flush")

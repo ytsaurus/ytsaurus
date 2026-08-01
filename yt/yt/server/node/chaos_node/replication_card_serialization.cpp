@@ -66,7 +66,7 @@ void ToProto(
     ToProto(protoReplicationCard->mutable_table_id(), replicationCard.GetTableId());
     protoReplicationCard->set_table_path(replicationCard.GetTablePath());
     protoReplicationCard->set_table_cluster_name(replicationCard.GetTableClusterName());
-    protoReplicationCard->set_current_timestamp(replicationCard.GetCurrentTimestamp());
+    protoReplicationCard->set_current_timestamp(ToProto(replicationCard.GetCurrentTimestamp()));
 
     if (auto* collocation = replicationCard.GetCollocation()) {
         ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), collocation->GetId());

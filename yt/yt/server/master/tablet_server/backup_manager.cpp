@@ -55,9 +55,8 @@ using namespace NTransactionServer;
 using NTransactionServer::TTransaction;
 
 using NTabletNode::DynamicStoreCountLimit;
-
-using NYT::ToProto;
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,7 +209,7 @@ public:
                 TReqSetBackupCheckpoint req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
-                req.set_timestamp(timestamp);
+                req.set_timestamp(ToProto(timestamp));
                 req.set_backup_mode(ToProto(backupMode));
 
                 TDynamicStoreId allocatedDynamicStoreId;

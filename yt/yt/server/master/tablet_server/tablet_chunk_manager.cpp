@@ -50,9 +50,8 @@ using namespace NTransactionClient;
 using namespace NTabletClient;
 
 using NChunkClient::NProto::TMiscExt;
-using NTableClient::NProto::THunkChunkRefsExt;
 using NTableClient::NProto::TBoundaryKeysExt;
-
+using NTableClient::NProto::THunkChunkRefsExt;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1294,10 +1293,10 @@ public:
                 auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
                 if (miscExt) {
                     if (miscExt->has_min_timestamp()) {
-                        minTimestamp = miscExt->min_timestamp();
+                        minTimestamp = FromProto<NTransactionClient::TTimestamp>(miscExt->min_timestamp());
                     }
                     if (miscExt->has_max_timestamp()) {
-                        maxTimestamp = miscExt->max_timestamp();
+                        maxTimestamp = FromProto<NTransactionClient::TTimestamp>(miscExt->max_timestamp());
                     }
                 }
             };

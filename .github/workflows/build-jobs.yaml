@@ -182,7 +182,7 @@ jobs:
   ya-make_build:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
-    timeout-minutes: 480
+    timeout-minutes: 720
     if: ${{ inputs.cpp-build-system == 'ya-make' }}
     strategy:
       fail-fast: false
@@ -262,12 +262,7 @@ jobs:
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
 
           YTSAURUS_TARGETS="\
-            ../ytsaurus/ytsaurus/yt/yt/server/all \
-            ../ytsaurus/ytsaurus/yt/chyt/server/bin \
-            ../ytsaurus/ytsaurus/yt/chyt/trampoline \
-            ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_operations_archive \
-            ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_queue_agent_state \
-            ../ytsaurus/ytsaurus/yt/python/yt/environment/bin/init_query_tracker_state"
+            ../ytsaurus/ytsaurus/yt/yt/server/all"
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
             ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ${YTSAURUS_TARGETS}
@@ -283,31 +278,6 @@ jobs:
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
 
           BUILD_FLAGS=$(echo ${BUILD_FLAGS} | sed 's/--thinlto//')
-
-          FOLDERS_WITH_UNITTESTS=""
-          for makefile in $(find ../ytsaurus/ytsaurus/ -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
-            folder=$(dirname ${makefile})
-            echo ${folder}
-            FOLDERS_WITH_UNITTESTS="${FOLDERS_WITH_UNITTESTS} ${folder}"
-          done
-
-          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare --bazel-remote-put ${FOLDERS_WITH_UNITTESTS}
-          fi
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FOLDERS_WITH_UNITTESTS}
-
-          for build_folder in yt/yt/tests/integration/size_s \
-                              yt/yt/tests/integration/size_m \
-                              yt/yt/tests/integration/size_l \
-                              yt/yt/tests/integration/size_xl
-          do
-            echo ${build_folder}
-            build_folder=../ytsaurus/ytsaurus/${build_folder}
-            if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-              ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare --bazel-remote-put
-            fi
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare
-          done
 
           # Programs and C++ unit tests required by the exported Flow examples.
           FLOW_PROGRAM_TARGETS="../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server"
@@ -327,10 +297,6 @@ jobs:
             fi
           done
 
-          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. --bazel-remote-put ${FLOW_PROGRAM_TARGETS}
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare --bazel-remote-put ${FLOW_CPP_UNITTEST_TARGETS}
-          fi
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${FLOW_PROGRAM_TARGETS}
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FLOW_CPP_UNITTEST_TARGETS}
 

@@ -231,11 +231,11 @@ void BuildReplicalessChunkSpec(
         if (auto timestampTransactionId = modifier->GetTransactionId()) {
             const auto& transactionManager = bootstrap->GetTransactionManager();
             chunkSpec->set_override_timestamp(
-                transactionManager->GetTimestampHolderTimestamp(timestampTransactionId));
+                ToProto(transactionManager->GetTimestampHolderTimestamp(timestampTransactionId)));
         }
 
         if (auto maxClipTimestamp = modifier->GetMaxClipTimestamp()) {
-            chunkSpec->set_max_clip_timestamp(maxClipTimestamp);
+            chunkSpec->set_max_clip_timestamp(ToProto(maxClipTimestamp));
         }
     }
 }

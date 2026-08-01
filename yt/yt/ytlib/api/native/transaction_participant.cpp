@@ -91,7 +91,7 @@ public:
                 PrepareRequest(req);
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
-                req->set_prepare_timestamp(prepareTimestamp);
+                req->set_prepare_timestamp(ToProto(prepareTimestamp));
                 req->set_prepare_timestamp_cluster_tag(ToProto(prepareTimestampClusterTag));
                 req->set_expected_prepare_signature(expectedPrepareSignature);
                 ToProto(req->mutable_cell_ids_to_sync_with(), cellIdsToSyncWith);
@@ -123,7 +123,7 @@ public:
                 PrepareRequest(req);
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
-                req->set_commit_timestamp(commitTimestamp);
+                req->set_commit_timestamp(ToProto(commitTimestamp));
                 req->set_commit_timestamp_cluster_tag(ToProto(commitTimestampClusterTag));
 
                 return req;
@@ -147,7 +147,7 @@ public:
                 PrepareRequest(req);
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
-                req->set_commit_timestamp(commitTimestamp);
+                req->set_commit_timestamp(ToProto(commitTimestamp));
                 req->set_commit_timestamp_cluster_tag(ToProto(commitTimestampClusterTag));
                 req->set_strongly_ordered(supportsStronglyOrderedTransactions && stronglyOrdered);
 

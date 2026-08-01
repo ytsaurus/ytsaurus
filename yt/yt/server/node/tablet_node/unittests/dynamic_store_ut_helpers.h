@@ -38,6 +38,8 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/config.h>
 
@@ -55,6 +57,8 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
+
+using NYT::NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,7 +163,6 @@ public:
         return nullptr;
     }
 
-
     void SetUp() override
     {
         WaitFor(BIND(&TDynamicStoreTestBase::DoSetUp, Unretained(this))
@@ -239,10 +242,10 @@ public:
         return ECommitOrdering::Weak;
     }
 
-
     TTimestamp GenerateTimestamp()
     {
-        return ++LastGeneratedTimestamp_;
+        LastGeneratedTimestamp_ = TTimestamp(LastGeneratedTimestamp_.Underlying() + 1);
+        return LastGeneratedTimestamp_;
     }
 
     std::unique_ptr<TTestTransaction> StartTransaction(
@@ -291,7 +294,6 @@ public:
         transaction->SetFinished();
     }
 
-
     TUnversionedOwningRow BuildRow(TStringBuf yson, bool treatMissingAsNull = true)
     {
         return NTableClient::YsonToSchemafulRow(yson, *Tablet_->GetPhysicalSchema(), treatMissingAsNull);
@@ -301,7 +303,6 @@ public:
     {
         return NTableClient::YsonToKey(yson);
     }
-
 
     bool AreRowsEqual(TUnversionedRow row, const std::string& yson)
     {
@@ -322,7 +323,6 @@ public:
     {
         return AreRowsEqualImpl(row, yson, QueryNameTable_);
     }
-
 
     using TStoreSnapshot = std::pair<TString, TCallback<void(TSaveContext&)>>;
 
@@ -378,7 +378,7 @@ protected:
     TNameTablePtr NameTable_;
     TNameTablePtr QueryNameTable_;
     std::unique_ptr<TTablet> Tablet_;
-    TTimestamp LastGeneratedTimestamp_ = 10000; // some reasonable starting point
+    TTimestamp LastGeneratedTimestamp_ = 10000_ts; // some reasonable starting point
 
     static NChunkClient::TClientChunkReadOptions MakeChunkReadOptions()
     {

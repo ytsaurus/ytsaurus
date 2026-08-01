@@ -586,7 +586,7 @@ void TStrongOrderingManager::RegisterTransaction(
 
     YT_VERIFY(!strongOrderingTags.empty());
 
-    auto commitTimestampLowerBound = ObserveTimestamp(prepareTimestamp) + 1;
+    auto commitTimestampLowerBound = NTransactionClient::TTimestamp(ObserveTimestamp(prepareTimestamp).Underlying() + 1);
     auto preparedCommitCount = PreparedCommitCount_.fetch_add(1, std::memory_order::relaxed);
     YT_LOG_DEBUG(
         "Transaction prepare timestamp is added to strong ordering manager "

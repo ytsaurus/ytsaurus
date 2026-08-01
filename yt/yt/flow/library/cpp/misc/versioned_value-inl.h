@@ -70,7 +70,9 @@ void TVersionedValue<TValue>::Bump(const IVersionProviderPtr& versionProvider)
     YT_VERIFY(version > Version_);
     Version_ = version;
     // Stored for readable text YSON; derived from the version to keep both fields consistent.
-    LastUpdate_ = NTransactionClient::TimestampToInstant(version.Underlying()).first;
+    LastUpdate_ = NTransactionClient::TimestampToInstant(
+        NTransactionClient::TTimestamp(version.Underlying()))
+        .first;
 }
 
 template <typename TValue>

@@ -132,11 +132,71 @@ jobs:
           done
           ./ya make ${BUILD_FLAGS} ${FOLDERS_WITH_UNITTESTS[@]}
 
+  build-tests:
+    name: Warm profile test cache
+    needs:
+      - start-vm
+      - checkout
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    steps:
+      - name: Warm profile test cache
+        run: |
+          set -ex
+
+          cd ytsaurus
+
+          BUILD_FLAGS="--stat -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store"
+          BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
+          BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}"
+          BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
+          BUILD_FLAGS="${BUILD_FLAGS} --build=profile"
+          BUILD_FLAGS="${BUILD_FLAGS} -DSTRIP=no"
+
+          FOLDERS_WITH_UNITTESTS=""
+          for makefile in $(find . -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
+            folder=$(dirname ${makefile})
+            echo ${folder}
+            FOLDERS_WITH_UNITTESTS="${FOLDERS_WITH_UNITTESTS} ${folder}"
+          done
+
+          ./ya make ${BUILD_FLAGS} -A --test-prepare --bazel-remote-put ${FOLDERS_WITH_UNITTESTS}
+
+          INTEGRATION_TEST_TARGETS="\
+            yt/yt/tests/integration/size_s \
+            yt/yt/tests/integration/size_m \
+            yt/yt/tests/integration/size_l \
+            yt/yt/tests/integration/size_xl"
+
+          ./ya make ${BUILD_FLAGS} ${INTEGRATION_TEST_TARGETS} -A --test-prepare --bazel-remote-put
+
+          # Programs and C++ unit tests required by the exported Flow examples.
+          FLOW_PROGRAM_TARGETS="yt/yt/flow/bin/flow_server"
+          for test_dir in yt/yt/flow/examples/cpp/*/test; do
+            if [ -d "${test_dir}" ]; then
+              FLOW_PROGRAM_TARGETS="${FLOW_PROGRAM_TARGETS} $(dirname "${test_dir}")"
+            fi
+          done
+
+          FLOW_CPP_UNITTEST_TARGETS=""
+          for unittest_dir in \
+            yt/yt/flow/examples/cpp/*/unittest \
+            yt/yt/flow/examples/cpp/*/pipeline/unittest
+          do
+            if [ -d "${unittest_dir}" ]; then
+              FLOW_CPP_UNITTEST_TARGETS="${FLOW_CPP_UNITTEST_TARGETS} ${unittest_dir}"
+            fi
+          done
+
+          ./ya make ${BUILD_FLAGS} --bazel-remote-put ${FLOW_PROGRAM_TARGETS}
+          ./ya make ${BUILD_FLAGS} -A --test-prepare --bazel-remote-put ${FLOW_CPP_UNITTEST_TARGETS}
+
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
       - build
+      - build-tests
     runs-on: trampoline
     if: ${{ always() && github.repository == 'ytsaurus/ytsaurus' }}
     steps:

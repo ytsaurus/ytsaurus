@@ -43,7 +43,7 @@ jobs:
           ln -sfn "$(pwd)/../${{ inputs.build-dir }}" "$(pwd)/../build"
 
       - name: Integration tests
-        if: ${{ false }}
+        if: ${{ inputs.run-integration-tests && github.ref_name != 'members/mikari/flow-os-go-tests' }}
         shell: bash
         run: |
           ./ytsaurus/yt/yt/scripts/run_tests.sh integration

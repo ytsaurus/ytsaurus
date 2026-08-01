@@ -18,7 +18,8 @@ constexpr ui64 SecondUnixTime = 1'784'633'265;
 
 TVersion VersionAt(ui64 unixTime, i64 counter)
 {
-    return TVersion(NTransactionClient::TimestampFromUnixTime(unixTime) + counter);
+    return TVersion(
+        static_cast<i64>(NTransactionClient::TimestampFromUnixTime(unixTime).Underlying()) + counter);
 }
 
 class TStubVersionProvider

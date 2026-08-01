@@ -273,7 +273,7 @@ void TOrderedSourceBase::Sync()
     // Debug offset memory state corrupting.
     if (!State_->OffsetMemory->empty()) {
         TOffset lastOffset = State_->PersistedOffsetExclusive;
-        static const ui64 minPossibleSeqNo = NTransactionClient::TimestampFromUnixTime(TInstant::ParseIso8601("2025-01-01").Seconds());
+        static const ui64 minPossibleSeqNo = NTransactionClient::TimestampFromUnixTime(TInstant::ParseIso8601("2025-01-01").Seconds()).Underlying();
         ui64 lastSeqNo = minPossibleSeqNo;
         for (auto& [offset, seqNo] : *State_->OffsetMemory) {
             YT_VERIFY(offset >= lastOffset);

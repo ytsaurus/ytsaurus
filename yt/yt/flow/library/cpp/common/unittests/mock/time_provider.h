@@ -45,7 +45,8 @@ class TFakeVersionProvider
 {
 public:
     explicit TFakeVersionProvider(ui64 unixTime = 1'784'633'264)
-        : NextVersion_(static_cast<i64>(NTransactionClient::TimestampFromUnixTime(unixTime)))
+        : NextVersion_(static_cast<i64>(
+            NTransactionClient::TimestampFromUnixTime(unixTime).Underlying()))
     { }
 
     TVersion GenerateVersion() override
@@ -55,7 +56,8 @@ public:
 
     void SetUnixTime(ui64 unixTime)
     {
-        const auto nextVersion = static_cast<i64>(NTransactionClient::TimestampFromUnixTime(unixTime));
+        const auto nextVersion = static_cast<i64>(
+            NTransactionClient::TimestampFromUnixTime(unixTime).Underlying());
         YT_VERIFY(nextVersion > NextVersion_);
         NextVersion_ = nextVersion;
     }

@@ -465,6 +465,8 @@ public:
 
         if (auto it = config->PerBundleConfigs.find(GetCellBundleName()); it != config->PerBundleConfigs.end()) {
             VerboseLoggingEnabled_ = it->second->EnableVerboseLogging;
+        } else {
+            VerboseLoggingEnabled_ = false;
         }
     }
 

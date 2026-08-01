@@ -457,7 +457,7 @@ std::pair<std::string, TReplicaSynchronicityList> TPickReplicaSession::PickClust
             }
 
             for (const auto& [cluster, bestScore] : tableScores) {
-                GetOrCrash(viableClusters, cluster) += bestScore;
+                GetOrCrash(viableClusters, cluster).Underlying() += bestScore.Underlying();
             }
         }
     }

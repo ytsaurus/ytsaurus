@@ -1325,6 +1325,12 @@ class TestMultipleAgents(TestQueueAgentBase):
             "lock_acquisition_period": 100,
             "leader_cache_update_period": 100,
         },
+        "multi_consumer_names_garbage_collector_election_manager": {
+            "transaction_timeout": 5000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+            "leader_cache_update_period": 100,
+        },
     }
 
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
@@ -1731,6 +1737,11 @@ class TestOrchid(TestMultipleAgents):
 class TestMasterIntegration(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_CONFIG = {
         "election_manager": {
+            "transaction_timeout": 5000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+        },
+        "multi_consumer_names_garbage_collector_election_manager": {
             "transaction_timeout": 5000,
             "transaction_ping_period": 100,
             "lock_acquisition_period": 100,
@@ -3251,6 +3262,14 @@ class TestDynamicConfig(TestQueueAgentBase):
 
 class TestQueueStaticExportBase(TestQueueAgentBase, QueueStaticExportHelpers):
     NUM_SECONDARY_MASTER_CELLS = 2
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "multi_consumer_names_garbage_collector_election_manager": {
+            "transaction_timeout": 5000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+            "leader_cache_update_period": 100,
+        },
+    }
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
@@ -3485,6 +3504,12 @@ class TestQueueStaticExportUser(TestQueueStaticExportBase):
 
     DELTA_QUEUE_AGENT_CONFIG = {
         "election_manager": {
+            "transaction_timeout": 5000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+            "leader_cache_update_period": 100,
+        },
+        "multi_consumer_names_garbage_collector_election_manager": {
             "transaction_timeout": 5000,
             "transaction_ping_period": 100,
             "lock_acquisition_period": 100,

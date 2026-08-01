@@ -238,7 +238,7 @@ private:
             ? FromProto<TAttributeFilter>(rpcRequest.attributes())
             : TAttributeFilter();
         options.Timestamp = rpcRequest.has_timestamp()
-            ? rpcRequest.timestamp()
+            ? FromProto<NTransactionClient::TTimestamp>(rpcRequest.timestamp())
             : NullTimestamp;
 
         auto user = context->GetAuthenticationIdentity().User;
@@ -314,7 +314,7 @@ private:
             ToProto(rpcResponse->add_queries(), query);
         }
         rpcResponse->set_incomplete(result.Incomplete);
-        rpcResponse->set_timestamp(result.Timestamp);
+        rpcResponse->set_timestamp(ToProto(result.Timestamp));
 
         context->Reply();
     }

@@ -87,7 +87,7 @@ int main(int /*argc*/, char* argv[])
         TTransactionParticipantServiceProxy proxy(channel);
         auto req = proxy.CommitTransaction();
         ToProto(req->mutable_transaction_id(), txId);
-        req->set_commit_timestamp(TimestampFromTransactionId(txId) + 100);
+        req->set_commit_timestamp(TimestampFromTransactionId(txId).Underlying() + 100);
 
         WaitFor(req->Invoke()).ValueOrThrow();
     } catch (std::exception& e) {

@@ -78,7 +78,7 @@ private:
             if (result.IsOK()) {
                 auto timestamp = result.Value();
                 context->SetResponseInfo("Timestamp: %v", timestamp);
-                response->set_timestamp(timestamp);
+                response->set_timestamp(ToProto(timestamp));
                 if (clockClusterTag != InvalidCellTag) {
                     response->set_clock_cluster_tag(ToProto(clockClusterTag));
                 }

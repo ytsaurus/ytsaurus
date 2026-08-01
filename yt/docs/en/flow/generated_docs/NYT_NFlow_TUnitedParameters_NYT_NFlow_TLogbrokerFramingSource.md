@@ -40,11 +40,15 @@ Treat the source as finite: remember the number of messages in it on startup and
 **Default value**: `true`
  ||
 || `flow_queue_meta_name` | **Type**: `std::string`
-**Default value**: `flow_queue_meta`
+**Default value**: `_ytflow_queue_meta`
  ||
 || `ignore_malformed_flow_queue_meta` | **Type**: `bool`
 **Default value**: `false`
  ||
+|| `attributes_column` | **Type**: `std::optional<std::string>`
+Column to materialize the attributes of the read logbroker message into, as a yson map (`{name -> string}`). Read it with `NYT::NFlow::UnpackLogbrokerAttributes()`. The attributes flow owns and the attributes YDB interprets are left out. If a name occurs more than once, the first value is kept.
+
+The column is not created unless the parameter is set. ||
 || `partition_filter` | **Type**: `std::optional<std::vector<std::pair<int, int>>>`
  ||
 || `framing_format` | **Type**: [NYT::NFlow::EFramingFormat](./all_yson_structs#NYT_NFlow_EFramingFormat)

@@ -318,7 +318,7 @@ spec_template = {
         # ({export_name: ...})
         # is either {"period": <seconds>} or {"cron": "<cron expr>"} (+ optional
         # "name_pattern", "use_upper_bound" bool). The set below is curated so every value of
-        # every dimension (tablet count, erasure, commit_ordering, auto_trim, schedule kind,
+        # every dimension (tablet count, erasure, commit_ordering, schedule kind,
         # use_upper_bound, custom name_pattern, flush period) shows up across several
         # combinations.
         #
@@ -332,12 +332,13 @@ spec_template = {
             "t1_5m_fast_trim": {
                 "enable": True, "tablet_count": 1, "flush_period_ms": 2000, "auto_trim": True,
                 "exports": {"main": {"period": 300}}},
-            # 1 tablet, single long 4h export, weak ordering, no trim.
+            # 1 tablet, single long 4h export, weak ordering.
             "t1_4h": {
-                "enable": True, "tablet_count": 1, "exports": {"main": {"period": 14400}}},
-            # 2 tablets, 30m, strong commit ordering, no trim.
+                "enable": True, "tablet_count": 1, "auto_trim": True,
+                "exports": {"main": {"period": 14400}}},
+            # 2 tablets, 30m, strong commit ordering.
             "t2_30m_strong": {
-                "enable": True, "tablet_count": 2, "commit_ordering": "strong",
+                "enable": True, "tablet_count": 2, "commit_ordering": "strong", "auto_trim": True,
                 "exports": {"main": {"period": 1800}}},
             # 2 tablets, slow flush (fatter chunks), several exports at once (5m/30m/4h),
             # auto-trim ON: trim must wait for ALL exports (virtual vital consumers), so it
@@ -350,28 +351,30 @@ spec_template = {
             "t3_1h_strong_trim": {
                 "enable": True, "tablet_count": 3, "commit_ordering": "strong", "auto_trim": True,
                 "exports": {"main": {"period": 3600}}},
-            # 3 tablets, cron-scheduled export (every 5 minutes), no trim.
+            # 3 tablets, cron-scheduled export (every 5 minutes).
             "t3_cron5m": {
-                "enable": True, "tablet_count": 3, "exports": {"main": {"cron": "0 0/5 * * * *"}}},
+                "enable": True, "tablet_count": 3, "auto_trim": True,
+                "exports": {"main": {"cron": "0 0/5 * * * *"}}},
             # Erasure, 4 tablets, 5m named by the upper bound, auto-trim ON.
             "t4_erasure_upper_trim": {
                 "enable": True, "tablet_count": 4, "erasure": True, "auto_trim": True,
                 "exports": {"main": {"period": 300, "use_upper_bound": True}}},
-            # Erasure, 4 tablets, several exports (5m + 1h), strong ordering, no trim.
+            # Erasure, 4 tablets, several exports (5m + 1h), strong ordering.
             "t4_erasure_multi_strong": {
                 "enable": True, "tablet_count": 4, "erasure": True, "commit_ordering": "strong",
+                "auto_trim": True,
                 "exports": {"fast": {"period": 300}, "hourly": {"period": 3600}}},
             # 5 tablets, 5m, fast flush, strong ordering, auto-trim ON.
             "t5_5m_fast_strong_trim": {
                 "enable": True, "tablet_count": 5, "flush_period_ms": 2000, "commit_ordering": "strong",
                 "auto_trim": True, "exports": {"main": {"period": 300}}},
-            # 5 tablets, erasure, cron every 10 minutes, no trim.
+            # 5 tablets, erasure, cron every 10 minutes.
             "t5_erasure_cron10m": {
-                "enable": True, "tablet_count": 5, "erasure": True,
+                "enable": True, "tablet_count": 5, "erasure": True, "auto_trim": True,
                 "exports": {"main": {"cron": "0 0/10 * * * *"}}},
             # 1 tablet, 5m with a custom strftime name_pattern (unique per second).
             "t1_5m_named_pattern": {
-                "enable": True, "tablet_count": 1,
+                "enable": True, "tablet_count": 1, "auto_trim": True,
                 "exports": {"main": {"period": 300, "name_pattern": "%Y%m%d-%H%M%S"}}},
             # 2 tablets, 5m with use_upper_bound explicitly off, strong ordering, auto-trim ON.
             "t2_5m_lowerbound_strong_trim": {
@@ -387,12 +390,13 @@ spec_template = {
             # 2 tablets, slow flush, hunks, several exports (5m/30m/4h).
             "t2_multi_hunks": {
                 "enable": False, "tablet_count": 2, "hunks": True, "flush_period_ms": 10000,
+                "auto_trim": True,
                 "exports": {"fast": {"period": 300}, "mid": {"period": 1800},
                             "slow": {"period": 14400}}},
             # Erasure + hunks, 4 tablets, strong ordering, 5m named by the upper bound.
             "t4_erasure_hunks": {
                 "enable": False, "tablet_count": 4, "hunks": True, "erasure": True,
-                "commit_ordering": "strong",
+                "commit_ordering": "strong", "auto_trim": True,
                 "exports": {"main": {"period": 300, "use_upper_bound": True}}},
         }),
         # A single large TTL (seconds) applied to EVERY export table so they do not pile up
@@ -401,10 +405,15 @@ spec_template = {
         # gap (false data-loss failure). Set to None to disable TTL entirely.
         "export_ttl_seconds": 14 * 24 * 3600,
         # For auto-trim queues, never trim rows younger than this — the queue always keeps a
-        # rolling window of the most recent data (3 days by default) regardless of what has
+        # rolling window of the most recent data (2 hours by default) regardless of what has
         # already been exported/consumed. Bounds queue growth while keeping recent data.
         # Set to None to trim purely by export/consumer progress with no time floor.
-        "auto_trim_retained_lifetime_seconds": 3 * 24 * 3600,
+        "auto_trim_retained_lifetime_seconds": 2 * 3600,
+        # If verification falls behind far enough for its watermark to disappear together
+        # with expired export tables, resume from this much of the newest still-available
+        # history. This rebase is used only after a TTL gap; ordinary row-index gaps remain
+        # hard verification failures. Must be shorter than export_ttl_seconds.
+        "verification_history_seconds": 24 * 3600,
         # Auto-flush period (ms) for the queue's dynamic stores. Kept small so the Queue
         # Agent has freshly flushed chunks to export (exports never see unflushed data).
         "flush_period_ms": 5000,
@@ -435,7 +444,10 @@ spec_template = {
         # verified and the watermark has not advanced for this many seconds while exports keep
         # being created (e.g. an export table is persistently unreadable, which would otherwise
         # be retried silently forever). Set to 0 to disable.
-        "verify_stall_seconds": 600,
+        # Verifying a single fat 30m/4h export table (read + shadow comparison) can take
+        # well over ten minutes on a loaded cluster. The watermark advances only after the
+        # whole table succeeds, so a shorter watchdog produces false positives.
+        "verify_stall_seconds": 2 * 3600,
         # How often (seconds) to sweep the export directories and verify new tables.
         "verify_period_seconds": 30,
         # Sleep between write rounds.

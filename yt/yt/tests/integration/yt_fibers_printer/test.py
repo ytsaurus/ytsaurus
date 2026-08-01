@@ -96,7 +96,7 @@ def check_tags(actual_output):
             assert logging_tag is None
             logging_tag = line
     assert tags == 'Tags: "tag" = "value", "tag0" = "value0"'
-    assert logging_tag == 'Logging tag: "LoggingTag"'
+    assert logging_tag == 'Logging tag: "Tag: Value"'
 
 
 @authors("shishmak")

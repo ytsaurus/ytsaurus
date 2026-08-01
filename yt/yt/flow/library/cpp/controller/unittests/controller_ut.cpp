@@ -265,12 +265,13 @@ public:
             .WillRepeatedly(Return(MakeFuture<NApi::ITransactionPtr>(transaction)));
         auto client = New<StrictMock<NApi::TMockClient>>();
         auto timestampProvider = New<StrictMock<NTransactionClient::TMockTimestampProvider>>();
-        auto currentTimestamp = std::make_shared<std::atomic<NTransactionClient::TTimestamp>>(
-            NTransactionClient::TimestampFromUnixTime(InitialClockUnixTime));
+        auto currentTimestamp = std::make_shared<std::atomic<ui64>>(
+            NTransactionClient::TimestampFromUnixTime(InitialClockUnixTime).Underlying());
         EXPECT_CALL(*timestampProvider, GenerateTimestamps(_, _))
             .WillRepeatedly([currentTimestamp] (int count, NObjectClient::TCellTag /*clockClusterTag*/) {
-                return MakeFuture<NTransactionClient::TTimestamp>(currentTimestamp->fetch_add(
-                    static_cast<NTransactionClient::TTimestamp>(count) << NTransactionClient::TimestampCounterWidth));
+                return MakeFuture<NTransactionClient::TTimestamp>(NTransactionClient::TTimestamp(
+                    currentTimestamp->fetch_add(
+                        static_cast<ui64>(count) << NTransactionClient::TimestampCounterWidth)));
             });
         client->SetTimestampProvider(timestampProvider);
         EXPECT_CALL(*client, AttachTransaction(_, _))

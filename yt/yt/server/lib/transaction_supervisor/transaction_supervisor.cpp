@@ -76,8 +76,8 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NProfiling;
 
-using NYT::ToProto;
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -847,7 +847,7 @@ private:
             auto clockClusterTag = request->has_clock_cluster_tag()
                 ? FromProto<TCellTag>(request->clock_cluster_tag())
                 : InvalidCellTag;
-            auto maxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
+            auto maxAllowedCommitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->max_allowed_commit_timestamp());
 
             // COMPAT(h0pless): Remove this flag after 26.1.
             auto stronglyOrdered = request->strongly_ordered();
@@ -1104,7 +1104,7 @@ private:
             ValidatePeer(EPeerKind::Leader);
 
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-            auto prepareTimestamp = request->prepare_timestamp();
+            auto prepareTimestamp = FromProto<NTransactionClient::TTimestamp>(request->prepare_timestamp());
             auto prepareTimestampClusterTag = request->prepare_timestamp_cluster_tag();
             auto cellIdsToSyncWith = FromProto<std::vector<TCellId>>(request->cell_ids_to_sync_with());
             auto strongOrderingTags = FromProto<std::vector<std::string>>(request->strong_ordering_tags());
@@ -1132,7 +1132,7 @@ private:
 
             NTransactionSupervisor::NProto::TReqParticipantPrepareTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
-            hydraRequest.set_prepare_timestamp(prepareTimestamp);
+            hydraRequest.set_prepare_timestamp(ToProto(prepareTimestamp));
             hydraRequest.set_prepare_timestamp_cluster_tag(prepareTimestampClusterTag);
             ToProto(hydraRequest.mutable_strong_ordering_tags(), strongOrderingTags);
             hydraRequest.set_expected_prepare_signature(expectedPrepareSignature);
@@ -1167,7 +1167,7 @@ private:
             ValidatePeer(EPeerKind::Leader);
 
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-            auto commitTimestamp = request->commit_timestamp();
+            auto commitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp());
             auto commitTimestampClusterTag = request->commit_timestamp_cluster_tag();
 
             context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %v@%v",
@@ -1177,7 +1177,7 @@ private:
 
             NTransactionSupervisor::NProto::TReqParticipantMakeTransactionReadyToCommit hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
-            hydraRequest.set_commit_timestamp(commitTimestamp);
+            hydraRequest.set_commit_timestamp(ToProto(commitTimestamp));
             hydraRequest.set_commit_timestamp_cluster_tag(commitTimestampClusterTag);
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
 
@@ -1192,7 +1192,7 @@ private:
             ValidatePeer(EPeerKind::Leader);
 
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-            auto commitTimestamp = request->commit_timestamp();
+            auto commitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp());
             auto commitTimestampClusterTag = request->commit_timestamp_cluster_tag();
             auto stronglyOrdered = request->strongly_ordered();
 
@@ -1204,7 +1204,7 @@ private:
 
             NTransactionSupervisor::NProto::TReqParticipantCommitTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
-            hydraRequest.set_commit_timestamp(commitTimestamp);
+            hydraRequest.set_commit_timestamp(ToProto(commitTimestamp));
             hydraRequest.set_commit_timestamp_cluster_tag(commitTimestampClusterTag);
             hydraRequest.set_strongly_ordered(stronglyOrdered);
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
@@ -1537,9 +1537,9 @@ private:
             ToProto(entry->mutable_strong_ordering_tags(), tags);
         }
 
-        request.set_prepare_timestamp(prepareTimestamp);
+        request.set_prepare_timestamp(ToProto(prepareTimestamp));
         request.set_prepare_timestamp_cluster_tag(ToProto(SelfClockClusterTag_));
-        request.set_max_allowed_commit_timestamp(commit->GetMaxAllowedCommitTimestamp());
+        request.set_max_allowed_commit_timestamp(ToProto(commit->GetMaxAllowedCommitTimestamp()));
         WriteAuthenticationIdentityToProto(&request, commit->AuthenticationIdentity());
 
         auto mutation = CreateMutation(HydraManager_, request);
@@ -1763,9 +1763,9 @@ private:
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
         auto coordinatorCommitMode = FromProto<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
         auto coordinatorPrepareMode = FromProto<ETransactionCoordinatorPrepareMode>(request->coordinator_prepare_mode());
-        auto prepareTimestamp = request->prepare_timestamp();
+        auto prepareTimestamp = FromProto<NTransactionClient::TTimestamp>(request->prepare_timestamp());
         auto prepareTimestampClusterTag = FromProto<TClusterTag>(request->prepare_timestamp_cluster_tag());
-        auto maxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
+        auto maxAllowedCommitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->max_allowed_commit_timestamp());
 
         TStrongOrderingTagsMap strongOrderingTags;
         for (const auto& entry : request->strong_ordering_tags_map()) {
@@ -2135,7 +2135,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto prepareTimestamp = request->prepare_timestamp();
+        auto prepareTimestamp = FromProto<NTransactionClient::TTimestamp>(request->prepare_timestamp());
         auto prepareTimestampClusterTag = FromProto<TClusterTag>(request->prepare_timestamp_cluster_tag());
         auto strongOrderingTags = FromProto<std::vector<std::string>>(request->strong_ordering_tags());
         auto expectedPrepareSignature = request->has_expected_prepare_signature()
@@ -2202,7 +2202,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto commitTimestamp = request->commit_timestamp();
+        auto commitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp());
         auto commitTimestampClusterTag = FromProto<TClusterTag>(request->commit_timestamp_cluster_tag());
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
@@ -2249,7 +2249,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto commitTimestamp = request->commit_timestamp();
+        auto commitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp());
         auto commitTimestampClusterTag = FromProto<TClusterTag>(request->commit_timestamp_cluster_tag());
         auto stronglyOrdered = request->strongly_ordered();
 

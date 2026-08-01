@@ -21,6 +21,8 @@
 #include <yt/yt/client/queue_client/queue_rowset.h>
 #include <yt/yt/client/queue_client/consumer_client.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -51,6 +53,8 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NProfiling;
+
+using NYT::NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,13 +193,13 @@ protected:
         auto row = TMutableVersionedRow(const_cast<TVersionedRowHeader*>(immutableRow.GetHeader()));
 
         for (auto& value : row.Values()) {
-            value.Timestamp = GetOrCrash(CommitTimestamps_, value.Timestamp);
+            value.Timestamp = GetOrCrash(CommitTimestamps_, value.Timestamp.Underlying());
         }
         for (auto& timestamp : row.WriteTimestamps()) {
-            timestamp = GetOrCrash(CommitTimestamps_, timestamp);
+            timestamp = GetOrCrash(CommitTimestamps_, timestamp.Underlying());
         }
         for (auto& timestamp : row.DeleteTimestamps()) {
-            timestamp = GetOrCrash(CommitTimestamps_, timestamp);
+            timestamp = GetOrCrash(CommitTimestamps_, timestamp.Underlying());
         }
 
         return row;
@@ -213,7 +217,6 @@ static auto ku2 = "{name=k2;type=int64};";
 static auto v3 = "{name=v3;type=int64};";
 static auto v4 = "{name=v4;type=int64};";
 static auto v5 = "{name=v5;type=int64};";
-
 
 TEST_F(TLookupFilterTest, TestLookupAll)
 {
@@ -353,7 +356,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
     auto expected = ToString(BuildVersionedRow(
         resultKeyString,
         resultValueString,
-        hasNonKeyColumns ? std::vector<TTimestamp>{} : std::vector<TTimestamp>{0}));
+        hasNonKeyColumns ? std::vector<TTimestamp>{} : std::vector<TTimestamp>{0_ts}));
     EXPECT_EQ(expected, actual)
         << "key: " << keyString << std::endl
         << "namedColumns: " << ::testing::PrintToString(namedColumns) << std::endl
@@ -470,7 +473,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
     options.RetentionConfig->MaxDataTtl = TDuration::MilliSeconds(1800000);
     options.RetentionConfig->MinDataVersions = 1;
     options.RetentionConfig->MaxDataVersions = 1;
-    options.Timestamp = CommitTimestamps_[2] + 1;
+    options.Timestamp = NYT::NTransactionClient::TTimestamp(CommitTimestamps_[2].Underlying() + 1);
 
     rowset = WaitFor(Client_->VersionedLookupRows(
         Table_,
@@ -504,7 +507,7 @@ TEST_F(TLookupFilterTest, TestRetentionConfig)
     expected = ToString(BuildVersionedRow(
         "<id=0> 20; <id=1> 20; <id=2> 20",
         "",
-        {2}));
+        {2_ts}));
     EXPECT_EQ(expected, actual);
 
     options.ColumnFilter = TColumnFilter({3});
@@ -580,7 +583,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
         "<id=0> 30; <id=1> 30; <id=2> 30",
         "<id=3;ts=3> 3",
         {},
-        {2}));
+        {2_ts}));
     EXPECT_EQ(expected, actual);
 
     options.ColumnFilter = TColumnFilter({0, 1, 2, 4});
@@ -589,8 +592,8 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
     expected = ToString(BuildVersionedRow(
         "<id=0> 30; <id=1> 30; <id=2> 30",
         "",
-        {3},
-        {2}));
+        {3_ts},
+        {2_ts}));
     EXPECT_EQ(expected, actual);
 
     WriteUnversionedRow(
@@ -602,8 +605,8 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
     expected = ToString(BuildVersionedRow(
         "<id=0> 30; <id=1> 30; <id=2> 30",
         "<id=3;ts=4> 4",
-        {3},
-        {2}));
+        {3_ts},
+        {2_ts}));
     EXPECT_EQ(expected, actual);
 
     DeleteRows(std::get<1>(preparedKey), std::get<0>(preparedKey), 5);
@@ -621,8 +624,8 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
     expected = ToString(BuildVersionedRow(
         "<id=0> 30; <id=1> 30; <id=2> 30;",
         "<id=3;ts=4> 4",
-        {6},
-        {2, 5}));
+        {6_ts},
+        {2_ts, 5_ts}));
     EXPECT_EQ(expected, actual);
 
     options.RetentionConfig->MinDataVersions = 1;
@@ -632,8 +635,8 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
     expected = ToString(BuildVersionedRow(
         "<id=0> 30; <id=1> 30; <id=2> 30;",
         "",
-        {6},
-        {2, 5}));
+        {6_ts},
+        {2_ts, 5_ts}));
     EXPECT_EQ(expected, actual);
 }
 

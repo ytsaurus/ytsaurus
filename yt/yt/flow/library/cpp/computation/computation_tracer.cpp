@@ -61,7 +61,7 @@ public:
 
         EpochTraceContext_ = RootTraceContext_->CreateChild("YTFlow.Worker.Computation.Epoch");
         EpochTraceContext_->AddTag("ytflow.epoch_id", epochId);
-        EpochTraceContext_->SetLoggingTag(Format("%v, EpochId: %v", RootTraceContext_->GetLoggingTag(), epochId));
+        EpochTraceContext_->AddLoggingTag("EpochId", epochId);
         YT_VERIFY(!EpochTraceContext_->IsFinished());
         ++EpochInRoot_;
         RegisterPart("Unknown", EpochTraceContext_);
@@ -264,7 +264,6 @@ private:
         child->SetProfilingTags(context->GetProfilingTags());
         child->SetTargetEndpoint(context->GetTargetEndpoint());
         child->SetAllocationTagList(context->GetAllocationTagList());
-        child->SetLoggingTag(context->GetLoggingTag());
 
         return child;
     }

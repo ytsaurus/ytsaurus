@@ -66,7 +66,7 @@ def test_build_with_scheme_and_host():
             id="port-only",
         ),
         pytest.param(
-            "", TypeError, r"^The port is required to be int\.$", id="port-str"
+            "", TypeError, r"^The port is required to be int, got .*\.$", id="port-str"
         ),
     ],
 )
@@ -266,6 +266,33 @@ def test_build_already_encoded():
         encoded=True,
     )
     assert str(u) == "http://оун-упа.укр/шлях/криївка?ключ=знач#фраг"
+
+
+def test_build_already_encoded_username_password():
+    u = URL.build(
+        scheme="http",
+        host="x.org",
+        path="/x/y/z",
+        query_string="x=z",
+        fragment="any",
+        user="u",
+        password="p",
+        encoded=True,
+    )
+    assert str(u) == "http://u:p@x.org/x/y/z?x=z#any"
+    assert u.host_subcomponent == "x.org"
+
+
+def test_build_already_encoded_empty_host():
+    u = URL.build(
+        host="",
+        path="/x/y/z",
+        query_string="x=z",
+        fragment="any",
+        encoded=True,
+    )
+    assert str(u) == "/x/y/z?x=z#any"
+    assert u.host_subcomponent is None
 
 
 def test_build_percent_encoded():

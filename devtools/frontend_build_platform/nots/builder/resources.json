@@ -1,24 +1,24 @@
 {
   "info": {
-    "created": "2026-07-29T08:21:12.577Z",
+    "created": "2026-08-01T00:59:37.231Z",
     "pr": {
-      "id": 14695923,
+      "id": 14758358,
       "author": "baymer",
-      "summary": "FBP-3307: nots.py: поправить разбор пакетов с неймспейсом"
+      "summary": "FBP-3314: Enable injected workspace packages by default"
     }
   },
   "by_platform": {
     "darwin": {
-      "uri": "sbr:12965131553"
+      "uri": "sbr:13007551575"
     },
     "darwin-arm64": {
-      "uri": "sbr:12965127662"
+      "uri": "sbr:13007550875"
     },
     "linux": {
-      "uri": "sbr:12965139070"
+      "uri": "sbr:13007553561"
     },
     "linux-aarch64": {
-      "uri": "sbr:12965134990"
+      "uri": "sbr:13007552653"
     }
   }
 }

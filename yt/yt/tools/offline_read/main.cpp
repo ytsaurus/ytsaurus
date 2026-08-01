@@ -63,6 +63,7 @@
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/compression/public.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/yt/assert/assert.h>
 
@@ -853,7 +854,7 @@ std::unique_ptr<IUniversalReader> CreateMergedVersionedUniversalReader(
         NTableClient::TColumnFilter(),
         New<TRetentionConfig>(),
         AllCommittedTimestamp,
-        0,
+        NYT::NTransactionClient::NullTimestamp,
         columnEvaluator,
         false,
         false);
