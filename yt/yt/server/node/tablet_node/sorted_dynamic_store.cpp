@@ -39,7 +39,6 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/linear_probe.h>
-#include <yt/yt/core/misc/skip_list.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
