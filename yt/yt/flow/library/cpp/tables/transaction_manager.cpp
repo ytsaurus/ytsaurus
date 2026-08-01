@@ -330,7 +330,7 @@ void TTransactionManager::PersistTransactionStartTimestamp(ITransactionPtr trans
     {
         auto row = rowBuffer->AllocateUnversioned(2);
         row[0] = rowBuffer->CaptureValue(MakeUnversionedStringValue(ToString(Context_->PartitionId), partitionIdField));
-        row[1] = rowBuffer->CaptureValue(MakeUnversionedUint64Value(transaction->GetStartTimestamp(), timestampField));
+        row[1] = rowBuffer->CaptureValue(MakeUnversionedUint64Value(transaction->GetStartTimestamp().Underlying(), timestampField));
         rows.push_back(NRowModifications::TWriteRow(row));
     }
     transaction->ModifyRows(PartitionTransactionsPath_.GetPath(), nameTable, MakeSharedRange(std::move(rows), std::move(rowBuffer)));

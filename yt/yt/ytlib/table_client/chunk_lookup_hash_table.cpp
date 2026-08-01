@@ -13,12 +13,14 @@
 #include <yt/yt/ytlib/chunk_client/preloaded_block_cache.h>
 
 #include <yt/yt/client/table_client/private.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NTableChunkFormat;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -277,7 +279,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     sortOrders,
                     chunkMeta->GetChunkKeyColumnCount(),
                     tableSchema,
-                    chunkMeta->Misc().min_timestamp());
+                    FromProto<NTransactionClient::TTimestamp>(chunkMeta->Misc().min_timestamp()));
                 fillHashTableFromReader(blockReader);
                 break;
             }

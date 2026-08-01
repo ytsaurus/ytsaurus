@@ -86,8 +86,8 @@ using namespace NNet;
 using namespace NTableClient;
 
 using NNodeTrackerClient::TNodeId;
-using NYT::ToProto;
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4379,11 +4379,11 @@ private:
         SetRequestIoFairShareWeight(req, ReaderConfig_->IoFairShareWeight);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_read_session_id(), SessionOptions_.ReadSessionId);
-        req->set_timestamp(Options_->Timestamp);
+        req->set_timestamp(ToProto(Options_->Timestamp));
         req->set_compression_codec(ToProto(CodecId_));
         ToProto(req->mutable_column_filter(), Options_->ColumnFilter);
         req->set_produce_all_versions(Options_->ProduceAllVersions);
-        req->set_override_timestamp(Options_->OverrideTimestamp);
+        req->set_override_timestamp(ToProto(Options_->OverrideTimestamp));
         req->set_populate_cache(true);
         req->set_enable_hash_chunk_index(Options_->EnableHashChunkIndex);
         req->set_use_direct_io(ReaderConfig_->UseDirectIO);

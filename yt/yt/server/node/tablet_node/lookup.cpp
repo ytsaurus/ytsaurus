@@ -74,9 +74,8 @@ using namespace NTabletClient;
 using namespace NTracing;
 using namespace NServer;
 
-using NYT::FromProto;
-
 using NTransactionClient::TReadTimestampRange;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -717,7 +716,7 @@ protected:
             }
         }
 
-        Merger_->AddPartialRow(lookupedRow, Timestamp_ + 1);
+        Merger_->AddPartialRow(lookupedRow, NTransactionClient::TTimestamp(Timestamp_.Underlying() + 1));
 
         if (const auto* cachedItem = RowsFromCache_[WriteRowIndex_].Get()) {
             if (Timestamp_ < cachedItem->RetainedTimestamp) {
@@ -733,9 +732,9 @@ protected:
                 cachedItem->Outdated.load(),
                 Timestamp_);
 
-            Merger_->AddPartialRow(cachedItem->GetVersionedRow(), Timestamp_ + 1);
+            Merger_->AddPartialRow(cachedItem->GetVersionedRow(), NTransactionClient::TTimestamp(Timestamp_.Underlying() + 1));
         } else {
-            Merger_->AddPartialRow(RowsFromActiveStore_[WriteRowIndex_], Timestamp_ + 1);
+            Merger_->AddPartialRow(RowsFromActiveStore_[WriteRowIndex_], NTransactionClient::TTimestamp(Timestamp_.Underlying() + 1));
 
             auto newItem = CachedRowFromVersionedRow(
                 RowCache_->GetAllocator(),
@@ -941,7 +940,7 @@ private:
 
     i64 DataWeight_ = 0;
 
-    TTimestamp MaxInsertedTimestamp_ = 0;
+    TTimestamp MaxInsertedTimestamp_ = NullTimestamp;
 
     static TTimestamp GetCompactionTimestamp(
         const TTableMountConfigPtr& mountConfig,
@@ -2427,7 +2426,7 @@ void TTabletLookupSession<TPipeline>::LookupFromStoreSessions(
             YT_VERIFY(session.PrepareBatch());
         }
         auto row = session.FetchRow();
-        TPipeline::AddPartialRow(row, Timestamp_ + 1, activeStoreIndex == sessionIndex);
+        TPipeline::AddPartialRow(row, NTransactionClient::TTimestamp(Timestamp_.Underlying() + 1), activeStoreIndex == sessionIndex);
     }
 }
 

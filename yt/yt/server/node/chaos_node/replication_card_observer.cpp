@@ -27,8 +27,8 @@ using namespace NChaosClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 
-using NYT::ToProto;
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,13 +39,13 @@ constinit const auto Logger = ChaosNodeLogger;
 void ToProto(NProto::TExpiredReplicaHistory* protoExpiredHistory, const TExpiredReplicaHistory& expiredHistory)
 {
     ToProto(protoExpiredHistory->mutable_replica_id(), expiredHistory.ReplicaId);
-    protoExpiredHistory->set_retain_timestamp(expiredHistory.RetainTimestamp);
+    protoExpiredHistory->set_retain_timestamp(ToProto(expiredHistory.RetainTimestamp));
 }
 
 void FromProto(TExpiredReplicaHistory* expiredHistory, const NProto::TExpiredReplicaHistory& protoExpiredHistory)
 {
     FromProto(&expiredHistory->ReplicaId, protoExpiredHistory.replica_id());
-    expiredHistory->RetainTimestamp = protoExpiredHistory.retain_timestamp();
+    expiredHistory->RetainTimestamp = FromProto<NTransactionClient::TTimestamp>(protoExpiredHistory.retain_timestamp());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

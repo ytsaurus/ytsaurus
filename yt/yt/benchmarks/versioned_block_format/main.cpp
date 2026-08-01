@@ -8,6 +8,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/config.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_writer.h>
 
@@ -41,6 +43,8 @@ namespace {
 using namespace NTableClient;
 using namespace NProfiling;
 using namespace NTableChunkFormat;
+
+using NYT::NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +81,7 @@ struct TRowGeneratorOptions
     int ValueCountPoissonMean = 3;
     int StringLengthPoissonMean = 100;
 
-    TTimestamp MaxTimestamp = 100000;
+    TTimestamp MaxTimestamp = 100000_ts;
 };
 
 struct TBlockInfo
@@ -192,7 +196,6 @@ private:
     std::poisson_distribution<int> ValueCountDistr_;
     std::poisson_distribution<int> StringLengthDistr_;
 
-
     int GenValueCount()
     {
         return ValueCountDistr_(Generator_);
@@ -200,7 +203,7 @@ private:
 
     TTimestamp GenTimestamp()
     {
-        return Generator_.Uniform(Options_.MaxTimestamp);
+        return NYT::NTransactionClient::TTimestamp(Generator_.Uniform(Options_.MaxTimestamp.Underlying()));
     }
 
     TStringBuf GenerateString()
@@ -504,7 +507,6 @@ private:
 
     std::optional<std::vector<TMutableUnversionedRow>> Keys_;
 
-
     const std::vector<TMutableUnversionedRow>& GetKeys(const TTableSchemaPtr& schema)
     {
         if (!Keys_) {
@@ -536,7 +538,6 @@ class TBlockWriterFixture
 protected:
     using TBenchmarkBase<TBlockFormatAdapter>::GetRows;
     using TBenchmarkBase<TBlockFormatAdapter>::WriteBlock;
-
 
     void RunBenchmark(
         benchmark::State& state,
@@ -590,7 +591,6 @@ class TBlockReaderFixture
 protected:
     using TBenchmarkBase<TBlockFormatAdapter>::GetBlockInfo;
     using TBenchmarkBase<TBlockFormatAdapter>::ReadRows;
-
 
     void RunBenchmark(
         benchmark::State& state,

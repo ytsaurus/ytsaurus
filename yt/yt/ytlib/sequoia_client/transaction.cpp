@@ -41,8 +41,8 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/core/misc/random.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/core/ytree/helpers.h>
 
@@ -62,7 +62,6 @@ using namespace NTransactionClient;
 using namespace NYPath;
 
 using NNative::IClientPtr;
-
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -664,7 +663,7 @@ private:
 
         Transaction_ = transaction;
 
-        RandomGenerator_ = std::make_unique<TRandomGenerator>(Transaction_->GetStartTimestamp());
+        RandomGenerator_ = std::make_unique<TRandomGenerator>(Transaction_->GetStartTimestamp().Underlying());
 
         CellCommitSessionProvider_ = CreateCellCommitSessionProvider(
             CreateRegisterTransactionActionsRequestFactory(GroundClient_, Logger),

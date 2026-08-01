@@ -35,6 +35,8 @@
 
 #include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/core/compression/public.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
@@ -59,6 +61,7 @@ using namespace NConcurrency;
 using namespace NTransactionClient;
 
 using NYT::FromProto;
+using NYT::NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -271,7 +274,6 @@ protected:
     IBlockCachePtr SystemBlockCache;
     TKeyComparer KeyComparer;
 
-
     void FillKey(
         TMutableVersionedRow row,
         std::optional<TStringBuf> k1,
@@ -295,16 +297,16 @@ protected:
         FillKey(row, AOpt, std::make_optional(index), std::nullopt);
 
         // v1
-        row.Values()[0] = MakeVersionedInt64Value(8, 11, 3);
-        row.Values()[1] = MakeVersionedInt64Value(7, 3, 3);
+        row.Values()[0] = MakeVersionedInt64Value(8, 11_ts, 3);
+        row.Values()[1] = MakeVersionedInt64Value(7, 3_ts, 3);
         // v2
-        row.Values()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
+        row.Values()[2] = MakeVersionedSentinelValue(EValueType::Null, 5_ts, 4);
 
-        row.WriteTimestamps()[2] = 3;
-        row.WriteTimestamps()[1] = 5;
-        row.WriteTimestamps()[0] = 11;
+        row.WriteTimestamps()[2] = 3_ts;
+        row.WriteTimestamps()[1] = 5_ts;
+        row.WriteTimestamps()[0] = 11_ts;
 
-        row.DeleteTimestamps()[0] = 9;
+        row.DeleteTimestamps()[0] = 9_ts;
         return row;
     }
 
@@ -411,9 +413,9 @@ protected:
 
             auto row = TMutableVersionedRow::Allocate(&pool, 3, 1, 1, 1);
             FillKey(row, AOpt, std::make_optional(0), std::nullopt);
-            row.Values()[0] = MakeVersionedInt64Value(8, 11, 3);
-            row.WriteTimestamps()[0] = 11;
-            row.DeleteTimestamps()[0] = 9;
+            row.Values()[0] = MakeVersionedInt64Value(8, 11_ts, 3);
+            row.WriteTimestamps()[0] = 11_ts;
+            row.DeleteTimestamps()[0] = 9_ts;
             expectedRows.push_back(row);
 
             // Somewhere in the middle.
@@ -424,9 +426,9 @@ protected:
 
             row = TMutableVersionedRow::Allocate(&pool, 3, 1, 1, 1);
             FillKey(row, AOpt, std::make_optional(150000), std::nullopt);
-            row.Values()[0] = MakeVersionedInt64Value(8, 11, 3);
-            row.WriteTimestamps()[0] = 11;
-            row.DeleteTimestamps()[0] = 9;
+            row.Values()[0] = MakeVersionedInt64Value(8, 11_ts, 3);
+            row.WriteTimestamps()[0] = 11_ts;
+            row.DeleteTimestamps()[0] = 9_ts;
             expectedRows.push_back(row);
 
             // After the last key.
@@ -1157,7 +1159,7 @@ protected:
         std::vector<char> stringValue(100, 'a');
         srand(0);
 
-        std::vector<TTimestamp> timestamps = {10, 20, 30, 40, 50, 60, 70, 80, 90};
+        std::vector<TTimestamp> timestamps = {10_ts, 20_ts, 30_ts, 40_ts, 50_ts, 60_ts, 70_ts, 80_ts, 90_ts};
 
         std::vector<TVersionedRow> rows;
         rows.reserve(rowCount);
@@ -1582,7 +1584,7 @@ protected:
             readSchema,
             lowerKey,
             upperKey,
-            /*timestamp*/ 25,
+            25_ts,
             /*produceAllVersions*/ false);
     }
 
@@ -1826,7 +1828,7 @@ TEST_P(TVersionedChunksHeavyTest, FullScanCompaction)
 
 TEST_P(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumn)
 {
-    DoTimestampFullScanExtraKeyColumn(/*timestamp*/ 50);
+    DoTimestampFullScanExtraKeyColumn(50_ts);
 }
 
 TEST_P(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnSyncLastCommitted)
@@ -1933,7 +1935,7 @@ public:
             readSchema,
             lowerKey,
             upperKey,
-            /*timestamp*/ 25,
+            25_ts,
             /*produceAllVersions*/ false);
     }
 
@@ -2070,7 +2072,7 @@ protected:
                 auto lookupHashTable = BuildLookupHashTable(memoryChunkReader, readSchema);
 
                 for (auto generateColumnFilter : {false, true}) {
-                    for (auto timestamp : {TTimestamp(50), AllCommittedTimestamp}) {
+                    for (auto timestamp : {50_ts, AllCommittedTimestamp}) {
                         if (generateColumnFilter && timestamp == AllCommittedTimestamp) {
                             continue;
                         }
@@ -2360,7 +2362,7 @@ private:
         std::vector<TVersionedRow> rows;
         rows.reserve(std::ssize(randomUniqueSequence));
 
-        std::vector<TTimestamp> timestamps{10, 20, 30, 40, 50, 60, 70, 80, 90};
+        std::vector<TTimestamp> timestamps{10_ts, 20_ts, 30_ts, 40_ts, 50_ts, 60_ts, 70_ts, 80_ts, 90_ts};
 
         constexpr int SegmentModeSwitchLimit = 500;
         int rowIndex = 0;

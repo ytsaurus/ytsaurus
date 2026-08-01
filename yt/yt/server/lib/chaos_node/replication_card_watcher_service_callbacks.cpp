@@ -28,7 +28,7 @@ public:
         TTimestamp timestamp) override
     {
         auto* response = Context_->Response().mutable_replication_card_changed();
-        response->set_replication_card_cache_timestamp(timestamp);
+        response->set_replication_card_cache_timestamp(ToProto(timestamp));
         ToProto(
             response->mutable_replication_card(),
             *replicationCard,

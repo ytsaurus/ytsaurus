@@ -441,11 +441,11 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     }
 
     if (inputChunk->OverrideTimestamp_) {
-        chunkSpec->set_override_timestamp(inputChunk->OverrideTimestamp_);
+        chunkSpec->set_override_timestamp(ToProto(inputChunk->OverrideTimestamp_));
     }
 
     if (inputChunk->MaxClipTimestamp_) {
-        chunkSpec->set_max_clip_timestamp(inputChunk->MaxClipTimestamp_);
+        chunkSpec->set_max_clip_timestamp(ToProto(inputChunk->MaxClipTimestamp_));
     }
 
     if (inputChunk->LowerLimit_) {

@@ -119,6 +119,7 @@
 
 #include <yt/yt/core/ytree/tree_builder.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
@@ -174,10 +175,8 @@ using NTabletNode::DynamicStoreIdPoolSize;
 using NTransactionServer::TTransaction;
 
 using NSecurityServer::ConvertToClusterResources;
-
 using NYT::FromProto;
 using NYT::ToProto;
-
 using TTabletResources = NTabletServer::TTabletResources;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1655,7 +1654,7 @@ public:
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_transaction_id(), transaction->GetId());
             req.set_commit_timestamp(static_cast<i64>(
-                transactionManager->GetTimestampHolderTimestamp(transaction->GetId())));
+                transactionManager->GetTimestampHolderTimestamp(transaction->GetId()).Underlying()));
             req.set_update_mode(ToProto(updateMode));
 
             i64 startingRowIndex = 0;
@@ -2376,7 +2375,7 @@ public:
             TReqLockTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_lock()->mutable_transaction_id(), transaction->GetId());
-            req.mutable_lock()->set_timestamp(static_cast<i64>(timestamp));
+            req.mutable_lock()->set_timestamp(ToProto(timestamp));
             hiveManager->PostMessage(mailbox, req);
         }
 
@@ -3304,9 +3303,9 @@ private:
 
             MaybeSetTabletAvenueEndpointId(tablet, cell->GetId(), &req);
 
-            reqReplicatable.set_retained_timestamp(tablet->GetRetainedTimestamp());
+            reqReplicatable.set_retained_timestamp(ToProto(tablet->GetRetainedTimestamp()));
             if (table->IsPhysicallySorted()) {
-                reqReplicatable.set_conflict_horizon_timestamp(tablet->GetConflictHorizonTimestamp());
+                reqReplicatable.set_conflict_horizon_timestamp(ToProto(tablet->GetConflictHorizonTimestamp()));
             }
 
             if (!table->IsPhysicallySorted()) {
@@ -3377,7 +3376,7 @@ private:
             for (auto [transactionId, lock] : table->DynamicTableLocks()) {
                 auto* protoLock = reqReplicatable.add_locks();
                 ToProto(protoLock->mutable_transaction_id(), transactionId);
-                protoLock->set_timestamp(lock.Timestamp);
+                protoLock->set_timestamp(ToProto(lock.Timestamp));
             }
 
             if (!freeze && IsDynamicStoreReadEnabled(table, GetDynamicConfig())) {
@@ -3463,7 +3462,7 @@ private:
         }
 
         if (mountTimestamp != NullTimestamp) {
-            tablet->NodeStatistics().set_unflushed_timestamp(mountTimestamp);
+            tablet->NodeStatistics().set_unflushed_timestamp(ToProto(mountTimestamp));
         }
     }
 
@@ -3792,7 +3791,7 @@ private:
                 ToProto(req.mutable_transaction_id(), transaction->GetId());
                 req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
                 // Aborted bulk insert should not conflict with concurrent tablet transactions.
-                req.set_commit_timestamp(static_cast<i64>(MinTimestamp));
+                req.set_commit_timestamp(ToProto(MinTimestamp));
 
                 hiveManager->PostMessage(mailbox, req);
             }
@@ -4069,7 +4068,7 @@ private:
             auto* tablet = tablets[index]->As<TTablet>();
             retainedTimestamp = std::max(retainedTimestamp, tablet->GetRetainedTimestamp());
             conflictHorizonTimestamp = std::max(conflictHorizonTimestamp, tablet->GetConflictHorizonTimestamp());
-            unflushedTimestamp = std::min(unflushedTimestamp, tablet->NodeStatistics().unflushed_timestamp());
+            unflushedTimestamp = std::min(unflushedTimestamp, FromProto<NTransactionClient::TTimestamp>(tablet->NodeStatistics().unflushed_timestamp()));
         }
 
         // Save eden stores of removed tablets.
@@ -4105,7 +4104,7 @@ private:
             }
             newTablet->SetRetainedTimestamp(retainedTimestamp);
             newTablet->SetConflictHorizonTimestamp(conflictHorizonTimestamp);
-            newTablet->NodeStatistics().set_unflushed_timestamp(unflushedTimestamp);
+            newTablet->NodeStatistics().set_unflushed_timestamp(ToProto(unflushedTimestamp));
             newTablets.push_back(newTablet);
 
             if (table->IsReplicated()) {
@@ -4577,7 +4576,7 @@ private:
             if (table) {
                 table->SetLastCommitTimestamp(std::max(
                     table->GetLastCommitTimestamp(),
-                    tablet->NodeStatistics().last_commit_timestamp()));
+                    FromProto<NTransactionClient::TTimestamp>(tablet->NodeStatistics().last_commit_timestamp())));
 
                 if (tablet->NodeStatistics().has_modification_time()) {
                     auto modificationTime = FromProto<TInstant>(tablet->NodeStatistics().modification_time());
@@ -5025,7 +5024,7 @@ private:
         // after EMasterReign::AddPerTabletConflictHorizonTimestamp is removed.
         if (response->has_conflict_horizon_timestamp()) {
             YT_VERIFY(typedTablet->GetTable()->IsPhysicallySorted());
-            typedTablet->SetConflictHorizonTimestamp(response->conflict_horizon_timestamp());
+            typedTablet->SetConflictHorizonTimestamp(FromProto<NTransactionClient::TTimestamp>(response->conflict_horizon_timestamp()));
         }
 
         if (response->has_replication_progress()) {
@@ -5116,7 +5115,7 @@ private:
         // after EMasterReign::AddPerTabletConflictHorizonTimestamp is removed.
         if (response->has_conflict_horizon_timestamp()) {
             YT_VERIFY(table->IsPhysicallySorted());
-            tablet->SetConflictHorizonTimestamp(response->conflict_horizon_timestamp());
+            tablet->SetConflictHorizonTimestamp(FromProto<NTransactionClient::TTimestamp>(response->conflict_horizon_timestamp()));
         }
 
         TabletActionManager_->OnTabletActionStateChanged(tablet->GetAction());
@@ -6304,7 +6303,7 @@ private:
         if (multicellManager->IsPrimaryMaster()) {
             for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
                 NProto::TReqSetTabletCellBundleResourceUsage request;
-                request.set_cell_tag(multicellManager->GetCellTag().Underlying());
+                request.set_cell_tag(ToProto(multicellManager->GetCellTag()));
 
                 fillBundles(request, cellTag);
 
@@ -6312,7 +6311,7 @@ private:
             }
         } else {
             NProto::TReqSetTabletCellBundleResourceUsage request;
-            request.set_cell_tag(multicellManager->GetCellTag().Underlying());
+            request.set_cell_tag(ToProto(multicellManager->GetCellTag()));
 
             fillBundles(request, /*cellTag*/ {});
 
@@ -6706,11 +6705,11 @@ private:
             if (auto overrideTimestamp = transactionManager->GetTimestampHolderTimestamp(
                 chunkView->GetTransactionId()))
             {
-                viewDescriptor->set_override_timestamp(overrideTimestamp);
+                viewDescriptor->set_override_timestamp(ToProto(overrideTimestamp));
             }
 
             if (auto maxClipTimestamp = chunkView->GetMaxClipTimestamp()) {
-                viewDescriptor->set_max_clip_timestamp(maxClipTimestamp);
+                viewDescriptor->set_max_clip_timestamp(ToProto(maxClipTimestamp));
             }
         } else {
             chunk = chunkOrView->AsChunk();
@@ -6835,7 +6834,7 @@ private:
         ToProto(descriptor->mutable_replica_id(), replica->GetId());
         descriptor->set_cluster_name(replica->GetClusterName());
         descriptor->set_replica_path(replica->GetReplicaPath());
-        descriptor->set_start_replication_timestamp(replica->GetStartReplicationTimestamp());
+        descriptor->set_start_replication_timestamp(ToProto(replica->GetStartReplicationTimestamp()));
         descriptor->set_mode(ToProto(replica->GetMode()));
         descriptor->set_preserve_timestamps(replica->GetPreserveTimestamps());
         descriptor->set_atomicity(ToProto(replica->GetAtomicity()));
@@ -6852,7 +6851,7 @@ private:
             statistics.committed_replication_row_index()));
         info->SetCurrentReplicationTimestamp(std::max(
             info->GetCurrentReplicationTimestamp(),
-            statistics.current_replication_timestamp()));
+            FromProto<NTransactionClient::TTimestamp>(statistics.current_replication_timestamp())));
     }
 };
 

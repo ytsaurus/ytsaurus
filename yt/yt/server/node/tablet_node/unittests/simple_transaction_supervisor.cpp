@@ -8,8 +8,8 @@ using namespace NHydra;
 using namespace NLogging;
 using namespace NObjectClient;
 
-using NYT::ToProto;
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +70,7 @@ TFuture<void> TSimpleTransactionSupervisor::PrepareTransactionCommit(
     NProto::TReqPrepareTransactionCommit request;
     ToProto(request.mutable_transaction_id(), transactionId);
     request.set_persistent(persistent);
-    request.set_prepare_timestamp(prepareTimestamp);
+    request.set_prepare_timestamp(ToProto(prepareTimestamp));
 
     auto mutation = CreateMutation(HydraManager_, request);
     mutation->SetCurrentTraceContext();
@@ -83,7 +83,7 @@ TFuture<void> TSimpleTransactionSupervisor::CommitTransaction(
 {
     NProto::TReqCommitTransaction request;
     ToProto(request.mutable_transaction_id(), transactionId);
-    request.set_commit_timestamp(commitTimestamp);
+    request.set_commit_timestamp(ToProto(commitTimestamp));
 
     auto mutation = CreateMutation(HydraManager_, request);
     mutation->SetCurrentTraceContext();

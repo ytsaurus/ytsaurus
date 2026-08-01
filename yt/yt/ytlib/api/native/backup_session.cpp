@@ -280,7 +280,7 @@ void TClusterBackupSession::StartBackup()
 {
     auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
         auto req = TTableYPathProxy::StartBackup(FromObjectId(table.SourceTableId));
-        req->set_timestamp(Timestamp_);
+        req->set_timestamp(ToProto(Timestamp_));
         SetTransactionId(req, table.ExternalizedTransactionId);
 
         EBackupMode mode;

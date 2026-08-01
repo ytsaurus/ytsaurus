@@ -37,7 +37,7 @@ public:
             .Apply(BIND([this, this_ = MakeStrong(this)] (const NTransactionClient::TTimestamp& timestamp) {
                 auto result = TGlobalUniqueSeqNo{
                     .Timestamp = TSystemTimestamp(NTransactionClient::UnixTimeFromTimestamp(timestamp)),
-                    .UniqueSeqNo = TUniqueSeqNo(timestamp)};
+                    .UniqueSeqNo = TUniqueSeqNo(timestamp.Underlying())};
                 UpdateSeqNoRange(result.UniqueSeqNo.Underlying());
                 UpdateCachedTimestamp(result.Timestamp);
                 return result;

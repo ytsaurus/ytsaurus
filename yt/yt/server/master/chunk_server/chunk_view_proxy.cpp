@@ -47,7 +47,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Timestamp)
             .SetPresent(chunkView->GetTransactionId().operator bool()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxClipTimestamp)
-            .SetPresent(chunkView->GetMaxClipTimestamp()));
+            .SetPresent(chunkView->GetMaxClipTimestamp().Underlying()));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override

@@ -1165,7 +1165,7 @@ void TSortedStoreManagerStressTest::RunTest()
             TLookupRequest request {
                 .Key = static_cast<TKey>(Rng() % KeyCount),
                 .ValueFilter = {},
-                .Timestamp = LastGeneratedTimestamp_ - TsGap + Rng() % (TsGap + 1),
+                .Timestamp = TTimestamp(LastGeneratedTimestamp_.Underlying() - TsGap + Rng() % (TsGap + 1)),
                 .RequestId = GenerateId(),
             };
             for (int index = 0; index < ValueCount; ++index) {

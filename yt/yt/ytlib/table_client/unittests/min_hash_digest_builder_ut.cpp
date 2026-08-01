@@ -16,9 +16,9 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ui64 MakeTimestamp(ui64 index)
+NYT::NTransactionClient::TTimestamp MakeTimestamp(ui64 index)
 {
-    return index << 30;
+    return NYT::NTransactionClient::TTimestamp(index << 30);
 }
 
 TEST(TMinHashDigestBuilder, Simple)

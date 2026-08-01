@@ -674,8 +674,8 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfosImpl(
                 result.TotalRowCount = tabletInfo.total_row_count();
                 result.TrimmedRowCount = tabletInfo.trimmed_row_count();
                 result.DelayedLocklessRowCount = tabletInfo.delayed_lockless_row_count();
-                result.BarrierTimestamp = tabletInfo.barrier_timestamp();
-                result.LastWriteTimestamp = tabletInfo.last_write_timestamp();
+                result.BarrierTimestamp = FromProto<NTransactionClient::TTimestamp>(tabletInfo.barrier_timestamp());
+                result.LastWriteTimestamp = FromProto<NTransactionClient::TTimestamp>(tabletInfo.last_write_timestamp());
                 result.TableReplicaInfos = tabletInfo.replicas().empty()
                     ? std::nullopt
                     : std::make_optional(std::vector<TTabletInfo::TTableReplicaInfo>());
@@ -686,7 +686,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfosImpl(
                 for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
                     auto& currentReplica = result.TableReplicaInfos->emplace_back();
                     currentReplica.ReplicaId = FromProto<TGuid>(protoReplicaInfo.replica_id());
-                    currentReplica.LastReplicationTimestamp = protoReplicaInfo.last_replication_timestamp();
+                    currentReplica.LastReplicationTimestamp = FromProto<NTransactionClient::TTimestamp>(protoReplicaInfo.last_replication_timestamp());
                     currentReplica.Mode = FromProto<ETableReplicaMode>(protoReplicaInfo.mode());
                     currentReplica.CurrentReplicationRowIndex = protoReplicaInfo.current_replication_row_index();
                     currentReplica.CommittedReplicationRowIndex = protoReplicaInfo.committed_replication_row_index();
@@ -1443,8 +1443,8 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         req->SetMultiplexingBand(options.MultiplexingBand);
         req->set_request_codec(ToProto(connectionConfig->LookupRowsRequestCodec));
         req->set_response_codec(ToProto(connectionConfig->LookupRowsResponseCodec));
-        req->set_timestamp(options.Timestamp);
-        req->set_retention_timestamp(options.RetentionTimestamp);
+        req->set_timestamp(ToProto(options.Timestamp));
+        req->set_retention_timestamp(ToProto(options.RetentionTimestamp));
         req->set_enable_partial_result(options.EnablePartialResult);
         if (options.UseLookupCache) {
             req->set_use_lookup_cache(*options.UseLookupCache);
@@ -2299,7 +2299,7 @@ void TClient::DoMountTable(
 
     auto mountTimestamp = WaitFor(Connection_->GetTimestampProvider()->GenerateTimestamps())
         .ValueOrThrow();
-    req.set_mount_timestamp(mountTimestamp);
+    req.set_mount_timestamp(ToProto(mountTimestamp));
 
     ExecuteTabletServiceRequest(path, "Mounting", &req);
 }
@@ -2633,7 +2633,7 @@ void TClient::DoAlterTable(
         ToProto(req->mutable_replication_progress(), *options.ReplicationProgress);
     }
     if (options.ClipTimestamp) {
-        req->set_clip_timestamp(*options.ClipTimestamp);
+        req->set_clip_timestamp(ToProto(*options.ClipTimestamp));
     }
 
     auto proxy = CreateObjectServiceWriteProxy();
@@ -3684,7 +3684,7 @@ private:
             req->set_mount_revision(ToProto(TabletInfo_->MountRevision));
             req->set_max_rows_per_read(Options_.TabletRowsPerRead);
             req->set_max_data_weight(MaxDataWeight_);
-            req->set_upper_timestamp(Options_.UpperTimestamp);
+            req->set_upper_timestamp(ToProto(Options_.UpperTimestamp));
             req->set_max_allowed_commit_instant(ToProto(Options_.MaxTransactionCommitInstant));
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
@@ -3792,7 +3792,7 @@ private:
         std::vector<TTypeErasedRow> rows;
         while (!reader->IsFinished()) {
             auto row = reader->ReadSchemafulRow(schemaData, true);
-            auto rowTimestamp = FromUnversionedValue<ui64>(row[TimestampColumnIndex_]);
+            auto rowTimestamp = FromUnversionedValue<NTransactionClient::TTimestamp>(row[TimestampColumnIndex_]);
             if (rowTimestamp > maxTimestamp) {
                 ReplicationRowIndex_.reset();
                 break;

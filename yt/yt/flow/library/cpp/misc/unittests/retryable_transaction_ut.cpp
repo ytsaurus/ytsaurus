@@ -4,6 +4,8 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/unittests/mock/transaction.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NFlow {
@@ -17,6 +19,7 @@ using namespace NYPath;
 using ::testing::_;
 using ::testing::Invoke;
 using ::testing::StrictMock;
+using NYT::NTransactionClient::operator""_ts;
 using TStrictMockTransaction = StrictMock<NApi::TMockTransaction>;
 using TStrictMockTransactionPtr = TIntrusivePtr<TStrictMockTransaction>;
 
@@ -88,12 +91,12 @@ TEST(TRetryableTransactionTest, OnAttemptResultDispatchesSubscribers)
     }));
 
     NApi::TTransactionCommitResult okResult;
-    okResult.PrimaryCommitTimestamp = 42;
+    okResult.PrimaryCommitTimestamp = 42_ts;
     retryableTransaction->OnAttemptResult(TCommitAttemptResult{.CommitResult = okResult});
     ASSERT_EQ(firstCallCount, 1);
     ASSERT_EQ(secondCallCount, 1);
     ASSERT_TRUE(lastResult.CommitResult.IsOK());
-    ASSERT_EQ(lastResult.CommitResult.Value().PrimaryCommitTimestamp, 42u);
+    ASSERT_EQ(lastResult.CommitResult.Value().PrimaryCommitTimestamp, 42_ts);
 
     retryableTransaction->OnAttemptResult(TCommitAttemptResult{.CommitResult = TError("Commit failed")});
     ASSERT_EQ(firstCallCount, 2);

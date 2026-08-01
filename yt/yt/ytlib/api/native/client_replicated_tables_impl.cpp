@@ -73,7 +73,7 @@ bool IsReplicaInSync(
     }
     if (timestamp >= MinTimestamp &&
         timestamp <= MaxTimestamp &&
-        replicaInfo.last_replication_timestamp() >= timestamp)
+        FromProto<NTransactionClient::TTimestamp>(replicaInfo.last_replication_timestamp()) >= timestamp)
     {
         return true;
     }

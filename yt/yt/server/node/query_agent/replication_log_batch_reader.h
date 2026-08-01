@@ -23,7 +23,7 @@ struct TReplicationLogBatchDescriptor
     i64 ReadRowCount = 0;
     i64 ResponseRowCount = 0;
     i64 ResponseDataWeight = 0;
-    NTransactionClient::TTimestamp MaxTimestamp = 0;
+    NTransactionClient::TTimestamp MaxTimestamp = NTransactionClient::NullTimestamp;
     bool ReadAllRows = true;
     i64 EndReplicationRowIndex = 0;
 };

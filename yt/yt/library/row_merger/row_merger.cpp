@@ -186,7 +186,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimes
                 int timestampColumnIndex = ColumnIdToIndex_[timestampColumnId];
 
                 if (partialValue.Timestamp > MergedTimestamps_[timestampColumnIndex]) {
-                    MergedRow_[timestampColumnIndex] = MakeUnversionedUint64Value(partialValue.Timestamp, timestampColumnId);
+                    MergedRow_[timestampColumnIndex] = MakeUnversionedUint64Value(partialValue.Timestamp.Underlying(), timestampColumnId);
                     MergedTimestamps_[timestampColumnIndex] = partialValue.Timestamp;
                 }
             }
@@ -483,7 +483,7 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
             TVersionedValue value;
             static_cast<TUnversionedValue&>(value) = mergedValue;
-            value.Timestamp = PartialRowCount_;
+            value.Timestamp = NTransactionClient::TTimestamp(PartialRowCount_);
             nestedValues.push_back(value);
 
             ValidValues_[columnId - KeyColumnCount_] = false;
@@ -533,7 +533,7 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
             TVersionedValue value;
             static_cast<TUnversionedValue&>(value) = mergedValue;
-            value.Timestamp = PartialRowCount_;
+            value.Timestamp = NTransactionClient::TTimestamp(PartialRowCount_);
             nestedValues.push_back(value);
 
             ValidValues_[columnId - KeyColumnCount_] = false;

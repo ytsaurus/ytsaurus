@@ -109,9 +109,9 @@ using namespace NYTree;
 using namespace NYson;
 
 using NChunkClient::NProto::TMiscExt;
-using NYT::ToProto;
-using NYT::FromProto;
 using NQueryClient::TDistributedSessionId;
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -689,7 +689,7 @@ private:
         auto startReplicationRowIndex = request->has_start_replication_row_index()
             ? std::make_optional(request->start_replication_row_index())
             : std::nullopt;
-        auto upperTimestamp = request->upper_timestamp();
+        auto upperTimestamp = FromProto<NTransactionClient::TTimestamp>(request->upper_timestamp());
         auto maxDataWeight = request->has_max_data_weight()
             ? request->max_data_weight()
             : std::numeric_limits<i64>::max();
@@ -901,11 +901,11 @@ private:
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
             // NB: Read barrier timestamp first to ensure a certain degree of consistency with TotalRowCount.
-            protoTabletInfo->set_barrier_timestamp(tabletSnapshot->TabletCellRuntimeData->BarrierTimestamp.load());
+            protoTabletInfo->set_barrier_timestamp(ToProto(tabletSnapshot->TabletCellRuntimeData->BarrierTimestamp.load()));
             protoTabletInfo->set_total_row_count(tabletSnapshot->TabletRuntimeData->TotalRowCount.load());
             protoTabletInfo->set_trimmed_row_count(tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load());
             protoTabletInfo->set_delayed_lockless_row_count(tabletSnapshot->TabletRuntimeData->DelayedLocklessRowCount.load());
-            protoTabletInfo->set_last_write_timestamp(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp.load());
+            protoTabletInfo->set_last_write_timestamp(ToProto(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp.load()));
 
             if (request->request_errors()) {
                 tabletSnapshot->TabletRuntimeData->Errors.ForEachError([&] (const TError& error) {
@@ -926,7 +926,7 @@ private:
 
                 auto* protoReplicaInfo = protoTabletInfo->add_replicas();
                 ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);
-                protoReplicaInfo->set_last_replication_timestamp(lastReplicationTimestamp);
+                protoReplicaInfo->set_last_replication_timestamp(ToProto(lastReplicationTimestamp));
                 protoReplicaInfo->set_mode(ToProto(replicaSnapshot->RuntimeData->Mode.load()));
                 protoReplicaInfo->set_current_replication_row_index(replicaSnapshot->RuntimeData->CurrentReplicationRowIndex.load());
                 protoReplicaInfo->set_committed_replication_row_index(replicaSnapshot->RuntimeData->CommittedReplicationRowIndex.load());
@@ -951,7 +951,7 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
-        auto timestamp = request->timestamp();
+        auto timestamp = FromProto<NTransactionClient::TTimestamp>(request->timestamp());
 
         context->SetRequestInfo("StoreId: %v, TabletId: %v, CellId: %v, ReadSessionId: %v, Timestamp: %v",
             storeId,
@@ -1229,7 +1229,7 @@ private:
         }
 
         if (auto overrideTimestamp = chunk->GetOverrideTimestamp()) {
-            chunkSpec->set_override_timestamp(overrideTimestamp);
+            chunkSpec->set_override_timestamp(ToProto(overrideTimestamp));
         }
     }
 
@@ -1693,7 +1693,7 @@ private:
                 FromProto<TTabletId>(subrequest.tablet_id()),
                 FromProto<TCellId>(subrequest.cell_id()),
                 YT_OPTIONAL_FROM_PROTO(subrequest, mount_revision, NHydra::TRevision),
-                subrequest.timestamp())
+                FromProto<NTransactionClient::TTimestamp>(subrequest.timestamp()))
                 .AsyncVia(GetCurrentInvoker())
                 .Run());
         }

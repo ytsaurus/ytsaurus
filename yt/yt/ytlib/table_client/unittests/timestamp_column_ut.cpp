@@ -5,12 +5,16 @@
 #include <yt/yt/ytlib/table_chunk_format/timestamp_writer.h>
 #include <yt/yt/ytlib/table_chunk_format/timestamp_reader.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 namespace NYT::NTableClient {
 namespace {
 
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 using namespace NCompression;
+
+using NYT::NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 /*
@@ -37,15 +41,15 @@ protected:
     std::vector<TVersionedRow> CreateSegment1()
     {
         return std::vector<TVersionedRow> {
-            CreateRowWithTimestamps({}, {10}),
-            CreateRowWithTimestamps({10}, {20})
+            CreateRowWithTimestamps({}, {10_ts}),
+            CreateRowWithTimestamps({10_ts}, {20_ts})
         };
     }
 
     std::vector<TVersionedRow> CreateSegment2()
     {
         return std::vector<TVersionedRow> {
-            CreateRowWithTimestamps({10, 30, 40, 60}, {20, 50})
+            CreateRowWithTimestamps({10_ts, 30_ts, 40_ts, 60_ts}, {20_ts, 50_ts})
         };
     }
 
@@ -223,11 +227,11 @@ protected:
 
 TEST_F(TTimestampColumnTest, ScanAllRows)
 {
-    TestScanReader(0, 3, 5);
-    TestScanReader(0, 3, 10);
-    TestScanReader(0, 3, 15);
-    TestScanReader(0, 3, 20);
-    TestScanReader(0, 3, 45);
+    TestScanReader(0, 3, 5_ts);
+    TestScanReader(0, 3, 10_ts);
+    TestScanReader(0, 3, 15_ts);
+    TestScanReader(0, 3, 20_ts);
+    TestScanReader(0, 3, 45_ts);
     TestScanReader(0, 3, MaxTimestamp);
 }
 

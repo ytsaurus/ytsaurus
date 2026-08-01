@@ -53,10 +53,8 @@ using namespace NObjectClient;
 using namespace NTabletClient;
 
 using NChunkClient::TLegacyReadLimit;
-
 using NYT::FromProto;
 using NYT::ToProto;
-
 using TIdMapping = TCompactVector<int, TypicalColumnCount>;
 
 template <class IReaderPtr>
@@ -448,7 +446,7 @@ private:
             ToProto(req->mutable_upper_bound(), upperLimit.GetLegacyKey());
         }
 
-        req->set_timestamp(Timestamp_);
+        req->set_timestamp(ToProto(Timestamp_));
 
         YT_LOG_DEBUG("Collected remote dynamic store reader parameters (Range: <%v .. %v>, Timestamp: %v, ColumnFilter: %v)",
             lowerLimit,

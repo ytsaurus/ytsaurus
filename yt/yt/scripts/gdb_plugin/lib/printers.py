@@ -81,8 +81,16 @@ def _format_unversioned_value(val):
     return "#%-2d  %-9s  %s" % (value_id, type_name, data)
 
 
+def _ts_int(val):
+    """TTimestamp is a strong typedef over ui64; unwrap it before converting."""
+    try:
+        return int(val["Underlying_"])
+    except gdb.error:
+        return int(val)
+
+
 def _format_versioned_value(val):
-    ts = int(val["Timestamp"])
+    ts = _ts_int(val["Timestamp"])
     value_id, type_name, data = _unpack_unversioned_value(val)
     if data != "":
         data = "{%s}" % data
@@ -125,8 +133,8 @@ def _format_versioned_row_from_header(header_ptr, name):
     values = (keys + key_count).cast(vv.pointer())
 
     lines = ["%s {" % name]
-    lines.append("  WriteTimestamps [%s]" % ", ".join(str(int(wts[i])) for i in range(wts_count)))
-    lines.append("  DeleteTimestamps [%s]" % ", ".join(str(int(dts[i])) for i in range(dts_count)))
+    lines.append("  WriteTimestamps [%s]" % ", ".join(str(_ts_int(wts[i])) for i in range(wts_count)))
+    lines.append("  DeleteTimestamps [%s]" % ", ".join(str(_ts_int(dts[i])) for i in range(dts_count)))
     lines.append("  Keys [")
     for i in range(key_count):
         lines.append("    " + _format_unversioned_value(keys[i]))

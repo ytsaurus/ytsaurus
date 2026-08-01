@@ -219,7 +219,7 @@ protected:
         TTimestamp* timestamp,
         i64* rowDataWeight) const override
     {
-        auto rowTimestamp = row[TimestampColumnIndex_].Data.Uint64;
+        auto rowTimestamp = NTransactionClient::TTimestamp(row[TimestampColumnIndex_].Data.Uint64);
 
         *timestamp = rowTimestamp;
         *replicationRow = row.ToTypeErasedRow();

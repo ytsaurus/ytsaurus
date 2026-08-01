@@ -63,6 +63,7 @@
 
 #include <yt/yt/core/ypath/token.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/ytree/exception_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
@@ -1657,7 +1658,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     auto mode = FromProto<ELockMode>(request->mode());
     auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
     auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
-    auto timestamp = request->timestamp();
+    auto timestamp = FromProto<NTransactionClient::TTimestamp>(request->timestamp());
     auto waitable = request->waitable();
 
     context->SetRequestInfo("Mode: %v, Key: %v, Waitable: %v",
@@ -1854,7 +1855,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
         inheritedAttributes->ListPairs());
 
     response->set_sequoia_destination(true);
-    response->set_native_cell_tag(nativeCellTag.Underlying());
+    response->set_native_cell_tag(ToProto(nativeCellTag));
     ToProto(response->mutable_account_id(), accountId);
     ToProto(response->mutable_effective_inheritable_attributes(), *inheritedAttributes);
 

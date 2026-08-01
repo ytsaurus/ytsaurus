@@ -108,7 +108,7 @@ private:
             auto* protoMigratedCard = req.add_migrated_cards();
 
             ToProto(protoMigratedCard->mutable_replication_card_id(), id);
-            protoMigratedCard->set_migration_timestamp(replicationCard->GetCurrentTimestamp());
+            protoMigratedCard->set_migration_timestamp(ToProto(replicationCard->GetCurrentTimestamp()));
         }
 
         if (req.migrated_cards_size() == 0) {

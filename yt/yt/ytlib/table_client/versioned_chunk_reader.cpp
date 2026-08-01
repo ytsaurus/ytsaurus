@@ -974,7 +974,7 @@ public:
             for (auto& value : row.Values()) {
                 value.Timestamp = TimestampReader_->GetValueTimestamp(
                     currentRowIndex + index,
-                    static_cast<ui32>(value.Timestamp));
+                    static_cast<ui32>(value.Timestamp.Underlying()));
                 if (ColumnHunkFlags_[value.Id] && value.Type != EValueType::Null) {
                     value.Flags |= EValueFlags::Hunk;
                 }
@@ -1074,7 +1074,7 @@ public:
             for (auto* value = range[index].BeginValues(); value != range[index].EndValues(); ++value) {
                 value->Timestamp = TimestampReader_->GetValueTimestamp(
                     currentRowIndex + index,
-                    static_cast<ui32>(value->Timestamp));
+                    static_cast<ui32>(value->Timestamp.Underlying()));
             }
         }
 
@@ -1335,7 +1335,7 @@ public:
         }
 
         for (auto& value : row.Values()) {
-            value.Timestamp = TimestampReader_->GetTimestamp(static_cast<ui32>(value.Timestamp));
+            value.Timestamp = TimestampReader_->GetTimestamp(static_cast<ui32>(value.Timestamp.Underlying()));
             if (ColumnHunkFlags_[value.Id] && value.Type != EValueType::Null) {
                 value.Flags |= EValueFlags::Hunk;
             }
@@ -1427,7 +1427,7 @@ public:
 
         for (auto& value : row.Values()) {
             value.Timestamp = TimestampReader_->GetValueTimestamp(
-                static_cast<i32>(value.Timestamp) - writeTimestampIndexRange.first);
+                static_cast<i32>(value.Timestamp.Underlying()) - writeTimestampIndexRange.first);
         }
 
         auto* memoryFrom = const_cast<char*>(row.EndMemory());

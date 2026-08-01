@@ -2,6 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include scalar_attribute.h"
 // For the sake of sane code completion.
 #include "scalar_attribute.h"
+
+#include <library/cpp/yt/misc/strong_typedef.h>
 #endif
 
 #include "helpers.h"
@@ -39,6 +41,7 @@ concept CScalarAttributeTriviallyComparable =
         std::same_as<T, TInstant> ||
         std::same_as<T, double> ||
         std::integral<T> ||
+        NYT::CStrongTypedef<T> ||
         TEnumTraits<T>::IsEnum ||
         std::is_enum_v<T>);
 

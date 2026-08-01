@@ -9,6 +9,8 @@
 #include <yt/yt/client/unittests/mock/client.h>
 #include <yt/yt/client/unittests/mock/timestamp_provider.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/misc/backoff_strategy.h>
@@ -29,6 +31,7 @@ using ::testing::_;
 using ::testing::Invoke;
 using ::testing::Return;
 using ::testing::StrictMock;
+using NYT::NTransactionClient::operator""_ts;
 using TStrictMockClient = StrictMock<NApi::TMockClient>;
 using TStrictMockClientPtr = TIntrusivePtr<TStrictMockClient>;
 
@@ -179,7 +182,7 @@ TEST(TRetryableTimestampProviderTest, RetryAndSuccess)
     EXPECT_CALL(*underlying, GenerateTimestamps(_, _))
         .WillOnce(Return(MakeFuture<TTimestamp>(TError(NYT::EErrorCode::Timeout, "Fake timeout"))))
         .WillOnce(Return(MakeFuture<TTimestamp>(TError(NYT::EErrorCode::Timeout, "Fake timeout"))))
-        .WillOnce(Return(MakeFuture<TTimestamp>(TTimestamp(42))));
+        .WillOnce(Return(MakeFuture<TTimestamp>(42_ts)));
 
     auto statusProfiler = CreateSyncStatusProfiler();
     auto retryableClient = MakeRetryableClientOverTimestampProvider(
@@ -189,7 +192,7 @@ TEST(TRetryableTimestampProviderTest, RetryAndSuccess)
         MakeShortRetrySpec());
 
     auto result = WaitFor(retryableClient->GetTimestampProvider()->GenerateTimestamps(/*count*/ 1, NObjectClient::InvalidCellTag)).ValueOrThrow();
-    EXPECT_EQ(result, TTimestamp(42));
+    EXPECT_EQ(result, 42_ts);
     aqueue->Shutdown();
 }
 

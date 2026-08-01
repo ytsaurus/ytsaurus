@@ -607,7 +607,7 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
                 /*virtualKeyPrefixLength*/ 0,
                 /*columns*/ std::nullopt,
                 /*omittedInaccessibleColumns*/ std::vector<std::string>{},
-                /*timestamp*/ NullTimestamp,
+                NullTimestamp,
                 /*retentionTimestamp*/ NullTimestamp,
                 /*columnRenameDescriptors*/ TColumnRenameDescriptors{}));
 
