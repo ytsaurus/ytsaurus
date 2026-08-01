@@ -768,13 +768,15 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         driver = get_driver(1 if self.NUM_SECONDARY_MASTER_CELLS > 0 else 0)
         table_id = get("//tmp/t/@id")
 
-        # Waiting for all content revision updates to reach the master.
-        time.sleep(2)
-
         for i in range(0, 3):
+            # Waiting for all content revision updates to reach the master.
+            time.sleep(2)
             old_content_revision = get(f"#{table_id}/@content_revision", driver=driver)
             insert_rows("//tmp/t", [{"key": i, "value": "0"}])
             wait(lambda: get(f"#{table_id}/@content_revision", driver=driver) != old_content_revision)
+
+        # Waiting for all content revision updates to reach the master.
+        time.sleep(2)
 
         content_revision = get(f"#{table_id}/@content_revision", driver=driver)
         time.sleep(3)
