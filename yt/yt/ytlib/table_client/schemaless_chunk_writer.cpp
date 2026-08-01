@@ -85,8 +85,8 @@ using namespace NYTree;
 using namespace NYson;
 
 using NYT::FromProto;
-using NYT::TRange;
 using NYT::ToProto;
+using NYT::TRange;
 
 static const i64 PartitionRowCountThreshold = 1000 * 1000;
 static const i64 PartitionRowCountLimit = std::numeric_limits<i32>::max() - PartitionRowCountThreshold;
@@ -344,10 +344,10 @@ protected:
         miscExt.set_is_compatible_with_dynamic_table_constraints(IsCompatibleWithDynamicTableConstraints_);
 
         if (ChunkTimestamps_.MinTimestamp != NullTimestamp) {
-            miscExt.set_min_timestamp(ChunkTimestamps_.MinTimestamp);
+            miscExt.set_min_timestamp(ToProto(ChunkTimestamps_.MinTimestamp));
         }
         if (ChunkTimestamps_.MaxTimestamp != NullTimestamp) {
-            miscExt.set_max_timestamp(ChunkTimestamps_.MaxTimestamp);
+            miscExt.set_max_timestamp(ToProto(ChunkTimestamps_.MaxTimestamp));
         }
 
         if (Options_->EnableSkynetSharing) {
@@ -2153,7 +2153,7 @@ private:
             const auto& timestampColumn = row[columnIndex];
             writeTimestamps[columnIndex - columnCount] = timestampColumn.Type == EValueType::Null
                 ? MinTimestamp
-                : timestampColumn.Data.Uint64;
+                : NTransactionClient::TTimestamp(timestampColumn.Data.Uint64);
         }
 
         SortUnique(writeTimestamps, std::greater<TTimestamp>());
@@ -2172,7 +2172,7 @@ private:
             const auto& timestampColumn = row[columnIndex + valueColumnCount];
             *currentValue = MakeVersionedValue(row[columnIndex], timestampColumn.Type == EValueType::Null
                 ? MinTimestamp
-                : timestampColumn.Data.Uint64);
+                : NTransactionClient::TTimestamp(timestampColumn.Data.Uint64));
         }
 
         std::copy(writeTimestamps.begin(), writeTimestamps.end(), versionedRow.BeginWriteTimestamps());

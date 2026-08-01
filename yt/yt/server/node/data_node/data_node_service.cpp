@@ -100,7 +100,6 @@ using namespace NTracing;
 using NChunkClient::TChunkReaderStatistics;
 using NYT::FromProto;
 using NYT::ToProto;
-
 using TRefCountedColumnarStatisticsSubresponse = TRefCountedProto<TRspGetColumnarStatistics::TSubresponse>;
 using TRefCountedColumnarStatisticsSubresponsePtr = TIntrusivePtr<TRefCountedColumnarStatisticsSubresponse>;
 
@@ -2032,11 +2031,11 @@ private:
         response->set_net_throttling(netThrottling.Enabled);
         response->set_net_queue_size(netThrottling.QueueSize);
 
-        auto timestamp = request->timestamp();
+        auto timestamp = FromProto<NTransactionClient::TTimestamp>(request->timestamp());
         auto columnFilter = FromProto<NTableClient::TColumnFilter>(request->column_filter());
         auto codecId = FromProto<NCompression::ECodec>(request->compression_codec());
         auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
-        auto overrideTimestamp = request->has_override_timestamp() ? request->override_timestamp() : NullTimestamp;
+        auto overrideTimestamp = FromProto<NTransactionClient::TTimestamp>(request->override_timestamp());
         auto useDirectIO = request->use_direct_io();
 
         auto chunkReadSession = CreateOffloadedChunkReadSession(

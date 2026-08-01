@@ -190,7 +190,7 @@ private:
             return;
         }
 
-        bool enoughSpareTimestamps = CurrentTimestamp_ + count < CommittedTimestamp_;
+        bool enoughSpareTimestamps = CurrentTimestamp_.Underlying() + count < CommittedTimestamp_.Underlying();
         if (Config_->EmbedCellTag) {
             enoughSpareTimestamps &= CanAdvanceTimestampWithEmbeddedCellTag(CurrentTimestamp_, count);
         }
@@ -212,11 +212,11 @@ private:
         }
 
         auto result = CurrentTimestamp_;
-        CurrentTimestamp_ += count;
+        CurrentTimestamp_ = TTimestamp(CurrentTimestamp_.Underlying() + count);
 
         context->SetResponseInfo("Timestamp: %v", result);
 
-        context->Response().set_timestamp(result);
+        context->Response().set_timestamp(ToProto(result));
         if (ClockClusterTag_ != InvalidCellTag) {
             context->Response().set_clock_cluster_tag(ToProto(ClockClusterTag_));
         }
@@ -252,7 +252,7 @@ private:
 
         YT_VERIFY(clockUnixTime > currentTimestampUnixTime);
 
-        ui64 newCurrentTimestamp = TimestampFromUnixTime(clockUnixTime);
+        auto newCurrentTimestamp = TimestampFromUnixTime(clockUnixTime);
         if (Config_->EmbedCellTag) {
             newCurrentTimestamp = EmbedCellTagIntoTimestamp(newCurrentTimestamp, CellTag_);
         }
@@ -269,7 +269,7 @@ private:
             proposedTimestamp);
 
         TReqCommitTimestamp request;
-        request.set_timestamp(proposedTimestamp);
+        request.set_timestamp(ToProto(proposedTimestamp));
 
         auto mutation = CreateMutation(HydraManager_, request);
         BIND([mutation = std::move(mutation)] {
@@ -386,7 +386,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        PersistentTimestamp_ = request->timestamp();
+        PersistentTimestamp_ = FromProto<TTimestamp>(request->timestamp());
 
         YT_LOG_DEBUG("Persistent timestamp updated (Timestamp: %v)",
             PersistentTimestamp_);

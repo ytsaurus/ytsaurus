@@ -111,7 +111,7 @@ private:
 
         auto req = proxy.WatchReplicationCard();
         ToProto(req->mutable_replication_card_id(), replicationCardId);
-        req->set_replication_card_cache_timestamp(timestamp);
+        req->set_replication_card_cache_timestamp(ToProto(timestamp));
 
         SetChaosCacheStickyGroupBalancingHint(
             replicationCardId,

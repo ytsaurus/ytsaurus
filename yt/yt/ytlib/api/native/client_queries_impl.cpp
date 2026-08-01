@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/query_tracker_client/helpers.h>
 #include <yt/yt/ytlib/query_tracker_client/query_tracker_service_proxy.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NApi::NNative {
@@ -257,7 +258,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
     return TListQueriesResult{
         .Queries = std::move(queries),
         .Incomplete = rpcResponse.incomplete(),
-        .Timestamp = rpcResponse.timestamp(),
+        .Timestamp = FromProto<NTransactionClient::TTimestamp>(rpcResponse.timestamp()),
     };
 }
 

@@ -220,7 +220,7 @@ public:
             if (transaction->GetPersistentState() == ETransactionState::Committed) {
                 YT_ASSERT(timestamp);
                 if (enableSequoiaRevision) {
-                    SequoiaRevisionGuard_.emplace(TSequoiaRevisionCommit{TRevision(*timestamp)});
+                    SequoiaRevisionGuard_.emplace(TSequoiaRevisionCommit{TRevision(timestamp->Underlying())});
                 } else {
                     SequoiaRevisionGuard_.emplace(TSequoiaRevisionDisabled{});
                 }
@@ -240,7 +240,7 @@ public:
                                 modificationType,
                                 *latePrepare);
                         },
-                        TRevision(*timestamp),
+                        TRevision(timestamp->Underlying()),
                     });
                 } else {
                     SequoiaRevisionGuard_.emplace(TSequoiaRevisionDisabled{});
@@ -1166,7 +1166,7 @@ public:
         if (replicateCommitViaHive && !transaction->ReplicatedToCellTags().empty()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_commit_timestamp(options.CommitTimestamp);
+            request.set_commit_timestamp(ToProto(options.CommitTimestamp));
             request.set_native_commit_mutation_revision(ToProto(mutationRevision));
             request.set_native_commit_sequoia_revision(ToProto(sequoiaRevision));
             multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
@@ -1175,7 +1175,7 @@ public:
         if (!transaction->ExternalizedToCellTags().empty()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
-            request.set_commit_timestamp(options.CommitTimestamp);
+            request.set_commit_timestamp(ToProto(options.CommitTimestamp));
             request.set_native_commit_mutation_revision(ToProto(mutationRevision));
             request.set_native_commit_sequoia_revision(ToProto(sequoiaRevision));
             multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
@@ -2940,7 +2940,7 @@ private:
     void HydraPrepareTransactionCommit(NProto::TReqPrepareTransactionCommit* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto prepareTimestamp = request->prepare_timestamp();
+        auto prepareTimestamp = FromProto<NTransactionClient::TTimestamp>(request->prepare_timestamp());
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         auto expectedPrepareSignature = request->has_expected_prepare_signature()
             ? FromProto<NTransactionClient::TTransactionSignature>(request->expected_prepare_signature())
@@ -2971,7 +2971,7 @@ private:
     void HydraCommitTransaction(NProto::TReqCommitTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto commitTimestamp = request->commit_timestamp();
+        auto commitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp());
         auto nativeCommitMutationRevision = FromProto<NHydra::TRevision>(request->native_commit_mutation_revision());
 
         // COMPAT(kvk1920): SequoiaRevision.
@@ -3028,7 +3028,7 @@ private:
             TTransactionPrepareOptions prepareOptions{
                 .Persistent = true,
                 .LatePrepare = true, // Technically true.
-                .PrepareTimestamp = request->commit_timestamp(),
+                .PrepareTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp()),
                 .PrepareTimestampClusterTag = Bootstrap_->GetPrimaryCellTag(),
                 .PrerequisiteTransactionIds = prerequisiteTransactionIds,
             };
@@ -3055,7 +3055,7 @@ private:
         auto* transaction = GetTransaction(FromProto<TTransactionId>(request->transaction_id()));
 
         TTransactionCommitOptions commitOptions{
-            .CommitTimestamp = request->commit_timestamp(),
+            .CommitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp()),
             .CommitTimestampClusterTag = Bootstrap_->GetPrimaryCellTag(),
         };
         CommitTransaction(transaction, commitOptions);
@@ -3106,7 +3106,7 @@ private:
             PrepareAndCommitCypressTransaction(
                 transaction,
                 prerequisiteTransactionIds,
-                request->commit_timestamp());
+                FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp()));
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to commit transaction, aborting (TransactionId: %v)",
                 transactionId);

@@ -1511,7 +1511,7 @@ TLockNodeDetailedResult TClient::DoLockNodeDetailed(
     }
     auto timestamp = WaitFor(Connection_->GetTimestampProvider()->GenerateTimestamps())
         .ValueOrThrow();
-    req->set_timestamp(timestamp);
+    req->set_timestamp(ToProto(timestamp));
     batchReq->AddRequest(req);
 
     auto batchRsp = WaitFor(batchReq->Invoke())

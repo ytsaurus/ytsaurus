@@ -75,7 +75,7 @@ struct TQueryIndexSearchOptions
 {
     std::string User;
     std::vector<std::string> AcosForUser;
-    ui64 Timestamp;
+    TTimestamp Timestamp;
     bool IsSuperuser;
     TAttributeFilter Attributes;
 };
@@ -864,7 +864,7 @@ private:
             .ValueOrThrow();
 
         for (const auto& record : ToRecords<TRecord>(selectResult.Rowset)) {
-            results.push_back({-record.Key.MinusStartTime, record.Key.QueryId});
+            results.push_back({NTransactionClient::TTimestamp(-record.Key.MinusStartTime), record.Key.QueryId});
         }
     }
 

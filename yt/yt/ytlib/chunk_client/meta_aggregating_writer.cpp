@@ -20,6 +20,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
 #include <google/protobuf/util/message_differencer.h>
@@ -29,6 +30,7 @@ namespace NYT::NChunkClient {
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 
+using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +67,7 @@ static std::optional<TParsedExtension> ParseOptionalProto(const std::optional<TP
 {
     std::optional<TParsedExtension> result;
     if (protobufStruct.has_value()) {
-        result = NYT::FromProto<TParsedExtension>(*protobufStruct);
+        result = FromProto<TParsedExtension>(*protobufStruct);
     }
     return result;
 }
@@ -219,8 +221,8 @@ public:
                 // First meta.
                 BoundaryKeys_ = boundaryKeysExt;
             } else {
-                auto currentMinRow = NYT::FromProto<TLegacyOwningKey>(boundaryKeysExt->Min);
-                auto previousMaxRow = NYT::FromProto<TLegacyOwningKey>(BoundaryKeys_->Max);
+                auto currentMinRow = FromProto<TLegacyOwningKey>(boundaryKeysExt->Min);
+                auto previousMaxRow = FromProto<TLegacyOwningKey>(BoundaryKeys_->Max);
                 if (SchemaComparator_.CompareKeys(TKey::FromRow(previousMaxRow), TKey::FromRow(currentMinRow)) > 0) {
                     YT_LOG_ALERT("Incorrectly sorted chunk occured during absorption of meta (ChunkId: %v)", chunkId);
                     THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
@@ -231,7 +233,7 @@ public:
             }
         }
 
-        if (NYT::FromProto<EChunkType>(meta->type()) == EChunkType::Table) {
+        if (FromProto<EChunkType>(meta->type()) == EChunkType::Table) {
             auto samplesExt = ParseOptionalProto<TSamplesExtension>(FindProtoExtension<TSamplesExt>(meta->extensions()));
             if (!samplesExt) {
                 THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
@@ -291,8 +293,8 @@ public:
                 const auto& lastBlock = *BlockMetaExt_.data_blocks().rbegin();
                 YT_VERIFY(lastBlock.has_last_key() && block.has_last_key());
                 auto columnCount = Options_->TableSchema->GetKeyColumnCount();
-                auto lastRow = NYT::FromProto<TLegacyOwningKey>(lastBlock.last_key());
-                auto row = NYT::FromProto<TLegacyOwningKey>(block.last_key());
+                auto lastRow = FromProto<TLegacyOwningKey>(lastBlock.last_key());
+                auto row = FromProto<TLegacyOwningKey>(block.last_key());
                 auto lastKey = TKey::FromRow(lastRow, columnCount);
                 auto key = TKey::FromRow(row, columnCount);
                 YT_VERIFY(Options_->TableSchema->ToComparator().CompareKeys(lastKey, key) <= 0);
@@ -336,11 +338,11 @@ public:
         DataWeight_ += miscExt.data_weight();
         ValueCount_ += miscExt.value_count();
         if (miscExt.has_min_timestamp()) {
-            auto minTs = miscExt.min_timestamp();
+            auto minTs = FromProto<NTransactionClient::TTimestamp>(miscExt.min_timestamp());
             MinTimestamp_ = MinTimestamp_ == NullTimestamp ? minTs : std::min(minTs, MinTimestamp_);
         }
         if (miscExt.has_max_timestamp()) {
-            auto maxTs = miscExt.max_timestamp();
+            auto maxTs = FromProto<NTransactionClient::TTimestamp>(miscExt.max_timestamp());
             MaxTimestamp_ = MaxTimestamp_ == NullTimestamp ? maxTs : std::max(maxTs, MaxTimestamp_);
         }
 
@@ -398,8 +400,8 @@ private:
     i64 BlockIndex_ = 0;
     i64 ValueCount_ = 0;
 
-    ui64 MinTimestamp_ = NullTimestamp;
-    ui64 MaxTimestamp_ = NullTimestamp;
+    TTimestamp MinTimestamp_ = NullTimestamp;
+    TTimestamp MaxTimestamp_ = NullTimestamp;
 
     TComparator SchemaComparator_;
 
@@ -439,8 +441,8 @@ private:
                 "Meta types differ in chunks %v and %v",
                 FirstChunkId_,
                 chunkId)
-                << TErrorAttribute("previous", NYT::FromProto<EChunkType>(ChunkMeta_->type()))
-                << TErrorAttribute("current", NYT::FromProto<EChunkType>(meta->type()));
+                << TErrorAttribute("previous", FromProto<EChunkType>(ChunkMeta_->type()))
+                << TErrorAttribute("current", FromProto<EChunkType>(meta->type()));
         }
 
         if (ChunkMeta_->format() != meta->format()) {
@@ -448,8 +450,8 @@ private:
                 "Meta formats differ in chunks %v and %v",
                 FirstChunkId_,
                 chunkId)
-                << TErrorAttribute("previous", NYT::FromProto<EChunkFormat>(ChunkMeta_->format()))
-                << TErrorAttribute("current", NYT::FromProto<EChunkFormat>(meta->format()));
+                << TErrorAttribute("previous", FromProto<EChunkFormat>(ChunkMeta_->format()))
+                << TErrorAttribute("current", FromProto<EChunkFormat>(meta->format()));
         }
 
         auto nameTableExt = GetProtoExtension<TNameTableExt>(meta->extensions());
@@ -558,10 +560,10 @@ private:
         MiscExt_.set_meta_size(ChunkMeta_->ByteSize());
         MiscExt_.set_value_count(ValueCount_);
         if (MinTimestamp_ != NullTimestamp) {
-            MiscExt_.set_min_timestamp(MinTimestamp_);
+            MiscExt_.set_min_timestamp(ToProto(MinTimestamp_));
         }
         if (MaxTimestamp_ != NullTimestamp) {
-            MiscExt_.set_max_timestamp(MaxTimestamp_);
+            MiscExt_.set_max_timestamp(ToProto(MaxTimestamp_));
         }
         if (TableSchema_) {
             MiscExt_.set_unique_keys(TableSchema_->IsUniqueKeys());

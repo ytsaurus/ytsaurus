@@ -160,7 +160,7 @@ private:
             : std::nullopt;
         TTabletCellWriteParams params{
             .TransactionId = FromProto<TTransactionId>(request->transaction_id()),
-            .TransactionStartTimestamp = request->transaction_start_timestamp(),
+            .TransactionStartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->transaction_start_timestamp()),
             .TransactionTimeout = FromProto<TDuration>(request->transaction_timeout()),
             .PrepareSignature = request->prepare_signature(),
             // COMPAT(gritukan)
@@ -386,7 +386,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto transactionStartTimestamp = request->transaction_start_timestamp();
+        auto transactionStartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->transaction_start_timestamp());
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto prepareSignature = request->prepare_signature();
         auto commitSignature = request->has_commit_signature()

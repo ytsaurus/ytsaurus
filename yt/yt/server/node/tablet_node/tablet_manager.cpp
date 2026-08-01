@@ -156,7 +156,6 @@ using namespace NProfiling;
 using namespace NDistributedThrottler;
 
 using NLsm::EStoreRotationReason;
-
 using NYT::FromProto;
 using NYT::ToProto;
 
@@ -393,7 +392,7 @@ public:
 
         NProto::TReqExternalizeTransaction req;
         ToProto(req.mutable_transaction_id(), transaction->GetId());
-        req.set_transaction_start_timestamp(transaction->GetStartTimestamp());
+        req.set_transaction_start_timestamp(ToProto(transaction->GetStartTimestamp()));
         req.set_transaction_timeout(ToProto(transaction->GetTimeout()));
         ToProto(req.mutable_externalizer_tablet_id(), tablet->GetId());
         ToProto(req.mutable_externalization_token(), token);
@@ -2216,7 +2215,7 @@ private:
             auto nextEpoch = lockManager->GetEpoch() + 1;
             UpdateTabletSnapshot(tablet, nextEpoch);
 
-            auto commitTimestamp = request->commit_timestamp();
+            auto commitTimestamp = FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp());
             lockManager->Unlock(commitTimestamp, transactionId);
         } else {
             UpdateTabletSnapshot(tablet);
@@ -2318,7 +2317,7 @@ private:
                 {
                     if (tablet->IsPhysicallySorted()) {
                         response.set_conflict_horizon_timestamp(
-                            tablet->GetPersistentConflictHorizonTimestamp());
+                            ToProto(tablet->GetPersistentConflictHorizonTimestamp()));
                     }
                 }
 
@@ -2395,7 +2394,7 @@ private:
                     {
                         if (tablet->IsPhysicallySorted()) {
                             response.set_conflict_horizon_timestamp(
-                                tablet->GetPersistentConflictHorizonTimestamp());
+                                ToProto(tablet->GetPersistentConflictHorizonTimestamp()));
                         }
                     }
 
@@ -3365,7 +3364,7 @@ private:
                 auto backingStoreId = FromProto<TStoreId>(request->unleashed_backing_store_id());
                 const auto& backingStore = GetOrCrash(idToBackingStore, backingStoreId);
 
-                YT_VERIFY(request->conflict_horizon_timestamp() == backingStore->GetMaxTimestamp());
+                YT_VERIFY(request->conflict_horizon_timestamp() == backingStore->GetMaxTimestamp().Underlying());
 
                 YT_LOG_DEBUG("Adding unleashed backing store (%v, BackingStoreId: %v, MaxTimestamp: %v)",
                     tablet->GetLoggingTags(),
@@ -4266,7 +4265,7 @@ private:
         auto prevTrimmedRowCount = tablet->GetTrimmedRowCount();
 
         auto newCurrentReplicationRowIndex = request->new_replication_row_index();
-        auto newCurrentReplicationTimestamp = request->new_replication_timestamp();
+        auto newCurrentReplicationTimestamp = FromProto<NTransactionClient::TTimestamp>(request->new_replication_timestamp());
 
         if (newCurrentReplicationRowIndex < prevCurrentReplicationRowIndex) {
             YT_LOG_ALERT("CurrentReplicationIndex went back (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
@@ -5514,7 +5513,7 @@ private:
 
         replicaInfo.SetClusterName(descriptor.cluster_name());
         replicaInfo.SetReplicaPath(descriptor.replica_path());
-        replicaInfo.SetStartReplicationTimestamp(descriptor.start_replication_timestamp());
+        replicaInfo.SetStartReplicationTimestamp(FromProto<NTransactionClient::TTimestamp>(descriptor.start_replication_timestamp()));
         replicaInfo.SetState(ETableReplicaState::Disabled);
         replicaInfo.SetMode(ETableReplicaMode(descriptor.mode()));
         if (descriptor.has_atomicity()) {

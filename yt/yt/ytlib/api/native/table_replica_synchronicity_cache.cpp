@@ -134,7 +134,7 @@ TReplicaSynchronicitiesFetchResult BuildTabletReplicaSynchronicities(
                     ++replicaIdToSyncTabletCount[replicaId];
                 }
 
-                auto timestamp = protoReplicaInfo.last_replication_timestamp();
+                auto timestamp = FromProto<NTransactionClient::TTimestamp>(protoReplicaInfo.last_replication_timestamp());
                 auto [it, inserted] = replicationTimestamps.insert({replicaId, timestamp});
                 if (!inserted) {
                     it->second = std::min(timestamp, it->second);

@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NTableServer {
@@ -21,6 +23,8 @@ using namespace NTabletClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+
+using NYT::NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,7 +106,7 @@ TEST(TChaosReplicaLagTest, GetSortedLag)
         syncProgress);
     replicationCard->Replicas[syncQueueReplicaId].History.emplace_back(TReplicaHistoryItem{
         .Era = 1,
-        .Timestamp = 1073741824, // 1s.
+        .Timestamp = 1073741824_ts, // 1s.
         .Mode = ETableReplicaMode::Sync,
         .State = ETableReplicaState::Enabled,
     });
@@ -116,7 +120,7 @@ TEST(TChaosReplicaLagTest, GetSortedLag)
         syncProgress);
     replicationCard->Replicas[syncDataReplicaId].History.emplace_back(TReplicaHistoryItem{
         .Era = 1,
-        .Timestamp = 161061273600, // 150s.
+        .Timestamp = 161061273600_ts, // 150s.
         .Mode = ETableReplicaMode::Sync,
         .State = ETableReplicaState::Enabled,
     });
@@ -130,7 +134,7 @@ TEST(TChaosReplicaLagTest, GetSortedLag)
         asyncProgress);
     replicationCard->Replicas[asyncDataReplicaId].History.emplace_back(TReplicaHistoryItem{
         .Era = 1,
-        .Timestamp = 10737418240, // 10s.
+        .Timestamp = 10737418240_ts, // 10s.
         .Mode = ETableReplicaMode::Async,
         .State = ETableReplicaState::Enabled,
     });

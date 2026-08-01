@@ -33,6 +33,8 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 namespace NYT::NTabletNode {
 namespace {
 
@@ -48,6 +50,8 @@ using namespace NHydra;
 using namespace NHiveServer;
 using namespace NRpc;
 using namespace NLogging;
+
+using NYT::NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,7 +236,7 @@ private:
 
     std::atomic<i64> TotalMutationWaitTime_;
 
-    TTimestamp LatestTimestamp_ = 4242;
+    TTimestamp LatestTimestamp_ = 4242_ts;
 };
 
 DECLARE_REFCOUNTED_CLASS(TSimpleTabletSlot)

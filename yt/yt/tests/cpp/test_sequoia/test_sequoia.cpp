@@ -1148,7 +1148,7 @@ TEST_F(TSequoiaTest, TestSequoiaPrelockDisable)
 
         auto timestamp = WaitFor(nativeConnection->GetTimestampProvider()->GenerateTimestamps())
             .ValueOrThrow();
-        req->set_timestamp(timestamp);
+        req->set_timestamp(ToProto(timestamp));
         SetAllowResolveFromSequoiaObject(&req->Header(), true);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -1378,7 +1378,7 @@ TEST_P(TSequoiaTestPrelocks, Test)
 
         auto timestamp = WaitFor(nativeConnection->GetTimestampProvider()->GenerateTimestamps())
             .ValueOrThrow();
-        req->set_timestamp(timestamp);
+        req->set_timestamp(ToProto(timestamp));
         SetAllowResolveFromSequoiaObject(&req->Header(), true);
 
         auto batchReq = proxy.ExecuteBatch();

@@ -475,7 +475,7 @@ public:
     {
         NTabletClient::NProto::TReqRegisterTransactionActions request;
         ToProto(request.mutable_transaction_id(), transactionId);
-        request.set_transaction_start_timestamp(transactionStartTimestamp);
+        request.set_transaction_start_timestamp(ToProto(transactionStartTimestamp));
         request.set_transaction_timeout(ToProto(transactionTimeout));
         request.set_prepare_signature(prepareSignature);
         request.set_commit_signature(commitSignature);
@@ -1409,7 +1409,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto externalizationToken = FromProto<TTransactionExternalizationToken>(request->externalization_token());
 
-        auto transactionStartTimestamp = request->transaction_start_timestamp();
+        auto transactionStartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->transaction_start_timestamp());
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto prepareSignature = request->prepare_signature();
         auto commitSignature = request->has_commit_signature()
@@ -1539,7 +1539,7 @@ private:
 
     void HydraHandleTransactionBarrier(NTabletNode::NProto::TReqHandleTransactionBarrier* request)
     {
-        auto barrierTimestamp = request->timestamp();
+        auto barrierTimestamp = FromProto<NTransactionClient::TTimestamp>(request->timestamp());
 
         YT_LOG_DEBUG("Handling transaction barrier (Timestamp: %v)",
             barrierTimestamp);
@@ -1605,7 +1605,7 @@ private:
     void HydraExternalizeTransaction(NProto::TReqExternalizeTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto transactionStartTimestamp = request->transaction_start_timestamp();
+        auto transactionStartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->transaction_start_timestamp());
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto tabletId = FromProto<TTabletId>(request->externalizer_tablet_id());
         auto token = FromProto<TTransactionExternalizationToken>(
@@ -1790,7 +1790,7 @@ private:
         TransientBarrierTimestamp_ = minPrepareTimestamp;
 
         NTabletNode::NProto::TReqHandleTransactionBarrier request;
-        request.set_timestamp(TransientBarrierTimestamp_);
+        request.set_timestamp(ToProto(TransientBarrierTimestamp_));
         YT_UNUSED_FUTURE(CreateMutation(HydraManager_, request)
             ->CommitAndLog(Logger));
     }

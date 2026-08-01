@@ -184,9 +184,9 @@ private:
                 protoTabletStatistics->set_preload_completed_store_count(tabletSnapshot->PreloadCompletedStoreCount);
                 protoTabletStatistics->set_preload_failed_store_count(tabletSnapshot->PreloadFailedStoreCount);
                 protoTabletStatistics->set_overlapping_store_count(tabletSnapshot->OverlappingStoreCount);
-                protoTabletStatistics->set_last_commit_timestamp(tabletSnapshot->TabletRuntimeData->LastCommitTimestamp);
-                protoTabletStatistics->set_last_write_timestamp(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp);
-                protoTabletStatistics->set_unflushed_timestamp(tabletSnapshot->TabletRuntimeData->UnflushedTimestamp);
+                protoTabletStatistics->set_last_commit_timestamp(ToProto(tabletSnapshot->TabletRuntimeData->LastCommitTimestamp.load()));
+                protoTabletStatistics->set_last_write_timestamp(ToProto(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp.load()));
+                protoTabletStatistics->set_unflushed_timestamp(ToProto(tabletSnapshot->TabletRuntimeData->UnflushedTimestamp.load()));
                 i64 totalDynamicMemoryUsage = 0;
                 for (auto type : TEnumTraits<ETabletDynamicMemoryType>::GetDomainValues()) {
                     totalDynamicMemoryUsage += tabletSnapshot->TabletRuntimeData->DynamicMemoryUsagePerType[type].load();

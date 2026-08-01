@@ -232,7 +232,8 @@ TEST(TFlowViewKeeperTest, SetFeedbackFencesOnStaleSpecVersion)
 TEST(TExecutionSpecEpochTest, AdvancesForEveryVersionComponent)
 {
     auto versions = New<TExecutionSpecVersions>();
-    i64 nextClockVersion = NTransactionClient::TimestampFromUnixTime(1'784'633'264);
+    i64 nextClockVersion = static_cast<i64>(
+        NTransactionClient::TimestampFromUnixTime(1'784'633'264).Underlying());
 
     auto updateClockVersion = [&] (TVersion& version) {
         const auto previousEpoch = versions->GetEpoch();
@@ -252,7 +253,8 @@ TEST(TExecutionSpecEpochTest, AdvancesForEveryVersionComponent)
 
 TEST(TExecutionSpecEpochTest, RemainsPositivePastTheOld2038OverflowBoundary)
 {
-    const i64 clockVersion = NTransactionClient::TimestampFromUnixTime(1ULL << 31);
+    const i64 clockVersion = static_cast<i64>(
+        NTransactionClient::TimestampFromUnixTime(1ULL << 31).Underlying());
     auto versions = New<TExecutionSpecVersions>();
     versions->PipelineStateVersion = TVersion(clockVersion + 1);
     versions->PipelineSpecVersion = TVersion(clockVersion + 2);

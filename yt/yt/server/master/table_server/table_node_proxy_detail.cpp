@@ -114,8 +114,8 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
 
-using NYT::ToProto;
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2703,7 +2703,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, LockDynamicTable)
     DeclareMutating();
     ValidateTransaction();
 
-    auto timestamp = request->timestamp();
+    auto timestamp = FromProto<NTransactionClient::TTimestamp>(request->timestamp());
 
     context->SetRequestInfo("Timestamp: %v",
         timestamp);
@@ -2737,7 +2737,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, StartBackup)
     DeclareMutating();
     ValidateTransaction();
 
-    auto timestamp = request->timestamp();
+    auto timestamp = FromProto<NTransactionClient::TTimestamp>(request->timestamp());
     auto backupMode = FromProto<EBackupMode>(request->backup_mode());
 
     auto upstreamReplicaId = request->has_upstream_replica_id()

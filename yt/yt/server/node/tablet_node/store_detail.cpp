@@ -69,7 +69,6 @@ using namespace NYson;
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TChunkSpec;
 using NChunkClient::NProto::TMiscExt;
-
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -985,12 +984,12 @@ NErasure::ECodec TChunkStoreBase::GetErasureCodecId() const
 
 TTimestamp TChunkStoreBase::GetMinTimestamp() const
 {
-    return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : MiscExt_.min_timestamp();
+    return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : FromProto<NTransactionClient::TTimestamp>(MiscExt_.min_timestamp());
 }
 
 TTimestamp TChunkStoreBase::GetMaxTimestamp() const
 {
-    return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : MiscExt_.max_timestamp();
+    return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : FromProto<NTransactionClient::TTimestamp>(MiscExt_.max_timestamp());
 }
 
 bool TChunkStoreBase::IsStripedErasure() const

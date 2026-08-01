@@ -12,6 +12,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 
@@ -54,7 +55,7 @@ void LockDynamicTables(
 
         for (const auto& table : tables) {
             auto req = TTableYPathProxy::LockDynamicTable(FromObjectId(table.TableId));
-            req->set_timestamp(currentTimestamp);
+            req->set_timestamp(ToProto(currentTimestamp));
             AddCellTagToSyncWith(req, table.TableId);
             SetTransactionId(req, table.ExternalTransactionId);
             GenerateMutationId(req);
@@ -180,7 +181,7 @@ void ToProto(
     NTabletClient::NProto::TExternalCellTagToTableIds* protoExternalCellTagToTableIds,
     const std::pair<TCellTag, std::vector<TTableId>>& externalCellTagToTableIds)
 {
-    protoExternalCellTagToTableIds->set_external_cell_tag(externalCellTagToTableIds.first.Underlying());
+    protoExternalCellTagToTableIds->set_external_cell_tag(NYT::ToProto(externalCellTagToTableIds.first));
     ToProto(protoExternalCellTagToTableIds->mutable_table_ids(), externalCellTagToTableIds.second);
 }
 

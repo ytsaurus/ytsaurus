@@ -230,7 +230,7 @@ void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmed
 void TRuntimeTableReplicaData::Populate(TTableReplicaStatistics* statistics) const
 {
     statistics->set_committed_replication_row_index(CommittedReplicationRowIndex.load());
-    statistics->set_current_replication_timestamp(CurrentReplicationTimestamp.load());
+    statistics->set_current_replication_timestamp(ToProto(CurrentReplicationTimestamp.load()));
 }
 
 void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statistics)
@@ -238,7 +238,7 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
     CommittedReplicationRowIndex = statistics.committed_replication_row_index();
     CurrentReplicationRowIndex = CommittedReplicationRowIndex.load();
 
-    CurrentReplicationTimestamp = statistics.current_replication_timestamp();
+    CurrentReplicationTimestamp = FromProto<TTimestamp>(statistics.current_replication_timestamp());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2839,9 +2839,9 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
 
     auto* replicatableContent = request->mutable_replicatable_content();
     replicatableContent->set_trimmed_row_count(GetTrimmedRowCount());
-    replicatableContent->set_retained_timestamp(RetainedTimestamp_);
+    replicatableContent->set_retained_timestamp(ToProto(RetainedTimestamp_));
     if (IsPhysicallySorted()) {
-        replicatableContent->set_conflict_horizon_timestamp(PersistentConflictHorizonTimestamp_);
+        replicatableContent->set_conflict_horizon_timestamp(ToProto(PersistentConflictHorizonTimestamp_));
     }
 
     replicatableContent->set_cumulative_data_weight(CumulativeDataWeight_);
@@ -2854,8 +2854,8 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
             ReservedDynamicStoreIdCount_[reason]);
     }
 
-    request->set_last_commit_timestamp(GetLastCommitTimestamp());
-    request->set_last_write_timestamp(GetLastWriteTimestamp());
+    request->set_last_commit_timestamp(ToProto(GetLastCommitTimestamp()));
+    request->set_last_write_timestamp(ToProto(GetLastWriteTimestamp()));
 
     if (auto replicationProgress = RuntimeData()->ReplicationProgress.Acquire()) {
         ToProto(
@@ -2937,10 +2937,10 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
 
     const auto& replicatableContent = request->replicatable_content();
     SetTrimmedRowCount(replicatableContent.trimmed_row_count());
-    RetainedTimestamp_ = replicatableContent.retained_timestamp();
+    RetainedTimestamp_ = FromProto<TTimestamp>(replicatableContent.retained_timestamp());
 
     if (replicatableContent.has_conflict_horizon_timestamp()) {
-        PersistentConflictHorizonTimestamp_ = replicatableContent.conflict_horizon_timestamp();
+        PersistentConflictHorizonTimestamp_ = FromProto<TTimestamp>(replicatableContent.conflict_horizon_timestamp());
         TransientConflictHorizonTimestamp_ = PersistentConflictHorizonTimestamp_;
     }
 
@@ -2971,8 +2971,8 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
         }
     }
 
-    RuntimeData_->LastCommitTimestamp = request->last_commit_timestamp();
-    RuntimeData_->LastWriteTimestamp = request->last_write_timestamp();
+    RuntimeData_->LastCommitTimestamp = FromProto<TTimestamp>(request->last_commit_timestamp());
+    RuntimeData_->LastWriteTimestamp = FromProto<TTimestamp>(request->last_write_timestamp());
 
     if (replicatableContent.has_replication_progress()) {
         auto progress = FromProto<TReplicationProgress>(replicatableContent.replication_progress());

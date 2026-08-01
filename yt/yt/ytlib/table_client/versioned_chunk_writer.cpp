@@ -55,9 +55,9 @@ using namespace NApi;
 using namespace NTableClient::NProto;
 using namespace NTracing;
 
-using NYT::TRange;
-using NYT::ToProto;
 using NYT::FromProto;
+using NYT::ToProto;
+using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -658,8 +658,8 @@ private:
         TVersionedChunkWriterBase::PrepareChunkMeta();
 
         auto& miscExt = EncodingChunkWriter_->MiscExt();
-        miscExt.set_min_timestamp(MinTimestamp_);
-        miscExt.set_max_timestamp(MaxTimestamp_);
+        miscExt.set_min_timestamp(ToProto(MinTimestamp_));
+        miscExt.set_max_timestamp(ToProto(MaxTimestamp_));
     }
 
     void DoClose() override
@@ -922,8 +922,8 @@ private:
         TVersionedChunkWriterBase::PrepareChunkMeta();
 
         auto& miscExt = EncodingChunkWriter_->MiscExt();
-        miscExt.set_min_timestamp(TimestampWriter_->GetMinTimestamp());
-        miscExt.set_max_timestamp(TimestampWriter_->GetMaxTimestamp());
+        miscExt.set_min_timestamp(ToProto(TimestampWriter_->GetMinTimestamp()));
+        miscExt.set_max_timestamp(ToProto(TimestampWriter_->GetMaxTimestamp()));
 
         auto meta = EncodingChunkWriter_->GetMeta();
 

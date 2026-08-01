@@ -68,12 +68,11 @@ using namespace NTransactionSupervisor;
 using namespace NYTree;
 using namespace NCypressClient;
 
-using NYT::ToProto;
-using NYT::FromProto;
-
 using NNative::IConnection;
 using NNative::IConnectionPtr;
 using NNative::TConnectionDynamicConfigPtr;
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1281,7 +1280,7 @@ private:
         req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
         req->set_coordinator_prepare_mode(ToProto(options.CoordinatorPrepareMode));
         req->set_coordinator_commit_mode(ToProto(options.CoordinatorCommitMode));
-        req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
+        req->set_max_allowed_commit_timestamp(ToProto(options.MaxAllowedCommitTimestamp));
         req->set_clock_cluster_tag(ToProto(ClockClusterTag_));
 
         for (const auto& [cellId, tags] : options.StrongOrderingTags) {

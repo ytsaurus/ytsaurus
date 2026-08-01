@@ -37,7 +37,7 @@ TTimestamp GetLogRowTimestamp(TUnversionedRow logRow, int timestampColumnId)
 {
     const auto& value = logRow[timestampColumnId + 2];
     YT_VERIFY(value.Type == EValueType::Uint64);
-    return value.Data.Uint64;
+    return TTimestamp(value.Data.Uint64);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,10 +110,10 @@ TUnversionedRow BuildSortedLogRow(
     YT_VERIFY(isDelete || row.GetWriteTimestampCount() == 1);
 
     if (isDelete) {
-        rowBuilder->AddValue(MakeUnversionedUint64Value(row.BeginDeleteTimestamps()[0], 0));
+        rowBuilder->AddValue(MakeUnversionedUint64Value(row.BeginDeleteTimestamps()[0].Underlying(), 0));
         rowBuilder->AddValue(MakeUnversionedInt64Value(static_cast<int>(ERowModificationType::Delete), 1));
     } else {
-        rowBuilder->AddValue(MakeUnversionedUint64Value(row.WriteTimestamps()[0], 0));
+        rowBuilder->AddValue(MakeUnversionedUint64Value(row.WriteTimestamps()[0].Underlying(), 0));
         rowBuilder->AddValue(MakeUnversionedInt64Value(static_cast<int>(ERowModificationType::Write), 1));
     }
 
@@ -358,7 +358,7 @@ private:
         if (isVersioned) {
             auto timestamp = GetLogRowTimestamp(logRow, PhysicalSchemaTimestampColumnId_);
             YT_VERIFY(TimestampColumnId_);
-            mutableReplicationRow.Begin()[columnCount++] = MakeUnversionedUint64Value(timestamp, *TimestampColumnId_);
+            mutableReplicationRow.Begin()[columnCount++] = MakeUnversionedUint64Value(timestamp.Underlying(), *TimestampColumnId_);
         }
 
         mutableReplicationRow.SetCount(columnCount);

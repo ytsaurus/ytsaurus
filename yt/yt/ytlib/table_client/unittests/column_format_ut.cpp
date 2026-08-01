@@ -206,7 +206,7 @@ std::vector<TVersionedRow> TVersionedColumnTestBase::GetExpectedRows(
         for (auto& value : expectedRow.Values()) {
             for (int timestampIndex = 0; timestampIndex < row.GetWriteTimestampCount(); ++timestampIndex) {
                 if (value.Timestamp == row.WriteTimestamps()[timestampIndex]) {
-                    value.Timestamp = timestampIndex;
+                    value.Timestamp = NYT::NTransactionClient::TTimestamp(timestampIndex);
                 }
             }
         }

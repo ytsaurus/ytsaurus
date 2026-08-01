@@ -1905,11 +1905,11 @@ private:
             for (const auto& store : stores) {
                 retainedTimestamp = std::max(retainedTimestamp, store->GetMaxTimestamp());
             }
-            ++retainedTimestamp;
+            retainedTimestamp = TTimestamp(retainedTimestamp.Underlying() + 1);
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
-            actionRequest.set_retained_timestamp(retainedTimestamp);
+            actionRequest.set_retained_timestamp(ToProto(retainedTimestamp));
             actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Compaction));
             AddStoresToRemove(&actionRequest, stores);
 
@@ -2198,7 +2198,7 @@ private:
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
-            actionRequest.set_retained_timestamp(retainedTimestamp);
+            actionRequest.set_retained_timestamp(ToProto(retainedTimestamp));
             actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Compaction));
             AddStoresToAdd(&actionRequest, compactionResult.StoreWriter);
             AddStoresToAdd(&actionRequest, compactionResult.HunkWriter);

@@ -2,6 +2,8 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/client/transaction_client/ts_literal.h>
+
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <util/string/split.h>
@@ -13,6 +15,8 @@ using namespace testing;
 
 using namespace NConcurrency;
 using namespace NTableClient;
+
+using NYT::NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +47,7 @@ protected:
         return builder.FinishRow();
     }
 
-    TVersionedOwningRow BuildVersionedRow(i64 key, std::vector<std::pair<ui64, i64>> values)
+    TVersionedOwningRow BuildVersionedRow(i64 key, std::vector<std::pair<TTimestamp, i64>> values)
     {
         TVersionedRowBuilder builder(RowBuffer_);
         builder.AddKey(MakeUnversionedInt64Value(key, /*id*/ 0));
@@ -79,30 +83,30 @@ using TTestSortedTabletWriteBasic = TTestSortedTabletCellWriteManager;
 
 TEST_F(TTestSortedTabletWriteBasic, TestSimple)
 {
-    auto versionedTxId = MakeTabletTransactionId(TTimestamp(0x40));
+    auto versionedTxId = MakeTabletTransactionId(0x40_ts);
 
-    WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 1}})}))
+    WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25_ts, 1}})}))
         .ThrowOnError();
 
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    YT_UNUSED_FUTURE(PrepareTransactionCommit(versionedTxId, true, 0x50));
-    YT_UNUSED_FUTURE(CommitTransaction(versionedTxId, 0x60));
+    YT_UNUSED_FUTURE(PrepareTransactionCommit(versionedTxId, true, 0x50_ts));
+    YT_UNUSED_FUTURE(CommitTransaction(versionedTxId, 0x60_ts));
 
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
     auto result = VersionedLookupRow(BuildRow(1));
     EXPECT_EQ(
-        ToString(BuildVersionedRow(1, {{0x25, 1}})),
+        ToString(BuildVersionedRow(1, {{0x25_ts, 1}})),
         ToString(result));
 
     // Handle transaction barrier.
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    auto unversionedTxId = MakeTabletTransactionId(TTimestamp(0x70));
+    auto unversionedTxId = MakeTabletTransactionId(0x70_ts);
 
     WaitFor(WriteUnversionedRows(unversionedTxId, {BuildRow(1, 2)}))
         .ThrowOnError();
@@ -110,15 +114,15 @@ TEST_F(TTestSortedTabletWriteBasic, TestSimple)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    YT_UNUSED_FUTURE(PrepareTransactionCommit(unversionedTxId, true, 0x80));
-    YT_UNUSED_FUTURE(CommitTransaction(unversionedTxId, 0x90));
+    YT_UNUSED_FUTURE(PrepareTransactionCommit(unversionedTxId, true, 0x80_ts));
+    YT_UNUSED_FUTURE(CommitTransaction(unversionedTxId, 0x90_ts));
 
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
     result = VersionedLookupRow(BuildRow(1));
     EXPECT_EQ(
-        ToString(BuildVersionedRow(1, {{0x25, 1}, {0x90, 2}})),
+        ToString(BuildVersionedRow(1, {{0x25_ts, 1}, {0x90_ts, 2}})),
         ToString(result));
 
     ExpectFullyUnlocked();
@@ -126,14 +130,14 @@ TEST_F(TTestSortedTabletWriteBasic, TestSimple)
 
 TEST_F(TTestSortedTabletWriteBasic, TestConflictWithPrelockedRow)
 {
-    auto txId1 = MakeTabletTransactionId(TTimestamp(0x10));
+    auto txId1 = MakeTabletTransactionId(0x10_ts);
 
     WaitFor(WriteUnversionedRows(txId1, {BuildRow(1, 1)}))
         .ThrowOnError();
 
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
 
-    auto txId2 = MakeTabletTransactionId(TTimestamp(0x11));
+    auto txId2 = MakeTabletTransactionId(0x11_ts);
 
     EXPECT_THAT(
         [&] {
@@ -147,7 +151,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestConflictWithPrelockedRow)
 
 TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByLeader)
 {
-    auto txId1 = MakeTabletTransactionId(TTimestamp(0x10));
+    auto txId1 = MakeTabletTransactionId(0x10_ts);
 
     WaitFor(WriteUnversionedRows(txId1, {BuildRow(1, 1)}))
         .ThrowOnError();
@@ -155,7 +159,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByLeader)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    auto txId2 = MakeTabletTransactionId(TTimestamp(0x11));
+    auto txId2 = MakeTabletTransactionId(0x11_ts);
 
     EXPECT_THAT(
         [&] {
@@ -167,7 +171,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByLeader)
 
 TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByFollower)
 {
-    auto txId1 = MakeTabletTransactionId(TTimestamp(0x10));
+    auto txId1 = MakeTabletTransactionId(0x10_ts);
 
     WaitFor(WriteUnversionedRows(txId1, {BuildRow(1, 1)}))
         .ThrowOnError();
@@ -175,7 +179,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestConflictWithLockedRowByFollower)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll(/*recovery*/ true);
 
-    auto txId2 = MakeTabletTransactionId(TTimestamp(0x11));
+    auto txId2 = MakeTabletTransactionId(0x11_ts);
 
     EXPECT_THAT(
         [&] {
@@ -191,7 +195,7 @@ using TTestSortedTabletWriteBarrier = TTestSortedTabletCellWriteManager;
 
 TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedPrepared)
 {
-    auto unversionedTxId = MakeTabletTransactionId(TTimestamp(0x10));
+    auto unversionedTxId = MakeTabletTransactionId(0x10_ts);
 
     WaitFor(WriteUnversionedRows(unversionedTxId, {BuildRow(1, 1)}))
         .ThrowOnError();
@@ -199,16 +203,16 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedPrepared)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    YT_UNUSED_FUTURE(PrepareTransactionCommit(unversionedTxId, true, 0x20));
+    YT_UNUSED_FUTURE(PrepareTransactionCommit(unversionedTxId, true, 0x20_ts));
 
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    auto versionedTxId = MakeTabletTransactionId(TTimestamp(0x40));
+    auto versionedTxId = MakeTabletTransactionId(0x40_ts);
 
     EXPECT_THAT(
         [&] {
-            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 2}})}))
+            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25_ts, 2}})}))
                 .ThrowOnError();
         },
         ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
@@ -217,7 +221,7 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedPrepared)
 
     EXPECT_THAT(
         [&] {
-            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 2}})}))
+            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25_ts, 2}})}))
                 .ThrowOnError();
         },
         ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
@@ -225,7 +229,7 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedPrepared)
 
 TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedActive)
 {
-    auto unversionedTxId = MakeTabletTransactionId(TTimestamp(0x10));
+    auto unversionedTxId = MakeTabletTransactionId(0x10_ts);
 
     WaitFor(WriteUnversionedRows(unversionedTxId, {BuildRow(1, 1)}))
         .ThrowOnError();
@@ -233,11 +237,11 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedActive)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    auto versionedTxId = MakeTabletTransactionId(TTimestamp(0x40));
+    auto versionedTxId = MakeTabletTransactionId(0x40_ts);
 
     EXPECT_THAT(
         [&] {
-            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 2}})}))
+            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25_ts, 2}})}))
                 .ThrowOnError();
         },
         ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
@@ -246,7 +250,7 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedActive)
 
     EXPECT_THAT(
         [&] {
-            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 2}})}))
+            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25_ts, 2}})}))
                 .ThrowOnError();
         },
         ThrowsMessage<std::exception>(HasSubstr("user writes are still pending")));
@@ -254,18 +258,18 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedActive)
 
 TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedInFlight)
 {
-    auto unversionedTxId = MakeTabletTransactionId(TTimestamp(0x10));
+    auto unversionedTxId = MakeTabletTransactionId(0x10_ts);
 
     WaitFor(WriteUnversionedRows(unversionedTxId, {BuildRow(1, 1)}))
         .ThrowOnError();
 
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
 
-    auto versionedTxId = MakeTabletTransactionId(TTimestamp(0x40));
+    auto versionedTxId = MakeTabletTransactionId(0x40_ts);
 
     EXPECT_THAT(
         [&] {
-            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25, 2}})}))
+            WaitFor(WriteVersionedRows(versionedTxId, {BuildVersionedRow(1, {{0x25_ts, 2}})}))
                 .ThrowOnError();
         },
         ThrowsMessage<std::exception>(HasSubstr("user mutations are still in flight")));
@@ -282,7 +286,7 @@ using TTestSortedTabletWriteSignature = TTestSortedTabletCellWriteManager;
 
 TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
 {
-    auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+    auto txId = MakeTabletTransactionId(0x10_ts);
 
     WaitFor(WriteUnversionedRows(txId, {BuildRow(0, 42)}, /*signature*/ 1))
         .ThrowOnError();
@@ -293,7 +297,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    auto asyncCommit = PrepareAndCommitTransaction(txId, true, 0x20);
+    auto asyncCommit = PrepareAndCommitTransaction(txId, true, 0x20_ts);
 
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
@@ -302,10 +306,10 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
         .ThrowOnError();
 
     EXPECT_EQ(
-        ToString(BuildVersionedRow(0, {{0x20, 42}})),
+        ToString(BuildVersionedRow(0, {{0x20_ts, 42}})),
         ToString(VersionedLookupRow(BuildRow(0))));
     EXPECT_EQ(
-        ToString(BuildVersionedRow(1, {{0x20, 42}})),
+        ToString(BuildVersionedRow(1, {{0x20_ts, 42}})),
         ToString(VersionedLookupRow(BuildRow(1))));
 
     ExpectFullyUnlocked();
@@ -318,7 +322,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
 TEST_F(TTestSortedTabletWriteSignature, TestSignaturesFailure)
 {
     GTEST_SKIP();
-    auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+    auto txId = MakeTabletTransactionId(0x10_ts);
 
     WaitFor(WriteUnversionedRows(txId, {BuildRow(0, 42)}, /*signature*/ 1))
         .ThrowOnError();
@@ -326,7 +330,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesFailure)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    auto asyncCommit = PrepareAndCommitTransaction(txId, true, 0x20);
+    auto asyncCommit = PrepareAndCommitTransaction(txId, true, 0x20_ts);
 
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
@@ -373,7 +377,7 @@ using TTestSortedTabletWriteGenerationOneBatch = TTestSortedTabletWriteGeneratio
 TEST_P(TTestSortedTabletWriteGenerationOneBatch, OneBatchRetry)
 {
     const auto& executionPlan = GetParam();
-    auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+    auto txId = MakeTabletTransactionId(0x10_ts);
 
     THashMap<TStringBuf, std::function<void()>> actions;
 
@@ -399,7 +403,7 @@ TEST_P(TTestSortedTabletWriteGenerationOneBatch, OneBatchRetry)
     // by trying to perform a concurrent write. Note that writing during recovery is
     // invalid.
     auto validateRowLock = [&] {
-        auto txId2 = MakeTabletTransactionId(TTimestamp(0x11));
+        auto txId2 = MakeTabletTransactionId(0x11_ts);
         EXPECT_THAT(
             [&] {
                 WaitFor(WriteUnversionedRows(txId2, {BuildRow(0, 43)}))
@@ -416,7 +420,7 @@ TEST_P(TTestSortedTabletWriteGenerationOneBatch, OneBatchRetry)
         }
     }
 
-    auto asyncCommit = PrepareAndCommitTransaction(txId, true, 0x20);
+    auto asyncCommit = PrepareAndCommitTransaction(txId, true, 0x20_ts);
 
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
@@ -425,7 +429,7 @@ TEST_P(TTestSortedTabletWriteGenerationOneBatch, OneBatchRetry)
         .ThrowOnError();
 
     EXPECT_EQ(
-        ToString(BuildVersionedRow(0, {{0x20, 42}})),
+        ToString(BuildVersionedRow(0, {{0x20_ts, 42}})),
         ToString(VersionedLookupRow(BuildRow(0))));
 
     ExpectFullyUnlocked();
@@ -466,7 +470,7 @@ using TTestSortedTabletWriteGenerationTwoBatch = TTestSortedTabletWriteGeneratio
 TEST_P(TTestSortedTabletWriteGenerationTwoBatch, TwoBatchRetry)
 {
     const auto& executionPlan = GetParam();
-    auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+    auto txId = MakeTabletTransactionId(0x10_ts);
 
     THashMap<TStringBuf, std::function<void()>> actions;
 
@@ -515,7 +519,7 @@ TEST_P(TTestSortedTabletWriteGenerationTwoBatch, TwoBatchRetry)
         }
     }
 
-    auto asyncCommit = PrepareAndCommitTransaction(txId, true, 0x20);
+    auto asyncCommit = PrepareAndCommitTransaction(txId, true, 0x20_ts);
 
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
@@ -524,10 +528,10 @@ TEST_P(TTestSortedTabletWriteGenerationTwoBatch, TwoBatchRetry)
         .ThrowOnError();
 
     EXPECT_EQ(
-        ToString(BuildVersionedRow(0, {{0x20, 42}})),
+        ToString(BuildVersionedRow(0, {{0x20_ts, 42}})),
         ToString(VersionedLookupRow(BuildRow(0))));
     EXPECT_EQ(
-        ToString(BuildVersionedRow(1, {{0x20, 42}})),
+        ToString(BuildVersionedRow(1, {{0x20_ts, 42}})),
         ToString(VersionedLookupRow(BuildRow(1))));
 
     ExpectFullyUnlocked();
@@ -597,7 +601,7 @@ class TTestOrderedTabletWriteBasic
 protected:
     void DoTestDelayedWrite(bool use2pc)
     {
-        auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+        auto txId = MakeTabletTransactionId(0x10_ts);
 
         WaitFor(WriteUnversionedRows(
             txId,
@@ -610,8 +614,8 @@ protected:
         EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
         HydraManager()->ApplyAll();
 
-        YT_UNUSED_FUTURE(PrepareTransactionCommit(txId, /*persistent*/ use2pc, 0x20));
-        YT_UNUSED_FUTURE(CommitTransaction(txId, 0x30));
+        YT_UNUSED_FUTURE(PrepareTransactionCommit(txId, /*persistent*/ use2pc, 0x20_ts));
+        YT_UNUSED_FUTURE(CommitTransaction(txId, 0x30_ts));
         EXPECT_EQ(use2pc ? 2 : 1, HydraManager()->GetPendingMutationCount());
 
         HydraManager()->ApplyAll();
@@ -646,7 +650,7 @@ protected:
 
 TEST_F(TTestOrderedTabletWriteBasic, TestSimple)
 {
-    auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+    auto txId = MakeTabletTransactionId(0x10_ts);
 
     WaitFor(WriteUnversionedRows(txId, {BuildRow(1)}))
         .ThrowOnError();
@@ -654,8 +658,8 @@ TEST_F(TTestOrderedTabletWriteBasic, TestSimple)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    YT_UNUSED_FUTURE(PrepareTransactionCommit(txId, true, 0x20));
-    YT_UNUSED_FUTURE(CommitTransaction(txId, 0x30));
+    YT_UNUSED_FUTURE(PrepareTransactionCommit(txId, true, 0x20_ts));
+    YT_UNUSED_FUTURE(CommitTransaction(txId, 0x30_ts));
 
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
@@ -690,7 +694,7 @@ TEST_F(TTestOrderedTabletWriteBasic, TestDelayedWrite2PC)
 TEST_F(TTestOrderedTabletWriteBasic, TestAbortCommittingTransaction)
 {
     GTEST_SKIP();
-    auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+    auto txId = MakeTabletTransactionId(0x10_ts);
 
     WaitFor(WriteUnversionedRows(
         txId,
@@ -703,8 +707,8 @@ TEST_F(TTestOrderedTabletWriteBasic, TestAbortCommittingTransaction)
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
-    YT_UNUSED_FUTURE(PrepareTransactionCommit(txId, /*persistent*/ true, 0x20));
-    YT_UNUSED_FUTURE(CommitTransaction(txId, 0x30));
+    YT_UNUSED_FUTURE(PrepareTransactionCommit(txId, /*persistent*/ true, 0x20_ts));
+    YT_UNUSED_FUTURE(CommitTransaction(txId, 0x30_ts));
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
 
     HydraManager()->ApplyAll();

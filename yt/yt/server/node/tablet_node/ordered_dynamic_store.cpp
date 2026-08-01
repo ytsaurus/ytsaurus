@@ -375,7 +375,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
     bool versionedWrite = TimestampColumnId_ && dynamicRow[*TimestampColumnId_].Type != EValueType::Null;
 
     if (TimestampColumnId_ && !versionedWrite) {
-        dynamicRow[*TimestampColumnId_] = MakeUnversionedUint64Value(context->CommitTimestamp, *TimestampColumnId_);
+        dynamicRow[*TimestampColumnId_] = MakeUnversionedUint64Value(context->CommitTimestamp.Underlying(), *TimestampColumnId_);
     }
 
     // NB: Includes the weight of the $timestamp column if it exists.

@@ -615,10 +615,10 @@ private:
                 .Item("atomicity").Value(replica->RuntimeData->Atomicity.load(std::memory_order::relaxed))
                 .Item("preserve_timestamps").Value(replica->RuntimeData->PreserveTimestamps)
                 .Item("start_replication_timestamp").Value(replica->StartReplicationTimestamp)
-                .Item("last_replication_timestamp").Value(replica->RuntimeData->LastReplicationTimestamp)
+                .Item("last_replication_timestamp").Value(replica->RuntimeData->LastReplicationTimestamp.load())
                 .Item("current_replication_row_index").Value(replica->RuntimeData->CurrentReplicationRowIndex)
                 .Item("committed_replication_row_index").Value(replica->RuntimeData->CommittedReplicationRowIndex)
-                .Item("current_replication_timestamp").Value(replica->RuntimeData->CurrentReplicationTimestamp)
+                .Item("current_replication_timestamp").Value(replica->RuntimeData->CurrentReplicationTimestamp.load())
                 .Item("prepared_replication_row_index").Value(replica->RuntimeData->PreparedReplicationRowIndex)
             .EndMap();
     }

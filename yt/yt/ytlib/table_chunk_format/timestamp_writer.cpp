@@ -119,7 +119,7 @@ public:
         }
 
         auto dictionarySize = CompressedUnsignedVectorSizeInBytes(
-            MaxSegmentTimestamp_ - MinSegmentTimestamp_,
+            MaxSegmentTimestamp_.Underlying() - MinSegmentTimestamp_.Underlying(),
             UniqueTimestamps_.size());
 
         auto idsSize = CompressedUnsignedVectorSizeInBytes(
@@ -164,7 +164,7 @@ private:
     TTimestamp MinSegmentTimestamp_;
     TTimestamp MaxSegmentTimestamp_;
     THashMap<TTimestamp, ui32> UniqueTimestamps_;
-    std::vector<TTimestamp> Dictionary_;
+    std::vector<ui64> Dictionary_;
 
     std::vector<ui32> WriteTimestampIds_;
     std::vector<ui32> DeleteTimestampIds_;
@@ -187,7 +187,7 @@ private:
         MaxSegmentTimestamp_ = std::max(MaxSegmentTimestamp_, timestamp);
         auto result = UniqueTimestamps_.emplace(timestamp, Dictionary_.size());
         if (result.second) {
-            Dictionary_.push_back(timestamp);
+            Dictionary_.push_back(timestamp.Underlying());
         }
         // Return id.
         return result.first->second;
@@ -224,13 +224,13 @@ private:
     {
         // TODO(psushin): rewrite with SSE.
         for (auto& timestamp : Dictionary_) {
-            timestamp -= MinSegmentTimestamp_;
+            timestamp -= MinSegmentTimestamp_.Underlying();
         }
 
         NColumnarChunkFormat::TTimestampMeta rawMeta;
         memset(&rawMeta, 0, sizeof(rawMeta));
 
-        rawMeta.BaseTimestamp = MinSegmentTimestamp_;
+        rawMeta.BaseTimestamp = MinSegmentTimestamp_.Underlying();
 
         auto [expectedWritesPerRow, maxWriteIndex] = PrepareDiffFromExpected(&WriteTimestampCounts_);
         rawMeta.ExpectedWritesPerRow = expectedWritesPerRow;
@@ -243,7 +243,7 @@ private:
 
         data.push_back(BitpackVector(
             TRange(Dictionary_),
-            MaxSegmentTimestamp_ - MinSegmentTimestamp_,
+            MaxSegmentTimestamp_.Underlying() - MinSegmentTimestamp_.Underlying(),
             &rawMeta.TimestampsDictSize,
             &rawMeta.TimestampsDictWidth));
         size += data.back().Size();
@@ -273,7 +273,7 @@ private:
         rawMeta.ChunkRowCount = RowCount_;
 
         auto* meta = segmentMeta.MutableExtension(TTimestampSegmentMeta::timestamp_segment_meta);
-        meta->set_min_timestamp(MinSegmentTimestamp_);
+        meta->set_min_timestamp(ToProto(MinSegmentTimestamp_));
         meta->set_expected_writes_per_row(expectedWritesPerRow);
         meta->set_expected_deletes_per_row(expectedDeletesPerRow);
 

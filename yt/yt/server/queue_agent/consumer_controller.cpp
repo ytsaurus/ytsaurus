@@ -405,7 +405,7 @@ private:
             auto& consumerPartitionSnapshot = subSnapshot->PartitionSnapshots[tabletIndex];
 
             if (auto commitTimestamp = FromUnversionedValue<std::optional<ui64>>(row[1])) {
-                consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(*commitTimestamp).first;
+                consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(NTransactionClient::TTimestamp(*commitTimestamp)).first;
             }
         }
 

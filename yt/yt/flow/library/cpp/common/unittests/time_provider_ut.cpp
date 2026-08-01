@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NFlow {
@@ -12,6 +13,8 @@ namespace {
 
 using namespace NConcurrency;
 using namespace NTransactionClient;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +25,7 @@ class TCountingTimestampProvider
 {
 public:
     explicit TCountingTimestampProvider(TTimestamp startTimestamp)
-        : Current_(startTimestamp)
+        : Current_(startTimestamp.Underlying())
     { }
 
     TFuture<TTimestamp> GenerateTimestamps(int count, NObjectClient::TCellTag /*clockClusterTag*/) override
@@ -30,12 +33,12 @@ public:
         ++CallCount_;
         // Advance by a full second of timestamp space per call so that seqno
         // headroom grows the way it does with a real cluster clock.
-        return MakeFuture<TTimestamp>(Current_.fetch_add(static_cast<TTimestamp>(count) << TimestampCounterWidth));
+        return MakeFuture<TTimestamp>(NYT::NTransactionClient::TTimestamp(Current_.fetch_add(static_cast<ui64>(count) << TimestampCounterWidth)));
     }
 
     TTimestamp GetLatestTimestamp(NObjectClient::TCellTag /*clockClusterTag*/) override
     {
-        return Current_.load();
+        return FromProto<NYT::NTransactionClient::TTimestamp>(Current_.load());
     }
 
     void Reconfigure(const TRemoteTimestampProviderConfigPtr& /*config*/) override
@@ -47,14 +50,14 @@ public:
     }
 
 private:
-    std::atomic<TTimestamp> Current_;
+    std::atomic<ui64> Current_;
     std::atomic<int> CallCount_{0};
 };
 
 DEFINE_REFCOUNTED_TYPE(TCountingTimestampProvider);
 
 constexpr ui64 StartUnixTime = 1'000'000;
-constexpr TTimestamp StartTimestamp = StartUnixTime << TimestampCounterWidth;
+constexpr TTimestamp StartTimestamp = NYT::NTransactionClient::TTimestamp(StartUnixTime << TimestampCounterWidth);
 
 struct TTimeProviderTest
     : public ::testing::Test
@@ -76,7 +79,7 @@ TEST_F(TTimeProviderTest, GlobalUniqueSeqNoDecomposition)
 
     auto first = WaitFor(provider->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
     EXPECT_EQ(first.Timestamp, TSystemTimestamp(StartUnixTime));
-    EXPECT_EQ(first.UniqueSeqNo, TUniqueSeqNo(StartTimestamp));
+    EXPECT_EQ(first.UniqueSeqNo, TUniqueSeqNo(StartTimestamp.Underlying()));
 
     auto second = WaitFor(provider->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
     EXPECT_GT(second.UniqueSeqNo, first.UniqueSeqNo);
@@ -158,7 +161,7 @@ TEST_F(TTimeProviderTest, SeqNoCarriesTheClusterWallClock)
     auto provider = CreateProvider();
 
     auto seqNo = provider->GenerateSeqNo();
-    EXPECT_EQ(UnixTimeFromTimestamp(seqNo), StartUnixTime);
+    EXPECT_EQ(UnixTimeFromTimestamp(TTimestamp(seqNo)), StartUnixTime);
 }
 
 TEST_F(TTimeProviderTest, SeqNoNeverRunsAheadOfTheClock)

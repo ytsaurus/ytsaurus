@@ -310,7 +310,7 @@ public:
 
                 TReqWriteRows hydraRequest;
                 ToProto(hydraRequest.mutable_transaction_id(), params.TransactionId);
-                hydraRequest.set_transaction_start_timestamp(params.TransactionStartTimestamp);
+                hydraRequest.set_transaction_start_timestamp(ToProto(params.TransactionStartTimestamp));
                 hydraRequest.set_transaction_timeout(ToProto(params.TransactionTimeout));
                 ToProto(hydraRequest.mutable_tablet_id(), tabletId);
                 hydraRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
@@ -580,7 +580,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto atomicity = AtomicityFromTransactionId(transactionId);
-        auto transactionStartTimestamp = request->transaction_start_timestamp();
+        auto transactionStartTimestamp = FromProto<NTransactionClient::TTimestamp>(request->transaction_start_timestamp());
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto prepareSignature = request->prepare_signature();
         // COMPAT(gritukan)

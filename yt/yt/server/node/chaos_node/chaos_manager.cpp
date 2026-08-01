@@ -2345,7 +2345,7 @@ private:
             timestamp);
 
         NChaosNode::NProto::TReqPropagateCurrentTimestamp request;
-        request.set_timestamp(timestamp);
+        request.set_timestamp(ToProto(timestamp));
         auto result = WaitFor(CreateMutation(HydraManager_, request)
             ->CommitAndLog(Logger));
 
@@ -2356,7 +2356,7 @@ private:
 
     void HydraPropagateCurrentTimestamps(NChaosNode::NProto::TReqPropagateCurrentTimestamp* request)
     {
-        auto timestamp = request->timestamp();
+        auto timestamp = FromProto<NTransactionClient::TTimestamp>(request->timestamp());
 
         YT_LOG_DEBUG("Started periodic current timestamp propagation (Timestamp: %v)",
             timestamp);
@@ -2500,7 +2500,7 @@ private:
 
         NChaosNode::NProto::TReqCommenceNewReplicationEra request;
         ToProto(request.mutable_replication_card_id(), replicationCardId);
-        request.set_timestamp(timestamp);
+        request.set_timestamp(ToProto(timestamp));
         request.set_replication_era(era);
         YT_UNUSED_FUTURE(CreateMutation(HydraManager_, request)
             ->CommitAndLog(Logger));

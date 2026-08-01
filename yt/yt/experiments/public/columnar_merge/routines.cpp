@@ -479,7 +479,7 @@ IVersionedReaderPtr CreateCompactionReader(
         NTableClient::TColumnFilter(),
         New<TRetentionConfig>(),
         AllCommittedTimestamp,
-        0,
+        NYT::NTransactionClient::NullTimestamp,
         columnEvaluator,
         false,
         false);

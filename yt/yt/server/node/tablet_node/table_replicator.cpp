@@ -498,7 +498,7 @@ private:
                 ToProto(req.mutable_replica_id(), ReplicaId_);
                 req.set_prev_replication_row_index(lastReplicationRowIndex);
                 req.set_new_replication_row_index(newReplicationRowIndex);
-                req.set_new_replication_timestamp(newReplicationTimestamp);
+                req.set_new_replication_timestamp(ToProto(newReplicationTimestamp));
                 localTransaction->AddAction(Slot_->GetCellId(), MakeTransactionActionData(req));
             }
 

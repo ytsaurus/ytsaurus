@@ -59,14 +59,14 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
-using NYT::FromProto;
-using NYT::ToProto;
-using NCrypto::TMD5Hash;
-using NProfiling::TWallTimer;
+using NControllerAgent::NProto::TJobResultExt;
 using NControllerAgent::NProto::TJobSpec;
 using NControllerAgent::NProto::TJobSpecExt;
-using NControllerAgent::NProto::TJobResultExt;
 using NControllerAgent::NProto::TTableInputSpec;
+using NCrypto::TMD5Hash;
+using NProfiling::TWallTimer;
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1866,7 +1866,7 @@ void TTask::AddOutputTableSpecs(
         ToProto(outputSpec->mutable_schema_id(), schemaId);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
         if (streamDescriptor->Timestamp != NullTimestamp) {
-            outputSpec->set_timestamp(streamDescriptor->Timestamp);
+            outputSpec->set_timestamp(ToProto(streamDescriptor->Timestamp));
         }
         outputSpec->set_dynamic(streamDescriptor->IsOutputTableDynamic);
         for (const auto& streamSchema : streamDescriptor->StreamSchemas) {

@@ -105,7 +105,7 @@ TEST_F(TOrderedTabletTest, TestValidateTrimmedRowCountPrecedeTimestamp)
     ASSERT_NO_THROW(doValidate(5, ts12));
     ASSERT_NO_THROW(doValidate(6, ts12));
 
-    ASSERT_ANY_THROW(doValidate(3, ts02 - 1));
+    ASSERT_ANY_THROW(doValidate(3, TTimestamp(ts02.Underlying() - 1)));
     ASSERT_NO_THROW(doValidate(3, ts02));
     ASSERT_ANY_THROW(doValidate(4, ts10));
     ASSERT_ANY_THROW(doValidate(5, ts11));

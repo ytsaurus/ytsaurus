@@ -395,7 +395,7 @@ private:
         }
 
         auto timestampColumnIndex = schema->GetColumnIndexOrThrow(TimestampColumnPrefix + name);
-        auto measuringTime = TimestampToInstant(row[timestampColumnIndex].Data.Uint64).first;
+        auto measuringTime = TimestampToInstant(NTransactionClient::TTimestamp(row[timestampColumnIndex].Data.Uint64)).first;
 
         auto valueColumnIndex = schema->GetColumnIndexOrThrow(name);
 
