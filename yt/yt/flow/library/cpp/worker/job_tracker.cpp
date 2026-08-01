@@ -631,8 +631,11 @@ private:
         auto jobIdString = ToString(jobId);
         auto traceContext = TTraceContext::NewRoot(Format("Job-%v", jobIdString));
         traceContext->SetAllocationTag(JobIdTag, jobIdString);
-        auto loggingTag = Format("JobPropagatingTag: %v/%v", partition->ComputationId, partition->PartitionId);
-        traceContext->SetLoggingTag(loggingTag);
+        traceContext->AddLoggingTagFormat(
+            "JobPropagatingTag",
+            "%v/%v",
+            partition->ComputationId,
+            partition->PartitionId);
 
         auto cpuTimeAccountant = New<TJobCpuTimeAccountant>();
         auto wrapInvoker = [&] (const auto& underlying) {
@@ -641,7 +644,7 @@ private:
                 partition->ComputationId,
                 partition->PartitionId,
                 jobId,
-                loggingTag);
+                traceContext->GetLoggingTags());
             auto codicilInvoker = CreateCodicilGuardedInvoker(tracedInvoker, codicil);
             return codicilInvoker;
         };
