@@ -17,6 +17,8 @@
 
 #include <yt/yt/core/actions/signal.h>
 
+#include <library/cpp/yt/containers/skip_list.h>
+
 #include <library/cpp/yt/misc/property.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
