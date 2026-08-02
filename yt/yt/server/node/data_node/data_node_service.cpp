@@ -1131,7 +1131,7 @@ private:
             "NetThrottling: %v, NetQueueSize: %v, "
             "DiskThrottling: %v, DiskQueueSize: %v, "
             "ThrottledLargeBlock: %v, "
-            "BlocksWithData: %v, BlocksSize: %v"
+            "BlocksWithData: %v, BlocksSize: %v, "
             "DataBytesReadFromDisk: %v, DataBytesReadFromCache: %v",
             responseTemplate.ChunkId,
             hasCompleteChunk,
