@@ -1072,6 +1072,11 @@ private:
             sensor->OfflineProxyThreshold.Update(zoneDisrupted.OfflineProxyThreshold);
         }
 
+        // Zero everything so that sensors for bundles without spare instances are cleared.
+        for (const auto& [_, sensors] : BundleSensors_) {
+            sensors->UsingSpareNodeCount.Update(0);
+        }
+
         for (const auto& [zoneName, perDCSpareInfo] : input.ZoneToSpareNodes) {
             for (const auto& [dataCenter, spareInfo] : perDCSpareInfo) {
                 auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
@@ -1085,6 +1090,11 @@ private:
                     bundleSensors->UsingSpareNodeCount.Update(std::ssize(instances));
                 }
             }
+        }
+
+        // Zero everything so that sensors for bundles without spare instances are cleared.
+        for (const auto& [_, sensors] : BundleSensors_) {
+            sensors->UsingSpareProxyCount.Update(0);
         }
 
         for (const auto& [zoneName, perDCSpareInfo] : input.ZoneToSpareProxies) {
@@ -1163,8 +1173,8 @@ private:
         sensors->TabletStaticSize = bundleProfiler.Gauge("/tablet_static_size");
         sensors->QuerySize = bundleProfiler.Gauge("/query");
 
-        sensors->UsingSpareNodeCount = bundleProfiler.Gauge("/using_spare_node_count");
-        sensors->UsingSpareProxyCount = bundleProfiler.Gauge("/using_spare_proxy_count");
+        sensors->UsingSpareNodeCount = bundleProfiler.WithSparse().Gauge("/using_spare_node_count");
+        sensors->UsingSpareProxyCount = bundleProfiler.WithSparse().Gauge("/using_spare_proxy_count");
 
         sensors->AssigningTabletNodes = bundleProfiler.Gauge("/assigning_tablet_nodes");
         sensors->ReleasingTabletNodes = bundleProfiler.Gauge("/releasing_tablet_nodes");
