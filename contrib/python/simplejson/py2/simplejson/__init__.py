@@ -4,9 +4,9 @@ interchange format.
 
 :mod:`simplejson` exposes an API familiar to users of the standard library
 :mod:`marshal` and :mod:`pickle` modules. It is the externally maintained
-version of the :mod:`json` library contained in Python 2.6, but maintains
-compatibility back to Python 2.5 and (currently) has significant performance
-advantages, even without using the optional C extension for speedups.
+version of the :mod:`json` library contained in Python 2.6+, supporting
+Python 2.7 and Python 3.8+, and has significant performance advantages,
+even without using the optional C extension for speedups.
 
 Encoding basic Python object hierarchies::
 
@@ -118,7 +118,7 @@ Serializing multiple objects to JSON lines (newline-delimited JSON)::
 
 """
 from __future__ import absolute_import
-__version__ = '3.20.2'
+__version__ = '4.1.1'
 __all__ = [
     'dump', 'dumps', 'load', 'loads',
     'JSONDecoder', 'JSONDecodeError', 'JSONEncoder',
@@ -133,6 +133,7 @@ from .errors import JSONDecodeError
 from .raw_json import RawJSON
 from .decoder import JSONDecoder
 from .encoder import JSONEncoder, JSONEncoderForHTML
+
 def _import_OrderedDict():
     import collections
     try:
@@ -400,7 +401,7 @@ _default_decoder = JSONDecoder()
 
 def load(fp, encoding=None, cls=None, object_hook=None, parse_float=None,
         parse_int=None, parse_constant=None, object_pairs_hook=None,
-        use_decimal=False, allow_nan=False, **kw):
+        use_decimal=False, allow_nan=False, array_hook=None, **kw):
     """Deserialize ``fp`` (a ``.read()``-supporting file-like object containing
     a JSON document as `str` or `bytes`) to a Python object.
 
@@ -453,12 +454,13 @@ def load(fp, encoding=None, cls=None, object_hook=None, parse_float=None,
         encoding=encoding, cls=cls, object_hook=object_hook,
         parse_float=parse_float, parse_int=parse_int,
         parse_constant=parse_constant, object_pairs_hook=object_pairs_hook,
-        use_decimal=use_decimal, allow_nan=allow_nan, **kw)
+        use_decimal=use_decimal, allow_nan=allow_nan,
+        array_hook=array_hook, **kw)
 
 
 def loads(s, encoding=None, cls=None, object_hook=None, parse_float=None,
         parse_int=None, parse_constant=None, object_pairs_hook=None,
-        use_decimal=False, allow_nan=False, **kw):
+        use_decimal=False, allow_nan=False, array_hook=None, **kw):
     """Deserialize ``s`` (a ``str`` or ``unicode`` instance containing a JSON
     document) to a Python object.
 
@@ -510,6 +512,7 @@ def loads(s, encoding=None, cls=None, object_hook=None, parse_float=None,
     if (cls is None and encoding is None and object_hook is None and
             parse_int is None and parse_float is None and
             parse_constant is None and object_pairs_hook is None
+            and array_hook is None
             and not use_decimal and not allow_nan and not kw):
         return _default_decoder.decode(s)
     if cls is None:
@@ -518,6 +521,8 @@ def loads(s, encoding=None, cls=None, object_hook=None, parse_float=None,
         kw['object_hook'] = object_hook
     if object_pairs_hook is not None:
         kw['object_pairs_hook'] = object_pairs_hook
+    if array_hook is not None:
+        kw['array_hook'] = array_hook
     if parse_float is not None:
         kw['parse_float'] = parse_float
     if parse_int is not None:
@@ -543,11 +548,14 @@ def _toggle_speedups(enabled):
         enc.c_make_encoder = c_make_encoder
         enc.encode_basestring_ascii = (enc.c_encode_basestring_ascii or
             enc.py_encode_basestring_ascii)
+        enc.encode_basestring = (enc.c_encode_basestring or
+            enc.py_encode_basestring)
         scan.make_scanner = scan.c_make_scanner or scan.py_make_scanner
     else:
         dec.scanstring = dec.py_scanstring
         enc.c_make_encoder = None
         enc.encode_basestring_ascii = enc.py_encode_basestring_ascii
+        enc.encode_basestring = enc.py_encode_basestring
         scan.make_scanner = scan.py_make_scanner
     dec.make_scanner = scan.make_scanner
     global _default_decoder
