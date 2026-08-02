@@ -25,9 +25,9 @@ TPerDataCenterSpareProxiesInfo GetSpareProxiesInfo(
         return {};
     }
 
-    auto spareBundle = GetSpareBundleName(zoneIt->second);
-    auto spareProxiesIt = input.BundleProxies.find(spareBundle);
-    if (spareProxiesIt == input.BundleProxies.end()) {
+    auto spareProxiesIt = input.ProxiesAllocatedForBundle.find(
+        zoneIt->second->SpareBundleName);
+    if (spareProxiesIt == input.ProxiesAllocatedForBundle.end()) {
         return {};
     }
 
@@ -516,7 +516,7 @@ void ManageRpcProxyRoles(
             continue;
         }
 
-        const auto& bundleProxies = input.BundleProxies[bundleName];
+        const auto& bundleProxies = input.ProxiesAllocatedForBundle[bundleName];
         SetProxyRole(bundleName, bundleProxies, input, spareProxiesAllocator, mutations);
     }
 }

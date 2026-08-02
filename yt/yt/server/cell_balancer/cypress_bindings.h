@@ -286,6 +286,9 @@ struct TBundleInfo
     TAbcInfoPtr Abc;
     bool BundleHotfix;
 
+    // Not registered as YSON struct field.
+    bool Spare = false;
+
     REGISTER_YSON_STRUCT(TBundleInfo);
 
     static void Register(TRegistrar registrar);

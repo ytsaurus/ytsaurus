@@ -73,8 +73,8 @@ struct TSchedulerInputState
     TSystemAccountPtr RootSystemAccount;
 
     using TBundleToInstanceMapping = THashMap<std::string, TDataCenterToInstanceMap>;
-    TBundleToInstanceMapping BundleNodes;
-    TBundleToInstanceMapping BundleProxies;
+    TBundleToInstanceMapping NodesAllocatedForBundle;
+    TBundleToInstanceMapping ProxiesAllocatedForBundle;
 
     THashMap<std::string, std::string> PodIdToInstanceName;
 

@@ -468,6 +468,20 @@ private:
             THROW_ERROR_EXCEPTION(
                 "\"annotate_new_nodes\"/\"annotate_new_proxies\"/ cannot be used together with \"has_instance_allocator_service\"");
         }
+
+        // Validate that zones have different spare bundle names.
+        {
+            THashMap<std::string, std::string> spareBundleNames;
+            for (const auto& [zoneName, zoneInfo] : inputState.Zones) {
+                auto [it, inserted] = spareBundleNames.emplace(zoneInfo->SpareBundleName, zoneName);
+                if (!inserted) {
+                    THROW_ERROR_EXCEPTION("Spare bundle name %Qv is used by multiple zones: %Qv, %Qv",
+                        it->first,
+                        it->second,
+                        zoneName);
+                }
+            }
+        }
     }
 
     void DoScanTabletBundles(bool dryRun, bool ignoreGlobalDisabledSwitch)
@@ -997,7 +1011,7 @@ private:
             sensors->ReleasingSpareNodes.Update(std::ssize(bundleState->SpareNodeReleasements));
         }
 
-        for (const auto& [bundleName, dataCenterNodes] : input.BundleNodes) {
+        for (const auto& [bundleName, dataCenterNodes] : input.NodesAllocatedForBundle) {
             auto sensors = GetBundleSensors(bundleName);
 
             THashMap<std::string, int> assignedNodesByDC;
@@ -1047,7 +1061,7 @@ private:
             }
         }
 
-        for (const auto& [bundleName, dataCenterProxies] : input.BundleProxies) {
+        for (const auto& [bundleName, dataCenterProxies] : input.ProxiesAllocatedForBundle) {
             int offlineProxyCount = 0;
 
             for (const auto& [_, proxies] : dataCenterProxies) {

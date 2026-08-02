@@ -220,8 +220,8 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
         bundleOrchidInfo->ResourceAlive->Clear();
         bundleOrchidInfo->ResourceTarget->Clear();
 
-        PopulateInstancesPerDC(bundleName, state.BundleNodes, state.TabletNodes, bundleOrchidInfo->AllocatedTabletNodes);
-        PopulateInstancesPerDC(bundleName, state.BundleProxies, state.RpcProxies, bundleOrchidInfo->AllocatedRpcProxies);
+        PopulateInstancesPerDC(bundleName, state.NodesAllocatedForBundle, state.TabletNodes, bundleOrchidInfo->AllocatedTabletNodes);
+        PopulateInstancesPerDC(bundleName, state.ProxiesAllocatedForBundle, state.RpcProxies, bundleOrchidInfo->AllocatedRpcProxies);
 
         if (auto it = state.ZoneToSpareNodes.find(bundleInfo->Zone); it != state.ZoneToSpareNodes.end()) {
             for (const auto& [_, spareInfo] : it->second) {
