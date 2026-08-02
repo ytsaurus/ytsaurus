@@ -4,10 +4,6 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const std::string DefaultSpareNodeName = "spare";
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TSysConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disable_bundle_controller", &TThis::DisableBundleController)
@@ -277,7 +273,7 @@ void TZoneInfo::Register(TRegistrar registrar)
     registrar.Parameter("spare_target_config", &TThis::SpareTargetConfig)
         .DefaultNew();
     registrar.Parameter("spare_bundle_name", &TThis::SpareBundleName)
-        .Default(DefaultSpareNodeName);
+        .Default("spare");
     registrar.Parameter("disrupted_threshold_factor", &TThis::DisruptedThresholdFactor)
         .GreaterThan(0)
         .Default(1);

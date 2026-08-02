@@ -30,7 +30,6 @@ void InitDefaultDataCenter(TSchedulerInputState* input)
 void InitializeVirtualSpareBundle(TSchedulerInputState* input)
 {
     for (const auto& [zoneName, zoneInfo] : input->Zones) {
-        auto spareVirtualBundle = zoneInfo->SpareBundleName;
         auto bundleInfo = New<TBundleInfo>();
         bundleInfo->EnableInstanceAllocation = input->Config->HasInstanceAllocatorService;
         bundleInfo->TargetConfig = zoneInfo->SpareTargetConfig;
@@ -42,7 +41,8 @@ void InitializeVirtualSpareBundle(TSchedulerInputState* input)
         bundleInfo->EnableSystemAccountManagement = false;
         bundleInfo->EnableResourceLimitsManagement = false;
         bundleInfo->Zone = zoneName;
-        input->Bundles[spareVirtualBundle] = bundleInfo;
+        bundleInfo->Spare = true;
+        input->Bundles[zoneInfo->SpareBundleName] = bundleInfo;
     }
 }
 
@@ -124,7 +124,7 @@ THashMap<std::string, TDataCenterRackInfo> MapZonesToRacks(
 
     for (const auto& [zoneName, zoneNodes] : input.ZoneNodes) {
         auto zoneInfo = GetOrCrash(input.Zones, zoneName);
-        auto spareBundleName = zoneInfo->SpareBundleName;
+        const auto& spareBundleName = zoneInfo->SpareBundleName;
 
         for (const auto& [dataCenterName, dataCenterNodes] : zoneNodes.PerDataCenter) {
             auto& dataCenterRacks = zoneToRacks[zoneName][dataCenterName];
@@ -218,8 +218,8 @@ void InitializeRelations(TSchedulerInputState* input, TOnAlertCallback onAlert)
 
     input->ZoneNodes = MapZonesToInstances(*input, input->TabletNodes);
     input->ZoneProxies = MapZonesToInstances(*input, input->RpcProxies);
-    input->BundleNodes = MapBundlesToInstances(input->TabletNodes);
-    input->BundleProxies = MapBundlesToInstances(input->RpcProxies);
+    input->NodesAllocatedForBundle = MapBundlesToInstances(input->TabletNodes);
+    input->ProxiesAllocatedForBundle = MapBundlesToInstances(input->RpcProxies);
     input->PodIdToInstanceName = MapPodIdToInstanceName(*input);
     input->ZoneToRacks = MapZonesToRacks(*input, onAlert);
 }

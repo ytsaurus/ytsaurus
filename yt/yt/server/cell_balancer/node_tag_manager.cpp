@@ -685,7 +685,7 @@ int GetRequiredSlotCount(const TBundleInfoPtr& bundleInfo, const TSchedulerInput
 
 void TNodeTagManager::SetNodeTags()
 {
-    const auto& bundleNodes = GetOrCrash(Input_.BundleNodes, BundleName_);
+    const auto& bundleNodes = GetOrCrash(Input_.NodesAllocatedForBundle, BundleName_);
     const auto& bundleInfo = GetOrCrash(Input_.Bundles, BundleName_);
     const auto& zoneName = bundleInfo->Zone;
     const auto& targetConfig = bundleInfo->TargetConfig;
@@ -886,9 +886,9 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
         return {};
     }
 
-    auto spareBundle = GetSpareBundleName(zoneIt->second);
-    auto spareNodesIt = input.BundleNodes.find(spareBundle);
-    if (spareNodesIt == input.BundleNodes.end()) {
+    const auto& spareBundleName = zoneIt->second->SpareBundleName;
+    auto spareNodesIt = input.NodesAllocatedForBundle.find(spareBundleName);
+    if (spareNodesIt == input.NodesAllocatedForBundle.end()) {
         return {};
     }
 
@@ -908,10 +908,13 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
         }
     }
 
-    const auto& spareBundleState = GetOrInsert(mutations->ChangedStates, spareBundle, New<TBundleControllerState>);
+    const auto& spareBundleState = GetOrInsert(
+        mutations->ChangedStates,
+        spareBundleName,
+        New<TBundleControllerState>);
 
     auto zoneAliveNodes = GetAliveNodes(
-        spareBundle,
+        spareBundleName,
         spareNodesIt->second,
         input,
         spareBundleState,
