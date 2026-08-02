@@ -45,6 +45,17 @@ class TestQueriesChyt(ClickHouseTestBase):
             assert query_info["result_count"] == 1
             assert_items_equal(query.read_result(0), [{"1": 1}])
 
+    @authors("mpereskokova")
+    def test_simple_query_not_indexed(self, query_tracker):
+        with Clique(1, alias="*ch_alias"):
+            settings = {"clique": "ch_alias", "cluster": "primary", "is_indexed": False}
+            query = start_query("chyt", "select 1", settings=settings)
+            query.track()
+
+            query_info = query.get()
+            assert query_info["result_count"] == 1
+            assert_items_equal(query.read_result(0), [{"1": 1}])
+
     @authors("gudqeit")
     def test_read_table(self, query_tracker):
         table_schema = [{"name": "value", "type": "int64"}]
