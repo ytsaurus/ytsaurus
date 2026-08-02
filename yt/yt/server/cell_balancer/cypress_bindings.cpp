@@ -259,9 +259,9 @@ void TZoneInfo::Register(TRegistrar registrar)
     registrar.Parameter("yp_cluster", &TThis::DefaultYPCluster)
         .Default();
     registrar.Parameter("max_tablet_node_count", &TThis::MaxTabletNodeCount)
-        .Default(10);
+        .Default();
     registrar.Parameter("max_rpc_proxy_count", &TThis::MaxRpcProxyCount)
-        .Default(10);
+        .Default();
     registrar.Parameter("tablet_node_nanny_service", &TThis::DefaultTabletNodeNannyService)
         .Default();
     registrar.Parameter("rpc_proxy_nanny_service", &TThis::DefaultRpcProxyNannyService)

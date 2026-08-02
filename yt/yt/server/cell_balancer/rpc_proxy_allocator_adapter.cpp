@@ -94,8 +94,13 @@ public:
             return false;
         }
 
+        if (!zoneInfo->MaxRpcProxyCount) {
+            // No limit configured, treat it as infinite.
+            return false;
+        }
+
         int currentDataCenterProxyCount = std::ssize(dataCenterIt->second);
-        int maxDataCenterProxyCount = zoneInfo->MaxRpcProxyCount / std::ssize(zoneInfo->DataCenters);
+        int maxDataCenterProxyCount = *zoneInfo->MaxRpcProxyCount / std::ssize(zoneInfo->DataCenters);
 
         if (currentDataCenterProxyCount >= maxDataCenterProxyCount) {
             YT_LOG_WARNING("Max Rpc proxies count limit reached"
@@ -103,7 +108,7 @@ public:
                 zoneName,
                 dataCenterName,
                 currentDataCenterProxyCount,
-                zoneInfo->MaxRpcProxyCount,
+                *zoneInfo->MaxRpcProxyCount,
                 maxDataCenterProxyCount);
             return true;
         }
