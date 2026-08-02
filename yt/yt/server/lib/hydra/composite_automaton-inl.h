@@ -105,7 +105,9 @@ void TCompositeAutomaton::RegisterMethod(
             context->SetResponseData(ex);
             throw;
         }
-        descriptor->CumulativeExecuteTimeCounter.Add(timer.GetElapsedTime());
+        auto executeTime = timer.GetElapsedTime();
+        descriptor->CumulativeExecuteTimeCounter.Add(executeTime);
+        descriptor->ExecuteTimer.Record(executeTime);
     });
 
     RegisterMethod(mutationTypeName, mutationHandler, exceptionsAreNormal);
@@ -140,7 +142,9 @@ void TCompositeAutomaton::RegisterMethod(
             context->SetResponseData(ex);
             throw;
         }
-        descriptor->CumulativeExecuteTimeCounter.Add(timer.GetElapsedTime());
+        auto executeTime = timer.GetElapsedTime();
+        descriptor->CumulativeExecuteTimeCounter.Add(executeTime);
+        descriptor->ExecuteTimer.Record(executeTime);
     });
 
     RegisterMethod(mutationTypeName, mutationHandler, exceptionsAreNormal);
