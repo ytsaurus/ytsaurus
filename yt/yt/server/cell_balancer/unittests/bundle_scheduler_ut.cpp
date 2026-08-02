@@ -1785,8 +1785,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 45,
-            .Chunks = 30,
+            .Nodes = 135,
+            .Chunks = 105,
             .Default = 105_MB,
             .SsdJournal = 75_MB,
         },
@@ -1794,8 +1794,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 1045,
-            .Chunks = 2030,
+            .Nodes = 1135,
+            .Chunks = 2105,
             .Default = 106_MB,
             .SsdJournal = 75_MB
         },
@@ -1831,8 +1831,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 27,
-            .Chunks = 18,
+            .Nodes = 81,
+            .Chunks = 63,
             .Default = 63_MB,
             .SsdJournal = 45_MB
         },
@@ -1840,8 +1840,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 1200,
-            .Chunks = 800,
+            .Nodes = 3600,
+            .Chunks = 2800,
             .SsdBlobs = 2800_MB,
             .SsdJournal = 2000_MB
         },
@@ -1849,8 +1849,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 2227,
-            .Chunks = 2818,
+            .Nodes = 4681,
+            .Chunks = 4863,
             .SsdBlobs = 2800_MB,
             .Default = 64_MB,
             .SsdJournal = 2045_MB
@@ -1864,8 +1864,8 @@ TEST(TBundleSchedulerSimpleTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 1800,
-            .Chunks = 1200,
+            .Nodes = 5400,
+            .Chunks = 4200,
             .SsdBlobs = 4200_MB,
             .SsdJournal = 3000_MB
         },

@@ -75,8 +75,8 @@ void AddQuotaChanges(
 
     TQuotaDiff quotaDiff;
 
-    quotaDiff.ChunkCount = std::max<i64>(config->ChunkCountPerCell * multiplier, config->MinChunkCount) - currentLimit->ChunkCount;
-    quotaDiff.NodeCount = std::max<i64>(config->NodeCountPerCell * multiplier, config->MinNodeCount) - currentLimit->NodeCount;
+    quotaDiff.ChunkCount = std::max<i64>(config->ChunkCountPerCell, config->MinChunkCount) * multiplier - currentLimit->ChunkCount;
+    quotaDiff.NodeCount = std::max<i64>(config->NodeCountPerCell, config->MinNodeCount) * multiplier - currentLimit->NodeCount;
 
     auto getSpace = [&] (const std::string& medium) -> i64 {
         auto it = currentLimit->DiskSpacePerMedium.find(medium);
