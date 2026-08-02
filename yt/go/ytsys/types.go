@@ -286,6 +286,7 @@ type Node struct {
 	DisableTabletCells   YTBool    `yson:"disable_tablet_cells,attr"`
 	State                string    `yson:"state,attr"`
 	LastSeenTime         yson.Time `yson:"last_seen_time,attr"`
+	RegisterTime         yson.Time `yson:"register_time,attr"` // zero for offline nodes
 
 	Version string `yson:"version,attr"`
 
