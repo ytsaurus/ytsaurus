@@ -78,7 +78,7 @@ THashMap<std::string, std::string> MapBundlesToShortNames(const TSchedulerInputS
     }
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
-        if (auto it = bundleToShortName.find(bundleName); it != bundleToShortName.end()) {
+        if (bundleToShortName.contains(bundleName)) {
             continue;
         }
 
@@ -92,10 +92,17 @@ THashMap<std::string, std::string> MapBundlesToShortNames(const TSchedulerInputS
 
         THROW_ERROR_EXCEPTION_UNLESS(
             maxShortNameLength >= MinBundleShortName,
-            "Please set cluster short name, cluster name it too long");
+            "Please set cluster short name, cluster name is too long");
 
         auto shortName = GenerateShortNameForBundle(bundleName, shortNameToBundle, maxShortNameLength);
         YT_VERIFY(std::ssize(shortName) <= maxShortNameLength);
+
+        if (bundleInfo->Spare && shortName != bundleName) {
+            THROW_ERROR_EXCEPTION("Spare bundle name %Qv must match its generated short-name; "
+                "the name must not contain the \"_\" character and must be at most %v characters long",
+                bundleName,
+                maxShortNameLength);
+        }
 
         bundleToShortName[bundleName] = shortName;
         shortNameToBundle[shortName] = bundleName;
@@ -156,7 +163,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
 
             auto perDCaliveNodes = GetAliveNodes(
                 bundleName,
-                input.BundleNodes[bundleName],
+                input.NodesAllocatedForBundle[bundleName],
                 input,
                 bundleState,
                 EGracePeriodBehaviour::Wait);
@@ -164,7 +171,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             auto aliveNodes = FlattenAliveInstances(perDCaliveNodes);
             calculateResources(aliveNodes, input.TabletNodes, aliveResourceUsage, input.AliveNodesBySize[bundleName]);
 
-            auto aliveProxies = FlattenAliveInstances(GetAliveProxies(input.BundleProxies[bundleName], input, EGracePeriodBehaviour::Wait));
+            auto aliveProxies = FlattenAliveInstances(GetAliveProxies(input.ProxiesAllocatedForBundle[bundleName], input, EGracePeriodBehaviour::Wait));
             calculateResources(aliveProxies, input.RpcProxies, aliveResourceUsage, input.AliveProxiesBySize[bundleName]);
 
             aliveResources[bundleName] = aliveResourceUsage;
@@ -175,8 +182,8 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             // Default values are non-zero, so we need to clear them.
             allocated->Clear();
 
-            calculateResources(FlattenBundleInstances(input.BundleNodes[bundleName]), input.TabletNodes, allocated, input.AllocatedNodesBySize[bundleName]);
-            calculateResources(FlattenBundleInstances(input.BundleProxies[bundleName]), input.RpcProxies, allocated, input.AllocatedProxiesBySize[bundleName]);
+            calculateResources(FlattenBundleInstances(input.NodesAllocatedForBundle[bundleName]), input.TabletNodes, allocated, input.AllocatedNodesBySize[bundleName]);
+            calculateResources(FlattenBundleInstances(input.ProxiesAllocatedForBundle[bundleName]), input.RpcProxies, allocated, input.AllocatedProxiesBySize[bundleName]);
 
             allocatedResources[bundleName] = allocated;
         }
@@ -525,11 +532,6 @@ void ManageResourceLimits(TSchedulerInputState& input, TSchedulerMutations* muta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string GetSpareBundleName(const TZoneInfoPtr& zoneInfo)
-{
-    return zoneInfo->SpareBundleName;
-}
-
 THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetDataCenterDisruptedState(const TSchedulerInputState& input)
 {
     using TQualifiedDCName = TSchedulerInputState::TQualifiedDCName;
@@ -717,7 +719,7 @@ void ManageInstances(
             continue;
         }
 
-        const auto& bundleNodes = input.BundleNodes[bundleName];
+        const auto& bundleNodes = input.NodesAllocatedForBundle[bundleName];
         auto aliveNodes = GetAliveNodes(
             bundleName,
             bundleNodes,
@@ -728,7 +730,7 @@ void ManageInstances(
         TInstanceManager nodeAllocator(bundleName, input, spareNodesAllocator, nodeAdapter.Get(), mutations);
         nodeAllocator.ManageInstances();
 
-        const auto& bundleProxies = input.BundleProxies[bundleName];
+        const auto& bundleProxies = input.ProxiesAllocatedForBundle[bundleName];
         auto aliveProxies = GetAliveProxies(bundleProxies, input, EGracePeriodBehaviour::Wait);
         auto proxyAdapter = CreateRpcProxyAllocatorAdapter(bundleState, bundleProxies, aliveProxies);
         TInstanceManager proxyAllocator(bundleName, input, spareProxiesAllocator, proxyAdapter.Get(), mutations);
@@ -756,7 +758,7 @@ void ManageCells(TSchedulerInputState& input, TSchedulerMutations* mutations)
             continue;
         }
 
-        const auto& bundleNodes = input.BundleNodes[bundleName];
+        const auto& bundleNodes = input.NodesAllocatedForBundle[bundleName];
         CreateRemoveTabletCells(bundleName, bundleNodes, input, mutations);
         ProcessRemovingCells(bundleName, bundleNodes, input, mutations);
     }
