@@ -411,7 +411,7 @@ func (c *Client) GetNodes(ctx context.Context) (NodeMap, error) {
 			maintenanceAttr, maintenanceMessageAttr, maintenanceRequestsAttr,
 			cmsMaintenanceRequestsAttr, bundleControllerAnnotationsAttr,
 			"disable_scheduler_jobs", "disable_write_sessions",
-			"state", "last_seen_time", "version", "statistics",
+			"state", "last_seen_time", "register_time", "version", "statistics",
 			"tags", "flavors", "tablet_slots", "resource_limits", "resource_limits_overrides",
 			"resource_usage",
 		},
