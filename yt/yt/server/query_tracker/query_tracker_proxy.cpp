@@ -384,7 +384,11 @@ void TQueryTrackerProxy::StartQuery(
         }
     }
 
-    auto isIndexed = options.Settings ? options.Settings->AsMap()->GetChildValueOrDefault("is_indexed", true) : true;
+    bool isIndexed = true;
+    if (options.Settings) {
+        isIndexed = options.Settings->AsMap()->GetChildValueOrDefault("is_indexed", true);
+        options.Settings->AsMap()->RemoveChild("is_indexed");
+    }
 
     YT_LOG_DEBUG("Starting query (QueryId: %v, Draft: %v, IsIndexed: %v)",
         queryId,
