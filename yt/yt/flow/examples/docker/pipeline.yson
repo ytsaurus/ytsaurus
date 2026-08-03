@@ -1,0 +1,21 @@
+{
+    "cluster_url" = "%YT_CLUSTER%";
+
+    "proxy_role" = #;
+
+    "path" = "%YT_PIPELINE_PATH%";
+
+    "spec" = {
+        "computations" = {
+            "noop" = {
+                "computation_class_name" = "TNoopComputation";
+
+                "source_streams" = {
+                    "random" = {
+                        "source_class_name" = "NYT::NFlow::TRandomSource";
+                    };
+                };
+            };
+        };
+    };
+}

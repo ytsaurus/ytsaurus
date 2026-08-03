@@ -1,0 +1,88 @@
+{
+    "meta": {
+        "name": "flow-noop-pipeline",
+        "maintainer": "YT team",
+        "description": "YT Flow noop example image — noop_pipeline + yt_sync (x86_64)",
+        "version": "local-{revision}",
+    },
+    "params": {
+        "format": "docker",
+        "docker_target": "flow-pipeline",
+    },
+    "build": {
+        "build_noop": {
+            "targets": [
+                "yt/yt/flow/examples/cpp/noop/pipeline",
+                "yt/yt/flow/examples/cpp/noop/yt_sync",
+            ],
+            "build_type": "profile",
+            "target-platforms": [
+                "default-linux-x86_64",
+            ],
+            "flags": [
+                {
+                    "name": "NO_STRIP",
+                    "value": "yes",
+                },
+            ],
+        },
+    },
+    "data": [
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "yt/yt/flow/examples/docker/Dockerfile",
+            },
+            "destination": {
+                "path": "/Dockerfile",
+            },
+        },
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "yt/yt/flow/examples/docker/pipeline.yson",
+            },
+            "destination": {
+                "path": "/pipeline.yson",
+            },
+        },
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "yt/yt/flow/examples/docker/flow-start.sh",
+            },
+            "destination": {
+                "path": "/flow-start.sh",
+            },
+        },
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "yt/yt/flow/examples/docker/yt-sync-start.sh",
+            },
+            "destination": {
+                "path": "/yt-sync-start.sh",
+            },
+        },
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "build_key": "build_noop",
+                "path": "yt/yt/flow/examples/cpp/noop/pipeline/pipeline",
+            },
+            "destination": {
+                "path": "/noop_pipeline",
+            },
+        },
+        {
+            "source": {
+                "type": "BUILD_OUTPUT",
+                "build_key": "build_noop",
+                "path": "yt/yt/flow/examples/cpp/noop/yt_sync/yt_sync",
+            },
+            "destination": {
+                "path": "/yt_sync",
+            },
+        },
+    ],
+}

@@ -1,0 +1,12 @@
+{
+    cluster_url = "%YT_CLUSTER%";
+    path = "%YT_PIPELINE_PATH%";
+    rpc_port = 9001;
+    monitoring_port = 10001;
+    address_resolver = {
+        %YT_FLOW_PUBLIC_ADDRESS_OVERRIDE%
+    };
+    resource_tracker = {
+        cpu_to_vcpu_factor = 1.0;
+    };
+}

@@ -1,0 +1,185 @@
+##
+## YT Flow — noop pipeline example
+##
+## All flow containers use a single image (flow-noop-pipeline). Each container overrides
+## the entrypoint / environment to fulfil its specific role.
+##
+## Services:
+##   controller — noop_pipeline in Controller mode
+##   worker,
+##   worker2    — noop_pipeline in Worker mode
+##   aggr-rules — generates prometheus recording rules (host="Aggr" aggregates)
+##   yt-sync    — one-shot: creates all required Cypress objects via yt_sync
+##   runner     — one-shot: submits noop pipeline spec, then exits
+##   prometheus — scrapes controller/worker /solomon/all metrics
+##   grafana    — pre-provisioned dashboard over Prometheus
+##
+## YT cluster is provided externally. Pass the URL via the `YT_CLUSTER` env var:
+##
+##   YT_CLUSTER=... docker compose up
+##
+
+x-noop-pipeline-image: &noop-pipeline-image flow-noop-pipeline:local
+
+x-flow-build: &flow-build
+  context: ${flow:-.}
+
+x-flow-common: &flow-common
+  image: *noop-pipeline-image
+  build: *flow-build
+  restart: on-failure
+  network_mode: host
+  depends_on:
+    yt-sync:
+      condition: service_completed_successfully
+  entrypoint: ["/usr/bin/tini", "--", "/usr/bin/flow-start.sh"]
+
+services:
+
+  # -------------------------------------------------------------------------
+  # yt-sync: creates all required Cypress objects (pipeline node, tables,
+  # queues) before controller and worker start.
+  # -------------------------------------------------------------------------
+  yt-sync:
+    image: *noop-pipeline-image
+    build: *flow-build
+    restart: on-failure
+    network_mode: host
+    environment:
+      YT_TOKEN: ${YT_TOKEN:-}
+      TEST_CLUSTER: ${YT_CLUSTER:-}
+      TEST_YT_PATH: ${YT_FLOW_PATH:-}
+      YT_FLOW_USER: ${YT_FLOW_USER:-${USER:-${LOGNAME:-}}}
+    entrypoint: ["/usr/bin/tini", "--", "/usr/bin/yt-sync-start.sh"]
+
+  # -------------------------------------------------------------------------
+  # Flow Controller
+  # -------------------------------------------------------------------------
+  controller:
+    <<: *flow-common
+    environment:
+      YT_TOKEN: ${YT_TOKEN:-}
+      YT_FLOW_MODE: Controller
+      YT_CLUSTER: ${YT_CLUSTER:-}
+      YT_FLOW_PATH: ${YT_FLOW_PATH:-}
+      YT_FLOW_USER: ${YT_FLOW_USER:-${USER:-${LOGNAME:-}}}
+      YT_FLOW_PUBLIC_ADDRESS: ${YT_FLOW_PUBLIC_ADDRESS:-}
+      CONFIG_SRC: /app/ytflow/controller.yson
+    volumes:
+      - flow-logs:/var/log/flow
+      - ./controller.yson:/app/ytflow/controller.yson:ro
+
+  # -------------------------------------------------------------------------
+  # Flow Workers. Host networking rules out compose replicas, so each worker is
+  # its own service with its own port pair.
+  # -------------------------------------------------------------------------
+  worker:
+    <<: *flow-common
+    environment: &worker-environment
+      YT_TOKEN: ${YT_TOKEN:-}
+      YT_FLOW_MODE: Worker
+      YT_CLUSTER: ${YT_CLUSTER:-}
+      YT_FLOW_PATH: ${YT_FLOW_PATH:-}
+      YT_FLOW_USER: ${YT_FLOW_USER:-${USER:-${LOGNAME:-}}}
+      YT_FLOW_PUBLIC_ADDRESS: ${YT_FLOW_PUBLIC_ADDRESS:-}
+      CONFIG_SRC: /app/ytflow/worker.yson
+    volumes: &worker-volumes
+      - flow-logs:/var/log/flow
+      - ./worker.yson:/app/ytflow/worker.yson:ro
+
+  worker2:
+    <<: *flow-common
+    environment:
+      <<: *worker-environment
+      YT_FLOW_RPC_PORT: 9003
+      YT_FLOW_MONITORING_PORT: 10003
+    volumes: *worker-volumes
+
+  # -------------------------------------------------------------------------
+  # Runner (one-shot): submits the noop pipeline spec, then exits.
+  # -------------------------------------------------------------------------
+  runner:
+    image: *noop-pipeline-image
+    build: *flow-build
+    restart: on-failure
+    network_mode: host
+    depends_on:
+      yt-sync:
+        condition: service_completed_successfully
+      controller:
+        condition: service_started
+      worker:
+        condition: service_started
+    environment:
+      YT_TOKEN: ${YT_TOKEN:-}
+      YT_FLOW_WAIT: "0"
+      YT_CLUSTER: ${YT_CLUSTER:-}
+      YT_FLOW_PATH: ${YT_FLOW_PATH:-}
+      YT_FLOW_USER: ${YT_FLOW_USER:-${USER:-${LOGNAME:-}}}
+      CONFIG_SRC: /app/ytflow/pipeline.yson
+    entrypoint: ["/usr/bin/tini", "--", "/usr/bin/flow-start.sh"]
+    volumes:
+      - ./pipeline.yson:/app/ytflow/pipeline.yson:ro
+
+  # -------------------------------------------------------------------------
+  # Prometheus: scrapes controller (:10001) and workers (:10002, :10003).
+  # -------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=2h"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ../../docker/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./targets:/etc/prometheus/targets:ro
+      - prometheus-rules:/rules
+      - prometheus-data:/prometheus
+
+  # -------------------------------------------------------------------------
+  # Aggregation layer stand-in: generates per-metric recording rules that sum
+  # raw series into host="Aggr" series (see ../../docker/monitoring/aggr_rules.py).
+  # -------------------------------------------------------------------------
+  aggr-rules:
+    image: python:3-alpine
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - prometheus
+    entrypoint: ["python3", "/app/aggr_rules.py"]
+    environment:
+      PROMETHEUS_URL: "http://localhost:9090"
+      AGGR_RULES_PATH: "/rules/host-aggr.yml"
+    volumes:
+      - ../../docker/monitoring/aggr_rules.py:/app/aggr_rules.py:ro
+      - prometheus-rules:/rules
+
+  # -------------------------------------------------------------------------
+  # Grafana: pre-provisioned Prometheus datasource + the flow dashboards.
+  # Anonymous admin access, no login. Render the dashboards first with
+  # ../../docker/monitoring/grafana/dashboards/generate.sh.
+  # -------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      - prometheus
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_DEFAULT_THEME: "dark"
+      PROMETHEUS_PORT: "9090"
+    volumes:
+      - ../../docker/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../../docker/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  flow-logs:
+  prometheus-data:
+  prometheus-rules:
+  grafana-data:
