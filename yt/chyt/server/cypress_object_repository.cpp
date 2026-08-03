@@ -76,6 +76,7 @@ struct TCypressObjectRepository::TObjectSnapshot
         std::string Type;
         std::string Value;
         DBPoco::Timestamp UpdateTime;
+        NHydra::TRevision Revision;
     };
 
     THashMap<std::string, TEntry> Entries;
@@ -110,7 +111,7 @@ TCypressObjectRepository::TObjectSnapshotPtr TCypressObjectRepository::GetSnapsh
 TCypressObjectRepository::TObjectSnapshotPtr TCypressObjectRepository::BuildSnapshot()
 {
     TListNodeOptions options;
-    options.Attributes = {"key", "value", "modification_time", "chyt_object_type"};
+    options.Attributes = {"key", "value", "modification_time", "revision", "chyt_object_type"};
 
     auto listYson = WaitFor(Client_->ListNode(RootPath_, options))
         .ValueOrThrow();
@@ -132,6 +133,7 @@ TCypressObjectRepository::TObjectSnapshotPtr TCypressObjectRepository::BuildSnap
         // COMPAT(buyval01): Documents without the type attribute are dictionaries.
         entry.Type = attributes.Find<std::string>("chyt_object_type").value_or(DictionaryObjectType);
         entry.Value = std::move(*value);
+        entry.Revision = attributes.Get<NHydra::TRevision>("revision");
         if (auto modificationTime = attributes.Find<TInstant>("modification_time")) {
             entry.UpdateTime = DBPoco::Timestamp::fromEpochTime(modificationTime->TimeT());
         }
@@ -205,6 +207,18 @@ DB::LoadablesConfigurationPtr TCypressObjectRepository::LoadDictionary(const std
     return config;
 }
 
+std::optional<NHydra::TRevision> TCypressObjectRepository::TryGetDictionaryRevision(const DB::StorageID& storageId)
+{
+    auto objectName = GetObjectName(storageId);
+    if (auto snapshot = GetSnapshot()) {
+        auto it = snapshot->Entries.find(objectName);
+        if (it != snapshot->Entries.end() && it->second.Type == DictionaryObjectType) {
+            return it->second.Revision;
+        }
+    }
+    return std::nullopt;
+}
+
 void TCypressObjectRepository::WriteDictionary(
     const DB::ContextPtr& context,
     const DB::StorageID& storageId,
@@ -215,7 +229,7 @@ void TCypressObjectRepository::WriteDictionary(
     const auto* host = queryContext->Host;
     host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
 
-    auto configName = storageId.table_name;
+    auto configName = GetObjectName(storageId);
 
     std::stringstream parsedConfigStream;
     config.cast<DBPoco::Util::XMLConfiguration>()->save(parsedConfigStream);
@@ -237,7 +251,8 @@ void TCypressObjectRepository::WriteDictionary(
 
 void TCypressObjectRepository::DeleteDictionary(
     const DB::ContextPtr& context,
-    const DB::StorageID& storageId)
+    const DB::StorageID& storageId,
+    NHydra::TRevision revision)
 {
     const auto* queryContext = GetQueryContext(context);
     const auto& client = queryContext->Client();
@@ -249,22 +264,43 @@ void TCypressObjectRepository::DeleteDictionary(
         return;
     }
 
-    auto path = GetObjectPath(storageId.table_name);
-    auto resultOrError = WaitFor(client->RemoveNode(path));
-    if (!resultOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while deleting dictionary %Qv", storageId.table_name) << resultOrError;
-    }
+    auto objectName = GetObjectName(storageId);
+    RemoveObject(client, objectName, revision);
 
     RefreshSnapshot();
 
     // Global reload may fail, but eventually all instances will notice that the dictionary has been deleted
     // due to periodic updates to ExternalLoader.
-    host->ReloadDictionaryGlobally(storageId.table_name);
+    host->ReloadDictionaryGlobally(objectName);
 }
 
 TYPath TCypressObjectRepository::GetObjectPath(const std::string& objectName) const
 {
     return TYPath(Format("%v/%v", RootPath_, ToYPathLiteral(objectName)));
+}
+
+std::string TCypressObjectRepository::GetObjectName(const DB::StorageID& storageId)
+{
+    return storageId.getFullTableName();
+}
+
+void TCypressObjectRepository::RemoveObject(
+    const IClientPtr& client,
+    const std::string& objectName,
+    NHydra::TRevision revision)
+{
+    auto path = GetObjectPath(objectName);
+    TRemoveNodeOptions options;
+    auto prerequisite = New<TPrerequisiteRevisionConfig>();
+    prerequisite->Path = path;
+    prerequisite->Revision = revision;
+    options.PrerequisiteRevisions.push_back(std::move(prerequisite));
+
+    auto resultOrError = WaitFor(client->RemoveNode(path, options));
+    if (!resultOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Failed to remove clique object %Qv due to concurrent object overwrite", objectName)
+            << resultOrError;
+    }
 }
 
 const std::string TCypressObjectRepository::CypressConfigRepositoryName = "YT_Cypress";

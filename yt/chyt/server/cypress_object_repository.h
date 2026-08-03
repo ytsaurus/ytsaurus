@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/client/hydra/public.h>
+
 #include <yt/yt/core/ypath/public.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
@@ -47,6 +49,7 @@ public:
     std::optional<DBPoco::Timestamp> GetDictionaryUpdateTime(const std::string& dictionaryName);
 
     DB::LoadablesConfigurationPtr LoadDictionary(const std::string& dictionaryName);
+    std::optional<NHydra::TRevision> TryGetDictionaryRevision(const DB::StorageID& storageId);
 
     void WriteDictionary(
         const DB::ContextPtr& context,
@@ -54,7 +57,8 @@ public:
         const DB::LoadablesConfigurationPtr& config);
     void DeleteDictionary(
         const DB::ContextPtr& context,
-        const DB::StorageID& storageId);
+        const DB::StorageID& storageId,
+        NHydra::TRevision revision);
 
 private:
     const NApi::NNative::IClientPtr Client_;
@@ -69,6 +73,11 @@ private:
     TObjectSnapshotPtr BuildSnapshot();
 
     NYPath::TYPath GetObjectPath(const std::string& objectName) const;
+    static std::string GetObjectName(const DB::StorageID& storageId);
+    void RemoveObject(
+        const NApi::IClientPtr& client,
+        const std::string& objectName,
+        NHydra::TRevision revision);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressObjectRepository)

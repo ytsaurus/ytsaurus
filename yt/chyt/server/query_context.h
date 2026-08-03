@@ -17,6 +17,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/client/hydra/public.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -110,6 +112,7 @@ public:
     //! For this reason, LastResolvedDictionaryName stores the name of the dictionary that was resolved last within the current query.
     //! It helps consistently resolve storage in YtDatabase::dropTable call.
     std::string LastResolvedDictionaryName;
+    NHydra::TRevision LastResolvedDictionaryRevision = NHydra::NullRevision;
 
     //! if |true|, query registry should keep QueryFinishInfo after the query context is destroyed.
     //! Invoker affinity: query registry invoker.
