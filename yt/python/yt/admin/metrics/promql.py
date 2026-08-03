@@ -263,7 +263,11 @@ def _value_subsumes(a_op: str, a_val: str, b_op: str, b_val: str) -> bool:
         except re.error:
             return False
     if a_op == "=~" and b_op == "=~":
-        return a_val == b_val or a_val in (".*", ".+")
+        if a_val == b_val or a_val == ".*":
+            return True
+        if a_val == ".+":
+            return bool(b_val) and re.escape(b_val) == b_val
+        return False
     if a_op == "!=" and b_op == "!=":
         return a_val == b_val
     return False
