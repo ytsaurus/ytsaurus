@@ -269,7 +269,7 @@ yt admin metrics <validate|dump|replay> [options]
 
 The specification describes which metrics to export. File structure:
 
-- `defaults.step` — default sampling step (can be overridden with the `--step` option).
+- `defaults.step` — default sampling step (can be overridden with the `--step` option). If the field is missing or the `defaults` section is empty, `15s` is used. Specify the value as an integer with a unit: `ms`, `s`, `m`, `h`, `d`, `w`, or `y`, for example `500ms`, `30s`, or `5m`.
 - `targets` — list of targets, each with its own `type`:
   - `type: metric` — specifies a PromQL query in the `query` field; selectors are extracted from the query.
   - `type: dashboard` — path to a Grafana dashboard JSON file in the `path` field (relative to `spec.yaml`); `expr` values are extracted from all dashboard panels. Dashboard variable values are taken from its `templating` and can be overridden with a `params` dict.
@@ -287,7 +287,7 @@ targets:
   - type: dashboard
     path: master-accounts.json
     params:
-      cluster: clusrer-name
+      cluster: cluster-name
       account: sys
       left_medium: default
       right_medium: ssd_blobs
@@ -325,7 +325,8 @@ Exports metrics from Prometheus for a specified time range to a zip archive.
 ```bash
 yt admin metrics dump --spec spec.yaml \
   --from-ts <ISO8601> --to-ts <ISO8601> \
-  --prometheus-url <url> [--step <step>] [--output metrics.zip] [--max-series N] [--force]
+  --prometheus-url <url> [--step <duration>] [--output metrics.zip] \
+  [--max-series N] [--max-points-per-series N] [--force]
 ```
 
 | Parameter | Default | Description |
@@ -334,10 +335,11 @@ yt admin metrics dump --spec spec.yaml \
 | `--from-ts <ISO8601>` | — | Start of the time range (required) |
 | `--to-ts <ISO8601>` | — | End of the time range (required) |
 | `--prometheus-url <url>` | — | Base URL of Prometheus (required) |
-| `--step <step>` | from spec | Sampling step |
+| `--step <duration>` | `defaults.step` or `15s` | Sampling step, for example `500ms`, `30s`, or `5m` |
 | `--target <json>` | — | Additional inline target |
 | `--output <path>` | `metrics.zip` | Path to the output archive |
 | `--max-series <N>` | `100000` | If the total number of time series to export exceeds this value, confirmation is requested |
+| `--max-points-per-series <N>` | `11000` | Maximum number of points per series in a single request; `0` disables the check |
 | `--force` | — | Skip confirmation when `--max-series` is exceeded |
 
 {% note info "Note" %}
