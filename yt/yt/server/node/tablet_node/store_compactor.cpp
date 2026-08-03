@@ -1872,7 +1872,8 @@ private:
                 reader->GetDataStatistics(),
                 writerDataStatistics,
                 chunkReadOptions.HunkChunkReaderStatistics,
-                partitioningResult.HunkWriter->GetDataStatistics());
+                partitioningResult.HunkWriter->GetDataStatistics(),
+                partitioningResult.HunkWriter->GetDataWeight());
         }
 
         eden->ExitCompactionState(EPartitionState::Partitioning);
@@ -2295,7 +2296,8 @@ private:
                 reader->GetDataStatistics(),
                 compactionResult.StoreWriter->GetDataStatistics(),
                 chunkReadOptions.HunkChunkReaderStatistics,
-                compactionResult.HunkWriter->GetDataStatistics());
+                compactionResult.HunkWriter->GetDataStatistics(),
+                compactionResult.HunkWriter->GetDataWeight());
         }
 
         partition->ExitCompactionState(EPartitionState::Compacting);

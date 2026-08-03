@@ -464,6 +464,9 @@ struct IHunkChunkPayloadWriter
     //! Returns the chunk data statistics.
     virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const = 0;
 
+    //! Returns the total data weight of all hunks written via #WriteHunk.
+    virtual i64 GetDataWeight() const = 0;
+
     //! Called when chunk store writer closes.
     virtual void OnParentReaderFinished(NChunkClient::TChunkId compressionDictionaryId) = 0;
 

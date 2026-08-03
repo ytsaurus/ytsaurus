@@ -412,7 +412,8 @@ public:
         const NChunkClient::NProto::TDataStatistics& readerStatistics,
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
         const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
-        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics);
+        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+        i64 hunkChunkWriterDataWeight);
 
     void ProfilePartitioning(
         NLsm::EStoreCompactionReason reason,
@@ -420,7 +421,8 @@ public:
         const NChunkClient::NProto::TDataStatistics& readerStatistics,
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
         const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
-        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics);
+        const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+        i64 hunkChunkWriterDataWeight);
 
     void ProfilePartitionSplit();
     void ProfilePartitionMerge();
@@ -446,6 +448,7 @@ private:
         const NChunkClient::NProto::TDataStatistics& writerStatistics,
         const NTableClient::IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
         const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+        i64 hunkChunkWriterDataWeight,
         TEnumIndexedArray<NLsm::EHunkCompactionReason, i64> hunkChunkCountByReason);
 };
 
