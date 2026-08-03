@@ -905,6 +905,43 @@ TEST(TStaticTableSourceTest, CreateThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TStaticTableSourceTest, ClassifyPendingRead)
+{
+    const auto readTimeout = TDuration::Minutes(5);
+
+    // Not ready yet: the operation is simply not complete.
+    {
+        auto pendingRead = NewPromise<void>();
+        EXPECT_TRUE(TSource::ClassifyPendingRead(pendingRead.ToFuture(), TDuration::Minutes(1), readTimeout).IsOK());
+    }
+
+    // A dead read stream surfaces only here, well before the timeout.
+    {
+        auto pendingRead = MakeFuture(NYT::TError("Chunk is unavailable"));
+        auto error = TSource::ClassifyPendingRead(pendingRead, TDuration::Seconds(1), readTimeout);
+        ASSERT_FALSE(error.IsOK());
+        EXPECT_THAT(ToString(error), testing::HasSubstr("Chunk is unavailable"));
+    }
+
+    // A silently stalled operation is caught by the timeout, which is armed from reader creation
+    // rather than from the first non-empty batch.
+    {
+        auto pendingRead = NewPromise<void>();
+        auto error = TSource::ClassifyPendingRead(pendingRead.ToFuture(), readTimeout + TDuration::Seconds(1), readTimeout);
+        ASSERT_FALSE(error.IsOK());
+        EXPECT_TRUE(error.FindMatching(NYT::EErrorCode::Timeout).has_value());
+    }
+
+    // A reader with rows at hand is never dropped, however long the previous wait was.
+    {
+        auto pendingRead = MakeFuture(NYT::TError());
+        EXPECT_TRUE(TSource::ClassifyPendingRead(pendingRead, TDuration::Zero(), readTimeout).IsOK());
+        EXPECT_TRUE(TSource::ClassifyPendingRead(pendingRead, readTimeout + TDuration::Seconds(1), readTimeout).IsOK());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TStaticTableSourceTest, ConvertCellToAny)
 {
     // Build a struct<data: string> column and create a positional->named converter for it.
