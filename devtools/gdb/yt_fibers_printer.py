@@ -1,4 +1,8 @@
 import gdb
+import json
+import struct
+
+from libcxx_printers import rep_field
 
 # Defined in util/system/context_x86_64.asm
 MJB_RBX = 0
@@ -227,6 +231,41 @@ def format_string_multiline(value):
         return str(value)
 
 
+def read_std_string(value):
+    representation = rep_field(value)
+    short = representation['__s']
+    if short['__is_long_']:
+        long = representation['__l']
+        data = long['__data_']
+        size = long['__size_']
+    else:
+        data = short['__data_']
+        size = short['__size_']
+    return bytes(gdb.selected_inferior().read_memory(data, int(size)))
+
+
+def format_logging_tags(logging_tags):
+    # Keep this in sync with TTaggedPayloadReader:
+    # library/cpp/yt/logging/tagged_payload.cpp
+    payload = read_std_string(logging_tags['Payload_']['Underlying_'])
+    offset = 0
+    result = []
+    while offset < len(payload):
+        key_size = struct.unpack_from('<I', payload, offset)[0]
+        offset += 4
+        key_size &= 0x7fffffff
+        key = payload[offset:offset + key_size].decode('utf-8', 'replace')
+        offset += key_size
+
+        value_size = struct.unpack_from('<I', payload, offset)[0]
+        offset += 4
+        value = payload[offset:offset + value_size].decode('utf-8', 'replace')
+        offset += value_size
+
+        result.append('{}: {}'.format(key, value))
+    return json.dumps(', '.join(result), ensure_ascii=False)
+
+
 def get_waiting_fibers():
     global cached_waiting_fibers
     if not cached_waiting_fibers is None:
@@ -407,7 +446,7 @@ class PrintFibersWithTraceTagsCommand(gdb.Command):
                 trace_context = find_trace_context()
                 if not trace_context is None:
                     try:
-                        gdb.write('Logging tag: {}\n'.format(trace_context['LoggingTag_']))
+                        gdb.write('Logging tag: {}\n'.format(format_logging_tags(trace_context['LoggingTags_'])))
                     except:
                         pass
                     try:
