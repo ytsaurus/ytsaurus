@@ -399,6 +399,45 @@ class TestYtDictionaries(ClickHouseTestBase):
         with Clique(2, config_patch={"yt": {"database_directories": {"my_db": root}}, "clickhouse": {"default_database": "my_db"}}) as clique:
             run_test(clique, "dict", "//tmp/root/dict")
 
+    @authors("buyval01")
+    def test_concurrent_dictionary_drop_after_loader_removal(self):
+        schema = [
+            {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
+            {"name": "b", "type": "int64", "required": True},
+        ]
+        create("table", "//tmp/t", attributes={"schema": schema})
+
+        with Clique(2) as clique:
+            clique.make_query(
+                "CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a "
+                "SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600)")
+            instances = clique.get_active_instances()
+            concurrent_drop_errors = []
+
+            def concurrent_drop_dictionary():
+                wait_breakpoint("drop_after_loader_removal")
+                try:
+                    clique.make_direct_query(instances[0], "DROP DICTIONARY t_dict")
+                    wait(lambda: clique.make_direct_query(
+                        instances[1],
+                        "EXISTS DICTIONARY t_dict") == [{"result": 0}])
+                except Exception as ex:
+                    concurrent_drop_errors.append(ex)
+                finally:
+                    release_breakpoint("drop_after_loader_removal")
+
+            thread = threading.Thread(target=concurrent_drop_dictionary)
+            thread.start()
+
+            with raises_yt_error(message_pattern="concurrent object overwrite"):
+                clique.make_direct_query(instances[1], "DROP DICTIONARY t_dict", settings={
+                    "chyt.testing.drop_table_breakpoint": get_breakpoint_node("drop_after_loader_removal"),
+                })
+
+            thread.join()
+            if concurrent_drop_errors:
+                raise concurrent_drop_errors[0]
+
     @authors("denmogilevec")
     def test_dictionary_persistence(self):
         schema = [
