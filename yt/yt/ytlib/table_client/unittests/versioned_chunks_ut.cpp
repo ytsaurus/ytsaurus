@@ -61,7 +61,7 @@ using namespace NConcurrency;
 using namespace NTransactionClient;
 
 using NYT::FromProto;
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

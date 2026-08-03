@@ -51,7 +51,7 @@ using namespace NHiveServer;
 using namespace NRpc;
 using namespace NLogging;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

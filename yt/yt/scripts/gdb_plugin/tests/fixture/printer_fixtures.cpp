@@ -24,7 +24,7 @@ using namespace NYT;
 using namespace NYT::NTableClient;
 using namespace NYT::NYson;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 // Pretty-printer fixtures: real typed globals (external linkage, so they stay in
 // the core) that the gdb test prints to exercise lib/printers.py.

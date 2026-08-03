@@ -44,7 +44,7 @@ using namespace NTableClient;
 using namespace NProfiling;
 using namespace NTableChunkFormat;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

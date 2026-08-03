@@ -24,7 +24,7 @@ namespace {
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,7 +15,7 @@ using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 TTimestamp PrecedingTimestamp(TTimestamp timestamp)
 {

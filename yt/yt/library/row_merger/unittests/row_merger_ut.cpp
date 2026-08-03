@@ -73,7 +73,7 @@ using namespace NChunkClient;
 using namespace NTabletClient;
 
 using ::ToString;
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

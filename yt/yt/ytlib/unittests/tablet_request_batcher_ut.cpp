@@ -21,7 +21,7 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NQueryClient;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

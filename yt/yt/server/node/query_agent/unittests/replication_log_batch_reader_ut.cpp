@@ -22,7 +22,7 @@ using namespace NTransactionClient;
 using namespace NLogging;
 using namespace NProfiling;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

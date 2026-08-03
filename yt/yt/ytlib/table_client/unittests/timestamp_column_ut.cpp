@@ -14,7 +14,7 @@ using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 using namespace NCompression;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 /*

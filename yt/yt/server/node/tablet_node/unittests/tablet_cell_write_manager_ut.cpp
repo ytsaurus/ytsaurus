@@ -16,7 +16,7 @@ using namespace testing;
 using namespace NConcurrency;
 using namespace NTableClient;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 
