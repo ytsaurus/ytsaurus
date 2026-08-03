@@ -86,7 +86,7 @@ TEST(TGetNodeInfoTest, DualStackRejected)
 
     EXPECT_THROW_WITH_SUBSTRING(
         GetNodeInfo(config, Logger),
-        "Exactly one of enable_ipv4 or enable_ipv6 must be set");
+        "Exactly one of \"enable_ipv4\" and \"enable_ipv6\" must be set");
 }
 
 TEST(TGetNodeInfoTest, NoStackRejected)
@@ -103,7 +103,7 @@ TEST(TGetNodeInfoTest, NoStackRejected)
 
     EXPECT_THROW_WITH_SUBSTRING(
         GetNodeInfo(config, Logger),
-        "Exactly one of enable_ipv4 or enable_ipv6 must be set");
+        "Exactly one of \"enable_ipv4\" and \"enable_ipv6\" must be set");
 }
 
 TEST(TGetNodeInfoTest, IPv4OnlyWithLocalhostOverride)
@@ -201,7 +201,7 @@ TEST(TGetNodeInfoTest, IPv6ConfigWithIPv4OverrideMismatch)
 
     EXPECT_THROW_WITH_SUBSTRING(
         GetNodeInfo(config, Logger),
-        "not IPv6 address");
+        "non-IPv6 address");
 }
 
 TEST(TGetNodeInfoTest, IPv4ConfigWithIPv6OverrideMismatch)
@@ -221,7 +221,7 @@ TEST(TGetNodeInfoTest, IPv4ConfigWithIPv6OverrideMismatch)
 
     EXPECT_THROW_WITH_SUBSTRING(
         GetNodeInfo(config, Logger),
-        "not IPv4 address");
+        "non-IPv4 address");
 }
 
 TEST(TGetNodeInfoTest, VanillaJobIPv4AddressWithIPv4Config)
@@ -306,7 +306,7 @@ TEST(TGetNodeInfoTest, VanillaJobIPv4AddressWithIPv6ConfigMismatch)
 
     EXPECT_THROW_WITH_SUBSTRING(
         GetNodeInfo(config, Logger),
-        "YT_IP_ADDRESS_DEFAULT is not an IPv6 address");
+        "is not an IPv6 address but \"enable_ipv6\" is set");
 }
 
 TEST(TGetNodeInfoTest, VanillaJobIPv6AddressWithIPv4ConfigMismatch)
@@ -331,7 +331,7 @@ TEST(TGetNodeInfoTest, VanillaJobIPv6AddressWithIPv4ConfigMismatch)
 
     EXPECT_THROW_WITH_SUBSTRING(
         GetNodeInfo(config, Logger),
-        "YT_IP_ADDRESS_DEFAULT is not an IPv4 address");
+        "is not an IPv4 address but \"enable_ipv4\" is set");
 }
 
 TEST(TGetNodeInfoTest, DefaultConfigUsesIPv6)
@@ -371,7 +371,7 @@ TEST(TGetNodeInfoTest, DefaultConfigRejectsIPv4Address)
 
     EXPECT_THROW_WITH_SUBSTRING(
         GetNodeInfo(config, Logger),
-        "not IPv6 address");
+        "non-IPv6 address");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
