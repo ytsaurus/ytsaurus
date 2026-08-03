@@ -1,6 +1,60 @@
 Changes
 =======
 
+1.26.16 (2023-05-23)
+--------------------
+
+* Fixed thread-safety issue where accessing a ``PoolManager`` with many distinct origins
+  would cause connection pools to be closed while requests are in progress (`#2954 <https://github.com/urllib3/urllib3/pull/2954>`_)
+
+
+1.26.15 (2023-03-10)
+--------------------
+
+* Fix socket timeout value when ``HTTPConnection`` is reused (`#2645 <https://github.com/urllib3/urllib3/issues/2645>`__)
+* Remove "!" character from the unreserved characters in IPv6 Zone ID parsing
+  (`#2899 <https://github.com/urllib3/urllib3/issues/2899>`__)
+* Fix IDNA handling of '\x80' byte (`#2901 <https://github.com/urllib3/urllib3/issues/2901>`__)
+
+1.26.14 (2023-01-11)
+--------------------
+
+* Fixed parsing of port 0 (zero) returning None, instead of 0. (`#2850 <https://github.com/urllib3/urllib3/issues/2850>`__)
+* Removed deprecated getheaders() calls in contrib module.
+
+1.26.13 (2022-11-23)
+--------------------
+
+* Deprecated the ``HTTPResponse.getheaders()`` and ``HTTPResponse.getheader()`` methods.
+* Fixed an issue where parsing a URL with leading zeroes in the port would be rejected
+  even when the port number after removing the zeroes was valid.
+* Fixed a deprecation warning when using cryptography v39.0.0.
+* Removed the ``<4`` in the ``Requires-Python`` packaging metadata field.
+
+
+1.26.12 (2022-08-22)
+--------------------
+
+* Deprecated the `urllib3[secure]` extra and the `urllib3.contrib.pyopenssl` module.
+  Both will be removed in v2.x. See this `GitHub issue <https://github.com/urllib3/urllib3/issues/2680>`_
+  for justification and info on how to migrate.
+
+
+1.26.11 (2022-07-25)
+--------------------
+
+* Fixed an issue where reading more than 2 GiB in a call to ``HTTPResponse.read`` would
+  raise an ``OverflowError`` on Python 3.9 and earlier.
+
+
+1.26.10 (2022-07-07)
+--------------------
+
+* Removed support for Python 3.5
+* Fixed an issue where a ``ProxyError`` recommending configuring the proxy as HTTP
+  instead of HTTPS could appear even when an HTTPS proxy wasn't configured.
+
+
 1.26.9 (2022-03-16)
 -------------------
 
