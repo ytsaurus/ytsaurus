@@ -1742,10 +1742,44 @@ void TUniversalComputationBase::DoInterrupt(const IComputationRunContextPtr& con
     YT_TLOG_INFO("Completed DoInterrupt");
 }
 
+bool TUniversalComputationBase::HasPersistedKeyedOutput() const
+{
+    return false;
+}
+
 void TUniversalComputationBase::DoComplete(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard)
 {
     YT_TLOG_INFO("Started DoComplete");
-    initTraceContextGuard.Release();
+
+    if (HasPersistedKeyedOutput()) {
+        bool isFinished = true;
+        {
+            auto iterGuard = StartRunIteration(context);
+            const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
+            isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights());
+            FinishRunIteration();
+        }
+
+        initTraceContextGuard.Release();
+
+        while (!isFinished) {
+            auto iterGuard = StartRunIteration(context);
+            auto dynamicSpec = GetDynamicSpec();
+
+            const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
+
+            auto tx = PrepareTransaction(context);
+            Commit(context, tx);
+
+            isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights());
+            FinishRunIteration();
+            TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.CompletingPartitionOutputMessages"));
+            TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
+        }
+    } else {
+        initTraceContextGuard.Release();
+    }
+
     DoCleanup(context, /*eraseOwnedState*/ true);
     YT_TLOG_INFO("Completed DoComplete");
 }

@@ -20,6 +20,7 @@ SRCS(
     state_client_ut.cpp
     swift_map_validation_ut.cpp
     timer_store_ut.cpp
+    transform_ordered_source_validation_ut.cpp
     universal_controller_helpers_ut.cpp
     watermark_generator_ut.cpp
 )
@@ -28,6 +29,7 @@ PEERDIR(
     yt/yt/client/unittests/mock
     yt/yt/flow/library/cpp/computation
     yt/yt/flow/library/cpp/common/unittests/mock
+    yt/yt/flow/library/cpp/connectors/random
     yt/yt/flow/library/cpp/tables/unittests/mock
     yt/yt/library/query/engine
 )

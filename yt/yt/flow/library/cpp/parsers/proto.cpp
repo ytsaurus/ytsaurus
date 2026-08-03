@@ -15,4 +15,15 @@ void TDynamicProtoSourceComputationParameters::Register(TRegistrar /*registrar*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TProtoTransformSourceComputationParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("data_column", &TThis::DataColumn)
+        .Default("data");
+}
+
+void TDynamicProtoTransformSourceComputationParameters::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFlow

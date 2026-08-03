@@ -10,38 +10,97 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TProto>
-void TProtoSwiftSourceComputation<TProto>::DoProcessMessage(const TInputMessageConstPtr& inputMessage, IOutputCollectorPtr output)
+namespace NDetail {
+
+template <class TProto, class TOnProto, class TOnUnparsed>
+void ParseProtoColumnPropagatingHookErrors(
+    const TMessage& message,
+    TStringBuf dataColumn,
+    const TOnProto& onProto,
+    const TOnUnparsed& onUnparsed)
 {
-    auto rawData = GetColumnValue<std::optional<TStringBuf>>(inputMessage, GetParameters()->DataColumn);
+    std::optional<TStringBuf> rawData;
+    try {
+        rawData = GetColumnValue<std::optional<TStringBuf>>(message, dataColumn);
+    } catch (const std::exception& ex) {
+        onUnparsed(TError(ex) << TErrorAttribute("data_column", dataColumn));
+        return;
+    }
     if (!rawData) {
-        DoProcessUnparsed(inputMessage, TError("empty data"), output);
+        onUnparsed(TError("empty data"));
         return;
     }
 
-    try {
-        TProto proto;
-        proto.ParseFromStringOrThrow(*rawData);
-        DoProcessProto(inputMessage, std::move(proto), output);
-    } catch (const std::exception& ex) {
-        DoProcessUnparsed(inputMessage, TError(ex), output);
+    TProto proto;
+    if (!proto.ParseFromArray(rawData->data(), rawData->size())) {
+        auto error = TError("Failed to parse protobuf message %v", proto.GetTypeName())
+            << TErrorAttribute("data_size", rawData->size());
+        if (!proto.IsInitialized()) {
+            error <<= TErrorAttribute("initialization_error", proto.InitializationErrorString());
+        }
+        onUnparsed(std::move(error));
+        return;
+    }
+
+    onProto(std::move(proto));
+}
+
+template <class TProto, class TOnProto, class TOnUnparsed>
+void ParseProtoColumnRoutingHookErrors(
+    const TMessage& message,
+    TStringBuf dataColumn,
+    const TOnProto& onProto,
+    const TOnUnparsed& onUnparsed)
+{
+    ParseProtoColumnPropagatingHookErrors<TProto>(
+        message,
+        dataColumn,
+        [&] (TProto&& proto) {
+            try {
+                onProto(std::move(proto));
+            } catch (const std::exception& ex) {
+                onUnparsed(TError(ex));
+            }
+        },
+        onUnparsed);
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TBase, class TProto, class TProtoParameters, class TDynamicProtoParameters, bool PropagateHookErrors>
+void TProtoParsingComputationBase<TBase, TProto, TProtoParameters, TDynamicProtoParameters, PropagateHookErrors>::DoProcessMessage(
+    const TInputMessageConstPtr& inputMessage,
+    IOutputCollectorPtr output)
+{
+    auto onProto = [&] (TProto&& inputProto) {
+        DoProcessProto(inputMessage, std::move(inputProto), output);
+    };
+    auto onUnparsed = [&] (TError error) {
+        DoProcessUnparsed(inputMessage, std::move(error), output);
+    };
+    if constexpr (PropagateHookErrors) {
+        NDetail::ParseProtoColumnPropagatingHookErrors<TProto>(*inputMessage, GetParameters()->DataColumn, onProto, onUnparsed);
+    } else {
+        NDetail::ParseProtoColumnRoutingHookErrors<TProto>(*inputMessage, GetParameters()->DataColumn, onProto, onUnparsed);
     }
 }
 
-template <class TProto>
-void TProtoSwiftSourceComputation<TProto>::DoProcessProto(const TInputMessageConstPtr& /*inputMessage*/, TProto&& inputProto, IOutputCollectorPtr output)
+template <class TBase, class TProto, class TProtoParameters, class TDynamicProtoParameters, bool PropagateHookErrors>
+void TProtoParsingComputationBase<TBase, TProto, TProtoParameters, TDynamicProtoParameters, PropagateHookErrors>::DoProcessProto(const TInputMessageConstPtr& /*inputMessage*/, TProto&& inputProto, IOutputCollectorPtr output)
 {
     DoProcessProto(std::forward<TProto>(inputProto), std::move(output));
 }
 
-template <class TProto>
-void TProtoSwiftSourceComputation<TProto>::DoProcessProto(TProto&&, IOutputCollectorPtr /*output*/)
+template <class TBase, class TProto, class TProtoParameters, class TDynamicProtoParameters, bool PropagateHookErrors>
+void TProtoParsingComputationBase<TBase, TProto, TProtoParameters, TDynamicProtoParameters, PropagateHookErrors>::DoProcessProto(TProto&&, IOutputCollectorPtr /*output*/)
 {
     THROW_ERROR_EXCEPTION("One of the overloads for DoProcessProto must be implemented");
 }
 
-template <class TProto>
-void TProtoSwiftSourceComputation<TProto>::DoProcessUnparsed(const TInputMessageConstPtr& /*inputMessage*/, TError error, IOutputCollectorPtr /*output*/)
+template <class TBase, class TProto, class TProtoParameters, class TDynamicProtoParameters, bool PropagateHookErrors>
+void TProtoParsingComputationBase<TBase, TProto, TProtoParameters, TDynamicProtoParameters, PropagateHookErrors>::DoProcessUnparsed(const TInputMessageConstPtr& /*inputMessage*/, TError error, IOutputCollectorPtr /*output*/)
 {
     THROW_ERROR error;
 }

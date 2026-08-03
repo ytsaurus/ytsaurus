@@ -12,6 +12,7 @@ namespace NYT::NFlow {
 // RequiresProcessingFunction, so the spec validator demands a registered function.
 YT_FLOW_DEFINE_COMPUTATION(TProcessFunctionComputation);
 YT_FLOW_DEFINE_COMPUTATION(TProcessFunctionSwiftMapComputation);
+YT_FLOW_DEFINE_COMPUTATION(TProcessFunctionTransformOrderedSourceComputation);
 YT_FLOW_DEFINE_COMPUTATION(TProcessFunctionSourceComputation);
 
 ////////////////////////////////////////////////////////////////////////////////

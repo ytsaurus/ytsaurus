@@ -58,18 +58,30 @@ void TProcessFunctionComputationBase<TBase>::DoProcess(IInputContextPtr input, I
     Batch_->Process(input, output, RuntimeContext_);
 }
 
+template <class TBase>
+void TProcessFunctionComputationBase<TBase>::DoSyncIfPresent(IRetryableTransactionPtr transaction)
+{
+    if (SyncFunction_) {
+        SyncFunction_->Sync(transaction, RuntimeContext_);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template class TProcessFunctionComputationBase<TTransformComputation>;
 template class TProcessFunctionComputationBase<TSwiftMapComputation>;
+template class TProcessFunctionComputationBase<TTransformOrderedSourceComputation>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TProcessFunctionComputation::DoSync(IRetryableTransactionPtr transaction)
 {
-    if (SyncFunction_) {
-        SyncFunction_->Sync(transaction, RuntimeContext_);
-    }
+    DoSyncIfPresent(std::move(transaction));
+}
+
+void TProcessFunctionTransformOrderedSourceComputation::DoSync(IRetryableTransactionPtr transaction)
+{
+    DoSyncIfPresent(std::move(transaction));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,9 +8,10 @@
 
 В этом разделе приведено описание базовых классов `Computation` и важные детали реализации.
 
-Во Flow в данный момент реализовано три базовых класса `Computation`:
+Во Flow в данный момент реализовано четыре базовых класса `Computation`:
 
 - `TTransformComputation`
+- `TTransformOrderedSourceComputation`
 - `TSwiftOrderedSourceComputation`
 - `TSwiftMapComputation`
 
@@ -142,6 +143,84 @@ public:
 - Не может иметь более одного выхода.
 - Все входящие `input` потоки превращаются в `output` путём конвертации сообщения с помощью `ConvertMessageToNewSchema`.
 
+### TTransformOrderedSourceComputation {#ttransformorderedsourcecomputation}
+
+`TTransformOrderedSourceComputation` (`yt/yt/flow/library/cpp/computation/transform_ordered_source_computation.h`) обрабатывает сообщения `source` произвольной пользовательской логикой — парсинг, фильтрация, разворачивание одного входного сообщения в несколько выходных. Пользователь переопределяет те же методы обработки, что и у `TTransformComputation`, но на вход приходят сообщения одного упорядоченного `Source`, а не `input`-стримов. Класс заменяет связку `TSwiftPassthroughOrderedSourceComputation` → `TTransformComputation`, когда единственная задача промежуточного компьютейшена — обработать данные источника.
+
+Результат трансформации материализуется в {{product-name}} так же, как у `TTransformComputation`:
+
+- Выходные сообщения получают уникальные `MessageId` и надёжно сохраняются в {{product-name}} до распределения в downstream. После рестарта ещё не доставленные материализованные сообщения дораспределяются с теми же `MessageId`, а не вычисляются заново, поэтому требований к детерминированности трансформации нет.
+- Сообщение можно добавить в `output` с явным флагом `distribute`, например `output->AddMessage(std::move(message), /*distribute*/ false)`. Такое сообщение не публикуется в downstream, но участвует в оценке вотермарка наравне с публикуемыми: генератор вотермарка регистрирует чтение по полному набору выходных сообщений ещё до применения фильтра публикации, поэтому вотермарк можно корректно оценивать по полному потоку, даже когда значимая его часть отфильтровывается. Смещение источника в любом случае продвигается в транзакции эпохи.
+- Смещение `source`, материализованный выход и стейты коммитятся в одной транзакции эпохи, поэтому обработка каждого сообщения источника применяется ровно один раз.
+
+Переопределяемые методы:
+
+* `DoInit(IJobInitContextPtr initContext)` — инициализация, в том числе создание клиентов стейта;
+* `DoProcess(IInputContextPtr input, IOutputCollectorPtr output)` — батч-версия обработки;
+* `DoProcessMessage(const TMessage& message, IOutputCollectorPtr output)` — самый частый выбор для обработки без стейта; вариант `DoProcessMessage(const TInputMessageConstPtr& message, IOutputCollectorPtr output)` даёт доступ к метаполям исходного сообщения, в том числе к `message->Key` для обращения к стейту;
+* `DoSync(IRetryableTransactionPtr transaction)` — ручная запись в транзакцию эпохи.
+
+Собственный стейт пользователь заводит ровно так же, как в `TTransformComputation` (см. [Работа со стейтами](../../../flow/cpp/state.md#internal-state)): поле `TMutableStateKeyClient<T>`, инициализация `initContext->InitClient(...)` в `DoInit` и аксессор `GetState(message->Key)` при обработке. Перед вызовом `DoProcess` фреймворк сам загружает стейт для ключей сообщений текущей эпохи. Инстанс компьютейшена всегда привязан к единственному `source`-ключу, поэтому все сообщения эпохи несут один и тот же ключ и обращаются к одной и той же строке стейта:
+
+```cpp
+class TMyComputation
+    : public TTransformOrderedSourceComputation
+{
+public:
+    using TTransformOrderedSourceComputation::TTransformOrderedSourceComputation;
+
+    void DoInit(IJobInitContextPtr initContext) override
+    {
+        initContext->InitClient(StateClient_, "my_state");
+    }
+
+    void DoProcessMessage(const TInputMessageConstPtr& message, IOutputCollectorPtr output) override
+    {
+        auto state = StateClient_.GetState(message->Key);
+        state->Counter += 1;
+        ...
+    }
+
+private:
+    TMutableStateKeyClient<TMyState> StateClient_;
+};
+```
+
+Стейт-клиенты, созданные через `IJobInitContext`, фреймворк синхронизирует в транзакции эпохи атомарно со смещением `source`, поэтому обычная мутация (например, инкремент счётчика) корректна exactly-once — дополнительная дедупликация по `MessageId` не нужна.
+
+Спека компьютейшена проверяется при запуске; следующие поля приводят к ошибке валидации:
+
+* `input`-стримы;
+* [таймеры](../../../flow/concepts/glossary.md#timer);
+* [key-visitor-стримы](../../../flow/concepts/key_visitor.md);
+* непустой `group_by_schema`;
+* `external_state_managers`;
+* `external_state_joiners`, у которых не задан `join_on/key_schema_override` (ключ сообщения источника не описывается `group_by_schema`, поэтому схема ключа должна быть задана явно).
+
+`watermark_strategy` поддерживается: `watermark_generator` оценивает вотермарки источника, `watermark_alignment` выравнивает чтение источника относительно других потоков (`read_delays` задерживают чтение, а не публикацию), `event_timestamp_assigner` назначает `event_timestamp` выходным сообщениям. Атомарность коммита смещения `source`, материализованных выходных сообщений и стейта от выравнивания не зависит. `skip_if_expression` также поддерживается.
+
+`skip_if_expression` применяется до обработки, но после того, как входной батч учтён в метриках и в подсчёте опоздавших сообщений: отфильтрованное сообщение не попадает ни в стейт, ни в выход. На оценку вотермарка оно тоже не влияет: генератор регистрирует чтение только по выходным сообщениям, поэтому полностью отфильтрованный батч не сдвигает `EventWatermark`, а на длинной серии таких батчей вотермарк партиции стоит на месте. Маркеры `EventWatermark` во входных записях источник учитывает при чтении независимо от фильтра, но при `use_source_watermark = false` (значение по умолчанию) вотермарк источника только ограничивает оценку сверху и вперёд её не двигает; единственным источником вотермарка партиции он становится при `use_source_watermark = true`. Это полностью совпадает с поведением `TSwiftOrderedSourceComputation`.
+
+Логику можно не наследовать от класса, а написать как [process function](../../../flow/cpp/process-functions.md) и указать в спеке адаптер `NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation`: он исполняет функцию поверх `TTransformOrderedSourceComputation` — с той же материализацией выхода, теми же стейтами и той же валидацией спеки.
+
+Пример — `NYT::NFlow::NExample::TLogParserProcessFunction` из [`examples/cpp/log_parser`]({{source-root}}/yt/yt/flow/examples/cpp/log_parser): разбирает строку лога на записи, эмитит YSON-структуру `TLogRecordMessage` (`level`, `text`, `worst_level_so_far`) и ведёт стейт `TWorstSeverityState` — бегущий максимум severity по партиции источника. Подробнее, вместе с полным исходным кодом, — в разделе [Log Parser](../../../flow/cpp/examples/log_parser.md).
+
+#### TProtoTransformOrderedSourceComputation {#tprototransformorderedsourcecomputation}
+
+Хелпер `NYT::NFlow::TProtoTransformOrderedSourceComputation<TProto>` (`yt/yt/flow/library/cpp/parsers/proto.h`) снимает с пользователя ручной парсинг `Protobuf` — аналог `TProtoSwiftSourceComputation<TProto>` для `TSwiftOrderedSourceComputation`.
+
+`DoProcessMessage` реализован за пользователя: он читает строковую колонку `parameters/data_column` сырого сообщения `source` (по умолчанию `"data"`) и разбирает её в `TProto`. Пользователь переопределяет один из хуков:
+
+* `DoProcessProto(TProto&& proto, IOutputCollectorPtr output)` — на успешный разбор, без доступа к исходному сообщению;
+* `DoProcessProto(const TInputMessageConstPtr& inputMessage, TProto&& proto, IOutputCollectorPtr output)` — та же ситуация, но с доступом к исходному сообщению `source`;
+* `DoProcessUnparsed(const TInputMessageConstPtr& inputMessage, TError error, IOutputCollectorPtr output)` — значение колонки `data_column` отсутствует (`null`) либо `Protobuf`-разбор бросил исключение; по умолчанию перебрасывает `error` дальше, поведение можно переопределить (например, чтобы молча отбросить невалидные сообщения). Пустая, но присутствующая строка — не то же самое, что отсутствующее значение: она успешно разбирается в сообщение со значениями по умолчанию, если у `TProto` нет обязательных полей, и в этом случае попадает в `DoProcessProto`, а не в `DoProcessUnparsed`.
+
+Ответственность за ошибку разделена: ошибка самого разбора маршрутизируется в `DoProcessUnparsed`, а исключение из `DoProcessProto` пробрасывается наружу и прерывает эпоху — ничего не коммитится. К моменту такого исключения стейт мог быть уже частично изменён, и эту мутацию нельзя молча проглотить как «неразобранное» сообщение.
+
+Собственный стейт заводится так же, как у `TTransformOrderedSourceComputation`, — через `TMutableStateKeyClient<T>` в `DoInit`; ключ для `GetState` — это `inputMessage->Key`, поэтому стейтовому компьютейшену подходит хук `DoProcessProto(const TInputMessageConstPtr&, TProto&&, IOutputCollectorPtr)`.
+
+Пример — `NYT::NFlow::NExample::TProtoLogParserComputation` из [`examples/cpp/proto_parser`]({{source-root}}/yt/yt/flow/examples/cpp/proto_parser): разбирает `TLogRecordProto`, эмитит `TLogRecordMessage` (`level`, `text`, `seen_at_level`) и ведёт стейт `TLevelCountsState` — счётчик записей каждого уровня по партиции источника. Счётчик неидемпотентен к повторной обработке и корректен ровно потому, что стейт коммитится в одной транзакции со смещением `source`. Подробнее — в разделе [Proto Parser](../../../flow/cpp/examples/proto_parser.md).
+
 ## TSwiftMapComputation
 
 Реализует детерминированный простой `Map` без материализации результатов в YT.
@@ -198,6 +277,7 @@ public:
 #|
 || **Тип Computation** | **Записей в эпоху на партицию** | **Комментарий** ||
 || `TTransformComputation` | ~2-4 | Запись стейтов + коммит ||
+|| `TTransformOrderedSourceComputation` | ~2-4 | Материализация выхода + оффсеты + стейты ||
 || `TSwiftMapComputation` | 0 | Не пишет в YT ||
 || `TSwiftOrderedSourceComputation` | ~1-2 | Метаинформация для восстановления ||
 |#
