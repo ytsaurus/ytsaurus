@@ -1,11 +1,10 @@
-{% note warning "Внимание" %}
+# Livy server
 
-Starting with version 2.10.0, Livy server is dropped from SPYT. Instead, use the Spark Connect protocol.
+{% note alert %}
+
+Starting with SPYT 2.10.0 and Query Tracker 0.4, Livy integration is no longer supported. If you’re using Livy, migrate to [SPYT Connect](../../../../../user-guide/data-processing/spyt/connect.md#migration).
 
 {% endnote %}
-
-
-# Livy server
 
 Starting with version 1.74.0, SPYT comes with [Livy](https://livy.apache.org/), a service that allows communication between the client and a Spark cluster over a REST interface. The [Query tracker](../../../../../user-guide/query-tracker/about.md) module uses this functionality to execute Spark SQL queries in {{product-name}}.
 
@@ -24,6 +23,7 @@ $ spark-launch-yt ... --enable-livy --livy-max-sessions 5 --livy-driver-cores 1 
 To retrieve the address of the Livy server or other components, run the `spark-discovery-yt` command.
 
 ## Using Livy in Query Tracker {#query-tracker}
+
 
 You can send queries to a running SPYT cluster from Query Tracker (SPYT tab) using Spark SQL. To do this, set the `cluster` (if your {{product-name}} installation doesn't have a default cluster) and `discovery_path` fields in `settings`. In addition, you can use the `spark_conf` field to pass an arbitrary Spark session configuration as a YSON map.
 
