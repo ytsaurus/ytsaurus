@@ -8,7 +8,7 @@
 
 namespace NYT::NLsm::NTesting {
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

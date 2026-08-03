@@ -58,7 +58,7 @@ using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

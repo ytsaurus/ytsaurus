@@ -16,7 +16,7 @@ using namespace NApi;
 using namespace NHydra;
 using namespace NTransactionClient;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

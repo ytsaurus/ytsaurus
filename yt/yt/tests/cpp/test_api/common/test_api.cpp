@@ -54,7 +54,7 @@ using namespace NYTree;
 using namespace NYPath;
 using namespace NProfiling;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

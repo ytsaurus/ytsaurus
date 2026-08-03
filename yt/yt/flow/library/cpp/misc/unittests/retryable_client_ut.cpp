@@ -31,7 +31,7 @@ using ::testing::_;
 using ::testing::Invoke;
 using ::testing::Return;
 using ::testing::StrictMock;
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 using TStrictMockClient = StrictMock<NApi::TMockClient>;
 using TStrictMockClientPtr = TIntrusivePtr<TStrictMockClient>;
 

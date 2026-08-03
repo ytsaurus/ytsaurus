@@ -15,7 +15,7 @@ namespace {
 using namespace NApi;
 using namespace NTableClient;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

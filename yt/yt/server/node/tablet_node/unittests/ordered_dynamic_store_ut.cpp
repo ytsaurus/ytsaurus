@@ -13,7 +13,7 @@ using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NTableClient;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 
 ////////////////////////////////////////////////////////////////////////////////
 

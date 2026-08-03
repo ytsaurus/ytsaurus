@@ -19,7 +19,7 @@ using namespace NYPath;
 using ::testing::_;
 using ::testing::Invoke;
 using ::testing::StrictMock;
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 using TStrictMockTransaction = StrictMock<NApi::TMockTransaction>;
 using TStrictMockTransactionPtr = TIntrusivePtr<TStrictMockTransaction>;
 

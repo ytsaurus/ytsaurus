@@ -30,7 +30,7 @@ using namespace NObjectClient;
 
 using namespace NTableClient::NProto;
 
-using NYT::NTransactionClient::operator""_ts;
+using NTransactionClient::operator""_ts;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
