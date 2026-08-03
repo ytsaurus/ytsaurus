@@ -9,6 +9,7 @@ class TDqConfig;
 }
 
 TIntrusivePtr<IDqGateway> CreateDqGateway(const TString& host, int port);
+TIntrusivePtr<IDqGateway> CreateDqGateway(const TString& host, int port, const TString& vanillaJobPath, const TString& vanillaJobMd5);
 TIntrusivePtr<IDqGateway> CreateDqGateway(const NProto::TDqConfig& config);
 
 } // namespace NYql
