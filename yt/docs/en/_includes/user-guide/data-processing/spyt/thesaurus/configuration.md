@@ -30,7 +30,7 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.hadoop.yt.user` | - | {{product-name}} user name. | - |
 | `spark.hadoop.yt.token` | - | {{product-name}} user token. | - |
 | `spark.yt.read.ytPartitioning.enabled` | `true` | Use table partitioning by {{product-name}}. | 1.72.0 |
-| `spark.yt.read.ytPartitioning.compressedSize.enabled` | `false` | Enable data partitioning when reading by the compressed size of the table. | 2.9.1 | - |
+| `spark.yt.read.ytPartitioning.compressedSize.enabled` | `false` | Enable data partitioning when reading by the compressed size of the table. | 2.9.1 |
 | `spark.yt.read.planOptimization.enabled` | `false` | Optimize aggregations and joins on sorted input data. | - |
 | `spark.yt.read.countOptimization.enabled` | `true` | Use metadata for count() operations. | - |
 | `spark.yt.read.keyPartitioningSortedTables.enabled` | `true` | Use sorted table partitioning by key, required to optimize plans. | - |
@@ -41,11 +41,15 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.yt.write.distributed.enabled` | `false` | Use distributed API for writing data to {{product-name}}. This method reduces the number of requests to the {{product-name}} master when writing data, but is only applicable to working with static tables. | 2.8.0 |
 | `spark.yt.read.ytOmitInaccessibleRows.enabled` | `true` | Skip inaccessible rows instead of throwing an error. | 2.9.0 |
 | `spark.yt.read.ytOmitInaccessibleColumns.enabled` | `true` | Skip inaccessible columns instead of throwing an error. | 2.9.0 |
+| `spark.ytsaurus.throttling.maxConcurrency` | `100` | Maximum number of concurrent operations in {{product-name}}. A value of `0` removes the limit. | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.requests.enabled` | `true` | Retry requests rejected by an overloaded proxy. Applies to clients with a fixed proxy address, including job proxy: clients with proxy discovery retry requests even without this option. Retries responses with the `RequestQueueSizeLimitExceeded`, `RpcRequestQueueSizeLimitExceeded` and `TooManyRequests` codes, as well as network timeouts and connection drops (the latter are retried without a pause). Only unary requests are retried: data reading and writing are stream‑based and are not retried. | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.maxRetries` | `3` | Number of times a request is retried after the first failed attempt. | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.initialBackoff` | `3 seconds` | Pause before the first retry. | 2.11.0 |
+| `spark.hadoop.ytsaurus.retry.maxBackoff` | `30 seconds` | Upper limit of the pause, which doubles after each retry. Applies only to the `RequestQueueSizeLimitExceeded` code; other cases are retried using `initialBackoff`. | 2.11.0 |
 
 {wide-content title="Basic options"}
 
 ## Options for launching tasks directly { #direct-submit }
-
 
 | **Parameter** | **Default value** | **Description** | **Starting with version** |
 | ------------ | ------------------------- | ------------ | ------------------ |
