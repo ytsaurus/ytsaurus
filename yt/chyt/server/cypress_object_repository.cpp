@@ -259,11 +259,6 @@ void TCypressObjectRepository::DeleteDictionary(
     const auto* host = queryContext->Host;
     host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
 
-    const auto& externalDictionariesLoader = context->getExternalDictionariesLoader();
-    if (!externalDictionariesLoader.has(storageId.getInternalDictionaryName())) {
-        return;
-    }
-
     auto objectName = GetObjectName(storageId);
     RemoveObject(client, objectName, revision);
 
