@@ -287,6 +287,10 @@ spec_template = {
         "write_max_batch_size": 100,
         "write_min_row_size": 512,
         "write_max_row_size": 2048,
+        # Retry only brief transient write failures. When mount-chaos deliberately leaves a
+        # queue or its hunk storage unmounted, the test makes exactly one attempt and handles
+        # the resulting error as expected instead of entering this retry loop.
+        "write_retry_count": 30,
         # Cap peak memory for fat writes/reads. On write, the batch still goes in a
         # single tablet transaction, but it is generated and pushed as several
         # insert_rows calls each bounded by this many bytes (insert_rows buffers its
@@ -330,7 +334,7 @@ spec_template = {
         "queues": MapWithUnrecognizedChildren({
             # 1 tablet, 5m, fast flush, auto-trim ON (actively trims every period).
             "t1_5m_fast_trim": {
-                "enable": True, "tablet_count": 1, "flush_period_ms": 2000, "auto_trim": True,
+                "enable": True, "tablet_count": 1, "auto_trim": True,
                 "exports": {"main": {"period": 300}}},
             # 1 tablet, single long 4h export, weak ordering.
             "t1_4h": {
@@ -344,7 +348,7 @@ spec_template = {
             # auto-trim ON: trim must wait for ALL exports (virtual vital consumers), so it
             # barely trims while the 4h export lags.
             "t2_multi_slow_trim": {
-                "enable": True, "tablet_count": 2, "flush_period_ms": 10000, "auto_trim": True,
+                "enable": True, "tablet_count": 2, "auto_trim": True,
                 "exports": {"fast": {"period": 300}, "mid": {"period": 1800},
                             "slow": {"period": 14400}}},
             # 3 tablets, hourly, strong ordering, auto-trim ON.
@@ -366,7 +370,7 @@ spec_template = {
                 "exports": {"fast": {"period": 300}, "hourly": {"period": 3600}}},
             # 5 tablets, 5m, fast flush, strong ordering, auto-trim ON.
             "t5_5m_fast_strong_trim": {
-                "enable": True, "tablet_count": 5, "flush_period_ms": 2000, "commit_ordering": "strong",
+                "enable": True, "tablet_count": 5, "commit_ordering": "strong",
                 "auto_trim": True, "exports": {"main": {"period": 300}}},
             # 5 tablets, erasure, cron every 10 minutes.
             "t5_erasure_cron10m": {
@@ -389,7 +393,7 @@ spec_template = {
                 "exports": {"main": {"period": 300}}},
             # 2 tablets, slow flush, hunks, several exports (5m/30m/4h).
             "t2_multi_hunks": {
-                "enable": False, "tablet_count": 2, "hunks": True, "flush_period_ms": 10000,
+                "enable": False, "tablet_count": 2, "hunks": True,
                 "auto_trim": True,
                 "exports": {"fast": {"period": 300}, "mid": {"period": 1800},
                             "slow": {"period": 14400}}},
@@ -405,18 +409,19 @@ spec_template = {
         # gap (false data-loss failure). Set to None to disable TTL entirely.
         "export_ttl_seconds": 14 * 24 * 3600,
         # For auto-trim queues, never trim rows younger than this — the queue always keeps a
-        # rolling window of the most recent data (2 hours by default) regardless of what has
+        # rolling window of the most recent data (2 days by default) regardless of what has
         # already been exported/consumed. Bounds queue growth while keeping recent data.
         # Set to None to trim purely by export/consumer progress with no time floor.
-        "auto_trim_retained_lifetime_seconds": 2 * 3600,
+        "auto_trim_retained_lifetime_seconds": 2 * 24 * 3600,
         # If verification falls behind far enough for its watermark to disappear together
         # with expired export tables, resume from this much of the newest still-available
         # history. This rebase is used only after a TTL gap; ordinary row-index gaps remain
         # hard verification failures. Must be shorter than export_ttl_seconds.
         "verification_history_seconds": 24 * 3600,
-        # Auto-flush period (ms) for the queue's dynamic stores. Kept small so the Queue
-        # Agent has freshly flushed chunks to export (exports never see unflushed data).
-        "flush_period_ms": 5000,
+        # Auto-flush period (ms) for the queue's dynamic stores. Five minutes keeps the
+        # number of tiny chunks under control while remaining below the shortest export
+        # period used by the test.
+        "flush_period_ms": 300000,
         # Probability of additionally forcing an explicit flush (freeze/unfreeze) of a
         # queue after a write round.
         "flush_probability": 0.3,
