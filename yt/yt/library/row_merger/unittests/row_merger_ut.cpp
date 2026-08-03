@@ -748,7 +748,7 @@ TEST_P(TVersionedRowMergerTest, KeepAll1)
     auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
-    auto merger = GetTypicalMerger(GetParam(), config, 1000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 1000000_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1"));
 
@@ -762,7 +762,7 @@ TEST_P(TVersionedRowMergerTest, KeepAll2)
     auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
-    auto merger = GetTypicalMerger(GetParam(), config, 1000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 1000000_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 2"));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1"));
@@ -780,7 +780,7 @@ TEST_P(TVersionedRowMergerTest, KeepAll3)
     auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
-    auto merger = GetTypicalMerger(GetParam(), config, 1000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 1000000_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 2", {50_ts}));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1", {150_ts}));
@@ -799,7 +799,7 @@ TEST_P(TVersionedRowMergerTest, KeepAll4)
     auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
-    auto merger = GetTypicalMerger(GetParam(), config, 1000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 1000000_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200> 2; <id=2;ts=200> 3.14"));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1"));
@@ -819,7 +819,7 @@ TEST_P(TVersionedRowMergerTest, KeepAll5)
     auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
-    auto merger = GetTypicalMerger(GetParam(), config, 1000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 1000000_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100> 1; <id=1;ts=200> 2"));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=2;ts=100> 3; <id=2;ts=200> 4"));
@@ -838,7 +838,7 @@ TEST_P(TVersionedRowMergerTest, KeepLatest1)
     config->MinDataVersions = 1;
     config->MaxDataVersions = 1;
 
-    auto merger = GetTypicalMerger(GetParam(), config, 1000000000000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 1000000000000000_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200000000000> 2"));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
@@ -857,7 +857,7 @@ TEST_P(TVersionedRowMergerTest, KeepLatest2)
     config->MinDataVersions = 1;
     config->MaxDataVersions = 1;
 
-    auto merger = GetTypicalMerger(GetParam(), config, 1000000000000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 1000000000000000_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200000000000> 2; <id=1;ts=199000000000> 20"));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=2;ts=100000000000> 3.14; <id=2;ts=99000000000> 3.15"));
@@ -988,7 +988,7 @@ TEST_P(TVersionedRowMergerTest, Expire1)
     config->MinDataVersions = 0;
     config->MaxDataTtl = TimestampToDuration(1000000000000_ts);
 
-    auto merger = GetTypicalMerger(GetParam(), config, 1100000000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 1100000000000_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
 
@@ -1004,7 +1004,7 @@ TEST_P(TVersionedRowMergerTest, Expire2)
     config->MinDataVersions = 0;
     config->MaxDataTtl = TimestampToDuration(500000000000_ts);
 
-    auto merger = GetTypicalMerger(GetParam(), config, 1102000000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 1102000000000_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
 
@@ -1016,10 +1016,10 @@ TEST_F(TVersionedRowMergerTest, Expire3Legacy)
     auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
     config->MaxDataVersions = 3;
-    config->MinDataTtl = TimestampToDuration(0_ts);
+    config->MinDataTtl = TDuration::Zero();
     config->MaxDataTtl = TimestampToDuration(10000000000000_ts);
 
-    auto merger = GetTypicalMerger(ERowMergerType::Legacy, config, 1100000000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(ERowMergerType::Legacy, config, 1100000000000_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200000000000> 2"));
@@ -1044,10 +1044,10 @@ TEST_F(TVersionedRowMergerTest, Expire3New)
     auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
     config->MaxDataVersions = 3;
-    config->MinDataTtl = TimestampToDuration(0_ts);
+    config->MinDataTtl = TDuration::Zero();
     config->MaxDataTtl = TimestampToDuration(10000000000000_ts);
 
-    auto merger = GetTypicalMerger(ERowMergerType::New, config, 1100000000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(ERowMergerType::New, config, 1100000000000_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=100000000000> 1"));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=200000000000> 2"));
@@ -1069,9 +1069,9 @@ TEST_F(TVersionedRowMergerTest, Expire4Legacy)
 {
     auto config = GetRetentionConfig();
     config->MinDataVersions = 0;
-    config->MinDataTtl = TimestampToDuration(0_ts);
+    config->MinDataTtl = TDuration::Zero();
 
-    auto merger = GetTypicalMerger(ERowMergerType::Legacy, config, 11_ts, 0_ts);
+    auto merger = GetTypicalMerger(ERowMergerType::Legacy, config, 11_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=10> 1"));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=11> 2"));
@@ -1086,9 +1086,9 @@ TEST_F(TVersionedRowMergerTest, Expire4New)
 {
     auto config = GetRetentionConfig();
     config->MinDataVersions = 0;
-    config->MinDataTtl = TimestampToDuration(0_ts);
+    config->MinDataTtl = TDuration::Zero();
 
-    auto merger = GetTypicalMerger(ERowMergerType::New, config, 12_ts, 0_ts);
+    auto merger = GetTypicalMerger(ERowMergerType::New, config, 12_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=10> 1"));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=11> 2"));
@@ -1103,9 +1103,9 @@ TEST_P(TVersionedRowMergerTest, Expire5)
 {
     auto config = GetRetentionConfig();
     config->MinDataVersions = 1;
-    config->MinDataTtl = TimestampToDuration(0_ts);
+    config->MinDataTtl = TDuration::Zero();
 
-    auto merger = GetTypicalMerger(GetParam(), config, 12_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 12_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=10> 1"));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=11> 2"));
@@ -1122,7 +1122,7 @@ TEST_P(TVersionedRowMergerTest, DeleteOnly)
     auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
-    auto merger = GetTypicalMerger(GetParam(), config, 1100_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 1100_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", {100_ts}));
 
@@ -1139,7 +1139,7 @@ TEST_P(TVersionedRowMergerTest, ManyDeletes)
     auto config = GetRetentionConfig();
     config->MinDataVersions = 10;
 
-    auto merger = GetTypicalMerger(GetParam(), config, 1100_ts, 0_ts);
+    auto merger = GetTypicalMerger(GetParam(), config, 1100_ts, NullTimestamp);
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", {200_ts}));
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", {100_ts}));
@@ -1818,7 +1818,7 @@ TEST_P(TVersionedRowMergerTest, MergeAggregates1)
         GetParam(),
         config,
         1000000000000_ts,
-        0_ts,
+        NullTimestamp,
         GetAggregateSumSchema(),
         TColumnFilter(),
         true);
@@ -1843,7 +1843,7 @@ TEST_F(TVersionedRowMergerTest, MergeAggregates2Legacy)
         ERowMergerType::Legacy,
         config,
         1000000000000_ts,
-        0_ts,
+        NullTimestamp,
         GetAggregateSumSchema(),
         TColumnFilter(),
         true);
@@ -1869,7 +1869,7 @@ TEST_F(TVersionedRowMergerTest, MergeAggregates2New)
         ERowMergerType::New,
         config,
         1000000000000_ts,
-        0_ts,
+        NullTimestamp,
         GetAggregateSumSchema(),
         TColumnFilter(),
         true);
@@ -1894,7 +1894,7 @@ TEST_P(TVersionedRowMergerTest, MergeAggregates3)
         GetParam(),
         config,
         1000000000000_ts,
-        0_ts,
+        NullTimestamp,
         GetAggregateSumSchema(),
         TColumnFilter(),
         true);
@@ -1920,7 +1920,7 @@ TEST_P(TVersionedRowMergerTest, MergeAggregates4)
         GetParam(),
         config,
         100000000003_ts,
-        0_ts,
+        NullTimestamp,
         GetAggregateSumSchema(),
         TColumnFilter(),
         true);
@@ -1946,7 +1946,7 @@ TEST_P(TVersionedRowMergerTest, MergeAggregates5)
         GetParam(),
         config,
         100000000003_ts,
-        0_ts,
+        NullTimestamp,
         GetAggregateSumSchema(),
         TColumnFilter(),
         true);
@@ -2009,7 +2009,7 @@ TEST_P(TVersionedRowMergerTest, IgnoreMajorTimestamp)
         GetParam(),
         config,
         1000000000000_ts,
-        0_ts,
+        NullTimestamp,
         GetAggregateSumSchema());
 
     merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=3;ts=100000000000;aggregate=true> 1"));
@@ -2030,7 +2030,7 @@ TEST_P(TVersionedRowMergerTest, NoKeyColumnFilter)
         GetParam(),
         config,
         1000_ts,
-        0_ts,
+        NullTimestamp,
         GetTypicalSchema(),
         TColumnFilter({1, 2, 3}));
 
@@ -2049,7 +2049,7 @@ TEST_P(TVersionedRowMergerTest, NoValueColumnFilter)
         GetParam(),
         config,
         1000_ts,
-        0_ts,
+        NullTimestamp,
         GetTypicalSchema(),
         TColumnFilter({0}));
 
@@ -2070,7 +2070,7 @@ TEST_P(TVersionedRowMergerTest, OneValueColumnFilter)
         GetParam(),
         config,
         1000_ts,
-        0_ts,
+        NullTimestamp,
         GetTypicalSchema(),
         TColumnFilter({1}));
 
@@ -2128,7 +2128,7 @@ TEST_P(TVersionedRowMergerTest, YT_7668_1)
         GetParam(),
         config,
         10_ts,
-        0_ts,
+        NullTimestamp,
         TTableSchema{{
             TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("v1", EValueType::Int64),
@@ -2214,7 +2214,7 @@ TEST_P(TVersionedRowMergerTest, DeleteTimestampsPrunedOnFlush1)
         GetParam(),
         config,
         1000_ts,
-        0_ts,
+        NullTimestamp,
         GetTypicalSchema(),
         TColumnFilter(),
         true,
@@ -2249,7 +2249,7 @@ TEST_P(TVersionedRowMergerTest, DeleteTimestampsPrunedOnFlush2)
         GetParam(),
         config,
         1000_ts,
-        0_ts,
+        NullTimestamp,
         GetTypicalSchema(),
         TColumnFilter(),
         true,
@@ -2745,7 +2745,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBasic)
             ERowMergerType::Watermark,
             nullptr,
             1000_ts,
-            0_ts,
+            NullTimestamp,
             GetTypicalWatermarkSchema(),
             TColumnFilter(),
             false,
@@ -2766,7 +2766,7 @@ TEST_F(TVersionedRowMergerTest, InvalidWatermarkDataFormat)
         ERowMergerType::Watermark,
         nullptr,
         1000_ts,
-        0_ts,
+        NullTimestamp,
         GetTypicalWatermarkSchema(),
         TColumnFilter(),
         false,
@@ -2794,7 +2794,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkFullClear)
         ERowMergerType::Watermark,
         nullptr,
         1000_ts,
-        0_ts,
+        NullTimestamp,
         GetTypicalWatermarkSchema(),
         TColumnFilter(),
         false,
@@ -2824,7 +2824,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
         ERowMergerType::Watermark,
         config,
         TimestampFromUnixTime(10),
-        0_ts,
+        NullTimestamp,
         GetTypicalWatermarkSchema(),
         TColumnFilter(),
         false,
@@ -2870,7 +2870,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkRemovalRespectsMinDataTtl)
         ERowMergerType::Watermark,
         config,
         TimestampFromUnixTime(8),
-        0_ts,
+        NullTimestamp,
         GetTypicalWatermarkSchema(),
         TColumnFilter(),
         false,
@@ -2912,7 +2912,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkKeyColumn)
         ERowMergerType::Watermark,
         nullptr,
         1000_ts,
-        0_ts,
+        NullTimestamp,
         GetKeyWatermarkSchema(),
         TColumnFilter(),
         false,
@@ -3169,7 +3169,7 @@ TEST_F(TVersionedMergingReaderTest, Merge1Legacy)
     config->MinDataTtl = TimestampToDuration(600000000000_ts);
     config->MaxDataTtl = TimestampToDuration(600000000000_ts);
 
-    auto merger = GetTypicalMerger(ERowMergerType::Legacy, config, 10000000000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(ERowMergerType::Legacy, config, 10000000000000_ts, NullTimestamp);
 
     auto reader = CreateVersionedOverlappingRangeReader(
         boundaries,
@@ -3209,7 +3209,7 @@ TEST_F(TVersionedMergingReaderTest, Merge1New)
     config->MinDataTtl = TimestampToDuration(600000000000_ts);
     config->MaxDataTtl = TimestampToDuration(600000000000_ts);
 
-    auto merger = GetTypicalMerger(ERowMergerType::New, config, 10000000000000_ts, 0_ts);
+    auto merger = GetTypicalMerger(ERowMergerType::New, config, 10000000000000_ts, NullTimestamp);
 
     auto reader = CreateVersionedOverlappingRangeReader(
         boundaries,
