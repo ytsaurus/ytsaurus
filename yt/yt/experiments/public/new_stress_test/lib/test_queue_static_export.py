@@ -240,6 +240,7 @@ class Queue:
     def setup(self):
         self._ensure_queue()
         self._ensure_unfrozen()
+        self._apply_mount_config()
         self._ensure_shadow()
         self._ensure_producer()
         self._apply_auto_trim()
@@ -337,6 +338,20 @@ class Queue:
             logger.info(f"Queue {self.path} is '{state}'; unfreezing to recover")
             yt.unfreeze_table(self.path, sync=True)
 
+    def _apply_mount_config(self):
+        # mount_config is mutable. Reconcile it on every startup so changing the default also
+        # updates persistent queues created by older runs instead of affecting only new ones.
+        attribute = f"{self.path}/@mount_config/dynamic_store_auto_flush_period"
+        actual = yt.get(attribute) if yt.exists(attribute) else None
+        if actual == self.flush_period_ms:
+            return
+        logger.info(
+            f"Updating queue {self.path} dynamic_store_auto_flush_period: "
+            f"{actual} -> {self.flush_period_ms} ms")
+        yt.set(attribute, self.flush_period_ms)
+        if yt.get(f"{self.path}/@tablet_state") == "mounted":
+            yt.remount_table(self.path)
+
     def _verify_queue_matches_config(self):
         # Compare the live queue against the config for the structural attributes that
         # cannot be reconciled by a simple set() (tablet_count needs reshard, erasure /
@@ -381,7 +396,7 @@ class Queue:
         # in the queue agent dynamic config (deploy-side).
         config = {"enable": self.auto_trim}
         if self.auto_trim and self.auto_trim_retained_lifetime_ms:
-            # Never trim rows younger than this — keep a rolling window (e.g. last 3 days) of
+            # Never trim rows younger than this — keep a rolling window (e.g. last 2 days) of
             # data in the queue regardless of what has already been exported/consumed. Bounds
             # queue growth while keeping recent data available.
             config["retained_lifetime_duration"] = self.auto_trim_retained_lifetime_ms

@@ -623,7 +623,7 @@ class Queue(TableBase):
 
         self.mount_state.unmount(tablet_index, sync)
 
-    def write(self, only_in_sync_mounted, spec):
+    def write(self, only_in_sync_mounted, spec, retry_count):
         cfg = spec.queue_and_hunk_storage
         batch_size = random.randint(cfg.write_min_batch_size, cfg.write_max_batch_size)
         logger.info(f"Writing to the queue {self.path}, only in sync mounted: {only_in_sync_mounted}, batch size: {batch_size}")
@@ -677,7 +677,13 @@ class Queue(TableBase):
                     yt.insert_rows(self.path, rows)
                     yt.insert_rows(self.data_path, data_rows)
 
-        run_with_retries(lambda: _insert_rows(), retry_count=1800, backoff=0.1, backoff_config={"policy": "constant_time", "constant_time": 0.1}, except_action=lambda ex: logger.error(f"Exception during insert, try to retry: {ex.simplify()}"))
+        run_with_retries(
+            _insert_rows,
+            retry_count=retry_count,
+            backoff=0.1,
+            backoff_config={"policy": "constant_time", "constant_time": 0.1},
+            except_action=lambda ex: logger.error(
+                f"Exception during insert, try to retry: {ex.simplify()}"))
 
         for tablet_index, row_count in running_count.items():
             self.written_row_count[tablet_index] += row_count
@@ -1148,8 +1154,20 @@ def test_queue_and_hunk_storage(base_path, spec, attributes, args):
                 continue
 
             only_in_sync_mounted = random.choice([True, False])
+            # Mount chaos deliberately creates states in which a write cannot succeed. The
+            # caller below wants to observe and classify that error, not hide it behind a
+            # long retry loop. A modeled healthy state still gets a few retries for genuine
+            # transient tablet/cell failures.
+            expected_unmounted = (
+                (not only_in_sync_mounted and queue.mount_state.has_unmounted_tablet()) or
+                (queue.hunk_storage_name and not hunk_storages[
+                    queue.hunk_storage_name].mount_state.has_mounted_tablet(sync=True)))
+            retry_count = 1 if expected_unmounted else spec.queue_and_hunk_storage.write_retry_count
             try:
-                queue.write(only_in_sync_mounted=only_in_sync_mounted, spec=spec)
+                queue.write(
+                    only_in_sync_mounted=only_in_sync_mounted,
+                    spec=spec,
+                    retry_count=retry_count)
             except YtError as err:
                 _check_write_error(queue, only_in_sync_mounted, err)
 
