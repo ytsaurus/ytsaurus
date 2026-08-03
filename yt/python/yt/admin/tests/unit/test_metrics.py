@@ -328,6 +328,16 @@ class TestPromql:
                     'foo{pod!="p-tmp",pod=~".*"}',
                 ],
             ),
+            (
+                [
+                    'foo{band=~""}',
+                    'foo{band=~".+"}',
+                ],
+                [
+                    'foo{band=~""}',
+                    'foo{band=~".+"}',
+                ],
+            ),
         ],
     )
     def test_eliminate_subsets(self, selectors, expected):
