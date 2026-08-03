@@ -8,6 +8,7 @@ RESOURCE_FILES(
     PREFIX yt/yt/flow/docker/monitoring/
     aggr_rules.py
     docker-compose.yml
+    grafana/dashboards/generate.sh
     grafana/provisioning/dashboards/dashboards.yml
     grafana/provisioning/datasources/datasource.yml
     prometheus.yml
