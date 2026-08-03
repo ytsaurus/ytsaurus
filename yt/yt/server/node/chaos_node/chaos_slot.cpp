@@ -349,11 +349,11 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        ReplicatedTableTracker_.Reset();
-        CoordinatorManager_.Reset();
-        ChaosManager_.Reset();
-        ChaosLeaseManager_.Reset();
-        TransactionManager_.Reset();
+        if (CoordinatorService_) {
+            const auto& rpcServer = Bootstrap_->GetRpcServer();
+            rpcServer->UnregisterService(CoordinatorService_);
+        }
+        CoordinatorService_.Reset();
 
         if (ChaosNodeService_) {
             const auto& rpcServer = Bootstrap_->GetRpcServer();
@@ -361,11 +361,11 @@ public:
         }
         ChaosNodeService_.Reset();
 
-        if (CoordinatorService_) {
-            const auto& rpcServer = Bootstrap_->GetRpcServer();
-            rpcServer->UnregisterService(CoordinatorService_);
-        }
-        CoordinatorService_.Reset();
+        ReplicatedTableTracker_.Reset();
+        TransactionManager_.Reset();
+        CoordinatorManager_.Reset();
+        ChaosLeaseManager_.Reset();
+        ChaosManager_.Reset();
 
         AutomatonThreadTagsGuard_.Release();
         SnapThreadTagsGuard_.Release();
