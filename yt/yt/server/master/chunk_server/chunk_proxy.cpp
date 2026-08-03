@@ -1075,6 +1075,10 @@ private:
                                         .Item("parity_missing").Value(Any(status & EChunkStatus::ParityMissing))
                                         .Item("unsafely_placed").Value(Any(status & EChunkStatus::UnsafelyPlaced))
                                         .Item("temporarily_unavailable").Value(Any(status & EChunkStatus::TemporarilyUnavailable))
+                                        .Item("data_decommissioned").Value(Any(status & EChunkStatus::DataDecommissioned))
+                                        .Item("parity_decommissioned").Value(Any(status & EChunkStatus::ParityDecommissioned))
+                                        .Item("sealed_missing").Value(Any(status & EChunkStatus::SealedMissing))
+                                        .Item("inconsistently_placed").Value(Any(status & EChunkStatus::InconsistentlyPlaced))
                                     .EndMap();
                             });
                     })
