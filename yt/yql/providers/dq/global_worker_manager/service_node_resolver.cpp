@@ -11,6 +11,7 @@
 #include <yt/yql/providers/dq/actors/yt/yt_wrapper.h>
 #include <contrib/ydb/library/yql/providers/dq/common/attrs.h>
 
+#include <util/string/builder.h>
 #include <util/system/mutex.h>
 #include <util/random/random.h>
 
@@ -174,7 +175,13 @@ public:
         }
 
         if (locations.empty()) {
-            YQL_CLOG(WARN, ProviderDq) << "Empty locations";
+            YQL_CLOG(WARN, ProviderDq) << "Empty service node locations after list"
+                << " prefix=" << Options.Prefix
+                << " listedNodes=" << nodes.size();
+        } else {
+            YQL_CLOG(TRACE, ProviderDq) << "Updated service node locations"
+                << " prefix=" << Options.Prefix
+                << " count=" << locations.size();
         }
 
         Holder->Swap(locations);

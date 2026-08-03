@@ -92,6 +92,15 @@ namespace NYql::NDqs {
                 TEvRegisterNode* req = ev->Get();
                 auto& request = req->Record.GetRequest();
 
+                YQL_CLOG(TRACE, ProviderDq) << "Nameserver RegisterNode"
+                    << " sender=" << ev->Sender
+                    << " nodeId=" << request.GetNodeId()
+                    << " role=" << request.GetRole()
+                    << " address=" << request.GetAddress()
+                    << " port=" << request.GetPort()
+                    << " epoch=" << request.GetEpoch()
+                    << " zombie=" << request.GetZombie();
+
                 if (!request.GetZombie()) {
                     bool printInfo = IsNodeUpdated(
                         request.GetNodeId(),
@@ -108,6 +117,11 @@ namespace NYql::NDqs {
 
                 auto response = MakeHolder<TEvRegisterNodeResponse>(GetNodesInfo(), request.GetEpoch());
                 *response->Record.MutableResponse()->MutableDownloadList() = request.GetDownloadList();
+                YQL_CLOG(TRACE, ProviderDq) << "Nameserver RegisterNode response"
+                    << " sender=" << ev->Sender
+                    << " nodeId=" << request.GetNodeId()
+                    << " responseEpoch=" << request.GetEpoch()
+                    << " knownNodes=" << response->Record.GetResponse().GetNodes().size();
                 ctx.Send(ev->Sender, response.Release());
             } catch (...) {
                 // never
