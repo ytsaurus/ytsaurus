@@ -197,7 +197,7 @@ void TRecovery::DoRun()
 
             TReachableState snapshotReachableState(snapshotSegmentId, snapshotSequenceNumber);
             if (snapshotReachableState > TargetState_) {
-                YT_LOG_ALERT_AND_THROW("Attempting to recover from snapshot with a state greater then target state (SnapshotReachableState: %v, TargetState: %v)",
+                YT_LOG_ALERT_AND_THROW("Attempting to recover from snapshot with a state greater than target state (SnapshotReachableState: %v, TargetState: %v)",
                     snapshotReachableState,
                     TargetState_);
             }
