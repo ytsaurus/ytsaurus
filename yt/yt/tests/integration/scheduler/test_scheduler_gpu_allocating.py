@@ -1806,6 +1806,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
     def test_simple_full_host_vanilla(self):
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"is_gang": True},
         )
 
         wait(lambda: len(op.get_running_jobs()) == 1)
@@ -1819,7 +1820,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
         operation = get_operation_from_gpu_policy_orchid(op)
         check_operation_from_gpu_policy_orchid(
             operation=operation,
-            is_gang=False,
+            is_gang=True,
             group_name="task",
             allocation_count=1,
             min_needed_gpu_per_allocation=8,
@@ -1971,10 +1972,12 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
             run_sleeping_vanilla(
                 task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
                 job_count=1,
+                spec={"is_gang": True},
             ),
             run_sleeping_vanilla(
                 task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
                 job_count=1,
+                spec={"is_gang": True},
             ),
         ]
         for op in operations:
@@ -2001,6 +2004,7 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
 
         op = run_sleeping_vanilla(
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"is_gang": True},
         )
 
         wait(lambda: len(op.get_running_jobs()) == 1)
