@@ -78,8 +78,6 @@ public:
     bool IsDetailedLoggingEnabled(const TOperationPtr& operation) const override;
 
 
-    bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const override;
-
     void UpdatePreemptionStatuses() const;
     void FillOperationUsage();
     void PreemptLimitViolatingOperations();
@@ -128,6 +126,7 @@ private:
         EAllocationPreemptionReason preemptionReason,
         const std::string& preemptionDescription);
 
+    bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

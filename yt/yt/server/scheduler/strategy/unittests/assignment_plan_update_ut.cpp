@@ -134,13 +134,11 @@ public:
         const TNodeMap& nodes,
         THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>>* preemptedAssignments,
         THashMap<TAssignmentPtr, TPreemptionInfo>* preemptionInfo,
-        THashMap<TOperationId, bool>* priorityModuleBindingEnabled,
         NLogging::TLogger logger)
         : Operations_(operations)
         , Nodes_(nodes)
         , PreemptedAssignments_(preemptedAssignments)
         , PreemptionInfo_(preemptionInfo)
-        , PriorityModuleBindingEnabled_(priorityModuleBindingEnabled)
         , GpuPlanUpdateStatistic_(New<TGpuPlanUpdateStatistics>())
         , AssignmentHandler_(logger)
     { }
@@ -163,11 +161,6 @@ public:
     TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const override
     {
         return GetOrDefault(OperationIdToLimit_, operation->GetId(), TJobResources::Infinite());
-    }
-
-    bool IsPriorityModuleBindingEnabled(const TOperationPtr& operation) const override
-    {
-        return GetOrDefault(*PriorityModuleBindingEnabled_, operation->GetId(), false);
     }
 
     bool IsDetailedLoggingEnabled(const TOperationPtr& /*operation*/) const override
@@ -219,7 +212,6 @@ private:
     const TNodeMap& Nodes_;
     THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>>* PreemptedAssignments_;
     THashMap<TAssignmentPtr, TPreemptionInfo>* PreemptionInfo_;
-    THashMap<TOperationId, bool>* PriorityModuleBindingEnabled_;
 
     THashMap<TOperationId, TJobResources> OperationIdToLimit_;
 
@@ -512,7 +504,6 @@ protected:
             nodesMap,
             &PreemptedAssignments_,
             &PreemptionInfo_,
-            &PriorityModuleBindingEnabled_,
             Logger);
         DoAllocationAssignmentPlanUpdate(&context, std::move(config), now);
     }
@@ -579,11 +570,6 @@ protected:
         }
 
         return {};
-    }
-
-    void SetPriorityModuleBindingEnabled(const TOperationPtr& operation, bool enabled)
-    {
-        PriorityModuleBindingEnabled_[operation->GetId()] = enabled;
     }
 
 private:
@@ -2069,7 +2055,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBinding)
     EXPECT_EQ(TJobResources(), operations[3]->AssignedResourceUsage());
     EXPECT_EQ(now, operations[3]->WaitingForModuleBindingSince());
 
-    SetPriorityModuleBindingEnabled(operations[3], true);
+    operations[3]->PriorityModuleBindingEnabled() = true;
 
     now += TDuration::Seconds(1);
     DoAllocationAssignmentPlanUpdate(operations, nodes, config, now);
@@ -2141,7 +2127,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBindingWithSpec
     EXPECT_EQ(TJobResources(), operations[3]->AssignedResourceUsage());
     EXPECT_EQ(now, operations[3]->WaitingForModuleBindingSince());
 
-    SetPriorityModuleBindingEnabled(operations[3], true);
+    operations[3]->PriorityModuleBindingEnabled() = true;
 
     now += TDuration::Seconds(1);
     DoAllocationAssignmentPlanUpdate(operations, nodes, config, now);
@@ -2185,7 +2171,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBindingOtherPri
         };
     }
 
-    SetPriorityModuleBindingEnabled(operations[0], true);
+    operations[0]->PriorityModuleBindingEnabled() = true;
 
     auto config = GetTestConfig();
     auto now = TInstant::FromValue(117);
@@ -2200,7 +2186,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBindingOtherPri
     EXPECT_EQ(TJobResources(), operations[3]->AssignedResourceUsage());
     EXPECT_EQ(now, operations[3]->WaitingForModuleBindingSince());
 
-    SetPriorityModuleBindingEnabled(operations[3], true);
+    operations[3]->PriorityModuleBindingEnabled() = true;
 
     now += TDuration::Seconds(1);
     DoAllocationAssignmentPlanUpdate(operations, nodes, config, now);
@@ -2481,8 +2467,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOpportunisticOperationLimits)
     auto nodesMap = MakeNodeMap(nodes);
     THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>> preemptedAssignments;
     THashMap<TAssignmentPtr, TPreemptionInfo> preemptionInfo;
-    THashMap<TOperationId, bool> priorityModuleBindingEnabled;
-    TTestAssignmentPlanUpdateContext context(operationsMap, nodesMap, &preemptedAssignments, &preemptionInfo, &priorityModuleBindingEnabled, Logger);
+    TTestAssignmentPlanUpdateContext context(operationsMap, nodesMap, &preemptedAssignments, &preemptionInfo, Logger);
 
     // NB(severovv): here limits only apply to extra allocations, normal allocation is ignored
     context.SetAvailableLimitForOperation(operations[0], UnitResources * 3);
