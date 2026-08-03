@@ -132,6 +132,10 @@ struct TTabletManagerDynamicConfig
     //! snapshots with redirection hint may be evicted.
     std::optional<TDuration> ExtendedSnapshotEvictionTimeout;
 
+    //! Timeout for waiting on a smooth movement stage change when a write
+    //! arrives at a tablet that is temporarily in read-only stage.
+    TDuration WaitOnReadOnlySmoothMovementStageTimeout;
+
     bool YieldBeforeBuildingLsmActions;
 
     REGISTER_YSON_STRUCT(TTabletManagerDynamicConfig);
