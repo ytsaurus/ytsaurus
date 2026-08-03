@@ -1,10 +1,5 @@
 RECURSE(
     client
     core
+    flow
 )
-
-IF (NOT OPENSOURCE)
-    RECURSE(
-        flow
-    )
-ENDIF()

@@ -6,7 +6,6 @@ IF (
         bench
         discovery
         docker_registry
-        flow
         pproflog
         tar2squash
         ytprof
@@ -23,6 +22,7 @@ RECURSE(
     deps
     dockertest
     examples
+    flow
     # genproto
     guid
     mapreduce
