@@ -79,7 +79,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/columnar_conversion.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/computed_columns.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/config_repository.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/cypress_config_repository.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/cypress_object_repository.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/conversion.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/custom_data_types.cpp

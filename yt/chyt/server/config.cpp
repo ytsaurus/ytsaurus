@@ -524,7 +524,7 @@ void TUserDefinedSqlObjectsStorageConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDictionaryRepositoryConfig::Register(TRegistrar registrar)
+void TCypressObjectRepositoryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("root_path", &TThis::RootPath)
         .NonEmpty();
@@ -723,7 +723,9 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_defined_sql_objects_storage", &TThis::UserDefinedSqlObjectsStorage)
         .DefaultNew();
 
-    registrar.Parameter("dictionary_repository", &TThis::DictionaryRepository)
+    registrar.Parameter("object_repository", &TThis::CypressObjectRepository)
+        // COMPAT(buyval01)
+        .Alias("dictionary_repository")
         .Default();
 
     registrar.Parameter("dictionary_access_control", &TThis::DictionaryAccessControl)

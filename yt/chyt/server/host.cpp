@@ -187,10 +187,11 @@ public:
             default:
                 YT_ABORT();
         }
-        if (Config_->DictionaryRepository) {
-            CypressDictionaryConfigRepository_ = New<TCypressDictionaryConfigRepository>(
+
+        if (Config_->CypressObjectRepository) {
+            CypressObjectRepository_ = New<TCypressObjectRepository>(
                 DictionariesClient_,
-                Config_->DictionaryRepository,
+                Config_->CypressObjectRepository,
                 FetcherInvoker_);
         }
 
@@ -291,8 +292,8 @@ public:
         GossipExecutor_->Start();
         HealthChecker_->Start();
 
-        if (CypressDictionaryConfigRepository_) {
-            CypressDictionaryConfigRepository_->Start();
+        if (CypressObjectRepository_) {
+            CypressObjectRepository_->Start();
         }
 
         if (Config_->DictionaryAccessControl) {
@@ -840,7 +841,7 @@ public:
         YT_LOG_DEBUG("Reloading dictionary on all instances (ConfigPath: %v)", configPath);
 
         const auto& externalDictionariesLoader = GetContext()->getExternalDictionariesLoader();
-        externalDictionariesLoader.reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName, configPath);
+        externalDictionariesLoader.reloadConfig(TCypressObjectRepository::CypressConfigRepositoryName, configPath);
 
         auto instances = Discovery_->List();
         using TResponse = NRpc::TTypedClientResponse<TRspReloadDictionary>::TResult;
@@ -867,12 +868,12 @@ public:
             .ThrowOnError();
     }
 
-    TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository()
+    TCypressObjectRepositoryPtr GetCypressObjectRepository()
     {
         THROW_ERROR_EXCEPTION_IF(
-            !CypressDictionaryConfigRepository_,
-            "Clique doesn't have configured CypressDictionaryConfigRepository");
-        return CypressDictionaryConfigRepository_;
+            !CypressObjectRepository_,
+            "Clique doesn't have configured CypressObjectRepository");
+        return CypressObjectRepository_;
     }
 
     void PrepareClickHouseUser(const std::string& userName)
@@ -959,7 +960,7 @@ private:
 
     IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
 
-    TCypressDictionaryConfigRepositoryPtr CypressDictionaryConfigRepository_;
+    TCypressObjectRepositoryPtr CypressObjectRepository_;
     IDictionaryAccessControlPtr DictionaryAccessControl_;
 
     NProfiling::TEventTimer AttributeFetchTimeCounter_;
@@ -1484,8 +1485,9 @@ void THost::ReloadDictionaryGlobally(const std::string& configPath) const
     Impl_->ReloadDictionaryGlobally(configPath);
 }
 
-TCypressDictionaryConfigRepositoryPtr THost::GetCypressDictionaryConfigRepository() {
-    return Impl_->GetCypressDictionaryConfigRepository();
+TCypressObjectRepositoryPtr THost::GetCypressObjectRepository() const
+{
+    return Impl_->GetCypressObjectRepository();
 }
 
 void THost::PrepareClickHouseUser(const std::string& userName)

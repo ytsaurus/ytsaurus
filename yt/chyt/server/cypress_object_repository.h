@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/ypath/public.h>
+
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <Interpreters/IExternalLoaderConfigRepository.h>
@@ -18,19 +20,22 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressDictionaryConfigRepository
+//! Cypress-backed catalog of clique objects.
+//! The kind of an object is stored in the "chyt_object_type" attribute.
+class TCypressObjectRepository
     : public TRefCounted
 {
 private:
-    struct TDictionaryConfigSnapshot;
-    using TDictionaryConfigSnapshotPtr = std::shared_ptr<TDictionaryConfigSnapshot>;
+    struct TObjectSnapshot;
+    using TObjectSnapshotPtr = std::shared_ptr<TObjectSnapshot>;
 
 public:
     static const std::string CypressConfigRepositoryName;
+    static const std::string DictionaryObjectType;
 
-    TCypressDictionaryConfigRepository(
+    TCypressObjectRepository(
         NApi::NNative::IClientPtr client,
-        TDictionaryRepositoryConfigPtr config,
+        TCypressObjectRepositoryConfigPtr config,
         IInvokerPtr invoker);
 
     void Start();
@@ -58,19 +63,19 @@ private:
     NConcurrency::TPeriodicExecutorPtr SnapshotExecutor_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SnapshotLock_);
-    TDictionaryConfigSnapshotPtr Snapshot_;
+    TObjectSnapshotPtr Snapshot_;
 
-    TDictionaryConfigSnapshotPtr GetSnapshot();
-    TDictionaryConfigSnapshotPtr BuildSnapshot();
+    TObjectSnapshotPtr GetSnapshot();
+    TObjectSnapshotPtr BuildSnapshot();
 
-    NYPath::TYPath GetPathToConfig(const std::string& dictionaryName) const;
+    NYPath::TYPath GetObjectPath(const std::string& objectName) const;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCypressDictionaryConfigRepository)
+DEFINE_REFCOUNTED_TYPE(TCypressObjectRepository)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateExternalLoaderFromCypressConfigRepository(TCypressDictionaryConfigRepositoryPtr cypressDictionaryConfigRepository);
+std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateExternalLoaderFromCypressObjectRepository(TCypressObjectRepositoryPtr repository);
 
 ////////////////////////////////////////////////////////////////////////////////
 

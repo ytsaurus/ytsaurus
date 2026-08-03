@@ -1,5 +1,6 @@
-#include "cypress_config_repository.h"
+#include "cypress_object_repository.h"
 
+#include "config.h"
 #include "host.h"
 #include "query_context.h"
 
@@ -29,17 +30,17 @@ constinit const auto Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExternalLoaderFromCypressConfigRepository
+class TExternalLoaderFromCypressObjectRepository
     : public DB::IExternalLoaderConfigRepository
 {
 public:
-    explicit TExternalLoaderFromCypressConfigRepository(TCypressDictionaryConfigRepositoryPtr repository)
-        : Handler_(repository)
+    explicit TExternalLoaderFromCypressObjectRepository(TCypressObjectRepositoryPtr repository)
+        : Handler_(std::move(repository))
     { }
 
     std::string getName() const override
     {
-        return TCypressDictionaryConfigRepository::CypressConfigRepositoryName;
+        return TCypressObjectRepository::CypressConfigRepositoryName;
     }
 
     std::set<std::string> getAllLoadablesDefinitionNames() override
@@ -63,141 +64,148 @@ public:
     }
 
 private:
-    const TCypressDictionaryConfigRepositoryPtr Handler_;
+    const TCypressObjectRepositoryPtr Handler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCypressDictionaryConfigRepository::TDictionaryConfigSnapshot
+struct TCypressObjectRepository::TObjectSnapshot
 {
     struct TEntry
     {
+        std::string Type;
+        std::string Value;
         DBPoco::Timestamp UpdateTime;
-        std::string ConfigXml;
     };
 
     THashMap<std::string, TEntry> Entries;
-    std::set<std::string> Names;
+    std::set<std::string> DictionaryNames;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressDictionaryConfigRepository::TCypressDictionaryConfigRepository(
+TCypressObjectRepository::TCypressObjectRepository(
     NNative::IClientPtr client,
-    TDictionaryRepositoryConfigPtr config,
+    TCypressObjectRepositoryConfigPtr config,
     IInvokerPtr invoker)
     : Client_(std::move(client))
     , RootPath_(config->RootPath)
     , SnapshotExecutor_(New<TPeriodicExecutor>(
         std::move(invoker),
-        BIND(&TCypressDictionaryConfigRepository::RefreshSnapshot, MakeWeak(this)),
+        BIND(&TCypressObjectRepository::RefreshSnapshot, MakeWeak(this)),
         config->UpdatePeriod))
 { }
 
-void TCypressDictionaryConfigRepository::Start()
+void TCypressObjectRepository::Start()
 {
     SnapshotExecutor_->Start();
 }
 
-TCypressDictionaryConfigRepository::TDictionaryConfigSnapshotPtr TCypressDictionaryConfigRepository::GetSnapshot()
+TCypressObjectRepository::TObjectSnapshotPtr TCypressObjectRepository::GetSnapshot()
 {
     auto guard = ReaderGuard(SnapshotLock_);
     return Snapshot_;
 }
 
-TCypressDictionaryConfigRepository::TDictionaryConfigSnapshotPtr TCypressDictionaryConfigRepository::BuildSnapshot()
+TCypressObjectRepository::TObjectSnapshotPtr TCypressObjectRepository::BuildSnapshot()
 {
     TListNodeOptions options;
-    options.Attributes = {"key", "value", "modification_time"};
+    options.Attributes = {"key", "value", "modification_time", "chyt_object_type"};
 
     auto listYson = WaitFor(Client_->ListNode(RootPath_, options))
         .ValueOrThrow();
     auto listNode = ConvertTo<IListNodePtr>(listYson);
 
-    auto snapshot = std::make_shared<TDictionaryConfigSnapshot>();
+    auto snapshot = std::make_shared<TObjectSnapshot>();
     for (const auto& child : listNode->GetChildren()) {
         const auto& attributes = child->Attributes();
         auto name = attributes.Get<std::string>("key");
 
-        auto configXml = attributes.Find<std::string>("value");
-        if (!configXml) {
-            YT_LOG_WARNING("Dictionary config node is missing \"value\" attribute, skipping (Name: %v)",
+        auto value = attributes.Find<std::string>("value");
+        if (!value) {
+            YT_LOG_WARNING("Clique object node is missing \"value\" attribute, skipping (Name: %v)",
                 name);
             continue;
         }
 
-        TDictionaryConfigSnapshot::TEntry entry;
-        entry.ConfigXml = std::move(*configXml);
+        TObjectSnapshot::TEntry entry;
+        // COMPAT(buyval01): Documents without the type attribute are dictionaries.
+        entry.Type = attributes.Find<std::string>("chyt_object_type").value_or(DictionaryObjectType);
+        entry.Value = std::move(*value);
         if (auto modificationTime = attributes.Find<TInstant>("modification_time")) {
             entry.UpdateTime = DBPoco::Timestamp::fromEpochTime(modificationTime->TimeT());
         }
 
-        snapshot->Names.insert(name);
+        if (entry.Type == DictionaryObjectType) {
+            snapshot->DictionaryNames.insert(name);
+        }
         snapshot->Entries.emplace(std::move(name), std::move(entry));
     }
 
-    YT_LOG_DEBUG("Cypress dictionary config snapshot built (RootPath: %v, DictionaryCount: %v)",
+    YT_LOG_DEBUG("Cypress object snapshot built (RootPath: %v, ObjectCount: %v)",
         RootPath_,
-        snapshot->Names.size());
+        snapshot->Entries.size());
 
     return snapshot;
 }
 
-void TCypressDictionaryConfigRepository::RefreshSnapshot()
+void TCypressObjectRepository::RefreshSnapshot()
 {
     try {
         auto snapshot = BuildSnapshot();
         auto guard = WriterGuard(SnapshotLock_);
         Snapshot_ = std::move(snapshot);
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to refresh Cypress dictionary config snapshot (RootPath: %v)",
+        YT_LOG_WARNING(ex, "Failed to refresh Cypress object snapshot (RootPath: %v)",
             RootPath_);
     }
 }
 
-std::set<std::string> TCypressDictionaryConfigRepository::GetAllDictionaryNames()
+std::set<std::string> TCypressObjectRepository::GetAllDictionaryNames()
 {
     if (auto snapshot = GetSnapshot()) {
-        return snapshot->Names;
+        return snapshot->DictionaryNames;
     }
     return {};
 }
 
-bool TCypressDictionaryConfigRepository::DictionaryExists(const std::string& dictionaryName)
+bool TCypressObjectRepository::DictionaryExists(const std::string& dictionaryName)
 {
     auto snapshot = GetSnapshot();
-    return snapshot && snapshot->Entries.contains(dictionaryName);
+    return snapshot && snapshot->DictionaryNames.contains(dictionaryName);
 }
 
-std::optional<DBPoco::Timestamp> TCypressDictionaryConfigRepository::GetDictionaryUpdateTime(const std::string& dictionaryName)
+std::optional<DBPoco::Timestamp> TCypressObjectRepository::GetDictionaryUpdateTime(const std::string& dictionaryName)
 {
     if (auto snapshot = GetSnapshot()) {
-        if (auto it = snapshot->Entries.find(dictionaryName); it != snapshot->Entries.end()) {
+        if (auto it = snapshot->Entries.find(dictionaryName);
+            it != snapshot->Entries.end() && it->second.Type == DictionaryObjectType)
+        {
             return it->second.UpdateTime;
         }
     }
     return std::nullopt;
 }
 
-DB::LoadablesConfigurationPtr TCypressDictionaryConfigRepository::LoadDictionary(const std::string& dictionaryName)
+DB::LoadablesConfigurationPtr TCypressObjectRepository::LoadDictionary(const std::string& dictionaryName)
 {
     auto snapshot = GetSnapshot();
     if (!snapshot) {
-        THROW_ERROR_EXCEPTION("Cypress dictionary config snapshot is not ready yet");
+        THROW_ERROR_EXCEPTION("Cypress object snapshot is not ready yet");
     }
     auto it = snapshot->Entries.find(dictionaryName);
-    if (it == snapshot->Entries.end()) {
-        THROW_ERROR_EXCEPTION("Dictionary %Qv is not found in Cypress config repository", dictionaryName);
+    if (it == snapshot->Entries.end() || it->second.Type != DictionaryObjectType) {
+        THROW_ERROR_EXCEPTION("Dictionary %Qv is not found in Cypress object repository", dictionaryName);
     }
 
-    std::stringstream configStream(it->second.ConfigXml);
+    std::stringstream configStream(it->second.Value);
 
     DBPoco::AutoPtr<DBPoco::Util::XMLConfiguration> config(new DBPoco::Util::XMLConfiguration);
     config->load(configStream);
     return config;
 }
 
-void TCypressDictionaryConfigRepository::WriteDictionary(
+void TCypressObjectRepository::WriteDictionary(
     const DB::ContextPtr& context,
     const DB::StorageID& storageId,
     const DB::LoadablesConfigurationPtr& config)
@@ -211,10 +219,11 @@ void TCypressDictionaryConfigRepository::WriteDictionary(
 
     std::stringstream parsedConfigStream;
     config.cast<DBPoco::Util::XMLConfiguration>()->save(parsedConfigStream);
-    auto path = GetPathToConfig(configName);
+    auto path = GetObjectPath(configName);
     NApi::TCreateNodeOptions options;
     options.Attributes = CreateEphemeralAttributes();
     options.Attributes->Set("value", parsedConfigStream.str());
+    options.Attributes->Set("chyt_object_type", DictionaryObjectType);
 
     auto resultOrError = WaitFor(client->CreateNode(path, NCypressClient::EObjectType::Document, options));
     if (!resultOrError.IsOK()) {
@@ -226,7 +235,7 @@ void TCypressDictionaryConfigRepository::WriteDictionary(
     host->ReloadDictionaryGlobally(configName);
 }
 
-void TCypressDictionaryConfigRepository::DeleteDictionary(
+void TCypressObjectRepository::DeleteDictionary(
     const DB::ContextPtr& context,
     const DB::StorageID& storageId)
 {
@@ -240,7 +249,7 @@ void TCypressDictionaryConfigRepository::DeleteDictionary(
         return;
     }
 
-    auto path = GetPathToConfig(storageId.table_name);
+    auto path = GetObjectPath(storageId.table_name);
     auto resultOrError = WaitFor(client->RemoveNode(path));
     if (!resultOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Error while deleting dictionary %Qv", storageId.table_name) << resultOrError;
@@ -253,19 +262,20 @@ void TCypressDictionaryConfigRepository::DeleteDictionary(
     host->ReloadDictionaryGlobally(storageId.table_name);
 }
 
-TYPath TCypressDictionaryConfigRepository::GetPathToConfig(const std::string& dictionaryName) const
+TYPath TCypressObjectRepository::GetObjectPath(const std::string& objectName) const
 {
-    return TYPath(Format("%v/%v", RootPath_, ToYPathLiteral(dictionaryName)));
+    return TYPath(Format("%v/%v", RootPath_, ToYPathLiteral(objectName)));
 }
 
-const std::string TCypressDictionaryConfigRepository::CypressConfigRepositoryName = "YT_Cypress";
+const std::string TCypressObjectRepository::CypressConfigRepositoryName = "YT_Cypress";
+const std::string TCypressObjectRepository::DictionaryObjectType = "dictionary";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<DB::IExternalLoaderConfigRepository>
-CreateExternalLoaderFromCypressConfigRepository(TCypressDictionaryConfigRepositoryPtr cypressDictionaryConfigRepository)
+CreateExternalLoaderFromCypressObjectRepository(TCypressObjectRepositoryPtr repository)
 {
-    return std::make_unique<TExternalLoaderFromCypressConfigRepository>(cypressDictionaryConfigRepository);
+    return std::make_unique<TExternalLoaderFromCypressObjectRepository>(std::move(repository));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

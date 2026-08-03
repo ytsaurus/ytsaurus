@@ -3,7 +3,7 @@
 #include "clickhouse_config.h"
 #include "clickhouse_singletons.h"
 #include "config_repository.h"
-#include "cypress_config_repository.h"
+#include "cypress_object_repository.h"
 #include "config.h"
 #include "helpers.h"
 #include "host.h"
@@ -318,11 +318,11 @@ private:
 
         auto& dictionariesLoader = ServerContext_->getExternalDictionariesLoader();
         DictionaryGuard_ = dictionariesLoader.addConfigRepository(CreateDictionaryConfigRepository(Config_->Dictionaries, Config_->DefaultDatabase));
-        if (Host_->GetConfig()->DictionaryRepository) {
+        if (Host_->GetConfig()->CypressObjectRepository) {
             YT_LOG_DEBUG("Adding repository for loading dictionaries from Cypress");
 
             CypressDictionaryGuard_ = dictionariesLoader.addConfigRepository(
-                CreateExternalLoaderFromCypressConfigRepository(Host_->GetCypressDictionaryConfigRepository()));
+                CreateExternalLoaderFromCypressObjectRepository(Host_->GetCypressObjectRepository()));
         }
         if (Host_->GetConfig()->DictionaryAccessControl) {
             // By default, CH lazily creates dictionaries in memory on the first access.
