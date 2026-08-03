@@ -310,6 +310,9 @@ if [ -n "${PYTHON_UNITTEST_ROOTS}" ]; then
 fi
 
 if [ -n "${INTEGRATION_ROOTS}" ]; then
+    # Share PortManager reservations between clusters prepared before any of them starts.
+    export PORT_SYNC_PATH="${PORT_SYNC_PATH:-${TESTS_SANDBOX}/flow_port_sync}"
+
     # Start only the clusters required by the selected scope.
     if [ "${MODE}" = "ci" ]; then
         YT_CLUSTER_NAMES="primary,remote_0"
