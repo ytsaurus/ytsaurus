@@ -356,7 +356,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
     auto expected = ToString(BuildVersionedRow(
         resultKeyString,
         resultValueString,
-        hasNonKeyColumns ? std::vector<TTimestamp>{} : std::vector<TTimestamp>{0_ts}));
+        hasNonKeyColumns ? std::vector<TTimestamp>{} : std::vector<TTimestamp>{NullTimestamp}));
     EXPECT_EQ(expected, actual)
         << "key: " << keyString << std::endl
         << "namedColumns: " << ::testing::PrintToString(namedColumns) << std::endl
