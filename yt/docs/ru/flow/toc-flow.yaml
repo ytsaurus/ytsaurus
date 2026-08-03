@@ -80,6 +80,10 @@ items:
             when: audience == "internal"
           - name: Multiplexer
             href: cpp/examples/multiplexer.md
+          - name: Log Parser
+            href: cpp/examples/log_parser.md
+          - name: Proto Parser
+            href: cpp/examples/proto_parser.md
   - name: Java
     items:
       - name: Быстрый старт

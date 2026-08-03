@@ -90,11 +90,16 @@ class BulliedProcess(object):
         self._watcher_thread = None
         self._stdout = stdout
         self._stderr = stderr
+        self._injected_problems_count = 0
 
         # Synchronization between watcher and main threads
         self._stop_event = threading.Event()
 
         self._random = random_generator or random.Random()
+
+    @property
+    def injected_problems_count(self):
+        return self._injected_problems_count
 
     def is_running(self):
         with self._lock:
@@ -209,7 +214,7 @@ class BulliedProcess(object):
             self._name,
             self._proc.process.pid,
             self._cmd,
-            self._cwd
+            self._cwd,
         )
 
     def _start_watcher(self):
@@ -273,11 +278,12 @@ class BulliedProcess(object):
             self._checking_wait(self._random.random() * interval.get_rem_time())
             # Equal probability for soft restart, hard restart and stop-continue.
             action = self._random.randint(0, 2)
+            if action == 1 and not self._problems_config.soft_restarts:
+                continue
+            self._injected_problems_count += 1
             if action == 0:
                 self.restart(soft=False, dont_start_stopped=True)
             elif action == 1:
-                if not self._problems_config.soft_restarts:
-                    continue
                 self.restart(soft=True, dont_start_stopped=True)
             else:
                 self.send_sigstop()

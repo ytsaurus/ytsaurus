@@ -2,11 +2,9 @@
 
 #include "public.h"
 
-#include "computation_base.h"
-#include "watermark_generator.h"
+#include "ordered_source_computation_base.h"
 
 #include <yt/yt/flow/library/cpp/common/schema.h>
-#include <yt/yt/flow/library/cpp/common/source.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
 
 #include <yt/yt/flow/library/cpp/misc/ordered_memory.h>
@@ -15,8 +13,6 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline constexpr TStringBuf ActiveSourceStateName = "$active_source";
-inline constexpr TStringBuf WatermarkStateName = "$watermark";
 inline constexpr TStringBuf TimestampMemoryStateName = "$timestamp_memory";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +30,7 @@ DEFINE_REFCOUNTED_TYPE(TSwiftOrderedSourceTimestampMemory);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSwiftOrderedSourceComputation
-    : public TUniversalComputationBase
+    : public TOrderedSourceComputationBase
 {
 private:
     static void ValidateSpec(const TComputationSpec& spec);
@@ -63,24 +59,9 @@ public:
 
     YT_FLOW_EXTEND_SPEC_VALIDATION(ValidateSpec);
 
-    TSwiftOrderedSourceComputation(
-        TComputationContextPtr context,
-        TDynamicComputationContextPtr dynamicContext);
-
-    TComputationOrchidStatePtr GetOrchidState() override;
-
-    virtual void DoInit(IJobInitContextPtr initContext);
-    virtual void DoInit(); // For backward compatibility - remove it later.
-    virtual void DoProcess(IInputContextPtr input, IOutputCollectorPtr output);
-    virtual void DoProcessMessage(const TInputMessageConstPtr& message, IOutputCollectorPtr output);
-    virtual void DoProcessMessage(const TMessage& message, IOutputCollectorPtr output);
-    virtual void DoSync(IRetryableTransactionPtr transaction);
-
-protected:
-    void DoPrepare(const IComputationRunContextPtr& context) final;
+    using TOrderedSourceComputationBase::TOrderedSourceComputationBase;
 
 private:
-    IOrderedSourcePtr OrderedSource_;
     std::optional<TKey> SourceKey_;
 
     struct TProcessedBatch
@@ -96,12 +77,6 @@ private:
     std::deque<TProcessedBatch> DelayedMessages_;
 
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> GetExtraInputLimits() override;
-
-private:
-    IWatermarkGeneratorPtr WatermarkGenerator_;
-
-    IMessageFilterPtr Filter_;
-    NProfiling::TCounter SkippedByExpressionCounter_;
 
     void DoExecute(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard) override;
 

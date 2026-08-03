@@ -51,6 +51,11 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline constexpr TStringBuf ActiveSourceStateName = "$active_source";
+inline constexpr TStringBuf WatermarkStateName = "$watermark";
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A default abstract base class for all computations.
 /*!
  *  This base provides the following features out-of-the-box:
@@ -537,6 +542,12 @@ protected:
     void DoInterrupt(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard);
     void DoComplete(const IComputationRunContextPtr& context, NTracing::TTraceContextGuard&& initTraceContextGuard);
     void DoCleanup(const IComputationRunContextPtr& context, bool eraseOwnedState);
+
+    //! Computations that register persisted keyed output (#IOutputStore::TryRegisterKeyedBatch
+    //! with |persist| = true) must drain it before DoCleanup erases the source key's state,
+    //! or the output rows are orphaned (never delivered, no TTL) and get re-sent with a reset
+    //! dedup state if the key's range is later re-read.
+    virtual bool HasPersistedKeyedOutput() const;
 
     ISinkPtr GetOrCreateSink(const TSinkId& sinkId, const std::optional<TKey>& parentKey, const TDynamicComputationSpecPtr& dynamicSpec);
     std::vector<std::tuple<TSinkId, std::optional<TKey>, ISinkPtr>> GetAllSinks() const;

@@ -40,6 +40,8 @@ RECURSE(
     test_distributed_throttler/pipeline
     test_resource_control_channel
     test_resource_control_channel/pipeline
+    transform_ordered_source
+    transform_ordered_source/pipeline
     word_count_sync
     working_pipeline_telemetry
     working_pipeline_telemetry/pipeline

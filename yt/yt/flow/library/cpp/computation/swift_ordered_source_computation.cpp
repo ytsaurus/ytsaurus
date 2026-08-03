@@ -65,53 +65,7 @@ void TSwiftOrderedSourceComputation::TExtendedDynamicParameters::Register(TRegis
 
 void TSwiftOrderedSourceComputation::ValidateSpec(const TComputationSpec& spec)
 {
-    if (!spec.InputStreamIds.empty()) {
-        THROW_ERROR_EXCEPTION("TSwiftOrderedSourceComputation does not support input streams");
-    }
-
-    if (!spec.TimerStreams.empty()) {
-        THROW_ERROR_EXCEPTION("TSwiftOrderedSourceComputation does not support timers");
-    }
-
-    if (!spec.KeyVisitorStreams.empty()) {
-        THROW_ERROR_EXCEPTION("TSwiftOrderedSourceComputation does not support key_visitor_streams");
-    }
-}
-
-TSwiftOrderedSourceComputation::TSwiftOrderedSourceComputation(
-    TComputationContextPtr context,
-    TDynamicComputationContextPtr dynamicContext)
-    : TUniversalComputationBase(std::move(context), std::move(dynamicContext))
-{
-    if (GetContext()->Partition->State == EPartitionState::Executing) {
-        if (!ActiveSource_) {
-            THROW_ERROR_EXCEPTION("Active source is undefined");
-        }
-
-        if (!ActiveSourceStreamId_) {
-            THROW_ERROR_EXCEPTION("Active source streamId is undefined");
-        }
-
-        if (!GetContext()->Partition->SourceKey) {
-            THROW_ERROR_EXCEPTION("Source Key is undefined");
-        }
-
-        OrderedSource_ = DynamicPointerCast<IOrderedSource>(ActiveSource_);
-        THROW_ERROR_EXCEPTION_UNLESS(OrderedSource_, "Expected IOrderedSource for source %Qv in computation %Qv", ActiveSourceStreamId_, GetComputationId());
-    }
-
-    Filter_ = CreateMessageFilter(GetDynamicSpec()->SkipIfExpression);
-    SkippedByExpressionCounter_ = GetContext()->Profiler.WithPrefix("/source_streams").Counter("/skipped_by_expression_count");
-    SubscribeOnReconfigure(
-        BIND([this] {
-            Filter_->Reconfigure(GetDynamicSpec()->SkipIfExpression);
-        }),
-        EWatchReconfigure::DynamicComputationSpec);
-}
-
-void TSwiftOrderedSourceComputation::DoPrepare(const IComputationRunContextPtr& context)
-{
-    InitOutputStoreDistribution(context);
+    ValidateOrderedSourceSpec(spec, "TSwiftOrderedSourceComputation");
 }
 
 void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& context, TTraceContextGuard&& initTraceContextGuard)
@@ -388,16 +342,7 @@ bool TSwiftOrderedSourceComputation::CheckDelayedMessages(
     // This function starts distributing some of delayed messages. Use common for all computations part name here.
     TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.Start"));
 
-    const TSystemTimestamp thresholdTimestamp = [&] () {
-        auto thresholdTimestamp = InfinitySystemTimestamp;
-        if (GetSpec()->WatermarkStrategy->WatermarkAlignment && GetSpec()->WatermarkStrategy->WatermarkAlignment->ReadDelays) {
-            for (const auto& [streamId, delay] : *GetSpec()->WatermarkStrategy->WatermarkAlignment->ReadDelays) {
-                auto watermark = GetEpochEventWatermark(streamId);
-                thresholdTimestamp = std::min(thresholdTimestamp, TSystemTimestamp(std::max(watermark.Underlying(), delay.Seconds()) - delay.Seconds()));
-            }
-        }
-        return thresholdTimestamp;
-    }();
+    const auto thresholdTimestamp = GetReadDelayThreshold();
 
     const auto canBePublished = [&] (const TProcessedBatch& processed) {
         if (dynamicSpec->Draining) {
@@ -508,42 +453,6 @@ THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> TSwiftOrderedS
     entityLimitStatus.Used = OrderedSource_->GetAlignmentTimestampWindow().Seconds();
     return result;
 }
-
-TComputationOrchidStatePtr TSwiftOrderedSourceComputation::GetOrchidState()
-{
-    auto state = TUniversalComputationBase::GetOrchidState();
-    auto universalState = DynamicPointerCast<TUniversalComputationOrchidState>(state);
-    YT_VERIFY(universalState);
-    universalState->PartitionDescription = Format("SourceKey: %v", *GetContext()->Partition->SourceKey);
-    return universalState;
-}
-
-void TSwiftOrderedSourceComputation::DoInit(IJobInitContextPtr /*initContext*/)
-{
-    DoInit();
-}
-
-void TSwiftOrderedSourceComputation::DoInit()
-{ }
-
-void TSwiftOrderedSourceComputation::DoProcess(IInputContextPtr input, IOutputCollectorPtr output)
-{
-    YT_VERIFY(input->GetTimers().empty());
-    for (const auto& message : input->GetMessages()) {
-        DoProcessMessage(message, output->SetParents({message}, {}, {}));
-    }
-}
-
-void TSwiftOrderedSourceComputation::DoProcessMessage(const TInputMessageConstPtr& message, IOutputCollectorPtr output)
-{
-    DoProcessMessage(*message, std::move(output));
-}
-
-void TSwiftOrderedSourceComputation::DoProcessMessage(const TMessage& /*message*/, IOutputCollectorPtr /*output*/)
-{ }
-
-void TSwiftOrderedSourceComputation::DoSync(IRetryableTransactionPtr /*transaction*/)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

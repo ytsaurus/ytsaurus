@@ -1,0 +1,40 @@
+{
+    "spec" = {
+        "computations" = {
+            "parser" = {
+                "computation_class_name" = "NYT::NFlow::NExample::TProtoLogParserComputation";
+                "output_stream_ids" = ["records"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=cluster_name>//path/to/queue";
+                            "consumer_path" = "<cluster=cluster_name>//path/to/consumer";
+                            "finite" = false;
+                        };
+                    };
+                };
+                "sinks" = {
+                    "queue" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["records"];
+                        "parameters" = {
+                            "queue_path" = "//path/to/output_queue";
+                        };
+                    };
+                };
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "parser" = {
+                "batch_duration" = 100;
+                "parameters" = {"desired_partition_count" = 1;};
+            };
+        };
+        "job_tracker" = {
+            "job_threads" = 4;
+        };
+    };
+}

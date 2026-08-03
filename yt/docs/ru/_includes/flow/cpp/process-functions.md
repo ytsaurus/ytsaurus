@@ -10,13 +10,14 @@ Process function выносит пользовательскую логику в
 
 Сама process function напрямую не запускается — её исполняет встроенный `Computation`-адаптер, который указывается в спеке в поле `computation_class_name` (см. [Регистрация](#registration)). Адаптер даёт функции ровно ту же среду, что и обычный `Computation`: ту же спеку, те же сторы и стейты, ту же логику обработки эпохи. Поэтому пайплайн с process function даёт [те же гарантии обработки](../../../flow/concepts/guarantees.md) (в том числе exactly-once), что и написанный вручную `Computation`.
 
-Адаптер же задаёт режим исполнения функции. Встроенных адаптеров три:
+Адаптер же задаёт режим исполнения функции. Встроенных адаптеров четыре:
 
 | `computation_class_name` | Режим |
 | --- | --- |
 | `NYT::NFlow::TProcessFunctionComputation` | transform |
 | `NYT::NFlow::TProcessFunctionSwiftMapComputation` | swift-map |
 | `NYT::NFlow::TProcessFunctionSourceComputation` | source |
+| `NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation` | [ordered source с материализацией выхода и стейтом](../../../flow/cpp/computation.md#ttransformorderedsourcecomputation) |
 
 Одну и ту же функцию можно запускать под разными адаптерами, не пересобирая бинарь.
 
@@ -70,12 +71,12 @@ classDiagram
     - `ProcessTimer(timer, output, context)` — один [таймер](../../../flow/concepts/glossary.md#timer);
     - `ProcessVisit(visit, output, context)` — один визит.
 
-    В source-режиме приходят только сообщения, поэтому `ProcessTimer` / `ProcessVisit` не вызываются.
+    В обоих source-режимах приходят только сообщения, поэтому `ProcessTimer` / `ProcessVisit` не вызываются.
 - `IBatchProcessFunction` — весь вход эпохи одним вызовом (аналог `TTransformComputation::DoProcess`). Переопределяйте `Process(input, output, context)`, когда логика работает со всем батчем сразу (например, один батчевый внешний запрос). Вход не группируется по ключу.
 - `IKeyedBatchProcessFunction` — обработка по ключу group-by, для keyed-режимов (swift map и transform). Воркер группирует вход эпохи по ключу и вызывает `ProcessKey` для каждого ключа:
     - `ProcessKey(input, output, context)` — весь вход одного ключа (сообщения, таймеры и визиты вместе; аналог `TTransformComputation::DoProcessKey`), по умолчанию no-op. Переопределяйте, когда логика опирается на весь батч ключа сразу (например, согласует сообщения и таймеры через общий стейт ключа).
 - `ISyncProcessFunction` — необязательный mix-in для функций, которые в конце эпохи фиксируют побочные эффекты в отдельной sync-фазе; от него наследуются дополнительно к интерфейсу гранулярности:
-    - `Sync(transaction, context)` — фиксация побочных эффектов в транзакции `transaction` (аналог `TTransformComputation::DoSync`); `context` даёт доступ к рантайм-аксессорам. Метод обязателен к реализации. Вызывается только `Computation`-адаптером, у которого есть sync-фаза — из встроенных адаптеров это `TProcessFunctionComputation` (transform). Соответствие проверяется при валидации спеки: функцию с `Sync` нельзя повесить на `Computation` без sync-фазы.
+    - `Sync(transaction, context)` — фиксация побочных эффектов в транзакции `transaction` (аналог `TTransformComputation::DoSync`); `context` даёт доступ к рантайм-аксессорам. Метод обязателен к реализации. Вызывается только `Computation`-адаптером, у которого есть sync-фаза — из встроенных адаптеров это `TProcessFunctionComputation` (transform) и `TProcessFunctionTransformOrderedSourceComputation` (ordered source). Соответствие проверяется при валидации спеки: функцию с `Sync` нельзя повесить на `Computation` без sync-фазы.
 
 В `Process` (`IBatchProcessFunction`) и `ProcessKey` у `output` не проставлены родительские сообщения — проставляйте их сами через `output->SetParents(...)`; в поэлементных методах `IProcessFunction` (`ProcessMessage` / `ProcessTimer` / `ProcessVisit`) они уже проставлены на соответствующую сущность.
 
