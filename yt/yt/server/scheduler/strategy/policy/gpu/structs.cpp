@@ -444,7 +444,7 @@ void TNode::PreemptAssignment(
     std::string description,
     TOperationId preemptedForOperationId)
 {
-    if (assignment->AllocationId) {
+    if (assignment->AllocationId && !assignment->Reviving) {
         const auto& allocation = GetOrCrash(
             assignment->Operation->AllocationIdToAllocationState(),
             assignment->AllocationId);
