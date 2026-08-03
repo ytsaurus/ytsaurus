@@ -303,7 +303,7 @@ jobs:
 
           # Programs and C++ unit tests required by the exported Flow examples.
           FLOW_PROGRAM_TARGETS="../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server"
-          for test_dir in ../ytsaurus/ytsaurus/yt/yt/flow/examples/cpp/*/test; do
+          for test_dir in ../ytsaurus/ytsaurus/yt/yt/flow/examples/{cpp,go}/*/test; do
             if [ -d "${test_dir}" ]; then
               FLOW_PROGRAM_TARGETS="${FLOW_PROGRAM_TARGETS} $(dirname "${test_dir}")"
             fi

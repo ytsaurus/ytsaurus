@@ -30,6 +30,7 @@ VENV_PYTHON="${VIRTUALENV_PATH}/bin/python3"
 # All example tests shipped to opensource, relative to yt/yt/flow.
 FLOW_EXAMPLE_INTEGRATION_PATHS=(
     "examples/cpp/*/test"
+    "examples/go/*/test"
     "examples/python/*/test"
 )
 FLOW_EXAMPLE_CPP_UNITTEST_PATHS=(
@@ -193,7 +194,7 @@ chmod +x "${YT_CLI_WRAPPER}"
 
 # yatest.common.binary_path resolves <build_root>/<arcadia-relative-dir>/<name>.
 required_binary_dirs="yt/yt/flow/bin/flow_server"
-for example_test_dir in "${FLOW_SRC}"/examples/cpp/*/test; do
+for example_test_dir in "${FLOW_SRC}"/examples/{cpp,go}/*/test; do
     if [ -d "${example_test_dir}" ]; then
         required_binary_dirs="${required_binary_dirs} $(dirname "${example_test_dir#"${SOURCE_ROOT}"/}")"
     fi
@@ -215,7 +216,7 @@ for relative_dir in ${required_binary_dirs}; do
 done
 if [ -n "${missing_binaries}" ]; then
     if [ "${MODE}" = "ci" ]; then
-        echo "error: cmake-built flow binaries not found under ${BUILD_ROOT}:" >&2
+        echo "error: flow binaries not found under ${BUILD_ROOT}:" >&2
         printf '%s' "${missing_binaries}" >&2
         exit 1
     else

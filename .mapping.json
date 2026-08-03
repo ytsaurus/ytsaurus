@@ -4826,6 +4826,8 @@
   "yt/yt/flow/examples/cpp/word_count/unittest/CMakeLists.linux-aarch64.txt":"",
   "yt/yt/flow/examples/cpp/word_count/unittest/CMakeLists.linux-x86_64.txt":"",
   "yt/yt/flow/examples/cpp/word_count/unittest/CMakeLists.txt":"",
+  "yt/yt/flow/examples/go/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/flow/examples/go/go.mod",
+  "yt/yt/flow/examples/go/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/flow/examples/go/go.sum",
   "yt/yt/flow/library/CMakeLists.txt":"",
   "yt/yt/flow/library/cpp/CMakeLists.darwin-arm64.txt":"",
   "yt/yt/flow/library/cpp/CMakeLists.darwin-x86_64.txt":"",
