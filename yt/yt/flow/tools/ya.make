@@ -5,6 +5,7 @@ RECURSE(
     pipeline_chaos_monkey
     reanimate_vanilla_operation
     reshard_flow_tables
+    yt_sync_mini
 )
 
 IF (NOT OPENSOURCE)
