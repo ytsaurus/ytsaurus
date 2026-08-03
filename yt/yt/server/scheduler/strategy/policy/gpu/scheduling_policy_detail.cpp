@@ -75,9 +75,11 @@ TGpuScheduleAllocationsStatisticsPtr GetScheduleAllocationsStatistics(const ISch
 ////////////////////////////////////////////////////////////////////////////////
 
 TModuleProfilingCounters::TModuleProfilingCounters(const NProfiling::TProfiler& profiler)
+    // TODO(severovv): Remove plural "s" from sensor names.
     : TotalModuleNodes(profiler.Gauge("/total_nodes_count"))
     , ModuleUnreservedNodes(profiler.Gauge("/unreserved_nodes_count"))
     , ModuleFullHostModuleBoundOperations(profiler.Gauge("/full_host_module_bound_operations_count"))
+    , ModuleFullHostNonGangAssignments(profiler.Gauge("/full_host_non_gang_assignments_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +91,8 @@ TGpuSchedulingProfilingCounters::TGpuSchedulingProfilingCounters(const NProfilin
     , Assignments(PlanUpdateProfiler.Gauge("/assignments_count"))
     , TotalPlanningTime(PlanUpdateProfiler.Timer("/total_planning_time"))
     , OperationResourcesUpdateTime(PlanUpdateProfiler.Timer("/operation_resources_update_time"))
-    , FullHostPlanningTime(PlanUpdateProfiler.Timer("/full_host_planning_time"))
+    , FullHostModuleBoundPlanningTime(PlanUpdateProfiler.Timer("/full_host_module_bound_planning_time"))
+    , FullHostNonGangPlanningTime(PlanUpdateProfiler.Timer("/full_host_non_gang_planning_time"))
     , RegularPlanningTime(PlanUpdateProfiler.Timer("/regular_planning_time"))
     , ExtraPlanningTime(PlanUpdateProfiler.Timer("/extra_planning_time"))
     , EnabledOperations(PlanUpdateProfiler.Gauge("/enabled_operations_count"))
@@ -1138,7 +1141,8 @@ void TSchedulingPolicy::ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatis
 
     ProfilingCounters_.TotalPlanningTime.Record(statistics->Timer.GetElapsedTime());
     ProfilingCounters_.OperationResourcesUpdateTime.Record(statistics->UpdatingOperationResourcesDuration);
-    ProfilingCounters_.FullHostPlanningTime.Record(statistics->FullHostPlanningDuration);
+    ProfilingCounters_.FullHostModuleBoundPlanningTime.Record(statistics->FullHostModuleBoundPlanningDuration);
+    ProfilingCounters_.FullHostNonGangPlanningTime.Record(statistics->FullHostNonGangPlanningDuration);
     ProfilingCounters_.RegularPlanningTime.Record(statistics->RegularPlanningDuration);
     ProfilingCounters_.ExtraPlanningTime.Record(statistics->ExtraPlanningDuration);
 
@@ -1154,6 +1158,7 @@ void TSchedulingPolicy::ProfileAssignmentPlanUpdating(const TGpuPlanUpdateStatis
         moduleCounters.TotalModuleNodes.Update(moduleStatistic.TotalNodes);
         moduleCounters.ModuleUnreservedNodes.Update(moduleStatistic.UnreservedNodes);
         moduleCounters.ModuleFullHostModuleBoundOperations.Update(moduleStatistic.FullHostModuleBoundOperations);
+        moduleCounters.ModuleFullHostNonGangAssignments.Update(moduleStatistic.FullHostNonGangAssignments);
     }
 
     int assignments = 0;
