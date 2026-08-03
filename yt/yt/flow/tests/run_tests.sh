@@ -146,6 +146,15 @@ protoc --proto_path "${SOURCE_ROOT}" --python_out "${PROTO_STAGING}" \
 cp -f "${PROTO_STAGING}/yt/yt/flow/library/python/companion/test/proto/"*_pb2*.py \
     "${FLOW_SRC}/library/python/companion/test/proto/"
 
+# Example protos have no PROTO_NAMESPACE either: their tests import the pb2
+# modules by the full source-tree path, so generate them the same way.
+find "${FLOW_SRC}/examples" -name "*.proto" \
+    | while read -r proto_file; do
+        protoc --proto_path "${SOURCE_ROOT}" --python_out "${PROTO_STAGING}" "${proto_file}"
+        proto_dir="$(dirname "${proto_file}")"
+        cp -f "${PROTO_STAGING}/${proto_dir#"${SOURCE_ROOT}"/}/"*_pb2*.py "${proto_dir}/"
+    done
+
 # Generate launcher scripts for the PY3_PROGRAM pipelines (python examples and
 # python companion pipelines). In arcadia these are self-contained python
 # binaries resolved via yatest.common.binary_path; here an executable wrapper
