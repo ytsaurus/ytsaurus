@@ -366,8 +366,8 @@ class TestYtDictionaries(ClickHouseTestBase):
 
             create("table", table_path, attributes={"schema": schema})
 
-            [dictionary_object_name] = ls(clique.dictionaries_path)
-            dictionary_path = clique.dictionaries_path + "/" + dictionary_object_name.replace("/", "\\/")
+            [dictionary_object_name] = ls(clique.storage_artifacts_path)
+            dictionary_path = clique.storage_artifacts_path + "/" + dictionary_object_name.replace("/", "\\/")
             dictionary_config = get(dictionary_path)
 
             def concurrent_overwrite_dictionary():
@@ -477,7 +477,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             clique.make_query(create_query.format("YT.dict"))
             clique.make_query(create_query.format("my_db.dict"))
 
-            root = clique.dictionaries_path
+            root = clique.storage_artifacts_path
             assert exists(root + "/YT.dict")
             assert exists(root + "/my_db.dict")
             assert clique.make_query("EXISTS DICTIONARY YT.dict") == [{"result": 1}]

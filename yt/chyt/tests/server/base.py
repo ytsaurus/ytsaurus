@@ -91,7 +91,7 @@ class Clique(object):
     tls_secrets = {}
     sql_udf_path = None
     query_log_table_path = None
-    dictionaries_path = None
+    storage_artifacts_path = None
     election_lock_path = None
 
     def __init__(self, instance_count,
@@ -182,9 +182,9 @@ class Clique(object):
 
         if enable_object_repository:
             config["yt"]["object_repository"] = dict()
-            self.dictionaries_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
-            config["yt"]["object_repository"]["root_path"] = self.dictionaries_path
-            create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
+            self.storage_artifacts_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
+            config["yt"]["object_repository"]["root_path"] = self.storage_artifacts_path
+            create("map_node", self.storage_artifacts_path, recursive=True, ignore_existing=True, attributes={
                 "acl": [ace],
             })
 
@@ -298,7 +298,7 @@ class Clique(object):
 
         self.instance_count = instance_count
 
-        create_access_control_object(name=self.alias, namespace="chyt")
+        create_access_control_object(name=self.alias, namespace="chyt", ignore_existing=True)
 
     def _upload_llvm_symbolizer(self, llvm_symbolizer_path):
         with open(yatest.common.binary_path("contrib/libs/llvm20/tools/llvm-symbolizer/llvm-symbolizer"), 'rb') as f:
@@ -484,8 +484,8 @@ class Clique(object):
 
             if self.sql_udf_path:
                 remove(self.sql_udf_path, recursive=True, force=True)
-            if self.dictionaries_path:
-                remove(self.dictionaries_path, recursive=True, force=True)
+            if self.storage_artifacts_path:
+                remove(self.storage_artifacts_path, recursive=True, force=True)
 
         except YtError as err:
             print_debug("Error while completing clique operation:", err)
