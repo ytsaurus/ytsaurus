@@ -316,6 +316,33 @@ NTableClient::TUnversionedValue TSource::ConvertCellToAny(
     }
 }
 
+TError TSource::ClassifyPendingRead(
+    const TFuture<void>& pendingRead,
+    TDuration timeSinceReadProgress,
+    TDuration readTimeout)
+{
+    auto pendingReadError = pendingRead.TryGet();
+    if (!pendingReadError) {
+        // Neither the reader creation nor the read stream has a deadline of its own, so an
+        // indefinitely pending one is only ever caught here.
+        if (timeSinceReadProgress > readTimeout) {
+            return NYT::TError(NYT::EErrorCode::Timeout, "Timeout of table reader; no rows read for too long")
+                << TErrorAttribute("read_timeout", readTimeout);
+        }
+        return {};
+    }
+    if (!pendingReadError->IsOK()) {
+        return NYT::TError("Table reader failed") << *pendingReadError;
+    }
+    return {};
+}
+
+void TSource::DropReader(const TError& error)
+{
+    GetReadErrorState()->SetError(error);
+    ReaderFuture_ = {};
+}
+
 TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBatcherSettingsPtr& settings, TOffset nextOffsetAsKey, std::optional<TOffset> offsetLimitAsKey)
 {
     i64 nextOffset = OffsetToInt(nextOffsetAsKey);
@@ -351,23 +378,45 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
                 .EnableRangeIndex = false,
                 .Config = readerConfig});
         CurrentOffset_ = nextOffset;
+        LastReadProgressInstant_ = TInstant::Now();
     }
 
     YT_VERIFY(CurrentOffset_ == nextOffset);
 
     if (!ReaderFuture_.IsSet()) {
+        auto error = ClassifyPendingRead(
+            ReaderFuture_.AsVoid(),
+            TInstant::Now() - LastReadProgressInstant_,
+            GetDynamicParameters()->ReadTimeout);
+        if (!error.IsOK()) {
+            DropReader(error);
+        }
         return MakeFuture(std::vector<TSource::TRecord>{});
     }
 
     if (!ReaderFuture_.GetOrCrash().IsOK()) {
-        GetReadErrorState()->SetError(ReaderFuture_.GetOrCrash());
-        ReaderFuture_ = {};
+        DropReader(ReaderFuture_.GetOrCrash());
         return MakeFuture(std::vector<TSource::TRecord>{});
     }
 
     auto reader = ReaderFuture_.GetOrCrash().ValueOrThrow();
 
     GetReadErrorState()->ClearError();
+
+    // Rows may only be taken once the ready event is set; reading before that yields an empty batch
+    // that is indistinguishable from a dead read stream.
+    auto readyEvent = reader->GetReadyEvent();
+    auto error = ClassifyPendingRead(
+        readyEvent,
+        TInstant::Now() - LastReadProgressInstant_,
+        GetDynamicParameters()->ReadTimeout);
+    if (!error.IsOK()) {
+        DropReader(error);
+        return MakeFuture(std::vector<TSource::TRecord>{});
+    }
+    if (!readyEvent.IsSet()) {
+        return MakeFuture(std::vector<TSource::TRecord>{});
+    }
 
     i64 maxRowsPerRead = settings->MaxRowsPerBatch;
     if (offsetLimit.has_value()) {
@@ -376,6 +425,8 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
     maxRowsPerRead = Throttler_->TryAcquireAvailable(maxRowsPerRead);
 
     if (!maxRowsPerRead) {
+        // Idling on purpose while the reader is ready, so it must not be timed out for that.
+        LastReadProgressInstant_ = TInstant::Now();
         return MakeFuture(std::vector<TSource::TRecord>{});
     }
 
@@ -384,28 +435,20 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
         .MaxDataWeightPerRead = settings->MaxBytesPerBatch});
 
     if (!unversionedRowBatch) {
-        auto error = NYT::TError("Got null batch from table reader, but more rows are expected")
+        DropReader(NYT::TError("Got null batch from table reader, but more rows are expected")
             << TErrorAttribute("current_offset", CurrentOffset_)
-            << TErrorAttribute("max_offset_exclusive", maxOffsetExclusive);
-        GetReadErrorState()->SetError(error);
-        ReaderFuture_ = {};
+            << TErrorAttribute("max_offset_exclusive", maxOffsetExclusive));
         return MakeFuture(std::vector<TSource::TRecord>{});
     }
 
     if (unversionedRowBatch->IsEmpty()) {
-        if (LastNonEmptyBatchRead_ != TInstant::Zero() && TInstant::Now() - LastNonEmptyBatchRead_ > GetDynamicParameters()->ReadTimeout) {
-            auto error = NYT::TError(NYT::EErrorCode::Timeout, "Timeout of table reader; receiving empty batches for too long")
-                << TErrorAttribute("read_timeout", GetDynamicParameters()->ReadTimeout);
-            GetReadErrorState()->SetError(error);
-            ReaderFuture_ = {};
-        }
         return MakeFuture(std::vector<TSource::TRecord>{});
     }
 
     auto unversionedRowRange = unversionedRowBatch->MaterializeRows();
     YT_VERIFY(!unversionedRowRange.empty());
 
-    LastNonEmptyBatchRead_ = TInstant::Now();
+    LastReadProgressInstant_ = TInstant::Now();
 
     const auto& nameTable = reader->GetNameTable();
     std::vector<EValueType> wireTypes(nameTable->GetSize(), EValueType::Min);
