@@ -33,6 +33,8 @@ cmd_configure() {
 core.net.http:timeout=5
 core.sources:download_urls=["origin", "https://c3i.jfrog.io/artifactory/conan-center-backup-sources"]
 EOF
+    # https://docs.conan.io/2/reference/config_files/remotes.html
+    conan remote update conancenter --url="https://center2.conan.io"
 
     local extra_cmake_args=()
     [ -n "${cxx_flags_init}" ] && extra_cmake_args+=(-DCMAKE_CXX_FLAGS_INIT="${cxx_flags_init}")
