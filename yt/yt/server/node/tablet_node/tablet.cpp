@@ -101,6 +101,104 @@ constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TTabletRedirectionHint BuildRedirectionHint(
+    const NLogging::TLogger& Logger,
+    const ICellDirectoryPtr& cellDirectory,
+    TRevision mountRevision,
+    TRevision siblingMountRevision,
+    TTabletCellId siblingCellId,
+    const NLogging::TLoggingTagList& loggingTags)
+{
+    TTabletRedirectionHint hint;
+    hint.SmoothMovementRedirectionHint.OldMountRevision = mountRevision;
+    hint.SmoothMovementRedirectionHint.NewMountRevision = siblingMountRevision;
+    hint.SmoothMovementRedirectionHint.CellId = siblingCellId;
+
+    if (auto cellDescriptor = cellDirectory->FindDescriptorByCellId(siblingCellId)) {
+        hint.SmoothMovementRedirectionHint.CellDescriptor = ConvertToNode(cellDescriptor);
+    } else {
+        YT_LOG_DEBUG("Sibling servant cell descriptor is missing in cell directory (%v)",
+            loggingTags);
+    }
+
+    return hint;
+}
+
+TError ValidateServantIsActive(
+    const ICellDirectoryPtr& cellDirectory,
+    const TRuntimeSmoothMovementData& smoothMovementData,
+    TTabletId tabletId,
+    TRevision mountRevision,
+    const NLogging::TLoggingTagList& loggingTags,
+    bool waitForActivation = true,
+    std::optional<TDuration> timeout = std::nullopt)
+{
+    if (smoothMovementData.IsActiveServant.load()) {
+        return {};
+    }
+
+    auto error = TError(
+        NTabletClient::EErrorCode::TabletServantIsNotActive,
+        "Tablet servant is not active")
+        << TErrorAttribute("tablet_id", tabletId);
+
+    auto siblingCellId = smoothMovementData.SiblingServantCellId.Load();
+    auto siblingMountRevision = smoothMovementData.SiblingServantMountRevision.load();
+
+    if (!siblingCellId || !siblingMountRevision) {
+        // This may happen if movement finishes concurrently with the request.
+        if (smoothMovementData.IsActiveServant.load()) {
+            return {};
+        } else {
+            return error;
+        }
+    }
+
+    if (smoothMovementData.Role.load() == ESmoothMovementRole::Source) {
+        return error
+            << TErrorAttribute("redirection_hint", BuildRedirectionHint(
+                Logger(),
+                cellDirectory,
+                mountRevision,
+                siblingMountRevision,
+                siblingCellId,
+                loggingTags));
+    } else if (smoothMovementData.TargetActivationFuture) {
+        if (!waitForActivation) {
+            return error;
+        }
+
+        YT_LOG_DEBUG("Started waiting for target servant activation future (%v)",
+            loggingTags);
+        if (auto activationError = WaitFor(smoothMovementData.TargetActivationFuture.WithTimeout(timeout));
+            !activationError.IsOK())
+        {
+            return activationError;
+        }
+        YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
+            loggingTags);
+
+        // NB: Violation of this condition is not critical and will not cause any
+        // anomalies, although it should be examined.
+        YT_LOG_ALERT_UNLESS(
+            smoothMovementData.IsActiveServant.load() || timeout,
+            "Tablet servant is not active after waiting for the servant activation future to complete (%v)",
+                loggingTags);
+    }
+
+    if (!smoothMovementData.IsActiveServant.load()) {
+        return error;
+    }
+
+    return {};
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPreloadStatistics& TPreloadStatistics::operator+=(const TPreloadStatistics& other)
 {
     PendingStoreCount += other.PendingStoreCount;
@@ -406,69 +504,15 @@ void TTabletSnapshot::ValidateMountRevision(NHydra::TRevision mountRevision)
     }
 }
 
-TError TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirectory)
+TError TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirectory, bool waitForActivation)
 {
-    const auto& smoothMovementData = TabletRuntimeData->SmoothMovementData;
-
-    if (!smoothMovementData.IsActiveServant.load()) {
-        auto error = TError(
-            NTabletClient::EErrorCode::TabletServantIsNotActive,
-            "Tablet servant is not active")
-            << TErrorAttribute("tablet_id", TabletId);
-
-        auto siblingCellId = smoothMovementData.SiblingServantCellId.Load();
-        auto siblingMountRevision = smoothMovementData.SiblingServantMountRevision.load();
-
-        if (!siblingCellId || !siblingMountRevision) {
-            // This may happen if movement finishes concurrently with the request.
-            if (smoothMovementData.IsActiveServant.load()) {
-                return {};
-            } else {
-                return error;
-            }
-        }
-
-        if (smoothMovementData.Role.load() == ESmoothMovementRole::Source) {
-            TTabletRedirectionHint hint;
-            hint.SmoothMovementRedirectionHint.OldMountRevision = MountRevision;
-            hint.SmoothMovementRedirectionHint.NewMountRevision = siblingMountRevision;
-            hint.SmoothMovementRedirectionHint.CellId = siblingCellId;
-
-            auto cellDescriptor = cellDirectory->FindDescriptorByCellId(siblingCellId);
-            if (cellDescriptor) {
-                hint.SmoothMovementRedirectionHint.CellDescriptor = ConvertToNode(cellDescriptor);
-            } else {
-                YT_LOG_DEBUG("Sibling servant cell descriptor is missing in cell directory (%v)",
-                    LoggingTags);
-            }
-
-            return error
-                << TErrorAttribute("redirection_hint", hint);
-        } else if (smoothMovementData.TargetActivationFuture) {
-            YT_LOG_DEBUG("Started waiting for target servant activation future (%v)",
-                LoggingTags);
-            if (auto activationError = WaitFor(smoothMovementData.TargetActivationFuture);
-                !activationError.IsOK())
-            {
-                return activationError;
-            }
-            YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
-                LoggingTags);
-
-            // NB: Violation of this condition is not critical and will not cause any
-            // read anomalies though should be examined.
-            YT_LOG_ALERT_UNLESS(
-                smoothMovementData.IsActiveServant.load(),
-                "Tablet servant is not active after waiting for servant activation future is completed (%v)",
-                    LoggingTags);
-        }
-
-        if (!smoothMovementData.IsActiveServant.load()) {
-            return error;
-        }
-    }
-
-    return {};
+    return ::NYT::NTabletNode::ValidateServantIsActive(
+        cellDirectory,
+        TabletRuntimeData->SmoothMovementData,
+        TabletId,
+        MountRevision,
+        LoggingTags,
+        waitForActivation);
 }
 
 void TTabletSnapshot::MaybeReplyWithReshardRedirectionHint()
@@ -779,7 +823,7 @@ void FromProto(TIdGenerator* idGenerator, const NProto::TIdGenerator& protoIdGen
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSmoothMovementData::ValidateWriteToTablet(TTabletId tabletId) const
+bool TSmoothMovementData::IsWriteToTabletAllowed() const
 {
     if (Role_ == ESmoothMovementRole::Source) {
         switch (Stage_) {
@@ -787,7 +831,7 @@ void TSmoothMovementData::ValidateWriteToTablet(TTabletId tabletId) const
             case ESmoothMovementStage::TargetAllocated:
             case ESmoothMovementStage::TargetActivated:
             case ESmoothMovementStage::ServantSwitchRequested:
-                return;
+                return true;
 
             default:
                 break;
@@ -795,22 +839,16 @@ void TSmoothMovementData::ValidateWriteToTablet(TTabletId tabletId) const
     } else if (Role_ == ESmoothMovementRole::Target) {
         switch (Stage_) {
             case ESmoothMovementStage::ServantSwitched:
-                return;
+                return true;
 
             default:
                 break;
         }
     } else {
-        return;
+        return true;
     }
 
-    THROW_ERROR_EXCEPTION(
-        NTabletClient::EErrorCode::ReadOnlySmoothMovementStage,
-        "Cannot write into tablet since it is a "
-        "smooth movement %lv in stage %Qlv",
-        Role_,
-        Stage_)
-        << TErrorAttribute("tablet_id", tabletId);
+    return false;
 }
 
 bool TSmoothMovementData::IsTabletStoresUpdateAllowed(bool isCommonFlush) const
@@ -848,6 +886,30 @@ bool TSmoothMovementData::ShouldForwardMutation() const
         }
     } else {
         return false;
+    }
+}
+
+bool TSmoothMovementData::IsInWaitingForLocksStage() const
+{
+    if (Role_ == ESmoothMovementRole::Source) {
+        switch (Stage_) {
+            case ESmoothMovementStage::WaitingForLocksBeforeActivation:
+            case ESmoothMovementStage::WaitingForLocksBeforeSwitch:
+                return true;
+
+            default:
+                return false;
+        }
+    } else {
+        return false;
+    }
+}
+
+void TSmoothMovementData::InitializeLockBarrierFuture()
+{
+    if (IsInWaitingForLocksStage()) {
+        LockBarrierPromise_ = NewPromise<void>();
+        LockBarrierFuture_ = LockBarrierPromise_.ToFuture().ToUncancelable();
     }
 }
 
@@ -1346,6 +1408,8 @@ void TTablet::Load(TLoadContext& context)
 
         if (SmoothMovementData_.GetRole() == ESmoothMovementRole::Target) {
             InitializeTargetServantActivationFuture();
+        } else {
+            SmoothMovementData_.InitializeLockBarrierFuture();
         }
     }
 }
@@ -2120,6 +2184,7 @@ void TTablet::StartEpoch(const ITabletSlotPtr& slot)
     TabletWriteManager_->StartEpoch();
 
     InitializeTargetServantActivationFuture();
+    SmoothMovementData().InitializeLockBarrierFuture();
 
     SmoothMovementData().SetLastStageChangeTime(TInstant::Now());
 }
@@ -2148,6 +2213,10 @@ void TTablet::StopEpoch()
     TabletWriteManager_->StopEpoch();
 
     if (auto& promise = SmoothMovementData_.TargetActivationPromise()) {
+        promise.TrySet(TError("Tablet epoch canceled"));
+    }
+
+    if (auto& promise = SmoothMovementData_.LockBarrierPromise()) {
         promise.TrySet(TError("Tablet epoch canceled"));
     }
 }
@@ -2618,6 +2687,50 @@ void TTablet::ValidateMountRevision(NHydra::TRevision mountRevision)
             mountRevision)
             << TErrorAttribute("tablet_id", Id_);
     }
+}
+
+TError TTablet::ValidateServantIsWritable(
+    const ICellDirectoryPtr& cellDirectory,
+    bool retryable)
+{
+    const auto& movementData = SmoothMovementData_;
+    if (movementData.IsWriteToTabletAllowed()) {
+        return {};
+    }
+
+    auto role = movementData.GetRole();
+    auto stage = movementData.GetStage();
+
+    auto error = TError(
+        NTabletClient::EErrorCode::ReadOnlySmoothMovementStage,
+        "Cannot write into tablet since it is a "
+        "smooth movement %lv in stage %Qlv",
+        role,
+        stage)
+        << TErrorAttribute("tablet_id", Id_);
+
+    bool retryInplace =
+        (role == ESmoothMovementRole::Source && stage == ESmoothMovementStage::WaitingForLocksBeforeActivation) ||
+        (role == ESmoothMovementRole::Target && stage == ESmoothMovementStage::ServantSwitchRequested);
+
+    if (retryInplace) {
+        error <<= TErrorAttribute("retry_inplace", retryInplace);
+        error <<= TErrorAttribute("retryable", retryable);
+    } else if (!retryable) {
+        error <<= TErrorAttribute("retryable", retryable);
+    }
+
+    if (role == ESmoothMovementRole::Source && !retryInplace) {
+        error <<= TErrorAttribute("redirection_hint", BuildRedirectionHint(
+            Logger,
+            cellDirectory,
+            MountRevision_,
+            movementData.GetSiblingMountRevision(),
+            movementData.GetSiblingCellId(),
+            LoggingTags_));
+    }
+
+    return error;
 }
 
 TRevision TTablet::GetActiveServantMountRevision() const
@@ -3752,6 +3865,55 @@ bool IsInFreezeWorkflow(ETabletState state)
     return
         state >= ETabletState::FreezeFirst &&
         state <= ETabletState::FreezeLast;
+}
+
+void WaitUntilServantIsWritable(
+    TTablet* tablet,
+    const NHiveClient::ICellDirectoryPtr& cellDirectory,
+    TDuration waitForLockBarrierTimeout)
+{
+    const auto& movementData = tablet->SmoothMovementData();
+    YT_VERIFY(!movementData.IsWriteToTabletAllowed());
+
+    // NB: Build the error with the redirection hint before waiting since
+    // the tablet may be destroyed in the meantime.
+    auto error = tablet->ValidateServantIsWritable(cellDirectory, /*retryable*/ true);
+    if (!tablet->SmoothMovementData().IsInWaitingForLocksStage()) {
+        THROW_ERROR(error);
+    }
+
+    auto loggingTags = tablet->GetLoggingTags();
+    auto stage = movementData.GetStage();
+    if (!movementData.LockBarrierFuture()) {
+        YT_LOG_ALERT("Lock barrier future is not initialized on source servant (%v, Stage: %v)",
+            loggingTags,
+            stage);
+        THROW_ERROR(error);
+    }
+
+    if (!movementData.LockBarrierFuture().IsSet()) {
+        YT_LOG_DEBUG("Started waiting for source servant lock barrier future (%v, Timeout: %v)",
+            loggingTags,
+            waitForLockBarrierTimeout);
+
+        // To prevent UAF since the tablet may be destroyed during the wait.
+        tablet = nullptr;
+
+        auto stageChangedError = WaitFor(movementData.LockBarrierFuture()
+            .WithTimeout(waitForLockBarrierTimeout));
+        if (stageChangedError.IsOK()) {
+            YT_LOG_DEBUG("Finished waiting for source servant lock barrier future (%v)",
+                loggingTags);
+            return;
+        }
+
+        YT_LOG_DEBUG(stageChangedError,
+            "Timed out while waiting for source servant lock barrier future (%v, Timeout: %v)",
+            loggingTags,
+            waitForLockBarrierTimeout);
+    }
+
+    THROW_ERROR(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

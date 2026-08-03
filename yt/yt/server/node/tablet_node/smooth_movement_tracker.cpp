@@ -787,6 +787,7 @@ private:
                 tablet->GetLoggingTags(),
                 newStage);
             Host_->AbortAllTransactions(tablet);
+            movementData.InitializeLockBarrierFuture();
         }
 
         auto validateNoUnfinishedTransactions = [&] {
@@ -922,6 +923,18 @@ private:
 
             default:
                 YT_ABORT();
+        }
+
+        if (expectedStage == ESmoothMovementStage::WaitingForLocksBeforeActivation ||
+            expectedStage == ESmoothMovementStage::WaitingForLocksBeforeSwitch)
+        {
+            if (auto& promise = movementData.LockBarrierPromise()) {
+                YT_LOG_DEBUG("Setting source servant lock barrier promise (%v, StageChange: %v -> %v)",
+                    tablet->GetLoggingTags(),
+                    expectedStage,
+                    newStage);
+                promise.TrySet();
+            }
         }
     }
 

@@ -550,6 +550,11 @@ class IntegrationTestCommandProvider(yt_smooth_movement_helper_base.CommandProvi
         "print_debug": "print_debug",
     }
 
+    _driverless_commands = {
+        "wait",
+        "print_debug"
+    }
+
     @classmethod
     def _make_command(cls, command_name):
         return lambda self, *args, **kwargs: globals()[command_name](*args, **kwargs)

@@ -183,6 +183,11 @@ const TReadOnlyEntityMap<TTablet>& TSimpleTabletManager::Tablets() const
     return TabletMap_;
 }
 
+NHiveClient::ICellDirectoryPtr TSimpleTabletManager::GetCellDirectory() const
+{
+    return nullptr;
+}
+
 ITransactionManagerPtr TSimpleTabletManager::GetTransactionManager() const
 {
     return TransactionManager_;

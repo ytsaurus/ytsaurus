@@ -125,6 +125,9 @@ void TTabletManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("extended_snapshot_eviction_timeout", &TThis::ExtendedSnapshotEvictionTimeout)
         .Default(TDuration::Minutes(3));
 
+    registrar.Parameter("wait_on_read_only_smooth_movement_stage_timeout", &TThis::WaitOnReadOnlySmoothMovementStageTimeout)
+        .Default(TDuration::MilliSeconds(500));
+
     registrar.Parameter("yield_before_building_lsm_actions", &TThis::YieldBeforeBuildingLsmActions)
         .Default(false);
 }

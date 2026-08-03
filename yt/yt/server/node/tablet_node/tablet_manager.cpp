@@ -687,6 +687,14 @@ public:
         return CellLifeStage_;
     }
 
+    NHiveClient::ICellDirectoryPtr GetCellDirectory() const final
+    {
+        return Bootstrap_
+            ->GetClient()
+            ->GetNativeConnection()
+            ->GetCellDirectory();
+    }
+
     ITransactionManagerPtr GetTransactionManager() const final
     {
         return Slot_->GetTransactionManager();
@@ -3749,7 +3757,8 @@ private:
         }
 
         if (tablet->IsActiveServant()) {
-            tablet->SmoothMovementData().ValidateWriteToTablet(tabletId);
+            tablet->ValidateServantIsWritable(GetCellDirectory())
+                .ThrowOnError();
         }
 
         chaosData->PreparedWritePulledRowsTransactionId.Store(transaction->GetId());
@@ -3949,7 +3958,8 @@ private:
         }
 
         if (tablet->IsActiveServant()) {
-            tablet->SmoothMovementData().ValidateWriteToTablet(tabletId);
+            tablet->ValidateServantIsWritable(GetCellDirectory())
+                .ThrowOnError();
         }
 
         chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(transaction->GetId());

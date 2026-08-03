@@ -357,7 +357,7 @@ struct TTabletSnapshot
     void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(NHydra::TRevision mountRevision);
     [[nodiscard]]
-    TError ValidateServantIsActive(const NHiveClient::ICellDirectoryPtr& cellDirectory);
+    TError ValidateServantIsActive(const NHiveClient::ICellDirectoryPtr& cellDirectory, bool waitForActivation = true);
     void MaybeReplyWithReshardRedirectionHint();
     void WaitOnLocks(TTimestamp timestamp) const;
 };
@@ -572,10 +572,15 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TPromise<void>, TargetActivationPromise);
 
+    DEFINE_BYREF_RW_PROPERTY(TPromise<void>, LockBarrierPromise);
+    DEFINE_BYREF_RW_PROPERTY(TFuture<void>, LockBarrierFuture);
+
 public:
-    void ValidateWriteToTablet(TTabletId tabletId) const;
+    bool IsWriteToTabletAllowed() const;
     bool IsTabletStoresUpdateAllowed(bool isCommonFlush) const;
     bool ShouldForwardMutation() const;
+    bool IsInWaitingForLocksStage() const;
+    void InitializeLockBarrierFuture();
 
     void Persist(const TPersistenceContext& context);
 
@@ -867,6 +872,10 @@ public:
     const TSortedDynamicRowKeyComparer& GetRowKeyComparer() const;
 
     void ValidateMountRevision(NHydra::TRevision mountRevision);
+    [[nodiscard]]
+    TError ValidateServantIsWritable(
+        const NHiveClient::ICellDirectoryPtr& cellDirectory,
+        bool retryable = false);
 
     NHydra::TRevision GetActiveServantMountRevision() const;
 
@@ -1099,6 +1108,12 @@ NConcurrency::IThroughputThrottlerPtr GetBlobMediumReadThrottler(
 
 bool IsInUnmountWorkflow(ETabletState state);
 bool IsInFreezeWorkflow(ETabletState state);
+
+//! Applies when the tablet is not writable due to an unsuitable smooth movement stage.
+void WaitUntilServantIsWritable(
+    TTablet* tablet,
+    const NHiveClient::ICellDirectoryPtr& cellDirectory,
+    TDuration waitForLockBarrierTimeout);
 
 ////////////////////////////////////////////////////////////////////////////////
 

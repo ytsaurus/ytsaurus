@@ -38,6 +38,7 @@ bool IsRetryableFirstBatchError(const TError& error)
     static const THashSet<TErrorCode> retryableCodes = {
         NTabletClient::EErrorCode::NoSuchTablet,
         NTabletClient::EErrorCode::TabletNotMounted,
+        NTabletClient::EErrorCode::TabletServantIsNotActive,
         NTabletClient::EErrorCode::TestingFailureBeforeWrite,
         NTabletClient::EErrorCode::ReadOnlySmoothMovementStage,
         NRpc::EErrorCode::NoSuchService,

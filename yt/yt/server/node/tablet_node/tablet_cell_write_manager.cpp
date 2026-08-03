@@ -133,13 +133,31 @@ public:
 
         tabletSnapshot->TabletRuntimeData->ModificationTime = NProfiling::GetInstant();
 
-        auto actualizeTablet = [&] {
-            tablet = Host_->GetTabletOrThrow(tabletSnapshot->TabletId);
+        auto actualizeTablet = [&] (bool retryable) {
+            if (tablet = Host_->FindTablet(tabletSnapshot->TabletId); !tablet) {
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::NoSuchTablet,
+                    "No such tablet %v",
+                    tabletSnapshot->TabletId)
+                    << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                    << TErrorAttribute("retryable", retryable);
+            }
+
             tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
             ValidateTabletMounted(tablet);
         };
 
-        actualizeTablet();
+        tabletSnapshot->ValidateServantIsActive(Host_->GetCellDirectory(), /*waitForActivation*/ false)
+            .ThrowOnError();
+        actualizeTablet(/*retryable*/ true);
+
+        if (!tablet->SmoothMovementData().IsWriteToTabletAllowed()) {
+            WaitUntilServantIsWritable(
+                tablet,
+                Host_->GetCellDirectory(),
+                Host_->GetDynamicConfig()->TabletManager->WaitOnReadOnlySmoothMovementStageTimeout);
+            actualizeTablet(/*retryable*/ true);
+        }
 
         if (atomicity == EAtomicity::Full) {
             const auto& lockManager = tablet->GetLockManager();
@@ -180,7 +198,7 @@ public:
             // NB: No yielding beyond this point.
             // May access tablet and transaction.
 
-            actualizeTablet();
+            actualizeTablet(/*retryable*/ false);
 
             ValidateTabletStoreLimit(tablet);
 
@@ -190,8 +208,10 @@ public:
             Host_->ValidateMemoryLimit(poolTag);
             ValidateWriteBarrier(replicatorWrite, tablet);
 
+            tablet->ValidateServantIsWritable(Host_->GetCellDirectory())
+                .ThrowOnError();
+
             auto tabletId = tablet->GetId();
-            tablet->SmoothMovementData().ValidateWriteToTablet(tabletId);
 
             TTransaction* transaction = nullptr;
             bool updateReplicationProgress = false;
