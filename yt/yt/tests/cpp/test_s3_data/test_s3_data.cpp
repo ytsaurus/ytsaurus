@@ -355,8 +355,7 @@ TEST_F(TS3DataTest, TestReplicationWriter)
         /*localHostName*/ "localhost");
 
 
-    WaitFor(
-    replicationWriter->Open()
+    WaitFor(replicationWriter->Open()
         .Apply(BIND([&] {
             EXPECT_TRUE(replicationWriter->WriteBlocks({}, {}, GeneratedBlocks_));
             return replicationWriter->GetReadyEvent();

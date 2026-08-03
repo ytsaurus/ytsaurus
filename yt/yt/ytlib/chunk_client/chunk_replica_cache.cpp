@@ -56,7 +56,7 @@ public:
         , SequoiaLocateCallsCounter_(profiler.Counter("/sequoia_locate_calls"))
         , SequoiaLocateChunksCounter_(profiler.Counter("/sequoia_locate_chunks"))
         , SequoiaLocateChunksFailedCounter_(profiler.Counter("/sequoia_locate_chunks_failed"))
-        , SequoiaLocateChunksSuccessfullCounter_(profiler.Counter("/sequoia_locate_chunks_successfull"))
+        , SequoiaLocateChunksSuccessfulCounter_(profiler.Counter("/sequoia_locate_chunks_successful"))
         , SequoiaLocateChunksMissingCounter_(profiler.Counter("/sequoia_locate_chunks_missing"))
         , ExpiredChunksCounter_(profiler.Counter("/expired_chunks"))
         , MasterErrorDiscardsCounter_(profiler.Counter("/master_error_discards"))
@@ -504,7 +504,7 @@ private:
     const TCounter SequoiaLocateCallsCounter_;
     const TCounter SequoiaLocateChunksCounter_;
     const TCounter SequoiaLocateChunksFailedCounter_;
-    const TCounter SequoiaLocateChunksSuccessfullCounter_;
+    const TCounter SequoiaLocateChunksSuccessfulCounter_;
     const TCounter SequoiaLocateChunksMissingCounter_;
     const TCounter ExpiredChunksCounter_;
     const TCounter MasterErrorDiscardsCounter_;
@@ -682,7 +682,7 @@ private:
         if (!resultsOrError.IsOK()) {
             YT_LOG_WARNING(resultsOrError, "Error locating chunks in Sequoia");
 
-            SequoiaLocateChunksFailedCounter_.Increment();
+            SequoiaLocateChunksFailedCounter_.Increment(std::ssize(chunkIds));
 
             OnLocateChunksFailed(chunkIds, promises, resultsOrError);
             return;
@@ -709,7 +709,7 @@ private:
                 continue;
             }
 
-            SequoiaLocateChunksSuccessfullCounter_.Increment();
+            SequoiaLocateChunksSuccessfulCounter_.Increment();
             promise.TrySet(std::move(*optionalResult));
         }
     }
@@ -911,7 +911,7 @@ private:
                     continue;
                 }
 
-                SequoiaLocateChunksSuccessfullCounter_.Increment();
+                SequoiaLocateChunksSuccessfulCounter_.Increment();
                 chunkIdToReplicasInfo.emplace(chunkId, std::move(*optionalResult));
             }
 
@@ -937,7 +937,7 @@ private:
                 }
             }
         } else {
-            SequoiaLocateChunksFailedCounter_.Increment();
+            SequoiaLocateChunksFailedCounter_.Increment(std::ssize(chunkIds));
             YT_LOG_WARNING(resultsOrError, "Error refreshing chunks in Sequoia");
         }
 
