@@ -131,7 +131,7 @@ public:
         alertManager->RegisterAlertSource(BIND_NO_PROPAGATE(&TMulticellManager::GetAlerts, MakeWeak(this)));
     }
 
-        IYPathServicePtr GetOrchidService() override
+    IYPathServicePtr GetOrchidService() override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
