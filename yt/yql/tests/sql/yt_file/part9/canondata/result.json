@@ -1632,6 +1632,42 @@
             "uri": "https://{canondata_backend}/1814674/85af0989586d34ed1c22bc37389939e01e032b6c/resource.tar.gz#test.test_optimizers-keep_sort_with_renames--Results_/results.txt"
         }
     ],
+    "test.test[optimizers-keepworld_compact_window--Debug]": [
+        {
+            "checksum": "dab68aee028deed66cebc361174f83c2",
+            "size": 2298,
+            "uri": "https://{canondata_backend}/1775319/19570ac392a3f89a1c36daa90c4648dfc8322cc7/resource.tar.gz#test.test_optimizers-keepworld_compact_window--Debug_/opt.yql"
+        }
+    ],
+    "test.test[optimizers-keepworld_compact_window--Plan]": [
+        {
+            "checksum": "edeb123ecda3b73c72b991b8ec96fdec",
+            "size": 7097,
+            "uri": "https://{canondata_backend}/1775319/19570ac392a3f89a1c36daa90c4648dfc8322cc7/resource.tar.gz#test.test_optimizers-keepworld_compact_window--Plan_/plan.txt"
+        }
+    ],
+    "test.test[optimizers-keepworld_compact_window--Results]": [
+        {
+            "checksum": "d41d8cd98f00b204e9800998ecf8427e",
+            "size": 0,
+            "uri": "https://{canondata_backend}/1775319/19570ac392a3f89a1c36daa90c4648dfc8322cc7/resource.tar.gz#test.test_optimizers-keepworld_compact_window--Results_/Output1.txt"
+        },
+        {
+            "checksum": "124d0b919e067812eb300f63a1245559",
+            "size": 806,
+            "uri": "https://{canondata_backend}/1775319/19570ac392a3f89a1c36daa90c4648dfc8322cc7/resource.tar.gz#test.test_optimizers-keepworld_compact_window--Results_/Output1.yqlrun.txt.attr"
+        },
+        {
+            "checksum": "d41d8cd98f00b204e9800998ecf8427e",
+            "size": 0,
+            "uri": "https://{canondata_backend}/1775319/19570ac392a3f89a1c36daa90c4648dfc8322cc7/resource.tar.gz#test.test_optimizers-keepworld_compact_window--Results_/Output2.txt"
+        },
+        {
+            "checksum": "a71fbd90c3528e356c0e49b1681c6840",
+            "size": 725,
+            "uri": "https://{canondata_backend}/1775319/19570ac392a3f89a1c36daa90c4648dfc8322cc7/resource.tar.gz#test.test_optimizers-keepworld_compact_window--Results_/Output2.yqlrun.txt.attr"
+        }
+    ],
     "test.test[optimizers-length_over_merge--Debug]": [
         {
             "checksum": "f10c6591ab912eef4f200e7cd67f9dd5",
