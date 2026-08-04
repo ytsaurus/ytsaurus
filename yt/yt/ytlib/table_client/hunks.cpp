@@ -1718,7 +1718,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
             }
 
 
-            auto result = MakeSharedRange(values, values, std::move(response.Fragments));
+            auto result = MakeSharedRange(values, values, std::move(response.Fragments), std::move(response.MemoryGuard));
 
             if (!compressedValues.empty()) {
                 // NB: We have to make an owning holder of the values here

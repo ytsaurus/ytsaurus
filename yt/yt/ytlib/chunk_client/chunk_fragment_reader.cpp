@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "chunk_reader_host.h"
+
 #include "chunk_reader_options.h"
 #include "config.h"
 #include "data_node_service_proxy.h"
@@ -32,6 +33,7 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/adaptive_hedging_manager.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -1772,6 +1774,13 @@ private:
                     subresponse,
                     fragments);
 
+                if (!State_->Response.MemoryGuard) {
+                    State_->Response.MemoryGuard = TMemoryUsageTrackerGuard::Build(Options_.MemoryUsageTracker);
+                }
+
+                auto newFragmentSize = GetByteSize(fragments);
+                State_->Response.MemoryGuard.IncreaseSize(newFragmentSize);
+
                 if (controller.IsDone()) {
                     if (--PendingChunkCount_ == 0) {
                         OnCompleted();
@@ -1915,15 +1924,20 @@ private:
         Promise_.TrySet(std::move(error) << std::move(Errors_));
     }
 
-    void OnSuccess()
+    void OnSuccess(i64 totalReadFragmentSize)
     {
+        if (State_->Response.MemoryGuard) {
+            // Discount fragments that are not featured in the final result, like the erasure repair ones.
+            State_->Response.MemoryGuard.SetSize(totalReadFragmentSize);
+        }
+
         Promise_.TrySet(std::move(State_->Response));
     }
 
     void Preprocess()
     {
         if (State_->Requests.empty()) {
-            OnSuccess();
+            OnSuccess(/*totalReadFragmentSize*/ 0);
             return;
         }
 
@@ -2062,9 +2076,11 @@ private:
         int totalFragmentCount = std::ssize(State_->Requests);
 
         int totalReadFragmentCount = 0;
+        i64 totalReadFragmentSize = 0;
         for (const auto& fragment : State_->Response.Fragments) {
             if (fragment) {
                 ++totalReadFragmentCount;
+                totalReadFragmentSize += std::ssize(fragment);
             }
         }
 
@@ -2075,7 +2091,7 @@ private:
         State_->ReadFragmentCount = totalReadFragmentCount;
 
         if (State_->ReadFragmentCount == totalFragmentCount) {
-            OnSuccess();
+            OnSuccess(totalReadFragmentSize);
             return;
         }
 
