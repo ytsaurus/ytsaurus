@@ -11,6 +11,7 @@
 #include <contrib/ydb/library/actors/core/actorsystem.h>
 #include <contrib/ydb/library/actors/core/hfunc.h>
 
+#include <library/cpp/yt/string/guid.h>
 #include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/svnversion/svnversion.h>
 
@@ -83,6 +84,9 @@ private:
     void OnCreateLockNode(TEvCreateNodeResponse::TPtr& ev, const TActorContext& ctx) {
         auto result = std::get<0>(*ev->Get());
         if (result.IsOK()) {
+            YQL_CLOG(TRACE, ProviderDq) << "Created lock node"
+                << " path=" << Prefix << "/" << LockName << ".lock"
+                << " node_id=" << ToString(result.ValueOrThrow());
             NYT::NApi::TLockNodeOptions options;
             options.Waitable = false;
             auto* actorSystem = ctx.ActorSystem();
@@ -103,6 +107,7 @@ private:
     void OnNodeLocked(TEvSetNodeResponse::TPtr& ev, const TActorContext& ctx) {
         auto result = std::get<0>(*ev->Get());
         if (result.IsOK()) {
+            YQL_CLOG(DEBUG, ProviderDq) << "Exclusive lock acquired for " << LockName;
             GetOrCreateEpoch();
         } else {
             Finish(result, ctx);
@@ -204,8 +209,10 @@ private:
 
     void SendBecomeLeader() {
         auto txnId = ToString(Transaction->GetId());
-        YQL_CLOG(DEBUG, ProviderDq) << "SendBecomeLeader: epoch=" << Epoch << " txn=" << txnId
-                                   << " lock=" << LockName;
+        YQL_CLOG(DEBUG, ProviderDq) << "Lock: become leader"
+            << " lock=" << LockName
+            << " epoch=" << Epoch
+            << " tx=" << txnId;
         auto attributes = NYT::NYson::TYsonString(NYT::NodeToYsonString(Attributes));
         Send(ParentId, new TEvBecomeLeader(Epoch, txnId, attributes.ToString()));
     }
@@ -214,7 +221,15 @@ private:
         Y_UNUSED(ctx);
         auto result = std::get<0>(*ev->Get());
         if (result.IsOK()) {
+            YQL_CLOG(DEBUG, ProviderDq) << "Lock: become follower"
+                << " lock=" << LockName
+                << " leader_info=" << result.ValueOrThrow().ToString();
             Send(ParentId, new TEvBecomeFollower(result.ValueOrThrow().ToString()));
+        } else {
+            YQL_CLOG(WARN, ProviderDq) << "Lock: failed to read leader info"
+                << " lock=" << LockName
+                << " path=" << Prefix << "/" << LockName
+                << " error=" << ToString(result);
         }
         Send(SelfId(), new TEvents::TEvPoison());
     }
@@ -232,8 +247,14 @@ private:
                 actorSystem->Send(selfId, new TEvents::TEvPoison());
             }));
         } else {
-            if (!result.FindMatching(NYT::NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
-                YQL_CLOG(WARN, ProviderDq) << ToString(result);
+            if (result.FindMatching(NYT::NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
+                YQL_CLOG(INFO, ProviderDq) << "lock conflict, will follow leader"
+                    << " lock=" << LockName
+                    << " error=" << ToString(result);
+            } else {
+                YQL_CLOG(WARN, ProviderDq) << "lock request failed"
+                    << " lock=" << LockName
+                    << " error=" << ToString(result);
             }
             ReadInfoNode();
         }
@@ -241,11 +262,14 @@ private:
 
     void Finish(const TActorContext& ctx) {
         Y_UNUSED(ctx);
-        YQL_CLOG(WARN, ProviderDq) << CurrentExceptionMessage();
+        YQL_CLOG(WARN, ProviderDq) << "Lock request exception"
+            << " lock=" << LockName
+            << " error=" << CurrentExceptionMessage();
         ReadInfoNode();
     }
 
     void CreateLockNode(const TActorContext& ctx) {
+        YQL_CLOG(TRACE, ProviderDq) << "Lock: creating lock node path=" << LockNodePath;
         try {
             auto* actorSystem = ctx.ActorSystem();
             auto selfId = SelfId();
@@ -298,7 +322,13 @@ public:
         , Attributes(NYT::NodeFromYsonString(lockAttributes))
         , Temporary(temporary)
         , Revision(GetProgramCommitId())
-    { }
+    {
+        YQL_CLOG(DEBUG, ProviderDq) << "YT lock actor started"
+            << " lock=" << lockName
+            << " prefix=" << prefix
+            << " yt_wrapper=" << ytWrapper
+            << " temporary=" << temporary;
+    }
 
 private:
     STRICT_STFUNC(Handler, {
@@ -339,8 +369,12 @@ private:
 
         IEventBase* event = nullptr;
         if (!FollowingMode) {
+            YQL_CLOG(DEBUG, ProviderDq) << "TryLock: creating prefix=" << Prefix
+                << " lock=" << LockName << " YtWrapper=" << YtWrapper;
             event = new TEvCreateNode(Prefix, NYT::NObjectClient::EObjectType::MapNode, options);
         } else {
+            YQL_CLOG(DEBUG, ProviderDq) << "TryLock: following, reading lock info prefix=" << Prefix
+                << " lock=" << LockName << " YtWrapper=" << YtWrapper << " info node path " << InfoNodePath;
             event = new TEvGetNode(InfoNodePath, NYT::NApi::TGetNodeOptions());
         }
 
@@ -371,8 +405,15 @@ private:
         Y_UNUSED(ctx);
         auto result = std::get<0>(*ev->Get());
         if (result.IsOK()) {
+            YQL_CLOG(INFO, ProviderDq) << "Lock: prefix ready, starting transaction"
+                << " lock=" << LockName
+                << " prefix=" << Prefix;
             Send(YtWrapper, GetStartTransactionCommand());
         } else {
+            YQL_CLOG(WARN, ProviderDq) << "Lock: ensure-prefix failed"
+                << " lock=" << LockName
+                << " prefix=" << Prefix
+                << " error=" << ToString(result);
             TryLock();
         }
     }
@@ -382,6 +423,9 @@ private:
         auto result = std::get<0>(*ev->Get());
 
         if (result.IsOK()) {
+            YQL_CLOG(INFO, ProviderDq) << "Lock: transaction started"
+                << " lock=" << LockName
+                << " tx=" << ToString(result.Value()->GetId());
             Send(LockRequestActorId, new TEvents::TEvPoison());
             auto requestActor = new TLockRequest(
                 result.Value(),
@@ -395,7 +439,9 @@ private:
 
             LockRequestActorId = ctx.Register(requestActor);
         } else {
-            YQL_CLOG(WARN, ProviderDq) << "OnStartTransactionResponse " << ToString(result);
+            YQL_CLOG(WARN, ProviderDq) << "Lock: start transaction failed"
+                << " lock=" << LockName
+                << " error=" << ToString(result);
 
             TryLock();
         }
@@ -408,7 +454,6 @@ private:
 
     void OnTick(const TActorContext& ctx) {
         Y_UNUSED(ctx);
-
         TryLock();
     }
 
