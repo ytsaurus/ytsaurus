@@ -17,7 +17,7 @@ struct THorizontalSchemalessBlockWriterTag { };
 const i64 THorizontalBlockWriter::MinReserveSize = 64_KB + 1;
 const i64 THorizontalBlockWriter::MaxReserveSize = 2_MB;
 
-THorizontalBlockWriter::THorizontalBlockWriter(TTableSchemaPtr schema, IMemoryUsageTrackerPtr memoryUsageTracker, i64 reserveSize)
+THorizontalBlockWriter::THorizontalBlockWriter(const TTableSchemaPtr& schema, IMemoryUsageTrackerPtr memoryUsageTracker, i64 reserveSize)
     : ReserveSize_(std::min(
         std::max(MinReserveSize, reserveSize),
         MaxReserveSize))
@@ -70,20 +70,15 @@ TBlock THorizontalBlockWriter::FlushBlock()
 {
     YT_VERIFY(!Closed_);
 
-    TDataBlockMeta meta;
-    meta.set_row_count(RowCount_);
-    meta.set_uncompressed_size(GetBlockSize());
+    TBlock block;
 
-    std::vector<TSharedRef> blockParts;
-    auto offsets = Offsets_.Finish();
-    blockParts.insert(blockParts.end(), offsets.begin(), offsets.end());
+    block.Meta.set_row_count(RowCount_);
+    block.Meta.set_uncompressed_size(GetBlockSize());
+
+    block.Data = Offsets_.Finish();
 
     auto data = Data_.Finish();
-    blockParts.insert(blockParts.end(), data.begin(), data.end());
-
-    TBlock block;
-    block.Data.swap(blockParts);
-    block.Meta.Swap(&meta);
+    block.Data.insert(block.Data.end(), std::make_move_iterator(data.begin()), std::make_move_iterator(data.end()));
 
     Closed_ = true;
 
