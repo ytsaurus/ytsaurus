@@ -1256,7 +1256,8 @@ yt.get_attribute("//sys/groups/testers", "members")
 **Shuffle.** Для перемешивания строк таблицы в случайном порядке существует функция [shuffle_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.shuffle_table).
 Функция запускает операцию `map_reduce`, сортирующую таблицу по добавленной колонке со случайным числом.
 
-## Python-объекты в качестве операций { #python_operations }
+
+## Типизированные операции { #python_operations }
 
 ### Общая информация { #python_operations_intro }
 
@@ -1274,7 +1275,8 @@ yt.get_attribute("//sys/groups/testers", "members")
 - [{#T}](../../../api/python/examples.md#prepare_operation);
 - [{#T}](../../../api/python/examples.md#grep).
 
-### Подготовка операции из джоба { #prepare_operation }
+
+### Описание типа данных { #prepare_operation }
 
 Для указания входных и выходных типов строк в классе джоба можно использовать тайп хинты (смотрите примеры в туториале: [раз](../../../api/python/examples.md#simple_map), [два](../../../api/python/examples.md#multiple_input_reduce), [три](../../../api/python/examples.md#multiple_input_multiple_output_reduce) и [четыре](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams)), либо переопределить метод [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Указание типов производится через методы объекта `preparer` типа [`OperationPreparer`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer). Полезные методы:
    1. [`inputs`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparer.inputs): позволяет указать для нескольких входных таблиц тип входной строки (обязан быть классом с декоратором [`@yt.wrapper.yt_dataclass`](#dataclass)), список имён колонок, которые нужны джобу, а также переименования колонок.
@@ -1286,6 +1288,10 @@ yt.get_attribute("//sys/groups/testers", "members")
 смотрите примеры в туториале: [раз](../../../api/python/examples.md#prepare_operation) и [два](../../../api/python/examples.md#grep).
 
 Если запускается MapReduce с несколькими промежуточными потоками, то требуется также переопределить метод [.get_intermediate_stream_count(self)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.get_intermediate_stream_count), вернув из него количество промежуточных потоков. Смотрите [пример](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams).
+
+
+## Работа с операциями { #python_operations_misc }
+
 
 ### Декораторы { #python_decorators }
 
@@ -1301,73 +1307,57 @@ yt.get_attribute("//sys/groups/testers", "members")
 
 Примеры можно найти в [туториале](../../../api/python/examples.md#job_decorators).
 
-### Pickling функции и окружения { #pickling }
 
-#### Запуск Python-нагрузок в open-source окружении { #python_open_source_environment }
+### tmpfs в джобах { #tmpfs_in_jobs }
 
-В open-source инсталляциях {{product-name}}, если вы хотите гарантировать, что ваша локальная Python-операция и локальное окружение будут корректно запиклены и успешно запустятся на кластере, локальное окружение и удалённое окружение джоба должны быть максимально похожи.
+Поддержка tmpfs в джобах состоит из двух частей:
 
-Для Python-операций мы настоятельно рекомендуем следующую конфигурацию:
+1. Для python-операций tmpfs включен по умолчанию, он заказывается в специальную директорию tmpfs и туда происходит распаковка архива модулей. Дополнительная память под tmpfs прибавляется к лимиту, который указал пользователь. Поведение регулируется опциями `pickling/enable_tmpfs_archive` и `pickling/add_tmpfs_archive_size_to_memory_limit`.
+2. Имеется возможность автоматически заказать tmpfs на все файлы джоба, опция называется `mount_sandbox_in_tmpfs/enable` и по умолчанию выключена. Её включение приводит к тому, что в ваших операциях в спеке будет указано `tmpfs_path="."`, а также `tmpfs_size`, равный суммарному размеру файлов. Также tmpfs_size будет добавлен к `memory_limit`. Обратите внимание, что если вы используете табличные файлы – у системы нет возможности узнать их размер на диске после форматирования, поэтому размер необходимо указать в атрибутах пути с помощью атрибута `disk_size`. Также есть возможность заказать дополнительное место в tmpfs, если ваш джоб порождает в процессе работы какие-то файлики, для этого можно указать нужное количество байт через опцию `mount_sandbox_in_tmpfs/additional_tmpfs_size`.
 
-1. Всегда задавайте Docker-образ для пользовательского джоба.
-2. Всегда включайте `ignore_system_modules` в конфиге Python wrapper:
 
-```python
-yt.config["pickling"]["ignore_system_modules"] = True
-```
+### Статистики в джобах { #python_jobs_statistics }
 
-Опция `ignore_system_modules` запрещает wrapper-у упаковывать Python-модули, которые считаются системными на клиентской машине. В open-source окружениях зависимость от системных модулей хоста часто приводит к трудно диагностируемым расхождениям между локальной машиной и окружением джоба.
+В процессе работы джоба пользователь может экспортировать свои собственные статистики (например, подсчитывать время работы отдельных стадий внутри джоба). В библиотеке доступны следующие функции:
+
+- [write_statistics](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.user_statistics.write_statistics) — записывает словарь с собранной статистикой в нужный файловый дескриптор. Функция обязательно должна вызываться только из джоба.
+
+Также у класса `Operation` есть метод [get_job_statistics](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.Operation.get_job_statistics) для быстрого доступа к статистике операции.
 
 Пример:
 
 ```python
-spec_builder = yt.spec_builders.MapSpecBuilder() \
-    .begin_mapper() \
-        .command(MyMapper()) \
-        .docker_image("docker.io/library/python:3.11") \
-    .end_mapper() \
-    .input_table_paths(["//tmp/in"]) \
-    .output_table_paths(["//tmp/out"])
+class WriteStatistics(yt.wrapper.TypedJob):
+    def __call__(self, row: Row) -> Row:
+        yt.write_statistics({"row_count": 1})
+        yield row
 
-yt.config["pickling"]["ignore_system_modules"] = True
+yt.write_table_structured(table, [Row(x=1)])
+op = yt.run_map(WriteStatistics(), table, table, sync=False)
+op.wait()
+print(op.get_job_statistics()["custom"])
+## Output: {"row_count": {"$": {"completed": {"map": {"count": 1, "max": 1, "sum": 1, "min": 1}}}}}
+```
+
+### Porto-слои { #porto_layers }
+
+При запуске операции можно указать, какой [образ ФС](../../../user-guide/data-processing/layers/layer-paths.md) необходимо подготовить перед запуском джобов.
+Есть некоторый набор [готовых слоёв](../../../user-guide/data-processing/layers/layer-paths.md#gotovye-sloi-v-kiparise), которые находятся по пути `//porto_layers`.
+
+Указать путь до нужного слоя можно через параметр `layer_paths` в спеке джоба, например, так:
+```python
+spec_builder = ReduceSpecBuilder() \
+    .begin_reducer() \
+        .command(reducer) \
+        .layer_paths(["//porto_layers/ubuntu-precise-base.tar.xz"]) \
+    .end_reducer() \
+    ...
 yt.run_operation(spec_builder)
 ```
 
-Версия Python в Docker-образе и локальная версия Python должны совпадать. Это особенно важно для сериализованного Python-кода, импортируемых модулей и нативных расширений.
 
-Также строго рекомендуется использовать одинаковое окружение операционной системы локально и в Docker-образе. Например, если Docker-образ построен на Ubuntu 24.04, то и локально рекомендуется использовать Ubuntu 24.04. При другом локальном окружении всё ещё может работать, но вероятность проблем с упаковкой зависимостей или исполнением становится выше.
+### Настройка сбора зависимостей (pickling) { #pickling }
 
-#### Запуск локального скрипта внутри Docker с помощью `respawn_in_docker` { #respawn_in_docker }
-
-Wrapper предоставляет декоратор `respawn_in_docker`, который перезапускает локальный entry script внутри Docker-контейнера до отправки операции.
-
-```python
-import yt.wrapper as yt
-
-@yt.respawn_in_docker("docker.io/library/python:3.11")
-def main():
-    yt.config["pickling"]["ignore_system_modules"] = True
-    yt.run_map(MyMapper(), "//tmp/in", "//tmp/out")
-
-if __name__ == "__main__":
-    main()
-```
-
-Этот подход помогает устранить расхождения между локальным окружением запуска и удалённым окружением джоба, потому что:
-
-1. Скрипт повторно запускается внутри указанного Docker-образа.
-2. Wrapper-операции автоматически наследуют тот же образ через `YT_BASE_LAYER`.
-3. В контейнер монтируются директория скрипта, текущая рабочая директория, домашняя директория и пути к Python-библиотекам.
-
-У этого подхода есть важные ограничения:
-
-1. На локальной машине должен быть доступен Docker.
-2. По умолчанию в контейнер пробрасываются только переменные окружения с префиксом `YT_`. Если скрипт зависит от других переменных окружения, передавайте их явно через аргумент `env`.
-3. В образе должен быть совместимый интерпретатор Python. По умолчанию `respawn_in_docker` запускает внутри контейнера `python3`, но это можно переопределить через аргумент `python`.
-4. Локальные пути, которые монтируются в контейнер, должны быть доступны Docker.
-5. Декоратор выравнивает локальное стартовое окружение с образом джоба, но не устраняет все возможные host-specific различия.
-
-Используйте `respawn_in_docker`, когда вам нужна максимальная гарантия, что скрипт, отправляющий операцию, запускается в том же Docker-окружении, что и сами джобы. Это предпочтительный подход, когда Docker доступен локально.
 
 #### Общее устройство { #pickling_description }
 
@@ -1469,51 +1459,83 @@ if __name__ == "__main__":
 
 {% endcut %}
 
-### Porto-слои { #porto_layers }
 
-При запуске операции можно указать, какой [образ ФС](../../../user-guide/data-processing/layers/layer-paths.md) необходимо подготовить перед запуском джобов.
-Есть некоторый набор [готовых слоёв](../../../user-guide/data-processing/layers/layer-paths.md#gotovye-sloi-v-kiparise), которые находятся по пути `//porto_layers`.
 
-Указать путь до нужного слоя можно через параметр `layer_paths` в спеке джоба, например, так:
+## Запуск операций в разных окружениях { #python_operations_environments }
+
+
+### Запуск локального скрипта внутри Docker с помощью `yt devtools` { #python_open_source_environment_docker }
+
+{% include [Запускаем операции с помощью Docker](userdoc_run_operations.md) %}
+
+
+### Использование Python в open-source окружении { #python_open_source_environment }
+
+В open-source инсталляциях {{product-name}}, если вы хотите гарантировать, что ваша локальная Python-операция и локальное окружение будут корректно запиклены и успешно запустятся на кластере, локальное окружение и удалённое окружение джоба должны быть максимально похожи.
+
+Для Python-операций мы настоятельно рекомендуем следующую конфигурацию:
+
+1. Всегда задавайте Docker-образ для пользовательского джоба.
+2. Всегда включайте `ignore_system_modules` в конфиге Python wrapper:
+
 ```python
-spec_builder = ReduceSpecBuilder() \
-    .begin_reducer() \
-        .command(reducer) \
-        .layer_paths(["//porto_layers/ubuntu-precise-base.tar.xz"]) \
-    .end_reducer() \
-    ...
-yt.run_operation(spec_builder)
+yt.config["pickling"]["ignore_system_modules"] = True
 ```
 
-### tmpfs в джобах { #tmpfs_in_jobs }
-
-Поддержка tmpfs в джобах состоит из двух частей:
-
-1. Для python-операций tmpfs включен по умолчанию, он заказывается в специальную директорию tmpfs и туда происходит распаковка архива модулей. Дополнительная память под tmpfs прибавляется к лимиту, который указал пользователь. Поведение регулируется опциями `pickling/enable_tmpfs_archive` и `pickling/add_tmpfs_archive_size_to_memory_limit`.
-2. Имеется возможность автоматически заказать tmpfs на все файлы джоба, опция называется `mount_sandbox_in_tmpfs/enable` и по умолчанию выключена. Её включение приводит к тому, что в ваших операциях в спеке будет указано `tmpfs_path="."`, а также `tmpfs_size`, равный суммарному размеру файлов. Также tmpfs_size будет добавлен к `memory_limit`. Обратите внимание, что если вы используете табличные файлы – у системы нет возможности узнать их размер на диске после форматирования, поэтому размер необходимо указать в атрибутах пути с помощью атрибута `disk_size`. Также есть возможность заказать дополнительное место в tmpfs, если ваш джоб порождает в процессе работы какие-то файлики, для этого можно указать нужное количество байт через опцию `mount_sandbox_in_tmpfs/additional_tmpfs_size`.
-
-### Статистики в джобах { #python_jobs_statistics }
-
-В процессе работы джоба пользователь может экспортировать свои собственные статистики (например, подсчитывать время работы отдельных стадий внутри джоба). В библиотеке доступны следующие функции:
-
-- [write_statistics](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.user_statistics.write_statistics) — записывает словарь с собранной статистикой в нужный файловый дескриптор. Функция обязательно должна вызываться только из джоба.
-
-Также у класса `Operation` есть метод [get_job_statistics](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.Operation.get_job_statistics) для быстрого доступа к статистике операции.
+Опция `ignore_system_modules` запрещает wrapper-у упаковывать Python-модули, которые считаются системными на клиентской машине. В open-source окружениях зависимость от системных модулей хоста часто приводит к трудно диагностируемым расхождениям между локальной машиной и окружением джоба.
 
 Пример:
 
 ```python
-class WriteStatistics(yt.wrapper.TypedJob):
-    def __call__(self, row: Row) -> Row:
-        yt.write_statistics({"row_count": 1})
-        yield row
+spec_builder = yt.spec_builders.MapSpecBuilder() \
+    .begin_mapper() \
+        .command(MyMapper()) \
+        .docker_image("docker.io/library/python:3.11") \
+    .end_mapper() \
+    .input_table_paths(["//tmp/in"]) \
+    .output_table_paths(["//tmp/out"])
 
-yt.write_table_structured(table, [Row(x=1)])
-op = yt.run_map(WriteStatistics(), table, table, sync=False)
-op.wait()
-print(op.get_job_statistics()["custom"])
-## Output: {"row_count": {"$": {"completed": {"map": {"count": 1, "max": 1, "sum": 1, "min": 1}}}}}
+yt.config["pickling"]["ignore_system_modules"] = True
+yt.run_operation(spec_builder)
 ```
+
+Версия Python в Docker-образе и локальная версия Python должны совпадать. Это особенно важно для сериализованного Python-кода, импортируемых модулей и нативных расширений.
+
+Также строго рекомендуется использовать одинаковое окружение операционной системы локально и в Docker-образе. Например, если Docker-образ построен на Ubuntu 24.04, то и локально рекомендуется использовать Ubuntu 24.04. При другом локальном окружении всё ещё может работать, но вероятность проблем с упаковкой зависимостей или исполнением становится выше.
+
+
+### Запуск локального скрипта внутри Docker с помощью `respawn_in_docker` { #respawn_in_docker }
+
+Wrapper предоставляет декоратор `respawn_in_docker`, который перезапускает локальный entry script внутри Docker-контейнера до отправки операции.
+
+```python
+import yt.wrapper as yt
+
+@yt.respawn_in_docker("docker.io/library/python:3.11")
+def main():
+    yt.config["pickling"]["ignore_system_modules"] = True
+    yt.run_map(MyMapper(), "//tmp/in", "//tmp/out")
+
+if __name__ == "__main__":
+    main()
+```
+
+Этот подход помогает устранить расхождения между локальным окружением запуска и удалённым окружением джоба, потому что:
+
+1. Скрипт повторно запускается внутри указанного Docker-образа.
+2. Wrapper-операции автоматически наследуют тот же образ через `YT_BASE_LAYER`.
+3. В контейнер монтируются директория скрипта, текущая рабочая директория, домашняя директория и пути к Python-библиотекам.
+
+У этого подхода есть важные ограничения:
+
+1. На локальной машине должен быть доступен Docker.
+2. По умолчанию в контейнер пробрасываются только переменные окружения с префиксом `YT_`. Если скрипт зависит от других переменных окружения, передавайте их явно через аргумент `env`.
+3. В образе должен быть совместимый интерпретатор Python. По умолчанию `respawn_in_docker` запускает внутри контейнера `python3`, но это можно переопределить через аргумент `python`.
+4. Локальные пути, которые монтируются в контейнер, должны быть доступны Docker.
+5. Декоратор выравнивает локальное стартовое окружение с образом джоба, но не устраняет все возможные host-specific различия.
+
+Используйте `respawn_in_docker`, когда вам нужна максимальная гарантия, что скрипт, отправляющий операцию, запускается в том же Docker-окружении, что и сами джобы. Это предпочтительный подход, когда Docker доступен локально.
+
 
 
 ## Нетипизированные Python-операции { #python_operations_untyped }
