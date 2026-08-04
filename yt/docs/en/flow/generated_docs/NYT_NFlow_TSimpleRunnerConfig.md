@@ -25,7 +25,7 @@ Logging settings. ||
  ||
 || `cluster_url` | **Type**: `std::string`
 **Required parameter**
-Name of the cluster where the pipeline is located. ||
+Name of the cluster where the pipeline is located. The tail after the last `/` is treated as a proxy role and takes precedence over `proxy_role` &mdash; e.g. `hahn/flow` means cluster `hahn` with role `flow`. ||
 || `proxy_role` | **Type**: `std::optional<std::string>`
 **Required parameter**
 The [proxy role](../../user-guide/proxy/about#rpc_proxy) to use for performing operations on the pipeline. ||
@@ -80,6 +80,11 @@ If set and `enable=%true`, the runner starts a vanilla operation on {{product-na
 || `protobuf_interop` | **Type**: `NYT::TIntrusivePtr<`[NYT::NYson::TProtobufInteropConfig](./all_yson_structs#NYT_NYson_TProtobufInteropConfig)`>`
 **Default value**: `{}`
  ||
+|| `clients_cache` | **Type**: `NYT::TIntrusivePtr<`[NYT::NClient::NCache::TClientsCacheConfig](./all_yson_structs#NYT_NClient_NCache_TClientsCacheConfig)`>`
+**Default value**: `{}`
+Connection settings of the YT clients cache the runner uses to talk to the pipeline cluster. They do not extend to the vanilla launcher, which builds its own clients. ||
+|| `clients_cache_factory` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::INode>`
+Parameters of the root YT clients cache factory installed via `SetRootClientsCacheFactory()`. Their schema is defined by the factory itself; the built-in factory ignores this block. ||
 |#
 
 

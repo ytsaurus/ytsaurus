@@ -242,15 +242,38 @@ void RunPipeline(
     bool enablePipelineCreation,
     bool enablePipelineStopOrPause)
 {
+    auto connection = NApi::NRpcProxy::CreateConnection(
+        NApi::NRpcProxy::TConnectionConfig::CreateFromClusterUrl(clusterUrl, proxyRole));
+    auto client = connection->CreateClient(NApi::GetClientOptionsFromEnvStatic());
+
+    RunPipeline(
+        std::move(client),
+        root,
+        spec,
+        dynamicSpec,
+        setFlowCoreTarget,
+        graceful,
+        waitTimeout,
+        enablePipelineCreation,
+        enablePipelineStopOrPause);
+}
+
+void RunPipeline(
+    NApi::IClientPtr client,
+    const TYPath& root,
+    const TPipelineSpecPtr& spec,
+    const TDynamicPipelineSpecPtr& dynamicSpec,
+    bool setFlowCoreTarget,
+    std::optional<bool> graceful,
+    TDuration waitTimeout,
+    bool enablePipelineCreation,
+    bool enablePipelineStopOrPause)
+{
     if (!graceful) {
         graceful = IsGracefulUpdateFromEnv();
     }
     ValidatePipelineSpec(spec);
     ValidateDynamicPipelineSpec(dynamicSpec);
-
-    auto connection = NApi::NRpcProxy::CreateConnection(
-        NApi::NRpcProxy::TConnectionConfig::CreateFromClusterUrl(clusterUrl, proxyRole));
-    auto client = connection->CreateClient(NApi::GetClientOptionsFromEnvStatic());
 
     TLogReader controllerLogReader(client, NYPath::YPathJoin(root, ControllerLogsTableName));
 
@@ -411,12 +434,21 @@ void WaitPipeline(
     auto pipelinePath = TRichYPath(root);
     pipelinePath.SetCluster(clusterUrl);
 
-    YT_TLOG_INFO("Wait for pipeline to complete")
-        .With("Pipeline", pipelinePath);
-
     auto connection = NApi::NRpcProxy::CreateConnection(
         NApi::NRpcProxy::TConnectionConfig::CreateFromClusterUrl(clusterUrl, proxyRole));
     auto client = connection->CreateClient(NApi::GetClientOptionsFromEnvStatic());
+
+    WaitPipeline(std::move(client), pipelinePath);
+}
+
+void WaitPipeline(
+    NApi::IClientPtr client,
+    const TRichYPath& pipelinePath)
+{
+    const auto& root = pipelinePath.GetPath();
+
+    YT_TLOG_INFO("Wait for pipeline to complete")
+        .With("Pipeline", pipelinePath);
 
     TLogReader controllerLogReader(client, NYPath::YPathJoin(root, ControllerLogsTableName));
 

@@ -12,6 +12,7 @@ SRCS(
     node.cpp
     node_info.cpp
     queue_log_writer.cpp
+    root_clients_cache.cpp
     simple_runner_program.cpp
     vanilla_launcher.cpp
 )

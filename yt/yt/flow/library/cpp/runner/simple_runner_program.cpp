@@ -3,12 +3,15 @@
 #include "debug_build_warning.h"
 #include "init.h"
 #include "public.h"
+#include "root_clients_cache.h"
 
 #include <yt/yt/flow/library/cpp/common/internal_urls.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/yson_message.h>
 #include <yt/yt/flow/library/cpp/pipeline_helpers/pipeline.h>
+
+#include <yt/yt/client/api/options.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/net/address.h>
@@ -60,6 +63,10 @@ void TSimpleRunnerConfig::Register(TRegistrar registrar)
     registrar.Parameter("cluster_url", &TThis::ClusterUrl);
     registrar.Parameter("proxy_role", &TThis::ProxyRole);
     registrar.Parameter("path", &TThis::Path);
+    registrar.Parameter("clients_cache", &TThis::ClientsCache)
+        .DefaultNew();
+    registrar.Parameter("clients_cache_factory", &TThis::ClientsCacheFactory)
+        .Default();
     registrar.Parameter("spec", &TThis::Spec);
     registrar.Parameter("dynamic_spec", &TThis::DynamicSpec)
         .DefaultNew();
@@ -144,9 +151,10 @@ void TSimpleRunnerProgram::DoRun()
         return;
     }
 
+    NYPath::TRichYPath pipelinePath(config->Path);
+    pipelinePath.SetCluster(config->ClusterUrl);
+
     if (config->Vanilla && config->Vanilla->Enable) {
-        NYPath::TRichYPath pipelinePath(config->Path);
-        pipelinePath.SetCluster(config->ClusterUrl);
         LaunchInVanillaJob(pipelinePath, config->ProxyRole, config->Vanilla);
     }
 
@@ -163,9 +171,20 @@ void TSimpleRunnerProgram::DoRun()
         setFlowCoreTarget = false;
     }
 
+    auto clientsCache = CreateRootClientsCache({
+        .PipelinePath = pipelinePath,
+        .ClientsCacheConfig = config->ClientsCache,
+        .ProxyRole = config->ProxyRole,
+        .ClientOptions = NApi::GetClientOptionsFromEnvStatic(),
+        .Parameters = config->ClientsCacheFactory,
+    });
+    auto client = clientsCache->GetClient(config->ClusterUrl);
+    THROW_ERROR_EXCEPTION_UNLESS(client,
+        "Root clients cache returned no client for cluster %Qv",
+        config->ClusterUrl);
+
     RunPipeline(
-        config->ClusterUrl,
-        config->ProxyRole,
+        client,
         config->Path,
         config->Spec,
         config->DynamicSpec,
@@ -174,7 +193,7 @@ void TSimpleRunnerProgram::DoRun()
     PrintPipelineUiUrl(config->ClusterUrl, config->Path);
 
     if (FromString<bool>(GetEnv("YT_FLOW_WAIT", "1"))) {
-        WaitPipeline(config->ClusterUrl, config->ProxyRole, config->Path);
+        WaitPipeline(client, pipelinePath);
     }
 }
 

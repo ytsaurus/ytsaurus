@@ -31,9 +31,6 @@
 Рабочая папка пайплайна на кластере `cluster_url`. ||
 || `proxy_role` | **Тип**: `std::optional<std::string>`
 Роль `rpc proxy`. ||
-|| `clients_cache` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NClient::NCache::TClientsCacheConfig](./all_yson_structs#NYT_NClient_NCache_TClientsCacheConfig)`>`
-**Значение по умолчанию**: `{}`
- ||
 || `rpc_port` | **Тип**: `int`
 **Значение по умолчанию**: `0`
 Основной порт для общения воркеров и контроллеров, может быть отдельным у каждого инстанса. ||
@@ -114,6 +111,11 @@ API для получения метрик. ||
 || `protobuf_interop` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NYson::TProtobufInteropConfig](./all_yson_structs#NYT_NYson_TProtobufInteropConfig)`>`
 **Значение по умолчанию**: `{}`
  ||
+|| `clients_cache` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NClient::NCache::TClientsCacheConfig](./all_yson_structs#NYT_NClient_NCache_TClientsCacheConfig)`>`
+**Значение по умолчанию**: `{}`
+Настройки соединений кэша YT-клиентов ноды. Через него ходят коннектор пайплайна, writer логов в очередь и всё, что берёт клиента из `TComputationContext::ClientsCache` &mdash; компьютейшены, коннекторы и менеджеры состояния. Аутентификатор пайплайна создаёт своего клиента отдельно и этими настройками не управляется. ||
+|| `clients_cache_factory` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::INode>`
+Параметры фабрики корневого кэша YT-клиентов, установленной через `SetRootClientsCacheFactory()`. Схему параметров задаёт сама фабрика; встроенная фабрика этот блок игнорирует. ||
 || `enable_phdr_cache` | **Тип**: `bool`
 **Значение по умолчанию**: `true`
  ||

@@ -8,6 +8,9 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || `fair_share_pool` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Default value**: `3Gi`
 Pool size for distribution using the FairShare algorithm based on utilization. ||
+|| `worker_group_fair_share_pool_overrides` | **Type**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, `[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
+**Default value**: `{}`
+ ||
 || `job_guarantee` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Default value**: `5Mi`
 Minimum buffer size for a single job. ||
