@@ -14,6 +14,7 @@ PEERDIR(
     contrib/ydb/public/sdk/cpp/src/client/impl/session
     contrib/ydb/public/sdk/cpp/src/client/impl/observability
     contrib/ydb/public/sdk/cpp/src/client/proto
+    contrib/ydb/public/sdk/cpp/src/client/types
 )
 
 END()
