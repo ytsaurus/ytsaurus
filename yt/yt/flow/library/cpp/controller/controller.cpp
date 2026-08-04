@@ -228,6 +228,16 @@ public:
             PartitionMemoryUsageAvgGauge_.Update(metrics->Avg->MemoryUsageCurrent);
         }
 
+        void ResetPerformanceMetrics()
+        {
+            CpuUsageTotalGauge_.Update(0);
+            MemoryUsageTotalGauge_.Update(0);
+            PartitionCpuUsageMaxGauge_.Update(0);
+            PartitionMemoryUsageMaxGauge_.Update(0);
+            PartitionCpuUsageAvgGauge_.Update(0);
+            PartitionMemoryUsageAvgGauge_.Update(0);
+        }
+
         void Apply(
             const TAggregatedNodeInputMetricsPtr& inputMetrics,
             const THashMap<TStreamId, TAggregatedStreamTraverseData>& aggregatedStreamTraverseDatas,
@@ -271,6 +281,11 @@ public:
                 streamMetrics.EventWatermarkMinMaxDifference.Update(streamTraverseDataMetrics->EventWatermarkMinMaxDifference);
             }
             DropMissingKeys(StreamMetrics_, streamIds);
+        }
+
+        void ResetInputMetrics()
+        {
+            StreamMetrics_.clear();
         }
 
     private:
@@ -631,13 +646,17 @@ public:
             DropMissingKeys(StreamMetrics_, THashSet<TStreamId>(streamIds.begin(), streamIds.end()));
         }
 
-        auto performanceMetrics = AggregatePerformanceMetrics(flowView);
-        auto inputMetrics = AggregateInputMetricsByComputation(flowView);
-        auto streamTraverseDatas = AggregateStreamTraverseData(flowView);
+        const auto minJobStatusUpdateTime = TInstant::Now() -
+            executionSpec->DynamicPipelineSpec->GetValue()->JobManager->LostJobTimeout;
+        auto performanceMetrics = AggregatePerformanceMetrics(flowView, minJobStatusUpdateTime);
+        auto inputMetrics = AggregateInputMetricsByComputation(flowView, minJobStatusUpdateTime);
+        auto streamTraverseDatas = AggregateStreamTraverseData(flowView, minJobStatusUpdateTime);
         for (const auto& [computationId, node] : traverseData->Computations) {
             auto& metrics = ComputationMetrics_.try_emplace(computationId, Profiler_, computationId).first->second;
             if (auto* computationPerformanceMetrics = performanceMetrics.FindPtr(computationId)) {
                 metrics.Apply(*computationPerformanceMetrics);
+            } else {
+                metrics.ResetPerformanceMetrics();
             }
             if (auto* computationInputMetrics = inputMetrics.FindPtr(computationId)) {
                 metrics.Apply(
@@ -645,6 +664,8 @@ public:
                     streamTraverseDatas[computationId],
                     flowView->EphemeralState->StreamTraverseDataMetrics[computationId],
                     GetOrCrash(pipelineSpec->Computations, computationId));
+            } else {
+                metrics.ResetInputMetrics();
             }
         }
         DropMissingKeys(ComputationMetrics_, traverseData->Computations);
@@ -1045,21 +1066,19 @@ private:
         }
     }
 
-    static THashMap<TComputationId, TAggregatedNodePerformanceMetricsPtr> AggregatePerformanceMetrics(const TFlowViewPtr& flowView)
+    static THashMap<TComputationId, TAggregatedNodePerformanceMetricsPtr> AggregatePerformanceMetrics(
+        const TFlowViewPtr& flowView,
+        TInstant minJobStatusUpdateTime)
     {
         const auto& flowLayout = flowView->State->ExecutionSpec->Layout;
         THashMap<TComputationId, std::vector<TNodePerformanceMetricsPtr>> groupedMetrics;
         for (const auto& [partitionId, partition] : flowLayout->Partitions) {
             if (partition->State == EPartitionState::Executing || partition->State == EPartitionState::Completing || partition->State == EPartitionState::Interrupting) {
-                auto statusIt = flowView->Feedback->PartitionJobStatuses.find(partitionId);
-                if (statusIt == flowView->Feedback->PartitionJobStatuses.end()) {
+                const auto& status = flowView->Feedback->GetFreshCurrentJobStatus(partitionId, minJobStatusUpdateTime);
+                if (!status || !status->PerformanceMetrics) {
                     continue;
                 }
-                const auto& status = statusIt->second;
-                if (!status->CurrentJobStatus) {
-                    continue;
-                }
-                groupedMetrics[partition->ComputationId].push_back(status->CurrentJobStatus->PerformanceMetrics);
+                groupedMetrics[partition->ComputationId].push_back(status->PerformanceMetrics);
             }
         }
         THashMap<TComputationId, TAggregatedNodePerformanceMetricsPtr> result;
@@ -1069,17 +1088,15 @@ private:
         return result;
     }
 
-    static THashMap<TComputationId, THashMap<TStreamId, TAggregatedStreamTraverseData>> AggregateStreamTraverseData(const TFlowViewPtr& flowView)
+    static THashMap<TComputationId, THashMap<TStreamId, TAggregatedStreamTraverseData>> AggregateStreamTraverseData(
+        const TFlowViewPtr& flowView,
+        TInstant minJobStatusUpdateTime)
     {
         const auto& flowLayout = flowView->State->ExecutionSpec->Layout;
         THashMap<TComputationId, THashMap<TStreamId, std::vector<TStreamTraverseDataPtr>>> groupedMetrics;
         for (const auto& [partitionId, partition] : flowLayout->Partitions) {
             if (partition->State == EPartitionState::Executing || partition->State == EPartitionState::Completing || partition->State == EPartitionState::Interrupting) {
-                auto statusIt = flowView->Feedback->PartitionJobStatuses.find(partitionId);
-                if (statusIt == flowView->Feedback->PartitionJobStatuses.end()) {
-                    continue;
-                }
-                const auto& status = statusIt->second->CurrentJobStatus;
+                const auto& status = flowView->Feedback->GetFreshCurrentJobStatus(partitionId, minJobStatusUpdateTime);
                 if (!status || !status->FromPartitionTraverseData || !status->FromPartitionTraverseData->Node) {
                     continue;
                 }

@@ -398,21 +398,19 @@ TAggregatedNodeInputMetricsPtr AggregateNodeInputMetrics(const std::vector<TNode
     return result;
 }
 
-THashMap<TComputationId, TAggregatedNodeInputMetricsPtr> AggregateInputMetricsByComputation(const TFlowViewPtr& flowView)
+THashMap<TComputationId, TAggregatedNodeInputMetricsPtr> AggregateInputMetricsByComputation(
+    const TFlowViewPtr& flowView,
+    TInstant minJobStatusUpdateTime)
 {
     const auto& flowLayout = flowView->State->ExecutionSpec->Layout;
     THashMap<TComputationId, std::vector<TNodeInputMetricsPtr>> groupedMetrics;
     for (const auto& [partitionId, partition] : flowLayout->Partitions) {
         if (partition->State == EPartitionState::Executing || partition->State == EPartitionState::Completing || partition->State == EPartitionState::Interrupting) {
-            auto statusIt = flowView->Feedback->PartitionJobStatuses.find(partitionId);
-            if (statusIt == flowView->Feedback->PartitionJobStatuses.end()) {
+            const auto& status = flowView->Feedback->GetFreshCurrentJobStatus(partitionId, minJobStatusUpdateTime);
+            if (!status || !status->InputMetrics) {
                 continue;
             }
-            const auto& status = statusIt->second;
-            if (!status->CurrentJobStatus) {
-                continue;
-            }
-            groupedMetrics[partition->ComputationId].push_back(status->CurrentJobStatus->InputMetrics);
+            groupedMetrics[partition->ComputationId].push_back(status->InputMetrics);
         }
     }
     THashMap<TComputationId, TAggregatedNodeInputMetricsPtr> result;
@@ -1217,6 +1215,20 @@ const TJobStatusPtr& TFlowFeedback::GetCurrentJobStatus(const TPartitionId& part
 {
     auto it = PartitionJobStatuses.find(partitionId);
     if (it == PartitionJobStatuses.end()) {
+        static TJobStatusPtr nothing;
+        return nothing;
+    }
+    return it->second->CurrentJobStatus;
+}
+
+const TJobStatusPtr& TFlowFeedback::GetFreshCurrentJobStatus(
+    const TPartitionId& partitionId,
+    TInstant minUpdateTime) const
+{
+    auto it = PartitionJobStatuses.find(partitionId);
+    if (it == PartitionJobStatuses.end() ||
+        it->second->CurrentJobStatusUpdateTime < minUpdateTime)
+    {
         static TJobStatusPtr nothing;
         return nothing;
     }

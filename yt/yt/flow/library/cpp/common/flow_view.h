@@ -235,7 +235,9 @@ struct TAggregatedNodeInputMetrics
 DEFINE_REFCOUNTED_TYPE(TAggregatedNodeInputMetrics);
 
 TAggregatedNodeInputMetricsPtr AggregateNodeInputMetrics(const std::vector<TNodeInputMetricsPtr>& metrics);
-THashMap<TComputationId, TAggregatedNodeInputMetricsPtr> AggregateInputMetricsByComputation(const TFlowViewPtr& flowView);
+THashMap<TComputationId, TAggregatedNodeInputMetricsPtr> AggregateInputMetricsByComputation(
+    const TFlowViewPtr& flowView,
+    TInstant minJobStatusUpdateTime);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -647,6 +649,11 @@ struct TFlowFeedback
     //! Returns the current job status for the given partition, or nullptr if the
     //! partition has no status snapshot or its CurrentJobStatus is not set.
     const TJobStatusPtr& GetCurrentJobStatus(const TPartitionId& partitionId) const;
+
+    //! Returns the current job status only if its snapshot is fresh enough.
+    const TJobStatusPtr& GetFreshCurrentJobStatus(
+        const TPartitionId& partitionId,
+        TInstant minUpdateTime) const;
 
     REGISTER_YSON_STRUCT(TFlowFeedback);
 
