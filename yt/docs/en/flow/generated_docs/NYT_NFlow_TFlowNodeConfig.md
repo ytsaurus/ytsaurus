@@ -31,9 +31,6 @@ Logging settings. ||
 Working directory of the pipeline on the `cluster_url` cluster. ||
 || `proxy_role` | **Type**: `std::optional<std::string>`
 `rpc proxy` role. ||
-|| `clients_cache` | **Type**: `NYT::TIntrusivePtr<`[NYT::NClient::NCache::TClientsCacheConfig](./all_yson_structs#NYT_NClient_NCache_TClientsCacheConfig)`>`
-**Default value**: `{}`
- ||
 || `rpc_port` | **Type**: `int`
 **Default value**: `0`
 Main port for communication between workers and controllers, can be different for each instance. ||
@@ -114,6 +111,11 @@ When set to true, Flow Node will not start if there are unknown options in the c
 || `protobuf_interop` | **Type**: `NYT::TIntrusivePtr<`[NYT::NYson::TProtobufInteropConfig](./all_yson_structs#NYT_NYson_TProtobufInteropConfig)`>`
 **Default value**: `{}`
  ||
+|| `clients_cache` | **Type**: `NYT::TIntrusivePtr<`[NYT::NClient::NCache::TClientsCacheConfig](./all_yson_structs#NYT_NClient_NCache_TClientsCacheConfig)`>`
+**Default value**: `{}`
+Connection settings of the node's YT clients cache. It backs the pipeline connector, the queue log writer and everything that takes a client from `TComputationContext::ClientsCache` &mdash; computations, connectors and state managers. The pipeline authenticator builds its own client and is not governed by these settings. ||
+|| `clients_cache_factory` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::INode>`
+Parameters of the root YT clients cache factory installed via `SetRootClientsCacheFactory()`. Their schema is defined by the factory itself; the built-in factory ignores this block. ||
 || `enable_phdr_cache` | **Type**: `bool`
 **Default value**: `true`
  ||

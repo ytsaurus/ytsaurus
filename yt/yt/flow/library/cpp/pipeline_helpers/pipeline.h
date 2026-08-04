@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/client/ypath/rich.h>
+
 #include <util/datetime/base.h>
 #include <util/generic/string.h>
 
@@ -47,10 +49,25 @@ void RunPipeline(
     bool enablePipelineCreation = true,
     bool enablePipelineStopOrPause = true);
 
+void RunPipeline(
+    NApi::IClientPtr client,
+    const NYPath::TYPath& root,
+    const TPipelineSpecPtr& spec,
+    const TDynamicPipelineSpecPtr& dynamicSpec,
+    bool setFlowCoreTarget = true,
+    std::optional<bool> graceful = {},
+    TDuration waitTimeout = DefaultWaitPipelineTimeout,
+    bool enablePipelineCreation = true,
+    bool enablePipelineStopOrPause = true);
+
 void WaitPipeline(
     const std::string& clusterUrl,
     const std::optional<std::string>& proxyRole,
     const NYPath::TYPath& root);
+
+void WaitPipeline(
+    NApi::IClientPtr client,
+    const NYPath::TRichYPath& pipelinePath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

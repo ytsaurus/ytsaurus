@@ -8,6 +8,7 @@
 #include "node_info.h"
 #include "private.h"
 #include "queue_log_writer.h"
+#include "root_clients_cache.h"
 
 #include <yt/yt/flow/library/cpp/companion/companion_proxy.h>
 #include <yt/yt/flow/library/cpp/companion/companion_singleton_state.h>
@@ -53,7 +54,6 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/options.h>
 #include <yt/yt/client/api/rpc_proxy/config.h>
-#include <yt/yt/client/cache/cache.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -430,7 +430,13 @@ private:
             ControlQueue_->GetInvoker(NController::EControlQueue::Default),
             PipelineAuthenticator_->CreateSelfRpcAuthenticator()));
 
-        auto clientsCache = NClient::NCache::CreateClientsCache(clientsCacheConfig, PipelineAuthenticator_->GetClientOptions());
+        auto clientsCache = CreateRootClientsCache({
+            .PipelinePath = PipelinePath_,
+            .ClientsCacheConfig = clientsCacheConfig,
+            .ProxyRole = Config_->ProxyRole,
+            .ClientOptions = PipelineAuthenticator_->GetClientOptions(),
+            .Parameters = Config_->ClientsCacheFactory,
+        });
         CommonYTConnector_ = CreateCommonYTConnector(clientsCache, PipelinePath_);
         SetQueueLogWriterClient(CommonYTConnector_->GetClient());
 

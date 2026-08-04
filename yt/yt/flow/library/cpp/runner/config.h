@@ -30,6 +30,9 @@ struct TFlowNodeConfig
     std::optional<std::string> ProxyRole;
 
     NClient::NCache::TClientsCacheConfigPtr ClientsCache;
+    //! Parameters of the root clients cache factory installed by #SetRootClientsCacheFactory();
+    //! ignored by the built-in one.
+    NYTree::INodePtr ClientsCacheFactory;
 
     int RpcPort{};
     int MonitoringPort{};

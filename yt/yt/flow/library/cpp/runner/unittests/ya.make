@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 SRCS(
     endpoint_provider_ut.cpp
     node_info_ut.cpp
+    root_clients_cache_ut.cpp
 )
 
 PEERDIR(

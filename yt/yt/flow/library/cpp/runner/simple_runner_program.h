@@ -6,6 +6,8 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/yson_message.h>
 
+#include <yt/yt/client/cache/config.h>
+
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/helpers.h>
 #include <yt/yt/library/program/program.h>
@@ -21,6 +23,11 @@ struct TSimpleRunnerConfig
     std::string ClusterUrl;
     std::optional<std::string> ProxyRole;
     NYPath::TYPath Path;
+
+    NClient::NCache::TClientsCacheConfigPtr ClientsCache;
+    //! Parameters of the root clients cache factory installed by #SetRootClientsCacheFactory();
+    //! ignored by the built-in one.
+    NYTree::INodePtr ClientsCacheFactory;
 
     TPipelineSpecPtr Spec;
     TDynamicPipelineSpecPtr DynamicSpec;

@@ -25,7 +25,7 @@
  ||
 || `cluster_url` | **Тип**: `std::string`
 **Обязательный параметр**
-Имя кластера, на котором находится пайплайн. ||
+Имя кластера, на котором находится пайплайн. Хвост после последнего `/` трактуется как прокси-роль и имеет приоритет над `proxy_role` &mdash; например, `hahn/flow` означает кластер `hahn` и роль `flow`. ||
 || `proxy_role` | **Тип**: `std::optional<std::string>`
 **Обязательный параметр**
 [Прокси-роль](../../user-guide/proxy/about#rpc_proxy), которую нужно использовать для выполнения операций над пайплайном. ||
@@ -80,6 +80,11 @@
 || `protobuf_interop` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NYson::TProtobufInteropConfig](./all_yson_structs#NYT_NYson_TProtobufInteropConfig)`>`
 **Значение по умолчанию**: `{}`
  ||
+|| `clients_cache` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NClient::NCache::TClientsCacheConfig](./all_yson_structs#NYT_NClient_NCache_TClientsCacheConfig)`>`
+**Значение по умолчанию**: `{}`
+Настройки соединений кэша YT-клиентов, через который раннер общается с кластером пайплайна. На vanilla launcher не распространяются: он создаёт своих клиентов отдельно. ||
+|| `clients_cache_factory` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::INode>`
+Параметры фабрики корневого кэша YT-клиентов, установленной через `SetRootClientsCacheFactory()`. Схему параметров задаёт сама фабрика; встроенная фабрика этот блок игнорирует. ||
 |#
 
 
