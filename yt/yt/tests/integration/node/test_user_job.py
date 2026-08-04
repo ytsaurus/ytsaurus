@@ -1349,7 +1349,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
         create("file", "//tmp/file")
         write_file("//tmp/file", b"A" * 10 ** 7)
 
-        with raises_yt_error(code=yt_error_codes.TmpfsOverflow):
+        with raises_yt_error(code=yt_error_codes.VolumeSizeLimitExceeded):
             map(
                 command="cat table",
                 in_="//tmp/t_input",
@@ -1367,14 +1367,16 @@ class TestArtifactCacheBypass(YTEnvSetup):
         # In tests we crash if slot location is disabled.
         # Thus, if this test passed successfully, location was not disabled.
 
-    @authors("yuryalekseev")
-    def test_insufficient_tmpfs_for_files(self):
+    @authors("yuryalekseev", "krasovav")
+    @pytest.mark.parametrize("volume_type", ["tmpfs", "local_disk"])
+    @pytest.mark.parametrize("has_root_volume", [True, False])
+    def test_insufficient_non_root_volume_for_files(self, has_root_volume, volume_type):
         """
-        Test that map operation fails when tmpfs size is insufficient
+        Test that map operation fails when non-root volume size is insufficient
         for copying files from file_paths with copy_files=true.
 
         This test verifies the fix for the issue where files were copied
-        to tmpfs without checking if there's enough space, potentially
+        to a non-root volume without checking if there's enough space, potentially
         causing slot location to be disabled.
         """
         # Create input and output tables
@@ -1382,17 +1384,39 @@ class TestArtifactCacheBypass(YTEnvSetup):
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        # Create a file that's larger than the tmpfs we'll allocate.
+        # Create a file that's larger than the non-root volume we'll allocate.
         # File size: 20 MB
         file_size = 20 * 1024 * 1024
         create("file", "//tmp/large_file")
         write_file("//tmp/large_file", b"A" * file_size)
 
-        # Try to run map operation with tmpfs size smaller than the file size.
-        # The operation should fail with TmpfsOverflow error.
-        tmpfs_size = file_size // 2
+        # Try to run map operation with non-root volume size smaller than the file size.
+        # The operation should fail with VolumeSizeLimitExceeded error.
+        non_root_volume_size = file_size // 2
 
-        with raises_yt_error(code=yt_error_codes.TmpfsOverflow):
+        non_root_path = "/slot/sandbox" if has_root_volume else "/sandbox"
+
+        volumes = {
+            "non-root": {
+                "disk_request": {
+                    "type": volume_type,
+                    "disk_space": non_root_volume_size,
+                },
+            },
+        }
+
+        job_volume_mounts = [{"volume_id": "non-root", "mount_path": non_root_path}]
+
+        if has_root_volume:
+            create("file", "//tmp/exec.tar.gz")
+            write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+            create("file", "//tmp/rootfs.tar.gz")
+            write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+            volumes["root"] = {"layers": [{"path": "//tmp/rootfs.tar.gz"}, {"path": "//tmp/exec.tar.gz"}]}
+            job_volume_mounts.append({"volume_id": "root", "mount_path": "/"})
+
+        with raises_yt_error(code=yt_error_codes.VolumeSizeLimitExceeded):
             map(
                 command="cat",
                 in_="//tmp/t_input",
@@ -1400,9 +1424,9 @@ class TestArtifactCacheBypass(YTEnvSetup):
                 spec={
                     "mapper": {
                         "copy_files": True,
+                        "volumes": volumes,
+                        "job_volume_mounts": job_volume_mounts,
                         "file_paths": ["//tmp/large_file"],
-                        "tmpfs_path": ".",
-                        "tmpfs_size": tmpfs_size,
                     },
                     "max_failed_job_count": 1,
                 }

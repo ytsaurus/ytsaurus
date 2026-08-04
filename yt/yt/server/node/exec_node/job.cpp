@@ -3988,7 +3988,7 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NExecNode::EErrorCode::SetupCommandFailed) ||
         error.FindMatching(NExecNode::EErrorCode::GpuJobWithoutLayers) ||
         error.FindMatching(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed) ||
-        error.FindMatching(NExecNode::EErrorCode::TmpfsOverflow) ||
+        error.FindMatching(NExecNode::EErrorCode::VolumeSizeLimitExceeded) ||
         error.FindMatching(NExecNode::EErrorCode::FatalJobPreparationTimeout) ||
         error.FindMatching(NFormats::EErrorCode::InvalidFormat);
 }
