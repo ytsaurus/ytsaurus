@@ -4854,39 +4854,35 @@ private:
     {
         if (tablet->GetState() == ETabletState::Unmounted) {
             if (!tablet->GetWasForcefullyUnmounted()) {
-                YT_LOG_ALERT("%v notification received by an unmounted tablet, ignored "
-                    "(TabletId: %v, SenderId: %v)",
-                    changeType,
+                // NB: This may happen if the tablet was unmounted while the smooth movement auxiliary
+                // servant was mounting. Although auxiliary servant is forcefully unmounted, its
+                // "mounted" notification may still arrive after the tablet has been completely
+                // unmounted.
+                YT_LOG_WARNING("Unexpected notification received by an unmounted tablet, ignored "
+                    "(TabletId: %v, SenderId: %v, NotificationType: %v, MountRevision: %x)",
                     tablet->GetId(),
-                    senderId);
+                    senderId,
+                    changeType,
+                    mountRevision);
             }
             return nullptr;
         }
 
         TTabletServant* servant = nullptr;
 
-        // COMPAT(ifsmirnov): remove when 24.1 is deployed.
-        // This should not happen unless masters are updated before nodes.
-        if (!mountRevision) {
-            servant = &tablet->Servant();
-            YT_LOG_ALERT("%v notification received without mount revision "
-                "(TabletId: %v, SenderId: %v)",
-                changeType,
-                tablet->GetId(),
-                senderId);
+        YT_VERIFY(mountRevision);
 
-        } else {
-            servant = tablet->FindServant(mountRevision);
-            if (!servant) {
-                YT_LOG_WARNING("%v notification received by a tablet with wrong mount revision, ignored "
-                    "(TabletId: %v, MainServantMountRevision: %v, RequestMountRevision: %v, SenderId: %v)",
-                    changeType,
-                    tablet->GetId(),
-                    tablet->Servant().GetMountRevision(),
-                    mountRevision,
-                    senderId);
-                return nullptr;
-            }
+        servant = tablet->FindServant(mountRevision);
+        if (!servant) {
+            YT_LOG_WARNING("Notification received by a tablet with wrong mount revision, ignored "
+                "(TabletId: %v, MainServantMountRevision: %x, RequestMountRevision: %x, SenderId: %v, "
+                "NotificationType: %v)",
+                tablet->GetId(),
+                tablet->Servant().GetMountRevision(),
+                mountRevision,
+                senderId,
+                changeType);
+            return nullptr;
         }
 
         auto expectedSenderId = senderIsCell
@@ -4896,14 +4892,15 @@ private:
         // This condition should never be violated given that mount revision check passed.
         if (senderId != expectedSenderId) {
             YT_LOG_ALERT(
-                "%v notification received from unexpected sender, ignored "
-                "(TabletId: %v, State: %v, SenderId: %v, TabletCellId: %v, MountRevision: %v)",
-                changeType,
+                "Notification received from unexpected sender, ignored "
+                "(TabletId: %v, State: %v, SenderId: %v, TabletCellId: %v, MountRevision: %x, "
+                "NotificationType: %v)",
                 tablet->GetId(),
                 tablet->GetState(),
                 senderId,
                 GetObjectId(tablet->Servant().GetCell()),
-                servant->GetMountRevision());
+                servant->GetMountRevision(),
+                changeType);
             return nullptr;
         }
 
@@ -5258,8 +5255,8 @@ private:
             auxiliaryServant.GetMountRevision() != targetMountRevision)
         {
             YT_LOG_DEBUG("Mount revision mismatch, will not switch servants "
-                "(TabletId: %v, ExpectedSourceMountRevision: %v, ExpectedTargetMountRevision: %v, "
-                "ActualSourceMountRevision: %v, ActualTargetMountRevision: %v)",
+                "(TabletId: %v, ExpectedSourceMountRevision: %x, ExpectedTargetMountRevision: %x, "
+                "ActualSourceMountRevision: %x, ActualTargetMountRevision: %x)",
                 tablet->GetId(),
                 sourceMountRevision,
                 targetMountRevision,
@@ -5327,8 +5324,8 @@ private:
 
         if (auxiliaryServant.GetMountRevision() != auxiliaryMountRevision) {
             YT_LOG_DEBUG("Mount revision mismatch, will not deallocate servant "
-                "(TabletId: %v, ExpectedAuxiliaryMountRevision: %v, "
-                "ActualSourceMountRevision: %v, ActualTargetMountRevision: %v)",
+                "(TabletId: %v, ExpectedAuxiliaryMountRevision: %x, "
+                "ActualSourceMountRevision: %x, ActualTargetMountRevision: %x)",
                 tablet->GetId(),
                 auxiliaryMountRevision,
                 mainServant.GetMountRevision(),
