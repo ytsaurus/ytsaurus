@@ -12,6 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+get_built_tool_path(
+  TOOL_enum_parser_bin
+  TOOL_enum_parser_dependency
+  tools/enum_parser/enum_parser
+  enum_parser
+)
+
 add_subdirectory(flags)
 
 add_library(essentials-sql-settings)
@@ -30,6 +37,7 @@ target_link_libraries(essentials-sql-settings PUBLIC
   public-issue-protos
   sql-settings-flags
   yql-essentials-utils
+  tools-enum_parser-enum_serialization_runtime
 )
 
 target_sources(essentials-sql-settings PRIVATE
@@ -41,3 +49,9 @@ target_sources(essentials-sql-settings PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/sql/settings/translator.h
 )
 
+
+generate_enum_serilization(essentials-sql-settings
+  ${PROJECT_SOURCE_DIR}/yql/essentials/sql/settings/translation_settings.h
+  INCLUDE_HEADERS
+  yql/essentials/sql/settings/translation_settings.h
+)
