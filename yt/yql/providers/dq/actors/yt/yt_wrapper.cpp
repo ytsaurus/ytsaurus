@@ -19,8 +19,11 @@
 #include <yt/yt/client/api/rpc_proxy/config.h>
 #include <yt/yt/client/api/rpc_proxy/connection.h>
 #include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/file_writer.h>
 #include <yt/yt/client/api/file_reader.h>
+
+#include <library/cpp/yt/string/guid.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -79,10 +82,10 @@ namespace NYql {
             }
 
             if (dataSize == 0) {
-                YQL_CLOG(DEBUG, ProviderDq) << "Closing writer";
+                YQL_CLOG(DEBUG, ProviderDq) << "WriteNext: all bytes written (total=" << Offset
+                    << "), closing writer for " << NodePathTmp;
                 return FileWriter->Close()
                     .Apply(BIND([self = MakeWeak(this)]() {
-                        YQL_CLOG(DEBUG, ProviderDq) << "Write finished";
                         auto this_ = self.Lock();
                         if (!this_) {
                             return MakeFuture(TErrorOr<void>(yexception() << "request complete"));
@@ -95,9 +98,13 @@ namespace NYql {
                                 return MakeFuture(TErrorOr<void>(yexception() << "request complete"));
                             }
                             if (err.IsOK() && req->Digest == NYTree::ConvertTo<TString>(err.Value())) {
+                                YQL_CLOG(DEBUG, ProviderDq) << "WriteNext: checksum verified for " << req->NodePathTmp;
                                 return OKFuture;
                             }
 
+                            auto remoteDigest = err.IsOK() ? NYTree::ConvertTo<TString>(err.Value()) : TString("<error>");
+                            YQL_CLOG(ERROR, ProviderDq) << "WriteNext: checksum mismatch for " << req->NodePathTmp
+                                << " local=" << req->Digest << " remote=" << remoteDigest;
                             return MakeFuture(TErrorOr<void>(yexception() << "wrong checksum"));
                         }));
                     }));
@@ -117,7 +124,11 @@ namespace NYql {
         TFuture<void> WriteFile()
         {
             auto& remotePath = NodePathTmp;
-            YQL_CLOG(INFO, ProviderDq) << "Start writing file to " << remotePath;
+            if (FileSize < 0) {
+                FileSize = File.GetLength();
+            }
+            YQL_CLOG(DEBUG, ProviderDq) << "WriteFile: opening writer for " << remotePath
+                << " fileSize=" << FileSize;
             FileWriter = Client->CreateFileWriter(remotePath, WriterOptions);
 
             return FileWriter->Open().Apply(BIND([self = MakeWeak(this)]() mutable {
@@ -130,82 +141,163 @@ namespace NYql {
         }
     };
 
-    struct TReadFileRequest;
-    void ReadNext(TWeakPtr<TReadFileRequest> request);
-
-    struct TReadFileRequest: public TRequest {
-        IClientPtr Client;
-        TString LocalPath;
-        IFileReaderPtr Reader;
-        std::shared_ptr<TFileOutput> Output;
-        TString Digest;
-        MD5 Md5;
-
+    class TReadFileRequest: public TRequest {
+    public:
         TReadFileRequest(const TActorId& selfId, const TActorId& sender, TActorSystem* ctx, const ui64 requestId)
             : TRequest(selfId, sender, ctx, requestId)
         { }
 
-        TFuture<void> ReadFile()
-        {
-            auto pos = LocalPath.rfind('/');
+        void Init(IClientPtr client, TString remotePath, TString localPath) {
+            Client_ = std::move(client);
+            RemotePath_ = std::move(remotePath);
+            LocalPath_ = std::move(localPath);
+        }
+
+        void SetDigest(TString digest) {
+            Digest_ = std::move(digest);
+        }
+
+        void SetExpectedUncompressedSize(i64 size) {
+            ExpectedUncompressedSize_ = size;
+        }
+
+        void SetReader(IFileReaderPtr reader) {
+            Reader_ = std::move(reader);
+        }
+
+        const TString& GetLocalPath() const {
+            return LocalPath_;
+        }
+
+        IClientPtr GetClient() const {
+            return Client_;
+        }
+
+        TFuture<void> ReadFile() {
+            return BIND([self = MakeWeak(this)]() {
+                DownloadToLocal(self);
+            }).AsyncVia(Client_->GetConnection()->GetInvoker()).Run();
+        }
+
+    private:
+        static void DownloadToLocal(TWeakPtr<TReadFileRequest> request) {
+            TString remotePath;
+            TString localPath;
+            TString digest;
+            i64 expectedSize = 0;
+
+            auto lockOrThrow = [&](i64 downloadedBytes = 0) {
+                auto locked = request.Lock();
+                if (!locked) {
+                    throw yexception()
+                        << "read interrupted for remote=" << remotePath
+                        << " local=" << localPath
+                        << ", downloaded " << downloadedBytes << "/" << expectedSize << " bytes";
+                }
+                return locked;
+            };
+
+            {
+                const auto req = lockOrThrow();
+                remotePath = req->RemotePath_;
+                localPath = req->LocalPath_;
+                digest = req->Digest_;
+                expectedSize = req->ExpectedUncompressedSize_;
+            }
+
+            const auto pos = localPath.rfind('/');
             if (pos != TString::npos) {
-                auto dirName = LocalPath.substr(0, pos);
+                const auto dirName = localPath.substr(0, pos);
                 if (!dirName.empty()) {
                     NFs::MakeDirectoryRecursive(dirName, NFs::FP_NONSECRET_FILE, false);
                 }
             }
 
-            Output = std::make_shared<TFileOutput>(LocalPath);
-            return BIND([self = MakeWeak(this)]() {
-                ReadNext(self);
-            }).AsyncVia(Client->GetConnection()->GetInvoker()).Run();
-        }
-    };
+            TFileOutput output(localPath);
+            MD5 md5;
+            i64 bytesDownloaded = 0;
 
-    void ReadNext(TWeakPtr<TReadFileRequest> request)
-    {
-        auto lockedRequest = [&] () {
-            auto this_ = request.Lock();
-            if (!this_) {
-                ythrow yexception() << "request complete";
-            }
-            return this_;
-        };
-
-        while(true) {
-            TFuture<TSharedRef> part = lockedRequest()->Reader->Read();
-            auto blob = NYT::NConcurrency::WaitFor(part).ValueOrThrow();
-
-            auto this_ = lockedRequest();
-            if (!this_) {
-                ythrow yexception() << "request complete";
-            }
-
-            YQL_CLOG(DEBUG, ProviderDq) << "Store " << blob.Size() << " bytes to " << this_->LocalPath;
-            if (blob.Size() == 0) {
-                TString buf;
-                buf.ReserveAndResize(32);
-                this_->Md5.End(buf.begin());
-
-                if (buf == this_->Digest) {
-                    this_->Output.reset();
-                    return;
-                } else {
-                    ythrow yexception() << "md5 mismatch";
+            auto formatDownloadProgress = [&](i64 downloaded) {
+                if (expectedSize <= 0) {
+                    return ::TStringBuilder() << downloaded << " bytes";
                 }
-            }
+                const i64 remaining = expectedSize - downloaded;
+                const i64 percent = downloaded * 100 / expectedSize;
+                if (remaining > 0) {
+                    return ::TStringBuilder() << percent << "% (" << downloaded << "/" << expectedSize
+                        << ", " << remaining << " left)";
+                }
+                if (remaining == 0) {
+                    return ::TStringBuilder() << "100% (" << downloaded << "/" << expectedSize << ")";
+                }
+                return ::TStringBuilder() << percent << "% (" << downloaded << "/" << expectedSize
+                    << ", +" << (-remaining) << " over expected)";
+            };
 
-            this_->Md5.Update(blob.Begin(), blob.Size());
-            this_->Output->Write(blob.Begin(), blob.Size());
+            while (true) {
+                TFuture<TSharedRef> part = lockOrThrow(bytesDownloaded)->Reader_->Read();
+                auto blob = NYT::NConcurrency::WaitFor(part).ValueOrThrow();
+
+                if (blob.Size() == 0) {
+                    if (expectedSize > 0 && bytesDownloaded < expectedSize) {
+                        throw yexception()
+                            << "size mismatch for " << remotePath
+                            << " (local path " << localPath << ")"
+                            << ": expected at least " << expectedSize
+                            << " bytes, downloaded " << bytesDownloaded << " bytes";
+                    }
+                    if (expectedSize > 0 && bytesDownloaded > expectedSize) {
+                        YQL_CLOG(WARN, ProviderDq) << "ReadFile: downloaded more than expected for "
+                            << remotePath << ": " << formatDownloadProgress(bytesDownloaded);
+                    }
+
+                    char digestBuf[33];
+                    const TString computedDigest{md5.End(digestBuf)};
+
+                    if (computedDigest == digest) {
+                        YQL_CLOG(INFO, ProviderDq) << "ReadFile complete: "
+                            << formatDownloadProgress(bytesDownloaded)
+                            << " md5=" << computedDigest
+                            << " remote=" << remotePath << " local=" << localPath;
+                        return;
+                    }
+
+                    throw yexception()
+                        << "md5 mismatch for " << remotePath
+                        << " (local path " << localPath << ")"
+                        << ": expected " << digest
+                        << ", got " << computedDigest
+                        << ", downloaded " << bytesDownloaded
+                        << (expectedSize > 0 ? ::TStringBuilder() << "/" << expectedSize : TString())
+                        << " bytes";
+                }
+
+                md5.Update(blob.Begin(), blob.Size());
+                output.Write(blob.Begin(), blob.Size());
+                bytesDownloaded += blob.Size();
+
+                YQL_CLOG(DEBUG, ProviderDq) << "ReadFile progress: "
+                    << formatDownloadProgress(bytesDownloaded)
+                    << " chunk=" << blob.Size()
+                    << " remote=" << remotePath;
+            }
         }
-    }
+
+    private:
+        IClientPtr Client_;
+        TString RemotePath_;
+        TString LocalPath_;
+        IFileReaderPtr Reader_;
+        TString Digest_;
+        i64 ExpectedUncompressedSize_ = 0;
+    };
 
     using TRequestPtr = NYT::TIntrusivePtr<TRequest>;
 
     struct TEvComplete
         : NActors::TEventLocal<TEvComplete, TDqEvents::ES_OTHER1> {
         TEvComplete() = default;
-        TEvComplete(const TRequestPtr& req)
+        explicit TEvComplete(const TRequestPtr& req)
             : Request(req)
         { }
 
@@ -280,10 +372,9 @@ namespace NYql {
             writerOptions.ComputeMD5 = true;
 
             try {
-                YQL_CLOG(INFO, ProviderDq) << "Creating node " << remotePath.GetPath();
-
                 Y_ENSURE(file.IsOpen());
 
+                i64 localFileSize = file.GetLength();
                 TString digest;
 
                 if (writerOptions.ComputeMD5) {
@@ -295,12 +386,15 @@ namespace NYql {
                         md5.Update(buf, size);
                         offset += size;
                     }
-                    digest.ReserveAndResize(32);
-                    md5.End(digest.begin());
+                    char digestBuf[33];
+                    digest = md5.End(digestBuf);
                     YQL_CLOG(DEBUG, ProviderDq) << "Local MD5 for " << nodePath << ": " << digest
                         << " elapsed=" << (TInstant::Now() - md5Start).Seconds() << " sec"
                         << " size=" << offset;
                 }
+
+                YQL_CLOG(INFO, ProviderDq) << "OnFileWrite path=" << nodePath
+                    << " localSize=" << localFileSize << " digest=" << digest;
 
                 if (auto req = request.Lock()) {
                     req->Client = Client;
@@ -313,14 +407,14 @@ namespace NYql {
 
                 auto logCtx = NYql::NLog::CurrentLogContextPath();
                 YT_UNUSED_FUTURE(Client->GetNode(nodePath + "/@md5")
-                    .Apply(BIND([request, attributes, digest, logCtx](const TErrorOr<NYT::NYson::TYsonString>& err) mutable {
+                    .Apply(BIND([request, attributes, digest, localFileSize, logCtx](const TErrorOr<NYT::NYson::TYsonString>& err) mutable {
                         YQL_LOG_CTX_ROOT_SESSION_SCOPE(logCtx);
                         auto req = request.Lock();
                         if (!req) {
                             return MakeFuture(TErrorOr<void>(yexception() << "request complete"));
                         }
                         if (err.IsOK() && digest == NYTree::ConvertTo<TString>(err.Value())) {
-                            YQL_CLOG(INFO, ProviderDq) << "File already uploaded: " << req->NodePath;
+                            YQL_CLOG(DEBUG, ProviderDq) << "File already uploaded: " << req->NodePath;
                             try {
                                 YT_UNUSED_FUTURE(req->Client->SetNode(req->NodePath + "/@yql_last_update",
                                     NYT::NYson::TYsonString(
@@ -334,12 +428,16 @@ namespace NYql {
                             options.IgnoreExisting = true;
 
                             if (err.IsOK()) {
-                                YQL_CLOG(INFO, ProviderDq) << "MD5 mismatch for " << req->NodePath
+                                YQL_CLOG(ERROR, ProviderDq) << "MD5 mismatch for " << req->NodePath
                                     << ": local=" << digest
                                     << " remote=" << NYTree::ConvertTo<TString>(err.Value());
                             } else {
                                 YQL_CLOG(INFO, ProviderDq) << "Node not found, will upload: " << req->NodePath
-                                    << " (" << ToString(err) << ")";
+                                    << " (" << ToString(err) << ")"
+                                    << " local=" << digest
+                                    << " localSize=" << localFileSize
+                                    << " creating tmp node " << req->NodePathTmp
+                                    << " re-uploading";
                             }
 
                             return req->Client->CreateNode(req->NodePathTmp, NObjectClient::EObjectType::File, options).As<void>()
@@ -348,6 +446,8 @@ namespace NYql {
                                     if (!req) {
                                         return MakeFuture(TErrorOr<void>(yexception() << "request complete"));
                                     }
+                                    YQL_CLOG(DEBUG, ProviderDq) << "Tmp node created: " << req->NodePathTmp
+                                        << ", setting " << (attributes.size() + 1) << " attributes";
                                     TVector<NYT::TFuture<void>> futures;
                                     futures.reserve(attributes.size() + 1);
                                     for (const auto& [k, v]: attributes) {
@@ -369,6 +469,7 @@ namespace NYql {
                                     if (!req) {
                                         return MakeFuture(TErrorOr<void>(yexception() << "request complete"));
                                     }
+                                    YQL_CLOG(DEBUG, ProviderDq) << "Attributes set, starting file write to " << req->NodePathTmp;
                                     return req->WriteFile();
                                 }))
                                 .Apply(BIND([request] () {
@@ -376,6 +477,7 @@ namespace NYql {
                                     if (!req) {
                                         return MakeFuture(TErrorOr<void>(yexception() << "request complete"));
                                     }
+                                    YQL_CLOG(DEBUG, ProviderDq) << "File written, moving " << req->NodePathTmp << " -> " << req->NodePath;
                                     auto moveOptions = NYT::NApi::TMoveNodeOptions();
                                     moveOptions.Force = true;
                                     return req->Client->MoveNode(req->NodePathTmp, req->NodePath, moveOptions).As<void>();
@@ -385,12 +487,15 @@ namespace NYql {
                                     if (!req) {
                                         return MakeFuture(TErrorOr<void>(yexception() << "request complete"));
                                     }
+                                    YQL_CLOG(INFO, ProviderDq) << "File upload complete: " << req->NodePath;
                                     auto removeOptions = NYT::NApi::TRemoveNodeOptions();
                                     removeOptions.Force = true;
                                     return req->Client->RemoveNode(req->NodePath + "/@expiration_timeout", removeOptions).As<void>();
                                 }));
                         }
 
+                        YQL_CLOG(WARN, ProviderDq) << "GetNode @md5 unexpected error for " << req->NodePath
+                            << ": " << ToString(err);
                         err.ThrowOnError();
 
                         return OKFuture;
@@ -398,10 +503,15 @@ namespace NYql {
                     .Apply(BIND([request, requestId](const TErrorOr<void>& err)
                     {
                         if (auto req = request.Lock()) {
+                            if (!err.IsOK()) {
+                                YQL_CLOG(WARN, ProviderDq) << "OnFileWrite failed for " << req->NodePath
+                                    << ": " << ToString(err);
+                            }
                             req->Complete(new TEvWriteFileResponse(requestId, err));
                         }
                     })));
             } catch (const std::exception& ex) {
+                YQL_CLOG(WARN, ProviderDq) << "OnFileWrite exception for " << nodePath << ": " << ex.what();
                 if (auto req = request.Lock()) {
                     req->Complete(new TEvWriteFileResponse(requestId, ex));
                 }
@@ -415,32 +525,49 @@ namespace NYql {
             try {
                 NYPath::TRichYPath remotePath = std::get<0>(*ev->Get());
                 TFileReaderOptions readerOptions = std::get<2>(*ev->Get());
+                const auto nodePath = remotePath.GetPath();
                 if (auto req = request.Lock()) {
-                    req->LocalPath = std::get<1>(*ev->Get());
-                    req->Client = Client;
+                    req->Init(Client, nodePath, std::get<1>(*ev->Get()));
                 }
 
-                auto nodePath = remotePath.GetPath();
-
-               YT_UNUSED_FUTURE(Client->GetNode(nodePath + "/@md5")
+                YQL_CLOG(DEBUG, ProviderDq) << "OnReadFile remote=" << nodePath;
+                NYT::NApi::TGetNodeOptions getNodeOptions;
+                getNodeOptions.Attributes = NYTree::TAttributeFilter({"md5", "uncompressed_data_size"});
+                YT_UNUSED_FUTURE(Client->GetNode(nodePath + "/@", getNodeOptions)
                     .Apply(BIND([request, nodePath, readerOptions](const TErrorOr<NYT::NYson::TYsonString>& err) mutable {
                         auto req = request.Lock();
                         if (!req) {
                             return MakeFuture(TErrorOr<void>(yexception() << "request complete"));
                         }
                         if (!err.IsOK()) {
-                            return MakeFuture(TErrorOr<void>(yexception() << "failed to get md5"));
+                            YQL_CLOG(WARN, ProviderDq) << "ReadFile: GetNode failed for " << nodePath
+                                << ": " << ToString(err);
+                            return MakeFuture(TErrorOr<void>(yexception()
+                                << "failed to get file attributes for " << nodePath << ": " << ToString(err)));
                         }
-                        auto digest = NYTree::ConvertTo<TString>(err.Value());
-                        req->Digest = digest;
+                        const auto attributes = NYTree::ConvertToAttributes(err.Value());
+                        if (!attributes->Contains("md5") || !attributes->Contains("uncompressed_data_size")) {
+                            YQL_CLOG(WARN, ProviderDq) << "ReadFile: missing attributes for " << nodePath
+                                << ": " << err.Value().AsStringBuf();
+                            return MakeFuture(TErrorOr<void>(yexception()
+                                << "missing md5 or uncompressed_data_size attributes for " << nodePath
+                                << ", got " << err.Value().AsStringBuf()));
+                        }
+                        const auto digest = attributes->Get<TString>("md5");
+                        const auto expectedSize = attributes->Get<i64>("uncompressed_data_size");
+                        req->SetDigest(digest);
+                        req->SetExpectedUncompressedSize(expectedSize);
+                        YQL_CLOG(DEBUG, ProviderDq) << "ReadFile: expected md5=" << digest
+                            << " uncompressed_data_size=" << expectedSize
+                            << " remote=" << nodePath << " local=" << req->GetLocalPath();
 
-                        return req->Client->CreateFileReader(nodePath, readerOptions)
+                        return req->GetClient()->CreateFileReader(nodePath, readerOptions)
                             .Apply(BIND([request](const IFileReaderPtr& reader) {
                                 auto req = request.Lock();
                                 if (!req) {
                                     return MakeFuture(TErrorOr<void>(yexception() << "request complete"));
                                 }
-                                req->Reader = reader;
+                                req->SetReader(reader);
                                 return req->ReadFile();
                             }));
                     }))
@@ -616,8 +743,24 @@ namespace NYql {
             auto requestId = ev->Get()->RequestId;
             auto request = NewRequest<TRequest>(requestId, ev->Sender, ctx);
 
+            YQL_CLOG(DEBUG, ProviderDq) << "YtWrapper CreateNode request"
+                << " cluster=" << ClusterName
+                << " path=" << path;
+
             YT_UNUSED_FUTURE(Client->CreateNode(path, type, options)
                 .Apply(BIND([=](const TErrorOr<NYT::NCypressClient::TNodeId>& result) {
+                    if (result.IsOK()) {
+                        const auto nodeId = result.Value();
+                        YQL_CLOG(DEBUG, ProviderDq) << "YtWrapper CreateNode OK"
+                            << " cluster=" << ClusterName
+                            << " path=" << path
+                            << " node_id=" << ToString(nodeId);
+                    } else {
+                        YQL_CLOG(WARN, ProviderDq) << "YtWrapper CreateNode failed"
+                            << " cluster=" << ClusterName
+                            << " path=" << path
+                            << " error=" << ToString(result);
+                    }
                     if (auto req = request.Lock()) {
                         req->Complete(new TEvCreateNodeResponse(requestId, result));
                     }
@@ -630,8 +773,21 @@ namespace NYql {
             auto requestId = ev->Get()->RequestId;
             auto request = NewRequest<TRequest>(requestId, ev->Sender, ctx);
 
+            YQL_CLOG(DEBUG, ProviderDq) << "YtWrapper StartTransaction request"
+                << " cluster=" << ClusterName;
+
             YT_UNUSED_FUTURE(Client->StartTransaction(type, options)
                 .Apply(BIND([=](const TErrorOr<ITransactionPtr>& result) {
+                    if (result.IsOK()) {
+                        const auto txId = result.Value()->GetId();
+                        YQL_CLOG(DEBUG, ProviderDq) << "YtWrapper StartTransaction OK"
+                            << " cluster=" << ClusterName
+                            << " tx=" << ToString(txId);
+                    } else {
+                        YQL_CLOG(WARN, ProviderDq) << "YtWrapper StartTransaction failed"
+                            << " cluster=" << ClusterName
+                            << " error=" << ToString(result);
+                    }
                     if (auto req = request.Lock()) {
                         req->Complete(new TEvStartTransactionResponse(requestId, result));
                     }

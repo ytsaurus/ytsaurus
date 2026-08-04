@@ -17,6 +17,7 @@ PEERDIR(
 
 IF (NOT OS_WINDOWS)
     PEERDIR(
+        library/cpp/yt/string
         yt/yt/client
     )
 ENDIF()
