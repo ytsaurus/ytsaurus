@@ -18,6 +18,7 @@ DATA_FILES(
     yt/yt/scripts/gdb_plugin/lib/fiber.py
     yt/yt/scripts/gdb_plugin/lib/fiber_attribution.py
     yt/yt/scripts/gdb_plugin/lib/fiber_commands.py
+    yt/yt/scripts/gdb_plugin/lib/trace_context.py
     yt/yt/scripts/gdb_plugin/lib/commands.py
     yt/yt/scripts/gdb_plugin/lib/printers.py
 )

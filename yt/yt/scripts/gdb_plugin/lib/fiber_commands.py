@@ -19,6 +19,7 @@ import gdb
 
 import _announce
 import fiber
+import trace_context
 from fiber_attribution import (
     fiber_stacks, format_fiber_backtrace, format_fiber_frame_locals,
 )
@@ -32,6 +33,7 @@ from fiber_attribution import (
 # \w+UntilSet family match instead of an exact list.
 _PLUMBING = (
     r"MachineContext",
+    r"TExceptionSafeContext",
     r"NYT::NConcurrency::NDetail::",
     r"NYT::NConcurrency::SwitchTo",
     r"NYT::NConcurrency::(?:\(anonymous namespace\)::)?\w+UntilSet",
@@ -180,6 +182,38 @@ class YtFiberLocals(gdb.Command):
             print("  " + line)
 
 
+class YtFiberTags(gdb.Command):
+    """yt-fiber-tags <n>: print tracing and logging tags of parked fiber n."""
+
+    def __init__(self):
+        super().__init__("yt-fiber-tags", gdb.COMMAND_STACK)
+
+    def invoke(self, arg, from_tty):
+        arg = arg.strip()
+        if not arg:
+            raise gdb.GdbError("Expected a fiber index (see yt-fiber-list)")
+        try:
+            index = int(arg)
+        except ValueError:
+            raise gdb.GdbError("Expected a fiber index")
+        fib = _parked_fiber(index)
+        if fib is None:
+            raise gdb.GdbError("No parked fiber #%d (run yt-fiber-list)" % index)
+        context = trace_context.find_fiber_trace_context(fib)
+        if context is None:
+            print("Fiber #%d has no propagated trace context" % index)
+            return
+        try:
+            logging_tags, tracing_tags = trace_context.trace_context_tags(context)
+        except (gdb.error, ValueError, TypeError) as error:
+            raise gdb.GdbError("Could not read fiber #%d tracing tags: %s" % (index, error))
+        print("Fiber #%d trace context:" % index)
+        print("  logging tags: %s" % (
+            ", ".join("%s: %s" % item for item in logging_tags) or "(none)"))
+        print("  tracing tags: %s" % (
+            ", ".join("%s: %s" % item for item in tracing_tags) or "(none)"))
+
+
 class _FiberRegisterSwitcher:
     """Save the live registers, set them to a fiber's saved TContMachineContext,
     and restore on demand. The switch lets gdb's native unwinder walk the fiber."""
@@ -252,9 +286,10 @@ def register():
     YtFiberList()
     YtFiberBacktrace()
     YtFiberLocals()
+    YtFiberTags()
     YtFiberSelect()
     _announce.command("fibers", "yt-fiber-list", "yt-fiber-bt",
-                      "yt-fiber-locals", "yt-fiber-select")
+                      "yt-fiber-locals", "yt-fiber-tags", "yt-fiber-select")
 
 
 register()
