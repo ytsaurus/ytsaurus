@@ -405,7 +405,6 @@
         "jdk_bin_path" = "/app/ytflow/jdk/bin/java";
         "main_class" = "tech.ytsaurus.flow.examples.waitclickjoin.NodeCompanionMain";
         "classpath" = "/app/ytflow/lib/*";
-        "run_process" = %true;
     };
     "dependencies" = {};
 };

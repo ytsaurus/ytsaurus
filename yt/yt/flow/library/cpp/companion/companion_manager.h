@@ -22,9 +22,6 @@ struct TCompanionManagerParameters
     //! Exponential backoff options used when retrying failed companion requests.
     TExponentialBackoffOptions Backoff;
 
-    //! Whether to launch the companion process; set to false to connect to an already-running process.
-    bool RunProcess{};
-
     //! Description of the companion executable and its arguments.
     TCompanionEntrypointPtr Entrypoint;
 
@@ -53,12 +50,12 @@ DEFINE_REFCOUNTED_TYPE(TCompanionManagerParameters);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Resource that optionally launches and supervises a companion process described by a
+//! Resource that launches and supervises a companion process described by a
 //! language-agnostic entrypoint and exposes an RPC client to it.
 /*!
- *  Resolves the companion port from the singleton state and constructs a gRPC client
- *  bound to the local companion address. When RunProcess is enabled, also launches and
- *  supervises the companion process with auto-restart and health-checks.
+ *  Resolves the companion port from the singleton state, constructs a gRPC client
+ *  bound to the local companion address, and launches and supervises the companion
+ *  process with auto-restart and health-checks.
  */
 class TCompanionManager
     : public TResourceBase
@@ -71,7 +68,7 @@ public:
     //! Creates a new companion RPC client with the given status profiler.
     ICompanionClientPtr CreateCompanionClient(IStatusProfilerPtr statusProfiler);
 
-    //! Starts the companion process (if RunProcess is enabled) and waits for it to become ready.
+    //! Starts the companion process and waits for it to become ready.
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& dependencies) override;
 
 protected:

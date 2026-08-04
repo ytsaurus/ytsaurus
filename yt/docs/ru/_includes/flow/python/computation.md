@@ -286,7 +286,6 @@ def on_message(self, message, output, ctx):
 "CompanionManager" = {
     "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
     "parameters" = {
-        "run_process" = %true;
         "entrypoint" = {
             "executable" = "./py_companion";
         };
@@ -298,7 +297,7 @@ def on_message(self, message, output, ctx):
 Параметр `resource_class_name` указывает на класс ресурса, который будет осуществлять запуск компаньона.
 В случае Python-компаньона `resource_class_name` всегда должен быть `NYT::NFlow::NCompanion::TCompanionManager`.
 
-Процесс компаньона описывается параметром `entrypoint` (`executable`, `args`, `env`); при `run_process = %false` Flow ожидает, что компаньон запущен снаружи (так делают, например, интеграционные тесты). При [запуске пайплайна с хоста](../../../flow/python/getting-started.md#launch) через `pipeline.run()` заполнять `entrypoint` вручную не нужно: Python-бинарь сам прописывает `entrypoint = {"executable" = "./py_companion"}` и `run_process = %true`, а `flow_server` доставляет бинарь в джобу под этим именем.
+Процесс компаньона описывается параметром `entrypoint` (`executable`, `args`, `env`); воркер сам запускает компаньон и следит за его жизненным циклом. При [запуске пайплайна с хоста](../../../flow/python/getting-started.md#launch) через `pipeline.run()` заполнять `entrypoint` вручную не нужно: Python-бинарь сам прописывает `entrypoint = {"executable" = "./py_companion"}`, а `flow_server` доставляет бинарь в джобу под этим именем.
 
 Ключевое отличие от Java-конфигурации: для Java существует отдельный класс ресурса `NYT::NFlow::NCompanion::TJavaCompanionManager` с параметрами `jdk_bin_path`, `classpath` и `main_class`, тогда как Python-компаньон использует общий `TCompanionManager` с параметром `entrypoint`.
 

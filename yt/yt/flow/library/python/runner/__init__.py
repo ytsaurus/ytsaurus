@@ -67,7 +67,6 @@ def _patch_companion_resources(spec):
             continue
         parameters = resource_def.setdefault("parameters", {})
         parameters["entrypoint"] = {"executable": f"./{_PYTHON_COMPANION_NAME}"}
-        parameters["run_process"] = True
         log.info("Patched companion resource %s to spawn locally", resource_id)
 
 

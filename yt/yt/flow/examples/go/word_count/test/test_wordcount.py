@@ -49,7 +49,7 @@ class Test(FlowTestGoBase):
         batching_write_rows(logs, lambda batch: self.client.insert_rows(input_queue, batch), 1000)
         self._expected_counts = expected_counts
 
-    def prepare_pipeline_config(self, input_queue, input_consumer, run_process=False):
+    def prepare_pipeline_config(self, input_queue, input_consumer):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
         pipeline_config["spec"]["computations"]["reader"]["source_streams"]["queue"]["parameters"].update(
@@ -59,11 +59,6 @@ class Test(FlowTestGoBase):
                 "finite": True,
             }
         )
-        if run_process:
-            pipeline_config["spec"]["resources"]["CompanionManager"]["parameters"]["entrypoint"] = {
-                "executable": self.GO_COMPANION_BINARY,
-            }
-            pipeline_config["spec"]["resources"]["CompanionManager"]["parameters"]["run_process"] = run_process
 
         self.patch_config(pipeline_config)
 
@@ -117,21 +112,4 @@ class Test(FlowTestGoBase):
             use_vanilla_jobs=True,
         ):
             self.wait_pipeline_state("completed", timeout=600)
-            assert self._expected_counts == self.get_counts()
-
-    @pytest.mark.authors(["mikari"])
-    def test_managed(self):
-        input_queue = self.work_yt_path + "/input_queue"
-        input_consumer = self.work_yt_path + "/consumer"
-        self.prepare_environment(input_queue)
-        pipeline_config_path = self.prepare_pipeline_config(input_queue, input_consumer, run_process=True)
-
-        with self.start_flow_process_federation(
-            pipeline_binary_args={
-                "--config": pipeline_config_path,
-            },
-            workers_count=4,
-            controllers_count=1,
-        ):
-            self.wait_pipeline_state("completed")
             assert self._expected_counts == self.get_counts()

@@ -22,8 +22,6 @@ void TCompanionManagerParameters::Register(TRegistrar registrar)
             .MinBackoff = TDuration::MilliSeconds(500),
             .MaxBackoff = TDuration::Seconds(10),
         });
-    registrar.Parameter("run_process", &TThis::RunProcess)
-        .Default(true);
     registrar.Parameter("entrypoint", &TThis::Entrypoint)
         .DefaultCtor([] {
             return New<TCompanionEntrypoint>();
@@ -81,10 +79,6 @@ TProcessManagerBasePtr TCompanionManager::CreateProcessManager()
 
 TFuture<void> TCompanionManager::Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/)
 {
-    if (!GetParameters()->RunProcess) {
-        YT_TLOG_INFO("Companion process running is disabled");
-        return OKFuture;
-    }
     ProcessManager_ = CreateProcessManager();
     return BIND([this, weakThis = MakeWeak(this)] () {
         if (auto strongThis = weakThis.Lock()) {

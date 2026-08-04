@@ -29,11 +29,8 @@ class FlowJavaPipeline:
 
 class FlowTestJavaBase(FlowTestBase):
     FLOW_BINARY_PATH = yatest.common.binary_path("yt/yt/flow/bin/flow_server/flow_server")
-    # Includes both JAVA_RUNNER_MAIN_CLASS and JAVA_NODE_COMPANION_MAIN_CLASS.
     JAVA_RUNNER_BINARY_DIR: str
     JAVA_RUNNER_MAIN_CLASS: str
-    # Optional: Override this in subclass to specify companion main class.
-    JAVA_NODE_COMPANION_MAIN_CLASS: Optional[str] = None
     # Extra port for the companion the worker spawns.
     VANILLA_WORKER_PORT_COUNT = 3
     # Cached JVM properties; populated lazily on first query.
@@ -47,10 +44,8 @@ class FlowTestJavaBase(FlowTestBase):
         )
 
     def patch_config(self, pipeline_config: dict):
-        # Apply for pipeline spec with run_process=true only.
-        if "spec" in pipeline_config and pipeline_config["spec"]["resources"]["CompanionManager"]["parameters"].get(
-            "run_process"
-        ):
+        # Applies to pipeline specs only, not node configs.
+        if "spec" in pipeline_config:
             pipeline_config["spec"]["resources"]["CompanionManager"]["parameters"].update(
                 {
                     "jdk_bin_path": self.jdk_bin_path(),
@@ -113,7 +108,6 @@ class FlowTestJavaBase(FlowTestBase):
         self,
         pipeline_binary_args: dict[str, str] = {},
         runner_binary_path: str | None = None,
-        run_companion_externally: bool = False,
         use_vanilla_jobs: bool = False,
         additional_env: dict[str, str] | None = None,
         **kwargs,
@@ -131,14 +125,6 @@ class FlowTestJavaBase(FlowTestBase):
         if config_path is not None:
             enriched_pipeline_binary_args["--config"] = self._prepare_launch_config(config_path)
 
-        # Configure companion process for Java if run_companion_externally is enabled.
-        companion_binary_args = None
-
-        if run_companion_externally:
-            companion_binary_args = [
-                self.JAVA_NODE_COMPANION_MAIN_CLASS,
-            ]
-
         env = dict(additional_env) if additional_env is not None else {}
         if use_vanilla_jobs:
             # Local test YT has no porto layers: run the companion from the host JDK with no layers.
@@ -150,12 +136,9 @@ class FlowTestJavaBase(FlowTestBase):
         with super().start_flow_process_federation(
             pipeline_binary_args=enriched_pipeline_binary_args,
             runner_binary_path=runner_binary_path,
-            run_companion_externally=run_companion_externally,
             use_vanilla_jobs=use_vanilla_jobs,
             run_pipeline=True,
             additional_env=env,
-            companion_binary_path=runner_binary_path,
-            companion_binary_args=companion_binary_args,
             **kwargs,
         ) as federation:
             yield federation

@@ -24,13 +24,11 @@ TEST(TJavaCompanionManagerParametersTest, DefaultsAreSane)
 TEST(TJavaCompanionManagerParametersTest, ParseConvenienceForm)
 {
     auto yson = NYson::TYsonString(TStringBuf(R"({
-        "run_process" = %true;
         "jdk_bin_path" = "/opt/jdk/bin";
         "classpath" = "/opt/app/*";
         "main_class" = "com.example.Main";
     })"));
     auto params = NYTree::ConvertTo<TJavaCompanionManagerParametersPtr>(yson);
-    EXPECT_TRUE(params->RunProcess);
     EXPECT_EQ("/opt/jdk/bin", params->JdkBinPath);
     EXPECT_EQ("/opt/app/*", params->Classpath);
     EXPECT_EQ("com.example.Main", params->MainClass);
@@ -43,14 +41,12 @@ TEST(TJavaCompanionManagerParametersTest, ParseConvenienceForm)
 TEST(TJavaCompanionManagerParametersTest, ParseGenericEntrypointForm)
 {
     auto yson = NYson::TYsonString(TStringBuf(R"({
-        "run_process" = %true;
         "entrypoint" = {
             "executable" = "/opt/jdk/bin/java";
             "args" = ["-cp"; "/opt/app/*"; "com.example.Main"];
         };
     })"));
     auto params = NYTree::ConvertTo<TJavaCompanionManagerParametersPtr>(yson);
-    EXPECT_TRUE(params->RunProcess);
     // Convenience fields stay at defaults (empty).
     EXPECT_TRUE(params->JdkBinPath.empty());
     EXPECT_TRUE(params->Classpath.empty());
