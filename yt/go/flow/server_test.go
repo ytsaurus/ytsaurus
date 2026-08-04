@@ -295,6 +295,53 @@ func TestPutJobCachesJobForLaterBatches(t *testing.T) {
 	require.Equal(t, companion.EResponseStatus_RS_OK, batch.GetStatus())
 }
 
+func TestPutJobReportsReplayableMemoryGauge(t *testing.T) {
+	jobs := newJobCache(time.Minute)
+	memory := newTestMemoryTracker(jobs, &fakeMemoryProbe{})
+	memory.trackedJobs[protoJobID] = &trackedMemoryJob{usage: 123}
+	service := &companionService{
+		jobs:   jobs,
+		logger: (&nop.Logger{}).Structured(),
+		memory: memory,
+	}
+	req := &companion.TReqPutJob{
+		RequestId:     misc.NewProtoFromGUID(testRequestID),
+		JobId:         misc.NewProtoFromGUID(protoJobID),
+		ComputationId: proto.String("counter"),
+		JobInfo:       protoJobInfo(t),
+	}
+
+	rsp, err := service.PutJob(context.Background(), req)
+	require.NoError(t, err)
+	require.EqualValues(t, 123, rsp.GetMetrics().GetAllocatedBytes())
+
+	memory.trackedJobs[protoJobID].usage = 456
+	rsp, err = service.PutJob(context.Background(), req)
+	require.NoError(t, err)
+	require.EqualValues(t, 123, rsp.GetMetrics().GetAllocatedBytes())
+
+	req.RequestId = misc.NewProtoFromGUID(guid.FromHalves(7, 8))
+	rsp, err = service.PutJob(context.Background(), req)
+	require.NoError(t, err)
+	require.EqualValues(t, 456, rsp.GetMetrics().GetAllocatedBytes())
+}
+
+func TestProcessBatchJobNotFoundPreservesMemoryGauge(t *testing.T) {
+	jobs := newJobCache(time.Minute)
+	memory := newTestMemoryTracker(jobs, &fakeMemoryProbe{})
+	memory.trackedJobs[protoJobID] = &trackedMemoryJob{usage: 123}
+	service := &companionService{
+		jobs:   jobs,
+		logger: (&nop.Logger{}).Structured(),
+		memory: memory,
+	}
+
+	rsp, err := service.ProcessBatch(context.Background(), processBatchRequest(t, nil))
+	require.NoError(t, err)
+	require.Equal(t, companion.EResponseStatus_RS_JOB_NOT_FOUND, rsp.GetStatus())
+	require.EqualValues(t, 123, rsp.GetMetrics().GetAllocatedBytes())
+}
+
 func TestPutJobReplacesCachedJob(t *testing.T) {
 	observed := make(chan int64, 1)
 	computation := NewRowComputation("counter", RowFunc(
@@ -345,7 +392,7 @@ func TestPutJobReturnsInternalErrorOnUnparsableSpec(t *testing.T) {
 
 func TestProcessBatchRejectsMalformedJobInfo(t *testing.T) {
 	logger := newRecordingLogger()
-	s := NewServer(Config{JobTTL: time.Minute}, WithLogger(logger), withoutCPUAccounting())
+	s := NewServer(Config{JobTTL: time.Minute}, WithLogger(logger), withoutCPUAccounting(), withoutMemoryAccounting())
 	require.NoError(t, s.Register(echoComputation()))
 	require.NoError(t, s.StartAsync())
 	t.Cleanup(s.Stop)
@@ -386,7 +433,7 @@ func TestProcessBatchSurvivesPanicInUserCode(t *testing.T) {
 			panic("user code exploded")
 		}))
 	logger := newRecordingLogger()
-	s := NewServer(Config{JobTTL: time.Minute}, WithLogger(logger), withoutCPUAccounting())
+	s := NewServer(Config{JobTTL: time.Minute}, WithLogger(logger), withoutCPUAccounting(), withoutMemoryAccounting())
 	require.NoError(t, s.Register(panicking))
 	require.NoError(t, s.StartAsync())
 	t.Cleanup(s.Stop)
@@ -440,7 +487,7 @@ func TestProcessBatchReturnsHandlerErrorText(t *testing.T) {
 			return errors.New("cannot update ledger")
 		}))
 	logger := newRecordingLogger()
-	s := NewServer(Config{JobTTL: time.Minute}, WithLogger(logger), withoutCPUAccounting())
+	s := NewServer(Config{JobTTL: time.Minute}, WithLogger(logger), withoutCPUAccounting(), withoutMemoryAccounting())
 	require.NoError(t, s.Register(failing))
 	require.NoError(t, s.StartAsync())
 	t.Cleanup(s.Stop)
@@ -503,7 +550,7 @@ func TestGetJfrIsJavaOnly(t *testing.T) {
 func startTestServer(t *testing.T, computations ...*Computation) (*Server, companion.CompanionServiceClient) {
 	t.Helper()
 
-	s := NewServer(Config{JobTTL: time.Minute}, withoutCPUAccounting())
+	s := NewServer(Config{JobTTL: time.Minute}, withoutCPUAccounting(), withoutMemoryAccounting())
 	require.NoError(t, s.Register(computations...))
 	require.NoError(t, s.StartAsync())
 	t.Cleanup(s.Stop)
@@ -514,6 +561,12 @@ func startTestServer(t *testing.T, computations ...*Computation) (*Server, compa
 func withoutCPUAccounting() ServerOption {
 	return func(s *Server) {
 		s.cpuProfiler = nil
+	}
+}
+
+func withoutMemoryAccounting() ServerOption {
+	return func(s *Server) {
+		s.memoryProbe = nil
 	}
 }
 

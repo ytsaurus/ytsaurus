@@ -21,6 +21,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/xerrors"
+	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/proto/core/misc"
 	"go.ytsaurus.tech/yt/go/proto/flow/companion"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -139,13 +140,15 @@ type Server struct {
 	logger      log.Structured
 	jobs        *jobCache
 	cpuProfiler cpuProfiler
+	memoryProbe memoryProbe
 
-	mu           sync.Mutex
-	computations map[string]*Computation
-	running      bool
-	grpcServer   *grpc.Server
-	listener     net.Listener
-	cpuTracker   *cpuTracker
+	mu            sync.Mutex
+	computations  map[string]*Computation
+	running       bool
+	grpcServer    *grpc.Server
+	listener      net.Listener
+	cpuTracker    *cpuTracker
+	memoryTracker *memoryTracker
 }
 
 // NewServer returns a server configured but not yet listening.
@@ -158,6 +161,7 @@ func NewServer(config Config, opts ...ServerOption) *Server {
 		logger:       ytlog.Must(),
 		jobs:         newJobCache(config.JobTTL),
 		cpuProfiler:  runtimeCPUProfiler{},
+		memoryProbe:  runtimeMemoryProbe{},
 		computations: map[string]*Computation{},
 	}
 	for _, opt := range opts {
@@ -217,9 +221,11 @@ func (s *Server) Stop() {
 	s.mu.Lock()
 	grpcServer := s.grpcServer
 	cpuTracker := s.cpuTracker
+	memoryTracker := s.memoryTracker
 	s.grpcServer = nil
 	s.listener = nil
 	s.cpuTracker = nil
+	s.memoryTracker = nil
 	s.running = false
 	s.mu.Unlock()
 
@@ -228,6 +234,9 @@ func (s *Server) Stop() {
 	}
 	if cpuTracker != nil {
 		cpuTracker.Stop()
+	}
+	if memoryTracker != nil {
+		memoryTracker.Stop()
 	}
 }
 
@@ -273,10 +282,15 @@ func (s *Server) listen() (*grpc.Server, net.Listener, error) {
 		grpc.MaxSendMsgSize(math.MaxInt32),
 	)
 
+	var memoryTracker *memoryTracker
+	if s.memoryProbe != nil {
+		memoryTracker = newMemoryTracker(s.jobs, s.logger, s.memoryProbe, defaultMemoryTrackerConfig)
+	}
 	service := &companionService{
 		computations: maps.Clone(s.computations),
 		jobs:         s.jobs,
 		logger:       s.logger,
+		memory:       memoryTracker,
 	}
 	companion.RegisterCompanionServiceServer(grpcServer, service)
 
@@ -289,9 +303,13 @@ func (s *Server) listen() (*grpc.Server, net.Listener, error) {
 		cpuTracker = newCPUTracker(s.jobs, s.logger, s.cpuProfiler, cpuProfileWindow)
 		cpuTracker.Start()
 	}
+	if memoryTracker != nil {
+		memoryTracker.Start()
+	}
 	s.grpcServer = grpcServer
 	s.listener = listener
 	s.cpuTracker = cpuTracker
+	s.memoryTracker = memoryTracker
 	s.running = true
 
 	return grpcServer, listener, nil
@@ -302,16 +320,22 @@ func (s *Server) serve(grpcServer *grpc.Server, listener net.Listener) error {
 
 	s.mu.Lock()
 	var cpuTracker *cpuTracker
+	var memoryTracker *memoryTracker
 	if s.grpcServer == grpcServer {
 		cpuTracker = s.cpuTracker
+		memoryTracker = s.memoryTracker
 		s.grpcServer = nil
 		s.listener = nil
 		s.cpuTracker = nil
+		s.memoryTracker = nil
 		s.running = false
 	}
 	s.mu.Unlock()
 	if cpuTracker != nil {
 		cpuTracker.Stop()
+	}
+	if memoryTracker != nil {
+		memoryTracker.Stop()
 	}
 
 	if errors.Is(err, grpc.ErrServerStopped) {
@@ -327,6 +351,7 @@ type companionService struct {
 	computations map[string]*Computation
 	jobs         *jobCache
 	logger       log.Structured
+	memory       *memoryTracker
 }
 
 var _ companion.CompanionServiceServer = (*companionService)(nil)
@@ -367,7 +392,8 @@ func (s *companionService) PutJob(
 	var job *Job
 	var err error
 	jobID := misc.NewGUIDFromProto(req.GetJobId())
-	withJobCPU(ctx, jobID, func(context.Context) {
+	requestID := misc.NewGUIDFromProto(req.GetRequestId())
+	s.withJobResources(ctx, jobID, func(context.Context) {
 		job, err = putJobFromProto(req)
 		if err == nil {
 			s.jobs.Put(job)
@@ -381,10 +407,14 @@ func (s *companionService) PutJob(
 		return nil, status.Errorf(codes.Internal, "flow: put job failed: %v", err)
 	}
 
+	memoryUsage := int64(0)
+	if s.memory != nil {
+		memoryUsage = s.jobs.ResponseMemoryUsage(jobID, requestID, s.memory.Usage(jobID))
+	}
 	return &companion.TRspPutJob{
-		RequestId: misc.NewProtoFromGUID(misc.NewGUIDFromProto(req.GetRequestId())),
+		RequestId: misc.NewProtoFromGUID(requestID),
 		JobId:     misc.NewProtoFromGUID(misc.NewGUIDFromProto(req.GetJobId())),
-		Metrics:   zeroResponseMetrics(),
+		Metrics:   responseMetrics(0, memoryUsage),
 		Status:    companion.EResponseStatus_RS_OK.Enum(),
 	}, nil
 }
@@ -400,7 +430,7 @@ func (s *companionService) ProcessBatch(
 	jobID := misc.NewGUIDFromProto(req.GetJobId())
 
 	var err error
-	withJobCPU(ctx, jobID, func(ctx context.Context) {
+	s.withJobResources(ctx, jobID, func(ctx context.Context) {
 		err = func() (err error) {
 			defer func() {
 				if recovered := recover(); recovered != nil {
@@ -453,15 +483,23 @@ func (s *companionService) ProcessBatch(
 		return nil, status.Errorf(codes.Internal, "flow: process batch failed: %v", err)
 	}
 
+	requestID := misc.NewGUIDFromProto(req.GetRequestId())
 	cpuTime := int64(0)
+	memoryUsage := int64(0)
 	if responseStatus == companion.EResponseStatus_RS_OK {
-		cpuTime = s.jobs.ResponseCPUTime(jobID, misc.NewGUIDFromProto(req.GetRequestId()))
+		cpuTime = s.jobs.ResponseCPUTime(jobID, requestID)
+	}
+	if s.memory != nil {
+		memoryUsage = s.memory.Usage(jobID)
+		if responseStatus == companion.EResponseStatus_RS_OK {
+			memoryUsage = s.jobs.ResponseMemoryUsage(jobID, requestID, memoryUsage)
+		}
 	}
 	return &companion.TRspProcessBatch{
-		RequestId: misc.NewProtoFromGUID(misc.NewGUIDFromProto(req.GetRequestId())),
+		RequestId: misc.NewProtoFromGUID(requestID),
 		JobId:     misc.NewProtoFromGUID(misc.NewGUIDFromProto(req.GetJobId())),
 		Data:      data,
-		Metrics:   responseMetrics(cpuTime),
+		Metrics:   responseMetrics(cpuTime, memoryUsage),
 		Status:    responseStatus.Enum(),
 	}, nil
 }
@@ -496,6 +534,20 @@ func (s *companionService) job(req *companion.TReqProcessBatch) (*Job, bool, err
 	return job, true, nil
 }
 
+func (s *companionService) withJobResources(
+	ctx context.Context,
+	jobID guid.GUID,
+	fn func(context.Context),
+) {
+	withJobCPU(ctx, jobID, func(ctx context.Context) {
+		if s.memory == nil {
+			fn(ctx)
+			return
+		}
+		s.memory.WithJob(ctx, jobID, fn)
+	})
+}
+
 type companionInfo struct {
 	Computations map[string]companionComputationInfo `yson:"computations"`
 }
@@ -505,13 +557,9 @@ type companionComputationInfo struct {
 	ComputationType string `yson:"computation_type"`
 }
 
-func zeroResponseMetrics() *companion.TResponseMetrics {
-	return responseMetrics(0)
-}
-
-func responseMetrics(cpuTime int64) *companion.TResponseMetrics {
+func responseMetrics(cpuTime, memoryUsage int64) *companion.TResponseMetrics {
 	return &companion.TResponseMetrics{
-		AllocatedBytes: proto.Int64(0),
+		AllocatedBytes: proto.Int64(memoryUsage),
 		CpuTimeNs:      proto.Int64(cpuTime),
 	}
 }
