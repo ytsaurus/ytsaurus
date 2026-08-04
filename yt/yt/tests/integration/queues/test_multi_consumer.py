@@ -13,6 +13,9 @@ from yt_commands import (
     raises_yt_error,
     assert_yt_error,
     wait,
+    get,
+    ls,
+    register_queue_consumer,
 )
 
 from yt.common import YtError
@@ -21,11 +24,19 @@ from yt.common import YtError
 
 
 class TestMultiConsumerController(TestQueueAgentBase):
+    NUM_QUEUE_AGENTS_PRIMARY = 3
+
+    ENABLE_MULTIDAEMON = True
+
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
         },
     }
+
+    def _get_orchid(self) -> QueueAgentOrchid:
+        instances = ls("//sys/queue_agents/instances")
+        return QueueAgentOrchid(agent_id=instances[0])
 
     @authors("panesher")
     def test_consistent_orchid_and_table(self):
@@ -34,21 +45,31 @@ class TestMultiConsumerController(TestQueueAgentBase):
 
         self._wait_for_component_passes()
 
-        orchid = QueueAgentOrchid().get_multi_consumer_orchid(GenericObjectPath(path, "primary"))
+        multi_consumer_ref = GenericObjectPath(path, "primary")
+        orchid = self._get_orchid().get_multi_consumer_orchid(multi_consumer_ref)
+        orchid.wait_fresh_pass()
+
         assert orchid.get_queue_consumer_names() == []
         assert select_rows("* from [//sys/queue_agents/multi_consumer_names]") == []
 
         # Check controller will insert to multi_consumer_names table
         names = ["my_1", "my_2", "my_3"]
+        name_to_queue_path = {}
+        for name in names:
+            queue_path = self.create_queue_path(name)
+            self._create_queue(queue_path)
+            name_to_queue_path[name] = queue_path
+            register_queue_consumer(queue_path, GenericObjectPath(path, "primary", name), vital=False)
+
         insert_rows(path, [
             {
                 "queue_consumer_name": name,
                 "queue_cluster": "primary",
-                "queue_path": "//tmp/any_queue",
+                "queue_path": queue_path,
                 "partition_index": 0,
                 "offset": 0,
             }
-            for name in names
+            for name, queue_path in name_to_queue_path.items()
         ])
         orchid.wait_fresh_pass()
 
@@ -77,12 +98,30 @@ class TestMultiConsumerController(TestQueueAgentBase):
             key=lambda r: r["name"],
         )
 
+        assert orchid.get_status() == get(f"{path}/@queue_consumer_status")
+        named_consumer_status = orchid.get_named_consumer_status("my_1")
+        assert named_consumer_status == get(f"{path}/@queue_consumer_status/consumers/my_1")
+        assert named_consumer_status["registrations"] == [
+            {
+                "vital": False,
+                "consumer": GenericObjectPath(path, "primary", "my_1").to_yson_type(),
+                "queue": str(GenericObjectPath(name_to_queue_path["my_1"], "primary")),
+            }
+        ]
+
+        status = orchid.get_status()
+        instances = ls("//sys/queue_agents/instances")
+        for instance in instances:
+            instance_orchid = QueueAgentOrchid(agent_id=instance)
+            multi_consumer_orchid = instance_orchid.get_multi_consumer_orchid(multi_consumer_ref)
+            assert status == multi_consumer_orchid.get_status()
+
         # Delete all rows and check table is cleaned up
-        for name in names:
+        for name, queue_path in name_to_queue_path.items():
             delete_rows(path, [{
                 "queue_consumer_name": name,
                 "queue_cluster": "primary",
-                "queue_path": "//tmp/any_queue",
+                "queue_path": queue_path,
                 "partition_index": 0,
             }])
 
@@ -100,7 +139,7 @@ class TestMultiConsumerController(TestQueueAgentBase):
 
         sync_unmount_table(path)
 
-        orchid = QueueAgentOrchid().get_multi_consumer_orchid(GenericObjectPath(path, "primary"))
+        orchid = self._get_orchid().get_multi_consumer_orchid(GenericObjectPath(path, "primary"))
 
         orchid.wait_fresh_pass()
 
@@ -120,7 +159,7 @@ class TestMultiConsumerController(TestQueueAgentBase):
 
         self._wait_for_component_passes()
 
-        orchid = QueueAgentOrchid().get_multi_consumer_orchid(GenericObjectPath(path, "primary"))
+        orchid = self._get_orchid().get_multi_consumer_orchid(GenericObjectPath(path, "primary"))
 
         assert select_rows("* from [//sys/queue_agents/multi_consumer_names]") == []
         insert_rows(path, [{
@@ -149,7 +188,7 @@ class TestMultiConsumerController(TestQueueAgentBase):
 
         self._wait_for_component_passes()
 
-        orchid = QueueAgentOrchid().get_multi_consumer_orchid(GenericObjectPath(path, "primary"))
+        orchid = self._get_orchid().get_multi_consumer_orchid(GenericObjectPath(path, "primary"))
 
         insert_rows(path, [{
             "queue_consumer_name": "my_1",
