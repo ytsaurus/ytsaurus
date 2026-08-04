@@ -8,6 +8,8 @@
 #include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/core/actions/bind.h>
 #include <yt/yt/core/actions/future.h>
 
@@ -222,6 +224,11 @@ NYT::TRefCountedPtr SetupGdbRefCountFixtures()
     // blocks in WaitFor on a never-set future, keeping `held` live on its stack.
     RootedPool = CreateThreadPool(1, "GdbPool");
     auto neverSet = NewPromise<void>();
+    auto traceContext = NTracing::CreateTraceContextFromCurrent("GdbPluginTest");
+    traceContext->SetRecorded();
+    traceContext->AddTag("trace_key", "trace_value");
+    traceContext->AddLoggingTag("LoggingKey", "LoggingValue");
+    NTracing::TTraceContextGuard traceContextGuard(traceContext);
     RootedFuture = BIND([neverSet] {
         auto held = New<TGdbLiveSolo>();
         GdbFiberHeldAddress = held.Get();

@@ -63,6 +63,18 @@ def test_fiber_locals_on_core():
 
 
 @authors("babenko")
+def test_fiber_tags_on_core():
+    ctx, path = get_core()
+    index = _fixture_fiber_index(ctx, path)
+    out = analyze(ctx, path, "yt-fiber-tags %d" % index)
+    assert_contains(
+        out,
+        "Fiber #%d trace context:" % index,
+        "logging tags: LoggingKey: LoggingValue",
+        "tracing tags: trace_key: trace_value")
+
+
+@authors("babenko")
 def test_fiber_select_on_core():
     ctx, path = get_core()
     # Switching the register context needs a live inferior; on a coredump the
