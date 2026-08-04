@@ -241,6 +241,10 @@ def nodes_for_predicate(
                 not node.args.get("group")
                 and scope_ref_count[id(source)] < 2
                 and not has_window_expression
+                # LIMIT/OFFSET and QUALIFY select rows before the outer predicate runs
+                and not node.args.get("limit")
+                and not node.args.get("offset")
+                and not node.args.get("qualify")
             ):
                 nodes[table] = node
     return nodes

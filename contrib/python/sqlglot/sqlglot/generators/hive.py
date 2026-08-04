@@ -10,7 +10,6 @@ from sqlglot.dialects.dialect import (
     arg_max_or_min_no_count,
     datestrtodate_sql,
     if_sql,
-    is_parse_json,
     left_to_substring_sql,
     max_or_greatest,
     min_or_least,
@@ -38,12 +37,49 @@ from sqlglot.transforms import (
     move_schema_columns_to_partitioned_by,
 )
 from sqlglot.generator import unsupported_args
+from sqlglot.time import format_time
 
 # These constants are duplicated from the Hive dialect class to avoid circular imports.
 # They must be kept in sync with Hive.TIME_FORMAT, Hive.DATE_FORMAT, Hive.DATEINT_FORMAT.
 HIVE_TIME_FORMAT = "'yyyy-MM-dd HH:mm:ss'"
 HIVE_DATE_FORMAT = "'yyyy-MM-dd'"
 HIVE_DATEINT_FORMAT = "'yyyyMMdd'"
+
+# The default formats above, as rendered by the lenient rewrite (non-padded month/day)
+HIVE_NON_PADDED_TIME_FORMATS = ("'yyyy-M-d HH:mm:ss'", "'yyyy-M-d'")
+
+# Expressions that parse a string with a format (vs. formatting one, like TimeToStr).
+PARSE_TIME_EXPRESSIONS = (exp.StrToTime, exp.StrToDate, exp.StrToUnix, exp.TsOrDsToDate)
+
+CANONICAL_TIME_FORMAT = re.compile(r"%(?:mstrict|dstrict|[-:].|.)")
+
+LAX_TO_NON_PADDED_FORMATS = {"%m": "%-m", "%d": "%-d"}
+
+
+def _lenient_parse_format(fmt: str) -> str:
+    """
+    Changes the lax %m/%d in a canonical format to the non-padded %-m/%-d, which java.time
+    parses with or without a leading zero. This is only safe for delimited specifiers, because
+    adjacent fields parse greedily, so e.g. 'yyyyMd' (from '%Y%m%d') can't even parse '20200101'.
+
+    The format is decomposed into specifiers (`formats`) and the interleaved literal text (`parts`).
+    Specifier i sits between parts[i] and parts[i + 1]. A %m/%d is changed only when its neighbors
+    don't touch a digit run, i.e., neither side is another specifier or a literal digit. At the end,
+    the pieces are zipped back together to produce the rewritten canonical format.
+    """
+    parts = CANONICAL_TIME_FORMAT.split(fmt)
+    formats = CANONICAL_TIME_FORMAT.findall(fmt)
+
+    for i, fmt_ in enumerate(formats):
+        if fmt_ in LAX_TO_NON_PADDED_FORMATS:
+            left, right = parts[i], parts[i + 1]
+            left_adjacent = (not left and i > 0) or (left and left[-1].isdigit())
+            right_adjacent = (not right and i < len(formats) - 1) or (right and right[0].isdigit())
+            if not left_adjacent and not right_adjacent:
+                formats[i] = LAX_TO_NON_PADDED_FORMATS[fmt_]
+
+    return "".join(part + fmt_ for part, fmt_ in zip(parts, formats + [""]))
+
 
 # (FuncType, Multiplier)
 DATE_DELTA_INTERVAL = {
@@ -115,27 +151,6 @@ def _date_diff_sql(self: HiveGenerator, expression: exp.DateDiff | exp.TsOrDsDif
     return diff_sql
 
 
-def _json_format_sql(self: HiveGenerator, expression: exp.JSONFormat) -> str:
-    this = expression.this
-
-    if is_parse_json(this):
-        if this.this.is_string:
-            # Since FROM_JSON requires a nested type, we always wrap the json string with
-            # an array to ensure that "naked" strings like "'a'" will be handled correctly
-            wrapped_json = exp.Literal.string(f"[{this.this.name}]")
-
-            from_json = self.func(
-                "FROM_JSON", wrapped_json, self.func("SCHEMA_OF_JSON", wrapped_json)
-            )
-            to_json = self.func("TO_JSON", from_json)
-
-            # This strips the [, ] delimiters of the dummy array printed by TO_JSON
-            return self.func("REGEXP_EXTRACT", to_json, "'^.(.*).$'", "1")
-        return self.sql(this)
-
-    return self.func("TO_JSON", this, expression.args.get("options"))
-
-
 @generator.unsupported_args(("expression", "Hive's SORT_ARRAY does not support a comparator."))
 def _array_sort_sql(self: HiveGenerator, expression: exp.ArraySort) -> str:
     return self.func("SORT_ARRAY", expression.this)
@@ -154,10 +169,23 @@ def _unix_to_time_sql(self: HiveGenerator, expression: exp.UnixToTime) -> str:
     return f"FROM_UNIXTIME({timestamp} / POW(10, {scale}))"
 
 
+def _is_cast_time_format(self: HiveGenerator, expression: exp.Expr, time_format: str) -> bool:
+    """Checks whether CAST subsumes the expression's parse format."""
+    if time_format in (HIVE_TIME_FORMAT, HIVE_DATE_FORMAT):
+        return True
+
+    if time_format in HIVE_NON_PADDED_TIME_FORMATS:
+        # The base render skips the lenient rewrite: a lax %m/%d pads back to MM/dd, an explicit %-m/%-d doesn't
+        padded_format = generator.Generator.format_time(self, expression)
+        return padded_format in (HIVE_TIME_FORMAT, HIVE_DATE_FORMAT)
+
+    return False
+
+
 def _str_to_date_sql(self: HiveGenerator, expression: exp.StrToDate) -> str:
     this = self.sql(expression, "this")
     time_format = self.format_time(expression)
-    if time_format not in (HIVE_TIME_FORMAT, HIVE_DATE_FORMAT):
+    if time_format and not _is_cast_time_format(self, expression, time_format):
         this = f"FROM_UNIXTIME(UNIX_TIMESTAMP({this}, {time_format}))"
     return f"CAST({this} AS DATE)"
 
@@ -165,14 +193,14 @@ def _str_to_date_sql(self: HiveGenerator, expression: exp.StrToDate) -> str:
 def _str_to_time_sql(self: HiveGenerator, expression: exp.StrToTime) -> str:
     this = self.sql(expression, "this")
     time_format = self.format_time(expression)
-    if time_format not in (HIVE_TIME_FORMAT, HIVE_DATE_FORMAT):
+    if time_format and not _is_cast_time_format(self, expression, time_format):
         this = f"FROM_UNIXTIME(UNIX_TIMESTAMP({this}, {time_format}))"
     return f"CAST({this} AS TIMESTAMP)"
 
 
 def _to_date_sql(self: HiveGenerator, expression: exp.TsOrDsToDate) -> str:
     time_format = self.format_time(expression)
-    if time_format and time_format not in (HIVE_TIME_FORMAT, HIVE_DATE_FORMAT):
+    if time_format and not _is_cast_time_format(self, expression, time_format):
         return self.func("TO_DATE", expression.this, time_format)
 
     if isinstance(expression.parent, self.TS_OR_DS_EXPRESSIONS):
@@ -199,7 +227,7 @@ class HiveGenerator(generator.Generator):
     SAFE_JSON_PATH_KEY_RE = re.compile(r"^[_\-a-zA-Z][\-\w]*$")
     SUPPORTS_TO_NUMBER = False
     WITH_PROPERTIES_PREFIX = "TBLPROPERTIES"
-    PARSE_JSON_NAME: str | None = None
+    PARSE_JSON_NAME: str | None = "PARSE_JSON"
     PAD_FILL_PATTERN_IS_REQUIRED = True
     SUPPORTS_MEDIAN = False
     ARRAY_SIZE_NAME = "SIZE"
@@ -265,7 +293,7 @@ class HiveGenerator(generator.Generator):
         exp.IsNan: rename_func("ISNAN"),
         exp.JSONExtract: lambda self, e: self.func("GET_JSON_OBJECT", e.this, e.expression),
         exp.JSONExtractScalar: lambda self, e: self.func("GET_JSON_OBJECT", e.this, e.expression),
-        exp.JSONFormat: _json_format_sql,
+        exp.JSONFormat: rename_func("TO_JSON"),
         exp.Left: left_to_substring_sql,
         exp.Map: var_map_sql,
         exp.Max: max_or_greatest,
@@ -365,6 +393,29 @@ class HiveGenerator(generator.Generator):
     TS_OR_DS_EXPRESSIONS = HIVE_TS_OR_DS_EXPRESSIONS
 
     IGNORE_NULLS_FUNCS = (exp.First, exp.Last, exp.FirstValue, exp.LastValue)
+
+    def format_time(
+        self,
+        expression: exp.Expr,
+        inverse_time_mapping: dict[str, str] | None = None,
+        inverse_time_trie: dict | None = None,
+    ) -> str | None:
+        # Inferred property because this method is reused by other dialects under Hive
+        is_dialect_strict = self.dialect.TIME_MAPPING.get("MM") == "%mstrict"
+
+        if (
+            is_dialect_strict
+            and inverse_time_mapping is None
+            and isinstance(expression, PARSE_TIME_EXPRESSIONS)
+        ):
+            # Render a lenient %m/%d non-padded (M/d) so single-digit sources stay parseable
+            return format_time(
+                _lenient_parse_format(self.sql(expression, "format")),
+                self.dialect.INVERSE_TIME_MAPPING,
+                self.dialect.INVERSE_TIME_TRIE,
+            )
+
+        return super().format_time(expression, inverse_time_mapping, inverse_time_trie)
 
     def ignorenulls_sql(self, expression: exp.IgnoreNulls) -> str:
         this = expression.this

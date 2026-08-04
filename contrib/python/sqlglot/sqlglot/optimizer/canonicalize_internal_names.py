@@ -40,9 +40,11 @@ def canonicalize_internal_names(expression: E) -> E:
     while stack:
         node = stack.pop()
         if isinstance(node, exp.SetOperation):
-            stack.append(node.left.unnest())
+            # Access the args directly instead of the left/right properties, because set operation
+            # operands aren't guaranteed to be Query nodes, e.g. in VALUES (1) UNION ALL SELECT 1
+            stack.append(node.this.unnest())
             if node.args.get("by_name"):
-                stack.append(node.right.unnest())
+                stack.append(node.expression.unnest())
         else:
             output_scope_exprs.add(id(node))
 
@@ -59,6 +61,9 @@ def canonicalize_internal_names(expression: E) -> E:
     # Shared across scopes so a Table referenced from multiple scopes (LATERAL/UNNEST) gets consistent column names
     table_columns: dict[int, dict[str, str]] = {}
 
+    # Shared across UDTF sources so chained correlated UNNESTs get consistent names for their alias columns
+    udtf_columns: dict[int, dict[str, str]] = {}
+
     for scope in traverse_scope(expression):
         scope_expr = scope.expression
         is_output_scope = id(scope_expr) in output_scope_exprs
@@ -68,6 +73,11 @@ def canonicalize_internal_names(expression: E) -> E:
             columns_by_source.setdefault(col.table, []).append(col)
         for table_col in scope.table_columns:
             columns_by_source.setdefault(table_col.name, []).append(table_col)
+
+        # Include qualified stars (e.g. `t.*`)
+        for star in scope.stars:
+            if isinstance(star, exp.Column) and star.table:
+                columns_by_source.setdefault(star.table, []).append(star)
 
         # source_canon: source's canonical name (used in WITH "_tN" AS, and as
         #   the physical table name in `Table.this`). Shared across every reference
@@ -113,16 +123,19 @@ def canonicalize_internal_names(expression: E) -> E:
                 elif source.is_udtf:
                     alias_holder = src_expr
 
+                # A UDTF (unlike a CTE/subquery) can be a source in multiple scopes, so keep its alias_holder and share its column map across them
+                is_udtf_source = alias_holder is src_expr
+
                 table_key = id(alias_holder) if alias_holder else id(source)
                 canon_t = scope_table.get(table_key, "")
 
                 if not canon_t:
                     canon_t = next_table()
                     scope_table[table_key] = canon_t
-                else:
+                elif not is_udtf_source:
                     alias_holder = None  # already renamed on a previous encounter
 
-                name_map = {}
+                name_map = udtf_columns.setdefault(id(src_expr), {}) if is_udtf_source else {}
             else:
                 continue
 
@@ -281,8 +294,8 @@ def canonicalize_internal_names(expression: E) -> E:
                 while rename_stack:
                     node = rename_stack.pop()
                     if isinstance(node, exp.SetOperation):
-                        rename_stack.append(node.left)
-                        rename_stack.append(node.right)
+                        rename_stack.append(node.this)
+                        rename_stack.append(node.expression)
                         continue
                     if not isinstance(node, exp.Select):
                         continue
