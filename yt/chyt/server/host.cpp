@@ -868,6 +868,33 @@ public:
         return CypressObjectRepository_;
     }
 
+    void RefreshCypressObjectRepositoryGlobally() const
+    {
+        YT_LOG_DEBUG("Refreshing Cypress object repository on all instances");
+
+        auto instances = Discovery_->List();
+        using TResponse = NRpc::TTypedClientResponse<TRspRefreshCypressObjectRepository>::TResult;
+        std::vector<TFuture<TResponse>> futures;
+        futures.reserve(instances.size());
+
+        for (auto [instanceId, attributes] : instances) {
+            if (instanceId == ToString(Config_->InstanceId)) {
+                // The local snapshot has already been refreshed by the writer.
+                continue;
+            }
+
+            auto channel = ChannelFactory_->CreateChannel(
+                NNet::BuildServiceAddress(attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
+            TClickHouseServiceProxy proxy(channel);
+
+            auto req = proxy.RefreshCypressObjectRepository();
+            futures.push_back(req->Invoke());
+        }
+
+        WaitFor(AllSet(futures))
+            .ThrowOnError();
+    }
+
     void PrepareClickHouseUser(const std::string& userName)
     {
         auto context = getContext();
@@ -1464,6 +1491,11 @@ void THost::ReloadDictionaryGlobally(const std::string& configPath) const
 TCypressObjectRepositoryPtr THost::GetCypressObjectRepository() const
 {
     return Impl_->GetCypressObjectRepository();
+}
+
+void THost::RefreshCypressObjectRepositoryGlobally() const
+{
+    Impl_->RefreshCypressObjectRepositoryGlobally();
 }
 
 void THost::PrepareClickHouseUser(const std::string& userName)

@@ -104,6 +104,7 @@ SRCS(
     storage_subquery.cpp
     storage_system_clique.cpp
     storage_system_log_table_exporter.cpp
+    storage_yt_materialized_view.cpp
     storages_yt_nodes.cpp
     subquery.cpp
     subquery_spec.cpp

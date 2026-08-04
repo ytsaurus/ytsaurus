@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include "cluster_nodes.h"
+#include "cypress_object_repository.h"
 #include "object_lock.h"
 #include "query_progress.h"
 #include "secondary_query_input_puller.h"
@@ -109,10 +110,10 @@ public:
     //! InterpreterDropQuery performs a basic check for matching the type of the object and the type of the query (table/dictionary).
     //! However, there is a chance that after checking, but before the actual call of YtDatabase::dropTable,
     //! the object was deleted, and we may unexpectedly delete an object of a different type.
-    //! For this reason, LastResolvedDictionaryName stores the name of the dictionary that was resolved last within the current query.
+    //! For this reason, LastResolvedCliqueObject stores the identity and revision of the clique object
+    //! that was resolved last within the current query.
     //! It helps consistently resolve storage in YtDatabase::dropTable call.
-    std::string LastResolvedDictionaryName;
-    NHydra::TRevision LastResolvedDictionaryRevision = NHydra::NullRevision;
+    std::optional<TRepositoryObjectDescriptor> LastResolvedCliqueObject;
 
     //! if |true|, query registry should keep QueryFinishInfo after the query context is destroyed.
     //! Invoker affinity: query registry invoker.

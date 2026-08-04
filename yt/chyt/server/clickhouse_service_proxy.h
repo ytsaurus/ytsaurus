@@ -19,6 +19,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, SetSqlObject);
     DEFINE_RPC_PROXY_METHOD(NProto, RemoveSqlObject);
     DEFINE_RPC_PROXY_METHOD(NProto, ReloadDictionary);
+    DEFINE_RPC_PROXY_METHOD(NProto, RefreshCypressObjectRepository);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

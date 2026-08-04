@@ -37,8 +37,8 @@ class TYtDirectoryDatabase
     : public TYtDatabaseBase
 {
 public:
-    TYtDirectoryDatabase(String databaseName, TYPath root)
-        : TYtDatabaseBase(std::move(databaseName))
+    TYtDirectoryDatabase(String databaseName, THost* host, TYPath root)
+        : TYtDatabaseBase(std::move(databaseName), host)
         , Root_(std::move(root))
     { }
 
@@ -147,9 +147,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DatabasePtr CreateDirectoryDatabase(String databaseName, TYPath root)
+DB::DatabasePtr CreateDirectoryDatabase(String databaseName, THost* host, TYPath root)
 {
-    return std::make_shared<TYtDirectoryDatabase>(std::move(databaseName), std::move(root));
+    return std::make_shared<TYtDirectoryDatabase>(std::move(databaseName), host, std::move(root));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

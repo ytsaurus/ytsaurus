@@ -279,10 +279,10 @@ private:
 
         Host_->PopulateSystemDatabase(SystemDatabase_.get());
 
-        DB::DatabaseCatalog::instance().attachDatabase("YT", CreateYTDatabase());
+        DB::DatabaseCatalog::instance().attachDatabase("YT", CreateYTDatabase(Host_));
 
         for (const auto& [databaseName, root] : Host_->GetConfig()->DatabaseDirectories) {
-            DB::DatabaseCatalog::instance().attachDatabase(databaseName, CreateDirectoryDatabase(databaseName, root));
+            DB::DatabaseCatalog::instance().attachDatabase(databaseName, CreateDirectoryDatabase(databaseName, Host_, root));
         }
 
         ServerContext_->setCurrentDatabase(Config_->DefaultDatabase);

@@ -39,6 +39,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SetSqlObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveSqlObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReloadDictionary));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RefreshCypressObjectRepository));
     }
 
 private:
@@ -119,6 +120,15 @@ private:
 
         const auto& loader = Host_->GetContext()->getExternalDictionariesLoader();
         loader.reloadConfig(TCypressObjectRepository::CypressConfigRepositoryName, configPath);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, RefreshCypressObjectRepository)
+    {
+        context->SetRequestInfo();
+
+        Host_->GetCypressObjectRepository()->RefreshSnapshot();
 
         context->Reply();
     }

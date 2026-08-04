@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cypress_object_repository.h"
 #include "private.h"
 
 #include <yt/yt/core/ytree/convert.h>
@@ -17,7 +18,7 @@ class TYtDatabaseBase
     : public DB::IDatabase
 {
 public:
-    explicit TYtDatabaseBase(String databaseName);
+    TYtDatabaseBase(String databaseName, THost* host);
 
     void createTable(
         const DB::ContextPtr /*context*/,
@@ -52,10 +53,22 @@ public:
     DB::ASTPtr getCreateTableQueryImpl(const String& name, DB::ContextPtr context, bool throwOnError) const override;
 
 protected:
+    THost* const Host_;
+
     DB::StoragePtr DoGetTable(DB::ContextPtr context, const String& name) const;
 
     DB::StoragePtr DoGetYTTable(DB::ContextPtr context, TQueryContext* queryContext, const DB::StorageID& storageId) const;
+
+    DB::StoragePtr DoGetChytObject(
+        DB::ContextPtr context,
+        TQueryContext* queryContext,
+        const DB::StorageID& storageId,
+        std::optional<TRepositoryObjectDescriptor>* resolvedObject) const;
     DB::StoragePtr DoGetDictionary(DB::ContextPtr context, TQueryContext* queryContext, const DB::StorageID& storageId) const;
+    DB::StoragePtr DoGetMaterializedView(
+        DB::ContextPtr context,
+        const DB::StorageID& storageId,
+        std::optional<TCypressObjectRepository::TMaterializedView>* resolvedView = nullptr) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
