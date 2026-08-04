@@ -52,9 +52,10 @@ class Hive(Dialect):
         "yy": "%y",
         "MMMM": "%B",
         "MMM": "%b",
-        "MM": "%m",
+        # Hive 4.0+ parses MM/dd strictly (java.time.DateTimeFormatter, see HIVE-25458/HIVE-25576)
+        "MM": "%mstrict",
         "M": "%-m",
-        "dd": "%d",
+        "dd": "%dstrict",
         "d": "%-d",
         "HH": "%H",
         "H": "%-H",

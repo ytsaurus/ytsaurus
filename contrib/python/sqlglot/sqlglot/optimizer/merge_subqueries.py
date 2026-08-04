@@ -129,29 +129,75 @@ def merge_derived_tables(expression: E, leave_tables_isolated: bool = False) -> 
 
 
 def _mergeable(
-    outer_scope: Scope, inner_scope: Scope, leave_tables_isolated: bool, from_or_join: FromOrJoin
+    outer_scope: Scope,
+    inner_scope: Scope,
+    leave_tables_isolated: bool,
+    from_or_join: FromOrJoin,
 ) -> bool:
     """
     Return True if `inner_select` can be merged into outer query.
     """
     inner_select = inner_scope.expression.unnest()
 
-    def _is_a_window_expression_in_unmergable_operation():
+    def _window_projection_blocks_merge():
+        """A window function's result depends on the full row set it sees, so merging the
+        subquery into the outer query is unsafe when:
+          - the outer query filters or joins (WHERE/JOIN), which changes that row set, or
+          - a window column is referenced in an operation that isn't pushed down
+            (GROUP BY, ORDER BY, HAVING, aggregate).
+        """
         window_aliases = {s.alias_or_name for s in inner_select.selects if s.find(exp.Window)}
         if not window_aliases:
             return False
+
+        outer = outer_scope.expression
+        if outer.args.get("where") or outer.args.get("joins"):
+            return True
+
         inner_select_name = from_or_join.alias_or_name
-        unmergable_window_columns = [
-            column
-            for column in outer_scope.columns
-            if column.find_ancestor(
-                exp.Where, exp.Group, exp.Order, exp.Join, exp.Having, exp.AggFunc
-            )
-        ]
         return any(
-            column.table == inner_select_name and column.name in window_aliases
-            for column in unmergable_window_columns
+            column.table == inner_select_name
+            and column.name in window_aliases
+            and column.find_ancestor(exp.Group, exp.Order, exp.Having, exp.AggFunc)
+            for column in outer_scope.columns
         )
+
+    def _literal_group_unmergeable():
+        """
+        A numeric-literal projection referenced in GROUP BY can't be inlined, because a bare
+        integer literal is positional. A reference that is itself a top-level GROUP BY item
+        can merge as the ordinal of the outer projection that selects it; any other reference,
+        e.g., ROLLUP / CUBE / GROUPING SETS, tuples, expressions, etc, blocks the merge, since
+        ordinals aren't universally supported there, e.g., Presto / Trino only accept columns.
+        """
+        group = outer_scope.expression.args.get("group")
+        if not group:
+            return False
+
+        inner_name = from_or_join.alias_or_name
+        literal_names = {s.alias_or_name for s in inner_select.selects if s.unalias().is_number}
+        if not literal_names:
+            return False
+
+        grouped = set()
+        top_level_ids = {id(e.unnest()) for e in group.expressions}
+        for col in group.find_all(exp.Column):
+            if col.table != inner_name or col.name not in literal_names:
+                continue
+            if id(col) not in top_level_ids:
+                return True
+            grouped.add(col.name)
+
+        if not grouped:
+            return False
+
+        projected = set()
+        for s in outer_scope.expression.selects:
+            unaliased = s.unalias()
+            if isinstance(unaliased, exp.Column) and unaliased.table == inner_name:
+                projected.add(unaliased.name)
+
+        return not grouped <= projected
 
     def _outer_select_joins_on_inner_select_join():
         """
@@ -200,6 +246,21 @@ def _mergeable(
             node = node.parent
         return False
 
+    def _literal_in_order_by():
+        """A numeric-literal projection under a bare ORDER BY key can't merge (would become positional)."""
+        order = outer_scope.expression.args.get("order")
+        if not order:
+            return False
+        inner_name = from_or_join.alias_or_name
+        ordered = {
+            key.name
+            for o in order.expressions
+            if isinstance(key := o.this.unnest(), exp.Column) and key.table == inner_name
+        }
+        return any(
+            s.alias_or_name in ordered and s.unalias().is_number for s in inner_select.selects
+        )
+
     return (
         isinstance(outer_scope.expression, exp.Select)
         and not outer_scope.expression.is_star
@@ -223,7 +284,9 @@ def _mergeable(
             )
         )
         and not _outer_select_joins_on_inner_select_join()
-        and not _is_a_window_expression_in_unmergable_operation()
+        and not _window_projection_blocks_merge()
+        and not _literal_group_unmergeable()
+        and not _literal_in_order_by()
         and not _is_recursive()
         and not (inner_select.args.get("order") and outer_scope.is_union)
         and not isinstance(seq_get(inner_select.expressions, 0), exp.QueryTransform)
@@ -324,6 +387,8 @@ def _merge_expressions(outer_scope: Scope, inner_scope: Scope, alias: str) -> No
         if column.table == alias:
             outer_columns[column.name].append(column)
 
+    group = outer_scope.expression.args.get("group")
+
     # Replace columns with the projection expression in the inner query
     for expression in inner_scope.expression.expressions:
         projection_name = expression.alias_or_name
@@ -339,15 +404,30 @@ def _merge_expressions(outer_scope: Scope, inner_scope: Scope, alias: str) -> No
         is_number = expression.is_number
         last = len(columns_to_replace) - 1
 
+        group_ordinal = None
+        if is_number and isinstance(outer_scope.expression, exp.Select):
+            # Find the ordinal of the outer SELECT that references this inner projection.
+            for j, s in enumerate(outer_scope.expression.selects):
+                unaliased = s.unalias()
+                if (
+                    isinstance(unaliased, exp.Column)
+                    and unaliased.table == alias
+                    and unaliased.name == projection_name
+                ):
+                    group_ordinal = j + 1
+                    break
+
         for i, column in enumerate(columns_to_replace):
             parent = column.parent
 
-            # Ensures that we don't merge literal numbers in GROUP BY as they have positional context
-            # e.g don't trasform `SELECT a FROM (SELECT 6 AS a) GROUP BY a` to `SELECT 6 AS a GROUP BY 6`,
-            # as this would attempt to GROUP BY the 6th projection instead of the column `a`
-            if is_number and isinstance(parent, exp.Group):
-                column.replace(exp.to_identifier(column.name))
-                continue
+            # A numeric-literal projection can't be inlined into a top-level GROUP BY item
+            # (positional context), canonicalize to the projection's ordinal to match
+            # qualify. _mergeable guarantees the ordinal exists.
+            if is_number and group:
+                item = next((e for e in group.expressions if e.unnest() is column), None)
+                if item is not None:
+                    item.replace(exp.Literal.number(group_ordinal))
+                    continue
 
             # Ensures we don't alter the intended operator precedence if there's additional
             # context surrounding the outer expression (i.e. it's not a simple projection).

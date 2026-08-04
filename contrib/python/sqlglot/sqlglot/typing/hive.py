@@ -27,9 +27,11 @@ EXPRESSION_METADATA = {
             exp.CurrentUser,
             exp.CurrentSchema,
             exp.Hex,
+            exp.JSONExtractScalar,
+            exp.JSONFormat,
             exp.NextDay,
             exp.RegexpExtract,
-            exp.Repeat,
+            exp.RegexpReplace,
             exp.Replace,
             exp.Soundex,
         }
@@ -74,4 +76,5 @@ EXPRESSION_METADATA = {
     exp.If: {"annotator": lambda self, e: self._annotate_by_args(e, "true", "false", promote=True)},
     exp.Quantile: {"annotator": lambda self, e: self._annotate_by_args(e, "quantile")},
     exp.RegexpSplit: {"returns": exp.DataType.from_str("ARRAY<STRING>")},
+    exp.StrToMap: {"returns": exp.DataType.from_str("MAP<STRING, STRING>")},
 }

@@ -710,9 +710,6 @@ class Simplifier:
             if node is not original:
                 original.replace(node)
 
-            for n in node.iter_expressions(reverse=True):
-                if n.meta_get(FINAL):
-                    raise
             pre_transformation_stack.extend(
                 n for n in node.iter_expressions(reverse=True) if not n.meta_get(FINAL)
             )
@@ -1685,7 +1682,7 @@ class Gen:
         self.stack.append(f'"{e.this}"' if e.quoted else e.this)
 
     def ilike_sql(self, e: exp.ILike) -> None:
-        self._binary(e, " ILIKE ")
+        self._binary(e, " NOT ILIKE " if e.args.get("negate") else " ILIKE ")
 
     def in_sql(self, e: exp.In) -> None:
         self.stack.append(")")
@@ -1705,7 +1702,7 @@ class Gen:
         self._binary(e, " IS ")
 
     def like_sql(self, e: exp.Like) -> None:
-        self._binary(e, " Like ")
+        self._binary(e, " NOT Like " if e.args.get("negate") else " Like ")
 
     def literal_sql(self, e: exp.Literal) -> None:
         self.stack.append(f"'{e.this}'" if e.is_string else e.this)

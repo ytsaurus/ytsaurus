@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(30.12.0)
+VERSION(30.13.0)
 
 LICENSE(MIT)
 
@@ -19,6 +19,7 @@ PY_SRCS(
     sqlglot/dialects/bigquery.py
     sqlglot/dialects/clickhouse.py
     sqlglot/dialects/databricks.py
+    sqlglot/dialects/dax.py
     sqlglot/dialects/dialect.py
     sqlglot/dialects/doris.py
     sqlglot/dialects/dremio.py
@@ -77,6 +78,7 @@ PY_SRCS(
     sqlglot/generators/bigquery.py
     sqlglot/generators/clickhouse.py
     sqlglot/generators/databricks.py
+    sqlglot/generators/dax.py
     sqlglot/generators/doris.py
     sqlglot/generators/dremio.py
     sqlglot/generators/drill.py
@@ -138,6 +140,7 @@ PY_SRCS(
     sqlglot/parsers/bigquery.py
     sqlglot/parsers/clickhouse.py
     sqlglot/parsers/databricks.py
+    sqlglot/parsers/dax.py
     sqlglot/parsers/doris.py
     sqlglot/parsers/dremio.py
     sqlglot/parsers/drill.py
@@ -177,6 +180,7 @@ PY_SRCS(
     sqlglot/typing/__init__.py
     sqlglot/typing/bigquery.py
     sqlglot/typing/clickhouse.py
+    sqlglot/typing/databricks.py
     sqlglot/typing/duckdb.py
     sqlglot/typing/hive.py
     sqlglot/typing/mysql.py

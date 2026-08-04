@@ -86,6 +86,7 @@ class Dialects(str, Enum):
     BIGQUERY = "bigquery"
     CLICKHOUSE = "clickhouse"
     DATABRICKS = "databricks"
+    DAX = "dax"
     DORIS = "doris"
     DREMIO = "dremio"
     DRILL = "drill"
@@ -132,6 +133,23 @@ class NormalizationStrategy(str, AutoName):
 
     CASE_INSENSITIVE_UPPERCASE = auto()
     """Always case-insensitive (uppercase), regardless of quotes."""
+
+
+# "Strict" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd to these in TIME_MAPPING so they
+# roundtrip, since a lax %m/%d renders non-padded there for parse expressions (see HiveGenerator.format_time).
+STRICT_TIME_FORMATS = {"%mstrict": "%m", "%dstrict": "%d"}
+
+
+def _with_strict_time_inverse(inverse_mapping: dict[str, str]) -> dict[str, str]:
+    for strict_format, lax_format in STRICT_TIME_FORMATS.items():
+        if strict_format in inverse_mapping:
+            # In strict dialects, a foreign lax %m formats the same padded way as %mstrict (MM)
+            inverse_mapping.setdefault(lax_format, inverse_mapping[strict_format])
+        else:
+            # Elsewhere, the strict format degrades to its lax counterpart so it never leaks
+            inverse_mapping.setdefault(strict_format, inverse_mapping.get(lax_format, lax_format))
+
+    return inverse_mapping
 
 
 class _Dialect(type):
@@ -237,11 +255,14 @@ class _Dialect(type):
         )
         # Merge class-defined INVERSE_TIME_MAPPING with auto-generated mappings
         # This allows dialects to define custom inverse mappings for roundtrip correctness
-        klass.INVERSE_TIME_MAPPING = {v: k for k, v in klass.TIME_MAPPING.items()} | (
-            klass.__dict__.get("INVERSE_TIME_MAPPING") or {}
+        klass.INVERSE_TIME_MAPPING = _with_strict_time_inverse(
+            {v: k for k, v in klass.TIME_MAPPING.items()}
+            | (klass.__dict__.get("INVERSE_TIME_MAPPING") or {})
         )
         klass.INVERSE_TIME_TRIE = new_trie(klass.INVERSE_TIME_MAPPING)
-        klass.INVERSE_FORMAT_MAPPING = {v: k for k, v in klass.FORMAT_MAPPING.items()}
+        klass.INVERSE_FORMAT_MAPPING = _with_strict_time_inverse(
+            {v: k for k, v in klass.FORMAT_MAPPING.items()}
+        )
         klass.INVERSE_FORMAT_TRIE = new_trie(klass.INVERSE_FORMAT_MAPPING)
 
         klass.INVERSE_CREATABLE_KIND_MAPPING = {
@@ -1797,10 +1818,6 @@ def trim_sql(self: Generator, expression: exp.Trim, default_trim_type: str = "")
     return f"TRIM({trim_type}{remove_chars}{from_part}{target}{collation})"
 
 
-def str_to_time_sql(self: Generator, expression: exp.Expr) -> str:
-    return self.func("STRPTIME", expression.this, self.format_time(expression))
-
-
 def concat_to_dpipe_sql(self: Generator, expression: exp.Concat) -> str:
     return self.sql(reduce(lambda x, y: exp.DPipe(this=x, expression=y), expression.expressions))
 
@@ -2022,6 +2039,45 @@ def unit_to_var(expression: exp.Expr, default: str = "DAY") -> exp.Expr | None:
 
     value = unit.name if unit else default
     return exp.Var(this=value) if value else None
+
+
+# Days of week to ISO 8601 day-of-week numbers
+# ISO 8601 standard: Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6, Sunday=7
+WEEK_START_DAY_TO_DOW = {
+    "MONDAY": 1,
+    "TUESDAY": 2,
+    "WEDNESDAY": 3,
+    "THURSDAY": 4,
+    "FRIDAY": 5,
+    "SATURDAY": 6,
+    "SUNDAY": 7,
+}
+
+
+def week_unit_to_dow(unit: exp.Expr | None) -> int | None:
+    """
+    Compute the week start day for a week-ish diff unit, e.g BigQuery's WEEK(<day>)
+    or ISOWEEK unit parts.
+
+    Args:
+        unit: The unit expression (Var for WEEK/ISOWEEK or WeekStart)
+
+    Returns:
+        The ISO 8601 day number (Monday=1, Sunday=7 etc) or None if not a week unit or if day is dynamic (not a constant).
+
+        Examples:
+            "WEEK(SUNDAY)" -> 7
+            "WEEK(MONDAY)" -> 1
+            "ISOWEEK" -> 1
+    """
+    if isinstance(unit, exp.Var) and unit.name.upper() in ("WEEK", "ISOWEEK"):
+        return 1
+
+    # Handle WeekStart expressions with explicit day
+    if isinstance(unit, exp.WeekStart):
+        return WEEK_START_DAY_TO_DOW.get(unit.name.upper())
+
+    return None
 
 
 @t.overload

@@ -78,7 +78,14 @@ def _date_add_sql(kind: str) -> t.Callable[[PostgresGenerator, DATE_ADD_OR_SUB],
 
 
 def _date_diff_sql(self: PostgresGenerator, expression: exp.DateDiff | exp.TsOrDsDiff) -> str:
-    unit = expression.text("unit").upper()
+    unit = expression.text("unit").upper() or "DAY"
+
+    # Dialects like MySQL count crossed day boundaries, which maps to DATE subtraction
+    if unit == "DAY" and expression.args.get("date_part_boundary"):
+        this = exp.cast(expression.this, exp.DType.DATE)
+        expr = exp.cast(expression.expression, exp.DType.DATE)
+        return self.sql(exp.paren(this - expr))
+
     factor = DATE_DIFF_FACTOR.get(unit)
 
     end = f"CAST({self.sql(expression, 'this')} AS TIMESTAMP)"
@@ -225,7 +232,6 @@ def _round_sql(self: PostgresGenerator, expression: exp.Round) -> str:
 class PostgresGenerator(generator.Generator):
     SELECT_KINDS: tuple[str, ...] = ()
     TRY_SUPPORTED = False
-    SUPPORTS_UESCAPE = False
     SUPPORTS_DECODE_CASE = False
 
     AFTER_HAVING_MODIFIER_TRANSFORMS = generator.AFTER_HAVING_MODIFIER_TRANSFORMS

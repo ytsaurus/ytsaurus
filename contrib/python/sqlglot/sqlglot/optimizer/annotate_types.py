@@ -236,6 +236,20 @@ class TypeAnnotator:
         self._setop_column_types.clear()
         self._scope_source_selects.clear()
 
+    def uncache(self, expression: exp.Expr, deep: bool = True) -> None:
+        """
+        Evicts `expression` (or its subtree, if `deep`) from the annotation caches. This must
+        be called when an already-annotated tree is about to be mutated, both so that a
+        subsequent annotation pass doesn't skip it and so that the ids of any discarded nodes
+        can't be conflated with new nodes allocated at the same addresses.
+        """
+        nodes: t.Iterable[exp.Expr] = expression.walk() if deep else (expression,)
+        for node in nodes:
+            node_id = id(node)
+            self._visited.discard(node_id)
+            self._null_expressions.pop(node_id, None)
+            self._setop_column_types.pop(node_id, None)
+
     # TODO (mypyc): should be expression: E -> E but mypyc resolves the TypeVar
     # to the isinstance-narrowed type, causing runtime type check failures.
     def _set_type(
@@ -334,8 +348,8 @@ class TypeAnnotator:
                         }
 
                 elif isinstance(expression, exp.SetOperation) and len(
-                    expression.left.selects
-                ) == len(expression.right.selects):
+                    expression.this.selects
+                ) == len(expression.expression.selects):
                     selects = self._get_setop_column_types(expression)
 
                 elif isinstance(expression, exp.Selectable):
@@ -616,9 +630,9 @@ class TypeAnnotator:
         # Validate that left and right have same number of projections
         if not (
             isinstance(setop, exp.SetOperation)
-            and setop.left.selects
-            and setop.right.selects
-            and len(setop.left.selects) == len(setop.right.selects)
+            and setop.this.selects
+            and setop.expression.selects
+            and len(setop.this.selects) == len(setop.expression.selects)
         ):
             return col_types
 
@@ -630,20 +644,20 @@ class TypeAnnotator:
                 continue
 
             if set_op.args.get("by_name"):
-                r_type_by_select = {s.alias_or_name: s.type for s in set_op.right.selects}
+                r_type_by_select = {s.alias_or_name: s.type for s in set_op.expression.selects}
                 setop_cols = {
                     s.alias_or_name: self._maybe_coerce(
                         t.cast(exp.DataType, s.type),
                         r_type_by_select.get(s.alias_or_name) or exp.DType.UNKNOWN,
                     )
-                    for s in set_op.left.selects
+                    for s in set_op.this.selects
                 }
             else:
                 setop_cols = {
                     ls.alias_or_name: self._maybe_coerce(
                         t.cast(exp.DataType, ls.type), t.cast(exp.DataType, rs.type)
                     )
-                    for ls, rs in zip(set_op.left.selects, set_op.right.selects)
+                    for ls, rs in zip(set_op.this.selects, set_op.expression.selects)
                 }
 
             # Coerce intermediate results with the previously registered types, if they exist

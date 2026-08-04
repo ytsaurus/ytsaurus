@@ -402,9 +402,6 @@ class Generator:
     # UNNEST WITH ORDINALITY (presto) instead of UNNEST WITH OFFSET (bigquery)
     UNNEST_WITH_ORDINALITY = True
 
-    # Whether FILTER (WHERE cond) can be used for conditional aggregation
-    AGGREGATE_FILTER_SUPPORTED = True
-
     # Whether JOIN sides (LEFT, RIGHT) are supported in conjunction with SEMI/ANTI join kinds
     SEMI_ANTI_JOIN_WITH_SIDE = True
 
@@ -428,6 +425,9 @@ class Generator:
 
     # The keyword to use when specifying the seed of a sample clause
     TABLESAMPLE_SEED_KEYWORD = "SEED"
+
+    # Whether the historical data clause (AT ... / BEFORE ...) is generated after the table alias
+    HISTORICAL_DATA_POST_ALIAS = False
 
     # Whether COLLATE is a function instead of a binary operator
     COLLATE_IS_FUNC = False
@@ -1905,16 +1905,9 @@ class Generator:
         return f"{percent}{rows}{with_ties}"
 
     def filter_sql(self, expression: exp.Filter) -> str:
-        if self.AGGREGATE_FILTER_SUPPORTED:
-            this = self.sql(expression, "this")
-            where = self.sql(expression, "expression").strip()
-            return f"{this} FILTER({where})"
-
-        agg = expression.this
-        agg_arg = agg.this
-        cond = expression.expression.this
-        agg_arg.replace(exp.If(this=cond.copy(), true=agg_arg.copy()))
-        return self.sql(agg)
+        this = self.sql(expression, "this")
+        where = self.sql(expression, "expression").strip()
+        return f"{this} FILTER({where})"
 
     def hint_sql(self, expression: exp.Hint) -> str:
         if not self.QUERY_HINTS:
@@ -2433,7 +2426,10 @@ class Generator:
 
         when = self.sql(expression, "when")
         if when:
-            table = f"{table} {when}"
+            if self.HISTORICAL_DATA_POST_ALIAS:
+                alias = f"{alias} {when}"
+            else:
+                table = f"{table} {when}"
 
         changes = self.sql(expression, "changes")
         changes = f" {changes}" if changes else ""
@@ -3243,7 +3239,12 @@ class Generator:
         limit = expression.args.get("limit")
 
         if self.LIMIT_FETCH == "LIMIT" and isinstance(limit, exp.Fetch):
-            limit = exp.Limit(expression=exp.maybe_copy(limit.args.get("count")))
+            count = limit.args.get("count")
+            # "FETCH FIRST ROWS ONLY" without a count means one row per the SQL
+            # standard; emitting a bare "LIMIT" here would produce invalid SQL.
+            limit = exp.Limit(
+                expression=exp.maybe_copy(count) if count is not None else exp.Literal.number(1)
+            )
         elif self.LIMIT_FETCH == "FETCH" and isinstance(limit, exp.Limit):
             limit = exp.Fetch(direction="FIRST", count=exp.maybe_copy(limit.expression))
 
@@ -3723,6 +3724,10 @@ class Generator:
         options = f" {options}" if options else ""
         return f"PRIMARY KEY{this} ({expressions}){include}{options}"
 
+    def timeserieskey_sql(self, expression: exp.TimeseriesKey) -> str:
+        self.unsupported("TIMESERIES primary key columns are not supported")
+        return self.sql(expression, "this")
+
     def if_sql(self, expression: exp.If) -> str:
         return self.case_sql(exp.Case(ifs=[expression], default=expression.args.get("false")))
 
@@ -4008,6 +4013,9 @@ class Generator:
     def fromiso8601timestamp_sql(self, expression: exp.FromISO8601Timestamp) -> str:
         return self.sql(exp.cast(expression.this, exp.DType.TIMESTAMPTZ))
 
+    def fromiso8601timestampnanos_sql(self, expression: exp.FromISO8601TimestampNanos) -> str:
+        return self.sql(exp.cast(expression.this, exp.DType.TIMESTAMPTZ))
+
     def add_sql(self, expression: exp.Add) -> str:
         return self.binary(expression, "+")
 
@@ -4086,6 +4094,10 @@ class Generator:
     # Base implementation that excludes safe, zone, and target_type metadata args
     def strtotime_sql(self, expression: exp.StrToTime) -> str:
         return self.func("STR_TO_TIME", expression.this, expression.args.get("format"))
+
+    # Base implementation that excludes the safe and default_year metadata args
+    def strtodate_sql(self, expression: exp.StrToDate) -> str:
+        return self.func("STR_TO_DATE", expression.this, expression.args.get("format"))
 
     def parsedatetime_sql(self, expression: exp.ParseDatetime) -> str:
         return self.func(
