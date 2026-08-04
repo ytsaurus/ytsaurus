@@ -18,12 +18,28 @@
 
 #include <Interpreters/StorageID.h>
 
+#include <Parsers/IAST_fwd.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ERepositoryObjectType,
+    (Dictionary)
+    (MaterializedView)
+    (Unknown)
+);
+
+struct TRepositoryObjectDescriptor
+{
+    DB::StorageID StorageId;
+    ERepositoryObjectType Type;
+    NHydra::TRevision Revision;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Cypress-backed catalog of clique objects.
-//! The kind of an object is stored in the "chyt_object_type" attribute.
 class TCypressObjectRepository
     : public TRefCounted
 {
@@ -33,7 +49,13 @@ private:
 
 public:
     static const std::string CypressConfigRepositoryName;
-    static const std::string DictionaryObjectType;
+
+    struct TMaterializedView
+    {
+        DB::ASTPtr CreateQuery;
+        NYPath::TYPath TargetPath;
+        NHydra::TRevision Revision;
+    };
 
     TCypressObjectRepository(
         NApi::NNative::IClientPtr client,
@@ -51,14 +73,23 @@ public:
     DB::LoadablesConfigurationPtr LoadDictionary(const std::string& dictionaryName);
     std::optional<NHydra::TRevision> TryGetDictionaryRevision(const DB::StorageID& storageId);
 
+    std::optional<TMaterializedView> TryGetMaterializedView(const DB::StorageID& storageId);
+
     void WriteDictionary(
         const DB::ContextPtr& context,
         const DB::StorageID& storageId,
         const DB::LoadablesConfigurationPtr& config);
-    void DeleteDictionary(
+
+    void WriteMaterializedView(
         const DB::ContextPtr& context,
         const DB::StorageID& storageId,
-        NHydra::TRevision revision);
+        const std::string& statement,
+        const NYPath::TYPath& sourcePath,
+        const NYPath::TYPath& targetPath);
+
+    void DeleteObject(
+        const DB::ContextPtr& context,
+        const TRepositoryObjectDescriptor& objectDescriptor);
 
 private:
     const NApi::NNative::IClientPtr Client_;
@@ -72,12 +103,21 @@ private:
     TObjectSnapshotPtr GetSnapshot();
     TObjectSnapshotPtr BuildSnapshot();
 
-    NYPath::TYPath GetObjectPath(const std::string& objectName) const;
-    static std::string GetObjectName(const DB::StorageID& storageId);
+    void DeleteDictionary(
+        const DB::ContextPtr& context,
+        const std::string& objectName,
+        NHydra::TRevision revision);
+    void DeleteMaterializedView(
+        const DB::ContextPtr& context,
+        const std::string& objectName,
+        NHydra::TRevision revision);
     void RemoveObject(
         const NApi::IClientPtr& client,
         const std::string& objectName,
         NHydra::TRevision revision);
+
+    NYPath::TYPath GetObjectPath(const std::string& objectName) const;
+    static std::string GetObjectName(const DB::StorageID& storageId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressObjectRepository)

@@ -59,6 +59,7 @@ TEST_SRCS(
     test_input_fetching.py
     test_join_and_in.py
     test_log_tailer.py
+    test_materialized_views.py
     test_mutations.py
     test_prewhere.py
     test_pull_distribution.py

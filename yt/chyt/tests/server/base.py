@@ -101,6 +101,7 @@ class Clique(object):
                  alias=None,
                  export_query_log=False,
                  enable_object_repository=True,
+                 remove_storage_artifacts_on_exit=True,
                  **kwargs):
         """
         alias: str
@@ -180,6 +181,7 @@ class Clique(object):
         config["yt"]["user_defined_sql_objects_storage"]["path"] = self.sql_udf_path
         config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
 
+        self.remove_storage_artifacts_on_exit = remove_storage_artifacts_on_exit
         if enable_object_repository:
             config["yt"]["object_repository"] = dict()
             self.storage_artifacts_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
@@ -484,7 +486,7 @@ class Clique(object):
 
             if self.sql_udf_path:
                 remove(self.sql_udf_path, recursive=True, force=True)
-            if self.storage_artifacts_path:
+            if self.storage_artifacts_path and self.remove_storage_artifacts_on_exit:
                 remove(self.storage_artifacts_path, recursive=True, force=True)
 
         except YtError as err:

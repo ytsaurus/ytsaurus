@@ -155,6 +155,8 @@ public:
 
     TCypressObjectRepositoryPtr GetCypressObjectRepository() const;
 
+    void RefreshCypressObjectRepositoryGlobally() const;
+
     void PrepareClickHouseUser(const std::string& userName);
 
     void ValidateDictionaryGrants(const std::string& userName, const DB::StorageID& storageId);

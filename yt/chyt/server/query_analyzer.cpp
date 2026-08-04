@@ -10,6 +10,7 @@
 #include "subquery.h"
 #include "subquery_spec.h"
 #include "storage_distributor.h"
+#include "storage_yt_materialized_view.h"
 #include "table.h"
 #include "read_range_inference.h"
 
@@ -391,7 +392,7 @@ JoinKeyLists ParseJoinKeyColumns(const DB::QueryTreeNodePtr& queryNode, const DB
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression)
+IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression, DB::ContextPtr context)
 {
     if (!tableExpression) {
         return nullptr;
@@ -405,6 +406,11 @@ IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression)
         storage = tableExpression->as<DB::TableFunctionNode&>().getStorage();
     } else {
         return nullptr;
+    }
+
+    // Reading through a materialized view reads its target table.
+    if (auto materializedView = std::dynamic_pointer_cast<IStorageYtMaterializedView>(storage)) {
+        return materializedView->ResolveTargetDistributor(context);
     }
 
     return std::dynamic_pointer_cast<IStorageDistributor>(storage);
@@ -1078,10 +1084,11 @@ void TQueryAnalyzer::ParseQuery()
     }
 
     YT_VERIFY(TableExpressions_.size() >= 1 && TableExpressions_.size() <= 2);
+    auto context = getContext();
     for (size_t tableExpressionIndex = 0; tableExpressionIndex < TableExpressions_.size(); ++tableExpressionIndex) {
         const auto& tableExpression = TableExpressions_[tableExpressionIndex];
 
-        auto storage = GetStorage(tableExpression);
+        auto storage = GetStorage(tableExpression, context);
         if (storage) {
             YT_LOG_DEBUG("Table expression corresponds to TStorageDistributor (TableExpression: %v)",
                 tableExpression->toAST());
