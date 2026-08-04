@@ -459,6 +459,7 @@ bool IsSupportedSequoiaType(EObjectType type)
         IsScalarType(type) ||
         IsChunkOwnerType(type) ||
         type == EObjectType::SequoiaLink ||
+        type == EObjectType::ChaosReplicatedTable ||
         type == EObjectType::Document ||
         type == EObjectType::Orchid;
 }

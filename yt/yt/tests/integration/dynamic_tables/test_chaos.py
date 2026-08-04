@@ -7065,18 +7065,11 @@ class TestChaosSingleCluster(ChaosTestBase):
 ##################################################################
 
 
-class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
+class ChaosSingleClusterNativeProxyBase(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 0
     NUM_NODES = 3
     NUM_CHAOS_NODES = 2
-    NUM_SECONDARY_MASTER_CELLS = 3
-
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["cypress_node_host", "chunk_host"]},
-        "12": {"roles": ["cypress_node_host", "chunk_host"]},
-        "13": {"roles": ["chunk_host"]},
-    }
 
     DELTA_DRIVER_CONFIG = {
         "enable_read_from_async_replicas": True,
@@ -7090,11 +7083,14 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
         },
     }
 
+    def _create_cross_shard_directory(self):
+        raise NotImplementedError()
+
     @authors("osidorkin")
     def test_move_chaos_replicas_through_portal(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
+        self._create_cross_shard_directory()
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/d1"},
@@ -7126,7 +7122,7 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
     def test_move_non_owning_chaos_replicated_table_through_portal(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
+        self._create_cross_shard_directory()
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/d1"},
@@ -7160,6 +7156,38 @@ class TestChaosSingleClusterNativeProxyWithPortals(ChaosTestBase):
         values2 = [{"key": 2, "value": "2"}]
         insert_rows(new_path, values2)
         wait(lambda: lookup_rows(new_path, [{"key": 2}]) == values2)
+
+
+##################################################################
+
+
+class TestChaosSingleClusterNativeProxyWithPortals(ChaosSingleClusterNativeProxyBase):
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["cypress_node_host", "chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
+    def _create_cross_shard_directory(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
+
+
+class TestChaosSingleClusterNativeProxySequoia(ChaosSingleClusterNativeProxyBase):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "sequoia_node_host"]},
+    }
+
+    def _create_cross_shard_directory(self):
+        create("map_node", "//tmp/p")
 
 
 ##################################################################
