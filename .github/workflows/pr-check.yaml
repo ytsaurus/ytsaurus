@@ -39,6 +39,7 @@ jobs:
     runs-on: trampoline
     permissions:
       issues: write
+      pull-requests: write
     outputs:
       comment-id: ${{ steps.notify-pr.outputs.comment-id }}
     steps:
@@ -155,6 +156,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      pull-requests: write
     uses: ./.github/workflows/pr-tests.yaml
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
@@ -176,6 +178,7 @@ jobs:
     runs-on: trampoline
     permissions:
       issues: write
+      pull-requests: write
     if: ${{ always() }}
     steps:
       - name: Notify PR
