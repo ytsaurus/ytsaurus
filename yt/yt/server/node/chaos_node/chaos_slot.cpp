@@ -489,9 +489,6 @@ private:
     TResourceTrackerTagsGuard AutomatonThreadTagsGuard_;
     TResourceTrackerTagsGuard SnapThreadTagsGuard_;
 
-    TCellDescriptor CellDescriptor_;
-
-
     IChaosManagerPtr ChaosManager_;
     IChaosLeaseManagerPtr ChaosLeaseManager_;
     ICoordinatorManagerPtr CoordinatorManager_;
@@ -502,8 +499,6 @@ private:
 
     NRpc::IServicePtr ChaosNodeService_;
     NRpc::IServicePtr CoordinatorService_;
-
-    IYPathServicePtr OrchidService_;
 
     std::atomic<bool> VerboseLoggingEnabled_ = false;
 
