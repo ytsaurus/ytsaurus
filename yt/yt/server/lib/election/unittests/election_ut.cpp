@@ -46,7 +46,7 @@ class TElectionTest
     : public testing::Test
 {
 public:
-    void Configure(int peerCount, int selfId)
+    void Configure(int peerCount, int selfId, std::optional<int> quorumPeerCount = std::nullopt)
     {
         // NB: During func gauge registration callback holding strong
         // reference to RPC server is put into the queue that is not
@@ -77,6 +77,7 @@ public:
             peerConfig->Address = GetPeerAddress(id);
             cellConfig->Peers.push_back(peerConfig);
         }
+        cellConfig->QuorumPeerCount = quorumPeerCount;
 
         auto cellManager = New<TCellManager>(cellConfig, ChannelFactory, nullptr, selfId);
 
@@ -390,6 +391,53 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
         EXPECT_CALL(*CallbacksMock, OnStopLeading(_));
     }
+
+    RunElections();
+}
+
+TEST_F(TElectionTest, ConfigurableQuorum)
+{
+    Configure(6, 0, /*quorumPeerCount*/ 5);
+
+    EXPECT_CALL(*CallbacksMock, GetPriority())
+        .WillRepeatedly(Return(std::pair(0LL, 0LL)));
+
+    for (int id = 1; id < 4; id++) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
+                auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
+                TElectionServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(RpcTimeout);
+
+                auto rspOrError = WaitFor(proxy.GetStatus()->Invoke());
+                EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+                const auto& rsp = rspOrError.Value();
+
+                response->set_state(ToProto(EPeerState::Following));
+                response->set_vote_id(0);
+                ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
+                ToProto(response->mutable_priority(), std::pair<i64, i64>(0, id));
+                response->set_self_id(id);
+                context->Reply();
+            }));
+    }
+
+    // Peers 4-5 never respond, simulating dead peers.
+    for (int id = 4; id < 6; id++) {
+        EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
+            .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [], {
+                // Do not reply.
+            }));
+    }
+
+    EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStartFollowing(_))
+        .Times(0);
+    EXPECT_CALL(*CallbacksMock, OnStopFollowing(_))
+        .Times(0);
 
     RunElections();
 }

@@ -35,6 +35,10 @@ struct TCellConfig
     //! Some could be Null to indicate that the peer is temporarily missing.
     std::vector<TCellPeerConfigPtr> Peers;
 
+    //! Number of peers required to form a quorum.
+    //! If null, defaults to the simple majority of voting peers.
+    std::optional<int> QuorumPeerCount;
+
     void ValidateAllPeersPresent();
 
     int CountVotingPeers() const;
