@@ -261,6 +261,18 @@ func TestJobCachePreservesCPUWhenJobIsReconfigured(t *testing.T) {
 	require.EqualValues(t, 10, cache.ResponseCPUTime(id, requestID))
 }
 
+func TestJobCacheReportsMemoryAsReplayableGauge(t *testing.T) {
+	cache, _ := newTestJobCache(time.Minute)
+	id := guid.FromHalves(1, 2)
+	firstRequest := guid.FromHalves(3, 4)
+	secondRequest := guid.FromHalves(5, 6)
+	cache.Put(cachedTestJob(t, id))
+
+	require.EqualValues(t, 100, cache.ResponseMemoryUsage(id, firstRequest, 100))
+	require.EqualValues(t, 100, cache.ResponseMemoryUsage(id, firstRequest, 200))
+	require.EqualValues(t, 200, cache.ResponseMemoryUsage(id, secondRequest, 200))
+}
+
 func TestJobCacheDropsCPUForExpiredOrDeletedJobs(t *testing.T) {
 	cache, clock := newTestJobCache(time.Minute)
 	expired := guid.FromHalves(1, 2)

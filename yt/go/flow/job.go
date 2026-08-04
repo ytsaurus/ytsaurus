@@ -236,6 +236,10 @@ type cachedJob struct {
 	lastRequestID       guid.GUID
 	lastResponseCPUTime int64
 	hasLastRequest      bool
+
+	lastMemoryRequestID     guid.GUID
+	lastResponseMemoryUsage int64
+	hasLastMemoryRequest    bool
 }
 
 func newJobCache(ttl time.Duration) *jobCache {
@@ -329,6 +333,30 @@ func (c *jobCache) ResponseCPUTime(id, requestID guid.GUID) int64 {
 	return cpuTime
 }
 
+func (c *jobCache) ResponseMemoryUsage(id, requestID guid.GUID, memoryUsage int64) int64 {
+	now := c.now()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	entry, ok := c.jobs[id]
+	if !ok {
+		return 0
+	}
+	if c.expired(entry, now) {
+		delete(c.jobs, id)
+		return 0
+	}
+	if entry.hasLastMemoryRequest && entry.lastMemoryRequestID == requestID {
+		return entry.lastResponseMemoryUsage
+	}
+
+	entry.lastMemoryRequestID = requestID
+	entry.lastResponseMemoryUsage = memoryUsage
+	entry.hasLastMemoryRequest = true
+	return memoryUsage
+}
+
 func (c *jobCache) Delete(id guid.GUID) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -341,6 +369,23 @@ func (c *jobCache) Len() int {
 	defer c.mu.Unlock()
 
 	return len(c.jobs)
+}
+
+func (c *jobCache) ActiveIDs() []guid.GUID {
+	now := c.now()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	ids := make([]guid.GUID, 0, len(c.jobs))
+	for id, entry := range c.jobs {
+		if c.expired(entry, now) {
+			delete(c.jobs, id)
+			continue
+		}
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 func (c *jobCache) expired(entry *cachedJob, now time.Time) bool {

@@ -7,6 +7,8 @@ SRCS(
     flow.go
     job.go
     message.go
+    memory.go
+    memory_marker.go
     output.go
     protomap.go
     payload.go
@@ -22,6 +24,7 @@ GO_TEST_SRCS(
     flow_test.go
     job_test.go
     message_test.go
+    memory_test.go
     output_test.go
     protomap_test.go
     payload_test.go
