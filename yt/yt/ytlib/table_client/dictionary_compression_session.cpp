@@ -466,7 +466,7 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                     << responseOrError;
             }
 
-            auto response = responseOrError.Value();
+            const auto& response = responseOrError.Value();
             YT_VERIFY(response.Fragments.size() == columnIdMapping.size());
 
             YT_LOG_DEBUG("Successfully read fragments of a dictionary chunk");
