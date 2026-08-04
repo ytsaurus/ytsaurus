@@ -42,7 +42,6 @@ Computation на стороне Worker-a собирает батч сообще�
         "jdk_bin_path" = "/app/ytflow/jdk/bin/java";
         "main_class" = "tech.ytsaurus.flow.examples.wordcount.NodeCompanionMain";
         "classpath" = "/app/ytflow/lib/*";
-        "run_process" = %true;
     };
     "dependencies" = {};
 };
@@ -98,7 +97,6 @@ int main(int argc, const char** argv)
 "CompanionManager" = {
     "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
     "parameters" = {
-        "run_process" = %true;
         "entrypoint" = {
             "executable" = "/path/to/my_companion";
         };

@@ -436,16 +436,12 @@ class FlowTestBase:
         problems: bool = False,
         controller_problems_config: Optional[ProblemsConfig] = None,
         worker_problems_config: Optional[ProblemsConfig] = None,
-        companion_problems_config: Optional[ProblemsConfig] = None,
         run_pipeline: bool = True,
         use_vanilla_jobs: bool = False,
         vanilla_secret_env: list[str] | None = None,
         vanilla_runtime_cluster: str | None = None,
         patch_node_config: bool = True,
         additional_env: dict[str, str] | None = None,
-        run_companion_externally: bool = False,
-        companion_binary_path: Optional[str] = None,
-        companion_binary_args: Optional[list[str]] = None,
         worker_node_config_overrides: list[dict] | None = None,
         leader_wait_timeout: Optional[int] = None,
     ):
@@ -478,8 +474,6 @@ class FlowTestBase:
                 controller_problems_config = ProblemsConfig(interval_seconds=60, problems_max_count=1)
             if worker_problems_config is None:
                 worker_problems_config = ProblemsConfig(interval_seconds=60, problems_max_count=2)
-            if companion_problems_config is None:
-                companion_problems_config = ProblemsConfig(interval_seconds=60, problems_max_count=2)
 
         env = dict(os.environ)
         if additional_env is not None:
@@ -498,16 +492,8 @@ class FlowTestBase:
             start_watcher_thread=start_watcher_thread,
             controller_problems_config=controller_problems_config,
             worker_problems_config=worker_problems_config,
-            companion_problems_config=companion_problems_config,
             run_pipeline=run_pipeline,
             use_vanilla_jobs=use_vanilla_jobs,
-            run_companion_externally=run_companion_externally,
-            companion_binary_path=companion_binary_path,
-            companion_binary_args=companion_binary_args,
-            companion_cluster_url=(
-                self.cluster_name_to_url[self.primary_cluster_name] if run_companion_externally else None
-            ),
-            companion_pipeline_path=self.pipeline_path if run_companion_externally else None,
             worker_node_config_overrides=worker_node_config_overrides,
             client=self.client,
         ) as federation:

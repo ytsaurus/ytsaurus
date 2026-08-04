@@ -37,7 +37,7 @@ class FlowTestPythonBase(FlowTestBase):
         # ``./companion --config pipeline.yson --flow-bin flow_server`` it enriches the spec and
         # hands off to flow_server, which sets the pipeline spec (and, for vanilla, submits the
         # operation). The runner — not the test — always sets the spec; the worker spawns the
-        # companion itself via run_process, matching production.
+        # companion itself, matching production.
         pipeline_binary_args = dict(pipeline_binary_args or {})
         config_path = pipeline_binary_args.get("--config")
         if config_path is not None:
@@ -67,7 +67,6 @@ class FlowTestPythonBase(FlowTestBase):
                     continue
                 parameters = resource_def.setdefault("parameters", {})
                 parameters["entrypoint"] = {"executable": self.PYTHON_COMPANION_BINARY}
-                parameters["run_process"] = True
                 log.info("Patched companion resource %s to spawn the local binary", resource_id)
         patched_path = os.path.join(self.path_to_flow_logs, "pipeline_launch.yson")
         dump_yson_config(pipeline_config, patched_path)

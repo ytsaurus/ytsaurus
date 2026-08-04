@@ -204,7 +204,7 @@ ya make examples/go/word_count bin/flow_server
 Обогащение спеки выполняется именно для vanilla-запуска и состоит из двух правок:
 
 - Бинарь пайплайна добавляется в `vanilla.worker.local_files` под именем `go_companion` — под этим именем `flow_server` доставляет его в сэндбокс джобы.
-- Каждому ресурсу с `resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager"` проставляются `parameters.entrypoint.executable = "./go_companion"` и `parameters.run_process = %true`, то есть воркер сам запускает компаньон из сэндбокса.
+- Каждому ресурсу с `resource_class_name = "NYT::NFlow::NCompanion::TCompanionManager"` проставляется `parameters.entrypoint.executable = "./go_companion"`, то есть воркер сам запускает компаньон из сэндбокса.
 
 {% note info %}
 

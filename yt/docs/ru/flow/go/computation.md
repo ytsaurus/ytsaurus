@@ -461,7 +461,6 @@ func (*myFunction) OnMessage(
 "CompanionManager" = {
     "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
     "parameters" = {
-        "run_process" = %true;
         "entrypoint" = {
             "executable" = "./go_companion";
         };
@@ -473,7 +472,7 @@ func (*myFunction) OnMessage(
 Параметр `resource_class_name` указывает на класс ресурса, который будет осуществлять запуск компаньона.
 В случае Go-компаньона `resource_class_name` всегда должен быть `NYT::NFlow::NCompanion::TCompanionManager`.
 
-Процесс компаньона описывается параметром `entrypoint` (`executable`, `args`, `env`); при `run_process = %false` Flow ожидает, что компаньон запущен снаружи (так делают, например, интеграционные тесты). При [запуске пайплайна с хоста](getting-started.md#launch) через `pipeline.Run()` заполнять `entrypoint` вручную не нужно: Go-бинарь сам прописывает `entrypoint = {"executable" = "./go_companion"}` и `run_process = %true`, а `flow_server` доставляет бинарь в джобу под этим именем.
+Процесс компаньона описывается параметром `entrypoint` (`executable`, `args`, `env`); воркер сам запускает компаньон и следит за его жизненным циклом. При [запуске пайплайна с хоста](getting-started.md#launch) через `pipeline.Run()` заполнять `entrypoint` вручную не нужно: Go-бинарь сам прописывает `entrypoint = {"executable" = "./go_companion"}`, а `flow_server` доставляет бинарь в джобу под этим именем.
 
 Параметр `companion_process_count` Go-компаньоном принимается и валидируется, но ничего не задаёт: пре-форк нужен Python из-за GIL, а Go-компаньон обслуживает запросы конкурентно горутинами. Подробнее — [Параллелизм компаньона](getting-started.md#companion-process-count).
 

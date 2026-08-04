@@ -135,7 +135,6 @@
             "CompanionManager" = {
                 "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
                 "parameters" = {
-                    "run_process" = %false;
                 };
                 "dependencies" = {};
             };

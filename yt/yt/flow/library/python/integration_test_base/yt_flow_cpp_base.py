@@ -55,7 +55,6 @@ class FlowTestCppCompanionBase(FlowTestBase):
                 continue
             parameters = resource_def.setdefault("parameters", {})
             parameters["entrypoint"] = {"executable": self.CPP_COMPANION_BINARY}
-            parameters["run_process"] = True
             log.info("Patched companion resource %s to spawn the local binary", resource_id)
         patched_path = os.path.join(self.path_to_flow_logs, "pipeline_launch.yson")
         dump_yson_config(pipeline_config, patched_path)

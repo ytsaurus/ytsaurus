@@ -55,7 +55,7 @@ class Test(FlowTestPythonBase):
         batching_write_rows(logs, lambda batch: self.client.insert_rows(input_queue, batch), 1000)
         self._expected_counts = expected_counts
 
-    def prepare_pipeline_config(self, input_queue, input_consumer, run_process=False):
+    def prepare_pipeline_config(self, input_queue, input_consumer):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
         pipeline_config["spec"]["computations"]["reader"]["source_streams"]["queue"]["parameters"].update(
@@ -65,11 +65,6 @@ class Test(FlowTestPythonBase):
                 "finite": True,
             }
         )
-        if run_process:
-            pipeline_config["spec"]["resources"]["CompanionManager"]["parameters"]["entrypoint"] = {
-                "executable": self.PYTHON_COMPANION_BINARY,
-            }
-            pipeline_config["spec"]["resources"]["CompanionManager"]["parameters"]["run_process"] = run_process
 
         self.patch_config(pipeline_config)
 
@@ -129,37 +124,3 @@ class Test(FlowTestPythonBase):
                 yson_payload = yson.loads(state['state']['payload'].encode())
                 got_counts[yson_payload['word']] = yson_payload['count']
             assert self._expected_counts == got_counts
-
-    @pytest.mark.authors(["sergeypozdeev"])
-    @pytest.mark.parametrize(
-        ("workers_count", "controllers_count"),
-        [
-            pytest.param(4, 1, id="1c_4w"),
-        ],
-    )
-    def test_managed(self, workers_count, controllers_count):
-        input_queue = self.work_yt_path + "/input_queue"
-        input_consumer = self.work_yt_path + "/consumer"
-        self.prepare_environment(input_queue)
-        pipeline_config_path = self.prepare_pipeline_config(input_queue, input_consumer, run_process=True)
-
-        with self.start_flow_process_federation(
-            pipeline_binary_args={
-                "--config": pipeline_config_path,
-            },
-            workers_count=workers_count,
-            controllers_count=controllers_count,
-        ):
-            self.wait_pipeline_state("completed")
-            logging.info("pipeline completed")
-            got_counts = {}
-            expr = f"* from [{self.pipeline_path}/states]"
-            key_states = list(self.client.select_rows(expr))
-            for state in key_states:
-                yson_payload = yson.loads(state['state']['payload'].encode())
-                got_counts[yson_payload['word']] = yson_payload['count']
-            logging.info("Got counts: %s", got_counts)
-            logging.info("Expected counts: %s", self._expected_counts)
-            assert self._expected_counts == got_counts
-
-            logging.info("check completed")

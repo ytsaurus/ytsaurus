@@ -9,7 +9,6 @@ import mergedeep
 
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 import yatest.common
 
@@ -150,81 +149,6 @@ class FlowSimpleProcess(BulliedProcess):
                     )
 
 
-class FlowCompanionProcess(BulliedProcess):
-    """
-    FlowCompanionProcess is a companion process that runs alongside a worker process.
-    Each companion shares the same companion_port with its paired worker process.
-    """
-
-    def __init__(
-        self,
-        binary_path: str | os.PathLike,
-        binary_args: list[str] | None,
-        mode: FlowProcessMode,
-        process_index: int,
-        logs_dir: str,
-        companion_port: int,
-        companion_monitoring_port: int,
-        cluster_url: str,
-        pipeline_path: str,
-        env: dict[str, str],
-        **kwargs,
-    ):
-        self.companion_port = companion_port
-        self.companion_monitoring_port = companion_monitoring_port
-        self._logs_dir = logs_dir
-        self._ports_dir = os.path.join(logs_dir, "ports")
-        self.process_index = process_index
-
-        Path(self._ports_dir).mkdir(parents=True, exist_ok=True)
-        with open(os.path.join(self._ports_dir, f"Companion_{process_index}_port.txt"), "w") as f:
-            f.write(str(self.companion_port))
-        with open(os.path.join(self._ports_dir, f"Companion_{process_index}_monitoring_port.txt"), "w") as f:
-            f.write(str(self.companion_monitoring_port))
-
-        companion_config = {
-            "port": companion_port,
-            "monitoring_port": companion_monitoring_port,
-            "cluster_url": cluster_url,
-            "pipeline_path": pipeline_path,
-        }
-
-        env = dict(env)
-        env["YT_FLOW_MODE"] = mode.value
-        env["YT_FLOW_COMPANION_CONFIG"] = yson.dumps(companion_config, yson_format="text").decode("utf-8")
-        env["YT_FLOW_COMPANION_LOGGER_TYPE"] = "File"
-        env["YT_FLOW_COMPANION_LOG_DIR"] = logs_dir
-        env["YT_FLOW_COMPANION_LOG_FILE"] = os.path.join(logs_dir, f"Companion_{process_index}_ALL.log")
-        env["COMPANION_PROCESS_INDEX"] = str(process_index)
-
-        launch_cmd = [str(binary_path)]
-        if binary_args:
-            launch_cmd.extend(binary_args)
-
-        super(FlowCompanionProcess, self).__init__(
-            launch_cmd=launch_cmd,
-            cwd=os.path.dirname(binary_path),
-            env=env,
-            check_exit_code=False,
-            stdout=os.path.join(self._logs_dir, f"Companion_{process_index}.out"),
-            stderr=os.path.join(self._logs_dir, f"Companion_{process_index}.err"),
-            name=f"Companion_{process_index}",
-            **kwargs,
-        )
-
-    def try_dump_process_state(self, debug_hang):
-        try:
-            # The companion's /metrics endpoint relies on Accept-based content negotiation;
-            # query parameters are not parsed.
-            _dump_sensors_json(
-                f"http://localhost:{self.companion_monitoring_port}/metrics",
-                headers={"Accept": "application/json"},
-                out_path=os.path.join(self._logs_dir, f"Companion_{self.process_index}_sensors.json"),
-            )
-        except Exception as e:
-            log.error(f"Can't dump sensors of Companion_{self.process_index}", exc_info=e)
-
-
 class FlowSimpleProcessFederation:
     def __init__(
         self,
@@ -240,14 +164,8 @@ class FlowSimpleProcessFederation:
         start_watcher_thread: bool = True,
         controller_problems_config: ProblemsConfig | None = None,
         worker_problems_config: ProblemsConfig | None = None,
-        companion_problems_config: ProblemsConfig | None = None,
         run_pipeline: bool = True,
         use_vanilla_jobs: bool = False,
-        run_companion_externally: bool = False,
-        companion_binary_path: Optional[str | os.PathLike] = None,
-        companion_binary_args: Optional[list[str]] = None,
-        companion_cluster_url: Optional[str] = None,
-        companion_pipeline_path: Optional[str] = None,
         worker_node_config_overrides: list[dict] | None = None,
         client=None,
     ):
@@ -258,27 +176,11 @@ class FlowSimpleProcessFederation:
         self._port_manager = port_manager
         self._run_pipeline = run_pipeline
         self._use_vanilla_jobs = use_vanilla_jobs
-        self._run_companion_externally = run_companion_externally
-        self._companion_binary_path = companion_binary_path
-        self._companion_binary_args = companion_binary_args
-        self._companion_cluster_url = companion_cluster_url
-        self._companion_pipeline_path = companion_pipeline_path
         self._worker_node_config_overrides = worker_node_config_overrides
         self._client = client
 
         if self._worker_node_config_overrides is not None and len(self._worker_node_config_overrides) != workers_count:
             raise ValueError("worker_node_config_overrides must contain exactly one entry per worker")
-
-        # Validation: companion_binary_path is required when run_companion_externally is True.
-        assert (
-            not self._run_companion_externally or self._companion_binary_path is not None
-        ), "companion_binary_path must be provided when run_companion_externally is True"
-
-        # Validation: companion_cluster_url and companion_pipeline_path are required when
-        # run_companion_externally is True
-        assert not self._run_companion_externally or (
-            self._companion_cluster_url is not None and self._companion_pipeline_path is not None
-        ), "companion_cluster_url and companion_pipeline_path must be provided when run_companion_externally is True"
 
         self._node_config_path = os.path.join(self._logs_dir, "config.yson")
         dump_yson_config(node_config, self._node_config_path)
@@ -303,16 +205,11 @@ class FlowSimpleProcessFederation:
 
         self.controllers = []
         self.workers = []
-        self.companions = []
         if not self._use_vanilla_jobs:
             self.controllers = self._start_processes(
                 FlowProcessMode.CONTROLLER, controllers_count, start_watcher_thread, controller_problems_config
             )
-            workers, companions = self._start_worker_processes(
-                workers_count, start_watcher_thread, worker_problems_config, companion_problems_config
-            )
-            self.workers = workers
-            self.companions = companions
+            self.workers = self._start_worker_processes(workers_count, start_watcher_thread, worker_problems_config)
         self._prepare_start()
 
     def _start_processes(
@@ -342,24 +239,9 @@ class FlowSimpleProcessFederation:
         count: int,
         start_watcher_thread: bool,
         worker_problems_config: ProblemsConfig | None,
-        companion_problems_config: ProblemsConfig | None,
-    ) -> tuple[list[FlowSimpleProcess], list[FlowCompanionProcess]]:
-        """
-        Create worker processes and optionally companion processes.
-        Each worker-companion pair shares the same companion_port.
-
-        Returns:
-            Tuple of (workers list, companions list)
-        """
-        workers = []
-        companions = []
-
-        for i in range(count):
-            # Allocate shared companion ports for worker-companion pair.
-            companion_port = self._port_manager.get_port()
-            companion_monitoring_port = self._port_manager.get_port()
-
-            worker = FlowSimpleProcess(
+    ) -> list[FlowSimpleProcess]:
+        return [
+            FlowSimpleProcess(
                 binary_path=self._binary_path,
                 config_path=self._node_config_path,
                 mode=FlowProcessMode.WORKER,
@@ -367,8 +249,8 @@ class FlowSimpleProcessFederation:
                 logs_dir=self._logs_dir,
                 rpc_port=self._port_manager.get_port(),
                 monitoring_port=self._port_manager.get_port(),
-                companion_port=companion_port,
-                companion_monitoring_port=companion_monitoring_port,
+                companion_port=self._port_manager.get_port(),
+                companion_monitoring_port=self._port_manager.get_port(),
                 env=self._env,
                 config_override=(
                     self._worker_node_config_overrides[i] if self._worker_node_config_overrides is not None else None
@@ -377,27 +259,8 @@ class FlowSimpleProcessFederation:
                 problems_config=worker_problems_config,
                 random_generator=self._random_generator,
             )
-            workers.append(worker)
-
-            if self._run_companion_externally:
-                companion = FlowCompanionProcess(
-                    binary_path=self._companion_binary_path,
-                    binary_args=self._companion_binary_args,
-                    mode=FlowProcessMode.WORKER,
-                    process_index=i,
-                    logs_dir=self._logs_dir,
-                    companion_port=companion_port,
-                    companion_monitoring_port=companion_monitoring_port,
-                    cluster_url=self._companion_cluster_url,
-                    pipeline_path=self._companion_pipeline_path,
-                    env=self._env,
-                    start_watcher_thread=start_watcher_thread,
-                    problems_config=companion_problems_config,
-                    random_generator=self._random_generator,
-                )
-                companions.append(companion)
-
-        return workers, companions
+            for i in range(count)
+        ]
 
     def _prepare_start(self):
         launch_cmd = [self._runner_binary_path]
@@ -424,7 +287,7 @@ class FlowSimpleProcessFederation:
         )
 
     def __enter__(self):
-        for process in self.controllers + self.workers + self.companions:
+        for process in self.controllers + self.workers:
             process.start()
 
         if self._run_pipeline:
@@ -442,7 +305,7 @@ class FlowSimpleProcessFederation:
         self._pipeline.wait(**kwargs)
 
     def stop(self):
-        for process in self.controllers + self.workers + self.companions:
+        for process in self.controllers + self.workers:
             process.stop()
         self._pipeline.stop()
 
@@ -460,5 +323,5 @@ class FlowSimpleProcessFederation:
                         log.warning("Failed to abort vanilla operation %s: %s", operation["id"], ex)
 
     def try_dump_processes_state(self, debug_hang):
-        for process in self.controllers + self.workers + self.companions:
+        for process in self.controllers + self.workers:
             process.try_dump_process_state(debug_hang=debug_hang)
