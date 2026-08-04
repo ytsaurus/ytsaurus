@@ -33,6 +33,8 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/range_helpers.h>
 
+#include <yt/yt/core/rpc/helpers.h>
+
 #include <yt/yt/core/ypath/token.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -513,7 +515,10 @@ TQueueAgent::TQueueAgent(
         DynamicConfig_->PassPeriod))
     , PassProfiler_(QueueAgentProfiler())
     , AgentId_(std::move(agentId))
-    , QueueAgentChannelFactory_(nativeConnection->GetChannelFactory())
+    , BaseQueueAgentChannelFactory_(nativeConnection->GetChannelFactory())
+    , QueueAgentChannelFactory_(NRpc::CreateDefaultTimeoutChannelFactory(
+        BaseQueueAgentChannelFactory_,
+        DynamicConfig_->QueueAgentChannelRequestTimeout))
     , QueueExportManager_(CreateQueueExportManager(
         nativeConnection,
         std::move(queueAgentUser),
@@ -591,6 +596,10 @@ void TQueueAgent::OnDynamicConfigChanged(
     PassExecutor_->SetPeriod(newConfig->PassPeriod);
 
     ControllerThreadPool_->SetThreadCount(newConfig->ControllerThreadCount);
+
+    QueueAgentChannelFactory_.Store(NRpc::CreateDefaultTimeoutChannelFactory(
+        BaseQueueAgentChannelFactory_,
+        newConfig->QueueAgentChannelRequestTimeout));
 
     {
         auto guard = ReaderGuard(ObjectLock_);
@@ -1098,8 +1107,11 @@ NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequest(const std::string& ho
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_DEBUG("Redirecting orchid request (QueueAgentHost: %v, RemoteRoot: %v)", host, remoteRoot);
-    auto leaderChannel = QueueAgentChannelFactory_->CreateChannel(host);
+    YT_LOG_DEBUG("Redirecting orchid request (QueueAgentHost: %v, RemoteRoot: %v)",
+        host,
+        remoteRoot);
+
+    auto leaderChannel = QueueAgentChannelFactory_.Acquire()->CreateChannel(host);
     return CreateOrchidYPathService({
         .Channel = std::move(leaderChannel),
         .RemoteRoot = std::string(remoteRoot),

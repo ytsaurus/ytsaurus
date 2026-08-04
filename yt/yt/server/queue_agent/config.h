@@ -241,6 +241,8 @@ struct TQueueAgentDynamicConfig
     //! NB: Even when set to true, mutating requests are only performed for objects with the corresponding stage.
     bool HandleReplicatedObjects;
 
+    TDuration QueueAgentChannelRequestTimeout;
+
     REGISTER_YSON_STRUCT(TQueueAgentDynamicConfig);
 
     static void Register(TRegistrar registrar);

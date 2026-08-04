@@ -15,6 +15,8 @@
 
 #include <yt/yt/core/rpc/bus/public.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +93,7 @@ private:
     const TPassProfiler PassProfiler_;
 
     const std::string AgentId_;
+    const NRpc::IChannelFactoryPtr BaseQueueAgentChannelFactory_;
 
     THashMap<NQueueClient::TProfilingTags, TTaggedProfilingCounters> TaggedProfilingCounters_;
 
@@ -122,7 +125,7 @@ private:
     //! Index of the current poll iteration.
     i64 PassIndex_ = -1;
 
-    NRpc::IChannelFactoryPtr QueueAgentChannelFactory_;
+    TAtomicIntrusivePtr<NRpc::IChannelFactory> QueueAgentChannelFactory_;
 
     TEnumIndexedArray<EObjectKind, NYTree::INodePtr> ObjectServiceNodes_;
     TEnumIndexedArray<EObjectKind, NYTree::INodePtr> OwnedObjectServiceNodes_;
