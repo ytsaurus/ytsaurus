@@ -791,6 +791,16 @@ private:
                 // so we can set the most recent feature flags.
                 auto responseFeatureFlags = MakeFuture(MostFreshFeatureFlags());
 
+                auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+                auto queryEngineConfig = singletonsConfig
+                    ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>()
+                    : nullptr;
+                bool allowHeavyRangeInferenceInJoins = queryEngineConfig
+                    ? queryEngineConfig->AllowHeavyRangeInferenceInJoins.value_or(false)
+                    : false;
+                bool multipleJoinSubqueriesAllowed = queryEngineConfig
+                    && queryEngineConfig->AllowMultipleJoinSubqueriesForNonLookupJoins.value_or(false);
+
                 auto joinProfilerRegistry = TJoinProfilerRegistry(
                     joinExecutePlanBuilder.Build({.MaxSubqueries = 1}),
                     [=, Logger = Logger] (TQueryStatistics statistics) mutable {
@@ -801,11 +811,17 @@ private:
                     Logger);
                 for (int joinIndex = 0; joinIndex < std::ssize(Query_->JoinClauses); ++joinIndex) {
                     const auto& joinClause = Query_->JoinClauses[joinIndex];
+
+                    int maxSubqueries = 1;
+                    if (multipleJoinSubqueriesAllowed && GetJoinSubqueryMode(*joinClause) != EJoinSubqueryMode::Lookup) {
+                        maxSubqueries = QueryOptions_.MaxSubqueries;
+                    }
+
                     auto executePlanCallback = joinExecutePlanBuilder.Build({
                         .Timestamp = joinClause->RequireSyncReplica
                             ? std::nullopt
                             : std::make_optional(NTransactionClient::AsyncLastCommittedTimestamp),
-                        .MaxSubqueries = 1,
+                        .MaxSubqueries = maxSubqueries,
                     });
 
                     if (joinClause->PrefetchedBlockRange) {
@@ -845,13 +861,6 @@ private:
                                 ? Logger
                                 : NLogging::TLogger(/*logManager*/ nullptr, "NullLogger")));
                     } else {
-                        auto singletonsConfig = TSingletonManager::GetDynamicConfig();
-                        auto queryEngineConfig = singletonsConfig
-                            ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>()
-                            : nullptr;
-                        bool allowHeavyRangeInferenceInJoins = queryEngineConfig
-                            ? queryEngineConfig->AllowHeavyRangeInferenceInJoins.value_or(false)
-                            : false;
                         joinProfilerRegistry.InsertJoinProfilerOrThrow(joinIndex, CreateJoinSubqueryProfiler(
                             joinClause,
                             executePlanCallback,
