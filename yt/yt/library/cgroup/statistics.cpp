@@ -299,11 +299,28 @@ public:
         return TCpuThrottlingStatistics{
             .NrPeriods = static_cast<ui64>(statistics["nr_periods"]),
             .NrThrottled = static_cast<ui64>(statistics["nr_throttled"]),
-            .ThrottledTime = CpuLocation->IsV2
-                ? TDuration::MicroSeconds(statistics["h_throttled_usec"])
-                : TDuration::MicroSeconds(statistics["h_throttled_time"] / 1000),
+            .ThrottledTime = GetThrottledTime(statistics),
             .WaitTime = GetWaitTime(),
         };
+    }
+
+    // NB(pavook): we prefer the h_throttled_* fields (kernel extension) because they are hierarchical,
+    // i.e. also account for throttling caused by the limits of ancestor cgroups;
+    // on stock kernels we fall back to the standard throttled_* fields of the cgroup itself.
+    TDuration GetThrottledTime(const THashMap<std::string, i64>& statistics) const
+    {
+        if (CpuLocation->IsV2) {
+            if (auto* throttled = statistics.FindPtr("h_throttled_usec")) {
+                return TDuration::MicroSeconds(*throttled);
+            }
+            return TDuration::MicroSeconds(statistics.Value("throttled_usec", 0));
+        }
+
+        // NB: V1 reports throttled time in nanoseconds.
+        if (auto* throttled = statistics.FindPtr("h_throttled_time")) {
+            return TDuration::MicroSeconds(*throttled / 1000);
+        }
+        return TDuration::MicroSeconds(statistics.Value("throttled_time", 0) / 1000);
     }
 
     // NB(pavook): we prefer cpuacct.wait (kernel extension) because it is an honest sum of individual thread wait times,
