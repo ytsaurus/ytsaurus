@@ -604,6 +604,13 @@ void TIOEngineBase::InitProfilerSensors()
     SickGauge_ = Profiler.Gauge("/sick");
     SickGauge_.Update(Sick_.load());
 
+    Profiler.AddFuncCounter("/sick_events", MakeStrong(this), [this] {
+        return SicknessCounter_.load();
+    });
+
+    Sensors_->KernelWrittenBytesCounter = Profiler.Counter("/kernel_written_bytes");
+    Sensors_->KernelReadBytesCounter = Profiler.Counter("/kernel_read_bytes");
+
     auto makeRequestSensors = [] (TProfiler profiler) {
         TIOEngineSensors::TRequestSensors sensors;
         sensors.Timer = profiler.Timer("/time");
@@ -615,8 +622,10 @@ void TIOEngineBase::InitProfilerSensors()
         return sensors;
     };
 
+    Sensors_->IOSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"));
+
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
-        auto profilerCategory = Profiler.WithTag("category", ToString(category));
+        auto profilerCategory = Profiler.WithTag("category", FormatEnum(category));
 
         Sensors_->InflightReadRequestSensors[category] = TInflightCounter::Create(profilerCategory, "/inflight_read_request_count");
         Sensors_->InflightWriteRequestSensors[category] = TInflightCounter::Create(profilerCategory, "/inflight_write_request_count");
@@ -629,15 +638,6 @@ void TIOEngineBase::InitProfilerSensors()
         Sensors_->SyncSensors[category] = makeRequestSensors(profilerCategory.WithPrefix("/sync"));
         Sensors_->DataSyncSensors[category] = makeRequestSensors(profilerCategory.WithPrefix("/datasync"));
     }
-
-    Profiler.AddFuncCounter("/sick_events", MakeStrong(this), [this] {
-        return SicknessCounter_.load();
-    });
-
-    Sensors_->IOSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"));
-
-    Sensors_->KernelWrittenBytesCounter = Profiler.Counter("/kernel_written_bytes");
-    Sensors_->KernelReadBytesCounter = Profiler.Counter("/kernel_read_bytes");
 }
 
 void TIOEngineBase::SetSickFlag(const TError& error)
