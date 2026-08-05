@@ -2,6 +2,7 @@
 
 #include "codec.h"
 #include "output_collector.h"
+#include "resource_store.h"
 #include "runtime_context.h"
 #include "runtime_init_context.h"
 
@@ -16,6 +17,7 @@
 
 namespace NYT::NFlow::NCompanionServer {
 
+using namespace NCompanion;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,9 +89,11 @@ THashSet<std::string> ExtractKeys(const TSpecMap& specMap)
 TJob::TJob(
     TJobId jobId,
     TComputationId computationId,
-    const NProto::NCompanion::TJobInfo& jobInfo)
+    const NProto::NCompanion::TJobInfo& jobInfo,
+    TResourceStorePtr resourceStore)
     : JobId_(jobId)
     , ComputationId_(std::move(computationId))
+    , ResourceStore_(std::move(resourceStore))
     , ConverterCache_(CreatePayloadConverterCache(CreateFastColumnEvaluatorCache()))
 {
     try {
@@ -103,6 +107,12 @@ TJob::TJob(
             << ex;
     }
     StreamSpecs_ = BuildStreamSpecs(jobInfo.streams());
+    CompanionResources_.reserve(jobInfo.companion_resources_size());
+    for (const auto& protoReference : jobInfo.companion_resources()) {
+        TCompanionResourceInstanceReference reference;
+        FromProto(&reference, protoReference);
+        CompanionResources_.push_back(std::move(reference));
+    }
 
     InternalStateNames_ = ExtractInternalStateNames(Spec_);
     ExternalStateNames_ = ExtractKeys(Spec_->ExternalStateManagers);
@@ -149,12 +159,26 @@ const THashSet<std::string>& TJob::GetJoinedStateNames() const
     return JoinedStateNames_;
 }
 
+const std::vector<TCompanionResourceInstanceReference>& TJob::GetCompanionResources() const
+{
+    return CompanionResources_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJob::EnsureInitialized()
+bool TJob::EnsureInitialized()
 {
     if (Initialized_) {
-        return;
+        return true;
+    }
+
+    // A reference can stop matching between the caller's store check and this
+    // acquisition when a lifecycle command advances the resource concurrently;
+    // report it in-band so the worker heals with a re-init instead of seeing
+    // an RPC error.
+    auto resources = AcquireRequiredResources();
+    if (!resources) {
+        return false;
     }
 
     // Validated with a throw before the host helpers, whose YT_VERIFY is meant
@@ -180,7 +204,8 @@ void TJob::EnsureInitialized()
 
     auto initContext = New<TCompanionRuntimeInitContext>(
         StateStore_,
-        Spec_->ProcessingFunctionParameters);
+        Spec_->ProcessingFunctionParameters,
+        std::move(*resources));
     function->Init(initContext);
 
     BatchFunction_ = WrapAsBatch(function);
@@ -194,13 +219,36 @@ void TJob::EnsureInitialized()
         ConverterCache_,
         /*throttlerFactory*/ nullptr);
     Initialized_ = true;
+    return true;
 }
 
-void TJob::ProcessBatch(
+std::optional<THashMap<TResourceId, IResourcePtr>> TJob::AcquireRequiredResources() const
+{
+    THashMap<TResourceId, IResourcePtr> resources;
+    if (!ResourceStore_) {
+        return resources;
+    }
+
+    for (const auto& reference : CompanionResources_) {
+        if (!reference.Alias) {
+            continue;
+        }
+        auto resource = ResourceStore_->FindInitializedResource(reference);
+        if (!resource) {
+            return std::nullopt;
+        }
+        resources[*reference.Alias] = std::move(resource);
+    }
+    return resources;
+}
+
+bool TJob::ProcessBatch(
     const NProto::NCompanion::TReqProcessBatch& request,
     NProto::NCompanion::TResponseData* data)
 {
-    EnsureInitialized();
+    if (!EnsureInitialized()) {
+        return false;
+    }
 
     // Source batches override the stream specs; message payloads are encoded
     // against the override when present.
@@ -245,6 +293,7 @@ void TJob::ProcessBatch(
         internalStates,
         externalStates,
         messageStreamSpecs);
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

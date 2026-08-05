@@ -17,10 +17,31 @@ DEFINE_ENUM(ECompanionComputationType,
 
 
 DEFINE_ENUM(ECompanionResponseStatus,
-    ((Ok)           (0))
-    ((Error)        (1))
-    ((JobNotFound)  (2))
+    ((Ok)                       (0))
+    ((Error)                    (1))
+    ((JobNotFound)              (2))
+    ((ResourceNotInitialized)   (4))
 );
+
+DEFINE_ENUM(ECompanionResourceCommand,
+    ((Init)   (0))
+    ((Unload) (1))
+);
+
+DEFINE_ENUM(ECompanionResourceExecuteStatus,
+    ((Ok)                       (0))
+    ((Error)                    (1))
+    ((ResourceNotFound)         (2))
+    ((ResourceNotInitialized)   (3))
+    ((Unsupported)              (4))
+    ((StaleResourceIncarnation) (5))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Alias under which companion computations and companion resources expect
+//! the companion manager among their required resources and dependencies.
+constexpr const char CompanionManagerAlias[] = "CompanionManager";
 
 DECLARE_REFCOUNTED_STRUCT(TCompanionComputationInfo);
 DECLARE_REFCOUNTED_STRUCT(TCompanionInfo);
@@ -29,12 +50,15 @@ DECLARE_REFCOUNTED_STRUCT(TCompanionPutJobRequest);
 DECLARE_REFCOUNTED_STRUCT(TCompanionPutJobResponse);
 DECLARE_REFCOUNTED_STRUCT(TCompanionProcessRequest);
 DECLARE_REFCOUNTED_STRUCT(TCompanionResponse);
+DECLARE_REFCOUNTED_STRUCT(TCompanionResourceExecuteResponse);
 
 DECLARE_REFCOUNTED_STRUCT(ICompanionClient);
 DECLARE_REFCOUNTED_CLASS(TCompanionClient);
 
 DECLARE_REFCOUNTED_CLASS(TCompanionManager);
 DECLARE_REFCOUNTED_CLASS(TJavaCompanionManager);
+DECLARE_REFCOUNTED_CLASS(TCompanionResource);
+DECLARE_REFCOUNTED_STRUCT(TCompanionResourceParameters);
 
 DECLARE_REFCOUNTED_CLASS(TSwiftMapCompanionComputation);
 DECLARE_REFCOUNTED_CLASS(TSwiftOrderedSourceCompanionComputation);

@@ -32,6 +32,9 @@ const (
 	EResponseStatus_RS_OK            EResponseStatus = 0
 	EResponseStatus_RS_ERROR         EResponseStatus = 1
 	EResponseStatus_RS_JOB_NOT_FOUND EResponseStatus = 2
+	// A companion resource required by the job is not initialized
+	// in the serving process (returned by ProcessBatch).
+	EResponseStatus_RS_RESOURCE_NOT_INITIALIZED EResponseStatus = 4
 )
 
 // Enum value maps for EResponseStatus.
@@ -40,11 +43,13 @@ var (
 		0: "RS_OK",
 		1: "RS_ERROR",
 		2: "RS_JOB_NOT_FOUND",
+		4: "RS_RESOURCE_NOT_INITIALIZED",
 	}
 	EResponseStatus_value = map[string]int32{
-		"RS_OK":            0,
-		"RS_ERROR":         1,
-		"RS_JOB_NOT_FOUND": 2,
+		"RS_OK":                       0,
+		"RS_ERROR":                    1,
+		"RS_JOB_NOT_FOUND":            2,
+		"RS_RESOURCE_NOT_INITIALIZED": 4,
 	}
 )
 
@@ -83,6 +88,130 @@ func (x *EResponseStatus) UnmarshalJSON(b []byte) error {
 // Deprecated: Use EResponseStatus.Descriptor instead.
 func (EResponseStatus) EnumDescriptor() ([]byte, []int) {
 	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{0}
+}
+
+type EResourceCommand int32
+
+const (
+	EResourceCommand_RC_INIT   EResourceCommand = 0
+	EResourceCommand_RC_UNLOAD EResourceCommand = 1
+)
+
+// Enum value maps for EResourceCommand.
+var (
+	EResourceCommand_name = map[int32]string{
+		0: "RC_INIT",
+		1: "RC_UNLOAD",
+	}
+	EResourceCommand_value = map[string]int32{
+		"RC_INIT":   0,
+		"RC_UNLOAD": 1,
+	}
+)
+
+func (x EResourceCommand) Enum() *EResourceCommand {
+	p := new(EResourceCommand)
+	*p = x
+	return p
+}
+
+func (x EResourceCommand) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EResourceCommand) Descriptor() protoreflect.EnumDescriptor {
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_enumTypes[1].Descriptor()
+}
+
+func (EResourceCommand) Type() protoreflect.EnumType {
+	return &file_yt_flow_library_cpp_companion_proto_companion_service_proto_enumTypes[1]
+}
+
+func (x EResourceCommand) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *EResourceCommand) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = EResourceCommand(num)
+	return nil
+}
+
+// Deprecated: Use EResourceCommand.Descriptor instead.
+func (EResourceCommand) EnumDescriptor() ([]byte, []int) {
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{1}
+}
+
+type EResourceExecuteStatus int32
+
+const (
+	EResourceExecuteStatus_RES_OK                         EResourceExecuteStatus = 0
+	EResourceExecuteStatus_RES_ERROR                      EResourceExecuteStatus = 1
+	EResourceExecuteStatus_RES_RESOURCE_NOT_FOUND         EResourceExecuteStatus = 2
+	EResourceExecuteStatus_RES_RESOURCE_NOT_INITIALIZED   EResourceExecuteStatus = 3
+	EResourceExecuteStatus_RES_UNSUPPORTED                EResourceExecuteStatus = 4
+	EResourceExecuteStatus_RES_STALE_RESOURCE_INCARNATION EResourceExecuteStatus = 5
+)
+
+// Enum value maps for EResourceExecuteStatus.
+var (
+	EResourceExecuteStatus_name = map[int32]string{
+		0: "RES_OK",
+		1: "RES_ERROR",
+		2: "RES_RESOURCE_NOT_FOUND",
+		3: "RES_RESOURCE_NOT_INITIALIZED",
+		4: "RES_UNSUPPORTED",
+		5: "RES_STALE_RESOURCE_INCARNATION",
+	}
+	EResourceExecuteStatus_value = map[string]int32{
+		"RES_OK":                         0,
+		"RES_ERROR":                      1,
+		"RES_RESOURCE_NOT_FOUND":         2,
+		"RES_RESOURCE_NOT_INITIALIZED":   3,
+		"RES_UNSUPPORTED":                4,
+		"RES_STALE_RESOURCE_INCARNATION": 5,
+	}
+)
+
+func (x EResourceExecuteStatus) Enum() *EResourceExecuteStatus {
+	p := new(EResourceExecuteStatus)
+	*p = x
+	return p
+}
+
+func (x EResourceExecuteStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EResourceExecuteStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_enumTypes[2].Descriptor()
+}
+
+func (EResourceExecuteStatus) Type() protoreflect.EnumType {
+	return &file_yt_flow_library_cpp_companion_proto_companion_service_proto_enumTypes[2]
+}
+
+func (x EResourceExecuteStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Do not use.
+func (x *EResourceExecuteStatus) UnmarshalJSON(b []byte) error {
+	num, err := protoimpl.X.UnmarshalJSONEnum(x.Descriptor(), b)
+	if err != nil {
+		return err
+	}
+	*x = EResourceExecuteStatus(num)
+	return nil
+}
+
+// Deprecated: Use EResourceExecuteStatus.Descriptor instead.
+func (EResourceExecuteStatus) EnumDescriptor() ([]byte, []int) {
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{2}
 }
 
 type TStateItem struct {
@@ -284,6 +413,78 @@ func (x *TStream) GetSchema() []byte {
 	return nil
 }
 
+type TCompanionResourceInstanceReference struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ResourceId              *string     `protobuf:"bytes,1,req,name=resource_id,json=resourceId" json:"resource_id,omitempty"`
+	IncarnationId           *misc.TGuid `protobuf:"bytes,2,req,name=incarnation_id,json=incarnationId" json:"incarnation_id,omitempty"`
+	ConfigurationGeneration *uint64     `protobuf:"varint,3,req,name=configuration_generation,json=configurationGeneration" json:"configuration_generation,omitempty"`
+	// Present only for resources directly exposed to the job or resource.
+	Alias *string `protobuf:"bytes,4,opt,name=alias" json:"alias,omitempty"`
+}
+
+func (x *TCompanionResourceInstanceReference) Reset() {
+	*x = TCompanionResourceInstanceReference{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TCompanionResourceInstanceReference) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TCompanionResourceInstanceReference) ProtoMessage() {}
+
+func (x *TCompanionResourceInstanceReference) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TCompanionResourceInstanceReference.ProtoReflect.Descriptor instead.
+func (*TCompanionResourceInstanceReference) Descriptor() ([]byte, []int) {
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *TCompanionResourceInstanceReference) GetResourceId() string {
+	if x != nil && x.ResourceId != nil {
+		return *x.ResourceId
+	}
+	return ""
+}
+
+func (x *TCompanionResourceInstanceReference) GetIncarnationId() *misc.TGuid {
+	if x != nil {
+		return x.IncarnationId
+	}
+	return nil
+}
+
+func (x *TCompanionResourceInstanceReference) GetConfigurationGeneration() uint64 {
+	if x != nil && x.ConfigurationGeneration != nil {
+		return *x.ConfigurationGeneration
+	}
+	return 0
+}
+
+func (x *TCompanionResourceInstanceReference) GetAlias() string {
+	if x != nil && x.Alias != nil {
+		return *x.Alias
+	}
+	return ""
+}
+
 type TJobInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -294,12 +495,14 @@ type TJobInfo struct {
 	// Input and output streams of the computation.
 	// Might be overwritten at source computation DoProcess request.
 	Streams []*TStream `protobuf:"bytes,3,rep,name=streams" json:"streams,omitempty"`
+	// Exact direct and transitive resource instances required by the job.
+	CompanionResources []*TCompanionResourceInstanceReference `protobuf:"bytes,4,rep,name=companion_resources,json=companionResources" json:"companion_resources,omitempty"`
 }
 
 func (x *TJobInfo) Reset() {
 	*x = TJobInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[3]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -312,7 +515,7 @@ func (x *TJobInfo) String() string {
 func (*TJobInfo) ProtoMessage() {}
 
 func (x *TJobInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[3]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -325,7 +528,7 @@ func (x *TJobInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TJobInfo.ProtoReflect.Descriptor instead.
 func (*TJobInfo) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{3}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *TJobInfo) GetSpec() []byte {
@@ -349,6 +552,13 @@ func (x *TJobInfo) GetStreams() []*TStream {
 	return nil
 }
 
+func (x *TJobInfo) GetCompanionResources() []*TCompanionResourceInstanceReference {
+	if x != nil {
+		return x.CompanionResources
+	}
+	return nil
+}
+
 type TWatermark struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -361,7 +571,7 @@ type TWatermark struct {
 func (x *TWatermark) Reset() {
 	*x = TWatermark{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[4]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -374,7 +584,7 @@ func (x *TWatermark) String() string {
 func (*TWatermark) ProtoMessage() {}
 
 func (x *TWatermark) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[4]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -387,7 +597,7 @@ func (x *TWatermark) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TWatermark.ProtoReflect.Descriptor instead.
 func (*TWatermark) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{4}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *TWatermark) GetStreamId() string {
@@ -417,7 +627,7 @@ type TNewTimer struct {
 func (x *TNewTimer) Reset() {
 	*x = TNewTimer{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[5]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[6]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -430,7 +640,7 @@ func (x *TNewTimer) String() string {
 func (*TNewTimer) ProtoMessage() {}
 
 func (x *TNewTimer) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[5]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[6]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -443,7 +653,7 @@ func (x *TNewTimer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TNewTimer.ProtoReflect.Descriptor instead.
 func (*TNewTimer) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{5}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *TNewTimer) GetTriggerTimestamp() uint64 {
@@ -493,7 +703,7 @@ type TReqProcessBatch struct {
 func (x *TReqProcessBatch) Reset() {
 	*x = TReqProcessBatch{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[6]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -506,7 +716,7 @@ func (x *TReqProcessBatch) String() string {
 func (*TReqProcessBatch) ProtoMessage() {}
 
 func (x *TReqProcessBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[6]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -519,7 +729,7 @@ func (x *TReqProcessBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqProcessBatch.ProtoReflect.Descriptor instead.
 func (*TReqProcessBatch) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{6}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *TReqProcessBatch) GetRequestId() *misc.TGuid {
@@ -618,7 +828,7 @@ type TResponseMetrics struct {
 func (x *TResponseMetrics) Reset() {
 	*x = TResponseMetrics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[7]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -631,7 +841,7 @@ func (x *TResponseMetrics) String() string {
 func (*TResponseMetrics) ProtoMessage() {}
 
 func (x *TResponseMetrics) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[7]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -644,7 +854,7 @@ func (x *TResponseMetrics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TResponseMetrics.ProtoReflect.Descriptor instead.
 func (*TResponseMetrics) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{7}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *TResponseMetrics) GetAllocatedBytes() int64 {
@@ -676,7 +886,7 @@ type TResponseData struct {
 func (x *TResponseData) Reset() {
 	*x = TResponseData{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[8]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -689,7 +899,7 @@ func (x *TResponseData) String() string {
 func (*TResponseData) ProtoMessage() {}
 
 func (x *TResponseData) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[8]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -702,7 +912,7 @@ func (x *TResponseData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TResponseData.ProtoReflect.Descriptor instead.
 func (*TResponseData) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{8}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *TResponseData) GetOutput() []*TResponseData_TGroup {
@@ -741,7 +951,7 @@ type TRspProcessBatch struct {
 func (x *TRspProcessBatch) Reset() {
 	*x = TRspProcessBatch{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[9]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -754,7 +964,7 @@ func (x *TRspProcessBatch) String() string {
 func (*TRspProcessBatch) ProtoMessage() {}
 
 func (x *TRspProcessBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[9]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -767,7 +977,7 @@ func (x *TRspProcessBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspProcessBatch.ProtoReflect.Descriptor instead.
 func (*TRspProcessBatch) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{9}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *TRspProcessBatch) GetRequestId() *misc.TGuid {
@@ -814,7 +1024,7 @@ type TReqCompanionInfo struct {
 func (x *TReqCompanionInfo) Reset() {
 	*x = TReqCompanionInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[10]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -827,7 +1037,7 @@ func (x *TReqCompanionInfo) String() string {
 func (*TReqCompanionInfo) ProtoMessage() {}
 
 func (x *TReqCompanionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[10]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -840,7 +1050,7 @@ func (x *TReqCompanionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqCompanionInfo.ProtoReflect.Descriptor instead.
 func (*TReqCompanionInfo) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{10}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{11}
 }
 
 type TRspCompanionInfo struct {
@@ -855,7 +1065,7 @@ type TRspCompanionInfo struct {
 func (x *TRspCompanionInfo) Reset() {
 	*x = TRspCompanionInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[11]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -868,7 +1078,7 @@ func (x *TRspCompanionInfo) String() string {
 func (*TRspCompanionInfo) ProtoMessage() {}
 
 func (x *TRspCompanionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[11]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -881,7 +1091,7 @@ func (x *TRspCompanionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspCompanionInfo.ProtoReflect.Descriptor instead.
 func (*TRspCompanionInfo) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{11}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *TRspCompanionInfo) GetPayload() []byte {
@@ -912,7 +1122,7 @@ type TReqPutJob struct {
 func (x *TReqPutJob) Reset() {
 	*x = TReqPutJob{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[12]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -925,7 +1135,7 @@ func (x *TReqPutJob) String() string {
 func (*TReqPutJob) ProtoMessage() {}
 
 func (x *TReqPutJob) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[12]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -938,7 +1148,7 @@ func (x *TReqPutJob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqPutJob.ProtoReflect.Descriptor instead.
 func (*TReqPutJob) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{12}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *TReqPutJob) GetRequestId() *misc.TGuid {
@@ -983,7 +1193,7 @@ type TRspPutJob struct {
 func (x *TRspPutJob) Reset() {
 	*x = TRspPutJob{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[13]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -996,7 +1206,7 @@ func (x *TRspPutJob) String() string {
 func (*TRspPutJob) ProtoMessage() {}
 
 func (x *TRspPutJob) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[13]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1009,7 +1219,7 @@ func (x *TRspPutJob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspPutJob.ProtoReflect.Descriptor instead.
 func (*TRspPutJob) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{13}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *TRspPutJob) GetRequestId() *misc.TGuid {
@@ -1040,6 +1250,141 @@ func (x *TRspPutJob) GetStatus() EResponseStatus {
 	return EResponseStatus_RS_OK
 }
 
+type TReqResourceExecute struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	RequestId  *misc.TGuid       `protobuf:"bytes,1,req,name=request_id,json=requestId" json:"request_id,omitempty"`
+	ResourceId *string           `protobuf:"bytes,2,req,name=resource_id,json=resourceId" json:"resource_id,omitempty"`
+	Command    *EResourceCommand `protobuf:"varint,3,req,name=command,enum=NYT.NFlow.NProto.NCompanion.EResourceCommand" json:"command,omitempty"`
+	// Per-command argument. YSON
+	Argument []byte `protobuf:"bytes,4,opt,name=argument" json:"argument,omitempty"`
+}
+
+func (x *TReqResourceExecute) Reset() {
+	*x = TReqResourceExecute{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqResourceExecute) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqResourceExecute) ProtoMessage() {}
+
+func (x *TReqResourceExecute) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqResourceExecute.ProtoReflect.Descriptor instead.
+func (*TReqResourceExecute) Descriptor() ([]byte, []int) {
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *TReqResourceExecute) GetRequestId() *misc.TGuid {
+	if x != nil {
+		return x.RequestId
+	}
+	return nil
+}
+
+func (x *TReqResourceExecute) GetResourceId() string {
+	if x != nil && x.ResourceId != nil {
+		return *x.ResourceId
+	}
+	return ""
+}
+
+func (x *TReqResourceExecute) GetCommand() EResourceCommand {
+	if x != nil && x.Command != nil {
+		return *x.Command
+	}
+	return EResourceCommand_RC_INIT
+}
+
+func (x *TReqResourceExecute) GetArgument() []byte {
+	if x != nil {
+		return x.Argument
+	}
+	return nil
+}
+
+type TRspResourceExecute struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	RequestId *misc.TGuid             `protobuf:"bytes,1,req,name=request_id,json=requestId" json:"request_id,omitempty"`
+	Status    *EResourceExecuteStatus `protobuf:"varint,2,req,name=status,enum=NYT.NFlow.NProto.NCompanion.EResourceExecuteStatus" json:"status,omitempty"`
+	Error     *misc.TError            `protobuf:"bytes,3,opt,name=error" json:"error,omitempty"`
+}
+
+func (x *TRspResourceExecute) Reset() {
+	*x = TRspResourceExecute{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[16]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspResourceExecute) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspResourceExecute) ProtoMessage() {}
+
+func (x *TRspResourceExecute) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[16]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspResourceExecute.ProtoReflect.Descriptor instead.
+func (*TRspResourceExecute) Descriptor() ([]byte, []int) {
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *TRspResourceExecute) GetRequestId() *misc.TGuid {
+	if x != nil {
+		return x.RequestId
+	}
+	return nil
+}
+
+func (x *TRspResourceExecute) GetStatus() EResourceExecuteStatus {
+	if x != nil && x.Status != nil {
+		return *x.Status
+	}
+	return EResourceExecuteStatus_RES_OK
+}
+
+func (x *TRspResourceExecute) GetError() *misc.TError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
 type TReqGetJfr struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1049,7 +1394,7 @@ type TReqGetJfr struct {
 func (x *TReqGetJfr) Reset() {
 	*x = TReqGetJfr{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[14]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1062,7 +1407,7 @@ func (x *TReqGetJfr) String() string {
 func (*TReqGetJfr) ProtoMessage() {}
 
 func (x *TReqGetJfr) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[14]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1075,7 +1420,7 @@ func (x *TReqGetJfr) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqGetJfr.ProtoReflect.Descriptor instead.
 func (*TReqGetJfr) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{14}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{17}
 }
 
 type TRspGetJfr struct {
@@ -1091,7 +1436,7 @@ type TRspGetJfr struct {
 func (x *TRspGetJfr) Reset() {
 	*x = TRspGetJfr{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[15]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1104,7 +1449,7 @@ func (x *TRspGetJfr) String() string {
 func (*TRspGetJfr) ProtoMessage() {}
 
 func (x *TRspGetJfr) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[15]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1117,7 +1462,7 @@ func (x *TRspGetJfr) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspGetJfr.ProtoReflect.Descriptor instead.
 func (*TRspGetJfr) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{15}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *TRspGetJfr) GetStatus() EResponseStatus {
@@ -1154,7 +1499,7 @@ type TReqProcessBatch_TExtendedMessage struct {
 func (x *TReqProcessBatch_TExtendedMessage) Reset() {
 	*x = TReqProcessBatch_TExtendedMessage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[16]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1167,7 +1512,7 @@ func (x *TReqProcessBatch_TExtendedMessage) String() string {
 func (*TReqProcessBatch_TExtendedMessage) ProtoMessage() {}
 
 func (x *TReqProcessBatch_TExtendedMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[16]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1180,7 +1525,7 @@ func (x *TReqProcessBatch_TExtendedMessage) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TReqProcessBatch_TExtendedMessage.ProtoReflect.Descriptor instead.
 func (*TReqProcessBatch_TExtendedMessage) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{6, 0}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{7, 0}
 }
 
 func (x *TReqProcessBatch_TExtendedMessage) GetMessage() *common.TMessage {
@@ -1213,7 +1558,7 @@ type TResponseData_TGroup struct {
 func (x *TResponseData_TGroup) Reset() {
 	*x = TResponseData_TGroup{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[17]
+		mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1226,7 +1571,7 @@ func (x *TResponseData_TGroup) String() string {
 func (*TResponseData_TGroup) ProtoMessage() {}
 
 func (x *TResponseData_TGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[17]
+	mi := &file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1239,7 +1584,7 @@ func (x *TResponseData_TGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TResponseData_TGroup.ProtoReflect.Descriptor instead.
 func (*TResponseData_TGroup) Descriptor() ([]byte, []int) {
-	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{8, 0}
+	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZIP(), []int{9, 0}
 }
 
 func (x *TResponseData_TGroup) GetMessages() []*common.TMessage {
@@ -1281,43 +1626,66 @@ var file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDesc = [
 	0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x1a, 0x26, 0x79, 0x74, 0x5f, 0x70,
 	0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x79, 0x74, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x6d, 0x69, 0x73,
 	0x63, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x67, 0x75, 0x69, 0x64, 0x2e, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x1a, 0x2e, 0x79, 0x74, 0x2f, 0x66, 0x6c, 0x6f, 0x77, 0x2f, 0x6c, 0x69, 0x62, 0x72,
-	0x61, 0x72, 0x79, 0x2f, 0x63, 0x70, 0x70, 0x2f, 0x63, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e, 0x2f, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x2e, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x1a, 0x2c, 0x79, 0x74, 0x2f, 0x66, 0x6c, 0x6f, 0x77, 0x2f, 0x6c, 0x69, 0x62, 0x72,
-	0x61, 0x72, 0x79, 0x2f, 0x63, 0x70, 0x70, 0x2f, 0x63, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e, 0x2f, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x74, 0x69, 0x6d, 0x65, 0x72, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x1a, 0x2c, 0x79, 0x74, 0x2f, 0x66, 0x6c, 0x6f, 0x77, 0x2f, 0x6c, 0x69, 0x62, 0x72, 0x61, 0x72,
-	0x79, 0x2f, 0x63, 0x70, 0x70, 0x2f, 0x63, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e, 0x2f, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x2f, 0x76, 0x69, 0x73, 0x69, 0x74, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x51,
-	0x0a, 0x0a, 0x54, 0x53, 0x74, 0x61, 0x74, 0x65, 0x49, 0x74, 0x65, 0x6d, 0x12, 0x10, 0x0a, 0x03,
-	0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x02, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x1b,
-	0x0a, 0x05, 0x72, 0x65, 0x73, 0x65, 0x74, 0x18, 0x02, 0x20, 0x02, 0x28, 0x08, 0x3a, 0x05, 0x66,
-	0x61, 0x6c, 0x73, 0x65, 0x52, 0x05, 0x72, 0x65, 0x73, 0x65, 0x74, 0x12, 0x14, 0x0a, 0x05, 0x73,
-	0x74, 0x61, 0x74, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74,
-	0x65, 0x22, 0x7d, 0x0a, 0x06, 0x54, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e,
-	0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12,
-	0x16, 0x0a, 0x06, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52,
-	0x06, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x12, 0x47, 0x0a, 0x0a, 0x73, 0x74, 0x61, 0x74, 0x65,
-	0x49, 0x74, 0x65, 0x6d, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x27, 0x2e, 0x4e, 0x59,
-	0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e,
-	0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e, 0x54, 0x53, 0x74, 0x61, 0x74, 0x65,
-	0x49, 0x74, 0x65, 0x6d, 0x52, 0x0a, 0x73, 0x74, 0x61, 0x74, 0x65, 0x49, 0x74, 0x65, 0x6d, 0x73,
-	0x22, 0x64, 0x0a, 0x07, 0x54, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x12, 0x1b, 0x0a, 0x09, 0x73,
-	0x74, 0x72, 0x65, 0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x08,
-	0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x49, 0x64, 0x12, 0x24, 0x0a, 0x0e, 0x73, 0x74, 0x72, 0x65,
-	0x61, 0x6d, 0x5f, 0x73, 0x70, 0x65, 0x63, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x02, 0x28, 0x03,
-	0x52, 0x0c, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x53, 0x70, 0x65, 0x63, 0x49, 0x64, 0x12, 0x16,
-	0x0a, 0x06, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x18, 0x03, 0x20, 0x02, 0x28, 0x0c, 0x52, 0x06,
-	0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x22, 0x81, 0x01, 0x0a, 0x08, 0x54, 0x4a, 0x6f, 0x62, 0x49,
-	0x6e, 0x66, 0x6f, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x70, 0x65, 0x63, 0x18, 0x01, 0x20, 0x02, 0x28,
-	0x0c, 0x52, 0x04, 0x73, 0x70, 0x65, 0x63, 0x12, 0x21, 0x0a, 0x0c, 0x64, 0x79, 0x6e, 0x61, 0x6d,
-	0x69, 0x63, 0x5f, 0x73, 0x70, 0x65, 0x63, 0x18, 0x02, 0x20, 0x02, 0x28, 0x0c, 0x52, 0x0b, 0x64,
-	0x79, 0x6e, 0x61, 0x6d, 0x69, 0x63, 0x53, 0x70, 0x65, 0x63, 0x12, 0x3e, 0x0a, 0x07, 0x73, 0x74,
-	0x72, 0x65, 0x61, 0x6d, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x24, 0x2e, 0x4e, 0x59,
-	0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e,
-	0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e, 0x54, 0x53, 0x74, 0x72, 0x65, 0x61,
-	0x6d, 0x52, 0x07, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x73, 0x22, 0x47, 0x0a, 0x0a, 0x54, 0x57,
+	0x74, 0x6f, 0x1a, 0x27, 0x79, 0x74, 0x5f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x79, 0x74, 0x2f,
+	0x63, 0x6f, 0x72, 0x65, 0x2f, 0x6d, 0x69, 0x73, 0x63, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f,
+	0x65, 0x72, 0x72, 0x6f, 0x72, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x2e, 0x79, 0x74, 0x2f,
+	0x66, 0x6c, 0x6f, 0x77, 0x2f, 0x6c, 0x69, 0x62, 0x72, 0x61, 0x72, 0x79, 0x2f, 0x63, 0x70, 0x70,
+	0x2f, 0x63, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x6d, 0x65,
+	0x73, 0x73, 0x61, 0x67, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x2c, 0x79, 0x74, 0x2f,
+	0x66, 0x6c, 0x6f, 0x77, 0x2f, 0x6c, 0x69, 0x62, 0x72, 0x61, 0x72, 0x79, 0x2f, 0x63, 0x70, 0x70,
+	0x2f, 0x63, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x74, 0x69,
+	0x6d, 0x65, 0x72, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x2c, 0x79, 0x74, 0x2f, 0x66, 0x6c,
+	0x6f, 0x77, 0x2f, 0x6c, 0x69, 0x62, 0x72, 0x61, 0x72, 0x79, 0x2f, 0x63, 0x70, 0x70, 0x2f, 0x63,
+	0x6f, 0x6d, 0x6d, 0x6f, 0x6e, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x76, 0x69, 0x73, 0x69,
+	0x74, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x51, 0x0a, 0x0a, 0x54, 0x53, 0x74, 0x61, 0x74,
+	0x65, 0x49, 0x74, 0x65, 0x6d, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x02,
+	0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x1b, 0x0a, 0x05, 0x72, 0x65, 0x73, 0x65, 0x74,
+	0x18, 0x02, 0x20, 0x02, 0x28, 0x08, 0x3a, 0x05, 0x66, 0x61, 0x6c, 0x73, 0x65, 0x52, 0x05, 0x72,
+	0x65, 0x73, 0x65, 0x74, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x18, 0x03, 0x20,
+	0x01, 0x28, 0x0c, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x22, 0x7d, 0x0a, 0x06, 0x54, 0x53,
+	0x74, 0x61, 0x74, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x02,
+	0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x73, 0x63, 0x68, 0x65,
+	0x6d, 0x61, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x06, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61,
+	0x12, 0x47, 0x0a, 0x0a, 0x73, 0x74, 0x61, 0x74, 0x65, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x18, 0x03,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x27, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77,
+	0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69,
+	0x6f, 0x6e, 0x2e, 0x54, 0x53, 0x74, 0x61, 0x74, 0x65, 0x49, 0x74, 0x65, 0x6d, 0x52, 0x0a, 0x73,
+	0x74, 0x61, 0x74, 0x65, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x22, 0x64, 0x0a, 0x07, 0x54, 0x53, 0x74,
+	0x72, 0x65, 0x61, 0x6d, 0x12, 0x1b, 0x0a, 0x09, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x5f, 0x69,
+	0x64, 0x18, 0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x08, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x49,
+	0x64, 0x12, 0x24, 0x0a, 0x0e, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x5f, 0x73, 0x70, 0x65, 0x63,
+	0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x02, 0x28, 0x03, 0x52, 0x0c, 0x73, 0x74, 0x72, 0x65, 0x61,
+	0x6d, 0x53, 0x70, 0x65, 0x63, 0x49, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x73, 0x63, 0x68, 0x65, 0x6d,
+	0x61, 0x18, 0x03, 0x20, 0x02, 0x28, 0x0c, 0x52, 0x06, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x22,
+	0xd1, 0x01, 0x0a, 0x23, 0x54, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x52, 0x65,
+	0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x52, 0x65,
+	0x66, 0x65, 0x72, 0x65, 0x6e, 0x63, 0x65, 0x12, 0x1f, 0x0a, 0x0b, 0x72, 0x65, 0x73, 0x6f, 0x75,
+	0x72, 0x63, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x0a, 0x72, 0x65,
+	0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x49, 0x64, 0x12, 0x38, 0x0a, 0x0e, 0x69, 0x6e, 0x63, 0x61,
+	0x72, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x02, 0x28, 0x0b,
+	0x32, 0x11, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x47,
+	0x75, 0x69, 0x64, 0x52, 0x0d, 0x69, 0x6e, 0x63, 0x61, 0x72, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x49, 0x64, 0x12, 0x39, 0x0a, 0x18, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x5f, 0x67, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x03,
+	0x20, 0x02, 0x28, 0x04, 0x52, 0x17, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x47, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x14, 0x0a,
+	0x05, 0x61, 0x6c, 0x69, 0x61, 0x73, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x61, 0x6c,
+	0x69, 0x61, 0x73, 0x22, 0xf4, 0x01, 0x0a, 0x08, 0x54, 0x4a, 0x6f, 0x62, 0x49, 0x6e, 0x66, 0x6f,
+	0x12, 0x12, 0x0a, 0x04, 0x73, 0x70, 0x65, 0x63, 0x18, 0x01, 0x20, 0x02, 0x28, 0x0c, 0x52, 0x04,
+	0x73, 0x70, 0x65, 0x63, 0x12, 0x21, 0x0a, 0x0c, 0x64, 0x79, 0x6e, 0x61, 0x6d, 0x69, 0x63, 0x5f,
+	0x73, 0x70, 0x65, 0x63, 0x18, 0x02, 0x20, 0x02, 0x28, 0x0c, 0x52, 0x0b, 0x64, 0x79, 0x6e, 0x61,
+	0x6d, 0x69, 0x63, 0x53, 0x70, 0x65, 0x63, 0x12, 0x3e, 0x0a, 0x07, 0x73, 0x74, 0x72, 0x65, 0x61,
+	0x6d, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x24, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e,
+	0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d,
+	0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e, 0x54, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x52, 0x07,
+	0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x73, 0x12, 0x71, 0x0a, 0x13, 0x63, 0x6f, 0x6d, 0x70, 0x61,
+	0x6e, 0x69, 0x6f, 0x6e, 0x5f, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x18, 0x04,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x40, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77,
+	0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69,
+	0x6f, 0x6e, 0x2e, 0x54, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73,
+	0x6f, 0x75, 0x72, 0x63, 0x65, 0x49, 0x6e, 0x73, 0x74, 0x61, 0x6e, 0x63, 0x65, 0x52, 0x65, 0x66,
+	0x65, 0x72, 0x65, 0x6e, 0x63, 0x65, 0x52, 0x12, 0x63, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f,
+	0x6e, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x22, 0x47, 0x0a, 0x0a, 0x54, 0x57,
 	0x61, 0x74, 0x65, 0x72, 0x6d, 0x61, 0x72, 0x6b, 0x12, 0x1b, 0x0a, 0x09, 0x73, 0x74, 0x72, 0x65,
 	0x61, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x08, 0x73, 0x74, 0x72,
 	0x65, 0x61, 0x6d, 0x49, 0x64, 0x12, 0x1c, 0x0a, 0x09, 0x77, 0x61, 0x74, 0x65, 0x72, 0x6d, 0x61,
@@ -1476,53 +1844,101 @@ var file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDesc = [
 	0x02, 0x28, 0x0e, 0x32, 0x2c, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e,
 	0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f,
 	0x6e, 0x2e, 0x45, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x53, 0x74, 0x61, 0x74, 0x75,
-	0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x0c, 0x0a, 0x0a, 0x54, 0x52, 0x65,
-	0x71, 0x47, 0x65, 0x74, 0x4a, 0x66, 0x72, 0x22, 0x92, 0x01, 0x0a, 0x0a, 0x54, 0x52, 0x73, 0x70,
-	0x47, 0x65, 0x74, 0x4a, 0x66, 0x72, 0x12, 0x44, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73,
-	0x18, 0x01, 0x20, 0x02, 0x28, 0x0e, 0x32, 0x2c, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c,
-	0x6f, 0x77, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61,
-	0x6e, 0x69, 0x6f, 0x6e, 0x2e, 0x45, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x53, 0x74,
-	0x61, 0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x19, 0x0a, 0x08,
-	0x6a, 0x66, 0x72, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x07,
-	0x6a, 0x66, 0x72, 0x44, 0x61, 0x74, 0x61, 0x12, 0x23, 0x0a, 0x0d, 0x65, 0x72, 0x72, 0x6f, 0x72,
-	0x5f, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c,
-	0x65, 0x72, 0x72, 0x6f, 0x72, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x2a, 0x40, 0x0a, 0x0f,
-	0x45, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12,
-	0x09, 0x0a, 0x05, 0x52, 0x53, 0x5f, 0x4f, 0x4b, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x52, 0x53,
-	0x5f, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x10, 0x01, 0x12, 0x14, 0x0a, 0x10, 0x52, 0x53, 0x5f, 0x4a,
-	0x4f, 0x42, 0x5f, 0x4e, 0x4f, 0x54, 0x5f, 0x46, 0x4f, 0x55, 0x4e, 0x44, 0x10, 0x02, 0x32, 0xa9,
-	0x03, 0x0a, 0x10, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x53, 0x65, 0x72, 0x76,
-	0x69, 0x63, 0x65, 0x12, 0x6c, 0x0a, 0x0c, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x42, 0x61,
-	0x74, 0x63, 0x68, 0x12, 0x2d, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e,
-	0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f,
-	0x6e, 0x2e, 0x54, 0x52, 0x65, 0x71, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x42, 0x61, 0x74,
-	0x63, 0x68, 0x1a, 0x2d, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e,
-	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e,
-	0x2e, 0x54, 0x52, 0x73, 0x70, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x42, 0x61, 0x74, 0x63,
-	0x68, 0x12, 0x6f, 0x0a, 0x0d, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x49, 0x6e,
-	0x66, 0x6f, 0x12, 0x2e, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e,
-	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e,
-	0x2e, 0x54, 0x52, 0x65, 0x71, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x49, 0x6e,
-	0x66, 0x6f, 0x1a, 0x2e, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e,
-	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e,
-	0x2e, 0x54, 0x52, 0x73, 0x70, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x49, 0x6e,
-	0x66, 0x6f, 0x12, 0x5a, 0x0a, 0x06, 0x50, 0x75, 0x74, 0x4a, 0x6f, 0x62, 0x12, 0x27, 0x2e, 0x4e,
-	0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e,
-	0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e, 0x54, 0x52, 0x65, 0x71, 0x50,
-	0x75, 0x74, 0x4a, 0x6f, 0x62, 0x1a, 0x27, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f,
+	0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0xcd, 0x01, 0x0a, 0x13, 0x54, 0x52,
+	0x65, 0x71, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74,
+	0x65, 0x12, 0x30, 0x0a, 0x0a, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x5f, 0x69, 0x64, 0x18,
+	0x01, 0x20, 0x02, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50, 0x72, 0x6f,
+	0x74, 0x6f, 0x2e, 0x54, 0x47, 0x75, 0x69, 0x64, 0x52, 0x09, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x49, 0x64, 0x12, 0x1f, 0x0a, 0x0b, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f,
+	0x69, 0x64, 0x18, 0x02, 0x20, 0x02, 0x28, 0x09, 0x52, 0x0a, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72,
+	0x63, 0x65, 0x49, 0x64, 0x12, 0x47, 0x0a, 0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x18,
+	0x03, 0x20, 0x02, 0x28, 0x0e, 0x32, 0x2d, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f,
 	0x77, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e,
-	0x69, 0x6f, 0x6e, 0x2e, 0x54, 0x52, 0x73, 0x70, 0x50, 0x75, 0x74, 0x4a, 0x6f, 0x62, 0x12, 0x5a,
-	0x0a, 0x06, 0x47, 0x65, 0x74, 0x4a, 0x66, 0x72, 0x12, 0x27, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e,
-	0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d,
-	0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e, 0x54, 0x52, 0x65, 0x71, 0x47, 0x65, 0x74, 0x4a, 0x66,
-	0x72, 0x1a, 0x27, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50,
+	0x69, 0x6f, 0x6e, 0x2e, 0x45, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x43, 0x6f, 0x6d,
+	0x6d, 0x61, 0x6e, 0x64, 0x52, 0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x12, 0x1a, 0x0a,
+	0x08, 0x61, 0x72, 0x67, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52,
+	0x08, 0x61, 0x72, 0x67, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x22, 0xbe, 0x01, 0x0a, 0x13, 0x54, 0x52,
+	0x73, 0x70, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74,
+	0x65, 0x12, 0x30, 0x0a, 0x0a, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x5f, 0x69, 0x64, 0x18,
+	0x01, 0x20, 0x02, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50, 0x72, 0x6f,
+	0x74, 0x6f, 0x2e, 0x54, 0x47, 0x75, 0x69, 0x64, 0x52, 0x09, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x49, 0x64, 0x12, 0x4b, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x02, 0x20,
+	0x02, 0x28, 0x0e, 0x32, 0x33, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e,
+	0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f,
+	0x6e, 0x2e, 0x45, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x45, 0x78, 0x65, 0x63, 0x75,
+	0x74, 0x65, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73,
+	0x12, 0x28, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x12, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x54, 0x45, 0x72,
+	0x72, 0x6f, 0x72, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x22, 0x0c, 0x0a, 0x0a, 0x54, 0x52,
+	0x65, 0x71, 0x47, 0x65, 0x74, 0x4a, 0x66, 0x72, 0x22, 0x92, 0x01, 0x0a, 0x0a, 0x54, 0x52, 0x73,
+	0x70, 0x47, 0x65, 0x74, 0x4a, 0x66, 0x72, 0x12, 0x44, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75,
+	0x73, 0x18, 0x01, 0x20, 0x02, 0x28, 0x0e, 0x32, 0x2c, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46,
+	0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70,
+	0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e, 0x45, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x53,
+	0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x19, 0x0a,
+	0x08, 0x6a, 0x66, 0x72, 0x5f, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52,
+	0x07, 0x6a, 0x66, 0x72, 0x44, 0x61, 0x74, 0x61, 0x12, 0x23, 0x0a, 0x0d, 0x65, 0x72, 0x72, 0x6f,
+	0x72, 0x5f, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x0c, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x2a, 0x61, 0x0a,
+	0x0f, 0x45, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73,
+	0x12, 0x09, 0x0a, 0x05, 0x52, 0x53, 0x5f, 0x4f, 0x4b, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x52,
+	0x53, 0x5f, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x10, 0x01, 0x12, 0x14, 0x0a, 0x10, 0x52, 0x53, 0x5f,
+	0x4a, 0x4f, 0x42, 0x5f, 0x4e, 0x4f, 0x54, 0x5f, 0x46, 0x4f, 0x55, 0x4e, 0x44, 0x10, 0x02, 0x12,
+	0x1f, 0x0a, 0x1b, 0x52, 0x53, 0x5f, 0x52, 0x45, 0x53, 0x4f, 0x55, 0x52, 0x43, 0x45, 0x5f, 0x4e,
+	0x4f, 0x54, 0x5f, 0x49, 0x4e, 0x49, 0x54, 0x49, 0x41, 0x4c, 0x49, 0x5a, 0x45, 0x44, 0x10, 0x04,
+	0x2a, 0x2e, 0x0a, 0x10, 0x45, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x43, 0x6f, 0x6d,
+	0x6d, 0x61, 0x6e, 0x64, 0x12, 0x0b, 0x0a, 0x07, 0x52, 0x43, 0x5f, 0x49, 0x4e, 0x49, 0x54, 0x10,
+	0x00, 0x12, 0x0d, 0x0a, 0x09, 0x52, 0x43, 0x5f, 0x55, 0x4e, 0x4c, 0x4f, 0x41, 0x44, 0x10, 0x01,
+	0x2a, 0xaa, 0x01, 0x0a, 0x16, 0x45, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x45, 0x78,
+	0x65, 0x63, 0x75, 0x74, 0x65, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x0a, 0x0a, 0x06, 0x52,
+	0x45, 0x53, 0x5f, 0x4f, 0x4b, 0x10, 0x00, 0x12, 0x0d, 0x0a, 0x09, 0x52, 0x45, 0x53, 0x5f, 0x45,
+	0x52, 0x52, 0x4f, 0x52, 0x10, 0x01, 0x12, 0x1a, 0x0a, 0x16, 0x52, 0x45, 0x53, 0x5f, 0x52, 0x45,
+	0x53, 0x4f, 0x55, 0x52, 0x43, 0x45, 0x5f, 0x4e, 0x4f, 0x54, 0x5f, 0x46, 0x4f, 0x55, 0x4e, 0x44,
+	0x10, 0x02, 0x12, 0x20, 0x0a, 0x1c, 0x52, 0x45, 0x53, 0x5f, 0x52, 0x45, 0x53, 0x4f, 0x55, 0x52,
+	0x43, 0x45, 0x5f, 0x4e, 0x4f, 0x54, 0x5f, 0x49, 0x4e, 0x49, 0x54, 0x49, 0x41, 0x4c, 0x49, 0x5a,
+	0x45, 0x44, 0x10, 0x03, 0x12, 0x13, 0x0a, 0x0f, 0x52, 0x45, 0x53, 0x5f, 0x55, 0x4e, 0x53, 0x55,
+	0x50, 0x50, 0x4f, 0x52, 0x54, 0x45, 0x44, 0x10, 0x04, 0x12, 0x22, 0x0a, 0x1e, 0x52, 0x45, 0x53,
+	0x5f, 0x53, 0x54, 0x41, 0x4c, 0x45, 0x5f, 0x52, 0x45, 0x53, 0x4f, 0x55, 0x52, 0x43, 0x45, 0x5f,
+	0x49, 0x4e, 0x43, 0x41, 0x52, 0x4e, 0x41, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x05, 0x32, 0xa0, 0x04,
+	0x0a, 0x10, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x53, 0x65, 0x72, 0x76, 0x69,
+	0x63, 0x65, 0x12, 0x6c, 0x0a, 0x0c, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x42, 0x61, 0x74,
+	0x63, 0x68, 0x12, 0x2d, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e,
+	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e,
+	0x2e, 0x54, 0x52, 0x65, 0x71, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x42, 0x61, 0x74, 0x63,
+	0x68, 0x1a, 0x2d, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50,
 	0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e,
-	0x54, 0x52, 0x73, 0x70, 0x47, 0x65, 0x74, 0x4a, 0x66, 0x72, 0x42, 0x47, 0x0a, 0x16, 0x74, 0x65,
-	0x63, 0x68, 0x2e, 0x79, 0x74, 0x73, 0x61, 0x75, 0x72, 0x75, 0x73, 0x2e, 0x66, 0x6c, 0x6f, 0x77,
-	0x2e, 0x72, 0x70, 0x63, 0x50, 0x01, 0x5a, 0x2b, 0x61, 0x2e, 0x79, 0x61, 0x6e, 0x64, 0x65, 0x78,
-	0x2d, 0x74, 0x65, 0x61, 0x6d, 0x2e, 0x72, 0x75, 0x2f, 0x79, 0x74, 0x2f, 0x67, 0x6f, 0x2f, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x66, 0x6c, 0x6f, 0x77, 0x2f, 0x63, 0x6f, 0x6d, 0x70, 0x61, 0x6e,
-	0x69, 0x6f, 0x6e,
+	0x54, 0x52, 0x73, 0x70, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x42, 0x61, 0x74, 0x63, 0x68,
+	0x12, 0x6f, 0x0a, 0x0d, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x49, 0x6e, 0x66,
+	0x6f, 0x12, 0x2e, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50,
+	0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e,
+	0x54, 0x52, 0x65, 0x71, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x49, 0x6e, 0x66,
+	0x6f, 0x1a, 0x2e, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50,
+	0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e,
+	0x54, 0x52, 0x73, 0x70, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x49, 0x6e, 0x66,
+	0x6f, 0x12, 0x5a, 0x0a, 0x06, 0x50, 0x75, 0x74, 0x4a, 0x6f, 0x62, 0x12, 0x27, 0x2e, 0x4e, 0x59,
+	0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e,
+	0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e, 0x54, 0x52, 0x65, 0x71, 0x50, 0x75,
+	0x74, 0x4a, 0x6f, 0x62, 0x1a, 0x27, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77,
+	0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69,
+	0x6f, 0x6e, 0x2e, 0x54, 0x52, 0x73, 0x70, 0x50, 0x75, 0x74, 0x4a, 0x6f, 0x62, 0x12, 0x75, 0x0a,
+	0x0f, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x65,
+	0x12, 0x30, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50, 0x72,
+	0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e, 0x54,
+	0x52, 0x65, 0x71, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x45, 0x78, 0x65, 0x63, 0x75,
+	0x74, 0x65, 0x1a, 0x30, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e,
+	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e,
+	0x2e, 0x54, 0x52, 0x73, 0x70, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x45, 0x78, 0x65,
+	0x63, 0x75, 0x74, 0x65, 0x12, 0x5a, 0x0a, 0x06, 0x47, 0x65, 0x74, 0x4a, 0x66, 0x72, 0x12, 0x27,
+	0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46, 0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74,
+	0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e, 0x54, 0x52, 0x65,
+	0x71, 0x47, 0x65, 0x74, 0x4a, 0x66, 0x72, 0x1a, 0x27, 0x2e, 0x4e, 0x59, 0x54, 0x2e, 0x4e, 0x46,
+	0x6c, 0x6f, 0x77, 0x2e, 0x4e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4e, 0x43, 0x6f, 0x6d, 0x70,
+	0x61, 0x6e, 0x69, 0x6f, 0x6e, 0x2e, 0x54, 0x52, 0x73, 0x70, 0x47, 0x65, 0x74, 0x4a, 0x66, 0x72,
+	0x42, 0x47, 0x0a, 0x16, 0x74, 0x65, 0x63, 0x68, 0x2e, 0x79, 0x74, 0x73, 0x61, 0x75, 0x72, 0x75,
+	0x73, 0x2e, 0x66, 0x6c, 0x6f, 0x77, 0x2e, 0x72, 0x70, 0x63, 0x50, 0x01, 0x5a, 0x2b, 0x61, 0x2e,
+	0x79, 0x61, 0x6e, 0x64, 0x65, 0x78, 0x2d, 0x74, 0x65, 0x61, 0x6d, 0x2e, 0x72, 0x75, 0x2f, 0x79,
+	0x74, 0x2f, 0x67, 0x6f, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x66, 0x6c, 0x6f, 0x77, 0x2f,
+	0x63, 0x6f, 0x6d, 0x70, 0x61, 0x6e, 0x69, 0x6f, 0x6e,
 }
 
 var (
@@ -1537,80 +1953,95 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescGZI
 	return file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDescData
 }
 
-var file_yt_flow_library_cpp_companion_proto_companion_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_yt_flow_library_cpp_companion_proto_companion_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_yt_flow_library_cpp_companion_proto_companion_service_proto_goTypes = []interface{}{
-	(EResponseStatus)(0),                      // 0: NYT.NFlow.NProto.NCompanion.EResponseStatus
-	(*TStateItem)(nil),                        // 1: NYT.NFlow.NProto.NCompanion.TStateItem
-	(*TState)(nil),                            // 2: NYT.NFlow.NProto.NCompanion.TState
-	(*TStream)(nil),                           // 3: NYT.NFlow.NProto.NCompanion.TStream
-	(*TJobInfo)(nil),                          // 4: NYT.NFlow.NProto.NCompanion.TJobInfo
-	(*TWatermark)(nil),                        // 5: NYT.NFlow.NProto.NCompanion.TWatermark
-	(*TNewTimer)(nil),                         // 6: NYT.NFlow.NProto.NCompanion.TNewTimer
-	(*TReqProcessBatch)(nil),                  // 7: NYT.NFlow.NProto.NCompanion.TReqProcessBatch
-	(*TResponseMetrics)(nil),                  // 8: NYT.NFlow.NProto.NCompanion.TResponseMetrics
-	(*TResponseData)(nil),                     // 9: NYT.NFlow.NProto.NCompanion.TResponseData
-	(*TRspProcessBatch)(nil),                  // 10: NYT.NFlow.NProto.NCompanion.TRspProcessBatch
-	(*TReqCompanionInfo)(nil),                 // 11: NYT.NFlow.NProto.NCompanion.TReqCompanionInfo
-	(*TRspCompanionInfo)(nil),                 // 12: NYT.NFlow.NProto.NCompanion.TRspCompanionInfo
-	(*TReqPutJob)(nil),                        // 13: NYT.NFlow.NProto.NCompanion.TReqPutJob
-	(*TRspPutJob)(nil),                        // 14: NYT.NFlow.NProto.NCompanion.TRspPutJob
-	(*TReqGetJfr)(nil),                        // 15: NYT.NFlow.NProto.NCompanion.TReqGetJfr
-	(*TRspGetJfr)(nil),                        // 16: NYT.NFlow.NProto.NCompanion.TRspGetJfr
-	(*TReqProcessBatch_TExtendedMessage)(nil), // 17: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.TExtendedMessage
-	(*TResponseData_TGroup)(nil),              // 18: NYT.NFlow.NProto.NCompanion.TResponseData.TGroup
-	(*misc.TGuid)(nil),                        // 19: NYT.NProto.TGuid
-	(*common.TTimer)(nil),                     // 20: NYT.NFlow.NProto.TTimer
-	(*common.TVisit)(nil),                     // 21: NYT.NFlow.NProto.TVisit
-	(*common.TMessage)(nil),                   // 22: NYT.NFlow.NProto.TMessage
+	(EResponseStatus)(0),                        // 0: NYT.NFlow.NProto.NCompanion.EResponseStatus
+	(EResourceCommand)(0),                       // 1: NYT.NFlow.NProto.NCompanion.EResourceCommand
+	(EResourceExecuteStatus)(0),                 // 2: NYT.NFlow.NProto.NCompanion.EResourceExecuteStatus
+	(*TStateItem)(nil),                          // 3: NYT.NFlow.NProto.NCompanion.TStateItem
+	(*TState)(nil),                              // 4: NYT.NFlow.NProto.NCompanion.TState
+	(*TStream)(nil),                             // 5: NYT.NFlow.NProto.NCompanion.TStream
+	(*TCompanionResourceInstanceReference)(nil), // 6: NYT.NFlow.NProto.NCompanion.TCompanionResourceInstanceReference
+	(*TJobInfo)(nil),                            // 7: NYT.NFlow.NProto.NCompanion.TJobInfo
+	(*TWatermark)(nil),                          // 8: NYT.NFlow.NProto.NCompanion.TWatermark
+	(*TNewTimer)(nil),                           // 9: NYT.NFlow.NProto.NCompanion.TNewTimer
+	(*TReqProcessBatch)(nil),                    // 10: NYT.NFlow.NProto.NCompanion.TReqProcessBatch
+	(*TResponseMetrics)(nil),                    // 11: NYT.NFlow.NProto.NCompanion.TResponseMetrics
+	(*TResponseData)(nil),                       // 12: NYT.NFlow.NProto.NCompanion.TResponseData
+	(*TRspProcessBatch)(nil),                    // 13: NYT.NFlow.NProto.NCompanion.TRspProcessBatch
+	(*TReqCompanionInfo)(nil),                   // 14: NYT.NFlow.NProto.NCompanion.TReqCompanionInfo
+	(*TRspCompanionInfo)(nil),                   // 15: NYT.NFlow.NProto.NCompanion.TRspCompanionInfo
+	(*TReqPutJob)(nil),                          // 16: NYT.NFlow.NProto.NCompanion.TReqPutJob
+	(*TRspPutJob)(nil),                          // 17: NYT.NFlow.NProto.NCompanion.TRspPutJob
+	(*TReqResourceExecute)(nil),                 // 18: NYT.NFlow.NProto.NCompanion.TReqResourceExecute
+	(*TRspResourceExecute)(nil),                 // 19: NYT.NFlow.NProto.NCompanion.TRspResourceExecute
+	(*TReqGetJfr)(nil),                          // 20: NYT.NFlow.NProto.NCompanion.TReqGetJfr
+	(*TRspGetJfr)(nil),                          // 21: NYT.NFlow.NProto.NCompanion.TRspGetJfr
+	(*TReqProcessBatch_TExtendedMessage)(nil),   // 22: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.TExtendedMessage
+	(*TResponseData_TGroup)(nil),                // 23: NYT.NFlow.NProto.NCompanion.TResponseData.TGroup
+	(*misc.TGuid)(nil),                          // 24: NYT.NProto.TGuid
+	(*common.TTimer)(nil),                       // 25: NYT.NFlow.NProto.TTimer
+	(*common.TVisit)(nil),                       // 26: NYT.NFlow.NProto.TVisit
+	(*misc.TError)(nil),                         // 27: NYT.NProto.TError
+	(*common.TMessage)(nil),                     // 28: NYT.NFlow.NProto.TMessage
 }
 var file_yt_flow_library_cpp_companion_proto_companion_service_proto_depIdxs = []int32{
-	1,  // 0: NYT.NFlow.NProto.NCompanion.TState.stateItems:type_name -> NYT.NFlow.NProto.NCompanion.TStateItem
-	3,  // 1: NYT.NFlow.NProto.NCompanion.TJobInfo.streams:type_name -> NYT.NFlow.NProto.NCompanion.TStream
-	19, // 2: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.request_id:type_name -> NYT.NProto.TGuid
-	19, // 3: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.job_id:type_name -> NYT.NProto.TGuid
-	4,  // 4: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.job_info:type_name -> NYT.NFlow.NProto.NCompanion.TJobInfo
-	3,  // 5: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.streams:type_name -> NYT.NFlow.NProto.NCompanion.TStream
-	17, // 6: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.messages:type_name -> NYT.NFlow.NProto.NCompanion.TReqProcessBatch.TExtendedMessage
-	20, // 7: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.timers:type_name -> NYT.NFlow.NProto.TTimer
-	2,  // 8: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.internal_states:type_name -> NYT.NFlow.NProto.NCompanion.TState
-	2,  // 9: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.external_states:type_name -> NYT.NFlow.NProto.NCompanion.TState
-	5,  // 10: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.watermarks:type_name -> NYT.NFlow.NProto.NCompanion.TWatermark
-	21, // 11: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.visits:type_name -> NYT.NFlow.NProto.TVisit
-	2,  // 12: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.joined_external_states:type_name -> NYT.NFlow.NProto.NCompanion.TState
-	18, // 13: NYT.NFlow.NProto.NCompanion.TResponseData.output:type_name -> NYT.NFlow.NProto.NCompanion.TResponseData.TGroup
-	2,  // 14: NYT.NFlow.NProto.NCompanion.TResponseData.internal_states:type_name -> NYT.NFlow.NProto.NCompanion.TState
-	2,  // 15: NYT.NFlow.NProto.NCompanion.TResponseData.external_states:type_name -> NYT.NFlow.NProto.NCompanion.TState
-	19, // 16: NYT.NFlow.NProto.NCompanion.TRspProcessBatch.request_id:type_name -> NYT.NProto.TGuid
-	19, // 17: NYT.NFlow.NProto.NCompanion.TRspProcessBatch.job_id:type_name -> NYT.NProto.TGuid
-	9,  // 18: NYT.NFlow.NProto.NCompanion.TRspProcessBatch.data:type_name -> NYT.NFlow.NProto.NCompanion.TResponseData
-	8,  // 19: NYT.NFlow.NProto.NCompanion.TRspProcessBatch.metrics:type_name -> NYT.NFlow.NProto.NCompanion.TResponseMetrics
-	0,  // 20: NYT.NFlow.NProto.NCompanion.TRspProcessBatch.status:type_name -> NYT.NFlow.NProto.NCompanion.EResponseStatus
-	0,  // 21: NYT.NFlow.NProto.NCompanion.TRspCompanionInfo.status:type_name -> NYT.NFlow.NProto.NCompanion.EResponseStatus
-	19, // 22: NYT.NFlow.NProto.NCompanion.TReqPutJob.request_id:type_name -> NYT.NProto.TGuid
-	19, // 23: NYT.NFlow.NProto.NCompanion.TReqPutJob.job_id:type_name -> NYT.NProto.TGuid
-	4,  // 24: NYT.NFlow.NProto.NCompanion.TReqPutJob.job_info:type_name -> NYT.NFlow.NProto.NCompanion.TJobInfo
-	19, // 25: NYT.NFlow.NProto.NCompanion.TRspPutJob.request_id:type_name -> NYT.NProto.TGuid
-	19, // 26: NYT.NFlow.NProto.NCompanion.TRspPutJob.job_id:type_name -> NYT.NProto.TGuid
-	8,  // 27: NYT.NFlow.NProto.NCompanion.TRspPutJob.metrics:type_name -> NYT.NFlow.NProto.NCompanion.TResponseMetrics
-	0,  // 28: NYT.NFlow.NProto.NCompanion.TRspPutJob.status:type_name -> NYT.NFlow.NProto.NCompanion.EResponseStatus
-	0,  // 29: NYT.NFlow.NProto.NCompanion.TRspGetJfr.status:type_name -> NYT.NFlow.NProto.NCompanion.EResponseStatus
-	22, // 30: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.TExtendedMessage.message:type_name -> NYT.NFlow.NProto.TMessage
-	22, // 31: NYT.NFlow.NProto.NCompanion.TResponseData.TGroup.messages:type_name -> NYT.NFlow.NProto.TMessage
-	6,  // 32: NYT.NFlow.NProto.NCompanion.TResponseData.TGroup.timers:type_name -> NYT.NFlow.NProto.NCompanion.TNewTimer
-	7,  // 33: NYT.NFlow.NProto.NCompanion.CompanionService.ProcessBatch:input_type -> NYT.NFlow.NProto.NCompanion.TReqProcessBatch
-	11, // 34: NYT.NFlow.NProto.NCompanion.CompanionService.CompanionInfo:input_type -> NYT.NFlow.NProto.NCompanion.TReqCompanionInfo
-	13, // 35: NYT.NFlow.NProto.NCompanion.CompanionService.PutJob:input_type -> NYT.NFlow.NProto.NCompanion.TReqPutJob
-	15, // 36: NYT.NFlow.NProto.NCompanion.CompanionService.GetJfr:input_type -> NYT.NFlow.NProto.NCompanion.TReqGetJfr
-	10, // 37: NYT.NFlow.NProto.NCompanion.CompanionService.ProcessBatch:output_type -> NYT.NFlow.NProto.NCompanion.TRspProcessBatch
-	12, // 38: NYT.NFlow.NProto.NCompanion.CompanionService.CompanionInfo:output_type -> NYT.NFlow.NProto.NCompanion.TRspCompanionInfo
-	14, // 39: NYT.NFlow.NProto.NCompanion.CompanionService.PutJob:output_type -> NYT.NFlow.NProto.NCompanion.TRspPutJob
-	16, // 40: NYT.NFlow.NProto.NCompanion.CompanionService.GetJfr:output_type -> NYT.NFlow.NProto.NCompanion.TRspGetJfr
-	37, // [37:41] is the sub-list for method output_type
-	33, // [33:37] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	3,  // 0: NYT.NFlow.NProto.NCompanion.TState.stateItems:type_name -> NYT.NFlow.NProto.NCompanion.TStateItem
+	24, // 1: NYT.NFlow.NProto.NCompanion.TCompanionResourceInstanceReference.incarnation_id:type_name -> NYT.NProto.TGuid
+	5,  // 2: NYT.NFlow.NProto.NCompanion.TJobInfo.streams:type_name -> NYT.NFlow.NProto.NCompanion.TStream
+	6,  // 3: NYT.NFlow.NProto.NCompanion.TJobInfo.companion_resources:type_name -> NYT.NFlow.NProto.NCompanion.TCompanionResourceInstanceReference
+	24, // 4: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.request_id:type_name -> NYT.NProto.TGuid
+	24, // 5: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.job_id:type_name -> NYT.NProto.TGuid
+	7,  // 6: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.job_info:type_name -> NYT.NFlow.NProto.NCompanion.TJobInfo
+	5,  // 7: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.streams:type_name -> NYT.NFlow.NProto.NCompanion.TStream
+	22, // 8: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.messages:type_name -> NYT.NFlow.NProto.NCompanion.TReqProcessBatch.TExtendedMessage
+	25, // 9: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.timers:type_name -> NYT.NFlow.NProto.TTimer
+	4,  // 10: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.internal_states:type_name -> NYT.NFlow.NProto.NCompanion.TState
+	4,  // 11: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.external_states:type_name -> NYT.NFlow.NProto.NCompanion.TState
+	8,  // 12: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.watermarks:type_name -> NYT.NFlow.NProto.NCompanion.TWatermark
+	26, // 13: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.visits:type_name -> NYT.NFlow.NProto.TVisit
+	4,  // 14: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.joined_external_states:type_name -> NYT.NFlow.NProto.NCompanion.TState
+	23, // 15: NYT.NFlow.NProto.NCompanion.TResponseData.output:type_name -> NYT.NFlow.NProto.NCompanion.TResponseData.TGroup
+	4,  // 16: NYT.NFlow.NProto.NCompanion.TResponseData.internal_states:type_name -> NYT.NFlow.NProto.NCompanion.TState
+	4,  // 17: NYT.NFlow.NProto.NCompanion.TResponseData.external_states:type_name -> NYT.NFlow.NProto.NCompanion.TState
+	24, // 18: NYT.NFlow.NProto.NCompanion.TRspProcessBatch.request_id:type_name -> NYT.NProto.TGuid
+	24, // 19: NYT.NFlow.NProto.NCompanion.TRspProcessBatch.job_id:type_name -> NYT.NProto.TGuid
+	12, // 20: NYT.NFlow.NProto.NCompanion.TRspProcessBatch.data:type_name -> NYT.NFlow.NProto.NCompanion.TResponseData
+	11, // 21: NYT.NFlow.NProto.NCompanion.TRspProcessBatch.metrics:type_name -> NYT.NFlow.NProto.NCompanion.TResponseMetrics
+	0,  // 22: NYT.NFlow.NProto.NCompanion.TRspProcessBatch.status:type_name -> NYT.NFlow.NProto.NCompanion.EResponseStatus
+	0,  // 23: NYT.NFlow.NProto.NCompanion.TRspCompanionInfo.status:type_name -> NYT.NFlow.NProto.NCompanion.EResponseStatus
+	24, // 24: NYT.NFlow.NProto.NCompanion.TReqPutJob.request_id:type_name -> NYT.NProto.TGuid
+	24, // 25: NYT.NFlow.NProto.NCompanion.TReqPutJob.job_id:type_name -> NYT.NProto.TGuid
+	7,  // 26: NYT.NFlow.NProto.NCompanion.TReqPutJob.job_info:type_name -> NYT.NFlow.NProto.NCompanion.TJobInfo
+	24, // 27: NYT.NFlow.NProto.NCompanion.TRspPutJob.request_id:type_name -> NYT.NProto.TGuid
+	24, // 28: NYT.NFlow.NProto.NCompanion.TRspPutJob.job_id:type_name -> NYT.NProto.TGuid
+	11, // 29: NYT.NFlow.NProto.NCompanion.TRspPutJob.metrics:type_name -> NYT.NFlow.NProto.NCompanion.TResponseMetrics
+	0,  // 30: NYT.NFlow.NProto.NCompanion.TRspPutJob.status:type_name -> NYT.NFlow.NProto.NCompanion.EResponseStatus
+	24, // 31: NYT.NFlow.NProto.NCompanion.TReqResourceExecute.request_id:type_name -> NYT.NProto.TGuid
+	1,  // 32: NYT.NFlow.NProto.NCompanion.TReqResourceExecute.command:type_name -> NYT.NFlow.NProto.NCompanion.EResourceCommand
+	24, // 33: NYT.NFlow.NProto.NCompanion.TRspResourceExecute.request_id:type_name -> NYT.NProto.TGuid
+	2,  // 34: NYT.NFlow.NProto.NCompanion.TRspResourceExecute.status:type_name -> NYT.NFlow.NProto.NCompanion.EResourceExecuteStatus
+	27, // 35: NYT.NFlow.NProto.NCompanion.TRspResourceExecute.error:type_name -> NYT.NProto.TError
+	0,  // 36: NYT.NFlow.NProto.NCompanion.TRspGetJfr.status:type_name -> NYT.NFlow.NProto.NCompanion.EResponseStatus
+	28, // 37: NYT.NFlow.NProto.NCompanion.TReqProcessBatch.TExtendedMessage.message:type_name -> NYT.NFlow.NProto.TMessage
+	28, // 38: NYT.NFlow.NProto.NCompanion.TResponseData.TGroup.messages:type_name -> NYT.NFlow.NProto.TMessage
+	9,  // 39: NYT.NFlow.NProto.NCompanion.TResponseData.TGroup.timers:type_name -> NYT.NFlow.NProto.NCompanion.TNewTimer
+	10, // 40: NYT.NFlow.NProto.NCompanion.CompanionService.ProcessBatch:input_type -> NYT.NFlow.NProto.NCompanion.TReqProcessBatch
+	14, // 41: NYT.NFlow.NProto.NCompanion.CompanionService.CompanionInfo:input_type -> NYT.NFlow.NProto.NCompanion.TReqCompanionInfo
+	16, // 42: NYT.NFlow.NProto.NCompanion.CompanionService.PutJob:input_type -> NYT.NFlow.NProto.NCompanion.TReqPutJob
+	18, // 43: NYT.NFlow.NProto.NCompanion.CompanionService.ResourceExecute:input_type -> NYT.NFlow.NProto.NCompanion.TReqResourceExecute
+	20, // 44: NYT.NFlow.NProto.NCompanion.CompanionService.GetJfr:input_type -> NYT.NFlow.NProto.NCompanion.TReqGetJfr
+	13, // 45: NYT.NFlow.NProto.NCompanion.CompanionService.ProcessBatch:output_type -> NYT.NFlow.NProto.NCompanion.TRspProcessBatch
+	15, // 46: NYT.NFlow.NProto.NCompanion.CompanionService.CompanionInfo:output_type -> NYT.NFlow.NProto.NCompanion.TRspCompanionInfo
+	17, // 47: NYT.NFlow.NProto.NCompanion.CompanionService.PutJob:output_type -> NYT.NFlow.NProto.NCompanion.TRspPutJob
+	19, // 48: NYT.NFlow.NProto.NCompanion.CompanionService.ResourceExecute:output_type -> NYT.NFlow.NProto.NCompanion.TRspResourceExecute
+	21, // 49: NYT.NFlow.NProto.NCompanion.CompanionService.GetJfr:output_type -> NYT.NFlow.NProto.NCompanion.TRspGetJfr
+	45, // [45:50] is the sub-list for method output_type
+	40, // [40:45] is the sub-list for method input_type
+	40, // [40:40] is the sub-list for extension type_name
+	40, // [40:40] is the sub-list for extension extendee
+	0,  // [0:40] is the sub-list for field type_name
 }
 
 func init() { file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() }
@@ -1656,7 +2087,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TJobInfo); i {
+			switch v := v.(*TCompanionResourceInstanceReference); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1668,7 +2099,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TWatermark); i {
+			switch v := v.(*TJobInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1680,7 +2111,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TNewTimer); i {
+			switch v := v.(*TWatermark); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1692,7 +2123,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqProcessBatch); i {
+			switch v := v.(*TNewTimer); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1704,7 +2135,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TResponseMetrics); i {
+			switch v := v.(*TReqProcessBatch); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1716,7 +2147,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TResponseData); i {
+			switch v := v.(*TResponseMetrics); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1728,7 +2159,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspProcessBatch); i {
+			switch v := v.(*TResponseData); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1740,7 +2171,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqCompanionInfo); i {
+			switch v := v.(*TRspProcessBatch); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1752,7 +2183,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspCompanionInfo); i {
+			switch v := v.(*TReqCompanionInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1764,7 +2195,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqPutJob); i {
+			switch v := v.(*TRspCompanionInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1776,7 +2207,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspPutJob); i {
+			switch v := v.(*TReqPutJob); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1788,7 +2219,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqGetJfr); i {
+			switch v := v.(*TRspPutJob); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1800,7 +2231,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetJfr); i {
+			switch v := v.(*TReqResourceExecute); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1812,7 +2243,7 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqProcessBatch_TExtendedMessage); i {
+			switch v := v.(*TRspResourceExecute); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1824,6 +2255,42 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 			}
 		}
 		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TReqGetJfr); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TRspGetJfr); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TReqProcessBatch_TExtendedMessage); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_flow_library_cpp_companion_proto_companion_service_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TResponseData_TGroup); i {
 			case 0:
 				return &v.state
@@ -1841,8 +2308,8 @@ func file_yt_flow_library_cpp_companion_proto_companion_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_yt_flow_library_cpp_companion_proto_companion_service_proto_rawDesc,
-			NumEnums:      1,
-			NumMessages:   18,
+			NumEnums:      3,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
@@ -1872,6 +2339,7 @@ type CompanionServiceClient interface {
 	ProcessBatch(ctx context.Context, in *TReqProcessBatch, opts ...grpc.CallOption) (*TRspProcessBatch, error)
 	CompanionInfo(ctx context.Context, in *TReqCompanionInfo, opts ...grpc.CallOption) (*TRspCompanionInfo, error)
 	PutJob(ctx context.Context, in *TReqPutJob, opts ...grpc.CallOption) (*TRspPutJob, error)
+	ResourceExecute(ctx context.Context, in *TReqResourceExecute, opts ...grpc.CallOption) (*TRspResourceExecute, error)
 	GetJfr(ctx context.Context, in *TReqGetJfr, opts ...grpc.CallOption) (*TRspGetJfr, error)
 }
 
@@ -1910,6 +2378,15 @@ func (c *companionServiceClient) PutJob(ctx context.Context, in *TReqPutJob, opt
 	return out, nil
 }
 
+func (c *companionServiceClient) ResourceExecute(ctx context.Context, in *TReqResourceExecute, opts ...grpc.CallOption) (*TRspResourceExecute, error) {
+	out := new(TRspResourceExecute)
+	err := c.cc.Invoke(ctx, "/NYT.NFlow.NProto.NCompanion.CompanionService/ResourceExecute", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *companionServiceClient) GetJfr(ctx context.Context, in *TReqGetJfr, opts ...grpc.CallOption) (*TRspGetJfr, error) {
 	out := new(TRspGetJfr)
 	err := c.cc.Invoke(ctx, "/NYT.NFlow.NProto.NCompanion.CompanionService/GetJfr", in, out, opts...)
@@ -1924,6 +2401,7 @@ type CompanionServiceServer interface {
 	ProcessBatch(context.Context, *TReqProcessBatch) (*TRspProcessBatch, error)
 	CompanionInfo(context.Context, *TReqCompanionInfo) (*TRspCompanionInfo, error)
 	PutJob(context.Context, *TReqPutJob) (*TRspPutJob, error)
+	ResourceExecute(context.Context, *TReqResourceExecute) (*TRspResourceExecute, error)
 	GetJfr(context.Context, *TReqGetJfr) (*TRspGetJfr, error)
 }
 
@@ -1939,6 +2417,9 @@ func (*UnimplementedCompanionServiceServer) CompanionInfo(context.Context, *TReq
 }
 func (*UnimplementedCompanionServiceServer) PutJob(context.Context, *TReqPutJob) (*TRspPutJob, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutJob not implemented")
+}
+func (*UnimplementedCompanionServiceServer) ResourceExecute(context.Context, *TReqResourceExecute) (*TRspResourceExecute, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResourceExecute not implemented")
 }
 func (*UnimplementedCompanionServiceServer) GetJfr(context.Context, *TReqGetJfr) (*TRspGetJfr, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetJfr not implemented")
@@ -2002,6 +2483,24 @@ func _CompanionService_PutJob_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CompanionService_ResourceExecute_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TReqResourceExecute)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CompanionServiceServer).ResourceExecute(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/NYT.NFlow.NProto.NCompanion.CompanionService/ResourceExecute",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CompanionServiceServer).ResourceExecute(ctx, req.(*TReqResourceExecute))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CompanionService_GetJfr_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(TReqGetJfr)
 	if err := dec(in); err != nil {
@@ -2035,6 +2534,10 @@ var _CompanionService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PutJob",
 			Handler:    _CompanionService_PutJob_Handler,
+		},
+		{
+			MethodName: "ResourceExecute",
+			Handler:    _CompanionService_ResourceExecute_Handler,
 		},
 		{
 			MethodName: "GetJfr",

@@ -35,6 +35,11 @@ public:
         const TCompanionPutJobRequestPtr& putJobRequest,
         const IExternalPerformanceMetricsReporterPtr& reporter) override;
 
+    TFuture<TCompanionResourceExecuteResponsePtr> ResourceExecute(
+        const TResourceId& resourceId,
+        ECompanionResourceCommand command,
+        const NYson::TYsonString& argument) override;
+
 private:
     template <typename TResponse>
     TFuture<TResponse> ExecuteWithRetry(

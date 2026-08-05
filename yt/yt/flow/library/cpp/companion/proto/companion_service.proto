@@ -5,6 +5,7 @@ option java_multiple_files = true;
 option go_package = "go.ytsaurus.tech/yt/go/proto/flow/companion";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt/flow/library/cpp/common/proto/message.proto";
 import "yt/flow/library/cpp/common/proto/timer.proto";
 import "yt/flow/library/cpp/common/proto/visit.proto";
@@ -15,6 +16,7 @@ service CompanionService {
     rpc ProcessBatch(TReqProcessBatch) returns (TRspProcessBatch);
     rpc CompanionInfo(TReqCompanionInfo) returns (TRspCompanionInfo);
     rpc PutJob(TReqPutJob) returns (TRspPutJob);
+    rpc ResourceExecute(TReqResourceExecute) returns (TRspResourceExecute);
     rpc GetJfr(TReqGetJfr) returns (TRspGetJfr);
 }
 
@@ -25,6 +27,25 @@ enum EResponseStatus
     RS_OK = 0;
     RS_ERROR = 1;
     RS_JOB_NOT_FOUND = 2;
+    // A companion resource required by the job is not initialized
+    // in the serving process (returned by ProcessBatch).
+    RS_RESOURCE_NOT_INITIALIZED = 4;
+}
+
+enum EResourceCommand
+{
+    RC_INIT = 0;
+    RC_UNLOAD = 1;
+}
+
+enum EResourceExecuteStatus
+{
+    RES_OK = 0;
+    RES_ERROR = 1;
+    RES_RESOURCE_NOT_FOUND = 2;
+    RES_RESOURCE_NOT_INITIALIZED = 3;
+    RES_UNSUPPORTED = 4;
+    RES_STALE_RESOURCE_INCARNATION = 5;
 }
 
 message TStateItem
@@ -53,12 +74,23 @@ message TStream
     required bytes schema = 3; // YSON
 }
 
+message TCompanionResourceInstanceReference
+{
+    required string resource_id = 1;
+    required NYT.NProto.TGuid incarnation_id = 2;
+    required uint64 configuration_generation = 3;
+    // Present only for resources directly exposed to the job or resource.
+    optional string alias = 4;
+}
+
 message TJobInfo {
     required bytes spec = 1; // YSON
     required bytes dynamic_spec = 2; // YSON
     // Input and output streams of the computation.
     // Might be overwritten at source computation DoProcess request.
     repeated TStream streams = 3;
+    // Exact direct and transitive resource instances required by the job.
+    repeated TCompanionResourceInstanceReference companion_resources = 4;
 }
 
 message TWatermark
@@ -162,6 +194,24 @@ message TRspPutJob
     required NYT.NProto.TGuid job_id = 2;
     required TResponseMetrics metrics = 3;
     required EResponseStatus status = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqResourceExecute
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required string resource_id = 2;
+    required EResourceCommand command = 3;
+    // Per-command argument. YSON
+    optional bytes argument = 4;
+}
+
+message TRspResourceExecute
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required EResourceExecuteStatus status = 2;
+    optional NYT.NProto.TError error = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

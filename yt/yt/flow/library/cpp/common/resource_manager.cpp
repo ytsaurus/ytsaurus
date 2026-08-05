@@ -124,7 +124,8 @@ public:
         TResourceManagerContextPtr managerContext,
         const THashMap<TResourceId, TResourceSpecPtr>& resources,
         const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs,
-        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions)
+        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions,
+        const THashMap<TResourceId, TResourceInstanceState>& predecessorInstanceStates)
         : ManagerContext_(std::move(managerContext))
         , Invoker_(ManagerContext_->Invoker)
         , Logger(ManagerContext_->Logger)
@@ -132,6 +133,8 @@ public:
         ResourceSpecs_ = resources;
         DynamicResourceSpecs_ = dynamicResourceSpecs;
         TargetRevisions_ = targetRevisions;
+
+        ResourceInstanceStates_ = predecessorInstanceStates;
 
         // Create resources in order of their resourceId. It's only needed by tests now but it's a good practice anyway.
         std::map<TResourceId, TResourceSpecPtr> resourceSpecs(ResourceSpecs_.begin(), ResourceSpecs_.end());
@@ -392,6 +395,13 @@ public:
         return result;
     }
 
+    THashMap<TResourceId, TResourceInstanceState> GetResourceInstanceStates() const override
+    {
+        auto guard = Guard(Lock_);
+
+        return ResourceInstanceStates_;
+    }
+
 private:
     const TResourceManagerContextPtr ManagerContext_;
     const IInvokerPtr Invoker_;
@@ -404,6 +414,8 @@ private:
     THashMap<TResourceId, TResourceStatus> ResourceStatuses_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
+    // Protected by Lock_.
+    THashMap<TResourceId, TResourceInstanceState> ResourceInstanceStates_;
     THashMap<TResourceId, TFuture<void>> ResourcesInitializationFutures_;
     THashMap<TResourceId, TResourcePreloadStatePtr> PreloadStatus_;
 
@@ -480,8 +492,20 @@ private:
     {
         const auto& resourceSpec = GetOrCrash(ResourceSpecs_, resourceId);
 
+        ui64 incarnationGeneration = 0;
+        if (auto it = ResourceInstanceStates_.find(resourceId); it != ResourceInstanceStates_.end()) {
+            incarnationGeneration = it->second.IncarnationGeneration + 1;
+        }
+        auto resourceInstanceId = TResourceInstanceId(TGuid::Create());
+        ResourceInstanceStates_[resourceId] = {
+            .InstanceId = resourceInstanceId,
+            .IncarnationGeneration = incarnationGeneration,
+        };
+
         auto context = New<TResourceContext>();
         context->ResourceId = resourceId;
+        context->ResourceInstanceId = resourceInstanceId;
+        context->ResourceIncarnationGeneration = incarnationGeneration;
         context->ResourceSpec = resourceSpec;
         context->ResourceManager = MakeWeak(this);
         context->PipelineAuthenticator = ManagerContext_->PipelineAuthenticator;
@@ -515,9 +539,15 @@ IResourceManagerPtr CreateResourceManager(
     TResourceManagerContextPtr managerContext,
     const THashMap<TResourceId, TResourceSpecPtr>& resources,
     const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs,
-    const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions)
+    const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions,
+    const THashMap<TResourceId, TResourceInstanceState>& predecessorInstanceStates)
 {
-    return New<TResourceManager>(std::move(managerContext), resources, dynamicResourceSpecs, targetRevisions);
+    return New<TResourceManager>(
+        std::move(managerContext),
+        resources,
+        dynamicResourceSpecs,
+        targetRevisions,
+        predecessorInstanceStates);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

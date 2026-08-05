@@ -1,7 +1,6 @@
 #include "pipeline.h"
 
 #include <yt/yt/core/ytree/convert.h>
-#include <yt/yt/core/ytree/fluent.h>
 
 #include <util/system/getpid.h>
 
@@ -29,9 +28,15 @@ bool TPipeline::HasComputation(const TComputationId& computationId) const
     return Computations_.contains(computationId);
 }
 
+const THashSet<std::string>& TPipeline::GetResourceClassNames() const
+{
+    return ResourceClassNames_;
+}
+
 NCompanion::TCompanionInfoPtr TPipeline::BuildCompanionInfo() const
 {
     auto info = New<NCompanion::TCompanionInfo>();
+    info->ProcessId = GetPID();
     for (const auto& [computationId, type] : Computations_) {
         auto computationInfo = New<NCompanion::TCompanionComputationInfo>();
         computationInfo->ComputationId = computationId;
@@ -43,9 +48,7 @@ NCompanion::TCompanionInfoPtr TPipeline::BuildCompanionInfo() const
 
 NYson::TYsonString TPipeline::BuildCompanionInfoPayload() const
 {
-    auto node = ConvertTo<IMapNodePtr>(BuildCompanionInfo());
-    node->AddChild("pid", ConvertToNode(static_cast<i64>(GetPID())));
-    return NYson::ConvertToYsonString(node);
+    return NYson::ConvertToYsonString(BuildCompanionInfo());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,8 @@
 RECURSE(
     all_states_cpp
     passthrough_transform
+    resource/cpp
+    resource/cpp/companion
     types/common
     types/python
     types/python/pipeline

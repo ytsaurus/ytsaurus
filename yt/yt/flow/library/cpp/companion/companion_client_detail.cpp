@@ -34,6 +34,8 @@ void TCompanionComputationInfo::Register(TRegistrar registrar)
 
 void TCompanionInfo::Register(TRegistrar registrar)
 {
+    registrar.Parameter("pid", &TThis::ProcessId)
+        .Default();
     registrar.Parameter("computations", &TThis::Computations)
         .Default();
 }
@@ -41,6 +43,22 @@ void TCompanionInfo::Register(TRegistrar registrar)
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+// The client converts proto statuses via static_cast; keep the enums aligned.
+static_assert(ECompanionResponseStatus::Ok == static_cast<ECompanionResponseStatus>(NProto::NCompanion::RS_OK));
+static_assert(ECompanionResponseStatus::Error == static_cast<ECompanionResponseStatus>(NProto::NCompanion::RS_ERROR));
+static_assert(ECompanionResponseStatus::JobNotFound == static_cast<ECompanionResponseStatus>(NProto::NCompanion::RS_JOB_NOT_FOUND));
+static_assert(ECompanionResponseStatus::ResourceNotInitialized == static_cast<ECompanionResponseStatus>(NProto::NCompanion::RS_RESOURCE_NOT_INITIALIZED));
+
+static_assert(ECompanionResourceExecuteStatus::Ok == static_cast<ECompanionResourceExecuteStatus>(NProto::NCompanion::RES_OK));
+static_assert(ECompanionResourceExecuteStatus::Error == static_cast<ECompanionResourceExecuteStatus>(NProto::NCompanion::RES_ERROR));
+static_assert(ECompanionResourceExecuteStatus::ResourceNotFound == static_cast<ECompanionResourceExecuteStatus>(NProto::NCompanion::RES_RESOURCE_NOT_FOUND));
+static_assert(ECompanionResourceExecuteStatus::ResourceNotInitialized == static_cast<ECompanionResourceExecuteStatus>(NProto::NCompanion::RES_RESOURCE_NOT_INITIALIZED));
+static_assert(ECompanionResourceExecuteStatus::Unsupported == static_cast<ECompanionResourceExecuteStatus>(NProto::NCompanion::RES_UNSUPPORTED));
+static_assert(ECompanionResourceExecuteStatus::StaleResourceIncarnation == static_cast<ECompanionResourceExecuteStatus>(NProto::NCompanion::RES_STALE_RESOURCE_INCARNATION));
+
+static_assert(ECompanionResourceCommand::Init == static_cast<ECompanionResourceCommand>(NProto::NCompanion::RC_INIT));
+static_assert(ECompanionResourceCommand::Unload == static_cast<ECompanionResourceCommand>(NProto::NCompanion::RC_UNLOAD));
 
 template <typename TRequestPtr>
 void SetupBasicRequestFields(
@@ -75,6 +93,17 @@ void AddSpecsToRequest(
 {
     request->set_spec(ToProto(NYson::ConvertToYsonString(computationSpec)));
     request->set_dynamic_spec(ToProto(NYson::ConvertToYsonString(dynamicComputationSpec)));
+}
+
+template <typename TJobInfoPtr>
+void AddCompanionResourcesToJobInfo(
+    TJobInfoPtr jobInfo,
+    const std::vector<TCompanionResourceInstanceReference>& companionResources)
+{
+    jobInfo->mutable_companion_resources()->Reserve(companionResources.size());
+    for (const auto& reference : companionResources) {
+        ToProto(jobInfo->add_companion_resources(), reference);
+    }
 }
 
 template <typename TMutableStatesPtr, typename TStatePayload>
@@ -171,6 +200,9 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
             companionRequest->DynamicComputationSpec);
 
         AddStreamsToRequest(jobInfo, companionRequest->JobStreamSpecs, inputOutputStreams);
+        AddCompanionResourcesToJobInfo(
+            jobInfo,
+            companionRequest->CompanionResources);
         YT_TLOG_DEBUG("JobInfo added to process batch request");
     }
 
@@ -339,6 +371,9 @@ TCompanionPutJobResponsePtr TCompanionClient::PutJob(
         Concatenate(
             companionRequest->ComputationSpec->InputStreamIds,
             companionRequest->ComputationSpec->OutputStreamIds));
+    AddCompanionResourcesToJobInfo(
+        jobInfo,
+        companionRequest->CompanionResources);
     auto responseFuture = ExecuteWithRetry(BIND([request, this_ = MakeStrong(this)] () {
         return request->Invoke();
     }),
@@ -353,6 +388,42 @@ TCompanionPutJobResponsePtr TCompanionClient::PutJob(
     // Metrics.
     ReportMetrics(response, reporter);
     return putJobResponse;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TCompanionResourceExecuteResponsePtr> TCompanionClient::ResourceExecute(
+    const TResourceId& resourceId,
+    ECompanionResourceCommand command,
+    const NYson::TYsonString& argument)
+{
+    auto request = CompanionProxy_.ResourceExecute();
+    request->SetTimeout(Timeout_);
+    ToProto(request->mutable_request_id(), TGuid::Create());
+    request->set_resource_id(ToProto<TProtobufString>(resourceId));
+    request->set_command(static_cast<NProto::NCompanion::EResourceCommand>(command));
+    if (argument) {
+        request->set_argument(ToProto(argument));
+    }
+    auto reqReqId = request->request_id();
+    auto responseFuture = ExecuteWithRetry(BIND([request, this_ = MakeStrong(this)] () {
+        return request->Invoke();
+    }),
+        "ResourceExecute");
+    // Future.GetOrCrash called after WaitFor at ExecuteWithRetry function.
+    auto response = responseFuture.GetOrCrash().Value();
+    VerifyRequestResponseIds(reqReqId, response->request_id());
+    auto responseStatus = static_cast<ECompanionResourceExecuteStatus>(response->status());
+    YT_TLOG_DEBUG("Received resource execute response from companion")
+        .With("ResourceId", resourceId)
+        .With("Command", command)
+        .With("Status", responseStatus);
+    auto executeResponse = New<TCompanionResourceExecuteResponse>();
+    executeResponse->Status = responseStatus;
+    if (response->has_error()) {
+        executeResponse->Error = FromProto<TError>(response->error());
+    }
+    return MakeFuture(std::move(executeResponse));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

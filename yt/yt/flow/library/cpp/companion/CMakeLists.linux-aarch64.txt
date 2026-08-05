@@ -45,9 +45,11 @@ target_link_libraries(library-cpp-companion PUBLIC
 
 target_sources(library-cpp-companion PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_client_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_computation_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_entrypoint.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_model.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_resource.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/java_companion_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/java_process_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/companion_process_manager.cpp

@@ -37,9 +37,7 @@ TTransformCompanionComputation::TTransformCompanionComputation(
 void TTransformCompanionComputation::DoInit(IJobInitContextPtr initContext)
 {
     YT_TLOG_DEBUG("DoInit started");
-    FetchAndValidateCompanionInfo();
-
-    PutJobInfoToCompanionWithReconfigure();
+    InitCompanionJob();
 
     // Init internal states clients.
     if (GetParameters()->InternalStates) {

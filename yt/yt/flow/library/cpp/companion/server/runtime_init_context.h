@@ -11,7 +11,8 @@ namespace NYT::NFlow::NCompanionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Companion-side IRuntimeInitContext: state key clients are bound to the
-//! per-job #TCompanionStateStore; static resources and internal-state joiners
+//! per-job #TCompanionStateStore; static resources resolve against the
+//! companion-hosted instances acquired for the job; internal-state joiners
 //! are not available out of process.
 class TCompanionRuntimeInitContext
     : public IRuntimeInitContext
@@ -20,6 +21,7 @@ public:
     TCompanionRuntimeInitContext(
         TCompanionStateStorePtr stateStore,
         NYTree::IMapNodePtr parametersNode,
+        THashMap<TResourceId, IResourcePtr> resources = {},
         std::string prefix = {});
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(
@@ -47,6 +49,9 @@ protected:
 private:
     const TCompanionStateStorePtr StateStore_;
     const NYTree::IMapNodePtr ParametersNode_;
+    //! Companion-hosted resources acquired for the job, keyed by their
+    //! required-resource alias; immutable for the context's lifetime.
+    const THashMap<TResourceId, IResourcePtr> Resources_;
     const std::string Prefix_;
 };
 

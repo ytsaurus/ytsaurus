@@ -14,6 +14,7 @@ class TPipeline;
 DECLARE_REFCOUNTED_CLASS(TCompanionServer);
 DECLARE_REFCOUNTED_CLASS(TJob);
 DECLARE_REFCOUNTED_CLASS(TJobRegistry);
+DECLARE_REFCOUNTED_CLASS(TResourceStore);
 
 ////////////////////////////////////////////////////////////////////////////////
 

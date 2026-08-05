@@ -61,8 +61,10 @@ target_link_options(yt-flow-library-cpp-companion-unittest PRIVATE
 
 target_sources(yt-flow-library-cpp-companion-unittest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/companion_client_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/companion_computation_base_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/companion_entrypoint_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/companion_proxy_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/companion_resource_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/config_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/java_companion_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/java_process_manager_ut.cpp

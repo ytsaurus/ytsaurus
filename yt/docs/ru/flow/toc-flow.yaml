@@ -35,6 +35,8 @@ items:
         href: concepts/lineage.md
       - name: Компаньон (Companion)
         href: concepts/companion.md
+      - name: Ресурсы компаньона
+        href: concepts/companion-resources.md
       - name: Worker groups
         href: concepts/worker_groups.md
       - name: Distributed Throttler

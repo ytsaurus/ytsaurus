@@ -294,7 +294,7 @@ TEST(TCompanionRuntimeInitContextTest, PrefixAndParameters)
 
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(initContext->GetStaticResource(TResourceId("some_resource"))),
-        "not available in a companion process");
+        "not available in this companion process");
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(initContext->AsPartition()),
         "not available in a companion process");

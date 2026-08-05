@@ -42,9 +42,7 @@ TSwiftOrderedSourceCompanionComputation::TSwiftOrderedSourceCompanionComputation
 
 void TSwiftOrderedSourceCompanionComputation::DoInit(IJobInitContextPtr /*initContext*/)
 {
-    FetchAndValidateCompanionInfo();
-
-    PutJobInfoToCompanionWithReconfigure();
+    InitCompanionJob();
 
     YT_TLOG_INFO("Computation initialized");
 }

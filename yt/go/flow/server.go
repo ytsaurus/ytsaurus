@@ -504,6 +504,23 @@ func (s *companionService) ProcessBatch(
 	}, nil
 }
 
+// ResourceExecute reports that companion resources are not implemented by the Go companion.
+func (s *companionService) ResourceExecute(
+	_ context.Context,
+	req *companion.TReqResourceExecute,
+) (*companion.TRspResourceExecute, error) {
+	const message = "Companion resources are not supported by the Go companion"
+
+	return &companion.TRspResourceExecute{
+		RequestId: misc.NewProtoFromGUID(misc.NewGUIDFromProto(req.GetRequestId())),
+		Status:    companion.EResourceExecuteStatus_RES_UNSUPPORTED.Enum(),
+		Error: &misc.TError{
+			Code:    proto.Int32(1),
+			Message: proto.String(message),
+		},
+	}, nil
+}
+
 // GetJfr collects a Java Flight Recorder profile, which only the Java companion can do.
 func (s *companionService) GetJfr(
 	_ context.Context,

@@ -14,9 +14,7 @@ TSwiftMapCompanionComputation::TSwiftMapCompanionComputation(
 
 void TSwiftMapCompanionComputation::DoInit(IJobInitContextPtr /*initContext*/)
 {
-    FetchAndValidateCompanionInfo();
-
-    PutJobInfoToCompanionWithReconfigure();
+    InitCompanionJob();
 }
 
 void TSwiftMapCompanionComputation::DoProcess(IInputContextPtr input, IOutputCollectorPtr output)

@@ -49,6 +49,7 @@ target_sources(cpp-companion-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/job_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/output_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/pipeline.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/resource_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/runtime_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/runtime_init_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/server.cpp

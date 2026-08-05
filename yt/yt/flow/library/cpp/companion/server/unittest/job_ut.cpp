@@ -2,12 +2,16 @@
 
 #include <yt/yt/flow/library/cpp/companion/server/job.h>
 
+#include <yt/yt/core/misc/guid.h>
+
 namespace NYT::NFlow::NCompanionServer {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProto::NCompanion::TJobInfo BuildJobInfo()
+NProto::NCompanion::TJobInfo BuildJobInfo(
+    const TResourceInstanceId& directIncarnationId = TResourceInstanceId(TGuid::Create()),
+    const TResourceInstanceId& transitiveIncarnationId = TResourceInstanceId(TGuid::Create()))
 {
     NProto::NCompanion::TJobInfo jobInfo;
     jobInfo.set_spec(R"({
@@ -35,13 +39,29 @@ NProto::NCompanion::TJobInfo BuildJobInfo()
     outputStream->set_stream_spec_id(7);
     outputStream->set_schema(R"([{name = "count"; type = "uint64"}])");
 
+    auto* directReference = jobInfo.add_companion_resources();
+    directReference->set_resource_id("dictionary");
+    ToProto(directReference->mutable_incarnation_id(), directIncarnationId.Underlying());
+    directReference->set_configuration_generation(3);
+    directReference->set_alias("geo");
+
+    auto* transitiveReference = jobInfo.add_companion_resources();
+    transitiveReference->set_resource_id("credentials");
+    ToProto(transitiveReference->mutable_incarnation_id(), transitiveIncarnationId.Underlying());
+    transitiveReference->set_configuration_generation(7);
+
     return jobInfo;
 }
 
 TEST(TJobTest, ParsesJobInfo)
 {
     auto jobId = TJobId(TGuid::Create());
-    auto job = New<TJob>(jobId, TComputationId("my_computation"), BuildJobInfo());
+    auto directIncarnationId = TResourceInstanceId(TGuid::Create());
+    auto transitiveIncarnationId = TResourceInstanceId(TGuid::Create());
+    auto job = New<TJob>(
+        jobId,
+        TComputationId("my_computation"),
+        BuildJobInfo(directIncarnationId, transitiveIncarnationId));
 
     EXPECT_EQ(job->GetJobId(), jobId);
     EXPECT_EQ(job->GetComputationId(), TComputationId("my_computation"));
@@ -66,6 +86,15 @@ TEST(TJobTest, ParsesJobInfo)
     EXPECT_EQ(
         streamSpecs->GetSchema(TStreamSpecId(7))->Columns()[0].Name(),
         "count");
+
+    ASSERT_EQ(std::ssize(job->GetCompanionResources()), 2);
+    EXPECT_EQ(job->GetCompanionResources()[0].ResourceId, TResourceId("dictionary"));
+    EXPECT_EQ(job->GetCompanionResources()[0].IncarnationId, directIncarnationId);
+    EXPECT_EQ(job->GetCompanionResources()[0].ConfigurationGeneration, 3);
+    EXPECT_EQ(job->GetCompanionResources()[0].Alias, TResourceId("geo"));
+    EXPECT_EQ(job->GetCompanionResources()[1].ResourceId, TResourceId("credentials"));
+    EXPECT_EQ(job->GetCompanionResources()[1].IncarnationId, transitiveIncarnationId);
+    EXPECT_FALSE(job->GetCompanionResources()[1].Alias);
 }
 
 TEST(TJobTest, EmptyStateDeclarations)

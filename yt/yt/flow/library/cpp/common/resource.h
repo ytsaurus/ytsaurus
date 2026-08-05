@@ -48,6 +48,8 @@ struct TResourceContext
 {
     // Resource-specific identity and ownership.
     TResourceId ResourceId;
+    TResourceInstanceId ResourceInstanceId;
+    ui64 ResourceIncarnationGeneration{};
     TResourceSpecPtr ResourceSpec;
     TWeakPtr<IResourceManager> ResourceManager;
 

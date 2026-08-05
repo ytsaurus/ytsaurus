@@ -333,12 +333,14 @@ public:
 
         // Drop too old jobs.
         if (oldExecutionSpec->PipelineSpec->GetVersion() != ExecutionSpec_->PipelineSpec->GetVersion()) {
+            auto predecessorInstanceStates = ResourceManager_->GetResourceInstanceStates();
             DropAllJobs();
             ResourceManager_ = CreateResourceManagerForPipelineSpec(
                 ExecutionSpec_->PipelineSpec->GetValue()->Resources,
                 ExecutionSpec_->DynamicPipelineSpec->GetValue()->Resources,
                 ExecutionSpec_->PipelineSpec->GetValue()->Computations,
-                ExecutionSpec_->ResourceTargetRevisions->GetValue());
+                ExecutionSpec_->ResourceTargetRevisions->GetValue(),
+                predecessorInstanceStates);
         } else {
             for (const auto& jobId : GetKeys(JobIdToRuntimeState_)) {
                 if (!ExecutionSpec_->Layout->Jobs.contains(jobId)) {
@@ -570,7 +572,8 @@ private:
         const THashMap<TResourceId, TResourceSpecPtr>& resources,
         const THashMap<TResourceId, TDynamicResourceSpecPtr>& dynamicResourceSpecs,
         const THashMap<TComputationId, TComputationSpecPtr>& computations,
-        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions)
+        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions,
+        const THashMap<TResourceId, TResourceInstanceState>& predecessorInstanceStates = {})
     {
         auto context = New<TResourceManagerContext>();
         context->PipelineAuthenticator = Context_->PipelineAuthenticator;
@@ -583,7 +586,12 @@ private:
         context->StatusProfiler = Context_->StatusProfiler->WithPrefix("/resource_manager");
         context->IsController = false;
         context->Computations = computations;
-        return CreateResourceManager(std::move(context), resources, dynamicResourceSpecs, targetRevisions);
+        return CreateResourceManager(
+            std::move(context),
+            resources,
+            dynamicResourceSpecs,
+            targetRevisions,
+            predecessorInstanceStates);
     }
 
     void UpdatePerformanceCounters()
