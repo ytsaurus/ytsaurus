@@ -53,6 +53,8 @@ struct TQueryEngineDynamicConfig
 
     std::optional<i64> JoinCacheSize;
 
+    std::optional<int> MaxSubsplitsPerTablet;
+
     REGISTER_YSON_STRUCT(TQueryEngineDynamicConfig);
 
     static void Register(TRegistrar registrar);
