@@ -23,6 +23,7 @@ namespace NYT::NFlow {
 
 YT_DEFINE_STRONG_TYPEDEF(TJobId, TGuid);
 YT_DEFINE_STRONG_TYPEDEF(TIncarnationId, TGuid);
+YT_DEFINE_STRONG_TYPEDEF(TResourceInstanceId, TGuid);
 YT_DEFINE_STRONG_TYPEDEF(TKey, TCompactUnversionedOwningRow);
 struct TKeyRange;
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TMessageId);

@@ -129,6 +129,15 @@ class CompanionServiceServicer:
             context.set_details(f"Error processing PutJob: {e}")
             return self._proto.TRspPutJob()
 
+    def ResourceExecute(self, request, context):
+        del context
+        response = self._proto.TRspResourceExecute()
+        response.request_id.CopyFrom(request.request_id)
+        response.status = self._proto.RES_UNSUPPORTED
+        response.error.code = 1
+        response.error.message = "Companion resources are not supported by the Python companion"
+        return response
+
     def GetJfr(self, request, context):
         """JFR is only supported by the Java companion. Return UNIMPLEMENTED for Python."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)

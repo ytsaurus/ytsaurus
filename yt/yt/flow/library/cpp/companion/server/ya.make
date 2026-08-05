@@ -11,6 +11,7 @@ SRCS(
     job_registry.cpp
     output_collector.cpp
     pipeline.cpp
+    resource_store.cpp
     runtime_context.cpp
     runtime_init_context.cpp
     server.cpp

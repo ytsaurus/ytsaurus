@@ -6,6 +6,8 @@
     #include "pipeline.h"
 #endif
 
+#include <util/system/type_name.h>
+
 namespace NYT::NFlow::NCompanionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +24,21 @@ void TPipeline::AddSource(TComputationId computationId)
 {
     RegisterFunction<TFunction, TStaticParameters, TDynamicParameters>();
     Add(std::move(computationId), ECompanionComputationType::Source);
+}
+
+template <class TResource>
+void TPipeline::AddResource()
+{
+    // A resource class may be declared by several TPipeline instances;
+    // register each instantiation exactly once per process (a genuine
+    // duplicate, e.g. a clash with a linked YT_FLOW_DEFINE_RESOURCE, is
+    // reported by the registry).
+    static const bool registered = [] {
+        TRegistry::Get()->RegisterResource<TResource>();
+        return true;
+    }();
+    Y_UNUSED(registered);
+    ResourceClassNames_.insert(TypeName<TResource>());
 }
 
 template <class TFunction, class TStaticParameters, class TDynamicParameters>

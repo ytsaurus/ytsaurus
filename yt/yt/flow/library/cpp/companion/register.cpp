@@ -1,6 +1,7 @@
 #include "public.h"
 
 #include "companion_manager.h"
+#include "companion_resource.h"
 #include "java_companion_manager.h"
 #include "swift_map_companion_computation.h"
 #include "swift_ordered_source_companion_computation.h"
@@ -13,6 +14,7 @@ namespace NYT::NFlow::NCompanion {
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_FLOW_DEFINE_RESOURCE(TCompanionManager);
+YT_FLOW_DEFINE_RESOURCE(TCompanionResource);
 YT_FLOW_DEFINE_RESOURCE(TJavaCompanionManager);
 YT_FLOW_DEFINE_COMPUTATION(TSwiftMapCompanionComputation);
 YT_FLOW_DEFINE_COMPUTATION(TSwiftOrderedSourceCompanionComputation);

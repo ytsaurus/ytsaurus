@@ -3,7 +3,44 @@
 #include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/timer.h>
 
+#include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/ytree/yson_struct.h>
+
+#include <library/cpp/yt/yson_string/string.h>
+
+namespace NYT::NFlow::NProto::NCompanion {
+
+class TCompanionResourceInstanceReference;
+
+} // namespace NYT::NFlow::NProto::NCompanion
+
 namespace NYT::NFlow::NCompanion {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Exact resource instance required by a job or another companion resource.
+struct TCompanionResourceInstanceReference
+    : public NYTree::TYsonStructLite
+{
+    TResourceId ResourceId;
+    TResourceInstanceId IncarnationId;
+    ui64 ConfigurationGeneration{};
+    std::optional<TResourceId> Alias;
+
+    bool operator==(const TCompanionResourceInstanceReference&) const = default;
+
+    REGISTER_YSON_STRUCT_LITE(TCompanionResourceInstanceReference);
+
+    static void Register(TRegistrar registrar);
+};
+
+void ToProto(
+    NProto::NCompanion::TCompanionResourceInstanceReference* protoReference,
+    const TCompanionResourceInstanceReference& reference);
+
+void FromProto(
+    TCompanionResourceInstanceReference* reference,
+    const NProto::NCompanion::TCompanionResourceInstanceReference& protoReference);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +91,8 @@ struct TCompanionProcessRequest
     bool SendJobInfo{};
     TComputationSpecPtr ComputationSpec;
     TDynamicComputationSpecPtr DynamicComputationSpec;
+    //! Exact direct and transitive resources hosted in the companion.
+    std::vector<TCompanionResourceInstanceReference> CompanionResources;
     // StreamSpecs for JobInfo publishing.
     TStreamSpecsPtr JobStreamSpecs;
     // StreamSpecs for streams overriding at source computations.
@@ -103,6 +142,8 @@ DEFINE_REFCOUNTED_TYPE(TCompanionComputationInfo);
 struct TCompanionInfo
     : public NYTree::TYsonStruct
 {
+    //! Process serving the client channel used for this request.
+    std::optional<i64> ProcessId;
     THashMap<TComputationId, TCompanionComputationInfoPtr> Computations;
 
     REGISTER_YSON_STRUCT(TCompanionInfo);
@@ -122,6 +163,8 @@ struct TCompanionPutJobRequest
     TComputationSpecPtr ComputationSpec;
     TDynamicComputationSpecPtr DynamicComputationSpec;
     TStreamSpecsPtr JobStreamSpecs;
+    //! Exact direct and transitive resources hosted in the companion.
+    std::vector<TCompanionResourceInstanceReference> CompanionResources;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionPutJobRequest);
@@ -135,5 +178,45 @@ struct TCompanionPutJobResponse
 DEFINE_REFCOUNTED_TYPE(TCompanionPutJobResponse);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TCompanionResourceExecuteResponse
+    : public TRefCounted
+{
+    ECompanionResourceExecuteStatus Status{};
+    TError Error;
+};
+
+DEFINE_REFCOUNTED_TYPE(TCompanionResourceExecuteResponse);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Argument of the "init" resource command: the full static and dynamic resource specs.
+struct TInitResourceCommandArg
+    : public NYTree::TYsonStructLite
+{
+    TResourceSpecPtr Spec;
+    TDynamicResourceSpecPtr DynamicSpec;
+    TResourceInstanceId IncarnationId;
+    ui64 IncarnationGeneration{};
+    ui64 ConfigurationGeneration{};
+    std::vector<TCompanionResourceInstanceReference> Dependencies;
+    //! Worker-prepared revision exposed to the companion resource.
+    TResourceRevisionPtr ResourceRevision;
+
+    REGISTER_YSON_STRUCT_LITE(TInitResourceCommandArg);
+
+    static void Register(TRegistrar registrar);
+};
+
+//! Argument of the "unload" resource command.
+struct TUnloadResourceCommandArg
+    : public NYTree::TYsonStructLite
+{
+    TResourceInstanceId IncarnationId;
+
+    REGISTER_YSON_STRUCT_LITE(TUnloadResourceCommandArg);
+
+    static void Register(TRegistrar registrar);
+};
 
 } // namespace NYT::NFlow::NCompanion

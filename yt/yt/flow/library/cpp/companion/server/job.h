@@ -8,6 +8,7 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
+#include <yt/yt/flow/library/cpp/companion/companion_model.h>
 #include <yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h>
 
 #include "runtime_context.h"
@@ -59,10 +60,14 @@ public:
     TJob(
         TJobId jobId,
         TComputationId computationId,
-        const NProto::NCompanion::TJobInfo& jobInfo);
+        const NProto::NCompanion::TJobInfo& jobInfo,
+        TResourceStorePtr resourceStore = nullptr);
 
     const TJobId& GetJobId() const;
     const TComputationId& GetComputationId() const;
+
+    //! Exact direct and transitive companion resources required by the job.
+    const std::vector<NCompanion::TCompanionResourceInstanceReference>& GetCompanionResources() const;
 
     const TComputationSpecPtr& GetSpec() const;
     const TDynamicComputationSpecPtr& GetDynamicSpec() const;
@@ -78,19 +83,23 @@ public:
 
     //! Runs one epoch batch through the hosted process function and fills the
     //! response data; the function is instantiated from the registry and
-    //! initialized on first use. Not thread-safe: the companion service runs
-    //! batches of one job id on the registry's per-job invoker.
-    void ProcessBatch(
+    //! initialized on first use. Returns false without processing when a
+    //! required companion resource no longer matches its initialized instance
+    //! (an in-band retryable condition). Not thread-safe: the companion
+    //! service runs batches of one job id on the registry's per-job invoker.
+    [[nodiscard]] bool ProcessBatch(
         const NProto::NCompanion::TReqProcessBatch& request,
         NProto::NCompanion::TResponseData* data);
 
 private:
     const TJobId JobId_;
     const TComputationId ComputationId_;
+    const TResourceStorePtr ResourceStore_;
 
     TComputationSpecPtr Spec_;
     TDynamicComputationSpecPtr DynamicSpec_;
     TStreamSpecsPtr StreamSpecs_;
+    std::vector<NCompanion::TCompanionResourceInstanceReference> CompanionResources_;
 
     THashSet<std::string> InternalStateNames_;
     THashSet<std::string> ExternalStateNames_;
@@ -109,7 +118,8 @@ private:
     //! Per-job runtime context, reused for batches without a stream override.
     TCompanionRuntimeContextPtr RuntimeContext_;
 
-    void EnsureInitialized();
+    [[nodiscard]] bool EnsureInitialized();
+    std::optional<THashMap<TResourceId, IResourcePtr>> AcquireRequiredResources() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob);

@@ -200,6 +200,8 @@ class TSlowResource
 public:
     TSlowResource(TResourceContextPtr context, TDynamicResourceContextPtr /*dynamicContext*/)
         : ResourceId_(context->ResourceId)
+        , ResourceInstanceId_(context->ResourceInstanceId)
+        , ResourceIncarnationGeneration_(context->ResourceIncarnationGeneration)
     {
         LastResource_.store(this);
         // Register by resource id so a test can address several slow resources at once.
@@ -258,6 +260,16 @@ public:
         return LoadStarted_;
     }
 
+    TResourceInstanceId GetResourceInstanceId() const
+    {
+        return ResourceInstanceId_;
+    }
+
+    ui64 GetResourceIncarnationGeneration() const
+    {
+        return ResourceIncarnationGeneration_;
+    }
+
     static TSlowResourcePtr GetLastResource()
     {
         return MakeStrong(LastResource_.load());
@@ -274,6 +286,8 @@ public:
 
 private:
     const TResourceId ResourceId_;
+    const TResourceInstanceId ResourceInstanceId_;
+    const ui64 ResourceIncarnationGeneration_;
     TPromise<void> LoadPromise_ = NewPromise<void>();
     bool LoadStarted_ = false;
     static std::atomic<TSlowResource*> LastResource_;
@@ -448,7 +462,8 @@ public:
         IInvokerPtr invoker = nullptr,
         bool isController = false,
         THashMap<TComputationId, TComputationSpecPtr> computations = {},
-        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions = {})
+        const THashMap<TResourceId, TResourceRevisionPtr>& targetRevisions = {},
+        const THashMap<TResourceId, TResourceInstanceState>& predecessorInstanceStates = {})
     {
         auto context = New<TResourceManagerContext>();
         context->Invoker = invoker ? invoker : GetCurrentInvoker();
@@ -456,7 +471,12 @@ public:
         context->StatusProfiler = CreateSyncStatusProfiler();
         context->IsController = isController;
         context->Computations = std::move(computations);
-        return CreateResourceManager(std::move(context), resources, {}, targetRevisions);
+        return CreateResourceManager(
+            std::move(context),
+            resources,
+            {},
+            targetRevisions,
+            predecessorInstanceStates);
     }
 
     TResourceSpecPtr BuildRevisionAwareResourceSpec()
@@ -958,6 +978,110 @@ TEST_F(TResourceManagerTest, PreloadRemoveRecreatesResource)
 
     // The resource object must have been replaced.
     EXPECT_NE(originalResource.Get(), newResource.Get());
+}
+
+TEST_F(TResourceManagerTest, PreloadRecreationAdvancesIncarnationGeneration)
+{
+    THashMap<TResourceId, TResourceSpecPtr> resources;
+    resources["res"] = BuildPreloadRequiredSlowResourceSpec();
+
+    auto actionQueue = New<TActionQueue>();
+    auto resourceManager = CreateManager(resources, actionQueue->GetInvoker());
+
+    auto firstResource = TSlowResource::GetLastResource();
+    EXPECT_NE(firstResource->GetResourceInstanceId(), TResourceInstanceId{});
+    EXPECT_EQ(0u, firstResource->GetResourceIncarnationGeneration());
+
+    resourceManager->UpdatePreloadedResources({"res"});
+    resourceManager->UpdatePreloadedResources({});
+    auto secondResource = TSlowResource::GetLastResource();
+    EXPECT_NE(firstResource->GetResourceInstanceId(), secondResource->GetResourceInstanceId());
+    EXPECT_EQ(1u, secondResource->GetResourceIncarnationGeneration());
+
+    resourceManager->UpdatePreloadedResources({"res"});
+    resourceManager->UpdatePreloadedResources({});
+    auto thirdResource = TSlowResource::GetLastResource();
+    EXPECT_NE(secondResource->GetResourceInstanceId(), thirdResource->GetResourceInstanceId());
+    EXPECT_EQ(2u, thirdResource->GetResourceIncarnationGeneration());
+}
+
+TEST_F(TResourceManagerTest, ManagerRecreationAdvancesIncarnationGeneration)
+{
+    THashMap<TResourceId, TResourceSpecPtr> resources;
+    resources["res"] = BuildSlowResourceSpec();
+
+    auto firstManager = CreateManager(resources);
+    auto firstResource = TSlowResource::GetLastResource();
+    auto firstStates = firstManager->GetResourceInstanceStates();
+
+    auto secondManager = CreateManager(
+        resources,
+        /*invoker*/ nullptr,
+        /*isController*/ false,
+        /*computations*/ {},
+        /*targetRevisions*/ {},
+        firstStates);
+    auto secondResource = TSlowResource::GetLastResource();
+
+    EXPECT_NE(firstResource->GetResourceInstanceId(), secondResource->GetResourceInstanceId());
+    EXPECT_EQ(1u, secondResource->GetResourceIncarnationGeneration());
+
+    auto secondStates = secondManager->GetResourceInstanceStates();
+    auto thirdManager = CreateManager(
+        resources,
+        /*invoker*/ nullptr,
+        /*isController*/ false,
+        /*computations*/ {},
+        /*targetRevisions*/ {},
+        secondStates);
+    auto thirdResource = TSlowResource::GetLastResource();
+    EXPECT_EQ(2u, thirdResource->GetResourceIncarnationGeneration());
+}
+
+TEST_F(TResourceManagerTest, ManagerRecreationPreservesRemovedResourceGeneration)
+{
+    THashMap<TResourceId, TResourceSpecPtr> resources;
+    resources["res"] = BuildSlowResourceSpec();
+
+    auto firstManager = CreateManager(resources);
+    auto firstStates = firstManager->GetResourceInstanceStates();
+
+    auto secondManager = CreateManager(
+        resources,
+        /*invoker*/ nullptr,
+        /*isController*/ false,
+        /*computations*/ {},
+        /*targetRevisions*/ {},
+        firstStates);
+    auto secondResource = TSlowResource::GetLastResource();
+    auto secondStates = secondManager->GetResourceInstanceStates();
+
+    auto emptyManager = CreateManager(
+        /*resources*/ {},
+        /*invoker*/ nullptr,
+        /*isController*/ false,
+        /*computations*/ {},
+        /*targetRevisions*/ {},
+        secondStates);
+    auto retainedStates = emptyManager->GetResourceInstanceStates();
+    ASSERT_EQ(1u, retainedStates.size());
+    EXPECT_EQ(
+        secondResource->GetResourceInstanceId(),
+        GetOrCrash(retainedStates, TResourceId("res")).InstanceId);
+    EXPECT_EQ(
+        1u,
+        GetOrCrash(retainedStates, TResourceId("res")).IncarnationGeneration);
+
+    auto restoredManager = CreateManager(
+        resources,
+        /*invoker*/ nullptr,
+        /*isController*/ false,
+        /*computations*/ {},
+        /*targetRevisions*/ {},
+        retainedStates);
+    auto restoredResource = TSlowResource::GetLastResource();
+    EXPECT_NE(secondResource->GetResourceInstanceId(), restoredResource->GetResourceInstanceId());
+    EXPECT_EQ(2u, restoredResource->GetResourceIncarnationGeneration());
 }
 
 TEST_F(TResourceManagerTest, PreloadIdempotentUpdate)

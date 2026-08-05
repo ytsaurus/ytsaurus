@@ -10,11 +10,13 @@ namespace NYT::NFlow::NCompanionServer {
 TCompanionRuntimeInitContext::TCompanionRuntimeInitContext(
     TCompanionStateStorePtr stateStore,
     NYTree::IMapNodePtr parametersNode,
+    THashMap<TResourceId, IResourcePtr> resources,
     std::string prefix)
     : StateStore_(std::move(stateStore))
     , ParametersNode_(parametersNode
             ? std::move(parametersNode)
             : NYTree::GetEphemeralNodeFactory()->CreateMap())
+    , Resources_(std::move(resources))
     , Prefix_(std::move(prefix))
 { }
 
@@ -45,6 +47,7 @@ IRuntimeInitContextPtr TCompanionRuntimeInitContext::WithPrefix(TStringBuf prefi
     return New<TCompanionRuntimeInitContext>(
         StateStore_,
         ParametersNode_,
+        Resources_,
         ExtendStateNamePrefix(Prefix_, prefix));
 }
 
@@ -60,8 +63,12 @@ NYTree::IMapNodePtr TCompanionRuntimeInitContext::GetParametersNode() const
 
 IResourcePtr TCompanionRuntimeInitContext::GetStaticResource(const TResourceId& resourceId) const
 {
-    THROW_ERROR_EXCEPTION("Static resource %Qv is not available in a companion process",
+    auto it = Resources_.find(resourceId);
+    THROW_ERROR_EXCEPTION_IF(it == Resources_.end(),
+        "Static resource %Qv is not available in this companion process; "
+        "companion-hosted resources must be listed in the computation's required_resource_ids",
         resourceId);
+    return it->second;
 }
 
 NProfiling::TProfiler TCompanionRuntimeInitContext::GetProfiler() const

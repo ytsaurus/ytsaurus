@@ -35,12 +35,23 @@ public:
         class TDynamicParameters = TEmptyProcessFunctionParameters>
     void AddSource(TComputationId computationId);
 
+    //! Declares a hosted companion resource class and registers it in the
+    //! resource registry, replacing YT_FLOW_DEFINE_RESOURCE in companion
+    //! binaries. Resource ids are not declared here: the "init" command names
+    //! the class per resource id via |companion_resource_class| in the spec's
+    //! parameters, and the resource store creates the instances.
+    template <class TResource>
+    void AddResource();
+
     const THashMap<TComputationId, ECompanionComputationType>& GetComputations() const;
     bool HasComputation(const TComputationId& computationId) const;
 
+    //! Class names declared via #AddResource; only they may be instantiated
+    //! by the "init" resource command.
+    const THashSet<std::string>& GetResourceClassNames() const;
+
     NCompanion::TCompanionInfoPtr BuildCompanionInfo() const;
-    //! The CompanionInfo RPC payload: serialized #TCompanionInfo plus a top-level
-    //! |pid| key (parity with the Java/Python SDK payloads).
+    //! Static CompanionInfo RPC payload for this process.
     NYson::TYsonString BuildCompanionInfoPayload() const;
 
 private:
@@ -50,9 +61,8 @@ private:
     void Add(TComputationId computationId, ECompanionComputationType type);
 
     THashMap<TComputationId, ECompanionComputationType> Computations_;
+    THashSet<std::string> ResourceClassNames_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow::NCompanionServer
 

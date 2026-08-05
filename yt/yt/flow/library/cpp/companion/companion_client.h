@@ -4,6 +4,8 @@
 #include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/timer.h>
 
+#include <library/cpp/yt/yson_string/string.h>
+
 namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,6 +26,12 @@ struct ICompanionClient
     virtual TCompanionPutJobResponsePtr PutJob(
         const TCompanionPutJobRequestPtr& putJobRequest,
         const IExternalPerformanceMetricsReporterPtr& reporter) = 0;
+
+    //! Executes a lifecycle command over a resource hosted in Companion.
+    virtual TFuture<TCompanionResourceExecuteResponsePtr> ResourceExecute(
+        const TResourceId& resourceId,
+        ECompanionResourceCommand command,
+        const NYson::TYsonString& argument) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICompanionClient);
