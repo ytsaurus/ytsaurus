@@ -2726,6 +2726,40 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         op.abort()
         wait_operation_unregistered(op.id)
 
+    @authors("severovv", "yaishenka")
+    def test_node_unregister_during_controller_revival(self):
+        update_scheduler_config("node_registration_timeout", 1000)
+        update_scheduler_config("node_heartbeat_timeout", 1000)
+        update_scheduler_config("node_reconnection_timeout", 1000)
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            spec={
+                "testing": {
+                    "delay_inside_register_allocations_from_revived_operation": 10000,
+                },
+            },
+        )
+
+        wait(lambda: len(op.get_running_jobs()))
+        op.wait_for_fresh_snapshot()
+
+        assignment = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
+        assigned_node = assignment["node_address"]
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            wait(lambda: not get_operation_from_gpu_policy_orchid(op)["enabled"])
+
+        # DisableOperation preserves the assignment for revival, but drops its allocation state.
+        node_path = (
+            scheduler_new_orchid_pool_tree_path("gpu") +
+            f"/gpu_assignment_plan/nodes/{assigned_node}"
+        )
+
+        # Unregistering this node must discard its reviving assignment without crashing scheduler.
+        set_node_banned(assigned_node, True, wait_for_master=True, wait_for_scheduler=True)
+        wait(lambda: not exists(node_path))
+
     @authors("yaishenka")
     def test_revival_after_scheduler_restart(self):
         # Scenario: operation with a running GPU allocation, scheduler restarts. Operation is
