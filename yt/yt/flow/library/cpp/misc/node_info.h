@@ -38,8 +38,6 @@ struct TNodeInfoBase
 
     std::string BuildVersion;
 
-    std::string BinaryChecksum;
-
     //! Flow-core binary version.
     std::string FlowCoreVersion;
 
@@ -85,8 +83,6 @@ void RegisterNodeInfoStruct(TRegistrar registrar)
     registrar.BaseClassParameter("vcpu_factor", &TNodeInfoBase::VcpuFactor)
         .Default();
     registrar.BaseClassParameter("build_version", &TNodeInfoBase::BuildVersion)
-        .Default();
-    registrar.BaseClassParameter("binary_checksum", &TNodeInfoBase::BinaryChecksum)
         .Default();
     registrar.BaseClassParameter("flow_core_version", &TNodeInfoBase::FlowCoreVersion)
         .Default();
