@@ -2,17 +2,28 @@
 
 #include <yt/yt/flow/library/cpp/connectors/static_table/source.h>
 
+#include <yt/yt/flow/library/cpp/common/unittests/mock/state.h>
+#include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
+
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+
 #include <yt/yt/client/complex_types/yson_format_conversion.h>
+
+#include <yt/yt/client/hedging/unittests/mock/cache.h>
 
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/unittests/mock/client.h>
+#include <yt/yt/client/unittests/mock/table_reader.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -25,8 +36,232 @@ namespace {
 using namespace NYPath;
 using namespace NTableClient;
 using namespace NComplexTypes;
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+
+using ::testing::_;
+using ::testing::Invoke;
+using ::testing::NiceMock;
+using ::testing::Return;
+
+////////////////////////////////////////////////////////////////////////////////
+
+NClient::NCache::IClientsCachePtr MakeFixedClientsCache(NApi::IClientPtr client)
+{
+    auto clientsCache = New<NiceMock<NClient::NHedging::TMockClientsCache>>();
+    ON_CALL(*clientsCache, GetClient(_)).WillByDefault(Return(std::move(client)));
+    return clientsCache;
+}
+
+const TTableSchemaPtr& GetValueTableSchema()
+{
+    static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{TColumnSchema("value", EValueType::Int64)});
+    return schema;
+}
+
+IUnversionedRowBatchPtr MakeRowBatch(const std::vector<i64>& values, int valueId)
+{
+    auto holder = std::make_shared<std::vector<TUnversionedOwningRow>>();
+    for (i64 value : values) {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedInt64Value(value, valueId));
+        holder->push_back(builder.FinishRow());
+    }
+    std::vector<TUnversionedRow> rows;
+    rows.reserve(holder->size());
+    for (const auto& row : *holder) {
+        rows.push_back(row);
+    }
+    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), std::move(holder)));
+}
+
+// Reader that yields |values| and then reports |readyAfterRows| as its ready event.
+NApi::ITableReaderPtr MakeTableReader(std::vector<i64> values, TFuture<void> readyAfterRows)
+{
+    auto reader = New<NApi::TMockTableReader>(GetValueTableSchema());
+    const int valueId = reader->GetNameTable()->GetIdOrThrow("value");
+    auto rows = std::make_shared<std::vector<i64>>(std::move(values));
+
+    EXPECT_CALL(*reader, GetReadyEvent()).WillRepeatedly(Invoke([=] {
+        return rows->empty() ? readyAfterRows : OKFuture;
+    }));
+    EXPECT_CALL(*reader, Read(_)).WillRepeatedly(Invoke([=] (const TRowBatchReadOptions& options) -> IUnversionedRowBatchPtr {
+        if (rows->empty()) {
+            return nullptr;
+        }
+        auto count = std::min<i64>(options.MaxRowsPerRead, std::ssize(*rows));
+        auto batch = MakeRowBatch(std::vector<i64>(rows->begin(), rows->begin() + count), valueId);
+        rows->erase(rows->begin(), rows->begin() + count);
+        return batch;
+    }));
+
+    return reader;
+}
+
+class TStaticTableSourceReaderTest
+    : public ::testing::Test
+{
+protected:
+    const NConcurrency::TActionQueuePtr ActionQueue_ = New<NConcurrency::TActionQueue>("StaticTableSourceReaderTest");
+    const TStateManagerMockPtr StateManager_ = New<TStateManagerMock>();
+    const IStatusProfilerPtr StatusProfiler_ = CreateSyncStatusProfiler();
+    const TMessageBatcherSettingsPtr BatcherSettings_ = New<TMessageBatcherSettings>();
+    std::vector<TIntrusivePtr<TSource>> Sources_;
+    std::vector<i64> ReaderStarts_;
+
+    template <typename TFunctor>
+    auto RunInInvoker(TFunctor&& functor)
+    {
+        auto errorOrValue = WaitFor(BIND(std::forward<TFunctor>(functor)).AsyncVia(ActionQueue_->GetInvoker()).Run());
+        if constexpr (requires { errorOrValue.ValueOrThrow(); }) {
+            return errorOrValue.ValueOrThrow();
+        } else {
+            errorOrValue.ThrowOnError();
+        }
+    }
+
+    TDynamicSourceContextPtr MakeDynamicContext(TDuration readTimeout, i64 lowerRowIndex)
+    {
+        TRichYPath partitionTable("//table");
+        partitionTable.SetCluster("test");
+        SetRowIndexRange(partitionTable, lowerRowIndex, 3);
+
+        // clang-format off
+        auto dynamicSourceSpec = New<TDynamicSourceSpec>();
+        dynamicSourceSpec->Parameters = BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("read_timeout").Value(readTimeout)
+            .EndMap()
+            ->AsMap();
+
+        auto dynamicPartitionSpec = BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("table").Value(partitionTable)
+                .Item("event_timestamp").Value(100)
+                .Item("system_timestamp").Value(101)
+                .Item("rows_per_second").Value(1e9)
+            .EndMap()
+            ->AsMap();
+        // clang-format on
+
+        auto dynamicContext = New<TDynamicSourceContext>();
+        dynamicContext->DynamicSourceSpec = dynamicSourceSpec;
+        dynamicContext->DynamicPartitionSpec = dynamicPartitionSpec;
+        return dynamicContext;
+    }
+
+    // Client that returns |readers| from consecutive CreateTableReader calls, recording their start row indices.
+    TIntrusivePtr<NApi::TMockClient> MakeClient(std::vector<TFuture<NApi::ITableReaderPtr>> readers)
+    {
+        auto client = New<NApi::TMockClient>();
+        auto pendingReaders = std::make_shared<std::deque<TFuture<NApi::ITableReaderPtr>>>(readers.begin(), readers.end());
+        EXPECT_CALL(*client, CreateTableReader(_, _))
+            .Times(std::ssize(readers))
+            .WillRepeatedly(Invoke([this, pendingReaders] (const TRichYPath& path, const NApi::TTableReaderOptions&) {
+                ReaderStarts_.push_back(GetRowIndexRange(path).first);
+                auto reader = pendingReaders->front();
+                pendingReaders->pop_front();
+                return reader;
+            }));
+        return client;
+    }
+
+    TIntrusivePtr<TSource> MakeSource(const NApi::IClientPtr& client, TDuration readTimeout)
+    {
+        TRichYPath table("//table");
+        table.SetCluster("test");
+
+        auto sourceSpec = New<TSourceSpec>();
+        sourceSpec->SourceClassName = TypeName<TSource>();
+        // clang-format off
+        sourceSpec->Parameters = BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("tables").BeginList()
+                    .Item().Value(table)
+                .EndList()
+                .Item("finite").Value(true)
+            .EndMap()
+            ->AsMap();
+        // clang-format on
+
+        auto context = New<TSourceContext>();
+        context->SourceStreamId = TStreamId("test_input");
+        context->SourceSpec = sourceSpec;
+        context->ClientsCache = MakeFixedClientsCache(client);
+        context->SerializedInvoker = ActionQueue_->GetInvoker();
+        context->Logger = NLogging::TLogger("Test");
+        context->StatusProfiler = StatusProfiler_;
+        context->TimeProvider = New<TFakeTimeProvider>();
+
+        auto source = New<TSource>(std::move(context), MakeDynamicContext(readTimeout, 0));
+        RunInInvoker([&] {
+            source->Init(StateManager_->CreateContext(Format("source_%v", Sources_.size())));
+        });
+        Sources_.push_back(source);
+        return source;
+    }
+
+    void TrimSource(const TIntrusivePtr<TSource>& source, TDuration readTimeout, i64 lowerRowIndex)
+    {
+        RunInInvoker([&] {
+            source->Reconfigure(MakeDynamicContext(readTimeout, lowerRowIndex));
+        });
+    }
+
+    void CommitSource(const TIntrusivePtr<TSource>& source)
+    {
+        RunInInvoker([&] {
+            source->Commit();
+        });
+    }
+
+    bool HasReadError() const
+    {
+        return StatusProfiler_->GetStatus().Errors.contains("/read");
+    }
+
+    static bool IsCanceled(const TFuture<void>& pendingRead)
+    {
+        return pendingRead.IsSet() && pendingRead.GetOrCrash().FindMatching(NYT::EErrorCode::Canceled).has_value();
+    }
+
+    // The read timeout is measured against the wall clock, so the first poll may still fit into it.
+    void PollUntilCanceled(const TIntrusivePtr<TSource>& source, const TFuture<void>& pendingRead)
+    {
+        for (int attempt = 0; attempt < 2 && !IsCanceled(pendingRead); ++attempt) {
+            EXPECT_TRUE(ReadRows(source).empty());
+        }
+    }
+
+    std::vector<std::pair<i64, i64>> ReadRows(const TIntrusivePtr<TSource>& source)
+    {
+        return RunInInvoker([&] {
+            auto batches = WaitFor(source->GetNextBatch(BatcherSettings_)).ValueOrThrow();
+            std::vector<std::pair<i64, i64>> rows;
+            for (const auto& batch : batches) {
+                for (const auto& message : batch.Messages) {
+                    rows.emplace_back(GetColumnValue<i64>(message, "value"), GetColumnValue<i64>(message, SequenceNumberColumnName));
+                }
+            }
+            return rows;
+        });
+    }
+
+    void SetUp() override
+    {
+        BatcherSettings_->MaxRowsPerBatch = TSize(10);
+    }
+
+    void TearDown() override
+    {
+        for (const auto& source : Sources_) {
+            source->Terminate();
+        }
+        ActionQueue_->Shutdown();
+        Sources_.clear();
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -938,6 +1173,144 @@ TEST(TStaticTableSourceTest, ClassifyPendingRead)
         EXPECT_TRUE(TSource::ClassifyPendingRead(pendingRead, TDuration::Zero(), readTimeout).IsOK());
         EXPECT_TRUE(TSource::ClassifyPendingRead(pendingRead, readTimeout + TDuration::Seconds(1), readTimeout).IsOK());
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EPendingRead,
+    (ReaderCreation)
+    (ReadyEvent)
+);
+
+class TStaticTableSourceReaderCancelTest
+    : public TStaticTableSourceReaderTest
+    , public ::testing::WithParamInterface<EPendingRead>
+{
+protected:
+    // Kept alive: an abandoned promise resolves its future with a cancelation error on its own.
+    TPromise<NApi::ITableReaderPtr> PendingReaderCreation_;
+    TPromise<void> PendingReadyEvent_;
+
+    // Leaves either the reader creation or the ready event of a created reader in flight.
+    // Returns the future to watch for cancellation and the reader to feed the source with.
+    std::pair<TFuture<void>, TFuture<NApi::ITableReaderPtr>> MakePendingRead()
+    {
+        if (GetParam() == EPendingRead::ReaderCreation) {
+            PendingReaderCreation_ = NewPromise<NApi::ITableReaderPtr>();
+            return {PendingReaderCreation_.ToFuture().AsVoid(), PendingReaderCreation_.ToFuture()};
+        }
+        PendingReadyEvent_ = NewPromise<void>();
+        return {PendingReadyEvent_.ToFuture(), MakeFuture(MakeTableReader(/*values*/ {}, PendingReadyEvent_.ToFuture()))};
+    }
+};
+
+TEST_P(TStaticTableSourceReaderCancelTest, CancelsOnReadTimeout)
+{
+    auto [pendingRead, reader] = MakePendingRead();
+    auto source = MakeSource(MakeClient({reader}), /*readTimeout*/ TDuration::Zero());
+
+    PollUntilCanceled(source, pendingRead);
+
+    EXPECT_TRUE(IsCanceled(pendingRead));
+}
+
+TEST_P(TStaticTableSourceReaderCancelTest, CancelsOnTrim)
+{
+    auto [pendingRead, reader] = MakePendingRead();
+    const auto readTimeout = TDuration::Minutes(1);
+    auto source = MakeSource(MakeClient({reader, MakeFuture(MakeTableReader({2}, OKFuture))}), readTimeout);
+    EXPECT_TRUE(ReadRows(source).empty());
+
+    TrimSource(source, readTimeout, /*lowerRowIndex*/ 2);
+
+    EXPECT_EQ(ReadRows(source), (std::vector<std::pair<i64, i64>>{{2, 2}}));
+    EXPECT_TRUE(IsCanceled(pendingRead));
+    EXPECT_EQ(ReaderStarts_, (std::vector<i64>{0, 2}));
+}
+
+TEST_P(TStaticTableSourceReaderCancelTest, CancelsOnTrimToEnd)
+{
+    auto [pendingRead, reader] = MakePendingRead();
+    const auto readTimeout = TDuration::Minutes(1);
+    auto source = MakeSource(MakeClient({reader}), readTimeout);
+    EXPECT_TRUE(ReadRows(source).empty());
+
+    TrimSource(source, readTimeout, /*lowerRowIndex*/ 3);
+    CommitSource(source);
+
+    EXPECT_TRUE(ReadRows(source).empty());
+    EXPECT_TRUE(IsCanceled(pendingRead));
+}
+
+TEST_P(TStaticTableSourceReaderCancelTest, CancelsOnTerminate)
+{
+    auto [pendingRead, reader] = MakePendingRead();
+    auto source = MakeSource(MakeClient({reader}), /*readTimeout*/ TDuration::Minutes(1));
+    EXPECT_TRUE(ReadRows(source).empty());
+
+    source->Terminate();
+    // Termination is processed in the serialized invoker.
+    RunInInvoker([] {
+    });
+
+    EXPECT_TRUE(IsCanceled(pendingRead));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    , TStaticTableSourceReaderCancelTest,
+    ::testing::ValuesIn(TEnumTraits<EPendingRead>::GetDomainValues()),
+    [] (const testing::TestParamInfo<EPendingRead>& info) -> std::string {
+        return ToString(info.param);
+    });
+
+TEST_F(TStaticTableSourceReaderTest, DoesNotCreateReaderOverTrimmedRange)
+{
+    const auto readTimeout = TDuration::Minutes(1);
+    auto source = MakeSource(MakeClient({MakeFuture(MakeTableReader({0}, OKFuture))}), readTimeout);
+    EXPECT_EQ(ReadRows(source), (std::vector<std::pair<i64, i64>>{{0, 0}}));
+
+    // Skipping the remaining rows empties the range while the source still points at the old offset.
+    TrimSource(source, readTimeout, /*lowerRowIndex*/ 3);
+
+    EXPECT_TRUE(ReadRows(source).empty());
+}
+
+TEST_F(TStaticTableSourceReaderTest, ClearsReadErrorOnFullyReadRange)
+{
+    const auto readTimeout = TDuration::Minutes(1);
+    auto source = MakeSource(
+        MakeClient({MakeFuture(MakeTableReader({0}, MakeFuture<void>(TError("Read failed"))))}),
+        readTimeout);
+    EXPECT_EQ(ReadRows(source), (std::vector<std::pair<i64, i64>>{{0, 0}}));
+    EXPECT_TRUE(ReadRows(source).empty());
+    EXPECT_TRUE(HasReadError());
+
+    TrimSource(source, readTimeout, /*lowerRowIndex*/ 3);
+
+    EXPECT_TRUE(ReadRows(source).empty());
+    EXPECT_FALSE(HasReadError());
+}
+
+TEST_F(TStaticTableSourceReaderTest, RecreatesReaderAtNextUnreadRow)
+{
+    auto source = MakeSource(
+        MakeClient({
+            MakeFuture(MakeTableReader({0}, MakeFuture<void>(TError("Read failed")))),
+            MakeFuture(MakeTableReader({1, 2}, OKFuture)),
+        }),
+        /*readTimeout*/ TDuration::Minutes(1));
+
+    std::vector<std::pair<i64, i64>> rows;
+    auto appendRows = [&] {
+        auto nextRows = ReadRows(source);
+        rows.insert(rows.end(), nextRows.begin(), nextRows.end());
+    };
+    appendRows();
+    EXPECT_TRUE(ReadRows(source).empty());
+    appendRows();
+
+    EXPECT_EQ(ReaderStarts_, (std::vector<i64>{0, 1}));
+    EXPECT_EQ(rows, (std::vector<std::pair<i64, i64>>{{0, 0}, {1, 1}, {2, 2}}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

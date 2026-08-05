@@ -104,9 +104,13 @@ public:
 
 private:
     void DoInit() final;
+    void DoTerminate() final;
 
     // Reports |error| and discards the reader so that the next read recreates it.
     void DropReader(const TError& error);
+
+    // Cancels the in-flight read (reader creation or ready event) and discards the reader.
+    void CancelReader(const TError& error);
 
     TFuture<std::vector<TRecord>> DoReadNextBatch(
         const TMessageBatcherSettingsPtr& settings,

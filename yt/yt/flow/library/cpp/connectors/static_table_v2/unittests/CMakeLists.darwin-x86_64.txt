@@ -38,8 +38,10 @@ target_link_libraries(yt-flow-library-cpp-connectors-static_table_v2-unittests P
   cpp-testing-gtest_main
   resources-unittests-mock
   library-cpp-common
+  common-unittests-mock
   library-cpp-computation
   cpp-connectors-static_table_v2
+  hedging-unittests-mock
   client-unittests-mock
   yt-core-test_framework
 )
