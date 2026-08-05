@@ -3432,6 +3432,7 @@ private:
             req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
             ToProto(req->mutable_operation_id(), operation->GetId());
             auto rspOrError = WaitFor(req->Invoke());
+
             if (rspOrError.IsOK()) {
                 auto rsp = rspOrError.Value();
                 TOperationProgress result;
@@ -3451,23 +3452,6 @@ private:
                 return result;
             } else {
                 YT_LOG_INFO(rspOrError, "Failed to get operation info from controller agent (OperationId: %v)",
-                    operation->GetId());
-            }
-        }
-
-        // If we failed to get progress from controller then we try to fetch it from Cypress.
-        {
-            auto attributesOrError = WaitFor(MasterConnector_->GetOperationNodeProgressAttributes(operation));
-            if (attributesOrError.IsOK()) {
-                auto attributes = ConvertToAttributes(attributesOrError.Value());
-
-                TOperationProgress result;
-                result.Progress = attributes->FindYson("progress");
-                result.BriefProgress = attributes->FindYson("brief_progress");
-                result.Alerts = attributes->FindYson("alerts");
-                return result;
-            } else {
-                YT_LOG_INFO(attributesOrError, "Failed to get operation progress from Cypress (OperationId: %v)",
                     operation->GetId());
             }
         }

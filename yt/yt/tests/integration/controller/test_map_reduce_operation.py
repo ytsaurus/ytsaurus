@@ -4871,6 +4871,7 @@ class TestPartitionsMerging(TestSchedulerMapReduceBase):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
+            "enable_operation_progress_archivation": False,
             "operation_options": {
                 "min_uncompressed_block_size": 1,
                 "min_partition_weight": 1,
@@ -4910,7 +4911,7 @@ for line in sys.stdin:
                 "use_new_partitions_heuristic": self.Env.get_component_version("ytserver-controller-agent").abi < (25, 3)
             } | ({"partition_data_weight_for_merging": 80} if enable_final_partitions_merging else {}),
         )
-        tasks = get(op.get_path() + "/@progress/tasks")
+        tasks = get_operation(op.id, attributes=["progress"])["progress"]["tasks"]
         assert len(tasks) == 4
         for i, task in enumerate(tasks[:3]):
             assert task["task_name"] == f"partition({i})"
@@ -4986,7 +4987,7 @@ for line in sys.stdin:
             } if not use_default_partition_data_weight_for_merging and enable_final_partitions_merging else {}),
         )
 
-        progress = get(op.get_path() + "/@progress")
+        progress = get_operation(op.id, attributes=["progress"])["progress"]
 
         assert_items_equal(read_table("//tmp/t_out"), [{"x": i} for i in range(10)])
 
@@ -5027,7 +5028,7 @@ for line in sys.stdin:
             },
         )
 
-        progress = get(op.get_path() + "/@progress")
+        progress = get_operation(op.id, attributes=["progress"])["progress"]
 
         assert_items_equal(read_table("//tmp/t_out"), [{"x": i} for i in range(10)])
 
@@ -5057,7 +5058,7 @@ for line in sys.stdin:
             },
         )
 
-        progress = get(op.get_path() + "/@progress")
+        progress = get_operation(op.id, attributes=["progress"])["progress"]
 
         assert read_table("//tmp/t_out") == [{"x": i} for i in range(100)]
 
@@ -5114,7 +5115,7 @@ for line in sys.stdin:
 
         assert_items_equal(read_table("//tmp/t_out"), [{"x": i} for i in range(10)])
 
-        progress = get(op.get_path() + "/@progress")
+        progress = get_operation(op.id, attributes=["progress"])["progress"]
 
         assert len(progress["tasks"]) == 2
 

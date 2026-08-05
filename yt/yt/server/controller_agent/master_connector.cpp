@@ -765,10 +765,9 @@ private:
 
         auto controller = operation->GetController();
 
-        if (!Config_->EnableControllerFeaturesArchivation ||
-            !DoesOperationsArchiveExist() ||
-            !TryUpdateControllerFeaturesInArchive(operationId, featureYson))
-        {
+        if (Config_->EnableControllerFeaturesArchivation && DoesOperationsArchiveExist()) {
+            TryUpdateControllerFeaturesInArchive(operationId, featureYson);
+        } else {
             auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
 
             auto path = GetOperationPath(operationId) + "/@controller_features";
@@ -780,7 +779,7 @@ private:
         }
     }
 
-    bool TryUpdateControllerFeaturesInArchive(TOperationId operationId, const TYsonString& featureYson)
+    void TryUpdateControllerFeaturesInArchive(TOperationId operationId, const TYsonString& featureYson)
     {
         const auto& client = Bootstrap_->GetClient();
         auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
@@ -821,7 +820,6 @@ private:
                 orderedByIdRowsDataWeight,
                 operationId);
         }
-        return error.IsOK();
     }
 
     void UpdateOperationProgress(TOperationId operationId)
@@ -876,21 +874,20 @@ private:
             ValidateYson(progress, GetYsonNestingLevelLimit());
             ValidateYson(briefProgress, GetYsonNestingLevelLimit());
 
-            bool archiveUpdated = false;
+            // NB: Brief progress is a small attribute, so we always report it to Cypress,
+            // and also to the archive if archivation is enabled.
+            hasSubrequests = true;
+
+            auto briefProgressReq = multisetReq->add_subrequests();
+            briefProgressReq->set_attribute("brief_progress");
+            briefProgressReq->set_value(ToProto(briefProgress));
+
             if (Config_->EnableOperationProgressArchivation && DoesOperationsArchiveExist()) {
-                archiveUpdated = TryUpdateOperationProgressInArchive(operationId, progress, briefProgress);
-            }
-
-            if (!archiveUpdated) {
-                hasSubrequests = true;
-
+                TryUpdateOperationProgressInArchive(operationId, progress, briefProgress);
+            } else {
                 auto progressReq = multisetReq->add_subrequests();
                 progressReq->set_attribute("progress");
                 progressReq->set_value(ToProto(progress));
-
-                auto briefProgressReq = multisetReq->add_subrequests();
-                briefProgressReq->set_attribute("brief_progress");
-                briefProgressReq->set_value(ToProto(briefProgress));
             }
         }
 
@@ -913,7 +910,7 @@ private:
             operationId);
     }
 
-    bool TryUpdateOperationProgressInArchive(
+    void TryUpdateOperationProgressInArchive(
         TOperationId operationId,
         const TYsonString& progress,
         const TYsonString& briefProgress)
@@ -960,7 +957,6 @@ private:
                 orderedByIdRowsDataWeight,
                 operationId);
         }
-        return error.IsOK();
     }
 
     void AttachLivePreviewChunks(
@@ -1715,4 +1711,3 @@ void TMasterConnector::SetControllerAgentAlert(EControllerAgentAlertType alertTy
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
-
