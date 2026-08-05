@@ -14,7 +14,8 @@ from yt_commands import (
     gc_collect, execute_command, get_batch_output, switch_leader, is_active_primary_master_leader,
     is_active_primary_master_follower, get_active_primary_master_leader_address,
     get_active_primary_master_follower_address, sync_mount_table, sync_create_cells, check_permission,
-    get_driver, create_access_control_object_namespace, create_chaos_cell_bundle)
+    get_driver, create_access_control_object_namespace, create_chaos_cell_bundle,
+    create_account_resource_usage_lease)
 
 from yt_helpers import parse_yt_time, get_current_time, profiler_factory, account_usage_all_zero
 
@@ -5844,3 +5845,53 @@ class TestCypressSequoia(TestCypressMulticell):
 
 
 ################################################################################
+
+
+class TestVirtualMaps_1(YTEnvSetup):
+    @authors("ivpiskarev")
+    def test_account_resource_usage_leases_vmap(self):
+        set("//sys/@config/object_manager/gc_sweep_period", 1000)  # 1 second
+
+        create_account("a")
+        for _ in range(3):
+            tx = start_transaction()
+            lease_id = create_account_resource_usage_lease(account="a", transaction_id=tx)
+            commit_transaction(tx)
+
+            # Must not crash.
+            ls("//sys/account_resource_usage_leases", attributes=["account", "transaction_id", "resource_usage"])
+            with raises_yt_error(f"Node has no child with key \"{lease_id}\""):
+                get(f"//sys/account_resource_usage_leases/{lease_id}", attributes=["account", "transaction_id", "resource_usage"])
+
+        gc_collect()
+
+
+class TestVirtualMaps_2(YTEnvSetup):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["transaction_coordinator"]},
+    }
+
+    @authors("ivpiskarev")
+    def test_foreign_transactions_vmap(self):
+        set("//sys/@config/object_manager/gc_sweep_period", 50_000)  # 50 seconds
+
+        for _ in range(3):
+            tx = start_transaction(replicate_to_master_cell_tags=[10, 11])
+            wait(lambda: tx in ls("//sys/foreign_transactions", attributes=["transaction_id"], driver=get_driver(0)))
+            commit_transaction(tx)
+
+            # Must not crash.
+            for _ in range(10):
+                for i in [0, 1]:
+                    ls("//sys/foreign_transactions", attributes=["transaction_id"], driver=get_driver(i))
+                    with raises_yt_error(f"Node has no child with key \"{tx}\""):
+                        get(f"//sys/foreign_transactions/{tx}", attributes=["transaction_id"], driver=get_driver(i))
+                time.sleep(0.25)
+
+        # To speed up teardown.
+        set("//sys/@config/object_manager/gc_sweep_period", 1_000)  # 1 second
+        gc_collect()
