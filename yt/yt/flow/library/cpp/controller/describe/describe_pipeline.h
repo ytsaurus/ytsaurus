@@ -204,6 +204,9 @@ struct TDescribePipelineArguments
     std::string ControllerBuildType;
     // An empty Bundle means it was not resolved (e.g. an old binary); describe omits the line.
     TFlowTablesBundleInfo FlowTablesBundle;
+    // Link to the deploy UI page of the stage the pipeline nodes run in. Empty when they
+    // are not managed by the deployment system; describe omits the line in that case.
+    std::string DeployStageUrl;
 };
 
 void RegisterStreams(const TPipelineSpecPtr& pipelineSpec, const TComputationId& computationId,

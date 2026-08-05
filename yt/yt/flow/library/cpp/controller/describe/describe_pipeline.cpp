@@ -701,6 +701,10 @@ TPipelineDescription DescribePipeline(const TDescribePipelineArguments& argument
                 clockClusterTagSuffix);
         }
 
+        if (!arguments.DeployStageUrl.empty()) {
+            markdownText.AppendFormat("Deploy stage: [%v](%v)\n\n", arguments.DeployStageUrl, arguments.DeployStageUrl);
+        }
+
         markdownText.AppendFormat("FlowViewAge: %v\n\n", TInstant::Now() - TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying()));
 
         message.MarkdownText = markdownText.Flush();

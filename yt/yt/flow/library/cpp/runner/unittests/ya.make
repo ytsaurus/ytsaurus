@@ -9,6 +9,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/flow/library/cpp/misc/testing
     yt/yt/flow/library/cpp/runner
     yt/yt/library/program
 )

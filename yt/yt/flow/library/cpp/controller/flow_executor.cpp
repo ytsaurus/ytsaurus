@@ -22,6 +22,7 @@
 #include <yt/yt/flow/library/cpp/controller/describe/describe_worker.h>
 #include <yt/yt/flow/library/cpp/controller/describe/describe_workers.h>
 
+#include <yt/yt/flow/library/cpp/misc/deploy_url_provider.h>
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -721,6 +722,7 @@ TYsonString TFlowExecutor::DescribePipeline(const std::string& /*command*/, cons
             .ControllerFlowCoreVersion = Controller_->GetNodeInfo()->FlowCoreVersion,
             .ControllerBuildType = Controller_->GetNodeInfo()->BuildType,
             .FlowTablesBundle = std::move(flowTablesBundle),
+            .DeployStageUrl = GetDeployStageUrl(),
         });
     return ConvertToYsonString(description);
 }
@@ -834,7 +836,8 @@ TYsonString TFlowExecutor::DescribeWorker(const std::string& /*command*/, const 
     auto argument = ConvertTo<TDescribeWorkerArg>(serializedArgument);
     return ConvertToYsonString(NDescribe::DescribeWorker(
         Controller_->GetFlowViewKeeper()->GetFlowView(),
-        argument.Worker));
+        argument.Worker,
+        GetDeployStageUrl()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

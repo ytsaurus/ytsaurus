@@ -5,6 +5,7 @@
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 
 #include <yt/yt/flow/library/cpp/misc/debug_build_warning.h>
+#include <yt/yt/flow/library/cpp/misc/node_address_provider.h>
 
 #include <yt/yt/build/build.h>
 
@@ -120,6 +121,45 @@ protected:
         return addressStr;
     }
 
+    std::optional<std::string> TryGetIPFromEnvironment()
+    {
+        const auto& provider = GetNodeAddressProvider();
+        if (!provider) {
+            return std::nullopt;
+        }
+
+        auto address = provider();
+        if (!address) {
+            return std::nullopt;
+        }
+
+        const auto& addressStr = *address;
+        auto addressOrError = NNet::TNetworkAddress::TryParse(addressStr);
+        if (!addressOrError.IsOK()) {
+            YT_TLOG_WARNING("Malformed IP address in environment, falling back to DNS resolve")
+                .With("Address", addressStr);
+            return std::nullopt;
+        }
+
+        const auto& parsedAddress = addressOrError.Value();
+        auto addressResolverConfig = Config->GetSingletonConfig<NNet::TAddressResolverConfig>();
+        if (addressResolverConfig->EnableIPv6 ? !parsedAddress.IsIP6() : !parsedAddress.IsIP4()) {
+            YT_TLOG_WARNING("IP address from environment does not match the configured stack, falling back to DNS resolve")
+                .With("Address", addressStr);
+            return std::nullopt;
+        }
+
+        if (!NNet::TAddressResolver::Get()->IsLocalAddress(parsedAddress)) {
+            YT_TLOG_WARNING("IP address from environment is not assigned to a local interface, falling back to DNS resolve")
+                .With("Address", addressStr);
+            return std::nullopt;
+        }
+
+        YT_TLOG_INFO("Extracted node IP from environment")
+            .With("Address", addressStr);
+        return addressStr;
+    }
+
     virtual std::string GetNodeName()
     {
         return NNet::GetLocalHostName();
@@ -157,12 +197,32 @@ protected:
 
     std::string GetNodeIP() override
     {
-        return ResolveLocalAddress(GetDeployBoxFqdn());
+        if (auto address = TryGetIPFromEnvironment()) {
+            return *address;
+        }
+        BoxAddress_ = ResolveLocalAddress(GetDeployBoxFqdn());
+        return *BoxAddress_;
     }
 
     std::string GetRemoteShellCommand() override
     {
-        return Format("ssh nobody@%v", GetNodeIP());
+        // SSH answers on the box IP, not on the pod IP, and the box IP is only
+        // available via DNS, which may still be propagating after a pod reschedule;
+        // try to resolve it once and fall back to the box FQDN.
+        auto fqdn = GetDeployBoxFqdn();
+        if (!BoxAddress_) {
+            try {
+                BoxAddress_ = ResolveLocalAddress(fqdn);
+            } catch (const std::exception& ex) {
+                YT_TLOG_WARNING("Failed to resolve box IP, using fqdn in remote shell command")
+                    .With("Fqdn", fqdn)
+                    .With(ex);
+            }
+        }
+        if (BoxAddress_) {
+            return Format("ssh nobody@%v (or ssh nobody@%v)", *BoxAddress_, fqdn);
+        }
+        return Format("ssh nobody@%v", fqdn);
     }
 
     std::string GetDeployBoxFqdn()
@@ -207,6 +267,9 @@ private:
     const char* BoxName_ = std::getenv("DEPLOY_BOX_ID");
     const char* VcpuFactor_ = std::getenv("DEPLOY_CPU_TO_VCPU_FACTOR");
     const char* VcpuLimit_ = std::getenv("DEPLOY_VCPU_LIMIT");
+
+    //! Box FQDN resolve result, cached to avoid a second DNS query.
+    std::optional<std::string> BoxAddress_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

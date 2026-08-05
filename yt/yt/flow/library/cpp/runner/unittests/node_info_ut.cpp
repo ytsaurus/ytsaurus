@@ -1,8 +1,10 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/flow/library/cpp/misc/debug_build_warning.h>
+#include <yt/yt/flow/library/cpp/misc/node_address_provider.h>
 #include <yt/yt/flow/library/cpp/misc/node_info.h>
 #include <yt/yt/flow/library/cpp/misc/proto/node_info.pb.h>
+#include <yt/yt/flow/library/cpp/misc/testing/env_guard.h>
 #include <yt/yt/flow/library/cpp/runner/config.h>
 #include <yt/yt/flow/library/cpp/runner/node_info.h>
 
@@ -37,37 +39,30 @@ void ConfigureAddressResolver(const TFlowNodeConfigPtr& config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! RAII helper to set/unset environment variables for vanilla job resolver tests.
-class TEnvGuard
+using NTesting::TEnvGuard;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! RAII helper to install a node address provider for the duration of a test.
+class TNodeAddressProviderGuard
 {
 public:
-    TEnvGuard(const std::string& name, const std::string& value)
-        : Name_(name)
+    explicit TNodeAddressProviderGuard(TNodeAddressProvider provider)
+        : Old_(GetNodeAddressProvider())
     {
-        const char* old = std::getenv(name.c_str());
-        if (old) {
-            OldValue_ = old;
-            HadOldValue_ = true;
-        }
-        ::setenv(name.c_str(), value.c_str(), /*overwrite*/ 1);
+        SetNodeAddressProvider(std::move(provider));
     }
 
-    ~TEnvGuard()
+    ~TNodeAddressProviderGuard()
     {
-        if (HadOldValue_) {
-            ::setenv(Name_.c_str(), OldValue_.c_str(), /*overwrite*/ 1);
-        } else {
-            ::unsetenv(Name_.c_str());
-        }
+        SetNodeAddressProvider(std::move(Old_));
     }
 
-    TEnvGuard(const TEnvGuard&) = delete;
-    TEnvGuard& operator=(const TEnvGuard&) = delete;
+    TNodeAddressProviderGuard(const TNodeAddressProviderGuard&) = delete;
+    TNodeAddressProviderGuard& operator=(const TNodeAddressProviderGuard&) = delete;
 
 private:
-    std::string Name_;
-    std::string OldValue_;
-    bool HadOldValue_ = false;
+    TNodeAddressProvider Old_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -332,6 +327,122 @@ TEST(TGetNodeInfoTest, VanillaJobIPv6AddressWithIPv4ConfigMismatch)
     EXPECT_THROW_WITH_SUBSTRING(
         GetNodeInfo(config, Logger),
         "is not an IPv4 address but \"enable_ipv4\" is set");
+}
+
+TEST(TGetNodeInfoTest, DeployIPFromEnvironmentProvider)
+{
+    TEnvGuard fqdnGuard("DEPLOY_POD_PERSISTENT_FQDN", "pod-1.invalid");
+    TEnvGuard boxGuard("DEPLOY_BOX_ID", "box");
+    TNodeAddressProviderGuard providerGuard([] {
+        return std::optional<std::string>("::1");
+    });
+
+    auto config = MakeConfig(TString(R"({
+        cluster_url = "test-cluster";
+        path = "//home/test";
+        rpc_port = 9999;
+        monitoring_port = 8888;
+        address_resolver = {
+            enable_ipv4 = %false;
+            enable_ipv6 = %true;
+            resolve_hostname_into_fqdn = %false;
+        };
+    })"));
+
+    ConfigureAddressResolver(config);
+
+    // The node IP comes from the provider without DNS; the ssh hint's box IP
+    // resolve attempt fails non-fatally ("box.pod-1.invalid" never resolves,
+    // RFC 6761) and falls back to the box FQDN.
+    auto nodeInfo = GetNodeInfo(config, Logger);
+
+    EXPECT_EQ(nodeInfo->Name, "box.pod-1.invalid");
+    EXPECT_EQ(nodeInfo->RemoteShellCommand, "ssh nobody@box.pod-1.invalid");
+    EXPECT_THAT(nodeInfo->RpcAddress, testing::HasSubstr("::1"));
+    EXPECT_THAT(nodeInfo->RpcAddress, testing::HasSubstr("9999"));
+    EXPECT_THAT(nodeInfo->MonitoringAddress, testing::HasSubstr("::1"));
+    EXPECT_THAT(nodeInfo->MonitoringAddress, testing::HasSubstr("8888"));
+}
+
+TEST(TGetNodeInfoTest, DeployMalformedEnvironmentAddressFallsBackToDns)
+{
+    TEnvGuard fqdnGuard("DEPLOY_POD_PERSISTENT_FQDN", "pod-1.invalid");
+    TEnvGuard boxGuard("DEPLOY_BOX_ID", "box");
+    TNodeAddressProviderGuard providerGuard([] {
+        return std::optional<std::string>("not-an-ip");
+    });
+
+    auto config = MakeConfig(TString(R"({
+        cluster_url = "test-cluster";
+        path = "//home/test";
+        address_resolver = {
+            enable_ipv4 = %false;
+            enable_ipv6 = %true;
+            resolve_hostname_into_fqdn = %false;
+        };
+    })"));
+
+    ConfigureAddressResolver(config);
+
+    // The malformed provider address is ignored and the resolver falls back
+    // to DNS; "box.pod-1.invalid" never resolves (RFC 6761).
+    EXPECT_THROW_WITH_SUBSTRING(
+        GetNodeInfo(config, Logger),
+        "Unable to resolve local address from fqdn");
+}
+
+TEST(TGetNodeInfoTest, DeployWrongStackEnvironmentAddressFallsBackToDns)
+{
+    TEnvGuard fqdnGuard("DEPLOY_POD_PERSISTENT_FQDN", "pod-1.invalid");
+    TEnvGuard boxGuard("DEPLOY_BOX_ID", "box");
+    TNodeAddressProviderGuard providerGuard([] {
+        return std::optional<std::string>("::1");
+    });
+
+    auto config = MakeConfig(TString(R"({
+        cluster_url = "test-cluster";
+        path = "//home/test";
+        address_resolver = {
+            enable_ipv4 = %true;
+            enable_ipv6 = %false;
+            resolve_hostname_into_fqdn = %false;
+        };
+    })"));
+
+    ConfigureAddressResolver(config);
+
+    // The IPv6 provider address does not match the IPv4-only config, so the
+    // resolver falls back to DNS, which never resolves "box.pod-1.invalid".
+    EXPECT_THROW_WITH_SUBSTRING(
+        GetNodeInfo(config, Logger),
+        "Unable to resolve local address from fqdn");
+}
+
+TEST(TGetNodeInfoTest, DeployNonLocalEnvironmentAddressFallsBackToDns)
+{
+    TEnvGuard fqdnGuard("DEPLOY_POD_PERSISTENT_FQDN", "pod-1.invalid");
+    TEnvGuard boxGuard("DEPLOY_BOX_ID", "box");
+    TNodeAddressProviderGuard providerGuard([] {
+        return std::optional<std::string>("2a02:6b8::1:1");
+    });
+
+    auto config = MakeConfig(TString(R"({
+        cluster_url = "test-cluster";
+        path = "//home/test";
+        address_resolver = {
+            enable_ipv4 = %false;
+            enable_ipv6 = %true;
+            resolve_hostname_into_fqdn = %false;
+        };
+    })"));
+
+    ConfigureAddressResolver(config);
+
+    // The provider address is not assigned to any local interface, so the
+    // resolver falls back to DNS, which never resolves "box.pod-1.invalid".
+    EXPECT_THROW_WITH_SUBSTRING(
+        GetNodeInfo(config, Logger),
+        "Unable to resolve local address from fqdn");
 }
 
 TEST(TGetNodeInfoTest, DefaultConfigUsesIPv6)

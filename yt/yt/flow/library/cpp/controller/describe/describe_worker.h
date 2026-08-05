@@ -29,7 +29,8 @@ struct TExtendedWorkerDescription
 // Takes arbitrary worker with given address and incarnation id. Nullopt means that any worker match.
 TExtendedWorkerDescription DescribeWorker(
     const TFlowViewPtr& flowView,
-    const std::string& workerAddress);
+    const std::string& workerAddress,
+    const std::string& deployStageUrl = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
