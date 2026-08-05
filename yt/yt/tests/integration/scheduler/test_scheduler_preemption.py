@@ -170,6 +170,8 @@ class TestSchedulerPreemption(YTEnvSetup):
     @authors("ignat")
     @pytest.mark.parametrize("interruptible", [False, True])
     def test_interrupt_job_on_preemption(self, interruptible):
+        update_controller_agent_config("enable_operation_progress_archivation", True)
+
         set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
         create("table", "//tmp/t_in")
@@ -225,10 +227,12 @@ class TestSchedulerPreemption(YTEnvSetup):
         )
         op2.track()
         op1.track()
-        assert get(op1.get_path() + "/@progress/jobs/completed/total") == (4 if interruptible else 3)
+        wait(lambda: op1.get_job_count("completed", from_orchid=False) == (4 if interruptible else 3))
 
     @authors("dakovalkov")
     def test_graceful_preemption(self):
+        update_controller_agent_config("enable_operation_progress_archivation", True)
+
         create_test_tables(row_count=1)
 
         command = """(trap "sleep 1; echo '{interrupt=42}'; exit 0" SIGINT; BREAKPOINT)"""
@@ -251,9 +255,12 @@ class TestSchedulerPreemption(YTEnvSetup):
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
         wait(lambda: op.get_job_count("running") == 0)
         op.track()
-        assert op.get_job_count("completed", from_orchid=False) == 1
-        assert op.get_job_count("total", from_orchid=False) == 1
-        assert read_table("//tmp/t_out") == [{"interrupt": 42}]
+
+        @wait_no_assert
+        def check_counters():
+            assert op.get_job_count("completed", from_orchid=False) == 1
+            assert op.get_job_count("total", from_orchid=False) == 1
+            assert read_table("//tmp/t_out") == [{"interrupt": 42}]
 
     @authors("dakovalkov")
     def test_graceful_preemption_timeout(self):
@@ -447,6 +454,8 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_waiting_for_resources_on_node_timeout(self):
+        update_controller_agent_config("enable_operation_progress_archivation", True)
+
         update_pool_tree_config("default", {
             "waiting_for_resources_on_node_timeout": 10000,
             "allocation_preemption_timeout": 5000,
@@ -481,8 +490,10 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         op1.track()
 
-        assert op1.get_job_count("completed", from_orchid=False) == 1
-        assert op1.get_job_count("aborted", from_orchid=False) == 0
+        @wait_no_assert
+        def check_counters():
+            assert op1.get_job_count("completed", from_orchid=False) == 1
+            assert op1.get_job_count("aborted", from_orchid=False) == 0
 
     @authors("ignat")
     def test_inconsistent_waiting_for_resources_on_node_timeout(self):
@@ -523,6 +534,8 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_recursive_waiting_for_resources_on_node_timeout(self):
+        update_controller_agent_config("enable_operation_progress_archivation", True)
+
         update_pool_tree_config("default", {
             "waiting_for_resources_on_node_timeout": 2000,
             "allocation_preemption_timeout": 5000,
@@ -565,8 +578,10 @@ class TestSchedulerPreemption(YTEnvSetup):
         remove("//sys/pool_trees/default/pool1/@resource_limits/user_slots")
         op1.track()
 
-        assert op1.get_job_count("completed", from_orchid=False) == 1
-        assert op1.get_job_count("aborted", from_orchid=False) == 0
+        @wait_no_assert
+        def check_counters():
+            assert op1.get_job_count("completed", from_orchid=False) == 1
+            assert op1.get_job_count("aborted", from_orchid=False) == 0
 
     @authors("eshcherbin")
     def test_usage_overcommit_due_to_interruption(self):

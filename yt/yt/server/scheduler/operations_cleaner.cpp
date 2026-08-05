@@ -101,7 +101,6 @@ const std::vector<std::string>& TArchiveOperationRequest::GetAttributeKeys()
         "state",
         "authenticated_user",
         "operation_type",
-        "progress",
         "brief_progress",
         "spec",
         "brief_spec",
@@ -117,7 +116,6 @@ const std::vector<std::string>& TArchiveOperationRequest::GetAttributeKeys()
         "slot_index_per_pool_tree",
         "task_names",
         "experiment_assignments",
-        "controller_features",
         "provided_spec",
         "temporary_token_node_id",
     };
@@ -784,7 +782,6 @@ public:
         result.State = attributes.Get<EOperationState>("state");
         result.AuthenticatedUser = attributes.Get<std::string>("authenticated_user");
         result.OperationType = attributes.Get<EOperationType>("operation_type");
-        result.Progress = attributes.FindYson("progress");
         result.BriefProgress = attributes.FindYson("brief_progress");
         result.Spec = attributes.GetYson("spec");
         // In order to recover experiment assignment names, we must either
@@ -824,7 +821,6 @@ public:
         result.SchedulingAttributesPerPoolTree = attributes.FindYson("scheduling_attributes_per_pool_tree");
         result.SlotIndexPerPoolTree = attributes.FindYson("slot_index_per_pool_tree");
         result.TaskNames = attributes.FindYson("task_names");
-        result.ControllerFeatures = attributes.FindYson("controller_features");
 
         if (auto temporaryTokenNodeId = attributes.Find<TNodeId>("temporary_token_node_id")) {
             result.DependentNodeIds = {*temporaryTokenNodeId};
@@ -885,6 +881,7 @@ private:
     TCounter RemoveOperationDroppedCounter_;
     TCounter ArchivedOperationAlertEventCounter_;
     TCounter DroppedOperationAlertEventCounter_;
+    TCounter OperationsArchivedWithIncompleteInfoCounter_;
     TEventTimer AnalyzeOperationsTimer_;
     TEventTimer OperationsRowsPreparationTimer_;
 
@@ -962,6 +959,7 @@ private:
         RemoveOperationDroppedCounter_ = Profiler().Counter("/remove_dropped");
         ArchivedOperationAlertEventCounter_ = Profiler().Counter("/alert_events/archived");
         DroppedOperationAlertEventCounter_ = Profiler().Counter("/alert_events/dropped");
+        OperationsArchivedWithIncompleteInfoCounter_ = Profiler().Counter("/operations_archived_with_incomplete_info");
 
         AnalyzeOperationsTimer_ = Profiler().Timer("/analyze_operations_time");
         OperationsRowsPreparationTimer_ = Profiler().Timer("/operations_rows_preparation_time");
@@ -1255,6 +1253,59 @@ private:
         }
     }
 
+    void DetectIncompleteArchivationInfo(const std::vector<TOperationId>& operationIds)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+        if (ArchiveVersion_ == -1) {
+            return;
+        }
+
+        // NB(bystrovserg): Try to fill missing progress/features from the archive for operations whose request lacks them.
+        std::vector<TArchiveOperationRequest> missing;
+        for (auto operationId : operationIds) {
+            const auto& request = GetRequest(operationId);
+            if (!request.Progress || !request.ControllerFeatures) {
+                missing.push_back(request);
+            }
+        }
+
+        if (!missing.empty()) {
+            FetchHeavyFieldsFromArchive(missing);
+            // NB(bystrovserg): If fetching heavy fields fails, the corresponding fields remain empty,
+            // so the assignments below are effectively no-ops.
+            for (const auto& missingRequest : missing) {
+                auto& request = GetMutableRequest(missingRequest.Id);
+                if (!request.Progress) {
+                    request.Progress = missingRequest.Progress;
+                }
+                if (!request.BriefProgress) {
+                    request.BriefProgress = missingRequest.BriefProgress;
+                }
+                if (!request.ControllerFeatures) {
+                    request.ControllerFeatures = missingRequest.ControllerFeatures;
+                }
+            }
+        }
+
+        std::vector<TOperationId> incompleteIds;
+        for (auto operationId : operationIds) {
+            const auto& request = GetRequest(operationId);
+            if (!request.Progress) {
+                incompleteIds.push_back(operationId);
+            }
+        }
+
+        if (!incompleteIds.empty()) {
+            // NB(bystrovserg): This counter is expected to be monitored and alerted on.
+            OperationsArchivedWithIncompleteInfoCounter_.Increment(incompleteIds.size());
+
+            YT_LOG_WARNING("Archiving operations with incomplete info (Count: %v, OperationIds: %v)",
+                incompleteIds.size(),
+                incompleteIds);
+        }
+    }
+
     void TryArchiveOperations(const std::vector<TOperationId>& operationIds)
     {
         YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
@@ -1429,6 +1480,10 @@ private:
             .ValueOrThrow();
 
         if (!batch.empty()) {
+            if (IsOperationArchivationEnabled()) {
+                DetectIncompleteArchivationInfo(batch);
+            }
+
             while (IsOperationArchivationEnabled()) {
                 TError error;
                 {
@@ -1850,7 +1905,7 @@ private:
         }
     }
 
-    void FetchBriefProgressFromArchive(std::vector<TArchiveOperationRequest>& requests)
+    void FetchHeavyFieldsFromArchive(std::vector<TArchiveOperationRequest>& requests)
     {
         const auto& idMapping = NRecords::TOrderedByIdDescriptor::Get()->GetIdMapping();
         std::vector<TOperationId> ids;
@@ -1858,22 +1913,34 @@ private:
         for (const auto& req : requests) {
             ids.push_back(req.Id);
         }
-        auto filter = TColumnFilter{idMapping.BriefProgress};
+        auto filter = TColumnFilter{
+            idMapping.Progress,
+            idMapping.BriefProgress,
+            idMapping.ControllerFeatures,
+        };
+        auto progressIndex = filter.GetPosition(idMapping.Progress);
         auto briefProgressIndex = filter.GetPosition(idMapping.BriefProgress);
+        auto controllerFeaturesIndex = filter.GetPosition(idMapping.ControllerFeatures);
         auto timeout = Config_->FinishedOperationsArchiveLookupTimeout;
         auto rowsetOrError = LookupOperationsInArchive(Client_, ids, filter, timeout);
         if (!rowsetOrError.IsOK()) {
-            YT_LOG_WARNING("Failed to fetch operation brief progress from archive (Error: %v)",
+            YT_LOG_WARNING("Failed to fetch operation heavy fields from archive (Error: %v)",
                 rowsetOrError);
             return;
         }
         auto rows = rowsetOrError.Value()->GetRows();
         YT_VERIFY(rows.size() == requests.size());
-        for (int i = 0; i < std::ssize(requests); ++i) {
-            if (!requests[i].BriefProgress && rows[i] && rows[i][briefProgressIndex].Type != EValueType::Null) {
-                auto value = rows[i][briefProgressIndex];
-                requests[i].BriefProgress = TYsonString(value.AsString());
+
+        auto fetchField = [] (TYsonString& field, TUnversionedRow row, int index) {
+            if (!field && row && row[index].Type != EValueType::Null) {
+                field = TYsonString(row[index].AsString());
             }
+        };
+
+        for (int i = 0; i < std::ssize(requests); ++i) {
+            fetchField(requests[i].Progress, rows[i], progressIndex);
+            fetchField(requests[i].BriefProgress, rows[i], briefProgressIndex);
+            fetchField(requests[i].ControllerFeatures, rows[i], controllerFeaturesIndex);
         }
     }
 
@@ -2002,10 +2069,9 @@ private:
         YT_LOG_INFO("Started fetching finished operations from Cypress (OperationCount: %v)", operationIds.size());
         auto operations = FetchOperationsFromCypressForCleaner(operationIds);
 
-        // Controller agent reports brief_progress only to archive,
-        // but it is necessary to fill ordered_by_start_time table,
-        // so we request it here.
-        FetchBriefProgressFromArchive(operations);
+        // Controller agent reports progress/brief_progress/controller_features only to
+        // the archive, so we fetch them here for operations recovered from Cypress.
+        FetchHeavyFieldsFromArchive(operations);
 
         // NB: Needed for us to store the latest operation for each alias in operation_aliases archive table.
         std::sort(operations.begin(), operations.end(), [] (const auto& lhs, const auto& rhs) {
@@ -2020,6 +2086,13 @@ private:
     }
 
     const TArchiveOperationRequest& GetRequest(TOperationId operationId) const
+    {
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+        return GetOrCrash(OperationMap_, operationId);
+    }
+
+    TArchiveOperationRequest& GetMutableRequest(TOperationId operationId)
     {
         YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
