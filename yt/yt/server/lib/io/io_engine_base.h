@@ -127,13 +127,12 @@ struct TIOEngineSensors final
     TEnumIndexedArray<EWorkloadCategory, TRequestSensors> WriteSensors;
     TEnumIndexedArray<EWorkloadCategory, TRequestSensors> SyncSensors;
     TEnumIndexedArray<EWorkloadCategory, TRequestSensors> DataSyncSensors;
+    TEnumIndexedArray<EWorkloadCategory, TInflightCounter> InflightReadRequestSensors;
+    TEnumIndexedArray<EWorkloadCategory, TInflightCounter> InflightWriteRequestSensors;
     TRequestSensors IOSubmitSensors;
 
     std::atomic<i64> TotalReadBytesCounter = 0;
     std::atomic<i64> TotalWrittenBytesCounter = 0;
-
-    TEnumIndexedArray<EWorkloadCategory, TInflightCounter> InflightReadRequestSensors;
-    TEnumIndexedArray<EWorkloadCategory, TInflightCounter> InflightWriteRequestSensors;
 
     void RegisterWrittenBytes(i64 count, EWorkloadCategory category);
     void RegisterReadBytes(i64 count, EWorkloadCategory category);
@@ -297,7 +296,7 @@ public:
 private:
     TIntrusivePtr<TIOEngineBase> Engine_;
     EIOEngineRequestType RequestType_;
-    EWorkloadCategory Category_;
+    EWorkloadCategory Category_ = EWorkloadCategory::Idle;
 
     void MoveFrom(TRequestCounterGuard&& other);
 };
