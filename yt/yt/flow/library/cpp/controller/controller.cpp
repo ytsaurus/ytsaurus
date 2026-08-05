@@ -914,6 +914,7 @@ private:
             flowView->State->ExecutionSpec->PipelineState->TrySetValue(newState, VersionProvider_);
         };
         auto manageJobs = [&] {
+            JobManager_->CancelInvalidGracefulRebalances(flowView);
             JobManager_->RemoveFailedJobs(flowView);
             JobManager_->RemoveLostJobs(flowView);
             JobManager_->DoPartitioning(flowView);

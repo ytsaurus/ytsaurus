@@ -500,6 +500,8 @@ public:
                 }
                 auto targetWorkerIt = flowView->State->Workers.find(*(*eph)->PendingGracefulRebalanceWorkerAddress);
                 if (targetWorkerIt == flowView->State->Workers.end()) {
+                    // The move can no longer be honored; CancelInvalidGracefulRebalances drops
+                    // the intent before the next job is created.
                     continue;
                 }
 
@@ -785,6 +787,26 @@ public:
         YT_TLOG_INFO("Finished partitioning")
             .With("Mutations", updated);
         PartitioningMutationsCounter_.Increment(updated);
+    }
+
+    // The worker re-reads FinishAfterCurrentEpoch from the spec delivered with every
+    // heartbeat, so dropping the intent before the job reaches its next epoch boundary keeps
+    // the job running instead of costing a shutdown and a reschedule.
+    void CancelInvalidGracefulRebalances(const TFlowViewPtr& flowView) override
+    {
+        for (const auto& [partitionId, partitionState] : flowView->EphemeralState->Partitions) {
+            const auto& targetWorkerAddress = partitionState->PendingGracefulRebalanceWorkerAddress;
+            if (!targetWorkerAddress || flowView->State->Workers.contains(*targetWorkerAddress)) {
+                continue;
+            }
+
+            YT_TLOG_INFO("Graceful rebalance cancelled: target worker has gone")
+                .With("PartitionId", partitionId)
+                .With("TargetWorkerAddress", *targetWorkerAddress);
+
+            partitionState->PendingGracefulRebalanceWorkerAddress = std::nullopt;
+            partitionState->DynamicPartitionSpec->FinishAfterCurrentEpoch = false;
+        }
     }
 
     void DistributeJobs(const TFlowViewPtr& flowView) override

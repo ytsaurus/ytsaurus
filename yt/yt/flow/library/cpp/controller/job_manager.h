@@ -46,6 +46,11 @@ struct IJobManager
     virtual bool CheckPipelineStopped(const TFlowViewPtr& flowView) = 0;
     virtual bool CheckPipelineCompleted(const TFlowViewPtr& flowView) = 0;
 
+    //! Drops pending graceful migrations whose target worker is no longer registered.
+    //! This is the only place an unhonorable migration is cancelled, so it must run on every
+    //! scheduling iteration, before jobs are created.
+    virtual void CancelInvalidGracefulRebalances(const TFlowViewPtr& flowView) = 0;
+
     virtual void RemoveLostJobs(const TFlowViewPtr& flowView) = 0;
     // Split and merge partitions.
     virtual void DoPartitioning(const TFlowViewPtr& flowView) = 0;

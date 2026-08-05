@@ -1542,6 +1542,114 @@ TEST_F(TJobBalancerTest, GracefulShutdownErrorTargetWorkerGone)
         EXPECT_FALSE(partition->CurrentJobId.has_value())
             << "Old job must be dropped (RemoveFailedJobs handles it) when graceful target worker is gone";
     }
+
+    // The next scheduling iteration drops the now-invalid intent before it places the next
+    // job, so the rescheduled job does not inherit the graceful shutdown signal.
+    {
+        FlowView->State->StartMutation();
+        JobManager->CancelInvalidGracefulRebalances(FlowView);
+        JobManager->DistributeJobs(FlowView);
+        FlowView->State->CommitMutation();
+    }
+
+    for (const auto& partitionId : pendingPartitions) {
+        ASSERT_TRUE(layout->Partitions.at(partitionId)->CurrentJobId.has_value())
+            << "Partition must be rescheduled after the graceful rebalance is cancelled";
+
+        auto* ephemeralStatePtr = FlowView->EphemeralState->Partitions.FindPtr(partitionId);
+        ASSERT_TRUE(ephemeralStatePtr && *ephemeralStatePtr);
+        EXPECT_FALSE((*ephemeralStatePtr)->PendingGracefulRebalanceWorkerAddress.has_value())
+            << "Pending graceful rebalance must be cancelled when the target worker is gone";
+        EXPECT_FALSE((*ephemeralStatePtr)->DynamicPartitionSpec->FinishAfterCurrentEpoch)
+            << "Rescheduled job must not inherit the cancelled graceful shutdown signal";
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TJobBalancerTest, InvalidGracefulRebalanceIsCancelledBeforeJobFinishes)
+{
+    // A pending move whose target worker has gone must be dropped as soon as the balancer
+    // notices, without waiting for the current job to finish. The worker re-reads
+    // FinishAfterCurrentEpoch from the spec delivered with every heartbeat, so cancelling
+    // early leaves the running job in place instead of costing a shutdown and a reschedule.
+
+    Reset();
+    constexpr int kWorkerCount = 2;
+    constexpr int kPartitionCount = 4;
+
+    std::vector<TComputationDescription> computationDescriptions;
+    computationDescriptions.push_back(TComputationDescription{kPartitionCount, {}});
+    PrepareBalancerTest(kWorkerCount, computationDescriptions, /*exceedCountAllowed*/ 1, TDuration::MilliSeconds(50));
+
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->GracefulMove = true;
+        JobManager->Reconfigure(dynamicSpec);
+    }
+
+    {
+        FlowView->State->StartMutation();
+        const auto& layout = FlowView->State->ExecutionSpec->Layout;
+        for (const auto& [partitionId, partition] : layout->Partitions) {
+            auto job = New<TJob>();
+            job->JobId = TJobId(TGuid::Create());
+            job->WorkerAddress = GetWorkerAddress(0);
+            job->WorkerIncarnationId = FlowView->State->Workers.at(GetWorkerAddress(0))->IncarnationId;
+            job->PartitionId = partitionId;
+            layout->CreateJob(job);
+        }
+        FlowView->State->CommitMutation();
+    }
+
+    SetCpuLoadUniform();
+
+    {
+        FlowView->State->StartMutation();
+        JobManager->DistributeJobs(FlowView);
+        FlowView->State->CommitMutation();
+    }
+
+    std::vector<TPartitionId> pendingPartitions;
+    for (const auto& [partitionId, ephemeralState] : FlowView->EphemeralState->Partitions) {
+        if (ephemeralState && ephemeralState->PendingGracefulRebalanceWorkerAddress.has_value()) {
+            pendingPartitions.push_back(partitionId);
+        }
+    }
+    ASSERT_GT(std::ssize(pendingPartitions), 0);
+
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    THashMap<TPartitionId, TJobId> jobsBeforeCancel;
+    for (const auto& partitionId : pendingPartitions) {
+        const auto& partition = layout->Partitions.at(partitionId);
+        ASSERT_TRUE(partition->CurrentJobId.has_value())
+            << "A gracefully stopped partition keeps its job until the job actually finishes";
+        jobsBeforeCancel[partitionId] = *partition->CurrentJobId;
+    }
+
+    // The move target goes away while the jobs are still running.
+    FlowView->State->Workers.erase(GetWorkerAddress(1));
+
+    {
+        FlowView->State->StartMutation();
+        JobManager->CancelInvalidGracefulRebalances(FlowView);
+        FlowView->State->CommitMutation();
+    }
+
+    for (const auto& partitionId : pendingPartitions) {
+        auto* ephemeralStatePtr = FlowView->EphemeralState->Partitions.FindPtr(partitionId);
+        ASSERT_TRUE(ephemeralStatePtr && *ephemeralStatePtr);
+        EXPECT_FALSE((*ephemeralStatePtr)->PendingGracefulRebalanceWorkerAddress.has_value())
+            << "A move to a worker that no longer exists must be dropped";
+        EXPECT_FALSE((*ephemeralStatePtr)->DynamicPartitionSpec->FinishAfterCurrentEpoch)
+            << "Cancelling the move must also withdraw the graceful shutdown signal";
+
+        const auto& partition = layout->Partitions.at(partitionId);
+        ASSERT_TRUE(partition->CurrentJobId.has_value())
+            << "The running job must survive the cancellation";
+        EXPECT_EQ(*partition->CurrentJobId, jobsBeforeCancel[partitionId])
+            << "Cancelling early must not restart the job";
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
