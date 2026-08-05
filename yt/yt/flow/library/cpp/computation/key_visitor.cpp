@@ -374,7 +374,7 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
                     YT_TLOG_WARNING(
                         "Joiner referenced by key_visitor_stream external_names is "
                         "not visitor-driven and will not be swept")
-                        .With("Joiner", name, "%Qv");
+                        .With("Joiner", name);
                 }
                 continue;
             }

@@ -221,14 +221,14 @@ private:
             }
             TDuration registerStatusesDuration = TInstant::Now() - registerStatusesStart;
 
-            YT_TLOG_INFO("Worker heartbeat timings, milliseconds")
-                .With("PrepareDuration", prepareDuration.MilliSeconds(), "%Qv")
-                .With("CollectSpecUpdateDuration", collectSpecUpdateDuration.MilliSeconds(), "%Qv")
-                .With("StateUpdateSize", stateUpdateSize, "%Qv")
-                .With("GatherStatusesDuration", gatherStatusesDuration.MilliSeconds(), "%Qv")
-                .With("StatusesSize", statusesSize, "%Qv")
-                .With("SetDynamicSpecDuration", setDynamicSpecDuration.MilliSeconds(), "%Qv")
-                .With("RegisterStatusesDuration", registerStatusesDuration.MilliSeconds(), "%Qv");
+            YT_TLOG_INFO("Worker heartbeat timings")
+                .With("PrepareDuration", prepareDuration)
+                .With("CollectSpecUpdateDuration", collectSpecUpdateDuration)
+                .With("StateUpdateSize", stateUpdateSize)
+                .With("GatherStatusesDuration", gatherStatusesDuration)
+                .With("StatusesSize", statusesSize)
+                .With("SetDynamicSpecDuration", setDynamicSpecDuration)
+                .With("RegisterStatusesDuration", registerStatusesDuration);
 
             try {
                 Controller_->RegisterWorkerStatus(workerAddress, workerStatus);

@@ -433,7 +433,7 @@ auto TQueueSourceImpl::ParseData(
                 } catch (const std::exception& ex) {
                     if (GetParameters()->IgnoreMalformedFlowQueueMeta) {
                         YT_TLOG_WARNING("Failed to parse flow queue meta")
-                            .With("RawMeta", *raw, "%Qv")
+                            .With("RawMeta", *raw)
                             .With(ex);
                     } else {
                         THROW_ERROR_EXCEPTION("Failed to parse flow queue meta from %Qv", *raw)

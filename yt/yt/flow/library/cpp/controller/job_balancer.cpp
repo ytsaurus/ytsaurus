@@ -1589,13 +1589,13 @@ void TDistributionEmulation::ApplyAll(const TRebalanceActions& actions, const TP
         if (!GetInfo().All.Partitions.contains(partitionId)) {
             YT_TLOG_ERROR("Requested applying partition, while it is not present among executing partitions")
                 .With("Partition", partitionId)
-                .With("Worker", workerAddress, "%s");
+                .With("Worker", workerAddress);
             return;
         }
         if (!Workers().contains(workerAddress)) {
             YT_TLOG_ERROR("Requested applying partition, while it the worker is not present")
                 .With("Partition", partitionId)
-                .With("Worker", workerAddress, "%s");
+                .With("Worker", workerAddress);
             return;
         }
 
@@ -1603,7 +1603,7 @@ void TDistributionEmulation::ApplyAll(const TRebalanceActions& actions, const TP
             if (GetStrayInfo().All.Partitions.contains(partitionId)) {
                 YT_TLOG_ERROR("Requested deleting partition, while it is not already assigned to a worker")
                     .With("Partition", partitionId)
-                    .With("Worker", workerAddress, "%s");
+                    .With("Worker", workerAddress);
                 return;
             }
             DelPartition(partitionId, partitionData.PartitionInfos().at(partitionId), workerAddress);
@@ -1614,7 +1614,7 @@ void TDistributionEmulation::ApplyAll(const TRebalanceActions& actions, const TP
             if (!GetStrayInfo().All.Partitions.contains(partitionId)) {
                 YT_TLOG_ERROR("Requested adding partition, while it is already assigned to a worker")
                     .With("Partition", partitionId)
-                    .With("Worker", workerAddress, "%s");
+                    .With("Worker", workerAddress);
                 return;
             }
             DelStrayPartition(partitionId, partitionData.PartitionInfos().at(partitionId));
@@ -2142,7 +2142,7 @@ TRebalanceActions TBalancer::DoSlowBalancing(const TInstant& until)
             }
             computationId = advanceResult.value();
             YT_TLOG_EVENT_FLUENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Selected computation for slow balancing")
-                .With("Computation", computationId, "%s");
+                .With("Computation", computationId);
 
             std::vector<std::pair<std::string, double>> overallData;
             for (const auto& [workerAddress, worker] : Emulation_.Workers()) {
@@ -2524,7 +2524,7 @@ public:
         DeferredAppliedActions_ = verifier.VerifyWithPreapplied(AppliedActions_, DeferredAppliedActions_);
 
         YT_TLOG_INFO("Updated StartData")
-            .With("Epoch", FlowViewEpoch_, "%lu");
+            .With("Epoch", FlowViewEpoch_);
     }
 
     void StartBalancing(const IInvokerPtr& invoker) override
