@@ -21,6 +21,13 @@ TStreamLimitUsageState::TStreamLimitUsageState(i64 inflationPerMessage)
 
 void TStreamLimitUsageState::Update(const TStreamUsage& usage)
 {
+    i64 inflatedInflightBytes = usage.GetInflatedInflightBytes(InflationPerMessage_);
+    i64 maxSeen = MaxInflatedInflightBytes_.load(std::memory_order_relaxed);
+    while (inflatedInflightBytes > maxSeen &&
+        !MaxInflatedInflightBytes_.compare_exchange_weak(maxSeen, inflatedInflightBytes, std::memory_order_relaxed))
+    {
+    }
+
     PendingInflatedBytes_.store(static_cast<ui64>(usage.PendingInflatedBytes), std::memory_order_relaxed);
     CumulativeByteIn_.store(static_cast<ui64>(usage.CumulativeByteIn), std::memory_order_relaxed);
     CumulativeByteOut_.store(static_cast<ui64>(usage.CumulativeByteOut), std::memory_order_relaxed);
@@ -50,6 +57,36 @@ TStreamUsage TStreamLimitUsageState::Read() const
             return usage;
         }
     }
+}
+
+i64 TStreamLimitUsageState::ReadAndResetMaxInflatedInflightBytes()
+{
+    return MaxInflatedInflightBytes_.exchange(0, std::memory_order_relaxed);
+}
+
+void TStreamLimitUsageState::SetEstimatedInflatedSpeed(double inflatedBytesPerSecond)
+{
+    EstimatedInflatedSpeed_.store(inflatedBytesPerSecond, std::memory_order_relaxed);
+}
+
+double TStreamLimitUsageState::GetEstimatedInflatedSpeed() const
+{
+    return EstimatedInflatedSpeed_.load(std::memory_order_relaxed);
+}
+
+void TStreamLimitUsageState::SetOfferedInflatedBytesPerSecond(double rate)
+{
+    OfferedInflatedBytesPerSecond_.store(rate, std::memory_order_relaxed);
+}
+
+void TStreamLimitUsageState::SetOfferedRawRate(double bytesPerSecond, double messagesPerSecond)
+{
+    SetOfferedInflatedBytesPerSecond(bytesPerSecond + messagesPerSecond * InflationPerMessage_);
+}
+
+double TStreamLimitUsageState::GetOfferedInflatedBytesPerSecond() const
+{
+    return OfferedInflatedBytesPerSecond_.load(std::memory_order_relaxed);
 }
 
 void TStreamLimitUsageState::SetLimitBytes(i64 limitBytes)

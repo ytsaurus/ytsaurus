@@ -33,6 +33,7 @@ PEERDIR(
     yt/yt/client
     yt/yt/flow/library/cpp/client
 
+    yt/yt/flow/library/cpp/buffers
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/common/worker
     yt/yt/flow/library/cpp/computation

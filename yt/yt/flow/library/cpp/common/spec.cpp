@@ -1,4 +1,5 @@
 #include "spec.h"
+#include "buffer_warmup.h"
 #include "registry.h"
 #include "schema.h"
 #include "state.h"
@@ -988,6 +989,7 @@ void TDynamicBufferStateManagerSpec::TOneSideBufferSpec::Register(TRegistrar reg
         .Default(NYTree::TSize(500_MB));
 
     registrar.Parameter("max_duration", &TThis::MaxDuration)
+        .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(60));
     registrar.Parameter("job_overrides", &TThis::JobOverrides)
         .Default();
@@ -998,14 +1000,44 @@ void TDynamicBufferStateManagerSpec::TOneSideBufferSpec::Register(TRegistrar reg
 void TDynamicBufferStateManagerSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("manage_period", &TThis::ManagePeriod)
+        .GreaterThan(TDuration::Zero())
         .Default(TDuration::MilliSeconds(1000));
     registrar.Parameter("demand_window", &TThis::DemandWindow)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("epoch_cycle_window_samples", &TThis::EpochCycleWindowSamples)
+        .InRange(1, 256)
+        .Default(16);
+    registrar.Parameter("max_rate_estimator_buckets", &TThis::MaxRateEstimatorBuckets)
+        .InRange(1, 256)
+        .Default(8);
+    registrar.Parameter("warmup_refresh_period", &TThis::WarmupRefreshPeriod)
+        .GreaterThan(TDuration::Zero())
+        .Default(DefaultWarmupRefreshPeriod);
 
     registrar.Parameter("input_buffer", &TThis::InputBuffer)
         .DefaultNew();
     registrar.Parameter("output_buffer", &TThis::OutputBuffer)
         .DefaultNew();
+
+    registrar.Parameter("enable_v2", &TThis::EnableV2)
+        .Default(false);
+    registrar.Parameter("v2_gain_epochs", &TThis::V2GainEpochs)
+        .GreaterThan(1.0)
+        .Default(2.0);
+    registrar.Parameter("v2_use_offered_rate", &TThis::V2UseOfferedRate)
+        .Default(true);
+    registrar.Parameter("v2_floor", &TThis::V2Floor)
+        .GreaterThan(NYTree::TSize(0))
+        .Default(NYTree::TSize(2_MB));
+    registrar.Parameter("v2_headroom_growth_factor", &TThis::V2HeadroomGrowthFactor)
+        .GreaterThan(1.0)
+        .Default(2.0);
+    registrar.Parameter("v2_high_utilization_threshold", &TThis::V2HighUtilizationThreshold)
+        .InRange(0.0, 1.0)
+        .Default(0.65);
+    registrar.Parameter("v2_publish_threshold", &TThis::V2PublishThreshold)
+        .InRange(0.0, 1.0)
+        .Default(0.25);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@ GTEST()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    buffer_warmup_ut.cpp
     distributing_tracker_ut.cpp
     flow_core_build_info_ut.cpp
     flow_core_version_ut.cpp

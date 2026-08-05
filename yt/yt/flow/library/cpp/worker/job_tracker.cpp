@@ -657,6 +657,10 @@ private:
         jobContext->ResourceManager = ResourceManager_;
 
         auto streamLimitUsageStates = BufferStateManager_->RegisterJob(jobId, jobSpec);
+        jobContext->PartitionBufferState = CreatePartitionBufferState(
+            BufferStateManager_,
+            jobId,
+            streamLimitUsageStates.Output);
         jobContext->LoadThroughputThrottler = LoadThroughputThrottler_;
         jobContext->JobStateCache = StateCache_->WithJob(
             jobId,

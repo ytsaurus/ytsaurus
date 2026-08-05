@@ -1,5 +1,8 @@
 #include <yt/yt/flow/library/cpp/worker/input_buffer_detail.h>
 
+#include <yt/yt/flow/library/cpp/buffers/epoch_cycle_tracker.h>
+#include <yt/yt/flow/library/cpp/buffers/offered_rate_estimator.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <util/random/fast.h>
@@ -264,6 +267,108 @@ TEST(TInputBufferMessagesPriorityQueueTest, LargeRandomRoundTrip)
         ASSERT_EQ(extracted.SeqNo, seqNo);
     }
     EXPECT_TRUE(queue.empty());
+}
+
+TEST(TInputBufferOfferedRateTest, EstimatesProducerRateFromBacklogSpan)
+{
+    TStreamState streamState;
+    streamState.LimitUsageState = New<TStreamLimitUsageState>(/*inflation*/ 0);
+
+    // Two connections announce backlog: 30 MB produced over the event-time span
+    // between the oldest (990) and newest (998) order timestamps = 8 seconds.
+    auto& first = streamState.ConnectionStates[TGuid::Create()];
+    first.Offer = {{TSystemTimestamp(995), 10'000'000}, {TSystemTimestamp(990), 10'000'000}};
+    auto& second = streamState.ConnectionStates[TGuid::Create()];
+    second.Offer = {{TSystemTimestamp(998), 10'000'000}};
+
+    TInputBuffer::RecalculateStreamLimits(streamState, /*collectStaleConnections*/ true);
+    EXPECT_DOUBLE_EQ(streamState.LimitUsageState->GetOfferedInflatedBytesPerSecond(), 30'000'000.0 / 8);
+
+    // Empty backlog: no estimate.
+    for (auto& [connectionId, connectionState] : streamState.ConnectionStates) {
+        connectionState.Offer.clear();
+    }
+    TInputBuffer::RecalculateStreamLimits(streamState, /*collectStaleConnections*/ true);
+    EXPECT_DOUBLE_EQ(streamState.LimitUsageState->GetOfferedInflatedBytesPerSecond(), 0.0);
+}
+
+TEST(TInputBufferOfferedRateTest, SingleTimestampBacklogIsCappedByAcceptedHistory)
+{
+    TStreamState streamState;
+    streamState.LimitUsageState = New<TStreamLimitUsageState>(/*inflation*/ 0);
+
+    // A 500 MB backlog announced within a single timestamp: with no history the
+    // cold-start estimate claims the whole backlog per second.
+    auto& connection = streamState.ConnectionStates[TGuid::Create()];
+    connection.Offer = {{TSystemTimestamp(1000), 500'000'000}};
+    TInputBuffer::RecalculateStreamLimits(streamState, /*collectStaleConnections*/ true);
+    EXPECT_DOUBLE_EQ(streamState.LimitUsageState->GetOfferedInflatedBytesPerSecond(), 500'000'000.0);
+
+    // With a steady 10 MB/s accepted history the same announcement is capped by
+    // a multiple of the historical rate instead.
+    for (i64 ts = 700; ts <= 1000; ++ts) {
+        streamState.OfferedRateEstimator->RecordAccepted(10'000'000, ts);
+    }
+    TInputBuffer::RecalculateStreamLimits(streamState, /*collectStaleConnections*/ true);
+    const double capped = streamState.LimitUsageState->GetOfferedInflatedBytesPerSecond();
+    EXPECT_GE(capped, 10'000'000.0);
+    EXPECT_LE(capped, 100'000'000.0);
+}
+
+// Drives the REAL drain-cycle sampling path (add → extract → inter-extraction
+// interval) with an injected clock, instead of feeding RecordCycle by hand.
+TEST(TInputBufferEpochCycleTest, SamplesInterExtractionIntervals)
+{
+    const TStreamId streamId("input");
+    auto computationSpec = New<TComputationSpec>();
+    computationSpec->InputStreamIds.insert(streamId);
+    auto dynamicSpec = New<TDynamicComputationSpec>();
+    dynamicSpec->BatchDuration = TDuration::Zero();
+    auto tracker = New<TEpochCycleTracker>();
+    auto now = std::make_shared<TInstant>(TInstant::Seconds(1000));
+
+    auto buffer = New<TInputBuffer>(
+        TJobId(TGuid::Create()),
+        NFlow::TStreamLimitUsageStateMap{{streamId, New<TStreamLimitUsageState>(/*inflationPerMessage*/ 0)}},
+        tracker,
+        THashMap<TStreamId, NFlow::TOfferedRateEstimatorPtr>{},
+        computationSpec,
+        TComputationId("computation"),
+        dynamicSpec,
+        GetSyncInvoker(),
+        NProfiling::TProfiler{},
+        [now] {
+            return *now;
+        });
+    buffer->UpdateMessageTransferingInfo(New<TMessageTransferingInfo>());
+
+    auto connectionId = TGuid::Create();
+    auto schema = New<NTableClient::TTableSchema>();
+    int sequence = 0;
+    auto extractOne = [&] {
+        ++sequence;
+        TMessageBuilder builder(streamId, schema);
+        builder.SetMessageId(TMessageId(Format("msg-%v", sequence)));
+        builder.SetSystemTimestamp(TSystemTimestamp(100 + sequence));
+        builder.SetAlignmentTimestamp(TSystemTimestamp(100 + sequence));
+        builder.SetEventTimestamp(TSystemTimestamp(100 + sequence));
+        auto message = New<TInputMessage>(builder.Finish(), MakeKey(ToString(sequence)));
+        // The sync invoker completes both futures before the calls return.
+        Y_UNUSED(buffer->AddMessages(connectionId, {std::move(message)}, /*onProcessed*/ {}));
+        auto batchOrError = buffer->GetInputBatch({streamId}).TryGet();
+        ASSERT_TRUE(batchOrError.has_value());
+        EXPECT_EQ(std::ssize(batchOrError->ValueOrThrow()), 1);
+    };
+
+    extractOne();
+    for (int i = 0; i < 4; ++i) {
+        *now += TDuration::Seconds(5);
+        extractOne();
+    }
+
+    auto medianCycle = tracker->GetMedianCycle();
+    ASSERT_TRUE(medianCycle.has_value());
+    EXPECT_EQ(*medianCycle, TDuration::Seconds(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

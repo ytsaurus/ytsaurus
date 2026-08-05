@@ -67,6 +67,7 @@ static constexpr auto ZeroSystemTimestamp = TSystemTimestamp(0);
 
 DECLARE_REFCOUNTED_STRUCT(ITimeProvider);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionSpec);
+DECLARE_REFCOUNTED_STRUCT(IPartitionBufferState);
 
 struct TMessageMeta;
 struct TMessage;

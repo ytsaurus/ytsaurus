@@ -516,6 +516,9 @@ protected:
     TCheckOutputLimitsResult CheckOutputLimits(
         const TDynamicComputationSpecPtr& dynamicSpec,
         const TUniversalComputationDynamicPartitionSpecPtr& dynamicPartitionSpec);
+    void InitBufferWarmupState();
+    void RefreshBufferWarmupState();
+
     void WaitForBackoff(
         const TDynamicComputationSpecPtr& dynamicSpec,
         const TCheckOutputLimitsResult& outputLimitsCheckResult,
@@ -607,6 +610,11 @@ protected:
 
 protected:
     const TJobStateManagerPtr StateManager_;
+    //! System partition state carrying #TPartitionBufferWarmup: read at start to
+    //! seed the buffer manager, refreshed (drift-gated) before every commit.
+    IMutableStateProviderPtr BufferWarmupState_;
+    TPartitionBufferWarmup LastWrittenWarmup_;
+    TInstant LastWarmupRefreshInstant_;
     const bool HasVisitorDrivenJoiners_;
     const std::optional<TStreamId> ActiveSourceStreamId_;
     const ISourcePtr ActiveSource_;

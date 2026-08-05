@@ -20,7 +20,9 @@ struct TStreamUsage
     i64 CumulativeByteOut = 0;
     i64 CumulativeCountIn = 0;
     i64 CumulativeCountOut = 0;
-    //! Diagnostic-only; not used for back-pressure. Inflated bytes.
+    //! Announced-but-not-admitted backlog, inflated bytes. Not used for
+    //! back-pressure (that compares in-flight against the limit), but the v2
+    //! buffer manager reads it to bootstrap the drain cap and grow headroom.
     i64 PendingInflatedBytes = 0;
 
     //! In-flight bytes inflated by the per-message technical cost — the quantity
@@ -33,8 +35,16 @@ struct TStreamUsage
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Per-stream usage + limit slot with a single writer of the cumulative
-//! counters (the owning buffer/store) and many readers (manager + observers).
+//! Per-stream usage + limit slot: several independent atomic channels shared
+//! between the owning buffer/store and the buffer manager. Channel ownership:
+//!   - usage snapshot + peak watermark: written by the owning buffer/store
+//!     (#Update), read by the manager tick; the peak is a destructive read
+//!     with a SINGLE-consumer contract — only the manage tick may call
+//!     #ReadAndResetMaxInflatedInflightBytes.
+//!   - limit: written by the manager, read by the owner's admission checks.
+//!   - offered rate: written by the input buffer (or the source computation),
+//!     read by the manager tick.
+//!   - estimated speed: written by the manager, read by the warmup poller.
 class alignas(64) TStreamLimitUsageState
     : public TRefCounted
 {
@@ -45,6 +55,28 @@ public:
     //! — sum-as-seq relies on that.
     void Update(const TStreamUsage& usage);
     TStreamUsage Read() const;
+
+    //! Maximum inflated in-flight bytes seen by #Update since the previous call;
+    //! captures usage peaks between periodic manager reads.
+    i64 ReadAndResetMaxInflatedInflightBytes();
+
+    //! Estimated stream speed, inflated bytes per second; published by the buffer
+    //! manager, consumed for warm-start persistence.
+    void SetEstimatedInflatedSpeed(double inflatedBytesPerSecond);
+    double GetEstimatedInflatedSpeed() const;
+
+    //! Producer rate offered to this stream, in INFLATED bytes per second: an
+    //! instant, limit-independent demand signal. Published either by the input
+    //! buffer from the announced backlog (Σ inflated bytes over the backlog's
+    //! time span) or, for a source computation's outputs, from the source's own
+    //! raw estimate — #SetOfferedRawRate converts it using this stream's
+    //! per-message inflation. Zero when the backlog is too fresh or absent to
+    //! estimate. Recomputed only when offers arrive, so it can go stale after
+    //! the producers vanish; harmless since an empty backlog drops the issued
+    //! limit to zero anyway.
+    void SetOfferedInflatedBytesPerSecond(double rate);
+    void SetOfferedRawRate(double bytesPerSecond, double messagesPerSecond);
+    double GetOfferedInflatedBytesPerSecond() const;
 
     void SetLimitBytes(i64 limitBytes);
     i64 GetLimitBytes() const;
@@ -60,6 +92,9 @@ private:
     std::atomic<ui64> PendingInflatedBytes_{0};
     std::atomic<ui64> Seq_{0};
     std::atomic<i64> LimitBytes_{std::numeric_limits<i64>::max()};
+    std::atomic<i64> MaxInflatedInflightBytes_{0};
+    std::atomic<double> EstimatedInflatedSpeed_{0};
+    std::atomic<double> OfferedInflatedBytesPerSecond_{0};
     const i64 InflationPerMessage_;
 };
 

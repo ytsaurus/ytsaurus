@@ -1,5 +1,8 @@
 #include "input_buffer_detail.h"
 
+#include <yt/yt/flow/library/cpp/buffers/epoch_cycle_tracker.h>
+#include <yt/yt/flow/library/cpp/buffers/offered_rate_estimator.h>
+
 #include <yt/yt/flow/library/cpp/misc/prefetch.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -151,11 +154,14 @@ void TInputBuffer::TConnectionState::Acquire(i64 inflatedSize)
 TInputBuffer::TInputBuffer(
     TJobId jobId,
     NFlow::TStreamLimitUsageStateMap streamLimitUsageStates,
+    NFlow::TEpochCycleTrackerPtr epochCycleTracker,
+    THashMap<TStreamId, NFlow::TOfferedRateEstimatorPtr> offeredRateEstimators,
     TComputationSpecPtr computationSpec,
     TComputationId computationId,
     TDynamicComputationSpecPtr dynamicSpec,
     IInvokerPtr finalizerPoolInvoker,
-    NProfiling::TProfiler profiler)
+    NProfiling::TProfiler profiler,
+    std::function<TInstant()> timeProvider)
     : JobId_(jobId)
     , OrderingSpec_(computationSpec->InputOrdering)
     , ComputationId_(std::move(computationId))
@@ -163,6 +169,8 @@ TInputBuffer::TInputBuffer(
     , SerializedInvoker_(CreateSerializedInvoker(finalizerPoolInvoker, "InputBuffer"))
     , BatchLimiter_(dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch)
     , BatchDuration_(dynamicSpec->BatchDuration)
+    , EpochCycleTracker_(std::move(epochCycleTracker))
+    , TimeProvider_(std::move(timeProvider))
     , MessageProcessingTimer_(profiler.Timer("/message_processing_time"))
 {
     for (const auto& streamId : computationSpec->InputStreamIds) {
@@ -176,6 +184,11 @@ TInputBuffer::TInputBuffer(
         auto it = streamLimitUsageStates.find(streamId);
         YT_VERIFY(it != streamLimitUsageStates.end());
         streamState.LimitUsageState = std::move(it->second);
+        if (auto estimatorIt = offeredRateEstimators.find(streamId);
+            estimatorIt != offeredRateEstimators.end() && estimatorIt->second)
+        {
+            streamState.OfferedRateEstimator = std::move(estimatorIt->second);
+        }
     }
 }
 
@@ -233,6 +246,9 @@ std::vector<EMessageDeliveryState> TInputBuffer::DoAddMessages(
     std::vector<EMessageDeliveryState> deliveryStates;
     deliveryStates.reserve(messages.size());
     THashSet<TStreamId> congestionDeclinedStreams;
+    // (inflated bytes, max alignment ts) accepted per stream; recorded into the
+    // offered-rate estimator once per call to keep exp() off the per-message path.
+    THashMap<TStreamId, std::pair<i64, i64>> acceptedByStream;
 
     MakePrefetcher()
         .Add([] (const TInputMessageConstPtr& message) {
@@ -271,6 +287,10 @@ std::vector<EMessageDeliveryState> TInputBuffer::DoAddMessages(
             streamState.Usage.CumulativeByteIn += message->ByteSize;
             ++streamState.Usage.CumulativeCountIn;
 
+            auto& [acceptedBytes, acceptedTimestamp] = acceptedByStream[message->StreamId];
+            acceptedBytes += InflatedByteSize(message->ByteSize);
+            acceptedTimestamp = std::max<i64>(acceptedTimestamp, message->AlignmentTimestamp.Underlying());
+
             messageStateIt = EmplaceOrCrash(
                 MessageStatesMap_,
                 message->MessageId,
@@ -295,6 +315,10 @@ std::vector<EMessageDeliveryState> TInputBuffer::DoAddMessages(
         });
 
     YT_VERIFY(deliveryStates.size() == messages.size());
+
+    for (const auto& [streamId, bytesAndTimestamp] : acceptedByStream) {
+        GetOrCrash(StreamStates_, streamId).OfferedRateEstimator->RecordAccepted(bytesAndTimestamp.first, bytesAndTimestamp.second);
+    }
 
     FulfillPendingFetch();
 
@@ -540,12 +564,40 @@ std::vector<TInputMessageConstPtr> TInputBuffer::ExtractBatch(const THashSet<TSt
         streamState.LimitUsageState->Update(streamState.Usage);
     }
 
+    if (!batch.empty()) {
+        // The epoch estimate only raises the BDP floor (gain_epochs × demand ×
+        // epoch), boxed below by the used peak and above by max_duration, so its
+        // precision does not matter: record every inter-extraction interval,
+        // including an idle wait, rather than gate on leftover backlog. The gate
+        // used to silence latency-bound jobs that drain their whole buffer.
+        auto extractionInstant = TimeProvider_();
+        if (EpochCycleTracker_ && PrevBatchInstant_) {
+            EpochCycleTracker_->RecordCycle(extractionInstant - *PrevBatchInstant_);
+        }
+        PrevBatchInstant_ = extractionInstant;
+    }
+
     return batch;
 }
 
 void TInputBuffer::RecalculateStreamLimits(TStreamState& streamState, bool collectStaleConnections)
 {
     using THeapElement = std::pair<TConnectionState*, i64>; // (it, currentBucketIndex).
+
+    // The announced backlog plus the accepted history estimate the producer's
+    // rate over its own alignment timestamps — an instant demand signal
+    // independent of both the issued limit (a limit-based measurement can never
+    // see demand above the limit) and the processing clock.
+    {
+        TCompactVector<std::pair<i64, i64>, 16> pendingBuckets;
+        for (const auto& [connectionId, connectionState] : streamState.ConnectionStates) {
+            for (const auto& [minOrderTimestamp, inflatedByteSize] : connectionState.Offer) {
+                pendingBuckets.emplace_back(minOrderTimestamp.Underlying(), inflatedByteSize);
+            }
+        }
+        streamState.LimitUsageState->SetOfferedInflatedBytesPerSecond(
+            streamState.OfferedRateEstimator->EstimateRate(pendingBuckets));
+    }
 
     constexpr i64 lastEpochStoreCount = 5; // TODO: something better? Configurable?
 

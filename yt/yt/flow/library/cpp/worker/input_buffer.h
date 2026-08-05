@@ -5,6 +5,8 @@
 #include <yt/yt/flow/library/cpp/common/public.h>
 #include <yt/yt/flow/library/cpp/common/stream_inflight_limits.h>
 
+#include <yt/yt/flow/library/cpp/buffers/public.h>
+
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/invoker.h>
 
@@ -59,11 +61,16 @@ DEFINE_REFCOUNTED_TYPE(IInputBuffer);
 IInputBufferPtr CreateInputBuffer(
     TJobId jobId,
     NFlow::TStreamLimitUsageStateMap streamLimitUsageStates,
+    NFlow::TEpochCycleTrackerPtr epochCycleTracker,
+    THashMap<TStreamId, NFlow::TOfferedRateEstimatorPtr> offeredRateEstimators,
     TComputationSpecPtr computationSpec,
     TComputationId computationId,
     TDynamicComputationSpecPtr dynamicSpec,
     IInvokerPtr finalizerPoolInvoker,
-    NProfiling::TProfiler profiler);
+    NProfiling::TProfiler profiler,
+    std::function<TInstant()> timeProvider = [] {
+        return TInstant::Now();
+    });
 
 ////////////////////////////////////////////////////////////////////////////////
 

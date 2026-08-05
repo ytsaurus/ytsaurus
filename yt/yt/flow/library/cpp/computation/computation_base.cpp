@@ -1084,6 +1084,7 @@ ITimerStorePtr TUniversalComputationBase::CreateTimerStore()
 IOutputStorePtr TUniversalComputationBase::CreateOutputStore()
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+    YT_VERIFY(GetContext()->PartitionBufferState);
 
     auto createTableContext = [&] (TStringBuf tableName) {
         auto tableContext = New<NTables::TContext>();
@@ -1103,7 +1104,7 @@ IOutputStorePtr TUniversalComputationBase::CreateOutputStore()
         context.OutputStreamIds = GetSpec()->OutputStreamIds;
         context.WatermarkPercentileSpec = GetSpec()->WatermarkStrategy->WatermarkPercentile;
         context.StreamSpecStorage = GetContext()->StreamSpecStorage;
-        context.StreamLimitUsageStates = GetContext()->OutputStreamLimitUsageStates;
+        context.StreamLimitUsageStates = GetContext()->PartitionBufferState->GetOutputStreamLimitUsageStates();
     };
 
     auto context = New<TCompactOutputStoreContext>();
@@ -1497,6 +1498,7 @@ void TUniversalComputationBase::Commit(IComputationRunContextPtr context, IRetry
         for (const auto& [sinkId, key, sink] : GetAllSinks()) {
             sink->Sync(transaction);
         }
+        RefreshBufferWarmupState();
         StateManager_->Sync(transaction);
     }
     {
@@ -1553,13 +1555,34 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
 
     NTracing::TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Accounting"));
+    YT_VERIFY(GetContext()->PartitionBufferState);
 
     std::vector<TBlockedTimeAccountant::TBlockedLimit> blockedLimits;
+
+    if (ActiveSource_) {
+        // The per-stream split of the backlog is unknown, so split the rate
+        // evenly: a stream may get less than its real share, but the side total
+        // the fair-share pool trims against stays equal to the source's rate
+        // instead of N copies of it. Reset to zero when the source cannot
+        // report, otherwise a stale high rate would keep feeding demand.
+        auto backlogRate = ActiveSource_->EstimateBacklogRate();
+        const auto& outputStates = GetContext()->PartitionBufferState->GetOutputStreamLimitUsageStates();
+        const double streamCount = std::max<double>(std::ssize(outputStates), 1.0);
+        for (const auto& [streamId, state] : outputStates) {
+            if (backlogRate) {
+                state->SetOfferedRawRate(
+                    backlogRate->BytesPerSecond / streamCount,
+                    backlogRate->MessagesPerSecond / streamCount);
+            } else {
+                state->SetOfferedRawRate(0, 0);
+            }
+        }
+    }
 
     TCheckOutputLimitsResult result;
     THashSet<TStreamId> allowedOutputStreams(GetSpec()->OutputStreamIds.size());
     const auto outputStoreCountAndByteSize = OutputStore_->GetCountAndByteSizes();
-    const auto streamsAllowedByLimits = GetStreamsWithinLimits(GetContext()->OutputStreamLimitUsageStates);
+    const auto streamsAllowedByLimits = GetStreamsWithinLimits(GetContext()->PartitionBufferState->GetOutputStreamLimitUsageStates());
     for (const auto& streamId : GetSpec()->OutputStreamIds) {
         if (dynamicPartitionSpec && dynamicPartitionSpec->BlockedOutputStreams.contains(streamId)) {
             result.BlockedByController = true;
@@ -1684,6 +1707,67 @@ void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRu
     FinishRunIteration();
 }
 
+void TUniversalComputationBase::InitBufferWarmupState()
+{
+    // Skip the whole warmup path (state-provider creation + its blocking read)
+    // unless the v2 strategy is on, so v1 partitions behave exactly as before.
+    // A job started under v1 therefore has no warmup plumbing until it restarts,
+    // even if v2 is enabled at runtime — it just cold-starts then.
+    if (!GetContext()->PartitionBufferState || !GetContext()->PartitionBufferState->IsWarmupEnabled()) {
+        return;
+    }
+    // A default-constructed instant would open the refresh gate for the very
+    // first commit; the first refresh must wait a full period so the manager
+    // has ticked at least once.
+    LastWarmupRefreshInstant_ = TInstant::Now();
+    // The warmup is a heuristic cache: a corrupt or unreadable state must not
+    // block the partition, it just means a cold start.
+    try {
+        BufferWarmupState_ = WaitFor(StateManager_->CreatePartitionMutableStateProvider(
+            "__buffer_warmup",
+            [] () -> IStateHolderPtr {
+                return New<TYsonSerializableStateHolder<TPartitionBufferWarmup>>();
+            }))
+            .ValueOrThrow();
+        auto holder = BufferWarmupState_->GetState();
+        if (!holder->IsEmpty()) {
+            const auto& warmup = dynamic_cast<TYsonSerializableStateHolder<TPartitionBufferWarmup>&>(*holder).Get();
+            LastWrittenWarmup_ = warmup;
+            GetContext()->PartitionBufferState->SeedWarmup(warmup);
+        }
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to recover the buffer warmup state; starting cold");
+        BufferWarmupState_ = nullptr;
+    }
+}
+
+void TUniversalComputationBase::RefreshBufferWarmupState()
+{
+    // The v2 check also protects a temporarily disabled strategy: with v2 off the
+    // manager reports an empty warmup, and persisting that would erase the
+    // converged state the next enable wants to seed from.
+    if (!BufferWarmupState_ || !GetContext()->PartitionBufferState->IsWarmupEnabled()) {
+        return;
+    }
+    // The warmup drifts slowly; polling it (under the buffer manager's global
+    // lock) on every commit of a fast job is waste.
+    auto now = TInstant::Now();
+    if (now - LastWarmupRefreshInstant_ < GetContext()->PartitionBufferState->GetWarmupRefreshPeriod()) {
+        return;
+    }
+    LastWarmupRefreshInstant_ = now;
+    // Persist even a collapsed (all-zero) warmup: WarmupDiffers gates cold start
+    // (empty vs empty is no diff), but a stream whose traffic fell to zero must
+    // overwrite its stale-high snapshot so a restart does not seed over-allocation.
+    auto warmup = GetContext()->PartitionBufferState->GetWarmup();
+    if (!WarmupDiffers(LastWrittenWarmup_, warmup)) {
+        return;
+    }
+    auto holder = BufferWarmupState_->GetState();
+    dynamic_cast<TYsonSerializableStateHolder<TPartitionBufferWarmup>&>(*holder).Get() = warmup;
+    LastWrittenWarmup_ = std::move(warmup);
+}
+
 void TUniversalComputationBase::Run(const IComputationRunContextPtr& context)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
@@ -1692,6 +1776,7 @@ void TUniversalComputationBase::Run(const IComputationRunContextPtr& context)
     auto initTraceContextGuard = TTraceContextGuard(Tracer_->CreateInitTraceContext());
 
     DoPrepare(context);
+    InitBufferWarmupState();
 
     if (GetPartitionState() == EPartitionState::Executing) {
         DoExecute(context, std::move(initTraceContextGuard));

@@ -28,6 +28,8 @@ public:
         TSourceContextPtr context,
         TDynamicSourceContextPtr dynamicContext);
 
+    std::optional<TBacklogRate> EstimateBacklogRate() override;
+
 private:
     TFuture<std::vector<TRecord>> DoReadNextBatch(const TMessageBatcherSettingsPtr& settings, TOffset nextOffset, std::optional<TOffset> offsetLimit) final;
 

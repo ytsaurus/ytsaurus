@@ -7,6 +7,7 @@
 #include "distributing_tracker.h"
 #include "external_metrics_reporter.h"
 #include "flow_view.h"
+#include "partition_buffer_state.h"
 #include "spec_validation.h"
 #include "stream_inflight_limits.h"
 
@@ -51,7 +52,8 @@ struct TComputationContextBase
     NQueryClient::IColumnEvaluatorCachePtr EvaluatorCache;
     IPayloadConverterCachePtr ConverterCache;
     TLoadThroughputThrottlerPtr LoadThroughputThrottler;
-    TStreamLimitUsageStateMap OutputStreamLimitUsageStates;
+    //! Per-job view of the worker's buffer manager; null outside a worker job.
+    IPartitionBufferStatePtr PartitionBufferState;
     TComputationStreamSpecStoragePtr StreamSpecStorage;
 
     TJobStateCachePtr JobStateCache;
