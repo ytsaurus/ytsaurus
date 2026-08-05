@@ -1338,7 +1338,7 @@ public:
     {
         auto statistics = NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetMemoryStatistics();
         return TJobEnvironmentMemoryStatistics{
-            .ResidentAnon = statistics.ResidentAnon,
+            .ResidentAnon = statistics.AnonWithSwapCached,
             .TmpfsUsage = statistics.TmpfsUsage,
             .MappedFile = statistics.MappedFile,
             .MajorPageFaults = statistics.MajorPageFaults,

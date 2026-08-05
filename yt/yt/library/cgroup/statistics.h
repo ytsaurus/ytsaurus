@@ -12,7 +12,9 @@ namespace NYT::NCGroups {
 
 struct TMemoryStatistics
 {
-    i64 ResidentAnon = 0;
+    // NB: V1 RSS bundles anon with swap cached; V2 can export those separately,
+    // but we keep the V1-style value for common API.
+    i64 AnonWithSwapCached = 0;
     i64 TmpfsUsage = 0;
     i64 MappedFile = 0;
     i64 MajorPageFaults = 0;

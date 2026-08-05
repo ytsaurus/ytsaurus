@@ -23,7 +23,7 @@ TEST(TSelfCGroupsStatisticsFetcherTest, IsControllerV2)
 TEST(TSelfCGroupsStatisticsFetcherTest, MemoryStatistics)
 {
     auto stats = TSelfCGroupsStatisticsFetcher::Get()->GetMemoryStatistics();
-    EXPECT_GT(stats.ResidentAnon, 0);
+    EXPECT_GT(stats.AnonWithSwapCached, 0);
     EXPECT_GT(stats.Cache, 0);
 }
 
