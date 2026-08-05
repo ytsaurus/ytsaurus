@@ -17,6 +17,7 @@ find_package(linux-headers-generic REQUIRED)
 add_subdirectory(proto)
 add_subdirectory(unittests)
 add_subdirectory(benchmarks)
+add_subdirectory(testing)
 
 add_library(library-cpp-misc)
 
@@ -52,6 +53,7 @@ target_sources(library-cpp-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/compact_unversioned_owning_row.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/counter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/debug_build_warning.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/deploy_url_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/identifier.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/cow_tree.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/crash_recorder.cpp
@@ -60,6 +62,7 @@ target_sources(library-cpp-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/linear_system.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/load_throughput_throttler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/mutable_unversioned_row.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/node_address_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/node_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/ordered_memory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/reconfigurable.cpp

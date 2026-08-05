@@ -284,13 +284,16 @@ public:
     }
 
     //! Runs DescribePipeline with .StatusOnly = true and the given controller FlowCoreVersion.
-    TPipelineDescription DescribeStatus(std::string controllerFlowCoreVersion = GetBinaryChecksum())
+    TPipelineDescription DescribeStatus(
+        std::string controllerFlowCoreVersion = GetBinaryChecksum(),
+        std::string deployStageUrl = {})
     {
         return DescribePipeline({
             .FlowView = FlowView,
             .Logger = TLogger("test"),
             .StatusOnly = true,
             .ControllerFlowCoreVersion = std::move(controllerFlowCoreVersion),
+            .DeployStageUrl = std::move(deployStageUrl),
         });
     }
 
@@ -869,6 +872,30 @@ TEST_W(TDescribeTest, DescribeWorker)
     ASSERT_EQ(description.Partitions.size(), 9u);
     EXPECT_GE(description.Messages.size(), 1u);
     EXPECT_GE(description.CpuUsage, 1.0);
+}
+
+TEST_W(TDescribeTest, DescribeWorkerShowsDeployStageLink)
+{
+    Prepare();
+    auto workersDescription = DescribeWorkers(FlowView);
+    ASSERT_EQ(workersDescription.Workers.size(), 1u);
+    auto address = workersDescription.Workers[0].Address;
+
+    auto usefulLinks = [&] (const std::string& deployStageUrl) {
+        auto description = DescribeWorker(FlowView, address, deployStageUrl);
+        for (const auto& message : description.Messages) {
+            if (message.Text == "Useful links" && message.MarkdownText) {
+                return *message.MarkdownText;
+            }
+        }
+        ADD_FAILURE() << "Useful links message not found";
+        return std::string{};
+    };
+
+    EXPECT_THAT(usefulLinks(/*deployStageUrl*/ {}), Not(HasSubstr("Deploy stage pods")));
+
+    const std::string url = "https://deploy.example.com/stages/my-stage/status?tab=pods";
+    EXPECT_THAT(usefulLinks(url), HasSubstr("Deploy stage pods: [" + url + "](" + url + ")"));
 }
 
 TEST_W(TDescribeTest, MakeLinks)
@@ -1736,6 +1763,18 @@ TEST_W(TDescribeTest, DescribePipelineShowsFlowCoreTargetMismatchedWorkers)
         }
     }
     EXPECT_TRUE(foundError) << "Worker binary mismatch error message not found";
+}
+
+TEST_W(TDescribeTest, DescribePipelineShowsDeployStageLink)
+{
+    Prepare();
+
+    EXPECT_FALSE(MessagesContain(DescribeStatus().Messages, "Deploy stage:"));
+
+    const std::string url = "https://deploy.example.com/stages/my-stage/status?tab=pods";
+    auto description = DescribeStatus(/*controllerFlowCoreVersion*/ GetBinaryChecksum(), url);
+    EXPECT_TRUE(MessagesContain(description.Messages, "Deploy stage: [" + url + "](" + url + ")"))
+        << "Messages:" << ConvertToYsonString(description.Messages).ToString();
 }
 
 TEST_W(TDescribeTest, DescribeWorkerShowsFlowCoreVersion)
