@@ -1070,11 +1070,23 @@ private:
             const auto& partitions = tabletSnapshot->PartitionList;
             YT_VERIFY(!partitions.empty());
 
+            auto singletonsConfig = TSingletonManager::GetDynamicConfig();
+            auto queryEngineConfig = singletonsConfig
+                ? singletonsConfig->GetSingletonConfig<TQueryEngineDynamicConfig>()
+                : nullptr;
+            int maxSubsplitsPerTablet = queryEngineConfig && queryEngineConfig->MaxSubsplitsPerTablet
+                ? *queryEngineConfig->MaxSubsplitsPerTablet
+                : Config_->MaxSubsplitsPerTablet;
+
+            YT_LOG_DEBUG("Splitting tablet (TabletId: %v, MaxSubsplitsPerTablet: %v)",
+                tabletId,
+                maxSubsplitsPerTablet);
+
             auto tabletSplits = SplitTablet(
                 TRange(partitions),
                 ranges,
                 RowBuffer_,
-                Config_->MaxSubsplitsPerTablet,
+                maxSubsplitsPerTablet,
                 QueryOptions_.VerboseLogging,
                 Logger);
 
