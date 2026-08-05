@@ -1,4 +1,4 @@
-from yt_dynamic_tables_base import DynamicTablesBase
+from yt_dynamic_tables_base import DynamicTablesBase, SmoothMovementHelper
 
 from yt_env_setup import parametrize_external
 
@@ -230,6 +230,18 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/custom_runtime_data", default=None) == runtime_data)
+
+    def _get_innermost_error(self, err):
+        def get_inner_errors(error):
+            if isinstance(error, YtError):
+                return error.inner_errors
+            return error.get("inner_errors", [])
+
+        inner_errors = get_inner_errors(err)
+        while inner_errors:
+            err = inner_errors[0]
+            inner_errors = get_inner_errors(err)
+        return err
 
 
 ##################################################################
@@ -2228,14 +2240,15 @@ class TestWriteRetries(TestSortedDynamicTablesBase):
     ENABLE_RPC_PROXY = True
 
     NUM_NODES = 4
+    NUM_RPC_PROXIES = 1
 
     DELTA_RPC_PROXY_CONFIG = {
         "cluster_connection": {
             "table_mount_cache": {
-                "expire_after_successful_update_time": 5000,
-                "refresh_time": 5000,
-                "expiration_period": 5000,
-                "expire_after_failed_update_time": 1000,
+                "expire_after_successful_update_time": 60000,
+                "refresh_time": 60000,
+                "expiration_period": 60000,
+                "expire_after_failed_update_time": 60000,
                 "expire_after_access_time": 300000,
             },
         }
@@ -2259,10 +2272,11 @@ class TestWriteRetries(TestSortedDynamicTablesBase):
                 },
             }, driver=driver)
 
-        connection_patch = {
+        connection_patch = dict(self.DELTA_RPC_PROXY_CONFIG["cluster_connection"])
+        connection_patch.update({
             "local_tablet_write_retry_count": retry_count,
             "use_uniform_prepare_signatures": True,
-        }
+        })
 
         for key, value in connection_patch.items():
             set(f"//sys/rpc_proxies/@config/cluster_connection/{key}", value)
@@ -2280,10 +2294,11 @@ class TestWriteRetries(TestSortedDynamicTablesBase):
             for key, value in connection_patch.items():
                 set(f"//sys/clusters/{cluster_names[1]}/{key}", value)
 
-    def _prepare_test(self, path, failure_probability, retry_count):
+    def _prepare_test(self, path, failure_probability, retry_count, cell_count=4):
         self._configure_retries(failure_probability, retry_count)
 
-        cell_ids = sync_create_cells(cell_count=4)
+        self.cell_count = cell_count
+        cell_ids = sync_create_cells(cell_count=cell_count)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "int64"},
@@ -2301,19 +2316,101 @@ class TestWriteRetries(TestSortedDynamicTablesBase):
         return None
 
     def _verify_rows(self, path, rows):
-        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(4)]) == rows
+        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(self.cell_count)]) == rows
+
+    def _is_non_retryable_error(self, error):
+        return error.contains_code(yt_error_codes.ParticipantFailedToPrepare) or \
+            error.contains_code(yt_error_codes.InvalidTransactionState) or \
+            not error.contains_text("Error sending transaction rows") or \
+            error.contains_text("Cannot write into tablet since it is a smooth movement source in stage")
+
+    @authors("alexelexa")
+    def test_move_to_itself(self):
+        path = "//tmp/stuck_table"
+        cell_count = self.NUM_NODES * 2
+        cell_ids, data_path = self._prepare_test(path, failure_probability=0., retry_count=0, cell_count=cell_count)
+        data_driver = self._get_data_driver()
+
+        insert_rows(path, [{"key": 1, "value": 1}])
+
+        tablet_id = get(f"{data_path}/@tablets/0/tablet_id", driver=data_driver)
+
+        node = get(f"#{cell_ids[0]}/@peers/0/address", driver=data_driver)
+        tablet_slots = get(f"//sys/tablet_nodes/{node}/@tablet_slots", driver=data_driver)
+        target_cell_ids = [
+            slot["cell_id"] for slot in tablet_slots
+            if slot.get("cell_id") != cell_ids[0]
+        ]
+
+        for cell_id in target_cell_ids:
+            h = SmoothMovementHelper(tablet_id, cell_id=cell_id, driver=data_driver)
+            h.start()
+            h.finish()
+
+        # Stale mount cache: write hits the old cell and fails, but the redirection hint refreshes the cache.
+        with raises_yt_error() as err:
+            insert_rows(path, [{"key": 1, "value": 2}])
+
+        innermost_error = self._get_innermost_error(err[0])
+        print_debug(innermost_error)
+        redirection_hint = innermost_error["attributes"].get("redirection_hint")
+        assert redirection_hint is not None
+        assert redirection_hint["smooth_movement_redirection_hint"]["cell_id"] == target_cell_ids[-1]
+
+        # Mount cache is up to date now: write reaches the current cell and succeeds.
+        insert_rows(path, [{"key": 1, "value": 2}])
+        self._verify_rows(path, [{"key": 1, "value": 2}])
 
     @authors("alexelexa")
     def test_first_batch_write_retries_after_tablet_moving(self):
-        path = "//tmp/tablet_move"
-        cell_ids, data_path = self._prepare_test(path, failure_probability=0., retry_count=3)
+        if len(self.get_cluster_names()) > 1:
+            pytest.skip()
 
-        insert_rows(path, [{"key": 1, "value": 1}], update=True)
+        path = "//tmp/tablet_moved"
+        cell_ids, _ = self._prepare_test(path, failure_probability=0., retry_count=0)
+
+        h = SmoothMovementHelper(get(f"{path}/@tablets/0/tablet_id"), cell_id=cell_ids[1])
+        h.start(stage="waiting_for_locks_before_switch")
+
+        with raises_yt_error("Cannot write into tablet since it is a smooth movement source in stage \"waiting_for_locks_before_switch\""):
+            insert_rows(path, [{"key": 1, "value": 1}])
+
+        h.remove_breakpoint()
+        wait(lambda: h.get_source_stage() in {"servant_switched", None})
+
+        insert_rows(path, [{"key": 1, "value": 1}])
+
+    @authors("alexelexa")
+    def test_first_batch_write_retries_during_tablet_moving(self):
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "smooth_movement_tracker": {
+                    "testing": {
+                        "delay_after_stage_at_source": {
+                            "target_allocated": 1000,
+                            "waiting_for_locks_before_activation": 1000,
+                            "target_activated": 100,
+                            "waiting_for_locks_before_switch": 1000,
+                            "servant_switch_requested": 2000,
+                            "servant_switched": 2000,
+                        },
+                        "delay_after_stage_at_target": {
+                            "servant_switch_requested": 2000,
+                        }
+                    }
+                }
+            }
+        })
+
+        path = "//tmp/tablet_moving"
+        cell_ids, data_path = self._prepare_test(path, failure_probability=0., retry_count=10)
+
+        insert_rows(path, [{"key": 1, "value": 1}])
 
         data_driver = self._get_data_driver()
         tx1 = start_transaction(type="tablet")
 
-        insert_rows(path, [{"key": 1, "value": 2}], update=True, tx=tx1)
+        insert_rows(path, [{"key": 1, "value": 2}], tx=tx1)
 
         action = create(
             "tablet_action",
@@ -2329,9 +2426,19 @@ class TestWriteRetries(TestSortedDynamicTablesBase):
         )
 
         assert action == ls("//sys/tablet_actions", driver=data_driver)[0]
-        wait(lambda: get(f"#{action}/@state", driver=data_driver) == "completed")
 
-        commit_transaction(tx1)
+        success = 0
+        for i in range(20):
+            try:
+                insert_rows(path, [{"key": 1, "value": 1}])
+                success += 1
+            except YtError as err:
+                if not self._is_non_retryable_error(err):
+                    raise
+            time.sleep(0.2)
+
+        assert success >= 10
+        wait(lambda: get(f"#{action}/@state", driver=data_driver) == "completed")
 
     @authors("alexelexa")
     def test_first_batch_write_retries(self):
@@ -2353,18 +2460,18 @@ class TestWriteRetries(TestSortedDynamicTablesBase):
         # Sending the first batch for some tablets may fail with "Test error before write call execution".
         # Retry mechanism causes mount cache to be refreshed and retries sending those batches.
 
-        rows = [{"key": 10 * i + 1, "value": 3} for i in range(4)]
+        rows = [{"key": 10 * i + 1, "value": 3} for i in range(self.cell_count)]
 
         # Retry inserting rows because the request may fail with ParticipantFailedToPrepare
         # if prepare is sent to an old node and connections to banned nodes are unavailable.
         for retry_index in range(5):
             try:
-                insert_rows(path, rows, update=True)
+                insert_rows(path, rows)
                 break
             except YtError as err:
-                if not err.is_rpc_unavailable() or not err.contains_code(yt_error_codes.ParticipantFailedToPrepare):
+                if not err.is_rpc_unavailable() and not self._is_non_retryable_error(err):
                     raise
-                if retry_index == 5:
+                if retry_index == 4:
                     raise
             time.sleep(2)
 

@@ -3925,12 +3925,13 @@ class TestErasureReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 class TestReplicatedWriteRetries(WriteRetriesBase, TestReplicatedDynamicTablesBase):
     NUM_REMOTE_CLUSTERS = 1
 
-    def _prepare_test(self, path, failure_probability, retry_count):
+    def _prepare_test(self, path, failure_probability, retry_count, cell_count=4):
         replica_path = f"{path}_replica"
 
         self._configure_retries(failure_probability, retry_count)
 
-        [primary_cells, replica_cells] = self._create_cells(cell_count=4)
+        self.cell_count = cell_count
+        [primary_cells, replica_cells] = self._create_cells(cell_count=cell_count)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "int64"},
@@ -3973,5 +3974,8 @@ class TestReplicatedWriteRetries(WriteRetriesBase, TestReplicatedDynamicTablesBa
 
     def _verify_rows(self, path, rows):
         replica_path = f"{path}_replica"
-        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(4)]) == rows
-        assert lookup_rows(replica_path, [{"key": 10 * i + 1} for i in range(4)], driver=self.replica_driver) == rows
+        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(self.cell_count)]) == rows
+        assert lookup_rows(
+            replica_path,
+            [{"key": 10 * i + 1} for i in range(self.cell_count)],
+            driver=self.replica_driver) == rows

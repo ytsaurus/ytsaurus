@@ -7107,11 +7107,13 @@ class TestChaosWriteRetries(WriteRetriesBase, ChaosTestBase):
         },
     }
 
-    def _prepare_test(self, path, failure_probability, retry_count):
+    def _prepare_test(self, path, failure_probability, retry_count, cell_count=4):
         self._configure_retries(failure_probability, retry_count)
 
         replica_path = f"{path}_replica"
+        queue_path = f"{path}_queue"
 
+        self.cell_count = cell_count
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
@@ -7124,17 +7126,17 @@ class TestChaosWriteRetries(WriteRetriesBase, ChaosTestBase):
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": replica_path},
-            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": queue_path},
             {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": replica_path},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": queue_path}
         ]
         replica_ids = self._create_chaos_table_replicas(replicas, table_path=path)
-        self._create_replica_tables(replicas, replica_ids, schema=schema, mount_tables=False)
+        self._create_replica_tables(replicas, replica_ids, create_tablet_cells=False, schema=schema, mount_tables=False)
 
-        pivot_keys = [[]] + [[i * 10] for i in range(1, 4)]
+        pivot_keys = [[]] + [[i * 10] for i in range(1, self.cell_count)]
         for driver in self._get_drivers():
             tablet_cell_ids = sync_create_cells(len(pivot_keys), driver=driver)
-            for table in [replica_path, "//tmp/q"]:
+            for table in [replica_path, queue_path]:
                 reshard_table(table, pivot_keys, driver=driver)
                 sync_mount_table(table, target_cell_ids=tablet_cell_ids, driver=driver)
 
@@ -7149,6 +7151,10 @@ class TestChaosWriteRetries(WriteRetriesBase, ChaosTestBase):
 
     def _verify_rows(self, path, rows):
         replica_path = f"{path}_replica"
-        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(4)]) == rows
-        assert lookup_rows(replica_path, [{"key": 10 * i + 1} for i in range(4)], replica_consistency="sync") == rows
-        assert lookup_rows(replica_path, [{"key": 10 * i + 1} for i in range(4)], replica_consistency="sync", driver=self._get_data_driver()) == rows
+        assert lookup_rows(path, [{"key": 10 * i + 1} for i in range(self.cell_count)]) == rows
+        assert lookup_rows(replica_path, [{"key": 10 * i + 1} for i in range(self.cell_count)], replica_consistency="sync") == rows
+        assert lookup_rows(
+            replica_path,
+            [{"key": 10 * i + 1} for i in range(self.cell_count)],
+            replica_consistency="sync",
+            driver=self._get_data_driver()) == rows

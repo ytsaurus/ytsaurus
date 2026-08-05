@@ -74,6 +74,7 @@ ChaosCellIsNotEnabled = 3209
 SpecVersionMismatch = 3300
 NoOnlineNodeToScheduleJob = 4410
 ControllerMemoryLimitExceeded = 4416
+InvalidTransactionState = 11003
 ParticipantFailedToPrepare = 11004
 ChaosCoordinatorsAreNotAvailable = 11016
 ContainerDoesNotExist = 12004

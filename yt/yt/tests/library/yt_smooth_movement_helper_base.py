@@ -1,5 +1,6 @@
 import random
 import abc
+import builtins
 import contextlib
 
 from yt.common import YtError
@@ -41,6 +42,10 @@ class CommandProvider(abc.ABC):
         "remount_table": "remount_table",
     }
 
+    # Commands that do not accept a `driver` keyword argument.
+    # Each layer extends this set with its own commands.
+    _driverless_commands = builtins.set()
+
     def __new__(cls, *args, **kwargs):
         if not cls._initialized:
             cls._initialized = True
@@ -51,12 +56,27 @@ class CommandProvider(abc.ABC):
 
     @classmethod
     def _init_commands(cls):
+        driverless_commands = CommandProvider._driverless_commands | cls._driverless_commands
         for lhs, rhs in (CommandProvider._command_mapping | cls._command_mapping).items():
-            setattr(cls, lhs, cls._make_command(rhs))
+            command = cls._make_command(rhs)
+            if lhs not in driverless_commands:
+                command = cls._inject_driver(command)
+            setattr(cls, lhs, command)
+
+    @staticmethod
+    def _inject_driver(command):
+        def wrapper(self, *args, **kwargs):
+            driver = getattr(self, "driver", None)
+            if driver is not None and "driver" not in kwargs:
+                kwargs["driver"] = driver
+            return command(self, *args, **kwargs)
+
+        return wrapper
 
 
 class SmoothMovementHelperBase(CommandProvider):
-    def __init__(self, tablet_or_table, cell_id=None):
+    def __init__(self, tablet_or_table, cell_id=None, driver=None):
+        self.driver = driver
         self.stop_at_stage = None
         if tablet_or_table.startswith("//"):
             self.tablet_id = self.get(f"{tablet_or_table}/@tablets/0/tablet_id")
