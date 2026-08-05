@@ -421,6 +421,56 @@ struct TTabletReadItems
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJoinExecutePlanCallbackBuilder
+{
+public:
+    TJoinExecutePlanCallbackBuilder(
+        IExecutorPtr remoteExecutor,
+        TConstExternalCGInfoPtr externalCGInfo,
+        IInvokerPtr invoker,
+        TFeatureFlags requestFeatureFlags,
+        TQueryOptions baseOptions)
+        : RemoteExecutor_(std::move(remoteExecutor))
+        , ExternalCGInfo_(std::move(externalCGInfo))
+        , Invoker_(std::move(invoker))
+        , RequestFeatureFlags_(std::move(requestFeatureFlags))
+        , BaseOptions_(std::move(baseOptions))
+    { }
+
+    TExecutePlan Build(const TJoinSubqueryOptionsPatch& patch) const
+    {
+        auto joinSubqueryOptions = GetJoinSubqueryOptions(BaseOptions_);
+        joinSubqueryOptions = ApplyPatch(joinSubqueryOptions, patch);
+        return [
+            joinSubqueryOptions,
+            remoteExecutor = RemoteExecutor_,
+            externalCGInfo = ExternalCGInfo_,
+            invoker = Invoker_,
+            requestFeatureFlags = RequestFeatureFlags_
+        ] (TPlanFragment fragment, IUnversionedRowsetWriterPtr writer) {
+            return BIND(
+                &IExecutor::Execute,
+                remoteExecutor,
+                fragment,
+                externalCGInfo,
+                writer,
+                joinSubqueryOptions,
+                requestFeatureFlags)
+                .AsyncVia(invoker)
+                .Run();
+        };
+    }
+
+private:
+    IExecutorPtr RemoteExecutor_;
+    TConstExternalCGInfoPtr ExternalCGInfo_;
+    IInvokerPtr Invoker_;
+    TFeatureFlags RequestFeatureFlags_;
+    TQueryOptions BaseOptions_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryExecution
     : public TRefCounted
 {
@@ -696,8 +746,12 @@ private:
             return GetPrefixReadItems(groupedDataSplits[subqueryIndex], joinClause.CommonKeyPrefix);
         };
 
-        auto executePlanWithUserProvidedTimestamp = GetExecutePlanCallback(QueryOptions_);
-        auto executePlanWithAsyncLastCommittedTimestamp = GetExecutePlanCallbackWithAsyncLastCommittedTimestamp();
+        auto joinExecutePlanBuilder = TJoinExecutePlanCallbackBuilder(
+            CreateRemoteQueryExecutor(),
+            ExternalCGInfo_,
+            Invoker_,
+            RequestFeatureFlags_,
+            QueryOptions_);
 
         return CoordinateAndExecute(
             Query_->GetScanOrder(QueryOptions_.AllowUnorderedGroupByWithLimit),
@@ -713,8 +767,7 @@ private:
                 aggregateGenerators,
                 getPrefetchJoinDataSource = std::move(getPrefetchJoinDataSource),
                 bottomQueryPattern = std::move(bottomQueryPattern),
-                executePlanWithUserProvidedTimestamp,
-                executePlanWithAsyncLastCommittedTimestamp,
+                joinExecutePlanBuilder,
                 splitCount,
                 subqueryIndex = 0
             ] () mutable -> TEvaluateResult {
@@ -741,10 +794,12 @@ private:
                 TJoinProfilerRegistry joinProfilerRegistry;
                 for (int joinIndex = 0; joinIndex < std::ssize(Query_->JoinClauses); ++joinIndex) {
                     const auto& joinClause = Query_->JoinClauses[joinIndex];
-                    auto executePlanCallback = executePlanWithUserProvidedTimestamp;
-                    if (joinClause->RequireSyncReplica == false) {
-                        executePlanCallback = executePlanWithAsyncLastCommittedTimestamp;
-                    }
+                    auto executePlanCallback = joinExecutePlanBuilder.Build({
+                        .Timestamp = joinClause->RequireSyncReplica
+                            ? std::nullopt
+                            : std::make_optional(NTransactionClient::AsyncLastCommittedTimestamp),
+                        .MaxSubqueries = 1,
+                    });
 
                     if (joinClause->PrefetchedBlockRange) {
                         auto [firstBlock, lastBlock] = *joinClause->PrefetchedBlockRange;
@@ -995,12 +1050,12 @@ private:
         return dataSource;
     }
 
-    TExecutePlan GetExecutePlanCallback(const TQueryOptions& queryOptions)
+    IExecutorPtr CreateRemoteQueryExecutor()
     {
         auto clientOptions = NApi::NNative::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_->GetClientCache()->Get(Identity_, clientOptions);
 
-        auto remoteExecutor = CreateQueryExecutor(
+        return CreateQueryExecutor(
             MemoryChunkProvider_,
             Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::Query),
             client->GetNativeConnection(),
@@ -1009,31 +1064,6 @@ private:
             client->GetChannelFactory(),
             FunctionImplCache_,
             /*retryOnMetadataCacheInconsistency*/ true);
-
-        return [
-            options = GetJoinSubqueryOptions(queryOptions),
-            this,
-            this_ = MakeStrong(this),
-            remoteExecutor
-        ] (TPlanFragment fragment, IUnversionedRowsetWriterPtr writer) {
-            return BIND(
-                &IExecutor::Execute,
-                remoteExecutor,
-                fragment,
-                ExternalCGInfo_,
-                writer,
-                options,
-                RequestFeatureFlags_)
-                .AsyncVia(Invoker_)
-                .Run();
-        };
-    }
-
-    TExecutePlan GetExecutePlanCallbackWithAsyncLastCommittedTimestamp()
-    {
-        auto patchedOptions = QueryOptions_;
-        patchedOptions.TimestampRange.Timestamp = NTransactionClient::AsyncLastCommittedTimestamp;
-        return GetExecutePlanCallback(patchedOptions);
     }
 
     TSharedRange<std::vector<TTabletReadItems>> CoordinateDataSourcesOld(
