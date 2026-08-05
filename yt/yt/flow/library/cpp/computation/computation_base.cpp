@@ -1950,6 +1950,7 @@ ISinkPtr TUniversalComputationBase::GetOrCreateSink(const TSinkId& sinkId, const
     context->Profiler = context->Profiler.WithPrefix("/sink").WithTag("sink_id", sinkId.Underlying());
     context->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/sinks/%v", sinkId));
     context->Logger = context->Logger.WithTag("SinkId", sinkId);
+    context->SinkId = sinkId;
     context->SinkSpec = GetOrCrash(GetSpec()->Sinks, sinkId);
     auto dynamicSinkContext = New<TDynamicSinkContext>();
     dynamicSinkContext->DynamicSinkSpec = GetOrDefault(dynamicSpec->Sinks, sinkId, New<TDynamicSinkSpec>());
