@@ -9,20 +9,26 @@ namespace NYT::NFlow::NWorker {
 IInputBufferPtr CreateInputBuffer(
     TJobId jobId,
     NFlow::TStreamLimitUsageStateMap streamLimitUsageStates,
+    NFlow::TEpochCycleTrackerPtr epochCycleTracker,
+    THashMap<TStreamId, NFlow::TOfferedRateEstimatorPtr> offeredRateEstimators,
     TComputationSpecPtr computationSpec,
     TComputationId computationId,
     TDynamicComputationSpecPtr dynamicSpec,
     IInvokerPtr finalizerPoolInvoker,
-    NProfiling::TProfiler profiler)
+    NProfiling::TProfiler profiler,
+    std::function<TInstant()> timeProvider)
 {
     return New<TInputBuffer>(
         jobId,
         std::move(streamLimitUsageStates),
+        std::move(epochCycleTracker),
+        std::move(offeredRateEstimators),
         std::move(computationSpec),
         std::move(computationId),
         std::move(dynamicSpec),
         std::move(finalizerPoolInvoker),
-        std::move(profiler));
+        std::move(profiler),
+        std::move(timeProvider));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

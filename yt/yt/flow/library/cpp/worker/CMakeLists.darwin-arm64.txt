@@ -42,6 +42,7 @@ target_link_libraries(library-cpp-worker PUBLIC
   yt-yt-core
   yt-yt-client
   library-cpp-client
+  library-cpp-buffers
   library-cpp-common
   cpp-common-worker
   library-cpp-computation

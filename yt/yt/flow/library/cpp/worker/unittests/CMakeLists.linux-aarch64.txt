@@ -58,12 +58,12 @@ target_link_options(yt-flow-library-cpp-worker-unittests PRIVATE
 )
 
 target_sources(yt-flow-library-cpp-worker-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/unittests/buffer_state_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/unittests/file_storage_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/unittests/input_buffer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/unittests/job_tracker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/unittests/message_distributor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/unittests/traced_invoker_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/unittests/buffer_state_manager_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/worker/unittests/file_storage_ut.cpp
 )
 
 

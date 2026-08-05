@@ -2,6 +2,8 @@
 
 #include "input_buffer.h"
 
+#include <yt/yt/flow/library/cpp/buffers/offered_rate_estimator.h>
+
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/message_batcher.h>
@@ -92,6 +94,7 @@ public:
         TStreamUsage Usage;
 
         NFlow::TStreamLimitUsageStatePtr LimitUsageState;
+        NFlow::TOfferedRateEstimatorPtr OfferedRateEstimator = New<NFlow::TOfferedRateEstimator>();
     };
 
 public:
@@ -99,11 +102,14 @@ public:
     TInputBuffer(
         TJobId jobId,
         NFlow::TStreamLimitUsageStateMap streamLimitUsageStates,
+        NFlow::TEpochCycleTrackerPtr epochCycleTracker,
+        THashMap<TStreamId, NFlow::TOfferedRateEstimatorPtr> offeredRateEstimators,
         TComputationSpecPtr computationSpec,
         TComputationId computationId,
         TDynamicComputationSpecPtr dynamicSpec,
         IInvokerPtr finalizerPoolInvoker,
-        NProfiling::TProfiler profiler);
+        NProfiling::TProfiler profiler,
+        std::function<TInstant()> timeProvider);
 
     ~TInputBuffer() noexcept override;
 
@@ -164,6 +170,15 @@ private:
     i64 FulfillCheckpointCounter_ = 0;
     // Instant until which the next fetch must be delayed after a non-full batch.
     std::atomic<TInstant> NotFullBatchDeadline_ = TInstant::Zero();
+
+    const NFlow::TEpochCycleTrackerPtr EpochCycleTracker_;
+    //! Injected clock for the drain-cycle sampling below (tests drive it with
+    //! mock time); the batch-delay scheduling stays on the wall clock, which
+    //! TDelayedExecutor requires.
+    const std::function<TInstant()> TimeProvider_;
+    // Drain-cycle sampling: a cycle spans consecutive non-empty batch extractions,
+    // idle waits included (see the rationale in ExtractBatch).
+    std::optional<TInstant> PrevBatchInstant_;
 
     TMessageTransferingInfoPtr MessageTransferingInfo_;
 

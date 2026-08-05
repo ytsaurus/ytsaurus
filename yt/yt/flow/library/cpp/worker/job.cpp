@@ -8,6 +8,7 @@
 #include "private.h"
 #include <yt/yt/flow/library/cpp/computation/stores/output_store.h>
 
+#include <yt/yt/flow/library/cpp/buffers/epoch_cycle_tracker.h>
 #include <yt/yt/flow/library/cpp/common/computation.h>
 #include <yt/yt/flow/library/cpp/common/distributing_tracker.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
@@ -144,6 +145,8 @@ public:
             CreateInputBuffer(
                 JobSpec_->Job->JobId,
                 StreamLimitUsageStates_.Input,
+                StreamLimitUsageStates_.InputEpochCycleTracker,
+                StreamLimitUsageStates_.InputOfferedRateEstimators,
                 JobSpec_->ComputationSpec,
                 JobSpec_->Partition->ComputationId,
                 DynamicJobSpec_->DynamicComputationSpec,
@@ -657,7 +660,6 @@ private:
             WatermarkState_,
             TraverseData_,
             JobContext_,
-            StreamLimitUsageStates_.Output,
             JobSerializedInvoker_,
             JobContext_->PoolInvoker,
             Logger,
@@ -769,7 +771,6 @@ private:
         const TWatermarkStatePtr& watermarkState,
         const TToPartitionTraverseDataPtr& partitionData,
         const TJobContextPtr& jobContext,
-        const NFlow::TStreamLimitUsageStateMap& outputStreamLimitUsageStates,
         const IInvokerPtr& jobSerializedInvoker,
         const IInvokerPtr& jobPoolInvoker,
         const NLogging::TLogger& logger,
@@ -791,7 +792,7 @@ private:
         computationContext->EvaluatorCache = jobContext->EvaluatorCache;
         computationContext->ConverterCache = jobContext->ConverterCache;
         computationContext->LoadThroughputThrottler = jobContext->LoadThroughputThrottler;
-        computationContext->OutputStreamLimitUsageStates = outputStreamLimitUsageStates;
+        computationContext->PartitionBufferState = jobContext->PartitionBufferState;
         computationContext->StreamSpecStorage = jobContext->StreamSpecStorage;
         computationContext->JobStateCache = jobContext->JobStateCache;
         computationContext->ExternalMetricsReporter = jobContext->ExternalMetricsReporter;

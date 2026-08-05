@@ -19,7 +19,7 @@
 Максимальный размер буффера для одной джобы. ||
 || `max_duration` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `1m`
-Считать, что не нужно держать буффер больше, чем необходимо для max_duration времени работы джобы (скорость оценивается эвристически). ||
+Считать, что не нужно держать буффер больше, чем необходимо для max_duration времени работы джобы (скорость оценивается эвристически). При `enable_v2` также ограничивает сверху измеренную длительность эпохи джобы. ||
 || `job_overrides` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>, THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, `[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>>`
 **Значение по умолчанию**: `{}`
 Возможность переопределить вручную размер буффера для компьютейшен-стрима. ||

@@ -21,6 +21,12 @@ struct TDynamicRandomSourceParameters
     int MessageCountMean{};
     int MessageKeyRange{};
 
+    //! Test knobs: the raw rate returned by #EstimateBacklogRate, letting tests
+    //! and benchmarks feed an exact producer-rate estimate into the buffer
+    //! manager.
+    std::optional<double> ReportedBacklogBytesPerSecond;
+    std::optional<double> ReportedBacklogMessagesPerSecond;
+
     REGISTER_YSON_STRUCT(TDynamicRandomSourceParameters);
 
     static void Register(TRegistrar registrar);

@@ -5,6 +5,8 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 SRCS(
     column_evaluator_cache.cpp
     authenticator.cpp
+    buffer_warmup.cpp
+    partition_buffer_state.cpp
     checksum.cpp
     computation_controller.cpp
     computation.cpp

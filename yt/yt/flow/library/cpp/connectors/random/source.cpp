@@ -45,6 +45,18 @@ void TRandomSource::DoReportPersistedOffset(TOffset offsetExclusive)
         });
 }
 
+std::optional<TBacklogRate> TRandomSource::EstimateBacklogRate()
+{
+    const auto& parameters = *GetDynamicParameters();
+    if (!parameters.ReportedBacklogBytesPerSecond) {
+        return std::nullopt;
+    }
+    return TBacklogRate{
+        .BytesPerSecond = *parameters.ReportedBacklogBytesPerSecond,
+        .MessagesPerSecond = parameters.ReportedBacklogMessagesPerSecond.value_or(0.0),
+    };
+}
+
 TFuture<std::vector<TRandomSource::TRecord>> TRandomSource::DoReadNextBatch(const TMessageBatcherSettingsPtr& settings, TOffset nextOffsetAsKey, std::optional<TOffset> offsetLimitAsKey)
 {
     const auto& params = *GetDynamicParameters();

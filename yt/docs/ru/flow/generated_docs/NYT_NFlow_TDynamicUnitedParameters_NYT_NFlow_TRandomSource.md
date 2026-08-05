@@ -19,6 +19,10 @@
 || `message_key_range` | **Тип**: `int`
 **Значение по умолчанию**: `1024`
  ||
+|| `reported_backlog_bytes_per_second` | **Тип**: `std::optional<double>`
+ ||
+|| `reported_backlog_messages_per_second` | **Тип**: `std::optional<double>`
+ ||
 |#
 
 

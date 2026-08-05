@@ -1050,6 +1050,11 @@ struct TDynamicBufferStateManagerSpec
         THashMap<TWorkerGroupId, NYTree::TSize> WorkerGroupFairSharePoolOverrides;
         NYTree::TSize JobGuarantee;
         NYTree::TSize JobLimit;
+        //! Cap on how much buffered time a limit may represent. In the v1 formula
+        //! the limit is capped by demand × max_duration directly; in the v2
+        //! strategy it is the drain cap (demand × max_duration, raised by the
+        //! announced backlog for cold starts) and also bounds the measured
+        //! epoch-cycle estimate against mis-measured cycles.
         TDuration MaxDuration;
         THashMap<TComputationId, THashMap<TStreamId, NYTree::TSize>> JobOverrides;
 
@@ -1063,8 +1068,36 @@ struct TDynamicBufferStateManagerSpec
     TDuration ManagePeriod;
     TDuration DemandWindow;
 
+    //! Sample window of the per-job epoch-cycle median.
+    int EpochCycleWindowSamples{};
+    //! Bucket count of the windowed-max drain-rate estimator; changing it
+    //! restarts the estimate.
+    int MaxRateEstimatorBuckets{};
+    //! How often a job polls its converged warmup for persisting.
+    TDuration WarmupRefreshPeriod;
+
     TOneSideBufferSpecPtr InputBuffer;
     TOneSideBufferSpecPtr OutputBuffer;
+
+    //! V2 strategy: target floor = gain_epochs × demand × epoch cycle (the
+    //! bandwidth-delay product, BDP), issued gradually (used + headroom, growth
+    //! gated on utilization), capped by demand × max_duration, Σissued ≤ pool.
+    bool EnableV2{};
+    //! Target buffered time as a count of epochs (the BDP floor is this many
+    //! epochs of demand): headroom for speed and latency spikes.
+    double V2GainEpochs{};
+    //! Include the announced-backlog offered rate in the demand estimate. Can be
+    //! disabled if a producer's announced backlog over-reports the sustainable rate.
+    bool V2UseOfferedRate{};
+    //! Minimal grant for a stream with pending backlog; must fit the largest message.
+    NYTree::TSize V2Floor;
+    //! Headroom multiplies by this factor per manage tick while utilization is high.
+    double V2HeadroomGrowthFactor{};
+    //! Utilization above this grows headroom; below half of it, headroom decays.
+    double V2HighUtilizationThreshold{};
+    //! Do not publish a new limit if it differs from the current one by less
+    //! than this fraction (anti-oscillation); shrinks always publish.
+    double V2PublishThreshold{};
 
     REGISTER_YSON_STRUCT(TDynamicBufferStateManagerSpec);
 

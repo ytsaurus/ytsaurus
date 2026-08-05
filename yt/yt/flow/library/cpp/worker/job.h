@@ -28,6 +28,8 @@ namespace NYT::NFlow::NWorker {
 struct TJobContext
     : public TRefCounted
 {
+    IPartitionBufferStatePtr PartitionBufferState;
+
     std::string WorkerAddress;
     NClient::NCache::IClientsCachePtr ClientsCache;
     NYPath::TRichYPath PipelinePath;

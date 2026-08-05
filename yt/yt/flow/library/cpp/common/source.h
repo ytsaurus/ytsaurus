@@ -59,6 +59,13 @@ YT_DEFINE_STRONG_TYPEDEF(TSourceMessageBatchCookie, std::any);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Producer rate of a source's backlog, in raw (non-inflated) units.
+struct TBacklogRate
+{
+    double BytesPerSecond = 0;
+    double MessagesPerSecond = 0;
+};
+
 struct ISource
     : public TRefCounted
     , public virtual TReconfigurable<TDynamicSourceContext>
@@ -135,6 +142,18 @@ public:
 
     virtual std::optional<TSystemTimestamp> GetPersistedEventWatermark() = 0;
     virtual std::optional<TSystemTimestamp> GetReadEventWatermark() = 0;
+
+    //! Producer rate estimated from the source's own backlog, in RAW bytes and
+    //! messages per second: everything between the first unprocessed message's
+    //! write time and now was written in that span, so the lag over the span is
+    //! the upstream rate. The buffer manager converts it to its own inflated
+    //! units, so connectors report what they measure and know nothing about the
+    //! per-message technical cost. Instant and independent of any processing
+    //! limit; nullopt when the connector cannot tell.
+    virtual std::optional<TBacklogRate> EstimateBacklogRate()
+    {
+        return std::nullopt;
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(ISource);

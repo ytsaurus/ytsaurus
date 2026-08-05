@@ -4,6 +4,7 @@
 #include <yt/yt/flow/library/cpp/process_function/testing/test_state_environment.h>
 
 #include <yt/yt/flow/library/cpp/common/computation.h>
+#include <yt/yt/flow/library/cpp/common/partition_buffer_state.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
@@ -140,6 +141,7 @@ TComputationContextPtr MakeAdapterTestComputationContext(
     context->DistributedThrottlerControllerChannelProvider = [] {
         return NRpc::IChannelPtr();
     };
+    context->PartitionBufferState = CreateDetachedPartitionBufferState({});
     return context;
 }
 

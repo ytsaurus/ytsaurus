@@ -16,6 +16,10 @@ void TDynamicRandomSourceParameters::Register(TRegistrar registrar)
         .Default(1000000);
     registrar.Parameter("message_key_range", &TThis::MessageKeyRange)
         .Default(1024);
+    registrar.Parameter("reported_backlog_bytes_per_second", &TThis::ReportedBacklogBytesPerSecond)
+        .Default();
+    registrar.Parameter("reported_backlog_messages_per_second", &TThis::ReportedBacklogMessagesPerSecond)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
