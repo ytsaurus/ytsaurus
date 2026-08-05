@@ -187,17 +187,17 @@ public:
 
         return Location->IsV2
             ? TMemoryStatistics{
-                    .ResidentAnon = statistics["anon"],
-                    .TmpfsUsage = statistics["shmem"],
-                    .MappedFile = statistics["file_mapped"],
-                    .MajorPageFaults = statistics["pgmajfault"],
-                    .Cache = statistics["file"],
-                    .RssHuge = statistics["anon_thp"],
-                    .Dirty = statistics["file_dirty"],
-                    .Writeback = statistics["file_writeback"],
+                .AnonWithSwapCached = statistics["anon"] + statistics["swapcached"],
+                .TmpfsUsage = statistics["shmem"],
+                .MappedFile = statistics["file_mapped"],
+                .MajorPageFaults = statistics["pgmajfault"],
+                .Cache = statistics["file"],
+                .RssHuge = statistics["anon_thp"],
+                .Dirty = statistics["file_dirty"],
+                .Writeback = statistics["file_writeback"],
             }
             : TMemoryStatistics{
-                .ResidentAnon = statistics["total_rss"],
+                .AnonWithSwapCached = statistics["total_rss"],
                 .TmpfsUsage = statistics["total_shmem"],
                 .MappedFile = statistics["total_mapped_file"],
                 .MajorPageFaults = statistics["total_pgmajfault"],

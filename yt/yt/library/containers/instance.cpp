@@ -178,6 +178,7 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::ThreadCount, {"thread_count", LongExtractor}},
     {EStatField::CpuLimit, {"cpu_limit_bound", CoreNsPerSecondExtractor}},
     {EStatField::CpuGuarantee, {"cpu_guarantee_bound", CoreNsPerSecondExtractor}},
+    // NB(pavook): V2 "anon" excludes swapcached, unlike V1 "total_rss", but it is close enough and arguably more correct for ResidentAnon.
     {EStatField::ResidentAnon, {"memory.stat", GetStatByCGroupVersionedKeyExtractor(ECGroupController::Memory, "total_rss", "anon")}},
     {EStatField::TmpfsUsage, {"memory.stat", GetStatByCGroupVersionedKeyExtractor(ECGroupController::Memory, "total_shmem", "shmem")}},
     {EStatField::MappedFile, {"memory.stat", GetStatByCGroupVersionedKeyExtractor(ECGroupController::Memory, "total_mapped_file", "file_mapped")}},
