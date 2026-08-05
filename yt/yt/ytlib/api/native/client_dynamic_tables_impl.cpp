@@ -55,6 +55,7 @@
 #include <yt/yt/ytlib/queue_client/records/queue_producer_session.record.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/query_pool_permission_cache.h>
 
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
@@ -1656,14 +1657,6 @@ TDuration TClient::CheckPermissionsForQuery(
 
     grabTablesFromQueryForPermissionCheck(fragment);
 
-    if (options.ExecutionPool) {
-        permissionKeys.push_back(NSecurityClient::TPermissionKey{
-            .Path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
-            .User = Options_.GetAuthenticatedUser(),
-            .Permission = EPermission::Use,
-        });
-    }
-
     timer.Restart();
     const auto& permissionCache = Connection_->GetPermissionCache();
     auto permissionCheckErrors = WaitFor(permissionCache->GetMany(permissionKeys))
@@ -1673,6 +1666,19 @@ TDuration TClient::CheckPermissionsForQuery(
             continue;
         }
         error.ThrowOnError();
+    }
+
+    if (options.ExecutionPool) {
+        auto key = NSecurityClient::TPermissionKey{
+            .Path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
+            .User = Options_.GetAuthenticatedUser(),
+            .Permission = EPermission::Use,
+        };
+
+        auto permissionOrError = WaitFor(Connection_->GetQueryPoolPermissionCache()->Get(key));
+        if (!permissionOrError.IsOK() && !permissionOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            permissionOrError.ThrowOnError();
+        }
     }
 
     return timer.GetElapsedTime();

@@ -263,6 +263,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const NSecurityClient::TQueryPoolPermissionCachePtr& GetQueryPoolPermissionCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NSecurityClient::TUserAttributeCachePtr& GetUserAttributeCache() override
     {
         YT_UNIMPLEMENTED();
