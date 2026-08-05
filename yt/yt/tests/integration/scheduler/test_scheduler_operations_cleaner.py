@@ -4,16 +4,16 @@ from yt_commands import (
     authors, wait, wait_no_assert, events_on_fs,
     create, create_table, get, set, remove, exists, start_transaction, lock, unlock,
     lookup_rows, write_table,
-    map, list_operations, get_operation_cypress_path, sync_create_cells, clean_operations, run_test_vanilla,
-    update_scheduler_config, print_debug)
+    map, list_operations, get_operation, get_operation_cypress_path, sync_create_cells, clean_operations, run_test_vanilla,
+    sync_mount_table, sync_unmount_table,
+    with_breakpoint, wait_breakpoint, release_breakpoint,
+    update_scheduler_config, update_controller_agent_config, print_debug)
 
 import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.common import uuid_to_parts, YT_DATETIME_FORMAT_STRING, YtError
 
 from yt_helpers import profiler_factory
-
-from flaky import flaky
 
 from datetime import datetime, timedelta
 import builtins
@@ -102,6 +102,15 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         },
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            # Drop finished operations from the CA orchid immediately.
+            "zombie_operation_orchids": {
+                "enable": False,
+            },
+        },
+    }
+
     def setup_method(self, method):
         super(TestSchedulerOperationsCleaner, self).setup_method(method)
         sync_create_cells(1)
@@ -154,8 +163,89 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert row["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
             assert row["full_spec"] != {}
 
-    @authors("asaitgalin", "eshcherbin")
+    @authors("bystrovserg")
+    def test_progress_archived_through_scheduler(self):
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+        sync_unmount_table("//sys/operations_archive/ordered_by_id")
+
+        op = run_test_vanilla("true", track=True)
+
+        orchid_path = op.get_orchid_path()
+        wait(lambda: not exists(orchid_path))
+
+        sync_mount_table("//sys/operations_archive/ordered_by_id")
+
+        @wait_no_assert
+        def check_progress():
+            row = self._lookup_ordered_by_id_row(op.id)
+            assert row["progress"]["jobs"]["completed"]["total"] == 1
+
+    @authors("bystrovserg")
+    def test_no_cypress_fallback_when_archive_exists(self):
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+        update_scheduler_config("operations_cleaner/enable", False)
+        update_controller_agent_config("operations_update_period", 100)
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), track=False)
+        wait_breakpoint()
+
+        # While the operation runs, brief_progress and progress are served from the controller orchid
+        # (include_runtime): they reflect the running jobs even though the archive (not Cypress) is the sink.
+        wait(lambda: get_operation(op.id, attributes=["brief_progress"], include_runtime=True)
+             .get("brief_progress", {}).get("jobs", {}).get("running") == 1)
+        wait(lambda: get_operation(op.id, attributes=["progress"], include_runtime=True)
+             .get("progress", {}).get("jobs", {}).get("running") == 1)
+        # But progress is not written to Cypress: the archive exists, so there is no Cypress fallback.
+        assert not exists(get_operation_cypress_path(op.id) + "/@progress")
+
+        release_breakpoint()
+        op.track()
+
+        # controller_features are computed at commit and archived; they are retrievable via get_operation
+        # (from the archive) but must not be written to Cypress either.
+        wait(lambda: "controller_features" in get_operation(op.id, attributes=["controller_features"]))
+        assert not exists(get_operation_cypress_path(op.id) + "/@controller_features")
+
+    @authors("bystrovserg")
+    def test_incomplete_archivation_sensor(self):
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+        # Unmount the archive so the controller agent cannot write progress into it.
+        sync_unmount_table("//sys/operations_archive/ordered_by_id")
+
+        # Disabled operations cleaner does not remove operations from Cypress.
+        update_scheduler_config("operations_cleaner/enable", False)
+
+        op = run_test_vanilla("true", track=True)
+        assert self._operation_exist(op.id)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        sync_mount_table("//sys/operations_archive/ordered_by_id")
+
+        incomplete_info_counter = profiler_factory().at_scheduler().counter(
+            "operations_cleaner/operations_archived_with_incomplete_info")
+
+        # Fetch operations from Cypress, progress is lost.
+        update_scheduler_config("operations_cleaner/enable", True)
+
+        wait(lambda: not self._operation_exist(op.id))
+        wait(lambda: incomplete_info_counter.get_delta() > 0)
+
+    @authors("bystrovserg")
     def test_operations_archive_is_not_initialized(self):
+        incomplete_info_counter = profiler_factory().at_scheduler().counter(
+            "operations_cleaner/operations_archived_with_incomplete_info")
+
         ops = _run_maps_parallel(7, "cat")
 
         wait(lambda: get(CLEANER_ORCHID + "/archive_pending") >= 4)
@@ -169,6 +259,10 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         @wait_no_assert
         def scheduler_alert_set():
             assert any("archivation" in alert["message"] for alert in get("//sys/scheduler/@alerts"))
+
+        # Operations dropped because the archive is not initialized are not counted as archived
+        # with incomplete info.
+        assert incomplete_info_counter.get_delta() == 0
 
     def _test_start_stop_impl(self, command, lookup_timeout=None, max_failed_job_count=1, operation_count=7, min_removed_operations=7):
         init_operations_archive.create_tables_latest_version(
@@ -246,33 +340,28 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert res["failed_jobs_count"] == len(ops)
             assert list(reversed(ops)) == [op["id"] for op in res["operations"]]
 
-    # NB(bystrovserg): Sometimes low timeout period can "fail" and we will fetch brief_progress
-    # from archive on a cleaner startup. As a result all operations will be stored in archive
-    # and list_operation will return all operations and test faild.
-    @authors("asaitgalin", "eshcherbin")
-    @flaky(max_runs=3)
+    @authors("bystrovserg")
     def test_archive_lookup_failure(self):
         before_start_time = datetime.utcnow()
-        min_ops_to_remove = 4
-
         ops = self._test_start_stop_impl(
             'if [ "$YT_JOB_INDEX" -eq 0 ]; then exit 1; fi; cat',
             lookup_timeout=timedelta(milliseconds=1),
             max_failed_job_count=2,
-            min_removed_operations=min_ops_to_remove,
+            min_removed_operations=4,
         )
 
-        # We expect to get only not removed operations by "with_failed_jobs" filter
-        # as brief_progress is reported only to archive and will not be
-        # fetched due to low timeout.
-        res = list_operations(
-            include_archive=True,
-            from_time=self.list_op_format(before_start_time),
-            to_time=self.list_op_format(datetime.utcnow()),
-            with_failed_jobs=True,
-        )
-        assert res["failed_jobs_count"] <= len(ops) - min_ops_to_remove
-        assert len(res["operations"]) <= len(ops) - min_ops_to_remove
+        # brief_progress is always in Cypress, so a failed archive lookup does not lose it
+        # (nor the derived has_failed_jobs).
+        @wait_no_assert
+        def check():
+            res = list_operations(
+                include_archive=True,
+                from_time=self.list_op_format(before_start_time),
+                to_time=self.list_op_format(datetime.utcnow()),
+                with_failed_jobs=True,
+            )
+            assert res["failed_jobs_count"] == len(ops)
+            assert list(reversed(ops)) == [op["id"] for op in res["operations"]]
 
     @authors("asaitgalin", "eshcherbin")
     def test_get_original_path(self):

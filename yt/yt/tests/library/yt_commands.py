@@ -1465,6 +1465,19 @@ class Operation(object):
     def get_job_count(self, state, from_orchid=True, verbose=False):
         if from_orchid:
             base_path = self.get_path() + "/controller_orchid/progress/jobs/"
+        elif exists("//sys/operations_archive"):
+            id_hi, id_lo = uuid_to_parts(self.id)
+            rows = lookup_rows(
+                "//sys/operations_archive/ordered_by_id",
+                [{"id_hi": id_hi, "id_lo": id_lo}],
+            )
+            if not rows:
+                return 0
+            jobs = (rows[0].get("progress") or {}).get("jobs", {})
+            value = jobs.get(state, 0)
+            if state == "aborted" or state == "completed":
+                value = value.get("total", 0) if isinstance(value, dict) else 0
+            return value
         else:
             base_path = self.get_path() + "/@progress/jobs/"
 
