@@ -70,14 +70,14 @@
 
 Ниже приведён пример настройки SSO-аутентификации с помощью [Keycloak](https://www.keycloak.org/).
 
-В примере используются realm `ytsaurus.tech`, адрес Keycloak `https://keycloak.example.ru` и адрес веб-интерфейса `https://ui.example.ru`. Keycloak должен быть доступен как из браузера пользователя, так и из HTTP-прокси.
+В примере используются realm `ytsaurus.tech`, адрес Keycloak `https://keycloak.example.com` и адрес веб-интерфейса `https://ui.example.com`. Keycloak должен быть доступен как из браузера пользователя, так и из HTTP-прокси.
 
 1. Создайте в Keycloak клиент OpenID Connect. Включите **Client authentication** и **Standard flow** и задайте следующие параметры:
 
     ```text
-    Valid redirect URIs: https://ui.example.ru/api/oauth/callback
-    Valid post logout redirect URIs: https://ui.example.ru/api/oauth/logout/callback
-    Web origins: https://ui.example.ru
+    Valid redirect URIs: https://ui.example.com/api/oauth/callback
+    Valid post logout redirect URIs: https://ui.example.com/api/oauth/logout/callback
+    Web origins: https://ui.example.com
     ```
 
     Сохраните полученные `CLIENT_ID` и `CLIENT_SECRET` в Kubernetes Secret:
@@ -98,7 +98,7 @@
       name: ytdemo
     spec:
       oauthService:
-        host: keycloak.example.ru
+        host: keycloak.example.com
         port: 443
         secure: true
         userInfoHandler:
@@ -135,12 +135,12 @@
     settings:
       oauth:
         enabled: true
-        baseURL: "https://keycloak.example.ru"
+        baseURL: "https://keycloak.example.com"
         authPath: "realms/ytsaurus.tech/protocol/openid-connect/auth"
         logoutPath: "realms/ytsaurus.tech/protocol/openid-connect/logout"
         tokenPath: "realms/ytsaurus.tech/protocol/openid-connect/token"
-        clientIdEnvName: "CLIENT_ID"
-        clientSecretEnvName: "CLIENT_SECRET"
+        clientIdEnvName: "KEYCLOAK_CLIENT_ID"
+        clientSecretEnvName: "KEYCLOAK_CLIENT_SECRET"
         scope: "openid profile"
         buttonLabel: "Login via Keycloak"
     ```
