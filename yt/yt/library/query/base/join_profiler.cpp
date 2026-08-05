@@ -383,29 +383,9 @@ private:
         auto foreignKeyPrefix = JoinClause_->ForeignKeyPrefix;
         auto newQuery = JoinClause_->GetJoinSubquery();
 
-        auto predicateRefines = false;
+        auto mode = GetJoinSubqueryMode(*JoinClause_, Logger);
 
-        if (JoinClause_->Predicate) {
-            auto keyColumns = JoinClause_->Schema.GetKeyColumns();
-
-            auto dummyInClause = New<TInExpression>(
-                foreignEquations,
-                nullptr);
-
-            auto dummyWhereClause = MakeAndExpression(std::move(dummyInClause), JoinClause_->Predicate);
-
-            auto signature = GetExpressionConstraintSignature(std::move(dummyWhereClause), keyColumns);
-
-            auto score = GetConstraintSignatureScore(signature);
-
-            YT_LOG_DEBUG("Calculated score for join via IN with predicate (Signature: %v, Score: %v)",
-                signature,
-                score);
-
-            predicateRefines = score > static_cast<int>(2 * foreignKeyPrefix);
-        }
-
-        if (foreignKeyPrefix == 0 || predicateRefines) {
+        if (mode == EJoinSubqueryMode::FullScan || mode == EJoinSubqueryMode::PredicateGuidedScan) {
             YT_LOG_DEBUG("Using join via IN clause");
 
             TRowRanges universalRange{{
@@ -440,7 +420,7 @@ private:
                 newQuery->Limit = OrderedReadWithPrefetchHint;
             }
         } else {
-            if (foreignKeyPrefix == foreignEquations.size()) {
+            if (mode == EJoinSubqueryMode::Lookup) {
                 YT_LOG_DEBUG("Using join via source ranges");
                 dataSource.Keys = MakeSharedRange(std::move(keys), std::move(buffer));
             } else {
@@ -541,6 +521,41 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoinSubqueryProfiler)
+
+////////////////////////////////////////////////////////////////////////////////
+
+EJoinSubqueryMode GetJoinSubqueryMode(const TJoinClause& joinClause, const NLogging::TLogger& Logger)
+{
+    const auto& foreignEquations = joinClause.ForeignEquations;
+    auto foreignKeyPrefix = joinClause.ForeignKeyPrefix;
+
+    bool predicateRefines = false;
+
+    if (joinClause.Predicate) {
+        auto keyColumns = joinClause.Schema.GetKeyColumns();
+
+        auto dummyInClause = New<TInExpression>(foreignEquations, nullptr);
+        auto dummyWhereClause = MakeAndExpression(std::move(dummyInClause), joinClause.Predicate);
+        auto signature = GetExpressionConstraintSignature(std::move(dummyWhereClause), keyColumns);
+        auto score = GetConstraintSignatureScore(signature);
+
+        YT_LOG_DEBUG("Calculated score for join via IN with predicate (Signature: %v, Score: %v)",
+            signature,
+            score);
+
+        predicateRefines = score > static_cast<int>(2 * foreignKeyPrefix);
+    }
+
+    if (foreignKeyPrefix == 0) {
+        return EJoinSubqueryMode::FullScan;
+    } else if (predicateRefines) {
+        return EJoinSubqueryMode::PredicateGuidedScan;
+    } else if (foreignKeyPrefix == foreignEquations.size()) {
+        return EJoinSubqueryMode::Lookup;
+    } else {
+        return EJoinSubqueryMode::PrefixScan;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

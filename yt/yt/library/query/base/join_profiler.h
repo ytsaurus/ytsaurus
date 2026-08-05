@@ -14,6 +14,17 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EJoinSubqueryMode,
+    (Lookup)
+    (PrefixScan)
+    (FullScan)
+    (PredicateGuidedScan)
+);
+
+EJoinSubqueryMode GetJoinSubqueryMode(const TJoinClause& joinClause, const NLogging::TLogger& Logger = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
 using TConsumeSubqueryStatistics = std::function<void(TQueryStatistics statistics)>;
 
 using TGetPrefetchJoinDataSource = std::function<std::optional<TDataSource>()>;
