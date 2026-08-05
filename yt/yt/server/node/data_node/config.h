@@ -866,6 +866,38 @@ DEFINE_REFCOUNTED_TYPE(TJobControllerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMediumAwareBlockCacheManagerConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable = false;
+    //! Fixed block cache capacity grouped by medium name.
+    THashMap<std::string, NChunkClient::TBlockCacheConfigPtr> BlockCacheConfigPerMedium;
+
+    REGISTER_YSON_STRUCT(TMediumAwareBlockCacheManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumAwareBlockCacheManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMediumAwareBlockCacheManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<bool> Enable;
+    //! Fixed block cache capacity overrides grouped by medium name.
+    THashMap<std::string, NChunkClient::TBlockCacheDynamicConfigPtr> BlockCacheConfigPerMedium;
+
+    REGISTER_YSON_STRUCT(TMediumAwareBlockCacheManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumAwareBlockCacheManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDataNodeConfig
     : public TJournalManagerConfig
 {
@@ -911,8 +943,11 @@ struct TDataNodeConfig
     //! Cache for partition block metas.
     TSlruCacheConfigPtr BlockMetaCache;
 
-    //! Cache for all types of blocks.
+    //! Ordinary block cache configuration.
     NChunkClient::TBlockCacheConfigPtr BlockCache;
+
+    //! Medium-aware block cache manager configuration.
+    TMediumAwareBlockCacheManagerConfigPtr MediumAwareBlockCacheManager;
 
     //! Opened blob chunks cache.
     TSlruCacheConfigPtr BlobReaderCache;
@@ -1086,6 +1121,9 @@ struct TDataNodeDynamicConfig
     TSlruCacheDynamicConfigPtr BlocksExtCache;
     TSlruCacheDynamicConfigPtr BlockMetaCache;
     NChunkClient::TBlockCacheDynamicConfigPtr BlockCache;
+
+    TMediumAwareBlockCacheManagerDynamicConfigPtr MediumAwareBlockCacheManager;
+
     TSlruCacheDynamicConfigPtr BlobReaderCache;
     TSlruCacheDynamicConfigPtr ChangelogReaderCache;
     TTableSchemaCacheDynamicConfigPtr TableSchemaCache;

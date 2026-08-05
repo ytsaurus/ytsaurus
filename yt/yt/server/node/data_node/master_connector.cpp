@@ -196,7 +196,7 @@ public:
             const auto& location = chunk->GetLocation();
             if (!SkipLocationInHeartbeat(location) && CellTagFromId(chunk->GetId()) == cellTag) {
                 *req->add_chunks() = BuildAddChunkInfo(chunk, &locationDirectory);
-                auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor()->GetIndex();
+                auto mediumIndex = chunk->GetLocation()->GetMediumIndex();
                 ++perMediumChunkCounts[mediumIndex];
                 ++perLocationChunkCounts[location->GetUuid()];
                 ++storedChunkCount;
@@ -1497,7 +1497,7 @@ private:
     {
         const auto& ioThroughputMeter = Bootstrap_->GetIOThroughputMeter();
 
-        auto mediumIndex = location->GetMediumDescriptor()->GetIndex();
+        auto mediumIndex = location->GetMediumIndex();
         statistics->set_medium_index(mediumIndex);
         statistics->set_available_space(location->GetAvailableSpace());
         statistics->set_used_space(location->GetUsedSpace());
@@ -1537,7 +1537,7 @@ private:
                 continue;
             }
 
-            auto mediumIndex = location->GetMediumDescriptor()->GetIndex();
+            auto mediumIndex = location->GetMediumIndex();
 
             totalAvailableSpace += location->GetAvailableSpace();
             totalLowWatermarkSpace += location->GetLowWatermarkSpace();
@@ -1615,7 +1615,7 @@ private:
             return true;
         }
 
-        auto mediumIndex = location->GetMediumDescriptor()->GetIndex();
+        auto mediumIndex = location->GetMediumIndex();
         return mediumIndex == GenericMediumIndex;
     }
 
@@ -1652,7 +1652,7 @@ private:
         bool onMediumChange = false)
     {
         ToProto(chunkInfo.mutable_chunk_id(), chunk->GetId());
-        chunkInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor()->GetIndex());
+        chunkInfo.set_medium_index(chunk->GetLocation()->GetMediumIndex());
 
         auto locationIndex = chunk->GetLocation()->GetIndex();
         auto locationUuid = chunk->GetLocation()->GetUuid();

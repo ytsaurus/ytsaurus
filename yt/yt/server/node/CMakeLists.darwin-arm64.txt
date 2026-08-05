@@ -138,6 +138,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/location.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/location_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/master_connector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/medium_aware_block_cache_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/medium_directory_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/medium_updater.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/network_statistics.cpp

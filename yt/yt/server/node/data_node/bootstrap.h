@@ -42,6 +42,10 @@ struct IBootstrap
     // Medium stuff.
     virtual const TMediumDirectoryManagerPtr& GetMediumDirectoryManager() const = 0;
     virtual const TMediumUpdaterPtr& GetMediumUpdater() const = 0;
+    virtual const IMediumAwareBlockCacheManagerPtr& GetMediumAwareBlockCacheManager() const = 0;
+
+    //! Returns the block cache serving the given medium.
+    virtual NChunkClient::IBlockCachePtr GetBlockCacheForMedium(int mediumIndex) const = 0;
 
     // Throttlers.
     virtual const NConcurrency::IThroughputThrottlerPtr& GetThrottler(EDataNodeThrottlerKind kind) const = 0;

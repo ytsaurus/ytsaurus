@@ -456,6 +456,16 @@ public:
         return MediumUpdater_;
     }
 
+    const NYT::NDataNode::IMediumAwareBlockCacheManagerPtr& GetMediumAwareBlockCacheManager() const override
+    {
+        return MediumAwareBlockCacheManager_;
+    }
+
+    NChunkClient::IBlockCachePtr GetBlockCacheForMedium(int /*mediumIndex*/) const override
+    {
+        return BlockCache_;
+    }
+
     const NConcurrency::IThroughputThrottlerPtr& GetThrottler(NYT::NDataNode::EDataNodeThrottlerKind) const override
     {
         return Throttler_;
@@ -600,6 +610,7 @@ private:
     NYT::NDataNode::IMasterConnectorPtr MasterConnector_;
     NYT::NDataNode::TMediumDirectoryManagerPtr MediumDirectoryManager_;
     NYT::NDataNode::TMediumUpdaterPtr MediumUpdater_;
+    NYT::NDataNode::IMediumAwareBlockCacheManagerPtr MediumAwareBlockCacheManager_;
     NConcurrency::IThroughputThrottlerPtr Throttler_;
     NConcurrency::IThroughputThrottlerPtr InThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutThrottler_;

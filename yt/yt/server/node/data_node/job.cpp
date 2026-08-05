@@ -561,7 +561,9 @@ private:
 
         TChunkReadOptions chunkReadOptions;
         chunkReadOptions.WorkloadDescriptor = workloadDescriptor;
-        chunkReadOptions.BlockCache = DynamicConfig_->UseBlockCache ? Bootstrap_->GetBlockCache() : GetNullBlockCache();
+        chunkReadOptions.BlockCache = DynamicConfig_->UseBlockCache
+            ? Bootstrap_->GetBlockCacheForMedium(chunk->GetLocation()->GetMediumIndex())
+            : GetNullBlockCache();
         chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         chunkReadOptions.MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
 

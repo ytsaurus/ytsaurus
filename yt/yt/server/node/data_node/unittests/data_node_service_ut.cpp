@@ -6,6 +6,9 @@
 #include <yt/yt/server/node/data_node/data_node_service.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/master_connector.h>
+#include <yt/yt/server/node/data_node/medium_aware_block_cache_manager.h>
+#include <yt/yt/server/node/data_node/medium_directory_manager.h>
+#include <yt/yt/server/node/data_node/medium_updater.h>
 #include <yt/yt/server/node/data_node/network_statistics.h>
 #include <yt/yt/server/node/data_node/session.h>
 #include <yt/yt/server/node/data_node/session_manager.h>
@@ -61,6 +64,11 @@ using namespace NConcurrency;
 
 using NYT::NBus::EMultiplexingBand;
 using NNative::TConnectionDynamicConfig;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int TestSsdMediumIndex = 42;
+constexpr auto TestSsdMediumName = "ssd_blobs";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,6 +217,16 @@ public:
     const TMediumUpdaterPtr& GetMediumUpdater() const override
     {
         return Bootstrap_->GetMediumUpdater();
+    }
+
+    const IMediumAwareBlockCacheManagerPtr& GetMediumAwareBlockCacheManager() const override
+    {
+        return Bootstrap_->GetMediumAwareBlockCacheManager();
+    }
+
+    NChunkClient::IBlockCachePtr GetBlockCacheForMedium(int mediumIndex) const override
+    {
+        return Bootstrap_->GetBlockCacheForMedium(mediumIndex);
     }
 
     const NConcurrency::IThroughputThrottlerPtr& GetThrottler(EDataNodeThrottlerKind kind) const override
@@ -482,6 +500,7 @@ public:
         bool EnableSequentialIORequests = true;
         i64 CoalescedReadMaxGapSize = 10_MB;
         i64 BlockCacheCapacity = 0;
+        i64 PerMediumBlockCacheCapacity = 0;
         bool RejectOversizedBlockCacheItems = false;
         int ClusterConnectionThreadPoolSize = 4;
         int ReadThreadCount = 1;
@@ -500,6 +519,7 @@ public:
         bool WaitPrecedingBlocksReceived = true;
         TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
         TDuration DelayBeforePerformPutBlocks = TDuration::Seconds(2);
+        bool EnableMediumAwareBlockCache = false;
     };
 
     TDataNodeTest() = default;
@@ -566,6 +586,21 @@ public:
         cacheConfig->RejectOversizedItems = TestParams_.RejectOversizedBlockCacheItems;
         bootstrapConfig->DataNode->BlockCache->CompressedData = cacheConfig;
         bootstrapConfig->DataNode->BlockCache->UncompressedData = cacheConfig;
+
+        if (TestParams_.EnableMediumAwareBlockCache) {
+            auto createMediumBlockCacheConfig = [&] {
+                auto config = New<TBlockCacheConfig>();
+                config->CompressedData = TSlruCacheConfig::CreateWithCapacity(
+                    TestParams_.PerMediumBlockCacheCapacity);
+                return config;
+            };
+
+            auto managerConfig = bootstrapConfig->DataNode->MediumAwareBlockCacheManager;
+            managerConfig->Enable = true;
+            managerConfig->BlockCacheConfigPerMedium[DefaultStoreMediumName] = createMediumBlockCacheConfig();
+            managerConfig->BlockCacheConfigPerMedium[TestSsdMediumName] = createMediumBlockCacheConfig();
+        }
+
         bootstrapConfig->DataNode->ChooseLocationBasedOnIOWeight = TestParams_.ChooseLocationBasedOnIOWeight;
         bootstrapConfig->DataNode->SkipWriteThrottlingLocations = TestParams_.SkipWriteThrottlingLocations;
 
@@ -649,7 +684,10 @@ public:
 
         MasterConnectorMock_ = New<TMasterConnectorMock>();
         EXPECT_CALL(*MasterConnectorMock_, IsOnline).WillRepeatedly(testing::Return(true));
-        DataNodeBootstrap_ = New<TDataNodeBootstrapMock>(ClusterNodeBootstrap_->GetDataNodeBootstrap(), MasterConnectorMock_);
+        DataNodeBootstrapMock_ = New<TDataNodeBootstrapMock>(
+            ClusterNodeBootstrap_->GetDataNodeBootstrap(),
+            MasterConnectorMock_);
+        DataNodeBootstrap_ = DataNodeBootstrapMock_;
 
         // if (CellDirectoryMock_) {
         //     testing::Mock::AllowLeak(CellDirectoryMock_.Get());
@@ -686,6 +724,7 @@ public:
         DataNodeService_->Stop().BlockingWait();
         DataNodeService_.Reset();
         DataNodeBootstrap_.Reset();
+        DataNodeBootstrapMock_.Reset();
         ClusterNodeBootstrap_.Reset();
         ActionQueue_->Shutdown(true);
         ActionQueue_.Reset();
@@ -698,6 +737,34 @@ public:
 
     const NDataNode::IBootstrapPtr& GetDataNodeBootstrap() const {
         return DataNodeBootstrap_;
+    }
+
+    void UpdateLocationMedium(const TChunkLocationPtr& location, int mediumIndex)
+    {
+        auto bootstrap = DataNodeBootstrap_;
+        auto locationUuid = location->GetUuid();
+
+        WaitFor(BIND([bootstrap, locationUuid, mediumIndex] {
+            NChunkClient::NProto::TMediumDirectory mediumDirectory;
+            auto addMedium = [&] (const std::string& name, int index) {
+                auto* descriptor = mediumDirectory.add_medium_descriptors();
+                descriptor->set_name(name);
+                descriptor->set_index(index);
+                descriptor->set_priority(0);
+                descriptor->mutable_domestic_medium_descriptor();
+            };
+            addMedium(DefaultStoreMediumName, DefaultStoreMediumIndex);
+            addMedium(TestSsdMediumName, TestSsdMediumIndex);
+
+            bootstrap->GetMediumDirectoryManager()->UpdateMediumDirectory(mediumDirectory);
+
+            NDataNodeTrackerClient::NProto::TMediumOverrides mediumOverrides;
+            auto* mediumOverride = mediumOverrides.add_overrides();
+            ToProto(mediumOverride->mutable_location_uuid(), locationUuid);
+            mediumOverride->set_medium_index(mediumIndex);
+            bootstrap->GetMediumUpdater()->UpdateLocationMedia(mediumOverrides);
+        }).AsyncVia(bootstrap->GetControlInvoker()).Run())
+            .ThrowOnError();
     }
 
     const NConcurrency::TActionQueuePtr& GetActionQueue() const
@@ -742,7 +809,12 @@ public:
         return req->Invoke();
     }
 
-    auto PutBlocks(const TSessionId& sessionId, const std::vector<TBlock>& blocks, int firstBlockIndex, i64 cumulativeBlockSize)
+    auto PutBlocks(
+        const TSessionId& sessionId,
+        const std::vector<TBlock>& blocks,
+        int firstBlockIndex,
+        i64 cumulativeBlockSize,
+        bool populateCache = false)
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
         TDataNodeServiceProxy proxy(channel);
@@ -753,6 +825,7 @@ public:
         ToProto(req->mutable_session_id(), sessionId);
         req->set_first_block_index(firstBlockIndex);
         req->set_cumulative_block_size(cumulativeBlockSize);
+        req->set_populate_cache(populateCache);
         req->SetTimeout(RequestTimeout_);
         SetRpcAttachedBlocks(req, blocks);
 
@@ -845,7 +918,8 @@ public:
         int blockSize,
         bool useProbePutBlocks = false,
         bool preallocateDiskSpace = false,
-        bool useDirectIo = false)
+        bool useDirectIo = false,
+        bool populateCache = false)
     {
         auto blocks = CreateBlocks(blockCount, blockSize, Generator_);
         auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
@@ -863,7 +937,13 @@ public:
         std::iota(std::begin(indices), std::end(indices), 0);
         std::random_shuffle(std::begin(indices), std::end(indices));
         for (auto i : indices) {
-            putBlocks[i] = PutBlocks(sessionId, {blocks[i]}, i, cummulativeBlockSize).AsVoid();
+            putBlocks[i] = PutBlocks(
+                sessionId,
+                {blocks[i]},
+                i,
+                cummulativeBlockSize,
+                populateCache)
+                .AsVoid();
         }
         WaitFor(AllSucceeded(putBlocks))
             .ThrowOnError();
@@ -891,6 +971,7 @@ private:
     INodeMemoryTrackerPtr MemoryTracker_;
     NConcurrency::TActionQueuePtr ActionQueue_;
     NClusterNode::IBootstrapPtr ClusterNodeBootstrap_;
+    TIntrusivePtr<TDataNodeBootstrapMock> DataNodeBootstrapMock_;
     NDataNode::IBootstrapPtr DataNodeBootstrap_;
     IServicePtr DataNodeService_;
     IChannelFactoryPtr ChannelFactory_;
@@ -1561,6 +1642,77 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMediumAwareBlockCacheTest
+    : public TDataNodeTest
+{
+public:
+    TMediumAwareBlockCacheTest()
+        : TDataNodeTest(TDataNodeTestParams{
+            .BlockCacheCapacity = NodeWideBlockCacheCapacity,
+            .PerMediumBlockCacheCapacity = PerMediumBlockCacheCapacity,
+            .EnableMediumAwareBlockCache = true,
+        })
+    { }
+
+private:
+    static constexpr i64 PerMediumBlockCacheCapacity = 1_MB;
+    static constexpr i64 NodeWideBlockCacheCapacity = 2 * PerMediumBlockCacheCapacity;
+};
+
+TEST_F(TMediumAwareBlockCacheTest, ReadUsesNewMediumCacheAfterLocationMediumChanges)
+{
+    const auto& location = GetDataNodeBootstrap()->GetChunkStore()->Locations().front();
+    UpdateLocationMedium(location, DefaultStoreMediumIndex);
+
+    TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), DefaultStoreMediumIndex);
+    auto blocks = FillWithRandomBlocks(
+        sessionId,
+        /*blockCount*/ 1,
+        /*blockSize*/ 4_KB,
+        /*useProbePutBlocks*/ false,
+        /*preallocateDiskSpace*/ false,
+        /*useDirectIo*/ false,
+        /*populateCache*/ true);
+    TBlockId blockId(sessionId.ChunkId, /*blockIndex*/ 0);
+
+    const auto& manager = GetDataNodeBootstrap()->GetMediumAwareBlockCacheManager();
+    auto defaultMediumCache = manager->GetBlockCacheForMedium(DefaultStoreMediumIndex);
+    auto ssdMediumCache = manager->GetBlockCacheForMedium(TestSsdMediumIndex);
+    ASSERT_NE(defaultMediumCache.Get(), ssdMediumCache.Get());
+    EXPECT_TRUE(defaultMediumCache->FindBlock(blockId, EBlockType::CompressedData));
+    EXPECT_FALSE(GetDataNodeBootstrap()->GetBlockCache()->FindBlock(
+        blockId,
+        EBlockType::CompressedData));
+
+    manager->RemoveChunkBlocks(sessionId.ChunkId);
+
+    auto firstResponseOrError = WaitFor(GetBlockSet(
+        sessionId.ChunkId,
+        /*blockIndices*/ {0},
+        /*populateCache*/ true,
+        /*fetchFromCache*/ true,
+        /*fetchFromDisk*/ true));
+    ASSERT_TRUE(firstResponseOrError.IsOK()) << ToString(firstResponseOrError);
+    EXPECT_EQ(BlocksToChecksums(GetRpcAttachedBlocks(firstResponseOrError.Value())), BlocksToChecksums(blocks));
+    EXPECT_TRUE(defaultMediumCache->FindBlock(blockId, EBlockType::CompressedData));
+    EXPECT_FALSE(ssdMediumCache->FindBlock(blockId, EBlockType::CompressedData));
+
+    UpdateLocationMedium(location, TestSsdMediumIndex);
+    ASSERT_EQ(location->GetMediumIndex(), TestSsdMediumIndex);
+
+    auto secondResponseOrError = WaitFor(GetBlockSet(
+        sessionId.ChunkId,
+        /*blockIndices*/ {0},
+        /*populateCache*/ true,
+        /*fetchFromCache*/ true,
+        /*fetchFromDisk*/ true));
+    ASSERT_TRUE(secondResponseOrError.IsOK()) << ToString(secondResponseOrError);
+    EXPECT_EQ(BlocksToChecksums(GetRpcAttachedBlocks(secondResponseOrError.Value())), BlocksToChecksums(blocks));
+    EXPECT_TRUE(ssdMediumCache->FindBlock(blockId, EBlockType::CompressedData));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TDataNodeTest, StartChunkReflectsNetInThrottlerQueueSize)
 {
     auto bootstrap = GetDataNodeBootstrap();
@@ -1716,7 +1868,7 @@ TEST_P(TIOWeightTest, IoBasedOnIoWeight)
 
     for (auto& future : futures) {
         TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
-        future = BIND(&TDataNodeTest::FillWithRandomBlocks, this, sessionId, 1, 1_KB, false, false, false)
+        future = BIND(&TDataNodeTest::FillWithRandomBlocks, this, sessionId, 1, 1_KB, false, false, false, false)
             .AsyncVia(GetActionQueue()->GetInvoker())
             .Run()
             .AsVoid();

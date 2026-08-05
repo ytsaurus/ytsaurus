@@ -4,6 +4,7 @@
 #include "chunk.h"
 #include "chunk_registry.h"
 #include "local_chunk_reader.h"
+#include "location.h"
 #include "private.h"
 #include "table_schema_cache.h"
 #include "chunk_meta_manager.h"
@@ -74,6 +75,7 @@ public:
         : Bootstrap_(bootstrap)
         , Chunk_(std::move(chunk))
         , ChunkId_(Chunk_->GetId())
+        , BlockCache_(Bootstrap_->GetBlockCacheForMedium(Chunk_->GetLocation()->GetMediumIndex()))
         , ColumnFilter_(std::move(columnFilter))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
@@ -106,7 +108,7 @@ public:
         UnderlyingChunkReader_ = CreateLocalChunkReader(
             New<TReplicationReaderConfig>(),
             Chunk_,
-            Bootstrap_->GetBlockCache(),
+            BlockCache_,
             Bootstrap_->GetDataNodeBootstrap()->GetChunkMetaManager()->GetBlockMetaCache());
 
         YT_LOG_DEBUG("Local chunk reader is created for offloaded chunk read session");
@@ -154,6 +156,7 @@ private:
     IBootstrap* const Bootstrap_;
     const IChunkPtr Chunk_;
     const TChunkId ChunkId_;
+    const IBlockCachePtr BlockCache_;
     const TColumnFilter ColumnFilter_;
     const NTransactionClient::TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
@@ -232,7 +235,7 @@ private:
         }
 
         auto chunkState = New<TChunkState>(TChunkState{
-            .BlockCache = Bootstrap_->GetBlockCache(),
+            .BlockCache = BlockCache_,
             .ChunkSpec = std::move(chunkSpec),
             .ChunkMeta = chunkMeta,
             .OverrideTimestamp = OverrideTimestamp_,
@@ -310,7 +313,7 @@ private:
             TableSchema_,
             Timestamp_,
             ProduceAllVersions_,
-            Bootstrap_->GetBlockCache(),
+            BlockCache_,
             /*testingOptions*/ std::nullopt,
             Logger);
 

@@ -46,6 +46,7 @@ SRCS(
     data_node/location.cpp
     data_node/location_manager.cpp
     data_node/master_connector.cpp
+    data_node/medium_aware_block_cache_manager.cpp
     data_node/medium_directory_manager.cpp
     data_node/medium_updater.cpp
     data_node/network_statistics.cpp
