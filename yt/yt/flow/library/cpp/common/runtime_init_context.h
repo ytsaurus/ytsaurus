@@ -7,6 +7,8 @@
 #include <yt/yt/flow/library/cpp/common/state.h>
 #include <yt/yt/flow/library/cpp/common/state_client.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/public.h>
 
@@ -73,6 +75,11 @@ public:
     //! ``required_resource_ids`` (worker side). Throws if the resource is not found there.
     //! String literals convert implicitly (TResourceId is a semi-strong typedef).
     virtual IResourcePtr GetStaticResource(const TResourceId& resourceId) const = 0;
+
+    //! The computation's profiler, already tagged with its ``computation_id``. Build the
+    //! function's sensors from it in Init() and keep them. Sensors aggregate over the partitions
+    //! a worker hosts, and are no-ops out of process.
+    virtual NProfiling::TProfiler GetProfiler() const = 0;
 
     virtual TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;
     virtual TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;

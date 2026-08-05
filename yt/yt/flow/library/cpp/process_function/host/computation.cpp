@@ -1,5 +1,7 @@
 #include "computation.h"
 
+#include <yt/yt/flow/library/cpp/computation/swift_ordered_source_computation.h>
+
 #include <yt/yt/flow/library/cpp/common/registry.h>
 
 #include <yt/yt/flow/library/cpp/common/input_context.h>
@@ -47,7 +49,8 @@ void TProcessFunctionComputationBase<TBase>::DoInit(IJobInitContextPtr initConte
         std::move(initContext),
         this->StateManager_,
         this->GetSpec()->ProcessingFunctionParameters,
-        this->GetContext()->StaticResources);
+        this->GetContext()->StaticResources,
+        this->GetContext()->Profiler);
     Function_->Init(runtimeInitContext);
 }
 
@@ -71,6 +74,7 @@ void TProcessFunctionComputationBase<TBase>::DoSyncIfPresent(IRetryableTransacti
 template class TProcessFunctionComputationBase<TTransformComputation>;
 template class TProcessFunctionComputationBase<TSwiftMapComputation>;
 template class TProcessFunctionComputationBase<TTransformOrderedSourceComputation>;
+template class TProcessFunctionComputationBase<TSwiftOrderedSourceComputation>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

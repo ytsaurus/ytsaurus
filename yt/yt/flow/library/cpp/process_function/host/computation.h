@@ -21,9 +21,9 @@ ISyncProcessFunction* ViewProcessFunctionAsSync(const TComputationSpecPtr& spec,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Keyed computation (parameterized by the transform or swift-map worker base) that runs the
-//! process function named by the spec's `processing_function` field, forwarding its parameters
-//! through the init and runtime contexts.
+//! Computation (parameterized by the worker base it adapts) that runs the process function named
+//! by the spec's `processing_function` field, forwarding its parameters through the init and
+//! runtime contexts.
 template <class TBase>
 class TProcessFunctionComputationBase
     : public TBase

@@ -46,6 +46,10 @@ public:
         SetStaticParametersNode(NYTree::ConvertTo<NYTree::IMapNodePtr>(parameters));
     }
 
+    //! Sets the profiler the init context hands to IRuntimeInitContext::GetProfiler(); rebuilds
+    //! the init context. Call before Init. Defaults to a null profiler.
+    void SetProfiler(NProfiling::TProfiler profiler);
+
     //! Persists pending state into the in-memory tables.
     void Sync();
 
@@ -141,9 +145,14 @@ private:
     std::shared_ptr<TExternalManagerMap> ExternalManagers_;
     std::shared_ptr<TExternalJoinerMap> ExternalJoiners_;
     std::shared_ptr<TStaticResourceMap> StaticResources_;
+    NYTree::IMapNodePtr ParametersNode_;
+    NProfiling::TProfiler Profiler_;
     IRuntimeInitContextPtr InitContext_;
 
     std::vector<std::function<void(const IRetryableTransactionPtr&)>> EpochCommits_;
+
+    //! Rebuilds InitContext_ over the current parameters node and profiler.
+    void RebuildInitContext();
 
     //! Syncs pending state and returns an init context over a fresh manager bound to the
     //! same in-memory tables.

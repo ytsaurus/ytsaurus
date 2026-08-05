@@ -25,6 +25,9 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/library/profiling/solomon/registry.h>
+#include <yt/yt/library/profiling/testing.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/actions/bind.h>
@@ -33,6 +36,7 @@
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>
 
+#include <util/generic/algorithm.h>
 #include <util/generic/yexception.h>
 #include <util/string/split.h>
 #include <util/system/type_name.h>
@@ -1156,6 +1160,80 @@ TEST(TProcessFunctionResourceTest, InitContextExposesRegisteredResources)
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(initContext->GetStaticResource("MissingResource")),
         "is not registered");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Counts messages through a sensor built from the init context's profiler.
+class TProfiledFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        Messages_ = initContext->GetProfiler().Counter("/messages");
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& /*message*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    {
+        Messages_.Increment();
+    }
+
+    const NProfiling::TCounter& GetMessagesCounter() const
+    {
+        return Messages_;
+    }
+
+private:
+    NProfiling::TCounter Messages_;
+};
+
+TEST(TProcessFunctionProfilerTest, InitContextExposesTheConfiguredProfiler)
+{
+    TTestStateEnvironment stateEnv;
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    stateEnv.SetProfiler(NProfiling::TProfiler(registry, "/test_computation"));
+
+    const auto& initContext = stateEnv.GetInitContext();
+    EXPECT_TRUE(initContext->GetProfiler().IsEnabled());
+
+    // Prefixing keeps the profiler.
+    EXPECT_TRUE(initContext->WithPrefix("sub")->GetProfiler().IsEnabled());
+
+    // A sensor created in Init records.
+    auto function = New<TProfiledFunction>();
+    function->Init(initContext);
+
+    auto context = TTestRuntimeContextBuilder().Build();
+    auto output = New<TRecordingOutputCollector>();
+    auto emptySchema = New<TTableSchema>();
+    auto key = MakeKey<ui64>(7);
+    function->ProcessMessage(MakeTestMessage("input", key, emptySchema), output, context);
+    function->ProcessMessage(MakeTestMessage("input", key, emptySchema), output, context);
+
+    EXPECT_EQ(NProfiling::TTesting::ReadCounter(function->GetMessagesCounter()), 2);
+
+    // The sensor is registered under the profiler's prefix, not somewhere else in the registry.
+    registry->SetWindowSize(12);
+    registry->ProcessRegistrations();
+    auto sensors = registry->ListSensors();
+    EXPECT_TRUE(AnyOf(sensors, [] (const NProfiling::TSensorInfo& sensor) {
+        return sensor.Name == "yt/test_computation/messages";
+    }));
+}
+
+TEST(TProcessFunctionProfilerTest, InitContextProfilerIsNullByDefault)
+{
+    // A null profiler still initializes the function; its sensors are no-ops.
+    TTestStateEnvironment stateEnv;
+    EXPECT_FALSE(stateEnv.GetInitContext()->GetProfiler().IsEnabled());
+
+    auto function = New<TProfiledFunction>();
+    function->Init(stateEnv.GetInitContext());
+    EXPECT_FALSE(static_cast<bool>(function->GetMessagesCounter()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
