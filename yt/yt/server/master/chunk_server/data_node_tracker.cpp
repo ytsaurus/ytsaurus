@@ -203,7 +203,7 @@ public:
         auto preparedRequest = SplitRequest(context, locationDirectory);
 
         auto timeBefore = NProfiling::GetInstant();
-        // TODO: Should be acquire with timeout.
+        // TODO(aleksandra-zh): Should be acquire with timeout.
         auto guard = WaitFor(semaphore->AsyncAcquire(slots).AsUnique())
             .ValueOrThrow();
 
