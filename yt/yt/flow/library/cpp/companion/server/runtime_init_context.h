@@ -37,6 +37,9 @@ public:
 
     IResourcePtr GetStaticResource(const TResourceId& resourceId) const override;
 
+    //! Null profiler: the computation profiler does not cross the process boundary.
+    NProfiling::TProfiler GetProfiler() const override;
+
 protected:
     IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const override;
     IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const override;

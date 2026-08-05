@@ -43,6 +43,7 @@ target_link_libraries(yt-flow-library-cpp-process_function-unittest PUBLIC
   cpp-process_function-testing
   library-cpp-common
   library-cpp-misc
+  library-profiling-solomon
   library-query-engine
   yt-client-cache
   client-unittests-mock
@@ -64,7 +65,9 @@ target_link_options(yt-flow-library-cpp-process_function-unittest PRIVATE
 )
 
 target_sources(yt-flow-library-cpp-process_function-unittest PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittest/adapter_test_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittest/process_function_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittest/source_adapter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittest/transform_ordered_source_adapter_ut.cpp
 )
 

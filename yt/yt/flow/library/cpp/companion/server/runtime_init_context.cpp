@@ -64,6 +64,11 @@ IResourcePtr TCompanionRuntimeInitContext::GetStaticResource(const TResourceId& 
         resourceId);
 }
 
+NProfiling::TProfiler TCompanionRuntimeInitContext::GetProfiler() const
+{
+    return {};
+}
+
 IExternalStateManagerPtr TCompanionRuntimeInitContext::GetExternalStateManagerOrThrow(
     const std::string& name) const
 {

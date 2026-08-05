@@ -1,25 +1,22 @@
+#include "adapter_test_context.h"
+
 #include <yt/yt/flow/library/cpp/computation/transform_ordered_source_computation.h>
 #include <yt/yt/flow/library/cpp/process_function/host/computation.h>
 #include <yt/yt/flow/library/cpp/process_function/testing/process_function_test_harness.h>
 #include <yt/yt/flow/library/cpp/process_function/testing/test_state_environment.h>
 
 #include <yt/yt/flow/library/cpp/common/computation.h>
-#include <yt/yt/flow/library/cpp/common/partition_buffer_state.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
-#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
-
-#include <yt/yt/client/cache/cache.h>
-#include <yt/yt/client/unittests/mock/client.h>
+#include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
-#include <yt/yt/core/ytree/ephemeral_node_factory.h>
-
 #include <library/cpp/testing/gtest/gtest.h>
 
+#include <util/generic/algorithm.h>
 #include <util/system/type_name.h>
 
 #include <type_traits>
@@ -111,50 +108,6 @@ int TRegisteredSyncCountingProcessFunction::SyncCallCount = 0;
 
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TRegisteredSyncCountingProcessFunction);
 
-class TStubClientsCache
-    : public NClient::NCache::IClientsCache
-{
-public:
-    NApi::IClientPtr GetClient(TStringBuf /*clusterUrl*/) override
-    {
-        return New<NApi::TMockClient>();
-    }
-};
-
-TComputationContextPtr MakeAdapterTestComputationContext(
-    const IInvokerPtr& invoker,
-    TComputationSpecPtr spec)
-{
-    auto context = New<TComputationContext>();
-    context->ComputationSpec = std::move(spec);
-    context->ClientsCache = New<TStubClientsCache>();
-    context->PipelinePath = NYPath::TRichYPath("//pipeline");
-    context->PipelinePath.SetCluster("test");
-    context->Partition = New<TPartition>();
-    // No source stream is configured, so a live (Executing) partition would fail the ctor's
-    // "active source is undefined" check; Completed skips that source-binding path entirely.
-    context->Partition->State = EPartitionState::Completed;
-    context->Job = New<TJob>();
-    context->SerializedInvoker = invoker;
-    context->PoolInvoker = invoker;
-    context->StatusProfiler = CreateSyncStatusProfiler();
-    context->DistributedThrottlerControllerChannelProvider = [] {
-        return NRpc::IChannelPtr();
-    };
-    context->PartitionBufferState = CreateDetachedPartitionBufferState({});
-    return context;
-}
-
-TDynamicComputationContextPtr MakeAdapterTestDynamicComputationContext()
-{
-    auto dynamicContext = New<TDynamicComputationContext>();
-    dynamicContext->DynamicComputationSpec = New<TDynamicComputationSpec>();
-    auto partitionSpec = New<TDynamicPartitionSpec>();
-    partitionSpec->ComputationPartitionSpec = NYTree::GetEphemeralNodeFactory()->CreateMap();
-    dynamicContext->DynamicPartitionSpec = std::move(partitionSpec);
-    return dynamicContext;
-}
-
 // Unlike InvokesSyncAtEpochBoundary above (which goes through TProcessFunctionTestHarness, a
 // raw IProcessFunction plus a dynamic_cast the harness does itself), this test builds the
 // context a real job would supply and constructs the REGISTERED adapter class via its own
@@ -184,6 +137,70 @@ TEST(TProcessFunctionTransformOrderedSourceComputationAdapterTest, DoSyncGoesThr
         .ThrowOnError();
 
     EXPECT_EQ(1, TRegisteredSyncCountingProcessFunction::SyncCallCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Registered under its own class, like the sync counter above: the instance is created by the
+// registry inside the adapter's constructor, so the sensor is reachable only through a static.
+class TRegisteredProfiledProcessFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        Probe = initContext->GetProfiler().Counter("/probe");
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& /*message*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    { }
+
+    static NProfiling::TCounter Probe;
+};
+
+NProfiling::TCounter TRegisteredProfiledProcessFunction::Probe;
+
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TRegisteredProfiledProcessFunction);
+
+// The profiler tests in process_function_ut.cpp stop at TTestStateEnvironment. This one covers
+// the production wiring: TComputationContext::Profiler reaching the function's Init through the
+// registered adapter's DoInit, under the computation's own prefix.
+TEST(TProcessFunctionTransformOrderedSourceComputationAdapterTest, DoInitHandsTheContextProfilerToTheFunction)
+{
+    TRegisteredProfiledProcessFunction::Probe = {};
+
+    auto queue = New<NConcurrency::TActionQueue>("ProfilerAdapterTest");
+    auto invoker = queue->GetInvoker();
+
+    auto spec = New<TComputationSpec>();
+    spec->ComputationClassName = "NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation";
+    spec->ProcessingFunction = std::string(TypeName<TRegisteredProfiledProcessFunction>());
+
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    auto context = MakeAdapterTestComputationContext(invoker, std::move(spec));
+    context->Profiler = NProfiling::TProfiler(registry, "/computation");
+    auto dynamicContext = MakeAdapterTestDynamicComputationContext();
+
+    TTestStateEnvironment environment;
+    NConcurrency::WaitFor(
+        BIND([&] {
+            auto computation = New<TProcessFunctionTransformOrderedSourceComputation>(context, dynamicContext);
+            computation->DoInit(environment.GetStateManager()->CreateContext());
+        }).AsyncVia(invoker)
+            .Run())
+        .ThrowOnError();
+
+    EXPECT_TRUE(static_cast<bool>(TRegisteredProfiledProcessFunction::Probe));
+
+    registry->SetWindowSize(12);
+    registry->ProcessRegistrations();
+    auto sensors = registry->ListSensors();
+    EXPECT_TRUE(AnyOf(sensors, [] (const NProfiling::TSensorInfo& sensor) {
+        return sensor.Name == "yt/computation/probe";
+    }));
 }
 
 } // namespace
