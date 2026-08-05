@@ -1,6 +1,5 @@
 #include "node_info.h"
 
-#include <yt/yt/flow/library/cpp/common/checksum.h>
 #include <yt/yt/flow/library/cpp/common/flow_core_version.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 
@@ -58,7 +57,6 @@ public:
         nodeInfo->VcpuFactor = TryGetVCpuFactor();
         nodeInfo->VcpuLimit = TryGetVCpuLimit();
         nodeInfo->BuildVersion = GetVersion();
-        nodeInfo->BinaryChecksum = GetBinaryChecksum();
         nodeInfo->FlowCoreVersion = ResolveFlowCoreVersion();
         nodeInfo->BuildType = CurrentBuildTypeDisplayName();
 
