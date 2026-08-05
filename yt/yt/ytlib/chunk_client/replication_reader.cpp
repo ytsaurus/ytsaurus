@@ -1002,7 +1002,7 @@ protected:
         }
 
         if (SessionOptions_.Cookie) {
-            Logger.AddTag("Cookie", *SessionOptions_.Cookie, "%x");
+            Logger.AddTagFormat("Cookie", "%x", *SessionOptions_.Cookie);
         }
 
         SessionOptions_.ChunkReaderStatistics->RecordSession();
@@ -4040,7 +4040,7 @@ public:
     {
         Logger
             .AddTag("TableId", Options_->TableId)
-            .AddTag("Revision", Options_->MountRevision, "%x");
+            .AddTagFormat("Revision", "%x", Options_->MountRevision);
 
         auto writer = CreateWireProtocolWriter();
         writer->WriteUnversionedRowset(TRange(LookupKeys_));

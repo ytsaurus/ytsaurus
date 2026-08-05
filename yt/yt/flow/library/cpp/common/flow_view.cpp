@@ -682,9 +682,9 @@ void TFlowLayout::CreatePartition(TPartitionPtr partition)
     YT_TLOG_INFO("CreatePartition")
         .With("PartitionId", partition->PartitionId)
         .With("ComputationId", partition->ComputationId)
-        .With("LowerKey", partition->LowerKey, "%Qv")
-        .With("UpperKey", partition->UpperKey, "%Qv")
-        .With("SourceKey", partition->SourceKey, "%Qv");
+        .With("LowerKey", partition->LowerKey)
+        .With("UpperKey", partition->UpperKey)
+        .With("SourceKey", partition->SourceKey);
     THROW_ERROR_EXCEPTION_UNLESS(Partitions.emplace(partition->PartitionId, partition).second == true, "PartitionId duplicate");
     ++Updated_;
     if (MutationNotifier_) {

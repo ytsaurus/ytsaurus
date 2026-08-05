@@ -181,7 +181,7 @@ private:
     void OnException(const std::exception& ex) override
     {
         YT_TLOG_ERROR("Queue write failed")
-            .With("Queue", Stream_->QueuePath(), "%Qv")
+            .With("Queue", Stream_->QueuePath())
             .With(ex);
 
         Stream_->Truncate();
