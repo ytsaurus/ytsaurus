@@ -28,6 +28,8 @@ DECLARE_REFCOUNTED_CLASS(TNode)
 
 DECLARE_REFCOUNTED_STRUCT(TGpuPlanUpdateStatistics)
 
+struct IAssignmentPlanUpdateContext;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu
