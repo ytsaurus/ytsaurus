@@ -4014,6 +4014,8 @@ private:
 
         BackupSourceAccountsMap_.clear();
 
+        AccountsAwaitingGossipDispatch_.clear();
+
         RootUser_ = nullptr;
         GuestUser_ = nullptr;
         OwnerUser_ = nullptr;
