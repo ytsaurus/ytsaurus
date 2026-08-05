@@ -837,6 +837,24 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMediumAwareBlockCacheManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("block_cache_config_per_medium", &TThis::BlockCacheConfigPerMedium)
+        .Default();
+}
+
+void TMediumAwareBlockCacheManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Optional();
+    registrar.Parameter("block_cache_config_per_medium", &TThis::BlockCacheConfigPerMedium)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDataNodeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("lease_transaction_timeout", &TThis::LeaseTransactionTimeout)
@@ -885,6 +903,8 @@ void TDataNodeConfig::Register(TRegistrar registrar)
             blockCache->CompressedData = TSlruCacheConfig::CreateWithCapacity(6_GB, 16);
             return blockCache;
         });
+    registrar.Parameter("medium_aware_block_cache_manager", &TThis::MediumAwareBlockCacheManager)
+        .DefaultNew();
     registrar.Parameter("blob_reader_cache", &TThis::BlobReaderCache)
         .DefaultCtor([] {
             return TSlruCacheConfig::CreateWithCapacity(1_MB, 16);
@@ -1091,6 +1111,8 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("block_meta_cache", &TThis::BlockMetaCache)
         .DefaultNew();
     registrar.Parameter("block_cache", &TThis::BlockCache)
+        .DefaultNew();
+    registrar.Parameter("medium_aware_block_cache_manager", &TThis::MediumAwareBlockCacheManager)
         .DefaultNew();
     registrar.Parameter("blob_reader_cache", &TThis::BlobReaderCache)
         .DefaultNew();

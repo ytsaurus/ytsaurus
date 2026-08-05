@@ -9,6 +9,7 @@
 #include "session.h"
 #include "session_manager.h"
 #include "master_connector.h"
+#include "medium_aware_block_cache_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -46,7 +47,7 @@ class TChunkStoreHost
     : public IChunkStoreHost
 {
 public:
-    explicit TChunkStoreHost(NClusterNode::IBootstrapBase* bootstrap)
+    explicit TChunkStoreHost(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
@@ -101,6 +102,9 @@ public:
         if (auto blockCache = Bootstrap_->GetBlockCache()) {
             blockCache->RemoveChunkBlocks(chunkId);
         }
+        if (auto manager = Bootstrap_->GetMediumAwareBlockCacheManager()) {
+            manager->RemoveChunkBlocks(chunkId);
+        }
     }
 
     const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() override
@@ -119,12 +123,12 @@ public:
     }
 
 private:
-    NClusterNode::IBootstrapBase* const Bootstrap_;
+    IBootstrap* const Bootstrap_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStoreHost)
 
-IChunkStoreHostPtr CreateChunkStoreHost(NClusterNode::IBootstrapBase* bootstrap)
+IChunkStoreHostPtr CreateChunkStoreHost(IBootstrap* bootstrap)
 {
     return New<TChunkStoreHost>(bootstrap);
 }
@@ -333,7 +337,7 @@ IChunkPtr TChunkStore::FindChunk(TChunkId chunkId, int mediumIndex) const
     }
 
     for (auto it = itRange.first; it != itRange.second; ++it) {
-        if (it->second.Chunk->GetLocation()->GetMediumDescriptor()->GetIndex() == mediumIndex) {
+        if (it->second.Chunk->GetLocation()->GetMediumIndex() == mediumIndex) {
             return it->second.Chunk;
         }
     }
@@ -365,7 +369,7 @@ TChunkStore::TChunkEntry TChunkStore::DoUpdateChunk(const IChunkPtr& oldChunk, c
 {
     YT_ASSERT_SPINLOCK_AFFINITY(ChunkMapLock_);
     YT_ASSERT(oldChunk->GetId() == newChunk->GetId());
-    YT_ASSERT(oldChunk->GetLocation()->GetMediumDescriptor()->GetIndex() == newChunk->GetLocation()->GetMediumDescriptor()->GetIndex());
+    YT_ASSERT(oldChunk->GetLocation()->GetMediumIndex() == newChunk->GetLocation()->GetMediumIndex());
 
     auto itRange = ChunkMap_.equal_range(oldChunk->GetId());
     YT_VERIFY(itRange.first != itRange.second);
@@ -879,7 +883,7 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < std::ssize(Locations_); ++index) {
         const auto& location = Locations_[index];
-        if (location->GetMediumDescriptor()->GetIndex() != sessionId.MediumIndex) {
+        if (location->GetMediumIndex() != sessionId.MediumIndex) {
             continue;
         }
 
@@ -1019,7 +1023,7 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             location->GetId(),
             location->GetUuid(),
             location->GetIndex(),
-            location->GetMediumDescriptor()->GetIndex(),
+            location->GetMediumIndex(),
             location->GetMediumName());
     }
 

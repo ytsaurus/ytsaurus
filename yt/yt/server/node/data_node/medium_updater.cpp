@@ -93,12 +93,12 @@ void TMediumUpdater::UpdateLocationMedia(
     for (const auto& location : chunkStore->Locations()) {
         if (location->CanPublish() &&
             (location->IsEnabled() || chunkStore->ShouldPublishDisabledLocations()) &&
-            location->GetMediumDescriptor()->GetIndex() == GenericMediumIndex)
+            location->GetMediumIndex() == GenericMediumIndex)
         {
             alerts.push_back(TError(
                 NChunkClient::EErrorCode::LocationMediumIsMisconfigured,
                 "Location medium is misconfigured")
-                << TErrorAttribute("medium_index", location->GetMediumDescriptor()->GetIndex())
+                << TErrorAttribute("medium_index", location->GetMediumIndex())
                 << TErrorAttribute("medium_name", location->GetMediumName())
                 << TErrorAttribute("location_uuid", ToString(location->GetUuid())));
         }
@@ -132,4 +132,3 @@ void TMediumUpdater::PopulateAlerts(std::vector<TError>* alerts)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
-

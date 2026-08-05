@@ -396,6 +396,13 @@ std::string TChunkLocation::GetMediumName() const
     return GetMediumDescriptor()->Name();
 }
 
+int TChunkLocation::GetMediumIndex() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return GetMediumDescriptor()->GetIndex();
+}
+
 TMediumDescriptorPtr TChunkLocation::GetMediumDescriptor() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

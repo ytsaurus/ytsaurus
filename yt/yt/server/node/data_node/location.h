@@ -188,6 +188,9 @@ public:
     //! Returns the medium name.
     std::string GetMediumName() const;
 
+    //! Returns the medium index.
+    int GetMediumIndex() const;
+
     //! Returns the medium descriptor.
     NChunkClient::TMediumDescriptorPtr GetMediumDescriptor() const;
 

@@ -48,7 +48,7 @@ struct IChunkStoreHost
 
 DEFINE_REFCOUNTED_TYPE(IChunkStoreHost)
 
-IChunkStoreHostPtr CreateChunkStoreHost(NClusterNode::IBootstrapBase* bootstrap);
+IChunkStoreHostPtr CreateChunkStoreHost(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

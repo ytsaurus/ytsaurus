@@ -678,7 +678,7 @@ void TBlobSession::PreparePutBlocks(
     // Run the validation again since the context could have been switched since the last check.
     ValidateActive();
 
-    const auto& blockCache = Bootstrap_->GetBlockCache();
+    auto blockCache = Bootstrap_->GetBlockCacheForMedium(Location_->GetMediumIndex());
 
     const auto& memoryTracker = Location_->GetWriteMemoryTracker();
 

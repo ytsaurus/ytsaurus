@@ -10,6 +10,7 @@
 #include "location.h"
 #include "location_manager.h"
 #include "master_connector.h"
+#include "medium_aware_block_cache_manager.h"
 #include "network_statistics.h"
 #include "offloaded_chunk_read_session.h"
 #include "p2p.h"
@@ -904,7 +905,7 @@ private:
             subresponse->set_disk_queue_size(diskThrottling.QueueSize);
 
             if (chunk) {
-                subresponse->set_medium_index(chunk->GetLocation()->GetMediumDescriptor()->GetIndex());
+                subresponse->set_medium_index(chunk->GetLocation()->GetMediumIndex());
             }
 
             YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
@@ -982,7 +983,7 @@ private:
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
         if (chunk) {
-            response->set_medium_index(chunk->GetLocation()->GetMediumDescriptor()->GetIndex());
+            response->set_medium_index(chunk->GetLocation()->GetMediumIndex());
         }
 
         YT_LOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), diskThrottling.Error);
@@ -1014,7 +1015,16 @@ private:
         auto cachedBlockSize = 0L;
 
         if (GetDynamicConfig()->PropagateCachedBlockInfosToProbing) {
-            auto cachedBlocks = Bootstrap_->GetBlockCache()->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
+            THashSet<NChunkClient::TBlockInfo> cachedBlocks;
+            if (auto blockCache = Bootstrap_->GetBlockCache()) {
+                cachedBlocks = blockCache->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
+            }
+            if (auto manager = Bootstrap_->GetMediumAwareBlockCacheManager()) {
+                auto perMediumCachedBlocks = manager->GetCachedBlocksByChunkId(
+                    chunkId,
+                    EBlockType::CompressedData);
+                cachedBlocks.insert(perMediumCachedBlocks.begin(), perMediumCachedBlocks.end());
+            }
             for (const auto& blockInfo : cachedBlocks) {
                 auto* protoBlockInfo = response->add_cached_blocks();
                 protoBlockInfo->set_block_index(blockInfo.BlockIndex);
@@ -1046,6 +1056,7 @@ private:
     TChunkReadOptions PrepareChunkReadOptions(
         const TIntrusivePtr<TContext>& context,
         const TRequest* request,
+        const IChunkPtr& chunk,
         bool fetchFromCache,
         bool fetchFromDisk,
         const TChunkReaderStatisticsPtr& chunkReaderStatistics)
@@ -1053,7 +1064,9 @@ private:
         TChunkReadOptions options;
         options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
         options.PopulateCache = request->populate_cache();
-        options.BlockCache = Bootstrap_->GetBlockCache();
+        options.BlockCache = chunk
+            ? Bootstrap_->GetBlockCacheForMedium(chunk->GetLocation()->GetMediumIndex())
+            : Bootstrap_->GetBlockCache();
         options.FetchFromCache = fetchFromCache;
         options.FetchFromDisk = fetchFromDisk;
         options.EnableSequentialIORequests = GetDynamicConfig()->EnableSequentialIORequests.value_or(Config_->EnableSequentialIORequests);
@@ -1305,6 +1318,7 @@ private:
                 auto options = PrepareChunkReadOptions(
                     context,
                     request,
+                    chunk,
                     fetchFromCache && !netThrottling.Enabled,
                     fetchFromDisk && !netThrottling.Enabled && !diskThrottling.Enabled,
                     chunkReaderStatistics);
@@ -1429,6 +1443,7 @@ private:
         auto options = PrepareChunkReadOptions(
             context,
             request,
+            chunk,
             !netThrottling.Enabled,
             !netThrottling.Enabled && !diskThrottling.Enabled,
             chunkReaderStatistics);
@@ -1514,7 +1529,8 @@ private:
             options.PopulateCache = true;
             options.FetchFromCache = true;
             options.FetchFromDisk = true;
-            options.BlockCache = Bootstrap_->GetBlockCache();
+            options.BlockCache = Bootstrap_->GetBlockCacheForMedium(
+                chunkWithBlockRequests.Chunk->GetLocation()->GetMediumIndex());
             options.EnableSequentialIORequests =
                 GetDynamicConfig()->EnableSequentialIORequests.value_or(Config_->EnableSequentialIORequests);
             options.ChunkReaderStatistics = chunkReaderStatistics;

@@ -8,6 +8,7 @@ SRCS(
     p2p_ut.cpp
     journal_manager_ut.cpp
     data_node_service_ut.cpp
+    medium_aware_block_cache_manager_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

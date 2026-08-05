@@ -290,9 +290,11 @@ public:
         TBlockCacheConfigPtr config,
         EBlockType supportedBlockTypes,
         IMemoryUsageTrackerPtr memoryTracker,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TProfiler& profiler,
+        bool manageMemoryLimit)
         : MemoryUsageTracker_(std::move(memoryTracker))
         , SupportedBlockTypes_(supportedBlockTypes)
+        , ManageMemoryLimit_(manageMemoryLimit)
         , StaticConfig_(std::move(config))
     {
         i64 capacity = 0;
@@ -317,7 +319,10 @@ public:
         initType(EBlockType::MinHashDigest, StaticConfig_->MinHashDigest);
 
         // NB: We simply override the limit as underlying per-type caches are unaware of this cascading structure.
-        MemoryUsageTracker_->SetLimit(capacity);
+        // When memory limit management is delegated to an outer owner this cache must not touch the shared category limit.
+        if (ManageMemoryLimit_) {
+            MemoryUsageTracker_->SetLimit(capacity);
+        }
     }
 
     THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId chunkId, EBlockType type) override
@@ -420,12 +425,15 @@ public:
         reconfigureType(EBlockType::MinHashDigest, config->MinHashDigest);
 
         // NB: We simply override the limit as underlying per-type caches know nothing about this cascading structure.
-        MemoryUsageTracker_->SetLimit(newCapacity);
+        if (ManageMemoryLimit_) {
+            MemoryUsageTracker_->SetLimit(newCapacity);
+        }
     }
 
 private:
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const EBlockType SupportedBlockTypes_;
+    const bool ManageMemoryLimit_;
     const TBlockCacheConfigPtr StaticConfig_;
 
     TCompactFlatMap<EBlockType, TPerTypeClientBlockCachePtr, TEnumTraits<EBlockType>::GetDomainSize()> PerTypeCaches_;
@@ -437,14 +445,16 @@ IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
     IMemoryUsageTrackerPtr memoryUsageTracker,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TProfiler& profiler,
+    bool manageMemoryLimit)
 {
     YT_VERIFY(memoryUsageTracker);
     return New<TClientBlockCache>(
         std::move(config),
         supportedBlockTypes,
         std::move(memoryUsageTracker),
-        profiler);
+        profiler,
+        manageMemoryLimit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
