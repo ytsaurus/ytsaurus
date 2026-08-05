@@ -815,7 +815,11 @@ class TestSequoiaInternals(YTEnvSetup):
         assert err.inner_errors[0]["code"] == yt_error_codes.Generic
 
     @authors("kvk1920")
+    @flaky(max_runs=3)
     def test_ground_connection_synchronization(self):
+        # This test is already fixed in trunk. But fix requires changes in
+        # native client which we don't want to see in stable branch. Therefore,
+        # it's just marked as "flaky" for now.
         clusters = get("//sys/clusters")
         remove("//sys/clusters/primary_ground")
 
