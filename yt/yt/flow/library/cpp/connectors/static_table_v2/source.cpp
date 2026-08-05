@@ -174,6 +174,11 @@ void TSource::DoInit()
     Client_ = CreateClient(GetContext(), GetDynamicPartitionSpec()->Table);
 }
 
+void TSource::DoTerminate()
+{
+    CancelReader(TError(NYT::EErrorCode::Canceled, "Source is terminated, so the table reader is no longer needed"));
+}
+
 void TSource::DoReportPersistedOffset(TOffset offsetExclusive)
 {
     PersistedOffsetExclusive_.store(OffsetToInt(offsetExclusive));
@@ -351,7 +356,23 @@ void TSource::DropReader(const TError& error)
     GetReadErrorState()->SetError(error);
     YT_TLOG_WARNING("Dropping table reader")
         .With(error);
-    ReaderFuture_ = {};
+    CancelReader(error);
+}
+
+void TSource::CancelReader(const TError& error)
+{
+    if (!ReaderFuture_) {
+        return;
+    }
+
+    // The creation is completed by another thread, so cancelling it first makes the order race-free:
+    // on an already set future the cancellation is a no-op, and a creation that lands right after it
+    // is still seen by the check below.
+    auto readerFuture = std::exchange(ReaderFuture_, {});
+    readerFuture.Cancel(error);
+    if (readerFuture.IsSet() && readerFuture.GetOrCrash().IsOK()) {
+        readerFuture.GetOrCrash().Value()->GetReadyEvent().Cancel(error);
+    }
 }
 
 TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBatcherSettingsPtr& settings, TOffset nextOffsetAsKey, std::optional<TOffset> offsetLimitAsKey)
@@ -362,15 +383,25 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
     auto dynamicSourcePartitionSpec = GetDynamicPartitionSpec();
     auto [minOffsetInclusive, maxOffsetExclusive] = GetRowIndexRange(dynamicSourcePartitionSpec->Table);
 
+    // The reader is bound to the row range it was created with, so a trimmed range needs a new one.
+    // Clamping before the end check keeps a range trimmed to nothing from creating a reader over it.
+    if (nextOffset < minOffsetInclusive) {
+        CancelReader(TError(NYT::EErrorCode::Canceled, "Partition row range was trimmed under the table reader")
+            << TErrorAttribute("reader_offset", CurrentOffset_)
+            << TErrorAttribute("next_offset", nextOffset)
+            << TErrorAttribute("min_offset_inclusive", minOffsetInclusive));
+        nextOffset = minOffsetInclusive;
+    }
+
     // If partition is "trimmed" by controller logic, nextOffset jumps to maxOffsetExclusive.
     // And may differ from CurrentOffset_.
     if (nextOffset == maxOffsetExclusive) {
+        CancelReader(TError(NYT::EErrorCode::Canceled, "Partition row range is fully read")
+            << TErrorAttribute("reader_offset", CurrentOffset_)
+            << TErrorAttribute("max_offset_exclusive", maxOffsetExclusive));
+        // Nothing is left to read, so a read error left by a previous poll is stale.
+        GetReadErrorState()->ClearError();
         return MakeFuture(std::vector<TSource::TRecord>{});
-    }
-
-    if (nextOffset < minOffsetInclusive) {
-        ReaderFuture_ = {};
-        nextOffset = minOffsetInclusive;
     }
 
     if (!ReaderFuture_) {
