@@ -26,6 +26,7 @@ namespace NYT::NFlow {
 struct TSinkContextBase
     : public TComputationContextBase
 {
+    TSinkId SinkId;
     TSinkSpecPtr SinkSpec;
 };
 
