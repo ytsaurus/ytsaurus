@@ -60,6 +60,10 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("join_cache_size", &TThis::JoinCacheSize)
         .GreaterThan(0)
         .Optional();
+
+    registrar.Parameter("max_subsplits_per_tablet", &TThis::MaxSubsplitsPerTablet)
+        .GreaterThan(0)
+        .Optional();
 }
 
 //////////////////////////////////////////////////////////////////////
