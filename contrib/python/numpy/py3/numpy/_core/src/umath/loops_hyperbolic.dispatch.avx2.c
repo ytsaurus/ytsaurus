@@ -13,10 +13,8 @@
 #define NPY_HAVE_F16C
 #define NPY_HAVE_FMA3
 #define NPY_HAVE_AVX2
-#define NPY_HAVE_AVX512F
-#define NPY_HAVE_AVX512F_REDUCE
 
 #undef NPY_MTARGETS_BASELINE
-#define NPY_MTARGETS_CURRENT AVX512F
+#define NPY_MTARGETS_CURRENT AVX2
 
-#include "contrib/python/numpy/py3/numpy/_core/src/umath/loops_trigonometric.dispatch.c"
+#include "contrib/python/numpy/py3/numpy/_core/src/umath/loops_hyperbolic.dispatch.c"
