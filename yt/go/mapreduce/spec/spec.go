@@ -57,6 +57,9 @@ type UserScript struct {
 
 	NetworkProject string `yson:"network_project,omitempty"`
 
+	InterruptionSignal    string `yson:"interruption_signal,omitempty"`
+	SignalRootProcessOnly bool   `yson:"signal_root_process_only,omitempty"`
+
 	EnablePorto            string         `yson:"enable_porto,omitempty"`
 	UsePortoMemoryTracking *bool          `yson:"use_porto_memory_tracking,omitempty"`
 	UseSmapsMemoryTracker  *bool          `yson:"use_smaps_memory_tracker,omitempty"`
