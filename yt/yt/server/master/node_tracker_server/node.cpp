@@ -1176,6 +1176,11 @@ void TNode::SetHost(THost* host)
     }
 }
 
+void TNode::SetHost(TTestingTag, THost* host)
+{
+    SetHost(host);
+}
+
 bool TNode::GetEffectiveDisableWriteSessions() const
 {
     return AreWriteSessionsDisabled() || DisableWriteSessionsSentToNode_ || DisableWriteSessionsReportedByNode_;

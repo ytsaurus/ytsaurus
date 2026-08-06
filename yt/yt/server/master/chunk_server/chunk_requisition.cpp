@@ -738,6 +738,26 @@ void TChunkRequisitionRegistry::Clear()
 }
 
 void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
+    TTestingTag,
+    NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount)
+{
+    DoEnsureBuiltinRequisitionsInitialized(
+        chunkWiseAccountingMigrationAccount,
+        /*objectManager*/ nullptr);
+}
+
+void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
+    NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
+    const NObjectServer::IObjectManagerPtr& objectManager)
+{
+    YT_VERIFY(objectManager);
+
+    DoEnsureBuiltinRequisitionsInitialized(
+        chunkWiseAccountingMigrationAccount,
+        objectManager);
+}
+
+void TChunkRequisitionRegistry::DoEnsureBuiltinRequisitionsInitialized(
     NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
     const NObjectServer::IObjectManagerPtr& objectManager)
 {
@@ -862,10 +882,14 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
     YT_VERIFY(IndexToItem_.emplace(index, item).second);
     YT_VERIFY(RequisitionToIndex_.emplace(requisition, index).second);
 
-    // Since requisitions are sometimes created by aggregating other requisitions,
-    // there's no guarantee that accounts are alive (not to mention active).
-    for (const auto& entry : requisition.AllEntries()) {
-        objectManager->WeakRefObject(entry.Account);
+    // TODO(danilalexeev): YT-28820. Remove the test-only support for a null object manager once
+    // `Migration*RequisitionIndex` values are dropped.
+    if (objectManager) {
+        // Since requisitions are sometimes created by aggregating other requisitions,
+        // there's no guarantee that accounts are alive (not to mention active).
+        for (const auto& entry : requisition.AllEntries()) {
+            objectManager->WeakRefObject(entry.Account);
+        }
     }
 
     YT_LOG_DEBUG("Requisition created (RequisitionIndex: %v, Requisition: %v)",

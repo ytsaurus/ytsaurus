@@ -61,6 +61,14 @@ struct IChunkStatisticsCalculatorCallbacks
     virtual TChunkRequisitionRegistry* GetChunkRequisitionRegistry() const = 0;
     virtual const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const = 0;
     virtual NLogging::ELogLevel GetChunkLogLevel(const TChunk* chunk) const = 0;
+    virtual int GetMaxReplicasPerRack(int mediumIndex, const TChunk* chunk) const = 0;
+    virtual int GetMaxReplicasPerDataCenter(
+        int mediumIndex,
+        const TChunk* chunk,
+        const NNodeTrackerServer::TDataCenter* dataCenter) const = 0;
+    virtual TNodeList GetConsistentPlacementWriteTargets(
+        const TChunk* chunk,
+        int mediumIndex) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStatisticsCalculatorCallbacks)
@@ -72,7 +80,6 @@ class TChunkStatisticsCalculator
 public:
     TChunkStatisticsCalculator(
         TChunkManagerConfigPtr config,
-        TChunkPlacementPtr chunkPlacement,
         IChunkStatisticsCalculatorCallbacksPtr callbacks);
 
     TChunkStatistics ComputeChunkStatistics(
@@ -92,7 +99,6 @@ public:
 
 private:
     const TChunkManagerConfigPtr Config_;
-    const TChunkPlacementPtr ChunkPlacement_;
     const IChunkStatisticsCalculatorCallbacksPtr Callbacks_;
 
     TChunkStatistics ComputeRegularChunkStatistics(
