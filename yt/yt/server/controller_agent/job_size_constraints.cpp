@@ -967,6 +967,11 @@ public:
             }
         }
 
+        i64 maxPartitionJobCount = Options_->MaxPartitionJobCount;
+        if (Spec_->MaxPartitionJobCount) {
+            maxPartitionJobCount = std::min(maxPartitionJobCount, static_cast<i64>(*Spec_->MaxPartitionJobCount));
+        }
+
         auto validateAndAdjustJobCount = [&] (i64 jobCount, i64 inputSize, i64 maxSizePerJob) {
             YT_VERIFY(jobCount > 0 || (jobCount == 0 && inputSize == 0));
             if (inputSize > 0 && jobCount > 0) {
@@ -975,7 +980,7 @@ public:
                     jobCount = DivCeil(inputSize, maxSizePerJob);
                 }
             }
-            return std::min({jobCount, static_cast<i64>(Options_->MaxPartitionJobCount), InputRowCount_});
+            return std::min({jobCount, maxPartitionJobCount, InputRowCount_});
         };
 
         JobCountByDataWeight_ = validateAndAdjustJobCount(JobCountByDataWeight_, InputDataWeight_, Spec_->MaxDataWeightPerJob);

@@ -2051,6 +2051,9 @@ void TSortOperationSpec::Register(TRegistrar registrar)
     registrar.BaseClassParameter("partition_job_count", &TSortOperationSpec::PartitionJobCount)
         .Default()
         .GreaterThan(0);
+    registrar.BaseClassParameter("max_partition_job_count", &TSortOperationSpec::MaxPartitionJobCount)
+        .Default()
+        .GreaterThan(0);
     registrar.BaseClassParameter("data_weight_per_partition_job", &TSortOperationSpec::DataWeightPerPartitionJob)
         .Alias("data_size_per_partition_job")
         .Default()
@@ -2135,6 +2138,9 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
 
     // Provide custom names for shared settings.
     registrar.BaseClassParameter("map_job_count", &TMapReduceOperationSpec::PartitionJobCount)
+        .Default()
+        .GreaterThan(0);
+    registrar.BaseClassParameter("max_map_job_count", &TMapReduceOperationSpec::MaxPartitionJobCount)
         .Default()
         .GreaterThan(0);
     registrar.BaseClassParameter("data_weight_per_map_job", &TMapReduceOperationSpec::DataWeightPerPartitionJob)

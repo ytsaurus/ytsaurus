@@ -4108,6 +4108,31 @@ for line in sys.stdin:
         assert len(tasks) == 2
         assert {"partition", "partition_reduce"} == {task["job_type"] for task in tasks}
 
+    @authors("pavook")
+    def test_max_map_job_count(self):
+        skip_if_component_old(self.Env, (26, 1), "controller-agent")
+        create("table", "//tmp/t_in")
+
+        rows = [{"key": "{:015d}".format(i), "value": "x" * 100} for i in range(100)]
+        write_table("<append=%true>//tmp/t_in", rows)
+
+        max_map_job_count = 3
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="<create=%true>//tmp/t_out",
+            sort_by=["key"],
+            mapper_command="cat",
+            reducer_command="cat",
+            spec={
+                # Without the limit this would produce one job per row.
+                "data_weight_per_map_job": 1,
+                "max_map_job_count": max_map_job_count,
+            },
+        )
+
+        job_counter_path = op.get_path() + "/@progress/data_flow_graph/vertices/partition_map(0)/job_counter"
+        assert get(job_counter_path + "/completed/total") <= max_map_job_count
+
 
 ##################################################################
 
