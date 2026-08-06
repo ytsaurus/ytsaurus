@@ -107,4 +107,52 @@ void TProtoParsingComputationBase<TBase, TProto, TProtoParameters, TDynamicProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TProto, class TParameters, bool PropagateHookErrors>
+void TProtoParsingProcessFunctionBase<TProto, TParameters, PropagateHookErrors>::Init(const IRuntimeInitContextPtr& initContext)
+{
+    Parameters_ = initContext->GetParameters<TParameters>();
+    DoInit(initContext);
+}
+
+template <class TProto, class TParameters, bool PropagateHookErrors>
+void TProtoParsingProcessFunctionBase<TProto, TParameters, PropagateHookErrors>::DoInit(const IRuntimeInitContextPtr& /*initContext*/)
+{ }
+
+template <class TProto, class TParameters, bool PropagateHookErrors>
+const TIntrusivePtr<TParameters>& TProtoParsingProcessFunctionBase<TProto, TParameters, PropagateHookErrors>::GetParameters() const
+{
+    return Parameters_;
+}
+
+template <class TProto, class TParameters, bool PropagateHookErrors>
+void TProtoParsingProcessFunctionBase<TProto, TParameters, PropagateHookErrors>::ProcessMessage(
+    const TInputMessageConstPtr& message,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context)
+{
+    auto onProto = [&] (TProto&& proto) {
+        ProcessProto(message, std::move(proto), output, context);
+    };
+    auto onUnparsed = [&] (TError error) {
+        ProcessUnparsed(message, std::move(error), output, context);
+    };
+    if constexpr (PropagateHookErrors) {
+        NDetail::ParseProtoColumnPropagatingHookErrors<TProto>(*message, Parameters_->DataColumn, onProto, onUnparsed);
+    } else {
+        NDetail::ParseProtoColumnRoutingHookErrors<TProto>(*message, Parameters_->DataColumn, onProto, onUnparsed);
+    }
+}
+
+template <class TProto, class TParameters, bool PropagateHookErrors>
+void TProtoParsingProcessFunctionBase<TProto, TParameters, PropagateHookErrors>::ProcessUnparsed(
+    const TInputMessageConstPtr& /*message*/,
+    TError error,
+    const IOutputCollectorPtr& /*output*/,
+    const IRuntimeContextPtr& /*context*/)
+{
+    THROW_ERROR error;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFlow
