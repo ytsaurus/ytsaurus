@@ -9,7 +9,9 @@ from yt_commands import (
     copy, move, get_singular_chunk_id, wait, get, concatenate,
     get_account_disk_space_limit, set_account_disk_space_limit,
     write_table, read_table, sync_mount_table, sync_unmount_table, insert_rows, sync_flush_table,
-    map, raises_yt_error, select_rows, lookup_rows, print_debug, write_file, read_file)
+    attach_table, map, raises_yt_error, select_rows, lookup_rows, print_debug, write_file, read_file)
+
+from yt.test_helpers import assert_items_equal
 
 import time
 import pytest
@@ -21,6 +23,9 @@ import string
 
 import boto3
 from botocore.exceptions import ClientError
+import pyarrow as pa
+import pyarrow.parquet as pq
+from io import BytesIO
 
 ################################################################################
 
@@ -190,6 +195,13 @@ class TestS3MediumBase(YTEnvSetup):
             # YT specific configuration.
             **media,
         }
+
+    @staticmethod
+    def dump_arrow_table_as_bytes(table, **kwargs):
+        buffer = BytesIO()
+        pq.write_table(table, buffer, **kwargs)
+        buffer.seek(0)
+        return buffer
 
     @classmethod
     def setup_s3_client(cls):
@@ -660,6 +672,126 @@ class TestS3Medium(TestS3MediumBase):
 ################################################################################
 
 
+class TestAttachTable(TestS3MediumBase):
+    """Parquet-only coverage for attaching source S3 objects as table chunks."""
+
+    def put_parquet(self, key, records, **kwargs):
+        bucket = self.get_s3_medium()["bucket"]
+        columns = {
+            name: [record.get(name) for record in records]
+            for name in records[0]
+        }
+        self.S3_CLIENT.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=self.dump_arrow_table_as_bytes(pa.Table.from_pydict(columns), **kwargs))
+        return f"s3://{bucket}/{key}"
+
+    def create_destination(self, path="//tmp/imported", **attributes):
+        create("table", path, attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            **attributes,
+        })
+        return path
+
+    @authors("pavel-bash")
+    def test_attach_empty_sources(self):
+        destination = self.create_destination()
+
+        with pytest.raises(YtError, match="empty source URI list"):
+            attach_table(destination, source_uris=[])
+
+    @authors("pavel-bash")
+    def test_attach_parquet_and_read(self):
+        destination = self.create_destination()
+        records = [{"x": 1, "y": "first"}, {"x": 2, "y": "second"}]
+
+        source_uri = self.put_parquet("basic.parquet", records)
+        attach_table(destination, source_uris=[source_uri])
+
+        assert_items_equal(read_table(destination), records)
+        assert get(f"{destination}/@chunk_count") == 1
+
+    @authors("pavel-bash")
+    def test_attach_compressed_parquet_row_groups(self):
+        destination = self.create_destination()
+        records = [{"index": index, "value": str(index)} for index in range(64)]
+
+        source_uri = self.put_parquet(
+            "compressed.parquet",
+            records,
+            compression="gzip",
+            row_group_size=8)
+        attach_table(destination, source_uris=[source_uri])
+
+        assert_items_equal(read_table(destination), records)
+
+    @authors("pavel-bash")
+    def test_attach_multiple_parquet_sources(self):
+        destination = self.create_destination()
+        first = [{"x": 1, "y": "first"}]
+        second = [{"x": 2, "y": "second"}]
+
+        attach_table(destination, source_uris=[
+            self.put_parquet("first.parquet", first),
+            self.put_parquet("second.parquet", second),
+        ])
+
+        assert_items_equal(read_table(destination), first + second)
+        assert get(f"{destination}/@chunk_count") == 2
+
+    @authors("pavel-bash")
+    def test_attach_overwrite_and_append(self):
+        destination = self.create_destination()
+        first = [{"x": 1}]
+        second = [{"x": 2}]
+        third = [{"x": 3}]
+
+        attach_table(destination, source_uris=[self.put_parquet("first.parquet", first)])
+        attach_table(destination, source_uris=[self.put_parquet("second.parquet", second)])
+        assert read_table(destination) == second
+
+        attach_table("<append=%true>" + destination, source_uris=[self.put_parquet("third.parquet", third)])
+        assert_items_equal(read_table(destination), second + third)
+
+    @authors("pavel-bash")
+    def test_attach_explicit_parquet_format(self):
+        destination = self.create_destination()
+        records = [{"x": 1}]
+        source_uri = self.put_parquet("object-without-suffix", records)
+
+        attach_table(destination, source_uris=[source_uri], source_format="parquet")
+        assert read_table(destination) == records
+
+    @authors("pavel-bash")
+    def test_attach_rejects_incompatible_schema(self):
+        destination = self.create_destination(schema=[{"name": "x", "type": "int64"}])
+        source_uri = self.put_parquet("wrong-schema.parquet", [{"x": "not-an-int"}])
+
+        with pytest.raises(YtError, match="not compatible with the table schema"):
+            attach_table(destination, source_uris=[source_uri])
+
+    @authors("pavel-bash")
+    def test_attach_rejects_non_s3_medium_and_erasure(self):
+        source_uri = self.put_parquet("source.parquet", [{"x": 1}])
+
+        create("table", "//tmp/not_s3")
+        with pytest.raises(YtError, match="non-S3 medium"):
+            attach_table("//tmp/not_s3", source_uris=[source_uri])
+
+        destination = self.create_destination(erasure_codec="reed_solomon_6_3")
+        with pytest.raises(YtError, match="erasure codec"):
+            attach_table(destination, source_uris=[source_uri])
+
+
+################################################################################
+
+
 class TestS3MediumRpcProxy(TestS3Medium):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+
+class TestAttachTableRpcProxy(TestAttachTable):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

@@ -1,14 +1,22 @@
 #include "schemaless_block_reader.h"
 #include "helpers.h"
 #include "hunks.h"
+#include "columnar_chunk_meta.h"
 
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/private.h>
+#include <yt/yt/client/table_client/value_consumer.h>
 
+#include <yt/yt/library/arrow_adapter/arrow.h>
+#include <yt/yt/library/formats/arrow_parser.h>
 #include <yt/yt/library/numeric/algorithm_helpers.h>
+
+#include <contrib/libs/apache/arrow_next/cpp/src/arrow/table.h>
+#include <contrib/libs/apache/arrow_next/cpp/src/parquet/arrow/reader.h>
 
 namespace NYT::NTableClient {
 
@@ -347,6 +355,212 @@ bool THorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
     }
 
     return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+std::shared_ptr<arrow20::RecordBatchReader> CreateParquetRecordBatchReader(
+    const TSharedRef& block,
+    const NProto::TDataBlockMeta& dataBlockMeta,
+    const TColumnarChunkMetaPtr& chunkMeta)
+{
+    YT_VERIFY(chunkMeta->Blocks());
+    YT_VERIFY(chunkMeta->ParquetFormatMetaExt());
+
+    const auto& parquetFormatMeta = *chunkMeta->ParquetFormatMetaExt();
+    const auto& footer = parquetFormatMeta.footer();
+    auto footerSize = static_cast<uint32_t>(footer.size());
+    auto fileMeta = parquet20::FileMetaData::Make(footer.data(), &footerSize);
+    const auto parquetFileSize = parquetFormatMeta.file_size();
+
+    const auto blockIndex = dataBlockMeta.block_index();
+    const auto rowGroupOffset = chunkMeta->Blocks()->blocks(blockIndex).offset();
+    auto rowGroupReader = std::make_shared<NArrow::TCompositeBufferArrowRandomAccessFile>(
+        std::vector<NArrow::TCompositeBufferArrowRandomAccessFile::TBufferDescriptor>{
+            {TSharedRef::FromString(TString("PAR1")), 0},
+            {block, rowGroupOffset},
+            {TSharedRef::FromString(TString("PAR1")), parquetFileSize - 4},
+        },
+        parquetFileSize);
+
+    auto parquetReader = parquet20::ParquetFileReader::Open(
+        std::move(rowGroupReader),
+        parquet20::default_reader_properties(),
+        std::move(fileMeta));
+    std::unique_ptr<parquet20::arrow20::FileReader> arrowParquetReader;
+    PARQUET_THROW_NOT_OK(parquet20::arrow20::FileReader::Make(
+        arrow20::default_memory_pool(),
+        std::move(parquetReader),
+        &arrowParquetReader));
+
+    std::shared_ptr<arrow20::Table> table;
+    PARQUET_THROW_NOT_OK(arrowParquetReader->ReadRowGroup(blockIndex, &table));
+    return std::make_shared<arrow20::TableBatchReader>(std::move(table));
+}
+
+} // namespace
+
+TArrowHorizontalBlockReader::TArrowHorizontalBlockReader(
+    const TSharedRef& block,
+    const NProto::TDataBlockMeta& dataBlockMeta,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    const std::vector<int>& chunkToReaderIdMapping,
+    TRange<ESortOrder> sortOrders,
+    int commonKeyPrefix,
+    const TKeyWideningOptions& keyWideningOptions,
+    int extraColumnCount)
+    : DataBlockMeta_(dataBlockMeta)
+    , ChunkMeta_(chunkMeta)
+    , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
+    , SortOrders_(sortOrders.begin(), sortOrders.end())
+    , CommonKeyPrefix_(commonKeyPrefix)
+    , KeyWideningOptions_(keyWideningOptions)
+    , ExtraColumnCount_(extraColumnCount)
+{
+    auto batchReader = CreateParquetRecordBatchReader(block, DataBlockMeta_, ChunkMeta_);
+    // Older branches do not have the collecting Arrow value consumer. Reuse
+    // the standard owning row builder and remap its schema-derived ids below.
+    TBuildingValueConsumer consumer(
+        ChunkMeta_->ChunkSchema(),
+        TableClientLogger(),
+        /*convertNullToEntity*/ false);
+
+    std::shared_ptr<arrow20::RecordBatch> batch;
+    while (true) {
+        PARQUET_THROW_NOT_OK(batchReader->ReadNext(&batch));
+        if (!batch) {
+            break;
+        }
+        PARQUET_THROW_NOT_OK(NFormats::DecodeRecordBatch(batch, &consumer));
+    }
+    const auto& consumerNameTable = consumer.GetNameTable();
+    const auto& chunkNameTable = ChunkMeta_->ChunkNameTable();
+    for (auto row : consumer.GetRows()) {
+        std::vector<TUnversionedValue> values(row.Begin(), row.End());
+        for (auto& value : values) {
+            value.Id = chunkNameTable->GetIdOrRegisterName(consumerNameTable->GetName(value.Id));
+        }
+        Rows_.emplace_back(TUnversionedValueRange(values.data(), values.size()));
+    }
+
+    KeyBuffer_.reserve(GetUnversionedRowByteSize(GetKeyColumnCount()));
+    Key_ = TMutableUnversionedRow::Create(KeyBuffer_.data(), GetKeyColumnCount());
+    for (int index = 0; index < GetKeyColumnCount(); ++index) {
+        Key_[index] = MakeUnversionedNullValue(index);
+    }
+    JumpToRowIndex(0);
+}
+
+bool TArrowHorizontalBlockReader::NextRow()
+{
+    return JumpToRowIndex(RowIndex_ + 1);
+}
+
+bool TArrowHorizontalBlockReader::SkipToRowIndex(i64 rowIndex)
+{
+    YT_VERIFY(rowIndex >= RowIndex_);
+    return JumpToRowIndex(rowIndex);
+}
+
+bool TArrowHorizontalBlockReader::SkipToKeyBound(const TKeyBoundRef& lowerBound)
+{
+    auto inBound = [&] (TUnversionedRow row) {
+        return TestKey(ToKeyRef(row), lowerBound, SortOrders_);
+    };
+    if (inBound(GetLegacyKey())) {
+        return true;
+    }
+    const auto index = BinarySearch(RowIndex_, DataBlockMeta_.row_count(), [&] (i64 rowIndex) {
+        YT_VERIFY(JumpToRowIndex(rowIndex));
+        return !inBound(GetLegacyKey());
+    });
+    return JumpToRowIndex(index);
+}
+
+bool TArrowHorizontalBlockReader::SkipToKey(TUnversionedRow lowerBound)
+{
+    return SkipToKeyBound(ToKeyBoundRef(lowerBound, /*upper*/ false, GetKeyColumnCount()));
+}
+
+bool TArrowHorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
+{
+    if (rowIndex >= std::ssize(Rows_)) {
+        return false;
+    }
+    RowIndex_ = rowIndex;
+    std::memcpy(
+        Key_.Begin(),
+        Rows_[RowIndex_].Begin(),
+        sizeof(TUnversionedValue) * GetChunkKeyColumnCount());
+    return true;
+}
+
+TLegacyKey TArrowHorizontalBlockReader::GetLegacyKey() const
+{
+    return Key_;
+}
+
+TKey TArrowHorizontalBlockReader::GetKey() const
+{
+    return TKey::FromRowUnchecked(Key_, GetKeyColumnCount());
+}
+
+int TArrowHorizontalBlockReader::GetChunkKeyColumnCount() const
+{
+    return CommonKeyPrefix_;
+}
+
+int TArrowHorizontalBlockReader::GetKeyColumnCount() const
+{
+    return SortOrders_.Size();
+}
+
+TMutableUnversionedRow TArrowHorizontalBlockReader::GetRow(TChunkedMemoryPool* memoryPool, bool remapIds)
+{
+    YT_VERIFY(RowIndex_ >= 0 && RowIndex_ < std::ssize(Rows_));
+    const auto chunkRow = Rows_[RowIndex_];
+    auto row = TMutableUnversionedRow::Allocate(
+        memoryPool,
+        chunkRow.GetCount() + std::ssize(KeyWideningOptions_.InsertedColumnIds) + ExtraColumnCount_);
+
+    int valueCount = 0;
+    auto pushRegularValue = [&] (int chunkValueIndex) {
+        auto value = chunkRow[chunkValueIndex];
+        const auto remappedId = remapIds ? ChunkToReaderIdMapping_[value.Id] : value.Id;
+        if (remappedId >= 0) {
+            value.Id = remappedId;
+            row[valueCount++] = value;
+        }
+    };
+    auto pushNullValue = [&] (int id) {
+        row[valueCount++] = MakeUnversionedNullValue(id);
+    };
+
+    if (KeyWideningOptions_.InsertPosition < 0) {
+        for (int index = 0; index < chunkRow.GetCount(); ++index) {
+            pushRegularValue(index);
+        }
+    } else {
+        for (int index = 0; index < KeyWideningOptions_.InsertPosition; ++index) {
+            pushRegularValue(index);
+        }
+        for (int id : KeyWideningOptions_.InsertedColumnIds) {
+            pushNullValue(id);
+        }
+        for (int index = KeyWideningOptions_.InsertPosition; index < chunkRow.GetCount(); ++index) {
+            pushRegularValue(index);
+        }
+    }
+
+    row.SetCount(valueCount);
+    return row;
+}
+
+i64 TArrowHorizontalBlockReader::GetRowIndex() const
+{
+    return RowIndex_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

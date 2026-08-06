@@ -219,6 +219,9 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkFormat, i8,
     ((TableVersionedIndexed)                (8))
     ((TableVersionedSlim)                   (9))
 
+    // External table chunks. The data remains in the source object.
+    ((TableUnversionedArrowParquet)         (12))
+
     // Journal chunks.
     ((JournalDefault)                       (0))
     ((JournalDistributed)                  (11))
@@ -233,6 +236,12 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,
     ((Active)                (1))
     ((Unsealed)              (2))
     ((Sealed)                (3))
+);
+
+//! User-visible formats supported by the external-source attach pipeline.
+//! More source formats can be added without changing the attach protocol.
+DEFINE_ENUM(EExternalSourceFormat,
+    (Parquet)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

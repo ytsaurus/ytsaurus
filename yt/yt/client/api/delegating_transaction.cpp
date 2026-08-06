@@ -65,6 +65,12 @@ DELEGATE_METHOD(TFuture<ITableWriterPtr>, CreateTableWriter, (
     const TTableWriterOptions& options),
     (path, options))
 
+DELEGATE_METHOD(TFuture<void>, AttachTable, (
+    const NYPath::TRichYPath& path,
+    std::vector<std::string> sourceUris,
+    const TAttachTableOptions& options),
+    (path, std::move(sourceUris), options))
+
 DELEGATE_METHOD(TFuture<NYson::TYsonString>, GetNode, (
     const NYPath::TYPath& path,
     const TGetNodeOptions& options),

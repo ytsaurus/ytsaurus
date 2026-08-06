@@ -1087,6 +1087,28 @@ def is_empty(table, client=None):
         row_count(TablePath(table, client=client), client=client))
 
 
+def attach_table(destination_table, source_uris, allow_incompatible_source_schemas=None,
+                 medium=None, source_format=None, client=None):
+    """Attach external Parquet objects as chunks of an existing static table.
+
+    :param destination_table: output table. Its primary medium must be an S3 medium.
+    :type destination_table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param source_uris: S3 object URIs, e.g. ``s3://bucket/path/data.parquet``.
+    :type source_uris: list[str]
+    :param allow_incompatible_source_schemas: permit sources whose inferred schema
+        is not fully compatible with the table schema.
+    :param medium: require the destination table to use this S3 medium.
+    :param source_format: explicit source format; currently only ``parquet`` is supported.
+    """
+    params = {"path": TablePath(destination_table, client=client)}
+    set_param(params, "source_uris", source_uris)
+    set_param(params, "allow_incompatible_source_schemas", allow_incompatible_source_schemas)
+    set_param(params, "medium", medium)
+    set_param(params, "source_format", source_format)
+
+    return make_request("attach_table", params, client=client)
+
+
 def get_sorted_by(table, default=None, client=None):
     """Returns "sorted_by" table attribute or `default` if attribute doesn't exist.
 

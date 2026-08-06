@@ -835,6 +835,30 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<void> TClientBase::AttachTable(
+    const TRichYPath& path,
+    std::vector<std::string> sourceUris,
+    const TAttachTableOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto req = proxy.AttachTable();
+
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_path(), path);
+    ToProto(req->mutable_source_uris(), sourceUris);
+    req->set_allow_incompatible_source_schemas(options.AllowIncompatibleSourceSchemas);
+    YT_OPTIONAL_SET_PROTO(req, medium, options.Medium);
+    if (options.SourceFormat) {
+        req->set_source_format(ToUnderlying(*options.SourceFormat));
+    }
+    ToProto(req->mutable_transactional_options(), options);
+
+    return req->Invoke().As<void>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFuture<TDistributedWriteSessionWithCookies> TClientBase::StartDistributedWriteSession(
     const NYPath::TRichYPath& path,
     const TDistributedWriteSessionStartOptions& options)

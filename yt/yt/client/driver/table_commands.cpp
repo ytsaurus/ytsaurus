@@ -385,6 +385,51 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAttachTableCommand::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path);
+    registrar.Parameter("source_uris", &TThis::SourceUris);
+    registrar.ParameterWithUniversalAccessor<bool>(
+        "allow_incompatible_source_schemas",
+        [] (TThis* command) -> auto& {
+            return command->Options.AllowIncompatibleSourceSchemas;
+        })
+        .Optional(/*init*/ false);
+    registrar.ParameterWithUniversalAccessor<std::optional<std::string>>(
+        "medium",
+        [] (TThis* command) -> auto& {
+            return command->Options.Medium;
+        })
+        .Optional(/*init*/ false);
+    registrar.ParameterWithUniversalAccessor<std::optional<EExternalSourceFormat>>(
+        "source_format",
+        [] (TThis* command) -> auto& {
+            return command->Options.SourceFormat;
+        })
+        .Optional(/*init*/ false);
+}
+
+void TAttachTableCommand::DoExecuteImpl(const ICommandContextPtr& context)
+{
+    auto transaction = AttachTransaction(context, false);
+
+    // This is how table upload commands preserve their ancestor locks today.
+    Options.PingAncestors = true;
+
+    PutMethodInfoInTraceContext("attach_table");
+
+    WaitFor(context->GetClient()->AttachTable(Path, SourceUris, Options))
+        .ThrowOnError();
+}
+
+void TAttachTableCommand::DoExecute(ICommandContextPtr context)
+{
+    DoExecuteImpl(context);
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGetTableColumnarStatisticsCommand::Register(TRegistrar registrar)
 {
     registrar.Parameter("paths", &TThis::Paths);

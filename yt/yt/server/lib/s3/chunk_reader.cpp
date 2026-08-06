@@ -7,8 +7,10 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/medium_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/external_parquet.h>
 
 #include <yt/yt/library/s3/client.h>
+#include <yt/yt/library/s3/object.h>
 
 namespace NYT::NS3 {
 
@@ -87,12 +89,18 @@ public:
         IClientPtr client,
         const TS3MediumDescriptorPtr& mediumDescriptor,
         TS3ReaderConfigPtr config,
-        TChunkId chunkId)
+        TChunkId chunkId,
+        std::string sourceUri,
+        EChunkFormat chunkFormat)
         : Client_(std::move(client))
         , Config_(std::move(config))
         , ChunkId_(chunkId)
-        , ChunkPlacement_(mediumDescriptor->GetS3ObjectPlacementForChunk(ChunkId_))
+        , ChunkPlacement_(sourceUri.empty()
+            ? mediumDescriptor->GetS3ObjectPlacementForChunk(ChunkId_)
+            : GetExternalChunkPlacement(sourceUri))
         , ChunkMetaPlacement_(mediumDescriptor->GetS3ObjectPlacementForChunkMeta(ChunkId_))
+        , IsExternalSource_(!sourceUri.empty())
+        , ChunkFormat_(chunkFormat)
         , Logger(ChunkClientLogger())
     { }
 
@@ -140,10 +148,21 @@ private:
     const std::string ChunkFileName_;
     const TS3MediumDescriptor::TS3ObjectPlacement ChunkPlacement_;
     const TS3MediumDescriptor::TS3ObjectPlacement ChunkMetaPlacement_;
+    const bool IsExternalSource_;
+    const EChunkFormat ChunkFormat_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MetaLock_);
     TRefCountedChunkMetaPtr ChunkMeta_;
+
+    static TS3MediumDescriptor::TS3ObjectPlacement GetExternalChunkPlacement(const std::string& sourceUri)
+    {
+        const auto object = TObjectDescriptor::FromUri(sourceUri);
+        return {
+            .Bucket = object.Bucket(),
+            .Key = object.Key(),
+        };
+    }
 
     IInvokerPtr GetSessionInvoker(const TReadBlocksOptions& options) const
     {
@@ -197,15 +216,52 @@ private:
                 return DeserializeBlocks(
                     std::move(response.Data),
                     blockRange,
-                    Config_->ValidateBlockChecksums,
+                    // External Parquet row groups do not carry YT block checksums.
+                    Config_->ValidateBlockChecksums && !IsExternalSource_,
                     ChunkPlacement_.Key,
                     blocksExt,
                     /*dumpBrokenBlocks*/ {});
             }).AsyncVia(GetSessionInvoker(options)));
     }
 
-    TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
-        IInvokerPtr invoker = nullptr)
+    TRefCountedChunkMetaPtr GenerateExternalMeta()
+    {
+        YT_VERIFY(IsExternalSource_);
+        YT_VERIFY(ChunkFormat_ == EChunkFormat::TableUnversionedArrowParquet);
+
+        auto chunkFile = std::make_shared<TS3ArrowRandomAccessFile>(
+            TObjectDescriptor(ChunkPlacement_.Bucket, ChunkPlacement_.Key),
+            Client_);
+        auto chunkMetaGenerator = CreateArrowTableChunkMetaGenerator(ChunkFormat_, std::move(chunkFile));
+        chunkMetaGenerator->Generate();
+        return chunkMetaGenerator->GetChunkMeta();
+    }
+
+    TRefCountedChunkMetaPtr CacheChunkMeta(const TRefCountedChunkMetaPtr& meta)
+    {
+        auto guard = WriterGuard(MetaLock_);
+        if (!ChunkMeta_) {
+            ChunkMeta_ = meta;
+        }
+        return ChunkMeta_;
+    }
+
+    TFuture<TRefCountedChunkMetaPtr> FetchChunkMetaFromMetaObject()
+    {
+        TGetObjectRequest request;
+        request.Bucket = ChunkMetaPlacement_.Bucket;
+        request.Key = ChunkMetaPlacement_.Key;
+        return Client_->GetObject(request)
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const TGetObjectResponse& response) {
+                return DeserializeChunkMeta(
+                    std::move(response.Data),
+                    ChunkMetaPlacement_.Key,
+                    ChunkId_,
+                    /*dumpBrokenMeta*/ {});
+            }));
+    }
+
+    TFuture<TRefCountedChunkMetaPtr> DoGetMeta(IInvokerPtr invoker = nullptr)
     {
         {
             auto guard = ReaderGuard(MetaLock_);
@@ -215,25 +271,16 @@ private:
             }
         }
 
-        TGetObjectRequest request;
-        request.Bucket = ChunkMetaPlacement_.Bucket;
-        request.Key = ChunkMetaPlacement_.Key;
-        return Client_->GetObject(request)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const TGetObjectResponse& response) {
-                auto meta = DeserializeChunkMeta(
-                    std::move(response.Data),
-                    ChunkMetaPlacement_.Key,
-                    ChunkId_,
-                    /*dumpBrokenMeta*/ {});
+        auto actualInvoker = invoker ? invoker : GetCurrentInvoker();
+        if (IsExternalSource_) {
+            return BIND(&TS3Reader::GenerateExternalMeta, MakeStrong(this))
+                .AsyncVia(actualInvoker)
+                .Run()
+                .Apply(BIND(&TS3Reader::CacheChunkMeta, MakeStrong(this)));
+        }
 
-                auto guard = WriterGuard(MetaLock_);
-
-                if (!ChunkMeta_) {
-                    ChunkMeta_ = std::move(meta);
-                }
-
-                return ChunkMeta_;
-            }).AsyncVia(invoker ? invoker : GetCurrentInvoker()));
+        return FetchChunkMetaFromMetaObject()
+            .Apply(BIND(&TS3Reader::CacheChunkMeta, MakeStrong(this)).AsyncVia(actualInvoker));
     }
 
     TFuture<TBlocksExtPtr> GetBlocksExt(
@@ -252,7 +299,9 @@ IChunkReaderPtr CreateS3RegularChunkReader(
     IClientPtr client,
     const TS3MediumDescriptorPtr& mediumDescriptor,
     TS3ReaderConfigPtr config,
-    TChunkId chunkId)
+    TChunkId chunkId,
+    std::string sourceUri,
+    EChunkFormat chunkFormat)
 {
     YT_VERIFY(IsRegularChunkId(chunkId));
 
@@ -260,7 +309,9 @@ IChunkReaderPtr CreateS3RegularChunkReader(
         std::move(client),
         std::move(mediumDescriptor),
         std::move(config),
-        std::move(chunkId));
+        std::move(chunkId),
+        std::move(sourceUri),
+        chunkFormat);
 }
 
 ////////////////////////////////////////////////////////////////////////////

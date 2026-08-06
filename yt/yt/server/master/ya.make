@@ -466,6 +466,7 @@ PEERDIR(
     yt/yt/core/https
 
     yt/yt/library/orchid
+    yt/yt/library/s3
     yt/yt/library/server_program
     yt/yt/library/monitoring
     yt/yt/library/tracing/jaeger

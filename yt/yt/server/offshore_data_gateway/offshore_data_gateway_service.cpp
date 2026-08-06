@@ -134,13 +134,28 @@ private:
         TChunkId chunkId)
     {
         auto replicaWithMedium = FromProto<TChunkReplicaWithMedium>(request.replica_spec());
+        const auto sourceUri = replicaWithMedium.GetSourceUri();
+        if (!sourceUri.empty()) {
+            THROW_ERROR_EXCEPTION_IF(
+                !request.has_chunk_format() ||
+                NYT::FromProto<EChunkFormat>(request.chunk_format()) != EChunkFormat::TableUnversionedArrowParquet,
+                "Unsupported external chunk format %v for source object %Qv",
+                request.has_chunk_format()
+                    ? request.chunk_format()
+                    : ToUnderlying(EChunkFormat::Unknown),
+                sourceUri);
+        }
         auto mediumDescriptor = GetS3MediumDescriptor(replicaWithMedium.GetMediumIndex());
         auto s3Client = CreateS3ClientForMedium(mediumDescriptor);
         return CreateS3RegularChunkReader(
             std::move(s3Client),
             mediumDescriptor,
             std::move(s3ReaderConfig),
-            chunkId);
+            chunkId,
+            std::string(sourceUri),
+            request.has_chunk_format()
+                ? NYT::FromProto<EChunkFormat>(request.chunk_format())
+                : EChunkFormat::Unknown);
     }
 
     IChunkWriterPtr FindSession(TSessionId sessionId)

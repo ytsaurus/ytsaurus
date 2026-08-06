@@ -56,6 +56,7 @@ target_link_libraries(yt-server-master PUBLIC
   cpp-yt-phdr_cache
   yt-core-https
   yt-library-orchid
+  yt-library-s3
   yt-library-server_program
   yt-library-monitoring
   library-tracing-jaeger

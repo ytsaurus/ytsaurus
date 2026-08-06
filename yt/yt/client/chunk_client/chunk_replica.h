@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <string>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,6 +26,11 @@ public:
         NNodeTrackerClient::TNodeId nodeId,
         int replicaIndex,
         int mediumIndex);
+    TChunkReplicaWithMedium(
+        NNodeTrackerClient::TNodeId nodeId,
+        int replicaIndex,
+        int mediumIndex,
+        std::string sourceUri);
     // NB: Will be assigned to generic medium.
     explicit TChunkReplicaWithMedium(TChunkReplica replica);
 
@@ -32,6 +39,7 @@ public:
     NNodeTrackerClient::TNodeId GetNodeId() const;
     int GetReplicaIndex() const;
     int GetMediumIndex() const;
+    TStringBuf GetSourceUri() const;
 
     TChunkReplica ToChunkReplica() const;
     static TChunkReplicaList ToChunkReplicas(TRange<TChunkReplicaWithMedium> replicasWithMedia);
@@ -55,6 +63,7 @@ private:
      *  29-37: medium index (7 bits)
      */
     ui64 Value_;
+    std::string SourceUri_;
 
     explicit TChunkReplicaWithMedium(ui64 value);
 };

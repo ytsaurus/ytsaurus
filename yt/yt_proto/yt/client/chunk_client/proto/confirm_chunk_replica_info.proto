@@ -1,6 +1,7 @@
 package NYT.NChunkClient.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 
 option go_package = "go.ytsaurus.tech/yt/go/proto/client/chunk_client";
 
@@ -12,6 +13,9 @@ message TConfirmChunkReplicaInfo
     // COMPAT(cherepashka): drop and make reserved after 25.4.
     required NYT.NProto.TGuid location_uuid = 2;
     optional uint32 location_index = 3;
+    // Carries optional external-replica fields while retaining the legacy
+    // packed representation above for existing confirmations.
+    optional TChunkReplicaSpec replica_spec = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

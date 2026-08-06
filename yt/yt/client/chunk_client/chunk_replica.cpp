@@ -93,6 +93,9 @@ void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation 
     value->set_replica(replica.Value_);
     ToProto(value->mutable_location_uuid(), replica.ChunkLocationUuid_);
     value->set_location_index(ToProto<ui32>(replica.ChunkLocationIndex_));
+    if (!replica.SourceUri_.empty()) {
+        ToProto(value->mutable_replica_spec(), static_cast<TChunkReplicaWithMedium>(replica));
+    }
 }
 
 void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value)
@@ -100,6 +103,12 @@ void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaI
     using NYT::FromProto;
 
     replica->Value_ = value.replica();
+    replica->SourceUri_.clear();
+    if (value.has_replica_spec()) {
+        auto replicaWithMedium = FromProto<TChunkReplicaWithMedium>(value.replica_spec());
+        YT_VERIFY(replicaWithMedium.Value_ == replica->Value_);
+        replica->SourceUri_ = std::move(replicaWithMedium.SourceUri_);
+    }
     replica->ChunkLocationUuid_ = FromProto<TChunkLocationUuid>(value.location_uuid());
     // COMPAT(cherepashka)
     if (value.has_location_index()) {

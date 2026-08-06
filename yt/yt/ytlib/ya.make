@@ -176,6 +176,7 @@ SRCS(
     chunk_client/erasure_reader.cpp
     chunk_client/erasure_repair.cpp
     chunk_client/erasure_writer.cpp
+    chunk_client/external_parquet.cpp
     chunk_client/fetcher.cpp
     chunk_client/format.cpp
     chunk_client/helpers.cpp
@@ -473,6 +474,7 @@ SRCS(
     table_chunk_format/timestamp_writer.cpp
 
     table_client/blob_table_writer.cpp
+    table_client/attach_table.cpp
     table_client/cache_based_versioned_chunk_reader.cpp
     table_client/cached_versioned_chunk_meta.cpp
     table_client/chunk_column_mapping.cpp
@@ -519,6 +521,7 @@ SRCS(
     table_client/schemaless_buffered_table_writer.cpp
     table_client/schemaless_chunk_reader.cpp
     table_client/schemaless_chunk_writer.cpp
+    table_client/schemaless_table_uploader.cpp
     table_client/schemaless_multi_chunk_reader.cpp
     table_client/skynet_column_evaluator.cpp
     table_client/slice_boundary_key.cpp
@@ -838,6 +841,7 @@ PEERDIR(
     yt/yt/core
     yt/yt/core/http
     yt/yt/library/auth_server
+    yt/yt/library/arrow_adapter
     yt/yt/library/event_log
     yt/yt/library/heavy_schema_validation
     yt/yt/library/min_hash_digest
@@ -846,6 +850,7 @@ PEERDIR(
     yt/yt/library/tvm/service
     yt/yt/library/xor_filter
     yt/yt/client
+    yt/yt/client/arrow
     yt/yt/client/federated
     yt/yt/client/logging
     yt/yt/library/formats

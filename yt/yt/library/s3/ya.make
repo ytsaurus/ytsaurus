@@ -8,6 +8,7 @@ SRCS(
     credential_provider.cpp
     crypto_helpers.cpp
     http.cpp
+    object.cpp
 )
 
 PEERDIR(

@@ -50,4 +50,26 @@ void SetObjectId(NProto::TChunkSpec* chunkSpec, NObjectClient::TObjectId objectI
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EExternalSourceFormat DeduceExternalSourceFormatOrThrow(TStringBuf fileName)
+{
+    if (fileName.ends_with(".parquet")) {
+        return EExternalSourceFormat::Parquet;
+    }
+
+    THROW_ERROR_EXCEPTION(
+        "Cannot deduce an enabled external source format from file name %Qv; only .parquet is supported",
+        fileName);
+}
+
+EChunkFormat GetChunkFormatFromExternalSourceFormat(EExternalSourceFormat externalFormat)
+{
+    switch (externalFormat) {
+        case EExternalSourceFormat::Parquet:
+            return EChunkFormat::TableUnversionedArrowParquet;
+    }
+    YT_ABORT();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient
