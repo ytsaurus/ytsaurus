@@ -1790,8 +1790,11 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
 
     // Do preliminary checks to avoid the overhead of updating and reverting precommit usage.
     bool allowLimitsOvercommit = StageState_->Preemptive;
+    bool skipResourceLimitsCheck = allowLimitsOvercommit && TreeSnapshot_->TreeConfig()->EnableInfiniteResourceLimitsOvercommit;
     if (TreeSnapshot_->TreeConfig()->EnablePreliminaryResourceLimitsCheck &&
-        !Dominates(GetHierarchicalAvailableResources(element, allowLimitsOvercommit), minNeededResources)) {
+        !skipResourceLimitsCheck &&
+        !Dominates(GetHierarchicalAvailableResources(element, allowLimitsOvercommit), minNeededResources))
+    {
         return EDeactivationReason::ResourceLimitsExceeded;
     }
     if (!element->CheckAvailableDemand(minNeededResources)) {

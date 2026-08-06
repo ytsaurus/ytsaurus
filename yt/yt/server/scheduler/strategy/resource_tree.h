@@ -86,6 +86,7 @@ private:
     std::atomic<bool> EnableStructureLockProfiling_ = false;
     std::atomic<bool> EnableUsageLockProfiling_ = false;
     std::atomic<bool> UsePrecommitForPreemption_ = false;
+    std::atomic<bool> EnableInfiniteResourceLimitsOvercommit_ = false;
 
     // For testing.
     // Encoded as microseconds; ::Max<TDuration::TValue>() means "not set".
