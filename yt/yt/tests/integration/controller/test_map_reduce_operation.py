@@ -4078,6 +4078,7 @@ for line in sys.stdin:
 
     @authors("pavook")
     def test_max_map_job_count(self):
+        skip_if_component_old(self.Env, (26, 1), "controller-agent")
         create("table", "//tmp/t_in")
 
         rows = [{"key": "{:015d}".format(i), "value": "x" * 100} for i in range(100)]
