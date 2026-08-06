@@ -694,6 +694,10 @@ def _get_token_by_ssh_session(client):
 
 def validate_token(token, client):
     if token is not None:
+        if token != token.strip():
+            raise YtTokenError(
+                "Authentication token contains leading or trailing whitespace. "
+                "Remove any spaces, tabs, or line breaks around the token.")
         require(all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
 
