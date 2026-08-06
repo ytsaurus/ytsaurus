@@ -723,8 +723,7 @@ private:
 
         TSessionCounterGuard sessionCounterGuard(location);
 
-        auto invoker = CreateSerializedInvoker(location->GetAuxPoolInvoker());
-        invoker->Invoke(BIND(
+        location->GetAuxPoolInvoker()->Invoke(BIND(
             downloader,
             MakeStrong(this),
             key,
