@@ -100,11 +100,41 @@ func CollectOperations(
 		return collectOpsCh
 	}
 
-	eventCh := make(chan OperationsOrError)
 	jobCheckerInputCh, jobCheckerOutputCh := CheckFinishedJobs(ctx, ytc, l.WithName("check_jobs"), cfg)
+	return collectOperationsWithJobChecker(ctx, collectOpsCh, jobCheckerInputCh, jobCheckerOutputCh)
+}
+
+func contextGuardedChanSender[T any](ctx context.Context, ch chan<- T) func(T) bool {
+	return func(v T) bool {
+		select {
+		case ch <- v:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
+}
+
+func collectOperationsWithJobChecker(
+	ctx context.Context,
+	collectOpsCh <-chan OperationsOrError,
+	jobCheckerInputCh chan<- []OperationStatus,
+	jobCheckerOutputCh <-chan JobCheckerResultBatch,
+) <-chan OperationsOrError {
+	eventCh := make(chan OperationsOrError)
+
+	type aggrJobCheckerResult struct {
+		crashedJobs map[yt.OperationID][]yt.JobID
+		errs        []error
+	}
+	crashedJobsCh := make(chan aggrJobCheckerResult, 1)
+
 	go func() {
-		crashedJobs := make(map[yt.OperationID][]yt.JobID)
-		jobCheckerErrs := make([]error, 0)
+		aggrRes := aggrJobCheckerResult{
+			crashedJobs: make(map[yt.OperationID][]yt.JobID),
+			errs:        make([]error, 0),
+		}
+		var outputCh chan<- aggrJobCheckerResult
 		for {
 			select {
 			case <-ctx.Done():
@@ -112,38 +142,72 @@ func CollectOperations(
 
 			case event := <-jobCheckerOutputCh:
 				if event.AggrErr != nil {
-					jobCheckerErrs = append(jobCheckerErrs, event.AggrErr)
-					continue
+					aggrRes.errs = append(aggrRes.errs, event.AggrErr)
+				} else {
+					for _, result := range event.Results {
+						aggrRes.crashedJobs[result.ID] = append(aggrRes.crashedJobs[result.ID], result.CrashedJobs...)
+					}
 				}
+				outputCh = crashedJobsCh
 
-				for _, result := range event.Results {
-					crashedJobs[result.ID] = append(crashedJobs[result.ID], result.CrashedJobs...)
+			case outputCh <- aggrRes:
+				aggrRes.crashedJobs = make(map[yt.OperationID][]yt.JobID)
+				aggrRes.errs = make([]error, 0)
+				outputCh = nil
+			}
+		}
+	}()
+
+	go func() {
+		sendToJobChecker := contextGuardedChanSender(ctx, jobCheckerInputCh)
+		sendToEventCh := contextGuardedChanSender(ctx, eventCh)
+
+		aggrRes := aggrJobCheckerResult{
+			crashedJobs: make(map[yt.OperationID][]yt.JobID),
+			errs:        make([]error, 0),
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+
+			case incomingMsg := <-crashedJobsCh:
+				aggrRes.errs = append(aggrRes.errs, incomingMsg.errs...)
+				for opID, jobs := range incomingMsg.crashedJobs {
+					aggrRes.crashedJobs[opID] = append(aggrRes.crashedJobs[opID], jobs...)
 				}
 
 			case event := <-collectOpsCh:
-				if len(jobCheckerErrs) > 0 {
-					checkError := errors.Join(jobCheckerErrs...)
-					jobCheckerErrs = jobCheckerErrs[:0]
+				if len(aggrRes.errs) > 0 {
+					checkError := errors.Join(aggrRes.errs...)
+					aggrRes.errs = aggrRes.errs[:0]
 
 					event.Error = errors.Join(event.Error, checkError)
 				}
 
 				if event.Error != nil {
-					eventCh <- event
+					if !sendToEventCh(event) {
+						return
+					}
 					continue
 				}
 
-				jobCheckerInputCh <- event.Operations
+				if !sendToJobChecker(event.Operations) {
+					return
+				}
 
 				for i := range event.Operations {
 					opID := event.Operations[i].ID
-					if jobs, ok := crashedJobs[opID]; ok {
+					if jobs, ok := aggrRes.crashedJobs[opID]; ok {
 						event.Operations[i].CrashedJobs = append(event.Operations[i].CrashedJobs, jobs...)
-						delete(crashedJobs, opID)
+						delete(aggrRes.crashedJobs, opID)
 					}
 				}
 
-				eventCh <- event
+				if !sendToEventCh(event) {
+					return
+				}
 			}
 		}
 	}()
