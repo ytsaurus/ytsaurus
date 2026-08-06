@@ -443,6 +443,9 @@ private:
         MemberClient_->Reconfigure(newConfig->MemberClient);
         DiscoveryClient_->Reconfigure(newConfig->DiscoveryClient);
 
+        YT_VERIFY(DynamicState_);
+        DynamicState_->Reconfigure(newConfig->DynamicState);
+
         YT_VERIFY(AlertManager_);
         YT_VERIFY(QueueAgentShardingManager_);
         YT_VERIFY(QueueAgent_);
