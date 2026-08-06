@@ -42,6 +42,10 @@ public:
     //! Null profiler: the computation profiler does not cross the process boundary.
     NProfiling::TProfiler GetProfiler() const override;
 
+    //! Throws: the hosting partition is not identified on the wire, and a null id would
+    //! silently collapse every partition into one value.
+    TPartitionId GetPartitionId() const override;
+
 protected:
     IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const override;
     IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const override;

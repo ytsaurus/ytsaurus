@@ -10,11 +10,13 @@ namespace NYT::NFlow {
 TRuntimeInitContext::TRuntimeInitContext(
     IJobInitContextPtr underlying,
     TJobStateManagerPtr stateManager,
+    TPartitionId partitionId,
     NYTree::IMapNodePtr parametersNode,
     THashMap<TResourceId, IResourcePtr> staticResources,
     NProfiling::TProfiler profiler)
     : Underlying_(std::move(underlying))
     , StateManager_(std::move(stateManager))
+    , PartitionId_(partitionId)
     , ParametersNode_(parametersNode ? std::move(parametersNode) : NYTree::GetEphemeralNodeFactory()->CreateMap())
     , StaticResources_(std::move(staticResources))
     , Profiler_(std::move(profiler))
@@ -42,7 +44,13 @@ IInitContextPtr TRuntimeInitContext::AsKey(TKey key) const
 
 IRuntimeInitContextPtr TRuntimeInitContext::WithPrefix(TStringBuf prefix) const
 {
-    return New<TRuntimeInitContext>(Underlying_->WithPrefix(prefix), StateManager_, ParametersNode_, StaticResources_, Profiler_);
+    return New<TRuntimeInitContext>(
+        Underlying_->WithPrefix(prefix),
+        StateManager_,
+        PartitionId_,
+        ParametersNode_,
+        StaticResources_,
+        Profiler_);
 }
 
 const std::string& TRuntimeInitContext::GetPrefix() const
@@ -67,6 +75,11 @@ IResourcePtr TRuntimeInitContext::GetStaticResource(const TResourceId& resourceI
 NProfiling::TProfiler TRuntimeInitContext::GetProfiler() const
 {
     return Profiler_;
+}
+
+TPartitionId TRuntimeInitContext::GetPartitionId() const
+{
+    return PartitionId_;
 }
 
 IExternalStateManagerPtr TRuntimeInitContext::GetExternalStateManagerOrThrow(const std::string& name) const

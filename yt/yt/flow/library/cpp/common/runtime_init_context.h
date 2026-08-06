@@ -81,6 +81,10 @@ public:
     //! a worker hosts, and are no-ops out of process.
     virtual NProfiling::TProfiler GetProfiler() const = 0;
 
+    //! Id of the partition this function instance serves; fixed for the instance's lifetime.
+    //! Throws out of process, where the hosting partition is not known.
+    virtual TPartitionId GetPartitionId() const = 0;
+
     virtual TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;
     virtual TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;
 

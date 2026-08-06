@@ -19,6 +19,7 @@ public:
     TRuntimeInitContext(
         IJobInitContextPtr underlying,
         TJobStateManagerPtr stateManager,
+        TPartitionId partitionId,
         NYTree::IMapNodePtr parametersNode = {},
         THashMap<TResourceId, IResourcePtr> staticResources = {},
         NProfiling::TProfiler profiler = {});
@@ -38,6 +39,8 @@ public:
 
     NProfiling::TProfiler GetProfiler() const override;
 
+    TPartitionId GetPartitionId() const override;
+
 protected:
     IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const override;
     IExternalStateJoinerPtr GetExternalStateJoinerOrThrow(const std::string& name) const override;
@@ -45,6 +48,7 @@ protected:
 private:
     const IJobInitContextPtr Underlying_;
     const TJobStateManagerPtr StateManager_;
+    const TPartitionId PartitionId_;
     const NYTree::IMapNodePtr ParametersNode_;
     const THashMap<TResourceId, IResourcePtr> StaticResources_;
     const NProfiling::TProfiler Profiler_;

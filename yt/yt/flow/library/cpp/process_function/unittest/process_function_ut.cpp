@@ -1238,5 +1238,58 @@ TEST(TProcessFunctionProfilerTest, InitContextProfilerIsNullByDefault)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Derives a sharding key from the partition it runs on, the way a function that routes
+//! its output to a per-partition downstream shard does.
+class TPartitionShardingFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        PartitionId_ = initContext->GetPartitionId();
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& /*message*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    { }
+
+    TPartitionId GetPartitionId() const
+    {
+        return PartitionId_;
+    }
+
+private:
+    TPartitionId PartitionId_;
+};
+
+TEST(TProcessFunctionPartitionTest, InitContextExposesThePartitionId)
+{
+    TTestStateEnvironment stateEnv;
+
+    const auto& initContext = stateEnv.GetInitContext();
+    EXPECT_EQ(initContext->GetPartitionId(), stateEnv.GetPartitionId());
+
+    // Prefixing keeps the partition id: state naming does not change who is running.
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetPartitionId(), stateEnv.GetPartitionId());
+
+    auto function = New<TPartitionShardingFunction>();
+    function->Init(initContext);
+    EXPECT_EQ(function->GetPartitionId(), stateEnv.GetPartitionId());
+}
+
+TEST(TProcessFunctionPartitionTest, PartitionIdsDifferBetweenPartitions)
+{
+    // Two environments stand for two partitions of one computation: a function keying on the
+    // partition id gets a different value in each.
+    TTestStateEnvironment firstEnv;
+    TTestStateEnvironment secondEnv;
+
+    EXPECT_NE(firstEnv.GetInitContext()->GetPartitionId(), secondEnv.GetInitContext()->GetPartitionId());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NFlow

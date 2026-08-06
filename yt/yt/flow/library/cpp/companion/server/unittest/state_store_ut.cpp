@@ -298,6 +298,9 @@ TEST(TCompanionRuntimeInitContextTest, PrefixAndParameters)
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(initContext->AsPartition()),
         "not available in a companion process");
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(initContext->GetPartitionId()),
+        "not available in a companion process");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,6 +35,9 @@ public:
     const IRuntimeInitContextPtr& GetInitContext() const;
     const TJobStateManagerPtr& GetStateManager() const;
 
+    //! The partition id the init context reports, freshly generated per environment.
+    TPartitionId GetPartitionId() const;
+
     //! Sets the static ``function_parameters`` node the init context hands to
     //! IRuntimeInitContext::GetParameters<T>(); rebuilds the init context. Call before Init.
     void SetStaticParametersNode(NYTree::IMapNodePtr node);
