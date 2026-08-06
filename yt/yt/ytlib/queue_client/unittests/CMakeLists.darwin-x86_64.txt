@@ -33,6 +33,7 @@ target_link_libraries(unittester-queue-client PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-ytlib
+  client-unittests-mock
   yt-core-test_framework
 )
 
@@ -51,6 +52,7 @@ target_link_options(unittester-queue-client PRIVATE
 
 target_sources(unittester-queue-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/config_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/dynamic_state_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/unittests/path_ut.cpp
 )
 

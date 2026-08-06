@@ -253,6 +253,8 @@ void TQueueAgentComponentDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("multi_consumer_names_garbage_collector", &TThis::MultiConsumerNamesGarbageCollector)
         .DefaultNew();
+    registrar.Parameter("dynamic_state", &TThis::DynamicState)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

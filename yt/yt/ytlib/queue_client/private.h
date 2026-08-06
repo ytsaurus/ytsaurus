@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/yt/client/queue_client/public.h>
+#include "public.h"
 
-#include <yt/yt/core/logging/log.h>
+#include <yt/yt/client/queue_client/public.h>
 
 namespace NYT::NQueueClient {
 
@@ -25,10 +25,6 @@ struct TReplicaMappingCacheKey;
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueClientLogger, "QueueClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

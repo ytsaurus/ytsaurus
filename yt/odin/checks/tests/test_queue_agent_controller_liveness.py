@@ -12,8 +12,30 @@ import time
 QUEUE_AGENT_DYNAMIC_CONFIG_PATH = "//sys/queue_agents/config"
 CHECK_OPTIONS = {
     "max_lag_ms": 3_000,  # 3 seconds
-    "ignore_unavailable_instances": False,  # All instances should be available in tests
+    "ignore_unreachable_instances": False,  # All instances should be reachable in tests
 }
+
+
+def wait_for_controller_passes(client, instance, object_path, pass_count=2):
+    """Waits until the controller of #object_path has performed at least #pass_count passes.
+
+    An object is only reported by the controller once it has been passed over, so waiting for
+    this explicitly is the only reliable way to tell that a subsequent controller delay will
+    actually freeze an already known pass instant instead of preventing the very first pass.
+    """
+    pass_instants = set()
+
+    def has_enough_passes():
+        inactive_objects = client.get(
+            f"//sys/queue_agents/instances/{instance}/orchid/queue_agent/controller_info/inactive_objects")
+        for controller_passes in inactive_objects.values():
+            for controller_pass in controller_passes:
+                if str(controller_pass["path"]) == object_path:
+                    pass_instants.add(controller_pass["pass_instant"])
+        return len(pass_instants) >= pass_count
+
+    # The orchid node is not there until the queue agent starts leading, so transient errors are expected.
+    wait(has_enough_passes, ignore_exceptions=True)
 
 
 def test_queue_agent_controller_liveness(yt_env_one_queue_agent):
@@ -59,7 +81,7 @@ def test_queue_agent_controller_liveness_unavailable(yt_env_one_queue_agent, obj
     instance = str(client.list("//sys/queue_agents/instances")[0])
 
     # We need to wait for the second pass of #bad_object or otherwise it won't be counted
-    time.sleep(10)
+    wait_for_controller_passes(client, instance, bad_object_path)
 
     config = client.get(QUEUE_AGENT_DYNAMIC_CONFIG_PATH)
     update_inplace(config, {
