@@ -819,27 +819,39 @@ void TChunkLocationBase::PopulateAlerts(std::vector<TError>* alerts)
     }
 }
 
-TErrorOr<TLocationFairShareSlotPtr> TChunkLocationBase::AddFairShareQueueSlot(
-    i64 size,
-    std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
-    std::vector<TFairShareHierarchyLevel<std::string>> levels)
+TErrorOr<TLocationFairShareSlotPtr> TChunkLocationBase::AddFairShareQueueSlot(TFairShareHierarchicalSlotQueueSlotPtr<std::string> slot)
 {
-    auto slotOrError = IOFairShareQueue_->EnqueueSlot(
-        size,
-        std::move(resources),
-        std::move(levels));
-
+    auto slotOrError = IOFairShareQueue_->EnqueueSlot(std::move(slot));
     if (slotOrError.IsOK()) {
         YT_LOG_DEBUG(
             "Add new fair share slot (SlotId: %v, SlotSize: %v)",
             slotOrError.Value()->GetSlotId(),
-            size);
+            slotOrError.Value()->GetSize());
         return New<TLocationFairShareSlot>(
             IOFairShareQueue_,
             std::move(slotOrError.Value()));
     }
 
     return slotOrError.Wrap();
+}
+
+TFairShareHierarchicalSlotQueueSlotPtr<std::string> TChunkLocationBase::CreateFairShareQueueSlot(
+    i64 size,
+    std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
+    std::vector<TFairShareHierarchyLevel<std::string>> levels)
+{
+    return IOFairShareQueue_->CreateSlot(
+        size,
+        std::move(resources),
+        std::move(levels));
+}
+
+TErrorOr<TLocationFairShareSlotPtr> TChunkLocationBase::AddFairShareQueueSlot(
+    i64 size,
+    std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
+    std::vector<TFairShareHierarchyLevel<std::string>> levels)
+{
+    return AddFairShareQueueSlot(CreateFairShareQueueSlot(size, std::move(resources), std::move(levels)));
 }
 
 NIO::IIOEngineWorkloadModelPtr TChunkLocationBase::GetIOEngineModel() const

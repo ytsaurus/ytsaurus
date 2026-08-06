@@ -307,6 +307,8 @@ public:
     //! Try to acquire memory for top requests.
     void CheckProbePutBlocksRequests();
 
+    void RemoveProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier);
+
     //! Calc sum of all requested memory passeed to AcquireProbePutBlocks.
     i64 GetRequestedMemory() const;
 
@@ -331,7 +333,6 @@ private:
 
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
-    // TODO(vvshlyaga): Change to fair share queue.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProbePutBlocksRequestsLock_);
     std::deque<TProbePutBlocksRequestSupplierPtr> ProbePutBlocksRequests_;
     THashSet<TSessionId> ProbePutBlocksSessionIds_;
@@ -363,6 +364,8 @@ private:
     THazardPtr<TChunkLocationConfig> GetRuntimeConfig() const;
 
     void DoCheckProbePutBlocksRequests();
+    void DoCheckFifoProbePutBlocksRequests();
+    void DoCheckFairShareProbePutBlocksRequests();
     bool ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const;
 
     void IncreaseUsedMemory(EIODirection direction, EIOCategory category, i64 delta);

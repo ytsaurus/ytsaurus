@@ -48,6 +48,8 @@
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <library/cpp/yt/misc/range_helpers.h>
+
 namespace NYT::NDataNode {
 
 using namespace NChunkClient;
@@ -515,9 +517,7 @@ i64 TChunkLocation::GetRequestedMemory() const
     i64 result = 0;
 
     for (const auto& supplier : ProbePutBlocksRequests_) {
-        if (!supplier->IsCanceled()) {
-            result += supplier->GetMaxRequestedMemory();
-        }
+        result += supplier->GetMaxRequestedMemory();
     }
 
     return result;
@@ -541,10 +541,17 @@ void TChunkLocation::PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequ
 
     DoCheckProbePutBlocksRequests();
 
-    if (ContainsProbePutBlocksRequestSupplier(supplier)) {
+    if (ContainsProbePutBlocksRequestSupplier(supplier) && supplier->HasRequests()) {
         YT_LOG_DEBUG("Supplier with probe put blocks request is delayed (SessionId: %v)", supplier->GetSessionId());
         ReportThrottledProbingWrite();
     }
+}
+
+void TChunkLocation::RemoveProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier)
+{
+    auto guard = Guard(ProbePutBlocksRequestsLock_);
+    supplier->CancelRequests();
+    DoCheckProbePutBlocksRequests();
 }
 
 bool TChunkLocation::ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const
@@ -564,19 +571,25 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
 {
     YT_ASSERT_SPINLOCK_AFFINITY(ProbePutBlocksRequestsLock_);
 
-    while (!ProbePutBlocksRequests_.empty()) {
-        auto supplierIt = ProbePutBlocksRequests_.begin();
-        const auto& supplier = *supplierIt;
-        if (supplier->IsCanceled()) {
-            EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
-            ProbePutBlocksRequests_.erase(supplierIt);
-            continue;
-        }
+    const auto enableFairShare =
+        DynamicConfigManager_->GetConfig()->DataNode->EnableProbePutBlocksFairShare;
+    if (enableFairShare) {
+        DoCheckFairShareProbePutBlocksRequests();
+    } else {
+        DoCheckFifoProbePutBlocksRequests();
+    }
+}
 
+void TChunkLocation::DoCheckFifoProbePutBlocksRequests()
+{
+    YT_ASSERT_SPINLOCK_AFFINITY(ProbePutBlocksRequestsLock_);
+
+    while (!ProbePutBlocksRequests_.empty()) {
+        auto supplier = ProbePutBlocksRequests_.front();
         auto request = supplier->TryGetMinRequest();
-        if (!request.has_value()) {
+        if (!request) {
             EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
-            ProbePutBlocksRequests_.erase(supplierIt);
+            ProbePutBlocksRequests_.pop_front();
             continue;
         }
 
@@ -588,7 +601,7 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
             request->WorkloadDescriptor,
             memoryDifference);
 
-        YT_LOG_DEBUG("Resources acquirenment "
+        YT_LOG_DEBUG("Resource acquisition "
             "(SessionId: %v, MemoryDifference: %v, CumulativeBlockSize: %v, RequestedCumulativeBlockSize: %v, Error: %v)",
             supplier->GetSessionId(),
             memoryDifference,
@@ -596,13 +609,91 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
             supplier->GetMaxRequestedMemory(),
             memoryGuard);
 
-        if (memoryGuard.IsOK()) {
-            supplier->ApproveRequest(std::move(memoryGuard.Value()), *request);
+        if (!memoryGuard.IsOK()) {
+            return;
+        }
 
-            ProbePutBlocksRequests_.push_back(supplier);
-            ProbePutBlocksRequests_.erase(supplierIt);
+        supplier->ApproveRequest(std::move(memoryGuard.Value()), *request);
+
+        ProbePutBlocksRequests_.pop_front();
+        ProbePutBlocksRequests_.push_back(std::move(supplier));
+    }
+}
+
+void TChunkLocation::DoCheckFairShareProbePutBlocksRequests()
+{
+    YT_ASSERT_SPINLOCK_AFFINITY(ProbePutBlocksRequestsLock_);
+
+    const auto& fairShareScheduler = ChunkStoreHost_->GetFairShareHierarchicalScheduler();
+    fairShareScheduler->TrimLog();
+
+    std::erase_if(ProbePutBlocksRequests_, [&] (const auto& supplier) {
+        if (!supplier->HasRequests()) {
+            EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
+            return true;
+        }
+        return false;
+    });
+
+    auto createSelectionSlot = [this] (const auto& supplier) {
+        auto request = supplier->TryGetMinRequest();
+        YT_VERIFY(request);
+        return CreateFairShareQueueSlot(
+            request->CumulativeBlockSize - supplier->GetCurrentApprovedMemory(),
+            std::vector<IFairShareHierarchicalSlotQueueResourcePtr>{},
+            CreateHierarchyLevels<std::string>({{
+                ToString(request->WorkloadDescriptor.Category),
+                GetFairShareWorkloadCategoryWeight(request->WorkloadDescriptor.Category),
+            }}));
+    };
+
+    auto slots = RangeTo<std::vector<TFairShareHierarchicalSlotQueueSlotPtr<std::string>>>(
+        ProbePutBlocksRequests_ | std::views::transform(createSelectionSlot));
+
+    while (!ProbePutBlocksRequests_.empty()) {
+        auto supplierIndex = std::max_element(
+            slots.begin(),
+            slots.end(),
+            [&fairShareScheduler] (const auto& lhs, const auto& rhs) {
+                return fairShareScheduler->CompareSlots(lhs, rhs, /*isSlot*/ true);
+            }) - slots.begin();
+
+        auto supplier = ProbePutBlocksRequests_[supplierIndex];
+        auto request = supplier->TryGetMinRequest();
+        YT_VERIFY(request);
+
+        auto memoryDifference = request->CumulativeBlockSize - supplier->GetCurrentApprovedMemory();
+        YT_VERIFY(memoryDifference > 0);
+
+        auto memoryGuard = TryAcquireLocationMemory(
+            EIODirection::Write,
+            request->WorkloadDescriptor,
+            memoryDifference);
+
+        YT_LOG_DEBUG("Resource acquisition "
+            "(SessionId: %v, MemoryDifference: %v, CumulativeBlockSize: %v, RequestedCumulativeBlockSize: %v, Error: %v)",
+            supplier->GetSessionId(),
+            memoryDifference,
+            request->CumulativeBlockSize,
+            supplier->GetMaxRequestedMemory(),
+            memoryGuard);
+
+        if (!memoryGuard.IsOK()) {
+            return;
+        }
+
+        auto fairShareSlotOrError = AddFairShareQueueSlot(slots[supplierIndex]);
+        YT_VERIFY(fairShareSlotOrError.IsOK());
+        supplier->ApproveRequest(std::move(memoryGuard.Value()), *request, fairShareSlotOrError.Value());
+
+        if (supplier->HasRequests()) {
+            slots[supplierIndex] = createSelectionSlot(supplier);
         } else {
-            break;
+            EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
+            std::swap(ProbePutBlocksRequests_[supplierIndex], ProbePutBlocksRequests_.back());
+            std::swap(slots[supplierIndex], slots.back());
+            slots.pop_back();
+            ProbePutBlocksRequests_.pop_back();
         }
     }
 }
