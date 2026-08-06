@@ -382,7 +382,7 @@ std::optional<TSchedulingSegmentManager::TOperationsToPreempt> TSchedulingSegmen
         }
 
         auto neededDemand = operationDemand - context->RemainingCapacityPerModule[module];
-        if (neededDemand <= 0.0) {
+        if (neededDemand <= ResourceAmountPrecision) {
             return TOperationsToPreempt{
                 .Module = module,
             };
@@ -710,7 +710,8 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
 
             case ESchedulingSegmentModuleAssignmentHeuristic::MinRemainingFeasibleCapacity:
                 isModuleBetter = [operationDemand] (double remainingCapacity, double bestRemainingCapacity) {
-                    return remainingCapacity >= operationDemand && bestRemainingCapacity > remainingCapacity;
+                    return remainingCapacity + ResourceAmountPrecision >= operationDemand &&
+                        bestRemainingCapacity > remainingCapacity;
                 };
                 initialBestRemainingCapacity = std::numeric_limits<double>::max();
                 break;
