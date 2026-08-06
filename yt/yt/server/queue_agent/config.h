@@ -322,6 +322,8 @@ struct TQueueAgentComponentDynamicConfig
     TQueueAgentDynamicConfigPtr QueueAgent;
     TCypressSynchronizerDynamicConfigPtr CypressSynchronizer;
 
+    NQueueClient::TQueueAgentDynamicStateDynamicConfigPtr DynamicState;
+
     REGISTER_YSON_STRUCT(TQueueAgentComponentDynamicConfig);
 
     static void Register(TRegistrar registrar);

@@ -1122,6 +1122,18 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
             "clusters": ["primary"],
             "pass_period": 100,
         },
+        # NB(apachee): setup_class recreates the dynamic config document from scratch,
+        # so the defaults from get_dynamic_queue_agent_config do not apply here.
+        "dynamic_state": {
+            # Retries should be enabled explicitly in tests.
+            "retry_backoff": {
+                "invocation_count": 0,
+                # Keep the backoffs negligible for tests that do enable retries.
+                "min_backoff": 1,
+                "max_backoff": 1,
+                "backoff_jitter": 0.0,
+            },
+        },
     }
 
     INSTANCES = None

@@ -2,19 +2,28 @@
 
 #include "path.h"
 
+#include <yt/yt/core/logging/log.h>
+
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/client/queue_client/common.h>
 
 #include <yt/yt/client/hydra/public.h>
 
+#include <library/cpp/yt/misc/global.h>
+
 namespace NYT::NQueueClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueClientLogger, "QueueClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentStageChannelConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentConnectionConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentDynamicStateConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueAgentDynamicStateDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerBatchLookupConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerConfig)

@@ -101,6 +101,22 @@ void TQueueAgentDynamicStateConfig::Register(TRegistrar registrar)
         .Default("//sys/queue_agents/consumer_registrations");
     registrar.Parameter("replicated_table_mapping_table_path", &TThis::ReplicatedTableMappingTablePath)
         .Default("//sys/queue_agents/replicated_table_mapping");
+    registrar.Parameter("retry_backoff", &TThis::RetryBackoff)
+        .Optional(/*init*/ false);
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->RetryBackoff.InvocationCount = 10;
+        config->RetryBackoff.MinBackoff = TDuration::Seconds(5);
+        config->RetryBackoff.MaxBackoff = TDuration::Seconds(30);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueueAgentDynamicStateDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("retry_backoff", &TThis::RetryBackoff)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

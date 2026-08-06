@@ -358,10 +358,20 @@ IClientPtr GetRemoteClient(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TRow, typename TRecordDescriptor>
-TTableBase<TRow, TRecordDescriptor>::TTableBase(TYPath path, IClientPtr client)
+TTableBase<TRow, TRecordDescriptor>::TTableBase(
+    TYPath path,
+    IClientPtr client,
+    const TExponentialBackoffOptions& retryBackoffOptions)
     : Path_(std::move(path))
     , Client_(std::move(client))
+    , RetryBackoffOptions_(retryBackoffOptions)
 { }
+
+template <typename TRow, typename TRecordDescriptor>
+void TTableBase<TRow, TRecordDescriptor>::ReconfigureRetryBackoff(const TExponentialBackoffOptions& retryBackoffOptions)
+{
+    RetryBackoffOptions_.Store(retryBackoffOptions);
+}
 
 template <typename TRow, typename TRecordDescriptor>
 TFuture<std::vector<TErrorOr<TRow>>> TTableBase<TRow, TRecordDescriptor>::Lookup(
@@ -379,7 +389,14 @@ TFuture<std::vector<TErrorOr<TRow>>> TTableBase<TRow, TRecordDescriptor>::Lookup
     TLookupRowsOptions patchedOptions = options;
     patchedOptions.KeepMissingRows = true;
     patchedOptions.AllowMissingKeyColumns = true;
-    return Client_->LookupRows(Path_, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, patchedOptions)
+
+    return RetryCallback(BIND(
+        &IClient::LookupRows,
+        Client_,
+        Path_,
+        TRecordDescriptor::Get()->GetNameTable(),
+        recordKeysRange,
+        patchedOptions))
         .AsUnique()
         .Apply(BIND([] (TUnversionedLookupRowsResult&& rawResult) {
             auto optionalRecords = ToOptionalRecords<TRecord>(rawResult.Rowset);
@@ -421,8 +438,12 @@ TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(
         "Invoking select query (Query: %v)",
         query);
 
-    return Client_->SelectRows(query, options)
-        .Apply(BIND([&] (const TSelectRowsResult& result) {
+    return RetryCallback(BIND(
+        &IClient::SelectRows,
+        Client_,
+        query,
+        options))
+        .Apply(BIND([] (const TSelectRowsResult& result) {
             std::vector<TRecord> records = ToRecords<TRecord>(result.Rowset);
 
             std::vector<TRow> rows;
@@ -443,14 +464,15 @@ TFuture<TTransactionCommitResult> TTableBase<TRow, TRecordDescriptor>::Insert(TR
     for (const auto& row : rows) {
         records.push_back(RecordFromRow(row));
     }
+    auto recordsRange = FromRecords(TRange(records));
 
-    return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet)
-        .Apply(BIND([records = std::move(records), path = Path_] (const ITransactionPtr& transaction) {
-            auto recordsRange = FromRecords(TRange(records));
-
-            transaction->WriteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordsRange, {.RequireSyncReplica = false, .AllowMissingKeyColumns = true});
-            return transaction->Commit();
-        }));
+    return RetryCallback(BIND([client = Client_, path = Path_, recordsRange = std::move(recordsRange)] {
+        return client->StartTransaction(NTransactionClient::ETransactionType::Tablet)
+            .Apply(BIND([path, recordsRange] (const ITransactionPtr& transaction) {
+                transaction->WriteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordsRange, {.RequireSyncReplica = false, .AllowMissingKeyColumns = true});
+                return transaction->Commit();
+            }));
+    }));
 }
 
 template <typename TRow, typename TRecordDescriptor>
@@ -461,13 +483,15 @@ TFuture<TTransactionCommitResult> TTableBase<TRow, TRecordDescriptor>::Delete(TR
     for (const auto& key : keys) {
         recordKeys.push_back(RecordKeyFromRow(key));
     }
+    auto recordKeysRange = FromRecordKeys(TRange(recordKeys));
 
-    return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet)
-        .Apply(BIND([recordKeys = std::move(recordKeys), path = Path_] (const ITransactionPtr& transaction) {
-            auto recordKeysRange = FromRecordKeys(TRange(recordKeys));
-            transaction->DeleteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, {.RequireSyncReplica = false, .AllowMissingKeyColumns = true});
-            return transaction->Commit();
-        }));
+    return RetryCallback(BIND([client = Client_, path = Path_, recordKeysRange = std::move(recordKeysRange)] {
+        return client->StartTransaction(NTransactionClient::ETransactionType::Tablet)
+            .Apply(BIND([path, recordKeysRange] (const ITransactionPtr& transaction) {
+                transaction->DeleteRows(path, TRecordDescriptor::Get()->GetNameTable(), recordKeysRange, {.RequireSyncReplica = false, .AllowMissingKeyColumns = true});
+                return transaction->Commit();
+            }));
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -544,8 +568,8 @@ void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
 
 template class TTableBase<TQueueTableRow, NRecords::TQueueObjectDescriptor>;
 
-TQueueTable::TQueueTable(TYPath root, IClientPtr client)
-    : TTableBase<TQueueTableRow, NRecords::TQueueObjectDescriptor>(root + "/" + NRecords::TQueueObjectDescriptor::Name, std::move(client))
+TQueueTable::TQueueTable(TYPath root, IClientPtr client, const TExponentialBackoffOptions& retryBackoffOptions)
+    : TTableBase<TQueueTableRow, NRecords::TQueueObjectDescriptor>(root + "/" + NRecords::TQueueObjectDescriptor::Name, std::move(client), retryBackoffOptions)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -617,8 +641,8 @@ void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
 
 template class TTableBase<TConsumerTableRow, NRecords::TConsumerObjectDescriptor>;
 
-TConsumerTable::TConsumerTable(TYPath root, IClientPtr client)
-    : TTableBase<TConsumerTableRow, NRecords::TConsumerObjectDescriptor>(root + "/" + NRecords::TConsumerObjectDescriptor::Name, std::move(client))
+TConsumerTable::TConsumerTable(TYPath root, IClientPtr client, const TExponentialBackoffOptions& retryBackoffOptions)
+    : TTableBase<TConsumerTableRow, NRecords::TConsumerObjectDescriptor>(root + "/" + NRecords::TConsumerObjectDescriptor::Name, std::move(client), retryBackoffOptions)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -634,8 +658,8 @@ void Serialize(const TMultiConsumerNameTableRow& row, IYsonConsumer* consumer)
 
 template class TTableBase<TMultiConsumerNameTableRow, NRecords::TMultiConsumerNameObjectDescriptor>;
 
-TMultiConsumerNameTable::TMultiConsumerNameTable(TYPath root, IClientPtr client)
-    : TTableBase<TMultiConsumerNameTableRow, NRecords::TMultiConsumerNameObjectDescriptor>(root + "/" + NRecords::TMultiConsumerNameObjectDescriptor::Name, std::move(client))
+TMultiConsumerNameTable::TMultiConsumerNameTable(TYPath root, IClientPtr client, const TExponentialBackoffOptions& retryBackoffOptions)
+    : TTableBase<TMultiConsumerNameTableRow, NRecords::TMultiConsumerNameObjectDescriptor>(root + "/" + NRecords::TMultiConsumerNameObjectDescriptor::Name, std::move(client), retryBackoffOptions)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -654,16 +678,16 @@ THashMap<TGenericObjectReference, std::string> TQueueAgentObjectMappingTable::To
 
 template class TTableBase<TQueueAgentObjectMappingTableRow, NRecords::TQueueAgentObjectMappingDescriptor>;
 
-TQueueAgentObjectMappingTable::TQueueAgentObjectMappingTable(TYPath root, IClientPtr client)
-    : TTableBase<TQueueAgentObjectMappingTableRow, NRecords::TQueueAgentObjectMappingDescriptor>(root + "/" + NRecords::TQueueAgentObjectMappingDescriptor::Name, std::move(client))
+TQueueAgentObjectMappingTable::TQueueAgentObjectMappingTable(TYPath root, IClientPtr client, const TExponentialBackoffOptions& retryBackoffOptions)
+    : TTableBase<TQueueAgentObjectMappingTableRow, NRecords::TQueueAgentObjectMappingDescriptor>(root + "/" + NRecords::TQueueAgentObjectMappingDescriptor::Name, std::move(client), retryBackoffOptions)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template class TTableBase<TConsumerRegistrationTableRow, NRecords::TConsumerRegistrationDescriptor>;
 
-TConsumerRegistrationTable::TConsumerRegistrationTable(TYPath path, IClientPtr client)
-    : TTableBase<TConsumerRegistrationTableRow, NRecords::TConsumerRegistrationDescriptor>(std::move(path), std::move(client))
+TConsumerRegistrationTable::TConsumerRegistrationTable(TYPath path, IClientPtr client, const TExponentialBackoffOptions& retryBackoffOptions)
+    : TTableBase<TConsumerRegistrationTableRow, NRecords::TConsumerRegistrationDescriptor>(std::move(path), std::move(client), retryBackoffOptions)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -823,16 +847,16 @@ void Serialize(const TReplicatedTableMappingTableRow& row, IYsonConsumer* consum
 
 template class TTableBase<TReplicatedTableMappingTableRow, NRecords::TReplicatedTableMappingDescriptor>;
 
-TReplicatedTableMappingTable::TReplicatedTableMappingTable(TYPath path, IClientPtr client)
-    : TTableBase<TReplicatedTableMappingTableRow, NRecords::TReplicatedTableMappingDescriptor>(std::move(path), std::move(client))
+TReplicatedTableMappingTable::TReplicatedTableMappingTable(TYPath path, IClientPtr client, const TExponentialBackoffOptions& retryBackoffOptions)
+    : TTableBase<TReplicatedTableMappingTableRow, NRecords::TReplicatedTableMappingDescriptor>(std::move(path), std::move(client), retryBackoffOptions)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template class TTableBase<TReplicaMappingTableRow, NRecords::TReplicaMappingDescriptor>;
 
-TReplicaMappingTable::TReplicaMappingTable(TYPath path, IClientPtr client)
-    : TTableBase<TReplicaMappingTableRow, NRecords::TReplicaMappingDescriptor>(std::move(path), std::move(client))
+TReplicaMappingTable::TReplicaMappingTable(TYPath path, IClientPtr client, const TExponentialBackoffOptions& retryBackoffOptions)
+    : TTableBase<TReplicaMappingTableRow, NRecords::TReplicaMappingDescriptor>(std::move(path), std::move(client), retryBackoffOptions)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -841,17 +865,32 @@ TDynamicState::TDynamicState(
     const TQueueAgentDynamicStateConfigPtr& config,
     const IClientPtr& localClient,
     const TClientDirectoryPtr& clientDirectory)
-    : Queues(New<TQueueTable>(config->Root, localClient))
-    , Consumers(New<TConsumerTable>(config->Root, localClient))
-    , MultiConsumerNames(New<TMultiConsumerNameTable>(config->Root, localClient))
-    , QueueAgentObjectMapping(New<TQueueAgentObjectMappingTable>(config->Root, localClient))
+    : Config(config)
+    , Queues(New<TQueueTable>(config->Root, localClient, config->RetryBackoff))
+    , Consumers(New<TConsumerTable>(config->Root, localClient, config->RetryBackoff))
+    , MultiConsumerNames(New<TMultiConsumerNameTable>(config->Root, localClient, config->RetryBackoff))
+    , QueueAgentObjectMapping(New<TQueueAgentObjectMappingTable>(config->Root, localClient, config->RetryBackoff))
     , Registrations(New<TConsumerRegistrationTable>(
         config->ConsumerRegistrationTablePath.GetPath(),
-        GetRemoteClient(localClient, clientDirectory, config->ConsumerRegistrationTablePath.GetCluster())))
+        GetRemoteClient(localClient, clientDirectory, config->ConsumerRegistrationTablePath.GetCluster()),
+        config->RetryBackoff))
     , ReplicatedTableMapping(New<TReplicatedTableMappingTable>(
         config->ReplicatedTableMappingTablePath.GetPath(),
-        GetRemoteClient(localClient, clientDirectory, config->ReplicatedTableMappingTablePath.GetCluster())))
+        GetRemoteClient(localClient, clientDirectory, config->ReplicatedTableMappingTablePath.GetCluster()),
+        config->RetryBackoff))
 { }
+
+void TDynamicState::Reconfigure(const TQueueAgentDynamicStateDynamicConfigPtr& config)
+{
+    auto retryBackoffOptions = config->RetryBackoff.value_or(Config->RetryBackoff);
+
+    Queues->ReconfigureRetryBackoff(retryBackoffOptions);
+    Consumers->ReconfigureRetryBackoff(retryBackoffOptions);
+    MultiConsumerNames->ReconfigureRetryBackoff(retryBackoffOptions);
+    QueueAgentObjectMapping->ReconfigureRetryBackoff(retryBackoffOptions);
+    Registrations->ReconfigureRetryBackoff(retryBackoffOptions);
+    ReplicatedTableMapping->ReconfigureRetryBackoff(retryBackoffOptions);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

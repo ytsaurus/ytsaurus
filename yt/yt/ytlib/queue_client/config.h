@@ -6,6 +6,7 @@
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/misc/cache_config.h>
+#include <yt/yt/core/misc/config.h>
 
 #include <yt/yt/core/rpc/config.h>
 
@@ -118,12 +119,31 @@ struct TQueueAgentDynamicStateConfig
     //! If no cluster is specified, the table will be assumed to be located on the queue agent's local cluster.
     NYPath::TRichYPath ReplicatedTableMappingTablePath;
 
+    //! Backoff options used for retrying failed requests to the state tables.
+    TExponentialBackoffOptions RetryBackoff;
+
     REGISTER_YSON_STRUCT(TQueueAgentDynamicStateConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentDynamicStateConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TQueueAgentDynamicStateDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    //! Backoff options used for retrying failed requests to the state tables.
+    //! If omitted, the value from the static config is kept.
+    std::optional<TExponentialBackoffOptions> RetryBackoff;
+
+    REGISTER_YSON_STRUCT(TQueueAgentDynamicStateDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueAgentDynamicStateDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

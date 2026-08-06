@@ -234,6 +234,8 @@ void TQueueAgentComponentDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("cypress_synchronizer", &TThis::CypressSynchronizer)
         .DefaultNew();
+    registrar.Parameter("dynamic_state", &TThis::DynamicState)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
