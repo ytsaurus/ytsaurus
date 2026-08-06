@@ -74,6 +74,9 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_subsplits_per_tablet", &TThis::MaxSubsplitsPerTablet)
         .GreaterThan(0)
         .Optional();
+
+    registrar.Parameter("allow_multiple_join_subqueries_for_non_lookup_joins", &TThis::AllowMultipleJoinSubqueriesForNonLookupJoins)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
