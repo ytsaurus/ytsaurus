@@ -80,9 +80,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 
 	var err error
 
-	metricsRegistry := solomon.NewRegistry(solomon.NewRegistryOpts().AddTags(map[string]string{
-		"service": "strawberry",
-	}))
+	metricsRegistry := solomon.NewRegistry(solomon.NewRegistryOpts())
 
 	if config.CoordinationProxy != nil {
 		app.ytc, err = ythttp.NewClient(&yt.Config{
