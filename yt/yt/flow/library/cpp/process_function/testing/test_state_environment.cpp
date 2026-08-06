@@ -90,6 +90,11 @@ public:
         return Underlying_->GetProfiler();
     }
 
+    TPartitionId GetPartitionId() const override
+    {
+        return Underlying_->GetPartitionId();
+    }
+
 protected:
     IExternalStateManagerPtr GetExternalStateManagerOrThrow(const std::string& name) const override
     {
@@ -160,6 +165,7 @@ void TTestStateEnvironment::RebuildInitContext()
         New<TRuntimeInitContext>(
             StateManager_->CreateContext(),
             StateManager_,
+            ManagerContext_->PartitionId,
             ParametersNode_,
             /*staticResources*/ THashMap<TResourceId, IResourcePtr>{},
             Profiler_),
@@ -175,7 +181,7 @@ IRuntimeInitContextPtr TTestStateEnvironment::MakeReloadedInitContext()
     auto dynamicContext = New<TDynamicJobStateManagerContext>();
     dynamicContext->StateManager = New<TDynamicStateManagerSpec>();
     auto manager = New<TJobStateManager>(ManagerContext_, std::move(dynamicContext));
-    return New<TRuntimeInitContext>(manager->CreateContext(), manager);
+    return New<TRuntimeInitContext>(manager->CreateContext(), manager, ManagerContext_->PartitionId);
 }
 
 const IRuntimeInitContextPtr& TTestStateEnvironment::GetInitContext() const
@@ -186,6 +192,11 @@ const IRuntimeInitContextPtr& TTestStateEnvironment::GetInitContext() const
 const TJobStateManagerPtr& TTestStateEnvironment::GetStateManager() const
 {
     return StateManager_;
+}
+
+TPartitionId TTestStateEnvironment::GetPartitionId() const
+{
+    return ManagerContext_->PartitionId;
 }
 
 void TTestStateEnvironment::Sync()

@@ -85,5 +85,63 @@ TEST(TProcessFunctionSourceComputationAdapterTest, DoInitHandsTheContextProfiler
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Registered under its own class, like the profiled function above: the adapter creates the
+// instance through the registry, so the observed id is reachable only through a static.
+class TRegisteredPartitionAwareProcessFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        ObservedPartitionId = initContext->GetPartitionId();
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& /*message*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    { }
+
+    static TPartitionId ObservedPartitionId;
+};
+
+TPartitionId TRegisteredPartitionAwareProcessFunction::ObservedPartitionId;
+
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TRegisteredPartitionAwareProcessFunction);
+
+// The id the function sees is the hosting computation's, not the state manager's: the test
+// environment generates one of its own, and the assertion pins which of the two arrives.
+TEST(TProcessFunctionSourceComputationAdapterTest, DoInitHandsTheComputationPartitionIdToTheFunction)
+{
+    TRegisteredPartitionAwareProcessFunction::ObservedPartitionId = {};
+
+    auto queue = New<NConcurrency::TActionQueue>("PartitionSourceAdapterTest");
+    auto invoker = queue->GetInvoker();
+
+    auto spec = New<TComputationSpec>();
+    spec->ComputationClassName = "NYT::NFlow::TProcessFunctionSourceComputation";
+    spec->ProcessingFunction = std::string(TypeName<TRegisteredPartitionAwareProcessFunction>());
+
+    auto partitionId = TPartitionId(TGuid::Create());
+    auto context = MakeAdapterTestComputationContext(invoker, std::move(spec));
+    context->Partition->PartitionId = partitionId;
+    auto dynamicContext = MakeAdapterTestDynamicComputationContext();
+
+    TTestStateEnvironment environment;
+    ASSERT_NE(environment.GetPartitionId(), partitionId);
+
+    NConcurrency::WaitFor(
+        BIND([&] {
+            auto computation = New<TProcessFunctionSourceComputation>(context, dynamicContext);
+            computation->DoInit(environment.GetStateManager()->CreateContext());
+        }).AsyncVia(invoker)
+            .Run())
+        .ThrowOnError();
+
+    EXPECT_EQ(TRegisteredPartitionAwareProcessFunction::ObservedPartitionId, partitionId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NFlow::NTesting

@@ -76,6 +76,11 @@ NProfiling::TProfiler TCompanionRuntimeInitContext::GetProfiler() const
     return {};
 }
 
+TPartitionId TCompanionRuntimeInitContext::GetPartitionId() const
+{
+    THROW_ERROR_EXCEPTION("The partition id is not available in a companion process");
+}
+
 IExternalStateManagerPtr TCompanionRuntimeInitContext::GetExternalStateManagerOrThrow(
     const std::string& name) const
 {
