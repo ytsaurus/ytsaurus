@@ -46,8 +46,6 @@ PEERDIR(
     yql/essentials/providers/common/proto
     yql/essentials/providers/common/codec
     yql/essentials/providers/common/udf_resolve
-    contrib/ydb/library/yql/providers/solomon/gateway
-    contrib/ydb/library/yql/providers/solomon/provider
     yql/essentials/core
     yql/essentials/core/url_preprocessing
     contrib/ydb/library/yql/dq/comp_nodes
