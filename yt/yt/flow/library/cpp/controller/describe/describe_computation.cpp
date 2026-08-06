@@ -299,12 +299,15 @@ void FillPerformanceMessage(
         const std::function<const THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>>&(const TPartitionIntermediateDescription&)>& limitsGetter,
         const TString& sectionName) {
         THashMap<TLimitType, std::vector<TPartitionLimitData>> limitsByType;
+        i64 partitionCount = 0;
+        i64 partitionsWithoutJobStatus = 0;
 
         // Collect limits by type from all partitions.
         for (const auto& partitionDesc : partitions) {
             if (!partitionDesc.Partition) {
                 continue;
             }
+            ++partitionCount;
 
             if (partitionDesc.PartitionJobStatus && partitionDesc.PartitionJobStatus->CurrentJobStatus) {
                 const auto& limits = limitsGetter(partitionDesc);
@@ -313,8 +316,21 @@ void FillPerformanceMessage(
                         limitsByType[limitType].push_back({partitionDesc.Partition->PartitionId, limitStatus});
                     }
                 }
+            } else {
+                ++partitionsWithoutJobStatus;
             }
         }
+
+        // Buffer usage lives only in the current job status, so a partition without one contributes
+        // nothing to the tables below. Say so, otherwise a backlogged partition reads as 0%.
+        auto appendSkippedNote = [&] {
+            if (partitionsWithoutJobStatus > 0) {
+                markdown.AppendFormat(
+                    "> %v of %v partitions have no live job status; their buffers are not counted above.\n\n",
+                    partitionsWithoutJobStatus,
+                    partitionCount);
+            }
+        };
 
         if (limitsByType.empty()) {
             return;
@@ -365,6 +381,7 @@ void FillPerformanceMessage(
                 data.LimitStatus.Limit);
         }
         markdown.AppendString("\n");
+        appendSkippedNote();
     };
 
     // Process input and output limits using the helper function.
