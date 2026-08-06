@@ -201,6 +201,30 @@ TEST(TMemoryUsageTrackerTest, EntryWeightUpdate)
     tracker->ClearTrackers();
 }
 
+TEST(TMemoryUsageTrackerTest, RejectedOversizedValueDoesNotUseMemory)
+{
+    auto tracker = CreateTracker(3000, {1000, 1000, 1000});
+    auto memoryTracker = tracker->WithCategory(EMemoryCategory::BlockCache);
+
+    auto config = TSlruCacheConfig::CreateWithCapacity(/*capacity*/ 1, /*shardCount*/ 1);
+    config->RejectOversizedItems = true;
+    auto cache = New<TTestMemoryTrackingCache>(config, memoryTracker);
+
+    auto cachedValue = New<TTestValue>("cached");
+    EXPECT_TRUE(cache->TryInsert(cachedValue));
+    EXPECT_EQ(memoryTracker->GetUsed(), cachedValue->Weight);
+
+    auto oversizedValue = New<TTestValue>("oversized");
+    oversizedValue->Weight = 2;
+    EXPECT_TRUE(cache->TryInsert(oversizedValue));
+
+    EXPECT_EQ(cache->Find(cachedValue->GetKey()), cachedValue);
+    EXPECT_FALSE(cache->Find(oversizedValue->GetKey()));
+    EXPECT_EQ(memoryTracker->GetUsed(), cachedValue->Weight);
+
+    tracker->ClearTrackers();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
