@@ -10,10 +10,10 @@ We have tested YTsaurus builds using Ubuntu 18.04 and 20.04. Other Linux distrib
 Below is a list of packages that need to be installed before building YTsaurus. 'How to Build' section contains step by step instructions to obtain these packages.
 
  - cmake 3.22+
- - clang-18
- - lld-18
- - lldb-18
- - conan 2.4.1
+ - clang-20
+ - lld-20
+ - lldb-20
+ - conan 2.28.1
  - git 2.20+
  - python 3.8+
  - pip3
@@ -58,8 +58,8 @@ Below is a list of packages that need to be installed before building YTsaurus. 
  1. Install dependencies.
 
     ```
-    sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-18 lld-18 cmake unzip
-    sudo python3 -m pip install PyYAML==6.0.1 conan==2.4.1 dacite
+    sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-20 lld-20 cmake unzip
+    sudo python3 -m pip install PyYAML==6.0.1 conan==2.28.1 dacite
     ```
  1. Install protoc.
 
@@ -86,7 +86,7 @@ Below is a list of packages that need to be installed before building YTsaurus. 
 
     ```
     cd build
-    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DREQUIRED_LLVM_TOOLING_VERSION=18 -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=../ytsaurus/cmake/conan_provider.cmake ../ytsaurus
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DREQUIRED_LLVM_TOOLING_VERSION=20 -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=../ytsaurus/cmake/conan_provider.cmake ../ytsaurus
     ```
 
     To build just run:

@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -6,13 +6,14 @@ ARG GO_VERSION=1.23.2
 ARG NODE_VERSION=16.20.1
 ARG PROTOC_VERSION=3.20.3
 ARG CCACHE_VERSION=4.8.2
+ARG LLVM_VERSION=20
 ARG PYTHON38_VERSION=3.8.20
 ARG PYTHON39_VERSION=3.9.25
 ARG PYTHON310_VERSION=3.10.19
 ARG PYTHON311_VERSION=3.11.14
 ARG PYTHON312_VERSION=3.12.12
 ARG PYTHON313_VERSION=3.13.12
-ARG CONAN_VERSION=2.4.1
+ARG CONAN_VERSION=2.28.1
 ARG PYYAML_VERSION=6.0.1
 ARG WHEEL_VERSION=0.41.3
 ARG BOTO3_VERSION=1.35.99
@@ -46,18 +47,22 @@ RUN apt-get update && \
 
 RUN add-apt-repository -y ppa:ubuntu-toolchain-r/test && \
     curl -s https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add && \
-    echo 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-18 main' >> /etc/apt/sources.list.d/llvm.list && \
+    echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-${LLVM_VERSION} main" >> /etc/apt/sources.list.d/llvm.list && \
     apt-get update && \
-    apt-get install -y clang-18 lld-18 libc++-18-dev libc++abi-18-dev
+    apt-get install -y \
+        "clang-${LLVM_VERSION}" \
+        "lld-${LLVM_VERSION}" \
+        "libc++-${LLVM_VERSION}-dev" \
+        "libc++abi-${LLVM_VERSION}-dev"
 
-RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100 && \
-    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100 && \
-    update-alternatives --install /usr/bin/lld lld /usr/bin/lld-18 100 && \
-    update-alternatives --install /usr/bin/llvm-link llvm-link /usr/bin/llvm-link-18 100 && \
-    update-alternatives --install /usr/bin/opt opt /usr/bin/opt-18 100
+RUN update-alternatives --install /usr/bin/clang clang "/usr/bin/clang-${LLVM_VERSION}" 100 && \
+    update-alternatives --install /usr/bin/clang++ clang++ "/usr/bin/clang++-${LLVM_VERSION}" 100 && \
+    update-alternatives --install /usr/bin/lld lld "/usr/bin/lld-${LLVM_VERSION}" 100 && \
+    update-alternatives --install /usr/bin/llvm-link llvm-link "/usr/bin/llvm-link-${LLVM_VERSION}" 100 && \
+    update-alternatives --install /usr/bin/opt opt "/usr/bin/opt-${LLVM_VERSION}" 100
 
 RUN curl -s https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor - > /usr/share/keyrings/kitware-archive-keyring.gpg && \
-    echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal main' > /etc/apt/sources.list.d/kitware.list && \
+    echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main' > /etc/apt/sources.list.d/kitware.list && \
     apt-get update && \
     apt-get install -y cmake
 
