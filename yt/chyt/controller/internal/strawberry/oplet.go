@@ -40,10 +40,12 @@ type AgentInfo struct {
 	// RobotUsername is needed for a temporary workaround to add the robot to the operation acl.
 	//
 	// TODO(dakovalkov): remove after YT-17557
-	RobotUsername            string
-	DefaultNetworkProject    *string
-	ClusterURL               string
-	UseFamilyPrefixInOpAlias bool
+	RobotUsername                          string
+	DefaultNetworkProject                  *string
+	ClusterURL                             string
+	UseFamilyPrefixInOpAlias               bool
+	BrokenStateSignalErrorCodes            []yterrors.ErrorCode
+	MaxConsecutiveBrokenStateSignalRetries int
 }
 
 func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
@@ -178,6 +180,10 @@ type Oplet struct {
 	// brokenReason is a brief reason why the oplet is in broken state.
 	// It contains a message from brokenError without any details like attributes and inner errors.
 	brokenReason string
+	// nodeDeleted is set when the oplet's cypress node has been resolved to be missing.
+	// Unlike other broken reasons, this one can never be fixed by the oplet itself (there is nothing
+	// left to reread), so the agent forgets such an oplet instead of keeping it broken forever.
+	nodeDeleted bool
 
 	acl []yt.ACE
 
@@ -240,21 +246,63 @@ func (oplet *Oplet) CypressNode() ypath.Path {
 	return oplet.cypressNode
 }
 
-func (oplet *Oplet) Broken() bool {
+const restartsExhaustedReason = "too many consecutive restart attempts"
+
+// stateCorrupted returns |true| whenever the oplet state is damaged and can not be processed at all.
+func (oplet *Oplet) stateCorrupted() bool {
 	return oplet.brokenError != nil
 }
 
+// restartsExhausted returns |true| whenever the operation restart repeatedly failed with a permanent error
+// and neither the speclet nor the secrets have been changed since then,
+// so there is no point in restarting the operation again.
+func (oplet *Oplet) restartsExhausted() bool {
+	maxAttempts := oplet.agentInfo.MaxConsecutiveBrokenStateSignalRetries
+	return maxAttempts > 0 &&
+		oplet.persistentState.ConsecutiveBrokenRestartAttempts >= maxAttempts &&
+		oplet.persistentState.BadRestartSpecletRevision == oplet.persistentState.SpecletRevision &&
+		oplet.persistentState.BadRestartSecretsRevision == oplet.secretsRevision
+}
+
+func (oplet *Oplet) Broken() bool {
+	return oplet.stateCorrupted() || oplet.restartsExhausted()
+}
+
 func (oplet *Oplet) BrokenReason() string {
-	return oplet.brokenReason
+	switch {
+	case oplet.stateCorrupted():
+		return oplet.brokenReason
+	case oplet.restartsExhausted():
+		return restartsExhaustedReason
+	default:
+		return ""
+	}
 }
 
 func (oplet *Oplet) BrokenError() error {
-	return oplet.brokenError
+	switch {
+	case oplet.stateCorrupted():
+		return oplet.brokenError
+	case oplet.restartsExhausted():
+		var args []any
+		if oplet.infoState.Error != nil {
+			args = append(args, yterrors.Attr("last_restart_error", *oplet.infoState.Error))
+		}
+		args = append(args,
+			yterrors.Attr("consecutive_restart_attempts", oplet.persistentState.ConsecutiveBrokenRestartAttempts),
+			restartsExhaustedReason)
+		return yterrors.Err(args...)
+	default:
+		return nil
+	}
 }
 
-// Inappropriate returns |true| whenever the oplet does not belong to provided agent.
+// Inappropriate returns |true| whenever the oplet does not belong to provided agent
+// or its cypress node has been deleted (e.g. removed directly or via strawberry): in both
+// cases there is nothing left to reread or fix, so the oplet should be forgotten by the agent.
 func (oplet *Oplet) Inappropriate() bool {
-	return oplet.strawberrySpeclet.FamilyOrDefault() != oplet.c.Family() ||
+	return oplet.nodeDeleted ||
+		oplet.strawberrySpeclet.FamilyOrDefault() != oplet.c.Family() ||
 		oplet.strawberrySpeclet.StageOrDefault() != oplet.agentInfo.Stage
 }
 
@@ -324,7 +372,7 @@ const (
 
 func (oplet *Oplet) Health() (health OpletHealth, healthReason string) {
 	if oplet.Broken() {
-		return OpletHealthFailed, "oplet is broken: " + oplet.brokenReason
+		return OpletHealthFailed, "oplet is broken: " + oplet.BrokenReason()
 	}
 	if oplet.infoState.Error != nil {
 		return OpletHealthFailed, "info state contains error"
@@ -367,12 +415,16 @@ func (oplet *Oplet) Health() (health OpletHealth, healthReason string) {
 	return oplet.infoState.Health, oplet.infoState.HealthReason
 }
 
-// setBroken sets oplet state to broken and returns corresponding error.
 func (oplet *Oplet) setBroken(reason string, args ...any) (brokenError error) {
 	oplet.brokenReason = reason
 	oplet.brokenError = yterrors.Err(append(args, reason)...)
 	oplet.l.Debug("Oplet is broken", log.Error(oplet.brokenError))
 	return oplet.brokenError
+}
+
+func (oplet *Oplet) clearBroken() {
+	oplet.brokenError = nil
+	oplet.brokenReason = ""
 }
 
 func (oplet *Oplet) OnCypressNodeChanged() {
@@ -401,6 +453,7 @@ func (oplet *Oplet) EnsureUpdatedFromCypress(ctx context.Context) error {
 			return err
 		}
 	}
+	oplet.clearBroken()
 	return nil
 }
 
@@ -449,6 +502,7 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
 	if ok, reason := oplet.needsRestart(); ok {
 		if err := oplet.restartOp(ctx, reason); err != nil {
+			oplet.registerRestartFailure(err)
 			return err
 		}
 	}
@@ -465,6 +519,7 @@ func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
 
 	if ctlOpletState.NeedsRestart {
 		if err := oplet.restartOp(ctx, "controller decided to restart the oplet"); err != nil {
+			oplet.registerRestartFailure(err)
 			return err
 		}
 	}
@@ -571,6 +626,34 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 		}
 	}
 	return false, "up to date"
+}
+
+func (oplet *Oplet) registerRestartFailure(err error) {
+	if !containsAnyErrorCode(err, oplet.agentInfo.BrokenStateSignalErrorCodes) {
+		oplet.persistentState.ConsecutiveBrokenRestartAttempts = 0
+		return
+	}
+
+	// The speclet or the secrets have been changed since the last failed restart,
+	// so we are trying to start the operation with a new configuration
+	// and the old counter can be reset.
+	if oplet.persistentState.BadRestartSpecletRevision != oplet.persistentState.SpecletRevision ||
+		oplet.persistentState.BadRestartSecretsRevision != oplet.secretsRevision {
+		oplet.persistentState.ConsecutiveBrokenRestartAttempts = 0
+		oplet.persistentState.BadRestartSpecletRevision = oplet.persistentState.SpecletRevision
+		oplet.persistentState.BadRestartSecretsRevision = oplet.secretsRevision
+	}
+
+	oplet.persistentState.ConsecutiveBrokenRestartAttempts++
+
+	oplet.l.Warn("restart failed with a permanent error", log.Error(err),
+		log.Int("consecutive_bad_restart_failures", oplet.persistentState.ConsecutiveBrokenRestartAttempts))
+
+	if oplet.restartsExhausted() {
+		oplet.l.Warn("restart repeatedly failed with a permanent error, oplet is broken",
+			log.String("reason", restartsExhaustedReason),
+			log.Int("consecutive_bad_restart_failures", oplet.persistentState.ConsecutiveBrokenRestartAttempts))
+	}
 }
 
 func (oplet *Oplet) needsUpdateOpParameters() (needsUpdate bool, reason string) {
@@ -708,6 +791,7 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 	err := oplet.systemClient.GetNode(ctx, oplet.cypressNode, &node, &yt.GetNodeOptions{Attributes: CypressStateAttributes})
 
 	if yterrors.ContainsResolveError(err) {
+		oplet.nodeDeleted = true
 		return oplet.setBroken("cypress state does not exist", err)
 	} else if err != nil {
 		oplet.l.Error("failed to get operation state from cypress", log.Error(err))
@@ -967,13 +1051,16 @@ func (oplet *Oplet) getUserClient() (yt.Client, error) {
 	return client, nil
 }
 
+// TODO(iharbychyk): add new package for strawberry-specific error codes
+const CodePoolIsNotSet yterrors.ErrorCode = 800000
+
 func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	oplet.l.Info("restarting operation",
 		log.Int("next_incarnation_index", oplet.NextIncarnationIndex()),
 		log.String("reason", reason))
 
 	if oplet.strawberrySpeclet.Pool == nil && oplet.strawberrySpeclet.StageOrDefault() != StageUntracked {
-		err := yterrors.Err("can't run operation because pool is not set")
+		err := yterrors.Err(CodePoolIsNotSet, "can't run operation because pool is not set")
 		oplet.setError(err)
 		return err
 	}
@@ -1114,6 +1201,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	oplet.persistentState.YTOpState = yt.StateInitializing
 	oplet.persistentState.YTOpSuspended = false
 	oplet.persistentState.ResumeMarker = oplet.strawberrySpeclet.ResumeMarker
+	oplet.persistentState.ConsecutiveBrokenRestartAttempts = 0
 	oplet.infoState.YTOpStartTime = yson.Time{}
 	oplet.infoState.YTOpFinishTime = yson.Time{}
 
@@ -1209,7 +1297,7 @@ func (oplet *Oplet) flushPersistentState(ctx context.Context) error {
 		log.UInt64("flushed_state_revision", uint64(oplet.flushedStateRevision)))
 
 	// Sanity check, should never happen.
-	if oplet.Broken() {
+	if oplet.stateCorrupted() {
 		return yterrors.Err("cannot flush persistent state of broken oplet",
 			yterrors.Attr("broken_reason", oplet.brokenReason))
 	}

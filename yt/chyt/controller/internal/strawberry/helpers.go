@@ -22,6 +22,15 @@ var (
 	prerequisiteCheckFailedRE = regexp.MustCompile("[Pp]rerequisite check failed")
 )
 
+func containsAnyErrorCode(err error, brokenStateSignalErrorCodes []yterrors.ErrorCode) bool {
+	for _, code := range brokenStateSignalErrorCodes {
+		if yterrors.ContainsErrorCode(err, code) {
+			return true
+		}
+	}
+	return false
+}
+
 const (
 	AccessControlNamespacesPath = ypath.Path("//sys/access_control_object_namespaces")
 	OpAliasFamilyDelimiter      = "::"

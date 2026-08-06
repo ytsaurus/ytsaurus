@@ -323,8 +323,18 @@ func (a *Agent) pass() {
 
 	opletCount := 0
 	failedCount := 0
+	brokenOpletCount := 0
+
 	for _, oplet := range a.aliasToOp {
+		if oplet.Broken() {
+			a.l.Info("oplet is broken",
+				log.String("alias", oplet.Alias()),
+				log.String("reason", oplet.BrokenReason()))
+			brokenOpletCount++
+		}
 		if oplet.Inappropriate() {
+			a.l.Info("unregistering oplet: it is inappropriate", log.String("alias", oplet.Alias()))
+			a.unregisterOplet(oplet)
 			continue
 		}
 		opletCount++
@@ -332,20 +342,10 @@ func (a *Agent) pass() {
 			failedCount++
 		}
 	}
-	a.metrics.SetOpletCount(opletCount)
-	a.metrics.SetFailedOpletCount(failedCount)
 
-	for _, oplet := range a.aliasToOp {
-		if oplet.Broken() {
-			a.l.Info("unregistering oplet: it is broken",
-				log.String("alias", oplet.Alias()),
-				log.String("reason", oplet.BrokenReason()))
-			a.unregisterOplet(oplet)
-		} else if oplet.Inappropriate() {
-			a.l.Info("unregistering oplet: it is inappropriate", log.String("alias", oplet.Alias()))
-			a.unregisterOplet(oplet)
-		}
-	}
+	a.metrics.SetOpletCount(opletCount)
+	a.metrics.SetBrokenOpletCount(brokenOpletCount)
+	a.metrics.SetFailedOpletCount(failedCount)
 
 	// Sanity check.
 	for alias, oplet := range a.aliasToOp {
@@ -495,17 +495,19 @@ func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
 	}
 
 	return strawberry.AgentInfo{
-		StrawberryRoot:           a.root,
-		Hostname:                 a.hostname,
-		Stage:                    a.config.Stage,
-		Proxy:                    a.proxy,
-		ServiceToken:             a.token,
-		Family:                   a.family,
-		OperationNamespace:       a.OperationNamespace(),
-		RobotUsername:            a.config.RobotUsername,
-		DefaultNetworkProject:    a.config.DefaultNetworkProject,
-		ClusterURL:               strawberry.ExecuteTemplate(a.config.ClusterURLTemplate, clusterURLTemplateData),
-		UseFamilyPrefixInOpAlias: a.config.UseFamilyPrefixInOpAlias,
+		StrawberryRoot:                         a.root,
+		Hostname:                               a.hostname,
+		Stage:                                  a.config.Stage,
+		Proxy:                                  a.proxy,
+		ServiceToken:                           a.token,
+		Family:                                 a.family,
+		OperationNamespace:                     a.OperationNamespace(),
+		RobotUsername:                          a.config.RobotUsername,
+		DefaultNetworkProject:                  a.config.DefaultNetworkProject,
+		ClusterURL:                             strawberry.ExecuteTemplate(a.config.ClusterURLTemplate, clusterURLTemplateData),
+		UseFamilyPrefixInOpAlias:               a.config.UseFamilyPrefixInOpAlias,
+		BrokenStateSignalErrorCodes:            a.config.BrokenStateSignalErrorCodesOrDefault(),
+		MaxConsecutiveBrokenStateSignalRetries: a.config.MaxConsecutiveBrokenStateSignalRetriesOrDefault(),
 	}
 }
 
