@@ -318,8 +318,11 @@ class TChunkStatisticsCalculatorCallbacks
     : public IChunkStatisticsCalculatorCallbacks
 {
 public:
-    explicit TChunkStatisticsCalculatorCallbacks(TBootstrap* bootstrap)
+    TChunkStatisticsCalculatorCallbacks(
+        TBootstrap* bootstrap,
+        TChunkPlacementPtr chunkPlacement)
         : Bootstrap_(bootstrap)
+        , ChunkPlacement_(std::move(chunkPlacement))
     { }
 
     TMedium* FindMediumByIndex(int mediumIndex) const override
@@ -347,8 +350,29 @@ public:
         return ::NYT::NChunkServer::GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager());
     }
 
+    int GetMaxReplicasPerRack(int mediumIndex, const TChunk* chunk) const override
+    {
+        return ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
+    }
+
+    int GetMaxReplicasPerDataCenter(
+        int mediumIndex,
+        const TChunk* chunk,
+        const TDataCenter* dataCenter) const override
+    {
+        return ChunkPlacement_->GetMaxReplicasPerDataCenter(mediumIndex, chunk, dataCenter);
+    }
+
+    TNodeList GetConsistentPlacementWriteTargets(
+        const TChunk* chunk,
+        int mediumIndex) const override
+    {
+        return ChunkPlacement_->GetConsistentPlacementWriteTargets(chunk, mediumIndex);
+    }
+
 private:
     TBootstrap* const Bootstrap_;
+    const TChunkPlacementPtr ChunkPlacement_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -367,8 +391,7 @@ TChunkReplicator::TChunkReplicator(
     , JobRegistry_(std::move(jobRegistry))
     , ChunkStatisticsCalculator_(std::make_unique<TChunkStatisticsCalculator>(
         Config_,
-        ChunkPlacement_,
-        New<TChunkStatisticsCalculatorCallbacks>(bootstrap)))
+        New<TChunkStatisticsCalculatorCallbacks>(Bootstrap_, ChunkPlacement_)))
     , BlobRefreshScanner_(std::make_unique<TChunkRefreshScanner>(
         Bootstrap_,
         EChunkScanKind::Refresh,

@@ -21,6 +21,8 @@
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
+#include <yt/yt/core/test_framework/testing_tag.h>
+
 #include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <library/cpp/yt/misc/property.h>
@@ -305,6 +307,9 @@ public:
      *  no data center.
      */
     TDataCenter* GetDataCenter() const;
+
+    //! For testing purposes only; in production the host is assigned by the node tracker.
+    void SetHost(TTestingTag, THost* host);
 
     bool HasTag(const std::optional<std::string>& tag) const;
 

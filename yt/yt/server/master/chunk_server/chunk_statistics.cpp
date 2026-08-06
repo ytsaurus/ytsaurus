@@ -2,7 +2,6 @@
 
 #include "chunk.h"
 #include "chunk_location.h"
-#include "chunk_placement.h"
 #include "config.h"
 #include "domestic_medium.h"
 #include "helpers.h"
@@ -33,10 +32,8 @@ constexpr int MaxTemporarilyUnavailableReplicaCount = 1;
 
 TChunkStatisticsCalculator::TChunkStatisticsCalculator(
     TChunkManagerConfigPtr config,
-    TChunkPlacementPtr chunkPlacement,
     IChunkStatisticsCalculatorCallbacksPtr callbacks)
     : Config_(std::move(config))
-    , ChunkPlacement_(std::move(chunkPlacement))
     , Callbacks_(std::move(callbacks))
 { }
 
@@ -149,7 +146,7 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
         }
 
         auto host = chunkLocation->GetNode()->GetHost();
-        if (ChunkPlacement_->UseHostAwareReplicator() && host) {
+        if (Callbacks_->GetDynamicConfig()->UseHostAwareReplicator && host) {
             auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
             if (!inserted) {
                 YT_LOG_EVENT(
@@ -167,14 +164,17 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
             int rackIndex = rack->GetIndex();
             // An erasure chunk is considered placed unsafely if it violates replica limits
             // in any failure domain.
-            auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
+            auto maxReplicasPerRack = Callbacks_->GetMaxReplicasPerRack(mediumIndex, chunk);
             auto replicasPerRack = ++perRackReplicaCounters[mediumIndex][rackIndex];
             if (replicasPerRack > maxReplicasPerRack && isReplicaSealed) {
                 unsafelyPlacedSealedReplicas[mediumIndex] = replica;
             }
 
             if (auto dataCenter = rack->GetDataCenter()) {
-                auto maxReplicasPerDataCenter = ChunkPlacement_->GetMaxReplicasPerDataCenter(mediumIndex, chunk, dataCenter);
+                auto maxReplicasPerDataCenter = Callbacks_->GetMaxReplicasPerDataCenter(
+                    mediumIndex,
+                    chunk,
+                    dataCenter);
                 auto replicasPerDataCenter = ++perDataCenterReplicaCounters[mediumIndex][dataCenter];
                 if (replicasPerDataCenter > maxReplicasPerDataCenter && isReplicaSealed) {
                     unsafelyPlacedSealedReplicas[mediumIndex] = replica;
@@ -223,7 +223,7 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
 
         activeMedia.set(mediumIndex);
 
-        auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
+        auto maxReplicasPerRack = Callbacks_->GetMaxReplicasPerRack(mediumIndex, chunk);
 
         auto& mediumStatistics = result.PerMediumStatistics[mediumIndex];
         ComputeErasureChunkStatisticsForMedium(
@@ -295,7 +295,7 @@ TCompactMediumMap<TNodeList> TChunkStatisticsCalculator::GetChunkConsistentPlace
 
         auto it = result.emplace(
             mediumIndex,
-            ChunkPlacement_->GetConsistentPlacementWriteTargets(chunk, mediumIndex)).first;
+            Callbacks_->GetConsistentPlacementWriteTargets(chunk, mediumIndex)).first;
         const auto& mediumConsistentPlacementNodes = it->second;
 
         if (mediumConsistentPlacementNodes.empty()) {
@@ -640,7 +640,7 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeRegularChunkStatistics(
         }
 
         auto host = chunkLocation->GetNode()->GetHost();
-        if (ChunkPlacement_->UseHostAwareReplicator() && host) {
+        if (Callbacks_->GetDynamicConfig()->UseHostAwareReplicator && host) {
             auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
             if (!inserted) {
                 YT_LOG_EVENT(
@@ -656,13 +656,16 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeRegularChunkStatistics(
 
         if (const auto* rack = chunkLocation->GetNode()->GetRack()) {
             int rackIndex = rack->GetIndex();
-            auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
+            auto maxReplicasPerRack = Callbacks_->GetMaxReplicasPerRack(mediumIndex, chunk);
             if (++perRackReplicaCounters[mediumIndex][rackIndex] > maxReplicasPerRack) {
                 unsafelyPlacedReplicas[mediumIndex] = replica;
             }
 
             if (auto dataCenter = rack->GetDataCenter()) {
-                auto maxReplicasPerDataCenter = ChunkPlacement_->GetMaxReplicasPerDataCenter(mediumIndex, chunk, dataCenter);
+                auto maxReplicasPerDataCenter = Callbacks_->GetMaxReplicasPerDataCenter(
+                    mediumIndex,
+                    chunk,
+                    dataCenter);
                 if (++perDataCenterReplicaCounters[mediumIndex][dataCenter] > maxReplicasPerDataCenter) {
                     unsafelyPlacedReplicas[mediumIndex] = replica;
                 }
@@ -724,7 +727,7 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeRegularChunkStatistics(
             continue;
         }
 
-        auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
+        auto maxReplicasPerRack = Callbacks_->GetMaxReplicasPerRack(mediumIndex, chunk);
 
         ComputeRegularChunkStatisticsForMedium(
             mediumStatistics,

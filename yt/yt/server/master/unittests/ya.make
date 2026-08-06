@@ -11,6 +11,7 @@ SRCS(
     chunk_list_statistics_ut.cpp
     chunk_replacer_ut.cpp
     chunk_requisition_ut.cpp
+    chunk_statistics_ut.cpp
     chunk_tree_balancer_ut.cpp
     chunk_tree_traversing_ut.cpp
     chunk_tree_ut.cpp
