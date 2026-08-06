@@ -5602,6 +5602,7 @@ class TestQueueStaticExportSequoia(QueueStaticExportCrossCellBase):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_GROUND_TABLE_MOUNT_CACHE = False
     ENABLE_TMP_ROOTSTOCK = True
 
     QUEUE_PATH = "//tmp/q"
