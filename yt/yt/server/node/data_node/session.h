@@ -53,17 +53,18 @@ public:
     TSessionId GetSessionId() const;
 
     void CancelRequests();
-    bool IsCanceled() const;
+    bool HasRequests() const;
 
     i64 GetCurrentApprovedMemory() const;
     i64 GetMaxRequestedMemory() const;
 
     std::optional<TRequest> TryGetMinRequest();
-    void ApproveRequest(TLocationMemoryGuard&& memoryGuard, TRequest request);
+    void ApproveRequest(TLocationMemoryGuard&& memoryGuard, TRequest request, NNode::TLocationFairShareSlotPtr slot = nullptr);
 
     void PushRequest(TRequest request);
 
     void ReleaseResourcesForPutBlocks(i64 memory);
+    NNode::TLocationFairShareSlotPtr FindFairShareQueueSlot(i64 cumulativeBlockSize);
 
 private:
     const TSessionId SessionId_;
@@ -77,6 +78,7 @@ private:
     i64 ApprovedMemory_ = 0;
 
     TLocationMemoryGuard MemoryGuard_;
+    std::vector<std::pair<i64, NNode::TLocationFairShareSlotPtr>> FairShareQueueSlots_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TProbePutBlocksRequestSupplier)

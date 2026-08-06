@@ -25,14 +25,22 @@ TSessionId TProbePutBlocksRequestSupplier::GetSessionId() const
 
 void TProbePutBlocksRequestSupplier::CancelRequests()
 {
-    auto guard = Guard(Lock_);
-    Canceled_ = true;
+    TLocationMemoryGuard memoryGuard;
+    {
+        auto guard = Guard(Lock_);
+        Canceled_ = true;
+        memoryGuard = std::exchange(MemoryGuard_, {});
+        FairShareQueueSlots_.clear();
+        Requests_.clear();
+        ApprovedMemory_ = 0;
+        MaxRequestedMemory_ = 0;
+    }
 }
 
-bool TProbePutBlocksRequestSupplier::IsCanceled() const
+bool TProbePutBlocksRequestSupplier::HasRequests() const
 {
     auto guard = Guard(Lock_);
-    return Canceled_;
+    return !Requests_.empty();
 }
 
 i64 TProbePutBlocksRequestSupplier::GetCurrentApprovedMemory() const
@@ -47,6 +55,19 @@ i64 TProbePutBlocksRequestSupplier::GetMaxRequestedMemory() const
     return MaxRequestedMemory_;
 }
 
+TLocationFairShareSlotPtr TProbePutBlocksRequestSupplier::FindFairShareQueueSlot(i64 cumulativeBlockSize)
+{
+    auto guard = Guard(Lock_);
+    auto it = std::lower_bound(
+        FairShareQueueSlots_.begin(),
+        FairShareQueueSlots_.end(),
+        cumulativeBlockSize,
+        [] (const auto& cur, i64 target) {
+            return cur.first < target;
+        });
+    return it == FairShareQueueSlots_.end() ? nullptr : it->second;
+}
+
 std::optional<TProbePutBlocksRequestSupplier::TRequest> TProbePutBlocksRequestSupplier::TryGetMinRequest()
 {
     auto guard = Guard(Lock_);
@@ -59,9 +80,15 @@ std::optional<TProbePutBlocksRequestSupplier::TRequest> TProbePutBlocksRequestSu
     return request;
 }
 
-void TProbePutBlocksRequestSupplier::ApproveRequest(TLocationMemoryGuard&& memoryGuard, TRequest request)
+void TProbePutBlocksRequestSupplier::ApproveRequest(TLocationMemoryGuard&& memoryGuard, TRequest request, TLocationFairShareSlotPtr slot)
 {
     auto guard = Guard(Lock_);
+    YT_VERIFY(!Canceled_);
+    if (slot) {
+        // Make sure to add in increasing order.
+        YT_VERIFY(FairShareQueueSlots_.empty() || FairShareQueueSlots_.back().first < request.CumulativeBlockSize);
+        FairShareQueueSlots_.push_back({request.CumulativeBlockSize, std::move(slot)});
+    }
 
     YT_VERIFY(request.CumulativeBlockSize > ApprovedMemory_);
     YT_VERIFY(memoryGuard.GetSize() == request.CumulativeBlockSize - ApprovedMemory_);
@@ -86,6 +113,9 @@ void TProbePutBlocksRequestSupplier::ApproveRequest(TLocationMemoryGuard&& memor
 void TProbePutBlocksRequestSupplier::PushRequest(TRequest request)
 {
     auto guard = Guard(Lock_);
+    if (Canceled_) {
+        return;
+    }
 
     if (request.CumulativeBlockSize <= ApprovedMemory_) {
         return;
@@ -272,8 +302,7 @@ void TSessionBase::Cancel(const TError& error)
             TLeaseManager::CloseLease(Lease_);
             Active_ = false;
             Canceled_.store(true);
-            ProbePutBlocksRequestSupplier_->CancelRequests();
-            Location_->CheckProbePutBlocksRequests();
+            Location_->RemoveProbePutBlocksRequestSupplier(ProbePutBlocksRequestSupplier_);
 
             DoCancel(error);
         }));
@@ -316,6 +345,7 @@ TFuture<ISession::TFinishResult> TSessionBase::Finish(
 
             TLeaseManager::CloseLease(Lease_);
             Active_ = false;
+            Location_->RemoveProbePutBlocksRequestSupplier(ProbePutBlocksRequestSupplier_);
 
             return DoFinish(chunkMeta, blockCount);
         })

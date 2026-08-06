@@ -557,21 +557,26 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
 
     auto totalSize = GetByteSize(blocks);
 
-    auto tags = Options_.FairShareTags;
-    if (tags.empty()) {
-        auto category = Options_.WorkloadDescriptor.Category;
-        tags.emplace_back(
-            ToString(category),
-            Location_->GetFairShareWorkloadCategoryWeight(category));
-    }
-
     // TODO(don-dron): Add resource acquiring (memory, cpu, net etc).
-    auto fairShareQueueSlotOrError = Location_->AddFairShareQueueSlot(
-        totalSize,
-        {},
-        CreateHierarchyLevels(tags));
-    YT_VERIFY(fairShareQueueSlotOrError.IsOK());
-    auto fairShareQueueSlot = fairShareQueueSlotOrError.Value();
+    TLocationFairShareSlotPtr fairShareQueueSlot;
+    if (UseProbePutBlocks_) {
+        fairShareQueueSlot = ProbePutBlocksRequestSupplier_->FindFairShareQueueSlot(cumulativeBlockSize);
+    }
+    if (!fairShareQueueSlot) {
+        auto tags = Options_.FairShareTags;
+        if (tags.empty()) {
+            auto category = Options_.WorkloadDescriptor.Category;
+            tags.emplace_back(
+                ToString(category),
+                Location_->GetFairShareWorkloadCategoryWeight(category));
+        }
+        auto fairShareQueueSlotOrError = Location_->AddFairShareQueueSlot(
+            totalSize,
+            {},
+            CreateHierarchyLevels(tags));
+        YT_VERIFY(fairShareQueueSlotOrError.IsOK());
+        fairShareQueueSlot = fairShareQueueSlotOrError.Value();
+    }
 
     std::vector<TFuture<void>> precedingBlockReceivedFutures;
     for (int precedingBlockIndex = WindowStartBlockIndex_; precedingBlockIndex < startBlockIndex; precedingBlockIndex++) {

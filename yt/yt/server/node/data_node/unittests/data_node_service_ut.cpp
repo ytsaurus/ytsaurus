@@ -511,6 +511,7 @@ public:
         std::vector<double> IOWeights = {1.};
         std::vector<int> SessionCountLimits = {1024};
         bool UseProbePutBlocks = false;
+        bool EnableProbePutBlocksFairShare = false;
         bool SkipWriteThrottlingLocations = false;
         bool AlwaysThrottleLocation = false;
         bool EnableWriteThrottlingWritableCheck = false;
@@ -703,6 +704,7 @@ public:
 
         DataNodeService_ = CreateDataNodeService(DataNodeBootstrap_->GetConfig()->DataNode, DataNodeBootstrap_.Get());
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = TestParams_.UseProbePutBlocks;
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->EnableProbePutBlocksFairShare = TestParams_.EnableProbePutBlocksFairShare;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->AlwaysThrottleLocation = TestParams_.AlwaysThrottleLocation;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->EnableWriteThrottlingWritableCheck = TestParams_.EnableWriteThrottlingWritableCheck;
         DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->EnableInThrottlerQueueWritableCheck = TestParams_.EnableInThrottlerQueueWritableCheck;
@@ -1146,6 +1148,7 @@ struct TWriteTestCase
     int BlockCount = 40;
     int BlockSize = 1_KB;
     bool UseProbePutBlocks = false;
+    bool EnableProbePutBlocksFairShare = false;
     bool PreallocateDiskSpace = false;
     bool UseDirectIo = false;
 };
@@ -1166,6 +1169,11 @@ std::vector<TWriteTestCase> GenerateWriteTestParams()
         result.push_back(writeTestCase);
     }
 
+    result.push_back(TWriteTestCase{
+        .UseProbePutBlocks = true,
+        .EnableProbePutBlocksFairShare = true,
+    });
+
     return result;
 }
 
@@ -1185,6 +1193,7 @@ public:
                 .ReadThreadCount = 4,
                 .WriteThreadCount = 4,
                 .UseProbePutBlocks = GetParam().UseProbePutBlocks,
+                .EnableProbePutBlocksFairShare = GetParam().EnableProbePutBlocksFairShare,
                 .PreallocateDiskSpace = GetParam().PreallocateDiskSpace,
             })
     { }
@@ -1509,6 +1518,227 @@ INSTANTIATE_TEST_SUITE_P(
         }
     )
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProbePutBlocksFairShareTest
+    : public TDataNodeTest
+{
+public:
+    struct TWindowCounters
+    {
+        i64 SlotWindowSize = 0;
+        i64 RequestWindowSize = 0;
+        i64 SlotWindowLogCount = 0;
+        i64 RequestWindowLogCount = 0;
+    };
+
+    explicit TProbePutBlocksFairShareTest(i64 writeMemoryLimit = 128_MB)
+        : TDataNodeTest(TDataNodeTestParams{
+            .IOEngineType = NIO::EIOEngineType::FairShareHierarchical,
+            .ReadThreadCount = 4,
+            .WriteThreadCount = 4,
+            .WriteMemoryLimit = writeMemoryLimit,
+            .UseProbePutBlocks = true,
+            .EnableProbePutBlocksFairShare = true,
+            .FairShareWorkloadCategoryWeights = {
+                {EWorkloadCategory::UserBatch, 1},
+                {EWorkloadCategory::UserInteractive, 2},
+                {EWorkloadCategory::UserRealtime, 4}
+            },
+            .DelayBeforePerformPutBlocks = TDuration::Zero(),
+        })
+    { }
+
+    void SetUp() override
+    {
+        TDataNodeTest::SetUp();
+
+        auto schedulerConfig = GetDataNodeBootstrap()
+            ->GetDynamicConfigManager()
+            ->GetConfig()
+            ->FairShareHierarchicalScheduler;
+        schedulerConfig->WindowSize = TDuration::Minutes(1);
+        GetFairShareHierarchicalScheduler()->Reconfigure(schedulerConfig);
+    }
+
+    TWindowCounters GetWindowCounters(EWorkloadCategory category) const
+    {
+        auto bucket = GetFairShareHierarchicalScheduler()->GetBucket({ToString(category)});
+        if (!bucket) {
+            return {};
+        }
+
+        return {
+            .SlotWindowSize = bucket->SlotWindowSize.load(),
+            .RequestWindowSize = bucket->RequestWindowSize.load(),
+            .SlotWindowLogCount = bucket->SlotWindowLogCount.load(),
+            .RequestWindowLogCount = bucket->RequestWindowLogCount.load(),
+        };
+    }
+
+    void ProbeAndExpectApproval(const TSessionId& sessionId, i64 cumulativeBlockSize)
+    {
+        auto response = WaitFor(ProbePutBlocks(sessionId, cumulativeBlockSize))
+            .ValueOrThrow();
+        const auto approvedCumulativeBlockSize = response->probe_put_blocks_state().approved_cumulative_block_size();
+        EXPECT_EQ(cumulativeBlockSize, approvedCumulativeBlockSize);
+    }
+
+    TSessionId StartProbingSession(EWorkloadCategory category)
+    {
+        TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+        WaitFor(StartChunk(
+            sessionId,
+            /*useProbePutBlocks*/ true,
+            /*preallocateDiskSpace*/ false,
+            /*useDirectIo*/ false,
+            TWorkloadDescriptor(category)))
+            .ThrowOnError();
+        return sessionId;
+    }
+
+    const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() const
+    {
+        return GetDataNodeBootstrap()->GetFairShareHierarchicalScheduler();
+    }
+
+    TSessionId SubmitProbeRequests(
+        i64 blockSize,
+        int requestCount,
+        EWorkloadCategory category)
+    {
+        auto sessionId = StartProbingSession(category);
+
+        for (int i = 0; i < requestCount; i++) {
+            const i64 cumulativeSize = (i + 1) * blockSize;
+            WaitFor(ProbePutBlocks(sessionId, cumulativeSize))
+                .ThrowOnError();
+        }
+        return sessionId;
+    }
+};
+
+class TProbePutBlocksPriorityTest : public TProbePutBlocksFairShareTest
+{
+public:
+    TProbePutBlocksPriorityTest() : TProbePutBlocksFairShareTest(1_MB) {}
+};
+
+TEST_F(TProbePutBlocksPriorityTest,
+    WorkloadFairShareTest)
+{
+    const auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
+    ASSERT_EQ(locations.size(), 1u);
+    const TStoreLocationPtr& location = locations.front();
+
+    const i64 writeMemoryLimit = location->GetWriteMemoryLimit();
+    ASSERT_GT(writeMemoryLimit, 0);
+
+    const auto blockerSession =
+        StartProbingSession(EWorkloadCategory::SystemMerge);
+
+    ProbeAndExpectApproval(blockerSession, writeMemoryLimit);
+
+    constexpr int ProbeRequestCount = 512;
+    ASSERT_GE(writeMemoryLimit, ProbeRequestCount);
+
+    const auto batchSession = SubmitProbeRequests(writeMemoryLimit / ProbeRequestCount, ProbeRequestCount, EWorkloadCategory::UserBatch);
+    const auto realtimeSession = SubmitProbeRequests(writeMemoryLimit / ProbeRequestCount, ProbeRequestCount, EWorkloadCategory::UserRealtime);
+
+    // Both suppliers now have a backlog up to writeMemoryLimit.
+    WaitFor(CancelChunk(blockerSession, /*waitForCancelation=*/ true))
+        .ThrowOnError();
+
+    const double batchWeight = static_cast<double>(
+        location->GetFairShareWorkloadCategoryWeight(
+            EWorkloadCategory::UserBatch));
+
+    const double realtimeWeight = static_cast<double>(
+        location->GetFairShareWorkloadCategoryWeight(
+            EWorkloadCategory::UserRealtime));
+
+    ASSERT_GT(batchWeight, 0.0);
+    ASSERT_GT(realtimeWeight, 0.0);
+
+
+    i64 batchWindowSize = GetWindowCounters(EWorkloadCategory::UserBatch).SlotWindowSize;
+    i64 realtimeWindowSize = GetWindowCounters(EWorkloadCategory::UserRealtime).SlotWindowSize;
+
+    EXPECT_GT(batchWindowSize, 0);
+    EXPECT_GT(realtimeWindowSize, 0);
+    const double expectedRatio = batchWeight / realtimeWeight;
+    const double actualRatio = static_cast<double>(batchWindowSize) / static_cast<double>(realtimeWindowSize);
+
+    EXPECT_NEAR(actualRatio, expectedRatio, 0.01)
+        << "Fair-share ratio was not observed"
+        << "; batchWindowSize=" << batchWindowSize
+        << "; realtimeWindowSize=" << realtimeWindowSize
+        << "; actualRatio=" << actualRatio
+        << "; expectedRatio=" << expectedRatio;
+
+    WaitFor(CancelChunk(batchSession)).ThrowOnError();
+    WaitFor(CancelChunk(realtimeSession)).ThrowOnError();
+}
+
+TEST_F(TProbePutBlocksFairShareTest, ProbeDoesNotChangeIOEngineRequestAccounting)
+{
+    constexpr auto RegularCategory = EWorkloadCategory::SystemReplication;
+    constexpr auto ProbeCategory = EWorkloadCategory::UserBatch;
+    constexpr int BlockCount = 4;
+    constexpr int BlockSize = 1_MB;
+
+    TRandomGenerator generator(42);
+    auto blocks = CreateBlocks(BlockCount, BlockSize, generator);
+    auto cumulativeBlockSize = CalculateCummulativeBlockSize(blocks);
+    TSessionId regularSessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    WaitFor(StartChunk(regularSessionId, /*useProbePutBlocks*/ false, /*preallocateDiskSpace*/ false, /*useDirectIo*/ false, TWorkloadDescriptor(RegularCategory))).ThrowOnError();
+    WaitFor(PutBlocks(regularSessionId, blocks, 0, cumulativeBlockSize))
+        .ThrowOnError();
+    WaitFor(FlushBlocks(regularSessionId, BlockCount - 1))
+        .ThrowOnError();
+    auto regularCounters = GetWindowCounters(RegularCategory);
+    TSessionId probeSessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+    WaitFor(StartChunk(probeSessionId, /*useProbePutBlocks*/ true, /*preallocateDiskSpace*/ false, /*useDirectIo*/ false, TWorkloadDescriptor(ProbeCategory)))
+        .ThrowOnError();
+    ProbeAndExpectApproval(probeSessionId, cumulativeBlockSize);
+    WaitFor(PutBlocks(probeSessionId, blocks, 0, cumulativeBlockSize))
+        .ThrowOnError();
+    WaitFor(FlushBlocks(probeSessionId, BlockCount - 1))
+        .ThrowOnError();
+    auto probeCounters = GetWindowCounters(ProbeCategory);
+
+    EXPECT_EQ(cumulativeBlockSize, regularCounters.SlotWindowSize);
+    EXPECT_EQ(cumulativeBlockSize, probeCounters.SlotWindowSize);
+    EXPECT_EQ(regularCounters.SlotWindowLogCount, probeCounters.SlotWindowLogCount);
+    EXPECT_EQ(regularCounters.RequestWindowSize, probeCounters.RequestWindowSize);
+    EXPECT_EQ(regularCounters.RequestWindowLogCount, probeCounters.RequestWindowLogCount);
+    EXPECT_GT(probeCounters.RequestWindowSize, 0);
+
+    WaitFor(FinishChunk(regularSessionId, BlockCount))
+        .ThrowOnError();
+    WaitFor(FinishChunk(probeSessionId, BlockCount))
+        .ThrowOnError();
+}
+
+TEST_F(TProbePutBlocksFairShareTest, FinishChunkReleasesProbeResources)
+{
+    const auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
+    ASSERT_EQ(locations.size(), 1u);
+    const auto& location = locations.front();
+
+    ASSERT_EQ(0, location->GetUsedMemory(EIODirection::Write));
+
+    const auto sessionId = StartProbingSession(EWorkloadCategory::UserBatch);
+    ProbeAndExpectApproval(sessionId, location->GetWriteMemoryLimit());
+
+    ASSERT_EQ(location->GetWriteMemoryLimit(), location->GetUsedMemory(EIODirection::Write));
+
+    WaitFor(FinishChunk(sessionId, /*blockCount*/ 0))
+        .ThrowOnError();
+
+    EXPECT_EQ(0, location->GetUsedMemory(EIODirection::Write));
+}
 
 TEST_P(TSkipWriteThrottlingLocationsTest, SkipThrottlingLocationsOnStartChunk)
 {

@@ -1159,6 +1159,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_probe_put_blocks", &TThis::UseProbePutBlocks)
         .Default(false);
 
+    registrar.Parameter("enable_probe_put_blocks_fair_share", &TThis::EnableProbePutBlocksFairShare)
+        .Default(false);
+
     registrar.Parameter("preallocate_disk_space", &TThis::PreallocateDiskSpace)
         .Default(false);
 

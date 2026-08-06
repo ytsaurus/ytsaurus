@@ -411,12 +411,14 @@ class TestIoEngine(YTEnvSetup):
             response.wait()
 
     @authors("vvshlyaga")
-    def test_probe_put_blocks(self):
+    @pytest.mark.parametrize("enable_probe_put_blocks_fair_share", [True, False])
+    def test_probe_put_blocks(self, enable_probe_put_blocks_fair_share):
         REPLICATION_FACTOR = self.NUM_NODES
 
         update_nodes_dynamic_config({
             "data_node": {
-                "use_probe_put_blocks": True
+                "use_probe_put_blocks": True,
+                "enable_probe_put_blocks_fair_share": enable_probe_put_blocks_fair_share
             }
         })
 
@@ -743,33 +745,40 @@ class TestIoEngine(YTEnvSetup):
 
     @authors("prime")
     def test_dynamic_sick_detector(self):
-        create("table", "//tmp/sick")
-        write_table("//tmp/sick", [{"a": i} for i in range(100)])
-
         def get_sick_count():
             return sum(
                 profiler_factory().at_node(node).gauge(name="location/sick", fixed_tags={"location_type": "store"}).get()
                 for node in ls("//sys/cluster_nodes")
             )
+        try:
+            create("table", "//tmp/sick")
+            write_table("//tmp/sick", [{"a": i} for i in range(100)])
 
-        assert get_sick_count() == 0
+            assert get_sick_count() == 0
 
-        update_nodes_dynamic_config({
-            "data_node": {
-                "store_location_config_per_medium": {
-                    "default": {
-                        "io_config": {
-                            "sick_write_time_threshold": 0,
-                            "sick_write_time_window": 0,
-                            "sickness_expiration_timeout": 1000000,
+            update_nodes_dynamic_config({
+                "data_node": {
+                    "store_location_config_per_medium": {
+                        "default": {
+                            "io_config": {
+                                "sick_write_time_threshold": 0,
+                                "sick_write_time_window": 0,
+                                "sickness_expiration_timeout": 1000000,
+                            }
                         }
                     }
                 }
-            }
-        })
+            })
 
-        write_table("//tmp/sick", [{"a": i} for i in range(100)])
-        wait(lambda: get_sick_count() > 0)
+            write_table("//tmp/sick", [{"a": i} for i in range(100)])
+            wait(lambda: get_sick_count() > 0)
+        finally:
+            # Restart nodes to clear the sick state.
+            with Restarter(self.Env, NODES_SERVICE):
+                pass
+
+            self._wait_for_io_engine_enabled(self.NODE_IO_ENGINE_TYPE)
+            wait(lambda: get_sick_count() == 0)
 
     def _wait_for_io_engine_enabled(self, name):
         def enabled_engines():
@@ -1012,7 +1021,8 @@ class TestFairShareHierarchicalIoEngine(TestIoEngine):
                     orchid = get("//sys/cluster_nodes/{}/orchid/fair_share_hierarchical_scheduler".format(node))
                     root = orchid["root"]
                     if all(
-                        root["buckets"].get(self._category_orchid_key(cat), {}).get("request_window_size", 0) > 0
+                        root["buckets"].get(self._category_orchid_key(cat), {}).get("slot_window_size", 0) > 0
+                        and root["buckets"].get(self._category_orchid_key(cat), {}).get("request_window_size", 0) > 0
                         for cat in categories
                     ):
                         self._verify_bucket_tree_on_node(node, category_weights)
