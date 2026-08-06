@@ -15,6 +15,6 @@
 #define NPY_HAVE_AVX2
 
 #undef NPY_MTARGETS_BASELINE
-#define NPY_MTARGETS_CURRENT FMA3__AVX2
+#define NPY_MTARGETS_CURRENT AVX2
 
-#include "contrib/python/numpy/py3/numpy/_core/src/umath/loops_trigonometric.dispatch.c"
+#include "contrib/python/numpy/py3/numpy/_core/src/umath/loops_unary_complex.dispatch.c"
