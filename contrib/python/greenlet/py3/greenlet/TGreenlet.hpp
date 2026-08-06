@@ -8,6 +8,7 @@
 #include <Python.h>
 
 #include <atomic>
+#include <vector>
 
 #include "greenlet_compiler_compat.hpp"
 #include "greenlet_refs.hpp"
@@ -39,6 +40,7 @@ using greenlet::refs::BorrowedGreenlet;
 #endif
 #ifdef Py_GIL_DISABLED
 #   error #include "internal/pycore_tstate.h"
+#   include "internal/pycore_critical_section.h"
 #endif
 #endif
 
@@ -139,6 +141,12 @@ namespace greenlet
         _PyStackRef* stackpointer;
     #ifdef Py_GIL_DISABLED
         _PyCStackRef* c_stack_refs;
+        // Strong references to the objects held by the _PyCStackRef nodes on
+        // our C stack, snapshotted by operator<< when we suspend so tp_traverse
+        // can keep them alive for the free-threaded GC (capture_c_stack_refs
+        // explains why we snapshot rather than walk the list). Empty while we
+        // run.
+        std::vector<OwnedObject> c_stack_ref_snapshot;
     #endif
 #elif GREENLET_PY312
         int py_recursion_depth;
@@ -169,6 +177,14 @@ namespace greenlet
         // interpreter detail; they're not needed for introspection, but do
         // need to be present for the eval loop to work.
         void unexpose_frames();
+
+#if GREENLET_PY314 && defined(Py_GIL_DISABLED)
+        // Take a strong reference to every object held by tstate's _PyCStackRef
+        // list into c_stack_ref_snapshot so tp_traverse can keep them alive
+        // while we're suspended. Must run while our C stack is still live
+        // (operator<<). The snapshot is dropped by clear()ing the vector.
+        void capture_c_stack_refs(const PyThreadState* tstate) noexcept;
+#endif
 
     public:
 
