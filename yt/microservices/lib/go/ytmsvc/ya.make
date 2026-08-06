@@ -20,6 +20,8 @@ ELSE()
         common_internal.go
         metrics_internal.go
     )
+
+    GO_TEST_SRCS(auth_internal_test.go)
 ENDIF()
 
 END()
