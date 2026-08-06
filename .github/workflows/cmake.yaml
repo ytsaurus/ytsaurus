@@ -12,6 +12,7 @@ on:
     branches:
       - main
       - stable/*
+      - members/ilyaibraev/check-cmake-in-docker
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true

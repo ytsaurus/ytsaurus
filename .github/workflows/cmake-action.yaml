@@ -71,4 +71,5 @@ jobs:
       run-integration-tests: ${{ inputs.run-integration-tests }}
       run-python-tests: ${{ inputs.run-python-tests }}
       run-odin-tests: ${{ inputs.run-odin-tests }}
+      run-in-docker: true
     uses: ./.github/workflows/check-jobs.yaml
