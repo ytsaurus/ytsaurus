@@ -412,6 +412,8 @@ class FlowTestBase:
             # (the production defaults are larger and would not be schedulable here).
             "controller": {"count": 1, "cpu_limit": 1, "port_count": 2},
             "worker": {"count": workers_count, "cpu_limit": 1, "port_count": self.VANILLA_WORKER_PORT_COUNT},
+            # Internal builds default to yt_flow_common, which is not provisioned in local YT.
+            "network_project": None,
             "node_config": node_config,
         }
         if secret_env:

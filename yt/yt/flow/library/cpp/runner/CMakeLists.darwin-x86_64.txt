@@ -64,5 +64,6 @@ target_sources(library-cpp-runner PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/root_clients_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/simple_runner_program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/vanilla_launcher.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/vanilla_defaults_opensource.cpp
 )
 
