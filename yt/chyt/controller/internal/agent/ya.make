@@ -14,6 +14,7 @@ SRCS(
 
 GO_TEST_SRCS(
     job_checker_test.go
+    operation_collector_test.go
     tracker_test.go
 )
 
