@@ -2495,8 +2495,8 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinAfterGroupByStressTestMatchesNaiveImp
                     std::sort(buffer.begin(), buffer.end());
                 }
 
-                for (const auto& it : buffer) {
-                    rightRowsSource.push_back(Format("pk=%v;value=%v;", it.first, it.second));
+                for (const auto& [pk, value] : buffer) {
+                    rightRowsSource.push_back(Format("pk=%v;value=%v;", pk, value));
                 }
             }
 
@@ -3064,7 +3064,7 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinAfterGroupByReferencesGroupKey)
 {
     TSplitMap splits;
     splits["//t"] = MakeSplit({
-        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"grp", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         {"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
     });
     splits["//foreign"] = MakeSplit({
@@ -3095,11 +3095,6 @@ TEST_F(TQueryEvaluateTest, HierarchicalJoinAfterGroupByReferencesGroupKey)
         "grp=1;joined_data=[[100;];[200;];]",
         "grp=2;joined_data=[[100;];[200;];]",
     }, resultSplit);
-
-    splits["//t"] = MakeSplit({
-        {"grp", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-        {"b", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-    });
 
     EvaluateOnlyViaNativeExecutionBackend(
         R"(
