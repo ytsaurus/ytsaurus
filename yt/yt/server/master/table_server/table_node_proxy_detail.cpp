@@ -2118,12 +2118,17 @@ void TTableNodeProxy::ValidatePermission(
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto successfulValidationResult = securityManager->ValidatePermission(object, permission);
-    YT_LOG_ALERT_IF(
-        CachedHasRowLevelAce_ && *CachedHasRowLevelAce_ != successfulValidationResult.HasRowLevelAce,
-        "Cached row-level ACE presence info differs from the recently computed one (CachedHasRowLevelAce: %v, NewHasRowLevelAce: %v)",
-        *CachedHasRowLevelAce_,
-        successfulValidationResult.HasRowLevelAce);
-    CachedHasRowLevelAce_ = successfulValidationResult.HasRowLevelAce;
+    // NB: When checking for anything other than read-like permissions, permission checker
+    // will not fill #HasRowLevelAce. If we then reuse the proxy for different permission
+    // checks (e.g. in overwriting copy) such non-read checks would spoil the cache.
+    if (object == Object_ && Any(permission & (EPermission::Read | EPermission::FullRead))) {
+        YT_LOG_ALERT_IF(
+            CachedHasRowLevelAce_ && *CachedHasRowLevelAce_ != successfulValidationResult.HasRowLevelAce,
+            "Cached row-level ACE presence info differs from the recently computed one (CachedHasRowLevelAce: %v, NewHasRowLevelAce: %v)",
+            *CachedHasRowLevelAce_,
+            successfulValidationResult.HasRowLevelAce);
+        CachedHasRowLevelAce_ = successfulValidationResult.HasRowLevelAce;
+    }
 }
 
 void TTableNodeProxy::RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context)

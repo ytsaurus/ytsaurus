@@ -2762,6 +2762,51 @@ class TestRowAcls(YTEnvSetup):
         # Request as root.
         get("//tmp/t/@row_count")
 
+    @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["move", "copy"])
+    def test_copy(self, mode):
+        create_user("rls_introducer")
+        create_user("u")
+
+        create("map_node", "//tmp/dir")
+        set(
+            "//tmp/dir/@acl",
+            [
+                make_ace("allow", "u", ["write", "remove"]),
+                make_rl_ace("rls_introducer", "col1 = 4"),
+                make_ace("allow", "u", "full_read"),
+            ],
+        )
+        set("//tmp/dir/@inherit_acl", False)
+
+        create(
+            "table",
+            "//tmp/dir/src",
+            attributes={
+                "schema": [
+                    {"name": "col1", "type": "int64"},
+                    {"name": "col2", "type": "string"},
+                ],
+                "optimize_for": "lookup",
+            },
+        )
+        write_table("//tmp/dir/src", self._rows(*range(2, 10)))
+
+        # Existing destination makes Copy run through TTableNodeProxy.
+        create(
+            "table",
+            "//tmp/dir/dst",
+        )
+
+        action = {
+            "move": move,
+            "copy": copy,
+        }[mode]
+
+        action("//tmp/dir/src", "//tmp/dir/dst", force=True, authenticated_user="u")
+
+        assert self._read("u", path="//tmp/dir/dst") == self._rows(*range(2, 10))
+
 
 @authors("danilalexeev")
 @pytest.mark.enabled_multidaemon
