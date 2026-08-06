@@ -709,6 +709,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_precommit_for_preemption", &TThis::UsePrecommitForPreemption)
         .Default(false);
 
+    registrar.Parameter("enable_infinite_resource_limits_overcommit", &TThis::EnableInfiniteResourceLimitsOvercommit)
+        .Default(false);
+
     registrar.Parameter("gpu_scheduling_policy", &TThis::GpuSchedulingPolicy)
         .DefaultNew();
 
@@ -733,6 +736,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("Aggressive starvation timeout must be greater than starvation timeout")
                 << TErrorAttribute("aggressive_timeout", config->FairShareAggressiveStarvationTimeout)
                 << TErrorAttribute("timeout", config->FairShareStarvationTimeout);
+        }
+        if (config->EnableInfiniteResourceLimitsOvercommit && !config->UsePrecommitForPreemption) {
+            THROW_ERROR_EXCEPTION("Infinite resource limits overcommit requires precommit for preemption to be enabled");
         }
     });
 

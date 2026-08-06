@@ -359,6 +359,7 @@ bool TResourceTreeElement::AreSpecifiedResourceLimitsViolatedUnsafe(bool conside
 EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     const TJobResources& delta,
     bool allowLimitsOvercommit,
+    bool skipSpecifiedResourceLimitsCheck,
     TJobResources* availableResourceLimitsOutput)
 {
     YT_ASSERT(availableResourceLimitsOutput);
@@ -373,6 +374,7 @@ EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrec
     return IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
         delta,
         allowLimitsOvercommit,
+        skipSpecifiedResourceLimitsCheck,
         /*additionalLocalResourceLimits*/ std::nullopt,
         availableResourceLimitsOutput);
 }
@@ -380,6 +382,7 @@ EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrec
 EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
     const TJobResources& delta,
     bool allowLimitsOvercommit,
+    bool skipSpecifiedResourceLimitsCheck,
     const std::optional<TJobResources>& additionalLocalResourceLimits,
     TJobResources* availableResourceLimitsOutput)
 {
@@ -408,7 +411,7 @@ EResourceTreeIncreaseResult TResourceTreeElement::IncreaseLocalResourceUsagePrec
         return true;
     };
 
-    if (!checkLimits(SpecifiedResourceLimits_)) {
+    if (!skipSpecifiedResourceLimitsCheck && !checkLimits(SpecifiedResourceLimits_)) {
         return EResourceTreeIncreaseResult::ResourceLimitExceeded;
     }
     if (!checkLimits(additionalLocalResourceLimits)) {
