@@ -11,8 +11,9 @@ PEERDIR(
     yt/yt/library/tracing/py
     yt/yt/python/yt_driver_bindings
     yt/yt/python/yt_yson_bindings
-    yt/yt_proto/yt/core
+    yt/yt/tests/library/smooth_movement_helper
     yt/yt_proto/yt/client
+    yt/yt_proto/yt/core
     contrib/python/allure-pytest
     contrib/python/decorator
     contrib/python/flaky
@@ -47,7 +48,6 @@ PY_SRCS(
     yt_queue_agent_test_base.py
     yt_scheduler_helpers.py
     yt_sequoia_helpers.py
-    yt_smooth_movement_helper_base.py
     yt_type_helpers.py
 )
 
