@@ -46,6 +46,19 @@ type PersistentState struct {
 	// BackoffUntil is a time point until which oplet passes will be skipped due to previously failed passes.
 	BackoffUntil time.Time `yson:"backoff_until"`
 
+	// ConsecutiveBrokenRestartAttempts is the number of consecutive failed restart attempts.
+	// Increases when an error occurs from the BrokenStateSignalErrorCodes.
+	ConsecutiveBrokenRestartAttempts int `yson:"consecutive_broken_restart_attempts"`
+	// BadRestartSpecletRevision is a revision of the speclet node with which the last restart attempt
+	// failed with an error from the BrokenStateSignalErrorCodes.
+	// It is used to reset ConsecutiveBrokenRestartAttempts when the speclet is changed,
+	// because a new configuration deserves a fresh set of restart attempts.
+	BadRestartSpecletRevision yt.Revision `yson:"bad_restart_speclet_revision,omitempty"`
+	// BadRestartSecretsRevision is a content_revision of the secrets with which the last restart attempt
+	// failed with an error from the BrokenStateSignalErrorCodes.
+	// It is used to reset ConsecutiveBrokenRestartAttempts when the secrets are changed.
+	BadRestartSecretsRevision yt.Revision `yson:"bad_restart_secrets_revision,omitempty"`
+
 	// Creator is a user who created the strawberry operation.
 	// Creator will automatically gain access to the strawberry operation when the access control object is created.
 	Creator string `yson:"creator"`

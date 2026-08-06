@@ -6,6 +6,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
 // Config contains strawberry-specific configuration.
@@ -72,6 +73,15 @@ type Config struct {
 	// MetricsConfig enables and configures agent sensors.
 	// If it is not set, the agent exports no metrics.
 	MetricsConfig *MetricsConfig `yson:"metrics_config"`
+
+	// BrokenStateSignalErrorCodes overrides which error codes are considered permanent errors:
+	// an operation restart failing with one of these codes counts towards making the oplet broken,
+	// instead of being retried indefinitely.
+	BrokenStateSignalErrorCodes *[]yterrors.ErrorCode `yson:"broken_state_signal_error_codes"`
+
+	// MaxConsecutiveBrokenStateSignalRetries overrides how many times in a row a restart may fail
+	// with a permanent error before the oplet becomes broken.
+	MaxConsecutiveBrokenStateSignalRetries *int `yson:"max_consecutive_broken_state_signal_retries"`
 }
 
 type MetricsConfig struct {
@@ -145,7 +155,18 @@ const (
 	DefaultTimeHistogramFactor = 2.0
 
 	maxBucketCount = 65
+
+	DefaultMaxConsecutiveBrokenStateSignalRetries = 15
 )
+
+// TODO(iharbychyk): add new package for strawberry-specific error codes
+const CodePoolIsNotSet yterrors.ErrorCode = 800000
+
+var DefaultBrokenStateSignalErrorCodes = []yterrors.ErrorCode{
+	yterrors.CodeAuthorizationError,
+	yterrors.CodeTooManyOperations,
+	CodePoolIsNotSet,
+}
 
 func (c *Config) RootOrDefault() ypath.Path {
 	if c.Root != nil {
@@ -243,6 +264,20 @@ func (c *Config) MetricsConfigOrDefault() *MetricsConfig {
 		return c.MetricsConfig
 	}
 	return nil
+}
+
+func (c *Config) BrokenStateSignalErrorCodesOrDefault() []yterrors.ErrorCode {
+	if c.BrokenStateSignalErrorCodes != nil {
+		return *c.BrokenStateSignalErrorCodes
+	}
+	return DefaultBrokenStateSignalErrorCodes
+}
+
+func (c *Config) MaxConsecutiveBrokenStateSignalRetriesOrDefault() int {
+	if c.MaxConsecutiveBrokenStateSignalRetries != nil {
+		return *c.MaxConsecutiveBrokenStateSignalRetries
+	}
+	return DefaultMaxConsecutiveBrokenStateSignalRetries
 }
 
 func applyOverride[T any](base **T, override *T) {
