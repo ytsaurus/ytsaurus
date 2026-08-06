@@ -434,6 +434,88 @@ TEST_W(TDescribeTest, MakeComputationDescriptions)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Strips the job of one partition of |computationId| and returns its id.
+std::optional<TPartitionId> StripJobOfSomePartition(const TFlowViewPtr& flowView, const TComputationId& computationId)
+{
+    const auto& layout = flowView->State->ExecutionSpec->Layout;
+    for (const auto& [partitionId, partition] : layout->Partitions) {
+        if (partition->ComputationId != computationId || !partition->CurrentJobId.has_value()) {
+            continue;
+        }
+        flowView->State->StartMutation();
+        layout->RemoveJob(*partition->CurrentJobId, EJobFinishReason::Rebalanced);
+        flowView->State->CommitMutation();
+        return partitionId;
+    }
+    return std::nullopt;
+}
+
+i64 CountOfJobState(const THashMap<EPartitionJobState, i64>& countByJobState, EPartitionJobState jobState)
+{
+    auto it = countByJobState.find(jobState);
+    return it == countByJobState.end() ? 0 : it->second;
+}
+
+TEST_W(TDescribeTest, PartitionsStatsCountByJobState)
+{
+    Prepare();
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        FlowView->Feedback->PartitionJobStatuses[partitionId]->CurrentJobStatus->InitedTime = TInstant::Now();
+    }
+
+    auto statsOf = [&] (const TComputationId& computationId) {
+        auto computations = MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView));
+        return GetOrCrash(computations, computationId).PartitionsStats;
+    };
+
+    {
+        auto stats = statsOf(TComputationId("Computation_1"));
+        EXPECT_EQ(stats.Count, 3);
+        EXPECT_EQ(CountOfJobState(stats.CountByJobState, EPartitionJobState::Working), 3);
+    }
+
+    ASSERT_TRUE(StripJobOfSomePartition(FlowView, TComputationId("Computation_1")).has_value());
+
+    {
+        auto stats = statsOf(TComputationId("Computation_1"));
+        auto executingIt = stats.CountByState.find(EPartitionDescribeState::Executing);
+        ASSERT_NE(executingIt, stats.CountByState.end());
+        EXPECT_EQ(executingIt->second, 3)
+            << "Partition state alone still reports every partition as executing, which is why job state is needed";
+        EXPECT_EQ(CountOfJobState(stats.CountByJobState, EPartitionJobState::Working), 2);
+        EXPECT_EQ(CountOfJobState(stats.CountByJobState, EPartitionJobState::Unknown), 1);
+    }
+}
+
+TEST_W(TDescribeTest, WarnsOnPartitionStuckWithoutJob)
+{
+    Prepare();
+
+    auto strandedPartitionId = StripJobOfSomePartition(FlowView, TComputationId("Computation_1"));
+    ASSERT_TRUE(strandedPartitionId.has_value());
+
+    auto describe = [&] {
+        auto computations = MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView));
+        return GetOrCrash(computations, TComputationId("Computation_1"));
+    };
+
+    // A partition that has just lost its job is mid-rebalance, not stuck.
+    FlowView->Feedback->UpdateTime = TInstant::Now();
+    FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime = FlowView->Feedback->UpdateTime;
+    EXPECT_EQ(describe().Status, ELogLevel::Info);
+
+    // Minutes later it is, and the computation must stop reporting itself as healthy.
+    FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime =
+        FlowView->Feedback->UpdateTime - TDuration::Minutes(5);
+    auto description = describe();
+    EXPECT_EQ(description.Status, ELogLevel::Warning)
+        << ConvertToYsonString(description, EYsonFormat::Text).ToString();
+    EXPECT_TRUE(MessagesContain(description.Messages, "have had no job"))
+        << ConvertToYsonString(description.Messages, EYsonFormat::Text).ToString();
+}
+
 TEST_W(TDescribeTest, RegisterStreams)
 {
     Prepare();
@@ -1132,6 +1214,43 @@ TEST_W(TDescribeTest, FillPerformanceMessage)
     // SRC_ resolves golden files via the Arcadia source root, which is not available in opensource test runs.
     EXPECT_THAT(*message.MarkdownText, NGTest::GoldenFileEq(SRC_("canondata/fill_performance_message.md")));
 #endif
+}
+
+TEST_W(TDescribeTest, FillPerformanceMessageReportsPartitionsWithoutJobStatus)
+{
+    TExtendedComputationDescription description;
+
+    std::vector<TPartitionIntermediateDescription> intermediateDescriptions;
+    for (int i = 0; i < 3; ++i) {
+        auto& desc = intermediateDescriptions.emplace_back();
+        desc.Partition = New<TPartition>();
+        desc.Partition->PartitionId = TPartitionId(TGuid::FromString(Format("%v-0-0-0", i + 1)));
+        if (i == 2) {
+            // A partition that lost its job reports no buffer usage at all, however backlogged it
+            // is, so it silently drops out of the aggregation below.
+            continue;
+        }
+        desc.PartitionJobStatus = New<TPartitionJobStatus>();
+        desc.PartitionJobStatus->CurrentJobStatus = New<TJobStatus>();
+
+        NFlow::TJobEntityLimitStatus limit;
+        limit.Limit = 100;
+        limit.Used = 10;
+        limit.Pending = 200;
+        // Both sections must be non-empty, so that the note is the one rendered under a real
+        // table rather than the placeholder for a section with no data at all.
+        desc.PartitionJobStatus->CurrentJobStatus->InputLimits["buffer"][TStreamId("stream1")] = limit;
+        desc.PartitionJobStatus->CurrentJobStatus->OutputLimits["buffer"][TStreamId("stream1")] = limit;
+    }
+
+    FillPerformanceMessage(description, intermediateDescriptions);
+
+    ASSERT_EQ(description.Messages.size(), 1u);
+    const auto& message = description.Messages.back();
+    ASSERT_TRUE(message.MarkdownText.has_value());
+    EXPECT_THAT(*message.MarkdownText, HasSubstr("Input Limits (Max by Partition)")) << *message.MarkdownText;
+    EXPECT_THAT(*message.MarkdownText, HasSubstr("1 of 3 partitions have no live job status"))
+        << *message.MarkdownText;
 }
 
 TEST_W(TDescribeTest, FillStreamStateMessage)

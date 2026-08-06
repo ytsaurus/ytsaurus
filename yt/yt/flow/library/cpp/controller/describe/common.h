@@ -66,6 +66,9 @@ struct TPartitionsStats
 {
     i64 Count{};
     THashMap<EPartitionDescribeState, i64> CountByState;
+    //! Partition state alone hides a partition that is Executing but has no job, so break the
+    //! same partitions down by job state as well.
+    THashMap<EPartitionJobState, i64> CountByJobState;
 
     REGISTER_YSON_STRUCT_LITE(TPartitionsStats);
 

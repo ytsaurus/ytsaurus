@@ -97,6 +97,8 @@ void TPartitionsStats::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("count_by_state", &TThis::CountByState)
         .Default();
+    registrar.Parameter("count_by_job_state", &TThis::CountByJobState)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,9 +214,31 @@ void TWorkerDescription::Register(TRegistrar registrar)
 
 namespace {
 
-void AppendPartitionStats(TPartitionsStats& stats, const NFlow::TPartitionPtr partition)
+EPartitionJobState DeducePartitionJobState(
+    const NFlow::TPartitionPtr& partition,
+    const TPartitionJobStatusPtr& partitionJobStatus,
+    const TPartitionEphemeralStatePtr& partitionEphemeralState)
 {
+    if (!partition->CurrentJobId.has_value()) {
+        if (partitionEphemeralState && partitionEphemeralState->PreviousJobFinishReason == EJobFinishReason::Stopped) {
+            return EPartitionJobState::Stopped;
+        }
+        return EPartitionJobState::Unknown;
+    }
+    if (partitionJobStatus && partitionJobStatus->CurrentJobStatus && partitionJobStatus->CurrentJobStatus->InitedTime.has_value()) {
+        return EPartitionJobState::Working;
+    }
+    return EPartitionJobState::Recovering;
+}
+
+void AppendPartitionStats(TPartitionsStats& stats, const TPartitionIntermediateDescription& intermediatePartition)
+{
+    const auto& partition = intermediatePartition.Partition;
     stats.Count++;
+    stats.CountByJobState[DeducePartitionJobState(
+        partition,
+        intermediatePartition.PartitionJobStatus,
+        intermediatePartition.PartitionEphemeralState)]++;
     auto convertedState = EPartitionDescribeState::Unknown;
     switch (partition->State) {
         case EPartitionState::Executing:
@@ -300,6 +324,57 @@ void FillJobFailErrors(const THashMap<EJobFinishReason, TError>& errors, std::ve
     }
 }
 
+//! An executing partition is normally reassigned within seconds, so anything past this is stuck
+//! rather than mid-rebalance.
+static constexpr auto PartitionWithoutJobThreshold = TDuration::Minutes(1);
+
+void FillPartitionsWithoutJob(
+    const std::vector<TPartitionIntermediateDescription>& intermediatePartitions,
+    TInstant now,
+    std::vector<TMessage>& messages,
+    NLogging::ELogLevel* status)
+{
+    i64 count = 0;
+    std::optional<TPartitionId> examplePartitionId;
+    TDuration maxDuration;
+
+    for (const auto& intermediatePartition : intermediatePartitions) {
+        const auto& partition = intermediatePartition.Partition;
+        if (!partition || partition->State != EPartitionState::Executing || partition->CurrentJobId.has_value()) {
+            continue;
+        }
+        const auto& jobStatus = intermediatePartition.PartitionJobStatus;
+        if (!jobStatus) {
+            continue;
+        }
+        // CurrentJobStatusUpdateTime is stamped when the job id changes, so while the partition
+        // stays jobless it marks the moment the job was lost.
+        auto duration = now - jobStatus->CurrentJobStatusUpdateTime;
+        if (duration < PartitionWithoutJobThreshold) {
+            continue;
+        }
+        ++count;
+        if (duration > maxDuration) {
+            maxDuration = duration;
+            examplePartitionId = partition->PartitionId;
+        }
+    }
+
+    if (count == 0) {
+        return;
+    }
+    if (status) {
+        *status = std::max(*status, ELogLevel::Warning);
+    }
+    auto& message = messages.emplace_back();
+    message.Level = ELogLevel::Warning;
+    message.Text = Format("%v executing partition(s) have had no job for over %v; the longest is %v without a job (partition %v)",
+        count,
+        PartitionWithoutJobThreshold,
+        maxDuration,
+        examplePartitionId);
+}
+
 void FillRetryableErrors(const THashMap<std::string, TError>& errors, std::vector<TMessage>& messages, NLogging::ELogLevel* status)
 {
     if (errors.empty()) {
@@ -361,7 +436,7 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
 
         auto intermediatePartitions = GetOrDefault(intermediateDescriptions, computationId);
         for (const auto& intermediatePartition : intermediatePartitions) {
-            AppendPartitionStats(computationDescription.PartitionsStats, intermediatePartition.Partition);
+            AppendPartitionStats(computationDescription.PartitionsStats, intermediatePartition);
         }
 
         // Errors.
@@ -394,6 +469,11 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
         }
         FillJobFailErrors(jobFailErrors, computationDescription.Messages, &computationDescription.Status);
         FillRetryableErrors(retryableErrors, computationDescription.Messages, &computationDescription.Status);
+        FillPartitionsWithoutJob(
+            intermediatePartitions,
+            flowView->Feedback->UpdateTime,
+            computationDescription.Messages,
+            &computationDescription.Status);
 
         // Specs and group by schema.
         {
@@ -499,20 +579,7 @@ void FillPartitionDescription(
         }
     }
 
-    description.JobState = std::invoke([&] {
-        if (!flowViewPartition->CurrentJobId.has_value()) {
-            if (partitionEphemaralState && partitionEphemaralState->PreviousJobFinishReason == EJobFinishReason::Stopped) {
-                return EPartitionJobState::Stopped;
-            } else {
-                return EPartitionJobState::Unknown;
-            }
-        }
-        if (partitionJobStatus && partitionJobStatus->CurrentJobStatus && partitionJobStatus->CurrentJobStatus->InitedTime.has_value()) {
-            return EPartitionJobState::Working;
-        } else {
-            return EPartitionJobState::Recovering;
-        }
-    });
+    description.JobState = DeducePartitionJobState(flowViewPartition, partitionJobStatus, partitionEphemaralState);
 
     if (intermediateDescription.Job) {
         description.CurrentWorkerAddress = intermediateDescription.Job->WorkerAddress;
