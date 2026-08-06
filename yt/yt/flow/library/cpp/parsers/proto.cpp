@@ -26,4 +26,12 @@ void TDynamicProtoTransformSourceComputationParameters::Register(TRegistrar /*re
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TProtoParsingProcessFunctionParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("data_column", &TThis::DataColumn)
+        .Default("data");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFlow

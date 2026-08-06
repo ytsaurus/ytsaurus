@@ -9,6 +9,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/computation
 
     library/cpp/json
