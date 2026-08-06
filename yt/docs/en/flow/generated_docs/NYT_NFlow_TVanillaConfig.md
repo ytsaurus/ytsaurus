@@ -38,7 +38,7 @@ An explicit alias for the vanilla operation. If not set, it is generated as `*fl
 || `title` | **Type**: `std::optional<std::string>`
 Title of the vanilla operation. ||
 || `network_project` | **Type**: `std::optional<std::string>`
-The network project in which the vanilla operation runs. ||
+The network project in which the vanilla operation runs.{% if audience == "internal" %} Internal builds use `yt_flow_common` by default; set it to `#` to disable the default.{% else %} Open-source builds have no default.{% endif %} ||
 || `proxy_url_aliasing_rules` | **Type**: `THashMap<std::string, std::string>`
 **Default value**: `{}`
 Aliases for proxy URLs, injected into the flow-server inside the vanilla jobs. ||

@@ -86,6 +86,7 @@ struct TVanillaConfig
 
     std::optional<std::string> Alias;
     std::optional<std::string> Title;
+    //! Defaults to `yt_flow_common` in internal builds. Set to an entity (`#`) to disable it.
     std::optional<std::string> NetworkProject;
 
     THashMap<std::string, std::string> ProxyUrlAliasingRules;

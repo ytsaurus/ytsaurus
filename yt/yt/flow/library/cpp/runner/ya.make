@@ -17,7 +17,10 @@ SRCS(
     vanilla_launcher.cpp
 )
 
-IF (NOT OPENSOURCE)
+IF (OPENSOURCE)
+    SRCS(vanilla_defaults_opensource.cpp)
+ELSE()
+    SRCS(vanilla_defaults_yandex.cpp)
     PEERDIR(
         yt/yt/flow/yandex/deploy_url_provider
         yt/yt/flow/yandex/yp_address_provider

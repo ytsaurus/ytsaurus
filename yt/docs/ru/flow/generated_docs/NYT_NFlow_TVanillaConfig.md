@@ -38,7 +38,7 @@ Content-addressed кэш, в который заливаются файлы дж
 || `title` | **Тип**: `std::optional<std::string>`
 Title vanilla-операции. ||
 || `network_project` | **Тип**: `std::optional<std::string>`
-Сетевой проект, в котором запускается vanilla-операция. ||
+Сетевой проект, в котором запускается vanilla-операция.{% if audience == "internal" %} Во внутренних сборках по умолчанию используется `yt_flow_common`; чтобы отключить дефолт, укажите `#`.{% else %} В open-source сборках дефолта нет.{% endif %} ||
 || `proxy_url_aliasing_rules` | **Тип**: `THashMap<std::string, std::string>`
 **Значение по умолчанию**: `{}`
 Алиасы прокси-URL, прокидываемые во flow-server внутри vanilla-джоб. ||

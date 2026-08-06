@@ -1,5 +1,7 @@
 #include "vanilla_launcher.h"
 
+#include "vanilla_defaults.h"
+
 #include "config.h"
 
 #include <yt/yt/flow/library/cpp/vanilla/current_operation.h>
@@ -327,7 +329,7 @@ void TVanillaConfig::Register(TRegistrar registrar)
     registrar.Parameter("title", &TThis::Title)
         .Default();
     registrar.Parameter("network_project", &TThis::NetworkProject)
-        .Default();
+        .Default(GetDefaultVanillaNetworkProject());
 
     registrar.Parameter("proxy_url_aliasing_rules", &TThis::ProxyUrlAliasingRules)
         .Default();

@@ -280,6 +280,9 @@ items:
             when: audience == "internal"
           - name: Первичный деплой
             href: devops/vanilla/initial-deploy.md
+          - name: Сетевой проект
+            href: devops/vanilla/network-project.md
+            when: audience == "internal"
           - name: Базовые операции с пайплайном
             href: devops/vanilla/pipeline-operations.md
           - name: Диагностика
