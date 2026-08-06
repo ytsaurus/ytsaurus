@@ -878,17 +878,22 @@ private:
             {
                 TEventTimerGuard timingGuard(Counters_.AttachChunkTimer);
 
-                auto batchReq = CreateExecuteBatchRequest();
-                auto* req = batchReq->add_attach_chunk_trees_subrequests();
+                TChunkServiceProxy proxy(UploadMasterChannel_);
+
+                auto req = proxy.AttachChunkTrees();
+                GenerateMutationId(req);
+                SetSuppressUpstreamSync(&req->Header(), true);
+
                 ToProto(req->mutable_parent_id(), ChunkListId_);
                 ToProto(req->add_child_ids(), chunkId);
 
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                auto rspOrError = WaitFor(req->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
-                    GetCumulativeError(batchRspOrError),
+                    rspOrError,
                     "Error attaching chunk %v",
                     chunkId);
             }
+
             YT_LOG_DEBUG("Chunk attached (SessionId: %v, ElapsedTime: %v)",
                 session->Id,
                 timer.GetElapsedTime());
@@ -2036,19 +2041,6 @@ private:
         bool IsChunkPreallocationEnabled() const
         {
             return Options_.EnableChunkPreallocation && !Config_->DontPreallocate;
-        }
-
-        TChunkServiceProxy::TReqExecuteBatchPtr CreateExecuteBatchRequest()
-        {
-            TChunkServiceProxy proxy(UploadMasterChannel_);
-
-            auto batchReq = proxy.ExecuteBatch();
-            GenerateMutationId(batchReq);
-            SetSuppressUpstreamSync(&batchReq->Header(), true);
-            // COMPAT(shakurov): prefer proto ext (above).
-            batchReq->set_suppress_upstream_sync(true);
-
-            return batchReq;
         }
     };
 
