@@ -2700,6 +2700,8 @@ class TestAccountTree(AccountsTestSuiteBase):
 
     @authors("kiselyovp", "theevilbird")
     def test_remove3(self):
+        set("//sys/@config/security_manager/account_statistics_gossip_period", 100)
+
         create_account("sparrow")
         create("map_node", "//tmp/sparrow", attributes={"account": "sparrow"})
         with raises_yt_error("Cannot remove account .* because its usage is not zero"):
@@ -2708,8 +2710,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         remove("//tmp/sparrow")
         gc_collect()
         wait(lambda: account_usage_all_zero(get("//sys/accounts/sparrow/@recursive_resource_usage")))
-        remove_account("sparrow", recursive=True, force=True, sync=False)
-        wait(lambda: not exists("//sys/account_tree/sparrow"))
+        remove_account("sparrow", recursive=True, force=True, sync=True)
 
         create_account("max")
         create_account("max42", "max")
@@ -2735,8 +2736,8 @@ class TestAccountTree(AccountsTestSuiteBase):
         remove("//tmp/max42")
         gc_collect()
         wait(lambda: account_usage_all_zero(get("//sys/accounts/max42/@recursive_resource_usage")))
-        remove_account("max", recursive=True, force=True, sync=False)
-        wait(lambda: not exists("//sys/account_tree/max"))
+        wait(lambda: account_usage_all_zero(get("//sys/accounts/max/@recursive_resource_usage")))
+        remove_account("max", recursive=True, force=True, sync=True)
 
     @authors("kiselyovp", "theevilbird")
     def test_remove4(self):
