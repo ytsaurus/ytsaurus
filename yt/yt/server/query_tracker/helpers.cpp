@@ -195,8 +195,7 @@ std::string Decompress(const std::string& data)
 {
     TMemoryInput input(data.begin(), data.size());
     TZstdDecompress decompressStream(&input);
-    auto res = decompressStream.ReadAll();
-    return res;
+    return decompressStream.ReadAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
