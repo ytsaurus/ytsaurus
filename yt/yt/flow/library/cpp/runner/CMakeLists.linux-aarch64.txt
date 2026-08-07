@@ -41,6 +41,7 @@ target_link_libraries(library-cpp-runner PUBLIC
   library-cpp-native_client
   yt-client-cache
   yt-library-auth
+  yt-library-containers
   yt-library-coredumper
   yt-library-monitoring
   yt-library-orchid

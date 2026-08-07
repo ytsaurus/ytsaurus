@@ -87,6 +87,9 @@ void TFlowNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_phdr_cache", &TThis::EnablePhdrCache)
         .Default(true);
 
+    registrar.Parameter("enable_porto_resource_tracker", &TThis::EnablePortoResourceTracker)
+        .Default(true);
+
     registrar.Preprocessor([] (TThis* config) {
         config->Tvm->ClientSelfIdEnv = "TVM_ID";
         config->Tvm->ClientSelfSecretEnv = "TVM_SECRET";

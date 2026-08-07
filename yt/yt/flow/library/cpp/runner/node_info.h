@@ -10,6 +10,9 @@ namespace NYT::NFlow {
 
 TNodeInfoPtr GetNodeInfo(const TFlowNodeConfigPtr& config, const NLogging::TLogger& logger);
 
+//! Whether porto is reachable from the environment the node runs in.
+bool IsPortoAvailable(const NLogging::TLogger& logger);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
