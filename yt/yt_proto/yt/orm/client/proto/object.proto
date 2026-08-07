@@ -153,9 +153,12 @@ enum ECascadingRemovalPolicy
     // When all descendants become removed, foreign object itself may be removed.
     // The system may try to remove it with last removed descendant.
     CRP_AWAIT_FOREIGN = 3;
-    // Clear links to descendants upon finalization (or removal, if finalizers are disabled).
-    // Inapplicable to parent-child references.
+    // Clears links to descendants during finalization, or during removal if finalizers are disabled.
+    // Does not block object removal. Not applicable to parent-child references.
     CRP_CLEAR = 4;
+    // Like `CRP_CLEAR`, but keeps the link through finalization and clears it only during removal.
+    // Useful when the link is needed after finalization, e.g. to add a foreign key to a watchlog event.
+    CRP_CLEAR_ON_REMOVAL = 5;
 }
 
 message TAttributeSensor
