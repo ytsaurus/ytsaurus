@@ -16,6 +16,10 @@ on:
         default: false
         required: false
         type: boolean
+      run-flow-tests:
+        default: false
+        required: false
+        type: boolean
       run-python-tests:
         default: false
         required: false
@@ -62,7 +66,7 @@ jobs:
           '
 
       - name: Unittests
-        if: ${{ inputs.run-unittests }}
+        if: ${{ inputs.run-unittests && !cancelled() }}
         shell: bash
         run: |
           ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
@@ -70,7 +74,7 @@ jobs:
           '
 
       - name: Integration tests
-        if: ${{ inputs.run-integration-tests }}
+        if: ${{ inputs.run-integration-tests && !cancelled() }}
         shell: bash
         run: |
           ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
@@ -78,7 +82,7 @@ jobs:
           '
 
       - name: Flow tests
-        if: ${{ inputs.run-integration-tests && !cancelled() }}
+        if: ${{ inputs.run-flow-tests && !cancelled() }}
         shell: bash
         run: |
           ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
@@ -86,7 +90,7 @@ jobs:
           '
 
       - name: Python tests
-        if: ${{ inputs.run-python-tests }}
+        if: ${{ inputs.run-python-tests && !cancelled() }}
         shell: bash
         run: |
           ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
@@ -94,7 +98,7 @@ jobs:
           '
 
       - name: Odin tests
-        if: ${{ inputs.run-odin-tests }}
+        if: ${{ inputs.run-odin-tests && !cancelled() }}
         shell: bash
         run: |
           ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '

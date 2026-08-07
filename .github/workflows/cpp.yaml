@@ -11,6 +11,7 @@ on:
   push:
     branches:
       - main
+      - members/ilyaibraev/check-cmake-in-docker
       - stable/[0-9]+\.[0-9]+
       - query-tracker/[0-9]+\.[0-9]+
       - chyt/[0-9]+\.[0-9]+
@@ -183,6 +184,7 @@ jobs:
       build-dir: build_ya-make_relwithdebinfo
       run-unittests: true
       run-integration-tests: true
+      run-flow-tests: true
       run-python-tests: true
       run-odin-tests: true
     uses: ./.github/workflows/check-jobs.yaml
