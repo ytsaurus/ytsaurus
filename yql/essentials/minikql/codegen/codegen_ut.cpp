@@ -245,6 +245,17 @@ Function* CreateUseExternalFromGeneratedFunction128(const ICodegen::TPtr& codege
 
 Y_UNIT_TEST_SUITE(TCodegenTests) {
 
+Y_UNIT_TEST(DataLayout) {
+    auto codegen = ICodegen::Make(ETarget::Linux);
+    UNIT_ASSERT_STRING_CONTAINS(codegen->GetModule().getDataLayoutStr(), "-i64:64-i128:64-"sv);
+
+    if (SupportsBitCode) {
+        auto bitcode = NResource::Find("/llvm_bc/Funcs");
+        codegen->LoadBitCode(bitcode, "Funcs");
+        UNIT_ASSERT_STRING_CONTAINS(codegen->GetModule().getDataLayoutStr(), "-i64:64-i128:64-"sv);
+    }
+}
+
 Y_UNIT_TEST(FibNative) {
     auto codegen = ICodegen::Make(ETarget::Native);
     auto func = CreateFibFunction(codegen->GetModule(), codegen->GetContext());
