@@ -8,7 +8,9 @@
     "spec" = {
         "computations" = {
             "noop" = {
-                "computation_class_name" = "TNoopComputation";
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+
+                "processing_function" = "NYT::NFlow::NExample::TNoopFunction";
 
                 "source_streams" = {
                     "random" = {
