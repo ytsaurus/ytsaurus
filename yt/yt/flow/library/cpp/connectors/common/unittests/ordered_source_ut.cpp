@@ -211,6 +211,11 @@ struct TTestTimeProvider
         YT_UNIMPLEMENTED();
     }
 
+    TFuture<void> InsertSeqNoBarrier() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     TFuture<TSystemTimestamp> GetTimestamp(bool /*barrier*/) const override
     {
         YT_UNIMPLEMENTED();

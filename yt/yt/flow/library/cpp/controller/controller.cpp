@@ -435,6 +435,11 @@ public:
         return VersionProvider_;
     }
 
+    TFuture<void> InsertVersionBarrier()
+    {
+        return TimeProvider_->InsertSeqNoBarrier();
+    }
+
     void SyncWorkers(const TFlowViewPtr& flowView, const std::vector<TWorkerInfo>& workers)
     {
         THashMap<EWorkerState, ui64> counts;
@@ -1417,6 +1422,12 @@ private:
                             .With("JobCount", flowState->ExecutionSpec->Layout->Jobs.size())
                             .With("FlowCoreTarget", flowState->ExecutionSpec->FlowCoreTarget->GetValue());
                     }
+
+                    // The recovered state may carry versions minted by a newer leader (this
+                    // instance may already be fenced without knowing it); barrier the version
+                    // stream so local bumps stay above them.
+                    WaitFor(leader->InsertVersionBarrier())
+                        .ThrowOnError();
 
                     YT_TLOG_INFO("Initialized. Sleep to WarmUp")
                         .With("WarmUpTime", Config_->WarmUpTime);

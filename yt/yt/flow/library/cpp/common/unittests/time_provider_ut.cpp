@@ -186,6 +186,34 @@ TEST_F(TTimeProviderTest, SeqNoKeepsIncreasingAcrossLeaderChange)
     EXPECT_GT(successor->GenerateSeqNo(), last);
 }
 
+TEST_F(TTimeProviderTest, SeqNoBarrierOutrunsForeignSeqNo)
+{
+    // A fenced ex-leader whose range was reserved before the successor appeared.
+    auto fenced = CreateProvider();
+    Y_UNUSED(fenced->GenerateSeqNo());
+
+    auto successor = CreateProvider();
+    auto foreign = successor->GenerateSeqNo();
+
+    // Without a barrier the fenced instance keeps serving from its stale range,
+    // below the seqno it can now observe in the successor's persisted state.
+    EXPECT_LT(fenced->GenerateSeqNo(), foreign);
+
+    WaitFor(fenced->InsertSeqNoBarrier())
+        .ThrowOnError();
+    EXPECT_GT(fenced->GenerateSeqNo(), foreign);
+}
+
+TEST_F(TTimeProviderTest, SeqNoBarrierOnFreshProvider)
+{
+    auto provider = CreateProvider();
+    WaitFor(provider->InsertSeqNoBarrier())
+        .ThrowOnError();
+
+    // The barrier fetch is the very first issued timestamp; seqnos start at or above it.
+    EXPECT_GE(provider->GenerateSeqNo(), static_cast<i64>(StartTimestamp.Underlying()));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
