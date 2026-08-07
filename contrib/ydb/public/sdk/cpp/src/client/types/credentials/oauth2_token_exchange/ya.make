@@ -16,6 +16,7 @@ PEERDIR(
     library/cpp/string_utils/base64
     library/cpp/uri
     contrib/ydb/public/sdk/cpp/src/client/types
+    contrib/ydb/public/sdk/cpp/src/client/types/core_facility
     contrib/ydb/public/sdk/cpp/src/client/types/credentials
 )
 

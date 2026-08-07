@@ -30,7 +30,6 @@ PEERDIR(
     contrib/ydb/library/yql/dq/opt
     contrib/ydb/library/yql/dq/transform
     contrib/ydb/library/yql/dq/type_ann
-    contrib/ydb/library/yql/providers/common/http_gateway
     contrib/ydb/library/yql/providers/dq/api/protos
     contrib/ydb/library/yql/providers/dq/common
     contrib/ydb/library/yql/providers/dq/expr_nodes
