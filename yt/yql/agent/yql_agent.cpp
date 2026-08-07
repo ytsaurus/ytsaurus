@@ -361,13 +361,13 @@ public:
             // due to python udf loading
             using TSignature = void(TYqlNativePluginOptions);
             auto coroutine = TCoroutine<TSignature>(
-                BIND([this, bootstrap, singletonsConfigDefaultLogging, pluginInitialDynamicConfig](
-                    TCoroutine<TSignature>& /*self*/,
+                BIND([self = MakeStrong(this), bootstrap, singletonsConfigDefaultLogging, pluginInitialDynamicConfig](
+                    TCoroutine<TSignature>& /*coroutine*/,
                     TYqlNativePluginOptions options
                 ) {
-                    YqlPlugin_ = Config_->ProcessPluginConfig->Enabled
+                    self->YqlPlugin_ = self->Config_->ProcessPluginConfig->Enabled
                         ? CreateProcessYqlPlugin(
-                            Config_,
+                            self->Config_,
                             singletonsConfigDefaultLogging,
                             pluginInitialDynamicConfig,
                             bootstrap->GetClusterConnectionConfig(),
