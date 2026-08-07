@@ -210,7 +210,9 @@ TEST_F(TTracedInvokerTest, CallbackWithException)
     });
     auto exceptionUtilization = MeasureCallbackUtilization(callbackWithException, Queue->GetInvoker());
     auto defaultUtilization = MeasureCallbackUtilization(MakeCpuIntensiveCallback(), Queue->GetInvoker());
-    EXPECT_LE(std::abs(exceptionUtilization - defaultUtilization) / defaultUtilization, 0.1);
+    // The guard is qualitative: a lost measurement would differ by ~100%, while OS
+    // preemption on a loaded agent skews two consecutive runs by up to tens of percent.
+    EXPECT_LE(std::abs(exceptionUtilization - defaultUtilization) / defaultUtilization, 0.35);
 }
 
 TEST_F(TTracedInvokerTest, BindInsideBindIsTracked)
@@ -223,7 +225,9 @@ TEST_F(TTracedInvokerTest, BindInsideBindIsTracked)
     auto bindInsideBindUtilization = MeasureCallbackUtilization(bindInsideBindCallback, Queue->GetInvoker());
     auto defaultUtilization = MeasureCallbackUtilization(MakeCpuIntensiveCallback(), Queue->GetInvoker());
 
-    EXPECT_LE(std::abs(bindInsideBindUtilization - defaultUtilization) / defaultUtilization, 0.1);
+    // The guard is qualitative: an untracked inner bind would differ by ~100%, while OS
+    // preemption on a loaded agent skews two consecutive runs by up to tens of percent.
+    EXPECT_LE(std::abs(bindInsideBindUtilization - defaultUtilization) / defaultUtilization, 0.35);
 }
 
 TEST_F(TTracedInvokerTest, AccountantCountsCpuWork)
