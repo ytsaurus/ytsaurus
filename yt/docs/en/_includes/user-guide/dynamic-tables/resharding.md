@@ -23,7 +23,9 @@ Physically, each tablet of a [replicated table](../../../user-guide/dynamic-tabl
 
 The sharding of a sorted replicated table doesn't have to match the sharding of replicas. Different replicas of the same table can also be sharded in different ways.
 
-You can't reshard a non-empty replicated table. To do that, you must recreate the table with the required boundary keys.
+A non-empty sorted replicated table can be resharded, but only via splitting: every pivot key of the old tablets must also be present among the new pivot keys (merging tablets is not supported).
+
+You can't reshard a non-empty ordered replicated table. To do that, you must recreate the table with the required boundary keys.
 
 ## Manual sharding
 
