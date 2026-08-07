@@ -27,6 +27,12 @@ REQUIREMENTS(
 
 TAG(ya:huge_logs)
 
+FORK_SUBTESTS()
+
+# Under asan a single test takes 40-70s and the suite has 20+ launches: one shared
+# chunk overruns the 600s MEDIUM budget. A few tests per chunk keep headroom.
+SPLIT_FACTOR(8)
+
 SIZE(MEDIUM)
 
 END()
