@@ -154,8 +154,16 @@ void TSimpleRunnerProgram::DoRun()
     NYPath::TRichYPath pipelinePath(config->Path);
     pipelinePath.SetCluster(config->ClusterUrl);
 
+    auto clientsCache = CreateRootClientsCache({
+        .PipelinePath = pipelinePath,
+        .ClientsCacheConfig = config->ClientsCache,
+        .ProxyRole = config->ProxyRole,
+        .ClientOptions = NApi::GetClientOptionsFromEnvStatic(),
+        .Parameters = config->ClientsCacheFactory,
+    });
+
     if (config->Vanilla && config->Vanilla->Enable) {
-        LaunchInVanillaJob(pipelinePath, config->ProxyRole, config->Vanilla);
+        LaunchInVanillaJob(pipelinePath, config->ProxyRole, config->Vanilla, clientsCache);
     }
 
     bool setFlowCoreTarget = true;
@@ -171,13 +179,6 @@ void TSimpleRunnerProgram::DoRun()
         setFlowCoreTarget = false;
     }
 
-    auto clientsCache = CreateRootClientsCache({
-        .PipelinePath = pipelinePath,
-        .ClientsCacheConfig = config->ClientsCache,
-        .ProxyRole = config->ProxyRole,
-        .ClientOptions = NApi::GetClientOptionsFromEnvStatic(),
-        .Parameters = config->ClientsCacheFactory,
-    });
     auto client = clientsCache->GetClient(config->ClusterUrl);
     THROW_ERROR_EXCEPTION_UNLESS(client,
         "Root clients cache returned no client for cluster %Qv",

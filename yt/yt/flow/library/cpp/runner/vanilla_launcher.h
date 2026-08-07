@@ -2,6 +2,8 @@
 
 #include <yt/yt/flow/library/cpp/runner/public.h>
 
+#include <yt/yt/client/cache/public.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/ytree/size.h>
@@ -120,11 +122,13 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
 
 //! Submits a YT vanilla operation that runs a Flow federation for the given pipeline.
 //! |pipelinePath| must carry the cluster annotation (`<cluster=...>/path/to/pipeline`).
+//! |clientsCache| supplies the clients for the pipeline, runtime and prior-operation clusters.
 //! Called by TSimpleRunnerProgram when the runner config contains a "vanilla" block.
 void LaunchInVanillaJob(
     const NYPath::TRichYPath& pipelinePath,
     const std::optional<std::string>& proxyRole,
-    const TVanillaConfigPtr& vanilla);
+    const TVanillaConfigPtr& vanilla,
+    const NClient::NCache::IClientsCachePtr& clientsCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 

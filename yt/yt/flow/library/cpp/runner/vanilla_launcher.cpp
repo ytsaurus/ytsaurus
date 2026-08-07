@@ -14,6 +14,7 @@
 
 #include <yt/yt/client/api/client.h>
 
+#include <yt/yt/client/cache/cache.h>
 #include <yt/yt/client/cache/rpc.h>
 
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
@@ -71,10 +72,27 @@ constexpr int DefaultCpuLimit = 6;
 
 const NLogging::TLogger Logger("FlowVanillaLauncher");
 
+// Resolves a client through the clients cache, which is keyed by cluster URL.
+NApi::IClientPtr GetClusterClient(
+    const NClient::NCache::IClientsCachePtr& clientsCache,
+    const std::string& cluster,
+    const std::optional<std::string>& proxyRole)
+{
+    auto clusterUrl = proxyRole && !proxyRole->empty()
+        ? Format("%v/%v", cluster, *proxyRole)
+        : cluster;
+    auto client = clientsCache->GetClient(clusterUrl);
+    THROW_ERROR_EXCEPTION_UNLESS(client,
+        "Clients cache returned no client for cluster %Qv",
+        clusterUrl);
+    return client;
+}
+
 void ShutdownPriorVanillaOperation(
     const NApi::IClientPtr& pipelineClient,
     const NYPath::TYPath& pipelinePath,
-    TDuration waitTimeout)
+    TDuration waitTimeout,
+    const NClient::NCache::IClientsCachePtr& clientsCache)
 {
     auto pipelineExists = WaitFor(pipelineClient->NodeExists(pipelinePath)).ValueOrThrow();
     if (!pipelineExists) {
@@ -84,9 +102,7 @@ void ShutdownPriorVanillaOperation(
     if (!prior) {
         return;
     }
-    // The vanilla op may live on a different cluster than the pipeline node — query it there with
-    // the recorded role. Spinning up a separate client for the recorded cluster is cheap.
-    auto opClient = NClient::NCache::CreateClient(prior->Cluster, prior->ProxyRole);
+    auto opClient = GetClusterClient(clientsCache, prior->Cluster, prior->ProxyRole);
 
     NScheduler::TOperationIdOrAlias opIdOrAlias{TString(prior->Alias)};
     NApi::TGetOperationOptions getOpts;
@@ -370,7 +386,8 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
 void LaunchInVanillaJob(
     const NYPath::TRichYPath& pipelinePath,
     const std::optional<std::string>& proxyRole,
-    const TVanillaConfigPtr& vanillaConfig)
+    const TVanillaConfigPtr& vanillaConfig,
+    const NClient::NCache::IClientsCachePtr& clientsCache)
 {
     if (!vanillaConfig->Enable) {
         return;
@@ -395,10 +412,8 @@ void LaunchInVanillaJob(
         output << ConvertToYsonString(nodeConfig).ToString();
     }
 
-    auto pipelineClient = NClient::NCache::CreateClient(pipelineCluster, proxyRole);
-    auto runtimeClient = sameCluster
-        ? pipelineClient
-        : NClient::NCache::CreateClient(runtimeCluster, runtimeProxyRole);
+    auto pipelineClient = GetClusterClient(clientsCache, pipelineCluster, proxyRole);
+    auto runtimeClient = GetClusterClient(clientsCache, runtimeCluster, runtimeProxyRole);
 
     auto filesDir = GetVanillaFilesDir(pipelinePath.GetPath());
     auto aliasingConfig = BuildProxyUrlAliasingConfig(vanillaConfig->ProxyUrlAliasingRules);
@@ -491,7 +506,7 @@ void LaunchInVanillaJob(
     // Switch (make-before-break): stop the prior operation, record the manifest, then start the
     // prepared one. The manifest goes first — the alias is known up front, and a write after the
     // start could fail, leaving a running operation the manifest does not point at.
-    ShutdownPriorVanillaOperation(pipelineClient, pipelinePath.GetPath(), vanillaConfig->WaitTimeout);
+    ShutdownPriorVanillaOperation(pipelineClient, pipelinePath.GetPath(), vanillaConfig->WaitTimeout, clientsCache);
 
     auto manifest = New<TVanillaOperationManifest>();
     manifest->Cluster = runtimeCluster;

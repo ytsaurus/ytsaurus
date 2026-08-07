@@ -1,6 +1,16 @@
+#include <yt/yt/flow/library/cpp/runner/root_clients_cache.h>
 #include <yt/yt/flow/library/cpp/runner/vanilla_launcher.h>
 
 #include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/connection.h>
+#include <yt/yt/client/api/options.h>
+
+#include <yt/yt/client/api/rpc_proxy/config.h>
+
+#include <yt/yt/client/cache/cache.h>
+#include <yt/yt/client/cache/config.h>
 
 #include <yt/yt/core/yson/string.h>
 
@@ -9,6 +19,7 @@
 namespace NYT::NFlow {
 namespace {
 
+using namespace NClient::NCache;
 using namespace NYson;
 using namespace NYTree;
 
@@ -28,6 +39,129 @@ TEST(TVanillaConfigTest, EntityDisablesDefaultNetworkProject)
         TYsonStringBuf(R"({pool=test;worker={count=1};network_project=#})"));
 
     EXPECT_FALSE(config->NetworkProject.has_value());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr TStringBuf PipelineCluster = "pipeline-cluster";
+// Stands for the address a runner pins when the cluster advertises an RPC proxy it cannot reach.
+constexpr TStringBuf PinnedProxyAddress = "[64:ff9b::1]:9013";
+
+NYPath::TRichYPath MakePipelinePath()
+{
+    NYPath::TRichYPath path("//tmp/pipeline");
+    path.SetCluster(TString(PipelineCluster));
+    return path;
+}
+
+TVanillaConfigPtr MakeVanillaConfig(TStringBuf extra = {})
+{
+    auto yson = Format("{enable=%%true; pool=test; worker={count=1}; %v}", extra);
+    return ConvertTo<TVanillaConfigPtr>(TYsonStringBuf(yson));
+}
+
+//! The clients cache a runner ends up with when its config pins the proxy address and turns
+//! discovery off — the shape that lets it reach a cluster advertising an unreachable address.
+IClientsCachePtr MakeCacheWithPinnedProxy()
+{
+    auto config = New<TClientsCacheConfig>();
+    config->SetDefaults();
+    config->DefaultConnection->EnableProxyDiscovery = false;
+    config->DefaultConnection->ProxyAddresses = std::vector<std::string>{std::string(PinnedProxyAddress)};
+
+    return CreateRootClientsCache({
+        .PipelinePath = MakePipelinePath(),
+        .ClientsCacheConfig = std::move(config),
+        .ClientOptions = NApi::TClientOptions::FromUser("test-user"),
+    });
+}
+
+constexpr TStringBuf StopMarker = "stopped by the test at cluster";
+
+//! Asserts that the launcher asks for |expectedCluster|: that one is served from |underlying|,
+//! any other stops the launch and names itself in the error. Stopping is also what keeps the
+//! launcher from issuing a request, so these tests need no cluster to run against.
+class TAssertClientsCache
+    : public IClientsCache
+{
+public:
+    TAssertClientsCache(TStringBuf expectedCluster, IClientsCachePtr underlying)
+        : ExpectedCluster_(expectedCluster)
+        , Underlying_(std::move(underlying))
+    { }
+
+    NApi::IClientPtr GetClient(TStringBuf clusterUrl) override
+    {
+        THROW_ERROR_EXCEPTION_IF(clusterUrl != ExpectedCluster_, "%v %Qv", StopMarker, clusterUrl);
+
+        return Underlying_->GetClient(clusterUrl);
+    }
+
+private:
+    const std::string ExpectedCluster_;
+    const IClientsCachePtr Underlying_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TAssertClientsCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TVanillaLauncherClientsTest, TakesPipelineClientFromClientsCache)
+{
+    auto cache = New<TAssertClientsCache>(/*expectedCluster*/ TStringBuf(), MakeCacheWithPinnedProxy());
+
+    // Serving nothing is enough to stop the launch, so the cache is the launcher's only way of
+    // reaching the pipeline cluster — asked for under the runner's own role.
+    EXPECT_THROW_WITH_SUBSTRING(
+        LaunchInVanillaJob(MakePipelinePath(), /*proxyRole*/ "flow", MakeVanillaConfig(), cache),
+        Format("%v \"pipeline-cluster/flow\"", StopMarker));
+}
+
+TEST(TVanillaLauncherClientsTest, TakesRuntimeClientFromClientsCacheUnderItsOwnRole)
+{
+    auto underlying = MakeCacheWithPinnedProxy();
+    auto cache = New<TAssertClientsCache>(PipelineCluster, underlying);
+
+    // Serving the pipeline cluster lets the launch reach the runtime one, which it asks for under
+    // the role configured for it rather than the runner's own.
+    EXPECT_THROW_WITH_SUBSTRING(
+        LaunchInVanillaJob(
+            MakePipelinePath(),
+            /*proxyRole*/ {},
+            MakeVanillaConfig("runtime_cluster=runtime-cluster; runtime_proxy_role=heavy"),
+            cache),
+        Format("%v \"runtime-cluster/heavy\"", StopMarker));
+
+    // Those are two distinct keys in a cache that holds one client per cluster URL, so the runtime
+    // cluster is reached with a client of its own rather than the pipeline's.
+    EXPECT_NE(underlying->GetClient(PipelineCluster), underlying->GetClient("runtime-cluster/heavy"));
+}
+
+//! What the whole change is for: the launcher reaches the cluster over the connection the runner
+//! configured. Building its own client from the cluster URL, as it used to, left proxy discovery
+//! as the only way in — and a cluster whose advertised proxy address does not resolve on the
+//! runner's host is then unreachable, however the runner is configured.
+TEST(TVanillaLauncherClientsTest, PipelineClientUsesTheConfiguredConnection)
+{
+    auto underlying = MakeCacheWithPinnedProxy();
+    auto cache = New<TAssertClientsCache>(PipelineCluster, underlying);
+
+    // Stopped at the runtime cluster, i.e. only after the pipeline client had been handed over.
+    EXPECT_THROW_WITH_SUBSTRING(
+        LaunchInVanillaJob(
+            MakePipelinePath(),
+            /*proxyRole*/ {},
+            MakeVanillaConfig("runtime_cluster=runtime-cluster"),
+            cache),
+        Format("%v \"runtime-cluster\"", StopMarker));
+
+    // The cache holds one client per cluster URL, so this is the very client the launcher got.
+    auto connectionConfig = ConvertTo<IMapNodePtr>(
+        underlying->GetClient(PipelineCluster)->GetConnection()->GetConfigYson());
+    EXPECT_FALSE(ConvertTo<bool>(connectionConfig->GetChildOrThrow("enable_proxy_discovery")));
+    EXPECT_EQ(
+        std::vector<std::string>{std::string(PinnedProxyAddress)},
+        ConvertTo<std::vector<std::string>>(connectionConfig->GetChildOrThrow("proxy_addresses")));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
