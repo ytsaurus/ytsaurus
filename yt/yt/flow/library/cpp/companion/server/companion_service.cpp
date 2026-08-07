@@ -18,6 +18,7 @@
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <util/system/datetime.h>
+#include <util/system/getpid.h>
 
 namespace NYT::NFlow::NCompanionServer {
 
@@ -79,7 +80,6 @@ class TCompanionService
 public:
     TCompanionService(
         TPipeline pipeline,
-        NCompanion::TCompanionExecutionConfigPtr config,
         IInvokerPtr invoker)
         : TServiceBase(
             std::move(invoker),
@@ -87,9 +87,7 @@ public:
             CompanionServerLogger())
         , Pipeline_(std::move(pipeline))
         , CompanionInfoPayload_(Pipeline_.BuildCompanionInfoPayload())
-        , JobRegistry_(New<TJobRegistry>(
-            TDuration::Seconds(config->JobTtlSeconds),
-            GetDefaultInvoker()))
+        , JobRegistry_(New<TJobRegistry>(GetDefaultInvoker()))
         , ResourceStore_(New<TResourceStore>(
             Pipeline_.GetResourceClassNames(),
             GetDefaultInvoker()))
@@ -97,6 +95,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessBatch));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompanionInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutJob));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveJob));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListJobs));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResourceExecute));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJfr));
     }
@@ -121,6 +121,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto::NCompanion, ProcessBatch);
     DECLARE_RPC_SERVICE_METHOD(NProto::NCompanion, CompanionInfo);
     DECLARE_RPC_SERVICE_METHOD(NProto::NCompanion, PutJob);
+    DECLARE_RPC_SERVICE_METHOD(NProto::NCompanion, RemoveJob);
+    DECLARE_RPC_SERVICE_METHOD(NProto::NCompanion, ListJobs);
     DECLARE_RPC_SERVICE_METHOD(NProto::NCompanion, ResourceExecute);
     DECLARE_RPC_SERVICE_METHOD(NProto::NCompanion, GetJfr);
 };
@@ -135,6 +137,13 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
         request->messages_size(),
         request->timers_size());
 
+    // An abandoned request must not register a job nobody will remove, and
+    // there is no point running the batch for it either.
+    if (context->IsCanceled()) {
+        context->Reply(TError(NYT::EErrorCode::Canceled, "Request is canceled"));
+        return;
+    }
+
     *response->mutable_request_id() = request->request_id();
     *response->mutable_job_id() = request->job_id();
 
@@ -145,7 +154,8 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
     }
     auto execution = JobRegistry_->AcquireJob(jobId);
     if (!execution) {
-        // The worker retries with the job info attached.
+        // The worker retries with the job info attached: this process was
+        // restarted, or a re-forked fan-out sibling is serving the channel.
         response->set_status(NProto::NCompanion::RS_JOB_NOT_FOUND);
         context->Reply();
         return;
@@ -153,7 +163,7 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
 
     // Count queued callbacks too: a timed-out RPC may be retried while its
     // original handler is still running, and both must keep using the same
-    // serializing invoker even when the job TTL elapses.
+    // serializing invoker.
     auto releaseGuard = Finally([&] {
         JobRegistry_->ReleaseJob(jobId);
     });
@@ -234,6 +244,12 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, PutJob)
         jobId,
         computationId);
 
+    // An abandoned request must not register a job nobody will remove.
+    if (context->IsCanceled()) {
+        context->Reply(TError(NYT::EErrorCode::Canceled, "Request is canceled"));
+        return;
+    }
+
     *response->mutable_request_id() = request->request_id();
     *response->mutable_job_id() = request->job_id();
 
@@ -241,6 +257,33 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, PutJob)
     JobRegistry_->PutJob(CreateJob(jobId, computationId, request->job_info()));
     response->set_status(NProto::NCompanion::RS_OK);
 
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TCompanionService, RemoveJob)
+{
+    auto jobId = FromProto<TJobId>(request->job_id());
+    context->SetRequestInfo("JobId: %v", jobId);
+
+    *response->mutable_request_id() = request->request_id();
+    *response->mutable_job_id() = request->job_id();
+
+    JobRegistry_->RemoveJob(jobId);
+    response->set_status(NProto::NCompanion::RS_OK);
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TCompanionService, ListJobs)
+{
+    context->SetRequestInfo();
+
+    *response->mutable_request_id() = request->request_id();
+    ToProto(response->mutable_job_ids(), JobRegistry_->ListJobIds());
+    response->set_process_id(GetPID());
+    response->set_status(NProto::NCompanion::RS_OK);
+
+    context->SetResponseInfo("JobCount: %v", response->job_ids_size());
     context->Reply();
 }
 
@@ -284,12 +327,10 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, GetJfr)
 
 IServicePtr CreateCompanionService(
     TPipeline pipeline,
-    NCompanion::TCompanionExecutionConfigPtr config,
     IInvokerPtr invoker)
 {
     return New<TCompanionService>(
         std::move(pipeline),
-        std::move(config),
         std::move(invoker));
 }
 

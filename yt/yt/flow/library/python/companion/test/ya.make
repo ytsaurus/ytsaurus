@@ -14,6 +14,7 @@ TEST_SRCS(
     test_sizing.py
     test_worker.py
     test_parent.py
+    test_job_lifecycle.py
     test_lazy_load.py
     test_parallelism.py
 )

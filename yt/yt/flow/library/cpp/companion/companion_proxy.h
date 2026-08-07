@@ -23,6 +23,10 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto::NCompanion, PutJob);
 
+    DEFINE_RPC_PROXY_METHOD(NProto::NCompanion, RemoveJob);
+
+    DEFINE_RPC_PROXY_METHOD(NProto::NCompanion, ListJobs);
+
     DEFINE_RPC_PROXY_METHOD(NProto::NCompanion, ResourceExecute);
 
     DEFINE_RPC_PROXY_METHOD(NProto::NCompanion, GetJfr);

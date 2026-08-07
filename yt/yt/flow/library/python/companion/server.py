@@ -13,12 +13,12 @@ import yt.yson as yson
 
 from .context import PipelineContext
 from .job import JobContext
+from .proto_mapper import _guid_parts_from_str
 from .service import CompanionRequestProcessor
 
 log = logging.getLogger(__name__)
 
 DEFAULT_SHUTDOWN_TIMEOUT_SECONDS = 30
-DEFAULT_JOB_TTL_SECONDS = 600
 DEFAULT_COMPANION_PROCESS_COUNT = 0  # 0 = auto-size from cgroup CPU quota.
 
 
@@ -77,6 +77,11 @@ class CompanionServiceServicer:
         self._msg_proto = _get_message_proto_module()
 
     def ProcessBatch(self, request, context):
+        # An abandoned request must not register a job nobody will remove.
+        if not context.is_active():
+            context.set_code(grpc.StatusCode.CANCELLED)
+            context.set_details("Request abandoned by the caller")
+            return self._proto.TRspProcessBatch()
         try:
             result = self._processor.process_batch(request, self._build_proto_module())
             response = self._proto.TRspProcessBatch()
@@ -113,6 +118,11 @@ class CompanionServiceServicer:
             return self._proto.TRspCompanionInfo()
 
     def PutJob(self, request, context):
+        # An abandoned request must not register a job nobody will remove.
+        if not context.is_active():
+            context.set_code(grpc.StatusCode.CANCELLED)
+            context.set_details("Request abandoned by the caller")
+            return self._proto.TRspPutJob()
         try:
             result = self._processor.put_job(request)
             response = self._proto.TRspPutJob()
@@ -128,6 +138,41 @@ class CompanionServiceServicer:
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Error processing PutJob: {e}")
             return self._proto.TRspPutJob()
+
+    def RemoveJob(self, request, context):
+        try:
+            result = self._processor.remove_job(request)
+            response = self._proto.TRspRemoveJob()
+            response.request_id.CopyFrom(request.request_id)
+            response.job_id.CopyFrom(request.job_id)
+            response.status = self._status_to_enum(result["status"])
+
+            return response
+        except Exception as e:
+            log.error("Error processing RemoveJob: %s", e, exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Error processing RemoveJob: {e}")
+            return self._proto.TRspRemoveJob()
+
+    def ListJobs(self, request, context):
+        try:
+            result = self._processor.list_jobs(request)
+            response = self._proto.TRspListJobs()
+            response.request_id.CopyFrom(request.request_id)
+            for job_id in result["job_ids"]:
+                first, second = _guid_parts_from_str(job_id)
+                guid = response.job_ids.add()
+                guid.first = first
+                guid.second = second
+            response.process_id = os.getpid()
+            response.status = self._status_to_enum(result["status"])
+
+            return response
+        except Exception as e:
+            log.error("Error processing ListJobs: %s", e, exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Error processing ListJobs: {e}")
+            return self._proto.TRspListJobs()
 
     def ResourceExecute(self, request, context):
         del context
@@ -215,7 +260,6 @@ class GrpcServerExecution:
         self,
         pipeline_context: PipelineContext,
         port: Optional[int] = None,
-        job_ttl: Optional[int] = None,
         companion_process_count: Optional[int] = None,
     ):
         self._pipeline_context = pipeline_context
@@ -233,18 +277,13 @@ class GrpcServerExecution:
             else:
                 self._port = 0
 
-        if job_ttl is None:
-            # Wire format is a plain integer number of seconds.
-            job_ttl = int(companion_config.get("job_ttl_seconds", DEFAULT_JOB_TTL_SECONDS))
-        self._job_ttl = job_ttl
-
         if companion_process_count is None:
             companion_process_count = int(
                 companion_config.get("companion_process_count", DEFAULT_COMPANION_PROCESS_COUNT)
             )
         self._companion_process_count = companion_process_count
 
-        self._job_context = JobContext(job_ttl)
+        self._job_context = JobContext()
 
     def start(self):
         """Start gRPC server in blocking mode with signal handling.
@@ -267,7 +306,6 @@ class GrpcServerExecution:
                 pipeline_context=self._pipeline_context,
                 port=self._port,
                 companion_process_count=n,
-                job_ttl_seconds=self._job_ttl,
             )
             return
 
@@ -300,6 +338,9 @@ class GrpcServerExecution:
         # register_stream() calls on the PipelineContext will raise RuntimeError.
         self._pipeline_context._freeze()
         log.debug("Pipeline context frozen at server start")
+
+        # Do not answer for jobs of a previous serving generation.
+        self._job_context.clear()
 
         grpc_module = _get_grpc_module()
 

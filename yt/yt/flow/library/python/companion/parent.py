@@ -38,6 +38,13 @@ CRASH_LOOP_WINDOW_SECONDS = 300.0
 # Honour SIGTERM cleanly when the supervisor is asked to stop.
 _STOP_SIGNALS = (signal.SIGTERM, signal.SIGINT)
 
+# How long a child may drain in-flight RPCs after SIGTERM before it is killed.
+# Exceeds the child's own shutdown grace, so a healthy child exits on its own.
+DEFAULT_STOP_TIMEOUT_SECONDS = DEFAULT_SHUTDOWN_TIMEOUT_SECONDS + 5.0
+
+# Poll cadence while waiting for children to exit after SIGTERM.
+_STOP_POLL_INTERVAL_SECONDS = 0.1
+
 
 class CrashLoopError(RuntimeError):
     """Raised when a companion process crash-loops beyond the supervisor's give-up ceiling."""
@@ -105,11 +112,29 @@ class CompanionProcessSupervisor:
         delay = min(self._backoff_max, self._backoff_base * (2 ** (len(recent) - 1)))
         self._next_restart_at[idx] = now + delay
 
-    def stop(self):
+    def stop(self, timeout=DEFAULT_STOP_TIMEOUT_SECONDS):
+        """Stop every child and wait for it to exit, escalating to SIGKILL.
+
+        A child still running would keep holding the companion port.
+        """
         for child in self.children:
             stop = getattr(child, "stop", None)
             if stop is not None:
                 stop()
+
+        deadline = time.monotonic() + timeout
+        for child in self.children:
+            is_alive = getattr(child, "is_alive", None)
+            if is_alive is None:
+                continue
+            while is_alive() and time.monotonic() < deadline:
+                time.sleep(_STOP_POLL_INTERVAL_SECONDS)
+            if not is_alive():
+                continue
+            log.warning("Companion process did not exit on SIGTERM, killing it")
+            kill = getattr(child, "kill", None)
+            if kill is not None:
+                kill()
 
 
 class _ForkedChild:
@@ -133,13 +158,37 @@ class _ForkedChild:
         return True
 
     def stop(self):
+        self._signal(signal.SIGTERM)
+
+    def kill(self):
+        self._signal(signal.SIGKILL)
+        self.wait()
+
+    def wait(self):
+        """Block until the child is reaped. A nonblocking poll could observe it
+        before the signal was delivered and leave it running and unreaped."""
+        while not self._exited:
+            try:
+                os.waitpid(self.pid, 0)
+            except InterruptedError:
+                continue
+            except ChildProcessError:
+                pass
+            self._exited = True
+
+    def _signal(self, signal_number):
         if self._exited:
             return
         try:
-            os.kill(self.pid, signal.SIGTERM)
+            os.kill(self.pid, signal_number)
         except OSError as ex:
             if ex.errno != errno.ESRCH:
-                log.warning("Failed to SIGTERM companion process (Pid: %d): %s", self.pid, ex)
+                log.warning(
+                    "Failed to signal companion process (Pid: %d, Signal: %d): %s",
+                    self.pid,
+                    signal_number,
+                    ex,
+                )
 
 
 def _bind_data_port(requested_port):
@@ -194,7 +243,6 @@ def serve_parent(
     *,
     port: int,
     companion_process_count: int,
-    job_ttl_seconds: int,
 ):
     """Pre-fork ``companion_process_count`` companion interpreters and supervise them.
 
@@ -219,8 +267,8 @@ def serve_parent(
         signal.pthread_sigmask(signal.SIG_BLOCK, _STOP_SIGNALS)
         pid = os.fork()
         if pid == 0:
-            # Child: build per-child JobContext (every interpreter has its own cache).
-            child_job_context = JobContext(job_ttl_seconds)
+            # Child: build per-child JobContext (every interpreter has its own registry).
+            child_job_context = JobContext()
             try:
                 _run_companion_child(address, pipeline_context, child_job_context)
             except BaseException:

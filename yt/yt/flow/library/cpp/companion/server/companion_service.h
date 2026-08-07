@@ -17,7 +17,6 @@ namespace NYT::NFlow::NCompanionServer {
 //! Creates the companion-side implementation of the CompanionService gRPC contract.
 NRpc::IServicePtr CreateCompanionService(
     TPipeline pipeline,
-    NCompanion::TCompanionExecutionConfigPtr config,
     IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////

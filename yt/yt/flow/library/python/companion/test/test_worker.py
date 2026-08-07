@@ -36,7 +36,7 @@ def test_worker_server_sets_so_reuseport():
         return srv
 
     pipeline_context = PipelineContext()
-    job_context = JobContext(job_ttl_seconds=60)
+    job_context = JobContext()
 
     server = build_worker_server(
         address="[::]:5005",
@@ -64,7 +64,7 @@ def test_worker_server_honours_extra_options():
     build_worker_server(
         address="[::]:0",
         pipeline_context=PipelineContext(),
-        job_context=JobContext(job_ttl_seconds=60),
+        job_context=JobContext(),
         extra_options=[("custom.option", "x")],
         server_factory=factory,
     )
@@ -86,6 +86,6 @@ def test_worker_server_raises_on_bind_failure():
         build_worker_server(
             address="[::]:5005",
             pipeline_context=PipelineContext(),
-            job_context=JobContext(job_ttl_seconds=60),
+            job_context=JobContext(),
             server_factory=factory,
         )

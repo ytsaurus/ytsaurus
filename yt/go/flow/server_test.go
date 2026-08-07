@@ -34,7 +34,6 @@ var testRequestID = guid.FromHalves(0xdeadbeefcafebabe, 0x0123456789abcdef)
 const fullConfigYSON = `{
 	port = 4242;
 	monitoring_port = 4243;
-	job_ttl_seconds = 900;
 	companion_process_count = 8;
 	cluster_url = "hahn";
 	pipeline_path = "//home/flow/pipeline";
@@ -45,25 +44,12 @@ func TestParseConfigReadsWorkerConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, 4242, config.Port)
-	require.Equal(t, 900*time.Second, config.JobTTL)
 }
 
 func TestParseConfigIgnoresCompanionProcessCount(t *testing.T) {
 	config, err := ParseConfig(WorkerMode, []byte(`{companion_process_count = 16}`))
 	require.NoError(t, err)
-	require.Equal(t, Config{JobTTL: DefaultJobTTL}, config)
-}
-
-func TestParseConfigDefaultsJobTTL(t *testing.T) {
-	config, err := ParseConfig(WorkerMode, []byte(`{port = 1}`))
-	require.NoError(t, err)
-	require.Equal(t, DefaultJobTTL, config.JobTTL)
-}
-
-func TestParseConfigAcceptsZeroJobTTL(t *testing.T) {
-	config, err := ParseConfig(WorkerMode, []byte(`{job_ttl_seconds = 0}`))
-	require.NoError(t, err)
-	require.Zero(t, config.JobTTL)
+	require.Equal(t, Config{}, config)
 }
 
 func TestParseConfigRejectsBadEnvironment(t *testing.T) {
@@ -79,7 +65,6 @@ func TestParseConfigRejectsBadEnvironment(t *testing.T) {
 		{name: "config is not yson", mode: WorkerMode, raw: `{port = }`},
 		{name: "port is negative", mode: WorkerMode, raw: `{port = -1}`},
 		{name: "port is out of range", mode: WorkerMode, raw: `{port = 65536}`},
-		{name: "job ttl is negative", mode: WorkerMode, raw: `{job_ttl_seconds = -1}`},
 		{name: "process count is negative", mode: WorkerMode, raw: `{companion_process_count = -1}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -95,7 +80,7 @@ func TestLoadConfigDefaultsOutsideWorker(t *testing.T) {
 
 	config, err := LoadConfig()
 	require.NoError(t, err)
-	require.Equal(t, Config{JobTTL: DefaultJobTTL}, config)
+	require.Equal(t, Config{}, config)
 }
 
 func TestLoadConfigEnforcesContractOncePartlySet(t *testing.T) {
@@ -114,16 +99,10 @@ func TestLoadConfigReadsEnvironment(t *testing.T) {
 	config, err := LoadConfig()
 	require.NoError(t, err)
 	require.Equal(t, 4242, config.Port)
-	require.Equal(t, 900*time.Second, config.JobTTL)
-}
-
-func TestNewServerDefaultsZeroJobTTL(t *testing.T) {
-	server := NewServer(Config{})
-	require.Equal(t, DefaultJobTTL, server.Config().JobTTL)
 }
 
 func TestServerStartAsyncBindsEphemeralPort(t *testing.T) {
-	s := NewServer(Config{JobTTL: time.Minute})
+	s := NewServer(Config{})
 	require.Zero(t, s.Port())
 	require.False(t, s.Running())
 
@@ -135,7 +114,7 @@ func TestServerStartAsyncBindsEphemeralPort(t *testing.T) {
 }
 
 func TestServerStartBlocksUntilStopped(t *testing.T) {
-	s := NewServer(Config{JobTTL: time.Minute})
+	s := NewServer(Config{})
 
 	stopped := make(chan error, 1)
 	go func() { stopped <- s.Start() }()
@@ -153,7 +132,7 @@ func TestServerStartBlocksUntilStopped(t *testing.T) {
 }
 
 func TestServerRejectsSecondStart(t *testing.T) {
-	s := NewServer(Config{JobTTL: time.Minute})
+	s := NewServer(Config{})
 	require.NoError(t, s.StartAsync())
 	t.Cleanup(s.Stop)
 
@@ -162,7 +141,7 @@ func TestServerRejectsSecondStart(t *testing.T) {
 }
 
 func TestServerStopIsIdempotent(t *testing.T) {
-	s := NewServer(Config{JobTTL: time.Minute})
+	s := NewServer(Config{})
 	require.NoError(t, s.StartAsync())
 
 	s.Stop()
@@ -173,13 +152,13 @@ func TestServerStopIsIdempotent(t *testing.T) {
 }
 
 func TestServerStopBeforeStart(t *testing.T) {
-	s := NewServer(Config{JobTTL: time.Minute})
+	s := NewServer(Config{})
 	s.Stop()
 	require.False(t, s.Running())
 }
 
 func TestServerRejectsDuplicateComputation(t *testing.T) {
-	s := NewServer(Config{JobTTL: time.Minute})
+	s := NewServer(Config{})
 	require.NoError(t, s.Register(echoComputation()))
 	require.ErrorIs(t, s.Register(echoComputation()), ErrDuplicateComputation)
 }
@@ -296,7 +275,7 @@ func TestPutJobCachesJobForLaterBatches(t *testing.T) {
 }
 
 func TestPutJobReportsReplayableMemoryGauge(t *testing.T) {
-	jobs := newJobCache(time.Minute)
+	jobs := newJobCache()
 	memory := newTestMemoryTracker(jobs, &fakeMemoryProbe{})
 	memory.trackedJobs[protoJobID] = &trackedMemoryJob{usage: 123}
 	service := &companionService{
@@ -327,7 +306,7 @@ func TestPutJobReportsReplayableMemoryGauge(t *testing.T) {
 }
 
 func TestProcessBatchJobNotFoundPreservesMemoryGauge(t *testing.T) {
-	jobs := newJobCache(time.Minute)
+	jobs := newJobCache()
 	memory := newTestMemoryTracker(jobs, &fakeMemoryProbe{})
 	memory.trackedJobs[protoJobID] = &trackedMemoryJob{usage: 123}
 	service := &companionService{
@@ -392,7 +371,7 @@ func TestPutJobReturnsInternalErrorOnUnparsableSpec(t *testing.T) {
 
 func TestProcessBatchRejectsMalformedJobInfo(t *testing.T) {
 	logger := newRecordingLogger()
-	s := NewServer(Config{JobTTL: time.Minute}, WithLogger(logger), withoutCPUAccounting(), withoutMemoryAccounting())
+	s := NewServer(Config{}, WithLogger(logger), withoutCPUAccounting(), withoutMemoryAccounting())
 	require.NoError(t, s.Register(echoComputation()))
 	require.NoError(t, s.StartAsync())
 	t.Cleanup(s.Stop)
@@ -427,13 +406,100 @@ func TestProcessBatchReturnsInternalErrorOnUnknownComputation(t *testing.T) {
 	require.Contains(t, status.Convert(err).Message(), `computation "absent"`)
 }
 
+func TestRemoveJobMakesJobUnknown(t *testing.T) {
+	_, client := startTestServer(t, echoComputation())
+
+	first, err := client.ProcessBatch(context.Background(), processBatchRequest(t, protoJobInfo(t)))
+	require.NoError(t, err)
+	require.Equal(t, companion.EResponseStatus_RS_OK, first.GetStatus())
+
+	removeJob := func() *companion.TRspRemoveJob {
+		rsp, err := client.RemoveJob(context.Background(), &companion.TReqRemoveJob{
+			RequestId: misc.NewProtoFromGUID(testRequestID),
+			JobId:     misc.NewProtoFromGUID(protoJobID),
+		})
+		require.NoError(t, err)
+		return rsp
+	}
+
+	require.Equal(t, companion.EResponseStatus_RS_OK, removeJob().GetStatus())
+
+	// The removed job is unknown until the worker heals it with job info.
+	next, err := client.ProcessBatch(context.Background(), processBatchRequest(t, nil))
+	require.NoError(t, err)
+	require.Equal(t, companion.EResponseStatus_RS_JOB_NOT_FOUND, next.GetStatus())
+
+	// Removal is idempotent.
+	require.Equal(t, companion.EResponseStatus_RS_OK, removeJob().GetStatus())
+
+	// Job info heals the removed job: the entry is recreated, and the
+	// worker's reconcile pass reclaims it if its job is gone.
+	late, err := client.ProcessBatch(context.Background(), processBatchRequest(t, protoJobInfo(t)))
+	require.NoError(t, err)
+	require.Equal(t, companion.EResponseStatus_RS_OK, late.GetStatus())
+}
+
+func TestListJobsReportsRegistry(t *testing.T) {
+	_, client := startTestServer(t, echoComputation())
+
+	list := func() *companion.TRspListJobs {
+		rsp, err := client.ListJobs(context.Background(), &companion.TReqListJobs{
+			RequestId: misc.NewProtoFromGUID(testRequestID),
+		})
+		require.NoError(t, err)
+		return rsp
+	}
+
+	rsp := list()
+	require.Equal(t, companion.EResponseStatus_RS_OK, rsp.GetStatus())
+	require.Empty(t, rsp.GetJobIds())
+	require.EqualValues(t, os.Getpid(), rsp.GetProcessId())
+
+	first, err := client.ProcessBatch(context.Background(), processBatchRequest(t, protoJobInfo(t)))
+	require.NoError(t, err)
+	require.Equal(t, companion.EResponseStatus_RS_OK, first.GetStatus())
+
+	rsp = list()
+	require.Len(t, rsp.GetJobIds(), 1)
+	require.Equal(t, protoJobID, misc.NewGUIDFromProto(rsp.GetJobIds()[0]))
+
+	_, err = client.RemoveJob(context.Background(), &companion.TReqRemoveJob{
+		RequestId: misc.NewProtoFromGUID(testRequestID),
+		JobId:     misc.NewProtoFromGUID(protoJobID),
+	})
+	require.NoError(t, err)
+	require.Empty(t, list().GetJobIds())
+}
+
+func TestAbandonedRequestDoesNotRegisterJob(t *testing.T) {
+	service := &companionService{
+		jobs:   newJobCache(),
+		logger: (&nop.Logger{}).Structured(),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := service.PutJob(ctx, &companion.TReqPutJob{
+		RequestId:     misc.NewProtoFromGUID(testRequestID),
+		JobId:         misc.NewProtoFromGUID(protoJobID),
+		ComputationId: proto.String("counter"),
+		JobInfo:       protoJobInfo(t),
+	})
+	require.Error(t, err)
+	require.Zero(t, service.jobs.Len())
+
+	_, err = service.ProcessBatch(ctx, processBatchRequest(t, protoJobInfo(t)))
+	require.Error(t, err)
+	require.Zero(t, service.jobs.Len())
+}
+
 func TestProcessBatchSurvivesPanicInUserCode(t *testing.T) {
 	panicking := NewRowComputation("counter", RowFunc(
 		func(context.Context, Runtime, ExtendedMessage, OutputCollector) error {
 			panic("user code exploded")
 		}))
 	logger := newRecordingLogger()
-	s := NewServer(Config{JobTTL: time.Minute}, WithLogger(logger), withoutCPUAccounting(), withoutMemoryAccounting())
+	s := NewServer(Config{}, WithLogger(logger), withoutCPUAccounting(), withoutMemoryAccounting())
 	require.NoError(t, s.Register(panicking))
 	require.NoError(t, s.StartAsync())
 	t.Cleanup(s.Stop)
@@ -487,7 +553,7 @@ func TestProcessBatchReturnsHandlerErrorText(t *testing.T) {
 			return errors.New("cannot update ledger")
 		}))
 	logger := newRecordingLogger()
-	s := NewServer(Config{JobTTL: time.Minute}, WithLogger(logger), withoutCPUAccounting(), withoutMemoryAccounting())
+	s := NewServer(Config{}, WithLogger(logger), withoutCPUAccounting(), withoutMemoryAccounting())
 	require.NoError(t, s.Register(failing))
 	require.NoError(t, s.StartAsync())
 	t.Cleanup(s.Stop)
@@ -528,7 +594,7 @@ func (l *recordingLogger) messages() []string {
 }
 
 func TestServerServesHealthProtocol(t *testing.T) {
-	s := NewServer(Config{JobTTL: time.Minute})
+	s := NewServer(Config{})
 	require.NoError(t, s.StartAsync())
 	t.Cleanup(s.Stop)
 
@@ -550,7 +616,7 @@ func TestGetJfrIsJavaOnly(t *testing.T) {
 func startTestServer(t *testing.T, computations ...*Computation) (*Server, companion.CompanionServiceClient) {
 	t.Helper()
 
-	s := NewServer(Config{JobTTL: time.Minute}, withoutCPUAccounting(), withoutMemoryAccounting())
+	s := NewServer(Config{}, withoutCPUAccounting(), withoutMemoryAccounting())
 	require.NoError(t, s.Register(computations...))
 	require.NoError(t, s.StartAsync())
 	t.Cleanup(s.Stop)

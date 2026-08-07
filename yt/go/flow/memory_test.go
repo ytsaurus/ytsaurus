@@ -117,7 +117,7 @@ func TestRuntimeHeapProfileAttributesTaggedAllocation(t *testing.T) {
 }
 
 func TestMemoryTrackerReportsRSSWindowPeak(t *testing.T) {
-	cache, _ := newTestJobCache(time.Minute)
+	cache := newJobCache()
 	first := guid.FromHalves(1, 2)
 	second := guid.FromHalves(3, 4)
 	cache.Put(cachedTestJob(t, first))
@@ -149,7 +149,7 @@ func TestMemoryTrackerReportsRSSWindowPeak(t *testing.T) {
 }
 
 func TestMemoryTrackerForcesGCOnlyAfterMaterialGrowth(t *testing.T) {
-	cache, _ := newTestJobCache(time.Minute)
+	cache := newJobCache()
 	jobID := guid.FromHalves(1, 2)
 	cache.Put(cachedTestJob(t, jobID))
 	probe := &fakeMemoryProbe{rss: 100 << 20, gcCycles: 1, profile: memoryProfile{}}
@@ -171,7 +171,7 @@ func TestMemoryTrackerForcesGCOnlyAfterMaterialGrowth(t *testing.T) {
 }
 
 func TestMemoryTrackerPrunesJobsAndDeduplicatesRSSFailures(t *testing.T) {
-	cache, _ := newTestJobCache(time.Minute)
+	cache := newJobCache()
 	jobID := guid.FromHalves(1, 2)
 	cache.Put(cachedTestJob(t, jobID))
 	probe := &fakeMemoryProbe{rssErr: fmt.Errorf("RSS is unavailable")}

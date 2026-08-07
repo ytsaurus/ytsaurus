@@ -44,6 +44,16 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    TFuture<void> RemoveJob(const TJobId& /*jobId*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TFuture<TCompanionJobList> ListJobs() override
+    {
+        return MakeFuture(TCompanionJobList{});
+    }
+
     TFuture<TCompanionResourceExecuteResponsePtr> ResourceExecute(
         const TResourceId& /*resourceId*/,
         ECompanionResourceCommand /*command*/,

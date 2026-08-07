@@ -11,6 +11,7 @@ SRCS(
     config_ut.cpp
     java_companion_manager_ut.cpp
     java_process_manager_ut.cpp
+    job_removal_ut.cpp
     jvm_options_ut.cpp
     process_manager_base_ut.cpp
     swift_ordered_source_companion_computation_ut.cpp

@@ -16,6 +16,8 @@ service CompanionService {
     rpc ProcessBatch(TReqProcessBatch) returns (TRspProcessBatch);
     rpc CompanionInfo(TReqCompanionInfo) returns (TRspCompanionInfo);
     rpc PutJob(TReqPutJob) returns (TRspPutJob);
+    rpc RemoveJob(TReqRemoveJob) returns (TRspRemoveJob);
+    rpc ListJobs(TReqListJobs) returns (TRspListJobs);
     rpc ResourceExecute(TReqResourceExecute) returns (TRspResourceExecute);
     rpc GetJfr(TReqGetJfr) returns (TRspGetJfr);
 }
@@ -193,6 +195,39 @@ message TRspPutJob
     required NYT.NProto.TGuid request_id = 1;
     required NYT.NProto.TGuid job_id = 2;
     required TResponseMetrics metrics = 3;
+    required EResponseStatus status = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveJob
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+}
+
+// Removal is idempotent: removing an unknown job yields RS_OK.
+message TRspRemoveJob
+{
+    required NYT.NProto.TGuid request_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+    required EResponseStatus status = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqListJobs
+{
+    required NYT.NProto.TGuid request_id = 1;
+}
+
+message TRspListJobs
+{
+    required NYT.NProto.TGuid request_id = 1;
+    // Every job currently held by the answering process.
+    repeated NYT.NProto.TGuid job_ids = 2;
+    // Pid of the answering process; distinguishes fan-out children.
+    required int64 process_id = 3;
     required EResponseStatus status = 4;
 }
 

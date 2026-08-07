@@ -17,12 +17,16 @@ TCompanionComputationBaseAdapter<TBase>::TCompanionComputationBaseAdapter(
     TComputationContextPtr context,
     TDynamicComputationContextPtr dynamicContext)
     : TBase(std::move(context), std::move(dynamicContext))
-    , CompanionClient_(
-        this->GetContext()
-            ->GetStaticResource(CompanionManagerAlias)
-            ->template As<TCompanionManager>()
-            ->CreateCompanionClient(this->GetContext()->StatusProfiler))
-{ }
+{
+    CompanionManager_ = this->GetContext()
+        ->GetStaticResource(CompanionManagerAlias)
+        ->template As<TCompanionManager>();
+    CompanionClient_ = CompanionManager_->CreateCompanionClient(this->GetContext()->StatusProfiler);
+    // Strictly the last constructor action, before any registration can reach
+    // the companion: the reconcile pass removes companion jobs absent from
+    // the live set, and a throw after this line must run the destructor.
+    CompanionManager_->RegisterLiveJob(this->GetJobId(), CompanionClient_);
+}
 
 template <class TBase>
 TCompanionComputationBaseAdapter<TBase>::~TCompanionComputationBaseAdapter()
@@ -30,6 +34,9 @@ TCompanionComputationBaseAdapter<TBase>::~TCompanionComputationBaseAdapter()
     for (const auto& [resource, callback] : ResourceStateChangedSubscriptions_) {
         resource->UnsubscribeCompanionStateChanged(callback);
     }
+    // Sends one prompt removal and leaves the rest to the reconcile pass;
+    // never blocks, so teardown does not wait on a stuck companion.
+    CompanionManager_->UnregisterLiveJob(this->GetJobId(), CompanionClient_);
 }
 
 template <class TBase>

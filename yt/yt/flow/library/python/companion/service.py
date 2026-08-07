@@ -3,8 +3,10 @@
 import logging
 import time
 from dataclasses import dataclass
+from typing import Optional
+
 from .context import PipelineContext
-from .job import JobContext
+from .job import Job, JobContext
 from .proto_mapper import (
     _guid_to_str,
     job_from_proto_job_info,
@@ -58,18 +60,18 @@ class CompanionRequestProcessor:
         result = {"status": "RS_OK", "data": None}
 
         def _process():
-            job_result = self._retrieve_or_create_job(
+            job = self._retrieve_or_create_job(
                 job_id, computation_id,
                 request.job_info if request.HasField("job_info") else None,
                 "processBatch", request_id,
             )
-            if not job_result["success"]:
-                result["status"] = job_result["status"]
+            if job is None:
+                result["status"] = "RS_JOB_NOT_FOUND"
                 return
 
             computation = self._retrieve_computation(computation_id)
             stream_context = self._pipeline_context.get_stream_context()
-            request_ctx = map_process_batch_request(request, job_result["job"], stream_context)
+            request_ctx = map_process_batch_request(request, job, stream_context)
             response_ctx = computation.do_process(request_ctx)
 
             result["data"] = map_process_batch_response(
@@ -94,6 +96,21 @@ class CompanionRequestProcessor:
         stats = self._resource_monitor.call_measured(_process)
         return {"status": "RS_OK", "stats": stats}
 
+    def remove_job(self, request) -> dict:
+        """Process a RemoveJob request. Removal is idempotent. Returns dict with status."""
+        request_id = _guid_to_str(request.request_id)
+        job_id = _guid_to_str(request.job_id)
+
+        log.debug("Processing RemoveJob: (RequestId: %s, JobId: %s)", request_id, job_id)
+
+        self._job_context.remove_job(job_id)
+        return {"status": "RS_OK"}
+
+    def list_jobs(self, request) -> dict:
+        """Process a ListJobs request. Returns dict with status, job_ids."""
+        del request
+        return {"status": "RS_OK", "job_ids": self._job_context.list_job_ids()}
+
     def get_companion_info(self) -> dict:
         """Get companion information. Returns dict with status, payload."""
         log.debug("Processing CompanionInfo request")
@@ -102,14 +119,14 @@ class CompanionRequestProcessor:
 
     def _retrieve_or_create_job(
         self, job_id: str, computation_id: str, job_info, operation_name: str, request_id: str
-    ) -> dict:
+    ) -> Optional[Job]:
         if job_info is not None:
             job = job_from_proto_job_info(
                 job_id, computation_id, job_info,
                 self._pipeline_context.get_stream_context(),
             )
             self._job_context.put_job(job_id, job)
-            return {"success": True, "job": job, "status": "RS_OK"}
+            return job
 
         job = self._job_context.get_job(job_id)
         if job is None:
@@ -117,9 +134,7 @@ class CompanionRequestProcessor:
                 "Job not found for %s: (RequestId: %s, JobId: %s, ComputationId: %s)",
                 operation_name, request_id, job_id, computation_id,
             )
-            return {"success": False, "job": None, "status": "RS_JOB_NOT_FOUND"}
-
-        return {"success": True, "job": job, "status": "RS_OK"}
+        return job
 
     def _retrieve_computation(self, computation_id: str):
         computation = self._pipeline_context.get_computation(computation_id)

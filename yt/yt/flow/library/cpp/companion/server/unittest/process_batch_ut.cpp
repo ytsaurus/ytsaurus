@@ -11,6 +11,7 @@
 #include <yt/yt/flow/library/cpp/common/state_client.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
+#include <yt/yt/flow/library/cpp/companion/companion_client_detail.h>
 #include <yt/yt/flow/library/cpp/companion/companion_proxy.h>
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
@@ -23,6 +24,7 @@
 
 #include <util/generic/map.h>
 #include <util/system/datetime.h>
+#include <util/system/getpid.h>
 
 namespace NYT::NFlow::NCompanionServer {
 
@@ -142,7 +144,6 @@ protected:
 
         auto config = New<NCompanion::TCompanionExecutionConfig>();
         config->Port = Port_;
-        config->JobTtlSeconds = 600;
 
         TPipeline pipeline;
         pipeline.AddTransform<TUnittestPassthroughFunction>("my_computation");
@@ -258,6 +259,108 @@ TEST_F(TProcessBatchTest, JobNotFoundThenHealed)
         auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
         EXPECT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
         EXPECT_EQ(rsp->data().output_size(), 1);
+    }
+}
+
+TEST_F(TProcessBatchTest, RemoveJob)
+{
+    {
+        auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestPassthroughFunction");
+        AddMessage(req, 1, "m1");
+        auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+        ASSERT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    }
+
+    auto removeJob = [&] {
+        auto req = Proxy_->RemoveJob();
+        ToProto(req->mutable_request_id(), TGuid::Create());
+        ToProto(req->mutable_job_id(), JobId_);
+        return req->Invoke().BlockingGet().ValueOrThrow();
+    };
+
+    EXPECT_EQ(removeJob()->status(), NProto::NCompanion::RS_OK);
+
+    {
+        // The removed job is unknown until the worker heals it.
+        auto req = BuildRequest(std::nullopt);
+        AddMessage(req, 2, "m2");
+        auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+        EXPECT_EQ(rsp->status(), NProto::NCompanion::RS_JOB_NOT_FOUND);
+    }
+
+    // Removal is idempotent.
+    EXPECT_EQ(removeJob()->status(), NProto::NCompanion::RS_OK);
+
+    {
+        // Job info heals the removed job: a registration processed after a
+        // removal recreates the entry, and the worker's reconcile pass
+        // reclaims it if its job is gone.
+        auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestPassthroughFunction");
+        AddMessage(req, 3, "m3");
+        auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+        EXPECT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    }
+}
+
+TEST_F(TProcessBatchTest, ListJobs)
+{
+    auto listJobs = [&] {
+        auto req = Proxy_->ListJobs();
+        ToProto(req->mutable_request_id(), TGuid::Create());
+        return req->Invoke().BlockingGet().ValueOrThrow();
+    };
+
+    {
+        auto rsp = listJobs();
+        EXPECT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+        EXPECT_EQ(rsp->job_ids_size(), 0);
+        EXPECT_EQ(rsp->process_id(), static_cast<i64>(GetPID()));
+    }
+
+    {
+        auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestPassthroughFunction");
+        AddMessage(req, 1, "m1");
+        auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+        ASSERT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    }
+
+    {
+        auto rsp = listJobs();
+        ASSERT_EQ(rsp->job_ids_size(), 1);
+        EXPECT_EQ(FromProto<TJobId>(rsp->job_ids(0)), JobId_);
+    }
+
+    {
+        auto req = Proxy_->RemoveJob();
+        ToProto(req->mutable_request_id(), TGuid::Create());
+        ToProto(req->mutable_job_id(), JobId_);
+        req->Invoke().BlockingGet().ValueOrThrow();
+    }
+
+    EXPECT_EQ(listJobs()->job_ids_size(), 0);
+}
+
+TEST_F(TProcessBatchTest, ClientRemoveJob)
+{
+    {
+        auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestPassthroughFunction");
+        AddMessage(req, 1, "m1");
+        auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+        ASSERT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    }
+
+    auto client = New<NCompanion::TCompanionClient>(
+        Format("localhost:%v", static_cast<int>(Port_)),
+        /*timeout*/ TDuration::Seconds(5),
+        TExponentialBackoffOptions{},
+        /*statusProfiler*/ nullptr);
+    client->RemoveJob(JobId_).BlockingGet().ThrowOnError();
+
+    {
+        auto req = BuildRequest(std::nullopt);
+        AddMessage(req, 2, "m2");
+        auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+        EXPECT_EQ(rsp->status(), NProto::NCompanion::RS_JOB_NOT_FOUND);
     }
 }
 

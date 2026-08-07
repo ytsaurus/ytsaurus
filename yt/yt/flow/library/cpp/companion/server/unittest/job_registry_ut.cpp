@@ -19,7 +19,7 @@ TJobPtr MakeJob(const TJobId& jobId)
 
 TEST(TJobRegistryTest, PutAndAcquire)
 {
-    auto registry = New<TJobRegistry>(TDuration::Minutes(10), GetSyncInvoker());
+    auto registry = New<TJobRegistry>(GetSyncInvoker());
     auto jobId = TJobId(TGuid::Create());
 
     EXPECT_FALSE(registry->AcquireJob(jobId));
@@ -42,60 +42,79 @@ TEST(TJobRegistryTest, PutAndAcquire)
     registry->ReleaseJob(jobId);
 }
 
-TEST(TJobRegistryTest, ExpiresAfterTtl)
+TEST(TJobRegistryTest, RemoveJob)
 {
-    auto registry = New<TJobRegistry>(TDuration::MilliSeconds(50), GetSyncInvoker());
+    auto registry = New<TJobRegistry>(GetSyncInvoker());
     auto jobId = TJobId(TGuid::Create());
-    registry->PutJob(MakeJob(jobId));
+    auto unknownJobId = TJobId(TGuid::Create());
 
-    EXPECT_TRUE(registry->AcquireJob(jobId));
+    // Removal is idempotent: unknown ids are ignored.
+    registry->RemoveJob(unknownJobId);
+
+    registry->PutJob(MakeJob(jobId));
+    ASSERT_TRUE(registry->AcquireJob(jobId));
     registry->ReleaseJob(jobId);
-    Sleep(TDuration::MilliSeconds(100));
+
+    registry->RemoveJob(jobId);
     EXPECT_FALSE(registry->AcquireJob(jobId));
+    registry->RemoveJob(jobId);
+
+    // A removal must not affect any other job.
+    auto otherJobId = TJobId(TGuid::Create());
+    registry->PutJob(MakeJob(otherJobId));
+    EXPECT_TRUE(registry->AcquireJob(otherJobId));
+    registry->ReleaseJob(otherJobId);
 }
 
-TEST(TJobRegistryTest, ActivityExtendsTtl)
+TEST(TJobRegistryTest, RemovedJobCanBeRegisteredAgain)
 {
-    auto registry = New<TJobRegistry>(TDuration::MilliSeconds(200), GetSyncInvoker());
+    auto registry = New<TJobRegistry>(GetSyncInvoker());
     auto jobId = TJobId(TGuid::Create());
-    registry->PutJob(MakeJob(jobId));
 
-    // Completing a batch within the TTL keeps extending it past the original
-    // deadline.
-    for (int i = 0; i < 4; ++i) {
-        Sleep(TDuration::MilliSeconds(100));
-        ASSERT_TRUE(registry->AcquireJob(jobId));
-        registry->ReleaseJob(jobId);
-    }
-    Sleep(TDuration::MilliSeconds(100));
+    registry->PutJob(MakeJob(jobId));
+    registry->RemoveJob(jobId);
+
+    // A registration processed after a removal recreates the entry; if its
+    // job is gone from the worker, the reconcile pass reclaims it.
+    registry->PutJob(MakeJob(jobId));
     EXPECT_TRUE(registry->AcquireJob(jobId));
     registry->ReleaseJob(jobId);
 }
 
-TEST(TJobRegistryTest, ActiveRequestPreventsExpiration)
+TEST(TJobRegistryTest, PutJobDuringDeferredRemovalRevivesTheEntry)
 {
-    auto registry = New<TJobRegistry>(TDuration::MilliSeconds(50), GetSyncInvoker());
+    auto registry = New<TJobRegistry>(GetSyncInvoker());
     auto jobId = TJobId(TGuid::Create());
-    auto otherJobId = TJobId(TGuid::Create());
-    auto job = MakeJob(jobId);
-    registry->PutJob(job);
+    registry->PutJob(MakeJob(jobId));
 
     auto execution = registry->AcquireJob(jobId);
     ASSERT_TRUE(execution);
-    EXPECT_EQ(execution->Job, job);
+    registry->RemoveJob(jobId);
 
-    Sleep(TDuration::MilliSeconds(100));
-    // PutJob sweeps the whole registry. The active entry and, in particular,
-    // its serializing invoker must survive even though its TTL has elapsed.
-    registry->PutJob(MakeJob(otherJobId));
-    auto concurrent = registry->AcquireJob(jobId);
-    ASSERT_TRUE(concurrent);
-    EXPECT_EQ(concurrent->Job, job);
-    EXPECT_EQ(concurrent->Invoker, execution->Invoker);
+    // A registration racing a deferred removal wins: the entry survives the
+    // lease release and keeps its serializing invoker.
+    registry->PutJob(MakeJob(jobId));
     registry->ReleaseJob(jobId);
+    auto revived = registry->AcquireJob(jobId);
+    ASSERT_TRUE(revived);
+    EXPECT_EQ(revived->Invoker, execution->Invoker);
+    registry->ReleaseJob(jobId);
+}
 
+TEST(TJobRegistryTest, RemoveJobWithActiveLeaseIsDeferred)
+{
+    auto registry = New<TJobRegistry>(GetSyncInvoker());
+    auto jobId = TJobId(TGuid::Create());
+    registry->PutJob(MakeJob(jobId));
+
+    auto execution = registry->AcquireJob(jobId);
+    ASSERT_TRUE(execution);
+
+    // Removal must not break the active lease: the entry stops being
+    // acquirable but survives until the lease is released.
+    registry->RemoveJob(jobId);
+    EXPECT_FALSE(registry->AcquireJob(jobId));
     registry->ReleaseJob(jobId);
-    Sleep(TDuration::MilliSeconds(100));
     EXPECT_FALSE(registry->AcquireJob(jobId));
 }
 

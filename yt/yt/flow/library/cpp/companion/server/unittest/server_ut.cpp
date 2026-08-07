@@ -74,7 +74,6 @@ TEST(TCompanionServerTest, PutJob)
 
     auto config = New<NCompanion::TCompanionExecutionConfig>();
     config->Port = port;
-    config->JobTtlSeconds = 600;
 
     TPipeline pipeline;
     pipeline.AddTransform<TServerUnittestFunction>("my_transform");

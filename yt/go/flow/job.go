@@ -5,7 +5,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/guid"
@@ -221,17 +220,16 @@ func sortedKeys(m map[string]yson.RawValue) []string {
 	return keys
 }
 
+// jobCache is the registry of jobs owned by the worker: entries are created
+// and updated by PutJob and removed by RemoveJob, so an entry lives exactly as
+// long as its job.
 type jobCache struct {
-	ttl time.Duration
-	now func() time.Time
-
 	mu   sync.Mutex
 	jobs map[guid.GUID]*cachedJob
 }
 
 type cachedJob struct {
 	job                 *Job
-	lastAccess          time.Time
 	pendingCPUTime      int64
 	lastRequestID       guid.GUID
 	lastResponseCPUTime int64
@@ -242,17 +240,13 @@ type cachedJob struct {
 	hasLastMemoryRequest    bool
 }
 
-func newJobCache(ttl time.Duration) *jobCache {
+func newJobCache() *jobCache {
 	return &jobCache{
-		ttl:  ttl,
-		now:  time.Now,
 		jobs: map[guid.GUID]*cachedJob{},
 	}
 }
 
 func (c *jobCache) Get(id guid.GUID) (*Job, bool) {
-	now := c.now()
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -260,65 +254,42 @@ func (c *jobCache) Get(id guid.GUID) (*Job, bool) {
 	if !ok {
 		return nil, false
 	}
-	if c.expired(entry, now) {
-		delete(c.jobs, id)
-		return nil, false
-	}
-	entry.lastAccess = now
 	return entry.job, true
 }
 
+// Put registers or replaces a job.
 func (c *jobCache) Put(job *Job) {
-	now := c.now()
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for id, entry := range c.jobs {
-		if c.expired(entry, now) {
-			delete(c.jobs, id)
-		}
-	}
 	if entry, ok := c.jobs[job.ID()]; ok {
 		entry.job = job
-		entry.lastAccess = now
 		return
 	}
-	c.jobs[job.ID()] = &cachedJob{job: job, lastAccess: now}
+	c.jobs[job.ID()] = &cachedJob{job: job}
 }
 
 func (c *jobCache) AddCPUTime(id guid.GUID, cpuTime int64) {
 	if cpuTime <= 0 {
 		return
 	}
-	now := c.now()
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	entry, ok := c.jobs[id]
 	if !ok {
-		return
-	}
-	if c.expired(entry, now) {
-		delete(c.jobs, id)
 		return
 	}
 	entry.pendingCPUTime += cpuTime
 }
 
 func (c *jobCache) ResponseCPUTime(id, requestID guid.GUID) int64 {
-	now := c.now()
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	entry, ok := c.jobs[id]
 	if !ok {
-		return 0
-	}
-	if c.expired(entry, now) {
-		delete(c.jobs, id)
 		return 0
 	}
 	if entry.hasLastRequest && entry.lastRequestID == requestID {
@@ -334,17 +305,11 @@ func (c *jobCache) ResponseCPUTime(id, requestID guid.GUID) int64 {
 }
 
 func (c *jobCache) ResponseMemoryUsage(id, requestID guid.GUID, memoryUsage int64) int64 {
-	now := c.now()
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	entry, ok := c.jobs[id]
 	if !ok {
-		return 0
-	}
-	if c.expired(entry, now) {
-		delete(c.jobs, id)
 		return 0
 	}
 	if entry.hasLastMemoryRequest && entry.lastMemoryRequestID == requestID {
@@ -357,6 +322,7 @@ func (c *jobCache) ResponseMemoryUsage(id, requestID guid.GUID, memoryUsage int6
 	return memoryUsage
 }
 
+// Delete removes a job; unknown ids are ignored (removal is idempotent).
 func (c *jobCache) Delete(id guid.GUID) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -372,22 +338,12 @@ func (c *jobCache) Len() int {
 }
 
 func (c *jobCache) ActiveIDs() []guid.GUID {
-	now := c.now()
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	ids := make([]guid.GUID, 0, len(c.jobs))
-	for id, entry := range c.jobs {
-		if c.expired(entry, now) {
-			delete(c.jobs, id)
-			continue
-		}
+	for id := range c.jobs {
 		ids = append(ids, id)
 	}
 	return ids
-}
-
-func (c *jobCache) expired(entry *cachedJob, now time.Time) bool {
-	return now.Sub(entry.lastAccess) >= c.ttl
 }

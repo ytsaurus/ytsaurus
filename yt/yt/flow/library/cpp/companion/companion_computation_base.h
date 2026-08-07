@@ -46,6 +46,9 @@ public:
         TComputationContextPtr context,
         TDynamicComputationContextPtr dynamicContext);
 
+    //! Drops the required-resource subscriptions and hands the job removal to
+    //! the companion manager. Never waits: a stuck companion must not hold up
+    //! job teardown.
     ~TCompanionComputationBaseAdapter() override;
 
 protected:
@@ -118,6 +121,8 @@ protected:
 
     ICompanionClientPtr CompanionClient_;
     TCompanionInfoPtr CompanionInfo_;
+    //! Outlives every computation; owns the retried job removals.
+    TCompanionManagerPtr CompanionManager_;
 
 private:
     struct TRequiredCompanionResource

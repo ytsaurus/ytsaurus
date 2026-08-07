@@ -1,5 +1,9 @@
 #include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yt/core/actions/future.h>
+
 #include <yt/yt/flow/library/cpp/companion/companion_client.h>
+#include <yt/yt/flow/library/cpp/companion/companion_client_detail.h>
 #include <yt/yt/flow/library/cpp/companion/companion_model.h>
 #include <yt/yt/flow/library/cpp/companion/proto/companion_service.pb.h>
 
@@ -50,6 +54,20 @@ TEST(TCompanionClientTest, TestParseTCompanionStatus)
     EXPECT_EQ(ECompanionComputationType::Transform, computation3->CompanionComputationType);
     auto computation4 = result->Computations[TComputationId("computation_id_4")];
     EXPECT_EQ(ECompanionComputationType::Source, computation4->CompanionComputationType);
+}
+
+TEST(TCompanionClientTest, RemoveJobIsSingleAttempt)
+{
+    // No companion behind the address: the single-attempt best-effort call
+    // must resolve with an error instead of retrying or hanging.
+    auto client = New<TCompanionClient>(
+        "localhost:1",
+        /*timeout*/ TDuration::Seconds(5),
+        TExponentialBackoffOptions{},
+        /*statusProfiler*/ nullptr);
+
+    auto error = client->RemoveJob(TJobId(TGuid::Create())).BlockingGet();
+    EXPECT_FALSE(error.IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

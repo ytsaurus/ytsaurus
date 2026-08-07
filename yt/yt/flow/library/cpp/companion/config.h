@@ -15,9 +15,6 @@ struct TCompanionConfig
 {
     int Port{};
     int MonitoringPort{};
-    // Per-job TTL in seconds. Stored as a plain integer (not TDuration)
-    // for matching the Java/Python sides.
-    i64 JobTtlSeconds{};
     int CompanionProcessCount{};
 
     REGISTER_YSON_STRUCT(TCompanionConfig);

@@ -109,7 +109,7 @@ class Pipeline:
             )
         self._context.register_computation(comp)
 
-    def run(self, *, port: Optional[int] = None, job_ttl: int = 600):
+    def run(self, *, port: Optional[int] = None):
         """Entry point with two modes, selected by ``YT_FLOW_COMPANION_CONFIG``:
 
         * unset → host launch: enrich the pipeline spec to ship this binary as the companion and
@@ -122,12 +122,12 @@ class Pipeline:
 
             launch(*parse_launch_args(sys.argv))
             return
-        self._execution = GrpcServerExecution(self._context, port=port, job_ttl=job_ttl)
+        self._execution = GrpcServerExecution(self._context, port=port)
         self._execution.start()
 
-    def start(self, *, port: Optional[int] = None, job_ttl: int = 600):
+    def start(self, *, port: Optional[int] = None):
         """Start the gRPC server in non-blocking mode."""
-        self._execution = GrpcServerExecution(self._context, port=port, job_ttl=job_ttl)
+        self._execution = GrpcServerExecution(self._context, port=port)
         self._execution.start_async()
 
     def stop(self):
