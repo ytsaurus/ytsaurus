@@ -173,6 +173,9 @@ std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> TChunksSamples::S
     TAttributeFilter attributeFilter,
     std::optional<int> limit)
 {
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
+
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto channels = chunkManager->GetChunkReplicatorChannels();
 
@@ -183,6 +186,7 @@ std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> TChunksSamples::S
         // TODO(nadya02): Set the correct timeout here.
         proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
         auto batchReq = proxy.ExecuteBatch();
+        batchReq->SetUser(userNameToForward);
         auto req = TCypressYPathProxy::Enumerate(localChunksPath);
         if (limit) {
             req->set_limit(limit.value());

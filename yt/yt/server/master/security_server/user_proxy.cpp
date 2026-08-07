@@ -280,6 +280,9 @@ private:
             case EInternedAttributeKey::LastSeenTime: {
                 std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
                 if (IsPrimaryMaster()) {
+                    const auto& securityManager = Bootstrap_->GetSecurityManager();
+                    auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
+
                     const auto& multicellManager = Bootstrap_->GetMulticellManager();
                     auto portalCellTags = multicellManager->GetRoleMasterCells(NCellMaster::EMasterCellRole::CypressNodeHost);
 
@@ -290,7 +293,7 @@ private:
 
                         auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
                             multicellManager->GetMasterChannelOrThrow(portalCellTag, NHydra::EPeerKind::Follower));
-                        asyncResults.push_back(proxy.Execute(TYPathProxy::Get(user->GetObjectPath() + "/@last_seen_time")));
+                        asyncResults.push_back(proxy.ExecuteAs(userNameToForward, TYPathProxy::Get(user->GetObjectPath() + "/@last_seen_time")));
                     }
                 }
 

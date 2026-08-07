@@ -443,6 +443,10 @@ struct ISecurityManager
 
     //! Increases account statistics and puts update in gossip queue.
     virtual void IncreaseLocalAndClusterAccountStatistics(TAccount* account, const TAccountStatistics& delta) = 0;
+
+    // COMPAT(kvk1920): in some cases we can't be sure that usage of actual user
+    // instead of "root" won't break anything.
+    virtual std::string GetAuthenticatedUserNameToForward() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecurityManager)

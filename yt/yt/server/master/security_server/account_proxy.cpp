@@ -505,6 +505,9 @@ private:
             multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
         auto batchReq = proxy.ExecuteBatch();
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        batchReq->SetUser(securityManager->GetAuthenticatedUserNameToForward());
+
         auto accountId = GetId();
 
         auto req = TYPathProxy::Get(account->GetObjectPath() + "/@chunk_merger_usage");
