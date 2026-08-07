@@ -55,6 +55,7 @@ target_link_libraries(yql-essentials-minikql PUBLIC
   essentials-types-dynumber
   essentials-types-uuid
   yql-essentials-utils
+  essentials-utils-meta
   essentials-utils-memory_profiling
 )
 
