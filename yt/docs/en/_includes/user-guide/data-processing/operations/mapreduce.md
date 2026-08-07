@@ -88,9 +88,15 @@ The MapReduce operation supports the following additional options (default value
 * `input_table_paths` — list of input tables with full paths (must not be empty).
 * `output_table_paths` — list of output tables.
 * `mapper_output_table_count` — number of tables from `output_table_paths` that will be output at the map phase. For such tables, the job's `table_index` is counted from one, and the intermediate output is a null output table.
-* `partition_count`, `partition_data_size` — options that specify how many partitions are to be made in the sorting process.
+* `partition_count`, `partition_data_weight` (`partition_data_size`) — options that specify how many partitions are to be made in the sorting process. `partition_count` sets the number of partitions directly; `partition_data_weight` specifies the target amount of uncompressed data per partition and is used to derive the partition count automatically.
+* `max_partition_factor` — maximum number of child partitions per partition in a multi-level partitioning scheme.
+* `partition_data_weight_for_merging` — when `enable_final_partitions_merging` is enabled, controls the maximum data weight of a partition after merging physical partitions. Must not exceed `data_weight_per_sort_job`.
+* `enable_final_partitions_merging` (false) — enables merging of adjacent final partitions so that their combined size does not exceed `data_weight_per_sort_job`. Cannot be used together with `partition_count`.
 * `map_job_count`, `data_weight_per_map_job` — options that indicate how many jobs should be run at the map phase (these serve as recommendations).
+* `compressed_data_size_per_map_job` — limit on the compressed input data size per map job (recommendation).
 * `data_weight_per_sort_job` — option to control the amount of data at the `reduce_combiner` input (more details [below](#reduce_combiner)).
+* `data_weight_per_intermediate_partition_job` (2 GB) — target amount of data per intermediate partition job.
+* `data_weight_per_reduce_job` — target amount of uncompressed data per reduce job (recommendation).
 * `force_reduce_combiners` (false) — forces the launch of `reduce_combiner` (more details [below](#reduce_combiner)).
 * `map_selectivity_factor` (1.0) — proportion of the original amount of data that remains after the map phase (the default value is 1.0, which means the expected size of the data remains unchanged during the map phase; 2.0 means the data size doubles, and so on).
 * `intermediate_data_replication_factor` (1) — replication factor for intermediate data.
@@ -99,7 +105,9 @@ The MapReduce operation supports the following additional options (default value
 * `intermediate_compression_codec` (lz4) — codec used for compressing intermediate data.
 * `intermediate_data_acl` `({action=allow;subjects=[everyone];permissions=[read]})` — permissions for accessing intermediate data that are set up following the map phase.
 * `map_job_io, sort_job_io, reduce_job_io` — I/O settings for the respective job types; in the `reduce_job_io` option, the `table_writer` section is added for all jobs that write to output tables.
-* `sort_locality_timeout` (1 min) — time during which the scheduler waits for resources to free up on specific cluster nodes in order to start sorting all the parts of each partition on a node. This is necessary to ensure higher read locality in the course of the subsequent merging of sorted data.
+* `map_locality_timeout` (5 s) — time during which the scheduler waits for resources to free up on specific cluster nodes in order to start partition map jobs, thereby improving data locality.
+* `sort_locality_timeout` (5 s) — time during which the scheduler waits for resources on specific cluster nodes to start sort/shuffle jobs.
+* `reduce_locality_timeout` (1 min) — time during which the scheduler waits for resources to free up on specific cluster nodes in order to start all the sort and merge jobs for a single partition on the same node. This is necessary to ensure higher read locality in the course of the subsequent merging of sorted data.
 * `ordered` (false) — enables the logic that is similar to ordered map at the partition map phase (input data is divided into jobs in successive segments, with the input of each map phase job being fed rows according to the order contained in the input tables).
 * `pivot_keys` — list of keys to be used for data partitioning at the reduce phase. This option is exactly the same as the corresponding reduce [option](../../../../user-guide/data-processing/operations/reduce.md).
 * `compute_pivot_keys_from_samples` (false) — enables automatic key generation for data partitioning using samples from the table. The option can be enabled only if `mapper` is not specified.
@@ -107,6 +115,17 @@ The MapReduce operation supports the following additional options (default value
 * `reducer/enable_input_table_index` / `reduce_combiner/enable_input_table_index` (false) — whether to send the input table index to the `reduce` / `reduce_combine` phase (the `enable_input_table_index` option is specified within the `reducer` / `reduce_combiner` section).
 * `mapper/output_streams` / `reduce_combiner/output_streams` — description of intermediate output streams from the `map` or `reduce_combine` phase, more details [below](#output_streams) (the `output_streams` option is specified within the `mapper` / `reduce_combiner` section).
 * `disable_sorted_input_in_reducer` (false) — disables the sorting of inputs of reduce jobs. Other guarantees are maintained. In particular, all rows with the same keys from `reduce_by` columns will be sent to a single reduce job.
+* `shuffle_start_threshold` (0.75) — fraction of map jobs that must complete before shuffle/sort jobs are allowed to start.
+* `merge_start_threshold` (0.9) — fraction of map jobs that must complete before reduce/merge jobs are allowed to start.
+* `enable_partitioned_data_balancing` (false) — if enabled, the scheduler attempts to distribute partition jobs evenly across the cluster with respect to uncompressed input data size, so that each node processes a similar data volume. This helps balance the I/O load on nodes during the subsequent shuffle stage.
+* `enable_intermediate_output_recalculation` (true) — if enabled, unavailable intermediate chunks are regenerated by restarted jobs; otherwise the operation waits for them to become available again (or fails according to the unavailable chunk tactics).
+* `max_shuffle_data_slice_count` (10,000,000) — hard limit on the total number of data slices in the shuffle pool. If exceeded, the operation will fail.
+* `max_shuffle_job_count` (200,000) — hard limit on the total number of shuffle jobs. If exceeded, the operation will fail.
+* `max_merge_data_slice_count` (10,000,000) — hard limit on the total number of data slices across all merge pools. If exceeded, the operation will fail.
+* `max_chunk_slice_per_shuffle_job` (8000) — limit on the number of chunk slices per shuffle job.
+* `max_chunk_slice_per_intermediate_partition_job` (8000) — limit on the number of chunk slices per intermediate partition job.
+* `shuffle_network_limit` (0) — limit on the number of concurrent shuffle jobs allowed to transfer data over the network (0 means no limit).
+* `force_job_size_adjuster` (false) — forces the use of the job size adjuster for partition map and sorted reduce/merge jobs.
 
 By default (and for historical reasons), MapReduce operations support `table_index` only in a mapper. If you need to have `table_index` in a reducer, you can enable the `enable_input_table_index` option within the `reducer` (or `reduce_combiner`) section. In the future, this option may be enabled by default. To enable sorting by `table_index` in a reducer, you need to add a column with the name `$table_index` to `sort_by`.
 
