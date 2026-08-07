@@ -1730,7 +1730,7 @@ TEST_F(TWebAssemblyTest, SpinlockDeadlock)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TWebAssemblyTest, Yt28418)
+TEST_F(TWebAssemblyTest, YT28418)
 {
     static constexpr auto File = "libdtorilov-YT-28418.so";
 
