@@ -42,6 +42,7 @@ target_link_libraries(cpp-connectors-static_table PUBLIC
 )
 
 target_sources(cpp-connectors-static_table PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/arrival_order_table_sink.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/source.cpp
 )

@@ -190,6 +190,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NSortedDynamicTable_TSyncSink.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAsyncBigRTQueueSink.md) %}
@@ -327,6 +329,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NCompanion_TTransformCompanionComputation.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NSortedDynamicTable_TSyncSink.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource.md) %}
 

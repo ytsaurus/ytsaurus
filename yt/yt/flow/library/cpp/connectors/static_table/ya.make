@@ -3,6 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    arrival_order_table_sink.cpp
     spec.cpp
     source.cpp
     GLOBAL register.cpp

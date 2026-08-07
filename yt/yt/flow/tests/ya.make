@@ -1,5 +1,6 @@
 RECURSE(
     add_message_distribute_flag
+    arrival_order_table_sink
     at_most_once_sink
     companion
     computation_cycles_and_buffers
