@@ -95,6 +95,9 @@ public:
 
     // Async distribution should start only after Commit call.
     virtual void Commit() = 0;
+
+    // Delivers the epoch watermark snapshot; called on creation and before each run iteration.
+    virtual void UpdateWatermarkState(TWatermarkStatePtr state);
 };
 
 DEFINE_REFCOUNTED_TYPE(ISink);

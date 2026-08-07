@@ -1411,6 +1411,9 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
     if (TimerStore_) {
         TimerStore_->UpdateWatermarkState(GetWatermarkState());
     }
+    for (const auto& [sinkId, key, sink] : GetAllSinks()) {
+        sink->UpdateWatermarkState(GetWatermarkState());
+    }
     if (InputStore_) {
         InputStore_->AdvanceSystemWatermark(MergeStreamTraverseData(GetValues(GetInputTraverse()), EInflightMerge::None)->SystemWatermark);
     }
@@ -1951,6 +1954,7 @@ ISinkPtr TUniversalComputationBase::GetOrCreateSink(const TSinkId& sinkId, const
 
     auto context = New<TSinkContext>();
     static_cast<TComputationContextBase&>(*context) = *GetContext();
+    context->SinkId = sinkId;
     context->Profiler = context->Profiler.WithPrefix("/sink").WithTag("sink_id", sinkId.Underlying());
     context->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/sinks/%v", sinkId));
     context->Logger = context->Logger.WithTag("SinkId", sinkId);
@@ -1959,6 +1963,7 @@ ISinkPtr TUniversalComputationBase::GetOrCreateSink(const TSinkId& sinkId, const
     auto dynamicSinkContext = New<TDynamicSinkContext>();
     dynamicSinkContext->DynamicSinkSpec = GetOrDefault(dynamicSpec->Sinks, sinkId, New<TDynamicSinkSpec>());
     auto sink = TRegistry::Get()->CreateSink(context, dynamicSinkContext);
+    sink->UpdateWatermarkState(GetWatermarkState());
 
     const auto stateName = Format("sinks/%v", sinkId);
     const auto initContext = StateManager_->CreateContext();

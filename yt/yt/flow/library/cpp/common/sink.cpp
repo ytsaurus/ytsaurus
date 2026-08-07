@@ -12,6 +12,9 @@ void ISink::TParametersBase::Register(TRegistrar /*registrar*/)
 void ISink::TDynamicParametersBase::Register(TRegistrar /*registrar*/)
 { }
 
+void ISink::UpdateWatermarkState(TWatermarkStatePtr /*state*/)
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
