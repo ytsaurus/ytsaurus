@@ -112,8 +112,13 @@ class BulliedProcess(object):
             if not self._proc.running:
                 # Wait for saving stderr / stdout of running process.
                 proc = self._join_process()
+                # With exit-code checking disabled (e.g. bullied controllers) a crash also lands
+                # here; report the real exit code instead of claiming a normal exit.
+                exit_code = proc.process.returncode
                 raise ProcessExitedNormallyException(
-                    "Process exited normally (name: {}).\nstderr:\n{}".format(self._name, proc.stderr)
+                    "Process exited on its own (name: {}, exit_code: {}).\nstderr:\n{}".format(
+                        self._name, exit_code, proc.stderr
+                    )
                 )
 
     def start(self):
