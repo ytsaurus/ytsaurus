@@ -300,7 +300,8 @@ public:
         TRemoteReaderOptionsPtr options,
         TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
-        TChunkReplicaWithMediumList seedReplicas)
+        TChunkReplicaWithMediumList seedReplicas,
+        EChunkFormat chunkFormat)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
@@ -309,6 +310,7 @@ public:
         , MediumDirectory_(Client_->GetNativeConnection()->GetMediumDirectory())
         , LocalDescriptor_(chunkReaderHost->LocalDescriptor)
         , ChunkId_(chunkId)
+        , ChunkFormat_(chunkFormat)
         , BlockCache_(chunkReaderHost->BlockCache)
         , ChunkMetaCache_(chunkReaderHost->ChunkMetaCache)
         , TrafficMeter_(chunkReaderHost->TrafficMeter)
@@ -412,6 +414,7 @@ private:
     const TMediumDirectoryPtr MediumDirectory_;
     const TNodeDescriptor LocalDescriptor_;
     const TChunkId ChunkId_;
+    const EChunkFormat ChunkFormat_;
     const IBlockCachePtr BlockCache_;
     const IClientChunkMetaCachePtr ChunkMetaCache_;
     const TTrafficMeterPtr TrafficMeter_;
@@ -3548,6 +3551,7 @@ private:
         req->set_block_count(BlockCount_);
         if (peerId.IsOffshore) {
             ToProto(req->mutable_replica_spec(), peer.Replica);
+            req->set_chunk_format(ToUnderlying(reader->ChunkFormat_));
         }
 
         auto rspFuture = req->Invoke();
@@ -3877,6 +3881,7 @@ private:
         YT_OPTIONAL_TO_PROTO(req, extension_tags, ExtensionTags_);
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
         ToProto(req->mutable_replica_spec(), peers[0].Replica);
+        req->set_chunk_format(ToUnderlying(reader->ChunkFormat_));
 
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
@@ -4738,6 +4743,7 @@ public:
         , ReaderConfig_(reader->Config_)
         , ReaderOptions_(reader->Options_)
         , ChunkId_(reader->ChunkId_)
+        , ChunkFormat_(reader->ChunkFormat_)
         , Logger(reader->Logger)
     { }
 
@@ -4799,6 +4805,7 @@ private:
     const TReplicationReaderConfigPtr ReaderConfig_;
     const TRemoteReaderOptionsPtr ReaderOptions_;
     const TChunkId ChunkId_;
+    const EChunkFormat ChunkFormat_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -4973,6 +4980,7 @@ private:
         }
 
         ToProto(req->mutable_replica_spec(), queuedBatch.PrimaryPeer.Replica);
+        req->set_chunk_format(ToUnderlying(ChunkFormat_));
 
         return req->Invoke()
             .AsUnique().Apply(BIND(
@@ -5139,7 +5147,8 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaList seedReplicas)
+    TChunkReplicaList seedReplicas,
+    EChunkFormat chunkFormat)
 {
     TChunkReplicaWithMediumList replicaList;
     replicaList.reserve(seedReplicas.size());
@@ -5152,7 +5161,8 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         std::move(options),
         std::move(chunkReaderHost),
         chunkId,
-        std::move(replicaList));
+        std::move(replicaList),
+        chunkFormat);
 }
 
 IChunkReaderAllowingRepairPtr CreateReplicationReader(
@@ -5160,14 +5170,16 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaWithMediumList seedReplicas)
+    TChunkReplicaWithMediumList seedReplicas,
+    EChunkFormat chunkFormat)
 {
     return New<TReplicationReader>(
         std::move(config),
         std::move(options),
         std::move(chunkReaderHost),
         chunkId,
-        std::move(seedReplicas));
+        std::move(seedReplicas),
+        chunkFormat);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

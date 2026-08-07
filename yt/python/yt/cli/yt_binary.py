@@ -68,7 +68,7 @@ Cypress (metainformation tree) commands:
 File commands:
     read-file, write-file
 Table commands:
-    read-table, read-blob-table, write-table, create-temp-table,
+    read-table, read-blob-table, attach-table, write-table, create-temp-table,
     alter-table, get-table-columnar-statistics, dirtable
 Dynamic table commands:
     mount-table, unmount-table, remount-table, freeze-table, unfreeze-table, get-tablet-infos,
@@ -592,6 +592,11 @@ def add_upload_orc_parser(add_parser):
     parser.add_argument("--input-file", type=str, required=True)
 
 
+@copy_docstring_from(yt.attach_table)
+def attach_table(**kwargs):
+    yt.attach_table(**kwargs)
+
+
 @copy_docstring_from(yt.write_table)
 def write_table(**kwargs):
     func_args = dict(kwargs)
@@ -619,6 +624,30 @@ def add_write_file_parser(add_parser):
         parser.add_argument("--executable", action="store_true", help="do file executable")
         parser.add_argument("--compute-md5", action="store_true", help="compute md5 of file content")
         add_no_compression_arg(parser)
+
+
+def add_attach_table_parser(add_parser):
+    parser = add_parser(
+        "attach-table",
+        attach_table,
+        epilog="Rewrite table by default. For append mode specify <append=true> before path.")
+    add_ypath_argument(
+        parser,
+        "--dst",
+        required=True,
+        dest="destination_table",
+        help="Path to an existing destination table in Cypress",
+    )
+    parser.add_argument(
+        "--src",
+        action="append",
+        required=True,
+        dest="source_uris",
+        help='S3 URI of a Parquet source, e.g. "s3://bucket/data.parquet"',
+    )
+    parser.add_argument("--medium", help="Require this S3 medium on the destination table")
+    parser.add_argument("--source-format", choices=["parquet"], help="Source format (defaults to .parquet suffix)")
+    parser.add_argument("--allow-incompatible-source-schemas", action="store_true")
 
 
 def add_write_table_parser(add_parser):
@@ -3197,6 +3226,7 @@ def _prepare_parser():
     add_create_account_parser(add_parser)
     add_create_pool_parser(add_parser)
     add_read_table_parser(add_parser)
+    add_attach_table_parser(add_parser)
     add_write_table_parser(add_parser)
     add_create_temp_table_parser(add_parser)
 

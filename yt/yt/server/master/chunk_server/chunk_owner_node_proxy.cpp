@@ -116,6 +116,7 @@ bool IsAccessLoggedMethod(const std::string& method)
 }
 
 static void PopulateChunkSpecWithReplicas(
+    const TChunk* chunk,
     const TStoredChunkReplicaList& chunkReplicas,
     bool fetchParityReplicas,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
@@ -138,6 +139,11 @@ static void PopulateChunkSpecWithReplicas(
                 replica.GetReplicaIndex(),
                 replica.GetEffectiveMediumIndex());
             chunkSpec->add_replicas(ToProto<ui64>(nodeReplica));
+            NChunkClient::TChunkReplicaWithMedium replicaWithMedium(
+                location->GetNode()->GetId(),
+                replica.GetReplicaIndex(),
+                replica.GetEffectiveMediumIndex());
+            ToProto(chunkSpec->add_replica_specs(), replicaWithMedium);
             nodeDirectoryBuilder->Add(nodeReplica);
         }
 
@@ -145,8 +151,10 @@ static void PopulateChunkSpecWithReplicas(
             NChunkClient::TChunkReplicaWithMedium offshoreReplica(
                 OffshoreNodeId,
                 replica.GetReplicaIndex(),
-                replica.GetEffectiveMediumIndex());
+                replica.GetEffectiveMediumIndex(),
+                std::string(chunk->GetExternalOffshoreSourceUri()));
             chunkSpec->add_replicas(ToProto<ui64>(offshoreReplica));
+            ToProto(chunkSpec->add_replica_specs(), offshoreReplica);
         }
     }
 }
@@ -271,6 +279,7 @@ void BuildChunkSpec(
         extensionTags,
         chunkSpec);
     PopulateChunkSpecWithReplicas(
+        chunk,
         chunkReplicas,
         fetchParityReplicas,
         nodeDirectoryBuilder,
@@ -427,7 +436,13 @@ private:
             }
 
             const auto& chunkReplicas = chunkReplicasOrError.Value();
+            auto* chunk = chunkManager->FindChunk(chunkId);
+            if (!IsObjectAlive(chunk)) {
+                ReplyError(TError("Chunk %v died during replica fetch", chunkId));
+                return false;
+            }
             PopulateChunkSpecWithReplicas(
+                chunk,
                 chunkReplicas,
                 FetchContext_.FetchParityReplicas,
                 &NodeDirectoryBuilder_,

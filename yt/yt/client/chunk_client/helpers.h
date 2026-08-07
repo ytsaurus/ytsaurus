@@ -18,6 +18,12 @@ TChunkReplicaList GetReplicasFromChunkSpec(const NProto::TChunkSpec& chunkSpec);
 void SetTabletId(NProto::TChunkSpec* chunkSpec, NTabletClient::TTabletId tabletId);
 void SetObjectId(NProto::TChunkSpec* chunkSpec, NObjectClient::TObjectId objectId);
 
+//! Deduces an enabled external source format from a source object name.
+EExternalSourceFormat DeduceExternalSourceFormatOrThrow(TStringBuf fileName);
+
+//! Maps an external source format to its synthetic chunk format.
+EChunkFormat GetChunkFormatFromExternalSourceFormat(EExternalSourceFormat externalFormat);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

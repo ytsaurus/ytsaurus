@@ -114,6 +114,30 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Attaches external source files as chunks of an existing table.
+//!
+//! The public surface accepts a list of URIs so adding a new external format
+//! later does not require a new command shape.
+class TAttachTableCommand
+    : public TTypedCommand<NApi::TAttachTableOptions>
+{
+public:
+    REGISTER_YSON_STRUCT_LITE(TAttachTableCommand);
+
+    static void Register(TRegistrar registrar);
+
+protected:
+    void DoExecuteImpl(const ICommandContextPtr& context);
+
+private:
+    NYPath::TRichYPath Path;
+    std::vector<std::string> SourceUris;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGetTableColumnarStatisticsCommand
     : public TTypedCommand<NApi::TGetColumnarStatisticsOptions>
 {

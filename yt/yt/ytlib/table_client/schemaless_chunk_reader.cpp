@@ -44,6 +44,8 @@
 
 #include <library/cpp/yt/memory/atomic.h>
 
+#include <variant>
+
 namespace NYT::NTableClient {
 
 using namespace NApi;
@@ -619,6 +621,79 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// The legacy versioned reader derives from THorizontalBlockReader and exposes
+// a different row interface. Keep THorizontalBlockReader non-polymorphic and
+// erase only the two reader implementations used by schemaless chunk readers.
+class TAnyHorizontalBlockReader
+{
+public:
+    explicit TAnyHorizontalBlockReader(std::unique_ptr<THorizontalBlockReader> reader)
+        : Reader_(std::move(reader))
+    { }
+
+    explicit TAnyHorizontalBlockReader(std::unique_ptr<TArrowHorizontalBlockReader> reader)
+        : Reader_(std::move(reader))
+    { }
+
+    bool NextRow()
+    {
+        return std::visit([] (const auto& reader) {
+            return reader->NextRow();
+        }, Reader_);
+    }
+
+    bool SkipToRowIndex(i64 rowIndex)
+    {
+        return std::visit([&] (const auto& reader) {
+            return reader->SkipToRowIndex(rowIndex);
+        }, Reader_);
+    }
+
+    bool SkipToKeyBound(const TKeyBoundRef& lowerBound)
+    {
+        return std::visit([&] (const auto& reader) {
+            return reader->SkipToKeyBound(lowerBound);
+        }, Reader_);
+    }
+
+    bool SkipToKey(TUnversionedRow lowerBound)
+    {
+        return std::visit([&] (const auto& reader) {
+            return reader->SkipToKey(lowerBound);
+        }, Reader_);
+    }
+
+    TLegacyKey GetLegacyKey() const
+    {
+        return std::visit([] (const auto& reader) {
+            return reader->GetLegacyKey();
+        }, Reader_);
+    }
+
+    TMutableUnversionedRow GetRow(TChunkedMemoryPool* memoryPool, bool remapIds)
+    {
+        return std::visit([&] (const auto& reader) {
+            return reader->GetRow(memoryPool, remapIds);
+        }, Reader_);
+    }
+
+    i64 GetRowIndex() const
+    {
+        return std::visit([] (const auto& reader) {
+            return reader->GetRowIndex();
+        }, Reader_);
+    }
+
+private:
+    using TReader = std::variant<
+        std::unique_ptr<THorizontalBlockReader>,
+        std::unique_ptr<TArrowHorizontalBlockReader>>;
+
+    TReader Reader_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THorizontalSchemalessChunkReaderBase
     : public TChunkReaderBase
     , public TSchemalessChunkReaderBase
@@ -696,7 +771,7 @@ protected:
 
     int CurrentBlockIndex_ = 0;
 
-    std::unique_ptr<THorizontalBlockReader> BlockReader_;
+    std::unique_ptr<TAnyHorizontalBlockReader> BlockReader_;
 
     std::vector<int> BlockIndexes_;
 
@@ -734,6 +809,7 @@ protected:
     }
 
     TFuture<void> InitBlockFetcher();
+    void InitBlockReader();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -768,6 +844,44 @@ TDataStatistics THorizontalSchemalessChunkReaderBase::GetDataStatistics() const
     dataStatistics.set_row_count(RowCount_);
     dataStatistics.set_data_weight(DataWeight_);
     return dataStatistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void THorizontalSchemalessChunkReaderBase::InitBlockReader()
+{
+    const int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
+
+    YT_VERIFY(CurrentBlock_);
+    const auto& block = CurrentBlock_.GetOrCrash().ValueOrThrow().Data;
+
+    if (ChunkMeta_->GetChunkFormat() == EChunkFormat::TableUnversionedArrowParquet) {
+        BlockReader_ = std::make_unique<TAnyHorizontalBlockReader>(
+            std::make_unique<TArrowHorizontalBlockReader>(
+                block,
+                blockMeta,
+                ChunkMeta_,
+                ChunkToReaderIdMapping_,
+                SortOrders_,
+                CommonKeyPrefix_,
+                KeyWideningOptions_,
+                GetRootSystemColumnCount()));
+    } else {
+        BlockReader_ = std::make_unique<TAnyHorizontalBlockReader>(
+            std::make_unique<THorizontalBlockReader>(
+                block,
+                blockMeta,
+                GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
+                GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
+                &ChunkMeta_->HunkChunkRefs(),
+                &ChunkMeta_->HunkChunkMetas(),
+                ChunkToReaderIdMapping_,
+                SortOrders_,
+                CommonKeyPrefix_,
+                KeyWideningOptions_,
+                GetRootSystemColumnCount()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -911,19 +1025,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
     const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
 
-    YT_VERIFY(CurrentBlock_);
-    BlockReader_.reset(new THorizontalBlockReader(
-        CurrentBlock_.GetOrCrash().ValueOrThrow().Data,
-        blockMeta,
-        GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-        &ChunkMeta_->HunkChunkRefs(),
-        &ChunkMeta_->HunkChunkMetas(),
-        ChunkToReaderIdMapping_,
-        SortOrders_,
-        CommonKeyPrefix_,
-        KeyWideningOptions_,
-        GetRootSystemColumnCount()));
+    InitBlockReader();
 
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
@@ -1343,21 +1445,7 @@ void THorizontalSchemalessLookupChunkReaderBase::ComputeBlockIndexes(TRange<TLeg
 
 void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
 {
-    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
-
-    BlockReader_.reset(new THorizontalBlockReader(
-        CurrentBlock_.GetOrCrash().ValueOrThrow().Data,
-        blockMeta,
-        GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-        &ChunkMeta_->HunkChunkRefs(),
-        &ChunkMeta_->HunkChunkMetas(),
-        ChunkToReaderIdMapping_,
-        SortOrders_,
-        CommonKeyPrefix_,
-        KeyWideningOptions_,
-        GetRootSystemColumnCount()));
+    InitBlockReader();
 }
 
 void THorizontalSchemalessLookupChunkReaderBase::InitNextBlock()
@@ -2807,6 +2895,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     auto sortOrders = GetSortOrders(sortColumns);
 
     switch (chunkMeta->GetChunkFormat()) {
+        case EChunkFormat::TableUnversionedArrowParquet:
         case EChunkFormat::TableUnversionedSchemalessHorizontal:
             return New<THorizontalSchemalessRangeChunkReader>(
                 columnEvaluatorCache,

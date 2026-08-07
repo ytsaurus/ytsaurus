@@ -260,6 +260,13 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
 
     Save(context, EndorsementRequired_);
     Save(context, ConsistentReplicaPlacementHash_);
+
+    if (ExternalOffshoreSourceUri_) {
+        Save(context, true);
+        Save(context, *ExternalOffshoreSourceUri_);
+    } else {
+        Save(context, false);
+    }
 }
 
 void TChunk::Load(NCellMaster::TLoadContext& context)
@@ -310,6 +317,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     Load(context, ConsistentReplicaPlacementHash_);
 
+    if (context.GetVersion() >= EMasterReign::ExternalOffshoreChunkSourceUri && Load<bool>(context)) {
+        ExternalOffshoreSourceUri_ = std::make_unique<std::string>();
+        Load(context, *ExternalOffshoreSourceUri_);
+    }
+
     if (auto miscExt = ChunkMeta_->FindExtension<TMiscExt>()) {
         // NB: For hunk chunks can still be not confirmed because we create meta when the chunk is referenced via hunk refs.
 
@@ -330,6 +342,21 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     } else {
         YT_VERIFY(!IsConfirmed());
     }
+}
+
+void TChunk::SetExternalOffshoreSourceUri(std::string sourceUri)
+{
+    YT_VERIFY(!sourceUri.empty());
+    if (ExternalOffshoreSourceUri_) {
+        YT_VERIFY(*ExternalOffshoreSourceUri_ == sourceUri);
+    } else {
+        ExternalOffshoreSourceUri_ = std::make_unique<std::string>(std::move(sourceUri));
+    }
+}
+
+TStringBuf TChunk::GetExternalOffshoreSourceUri() const
+{
+    return ExternalOffshoreSourceUri_ ? TStringBuf(*ExternalOffshoreSourceUri_) : TStringBuf();
 }
 
 void TChunk::AddParent(TChunkTree* parent)

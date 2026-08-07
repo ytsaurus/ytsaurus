@@ -882,6 +882,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TruncateJournal);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTable);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AttachTable);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PartitionTables);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadTablePartition);
@@ -1250,6 +1251,7 @@ TApiService::TApiService(
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTable)
         .SetStreamingEnabled(true)
         .SetCancelable(true));
+    registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AttachTable));
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PartitionTables));
     registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadTablePartition)
@@ -6802,6 +6804,37 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteTable)
         request,
         std::move(tableWriter),
         [] {});
+}
+
+DEFINE_RPC_SERVICE_METHOD(TApiService, AttachTable)
+{
+    auto client = GetAuthenticatedClientOrThrow(context, request);
+
+    PutMethodInfoInTraceContext("attach_table");
+
+    auto path = FromProto<TRichYPath>(request->path());
+    auto sourceUris = FromProto<std::vector<std::string>>(request->source_uris());
+
+    NApi::TAttachTableOptions options;
+    SetTimeoutOptions(&options, context.Get());
+    options.AllowIncompatibleSourceSchemas = request->allow_incompatible_source_schemas();
+    if (request->has_medium()) {
+        options.Medium = request->medium();
+    }
+    if (request->has_source_format()) {
+        options.SourceFormat = CheckedEnumCast<NChunkClient::EExternalSourceFormat>(request->source_format());
+    }
+    if (request->has_transactional_options()) {
+        FromProto(&options, request->transactional_options());
+    }
+
+    context->SetRequestInfo("Path: %v, SourceCount: %v", path, sourceUris.size());
+
+    ExecuteCall(
+        context,
+        [=] {
+            return client->AttachTable(path, sourceUris, options);
+        });
 }
 
 DEFINE_RPC_SERVICE_METHOD(TApiService, GetColumnarStatistics)

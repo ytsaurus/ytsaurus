@@ -302,6 +302,9 @@ message TReqGetBlockSet
 
     optional double io_fair_share_weight = 18;
 
+    // Required by offshore readers for externally attached source objects.
+    optional int32 chunk_format = 19;
+
     reserved 3, 4, 9;
 }
 
@@ -337,6 +340,9 @@ message TReqGetBlockRange
     optional int64 io_consumed = 8;
 
     optional double io_fair_share_weight = 9;
+
+    // Required by offshore readers for externally attached source objects.
+    optional int32 chunk_format = 10;
 }
 
 message TRspGetBlockRange
@@ -503,6 +509,9 @@ message TReqGetChunkMeta
     optional int64 io_consumed = 11;
 
     optional double io_fair_share_weight = 12;
+
+    // Required by offshore readers for externally attached source objects.
+    optional int32 chunk_format = 13;
 }
 
 message TRspGetChunkMeta

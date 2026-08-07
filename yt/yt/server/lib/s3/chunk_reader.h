@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <string>
+
 namespace NYT::NS3 {
 
 ////////////////////////////////////////////////////////////////////////////
@@ -14,7 +16,9 @@ NChunkClient::IChunkReaderPtr CreateS3RegularChunkReader(
     NS3::IClientPtr client,
     const NChunkClient::TS3MediumDescriptorPtr& mediumDescriptor,
     TS3ReaderConfigPtr config,
-    NChunkClient::TChunkId chunkId);
+    NChunkClient::TChunkId chunkId,
+    std::string sourceUri = {},
+    NChunkClient::EChunkFormat chunkFormat = NChunkClient::EChunkFormat::Unknown);
 
 ////////////////////////////////////////////////////////////////////////////
 

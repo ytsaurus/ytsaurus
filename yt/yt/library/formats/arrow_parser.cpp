@@ -2224,6 +2224,71 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+arrow20::Status DecodeRecordBatch(
+    const std::shared_ptr<arrow20::RecordBatch>& batch,
+    IValueConsumer* consumer,
+    const TArrowParserOptions& options)
+{
+    struct TArrowParserTag
+    { };
+
+    auto bufferForStringLikeValues = std::make_shared<TChunkedOutputStream>(
+        GetRefCountedTypeCookie<TArrowParserTag>(),
+        GetNullMemoryUsageTracker(),
+        256_KB,
+        1_MB);
+
+    const auto columnCount = batch->num_columns();
+    const auto rowCount = batch->num_rows();
+    if (options.MaxAllocationBytes &&
+        static_cast<ui64>(rowCount) * static_cast<ui64>(std::max(columnCount, 1)) * sizeof(TUnversionedValue) >
+            static_cast<ui64>(*options.MaxAllocationBytes))
+    {
+        THROW_ERROR_EXCEPTION("Arrow record batch is too large: %v columns x %v rows would allocate more than %v bytes",
+            columnCount,
+            rowCount,
+            *options.MaxAllocationBytes);
+    }
+
+    std::vector<TUnversionedRowValues> rowsValues(columnCount, TUnversionedRowValues(rowCount));
+    for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+        const auto& columnName = batch->column_name(columnIndex);
+        const auto columnId = consumer->GetNameTable()->GetIdOrRegisterName(columnName);
+        const auto columnSchema = consumer->GetSchema()->FindColumn(columnName);
+        const auto columnType = columnSchema
+            ? columnSchema->LogicalType()
+            : OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
+
+        try {
+            const auto& column = batch->column(columnIndex);
+            ThrowOnError(column->ValidateFull());
+            PrepareArray(
+                DenullifyLogicalType(columnType),
+                bufferForStringLikeValues,
+                column,
+                batch->schema()->field(columnIndex),
+                rowsValues[columnIndex],
+                columnId,
+                options.MaxAllocationBytes);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to parse column %Qv", columnName)
+                << ex;
+        }
+    }
+
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        consumer->OnBeginRow();
+        for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+            consumer->OnValue(rowsValues[columnIndex][rowIndex]);
+        }
+        consumer->OnEndRow();
+    }
+
+    return arrow20::Status::OK();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::unique_ptr<IParser> CreateParserForArrow(IValueConsumer* consumer, const TArrowParserOptions& options)
 {
     return std::make_unique<TArrowParser>(consumer, std::move(options));

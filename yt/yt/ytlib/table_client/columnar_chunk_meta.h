@@ -21,6 +21,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkType, ChunkType);
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkFormat, ChunkFormat);
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkFeatures, ChunkFeatures);
+    DEFINE_BYREF_RO_PROPERTY(NChunkClient::TRefCountedBlocksExtPtr, Blocks);
     DEFINE_BYREF_RO_PROPERTY(TRefCountedDataBlockMetaPtr, DataBlockMeta);
     DEFINE_BYREF_RO_PROPERTY(TRefCountedColumnGroupInfosExtPtr, ColumnGroupInfos);
     DEFINE_BYREF_RO_PROPERTY(TRefCountedColumnMetaPtr, ColumnMeta);
@@ -31,6 +32,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<THunkChunkMeta>, HunkChunkMetas);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TColumnarStatisticsExt>, ColumnarStatisticsExt);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TLargeColumnarStatisticsExt>, LargeColumnarStatisticsExt);
+    //! Format-specific metadata for externally attached Parquet chunks.
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TParquetFormatMetaExt>, ParquetFormatMetaExt);
 
 public:
     explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta, bool compressBlockLastKeys = false);

@@ -110,7 +110,8 @@ TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     IChunkReaderPtr chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
     const std::optional<TPartitionTags>& partitionTags,
-    const TDataSourcePtr& dataSource)
+    const TDataSourcePtr& dataSource,
+    const TChunkSpec& chunkSpec)
 {
     // Download chunk meta.
     std::vector<int> extensionTags{
@@ -125,6 +126,11 @@ TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     };
     if (chunkReadOptions.GranuleFilter || (dataSource->GetInputQuerySpec() && dataSource->GetInputQuerySpec()->CanCreateGranuleFilter())) {
         extensionTags.push_back(TProtoExtensionTag<NProto::TColumnarStatisticsExt>::Value);
+    }
+
+    if (FromProto<EChunkFormat>(chunkSpec.chunk_meta().format()) == EChunkFormat::TableUnversionedArrowParquet) {
+        extensionTags.push_back(TProtoExtensionTag<NChunkClient::NProto::TBlocksExt>::Value);
+        extensionTags.push_back(TProtoExtensionTag<NProto::TParquetFormatMetaExt>::Value);
     }
 
     return chunkReader->GetMeta(
@@ -244,7 +250,12 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         return MakeFuture<ISchemalessChunkReaderPtr>(ex);
                     }
 
-                    auto asyncChunkMeta = DownloadChunkMeta(remoteReader, perClusterChunkReadOptions, partitionTags, dataSource);
+                    auto asyncChunkMeta = DownloadChunkMeta(
+                        remoteReader,
+                        perClusterChunkReadOptions,
+                        partitionTags,
+                        dataSource,
+                        chunkSpec);
 
                     return asyncChunkMeta.Apply(BIND([=] (const TColumnarChunkMetaPtr& chunkMeta) {
                         TReadRange readRange;

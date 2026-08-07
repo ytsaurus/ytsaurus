@@ -49,6 +49,7 @@ class THunkChunkRef;
 class TColumnMetaExt;
 class TVersionedRowDigestExt;
 class TCompressionDictionaryExt;
+class TParquetFormatMetaExt;
 class TVersionedReadOptions;
 class TVersionedWriteOptions;
 class TColumnNameToConstraintMap;

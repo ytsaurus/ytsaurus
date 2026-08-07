@@ -3,6 +3,7 @@
 #include "client_common.h"
 #include "dynamic_table_client.h"
 
+#include <yt/yt/client/chunk_client/public.h>
 #include <yt/yt/client/table_client/chunk_stripe_statistics.h>
 #include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -11,6 +12,8 @@
 #include <yt/yt/client/tablet_client/index_info.h>
 
 #include <yt/yt/client/chaos_client/replication_card.h>
+
+#include <string>
 
 namespace NYT::NApi {
 
@@ -51,6 +54,21 @@ struct TTableWriterOptions
     bool ValidateAnyIsValidYson = false;
 
     NTableClient::TTableWriterConfigPtr Config;
+};
+
+struct TAttachTableOptions
+    : public TTransactionalOptions
+    , public TTimeoutOptions
+{
+    //! Permit a source schema that is not fully compatible with the table.
+    bool AllowIncompatibleSourceSchemas = false;
+
+    //! If specified, must be the table's S3 primary medium.
+    std::optional<std::string> Medium;
+
+    //! Overrides format deduction from a source URI. Only Parquet is enabled
+    //! today; this keeps the wire API extensible for later source formats.
+    std::optional<NChunkClient::EExternalSourceFormat> SourceFormat;
 };
 
 struct TTabletRangeOptions
@@ -419,6 +437,11 @@ struct ITableClientBase
     virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options = {}) = 0;
+
+    virtual TFuture<void> AttachTable(
+        const NYPath::TRichYPath& path,
+        std::vector<std::string> sourceUris,
+        const TAttachTableOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

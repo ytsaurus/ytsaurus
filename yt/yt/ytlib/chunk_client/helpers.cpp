@@ -756,9 +756,21 @@ IChunkReaderPtr CreateRemoteReader(
     TChunkReaderHostPtr chunkReaderHost)
 {
     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-    // Decode replicas as TChunkReplicaWithMedium to preserve the full 64-bit value,
-    // including medium index (which TChunkReplica truncates to 29 bits).
-    auto replicas = FromProto<TChunkReplicaWithMediumList>(chunkSpec.replicas());
+    auto chunkFormat = chunkSpec.has_chunk_meta()
+        ? FromProto<EChunkFormat>(chunkSpec.chunk_meta().format())
+        : EChunkFormat::Unknown;
+    // Prefer replica specs since externally attached S3 replicas carry their
+    // source URI there. Keep the packed representation as a compatibility
+    // fallback for ordinary chunks and old masters.
+    TChunkReplicaWithMediumList replicas;
+    if (chunkSpec.replica_specs_size() > 0) {
+        replicas.reserve(chunkSpec.replica_specs_size());
+        for (const auto& replicaSpec : chunkSpec.replica_specs()) {
+            replicas.push_back(FromProto<TChunkReplicaWithMedium>(replicaSpec));
+        }
+    } else {
+        replicas = FromProto<TChunkReplicaWithMediumList>(chunkSpec.replicas());
+    }
 
     auto Logger = ChunkClientLogger().WithTag("ChunkId", chunkId);
 
@@ -821,7 +833,8 @@ IChunkReaderPtr CreateRemoteReader(
             std::move(optionsPerChunk),
             std::move(chunkReaderHost),
             chunkId,
-            std::move(replicas));
+            std::move(replicas),
+            chunkFormat);
     }
 }
 

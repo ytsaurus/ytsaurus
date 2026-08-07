@@ -46,6 +46,16 @@ Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
 }
 
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
+    NNodeTrackerClient::TNodeId nodeId,
+    int replicaIndex,
+    int mediumIndex,
+    std::string sourceUri)
+    : TChunkReplicaWithMedium(nodeId, replicaIndex, mediumIndex)
+{
+    SourceUri_ = std::move(sourceUri);
+}
+
+Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
     TChunkReplica replica)
     : TChunkReplicaWithMedium(
         replica.GetNodeId(),
@@ -68,6 +78,11 @@ Y_FORCE_INLINE int TChunkReplicaWithMedium::GetMediumIndex() const
     return Value_ >> 29;
 }
 
+Y_FORCE_INLINE TStringBuf TChunkReplicaWithMedium::GetSourceUri() const
+{
+    return SourceUri_;
+}
+
 Y_FORCE_INLINE TChunkReplica TChunkReplicaWithMedium::ToChunkReplica() const
 {
     return TChunkReplica(GetNodeId(), GetReplicaIndex());
@@ -76,6 +91,9 @@ Y_FORCE_INLINE TChunkReplica TChunkReplicaWithMedium::ToChunkReplica() const
 Y_FORCE_INLINE void ToProto(NProto::TChunkReplicaSpec* protoReplica, TChunkReplicaWithMedium replica)
 {
     protoReplica->set_encoded_chunk_replica_with_medium(replica.Value_);
+    if (!replica.SourceUri_.empty()) {
+        protoReplica->set_source_uri(replica.SourceUri_);
+    }
 }
 
 Y_FORCE_INLINE void ToProto(ui64* protoReplica, TChunkReplicaWithMedium replica)
@@ -86,6 +104,7 @@ Y_FORCE_INLINE void ToProto(ui64* protoReplica, TChunkReplicaWithMedium replica)
 Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, NProto::TChunkReplicaSpec protoReplica)
 {
     replica->Value_ = protoReplica.encoded_chunk_replica_with_medium();
+    replica->SourceUri_ = protoReplica.source_uri();
 }
 
 Y_FORCE_INLINE void ToProto(ui32* protoReplica, TChunkReplicaWithMedium replica)
@@ -96,6 +115,7 @@ Y_FORCE_INLINE void ToProto(ui32* protoReplica, TChunkReplicaWithMedium replica)
 Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, ui64 protoReplica)
 {
     replica->Value_ = protoReplica;
+    replica->SourceUri_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
