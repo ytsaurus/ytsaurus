@@ -8,6 +8,41 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**3.19.0**" %}
+
+**Release date:** 2026-07-13
+
+
+**Release page:** [3.19.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.19.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.19.0](https://github.com/orgs/ytsaurus/packages/container/ui/1025841168?tag=3.19.0)
+
+
+#### [3.19.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.18.1...ui-v3.19.0) (2026-07-13)
+
+
+#### Features
+
+* **Queries:** unified path action menu [YTFRONT-4886] ([ce3f485](https://github.com/ytsaurus/ytsaurus-ui/commit/ce3f4850553caeeac6967374e9603dd26d74fa17))
+
+* **Account:** add versioned column sort [YTFRONT-5361] ([e2ec066](https://github.com/ytsaurus/ytsaurus-ui/commit/e2ec066ab8bc6ff399eb34eb220c982a290e87ff))
+
+
+
+#### Bug Fixes
+
+* **Queries:** cyrillic name in history [YTFRONT-5881] ([ecc03cf](https://github.com/ytsaurus/ytsaurus-ui/commit/ecc03cfc5a5e64754fe32df1298c6359e36e0af6))
+
+* **System/Chunks:** do not highlight 'Lost' values ([fd961cc](https://github.com/ytsaurus/ytsaurus-ui/commit/fd961cca387f0acd932b9035dbc4e59af8d6dbca))
+
+* **Operartion/Jobs:** fix state filter [YTFRONT-5919] ([a90e810](https://github.com/ytsaurus/ytsaurus-ui/commit/a90e810c0351db26995e8aafb0e9a0371659bf45))
+
+* **PageHead:** use cluster-theme specific favicon [YTFRONT-5918] ([cb6e981](https://github.com/ytsaurus/ytsaurus-ui/commit/cb6e9816fdb342a25f82dd90569285f8eafec764))
+
+{% endcut %}
+
+
 {% cut "**3.17.1**" %}
 
 **Release date:** 2026-07-09

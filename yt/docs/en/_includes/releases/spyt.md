@@ -8,26 +8,31 @@ Is released as a docker image.
 
 **Releases:**
 
-{% cut "**2.10.0**" %}
+{% cut "**2.11.0**" %}
 
-**Release date:** 2026-05-27
-
-
-**Release page:** [2.10.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.10.0)
+**Release date:** 2026-07-31
 
 
-**Docker image:** [ghcr.io/ytsaurus/spyt:2.10.0](https://github.com/orgs/ytsaurus/packages/container/spyt/894673032?tag=2.10.0)
+**Release page:** [2.11.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.11.0)
 
 
-Major release that enables support for Spark 4.0.x and 4.1.x.
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.11.0](https://github.com/orgs/ytsaurus/packages/container/spyt/1085278761?tag=2.11.0)
 
-- Added Scala 2.13 support along with Scala 2.12
-- pyspark-client Python package support for writing client-side logic using Spark Connect protocol without JVM
-- Transactional Streaming
-- Drop Spark 3.2.x support
-- Drop Java 11 support, all JVM classes are compiled with Java 17
-- Drop Python 3.8, 3.9 and 3.10 support
-- Drop Livy support for Query Tracker integration
+
+Major release that enables support for Spark 4.2.x and submitting jobs to an inner cluster without JVM.
+
+- Spark 4.2.x and Java 25 support
+- Java 21 support for Spark 4.0.x and above
+- Refactor submit to an inner standalone cluster to use pure Python implementation without JVM
+- Support for enabling YTsaurus shuffle service on per application basis for standalone clusters
+- Push based mode for the YTsaurus shuffle service, enabled with `spark.ytsaurus.shuffle.push.enabled`
+- Asynchronous read task creation for ytPartitioning, limited by the new `spark.ytsaurus.throttling.maxConcurrency` option 
+- `spark.ytsaurus.*` became the primary configuration prefix, `spark.yt.*` is kept as a fallback alias
+- Log export to Monium, enabled with `spark.ytsaurus.logs.export.enabled`
+- Spark Connect driver uses the temporary token of its vanilla operation, the `spark.ytsaurus.connect.token.refresh.period` option is removed
+- Fixed driver hangs for distributed writes in case of errors
+- Fixed duplicates of Spark configuration keys re-injected from the environment
+- Other minor fixes and improvements
 
 {% endcut %}
 
@@ -49,6 +54,30 @@ Maintenance release with minor enhancements
 - Fix operation_alias and enable_multi_operation_mode compatibility
 - Fix driver hangs for distributed writes in case of errors
 - Other minor fixes and improvements
+
+{% endcut %}
+
+
+{% cut "**2.10.0**" %}
+
+**Release date:** 2026-05-27
+
+
+**Release page:** [2.10.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.10.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.10.0](https://github.com/orgs/ytsaurus/packages/container/spyt/894673032?tag=2.10.0)
+
+
+Major release that enables support for Spark 4.0.x and 4.1.x.
+
+- Added Scala 2.13 support along with Scala 2.12
+- pyspark-client Python package support for writing client-side logic using Spark Connect protocol without JVM
+- Transactional Streaming
+- Drop Spark 3.2.x support
+- Drop Java 11 support, all JVM classes are compiled with Java 17
+- Drop Python 3.8, 3.9 and 3.10 support
+- Drop Livy support for Query Tracker integration
 
 {% endcut %}
 
