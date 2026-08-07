@@ -38,6 +38,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/native_client
     yt/yt/client/cache
     yt/yt/library/auth
+    yt/yt/library/containers
     yt/yt/library/coredumper
     yt/yt/library/monitoring
     yt/yt/library/orchid

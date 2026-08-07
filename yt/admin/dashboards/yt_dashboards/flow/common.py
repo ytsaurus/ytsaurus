@@ -258,14 +258,25 @@ def build_resource_usage(component: str, add_component_to_title: bool, backend: 
         memory_limit = memory_limit.query_transformation("({query}) < 1e18")
     memory_limit = memory_limit.alias("Limit")
 
+    # The vcpu limit is exported by the porto resource tracker, so it exists only
+    # in installations with porto, i.e. not on the grafana backend.
+    vcpu_limit = None
+    if backend == "monitoring":
+        vcpu_limit = ((MonitoringExpr(sensor("yt.porto.vcpu.limit")) / 100)
+            .value("container_category", "pod")
+            .alias("Limit"))
+
     return (Rowset()
         .stack(False)
         .all("host")
         .row()
             .cell(
                 "Total VCPU" + title_suffix,
-                (MonitoringExpr(sensor("yt.resource_tracker.total_vcpu")) / 100)
-                    .aggr("thread")
+                MultiSensor(
+                    (MonitoringExpr(sensor("yt.resource_tracker.total_vcpu")) / 100)
+                        .aggr("thread"),
+                    # Already vcpu-scaled, in percent, like total_vcpu.
+                    vcpu_limit)
                     .unit("UNIT_NONE"),
                 description=vcpu_description)
             .cell(
