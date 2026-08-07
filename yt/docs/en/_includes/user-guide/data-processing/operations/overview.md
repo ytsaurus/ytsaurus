@@ -180,6 +180,8 @@ These transactions can be viewed via operation attributes:
 4. `async_scheduler_transaction_id` – transaction within which temporary data is written under an operation that always interrupts upon completion. For example, this is where intermediate data lives.
 5. `output_completion_transaction_id`, `debug_completion_transaction_id` – transactions serving a technical purpose, used upon successful completion of an operation to atomically commit the operation's result.
 
+The primary operation transaction ID is also available inside each job as the `YT_OPERATION_TRANSACTION_ID` environment variable. For operations with output tables this will be the `output_transaction_id`; otherwise the `async_scheduler_transaction_id` is used. This variable can be used, for example, as a prerequisite when acquiring Cypress locks from within a job to ensure mutual exclusion across concurrent operations.
+
 ## Using data from a remote cluster
 
 For any operation, you can specify the `cluster` attribute on one or more input tables. This will initiate data reading from the specified cluster.
