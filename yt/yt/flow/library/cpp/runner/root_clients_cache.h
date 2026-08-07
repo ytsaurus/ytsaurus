@@ -34,10 +34,10 @@ using TRootClientsCacheFactory = std::function<NClient::NCache::IClientsCachePtr
 //! implementations living outside of flow; it must be called before #RunFlowNode() and before
 //! running the runner program.
 /*!
- *  The cache backs the pipeline connector, the queue log writer, the runner's pipeline client and
- *  everything reached through `TComputationContext::ClientsCache` — computations, connectors and
- *  state managers. The pipeline authenticator and the vanilla launcher build their own clients and
- *  are not affected.
+ *  The cache backs the pipeline connector, the queue log writer, the runner's pipeline client,
+ *  the vanilla operation launch (#LaunchInVanillaJob()) and everything reached through
+ *  `TComputationContext::ClientsCache` — computations, connectors and state managers. The pipeline
+ *  authenticator and #StartFlowVanillaOperation() build their own clients and are not affected.
  */
 void SetRootClientsCacheFactory(TRootClientsCacheFactory factory);
 
