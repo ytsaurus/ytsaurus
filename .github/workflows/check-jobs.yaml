@@ -52,14 +52,6 @@ jobs:
             tail -f /dev/null
           echo "TEST_RUNNER=docker exec ${TEST_CONTAINER_NAME}" >> "${GITHUB_ENV}"
 
-      - name: Unittests
-        if: ${{ inputs.run-unittests }}
-        shell: bash
-        run: |
-          ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
-            ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../${{ inputs.build-dir }}
-          '
-
       - name: Setup build symlink
         if: ${{ inputs.run-integration-tests || inputs.run-python-tests || inputs.run-odin-tests }}
         shell: bash
@@ -67,6 +59,14 @@ jobs:
           ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
             rm -rf "$(pwd)/../build"
             ln -sfn "$(pwd)/../${{ inputs.build-dir }}" "$(pwd)/../build"
+          '
+
+      - name: Unittests
+        if: ${{ inputs.run-unittests }}
+        shell: bash
+        run: |
+          ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
+            ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../${{ inputs.build-dir }}
           '
 
       - name: Integration tests
