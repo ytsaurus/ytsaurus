@@ -116,7 +116,7 @@ message TRspGetYqlAgentInfo
 {
     repeated string available_yql_versions = 1;
     required string default_ui_yql_version = 2;
-    optional bytes supported_features = 3;
+    optional bytes supported_features = 3; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
