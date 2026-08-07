@@ -31,6 +31,7 @@ target_link_libraries(nbd_server_tool PUBLIC
   core-service_discovery-yp
   yt-yt-ytlib
   yt-library-program
+  library-ytprof-http
   library-query-engine
   server-lib-nbd
   lib-nbd-chunk

@@ -12,13 +12,31 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-  include(CMakeLists.darwin-x86_64.txt)
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-  include(CMakeLists.darwin-arm64.txt)
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
-  include(CMakeLists.linux-aarch64.txt)
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
-  include(CMakeLists.linux-x86_64.txt)
-endif()
+find_package(linux-headers-generic REQUIRED)
+
+add_library(lib-nbd-dynamic_table)
+
+
+target_compile_options(lib-nbd-dynamic_table PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
+)
+
+target_link_libraries(lib-nbd-dynamic_table PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  server-lib-nbd
+  yt-yt-client
+)
+
+target_sources(lib-nbd-dynamic_table PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/dynamic_table/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/dynamic_table/dynamic_table_block_device.cpp
+)
 

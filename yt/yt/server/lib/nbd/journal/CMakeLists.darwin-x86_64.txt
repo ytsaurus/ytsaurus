@@ -37,6 +37,7 @@ target_link_libraries(lib-nbd-journal PUBLIC
 )
 
 target_sources(lib-nbd-journal PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/block_compactor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/block_flusher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/block_map.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/block_store.cpp

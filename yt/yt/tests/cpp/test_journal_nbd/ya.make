@@ -31,6 +31,9 @@ SIZE(LARGE)
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/yt_spec.inc)
 
-REQUIREMENTS(ram:16)
+REQUIREMENTS(
+    ram_disk:16
+    ram:16
+)
 
 END()

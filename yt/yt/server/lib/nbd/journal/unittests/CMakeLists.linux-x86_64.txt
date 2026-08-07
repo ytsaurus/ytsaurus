@@ -56,6 +56,7 @@ target_link_options(yt-yt-server-lib-nbd-journal-unittests PRIVATE
 )
 
 target_sources(yt-yt-server-lib-nbd-journal-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/unittests/block_compactor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/unittests/block_flusher_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/unittests/block_map_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/journal/unittests/dirty_block_pool_ut.cpp

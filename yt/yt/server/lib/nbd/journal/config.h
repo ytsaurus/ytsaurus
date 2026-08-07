@@ -8,6 +8,8 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
+#include <yt/yt/core/concurrency/public.h>
+
 #include <yt/yt/core/misc/cache_config.h>
 #include <yt/yt/core/misc/config.h>
 
@@ -18,9 +20,11 @@ namespace NYT::NNbd::NJournal {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJournalBlockDeviceOptions
-    : public virtual NYTree::TYsonStruct
+    : public NYTree::TYsonStruct
 {
-    i64 Size;
+    i64 DeviceSize = 0;
+    i64 BlockSize = 0;
+
     std::string Account;
     std::string MediumName;
 
@@ -36,7 +40,6 @@ DEFINE_REFCOUNTED_TYPE(TJournalBlockDeviceOptions)
 struct TJournalBlockStoreConfig
     : public NYTree::TYsonStruct
 {
-    //! Replication and quorum parameters of the backing journal chunks.
     int ReplicationFactor;
     int ReadQuorum;
     int WriteQuorum;
@@ -80,6 +83,8 @@ struct TJournalBlockStoreConfig
     NApi::TJournalChunkWriterConfigPtr ChunkWriter;
     NChunkClient::TChunkFragmentReaderConfigPtr ChunkReader;
 
+    TAdaptiveHedgingManagerConfigPtr ReadHedgingManager;
+
     REGISTER_YSON_STRUCT(TJournalBlockStoreConfig);
 
     static void Register(TRegistrar registrar);
@@ -112,12 +117,43 @@ DEFINE_REFCOUNTED_TYPE(TJournalBlockFlusherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Background compaction: relocates the surviving blocks of a mostly-dead retired chunk into fresh
+//! chunks so the old one becomes fully dead and is reclaimed, defragmenting the store over time.
+struct TJournalBlockCompactorConfig
+    : public NYTree::TYsonStruct
+{
+    //! A retired chunk is compacted once its garbage ratio (superseded blocks over blocks ever written)
+    //! reaches this.
+    double GarbageRatioThreshold;
+
+    //! How often the compactor looks for a chunk to compact, when the previous scan succeeded.
+    TDuration ScanPeriod;
+
+    //! Upper bound on chunks compacted concurrently; each scan starts at most one.
+    int MaxConcurrentCompactions;
+
+    //! Paces the retries after a failed compaction, in place of #ScanPeriod until one succeeds.
+    TExponentialBackoffOptions Backoff;
+
+    //! Upper bound on the blocks relocated per read-write-remap round; caps a round's memory footprint.
+    int MaxBlocksPerBatch;
+
+    //! Paces the total bytes compaction reads and rewrites, in bytes per second. An unset limit means
+    //! unlimited.
+    NConcurrency::TThroughputThrottlerConfigPtr ThroughputThrottler;
+
+    REGISTER_YSON_STRUCT(TJournalBlockCompactorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJournalBlockCompactorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJournalBlockDeviceConfig
     : public TBlockDeviceConfigBase
 {
-    //! Device block size; every read/write is aligned to it.
-    i64 BlockSize;
-
     //! Size of the device's own thread pool, on which the store and flusher run.
     int ThreadPoolSize;
 
@@ -129,6 +165,13 @@ struct TJournalBlockDeviceConfig
 
     //! The flusher: how dirty blocks are buffered and drained to the store.
     TJournalBlockFlusherConfigPtr BlockFlusher;
+
+    //! Background compaction of mostly-dead chunks; absent disables it.
+    TJournalBlockCompactorConfigPtr BlockCompactor;
+
+    //! How many blocks a snapshot resolves and writes at a time. Caps the save's peak memory, which
+    //! would otherwise scale with the device's block count.
+    i64 SnapshotBlocksPerBatch;
 
     REGISTER_YSON_STRUCT(TJournalBlockDeviceConfig);
 

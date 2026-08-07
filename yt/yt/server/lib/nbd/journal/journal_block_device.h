@@ -19,6 +19,7 @@
 #include <library/cpp/yt/logging/public.h>
 
 #include <optional>
+#include <variant>
 
 namespace NYT::NNbd::NJournal {
 
@@ -32,36 +33,60 @@ namespace NYT::NNbd::NJournal {
 struct IJournalBlockDevice
     : public virtual IBlockDevice
 {
+    //! The options the device actually runs with.
+    virtual TJournalBlockDeviceOptionsPtr GetOptions() const = 0;
+
     //! The master cell hosting the device's chunks. A snapshot save table must be created co-located
     //! with this cell (see #CreateSnapshotTable) so it can reference the device's hunk chunks.
     virtual NObjectClient::TCellTag GetExternalCellTag() const = 0;
+
+    struct TSnapshotSaveResult
+    {
+        //! Live blocks written as rows into the snapshot table.
+        i64 BlockCount = 0;
+        //! Distinct hunk chunks those blocks reference.
+        int ChunkCount = 0;
+    };
 
     //! Writes a snapshot of the device into the (already created and resolved) table |spec|.
     /*!
      *  The future is set once the rows have been written under |spec|'s transaction; the caller
      *  commits that transaction.
      */
-    virtual TFuture<void> SaveSnapshot(const TSnapshotSaveSpec& spec) = 0;
+    virtual TFuture<TSnapshotSaveResult> SaveSnapshot(const TSnapshotSaveSpec& spec) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJournalBlockDevice)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJournalBlockDevicePtr CreateJournalBlockDevice(
+struct TFreshDeviceCreationDescriptor
+{
+    TJournalBlockDeviceOptionsPtr Options;
+};
+
+struct TRestoredDeviceCreationDescriptor
+{
+    NYPath::TYPath SnapshotPath;
+};
+
+using TDeviceCreationDescriptor = std::variant<
+    TFreshDeviceCreationDescriptor,
+    TRestoredDeviceCreationDescriptor
+>;
+
+TFuture<IJournalBlockDevicePtr> CreateJournalBlockDevice(
     NApi::NNative::IClientPtr client,
     std::string deviceId,
     TJournalBlockDeviceConfigPtr deviceConfig,
-    TJournalBlockDeviceOptionsPtr storeOptions,
+    TDeviceCreationDescriptor creationDescriptor,
     NObjectClient::TTransactionId transactionId,
     NChunkClient::TChunkListId chunkListId,
-    std::optional<TSnapshotLoadSpec> snapshotReadSpec,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Snapshot helpers
 
-using TFetchSnapshotLoadTableSpecOptions = NTableClient::TFetchSingleTableReadSpecOptions;
 using TCreateSnapshotTableOptions = NApi::TCreateNodeOptions;
 
 struct TFetchSnapshotSaveTableSpecOptions
@@ -70,33 +95,25 @@ struct TFetchSnapshotSaveTableSpecOptions
     NTransactionClient::TTransactionId TransactionId;
 };
 
-//! Fetches a load spec for the existing snapshot table at |path|, to restore a device from it.
-/*!
- *  Blocking; run it on a background invoker.
- */
-TSnapshotLoadSpec FetchSnapshotLoadSpec(
-    const NApi::NNative::IClientPtr& client,
-    const NYPath::TYPath& path,
-    const TFetchSnapshotLoadTableSpecOptions& options = {});
-
 //! Creates the sorted static table that holds a journal device snapshot at |path|.
-//! If the snapshot references hunk chunks, |externalCellTag| must be provided so that
-//! the table is pinned to the appropriate cell.
+//! If the snapshot references hunk chunks,
+//! |externalCellTag| must be provided so that the table is pinned to the appropriate cell.
 /*!
- *  Blocking; run it on a background invoker.
+ *  The work runs on the client's connection invoker.
  */
-void CreateSnapshotTable(
+TFuture<void> CreateSnapshotTable(
     const NApi::IClientPtr& client,
     const NYPath::TYPath& path,
     std::optional<NObjectClient::TCellTag> externalCellTag,
+    const TJournalBlockDeviceOptionsPtr& deviceOptions,
     const TCreateSnapshotTableOptions& options = {});
 
 //! Resolves the snapshot save table at |path| (created by #CreateSnapshotTable) into a save spec that
-//! #SaveSnapshot writes into. The transaction the table was created under is carried in the spec.
+//! #SaveSnapshot writes into.
 /*!
- *  Blocking; run it on a background invoker.
+ *  The work runs on the client's connection invoker.
  */
-TSnapshotSaveSpec FetchSnapshotSaveSpec(
+TFuture<TSnapshotSaveSpec> FetchSnapshotSaveSpec(
     const NApi::NNative::IClientPtr& client,
     const NYPath::TYPath& path,
     const TFetchSnapshotSaveTableSpecOptions& options = {});

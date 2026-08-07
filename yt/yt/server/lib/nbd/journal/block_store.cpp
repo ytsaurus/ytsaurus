@@ -1,6 +1,6 @@
 #include "block_store.h"
-#include "config.h"
 #include "block_store_helpers.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
 #include <yt/yt/ytlib/journal_client/journal_chunk_writer.h>
@@ -19,8 +19,6 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
-#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
-
 #include <yt/yt/client/api/config.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -36,16 +34,15 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/misc/adaptive_hedging_manager.h>
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 
-#include <yt/yt/core/misc/protobuf_helpers.h>
-
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <library/cpp/yt/misc/enum.h>
 #include <library/cpp/yt/misc/guid.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
@@ -78,13 +75,6 @@ namespace {
 
 DECLARE_REFCOUNTED_CLASS(TBlockStore)
 
-DEFINE_ENUM(ESealState,
-    (None)     // writable, or restored from an already-sealed snapshot
-    (Waiting)  // abandoned; a maintenance tick starts the next seal attempt once the backoff elapses
-    (Running)  // a seal attempt is in progress
-    (Done)     // sealed
-);
-
 //! Stores each device block in a journal record as a block-with-header: a THunkPayloadHeader followed
 //! by the block payload bytes.
 class TBlockStore
@@ -93,7 +83,7 @@ class TBlockStore
 public:
     TBlockStore(
         TJournalBlockStoreConfigPtr config,
-        TBlockDeviceGeometry geometry,
+        const TBlockDeviceGeometry& geometry,
         TJournalBlockDeviceOptionsPtr options,
         NNative::IClientPtr client,
         TTransactionId transactionId,
@@ -112,6 +102,9 @@ public:
             Config_->ChunkReader,
             New<TChunkReaderHost>(Client_),
             /*profiler*/ {}))
+        , HedgingManager_(Config_->ReadHedgingManager
+            ? CreateAdaptiveHedgingManager(Config_->ReadHedgingManager)
+            : nullptr)
         , MaintenanceExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TBlockStore::OnMaintenanceTick, MakeWeak(this)),
@@ -119,19 +112,10 @@ public:
         , ChunkCreationBackoff_(Config_->ChunkCreationBackoff)
     { }
 
-    void InitializeRefCounted()
-    {
-        MaintenanceExecutor_->Start();
-        MaintenanceExecutor_->ScheduleOutOfBand();
-    }
-
     TFuture<std::vector<TStoredBlockId>> WriteBlocks(TRange<TSharedRef> blocks) final
     {
-        {
-            auto guard = Guard(WriteLock_);
-            if (!FatalWriteError_.IsOK()) {
-                return MakeFuture<std::vector<TStoredBlockId>>(FatalWriteError_);
-            }
+        if (Failed_.IsFired()) {
+            return MakeFuture<std::vector<TStoredBlockId>>(MakeFailedError());
         }
 
         int blockCount = std::ssize(blocks);
@@ -139,8 +123,19 @@ public:
             return MakeFuture(std::vector<TStoredBlockId>{});
         }
 
-        // Coalesce the blocks into records of up to MaxBlocksPerRecord, each written as its own session.
         auto blockSize = Geometry_.BlockSize;
+
+        for (const auto& block : blocks) {
+            if (std::ssize(block) != blockSize) {
+                auto error = TError("Invalid block size: expected %v, got %v",
+                    blockSize,
+                    std::ssize(block));
+                Failed_.Fire(error);
+                return MakeFuture<std::vector<TStoredBlockId>>(error);
+            }
+        }
+
+        // Coalesce the blocks into records of up to MaxBlocksPerRecord, each written as its own session.
         i64 blockWithHeaderSize = sizeof(THunkPayloadHeader) + blockSize;
         std::vector<TFuture<std::vector<TStoredBlockId>>> recordFutures;
         for (int start = 0; start < blockCount; start += MaxBlocksPerRecord) {
@@ -152,12 +147,6 @@ public:
                 {.InitializeStorage = false});
             for (int index = 0; index < perRecordBlockCount; ++index) {
                 const auto& block = blocks[start + index];
-                if (std::ssize(block) != blockSize) {
-                    return MakeFuture<std::vector<TStoredBlockId>>(TError(
-                        "Invalid block size: expected %v, got %v",
-                        blockSize,
-                        std::ssize(block)));
-                }
                 // Lay the block out as a block-with-header: [THunkPayloadHeader][block bytes].
                 auto* dst = buffer.Begin() + index * blockWithHeaderSize;
                 reinterpret_cast<THunkPayloadHeader*>(dst)->Checksum = GetChecksum(block);
@@ -170,7 +159,14 @@ public:
 
         return AllSucceeded(std::move(recordFutures))
             .AsUnique()
-            .Apply(BIND([] (std::vector<std::vector<TStoredBlockId>>&& perRecordBlockIds) {
+            .Apply(BIND([this, this_ = MakeStrong(this)] (TErrorOr<std::vector<std::vector<TStoredBlockId>>>&& perRecordBlockIdsOrError) {
+                if (!perRecordBlockIdsOrError.IsOK()) {
+                    auto error = TError("Block write failed") << perRecordBlockIdsOrError;
+                    Failed_.Fire(error);
+                    THROW_ERROR(error);
+                }
+
+                auto& perRecordBlockIds = perRecordBlockIdsOrError.Value();
                 // Common case: a single record; hand its ids back without copying.
                 if (perRecordBlockIds.size() == 1) {
                     return std::move(perRecordBlockIds[0]);
@@ -192,18 +188,14 @@ public:
             return;
         }
 
-        // Releases also arrive for the blocks of restored (read-only) chunks, which we never free.
-        if (chunk->ReadOnly) {
-            return;
-        }
-
-        auto previousAlive = chunk->AliveBlockCount.fetch_sub(1);
-        YT_VERIFY(previousAlive > 0);
+        // Decrements restored chunks too, so a fully-dead one can be forgotten -- it is just never
+        // unstaged (its snapshot table owns it; see #DropDeadChunks).
+        YT_VERIFY(chunk->ReferencedBlockCount.fetch_sub(1) > 0);
     }
 
     TFuture<std::vector<TSharedRef>> ReadBlocks(
         TRange<TStoredBlockId> blockIds,
-        const TClientChunkReadOptions& options) final
+        EWorkloadCategory workloadCategory) final
     {
         auto blockSize = Geometry_.BlockSize;
         i64 blockWithHeaderSize = sizeof(THunkPayloadHeader) + blockSize;
@@ -232,9 +224,21 @@ public:
             }
         }
 
-        return FragmentReader_->ReadFragments(std::move(requests), options)
+        TClientChunkReadOptions readOptions{
+            .WorkloadDescriptor = TWorkloadDescriptor(workloadCategory),
+            .AdaptiveHedgingManager = HedgingManager_,
+        };
+
+        return FragmentReader_->ReadFragments(std::move(requests), readOptions)
             .AsUnique()
-            .Apply(BIND([] (IChunkFragmentReader::TReadFragmentsResponse&& response) {
+            .Apply(BIND([this, this_ = MakeStrong(this)] (TErrorOr<IChunkFragmentReader::TReadFragmentsResponse>&& responseOrError) {
+                if (!responseOrError.IsOK()) {
+                    auto error = TError("Block read failed") << responseOrError;
+                    Failed_.Fire(error);
+                    THROW_ERROR(error);
+                }
+
+                auto& response = responseOrError.Value();
                 // Drop the THunkPayloadHeader prefix from each fragment, yielding the block payload.
                 for (auto& fragment : response.Fragments) {
                     fragment = fragment.Slice(sizeof(THunkPayloadHeader), fragment.Size());
@@ -302,16 +306,38 @@ public:
         return refs;
     }
 
-    TFuture<std::vector<TStoredBlockId>> RestoreBlocks(TRange<TStoredBlockRef> blockRefs) final
+    TFuture<void> BeginRestoreBlocks() final
     {
-        return BIND(&TBlockStore::DoRestoreBlocks, MakeStrong(this), std::vector(blockRefs.begin(), blockRefs.end()))
+        return OKFuture;
+    }
+
+    TFuture<std::vector<TStoredBlockId>> RestoreBlocks(
+        std::vector<TSnapshotBlock> snapshotBlocks) final
+    {
+        return BIND(
+            &TBlockStore::DoRestoreBlocks,
+            MakeStrong(this),
+            std::move(snapshotBlocks))
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    TFuture<void> EndRestoreBlocks(const TChunkBlockCounts& chunkBlockCounts) final
+    {
+        return BIND(
+            &TBlockStore::DoEndRestoreBlocks,
+            MakeStrong(this),
+            chunkBlockCounts)
             .AsyncVia(Invoker_)
             .Run();
     }
 
     void BeginSnapshot() final
     {
-        YT_VERIFY(!SnapshotInProgress_.exchange(true));
+        // Reachable from the HTTP API, so refuse rather than crash the server.
+        if (SnapshotInProgress_.exchange(true)) {
+            THROW_ERROR_EXCEPTION("Another snapshot is already in progress");
+        }
     }
 
     void EndSnapshot() final
@@ -319,21 +345,44 @@ public:
         YT_VERIFY(SnapshotInProgress_.exchange(false));
     }
 
-    void BuildChunksOrchid(NYTree::TFluentMap fluent) final
+    void Start() final
     {
-        // Snapshot under the lock, then serialize outside it: holding the ChunkLock_ spinlock across the
-        // YSON build would block chunk creation/removal for too long.
+        MaintenanceExecutor_->Start();
+        MaintenanceExecutor_->ScheduleOutOfBand();
+    }
+
+    void Stop() final
+    {
+        YT_UNUSED_FUTURE(MaintenanceExecutor_->Stop());
+    }
+
+    std::vector<TChunkInfo> GetChunkInfos() final
+    {
+        std::vector<TChunkInfo> infos;
         for (const auto& chunk : GetChunks()) {
-            fluent.Item(ToString(chunk->ChunkId)).BeginMap()
-                .Item("index").Value(chunk->Index)
-                .Item("read_only").Value(chunk->ReadOnly)
-                .Item("seal_state").Value(chunk->SealState.load())
-                .Item("record_count").Value(chunk->RecordCount.load())
-                .Item("data_size").Value(chunk->DataSize.load())
-                .Item("alive_block_count").Value(chunk->AliveBlockCount.load())
-                .Item("droppable").Value(IsChunkDroppable(chunk))
-            .EndMap();
+            infos.push_back({
+                .ChunkId = chunk->ChunkId,
+                .ChunkIndex = chunk->Index,
+                .RestoredFromSnapshot = chunk->RestoredFromSnapshot,
+                .SealState = chunk->SealState.load(),
+                .RecordCount = chunk->RecordCount.load(),
+                .DataSize = chunk->DataSize.load(),
+                .ReferencedBlockCount = chunk->ReferencedBlockCount.load(),
+                .WrittenBlockCount = chunk->WrittenBlockCount.load(),
+                .Droppable = IsChunkDroppable(chunk),
+            });
         }
+        return infos;
+    }
+
+    void SubscribeFailed(const TCallback<void(const TError&)>& callback) final
+    {
+        Failed_.Subscribe(callback);
+    }
+
+    void UnsubscribeFailed(const TCallback<void(const TError&)>& callback) final
+    {
+        Failed_.Unsubscribe(callback);
     }
 
 private:
@@ -347,19 +396,28 @@ private:
     const NLogging::TLogger Logger;
 
     const IChunkFragmentReaderPtr FragmentReader_;
+    const IAdaptiveHedgingManagerPtr HedgingManager_;
     const TPeriodicExecutorPtr MaintenanceExecutor_;
+
+    //! Failure is terminal: once fired, every entry point refuses work and every retry loop gives up.
+    TSingleShotCallbackList<void(const TError&)> Failed_;
+
+    static TError MakeFailedError()
+    {
+        return TError("Block store has failed");
+    }
 
     struct TChunkEntry final
     {
         TChunkEntry(
             int index,
             TChunkId chunkId,
-            bool readOnly,
+            bool restoredFromSnapshot,
             IJournalChunkWriterPtr writer,
             const TExponentialBackoffOptions& sealBackoffOptions)
             : Index(index)
             , ChunkId(chunkId)
-            , ReadOnly(readOnly)
+            , RestoredFromSnapshot(restoredFromSnapshot)
             , Writer(std::move(writer))
             , SealBackoff(sealBackoffOptions)
         { }
@@ -367,8 +425,9 @@ private:
         const int Index;
         const TChunkId ChunkId;
 
-        //! A restored chunk is read-only and owned by the snapshot table it came from, not by this store.
-        const bool ReadOnly;
+        //! A restored chunk is owned by the snapshot table it came from, not by this store, so the store
+        //! never writes to it and cannot unstage it.
+        const bool RestoredFromSnapshot;
 
         //! Released once the chunk leaves the writable set.
         IJournalChunkWriterPtr Writer;
@@ -378,7 +437,7 @@ private:
         std::atomic<i64> DataSize = 0;
 
         //! Atomic so the maintenance scan can read the terminal Done state lock-free.
-        std::atomic<ESealState> SealState = ESealState::None;
+        std::atomic<EChunkSealState> SealState = EChunkSealState::None;
 
         //! Set once the chunk is sealed; a snapshot referencing the chunk waits for this.
         const TPromise<void> SealedPromise = NewPromise<void>();
@@ -387,7 +446,9 @@ private:
         TBackoffStrategy SealBackoff;
         TInstant SealRetryDeadline;
 
-        std::atomic<i64> AliveBlockCount = 0;
+        std::atomic<i64> ReferencedBlockCount = 0;
+        //! Every block ever written to the chunk; only grows, so it settles once the chunk retires.
+        std::atomic<i64> WrittenBlockCount = 0;
         std::optional<TInstant> DroppableSince;
     };
 
@@ -400,10 +461,13 @@ private:
     };
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, ChunkLock_);
-    //! All three are guarded by ChunkLock_.
+    //! All of these are guarded by ChunkLock_.
     THashMap<int, TChunkEntryPtr> IndexToChunk_;
     THashMap<TChunkId, TChunkEntryPtr> ChunkIdToChunk_;
     int NextChunkIndex_ = 0;
+    //! Accumulated across #RestoreBlocks batches, consumed by #EndRestoreBlocks.
+    THashMap<TChunkId, int> RestoredChunkIdToIndex_;
+    std::vector<TChunkId> RestoredChunkIds_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, WriteLock_);
     //! Chunks currently accepting writes; retired when full or on writer failure.
@@ -411,7 +475,6 @@ private:
     //! Chunks abandoned but not yet sealed, i.e. exactly those the maintenance tick drives. Guarded by
     //! WriteLock_.
     THashSet<TChunkEntryPtr> ChunksToSeal_;
-    TError FatalWriteError_;
 
     //! Bounds and paces chunk-creation retries. Reset after each successful creation.
     TBackoffStrategy ChunkCreationBackoff_;
@@ -550,7 +613,8 @@ private:
                 });
             }
 
-            chunk->AliveBlockCount.fetch_add(BlockCount_);
+            chunk->ReferencedBlockCount.fetch_add(BlockCount_);
+            chunk->WrittenBlockCount.fetch_add(BlockCount_);
 
             YT_LOG_DEBUG("Write session succeeded (ChunkId: %v, RecordIndex: %v)",
                 chunk->ChunkId,
@@ -585,21 +649,21 @@ private:
 
     std::optional<TWriteHandle> TryDispatchWrite(const TSharedRef& record)
     {
+        if (Failed_.IsFired()) {
+            THROW_ERROR MakeFailedError();
+        }
+
         TChunkEntryPtr evictedChunk;
         std::optional<TWriteHandle> result;
         {
             auto guard = Guard(WriteLock_);
-
-            if (!FatalWriteError_.IsOK()) {
-                THROW_ERROR FatalWriteError_;
-            }
 
             if (WritableChunks_.empty()) {
                 return std::nullopt;
             }
 
             auto index = RandomNumber<size_t>(WritableChunks_.size());
-            const auto& chunk = WritableChunks_[index];
+            auto chunk = WritableChunks_[index];
 
             chunk->RecordCount += 1;
             chunk->DataSize += std::ssize(record);
@@ -634,16 +698,17 @@ private:
         DropDeadChunks();
     }
 
+    //! A sealed chunk with no live blocks left. We drop it from our tracking; a store-owned one is also
+    //! unstaged (a restored one cannot be -- its snapshot table owns it).
     static bool IsChunkDroppable(const TChunkEntryPtr& chunk)
     {
         return
-            !chunk->ReadOnly &&
-            chunk->SealState.load() == ESealState::Done &&
-            chunk->AliveBlockCount.load() == 0;
+            chunk->SealState.load() == EChunkSealState::Done &&
+            chunk->ReferencedBlockCount.load() == 0;
     }
 
-    //! A failed unstage is not retried; the chunk is then reclaimed only when the device transaction
-    //! aborts.
+    //! A failed detach or unstage is not retried; the chunk is then reclaimed only when the device
+    //! transaction aborts.
     void DropDeadChunks()
     {
         auto chunks = GetChunks();
@@ -667,8 +732,43 @@ private:
                 continue;
             }
 
-            TryUnstageChunk(chunk);
+            // The attach ref is the store's own, so it must be released for a restored chunk too;
+            // only the staging ref belongs to whoever staged the chunk.
+            if (ChunkListId_) {
+                TryDetachChunk(chunk);
+            }
+            if (!chunk->RestoredFromSnapshot) {
+                TryUnstageChunk(chunk);
+            }
             ForgetChunk(chunk);
+        }
+    }
+
+    void TryDetachChunk(const TChunkEntryPtr& chunk)
+    {
+        // The mutation is on the parent chunk list, so route by its cell rather than the chunk's.
+        TChunkServiceProxy proxy(Client_->GetMasterChannelOrThrow(
+            EMasterChannelKind::Leader,
+            CellTagFromId(ChunkListId_)));
+
+        YT_LOG_INFO("Detaching dead block store chunk (ChunkId: %v, ChunkListId: %v)",
+            chunk->ChunkId,
+            ChunkListId_);
+
+        auto req = proxy.DetachChunkTrees();
+        GenerateMutationId(req);
+        ToProto(req->mutable_parent_id(), ChunkListId_);
+        ToProto(req->add_child_ids(), chunk->ChunkId);
+        auto error = WaitFor(req->Invoke());
+
+        if (error.IsOK()) {
+            YT_LOG_INFO("Dead block store chunk detached (ChunkId: %v, ChunkListId: %v)",
+                chunk->ChunkId,
+                ChunkListId_);
+        } else {
+            YT_LOG_WARNING(error, "Failed to detach dead block store chunk; ignored (ChunkId: %v, ChunkListId: %v)",
+                chunk->ChunkId,
+                ChunkListId_);
         }
     }
 
@@ -677,17 +777,23 @@ private:
         TChunkServiceProxy proxy(Client_->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
             CellTagFromId(chunk->ChunkId)));
-        auto batchReq = proxy.ExecuteBatch();
-        GenerateMutationId(batchReq);
-        NCypressClient::SetTransactionId(batchReq, TransactionId_);
 
-        auto* req = batchReq->add_unstage_chunk_tree_subrequests();
+        YT_LOG_INFO("Unstaging dead block store chunk (ChunkId: %v)",
+            chunk->ChunkId);
+
+        auto req = proxy.UnstageChunkTree();
+        GenerateMutationId(req);
         ToProto(req->mutable_chunk_tree_id(), chunk->ChunkId);
         req->set_recursive(false);
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        if (auto error = GetCumulativeError(batchRspOrError); !error.IsOK()) {
-            YT_LOG_WARNING(error, "Failed to unstage dead chunk; ignored (ChunkId: %v)",
+        auto rspOrError = WaitFor(req->Invoke());
+        auto error = rspOrError.IsOK() ? FromProto<TError>(rspOrError.Value()->error()) : TError(rspOrError);
+
+        if (error.IsOK()) {
+            YT_LOG_INFO("Dead block store chunk unstaged (ChunkId: %v)",
+                chunk->ChunkId);
+        } else {
+            YT_LOG_WARNING(error, "Failed to unstage dead block store chunk; ignored (ChunkId: %v)",
                 chunk->ChunkId);
         }
     }
@@ -727,11 +833,11 @@ private:
     void RefillWritableChunks()
     {
         while (true) {
+            if (Failed_.IsFired()) {
+                return;
+            }
             {
                 auto guard = Guard(WriteLock_);
-                if (!FatalWriteError_.IsOK()) {
-                    return;
-                }
                 if (std::ssize(WritableChunks_) >= Config_->WriteParallelism) {
                     break;
                 }
@@ -753,10 +859,7 @@ private:
                     auto error = TError("Failed to create block store chunk, out of retries")
                         << ex;
                     YT_LOG_ERROR(error);
-                    {
-                        auto guard = Guard(WriteLock_);
-                        FatalWriteError_ = error;
-                    }
+                    Failed_.Fire(error);
                     return;
                 }
 
@@ -771,11 +874,8 @@ private:
 
     void CreateChunk()
     {
-        {
-            auto guard = Guard(WriteLock_);
-            if (!FatalWriteError_.IsOK()) {
-                THROW_ERROR FatalWriteError_;
-            }
+        if (Failed_.IsFired()) {
+            THROW_ERROR MakeFailedError();
         }
 
         int nextChunkIndex;
@@ -788,10 +888,7 @@ private:
         if (nextChunkIndex >= MaxChunksPerDevice) {
             auto error = TError("Block store exhausted its chunk index space");
             YT_LOG_ERROR(error);
-            {
-                auto guard = Guard(WriteLock_);
-                FatalWriteError_ = error;
-            }
+            Failed_.Fire(error);
             THROW_ERROR error;
         }
 
@@ -825,6 +922,12 @@ private:
         WaitFor(writer->Open())
             .ThrowOnError();
 
+        // Subscribe before publishing the chunk: once it is visible, a concurrent AbandonChunk may
+        // clear its writer. Single-shot; fires in situ if the writer has already failed.
+        writer->SubscribeFailed(
+            BIND(&TBlockStore::OnChunkWriteFailed, MakeWeak(this), sessionId.ChunkId)
+                .Via(Invoker_));
+
         // Into the read map before the writable set: a write can dispatch the moment the chunk is
         // writable, and a read of what it wrote must already resolve.
         TChunkEntryPtr chunk;
@@ -832,7 +935,7 @@ private:
             auto guard = WriterGuard(ChunkLock_);
             int index = NextChunkIndex_++;
             chunk = New<TChunkEntry>(
-                index, sessionId.ChunkId, /*readOnly*/ false, std::move(writer), Config_->SealBackoff);
+                index, sessionId.ChunkId, /*restoredFromSnapshot*/ false, std::move(writer), Config_->SealBackoff);
             EmplaceOrCrash(IndexToChunk_, index, chunk);
             EmplaceOrCrash(ChunkIdToChunk_, chunk->ChunkId, chunk);
         }
@@ -840,12 +943,6 @@ private:
             auto guard = Guard(WriteLock_);
             WritableChunks_.push_back(chunk);
         }
-
-        // Reactively drop the writer once it fails (single-shot; fires in situ if the
-        // writer has already failed by the time we subscribe).
-        chunk->Writer->SubscribeFailed(
-            BIND(&TBlockStore::OnChunkWriteFailed, MakeWeak(this), chunk->ChunkId)
-                .Via(Invoker_));
 
         YT_LOG_INFO("Block store chunk writer opened (ChunkId: %v, Index: %v)",
             sessionId.ChunkId,
@@ -885,22 +982,29 @@ private:
         return sessionId;
     }
 
-    std::vector<TStoredBlockId> DoRestoreBlocks(std::vector<TStoredBlockRef> blockRefs)
+    std::vector<TStoredBlockId> DoRestoreBlocks(
+        const std::vector<TSnapshotBlock>& snapshotBlocks)
     {
         i64 blockWithHeaderSize = sizeof(THunkPayloadHeader) + Geometry_.BlockSize;
 
         // Assign a chunk index to each distinct referenced chunk and register a read-only entry for
         // it (no writer) so ReadBlocks can resolve the stored block ids we hand back.
-        THashMap<TChunkId, int> chunkIdToIndex;
-        std::vector<TChunkId> chunksToAttach;
+        auto& chunkIdToIndex = RestoredChunkIdToIndex_;
+        THashMap<int, i64> restoredBlockCounts;
         std::vector<TStoredBlockId> blockIds;
-        blockIds.reserve(blockRefs.size());
+        blockIds.reserve(snapshotBlocks.size());
         {
-            // The maintenance executor may already have created writable chunks; restored chunks take
-            // fresh indices after them. Indices are stable (never reused), so the stored block ids we
-            // return stay valid.
+            // Indices are stable (never reused), so the stored block ids we return stay valid.
             auto guard = WriterGuard(ChunkLock_);
-            for (const auto& ref : blockRefs) {
+            for (const auto& block : snapshotBlocks) {
+                THROW_ERROR_EXCEPTION_UNLESS(
+                    0 <= block.Index && block.Index < Geometry_.BlockCount,
+                    "Snapshot block index %v is out of range [0, %v) for a device of size %v",
+                    block.Index,
+                    Geometry_.BlockCount,
+                    Geometry_.GetByteSize());
+
+                const auto& ref = block.Ref;
                 auto [it, inserted] = chunkIdToIndex.try_emplace(ref.ChunkId);
                 if (inserted) {
                     // New chunks are created on the transaction's cell (see #CreateChunk), so it must match
@@ -920,15 +1024,15 @@ private:
                     }
                     it->second = NextChunkIndex_++;
                     auto chunk = New<TChunkEntry>(
-                        it->second, ref.ChunkId, /*readOnly*/ true, /*writer*/ nullptr, Config_->SealBackoff);
+                        it->second, ref.ChunkId, /*restoredFromSnapshot*/ true, /*writer*/ nullptr, Config_->SealBackoff);
                     // A restored chunk is sealed by construction: it is referenced by a snapshot table's
                     // hunk chunk list, which the master only accepts sealed chunks into. Nothing will ever
                     // seal it again, so a later snapshot must not wait for that.
-                    chunk->SealState = ESealState::Done;
+                    chunk->SealState = EChunkSealState::Done;
                     chunk->SealedPromise.Set();
                     EmplaceOrCrash(ChunkIdToChunk_, chunk->ChunkId, chunk);
                     EmplaceOrCrash(IndexToChunk_, it->second, std::move(chunk));
-                    chunksToAttach.push_back(ref.ChunkId);
+                    RestoredChunkIds_.push_back(ref.ChunkId);
                 }
 
                 // The refs come from a snapshot table, which may have been written by a device with a
@@ -947,7 +1051,7 @@ private:
                         << TErrorAttribute("chunk_id", ref.ChunkId);
                 }
 
-                auto fragmentIndex = ref.RecordOffset / blockWithHeaderSize;
+                auto fragmentIndex = static_cast<int>(ref.RecordOffset / blockWithHeaderSize);
                 if (fragmentIndex >= MaxBlocksPerRecord) {
                     THROW_ERROR_EXCEPTION("Snapshot block record offset is out of range")
                         << TErrorAttribute("record_offset", ref.RecordOffset)
@@ -961,42 +1065,70 @@ private:
                         << TErrorAttribute("chunk_id", ref.ChunkId);
                 }
 
+                ++restoredBlockCounts[it->second];
                 blockIds.push_back(MakeStoredBlockId({
                     .ChunkIndex = it->second,
                     .RecordIndex = ref.RecordIndex,
-                    .FragmentIndex = static_cast<int>(fragmentIndex),
+                    .FragmentIndex = fragmentIndex,
                 }));
+            }
+
+            // Every restored block is live at restore; ReleaseBlock tracks them down as they are
+            // superseded.
+            for (auto [chunkIndex, blockCount] : restoredBlockCounts) {
+                GetOrCrash(IndexToChunk_, chunkIndex)->ReferencedBlockCount.fetch_add(blockCount);
             }
         }
 
-        if (!chunksToAttach.empty() && ChunkListId_) {
-            AttachChunks(ChunkListId_, chunksToAttach);
-        }
         return blockIds;
+    }
+
+    void DoEndRestoreBlocks(const TChunkBlockCounts& chunkBlockCounts)
+    {
+        i64 blockWithHeaderSize = sizeof(THunkPayloadHeader) + Geometry_.BlockSize;
+
+        std::vector<TChunkId> chunkIdsToAttach;
+        {
+            auto guard = WriterGuard(ChunkLock_);
+            // Seed the recovered total block count (and matching data size) of each sealed chunk,
+            // covering every block ever written to it -- live or already superseded.
+            for (auto [chunkId, blockCount] : chunkBlockCounts) {
+                if (auto it = ChunkIdToChunk_.find(chunkId); it != ChunkIdToChunk_.end()) {
+                    it->second->WrittenBlockCount.store(blockCount);
+                    it->second->DataSize.store(blockCount * blockWithHeaderSize);
+                }
+            }
+            RestoredChunkIdToIndex_.clear();
+            chunkIdsToAttach = std::exchange(RestoredChunkIds_, {});
+        }
+
+        if (ChunkListId_ && !chunkIdsToAttach.empty()) {
+            AttachChunks(ChunkListId_, chunkIdsToAttach);
+        }
     }
 
     void AttachChunks(TChunkListId chunkListId, const std::vector<TChunkId>& chunkIds)
     {
+        YT_LOG_INFO("Attaching chunks to the device chunk list (ChunkListId: %v, ChunkCount: %v)",
+            chunkListId,
+            chunkIds.size());
+
         TChunkServiceProxy proxy(Client_->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
             CellTagFromId(chunkListId)));
-        auto batchReq = proxy.ExecuteBatch();
-        GenerateMutationId(batchReq);
-        NCypressClient::SetTransactionId(batchReq, TransactionId_);
-
-        auto* req = batchReq->add_attach_chunk_trees_subrequests();
+        auto req = proxy.AttachChunkTrees();
+        GenerateMutationId(req);
+        ToProto(req->mutable_transaction_id(), TransactionId_);
         ToProto(req->mutable_parent_id(), chunkListId);
         ToProto(req->mutable_child_ids(), chunkIds);
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
+            rspOrError,
             "Failed to attach chunks to the device chunk list %v",
             chunkListId);
 
-        YT_LOG_INFO("Attached chunks to the device chunk list (ChunkListId: %v, ChunkCount: %v)",
-            chunkListId,
-            chunkIds.size());
+        YT_LOG_INFO("Chunks attached");
     }
 
     void OnChunkWriteFailed(TChunkId chunkId, const TError& error)
@@ -1033,33 +1165,48 @@ private:
 
         auto writer = std::exchange(chunk->Writer, nullptr);
         bool abandoned = static_cast<bool>(writer);
-        if (writer) {
+        if (abandoned) {
             chunk->Replicas = writer->GetChunkReplicaDescriptors();
-            CloseWriter(chunk->ChunkId, writer);
-        }
-
-        if (chunk->SealState == ESealState::None) {
-            chunk->SealState = ESealState::Waiting;
-            InsertOrCrash(ChunksToSeal_, chunk);
+            // Sealing is enqueued once the close settles; see #CloseWriter.
+            CloseWriter(chunk, writer);
+        } else {
+            ScheduleChunkSeal(chunk);
         }
 
         return abandoned;
     }
 
-    //! Closes an abandoned chunk's writer.
+    //! Queues #chunk for the next #SealAbandonedChunks pass. Idempotent.
+    void ScheduleChunkSeal(const TChunkEntryPtr& chunk)
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(WriteLock_);
+
+        if (chunk->SealState == EChunkSealState::None) {
+            chunk->SealState = EChunkSealState::Waiting;
+            InsertOrCrash(ChunksToSeal_, chunk);
+        }
+    }
+
+    //! Closes an abandoned chunk's writer, then queues the chunk for sealing.
     /*!
-     *  Best effort: a dropped chunk's writer has already failed, so its close fails too. Sealing does not
-     *  depend on the close -- it aborts the replicas' sessions itself -- so the error is merely logged
-     *  and nothing waits for it.
+     *  Sealing aborts the replicas' sessions, which would fail a close whose flush is still in flight,
+     *  so the seal waits for the close to settle. The close always settles: a flush error fails the
+     *  writer terminally. Its outcome is irrelevant -- the seal derives the row count from the replicas.
      */
-    void CloseWriter(TChunkId chunkId, const IJournalChunkWriterPtr& writer)
+    void CloseWriter(const TChunkEntryPtr& chunk, const IJournalChunkWriterPtr& writer)
     {
         writer->Close().Subscribe(
-            BIND([this, this_ = MakeStrong(this), chunkId] (const TError& error) {
+            BIND([this, this_ = MakeStrong(this), chunk] (const TError& error) {
                 if (!error.IsOK()) {
                     YT_LOG_WARNING(error, "Failed to close block store chunk writer (ChunkId: %v)",
-                        chunkId);
+                        chunk->ChunkId);
                 }
+
+                {
+                    auto guard = Guard(WriteLock_);
+                    ScheduleChunkSeal(chunk);
+                }
+                MaintenanceExecutor_->ScheduleOutOfBand();
             })
             .Via(Invoker_));
     }
@@ -1072,8 +1219,8 @@ private:
             auto guard = Guard(WriteLock_);
             for (const auto& chunk : ChunksToSeal_) {
                 // Hold off until the backoff from a recent seal failure has elapsed.
-                if (chunk->SealState == ESealState::Waiting && now >= chunk->SealRetryDeadline) {
-                    chunk->SealState = ESealState::Running;
+                if (chunk->SealState == EChunkSealState::Waiting && now >= chunk->SealRetryDeadline) {
+                    chunk->SealState = EChunkSealState::Running;
                     chunksToSeal.push_back(chunk);
                 }
             }
@@ -1095,7 +1242,7 @@ private:
             chunk->SealBackoff.Next();
             auto backoff = chunk->SealBackoff.GetBackoff();
             chunk->SealRetryDeadline = TInstant::Now() + backoff;
-            chunk->SealState = ESealState::Waiting;
+            chunk->SealState = EChunkSealState::Waiting;
             guard.Release();
 
             YT_LOG_WARNING(ex, "Failed to seal block store chunk, will retry (ChunkId: %v, Backoff: %v)",
@@ -1106,8 +1253,8 @@ private:
 
         {
             auto guard = Guard(WriteLock_);
-            YT_VERIFY(chunk->SealState == ESealState::Running);
-            chunk->SealState = ESealState::Done;
+            YT_VERIFY(chunk->SealState == EChunkSealState::Running);
+            chunk->SealState = EChunkSealState::Done;
             EraseOrCrash(ChunksToSeal_, chunk);
         }
         chunk->SealedPromise.Set();
@@ -1169,7 +1316,7 @@ DEFINE_REFCOUNTED_TYPE(TBlockStore)
 
 IBlockStorePtr CreateJournalBlockStore(
     TJournalBlockStoreConfigPtr config,
-    TBlockDeviceGeometry geometry,
+    const TBlockDeviceGeometry& geometry,
     TJournalBlockDeviceOptionsPtr options,
     NNative::IClientPtr client,
     TTransactionId transactionId,
