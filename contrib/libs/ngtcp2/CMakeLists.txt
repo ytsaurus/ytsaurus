@@ -53,6 +53,7 @@ target_sources(contrib-libs-ngtcp2 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_crypto.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_dcidtr.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_err.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_fmt.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_frame_chain.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_gaptr.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_idtr.c
@@ -83,7 +84,7 @@ target_sources(contrib-libs-ngtcp2 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_unreachable.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_vec.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_version.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_window_filter.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_wf.c
 )
 
 
@@ -201,6 +202,14 @@ set_property(
 
 set_property(
   SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_fmt.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_frame_chain.c
   APPEND
   PROPERTY
@@ -441,7 +450,7 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_window_filter.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_wf.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
