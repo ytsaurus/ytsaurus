@@ -401,7 +401,7 @@ public:
         Timeout_ = timeout;
     }
 
-    virtual void SetDeadline(std::optional<TInstant> deadline) override
+    void SetDeadline(std::optional<TInstant> deadline) override
     {
         if (!deadline || *deadline == TInstant::Max()) {
             Timeout_ = std::nullopt;
