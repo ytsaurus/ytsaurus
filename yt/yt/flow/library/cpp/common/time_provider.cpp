@@ -64,8 +64,10 @@ public:
     {
         if (!barrier) {
             auto guard = Guard(TimestampCacheLock_);
+            // Strict comparison: with a zero TTL the cache must never hit, even when both
+            // calls land on the same clock tick.
             if (CachedTimestampGeneratedAt_ != TInstant::Zero() &&
-                CachedTimestampGeneratedAt_ + TimestampCacheTtl_ >= TInstant::Now())
+                CachedTimestampGeneratedAt_ + TimestampCacheTtl_ > TInstant::Now())
             {
                 return MakeFuture(CachedTimestamp_);
             }
