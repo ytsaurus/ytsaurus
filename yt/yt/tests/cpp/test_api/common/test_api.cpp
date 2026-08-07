@@ -1,14 +1,15 @@
-#include <yt/yt/tests/cpp/test_base/api_test_base.h>
-
-#include <yt/yt/client/api/rowset.h>
-#include <yt/yt/client/api/transaction.h>
-#include <yt/yt/client/api/table_reader.h>
-#include <yt/yt/client/api/table_writer.h>
-
 #include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/yt/ytlib/object_client/public.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/public.h>
+
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/table_reader.h>
+#include <yt/yt/client/api/table_writer.h>
+#include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/client/queue_client/consumer_client.h>
+#include <yt/yt/client/queue_client/queue_rowset.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -16,18 +17,18 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
-#include <yt/yt/client/ypath/rich.h>
-
-#include <yt/yt/client/queue_client/queue_rowset.h>
-#include <yt/yt/client/queue_client/consumer_client.h>
 
 #include <yt/yt/client/transaction_client/ts_literal.h>
+
+#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <yt/yt/tests/cpp/test_base/api_test_base.h>
 
 #include <util/datetime/base.h>
 
@@ -1092,7 +1093,7 @@ public:
     }
 };
 
-TEST_F(TOptionalKeyColumnsTest, TestWriteRowsOnKeyPrefix)
+TEST_F(TOptionalKeyColumnsTest, WriteRowsOnKeyPrefix)
 {
     EXPECT_THROW(WriteRow(
         {"k0", "v0"},
@@ -1121,7 +1122,7 @@ TEST_F(TOptionalKeyColumnsTest, TestWriteRowsOnKeyPrefix)
     EXPECT_EQ(expected, actual);
 }
 
-TEST_F(TOptionalKeyColumnsTest, TestLookupOnKeyPrefix)
+TEST_F(TOptionalKeyColumnsTest, LookupOnKeyPrefix)
 {
     WriteRow(
         {"k0", "k1", "k2", "v0"},
@@ -1164,7 +1165,7 @@ TEST_F(TOptionalKeyColumnsTest, TestLookupOnKeyPrefix)
     EXPECT_EQ(expected, actual);
 }
 
-TEST_F(TOptionalKeyColumnsTest, TestDeleteRowsOnKeyPrefix)
+TEST_F(TOptionalKeyColumnsTest, DeleteRowsOnKeyPrefix)
 {
     WriteRow(
         {"k0", "k1", "k2", "v0"},
@@ -1178,7 +1179,7 @@ TEST_F(TOptionalKeyColumnsTest, TestDeleteRowsOnKeyPrefix)
 
     EXPECT_THROW(DeleteRows({"k0"}, "<id=0> 200", /*allowMissingKeyColumns*/ false), TErrorException);
 
-    DeleteRows({"k0"},"<id=0> 200");
+    DeleteRows({"k0"}, "<id=0> 200");
 
     auto rows = SelectAllRows();
     ASSERT_EQ(2u, rows.Size());

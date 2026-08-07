@@ -4,6 +4,8 @@
 
 namespace NYT::NQueueAgent {
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TSnapshot>
 TErrorController<TSnapshot>::TErrorController(
     TSnapshotPtr snapshot)
@@ -59,5 +61,7 @@ bool TErrorController<TSnapshot>::IsLeading() const
 }
 
 template class TErrorController<TQueueSnapshot>;
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueueAgent

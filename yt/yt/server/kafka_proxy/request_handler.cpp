@@ -92,6 +92,11 @@ static const std::string PlainSaslMechanism = "PLAIN";
 
 struct TMethodCounters
 {
+    TCounter RequestCount;
+    TCounter FailedRequestCount;
+    TEventTimer RequestTime;
+    TEnumIndexedArray<NKafka::EErrorCode, TCounter> ErrorCodeToCounter;
+
     TMethodCounters() = default;
 
     explicit TMethodCounters(const TProfiler& profiler)
@@ -122,11 +127,6 @@ struct TMethodCounters
             ErrorCodeToCounter[code].Increment();
         }
     }
-
-    TCounter RequestCount;
-    TCounter FailedRequestCount;
-    TEventTimer RequestTime;
-    TEnumIndexedArray<NKafka::EErrorCode, TCounter> ErrorCodeToCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -469,17 +469,6 @@ private:
                 .MinVersion = 2,
                 .MaxVersion = 4,
             },
-            // TODO(nadya73): Support it later.
-            // TRspApiKey{
-            //     .ApiKey = static_cast<int>(ERequestType::UpdateMetadata),
-            //     .MinVersion = 0,
-            //     .MaxVersion = 0,
-            // },
-            // TRspApiKey{
-            //     .ApiKey = static_cast<int>(ERequestType::DescribeGroups),
-            //     .MinVersion = 0,
-            //     .MaxVersion = 0,
-            // },
         };
 
         return response;

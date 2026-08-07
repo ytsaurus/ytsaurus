@@ -982,7 +982,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
         auto guard = ReaderGuard(ObjectLock_);
 
         // NB(panesher): After swap we have here only old objects.
-        auto& oldObjects = freshObjects;
+        const auto& oldObjects = freshObjects;
 
         for (auto objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
             for (const auto& [path, object] : oldObjects[objectKind]) {
@@ -992,7 +992,6 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
             }
         }
     }
-
 
     // Finally, update rows in the controllers. As best effort to prevent some inconsistencies (like enabling trimming
     // with obsolete list of vital registrations), we do that strictly after registration update.
