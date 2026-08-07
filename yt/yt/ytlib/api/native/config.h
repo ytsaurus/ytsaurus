@@ -416,7 +416,7 @@ struct TConnectionDynamicConfig
 
     bool DisableAdaptiveOrderedSchemafulReader;
 
-    bool UseWebAssembly;
+    bool AllowWebAssembly;
 
     // COMPAT(sabdenovch)
     bool GroupByWithLimitIsUnordered;
