@@ -1752,8 +1752,8 @@ private:
     void ProfileHierarchicalJoin(
         TCodegenSource* codegenSource,
         size_t* slotCount,
-        size_t& currentSlot,
-        TTableSchemaPtr& schema,
+        size_t* currentSlot,
+        TTableSchemaPtr* schema,
         const TConstHierarchicalJoinClausePtr& hierarchicalJoin,
         const TJoinProfilerRegistry& joinProfilerRegistry);
 
@@ -2323,8 +2323,8 @@ void TQueryProfiler::Profile(
             ProfileHierarchicalJoin(
                 codegenSource,
                 slotCount,
-                aggregatedSlot,
-                schema,
+                &aggregatedSlot,
+                &schema,
                 hierarchicalJoin,
                 joinProfilerRegistry);
         }
@@ -2333,8 +2333,8 @@ void TQueryProfiler::Profile(
             ProfileHierarchicalJoin(
                 codegenSource,
                 slotCount,
-                aggregatedSlot,
-                schema,
+                &aggregatedSlot,
+                &schema,
                 hierarchicalJoin,
                 joinProfilerRegistry);
         }
@@ -2499,8 +2499,8 @@ i64 InferRowWeightWithNoStrings(const TTableSchemaPtr& schema)
 void TQueryProfiler::ProfileHierarchicalJoin(
     TCodegenSource* codegenSource,
     size_t* slotCount,
-    size_t& currentSlot,
-    TTableSchemaPtr& schema,
+    size_t* currentSlot,
+    TTableSchemaPtr* schema,
     const TConstHierarchicalJoinClausePtr& hierarchicalJoin,
     const TJoinProfilerRegistry& joinProfilerRegistry)
 {
@@ -2512,7 +2512,7 @@ void TQueryProfiler::ProfileHierarchicalJoin(
     int closurePtrIndex = Variables_->AddOpaque<THierarchicalJoinClosure*>(nullptr);
 
     auto buildDomainFragments = TExpressionFragments();
-    auto outerSchemaProvider = TReferenceProvider{schema, {}, nullptr};
+    auto outerSchemaProvider = TReferenceProvider{*schema, {}, nullptr};
     size_t buildDomainSubqueryExprId = TExpressionProfiler::Profile(
         buildDomainSubquery.Get(),
         &outerSchemaProvider,
@@ -2542,7 +2542,7 @@ void TQueryProfiler::ProfileHierarchicalJoin(
     });
 
     auto joiningSubqueryFragments = TExpressionFragments();
-    auto outerSchemaProviderForJoiningSubquery = TReferenceProvider{schema, {}, nullptr};
+    auto outerSchemaProviderForJoiningSubquery = TReferenceProvider{*schema, {}, nullptr};
     size_t joiningSubqueryExprId = TExpressionProfiler::Profile(
         hierarchicalJoin->JoiningSubquery.Get(),
         &outerSchemaProviderForJoiningSubquery,
@@ -2559,16 +2559,16 @@ void TQueryProfiler::ProfileHierarchicalJoin(
 
     auto primaryRowTypes = std::vector<EValueType>();
     {
-        for (const auto& column : schema->Columns()) {
+        for (const auto& column : (*schema)->Columns()) {
             primaryRowTypes.push_back(column.GetWireType());
         }
     }
 
     Fold(primaryRowTypes.size());
-    currentSlot = NHierarchicalJoin::MakeCodegenJoinOp(
+    *currentSlot = NHierarchicalJoin::MakeCodegenJoinOp(
         codegenSource,
         slotCount,
-        currentSlot,
+        *currentSlot,
         paramsIndex,
         buildDomainFragmentInfos,
         buildDomainSubqueryExprId,
@@ -2579,8 +2579,8 @@ void TQueryProfiler::ProfileHierarchicalJoin(
         joiningSubqueryExprId,
         joiningSubqueryFragmentInfos);
 
-    schema = hierarchicalJoin->GetTableSchema(*schema);
-    TSchemaProfiler::Profile(schema);
+    *schema = hierarchicalJoin->GetTableSchema(**schema);
+    TSchemaProfiler::Profile(*schema);
 }
 
 void TQueryProfiler::Profile(
@@ -2816,7 +2816,7 @@ void TQueryProfiler::Profile(
     auto savedSchemaBeforeWhereClause = schema;
 
     for (const auto& hierarchicalJoin : query->HierarchicalJoinsInWhereClause) {
-        ProfileHierarchicalJoin(codegenSource, slotCount, currentSlot, schema, hierarchicalJoin, joinProfilerRegistry);
+        ProfileHierarchicalJoin(codegenSource, slotCount, &currentSlot, &schema, hierarchicalJoin, joinProfilerRegistry);
     }
 
     if (whereClause && !IsTrue(whereClause)) {
@@ -2839,7 +2839,7 @@ void TQueryProfiler::Profile(
     schema = savedSchemaBeforeWhereClause;
 
     for (const auto& hierarchicalJoin : query->HierarchicalJoinsBeforeGroupBy) {
-        ProfileHierarchicalJoin(codegenSource, slotCount, currentSlot, schema, hierarchicalJoin, joinProfilerRegistry);
+        ProfileHierarchicalJoin(codegenSource, slotCount, &currentSlot, &schema, hierarchicalJoin, joinProfilerRegistry);
     }
 
     Profile(codegenSource, query, slotCount, currentSlot, schema, /*mergeMode*/ false, joinProfilerRegistry);
