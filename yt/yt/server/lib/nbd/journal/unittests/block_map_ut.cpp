@@ -27,15 +27,15 @@ TStoredBlockId MakeStoredInChunk(int chunkIndex, int recordIndex, int fragmentIn
     });
 }
 
-std::shared_ptr<std::vector<TStoredBlockId>> TrackStoredBlockDeaths(const IBlockMapPtr& blockMap)
+std::shared_ptr<std::vector<TStoredBlockId>> TrackUnreferencedStoredBlocks(const IBlockMapPtr& blockMap)
 {
-    auto diedIds = std::make_shared<std::vector<TStoredBlockId>>();
+    auto unreferencedIds = std::make_shared<std::vector<TStoredBlockId>>();
     blockMap->SubscribeStoredBlockUnreferenced(BIND(
         [] (const std::shared_ptr<std::vector<TStoredBlockId>>& out, TStoredBlockId id) {
             out->push_back(id);
         },
-        diedIds));
-    return diedIds;
+        unreferencedIds));
+    return unreferencedIds;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -338,70 +338,70 @@ TEST(TBlockMapTest, RepeatedSnapshotsWithWritesAreEachPointInTime)
     EXPECT_EQ(second.Blocks[0], std::pair(0, MakeDirty(11)));
 }
 
-TEST(TBlockMapTest, OverwritingStoredBlockKillsIt)
+TEST(TBlockMapTest, OverwritingStoredBlockUnreferencesIt)
 {
     auto blockMap = CreateBlockMap(1);
-    auto diedIds = std::make_shared<std::vector<TStoredBlockId>>();
+    auto unreferencedIds = std::make_shared<std::vector<TStoredBlockId>>();
     blockMap->SubscribeStoredBlockUnreferenced(BIND(
         [] (const std::shared_ptr<std::vector<TStoredBlockId>>& out, TStoredBlockId id) {
             out->push_back(id);
         },
-        diedIds));
+        unreferencedIds));
 
     // Write + flush to stored 10: nothing is unreferenced yet.
     blockMap->PutBlock(0, TDirtyBlockId(1));
     EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(1), TStoredBlockId(10)));
-    EXPECT_TRUE(diedIds->empty());
+    EXPECT_TRUE(unreferencedIds->empty());
 
-    // Overwriting the (clean) block kills stored 10.
+    // Overwriting the (clean) block unreferences stored 10.
     blockMap->PutBlock(0, TDirtyBlockId(2));
-    ASSERT_EQ(std::ssize(*diedIds), 1);
-    EXPECT_EQ((*diedIds)[0], TStoredBlockId(10));
+    ASSERT_EQ(std::ssize(*unreferencedIds), 1);
+    EXPECT_EQ((*unreferencedIds)[0], TStoredBlockId(10));
 
-    // Re-flushing and overwriting again kills the next stored id.
+    // Re-flushing and overwriting again unreferences the next stored id.
     EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(2), TStoredBlockId(11)));
     blockMap->PutBlock(0, TDirtyBlockId(3));
-    ASSERT_EQ(std::ssize(*diedIds), 2);
-    EXPECT_EQ((*diedIds)[1], TStoredBlockId(11));
+    ASSERT_EQ(std::ssize(*unreferencedIds), 2);
+    EXPECT_EQ((*unreferencedIds)[1], TStoredBlockId(11));
 }
 
-TEST(TBlockMapTest, OverwritingDirtyBlockKillsNothing)
+TEST(TBlockMapTest, OverwritingDirtyBlockUnreferencesNothing)
 {
     auto blockMap = CreateBlockMap(1);
-    auto diedIds = std::make_shared<std::vector<TStoredBlockId>>();
+    auto unreferencedIds = std::make_shared<std::vector<TStoredBlockId>>();
     blockMap->SubscribeStoredBlockUnreferenced(BIND(
         [] (const std::shared_ptr<std::vector<TStoredBlockId>>& out, TStoredBlockId id) {
             out->push_back(id);
         },
-        diedIds));
+        unreferencedIds));
 
-    // A dirty block overwritten before it flushes never had a stored id: no stored death.
+    // A dirty block overwritten before it flushes never had a stored id: nothing to unreference.
     blockMap->PutBlock(0, TDirtyBlockId(1));
     blockMap->PutBlock(0, TDirtyBlockId(2));
-    EXPECT_TRUE(diedIds->empty());
+    EXPECT_TRUE(unreferencedIds->empty());
 }
 
-TEST(TBlockMapTest, LostFlushRaceKillsStoredBlock)
+TEST(TBlockMapTest, LostFlushRaceUnreferencesStoredBlock)
 {
     auto blockMap = CreateBlockMap(1);
-    auto diedIds = std::make_shared<std::vector<TStoredBlockId>>();
+    auto unreferencedIds = std::make_shared<std::vector<TStoredBlockId>>();
     blockMap->SubscribeStoredBlockUnreferenced(BIND(
         [] (const std::shared_ptr<std::vector<TStoredBlockId>>& out, TStoredBlockId id) {
             out->push_back(id);
         },
-        diedIds));
+        unreferencedIds));
 
     // A newer write supersedes the drained dirty id, so the flush of stored 99 is never adopted --
-    // it is dead on arrival.
+    // it is unreferenced on arrival.
     blockMap->PutBlock(0, TDirtyBlockId(1));
     blockMap->PutBlock(0, TDirtyBlockId(2));
     EXPECT_FALSE(blockMap->TryPutBlock(0, MakeDirty(1), TStoredBlockId(99)));
-    ASSERT_EQ(std::ssize(*diedIds), 1);
-    EXPECT_EQ((*diedIds)[0], TStoredBlockId(99));
+    ASSERT_EQ(std::ssize(*unreferencedIds), 1);
+    EXPECT_EQ((*unreferencedIds)[0], TStoredBlockId(99));
 
     // The winning flush is adopted and stays referenced.
     EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(2), TStoredBlockId(100)));
-    EXPECT_EQ(std::ssize(*diedIds), 1);
+    EXPECT_EQ(std::ssize(*unreferencedIds), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -409,24 +409,24 @@ TEST(TBlockMapTest, LostFlushRaceKillsStoredBlock)
 TEST(TBlockMapTest, TryPutBlockRelocatesStoredBlock)
 {
     auto blockMap = CreateBlockMap(2);
-    auto diedIds = TrackStoredBlockDeaths(blockMap);
+    auto unreferencedIds = TrackUnreferencedStoredBlocks(blockMap);
 
     auto oldId = MakeStoredInChunk(1, 0);
     auto newId = MakeStoredInChunk(2, 0);
     blockMap->PutBlock(0, TDirtyBlockId(1));
     EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(1), oldId));
 
-    // A matching remap repoints the block and kills the old (superseded) stored id.
+    // A matching remap repoints the block and unreferences the old (superseded) stored id.
     EXPECT_TRUE(blockMap->TryPutBlock(0, ToMappedBlockId(oldId), newId));
     EXPECT_EQ(blockMap->FindBlock(0), ToMappedBlockId(newId));
-    ASSERT_EQ(std::ssize(*diedIds), 1);
-    EXPECT_EQ((*diedIds)[0], oldId);
+    ASSERT_EQ(std::ssize(*unreferencedIds), 1);
+    EXPECT_EQ((*unreferencedIds)[0], oldId);
 }
 
 TEST(TBlockMapTest, TryPutBlockRejectsSupersededRelocation)
 {
     auto blockMap = CreateBlockMap(1);
-    auto diedIds = TrackStoredBlockDeaths(blockMap);
+    auto unreferencedIds = TrackUnreferencedStoredBlocks(blockMap);
 
     auto oldId = MakeStoredInChunk(1, 0);
     auto newId = MakeStoredInChunk(2, 0);
@@ -434,13 +434,13 @@ TEST(TBlockMapTest, TryPutBlockRejectsSupersededRelocation)
     EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(1), oldId));
 
     // A newer write superseded the block being compacted, so the remap is rejected and the freshly
-    // written copy is dead on arrival -- the surviving mapping is untouched.
+    // written copy is unreferenced on arrival -- the surviving mapping is untouched.
     blockMap->PutBlock(0, TDirtyBlockId(2));
-    EXPECT_EQ(std::ssize(*diedIds), 1);
+    EXPECT_EQ(std::ssize(*unreferencedIds), 1);
     EXPECT_FALSE(blockMap->TryPutBlock(0, ToMappedBlockId(oldId), newId));
     EXPECT_EQ(blockMap->FindBlock(0), MakeDirty(2));
-    ASSERT_EQ(std::ssize(*diedIds), 2);
-    EXPECT_EQ((*diedIds)[1], newId);
+    ASSERT_EQ(std::ssize(*unreferencedIds), 2);
+    EXPECT_EQ((*unreferencedIds)[1], newId);
 }
 
 TEST(TBlockMapTest, IterateBlocks)
