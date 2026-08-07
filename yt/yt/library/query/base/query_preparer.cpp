@@ -1188,7 +1188,7 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
         return;
     }
 
-    auto indexToAlias = THashMap<i64, std::string>();
+    THashMap<i64, std::string> indexToAlias;
 
     for (i64 projectionIndex = 0; projectionIndex < std::ssize(*projections); ++projectionIndex) {
         auto& expr = (*projections)[projectionIndex];
@@ -1300,7 +1300,7 @@ const TDataSplit& GetDataSplitOrThrow(
 {
     auto it = dataSplits.find(path);
     if (it == dataSplits.end()) {
-        THROW_ERROR_EXCEPTION("Data split not found for table path %Qv", path);
+        THROW_ERROR_EXCEPTION("Data split not found for table path %v", path);
     }
     return it->second;
 }
@@ -1316,7 +1316,7 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
         const auto* table = std::get_if<NAst::TTableDescriptor>(&queryAst.FromClause);
 
         YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v, SubqueryDepth: %v)",
-            table ? table->Path : "unapplicable",
+            table ? table->Path : "inapplicable",
             MakeFormattableView(
                 queryAst.Joins,
                 [] (TStringBuilderBase* builder, const std::variant<NAst::TJoin, NAst::TArrayJoin>& join) {
@@ -1327,7 +1327,7 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
             depth);
     }
 
-    auto asyncDataSplits = THashMap<NYPath::TYPath, TFuture<TDataSplit>>();
+    THashMap<NYPath::TYPath, TFuture<TDataSplit>> asyncDataSplits;
 
     auto pathCollector = TPathCollector([&] (const NYPath::TYPath& path) -> void {
         asyncDataSplits.try_emplace(path, callbacks->GetInitialSplit(path));
@@ -1346,10 +1346,10 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
     auto dataSplitPairs = WaitForFast(AllSucceeded(futures))
         .ValueOrThrow();
 
-    auto result = THashMap<NYPath::TYPath, TDataSplit>();
+    THashMap<NYPath::TYPath, TDataSplit> result;
     result.reserve(dataSplitPairs.size());
     for (auto& pair : dataSplitPairs) {
-        result.emplace(std::move(pair));
+        result.insert(std::move(pair));
     }
 
     YT_LOG_DEBUG("Initial data splits received");
