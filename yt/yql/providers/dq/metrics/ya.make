@@ -1,19 +1,14 @@
 LIBRARY()
 
-SET(
-    SOURCE
-    metrics_printer.cpp
-)
-
 SRCS(
-    ${SOURCE}
+    metrics_printer.cpp
 )
 
 PEERDIR(
     contrib/ydb/library/actors/core
-    contrib/ydb/library/yql/providers/solomon/actors
+    contrib/ydb/library/actors/http
+    library/cpp/monlib/encode
+    yql/essentials/providers/common/metrics
 )
-
-YQL_LAST_ABI_VERSION()
 
 END()
