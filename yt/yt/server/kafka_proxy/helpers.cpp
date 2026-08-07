@@ -92,14 +92,14 @@ TErrorOr<TRecordBatch> ConvertKafkaQueueRowsToRecordBatch(
             YT_VERIFY(offsetValue.Type == EValueType::Int64);
             auto key = row[*keyColumnId];
             if (key.Type != EValueType::Null && key.Type != EValueType::String) {
-                return TError("Row with offset %Qv has key that is not a string", offsetValue.Data.Uint64);
+                return TError("Row with offset %v has key that is not a string", offsetValue.Data.Int64);
             }
             auto value = row[*valueColumnId];
             if (value.Type != EValueType::Null && value.Type != EValueType::String) {
-                return TError("Row with offset %Qv has value that is not a string", offsetValue.Data.Uint64);
+                return TError("Row with offset %v has value that is not a string", offsetValue.Data.Int64);
             }
             records.push_back({
-                .OffsetDelta = static_cast<i32>(offsetValue.Data.Uint64 - recordBatch.BaseOffset),
+                .OffsetDelta = static_cast<i32>(offsetValue.Data.Int64 - recordBatch.BaseOffset),
                 .Key = key.Type == EValueType::Null ? std::nullopt : std::make_optional(key.AsString()),
                 .Value = value.Type == EValueType::Null ? std::nullopt : std::make_optional(value.AsString()),
             });
