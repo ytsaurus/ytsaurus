@@ -42,6 +42,7 @@
 #include <library/cpp/testing/common/env.h>
 #include <library/cpp/testing/gtest/matchers.h>
 
+#include <util/system/sanitizers.h>
 #include <util/system/type_name.h>
 
 namespace NYT::NFlow::NDescribe {
@@ -1095,11 +1096,16 @@ TEST(TRegistryDescribeTraitsTest, DefaultTraitsHighlightYTPaths)
 // Expected execution time is about 10s.
 TEST_W(TDescribeTest, AdequatePerformance)
 {
+    // The full ~10s workload slows down enough under TSAN to trip the 300s TEST_W
+    // watchdog; keep the code paths covered there on a proportionally smaller view.
+    const int scale = NSan::TSanIsOn() ? 10 : 1;
+
     ComputationPrepareSpecs = {};
     for (int i = 0; i < 10; ++i) {
-        ComputationPrepareSpecs.push_back(TComputationPrepareSpec{.PartitionCount = 10000, .WithSource = (i % 2 == 0)});
+        ComputationPrepareSpecs.push_back(
+            TComputationPrepareSpec{.PartitionCount = 10000 / scale, .WithSource = (i % 2 == 0)});
     }
-    WorkerCount = 1000;
+    WorkerCount = 1000 / scale;
 
     Prepare();
 
