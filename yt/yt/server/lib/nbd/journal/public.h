@@ -15,6 +15,7 @@ DECLARE_REFCOUNTED_STRUCT(IJournalBlockDevice)
 DECLARE_REFCOUNTED_STRUCT(TJournalBlockDeviceOptions)
 DECLARE_REFCOUNTED_STRUCT(TJournalBlockStoreConfig)
 DECLARE_REFCOUNTED_STRUCT(TJournalBlockFlusherConfig)
+DECLARE_REFCOUNTED_STRUCT(TJournalBlockCompactorConfig)
 DECLARE_REFCOUNTED_STRUCT(TJournalBlockDeviceConfig)
 
 //! The load side of a device snapshot: a resolved read spec for the snapshot table (fetched by the caller).

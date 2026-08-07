@@ -3,6 +3,7 @@ GTEST()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    block_compactor_ut.cpp
     block_flusher_ut.cpp
     block_map_ut.cpp
     dirty_block_pool_ut.cpp

@@ -30,6 +30,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
@@ -85,6 +86,7 @@
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/configurable_singleton_def.h>
@@ -93,6 +95,8 @@
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
+
+#include <yt/yt/library/ytprof/http/handler.h>
 
 #include <library/cpp/yt/system/env.h>
 
@@ -213,17 +217,40 @@ DECLARE_REFCOUNTED_STRUCT(TJournalDeviceConfig)
 
 struct TJournalDeviceConfig
     : public NJournal::TJournalBlockDeviceConfig
-    , public NJournal::TJournalBlockDeviceOptions
 {
+    //! Geometry and storage options of a fresh device. Mutually exclusive with #InitialSnapshotPath:
+    //! a restored device reconstructs its options from the snapshot instead.
+    NJournal::TJournalBlockDeviceOptionsPtr DeviceOptions;
+
     //! If set, the device restores its contents from this snapshot table when initialized.
     std::optional<TYPath> InitialSnapshotPath;
+
+    //! Lease of the master transaction pinning the device's staged chunks.
+    TDuration TransactionTimeout;
+
+    // COMPAT(babenko): remove after 26.2
+    bool UseScratchChunkList;
 
     REGISTER_YSON_STRUCT(TJournalDeviceConfig);
 
     static void Register(TRegistrar registrar)
     {
+        registrar.Parameter("device_options", &TThis::DeviceOptions)
+            .Default();
         registrar.Parameter("initial_snapshot_path", &TThis::InitialSnapshotPath)
             .Default();
+        registrar.Parameter("transaction_timeout", &TThis::TransactionTimeout)
+            .Default(TDuration::Minutes(5));
+        registrar.Parameter("use_scratch_chunk_list", &TThis::UseScratchChunkList)
+            .Default(false);
+
+        registrar.Postprocessor([] (TThis* config) {
+            if (static_cast<bool>(config->DeviceOptions) == config->InitialSnapshotPath.has_value()) {
+                THROW_ERROR_EXCEPTION("Exactly one of %Qv and %Qv must be given",
+                    "device_options",
+                    "initial_snapshot_path");
+            }
+        });
     }
 };
 
@@ -408,6 +435,29 @@ DEFINE_POLYMORPHIC_YSON_STRUCT(BlockDeviceConfig, TBlockDeviceConfigBase,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkListId CreateScratchChunkList(
+    const NApi::NNative::IClientPtr& client,
+    TTransactionId transactionId)
+{
+    TChunkServiceProxy proxy(client->GetMasterChannelOrThrow(
+        NApi::EMasterChannelKind::Leader,
+        CellTagFromId(transactionId)));
+
+    auto batchReq = proxy.ExecuteBatch();
+    NRpc::GenerateMutationId(batchReq);
+    auto* req = batchReq->add_create_chunk_lists_subrequests();
+    ToProto(req->mutable_transaction_id(), transactionId);
+    req->set_kind(ToProto(EChunkListKind::Scratch));
+    req->set_count(1);
+
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        GetCumulativeError(batchRspOrError),
+        "Error creating scratch chunk list");
+    return FromProto<TChunkListId>(
+        batchRspOrError.Value()->create_chunk_lists_subresponses(0).chunk_list_ids(0));
+}
+
 IBlockDevicePtr CreateJournalDevice(
     const std::string& deviceId,
     const TJournalDeviceConfigPtr& config,
@@ -415,23 +465,30 @@ IBlockDevicePtr CreateJournalDevice(
     const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& logger)
 {
-    // Resolve the snapshot table to a load spec here so the device just consumes it (and so the fetch
-    // runs under the tool's client).
-    std::optional<NJournal::TSnapshotLoadSpec> snapshotReadSpec;
+    NJournal::TDeviceCreationDescriptor creationDescriptor;
     if (config->InitialSnapshotPath) {
-        snapshotReadSpec = NJournal::FetchSnapshotLoadSpec(client, *config->InitialSnapshotPath);
+        creationDescriptor = NJournal::TRestoredDeviceCreationDescriptor{
+            .SnapshotPath = *config->InitialSnapshotPath,
+        };
+    } else {
+        creationDescriptor = NJournal::TFreshDeviceCreationDescriptor{
+            .Options = config->DeviceOptions,
+        };
     }
 
-    // The config is both the device config and its store options.
-    return NJournal::CreateJournalBlockDevice(
+    auto chunkListId = config->UseScratchChunkList
+        ? CreateScratchChunkList(client, transactionId)
+        : NChunkClient::NullChunkListId;
+
+    return WaitFor(NJournal::CreateJournalBlockDevice(
         client,
         deviceId,
         config,
-        config,
+        std::move(creationDescriptor),
         transactionId,
-        NChunkClient::NullChunkListId,
-        snapshotReadSpec,
-        logger);
+        chunkListId,
+        logger))
+        .ValueOrThrow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -447,17 +504,17 @@ struct TDeviceCreationResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TDeviceFactory)
+DECLARE_REFCOUNTED_CLASS(TDeviceManager)
 
 //! Builds block devices of any backend type. Journal devices stage their chunks under a per-device
-//! master transaction (self-pinging) that must outlive the device; the factory retains the live ones
+//! master transaction (self-pinging) that must outlive the device; the manager retains the live ones
 //! keyed by device name and releases them on unregister. Shared by the startup loop and the HTTP
 //! add-device handler, so it is thread-safe.
-class TDeviceFactory
+class TDeviceManager
     : public TRefCounted
 {
 public:
-    TDeviceFactory(
+    TDeviceManager(
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
         NLogging::TLogger logger)
@@ -506,43 +563,59 @@ public:
                 // Journal chunks (and any snapshot table co-located with them) must live on a chunk-hosting
                 // cell; pin the device transaction there so its chunks land on the right cell.
                 auto cellTag = PickJournalCellTag(client, journalConfig);
-                auto transaction = StartDeviceTransaction(client, cellTag);
+                auto transaction = StartDeviceTransaction(client, cellTag, journalConfig->TransactionTimeout);
                 auto device = CreateJournalDevice(
                     deviceId,
                     journalConfig,
                     transaction->GetId(),
                     client,
                     Logger);
+                // The transaction stages the device's chunks; once it is gone they may be destroyed, so
+                // fail the device rather than serve I/O against chunks that no longer exist. Weak: the
+                // transaction outlives an unregistered device.
+                auto onTransactionAborted =
+                    BIND([weakDevice = MakeWeak(device), deviceId, Logger = Logger] (const TError& error) {
+                        auto device = weakDevice.Lock();
+                        if (!device) {
+                            return;
+                        }
+                        YT_LOG_ERROR(error, "Device transaction aborted, failing the device (Device: %v)",
+                            deviceId);
+                        device->SetError(TError("Device transaction aborted") << error);
+                    });
+                transaction->SubscribeAborted(onTransactionAborted);
+                {
+                    auto guard = Guard(DevicesLock_);
+                    EmplaceOrCrash(AbortHandlers_, transaction->GetId(), std::move(onTransactionAborted));
+                }
                 return {std::move(device), std::move(transaction)};
             }
         }
         YT_ABORT();
     }
 
-    //! Retains a registered device's pinning transaction so its staged chunks stay alive. Called only
-    //! after the device is registered (names are then unique). A no-op for backends without one.
-    void RetainDeviceTransaction(const std::string& deviceId, NApi::ITransactionPtr transaction)
+    //! Records a device's pinning transaction (null for backends that stage no chunks), so staged chunks
+    //! stay alive. Called only after the device is registered (names are then unique), so EmplaceOrCrash
+    //! cannot collide.
+    void RetainDevice(const std::string& deviceId, NApi::ITransactionPtr transaction)
     {
-        if (!transaction) {
-            return;
-        }
-        auto guard = Guard(TransactionsLock_);
-        EmplaceOrCrash(DeviceTransactions_, deviceId, std::move(transaction));
+        auto guard = Guard(DevicesLock_);
+        EmplaceOrCrash(RegisteredDevices_, deviceId, TRegisteredDevice{std::move(transaction)});
     }
 
-    //! Removes and returns a device's retained pinning transaction (on unregister); the caller aborts
-    //! it. Returns null if none is retained. Separated from the abort so the caller can free the map
-    //! entry before blocking on the device's finalize, keeping the entry's lifetime aligned with the
-    //! device's registration (see RemoveDevice).
+    //! Drops a device's registration record (on unregister) and returns its pinning transaction for the
+    //! caller to abort; null if none. Separated from the abort so the caller can free the entry before
+    //! blocking on the device's finalize, keeping the entry's lifetime aligned with the device's
+    //! registration (see RemoveDevice).
     NApi::ITransactionPtr TakeDeviceTransaction(const std::string& deviceId)
     {
-        auto guard = Guard(TransactionsLock_);
-        auto it = DeviceTransactions_.find(deviceId);
-        if (it == DeviceTransactions_.end()) {
+        auto guard = Guard(DevicesLock_);
+        auto it = RegisteredDevices_.find(deviceId);
+        if (it == RegisteredDevices_.end()) {
             return nullptr;
         }
-        auto transaction = std::move(it->second);
-        DeviceTransactions_.erase(it);
+        auto transaction = std::move(it->second.Transaction);
+        RegisteredDevices_.erase(it);
         return transaction;
     }
 
@@ -553,6 +626,20 @@ public:
         if (!transaction) {
             return;
         }
+
+        // This abort is deliberate, so drop the handler that would otherwise fail the device.
+        NApi::IPrerequisite::TAbortedHandler onAborted;
+        {
+            auto guard = Guard(DevicesLock_);
+            if (auto it = AbortHandlers_.find(transaction->GetId()); it != AbortHandlers_.end()) {
+                onAborted = std::move(it->second);
+                AbortHandlers_.erase(it);
+            }
+        }
+        if (onAborted) {
+            transaction->UnsubscribeAborted(onAborted);
+        }
+
         auto error = WaitFor(transaction->Abort());
         if (!error.IsOK()) {
             YT_LOG_WARNING(error, "Failed to abort device transaction (TransactionId: %v)",
@@ -568,9 +655,18 @@ private:
     const IInvokerPtr Invoker_;
     const NLogging::TLogger Logger;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TransactionsLock_);
-    //! Live pinning transactions of registered journal devices, keyed by device name.
-    THashMap<std::string, NApi::ITransactionPtr> DeviceTransactions_;
+    struct TRegisteredDevice
+    {
+        //! Pinning master transaction that keeps the device's staged chunks alive; null for backends
+        //! that stage none.
+        NApi::ITransactionPtr Transaction;
+    };
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DevicesLock_);
+    //! Registration records of live devices, keyed by device name.
+    THashMap<std::string, TRegisteredDevice> RegisteredDevices_;
+    //! Keyed by transaction id: the handler that fails the device if its transaction is lost.
+    THashMap<TTransactionId, NApi::IPrerequisite::TAbortedHandler> AbortHandlers_;
 
     //! Picks the master cell on which a journal device should allocate its chunks. When restoring from a
     //! snapshot, reuse the snapshot's cell so a later re-snapshot co-locates with the restored chunks;
@@ -607,16 +703,20 @@ private:
         return attributes.Get<TCellTag>("native_cell_tag");
     }
 
-    NApi::ITransactionPtr StartDeviceTransaction(const NApi::NNative::IClientPtr& client, TCellTag cellTag)
+    NApi::ITransactionPtr StartDeviceTransaction(
+        const NApi::NNative::IClientPtr& client,
+        TCellTag cellTag,
+        TDuration timeout)
     {
         NApi::TTransactionStartOptions options;
         options.CoordinatorMasterCellTag = cellTag;
+        options.Timeout = timeout;
         return WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Master, options))
             .ValueOrThrow();
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TDeviceFactory)
+DEFINE_REFCOUNTED_TYPE(TDeviceManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -721,12 +821,12 @@ public:
     TDeviceHttpHandler(
         INbdServerPtr nbdServer,
         IYPathServicePtr orchidService,
-        TDeviceFactoryPtr deviceFactory,
+        TDeviceManagerPtr deviceManager,
         NApi::NNative::IClientPtr client,
         NLogging::TLogger logger)
         : NbdServer_(std::move(nbdServer))
         , OrchidService_(std::move(orchidService))
-        , DeviceFactory_(std::move(deviceFactory))
+        , DeviceManager_(std::move(deviceManager))
         , Client_(std::move(client))
         , Logger(std::move(logger))
     { }
@@ -791,7 +891,7 @@ public:
 private:
     const INbdServerPtr NbdServer_;
     const IYPathServicePtr OrchidService_;
-    const TDeviceFactoryPtr DeviceFactory_;
+    const TDeviceManagerPtr DeviceManager_;
     const NApi::NNative::IClientPtr Client_;
     const NLogging::TLogger Logger;
 
@@ -801,11 +901,13 @@ private:
         const NHttp::IResponseWriterPtr& response)
     {
         auto deviceConfig = ConvertTo<TBlockDeviceConfig>(ParseRequestBody(request));
-        auto [device, transaction] = DeviceFactory_->CreateDevice(name, deviceConfig);
+        auto [device, transaction] = DeviceManager_->CreateDevice(name, deviceConfig);
 
         if (auto error = WaitFor(device->Initialize()); !error.IsOK()) {
-            // The device never came up, so its pinning transaction has no owner: abort it.
-            DeviceFactory_->AbortDeviceTransaction(transaction);
+            // The device never came up, so its pinning transaction has no owner: abort it. Stop the
+            // device first -- a partially initialized one may already have started background work.
+            YT_UNUSED_FUTURE(device->Finalize());
+            DeviceManager_->AbortDeviceTransaction(transaction);
             error.ThrowOnError();
         }
 
@@ -815,12 +917,12 @@ private:
             NbdServer_->RegisterDevice(name, device);
         } catch (const std::exception&) {
             YT_UNUSED_FUTURE(device->Finalize());
-            DeviceFactory_->AbortDeviceTransaction(transaction);
+            DeviceManager_->AbortDeviceTransaction(transaction);
             Reply(response, NHttp::EStatusCode::Conflict);
             return;
         }
-        // The device is registered under a now-unique name; retain its transaction until unregister.
-        DeviceFactory_->RetainDeviceTransaction(name, std::move(transaction));
+        // The device is registered under a now-unique name; retain its record until unregister.
+        DeviceManager_->RetainDevice(name, std::move(transaction));
 
         Reply(response, NHttp::EStatusCode::Created);
     }
@@ -838,9 +940,9 @@ private:
         // already free in NbdServer_, so a concurrent AddDevice reusing it could otherwise re-register
         // and hit EmplaceOrCrash on the still-present entry. It is aborted only after Finalize, and
         // regardless of the finalize outcome, so a finalize failure cannot leak it.
-        auto transaction = DeviceFactory_->TakeDeviceTransaction(name);
+        auto transaction = DeviceManager_->TakeDeviceTransaction(name);
         auto finalizeError = WaitFor(device->Finalize());
-        DeviceFactory_->AbortDeviceTransaction(transaction);
+        DeviceManager_->AbortDeviceTransaction(transaction);
         finalizeError.ThrowOnError();
 
         Reply(response, NHttp::EStatusCode::NoContent);
@@ -864,16 +966,8 @@ private:
             return;
         }
 
-        if (!Client_) {
-            THROW_ERROR_EXCEPTION("Saving a snapshot requires a cluster client, but none is configured");
-        }
-
         auto config = ConvertTo<TSnapshotActionConfigPtr>(ParseRequestBody(request));
         const auto& path = config->Path;
-
-        // The snapshot save table must be co-located with the cell hosting the device's chunks so it
-        // can reference the device's hunk chunks zero-copy.
-        auto externalCellTag = journalDevice->GetExternalCellTag();
 
         NApi::TTransactionStartOptions transactionOptions;
         auto transactionAttributes = NYTree::CreateEphemeralAttributes();
@@ -886,19 +980,31 @@ private:
 
         NJournal::TCreateSnapshotTableOptions createOptions;
         createOptions.TransactionId = transaction->GetId();
-        NJournal::CreateSnapshotTable(Client_, path, externalCellTag, createOptions);
+        createOptions.Recursive = true;
+        WaitFor(NJournal::CreateSnapshotTable(
+            Client_,
+            path,
+            journalDevice->GetExternalCellTag(),
+            journalDevice->GetOptions(),
+            createOptions))
+            .ThrowOnError();
 
         NJournal::TFetchSnapshotSaveTableSpecOptions fetchOptions;
         fetchOptions.TransactionId = transaction->GetId();
-        auto saveSpec = NJournal::FetchSnapshotSaveSpec(Client_, path, fetchOptions);
+        auto saveSpec = WaitFor(NJournal::FetchSnapshotSaveSpec(Client_, path, fetchOptions))
+            .ValueOrThrow();
 
-        WaitFor(journalDevice->SaveSnapshot(saveSpec))
-            .ThrowOnError();
+        auto result = WaitFor(journalDevice->SaveSnapshot(saveSpec))
+            .ValueOrThrow();
 
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        Reply(response, NHttp::EStatusCode::OK);
+        WriteResponseBody(request, response, BuildYsonStringFluently()
+            .BeginMap()
+                .Item("block_count").Value(result.BlockCount)
+                .Item("chunk_count").Value(result.ChunkCount)
+            .EndMap());
     }
 };
 
@@ -968,6 +1074,7 @@ private:
     {
         auto config = GetConfig();
 
+        ConfigureAllocator();
         ConfigureSingletons(config);
 
         auto poller = CreateThreadPoolPoller(config->PollerThreadCount, "Poller");
@@ -984,16 +1091,17 @@ private:
             client = CreateNativeClient(*ytProxy, config->ConnectionPatch, threadPool->GetInvoker());
         }
 
-        auto deviceFactory = New<TDeviceFactory>(client, threadPool->GetInvoker(), nbdServer->GetLogger());
+        auto deviceManager = New<TDeviceManager>(client, threadPool->GetInvoker(), nbdServer->GetLogger());
 
         for (const auto& [name, deviceConfig] : config->Devices) {
-            auto [device, transaction] = deviceFactory->CreateDevice(name, deviceConfig);
+            auto [device, transaction] = deviceManager->CreateDevice(name, deviceConfig);
             if (auto error = WaitFor(device->Initialize()); !error.IsOK()) {
-                deviceFactory->AbortDeviceTransaction(transaction);
+                YT_UNUSED_FUTURE(device->Finalize());
+                deviceManager->AbortDeviceTransaction(transaction);
                 error.ThrowOnError();
             }
             nbdServer->RegisterDevice(name, std::move(device));
-            deviceFactory->RetainDeviceTransaction(name, std::move(transaction));
+            deviceManager->RetainDevice(name, std::move(transaction));
         }
 
         // Optionally expose an HTTP API.
@@ -1009,9 +1117,11 @@ private:
                 New<TDeviceHttpHandler>(
                     nbdServer,
                     orchidService,
-                    deviceFactory,
+                    deviceManager,
                     client,
                     nbdServer->GetLogger())));
+
+            NYTProf::Register(httpServer, "/ytprof");
 
             httpServer->Start();
         }
@@ -1045,7 +1155,7 @@ private:
                 } else {
                     YT_LOG_INFO("Finalized device (Device: %v)", name);
                 }
-                deviceFactory->AbortDeviceTransaction(deviceFactory->TakeDeviceTransaction(name));
+                deviceManager->AbortDeviceTransaction(deviceManager->TakeDeviceTransaction(name));
             }
         }
 

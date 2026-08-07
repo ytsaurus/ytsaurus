@@ -37,18 +37,18 @@ public:
         YT_VERIFY(capacityCount > 0);
     }
 
-    int GetCapacity() const override
+    int GetCapacity() const final
     {
         return CapacityCount_;
     }
 
-    int GetSize() const override
+    int GetSize() const final
     {
         auto guard = Guard(Lock_);
         return GetSizeLocked();
     }
 
-    TFuture<std::vector<TDirtyBlockId>> Put(TRange<TDirtyBlockPtr> blocks) override
+    TFuture<std::vector<TDirtyBlockId>> Put(TRange<TDirtyBlockPtr> blocks) final
     {
         if (blocks.empty()) {
             return MakeFuture(std::vector<TDirtyBlockId>{});
@@ -71,7 +71,7 @@ public:
         return PendingPuts_.back().Promise.ToFuture();
     }
 
-    TDirtyBlockPtr Find(TDirtyBlockId blockId, int blockIndex) override
+    TDirtyBlockPtr Find(TDirtyBlockId blockId, int blockIndex) final
     {
         // Lock-free: load the slot and check whether it still holds the requested block.
         auto block = BlockRing_[GetSlot(blockId.Underlying())].Acquire();
@@ -80,7 +80,7 @@ public:
             : nullptr;
     }
 
-    TBeginDrainResult BeginDrain(int maxBlockCount) override
+    TBeginDrainResult BeginDrain(int maxBlockCount) final
     {
         auto guard = Guard(Lock_);
         // Hand out the oldest blocks without removing them; the paired EndDrain evicts them. Only
@@ -94,7 +94,7 @@ public:
         return result;
     }
 
-    void EndDrain(const TBeginDrainResult& result) override
+    void EndDrain(const TBeginDrainResult& result) final
     {
         std::vector<TPendingPut> readyPuts;
         {

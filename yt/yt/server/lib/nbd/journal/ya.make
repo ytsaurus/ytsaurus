@@ -7,6 +7,7 @@ GENERATE_YT_RECORD(
 )
 
 SRCS(
+    block_compactor.cpp
     block_flusher.cpp
     block_map.cpp
     block_store.cpp

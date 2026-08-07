@@ -6,6 +6,8 @@
 
 #include <library/cpp/yt/logging/logger.h>
 
+#include <library/cpp/yt/misc/enum.h>
+
 #include <library/cpp/yt/misc/global.h>
 
 #include <util/system/types.h>
@@ -74,6 +76,14 @@ constexpr i64 MaxRecordsPerChunk = 1LL << NStoredBlockIdLayout::RecordIndexBits;
 //! Number of blocks that can be coalesced into a single record.
 constexpr i64 MaxBlocksPerRecord = 1LL << NStoredBlockIdLayout::BlockIndexBits;
 
+//! The sealing lifecycle of a store-owned chunk.
+DEFINE_ENUM(EChunkSealState,
+    (None)     // writable, or restored from an already-sealed snapshot
+    (Waiting)  // abandoned; a maintenance tick starts the next seal attempt once the backoff elapses
+    (Running)  // a seal attempt is in progress
+    (Done)     // sealed
+);
+
 DECLARE_REFCOUNTED_STRUCT(IBlockStore)
 
 //! An opaque block id stored in IDirtyBlockPool.
@@ -85,6 +95,9 @@ using TDirtyBlockPtr = TIntrusivePtr<TDirtyBlock>;
 DECLARE_REFCOUNTED_STRUCT(IDirtyBlockPool)
 DECLARE_REFCOUNTED_STRUCT(IBlockMap)
 DECLARE_REFCOUNTED_STRUCT(IBlockFlusher)
+DECLARE_REFCOUNTED_STRUCT(IBlockCompactor)
+DECLARE_REFCOUNTED_STRUCT(ISnapshotReader)
+DECLARE_REFCOUNTED_STRUCT(ISnapshotWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

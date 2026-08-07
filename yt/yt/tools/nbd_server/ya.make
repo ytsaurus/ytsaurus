@@ -12,6 +12,7 @@ PEERDIR(
     yt/yt/core/service_discovery/yp
     yt/yt/ytlib
     yt/yt/library/program
+    yt/yt/library/ytprof/http
     yt/yt/library/query/engine
     yt/yt/server/lib/nbd
     yt/yt/server/lib/nbd/chunk

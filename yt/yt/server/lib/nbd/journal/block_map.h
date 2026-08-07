@@ -25,11 +25,12 @@ TMappedBlockId ToMappedBlockId(TDirtyBlockId id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A point-in-time snapshot of every used block of the map: a (block index, mapped block id) pair per
-//! non-empty block, in ascending index order.
+//! A snapshot of the map's used blocks: a (block index, mapped block id) pair per non-empty block, in
+//! ascending index order. A point-in-time cut of the whole map when produced by #TakeSnapshot, or one
+//! batch of a larger snapshot when fed to #LoadSnapshotPart.
 /*!
  *  A snapshot of a live (concurrently written) device (see #TakeSnapshot) may mix stored (clean) and
- *  dirty mapped ids; a snapshot handed to #LoadSnapshot must hold only stored (clean) mapped ids.
+ *  dirty mapped ids; a snapshot handed to #LoadSnapshotPart must hold only stored (clean) mapped ids.
  */
 struct TBlockMapSnapshot
 {
@@ -51,16 +52,19 @@ struct IBlockMap
 
     //! Records that the latest content of the block at |blockIndex| now sits in the dirty
     //! block pool under |blockId|, overwriting its previous mapping.
-    virtual void PutDirty(int blockIndex, TDirtyBlockId blockId) = 0;
+    virtual void PutBlock(int blockIndex, TDirtyBlockId blockId) = 0;
 
-    //! Publishes the block at |blockIndex| as flushed to the block store under |storedBlockId|, but
-    //! only if it is still dirty under |expectedBlockId| — i.e. no newer write superseded it since it
-    //! was drained.
+    //! Points the block at |blockIndex| at |storedBlockId|, a freshly stored copy of its content, but
+    //! only if it still maps to |expectedBlockId| -- i.e. no newer write superseded it. Returns whether it did.
     /*!
-     *  Returns whether the transition happened. This guards last-write-wins: a flush that raced a
-     *  newer write to the same block must not clobber it with the older, already-flushed content.
+     *  Guards last-write-wins for the two publishers of stored content: a flush (|expectedBlockId| a dirty id,
+     *  as drained from the pool) and a compaction relocation (|expectedBlockId| a stored id).
+     *
+     *  A dirty |expectedBlockId| additionally fires #BlockFlushObserved (always, adopted or not) reporting where the
+     *  flush landed. On success a superseded stored |expectedBlockId| becomes unreferenced (a dirty one was
+     *  never a stored block); on failure the orphaned |storedBlockId| does (see #StoredBlockUnreferenced).
      */
-    virtual bool TryMakeClean(int blockIndex, TDirtyBlockId expectedBlockId, TStoredBlockId storedBlockId) = 0;
+    virtual bool TryPutBlock(int blockIndex, TMappedBlockId expectedBlockId, TStoredBlockId storedBlockId) = 0;
 
     //! Returns the number of blocks that have ever been written, i.e. are no longer empty.
     virtual int GetUsedBlockCount() const = 0;
@@ -75,21 +79,35 @@ struct IBlockMap
      */
     virtual TBlockMapSnapshot TakeSnapshot(const std::function<void(int blockIndex)>& onScanned = {}) = 0;
 
-    //! Loads a previously saved device snapshot into the map, publishing every one of its blocks as
-    //! flushed to the block store.
+    //! Brackets a batched load of a previously saved device snapshot. Only valid before the device
+    //! serves any I/O.
+    virtual void BeginLoadSnapshot() = 0;
+
+    //! Loads one batch of a device snapshot into the map, publishing its blocks as flushed to the block
+    //! store. Batches accumulate.
     /*!
-     *  Every snapshot block must carry a stored (clean) mapped id. Only valid before the device serves
-     *  any I/O; each target slot must still be empty.
+     *  Every snapshot block must carry a stored (clean) mapped id, and each target slot must still be
+     *  empty.
      */
-    virtual void LoadSnapshot(const TBlockMapSnapshot& snapshot) = 0;
+    virtual void LoadSnapshotPart(const TBlockMapSnapshot& snapshot) = 0;
+
+    //! Ends the batched load of a device snapshot.
+    virtual void EndLoadSnapshot() = 0;
+
+    //! Invokes |onBlock| with each used block's index and current mapped id, in ascending index order.
+    /*!
+     *  A racy lock-free scan: it reflects each slot at the moment it is visited.
+     */
+    virtual void IterateBlocks(const std::function<void(int blockIndex, TMappedBlockId mappedId)>& onBlock) const = 0;
 
     //! Fired once the map has processed the flush of a dirty block, reporting where its payload landed.
     DECLARE_INTERFACE_SIGNAL(void(TDirtyBlockId dirtyBlockId, TStoredBlockId storedBlockId), BlockFlushObserved);
 
     //! Fired when a stored block stops being referenced -- a newer write to the same device block
     //! superseded it, or its flush was never adopted (lost the last-write-wins race). Every stored block
-    //! handed to the map dies exactly once. Lets the store free a chunk once all its blocks have died.
-    DECLARE_INTERFACE_SIGNAL(void(TStoredBlockId storedBlockId), StoredBlockDied);
+    //! handed to the map is unreferenced exactly once. Lets the store free a chunk once none of its
+    //! blocks are referenced.
+    DECLARE_INTERFACE_SIGNAL(void(TStoredBlockId storedBlockId), StoredBlockUnreferenced);
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockMap)

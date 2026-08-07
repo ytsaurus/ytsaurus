@@ -1,4 +1,5 @@
 #include <yt/yt/server/lib/nbd/journal/block_map.h>
+#include <yt/yt/server/lib/nbd/journal/block_store_helpers.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -17,6 +18,26 @@ TMappedBlockId MakeDirty(ui64 blockId)
     return ToMappedBlockId(TDirtyBlockId(blockId));
 }
 
+TStoredBlockId MakeStoredInChunk(int chunkIndex, int recordIndex, int fragmentIndex = 0)
+{
+    return MakeStoredBlockId({
+        .ChunkIndex = chunkIndex,
+        .RecordIndex = recordIndex,
+        .FragmentIndex = fragmentIndex,
+    });
+}
+
+std::shared_ptr<std::vector<TStoredBlockId>> TrackStoredBlockDeaths(const IBlockMapPtr& blockMap)
+{
+    auto diedIds = std::make_shared<std::vector<TStoredBlockId>>();
+    blockMap->SubscribeStoredBlockUnreferenced(BIND(
+        [] (const std::shared_ptr<std::vector<TStoredBlockId>>& out, TStoredBlockId id) {
+            out->push_back(id);
+        },
+        diedIds));
+    return diedIds;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TBlockMapTest, InitiallyEmpty)
@@ -27,10 +48,10 @@ TEST(TBlockMapTest, InitiallyEmpty)
     }
 }
 
-TEST(TBlockMapTest, PutDirtyThenFind)
+TEST(TBlockMapTest, PutBlockThenFind)
 {
     auto blockMap = CreateBlockMap(4);
-    blockMap->PutDirty(1, TDirtyBlockId(123));
+    blockMap->PutBlock(1, TDirtyBlockId(123));
 
     EXPECT_EQ(blockMap->FindBlock(1), MakeDirty(123));
 
@@ -39,32 +60,32 @@ TEST(TBlockMapTest, PutDirtyThenFind)
     EXPECT_EQ(blockMap->FindBlock(2), EmptyMappedBlockId);
 }
 
-TEST(TBlockMapTest, TryMakeCleanThenFind)
+TEST(TBlockMapTest, TryPutBlockFromDirty)
 {
     auto blockMap = CreateBlockMap(4);
-    blockMap->PutDirty(2, TDirtyBlockId(123));
-    EXPECT_TRUE(blockMap->TryMakeClean(2, TDirtyBlockId(123), TStoredBlockId(456)));
+    blockMap->PutBlock(2, TDirtyBlockId(123));
+    EXPECT_TRUE(blockMap->TryPutBlock(2, MakeDirty(123), TStoredBlockId(456)));
 
     EXPECT_EQ(blockMap->FindBlock(2), MakeStored(456));
 }
 
-TEST(TBlockMapTest, TryMakeCleanFailsWhenSuperseded)
+TEST(TBlockMapTest, TryPutBlockFailsWhenDirtySuperseded)
 {
     auto blockMap = CreateBlockMap(1);
 
     // A newer write replaced the drained dirty id, so the clean transition must be rejected
     // and the newer dirty mapping must survive.
-    blockMap->PutDirty(0, TDirtyBlockId(1));
-    blockMap->PutDirty(0, TDirtyBlockId(2));
-    EXPECT_FALSE(blockMap->TryMakeClean(0, TDirtyBlockId(1), TStoredBlockId(99)));
+    blockMap->PutBlock(0, TDirtyBlockId(1));
+    blockMap->PutBlock(0, TDirtyBlockId(2));
+    EXPECT_FALSE(blockMap->TryPutBlock(0, MakeDirty(1), TStoredBlockId(99)));
     EXPECT_EQ(blockMap->FindBlock(0), MakeDirty(2));
 
     // Matching the current dirty id succeeds.
-    EXPECT_TRUE(blockMap->TryMakeClean(0, TDirtyBlockId(2), TStoredBlockId(99)));
+    EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(2), TStoredBlockId(99)));
     EXPECT_EQ(blockMap->FindBlock(0), MakeStored(99));
 
     // A clean block is not dirty under any id, so a further clean transition is rejected.
-    EXPECT_FALSE(blockMap->TryMakeClean(0, TDirtyBlockId(2), TStoredBlockId(100)));
+    EXPECT_FALSE(blockMap->TryPutBlock(0, MakeDirty(2), TStoredBlockId(100)));
 }
 
 TEST(TBlockMapTest, TagTransitions)
@@ -74,13 +95,13 @@ TEST(TBlockMapTest, TagTransitions)
     // Empty -> dirty -> clean -> dirty, each overwriting the previous mapping.
     EXPECT_EQ(blockMap->FindBlock(0), EmptyMappedBlockId);
 
-    blockMap->PutDirty(0, TDirtyBlockId(7));
+    blockMap->PutBlock(0, TDirtyBlockId(7));
     EXPECT_EQ(blockMap->FindBlock(0), MakeDirty(7));
 
-    EXPECT_TRUE(blockMap->TryMakeClean(0, TDirtyBlockId(7), TStoredBlockId(8)));
+    EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(7), TStoredBlockId(8)));
     EXPECT_EQ(blockMap->FindBlock(0), MakeStored(8));
 
-    blockMap->PutDirty(0, TDirtyBlockId(9));
+    blockMap->PutBlock(0, TDirtyBlockId(9));
     EXPECT_EQ(blockMap->FindBlock(0), MakeDirty(9));
 }
 
@@ -90,21 +111,21 @@ TEST(TBlockMapTest, GetUsedBlockCount)
     EXPECT_EQ(blockMap->GetUsedBlockCount(), 0);
 
     // The first write to a block makes it used.
-    blockMap->PutDirty(1, TDirtyBlockId(1));
+    blockMap->PutBlock(1, TDirtyBlockId(1));
     EXPECT_EQ(blockMap->GetUsedBlockCount(), 1);
 
     // Writing a distinct block bumps the count again.
-    blockMap->PutDirty(3, TDirtyBlockId(2));
+    blockMap->PutBlock(3, TDirtyBlockId(2));
     EXPECT_EQ(blockMap->GetUsedBlockCount(), 2);
 
     // Rewriting an already-used block does not.
-    blockMap->PutDirty(1, TDirtyBlockId(3));
+    blockMap->PutBlock(1, TDirtyBlockId(3));
     EXPECT_EQ(blockMap->GetUsedBlockCount(), 2);
 
     // Neither does flushing it clean, nor a subsequent rewrite.
-    EXPECT_TRUE(blockMap->TryMakeClean(1, TDirtyBlockId(3), TStoredBlockId(4)));
+    EXPECT_TRUE(blockMap->TryPutBlock(1, MakeDirty(3), TStoredBlockId(4)));
     EXPECT_EQ(blockMap->GetUsedBlockCount(), 2);
-    blockMap->PutDirty(1, TDirtyBlockId(5));
+    blockMap->PutBlock(1, TDirtyBlockId(5));
     EXPECT_EQ(blockMap->GetUsedBlockCount(), 2);
 }
 
@@ -113,10 +134,10 @@ TEST(TBlockMapTest, TakeSnapshot)
     auto blockMap = CreateBlockMap(8);
 
     // Block 3 clean; blocks 1 and 5 dirty; the rest empty (omitted).
-    blockMap->PutDirty(1, TDirtyBlockId(11));
-    blockMap->PutDirty(3, TDirtyBlockId(33));
-    EXPECT_TRUE(blockMap->TryMakeClean(3, TDirtyBlockId(33), TStoredBlockId(333)));
-    blockMap->PutDirty(5, TDirtyBlockId(55));
+    blockMap->PutBlock(1, TDirtyBlockId(11));
+    blockMap->PutBlock(3, TDirtyBlockId(33));
+    EXPECT_TRUE(blockMap->TryPutBlock(3, MakeDirty(33), TStoredBlockId(333)));
+    blockMap->PutBlock(5, TDirtyBlockId(55));
 
     auto snapshot = blockMap->TakeSnapshot();
 
@@ -134,7 +155,9 @@ TEST(TBlockMapTest, LoadSnapshot)
     TBlockMapSnapshot snapshot;
     snapshot.Blocks.emplace_back(2, MakeStored(22));
     snapshot.Blocks.emplace_back(6, MakeStored(66));
-    blockMap->LoadSnapshot(snapshot);
+    blockMap->BeginLoadSnapshot();
+    blockMap->LoadSnapshotPart(snapshot);
+    blockMap->EndLoadSnapshot();
 
     EXPECT_EQ(blockMap->FindBlock(2), MakeStored(22));
     EXPECT_EQ(blockMap->FindBlock(6), MakeStored(66));
@@ -146,16 +169,18 @@ TEST(TBlockMapTest, SnapshotThenLoadRoundtrip)
 {
     auto blockMap = CreateBlockMap(8);
 
-    // A snapshot fit for LoadSnapshot holds only stored (clean) blocks.
-    blockMap->PutDirty(1, TDirtyBlockId(11));
-    EXPECT_TRUE(blockMap->TryMakeClean(1, TDirtyBlockId(11), TStoredBlockId(111)));
-    blockMap->PutDirty(4, TDirtyBlockId(44));
-    EXPECT_TRUE(blockMap->TryMakeClean(4, TDirtyBlockId(44), TStoredBlockId(444)));
+    // A snapshot fit for LoadSnapshotPart holds only stored (clean) blocks.
+    blockMap->PutBlock(1, TDirtyBlockId(11));
+    EXPECT_TRUE(blockMap->TryPutBlock(1, MakeDirty(11), TStoredBlockId(111)));
+    blockMap->PutBlock(4, TDirtyBlockId(44));
+    EXPECT_TRUE(blockMap->TryPutBlock(4, MakeDirty(44), TStoredBlockId(444)));
 
     auto snapshot = blockMap->TakeSnapshot();
 
     auto restored = CreateBlockMap(8);
-    restored->LoadSnapshot(snapshot);
+    restored->BeginLoadSnapshot();
+    restored->LoadSnapshotPart(snapshot);
+    restored->EndLoadSnapshot();
 
     EXPECT_EQ(restored->FindBlock(1), MakeStored(111));
     EXPECT_EQ(restored->FindBlock(4), MakeStored(444));
@@ -166,8 +191,8 @@ TEST(TBlockMapTest, SnapshotThenLoadRoundtrip)
 TEST(TBlockMapTest, RepeatedSnapshots)
 {
     auto blockMap = CreateBlockMap(4);
-    blockMap->PutDirty(1, TDirtyBlockId(11));
-    blockMap->PutDirty(2, TDirtyBlockId(22));
+    blockMap->PutBlock(1, TDirtyBlockId(11));
+    blockMap->PutBlock(2, TDirtyBlockId(22));
 
     // Back-to-back snapshots with no intervening write are identical and leave the map reusable.
     auto first = blockMap->TakeSnapshot();
@@ -176,7 +201,7 @@ TEST(TBlockMapTest, RepeatedSnapshots)
     ASSERT_EQ(std::ssize(first.Blocks), 2);
 
     // A later write shows up in the next snapshot.
-    blockMap->PutDirty(3, TDirtyBlockId(33));
+    blockMap->PutBlock(3, TDirtyBlockId(33));
     auto third = blockMap->TakeSnapshot();
     ASSERT_EQ(std::ssize(third.Blocks), 3);
     EXPECT_EQ(third.Blocks[2], std::pair(3, MakeDirty(33)));
@@ -188,7 +213,7 @@ TEST(TBlockMapTest, TakeSnapshotEmpty)
     EXPECT_TRUE(blockMap->TakeSnapshot().Blocks.empty());
 
     // The empty snapshot leaves the map reusable.
-    blockMap->PutDirty(0, TDirtyBlockId(7));
+    blockMap->PutBlock(0, TDirtyBlockId(7));
     auto snapshot = blockMap->TakeSnapshot();
     ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
     EXPECT_EQ(snapshot.Blocks[0], std::pair(0, MakeDirty(7)));
@@ -211,12 +236,12 @@ TEST(TBlockMapTest, ZeroBlocks)
 TEST(TBlockMapTest, SnapshotWithWriteBeforeScannedSlot)
 {
     auto blockMap = CreateBlockMap(8);
-    blockMap->PutDirty(5, TDirtyBlockId(50));
+    blockMap->PutBlock(5, TDirtyBlockId(50));
 
     // The snapshot keeps the pre-flip value; the map keeps the new one.
     auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
         if (scanIndex == 0) {
-            blockMap->PutDirty(5, TDirtyBlockId(51));
+            blockMap->PutBlock(5, TDirtyBlockId(51));
         }
     });
     ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
@@ -227,11 +252,11 @@ TEST(TBlockMapTest, SnapshotWithWriteBeforeScannedSlot)
 TEST(TBlockMapTest, SnapshotWithWriteAfterScannedSlot)
 {
     auto blockMap = CreateBlockMap(8);
-    blockMap->PutDirty(5, TDirtyBlockId(50));
+    blockMap->PutBlock(5, TDirtyBlockId(50));
 
     auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
         if (scanIndex == 7) {
-            blockMap->PutDirty(5, TDirtyBlockId(51));
+            blockMap->PutBlock(5, TDirtyBlockId(51));
         }
     });
     ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
@@ -247,7 +272,7 @@ TEST(TBlockMapTest, SnapshotExcludesBlockFirstWrittenDuringScan)
         auto blockMap = CreateBlockMap(8);
         auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
             if (scanIndex == writeAt) {
-                blockMap->PutDirty(5, TDirtyBlockId(50));
+                blockMap->PutBlock(5, TDirtyBlockId(50));
             }
         });
         EXPECT_TRUE(snapshot.Blocks.empty());
@@ -257,13 +282,13 @@ TEST(TBlockMapTest, SnapshotExcludesBlockFirstWrittenDuringScan)
 
 TEST(TBlockMapTest, SnapshotKeepsDirtyWhenMadeCleanDuringScan)
 {
-    // A flush (TryMakeClean) landing during the scan does not change the captured point-in-time value.
+    // A flush landing during the scan does not change the captured point-in-time value.
     auto blockMap = CreateBlockMap(8);
-    blockMap->PutDirty(5, TDirtyBlockId(50));
+    blockMap->PutBlock(5, TDirtyBlockId(50));
 
     auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
         if (scanIndex == 0) {
-            EXPECT_TRUE(blockMap->TryMakeClean(5, TDirtyBlockId(50), TStoredBlockId(500)));
+            EXPECT_TRUE(blockMap->TryPutBlock(5, MakeDirty(50), TStoredBlockId(500)));
         }
     });
     ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
@@ -275,12 +300,12 @@ TEST(TBlockMapTest, SnapshotStashesOnlyFirstWriteDuringScan)
 {
     // Several writes during the scan; only the pre-flip value is captured.
     auto blockMap = CreateBlockMap(8);
-    blockMap->PutDirty(5, TDirtyBlockId(50));
+    blockMap->PutBlock(5, TDirtyBlockId(50));
 
     auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
         if (scanIndex == 0) {
-            blockMap->PutDirty(5, TDirtyBlockId(51));
-            blockMap->PutDirty(5, TDirtyBlockId(52));
+            blockMap->PutBlock(5, TDirtyBlockId(51));
+            blockMap->PutBlock(5, TDirtyBlockId(52));
         }
     });
     ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
@@ -293,11 +318,11 @@ TEST(TBlockMapTest, RepeatedSnapshotsWithWritesAreEachPointInTime)
     // Regression: the CoW bit must be cleared after each snapshot, so the second snapshot captures its
     // own point-in-time value rather than a stale one.
     auto blockMap = CreateBlockMap(8);
-    blockMap->PutDirty(0, TDirtyBlockId(10));
+    blockMap->PutBlock(0, TDirtyBlockId(10));
 
     auto first = blockMap->TakeSnapshot([&] (int scanIndex) {
         if (scanIndex == 0) {
-            blockMap->PutDirty(0, TDirtyBlockId(11));
+            blockMap->PutBlock(0, TDirtyBlockId(11));
         }
     });
     ASSERT_EQ(std::ssize(first.Blocks), 1);
@@ -305,7 +330,7 @@ TEST(TBlockMapTest, RepeatedSnapshotsWithWritesAreEachPointInTime)
 
     auto second = blockMap->TakeSnapshot([&] (int scanIndex) {
         if (scanIndex == 0) {
-            blockMap->PutDirty(0, TDirtyBlockId(12));
+            blockMap->PutBlock(0, TDirtyBlockId(12));
         }
     });
     ASSERT_EQ(std::ssize(second.Blocks), 1);
@@ -316,67 +341,132 @@ TEST(TBlockMapTest, RepeatedSnapshotsWithWritesAreEachPointInTime)
 TEST(TBlockMapTest, OverwritingStoredBlockKillsIt)
 {
     auto blockMap = CreateBlockMap(1);
-    auto died = std::make_shared<std::vector<TStoredBlockId>>();
-    blockMap->SubscribeStoredBlockDied(BIND(
+    auto diedIds = std::make_shared<std::vector<TStoredBlockId>>();
+    blockMap->SubscribeStoredBlockUnreferenced(BIND(
         [] (const std::shared_ptr<std::vector<TStoredBlockId>>& out, TStoredBlockId id) {
             out->push_back(id);
         },
-        died));
+        diedIds));
 
-    // Write + flush to stored 10: nothing dies yet.
-    blockMap->PutDirty(0, TDirtyBlockId(1));
-    EXPECT_TRUE(blockMap->TryMakeClean(0, TDirtyBlockId(1), TStoredBlockId(10)));
-    EXPECT_TRUE(died->empty());
+    // Write + flush to stored 10: nothing is unreferenced yet.
+    blockMap->PutBlock(0, TDirtyBlockId(1));
+    EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(1), TStoredBlockId(10)));
+    EXPECT_TRUE(diedIds->empty());
 
     // Overwriting the (clean) block kills stored 10.
-    blockMap->PutDirty(0, TDirtyBlockId(2));
-    ASSERT_EQ(std::ssize(*died), 1);
-    EXPECT_EQ((*died)[0], TStoredBlockId(10));
+    blockMap->PutBlock(0, TDirtyBlockId(2));
+    ASSERT_EQ(std::ssize(*diedIds), 1);
+    EXPECT_EQ((*diedIds)[0], TStoredBlockId(10));
 
     // Re-flushing and overwriting again kills the next stored id.
-    EXPECT_TRUE(blockMap->TryMakeClean(0, TDirtyBlockId(2), TStoredBlockId(11)));
-    blockMap->PutDirty(0, TDirtyBlockId(3));
-    ASSERT_EQ(std::ssize(*died), 2);
-    EXPECT_EQ((*died)[1], TStoredBlockId(11));
+    EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(2), TStoredBlockId(11)));
+    blockMap->PutBlock(0, TDirtyBlockId(3));
+    ASSERT_EQ(std::ssize(*diedIds), 2);
+    EXPECT_EQ((*diedIds)[1], TStoredBlockId(11));
 }
 
 TEST(TBlockMapTest, OverwritingDirtyBlockKillsNothing)
 {
     auto blockMap = CreateBlockMap(1);
-    auto died = std::make_shared<std::vector<TStoredBlockId>>();
-    blockMap->SubscribeStoredBlockDied(BIND(
+    auto diedIds = std::make_shared<std::vector<TStoredBlockId>>();
+    blockMap->SubscribeStoredBlockUnreferenced(BIND(
         [] (const std::shared_ptr<std::vector<TStoredBlockId>>& out, TStoredBlockId id) {
             out->push_back(id);
         },
-        died));
+        diedIds));
 
     // A dirty block overwritten before it flushes never had a stored id: no stored death.
-    blockMap->PutDirty(0, TDirtyBlockId(1));
-    blockMap->PutDirty(0, TDirtyBlockId(2));
-    EXPECT_TRUE(died->empty());
+    blockMap->PutBlock(0, TDirtyBlockId(1));
+    blockMap->PutBlock(0, TDirtyBlockId(2));
+    EXPECT_TRUE(diedIds->empty());
 }
 
 TEST(TBlockMapTest, LostFlushRaceKillsStoredBlock)
 {
     auto blockMap = CreateBlockMap(1);
-    auto died = std::make_shared<std::vector<TStoredBlockId>>();
-    blockMap->SubscribeStoredBlockDied(BIND(
+    auto diedIds = std::make_shared<std::vector<TStoredBlockId>>();
+    blockMap->SubscribeStoredBlockUnreferenced(BIND(
         [] (const std::shared_ptr<std::vector<TStoredBlockId>>& out, TStoredBlockId id) {
             out->push_back(id);
         },
-        died));
+        diedIds));
 
     // A newer write supersedes the drained dirty id, so the flush of stored 99 is never adopted --
     // it is dead on arrival.
-    blockMap->PutDirty(0, TDirtyBlockId(1));
-    blockMap->PutDirty(0, TDirtyBlockId(2));
-    EXPECT_FALSE(blockMap->TryMakeClean(0, TDirtyBlockId(1), TStoredBlockId(99)));
-    ASSERT_EQ(std::ssize(*died), 1);
-    EXPECT_EQ((*died)[0], TStoredBlockId(99));
+    blockMap->PutBlock(0, TDirtyBlockId(1));
+    blockMap->PutBlock(0, TDirtyBlockId(2));
+    EXPECT_FALSE(blockMap->TryPutBlock(0, MakeDirty(1), TStoredBlockId(99)));
+    ASSERT_EQ(std::ssize(*diedIds), 1);
+    EXPECT_EQ((*diedIds)[0], TStoredBlockId(99));
 
-    // The winning flush is adopted and does not die.
-    EXPECT_TRUE(blockMap->TryMakeClean(0, TDirtyBlockId(2), TStoredBlockId(100)));
-    EXPECT_EQ(std::ssize(*died), 1);
+    // The winning flush is adopted and stays referenced.
+    EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(2), TStoredBlockId(100)));
+    EXPECT_EQ(std::ssize(*diedIds), 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TBlockMapTest, TryPutBlockRelocatesStoredBlock)
+{
+    auto blockMap = CreateBlockMap(2);
+    auto diedIds = TrackStoredBlockDeaths(blockMap);
+
+    auto oldId = MakeStoredInChunk(1, 0);
+    auto newId = MakeStoredInChunk(2, 0);
+    blockMap->PutBlock(0, TDirtyBlockId(1));
+    EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(1), oldId));
+
+    // A matching remap repoints the block and kills the old (superseded) stored id.
+    EXPECT_TRUE(blockMap->TryPutBlock(0, ToMappedBlockId(oldId), newId));
+    EXPECT_EQ(blockMap->FindBlock(0), ToMappedBlockId(newId));
+    ASSERT_EQ(std::ssize(*diedIds), 1);
+    EXPECT_EQ((*diedIds)[0], oldId);
+}
+
+TEST(TBlockMapTest, TryPutBlockRejectsSupersededRelocation)
+{
+    auto blockMap = CreateBlockMap(1);
+    auto diedIds = TrackStoredBlockDeaths(blockMap);
+
+    auto oldId = MakeStoredInChunk(1, 0);
+    auto newId = MakeStoredInChunk(2, 0);
+    blockMap->PutBlock(0, TDirtyBlockId(1));
+    EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(1), oldId));
+
+    // A newer write superseded the block being compacted, so the remap is rejected and the freshly
+    // written copy is dead on arrival -- the surviving mapping is untouched.
+    blockMap->PutBlock(0, TDirtyBlockId(2));
+    EXPECT_EQ(std::ssize(*diedIds), 1);
+    EXPECT_FALSE(blockMap->TryPutBlock(0, ToMappedBlockId(oldId), newId));
+    EXPECT_EQ(blockMap->FindBlock(0), MakeDirty(2));
+    ASSERT_EQ(std::ssize(*diedIds), 2);
+    EXPECT_EQ((*diedIds)[1], newId);
+}
+
+TEST(TBlockMapTest, IterateBlocks)
+{
+    auto blockMap = CreateBlockMap(5);
+
+    auto putStored = [&] (int blockIndex, ui64 dirty, TStoredBlockId storedId) {
+        blockMap->PutBlock(blockIndex, TDirtyBlockId(dirty));
+        EXPECT_TRUE(blockMap->TryPutBlock(blockIndex, MakeDirty(dirty), storedId));
+    };
+    putStored(0, 1, MakeStoredInChunk(7, 0));
+    putStored(3, 2, MakeStoredInChunk(7, 5));
+    putStored(1, 3, MakeStoredInChunk(9, 0));
+    blockMap->PutBlock(2, TDirtyBlockId(4));
+
+    // Every used block, stored and dirty alike, in ascending index order; the empty block 4 is skipped.
+    std::vector<std::pair<int, TMappedBlockId>> visited;
+    blockMap->IterateBlocks([&] (int blockIndex, TMappedBlockId mappedId) {
+        visited.emplace_back(blockIndex, mappedId);
+    });
+    EXPECT_EQ(visited, (std::vector<std::pair<int, TMappedBlockId>>{
+        {0, ToMappedBlockId(MakeStoredInChunk(7, 0))},
+        {1, ToMappedBlockId(MakeStoredInChunk(9, 0))},
+        {2, MakeDirty(4)},
+        {3, ToMappedBlockId(MakeStoredInChunk(7, 5))},
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -37,12 +37,17 @@ class TMockBlockStore
     : public IBlockStore
 {
 public:
-    TFuture<std::vector<TStoredBlockId>> WriteBlocks(TRange<TSharedRef> blocks) override
+    TFuture<std::vector<TStoredBlockId>> WriteBlocks(TRange<TSharedRef> blocks) final
     {
         auto guard = Guard(Lock_);
         ++WriteCallCount_;
         if (Failing_) {
-            return MakeFuture<std::vector<TStoredBlockId>>(TError("Mock store is failing"));
+            auto error = TError("Mock store is failing");
+            // Mirror the real store: it is the store, not the flusher, that reports the failure.
+            // Fire outside the lock, as a subscriber may re-enter.
+            guard.Release();
+            Failed_.Fire(error);
+            return MakeFuture<std::vector<TStoredBlockId>>(error);
         }
         std::vector<TStoredBlockId> ids;
         ids.reserve(blocks.size());
@@ -55,37 +60,67 @@ public:
 
     TFuture<std::vector<TSharedRef>> ReadBlocks(
         TRange<TStoredBlockId> /*blockIds*/,
-        const NChunkClient::TClientChunkReadOptions& /*options*/) override
+        EWorkloadCategory /*workloadCategory*/) final
     {
         YT_ABORT();
     }
 
-    TFuture<void> SealChunks(TRange<NChunkClient::TChunkId> /*chunkIds*/) override
+    TFuture<void> SealChunks(TRange<NChunkClient::TChunkId> /*chunkIds*/) final
     {
         YT_ABORT();
     }
 
-    std::vector<TStoredBlockRef> GetBlockRefs(TRange<TStoredBlockId> /*blockIds*/) override
+    std::vector<TStoredBlockRef> GetBlockRefs(TRange<TStoredBlockId> /*blockIds*/) final
     {
         YT_ABORT();
     }
 
-    TFuture<std::vector<TStoredBlockId>> RestoreBlocks(TRange<TStoredBlockRef> /*blockRefs*/) override
+    TFuture<void> BeginRestoreBlocks() final
     {
         YT_ABORT();
     }
 
-    void ReleaseBlock(TStoredBlockId /*blockId*/) override
+    TFuture<std::vector<TStoredBlockId>> RestoreBlocks(std::vector<TSnapshotBlock> /*snapshotBlocks*/) final
+    {
+        YT_ABORT();
+    }
+
+    TFuture<void> EndRestoreBlocks(const TChunkBlockCounts& /*chunkBlockCounts*/) final
+    {
+        YT_ABORT();
+    }
+
+    void ReleaseBlock(TStoredBlockId /*blockId*/) final
     { }
 
-    void BeginSnapshot() override
+    void BeginSnapshot() final
     { }
 
-    void EndSnapshot() override
+    void EndSnapshot() final
     { }
 
-    void BuildChunksOrchid(NYTree::TFluentMap /*fluent*/) override
+    void Start() final
     { }
+
+    void Stop() final
+    {
+        YT_ABORT();
+    }
+
+    void SubscribeFailed(const TCallback<void(const TError&)>& callback) final
+    {
+        Failed_.Subscribe(callback);
+    }
+
+    void UnsubscribeFailed(const TCallback<void(const TError&)>& callback) final
+    {
+        Failed_.Unsubscribe(callback);
+    }
+
+    std::vector<TChunkInfo> GetChunkInfos() final
+    {
+        return {};
+    }
 
     void SetFailing(bool failing)
     {
@@ -106,6 +141,8 @@ public:
     }
 
 private:
+    TSingleShotCallbackList<void(const TError&)> Failed_;
+
     YT_DECLARE_SPIN_LOCK(TSpinLock, Lock_);
     bool Failing_ = false;
     int WriteCallCount_ = 0;
@@ -189,7 +226,7 @@ protected:
     IDirtyBlockPoolPtr Pool_;
     IBlockFlusherPtr Flusher_;
 
-    void SetUp() override
+    void SetUp() final
     {
         Queue_ = New<TActionQueue>("FlusherTest");
         Store_ = New<TMockBlockStore>();
@@ -197,7 +234,7 @@ protected:
         Observer_ = New<TFlushObserver>();
     }
 
-    void TearDown() override
+    void TearDown() final
     {
         if (Flusher_) {
             Flusher_->Stop();
@@ -217,7 +254,7 @@ protected:
         Config_->DirtyFractionThreshold = threshold;
         Flusher_ = CreateBlockFlusher(Config_, Pool_, Store_, Queue_->GetInvoker(), Logger);
         Flusher_->SubscribeBlockFlushed(BIND(&TFlushObserver::OnBlockFlushed, Observer_));
-        Flusher_->SubscribeFailed(BIND(&TFlushObserver::OnFailed, Observer_));
+        Store_->SubscribeFailed(BIND(&TFlushObserver::OnFailed, Observer_));
     }
 
     //! Synchronously puts |count| fresh blocks with indices [baseIndex, baseIndex + count).
@@ -301,7 +338,7 @@ TEST_F(TBlockFlusherTest, FlushesNewBlocksAcrossRounds)
     }
 }
 
-TEST_F(TBlockFlusherTest, RequestFlushAllDrainsBelowResidentFraction)
+TEST_F(TBlockFlusherTest, RequestFlushBarrierDrainsBelowResidentFraction)
 {
     CreateFlusher(/*poolCapacity*/ 16, /*threshold*/ 0.5); // resident target = 8
     PutBlocks(12);
@@ -315,7 +352,7 @@ TEST_F(TBlockFlusherTest, RequestFlushAllDrainsBelowResidentFraction)
     EXPECT_EQ(Observer_->GetFlushedCount(), 4);
 
     // An eager flush ignores the target and drains everything enqueued so far.
-    Flusher_->RequestFlushAll();
+    Flusher_->RequestFlushBarrier();
     ASSERT_TRUE(WaitUntil([&] { return Pool_->GetSize() == 0; }));
     EXPECT_EQ(Observer_->GetFlushedCount(), 12);
     EXPECT_FALSE(Observer_->HasFailed());
@@ -336,7 +373,7 @@ TEST_F(TBlockFlusherTest, RequestFlushAllDrainsBelowResidentFraction)
     EXPECT_EQ(Observer_->GetFlushedCount(), 12);
 }
 
-TEST_F(TBlockFlusherTest, RequestFlushAllIsBoundedToTheLatchedTail)
+TEST_F(TBlockFlusherTest, RequestFlushBarrierIsBoundedToTheLatchedTail)
 {
     CreateFlusher(/*poolCapacity*/ 64, /*threshold*/ 0.25); // resident target = 16
     PutBlocks(8); // below the target: a plain flush would drain nothing
@@ -344,7 +381,7 @@ TEST_F(TBlockFlusherTest, RequestFlushAllIsBoundedToTheLatchedTail)
     Flusher_->Start();
 
     // Eagerly flush the 8 enqueued so far; the pool empties despite being below the resident target.
-    Flusher_->RequestFlushAll();
+    Flusher_->RequestFlushBarrier();
     ASSERT_TRUE(WaitUntil([&] { return Observer_->GetFlushedCount() == 8; }));
     EXPECT_EQ(Pool_->GetSize(), 0);
 

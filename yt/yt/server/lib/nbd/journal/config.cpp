@@ -18,10 +18,24 @@ namespace NYT::NNbd::NJournal {
 
 void TJournalBlockDeviceOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("size", &TThis::Size)
-        .GreaterThanOrEqual(0);
+    registrar.Parameter("device_size", &TThis::DeviceSize)
+        .GreaterThan(0);
+    registrar.Parameter("block_size", &TThis::BlockSize)
+        .InRange(4_KBs, 64_KBs);
     registrar.Parameter("account", &TThis::Account);
     registrar.Parameter("medium_name", &TThis::MediumName);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!IsPowerOf2(config->BlockSize)) {
+            THROW_ERROR_EXCEPTION("\"block_size\" must be a power of two")
+                << TErrorAttribute("block_size", config->BlockSize);
+        }
+        if (config->DeviceSize % config->BlockSize != 0) {
+            THROW_ERROR_EXCEPTION("\"device_size\" must be a multiple of \"block_size\"")
+                << TErrorAttribute("device_size", config->DeviceSize)
+                << TErrorAttribute("block_size", config->BlockSize);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,24 +57,24 @@ void TJournalBlockStoreConfig::Register(TRegistrar registrar)
     registrar.Parameter("chunk_maintenance_period", &TThis::ChunkMaintenancePeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("max_chunk_data_size", &TThis::MaxChunkDataSize)
-        .Default(1_GB)
+        .Default(10_GB)
         .GreaterThan(0);
     registrar.Parameter("dead_chunk_retention_delay", &TThis::DeadChunkRetentionDelay)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("write_backoff", &TThis::WriteBackoff)
-        .Default(TExponentialBackoffOptions{
+        .Default({
             .InvocationCount = 10,
             .MinBackoff = TDuration::MilliSeconds(100),
             .MaxBackoff = TDuration::Seconds(3),
         });
     registrar.Parameter("chunk_creation_backoff", &TThis::ChunkCreationBackoff)
-        .Default(TExponentialBackoffOptions{
+        .Default({
             .InvocationCount = 10,
             .MinBackoff = TDuration::Seconds(1),
             .MaxBackoff = TDuration::Seconds(30),
         });
     registrar.Parameter("seal_backoff", &TThis::SealBackoff)
-        .Default(TExponentialBackoffOptions{
+        .Default({
             .InvocationCount = std::numeric_limits<int>::max(),
             .MinBackoff = TDuration::MilliSeconds(500),
             .MaxBackoff = TDuration::Seconds(10),
@@ -77,6 +91,8 @@ void TJournalBlockStoreConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("chunk_reader", &TThis::ChunkReader)
         .DefaultNew();
+    registrar.Parameter("read_hedging_manager", &TThis::ReadHedgingManager)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
@@ -103,11 +119,33 @@ void TJournalBlockFlusherConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJournalBlockCompactorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("garbage_ratio_threshold", &TThis::GarbageRatioThreshold)
+        .Default(0.5)
+        .InRange(0.0, 1.0);
+    registrar.Parameter("scan_period", &TThis::ScanPeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("max_concurrent_compactions", &TThis::MaxConcurrentCompactions)
+        .Default(1)
+        .GreaterThan(0);
+    registrar.Parameter("backoff", &TThis::Backoff)
+        .Default({
+            .InvocationCount = std::numeric_limits<int>::max(),
+            .MinBackoff = TDuration::Seconds(15),
+            .MaxBackoff = TDuration::Minutes(3),
+        });
+    registrar.Parameter("max_blocks_per_batch", &TThis::MaxBlocksPerBatch)
+        .Default(10'000)
+        .GreaterThan(0);
+    registrar.Parameter("throughput_throttler", &TThis::ThroughputThrottler)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJournalBlockDeviceConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("block_size", &TThis::BlockSize)
-        .Default(4_KB)
-        .GreaterThan(0);
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .Default(2)
         .GreaterThan(0);
@@ -117,13 +155,11 @@ void TJournalBlockDeviceConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("block_flusher", &TThis::BlockFlusher)
         .DefaultNew();
-
-    registrar.Postprocessor([] (TThis* config) {
-        if (!IsPowerOf2(config->BlockSize)) {
-            THROW_ERROR_EXCEPTION("\"block_size\" must be a power of two")
-                << TErrorAttribute("block_size", config->BlockSize);
-        }
-    });
+    registrar.Parameter("block_compactor", &TThis::BlockCompactor)
+        .Default();
+    registrar.Parameter("snapshot_blocks_per_batch", &TThis::SnapshotBlocksPerBatch)
+        .Default(1'000'000)
+        .GreaterThan(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

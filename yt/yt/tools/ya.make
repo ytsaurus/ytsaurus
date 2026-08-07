@@ -13,7 +13,6 @@ RECURSE(
     import_table
     journal_reader
     logslice
-    nbd_server
     offline_controller
     offline_read
     offline_read_fmt_write
@@ -33,3 +32,7 @@ RECURSE(
     zstdtail
     sqllogictest_generator
 )
+
+IF (OS_LINUX)
+    RECURSE(nbd_server)
+ENDIF()
