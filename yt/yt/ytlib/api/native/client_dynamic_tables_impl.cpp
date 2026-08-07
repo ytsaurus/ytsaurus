@@ -1756,7 +1756,7 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
         ? false
         : options.NewRangeInference;
     queryOptions.AdaptiveOrderedSchemafulReader = !config->DisableAdaptiveOrderedSchemafulReader;
-    queryOptions.ExecutionBackend = config->UseWebAssembly
+    queryOptions.ExecutionBackend = config->AllowWebAssembly
         ? options.ExecutionBackend.value_or(EExecutionBackend::Native)
         : EExecutionBackend::Native;
 
