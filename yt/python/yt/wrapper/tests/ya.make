@@ -91,6 +91,9 @@ DEPENDS(
     yt/yt/tools/yt_sudo_fixup
     yt/yt/experiments/public/ytserver_dummy
 
+    # openssl CLI is used by test_https.py to generate TLS certificates.
+    contrib/libs/openssl/apps
+
     # Used in some tests to check cpp binaries in operations.
     yt/python/yt/wrapper/tests/files/cpp_bin
 
@@ -120,6 +123,7 @@ RESOURCE(
     ${CURDIR}/files/empty /yt_python_test/files/empty
     ${CURDIR}/files/getnumber.cpp /yt_python_test/files/getnumber.cpp
     ${CURDIR}/files/helpers.py /yt_python_test/files/helpers.py
+    ${CURDIR}/files/https_client_probe.py /yt_python_test/files/https_client_probe.py
     ${CURDIR}/files/many_output.py /yt_python_test/files/many_output.py
     ${CURDIR}/files/my_op.py /yt_python_test/files/my_op.py
     ${CURDIR}/files/split.py /yt_python_test/files/split.py
@@ -170,6 +174,7 @@ TEST_SRCS(
     test_errors.py
     test_file_commands.py
     test_fuse.py
+    test_https.py
     test_ipython.py
     test_job_commands.py
     test_job_tool.py
