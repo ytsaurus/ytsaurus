@@ -60,6 +60,21 @@ public:
         }
     }
 
+    TFuture<void> InsertSeqNoBarrier() override
+    {
+        return GenerateGlobalUniqueSeqNo()
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const TGlobalUniqueSeqNo& result) {
+                i64 barrier = result.UniqueSeqNo.Underlying();
+                auto guard = Guard(SeqNoLock_);
+                // Unlike the regular range updates, no headroom is subtracted: the cursor
+                // must land at the fetched timestamp itself to outrun seqnos minted by
+                // other instances, not merely stay within a recent range.
+                MaxSeqNo_ = std::max(MaxSeqNo_, barrier);
+                CurrentSeqNo_ = std::max(CurrentSeqNo_, barrier);
+                LastSeqNoUpdate_ = TInstant::Now();
+            }));
+    }
+
     TFuture<TSystemTimestamp> GetTimestamp(bool barrier) const override
     {
         if (!barrier) {

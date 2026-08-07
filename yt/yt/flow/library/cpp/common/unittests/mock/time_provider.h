@@ -29,6 +29,11 @@ public:
         return Counter_++;
     }
 
+    TFuture<void> InsertSeqNoBarrier() override
+    {
+        return OKFuture;
+    }
+
     TFuture<TSystemTimestamp> GetTimestamp(bool /*barrier*/) const override
     {
         return MakeFuture(TSystemTimestamp(Counter_++));
