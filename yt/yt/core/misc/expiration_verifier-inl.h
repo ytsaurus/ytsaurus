@@ -46,13 +46,10 @@ void VerifyEventualExpiration(
             // may abort the process (e.g. under abort_on_alert in tests).
             TRefCountedTracker::Get()->LogDebugInfo(Logger, NLogging::ELogLevel::Error);
 
-            YT_LOG_ALERT(
-                "Object did not expire within the expected timeout; "
-                "a reference cycle is likely preventing its destruction "
-                "(ObjectType: %v, Timeout: %v, Pointer: %v)",
-                typeName,
-                timeout,
-                weakPtr.Get());
+            YT_TLOG_ALERT("Object did not expire within the expected timeout; a reference cycle is likely preventing its destruction")
+                .With("ObjectType", typeName)
+                .With("Timeout", timeout)
+                .With("Pointer", weakPtr.Get());
         }),
         timeout);
 }
