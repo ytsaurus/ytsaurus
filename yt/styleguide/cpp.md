@@ -1,3 +1,4 @@
+../../yt/styleguide/cpp.md
 # YTsaurus C++ Style Guide
 
 <!--================================================================================-->
@@ -217,8 +218,8 @@ Very common standard includes (like `<vector>` or `<util/string.h>`) are collect
 // Example for yt/yt/server/foo/bar.cpp.
 #include "bar.h"
 
-#include "helpers.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/yt/server/foo/baz/baz.h>
 
@@ -335,8 +336,6 @@ for (auto it = InputTables_.begin(); it != InputTables_.end(); ++it) {
 }
 ```
 
-</details>
-
 <!------------------------------------------------------------------------------------>
 
 ### `auto` vs Explicit Types
@@ -378,6 +377,19 @@ BuildYsonFluently(consumer)
                 .EndMap();
         })
     .EndList();
+```
+
+<!------------------------------------------------------------------------------------>
+
+### std::optional
+
+Prefer the implicit bool conversion and `*opt` over `opt.has_value()` and `opt.value()`. `has_value()` is fine where the implicit conversion is ambiguous (e.g. `std::optional<bool>`); `value_or` is fine for defaults.
+
+```cpp
+std::optional<int> optionalValue = DoSomething();
+if (optionalValue) {
+    ProcessResult(*optionalValue);
+}
 ```
 
 <!------------------------------------------------------------------------------------>
