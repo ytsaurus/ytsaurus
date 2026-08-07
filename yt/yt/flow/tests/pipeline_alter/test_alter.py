@@ -17,8 +17,10 @@ FLOW_BINARY_PATH = yatest.common.binary_path(f"{yatest.common.context.project_pa
 
 if yatest.common.context.sanitize is not None:
     EVENT_COUNT = 200
+    EPOCH_SYNC_TIMEOUT = 420
 else:
     EVENT_COUNT = 1000
+    EPOCH_SYNC_TIMEOUT = 180
 
 
 def generate_data(event_count, tablet_count):
@@ -94,7 +96,7 @@ class TestComputation(FlowTestBase):
             epoch = self.client.get_flow_view(self.pipeline_path, view_path="/state/epoch", cache=False)
             return epoch == united_epoch and epoch > 0
 
-        wait(epoch_is_sync, timeout=180)
+        wait(epoch_is_sync, timeout=EPOCH_SYNC_TIMEOUT)
 
     @pytest.mark.authors(["thenewone"])
     @pytest.mark.parametrize(

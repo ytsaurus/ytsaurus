@@ -25,6 +25,12 @@ REQUIREMENTS(
 
 TAG(ya:huge_logs)
 
+FORK_SUBTESTS()
+
+# Under TSAN in the YT team CI each rename scenario runs for minutes; sharing one
+# 600s MEDIUM chunk leaves no headroom.
+SPLIT_FACTOR(6)
+
 SIZE(MEDIUM)
 
 END()
