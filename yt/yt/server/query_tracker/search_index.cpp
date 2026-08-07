@@ -551,7 +551,7 @@ public:
             TFinishedQueryByStartTimeKey removeKey{
                 .IsTutorial = isTutorial,
                 .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()),
-                .QueryId = query.Id
+                .QueryId = query.Id,
             };
             auto keys = FromRecordKeys(TRange(std::array{removeKey}));
 
@@ -567,7 +567,7 @@ public:
                 .IsTutorial = isTutorial,
                 .User = query.User.value(),
                 .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()),
-                .QueryId = query.Id
+                .QueryId = query.Id,
             };
             auto keys = FromRecordKeys(TRange(std::array{removeKey}));
 
@@ -587,7 +587,7 @@ public:
                         .IsTutorial = isTutorial,
                         .AccessControlObject = aco,
                         .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()),
-                        .QueryId = query.Id
+                        .QueryId = query.Id,
                     };
                     keys.push_back(removeKey);
                 }
