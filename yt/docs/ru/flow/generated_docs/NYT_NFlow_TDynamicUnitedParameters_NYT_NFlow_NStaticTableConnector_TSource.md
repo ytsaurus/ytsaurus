@@ -27,9 +27,9 @@
 Эти параметры для тонкой настройки, не рекомендуется трогать без глубокого понимания системы.
 
 #|
-|| `unavailable_time_half_decay_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
-**Значение по умолчанию**: `10m`
- ||
+|| `unavailable_threshold` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `5m`
+Сколько времени подряд источник должен быть недоступен, чтобы партиция считалась стабильно недоступной. Засчитывается только то время, когда джоб работал и видел ошибку: простой между перезапусками в него не попадает, а любой успешный ответ источника обнуляет накопленное. ||
 || `min_event_timestamp` | **Тип**: `std::optional<unsigned long>`
 Таблицы у которых EventTimestamp меньше MinEventTimestamp, не будут процесситься. ||
 || `max_partition_count` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)

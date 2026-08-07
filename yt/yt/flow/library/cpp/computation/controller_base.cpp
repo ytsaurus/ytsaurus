@@ -46,7 +46,8 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
     const THashMap<std::string, std::vector<TNodeTraverseDataPtr>>& nodesByAvailabilityGroup,
     const TComputationSpecPtr& spec,
     const TSensorsOwner& sensorsOwner,
-    const NLogging::TLogger& logger)
+    const NLogging::TLogger& logger,
+    THashSet<std::string>* suppressedGroups)
 {
     struct TAvailabilityGroupSensors
     {
@@ -95,23 +96,26 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
     }
 
     std::vector<TNodeTraverseDataPtr> allNodes;
-    THashMap<std::string, std::vector<TNodeTraverseDataPtr>> nodesToHideWatermarks; // {availabilityGroup: [nodes...], ...}
-    int unavailableGroups = 0;
+    THashMap<std::string, std::vector<TNodeTraverseDataPtr>> nodesOfFullyUnavailableGroups; // {availabilityGroup: [nodes...], ...}
+    int unavailableGroupCount = 0;
     for (const auto& [availabilityGroup, statistics] : availabilityGroupStatistics) {
         auto& sensors = sensorsOwner.Get<TAvailabilityGroupSensors>(availabilityGroup);
         sensors.UnavailablePartitions.Update(statistics.UnavailablePartitions);
 
-        bool hideUnavailableWatermarks = false;
+        bool groupIsFullyUnavailable = false;
         if (statistics.UnavailablePartitions == statistics.TotalPartitions) {
             YT_TLOG_WARNING("Availability group is unavailable (all partitions of group are unavailable)")
                 .With("AvailabilityGroup", availabilityGroup)
                 .With("TotalPartitions", statistics.TotalPartitions);
-            hideUnavailableWatermarks = true;
-            unavailableGroups += 1;
+            groupIsFullyUnavailable = true;
+            unavailableGroupCount += 1;
+            if (suppressedGroups) {
+                suppressedGroups->insert(availabilityGroup);
+            }
         }
 
         const auto& nodes = nodesByAvailabilityGroup.at(availabilityGroup);
-        if (!hideUnavailableWatermarks) {
+        if (!groupIsFullyUnavailable) {
             sensors.ConfirmedUnavailablePartitions.Update(0);
             allNodes.insert(allNodes.end(), nodes.begin(), nodes.end());
         } else {
@@ -119,28 +123,33 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
             for (const auto& node : nodes) {
                 auto nodeCopy = NYTree::CloneYsonStruct(node);
                 allNodes.push_back(nodeCopy);
-                nodesToHideWatermarks[availabilityGroup].push_back(nodeCopy);
+                nodesOfFullyUnavailableGroups[availabilityGroup].push_back(nodeCopy);
             }
         }
     }
 
-    if (unavailableGroups == 0) {
+    if (unavailableGroupCount == 0) {
         return allNodes;
     }
 
     const int totalGroups = availabilityGroupStatistics.size();
-    const int availableGroups = totalGroups - unavailableGroups;
-    if (unavailableGroups > unavailableSpec->MaxUnavailableGroups || availableGroups < unavailableSpec->MinAvailableGroups) {
+    const int availableGroups = totalGroups - unavailableGroupCount;
+    if (unavailableGroupCount > unavailableSpec->MaxUnavailableGroups || availableGroups < unavailableSpec->MinAvailableGroups) {
         YT_TLOG_ERROR("Cannot advance the watermark past unavailable availability groups")
-            .With("UnavailableGroups", unavailableGroups)
+            .With("UnavailableGroups", unavailableGroupCount)
             .With("AvailableGroups", availableGroups)
             .With("TotalGroups", totalGroups)
             .With("MaxUnavailableGroups", unavailableSpec->MaxUnavailableGroups)
             .With("MinAvailableGroups", unavailableSpec->MinAvailableGroups);
+        // Too much is down to suppress these groups, so the pipeline keeps waiting for them and their
+        // errors are the explanation of the stall: nothing was suppressed, so nothing may be silenced.
+        if (suppressedGroups) {
+            suppressedGroups->clear();
+        }
         return allNodes;
     }
 
-    for (const auto& [availabilityGroup, nodes] : nodesToHideWatermarks) {
+    for (const auto& [availabilityGroup, nodes] : nodesOfFullyUnavailableGroups) {
         const auto updateTimestamp = availabilityGroupMinUpdateTimestamp.at(availabilityGroup);
         for (const auto& node : nodes) {
             HideEventWatermarkInplace(node, updateTimestamp, spec);
@@ -373,7 +382,8 @@ std::vector<TNodeTraverseDataPtr> ApplyEventWatermarkComputeRule(
     const TComputationSpecPtr& spec,
     const TSensorsOwner& sensorsOwner,
     const NLogging::TLogger& logger,
-    const IStatusErrorStatePtr& watermarkStallErrorState)
+    const IStatusErrorStatePtr& watermarkStallErrorState,
+    THashSet<std::string>* suppressedGroups)
 {
     if (!spec->WatermarkStrategy->WatermarkGenerator) {
         std::vector<TNodeTraverseDataPtr> allNodes;
@@ -383,7 +393,12 @@ std::vector<TNodeTraverseDataPtr> ApplyEventWatermarkComputeRule(
         return allNodes;
     }
 
-    const auto nodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(nodesByAvailabilityGroup, spec, sensorsOwner, logger);
+    const auto nodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
+        nodesByAvailabilityGroup,
+        spec,
+        sensorsOwner,
+        logger,
+        suppressedGroups);
     const auto afterIdle = ApplyIdlePartitionsRule(nodes, spec, sensorsOwner, logger, watermarkStallErrorState);
     auto preparedNodes = ApplyLateDataPartitionsRule(afterIdle, spec, sensorsOwner, logger);
 
@@ -659,19 +674,31 @@ TProcessPartitionTraverseDataResultPtr TComputationControllerBase::ProcessPartit
         GetComputationId());
 
     auto nodesByAvailabilityGroup = GetNodesByAvailabilityGroup(traverseData, flowView);
+    THashSet<std::string> suppressedAvailabilityGroups;
     auto preparedTraverseData = ApplyEventWatermarkComputeRule(
         nodesByAvailabilityGroup,
         GetSpec(),
         SensorsOwner_,
         Logger,
-        IdlePartitionsWatermarkStallErrorState_);
+        IdlePartitionsWatermarkStallErrorState_,
+        &suppressedAvailabilityGroups);
     if (futurePartitionsTraverse.has_value()) {
         preparedTraverseData.push_back(*futurePartitionsTraverse);
     }
     auto result = New<TProcessPartitionTraverseDataResult>();
     result->StreamMetrics = ComputeStreamMetrics(preparedTraverseData, GetSpec());
     result->MergedTraverseData = MergeNodeTraverseData(preparedTraverseData, GetSpec());
+
+    // Published only once every step above has succeeded. Suppression silences a group's errors, and a
+    // traverse whose result is discarded hides no watermark, so publishing early would leave the pipeline
+    // waiting for a group with the errors that explain the wait already muted.
+    SuppressedAvailabilityGroups_ = std::move(suppressedAvailabilityGroups);
     return result;
+}
+
+const std::optional<THashSet<std::string>>& TComputationControllerBase::GetSuppressedAvailabilityGroups() const
+{
+    return SuppressedAvailabilityGroups_;
 }
 
 std::optional<TNodeTraverseDataPtr> TComputationControllerBase::GetFuturePartitionsNodeTraverseData(

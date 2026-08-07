@@ -121,7 +121,7 @@ void TOrderedSourcePartitionState::Register(TRegistrar registrar)
 
     registrar.Parameter("last_unavailable_instant", &TThis::LastUnavailableInstant)
         .Default(TInstant::Zero());
-    registrar.Parameter("decayed_unavailable_duration", &TThis::DecayedUnavailableDuration)
+    registrar.Parameter("observed_unavailable_duration", &TThis::ObservedUnavailableDuration)
         .Default(TDuration::Zero());
 
     registrar.Parameter("last_persisted_write_timestamp", &TThis::LastPersistedWriteTimestamp)
@@ -192,8 +192,8 @@ void TOrderedSourceBase::TExtendedParameters::Register(TRegistrar registrar)
 
 void TOrderedSourceBase::TExtendedDynamicParameters::Register(TRegistrar registrar)
 {
-    registrar.Parameter("unavailable_time_half_decay_period", &TThis::UnavailableTimeHalfDecayPeriod)
-        .Default(TDuration::Minutes(10));
+    registrar.Parameter("unavailable_threshold", &TThis::UnavailableThreshold)
+        .Default(TDuration::Minutes(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,7 +219,6 @@ TOrderedSourceBase::TOrderedSourceBase(
     , Logger(TSourceBase::Logger)
     , NextReadOffset_(MakeKey())
     , CommittedOffsetExclusive_(MakeKey())
-    , ReadErrorState_(GetContext()->StatusProfiler->ErrorState("/read"))
     , Profiler_(GetContext()->Profiler)
     , PersistedCountCounter_(Profiler_.Counter("/persisted_count"))
     , PersistedBytesCounter_(Profiler_.Counter("/persisted_bytes"))
@@ -243,7 +242,11 @@ void TOrderedSourceBase::Init(IInitContextPtr initContext)
     SourceTotalCount_.Update(0);
     SourceTotalBytes_.Update(0);
 
-    InitInstant_ = TInstant::Now();
+    UpdateStatusProfilerMute();
+    SubscribeReconfigured(
+        BIND([this] (const TDynamicSourceContextPtr& /*dynamicContext*/) {
+            UpdateStatusProfilerMute();
+        }));
 }
 
 void TOrderedSourceBase::Terminate()
@@ -310,9 +313,13 @@ void TOrderedSourceBase::UpdatePartitionInfo(
     DelayedPartitionInfoUpdates_.back().UpdateInstant = now;
 }
 
-IStatusErrorStatePtr TOrderedSourceBase::GetReadErrorState() const
+IStatusErrorStatePtr TOrderedSourceBase::CreateAvailabilityErrorState(TStringBuf name)
 {
-    return ReadErrorState_;
+    YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
+
+    auto errorState = GetContext()->StatusProfiler->ErrorState(name);
+    AvailabilityErrorStates_.push_back(errorState);
+    return errorState;
 }
 
 const NProfiling::TProfiler& TOrderedSourceBase::GetProfiler() const
@@ -556,27 +563,56 @@ void TOrderedSourceBase::UpdateUnavailability()
 {
     NConcurrency::TForbidContextSwitchGuard contextSwitchGuard;
     YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
-    auto errorOwnerState = ReadErrorState_->GetStatus();
-    const auto now = TInstant::Now();
-    if (errorOwnerState.IsOK.has_value()) {
-        if (errorOwnerState.IsOK.value()) {
-            State_->DecayedUnavailableDuration = TDuration::Zero();
-            State_->LastUnavailableInstant = TInstant::Zero();
-        } else {
-            if (errorOwnerState.LastOKTime > State_->LastUnavailableInstant) {
-                State_->DecayedUnavailableDuration = TDuration::Zero();
-                State_->LastUnavailableInstant = TInstant::Zero();
-            }
-            const auto lastUnavailableInstant = (State_->LastUnavailableInstant ? State_->LastUnavailableInstant : errorOwnerState.LastStateChangeTime);
-            const auto halfDecayPeriod = GetDynamicParameters()->UnavailableTimeHalfDecayPeriod;
-            const auto failDuration = now - std::max(lastUnavailableInstant, InitInstant_);
-            // Decaying of continuous range.
-            const auto delta = halfDecayPeriod / std::log(2.) * (1. - std::pow(0.5, failDuration / halfDecayPeriod));
-            State_->DecayedUnavailableDuration = delta +
-                State_->DecayedUnavailableDuration * std::pow(0.5, (now - State_->LastUnavailableInstant) / halfDecayPeriod);
-            State_->LastUnavailableInstant = now;
+
+    bool anyKnown = false;
+    // The instant the current failure run began: the earliest flip among the states failing right now.
+    auto brokenSince = TInstant::Max();
+    // Only states that have a verdict may vote; one that has never spoken would otherwise pin this to
+    // zero. Taking the minimum is what keeps a healthy state from vouching for a failing one.
+    auto lastOKTime = TInstant::Max();
+    for (const auto& errorState : AvailabilityErrorStates_) {
+        auto status = errorState->GetStatus();
+        if (!status.IsOK.has_value()) {
+            continue;
+        }
+        anyKnown = true;
+        lastOKTime = std::min(lastOKTime, status.LastOKTime);
+        if (!status.IsOK.value()) {
+            brokenSince = std::min(brokenSince, status.LastStateChangeTime);
         }
     }
+
+    // Nobody has a verdict: the state is unknown, so neither charge nor reset. This is what lets a
+    // freshly started instance keep reporting the unavailability it inherited until the source speaks.
+    if (!anyKnown) {
+        return;
+    }
+
+    if (brokenSince == TInstant::Max()) {
+        State_->ObservedUnavailableDuration = TDuration::Zero();
+        State_->LastUnavailableInstant = TInstant::Zero();
+        return;
+    }
+
+    // Every state was OK at some point after the last failure we recorded, so that failure run has
+    // ended and this is a new one. Restarts do not trip this: a fresh instance has never been OK.
+    if (lastOKTime > State_->LastUnavailableInstant) {
+        State_->ObservedUnavailableDuration = TDuration::Zero();
+        State_->LastUnavailableInstant = TInstant::Zero();
+    }
+
+    // Charging from the later of the two is what makes this observed time: a failure recorded before a
+    // restart is carried over, but the gap in which no instance was watching is charged to nobody.
+    const auto now = TInstant::Now();
+    State_->ObservedUnavailableDuration += now - std::max(State_->LastUnavailableInstant, brokenSince);
+    State_->LastUnavailableInstant = now;
+}
+
+// Mutes the whole source subtree, so every leaf the connector reports through goes quiet at once. The
+// states keep recording: the very verdict that mutes them is derived from them.
+void TOrderedSourceBase::UpdateStatusProfilerMute()
+{
+    GetContext()->StatusProfiler->Mute(GetDynamicContext()->AvailabilityGroupUnavailable);
 }
 
 TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
@@ -613,13 +649,12 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
     inflight->InflightMetrics->ProcessedBytesPerSec = PersistedBytes_.GetRate().value_or(0);
 
     if (State_->LastUnavailableInstant) {
-        const auto halfDecayPeriod = GetDynamicParameters()->UnavailableTimeHalfDecayPeriod;
-        // Maximum value of DecayedUnavailableDuration is halfDecayPeriod / ln(2) ~ 1.44 * halfDecayPeriod.
-        const bool isStablyUnavailable = (State_->DecayedUnavailableDuration / halfDecayPeriod > 0.5);
+        const auto threshold = GetDynamicParameters()->UnavailableThreshold;
+        const bool isStablyUnavailable = (State_->ObservedUnavailableDuration > threshold);
         YT_TLOG_DEBUG("Source is unavailable right now")
             .With("LastUnavailableInstant", State_->LastUnavailableInstant)
-            .With("HalfDecayPeriod", halfDecayPeriod.SecondsFloat())
-            .With("DecayedUnavailableDuration", State_->DecayedUnavailableDuration.SecondsFloat())
+            .With("UnavailableThreshold", threshold)
+            .With("ObservedUnavailableDuration", State_->ObservedUnavailableDuration)
             .With("IsStablyUnavailable", isStablyUnavailable);
         if (isStablyUnavailable) {
             inflight->InflightMetrics->UnavailableTimestamp = TSystemTimestamp(State_->LastUnavailableInstant.Seconds());

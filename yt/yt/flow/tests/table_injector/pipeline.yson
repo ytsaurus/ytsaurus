@@ -68,7 +68,7 @@
                 "source_streams" = {
                     "queue" = {
                         "parameters" = {
-                            "unavailable_time_half_decay_period" = 3000;
+                            "unavailable_threshold" = 2000;
                         };
                     };
                 };

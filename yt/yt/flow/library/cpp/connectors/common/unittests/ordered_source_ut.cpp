@@ -103,6 +103,11 @@ public:
         Error_ = std::move(error);
     }
 
+    void SetExtraError(TError error)
+    {
+        ExtraErrorState_->SetError(std::move(error));
+    }
+
     void SetTestWriteTimestamps(std::vector<ui64> timestamps)
     {
         WriteTimestamps_ = std::move(timestamps);
@@ -117,7 +122,7 @@ private:
         i64 nextOffset = OffsetToInt(nextOffsetAsKey);
         std::optional<i64> offsetLimitOptional = offsetLimitOptionalAsKey ? std::optional(OffsetToInt(*offsetLimitOptionalAsKey)) : std::nullopt;
 
-        GetReadErrorState()->SetError(Error_);
+        ReadErrorState_->SetError(Error_);
 
         std::vector<TRecord> records;
         if (!Error_.IsOK()) {
@@ -163,8 +168,16 @@ private:
         UpdatePartitionInfo(TPartitionInfoUpdate{.CommittedOffsetExclusive = offsetExclusive});
     }
 
+    void DoInit() final
+    {
+        ReadErrorState_ = CreateAvailabilityErrorState("/read");
+        ExtraErrorState_ = CreateAvailabilityErrorState("/extra");
+    }
+
 private:
     const TTableSchemaPtr Schema_;
+    IStatusErrorStatePtr ReadErrorState_;
+    IStatusErrorStatePtr ExtraErrorState_;
     i64 MaxOffsetExclusive_ = 0;
     TError Error_;
     std::vector<ui64> WriteTimestamps_;
@@ -296,7 +309,7 @@ public:
         DynamicSourceSpec->Draining = false;
         DynamicSourceSpec->Parameters = NYTree::ConvertTo<IMapNodePtr>(
             ConvertTo<TOrderedSourceBase::TDynamicParametersPtr>(NYson::TYsonString(TStringBuf(R"""({
-                "unavailable_time_half_decay_period" = 1000;
+                "unavailable_threshold" = 500;
             })"""))));
         DynamicSourcePartitionSpec = GetEphemeralNodeFactory()->CreateMap();
         SourceContext->SourceSpec = SourceSpec;
@@ -610,6 +623,161 @@ TEST_F(TOrderedSourceTest, UnavailablePartitionAfterRestart)
             ASSERT_TRUE(inflight->InflightMetrics->UnavailableTimestamp);
         }
     }
+}
+
+TEST_F(TOrderedSourceTest, RestartGapIsNotCountedAsUnavailable)
+{
+    const auto readAndAssertEmpty = [&] (const TTestSourcePtr& source) {
+        const auto data = RunInInvoker([&] () {
+            return UnpackBatches(WaitFor(source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+        });
+        ASSERT_EQ(data.size(), 0u);
+    };
+
+    // Accumulate a little under the 500 ms threshold, then persist.
+    {
+        const auto oldSource = MakeTestSource(SourceSpec);
+        RunInInvoker([&] () {
+            oldSource->Init(StateManager->CreateContext()->WithPrefix("gap"));
+            oldSource->SetTestError(TError("test error"));
+        });
+        readAndAssertEmpty(oldSource);
+        RunInInvoker([&] () {
+            return oldSource->BuildInflight();
+        });
+
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(300));
+        readAndAssertEmpty(oldSource);
+        const auto inflight = RunInInvoker([&] () {
+            return oldSource->BuildInflight();
+        });
+        ASSERT_FALSE(inflight->InflightMetrics->UnavailableTimestamp);
+
+        RunInInvoker([&] () {
+            oldSource->Sync();
+            StateManager->Sync();
+        });
+    }
+
+    const auto newSource = MakeTestSource(SourceSpec);
+    RunInInvoker([&] () {
+        newSource->Init(StateManager->CreateContext()->WithPrefix("gap"));
+    });
+
+    // Nobody was watching for this second, so it is charged to nobody: the accumulator resumes at the
+    // ~300 ms it stopped at rather than jumping past the threshold.
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    RunInInvoker([&] () {
+        newSource->SetTestError(TError("test error"));
+    });
+    readAndAssertEmpty(newSource);
+    {
+        const auto inflight = RunInInvoker([&] () {
+            return newSource->BuildInflight();
+        });
+        ASSERT_FALSE(inflight->InflightMetrics->UnavailableTimestamp);
+    }
+
+    // Another 300 ms of observed failure does cross it.
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(300));
+    readAndAssertEmpty(newSource);
+    {
+        const auto inflight = RunInInvoker([&] () {
+            return newSource->BuildInflight();
+        });
+        ASSERT_TRUE(inflight->InflightMetrics->UnavailableTimestamp);
+    }
+}
+
+TEST_F(TOrderedSourceTest, ExtraAvailabilityErrorStateOutvotesHealthyRead)
+{
+    RunInInvoker([&] () {
+        Source->SetMaxOffset(1);
+        ReadAndPersistBatch(Source, DefaultBatcherSettings);
+        Source->SetExtraError(TError("liveness error"));
+    });
+
+    // The read state is OK and stays OK; the extra state alone must carry the partition to unavailable.
+    RunInInvoker([&] () {
+        return Source->BuildInflight();
+    });
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    {
+        const auto inflight = RunInInvoker([&] () {
+            return Source->BuildInflight();
+        });
+        ASSERT_TRUE(inflight->InflightMetrics->UnavailableTimestamp);
+    }
+
+    RunInInvoker([&] () {
+        Source->SetExtraError(TError());
+    });
+    {
+        const auto inflight = RunInInvoker([&] () {
+            return Source->BuildInflight();
+        });
+        ASSERT_FALSE(inflight->InflightMetrics->UnavailableTimestamp);
+    }
+}
+
+TEST_F(TOrderedSourceTest, HealthyStateDoesNotVouchForABrokenOne)
+{
+    RunInInvoker([&] () {
+        Source->SetMaxOffset(1);
+        Source->SetExtraError(TError("liveness error"));
+    });
+
+    // /read keeps re-affirming OK on every read while /extra stays broken. A source that cannot deliver
+    // must still latch: an OK from one state may not end a failure run another state is still reporting.
+    for (int iteration = 0; iteration < 4; ++iteration) {
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(200));
+        RunInInvoker([&] () {
+            ReadAndPersistBatch(Source, DefaultBatcherSettings);
+            return Source->BuildInflight();
+        });
+    }
+
+    const auto inflight = RunInInvoker([&] () {
+        return Source->BuildInflight();
+    });
+    ASSERT_TRUE(inflight->InflightMetrics->UnavailableTimestamp);
+}
+
+TEST_F(TOrderedSourceTest, UnavailableGroupSilencesErrorsButNotAccounting)
+{
+    RunInInvoker([&] () {
+        Source->SetTestError(TError("test error"));
+        Source->SetExtraError(TError("liveness error"));
+        return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+    });
+    ASSERT_EQ(SourceContext->StatusProfiler->GetStatus().Errors.size(), 2u);
+
+    RunInInvoker([&] () {
+        auto dynamicSourceContext = MakeDynamicSourceContext();
+        dynamicSourceContext->AvailabilityGroupUnavailable = true;
+        Source->Reconfigure(dynamicSourceContext);
+    });
+    ASSERT_TRUE(SourceContext->StatusProfiler->GetStatus().Errors.empty());
+
+    // Silencing must not reach the accounting: the verdict that silenced these errors is derived from
+    // them, so hiding them from the tree may not hide them from BuildInflight.
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    RunInInvoker([&] () {
+        return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+    });
+    {
+        const auto inflight = RunInInvoker([&] () {
+            return Source->BuildInflight();
+        });
+        ASSERT_TRUE(inflight->InflightMetrics->UnavailableTimestamp);
+    }
+
+    RunInInvoker([&] () {
+        auto dynamicSourceContext = MakeDynamicSourceContext();
+        dynamicSourceContext->AvailabilityGroupUnavailable = false;
+        Source->Reconfigure(dynamicSourceContext);
+    });
+    ASSERT_EQ(SourceContext->StatusProfiler->GetStatus().Errors.size(), 2u);
 }
 
 TEST_F(TOrderedSourceTest, UnavailablePartitionTurnsAvailableAfterRestart)

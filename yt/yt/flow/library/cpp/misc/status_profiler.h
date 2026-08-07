@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <atomic>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +48,15 @@ struct IStatusProfiler
     virtual IStatusErrorStatePtr ErrorState(TStringBuf name) = 0;
     virtual IStatusProfilerPtr WithPrefix(TStringBuf prefix) = 0;
     virtual TUnitedProfilerStatus GetStatus() const = 0;
+
+    //! While muted, this node and everything under it stops being published: no collected errors, no
+    //! #profiler gauge, and its own logs drop to INFO. Applies to leaves created before and after the call.
+    //!
+    //! Recording is deliberately untouched: #IStatusErrorState::GetStatus keeps telling the truth, so a
+    //! decision derived from those statuses cannot be altered by muting the tree they are reported in.
+    //! Callers that mute in response to such a decision depend on this to avoid a feedback loop.
+    virtual void Mute(bool muted) = 0;
+    virtual bool IsMuted() const = 0;
 };
 
 struct TStatusProfilerLoggingOptions

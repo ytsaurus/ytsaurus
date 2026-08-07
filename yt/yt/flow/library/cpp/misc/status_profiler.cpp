@@ -36,6 +36,37 @@ constexpr int MaxTrackedTransitions = 256;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TMuteState);
+
+//! Every node owns one and links it to its parent's, so muting a node covers the subtree that existed
+//! when it was muted as well as everything created under it afterwards.
+class TMuteState
+    : public TRefCounted
+{
+public:
+    explicit TMuteState(TMuteStatePtr parent)
+        : Parent_(std::move(parent))
+    { }
+
+    bool IsMuted() const
+    {
+        return Muted_.load(std::memory_order::relaxed) || (Parent_ && Parent_->IsMuted());
+    }
+
+    void SetMuted(bool muted)
+    {
+        Muted_.store(muted, std::memory_order::relaxed);
+    }
+
+private:
+    const TMuteStatePtr Parent_;
+    std::atomic<bool> Muted_ = false;
+};
+
+DEFINE_REFCOUNTED_TYPE(TMuteState);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStatusErrorStateImpl
     : public IStatusErrorState
 {
@@ -44,10 +75,12 @@ public:
     TStatusErrorStateImpl(
         TStatusProfilerUnregistrator unregistrator,
         std::string prefix,
-        TStatusLoggingContextPtr loggingContext)
+        TStatusLoggingContextPtr loggingContext,
+        TMuteStatePtr muteState)
         : Unregistrator_(std::move(unregistrator))
         , Prefix_(std::move(prefix))
         , LoggingContext_(std::move(loggingContext))
+        , MuteState_(std::move(muteState))
         , BrokenGauge_(LoggingContext_->Profiler.WithTag("path", Prefix_).Gauge("/status_profiler/broken"))
     {
         BrokenGauge_.Update(0.0);
@@ -82,7 +115,7 @@ public:
             }
             std::swap(Error_, error);
 
-            BrokenGauge_.Update(nowBroken ? 1.0 : 0.0);
+            UpdateBrokenGauge(nowBroken);
             pending = UpdateLoggingState(now, wasBroken, nowBroken);
         }
 
@@ -102,6 +135,9 @@ public:
 
     void CollectErrors(THashMap<std::string, TError>& result) const
     {
+        if (MuteState_->IsMuted()) {
+            return;
+        }
         auto guard = Guard(Lock_);
         if (!Error_.IsOK()) {
             result[Prefix_] = Error_;
@@ -113,6 +149,8 @@ public:
         TPendingReport report;
         {
             auto guard = Guard(Lock_);
+            // Mute can be flipped at any moment; this periodic pass is what makes the gauge follow it.
+            UpdateBrokenGauge(Status_.IsOK.has_value() && !Status_.IsOK.value());
             report = BuildReport(now);
         }
         EmitReport(report);
@@ -122,6 +160,7 @@ private:
     const TStatusProfilerUnregistrator Unregistrator_;
     const std::string Prefix_;
     const TStatusLoggingContextPtr LoggingContext_;
+    const TMuteStatePtr MuteState_;
     NProfiling::TGauge BrokenGauge_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -163,6 +202,17 @@ private:
         int BreakCountInWindow = 0;
         TDuration Window;
     };
+
+    //! A muted component keeps logging one level down: the lines stay for debugging, but stop alerting.
+    NLogging::ELogLevel GetBrokenLogLevel() const
+    {
+        return MuteState_->IsMuted() ? NLogging::ELogLevel::Info : NLogging::ELogLevel::Warning;
+    }
+
+    void UpdateBrokenGauge(bool nowBroken)
+    {
+        BrokenGauge_.Update(nowBroken && !MuteState_->IsMuted() ? 1.0 : 0.0);
+    }
 
     TPendingLog UpdateLoggingState(TInstant now, bool wasBroken, bool nowBroken)
     {
@@ -255,14 +305,15 @@ private:
             return;
         }
         const auto& Logger = LoggingContext_->Logger;
+        const auto brokenLevel = GetBrokenLogLevel();
         switch (pending.Kind) {
             case TPendingLog::EKind::Break:
-                YT_TLOG_WARNING("Component became broken")
+                YT_TLOG_EVENT_FLUENT(Logger, brokenLevel, "Component became broken")
                     .With("Component", Prefix_)
                     .With(pending.Error);
                 break;
             case TPendingLog::EKind::StillBroken:
-                YT_TLOG_WARNING("Component is still broken")
+                YT_TLOG_EVENT_FLUENT(Logger, brokenLevel, "Component is still broken")
                     .With("Component", Prefix_)
                     .With("BrokenFor", pending.BrokenFor)
                     .With(pending.Error);
@@ -284,7 +335,7 @@ private:
         }
         const auto& Logger = LoggingContext_->Logger;
         if (report.Broken) {
-            YT_TLOG_WARNING("Component status report")
+            YT_TLOG_EVENT_FLUENT(Logger, GetBrokenLogLevel(), "Component status report")
                 .With("Component", Prefix_)
                 .With("Status", "Broken")
                 .With("TimeSinceLastOK", report.TimeSinceLastOK)
@@ -321,10 +372,12 @@ public:
     TStatusProfilerImpl(
         TStatusProfilerUnregistrator unregistrator,
         std::string prefix,
-        TStatusLoggingContextPtr loggingContext)
+        TStatusLoggingContextPtr loggingContext,
+        TMuteStatePtr muteState)
         : Unregistrator_(std::move(unregistrator))
         , Prefix_(std::move(prefix))
         , LoggingContext_(std::move(loggingContext))
+        , MuteState_(std::move(muteState))
     { }
 
     ~TStatusProfilerImpl() override
@@ -353,7 +406,8 @@ public:
                 Children_.erase(cookie);
             },
             Prefix_ + std::string(nodePrefix),
-            LoggingContext_);
+            LoggingContext_,
+            New<TMuteState>(MuteState_));
         Children_[cookie] = TChildHooks{
             .CollectErrors = [weakNode = MakeWeak(node)] (THashMap<std::string, TError>& result) {
                 if (auto node = weakNode.Lock()) {
@@ -377,6 +431,16 @@ public:
     NYT::NFlow::IStatusProfilerPtr WithPrefix(TStringBuf prefix) override
     {
         return CreateChild<TStatusProfilerImpl>(prefix);
+    }
+
+    void Mute(bool muted) override
+    {
+        MuteState_->SetMuted(muted);
+    }
+
+    bool IsMuted() const override
+    {
+        return MuteState_->IsMuted();
     }
 
     NYT::NFlow::IStatusProfiler::TUnitedProfilerStatus GetStatus() const override
@@ -406,6 +470,7 @@ private:
     const TStatusProfilerUnregistrator Unregistrator_;
     const std::string Prefix_;
     const TStatusLoggingContextPtr LoggingContext_;
+    const TMuteStatePtr MuteState_;
     NConcurrency::TPeriodicExecutorPtr ReportExecutor_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -447,7 +512,11 @@ IStatusProfilerPtr CreateStatusProfiler(
     loggingContext->Options = options;
     loggingContext->Profiler = profiler;
 
-    auto statusProfiler = New<TStatusProfilerImpl>(TStatusProfilerUnregistrator(), std::string(), loggingContext);
+    auto statusProfiler = New<TStatusProfilerImpl>(
+        TStatusProfilerUnregistrator(),
+        std::string(),
+        loggingContext,
+        New<TMuteState>(/*parent*/ nullptr));
     if (options.ReportPeriod != TDuration::Zero()) {
         auto executor = New<NConcurrency::TPeriodicExecutor>(
             invoker,

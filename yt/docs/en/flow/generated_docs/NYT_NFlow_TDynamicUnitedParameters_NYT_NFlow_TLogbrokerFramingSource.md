@@ -22,9 +22,12 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 
 
 #|
-|| `unavailable_time_half_decay_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
-**Default value**: `10m`
- ||
+|| `unavailable_threshold` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `5m`
+How long the source must be continuously unavailable for the partition to count as stably unavailable. Only time during which the job was running and seeing the failure counts: a gap between restarts is not charged, and any successful answer from the source resets the total. ||
+|| `session_silence_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `1m`
+How long an established read session may show no sign of life before it is considered wedged and recreated. A sign of life is any inbound Logbroker event: a message, an answer to a partition status request, or a commit acknowledgement. Status answers arrive once per `update_info_period`, so the timeout cannot be shorter than several such periods: the greater of the configured value and three periods is used. ||
 |#
 
 

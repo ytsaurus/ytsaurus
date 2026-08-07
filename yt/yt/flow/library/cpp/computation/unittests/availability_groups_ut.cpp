@@ -110,17 +110,51 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
     {
         auto zeroMinSpec = CloneYsonStruct(spec);
         zeroMinSpec->WatermarkStrategy->WatermarkGenerator->UnavailablePartitionGroups->MinAvailableGroups = 0;
+        THashSet<std::string> suppressedGroups;
         auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
             {
                 {"default", {unavailableNode, unavailableNode}},
             },
             zeroMinSpec,
             TSensorsOwner(),
-            TLogger("Test"));
+            TLogger("Test"),
+            &suppressedGroups);
         ASSERT_EQ(availablePartitionNodes.size(), 2u);
         for (const auto& node : availablePartitionNodes) {
             ASSERT_EQ(node->Streams["bigb_profile_hit"]->EventWatermark, hiddenWatermark);
         }
+        // The group was skipped, so its errors are redundant and may be silenced.
+        ASSERT_EQ(suppressedGroups, THashSet<std::string>{"default"});
+    }
+
+    // The same group, but min_available_groups = 1 forbids skipping it. The pipeline now stalls on it, so
+    // its errors are the explanation of the stall and must not be silenced.
+    {
+        THashSet<std::string> suppressedGroups;
+        auto availablePartitionNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
+            {
+                {"default", {unavailableNode, unavailableNode}},
+            },
+            spec,
+            TSensorsOwner(),
+            TLogger("Test"),
+            &suppressedGroups);
+        ASSERT_EQ(availablePartitionNodes.size(), 2u);
+        ASSERT_TRUE(suppressedGroups.empty());
+    }
+
+    // A partially unavailable group is not skipped either, so it is not reported.
+    {
+        THashSet<std::string> suppressedGroups;
+        ApplyAvailabilityGroupsEventWatermarkComputeRule(
+            {
+                {"default", {defaultNode, unavailableNode}},
+            },
+            spec,
+            TSensorsOwner(),
+            TLogger("Test"),
+            &suppressedGroups);
+        ASSERT_TRUE(suppressedGroups.empty());
     }
 
     // Two availability groups. Everything is OK. Do nothing.

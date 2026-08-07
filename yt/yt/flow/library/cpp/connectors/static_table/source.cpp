@@ -162,6 +162,7 @@ TSource::TSource(
 
 void TSource::DoInit()
 {
+    ReadErrorState_ = CreateAvailabilityErrorState("/read");
     Client_ = CreateClient(GetContext(), GetDynamicPartitionSpec()->Table);
 }
 
@@ -344,7 +345,7 @@ TError TSource::ClassifyPendingRead(
 
 void TSource::DropReader(const TError& error)
 {
-    GetReadErrorState()->SetError(error);
+    ReadErrorState_->SetError(error);
     CancelReader(error);
 }
 
@@ -389,7 +390,7 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
             << TErrorAttribute("reader_offset", CurrentOffset_)
             << TErrorAttribute("max_offset_exclusive", maxOffsetExclusive));
         // Nothing is left to read, so a read error left by a previous poll is stale.
-        GetReadErrorState()->ClearError();
+        ReadErrorState_->ClearError();
         return MakeFuture(std::vector<TSource::TRecord>{});
     }
 
@@ -432,7 +433,7 @@ TFuture<std::vector<TSource::TRecord>> TSource::DoReadNextBatch(const TMessageBa
 
     auto reader = ReaderFuture_.GetOrCrash().ValueOrThrow();
 
-    GetReadErrorState()->ClearError();
+    ReadErrorState_->ClearError();
 
     // Rows may only be taken once the ready event is set; reading before that yields an empty batch
     // that is indistinguishable from a dead read stream.

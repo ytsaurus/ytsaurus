@@ -48,7 +48,9 @@ struct TOrderedSourcePartitionState
     TInstant LastIdleInstant;
 
     TInstant LastUnavailableInstant;
-    TDuration DecayedUnavailableDuration;
+    // Sum of the intervals between consecutively observed failures. Time when no instance was running
+    // is not observed and therefore not counted.
+    TDuration ObservedUnavailableDuration;
 
     // LastPersistedWriteTimestamp and FirstNotPersistedWriteTimestamp can be used for rough estimate of time lag.
     // LastPersistedWriteTimestamp is source write timestamp of last persisted message
@@ -107,7 +109,7 @@ private:
     struct TExtendedDynamicParameters
         : public virtual TSourceBase::TDynamicParameters
     {
-        TDuration UnavailableTimeHalfDecayPeriod;
+        TDuration UnavailableThreshold;
 
         REGISTER_YSON_STRUCT(TExtendedDynamicParameters);
 
@@ -191,8 +193,10 @@ protected:
     // Provide partition info from queue broker. Thread-safe.
     void UpdatePartitionInfo(const TPartitionInfoUpdate& update);
 
-    // This error state can be updated from heirs and used for estimating availability of source partition.
-    IStatusErrorStatePtr GetReadErrorState() const;
+    //! Creates an error state that heirs update and that takes part in deciding whether the partition is
+    //! available. Must be called from #DoInit().
+    //! A failure of any such state is a failure; an OK from at least one, with none failing, is an OK.
+    IStatusErrorStatePtr CreateAvailabilityErrorState(TStringBuf name);
 
     const NProfiling::TProfiler& GetProfiler() const;
 
@@ -241,10 +245,8 @@ private:
     // making InflightOffsets_.back().AlignmentTimestamp unreliable for the "last read" value.
     TSystemTimestamp LastReadAlignmentTimestamp_ = ZeroSystemTimestamp;
 
-    TInstant InitInstant_;
-
     TMutableStateClient<TOrderedSourcePartitionState> State_;
-    IStatusErrorStatePtr ReadErrorState_;
+    std::vector<IStatusErrorStatePtr> AvailabilityErrorStates_;
 
     TOffsetInfos InflightOffsets_;
 
@@ -267,6 +269,7 @@ private:
     void CleanUpInflightOffsets();
     void MarkMissingMessagesPersisted();
     void UpdateUnavailability();
+    void UpdateStatusProfilerMute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

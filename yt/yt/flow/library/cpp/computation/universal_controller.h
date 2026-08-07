@@ -41,6 +41,11 @@ struct TUniversalComputationControllerPartitioningState
     //! of a non-widest sink is not missed.
     THashMap<TSinkId, i64> LastSinkChannelCounts;
 
+    //! Availability groups suppressed at the last traverse. Persisted because it drives muting: a
+    //! controller that has just taken over during an outage would otherwise unmute every dead cluster
+    //! until its own first traverse, bringing back the alert noise this suppression exists to stop.
+    THashSet<std::string> SuppressedAvailabilityGroups;
+
     REGISTER_YSON_STRUCT(TUniversalComputationControllerPartitioningState);
 
     static void Register(TRegistrar registrar);
@@ -126,6 +131,22 @@ public:
     static double ApplyPeakHoldRelease(double previous, double target, TDuration elapsed, TDuration releaseHalfDelay);
 
 protected:
+    void NotifySourcesAboutSuppressedGroups();
+
+    //! The stream a group belongs to, and the name the source itself knows it by.
+    struct TAvailabilityGroupOrigin
+    {
+        TStreamId StreamId;
+        std::string Group;
+    };
+
+    //! Origin of a universal partition key's availability group, or null if its source stream no longer
+    //! exists.
+    std::optional<TAvailabilityGroupOrigin> GetAvailabilityGroupOrigin(const TKey& partitionKey) const;
+
+    //! Availability groups are namespaced by stream, so two sources cannot collide on a group name.
+    static std::string MakeAvailabilityGroupKey(const TAvailabilityGroupOrigin& origin);
+
     THashMap<std::string, std::vector<TNodeTraverseDataPtr>> GetNodesByAvailabilityGroup(
         const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
         const TFlowViewPtr& flowView) final;
@@ -166,6 +187,9 @@ private:
 private:
     TAtomicIntrusivePtr<TWatermarkState> WatermarkState_;
     THashMap<TStreamId, ISourceControllerPtr> Sources_;
+    // Rebuilt by every traverse: what each composite group key was made of, so nothing has to parse it
+    // back apart.
+    THashMap<std::string, TAvailabilityGroupOrigin> AvailabilityGroupOrigins_;
     THashMap<TSinkId, ISinkControllerPtr> Sinks_;
     TInstant LastRepartitionTime_ = TInstant::Zero();
     TInstant LastCommonRepartitioningInstant_ = TInstant::Zero();

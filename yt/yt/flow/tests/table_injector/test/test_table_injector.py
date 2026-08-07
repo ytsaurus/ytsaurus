@@ -423,12 +423,15 @@ class TestTableInjector(TestTableInjectorBase):
             # Ensure watermark is advancing.
             wait(check_watermark_advancing, timeout=60)
 
-            injector_partition = self._get_any_partition("First")
-            retryable_errors_when_unmounted = self.client.get_flow_view(
-                self.pipeline_path,
-                view_path=f"/feedback/partition_job_statuses/{injector_partition['partition_id']}/current_job_status/retryable_errors",
-                cache=False,
+            # Prove the watermark advanced because the source was recognised as unavailable rather than for
+            # some unrelated reason. The verdict itself is read instead of the job's retryable errors: once
+            # the controller declares the availability group unavailable, those errors are deliberately
+            # silenced, so their absence says nothing.
+            streams_when_unmounted = self.client.get_flow_view(
+                self.pipeline_path, view_path="/state/traverse_data/computations/First/streams", cache=False
             )
+            unavailable_instant = streams_when_unmounted["queue"]["inflight_metrics"].get("unavailable_instant")
+            logging.info("Source unavailability verdict (UnavailableInstant: %s)", unavailable_instant)
 
             self.client.mount_table(self.input_queue_path, sync=True)
 
@@ -436,7 +439,7 @@ class TestTableInjector(TestTableInjectorBase):
             wait(write_row_and_check, timeout=60)
 
             # Intentionally do minor check after major checks.
-            assert len(retryable_errors_when_unmounted) > 0
+            assert unavailable_instant
 
 
 class TestTableInjectorWithRemoteQueue(TestTableInjectorBase):

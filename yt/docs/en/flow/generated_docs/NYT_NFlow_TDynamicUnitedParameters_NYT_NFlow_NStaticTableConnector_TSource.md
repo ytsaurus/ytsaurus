@@ -27,9 +27,9 @@ Set this parameter to the current time in ISO 8601 to forget the current progres
 These parameters are for fine tuning. It is not recommended to change them without a deep understanding of the system.
 
 #|
-|| `unavailable_time_half_decay_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
-**Default value**: `10m`
- ||
+|| `unavailable_threshold` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `5m`
+How long the source must be continuously unavailable for the partition to count as stably unavailable. Only time during which the job was running and seeing the failure counts: a gap between restarts is not charged, and any successful answer from the source resets the total. ||
 || `min_event_timestamp` | **Type**: `std::optional<unsigned long>`
 Tables whose EventTimestamp is less than MinEventTimestamp are not processed. ||
 || `max_partition_count` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
