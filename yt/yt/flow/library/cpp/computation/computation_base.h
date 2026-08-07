@@ -311,6 +311,9 @@ struct TUniversalComputationDynamicPartitionSpec
 public:
     NYTree::IMapNodePtr ActiveSource;
     THashSet<TStreamId> BlockedOutputStreams;
+    //! Every partition of this partition's availability group is unavailable, as decided by the last
+    //! traverse. Passed to the source so it can stop publishing errors, never to be acted upon otherwise.
+    bool AvailabilityGroupUnavailable{};
 
     REGISTER_YSON_STRUCT(TUniversalComputationDynamicPartitionSpec);
 

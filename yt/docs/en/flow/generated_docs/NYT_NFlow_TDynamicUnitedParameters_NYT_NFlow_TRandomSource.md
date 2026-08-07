@@ -19,6 +19,10 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 || `message_key_range` | **Type**: `int`
 **Default value**: `1024`
  ||
+|| `reported_backlog_bytes_per_second` | **Type**: `std::optional<double>`
+ ||
+|| `reported_backlog_messages_per_second` | **Type**: `std::optional<double>`
+ ||
 |#
 
 
@@ -26,9 +30,9 @@ Source: [yt/yt/flow/library/cpp/common/registry-inl.h]({{source-root}}/yt/yt/flo
 
 
 #|
-|| `unavailable_time_half_decay_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
-**Default value**: `10m`
- ||
+|| `unavailable_threshold` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `5m`
+How long the source must be continuously unavailable for the partition to count as stably unavailable. Only time during which the job was running and seeing the failure counts: a gap between restarts is not charged, and any successful answer from the source resets the total. ||
 |#
 
 

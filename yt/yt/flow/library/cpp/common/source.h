@@ -49,6 +49,10 @@ struct TDynamicSourceContext
 {
     TDynamicSourceSpecPtr DynamicSourceSpec;
     NYTree::IMapNodePtr DynamicPartitionSpec;
+    //! The controller has decided that every partition of this partition's availability group is
+    //! unavailable. Reported so that a source can stop publishing errors nobody needs any more; it must
+    //! not feed back into the source's own availability accounting, which is what produced the verdict.
+    bool AvailabilityGroupUnavailable = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicSourceContext);

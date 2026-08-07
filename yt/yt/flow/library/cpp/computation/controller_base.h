@@ -23,11 +23,16 @@ void HideEventWatermarkInplace(
     const TSystemTimestamp& updateTime,
     const TComputationSpecPtr& spec);
 
+//! |suppressedGroups|, when given, receives the groups this call suppressed: their watermark is hidden
+//! here, and callers may stop publishing their errors too. A group every partition of which is
+//! unavailable is suppressed only while the caps allow it, so the set is empty whenever those groups
+//! still gate the pipeline.
 std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRule(
     const THashMap<std::string, std::vector<TNodeTraverseDataPtr>>& nodesByAvailabilityGroup,
     const TComputationSpecPtr& spec,
     const NProfiling::TSensorsOwner& sensorsOwner,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger,
+    THashSet<std::string>* suppressedGroups = nullptr);
 
 std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
     const std::vector<TNodeTraverseDataPtr>& nodes,
@@ -47,7 +52,8 @@ std::vector<TNodeTraverseDataPtr> ApplyEventWatermarkComputeRule(
     const TComputationSpecPtr& spec,
     const NProfiling::TSensorsOwner& sensorsOwner,
     const NLogging::TLogger& logger,
-    const IStatusErrorStatePtr& watermarkStallErrorState);
+    const IStatusErrorStatePtr& watermarkStallErrorState,
+    THashSet<std::string>* suppressedGroups = nullptr);
 
 std::optional<TSystemTimestamp> GetPartitionLastIdleTimestamp(
     const TNodeTraverseDataPtr& traverseData,
@@ -138,6 +144,13 @@ protected:
         const TFlowViewPtr& flowView);
     virtual std::optional<TNodeTraverseDataPtr> GetFuturePartitionsNodeTraverseData(const TFlowViewPtr& flowView);
 
+    //! Availability groups the last traverse suppressed: the pipeline neither waits for their watermark
+    //! nor needs their errors. Not the same as being fully unavailable — the caps decide whether a fully
+    //! unavailable group is suppressed at all.
+    //! Null until this process has completed a traverse, which is not the same as "nothing is
+    //! suppressed": a controller that has just taken over knows nothing yet.
+    const std::optional<THashSet<std::string>>& GetSuppressedAvailabilityGroups() const;
+
     IComputationController::TParametersPtr GetParametersBase() const final;
     IComputationController::TDynamicParametersPtr GetDynamicParametersBase() const final;
 
@@ -147,6 +160,7 @@ private:
     const NProfiling::TSensorsOwner SensorsOwner_;
     //! Persistent error state raised while too many idle source partitions gate the watermark.
     const IStatusErrorStatePtr IdlePartitionsWatermarkStallErrorState_;
+    std::optional<THashSet<std::string>> SuppressedAvailabilityGroups_;
     TAtomicIntrusivePtr<TDynamicComputationControllerContext> DynamicContext_;
     TAtomicIntrusivePtr<IComputationController::TDynamicParameters> DynamicParameters_;
 };

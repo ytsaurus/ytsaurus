@@ -57,6 +57,8 @@ void TUniversalComputationControllerPartitioningState::Register(TRegistrar regis
 {
     registrar.Parameter("last_sink_channel_counts", &TThis::LastSinkChannelCounts)
         .Default();
+    registrar.Parameter("suppressed_availability_groups", &TThis::SuppressedAvailabilityGroups)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -376,6 +378,10 @@ void TUniversalComputationController::DoPartitioning(
         }
 
         ProcessSourcePartitionStatuses(grouped.KeyPartitions, flowView);
+        if (const auto& suppressedAvailabilityGroups = GetSuppressedAvailabilityGroups()) {
+            PartitioningState_->SuppressedAvailabilityGroups = *suppressedAvailabilityGroups;
+        }
+        NotifySourcesAboutSuppressedGroups();
 
         auto expectedKeys = GetSourcePartitionKeys();
         if (expectedKeys) {
@@ -384,6 +390,10 @@ void TUniversalComputationController::DoPartitioning(
                 dynamicComputationPartitionSpec->ActiveSource = dynamicSourcePartitionSpec;
                 YT_VERIFY(dynamicComputationPartitionSpec->ActiveSource);
                 dynamicComputationPartitionSpec->BlockedOutputStreams = blockedStreamComputer->GetBlockedStreams(sourceKey);
+                auto availabilityGroupOrigin = GetAvailabilityGroupOrigin(sourceKey);
+                dynamicComputationPartitionSpec->AvailabilityGroupUnavailable = availabilityGroupOrigin &&
+                    PartitioningState_->SuppressedAvailabilityGroups.contains(
+                        MakeAvailabilityGroupKey(*availabilityGroupOrigin));
                 return ConvertTo<IMapNodePtr>(dynamicComputationPartitionSpec);
             };
 
@@ -430,22 +440,59 @@ void TUniversalComputationController::DoPartitioning(
     }
 }
 
+void TUniversalComputationController::NotifySourcesAboutSuppressedGroups()
+{
+    THashMap<TStreamId, THashSet<std::string>> groupsByStream;
+    for (const auto& availabilityGroup : PartitioningState_->SuppressedAvailabilityGroups) {
+        // A group whose partitions all vanished between the traverse and now has no origin left.
+        if (const auto* origin = AvailabilityGroupOrigins_.FindPtr(availabilityGroup)) {
+            groupsByStream[origin->StreamId].insert(origin->Group);
+        }
+    }
+
+    for (const auto& [streamId, source] : Sources_) {
+        source->ProcessSuppressedGroups(groupsByStream[streamId]);
+    }
+}
+
+std::optional<TUniversalComputationController::TAvailabilityGroupOrigin>
+TUniversalComputationController::GetAvailabilityGroupOrigin(const TKey& partitionKey) const
+{
+    auto [streamId, sourceKey] = SplitUniversalPartitionKey(partitionKey);
+    const auto* source = Sources_.FindPtr(streamId);
+    if (!source) {
+        return std::nullopt;
+    }
+    return TAvailabilityGroupOrigin{
+        .StreamId = streamId,
+        .Group = (*source)->GetGroup(sourceKey),
+    };
+}
+
+std::string TUniversalComputationController::MakeAvailabilityGroupKey(const TAvailabilityGroupOrigin& origin)
+{
+    return Format("%v-%v", origin.StreamId, origin.Group);
+}
+
 THashMap<std::string, std::vector<TNodeTraverseDataPtr>> TUniversalComputationController::GetNodesByAvailabilityGroup(
     const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
     const TFlowViewPtr& flowView)
 {
     THashMap<std::string, std::vector<TNodeTraverseDataPtr>> grouped;
+    AvailabilityGroupOrigins_.clear();
     for (const auto& [partitionId, node] : traverseData) {
         const auto partition = GetOrCrash(flowView->State->ExecutionSpec->Layout->Partitions, partitionId);
         if (partition->SourceKey) {
-            auto [streamId, sourceKey] = SplitUniversalPartitionKey(*partition->SourceKey);
             // Source stream renamed in spec - the partition's encoded streamId no longer maps to a live
             // source controller. Skip; orphan partitions are eventually pruned by InterruptPartition path
             // in DoPartitioning.
-            if (!Sources_.contains(streamId)) {
+            auto origin = GetAvailabilityGroupOrigin(*partition->SourceKey);
+            if (!origin) {
                 continue;
             }
-            grouped[Format("%v-%v", streamId, GetOrCrash(Sources_, streamId)->GetGroup(sourceKey))].push_back(node);
+            auto availabilityGroup = MakeAvailabilityGroupKey(*origin);
+            AvailabilityGroupOrigins_.emplace(availabilityGroup, std::move(*origin));
+            grouped[availabilityGroup].push_back(node);
         } else {
             grouped["input-default"].push_back(node);
         }

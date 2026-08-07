@@ -46,6 +46,7 @@ public:
 
 private:
     void DoInit() final;
+
     void DoTerminate() final;
 
     TFuture<std::vector<TRecord>> DoReadNextBatch(
@@ -104,6 +105,7 @@ private:
     TFuture<std::vector<TRecord>> CurrentRequestFuture_;
     std::pair<TMessageBatcherSettingsPtr, i64> CurrentRequestParameters_;
 
+    IStatusErrorStatePtr ReadErrorState_;
     IStatusErrorStatePtr UpdatePartitionInfoErrorState_;
 
     TPromise<i64> InitialCommittedOffset_;

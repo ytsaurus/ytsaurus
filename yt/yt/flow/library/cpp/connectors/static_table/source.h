@@ -127,6 +127,7 @@ protected:
     const NLogging::TLogger Logger;
 
 private:
+    IStatusErrorStatePtr ReadErrorState_;
     NApi::IClientPtr Client_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr Throttler_;
 

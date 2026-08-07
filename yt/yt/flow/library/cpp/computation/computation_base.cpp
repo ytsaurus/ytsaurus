@@ -607,6 +607,8 @@ void TUniversalComputationDynamicPartitionSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("blocked_output_streams", &TThis::BlockedOutputStreams)
         .Default();
+    registrar.Parameter("availability_group_unavailable", &TThis::AvailabilityGroupUnavailable)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -718,6 +720,7 @@ TUniversalComputationBase::TUniversalComputationBase(
                 auto dynamicSourceContext = New<TDynamicSourceContext>();
                 dynamicSourceContext->DynamicSourceSpec = GetPatchedDynamicSourceSpec(GetDynamicSpec(), *ActiveSourceStreamId_);
                 dynamicSourceContext->DynamicPartitionSpec = GetDynamicPartitionSpec()->ActiveSource;
+                dynamicSourceContext->AvailabilityGroupUnavailable = GetDynamicPartitionSpec()->AvailabilityGroupUnavailable;
                 ActiveSource_->Reconfigure(dynamicSourceContext);
             }
         }),
@@ -1013,6 +1016,7 @@ ISourcePtr TUniversalComputationBase::CreateActiveSource()
         auto dynamicSourceContext = New<TDynamicSourceContext>();
         dynamicSourceContext->DynamicSourceSpec = GetPatchedDynamicSourceSpec(GetDynamicSpec(), *ActiveSourceStreamId_);
         dynamicSourceContext->DynamicPartitionSpec = GetDynamicPartitionSpec()->ActiveSource;
+        dynamicSourceContext->AvailabilityGroupUnavailable = GetDynamicPartitionSpec()->AvailabilityGroupUnavailable;
         return TRegistry::Get()->CreateSource(context, dynamicSourceContext);
     }
     return nullptr;

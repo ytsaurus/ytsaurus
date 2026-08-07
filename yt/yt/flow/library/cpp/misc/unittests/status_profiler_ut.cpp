@@ -139,6 +139,44 @@ TEST(TStatusProfilerTest, ErrorStateTracking)
     ASSERT_TRUE(statusWithClearedError.LastStateChangeTime > statusWithError.LastStateChangeTime);
 }
 
+TEST(TStatusProfilerTest, Mute)
+{
+    IStatusProfilerPtr root = CreateSyncStatusProfiler();
+    auto muted = root->WithPrefix("/muted");
+    auto existing = muted->ErrorState("/existing");
+    auto elsewhere = root->ErrorState("/elsewhere");
+
+    existing->SetError(TError("Muted error"));
+    elsewhere->SetError(TError("Other error"));
+    ASSERT_TRUE(root->GetStatus().Errors.contains("/muted/existing"));
+    ASSERT_TRUE(root->GetStatus().Errors.contains("/elsewhere"));
+
+    muted->Mute(true);
+    ASSERT_TRUE(muted->IsMuted());
+    ASSERT_FALSE(root->IsMuted());
+
+    // The whole subtree goes quiet, including leaves created after the call and nested nodes.
+    auto later = muted->ErrorState("/later");
+    later->SetError(TError("Late error"));
+    auto nested = muted->WithPrefix("/nested")->ErrorState("/deep");
+    nested->SetError(TError("Deep error"));
+
+    auto errors = root->GetStatus().Errors;
+    ASSERT_FALSE(errors.contains("/muted/existing"));
+    ASSERT_FALSE(errors.contains("/muted/later"));
+    ASSERT_FALSE(errors.contains("/muted/nested/deep"));
+    ASSERT_TRUE(errors.contains("/elsewhere"));
+
+    // Muting hides errors from the tree but must not touch what a state records: availability
+    // accounting reads exactly this and would otherwise flap along with the mute.
+    auto status = existing->GetStatus();
+    ASSERT_TRUE(status.IsOK.has_value());
+    ASSERT_FALSE(status.IsOK.value());
+
+    muted->Mute(false);
+    ASSERT_TRUE(root->GetStatus().Errors.contains("/muted/existing"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int CountLinesContaining(const TString& path, TStringBuf marker)

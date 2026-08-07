@@ -165,6 +165,8 @@ TQueueSourceImpl::TQueueSourceImpl(
 
 void TQueueSourceImpl::DoInit()
 {
+    ReadErrorState_ = CreateAvailabilityErrorState("/read");
+
     PartitionInfoUpdater_ = New<NConcurrency::TPeriodicExecutor>(
         GetContext()->SerializedInvoker,
         BIND(&TQueueSourceImpl::TryUpdatePartitionInfo, MakeWeak(this)),
@@ -375,11 +377,11 @@ auto TQueueSourceImpl::DoReadNextBatch(
                     auto future = std::move(CurrentRequestFuture_);
                     CurrentRequestFuture_ = {};
                     if (future.GetOrCrash().IsOK()) {
-                        GetReadErrorState()->ClearError();
+                        ReadErrorState_->ClearError();
                         return future;
                     } else {
                         auto error = TError("Failed to read from partition") << future.GetOrCrash();
-                        GetReadErrorState()->SetError(error);
+                        ReadErrorState_->SetError(error);
                     }
                 }
                 return MakeFuture(std::vector<TQueueSourceImpl::TRecord>{});

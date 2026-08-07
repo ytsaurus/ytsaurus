@@ -78,6 +78,13 @@ public:
     virtual void Commit() = 0;
 
     virtual void ProcessPartitionStatuses(const THashMap<TKey, TExtendedSourcePartitionStatusPtr>& statuses) = 0;
+
+    //! Reports the groups of this source, as named by #GetGroup, that the controller has suppressed: it
+    //! no longer waits for them. Advisory: it exists so a source can stop reporting errors of something
+    //! already known to be down, and must not feed back into availability itself.
+    virtual void ProcessSuppressedGroups(const THashSet<std::string>& /*groups*/)
+    { }
+
     virtual std::optional<THashMap<TKey, NYTree::IMapNodePtr>> ListKeys() = 0;
     virtual std::string GetGroup(const TKey& key) = 0;
 
