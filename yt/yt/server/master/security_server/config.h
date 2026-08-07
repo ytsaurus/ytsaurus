@@ -89,6 +89,9 @@ struct TDynamicSecurityManagerConfig
 
     bool AllowChangeRequestLimitsForRoot;
 
+    // COMPAT(kvk1920): remove after 26.2.
+    bool ForwardAuthenticatedUser;
+
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 
     static void Register(TRegistrar registrar);

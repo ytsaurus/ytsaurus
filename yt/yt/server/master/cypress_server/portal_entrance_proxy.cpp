@@ -84,10 +84,14 @@ private:
                 auto exitCellTag = node->GetExitCellTag();
                 auto portalExitNodeId = MakePortalExitNodeId(node->GetId(), exitCellTag);
 
+                const auto& securityManager = Bootstrap_->GetSecurityManager();
+                auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
+
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
                 auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
                     multicellManager->GetMasterChannelOrThrow(exitCellTag, NHydra::EPeerKind::Follower));
                 auto batchReq = proxy.ExecuteBatch();
+                batchReq->SetUser(userNameToForward);
 
                 auto req = TYPathProxy::Get(FromObjectId(portalExitNodeId) + "/@" + key.Unintern());
                 batchReq->AddRequest(req);

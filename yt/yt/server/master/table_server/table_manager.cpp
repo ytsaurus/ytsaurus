@@ -1449,6 +1449,7 @@ public:
                     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
                         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
                     auto req = TYPathProxy::Get("//sys/@queue_agent_object_revisions");
+                    // TODO(kvk1920): don't use "root" user here.
                     asyncResults.push_back(proxy.Execute(req));
                 }
             }
