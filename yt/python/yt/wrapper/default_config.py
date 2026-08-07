@@ -758,7 +758,10 @@ default_config = {
         # Encrypt files with pickle data (None - disabled, 1 - enabled, 2 - enabled with key in "secure vault")
         "encrypt_pickle_files": RemotePatchableInteger(ENCRYPT_PICKLE_FILES, "python_encrypt_pickle_files"),
         # Pickle encryption engine: "cryptography_fernet" (default) or "native_chacha" (ctypes+OpenSSL with pure Python fallback).
-        "encryption_engine": "cryptography_fernet",
+        "encryption_engine": RemotePatchableString(
+            "cryptography_fernet",
+            "python_pickling_encryption_engine",
+        ),
     },
 
     # Enables special behavior if client works with local mode cluster.
