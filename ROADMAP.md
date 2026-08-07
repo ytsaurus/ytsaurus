@@ -4,19 +4,17 @@
  ***
 
 ## Master & Cypress
-- [ ] Sequoia: Cypress metadata in Dynamic Tables.
 - [ ] S3 Support as a Medium: Introduce S3 support as a storage medium, expanding storage flexibility and options.
 - [ ] Support for Apache Parquet/Apache Iceberg file format in S3 as external tables in Cypress.
 - [ ] Develop support for time zones in the YTsaurus type system.
-- [ ] Delta lake tables.
-- [ ] Row Level Security. 
+- [ ] Delta tables.
+- [X] Row Level Security (25.4). 
 
 ## Scheduler
 - [X] Operation access control via ACOs (24.2).
 - [X] Gang operations support for distributed ML workloads (25.1).
 - [X] Jobs Timeline UI for Vanilla operations (25.1, UI 1.94.0+).
 - [X] Improved fair share distribution algorithm for gang operations (25.3).
-- [ ] New allocation scheduling strategy for ML workloads (25.3+).
 - [ ] Flexible ACL management for pools.
 - [ ] Renewal of documentation.
 
@@ -45,7 +43,7 @@
 - [ ] Bundle diagnostics dashboards: Add several useful diagnostics dashboards to UI in Open Source. With dashboards and diagnostics guide it is much easier to resolve performance issues. 
 - [ ] Chaos: Improve stability and performance.
 - [ ] Seamless Tablet Migration: Develop and implement a protocol for seamless tablet migration to prevent memory and load imbalances on nodes. The goal is to minimize downtime to a few seconds by maintaining dual copies of tablets with consistent write support during migration. This includes achieving zero-downtime migration, implementing resharding, and devising a strategy for supporting write retries, potentially initiating development in this area.
-- [ ] Bulk insert from YQL: YQL requires special type of bulk insert due to nested user transactions. We enhance bulk insert feature to allow inserting directly from YQL.
+- [X] Bulk insert from YQL: YQL requires special type of bulk insert due to nested user transactions. We enhance bulk insert feature to allow inserting directly from YQL. (25.4)
 - [ ] Shared write: Lockless write mode useful for write-only transactions (also known as blind write). Initial support is already available in recent release but we work on performance and expect much lower latencies for reading values written in shared write mode. 
 - [ ] Display Dynamic Table Errors in YT Interface: Implement an interface feature to display errors from dynamic tables with a selectable time range. The initial version is almost ready, and in the upcoming semesters, we will evaluate its performance and incorporate new error types.
 - [ ] UDF Development: Enable support for YQL UDFs in dynamic tables, allowing users to leverage existing UDFs. The execution engine will utilize WebAssembly technology to ensure adequate isolation for running arbitrary code.
