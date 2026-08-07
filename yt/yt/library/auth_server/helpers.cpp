@@ -68,7 +68,12 @@ std::string GetBlackboxCacheKeyFactorFromUserIP(
         return Format("project_id=%v", TMtnAddress(address.ToIP6Address()).GetProjectId());
     }
 
-    return Format("ip=%v", ToString(address));
+    return Format(
+        "ip=%v",
+        ToString(address, TNetworkAddressFormatOptions{
+            .IncludePort = false,
+            .IncludeTcpProtocol = false,
+        }));
 }
 
 std::string GetLoginForTvmId(TTvmId tvmId)
