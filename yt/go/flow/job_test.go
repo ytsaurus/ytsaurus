@@ -3,7 +3,6 @@ package flow
 import (
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -180,21 +179,6 @@ func TestJobStateNamespacesAreDistinct(t *testing.T) {
 	require.ErrorIs(t, job.ValidateExternalStateName("/joined"), ErrUnknownState)
 }
 
-type fakeClock struct {
-	now time.Time
-}
-
-func (c *fakeClock) advance(d time.Duration) {
-	c.now = c.now.Add(d)
-}
-
-func newTestJobCache(ttl time.Duration) (*jobCache, *fakeClock) {
-	clock := &fakeClock{now: time.Unix(1700000000, 0)}
-	cache := newJobCache(ttl)
-	cache.now = func() time.Time { return clock.now }
-	return cache, clock
-}
-
 func cachedTestJob(t *testing.T, id guid.GUID) *Job {
 	t.Helper()
 	job, err := NewJob(id, "counter", StreamSpecs{}, []byte("{}"), []byte("{}"))
@@ -203,7 +187,7 @@ func cachedTestJob(t *testing.T, id guid.GUID) *Job {
 }
 
 func TestJobCacheStoresByJobID(t *testing.T) {
-	cache, _ := newTestJobCache(time.Minute)
+	cache := newJobCache()
 	id := guid.FromHalves(1, 2)
 
 	_, ok := cache.Get(id)
@@ -220,7 +204,7 @@ func TestJobCacheStoresByJobID(t *testing.T) {
 }
 
 func TestJobCachePutReplacesJobUnderSameID(t *testing.T) {
-	cache, _ := newTestJobCache(time.Minute)
+	cache := newJobCache()
 	id := guid.FromHalves(1, 2)
 
 	cache.Put(cachedTestJob(t, id))
@@ -234,7 +218,7 @@ func TestJobCachePutReplacesJobUnderSameID(t *testing.T) {
 }
 
 func TestJobCacheReportsCPUAsReplayableDeltas(t *testing.T) {
-	cache, _ := newTestJobCache(time.Minute)
+	cache := newJobCache()
 	id := guid.FromHalves(1, 2)
 	firstRequest := guid.FromHalves(3, 4)
 	secondRequest := guid.FromHalves(5, 6)
@@ -250,7 +234,7 @@ func TestJobCacheReportsCPUAsReplayableDeltas(t *testing.T) {
 }
 
 func TestJobCachePreservesCPUWhenJobIsReconfigured(t *testing.T) {
-	cache, _ := newTestJobCache(time.Minute)
+	cache := newJobCache()
 	id := guid.FromHalves(1, 2)
 	requestID := guid.FromHalves(3, 4)
 	cache.Put(cachedTestJob(t, id))
@@ -262,7 +246,7 @@ func TestJobCachePreservesCPUWhenJobIsReconfigured(t *testing.T) {
 }
 
 func TestJobCacheReportsMemoryAsReplayableGauge(t *testing.T) {
-	cache, _ := newTestJobCache(time.Minute)
+	cache := newJobCache()
 	id := guid.FromHalves(1, 2)
 	firstRequest := guid.FromHalves(3, 4)
 	secondRequest := guid.FromHalves(5, 6)
@@ -273,66 +257,23 @@ func TestJobCacheReportsMemoryAsReplayableGauge(t *testing.T) {
 	require.EqualValues(t, 200, cache.ResponseMemoryUsage(id, secondRequest, 200))
 }
 
-func TestJobCacheDropsCPUForExpiredOrDeletedJobs(t *testing.T) {
-	cache, clock := newTestJobCache(time.Minute)
-	expired := guid.FromHalves(1, 2)
+func TestJobCacheDropsCPUForDeletedJobs(t *testing.T) {
+	cache := newJobCache()
 	deleted := guid.FromHalves(3, 4)
-	cache.Put(cachedTestJob(t, expired))
 	cache.Put(cachedTestJob(t, deleted))
-	cache.AddCPUTime(expired, 10)
 	cache.AddCPUTime(deleted, 20)
 
-	clock.advance(time.Minute)
-	require.Zero(t, cache.ResponseCPUTime(expired, guid.FromHalves(5, 6)))
 	cache.Delete(deleted)
 	cache.AddCPUTime(deleted, 30)
 	require.Zero(t, cache.ResponseCPUTime(deleted, guid.FromHalves(7, 8)))
 }
 
-func TestJobCacheExpiresAfterTTL(t *testing.T) {
-	cache, clock := newTestJobCache(time.Minute)
-	id := guid.FromHalves(1, 2)
-	cache.Put(cachedTestJob(t, id))
-
-	clock.advance(59 * time.Second)
-	_, ok := cache.Get(id)
-	require.True(t, ok)
-
-	clock.advance(time.Minute)
-	_, ok = cache.Get(id)
-	require.False(t, ok)
-	require.Equal(t, 0, cache.Len())
-}
-
-func TestJobCacheAccessRefreshesTTL(t *testing.T) {
-	cache, clock := newTestJobCache(time.Minute)
-	id := guid.FromHalves(1, 2)
-	cache.Put(cachedTestJob(t, id))
-
-	for range 10 {
-		clock.advance(30 * time.Second)
-		_, ok := cache.Get(id)
-		require.True(t, ok)
-	}
-}
-
-func TestJobCachePutSweepsExpired(t *testing.T) {
-	cache, clock := newTestJobCache(time.Minute)
-	abandoned := guid.FromHalves(1, 1)
-	fresh := guid.FromHalves(2, 2)
-
-	cache.Put(cachedTestJob(t, abandoned))
-	clock.advance(2 * time.Minute)
-	cache.Put(cachedTestJob(t, fresh))
-
-	require.Equal(t, 1, cache.Len())
-	_, ok := cache.Get(fresh)
-	require.True(t, ok)
-}
-
 func TestJobCacheDelete(t *testing.T) {
-	cache, _ := newTestJobCache(time.Minute)
+	cache := newJobCache()
 	id := guid.FromHalves(1, 2)
+
+	// Removal is idempotent: unknown ids are ignored.
+	cache.Delete(id)
 
 	cache.Put(cachedTestJob(t, id))
 	cache.Delete(id)
@@ -340,20 +281,25 @@ func TestJobCacheDelete(t *testing.T) {
 	_, ok := cache.Get(id)
 	require.False(t, ok)
 	require.Equal(t, 0, cache.Len())
+	cache.Delete(id)
 }
 
-func TestJobCacheDisabledByNonPositiveTTL(t *testing.T) {
-	cache, _ := newTestJobCache(0)
+func TestJobCacheRegistersARemovedJobAgain(t *testing.T) {
+	cache := newJobCache()
 	id := guid.FromHalves(1, 2)
 
 	cache.Put(cachedTestJob(t, id))
+	cache.Delete(id)
 
+	// A registration processed after a removal recreates the entry; if its
+	// job is gone from the worker, the reconcile pass reclaims it.
+	cache.Put(cachedTestJob(t, id))
 	_, ok := cache.Get(id)
-	require.False(t, ok)
+	require.True(t, ok)
 }
 
 func TestJobCacheConcurrentAccess(t *testing.T) {
-	cache := newJobCache(time.Minute)
+	cache := newJobCache()
 
 	const goroutines = 8
 	jobs := make([]*Job, goroutines)

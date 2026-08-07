@@ -10,6 +10,14 @@ namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Reply of ICompanionClient::ListJobs.
+struct TCompanionJobList
+{
+    std::vector<TJobId> JobIds;
+    //! Pid of the answering process; distinguishes fan-out children.
+    i64 ProcessId = 0;
+};
+
 //! Interface for communication with Companion process.
 struct ICompanionClient
     : public TRefCounted
@@ -26,6 +34,13 @@ struct ICompanionClient
     virtual TCompanionPutJobResponsePtr PutJob(
         const TCompanionPutJobRequestPtr& putJobRequest,
         const IExternalPerformanceMetricsReporterPtr& reporter) = 0;
+
+    //! Removes job from Companion. One attempt; the caller owns the retries.
+    virtual TFuture<void> RemoveJob(const TJobId& jobId) = 0;
+
+    //! Jobs held by the companion process this client's channel currently
+    //! reaches. One attempt; the caller owns the retries.
+    virtual TFuture<TCompanionJobList> ListJobs() = 0;
 
     //! Executes a lifecycle command over a resource hosted in Companion.
     virtual TFuture<TCompanionResourceExecuteResponsePtr> ResourceExecute(

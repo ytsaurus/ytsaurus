@@ -36,13 +36,6 @@ NCompanion::TCompanionExecutionConfigPtr LoadCompanionExecutionConfigFromEnv()
     THROW_ERROR_EXCEPTION_UNLESS(config->Port > 0,
         "YT_FLOW_COMPANION_CONFIG must specify a positive port, got %v",
         config->Port);
-    // NB: With a zero TTL the registry would evict a job microseconds after
-    // PutJob, before the same request can acquire it — an endless
-    // RS_JOB_NOT_FOUND retry loop. The shared config schema stays lenient for
-    // the other companions; the C++ server rejects the value it cannot serve.
-    THROW_ERROR_EXCEPTION_UNLESS(config->JobTtlSeconds > 0,
-        "YT_FLOW_COMPANION_CONFIG must specify a positive job_ttl_seconds, got %v",
-        config->JobTtlSeconds);
     // 0 means "auto" in the shared companion config vocabulary; the C++
     // companion resolves auto to a single multithreaded process.
     THROW_ERROR_EXCEPTION_UNLESS(config->CompanionProcessCount <= 1,

@@ -392,6 +392,52 @@ TCompanionPutJobResponsePtr TCompanionClient::PutJob(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<void> TCompanionClient::RemoveJob(const TJobId& jobId)
+{
+    auto request = CompanionProxy_.RemoveJob();
+    request->SetTimeout(Timeout_);
+    ToProto(request->mutable_request_id(), TGuid::Create());
+    ToProto(request->mutable_job_id(), jobId);
+    YT_TLOG_DEBUG("Sending remove job request to companion")
+        .With("JobId", jobId);
+    auto reqReqId = request->request_id();
+    // A rejection must not read as an acknowledgement: the caller stops
+    // retrying once this future is set.
+    return request->Invoke().Apply(BIND([reqReqId, jobId] (const TCompanionProxy::TRspRemoveJobPtr& response) {
+        VerifyRequestResponseIds(reqReqId, response->request_id());
+        auto responseStatus = static_cast<ECompanionResponseStatus>(response->status());
+        if (responseStatus != ECompanionResponseStatus::Ok) {
+            THROW_ERROR_EXCEPTION("Companion failed to remove job")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("status", responseStatus);
+        }
+    }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TCompanionJobList> TCompanionClient::ListJobs()
+{
+    auto request = CompanionProxy_.ListJobs();
+    request->SetTimeout(Timeout_);
+    ToProto(request->mutable_request_id(), TGuid::Create());
+    auto reqReqId = request->request_id();
+    return request->Invoke().Apply(BIND([reqReqId] (const TCompanionProxy::TRspListJobsPtr& response) {
+        VerifyRequestResponseIds(reqReqId, response->request_id());
+        auto responseStatus = static_cast<ECompanionResponseStatus>(response->status());
+        if (responseStatus != ECompanionResponseStatus::Ok) {
+            THROW_ERROR_EXCEPTION("Companion failed to list jobs")
+                << TErrorAttribute("status", responseStatus);
+        }
+        return TCompanionJobList{
+            .JobIds = FromProto<std::vector<TJobId>>(response->job_ids()),
+            .ProcessId = response->process_id(),
+        };
+    }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFuture<TCompanionResourceExecuteResponsePtr> TCompanionClient::ResourceExecute(
     const TResourceId& resourceId,
     ECompanionResourceCommand command,

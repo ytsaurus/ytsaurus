@@ -1,25 +1,38 @@
 """Tests for the companion parent supervisor."""
 
+import os
+import signal
+import time
+
 import pytest
 
 from yt.yt.flow.library.python.companion.parent import (
     DEFAULT_SUPERVISE_INTERVAL_SECONDS,
     CrashLoopError,
     CompanionProcessSupervisor,
+    _ForkedChild,
 )
 
 
 class FakeChild:
-    def __init__(self, idx):
+    def __init__(self, idx, exits_on_stop=True):
         self.idx = idx
         self.alive = True
         self.stopped = False
+        self.killed = False
+        self._exits_on_stop = exits_on_stop
 
     def is_alive(self):
         return self.alive
 
     def stop(self):
         self.stopped = True
+        if self._exits_on_stop:
+            self.alive = False
+
+    def kill(self):
+        self.killed = True
+        self.alive = False
 
 
 class FakeClock:
@@ -216,8 +229,48 @@ def test_stop_propagates_to_children():
     supervisor.stop()
 
     assert all(c.stopped for c in supervisor.children)
+    assert not any(c.killed for c in supervisor.children)
+    assert not any(c.is_alive() for c in supervisor.children)
+
+
+def test_stop_kills_children_that_ignore_sigterm():
+    """A child left running would keep holding the companion port."""
+
+    def spawn(idx):
+        return FakeChild(idx, exits_on_stop=False)
+
+    supervisor = CompanionProcessSupervisor(n=2, spawn_child=spawn)
+    supervisor.start()
+    supervisor.stop(timeout=0.05)
+
+    assert all(c.stopped for c in supervisor.children)
+    assert all(c.killed for c in supervisor.children)
+    assert not any(c.is_alive() for c in supervisor.children)
 
 
 def test_requires_positive_n():
     with pytest.raises(ValueError):
         CompanionProcessSupervisor(n=0, spawn_child=lambda idx: FakeChild(idx))
+
+
+def test_stop_reaps_a_real_child_that_ignores_sigterm():
+    """A real child is needed here: the fakes exit synchronously and would hide
+    the kill/reap race."""
+    pid = os.fork()
+    if pid == 0:  # pragma: no cover - runs in the forked child
+        try:
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            while True:
+                time.sleep(1)
+        finally:
+            os._exit(0)
+
+    supervisor = CompanionProcessSupervisor(n=1, spawn_child=lambda idx: _ForkedChild(pid))
+    supervisor.start()
+    supervisor.stop(timeout=0.5)
+
+    assert not supervisor.children[0].is_alive()
+    # The child must be reaped, not merely signalled: waitpid on a reaped pid
+    # raises instead of blocking.
+    with pytest.raises(ChildProcessError):
+        os.waitpid(pid, 0)

@@ -45,7 +45,7 @@ public:
     void Restart();
 
     //! Stops auto-restartable companion process.
-    void Shutdown();
+    virtual void Shutdown();
 
 protected:
     //! Validates the process manager configuration before spawning.

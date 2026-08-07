@@ -10,8 +10,9 @@ namespace NYT::NFlow::NCompanionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! TTL cache of jobs keyed by job id (mirrors the Java/Python job caches).
-//! An expired or missing job is healed by the worker resending the job info.
+//! Registry of jobs keyed by job id, owned by the worker: entries are created
+//! and updated by PutJob and removed by RemoveJob, so an entry lives exactly
+//! as long as its job.
 class TJobRegistry
     : public TRefCounted
 {
@@ -22,19 +23,29 @@ public:
         IInvokerPtr Invoker;
     };
 
-    TJobRegistry(TDuration jobTtl, IInvokerPtr invoker);
+    explicit TJobRegistry(IInvokerPtr invoker);
 
+    //! Registers or replaces a job.
     void PutJob(TJobPtr job);
-    //! Acquires an execution lease for a job. The lease protects the registry
-    //! entry and its serializing invoker from TTL eviction until ReleaseJob()
-    //! is called. Returns null when the job is unknown or expired.
+    //! Removes a job; unknown ids are ignored (removal is idempotent).
+    //! An entry with active leases is only marked: it stops being acquirable
+    //! immediately and is erased when the last lease is released, so the
+    //! serializing invoker outlives every in-flight batch.
+    void RemoveJob(const TJobId& jobId);
+    //! Acquires an execution lease for a job. The lease keeps the registry
+    //! entry and its serializing invoker alive until ReleaseJob() is called.
+    //! Returns null when the job is unknown.
     //!
     //! The returned invoker admits one batch at a time (holding its slot
     //! across fiber suspensions in user code) and survives job replacement,
     //! so an RPC retry carrying the job info cannot race the original request.
     std::optional<TJobExecution> AcquireJob(const TJobId& jobId);
-    //! Releases an execution lease and refreshes the entry TTL.
+    //! Releases an execution lease, erasing the entry if its removal was
+    //! deferred while the lease was held.
     void ReleaseJob(const TJobId& jobId);
+    //! Ids of every registered job, including those whose removal is deferred
+    //! behind an active lease.
+    std::vector<TJobId> ListJobIds();
 
 private:
     struct TEntry
@@ -42,17 +53,13 @@ private:
         TJobPtr Job;
         IInvokerPtr JobInvoker;
         int ActiveRequestCount = 0;
-        TInstant LastAccess;
+        bool RemovalPending = false;
     };
 
-    const TDuration JobTtl_;
     const IInvokerPtr Invoker_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     THashMap<TJobId, TEntry> Jobs_;
-
-    bool IsExpired(const TEntry& entry, TInstant now) const;
-    void SweepExpired(TInstant now, std::vector<TJobPtr>* retired);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobRegistry);

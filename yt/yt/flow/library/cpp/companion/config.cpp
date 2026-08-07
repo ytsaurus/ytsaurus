@@ -17,9 +17,6 @@ void TCompanionConfig::Register(TRegistrar registrar)
         .Default(0)
         .GreaterThanOrEqual(0)
         .LessThan(65536);
-    registrar.Parameter("job_ttl_seconds", &TThis::JobTtlSeconds)
-        .Default(600)
-        .GreaterThanOrEqual(0);
     registrar.Parameter("companion_process_count", &TThis::CompanionProcessCount)
         .Default(0)
         .GreaterThanOrEqual(0);

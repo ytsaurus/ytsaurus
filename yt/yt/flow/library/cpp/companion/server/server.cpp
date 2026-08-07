@@ -59,7 +59,6 @@ TCompanionServer::TCompanionServer(
     RpcServer_ = NRpc::NGrpc::CreateServer(BuildGrpcServerConfig(Config_->Port));
     RpcServer_->RegisterService(CreateCompanionService(
         std::move(pipeline),
-        Config_,
         ThreadPool_->GetInvoker()));
 }
 

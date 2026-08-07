@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -36,9 +35,6 @@ const (
 	WorkerMode = "Worker"
 )
 
-// DefaultJobTTL matches the worker's job cache TTL.
-const DefaultJobTTL = 600 * time.Second
-
 var (
 	// ErrInvalidConfig reports an environment a companion cannot serve in.
 	ErrInvalidConfig = xerrors.NewSentinel("invalid companion config")
@@ -54,8 +50,6 @@ var (
 type Config struct {
 	// Port is the port the companion serves on; 0 binds an ephemeral one.
 	Port int
-
-	JobTTL time.Duration
 }
 
 // LoadConfig reads companion configuration from the environment.
@@ -64,7 +58,7 @@ func LoadConfig() (Config, error) {
 	raw, rawSet := os.LookupEnv(ConfigEnvVar)
 
 	if !modeSet && !rawSet {
-		return Config{JobTTL: DefaultJobTTL}, nil
+		return Config{}, nil
 	}
 	return ParseConfig(mode, []byte(raw))
 }
@@ -95,25 +89,14 @@ func ParseConfig(mode string, raw []byte) (Config, error) {
 			ErrInvalidConfig, parsed.CompanionProcessCount)
 	}
 
-	jobTTL := DefaultJobTTL
-	if parsed.JobTTLSeconds != nil {
-		if *parsed.JobTTLSeconds < 0 {
-			return Config{}, xerrors.Errorf("flow: %w: job_ttl_seconds is %d, want at least 0",
-				ErrInvalidConfig, *parsed.JobTTLSeconds)
-		}
-		jobTTL = time.Duration(*parsed.JobTTLSeconds) * time.Second
-	}
-
 	return Config{
-		Port:   parsed.Port,
-		JobTTL: jobTTL,
+		Port: parsed.Port,
 	}, nil
 }
 
 type rawConfig struct {
-	Port                  int    `yson:"port"`
-	JobTTLSeconds         *int64 `yson:"job_ttl_seconds"`
-	CompanionProcessCount int    `yson:"companion_process_count"`
+	Port                  int `yson:"port"`
+	CompanionProcessCount int `yson:"companion_process_count"`
 }
 
 func validatePort(name string, port int) error {
@@ -153,13 +136,10 @@ type Server struct {
 
 // NewServer returns a server configured but not yet listening.
 func NewServer(config Config, opts ...ServerOption) *Server {
-	if config.JobTTL == 0 {
-		config.JobTTL = DefaultJobTTL
-	}
 	s := &Server{
 		config:       config,
 		logger:       ytlog.Must(),
-		jobs:         newJobCache(config.JobTTL),
+		jobs:         newJobCache(),
 		cpuProfiler:  runtimeCPUProfiler{},
 		memoryProbe:  runtimeMemoryProbe{},
 		computations: map[string]*Computation{},
@@ -218,7 +198,25 @@ func (s *Server) StartAsync() error {
 
 // Stop stops serving.
 func (s *Server) Stop() {
+	grpcServer, stopResources := s.detachGeneration(nil)
+	if grpcServer != nil {
+		grpcServer.Stop()
+	}
+	stopResources()
+}
+
+// detachGeneration clears the per-generation server state under the mutex and
+// returns the detached gRPC server plus a function stopping the generation's
+// resources. A non-nil match detaches only if it is still the current
+// generation (the serve() self-exit path); Stop passes nil to detach whatever
+// is current.
+func (s *Server) detachGeneration(match *grpc.Server) (*grpc.Server, func()) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if match != nil && s.grpcServer != match {
+		return nil, func() {}
+	}
 	grpcServer := s.grpcServer
 	cpuTracker := s.cpuTracker
 	memoryTracker := s.memoryTracker
@@ -227,16 +225,14 @@ func (s *Server) Stop() {
 	s.cpuTracker = nil
 	s.memoryTracker = nil
 	s.running = false
-	s.mu.Unlock()
 
-	if grpcServer != nil {
-		grpcServer.Stop()
-	}
-	if cpuTracker != nil {
-		cpuTracker.Stop()
-	}
-	if memoryTracker != nil {
-		memoryTracker.Stop()
+	return grpcServer, func() {
+		if cpuTracker != nil {
+			cpuTracker.Stop()
+		}
+		if memoryTracker != nil {
+			memoryTracker.Stop()
+		}
 	}
 }
 
@@ -282,6 +278,9 @@ func (s *Server) listen() (*grpc.Server, net.Listener, error) {
 		grpc.MaxSendMsgSize(math.MaxInt32),
 	)
 
+	// Do not answer for jobs of a previous serving generation.
+	s.jobs = newJobCache()
+
 	var memoryTracker *memoryTracker
 	if s.memoryProbe != nil {
 		memoryTracker = newMemoryTracker(s.jobs, s.logger, s.memoryProbe, defaultMemoryTrackerConfig)
@@ -318,25 +317,8 @@ func (s *Server) listen() (*grpc.Server, net.Listener, error) {
 func (s *Server) serve(grpcServer *grpc.Server, listener net.Listener) error {
 	err := grpcServer.Serve(listener)
 
-	s.mu.Lock()
-	var cpuTracker *cpuTracker
-	var memoryTracker *memoryTracker
-	if s.grpcServer == grpcServer {
-		cpuTracker = s.cpuTracker
-		memoryTracker = s.memoryTracker
-		s.grpcServer = nil
-		s.listener = nil
-		s.cpuTracker = nil
-		s.memoryTracker = nil
-		s.running = false
-	}
-	s.mu.Unlock()
-	if cpuTracker != nil {
-		cpuTracker.Stop()
-	}
-	if memoryTracker != nil {
-		memoryTracker.Stop()
-	}
+	_, stopResources := s.detachGeneration(grpcServer)
+	stopResources()
 
 	if errors.Is(err, grpc.ErrServerStopped) {
 		return nil
@@ -389,6 +371,12 @@ func (s *companionService) PutJob(
 	ctx context.Context,
 	req *companion.TReqPutJob,
 ) (*companion.TRspPutJob, error) {
+	// The worker has abandoned this request; registering the job would leak
+	// an entry nobody will remove.
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
+
 	var job *Job
 	var err error
 	jobID := misc.NewGUIDFromProto(req.GetJobId())
@@ -424,6 +412,12 @@ func (s *companionService) ProcessBatch(
 	ctx context.Context,
 	req *companion.TReqProcessBatch,
 ) (*companion.TRspProcessBatch, error) {
+	// The worker has abandoned this request; the heal path must not register
+	// a job nobody will remove.
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
+
 	var data *companion.TResponseData
 	responseStatus := companion.EResponseStatus_RS_OK
 	var panicTrace []byte
@@ -501,6 +495,39 @@ func (s *companionService) ProcessBatch(
 		Data:      data,
 		Metrics:   responseMetrics(cpuTime, memoryUsage),
 		Status:    responseStatus.Enum(),
+	}, nil
+}
+
+// RemoveJob removes a job from the registry; removal is idempotent.
+func (s *companionService) RemoveJob(
+	_ context.Context,
+	req *companion.TReqRemoveJob,
+) (*companion.TRspRemoveJob, error) {
+	s.jobs.Delete(misc.NewGUIDFromProto(req.GetJobId()))
+
+	return &companion.TRspRemoveJob{
+		RequestId: req.GetRequestId(),
+		JobId:     req.GetJobId(),
+		Status:    companion.EResponseStatus_RS_OK.Enum(),
+	}, nil
+}
+
+// ListJobs reports every job currently held by this process.
+func (s *companionService) ListJobs(
+	_ context.Context,
+	req *companion.TReqListJobs,
+) (*companion.TRspListJobs, error) {
+	ids := s.jobs.ActiveIDs()
+	jobIDs := make([]*misc.TGuid, 0, len(ids))
+	for _, id := range ids {
+		jobIDs = append(jobIDs, misc.NewProtoFromGUID(id))
+	}
+
+	return &companion.TRspListJobs{
+		RequestId: req.GetRequestId(),
+		JobIds:    jobIDs,
+		ProcessId: proto.Int64(int64(os.Getpid())),
+		Status:    companion.EResponseStatus_RS_OK.Enum(),
 	}, nil
 }
 

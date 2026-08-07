@@ -18,11 +18,10 @@ TEST_F(TCompanionEnvConfigTest, ParsesFullConfig)
     SetEnv("YT_FLOW_MODE", "Worker");
     SetEnv(
         "YT_FLOW_COMPANION_CONFIG",
-        R"({port=12345;job_ttl_seconds=17;cluster_url="localhost:1234";pipeline_path="//tmp/pipeline"})");
+        R"({port=12345;cluster_url="localhost:1234";pipeline_path="//tmp/pipeline"})");
 
     auto config = LoadCompanionExecutionConfigFromEnv();
     EXPECT_EQ(config->Port, 12345);
-    EXPECT_EQ(config->JobTtlSeconds, 17);
     EXPECT_EQ(config->CompanionProcessCount, 0);
     EXPECT_EQ(config->ClusterUrl, "localhost:1234");
     EXPECT_EQ(config->PipelinePath, "//tmp/pipeline");
@@ -62,15 +61,6 @@ TEST_F(TCompanionEnvConfigTest, ZeroPortThrows)
     EXPECT_THROW_WITH_SUBSTRING(
         LoadCompanionExecutionConfigFromEnv(),
         "positive port");
-}
-
-TEST_F(TCompanionEnvConfigTest, ZeroJobTtlThrows)
-{
-    SetEnv("YT_FLOW_MODE", "Worker");
-    SetEnv("YT_FLOW_COMPANION_CONFIG", "{port=12345;job_ttl_seconds=0}");
-    EXPECT_THROW_WITH_SUBSTRING(
-        LoadCompanionExecutionConfigFromEnv(),
-        "positive job_ttl_seconds");
 }
 
 TEST_F(TCompanionEnvConfigTest, ExplicitSingleProcessAllowed)

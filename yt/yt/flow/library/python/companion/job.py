@@ -1,11 +1,13 @@
 """Job classes: Job, JobContext."""
 
+import logging
 import threading
-import time
 from typing import Any, Dict, Optional, Set
 
 from .row import TableSchema, EMPTY_SCHEMA
 from .stream import StreamSpecs
+
+log = logging.getLogger(__name__)
 
 
 class Job:
@@ -66,30 +68,36 @@ class Job:
 
 
 class JobContext:
-    """Cache for Job instances with TTL expiration."""
+    """Registry of jobs owned by the worker: entries are created and updated by
+    PutJob and removed by RemoveJob, so an entry lives exactly as long as its
+    job. Copies left behind by a channel that moved to another process are
+    reclaimed by the worker's reconcile pass."""
 
-    def __init__(self, job_ttl_seconds: int = 600):
-        self._job_ttl = job_ttl_seconds
-        self._cache: Dict[str, tuple[Job, float]] = {}
+    def __init__(self):
+        self._jobs: Dict[str, Job] = {}
         self._lock = threading.Lock()
 
     def get_job(self, job_id: str) -> Optional[Job]:
         with self._lock:
-            entry = self._cache.get(job_id)
-            if entry is None:
-                return None
-            job, last_access = entry
-            if time.monotonic() - last_access > self._job_ttl:
-                del self._cache[job_id]
-                return None
-            # Update access time.
-            self._cache[job_id] = (job, time.monotonic())
-            return job
+            return self._jobs.get(job_id)
 
     def put_job(self, job_id: str, job: Job):
+        """Register or replace a job."""
         with self._lock:
-            self._cache[job_id] = (job, time.monotonic())
+            self._jobs[job_id] = job
 
     def remove_job(self, job_id: str):
+        """Remove a job; unknown ids are ignored (removal is idempotent)."""
         with self._lock:
-            self._cache.pop(job_id, None)
+            self._jobs.pop(job_id, None)
+
+    def list_job_ids(self):
+        """Ids of every registered job."""
+        with self._lock:
+            return list(self._jobs.keys())
+
+    def clear(self):
+        """Forget every job, so a server that starts serving again does not
+        answer for jobs of its previous generation."""
+        with self._lock:
+            self._jobs.clear()

@@ -56,6 +56,16 @@ public:
         return CompanionInfo_;
     }
 
+    TFuture<void> RemoveJob(const TJobId& /*jobId*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TFuture<TCompanionJobList> ListJobs() override
+    {
+        return MakeFuture(TCompanionJobList{});
+    }
+
     TCompanionPutJobResponsePtr PutJob(
         const TCompanionPutJobRequestPtr& /*putJobRequest*/,
         const IExternalPerformanceMetricsReporterPtr& /*reporter*/) override

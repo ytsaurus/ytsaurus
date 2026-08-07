@@ -1480,7 +1480,6 @@ protected:
 
         auto config = New<NCompanion::TCompanionExecutionConfig>();
         config->Port = Port_;
-        config->JobTtlSeconds = 600;
 
         TPipeline pipeline;
         pipeline.AddTransform<TUnittestResourceConsumerFunction>("my_computation");

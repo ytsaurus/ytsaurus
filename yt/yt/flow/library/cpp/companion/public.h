@@ -53,6 +53,7 @@ DECLARE_REFCOUNTED_STRUCT(TCompanionResponse);
 DECLARE_REFCOUNTED_STRUCT(TCompanionResourceExecuteResponse);
 
 DECLARE_REFCOUNTED_STRUCT(ICompanionClient);
+struct TCompanionJobList;
 DECLARE_REFCOUNTED_CLASS(TCompanionClient);
 
 DECLARE_REFCOUNTED_CLASS(TCompanionManager);

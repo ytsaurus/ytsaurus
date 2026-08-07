@@ -11,9 +11,6 @@ Source: [yt/yt/flow/library/cpp/companion/config.h]({{source-root}}/yt/yt/flow/l
 || `monitoring_port` | **Type**: `int`
 **Default value**: `0`
  ||
-|| `job_ttl_seconds` | **Type**: `long`
-**Default value**: `600`
- ||
 || `companion_process_count` | **Type**: `int`
 **Default value**: `0`
  ||

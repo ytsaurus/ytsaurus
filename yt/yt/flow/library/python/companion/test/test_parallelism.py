@@ -121,7 +121,6 @@ def _supervisor_target(port, n, pid_dir, sleep_seconds):
         pipeline_context=pipeline_context,
         port=port,
         companion_process_count=n,
-        job_ttl_seconds=600,
     )
 
 

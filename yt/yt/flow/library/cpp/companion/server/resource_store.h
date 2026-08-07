@@ -28,8 +28,7 @@ struct TResourceCommandOutcome
 
 //! Process-wide store of the resources hosted inside this companion, keyed by
 //! resource id. Owned by the companion service for its entire lifetime:
-//! resources are process-scoped and shared by every job that requires them,
-//! unlike the TTL-evicted jobs in #TJobRegistry.
+//! resources are process-scoped and shared by every job that requires them.
 class TResourceStore
     : public TRefCounted
 {
