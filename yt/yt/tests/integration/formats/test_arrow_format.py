@@ -351,6 +351,29 @@ class TestArrowFormat(YTEnvSetup):
 
         assert read_table("//tmp/table1") == read_table("//tmp/table2")
 
+    @authors("sabarsukov")
+    def test_write_arrow_large_string(self, optimize_for):
+        schema = [
+            {"name": "large_string", "type_v3": optional_type("string")},
+        ]
+        create("table", "//tmp/table", attributes={"schema": schema, "optimize_for": optimize_for})
+
+        arrow_table = pa.table({
+            "large_string": pa.array(["foo", None, "bar"], type=pa.large_string()),
+        })
+        write_table(
+            "//tmp/table",
+            serialize_arrow_table(arrow_table),
+            is_raw=True,
+            input_format=ARROW_FORMAT,
+        )
+
+        assert read_table("//tmp/table") == [
+            {"large_string": "foo"},
+            {"large_string": None},
+            {"large_string": "bar"},
+        ]
+
     @authors("nadya02")
     def test_any_arrow(self, optimize_for):
         schema = [
