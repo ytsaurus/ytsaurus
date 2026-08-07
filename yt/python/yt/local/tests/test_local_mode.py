@@ -379,6 +379,39 @@ class TestLocalMode(object):
             assert client.read_file("//file").read() == b"Test file.\n"
             assert client.get_attribute("//file", "myattr") == 4
 
+    def test_local_cypress_synchronization_dynamic_table(self, enable_multidaemon):
+        local_cypress_path = os.path.join(_get_tests_location(), "local_cypress_tree_dynamic")
+        with local_yt(id=_get_id("test_local_cypress_synchronization_dynamic_table"),
+                      local_cypress_dir=local_cypress_path,
+                      wait_tablet_cell_initialization=True,
+                      enable_multidaemon=enable_multidaemon) as environment:
+            proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
+            client = YtClient(proxy="localhost:{0}".format(proxy_port))
+
+            assert client.get_attribute("//dyn_table", "dynamic")
+            assert client.get_attribute("//dyn_table", "myattr") == 7
+            assert client.get_attribute("//dyn_table", "tablet_state") == "mounted"
+
+            schema = client.get_attribute("//dyn_table", "schema")
+            assert len(schema) == 2
+            assert schema[0]["name"] == "key"
+            assert schema[0]["type"] == "int64"
+            assert schema[0]["sort_order"] == "ascending"
+            assert schema[1]["name"] == "value"
+            assert schema[1]["type"] == "string"
+
+            rows = sorted(client.select_rows("* from [//dyn_table]"), key=lambda r: r["key"])
+            print("select_rows(* from //dyn_table):", rows)
+            assert len(rows) == 3, "expected 3 rows, got {0}: {1}".format(len(rows), rows)
+            assert rows[0]["key"] == 1 and rows[0]["value"] == "one", rows[0]
+            assert rows[1]["key"] == 2 and rows[1]["value"] == "two", rows[1]
+            assert rows[2]["key"] == 3 and rows[2]["value"] == "three", rows[2]
+
+            looked_up = list(client.lookup_rows("//dyn_table", [{"key": 2}]))
+            print("lookup_rows(//dyn_table, key=2):", looked_up)
+            assert len(looked_up) == 1, looked_up
+            assert looked_up[0]["key"] == 2 and looked_up[0]["value"] == "two", looked_up[0]
+
     def test_preserve_state(self, enable_multidaemon):
         with local_yt(id=_get_id("test_preserve_state"), enable_multidaemon=enable_multidaemon) as environment:
             client = environment.create_client()
