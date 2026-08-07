@@ -74,8 +74,8 @@ struct IBlockStore
     virtual TFuture<std::vector<TStoredBlockId>> WriteBlocks(
         TRange<TSharedRef> blocks) = 0;
 
-    //! Releases a stored block id (from #WriteBlocks or #RestoreBlocks) once its content is dead,
-    //! decrementing its chunk's live-block count. Once a chunk has no live blocks the store drops it:
+    //! Releases a stored block id (from #WriteBlocks or #RestoreBlocks) once it is unreferenced,
+    //! decrementing its chunk's referenced-block count. Once a chunk has none left the store drops it:
     //! unstaging a store-owned chunk, only forgetting a restored one (its snapshot table owns it).
     virtual void ReleaseBlock(TStoredBlockId blockId) = 0;
 

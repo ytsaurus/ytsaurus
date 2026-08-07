@@ -99,7 +99,7 @@ public:
 
     void PutBlock(int blockIndex, TDirtyBlockId blockId) final
     {
-        std::optional<TStoredBlockId> diedStoredBlockId;
+        std::optional<TStoredBlockId> unreferencedStoredBlockId;
         {
             auto guard = Guard(WriteLock_);
 
@@ -113,7 +113,7 @@ public:
 
             auto bareOldId = WithoutCoW(oldId);
             if (IsStoredMappedBlockId(bareOldId)) {
-                diedStoredBlockId = ToStoredBlockId(bareOldId);
+                unreferencedStoredBlockId = ToStoredBlockId(bareOldId);
             }
 
             auto newId = ToMappedBlockId(blockId);
@@ -129,8 +129,8 @@ public:
         }
 
         // Fire outside WriteLock_ (subscribers may re-enter the map), strictly after the slot update.
-        if (diedStoredBlockId) {
-            StoredBlockUnreferenced_.Fire(*diedStoredBlockId);
+        if (unreferencedStoredBlockId) {
+            StoredBlockUnreferenced_.Fire(*unreferencedStoredBlockId);
         }
     }
 
