@@ -86,6 +86,7 @@ TTCMallocConfigPtr TTCMallocConfig::ApplyDynamic(const TDynamicTCMallocConfigPtr
     UpdateYsonStructField(mergedConfig->MaxPerCpuCacheSize, dynamicConfig->MaxPerCpuCacheSize);
     UpdateYsonStructField(mergedConfig->MaxTotalThreadCacheBytes, dynamicConfig->MaxTotalThreadCacheBytes);
     UpdateYsonStructField(mergedConfig->BackgroundReleaseRate, dynamicConfig->BackgroundReleaseRate);
+    UpdateYsonStructField(mergedConfig->MadvisePreference, dynamicConfig->MadvisePreference);
     mergedConfig->HeapSizeLimit->ApplyDynamicInplace(dynamicConfig->HeapSizeLimit);
     mergedConfig->Postprocess();
     return mergedConfig;
@@ -112,6 +113,9 @@ void TTCMallocConfig::Register(TRegistrar registrar)
         .Default(24_MB);
     registrar.Parameter("background_release_rate", &TThis::BackgroundReleaseRate)
         .Default(32_MB);
+
+    registrar.Parameter("madvise_preference", &TThis::MadvisePreference)
+        .Optional();
 
     registrar.Parameter("heap_size_limit", &TThis::HeapSizeLimit)
         .DefaultNew();
@@ -140,6 +144,9 @@ void TDynamicTCMallocConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("background_release_rate", &TThis::BackgroundReleaseRate)
         .Default();
+
+    registrar.Parameter("madvise_preference", &TThis::MadvisePreference)
+        .Optional();
 
     registrar.Parameter("heap_size_limit", &TThis::HeapSizeLimit)
         .DefaultNew();
