@@ -8,8 +8,9 @@ from yt.yt.flow.library.python.companion.computation import (
     Computation,
     RowFunction,
 )
-from yt.yt.flow.library.python.companion.context import PipelineContext
+from yt.yt.flow.library.python.companion.context import PipelineContext, ResponseContext
 from yt.yt.flow.library.python.companion.job import JobContext
+from yt.yt.flow.library.python.companion.proto_mapper import _guid_to_str
 from yt.yt.flow.library.python.companion.row import (
     Message,
 )
@@ -50,13 +51,13 @@ def _make_pipeline_context(computations=None):
     return ctx
 
 
-def _make_guid_proto():
+def _make_guid_proto(first=0x12345678, second=0xABCDEF00):
     """Create a minimal TGuid-like object for testing."""
     from yt_proto.yt.core.misc.proto import guid_pb2
 
     guid = guid_pb2.TGuid()
-    guid.first = 0x12345678
-    guid.second = 0xABCDEF00
+    guid.first = first
+    guid.second = second
     return guid
 
 
@@ -97,6 +98,47 @@ def _get_proto_modules():
 
 
 class TestProcessBatch:
+    def test_maps_distinct_request_and_job_ids(self):
+        cs_pb2, msg_pb2 = _get_proto_modules()
+
+        class RecordingComputation:
+            computation_id = "mapper"
+            request_context = None
+
+            def do_process(self, request_context):
+                self.request_context = request_context
+                return ResponseContext(
+                    job_id=request_context.job_id,
+                    request_id=request_context.request_id,
+                )
+
+        comp = RecordingComputation()
+        pipeline_ctx = _make_pipeline_context([comp])
+        processor = CompanionRequestProcessor(pipeline_ctx, JobContext())
+
+        request = cs_pb2.TReqProcessBatch()
+        request_id = _make_guid_proto(0x11111111, 0x22222222)
+        job_id = _make_guid_proto(0x33333333, 0x44444444)
+        request.request_id.CopyFrom(request_id)
+        request.job_id.CopyFrom(job_id)
+        request.computation_id = "mapper"
+
+        stream = _make_stream_proto(cs_pb2, "input", 0)
+        request.job_info.CopyFrom(_make_job_info(cs_pb2, streams=[stream]))
+
+        class ProtoModule:
+            TResponseData = cs_pb2.TResponseData
+            TNewTimer = cs_pb2.TNewTimer
+            TState = cs_pb2.TState
+            TStateItem = cs_pb2.TStateItem
+            TMessage = msg_pb2.TMessage
+
+        result = processor.process_batch(request, ProtoModule)
+
+        assert result["status"] == "RS_OK"
+        assert comp.request_context.request_id == _guid_to_str(request_id)
+        assert comp.request_context.job_id == _guid_to_str(job_id)
+
     def test_basic_with_job_info(self):
         cs_pb2, msg_pb2 = _get_proto_modules()
 
