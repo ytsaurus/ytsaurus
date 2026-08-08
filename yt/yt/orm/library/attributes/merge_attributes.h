@@ -10,7 +10,11 @@
 
 #include <library/cpp/yt/yson_string/string.h>
 
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
 #include <ranges>
+#include <string>
+#include <vector>
 
 namespace NYT::NOrm::NAttributes {
 
@@ -43,20 +47,41 @@ void SortAndRemoveNestedPaths(std::vector<TType>& collection, TPathProj pathProj
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMergeAttributesHelper
+class TMergeAttributesPlan
 {
 public:
-    explicit TMergeAttributesHelper(NYson::IYsonConsumer* consumer);
+    class TWriter
+    {
+    public:
+        TWriter(
+            NYson::IYsonConsumer* consumer,
+            const TMergeAttributesPlan& plan);
 
-    // Path should be provided in lexicographical order and
-    // validated through `ValidateSortedPath()` call.
-    void ToNextPath(NYPath::TYPathBuf path, bool isEtc);
+        void Advance();
 
-    void Finalize();
+        void Finalize();
+
+    private:
+        NYson::IYsonConsumer* Consumer_;
+        const TMergeAttributesPlan& Plan_;
+        int NextTransitionIndex_ = 0;
+        int CurrentMapDepth_ = 0;
+    };
+
+    template <std::ranges::input_range TRange, class TPathProj, class TIsEtcProj>
+    TMergeAttributesPlan(const TRange& paths, TPathProj pathProj, TIsEtcProj isEtcProj);
+
+    TWriter CreateWriter(NYson::IYsonConsumer* consumer) const;
 
 private:
-    NYson::IYsonConsumer* Consumer_;
-    std::vector<std::string> PathToCurrentMap_;
+    struct TTransition
+    {
+        int MapCountToClose = 0;
+        TCompactVector<std::string, 4> Literals;
+        bool IsEtc = false;
+    };
+
+    std::vector<TTransition> Transitions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
