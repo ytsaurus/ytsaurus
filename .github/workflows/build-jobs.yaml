@@ -69,6 +69,7 @@ jobs:
     timeout-minutes: 480
     steps:
       - name: Prepare python virtual environment
+        if: ${{ inputs.cpp-build-system != 'cmake' }}
         run: |
           python3.11 -m venv ../venv
 
@@ -87,6 +88,8 @@ jobs:
   cmake_build:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
+    env:
+      BUILD_ENV_CONTAINER_NAME: cmake-build-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.build-type }}
     timeout-minutes: 480
     if: ${{ inputs.cpp-build-system == 'cmake' }}
     strategy:
@@ -95,89 +98,151 @@ jobs:
         build-type: ${{ fromJson(inputs.build-types) }}
 
     steps:
+      - name: Pull CMake build environment
+        run: |
+          function retry {
+              local retries=30
+              local count=0
+              until "$@"; do
+                  exit_code=$?
+                  count=$(($count + 1))
+                  if [ $count -lt $retries ]; then
+                      echo "Attempt $count failed with exit code $exit_code. Retrying..."
+                  else
+                      echo "Attempt $count failed with exit code $exit_code. No more retries."
+                      return $exit_code
+                  fi
+              done
+              return 0
+          }
+
+          retry docker pull ghcr.io/ytsaurus/build-env:latest
+
+      - name: Run CMake build environment
+        run: |
+          docker run --rm --detach \
+            --privileged \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            --volume "${RUNNER_WORKSPACE}:${RUNNER_WORKSPACE}" \
+            --network host \
+            --workdir "${GITHUB_WORKSPACE}" \
+            --name "${BUILD_ENV_CONTAINER_NAME}" \
+            ghcr.io/ytsaurus/build-env:latest \
+            tail -f /dev/null
+
+      - name: Prepare python virtual environment
+        run: |
+          docker exec "${BUILD_ENV_CONTAINER_NAME}" \
+            python3.11 -m venv ../venv
+
       - name: Create build directories
         run: |
-          for prefix in build \
-                        build_yql
-          do
-            build_dir=${prefix}_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
-            mkdir -p ../${build_dir}
-            cd ../${build_dir}
-            rm -rf *
-          done
+          docker exec "${BUILD_ENV_CONTAINER_NAME}" bash --noprofile --norc -e -o pipefail -c '
+            for prefix in build \
+                          build_yql
+            do
+              build_dir=${prefix}_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+              mkdir -p ../${build_dir}
+              cd ../${build_dir}
+              rm -rf *
+            done
+          '
 
       - name: Configure ytsaurus (${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
+        env:
+          BUILD_CACHE_BAZEL_HOST: ${{ vars.BUILD_CACHE_BAZEL_HOST }}
+          BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+          BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
         run: |
-          CMAKE_BUILD_TYPE="RelWithDebInfo"
-          if [ "${{ matrix.build-type }}" = "release" ]; then
-            CMAKE_BUILD_TYPE="Release"
-          fi
-          READ_ONLY=""
-          if [ "${{ inputs.update-remote-cache }}" == "false" ]; then
-            READ_ONLY="--read-only-cache"
-          fi
-          ./ytsaurus/yt/yt/scripts/build_cmake.sh configure \
-            --source-path ../ytsaurus/ytsaurus \
-            --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
-            --build-type "${CMAKE_BUILD_TYPE}" \
-            --ccache-remote-storage "http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel" \
-            ${READ_ONLY}
+          docker exec \
+            --env BUILD_CACHE_BAZEL_HOST \
+            --env BUILD_CACHE_BAZEL_USERNAME \
+            --env BUILD_CACHE_BAZEL_PASSWORD \
+            "${BUILD_ENV_CONTAINER_NAME}" \
+            bash --noprofile --norc -e -o pipefail -c '
+            CMAKE_BUILD_TYPE="RelWithDebInfo"
+            if [ "${{ matrix.build-type }}" = "release" ]; then
+              CMAKE_BUILD_TYPE="Release"
+            fi
+            READ_ONLY=""
+            if [ "${{ inputs.update-remote-cache }}" == "false" ]; then
+              READ_ONLY="--read-only-cache"
+            fi
+            ./ytsaurus/yt/yt/scripts/build_cmake.sh configure \
+              --source-path ../ytsaurus/ytsaurus \
+              --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+              --build-type "${CMAKE_BUILD_TYPE}" \
+              --ccache-remote-storage "http://${BUILD_CACHE_BAZEL_USERNAME}:${BUILD_CACHE_BAZEL_PASSWORD}@${BUILD_CACHE_BAZEL_HOST}|layout=bazel" \
+              ${READ_ONLY}
+          '
 
       - name: Build Python packages (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-python }}
         run: |
-          ./ytsaurus/yt/yt/scripts/build_cmake.sh build-python \
-            --source-path ../ytsaurus/ytsaurus \
-            --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
-            --venv-path ../venv \
-            --commit-hash ${GITHUB_SHA}
+          docker exec --env GITHUB_SHA "${BUILD_ENV_CONTAINER_NAME}" \
+            bash --noprofile --norc -e -o pipefail -c '
+            ./ytsaurus/yt/yt/scripts/build_cmake.sh build-python \
+              --source-path ../ytsaurus/ytsaurus \
+              --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+              --venv-path ../venv \
+              --commit-hash ${GITHUB_SHA}
+          '
 
       - name: Build ytsaurus (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
         run: |
-          TARGETS=""
-          if [ "${{ matrix.build-type }}" != "relwithdebinfo" ]; then
-            TARGETS="ytserver-all ytserver-clickhouse"
-          fi
-          ./ytsaurus/yt/yt/scripts/build_cmake.sh build \
-            --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
-            --targets "${TARGETS}"
+          docker exec "${BUILD_ENV_CONTAINER_NAME}" bash --noprofile --norc -e -o pipefail -c '
+            TARGETS=""
+            if [ "${{ matrix.build-type }}" != "relwithdebinfo" ]; then
+              TARGETS="ytserver-all ytserver-clickhouse"
+            fi
+            ./ytsaurus/yt/yt/scripts/build_cmake.sh build \
+              --build-path ../build_${{ inputs.cpp-build-system }}_${{ matrix.build-type }} \
+              --targets "${TARGETS}"
+          '
 
       - name: Build YQL agent (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
         run: |
-          cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+          docker exec "${BUILD_ENV_CONTAINER_NAME}" bash --noprofile --norc -e -o pipefail -c '
+            cd ../build_yql_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
-          ninja libcompress_udf.so
-          ninja libdatetime2_udf.so
-          ninja libdigest_udf.so
-          ninja libdsv_udf.so
-          ninja libfile_udf.so
-          ninja libhistogram_udf.so
-          ninja libhyperloglog_udf.so
-          ninja libhyperscan_udf.so
-          ninja libip_udf.so
-          ninja libjson2_udf.so
-          ninja libjson_udf.so
-          ninja libmath_udf.so
-          ninja libpire_udf.so
-          ninja libprotobuf_udf.so
-          ninja libre2_udf.so
-          ninja libset_udf.so
-          ninja libstat_udf.so
-          ninja libstreaming_udf.so
-          ninja libstring_udf.so
-          ninja libtopfreq_udf.so
-          ninja libtop_udf.so
-          ninja libunicode_udf.so
-          ninja liburl_udf.so
-          ninja libyqlplugin.so
-          ninja libyson2_udf.so
+            ninja libcompress_udf.so
+            ninja libdatetime2_udf.so
+            ninja libdigest_udf.so
+            ninja libdsv_udf.so
+            ninja libfile_udf.so
+            ninja libhistogram_udf.so
+            ninja libhyperloglog_udf.so
+            ninja libhyperscan_udf.so
+            ninja libip_udf.so
+            ninja libjson2_udf.so
+            ninja libjson_udf.so
+            ninja libmath_udf.so
+            ninja libpire_udf.so
+            ninja libprotobuf_udf.so
+            ninja libre2_udf.so
+            ninja libset_udf.so
+            ninja libstat_udf.so
+            ninja libstreaming_udf.so
+            ninja libstring_udf.so
+            ninja libtopfreq_udf.so
+            ninja libtop_udf.so
+            ninja libunicode_udf.so
+            ninja liburl_udf.so
+            ninja libyqlplugin.so
+            ninja libyson2_udf.so
 
-          cd ../build_${{ matrix.build-type }}
-          ninja mrjob
-          ninja ytserver-yql-agent
+            cd ../build_${{ matrix.build-type }}
+            ninja mrjob
+            ninja ytserver-yql-agent
+          '
+
+      - name: Stop CMake build environment
+        if: ${{ always() }}
+        run: |
+          docker rm -f "${BUILD_ENV_CONTAINER_NAME}" || true
 
   ya-make_build:
     needs: venv

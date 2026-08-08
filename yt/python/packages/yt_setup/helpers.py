@@ -121,6 +121,6 @@ def get_package_version(major_version):
 
     commit_hash = os.getenv("YTSAURUS_COMMIT_HASH", default="")
     if commit_hash:
-        package_version += "-{}".format(commit_hash)
+        package_version += "+{}".format(commit_hash)
 
     return package_version

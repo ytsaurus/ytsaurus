@@ -183,6 +183,7 @@ jobs:
       build-dir: build_ya-make_relwithdebinfo
       run-unittests: true
       run-integration-tests: true
+      run-flow-tests: true
       run-python-tests: true
       run-odin-tests: true
     uses: ./.github/workflows/check-jobs.yaml
