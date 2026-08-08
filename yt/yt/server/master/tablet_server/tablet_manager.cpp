@@ -1277,6 +1277,7 @@ public:
         int newTabletCount,
         const std::vector<TLegacyOwningKey>& pivotKeys,
         const std::vector<i64>& trimmedRowCounts,
+        const std::vector<i64>& cumulativeDataWeights,
         bool create = false) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1288,7 +1289,8 @@ public:
             lastTabletIndex,
             newTabletCount,
             pivotKeys,
-            trimmedRowCounts);
+            trimmedRowCounts,
+            cumulativeDataWeights);
 
         if (!create && !table->IsForeign()) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -1377,7 +1379,8 @@ public:
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<TLegacyOwningKey>& pivotKeys,
-        const std::vector<i64>& trimmedRowCounts) override
+        const std::vector<i64>& trimmedRowCounts,
+        const std::vector<i64>& cumulativeDataWeights) override
     {
         if (table->IsExternal()) {
             UpdateTabletState(table);
@@ -1390,7 +1393,8 @@ public:
             lastTabletIndex,
             newTabletCount,
             pivotKeys,
-            trimmedRowCounts);
+            trimmedRowCounts,
+            cumulativeDataWeights);
 
         UpdateTabletState(table);
     }
@@ -2194,7 +2198,7 @@ public:
         ValidateResourceUsageIncrease(table, TTabletResources().SetTabletCount(1));
     }
 
-    void MakeTableDynamic(TTableNode* table, i64 trimmedRowCount) override
+    void MakeTableDynamic(TTableNode* table, i64 trimmedRowCount, i64 cumulativeDataWeight) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -2218,7 +2222,7 @@ public:
         table->MutableTablets() = {tablet};
         table->RecomputeTabletMasterMemoryUsage();
 
-        TabletChunkManager_->MakeTableDynamic(table);
+        TabletChunkManager_->MakeTableDynamic(table, cumulativeDataWeight);
 
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();
         securityManager->UpdateMasterMemoryUsage(table);
@@ -3874,7 +3878,8 @@ private:
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<TLegacyOwningKey>& pivotKeys,
-        const std::vector<i64>& trimmedRowCounts)
+        const std::vector<i64>& trimmedRowCounts,
+        const std::vector<i64>& cumulativeDataWeights)
     {
         if (IsTableType(table->GetType())) {
             return DoReshardTable(
@@ -3883,7 +3888,8 @@ private:
                 lastTabletIndex,
                 newTabletCount,
                 pivotKeys,
-                trimmedRowCounts);
+                trimmedRowCounts,
+                cumulativeDataWeights);
         } else if (table->GetType() == EObjectType::HunkStorage) {
             return DoReshardHunkStorage(
                 table->As<THunkStorageNode>(),
@@ -3915,14 +3921,16 @@ private:
             lastTabletIndex,
             newTabletCount,
             pivotKeys,
-            /*trimmedRowCounts*/ {});
+            /*trimmedRowCounts*/ {},
+            /*cumulativeDataWeights*/ {});
         return DoReshard(
             table,
             firstTabletIndex,
             lastTabletIndex,
             newTabletCount,
             pivotKeys,
-            /*trimmedRowCounts*/ {});
+            /*trimmedRowCounts*/ {},
+            /*cumulativeDataWeights*/ {});
     }
 
     int DoReshardTable(
@@ -3931,7 +3939,8 @@ private:
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<TLegacyOwningKey>& pivotKeys,
-        const std::vector<i64>& trimmedRowCounts)
+        const std::vector<i64>& trimmedRowCounts,
+        const std::vector<i64>& cumulativeDataWeights)
     {
         if (!pivotKeys.empty() || !table->IsPhysicallySorted()) {
             ReshardTableImpl(
@@ -3940,7 +3949,8 @@ private:
                 lastTabletIndex,
                 newTabletCount,
                 pivotKeys,
-                trimmedRowCounts);
+                trimmedRowCounts,
+                cumulativeDataWeights);
             return newTabletCount;
         } else {
             auto newPivotKeys = CalculatePivotKeys(table, firstTabletIndex, lastTabletIndex, newTabletCount);
@@ -3951,7 +3961,8 @@ private:
                 lastTabletIndex,
                 newTabletCount,
                 newPivotKeys,
-                /*trimmedRowCounts*/ {});
+                /*trimmedRowCounts*/ {},
+                /*cumulativeDataWeights*/ {});
             return newTabletCount;
         }
     }
@@ -4032,7 +4043,8 @@ private:
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<TLegacyOwningKey>& pivotKeys,
-        const std::vector<i64>& trimmedRowCounts)
+        const std::vector<i64>& trimmedRowCounts,
+        const std::vector<i64>& cumulativeDataWeights)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -4198,6 +4210,7 @@ private:
             oldTabletIds,
             oldPivotKeyBounds,
             pivotKeys,
+            cumulativeDataWeights,
             oldEdenStoreIds);
 
         // Account new tablet statistics.

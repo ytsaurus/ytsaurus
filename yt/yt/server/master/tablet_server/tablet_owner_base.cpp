@@ -271,7 +271,8 @@ void TTabletOwnerBase::ValidateReshard(
     int /*lastTabletIndex*/,
     int /*newTabletCount*/,
     const std::vector<NTableClient::TLegacyOwningKey>& /*pivotKeys*/,
-    const std::vector<i64>& /*trimmedRowCounts*/) const
+    const std::vector<i64>& /*trimmedRowCounts*/,
+    const std::vector<i64>& /*cumulativeDataWeights*/) const
 { }
 
 void TTabletOwnerBase::LockCurrentMountTransaction(TTransactionId transactionId)

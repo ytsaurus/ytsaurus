@@ -90,6 +90,8 @@ message TReqReshard
     required int32 tablet_count = 4;
     required NYT.NProto.TGuid table_id = 5;
     repeated int64 trimmed_row_counts = 6;
+    // For ordered tables only.
+    repeated int64 cumulative_data_weights = 7;
 }
 
 message TRspReshard

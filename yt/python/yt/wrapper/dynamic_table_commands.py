@@ -674,7 +674,7 @@ def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=F
 def reshard_table(path,
                   pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None,
                   uniform=None, enable_slicing=None, slicing_accuracy=None, trimmed_row_counts=None,
-                  sync=False, client=None):
+                  sync=False, cumulative_data_weights=None, client=None):
     """Changes pivot keys separating tablets of a given table.
 
     :param path: path to table.
@@ -694,6 +694,8 @@ def reshard_table(path,
     :param List[int] trimmed_row_counts: new initial tirmmed row counts
         for the new tablets of the ordered table.
     :param bool sync: wait for completion.
+    :param List[int] cumulative_data_weights: new initial cumulative data weights
+        for the new tablets of the ordered table.
 
     """
 
@@ -710,6 +712,7 @@ def reshard_table(path,
     set_param(params, "enable_slicing", enable_slicing)
     set_param(params, "slicing_accuracy", slicing_accuracy)
     set_param(params, "trimmed_row_counts", trimmed_row_counts)
+    set_param(params, "cumulative_data_weights", cumulative_data_weights)
 
     response = make_request("reshard_table", params, client=client)
 

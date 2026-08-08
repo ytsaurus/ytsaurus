@@ -141,6 +141,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto enableStripedErasure = combinedAttributes->GetAndRemove<bool>("use_striped_erasure", false);
     auto replicationProgress = combinedAttributes->FindAndRemove<TReplicationProgress>("replication_progress");
     auto trimmedRowCounts = combinedAttributes->GetAndRemove<std::vector<i64>>("trimmed_row_counts", {});
+    auto cumulativeDataWeights = combinedAttributes->GetAndRemove<std::vector<i64>>("cumulative_data_weights", {});
     auto hunkStorageId = combinedAttributes->FindAndRemove<TObjectId>("hunk_storage_id");
     auto hasHunkChunkList = combinedAttributes->FindAndRemove<bool>("has_hunk_chunk_list");
     bool commitOrderingIsExplicit = context.ExplicitAttributes->Contains(EInternedAttributeKey::CommitOrdering.Unintern());
@@ -258,6 +259,34 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
     }
 
+    if (!cumulativeDataWeights.empty()) {
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("\"cumulative_data_weights\" can only be provided for dynamic tables");
+        }
+        if (log) {
+            THROW_ERROR_EXCEPTION("\"cumulative_data_weights\" cannot not be provided for table of type %Qlv",
+                type);
+        }
+        if (effectiveTableSchema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("\"cumulative_data_weights\" can only be set for ordered tables");
+        }
+        if (!optionalTabletCount) {
+            THROW_ERROR_EXCEPTION("\"cumulative_data_weights\" cannot be specified without \"tablet_count\"");
+        }
+        if (ssize(cumulativeDataWeights) != *optionalTabletCount) {
+            THROW_ERROR_EXCEPTION("\"cumulative_data_weights\" has invalid size: expected %v or %v, got %v",
+                0,
+                *optionalTabletCount,
+                ssize(cumulativeDataWeights));
+        }
+        for (auto dataWeight : cumulativeDataWeights) {
+            if (dataWeight < 0) {
+                THROW_ERROR_EXCEPTION("Cumulative data weight must be nonnegative, got %v",
+                    dataWeight);
+            }
+        }
+    }
+
     const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
     auto* tabletCellBundle = optionalTabletCellBundleName
         ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName, /*activeLifeStageOnly*/ true)
@@ -339,12 +368,20 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
             tabletManager->MakeTableDynamic(
                 node,
-                trimmedRowCounts.empty() ? 0 : trimmedRowCounts[0]);
+                trimmedRowCounts.empty() ? 0 : trimmedRowCounts[0],
+                cumulativeDataWeights.empty() ? 0 : cumulativeDataWeights[0]);
 
+            // NB: The first tablet is created by MakeTableDynamic, the rest are created by the reshard below.
             std::vector<i64> adjustedTrimmedRowCounts;
             if (!trimmedRowCounts.empty()) {
                 adjustedTrimmedRowCounts = std::move(trimmedRowCounts);
                 adjustedTrimmedRowCounts.erase(adjustedTrimmedRowCounts.begin());
+            }
+
+            std::vector<i64> adjustedCumulativeDataWeights;
+            if (!cumulativeDataWeights.empty()) {
+                adjustedCumulativeDataWeights = std::move(cumulativeDataWeights);
+                adjustedCumulativeDataWeights.erase(adjustedCumulativeDataWeights.begin());
             }
 
             if (node->IsTrackedQueueObject()) {
@@ -368,6 +405,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                         *optionalTabletCount,
                         /*pivotKeys*/ {},
                         adjustedTrimmedRowCounts,
+                        adjustedCumulativeDataWeights,
                         /*create*/ true);
                 } else if (optionalPivotKeys) {
                     tabletManager->PrepareReshard(
@@ -377,6 +415,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                         optionalPivotKeys->size(),
                         *optionalPivotKeys,
                         adjustedTrimmedRowCounts,
+                        adjustedCumulativeDataWeights,
                         /*create*/ true);
                 }
             }
@@ -389,14 +428,16 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                         /*lastTabletIndex*/ 0,
                         *optionalTabletCount,
                         /*pivotKeys*/ {},
-                        adjustedTrimmedRowCounts);
+                        adjustedTrimmedRowCounts,
+                        adjustedCumulativeDataWeights);
                 } else if (optionalPivotKeys) {
                     tabletManager->Reshard(node,
                         /*firstTabletIndex*/ 0,
                         /*lastTabletIndex*/ 0,
                         optionalPivotKeys->size(),
                         *optionalPivotKeys,
-                        adjustedTrimmedRowCounts);
+                        adjustedTrimmedRowCounts,
+                        adjustedCumulativeDataWeights);
                 }
             }
 

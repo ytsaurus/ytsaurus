@@ -74,6 +74,7 @@ class TestOrderedDynamicTablesBase(DynamicTablesBase):
         assert statistics["row_count"] == sum([c["row_count"] for c in tablet_statistics])
         assert statistics["chunk_count"] == sum([c["chunk_count"] for c in tablet_statistics])
         assert statistics["logical_row_count"] == sum([c["logical_row_count"] for c in tablet_statistics])
+        assert statistics["logical_data_weight"] == sum([c["logical_data_weight"] for c in tablet_statistics])
 
         self._verify_cumulative_statistics_match_statistics(chunk_list_id)
         for tablet_chunk_list in tablet_chunk_lists:
@@ -1385,6 +1386,103 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert [t["flushed_row_count"] for t in tablets] == [2, 2, 2, 2, 8, 9, 2]
         assert [t["trimmed_row_count"] for t in tablets] == [1, 1, 1, 1, 8, 9, 1]
 
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+    CUMULATIVE_DATA_WEIGHT_SCHEMA = [
+        {"name": "test", "type": "string"},
+        {"name": "$cumulative_data_weight", "type": "int64"},
+    ]
+
+    @staticmethod
+    def _get_tablet_cumulative_data_weights(table, tablet_count):
+        result = []
+        for tablet_index in range(tablet_count):
+            rows = select_rows(
+                "[$cumulative_data_weight] from [{}] where [$tablet_index] = {}".format(table, tablet_index))
+            result.append(rows[-1]["$cumulative_data_weight"] if rows else None)
+        return result
+
+    @authors("akozhikhov")
+    def test_create_with_cumulative_data_weight(self):
+        sync_create_cells(1)
+
+        with raises_yt_error("cannot be specified without"):
+            self._create_simple_table(
+                "//tmp/t", schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA, cumulative_data_weights=[1])
+        with raises_yt_error("has invalid size"):
+            self._create_simple_table(
+                "//tmp/t", schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA, cumulative_data_weights=[1, 2], tablet_count=4)
+        with raises_yt_error("must be nonnegative"):
+            self._create_simple_table(
+                "//tmp/t", schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA, cumulative_data_weights=[-1], tablet_count=1)
+        with raises_yt_error("can only be set for ordered tables"):
+            create_dynamic_table(
+                "//tmp/t",
+                schema=[
+                    {"name": "k", "type": "int64", "sort_order": "ascending"},
+                    {"name": "v", "type": "string"},
+                ],
+                cumulative_data_weights=[1],
+                tablet_count=1)
+
+        self._create_simple_table(
+            "//tmp/t",
+            schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA,
+            tablet_count=3,
+            cumulative_data_weights=[1000, 2000, 0])
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+
+        for tablet_index in range(3):
+            insert_rows("//tmp/t", [{"$tablet_index": tablet_index, "test": "aaa"}])
+
+        # A row of this schema with a three-character value weighs 12 bytes.
+        assert self._get_tablet_cumulative_data_weights("//tmp/t", 3) == [1012, 2012, 12]
+
+        # The offset must survive flush and remount.
+        sync_flush_table("//tmp/t")
+        self._verify_chunk_tree_statistics("//tmp/t")
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        for tablet_index in range(3):
+            insert_rows("//tmp/t", [{"$tablet_index": tablet_index, "test": "bb"}])
+
+        assert self._get_tablet_cumulative_data_weights("//tmp/t", 3) == [1023, 2023, 23]
+
+        sync_unmount_table("//tmp/t")
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+    @authors("akozhikhov")
+    def test_reshard_with_cumulative_data_weight(self):
+        if self.DRIVER_BACKEND == "rpc":
+            pytest.skip("No cumulative_data_weights in rpc proxy")
+
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", schema=self.CUMULATIVE_DATA_WEIGHT_SCHEMA)
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"test": "aaa"}])
+        sync_unmount_table("//tmp/t")
+
+        with raises_yt_error("has invalid size"):
+            sync_reshard_table("//tmp/t", 1, cumulative_data_weights=[1])
+        with raises_yt_error("has invalid size"):
+            sync_reshard_table("//tmp/t", 3, cumulative_data_weights=[1])
+        with raises_yt_error("must be nonnegative"):
+            sync_reshard_table("//tmp/t", 3, cumulative_data_weights=[-1, 5])
+
+        sync_reshard_table("//tmp/t", 3, cumulative_data_weights=[1000, 2000])
+        self._verify_chunk_tree_statistics("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+        for tablet_index in range(3):
+            insert_rows("//tmp/t", [{"$tablet_index": tablet_index, "test": "aaa"}])
+
+        # The zeroth tablet is preserved by the reshard and already holds a row of weight 12.
+        assert self._get_tablet_cumulative_data_weights("//tmp/t", 3) == [24, 1012, 2012]
+
+        sync_unmount_table("//tmp/t")
         self._verify_chunk_tree_statistics("//tmp/t")
 
     @authors("ifsmirnov")

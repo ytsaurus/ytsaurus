@@ -758,19 +758,21 @@ private:
         auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
         auto trimmedRowCounts = FromProto<std::vector<i64>>(request->trimmed_row_counts());
+        auto cumulativeDataWeights = FromProto<std::vector<i64>>(request->cumulative_data_weights());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
         YT_LOG_DEBUG("Preparing table reshard (TableId: %v, TransactionId: %v, %v, "
             "TabletCount: %v, PivotKeysSize: %v, TrimmedRowCountsSize: %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
+            "CumulativeDataWeightsSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
             NRpc::GetCurrentAuthenticationIdentity(),
             tabletCount,
             pivotKeys.size(),
             trimmedRowCounts.size(),
+            cumulativeDataWeights.size(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -794,7 +796,8 @@ private:
             lastTabletIndex,
             tabletCount,
             pivotKeys,
-            trimmedRowCounts);
+            trimmedRowCounts,
+            cumulativeDataWeights);
 
         table->LockCurrentMountTransaction(transaction->GetId());
 
@@ -812,16 +815,18 @@ private:
         auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
         auto trimmedRowCounts = FromProto<std::vector<i64>>(request->trimmed_row_counts());
+        auto cumulativeDataWeights = FromProto<std::vector<i64>>(request->cumulative_data_weights());
 
         YT_LOG_DEBUG("Committing table reshard (TableId: %v, TransactionId: %v, %v, "
             "TabletCount: %v, PivotKeysSize: %v, TrimmedRowCountsSize: %v, "
-            "FirstTabletIndex: %v, LastTabletIndex: %v)",
+            "CumulativeDataWeightsSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
             NRpc::GetCurrentAuthenticationIdentity(),
             tabletCount,
             pivotKeys.size(),
             trimmedRowCounts.size(),
+            cumulativeDataWeights.size(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -843,7 +848,8 @@ private:
             lastTabletIndex,
             tabletCount,
             pivotKeys,
-            trimmedRowCounts);
+            trimmedRowCounts,
+            cumulativeDataWeights);
 
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitReshard");
     }
