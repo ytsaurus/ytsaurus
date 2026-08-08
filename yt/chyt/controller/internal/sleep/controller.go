@@ -109,7 +109,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 	}
 }
 
-func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
+func (c *Controller) GetOpBriefAttributes(parsedSpeclet any, opletInfo yson.RawValue) map[string]any {
 	speclet := parsedSpeclet.(Speclet)
 	return map[string]any{
 		"test_option": speclet.TestOption,

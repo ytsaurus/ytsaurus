@@ -1466,9 +1466,9 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 		// NB: We should get a list of available options even if
 		// an oplet is broken and there is no speclet.
 		defaultSpeclet, _ := oplet.c.ParseSpeclet(yson.RawValue("{}"))
-		briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(defaultSpeclet)
+		briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(defaultSpeclet, briefInfo.OpletInfo)
 	} else {
-		briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(oplet.controllerSpeclet)
+		briefInfo.CtlAttributes = oplet.c.GetOpBriefAttributes(oplet.controllerSpeclet, briefInfo.OpletInfo)
 	}
 
 	if oplet.Broken() {
