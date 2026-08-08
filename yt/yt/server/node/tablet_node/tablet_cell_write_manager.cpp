@@ -159,6 +159,8 @@ public:
                 Host_->GetCellDirectory(),
                 Host_->GetDynamicConfig()->TabletManager->WaitOnReadOnlySmoothMovementStageTimeout);
             actualizeTablet(/*retryable*/ true);
+            tablet->ValidateServantIsWritable(Host_->GetCellDirectory(), /*retryable*/ true)
+                .ThrowOnError();
         }
 
         if (atomicity == EAtomicity::Full) {
