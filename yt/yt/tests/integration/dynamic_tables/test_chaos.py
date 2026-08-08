@@ -4510,12 +4510,15 @@ class TestChaos(ChaosTestBase):
         ]
 
         # Trimmed row counts are required for strict row index validation.
+        # Cumulative data weights make the new replicas continue the counter of the old ones
+        # instead of starting it over from zero.
         self._create_replica_tables(
             replicas[-2:],
             new_replica_ids,
             ordered=True,
             schema=schema,
             trimmed_row_counts=[len(values)],
+            cumulative_data_weights=[18],
             tablet_count=1)
 
         self._sync_replication_era(card_id)
@@ -4523,10 +4526,8 @@ class TestChaos(ChaosTestBase):
         values = [{"$tablet_index": 0, "value": str(i)} for i in range(1, 2)]
         insert_rows("//tmp/t", values)
 
-        for replica in replicas[:-2]:
+        for replica in replicas:
             wait(lambda: _check(replica, 36))
-        for replica in replicas[-2:]:
-            wait(lambda: _check(replica, 18))
 
     @authors("osidorkin")
     def test_crt_creation_under_transaction(self):

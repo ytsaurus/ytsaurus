@@ -230,6 +230,7 @@ class ChaosTestBase(DynamicTablesBase):
                                replication_progress=None,
                                tablet_cell_bundle=None,
                                trimmed_row_counts=None,
+                               cumulative_data_weights=None,
                                tablet_count=None,
                                external_cell_tag=None):
         def create_replica(zipped_args):
@@ -253,6 +254,8 @@ class ChaosTestBase(DynamicTablesBase):
             if replica["content_type"] == "queue":
                 if trimmed_row_counts:
                     kwargs["trimmed_row_counts"] = trimmed_row_counts
+                if cumulative_data_weights:
+                    kwargs["cumulative_data_weights"] = cumulative_data_weights
             if tablet_count:
                 if ordered:
                     kwargs["tablet_count"] = tablet_count

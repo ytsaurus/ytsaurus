@@ -624,7 +624,8 @@ void TTableNode::ValidateReshard(
     int lastTabletIndex,
     int newTabletCount,
     const std::vector<TLegacyOwningKey>& pivotKeys,
-    const std::vector<i64>& trimmedRowCounts) const
+    const std::vector<i64>& trimmedRowCounts,
+    const std::vector<i64>& cumulativeDataWeights) const
 {
     TTabletOwnerBase::ValidateReshard(
         bootstrap,
@@ -632,7 +633,8 @@ void TTableNode::ValidateReshard(
         lastTabletIndex,
         newTabletCount,
         pivotKeys,
-        trimmedRowCounts);
+        trimmedRowCounts,
+        cumulativeDataWeights);
 
     // First, check parameters with little knowledge of the table.
     // Primary master must ensure that the table could be created.
@@ -692,6 +694,10 @@ void TTableNode::ValidateReshard(
         if (!trimmedRowCounts.empty()) {
             THROW_ERROR_EXCEPTION("Cannot reshard sorted table with \"trimmed_row_counts\"");
         }
+
+        if (!cumulativeDataWeights.empty()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard sorted table with \"cumulative_data_weights\"");
+        }
     } else {
         if (!pivotKeys.empty()) {
             THROW_ERROR_EXCEPTION("Table is ordered; must provide tablet count");
@@ -710,6 +716,10 @@ void TTableNode::ValidateReshard(
     if (IsPhysicallyLog()) {
         if (!trimmedRowCounts.empty()) {
             THROW_ERROR_EXCEPTION("Cannot reshard log table with \"trimmed_row_counts\"");
+        }
+
+        if (!cumulativeDataWeights.empty()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard log table with \"cumulative_data_weights\"");
         }
     }
 
@@ -750,6 +760,21 @@ void TTableNode::ValidateReshard(
             if (count < 0) {
                 THROW_ERROR_EXCEPTION("Trimmed row count must be nonnegative, got %v",
                     count);
+            }
+        }
+
+        if (!cumulativeDataWeights.empty() && ssize(cumulativeDataWeights) != createdTabletCount) {
+            THROW_ERROR_EXCEPTION("\"cumulative_data_weights\" has invalid size: expected "
+                "%v or %v, got %v",
+                0,
+                createdTabletCount,
+                ssize(cumulativeDataWeights));
+        }
+
+        for (auto dataWeight : cumulativeDataWeights) {
+            if (dataWeight < 0) {
+                THROW_ERROR_EXCEPTION("Cumulative data weight must be nonnegative, got %v",
+                    dataWeight);
             }
         }
     }

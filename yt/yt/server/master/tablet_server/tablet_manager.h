@@ -76,6 +76,7 @@ struct ITabletManager
         int newTabletCount,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::vector<i64>& trimmedRowCounts,
+        const std::vector<i64>& cumulativeDataWeights,
         bool create = false) = 0;
 
     virtual void CancelTabletTransition(TTablet* tablet) = 0;
@@ -123,7 +124,8 @@ struct ITabletManager
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
-        const std::vector<i64>& trimmedRowCounts) = 0;
+        const std::vector<i64>& trimmedRowCounts,
+        const std::vector<i64>& cumulativeDataWeights) = 0;
 
     virtual void SetCustomRuntimeData(
         NTableServer::TTableNode* table,
@@ -134,7 +136,10 @@ struct ITabletManager
         TTabletOwnerBase* clonedNode,
         NCypressServer::ENodeCloneMode mode) = 0;
 
-    virtual void MakeTableDynamic(NTableServer::TTableNode* table, i64 trimmedRowCount = 0) = 0;
+    virtual void MakeTableDynamic(
+        NTableServer::TTableNode* table,
+        i64 trimmedRowCount = 0,
+        i64 cumulativeDataWeight = 0) = 0;
     virtual void MakeTableStatic(NTableServer::TTableNode* table) = 0;
 
     virtual void SetTableClipTimestamp(

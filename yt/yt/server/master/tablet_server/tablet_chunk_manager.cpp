@@ -285,6 +285,7 @@ public:
         const std::vector<TTabletId>& oldTabletIds,
         const std::vector<TOwningKeyBound>& oldPivotKeyBounds,
         const std::vector<TLegacyOwningKey>& newPivotKeys,
+        const std::vector<i64>& newTabletCumulativeDataWeights,
         const THashSet<TStoreId>& oldEdenStoreIds) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -641,12 +642,22 @@ public:
                 objectManager->UnrefObject(newTabletChunkLists[EChunkListContentType::Hunk].back());
                 newTabletChunkLists[EChunkListContentType::Hunk].back() = newLastHunkTabletChunkList;
             } else {
+                YT_VERIFY(
+                    newTabletCumulativeDataWeights.empty() ||
+                    ssize(newTabletCumulativeDataWeights) == newTabletCount - oldTabletCount);
+
                 for (int index = oldTabletCount; index < newTabletCount; ++index) {
                     auto* newMainChunkList = chunkManager->CreateChunkList(EChunkListKind::OrderedDynamicTablet);
                     auto* newHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
 
                     auto* tablet = newTablets[index]->As<TTablet>();
-                    SetLogicalRowCount(newMainChunkList, tablet->GetTrimmedRowCount());
+                    auto cumulativeDataWeight = newTabletCumulativeDataWeights.empty()
+                        ? 0
+                        : newTabletCumulativeDataWeights[index - oldTabletCount];
+                    InitializeOrderedTabletChunkListStatistics(
+                        newMainChunkList,
+                        tablet->GetTrimmedRowCount(),
+                        cumulativeDataWeight);
 
                     newTabletChunkLists[EChunkListContentType::Main].push_back(newMainChunkList);
                     newTabletChunkLists[EChunkListContentType::Hunk].push_back(newHunkChunkList);
@@ -1102,7 +1113,7 @@ public:
             MakeFormattableView(chunksToMarkSealable, TObjectIdFormatter()));
     }
 
-    void MakeTableDynamic(NTableServer::TTableNode* table) override
+    void MakeTableDynamic(NTableServer::TTableNode* table, i64 cumulativeDataWeight) override
     {
         auto* oldChunkList = table->GetChunkList();
         auto* oldHunkChunkList = table->GetHunkChunkList();
@@ -1139,7 +1150,10 @@ public:
             tabletChunkList->SetPivotKey(EmptyKey());
         } else {
             auto* tablet = table->Tablets()[0]->As<TTablet>();
-            SetLogicalRowCount(tabletChunkList, tablet->GetTrimmedRowCount());
+            InitializeOrderedTabletChunkListStatistics(
+                tabletChunkList,
+                tablet->GetTrimmedRowCount(),
+                cumulativeDataWeight);
         }
         chunkManager->AttachToChunkList(newChunkList, {tabletChunkList});
 
@@ -2127,10 +2141,21 @@ private:
         chunkManager->AttachToChunkList(hunkChunkList, hunkChildren);
     }
 
-    void SetLogicalRowCount(TChunkList* chunkList, i64 trimmedRowCount)
+    //! Pretends that the freshly created chunk list of an ordered tablet already had
+    //! |trimmedRowCount| rows, all of which have been trimmed away, of total |cumulativeDataWeight| weight.
+    //! This way row indexes and the $cumulative_data_weight
+    //! column of the tablet start from the given offsets rather than from zero.
+    void InitializeOrderedTabletChunkListStatistics(
+        TChunkList* chunkList,
+        i64 trimmedRowCount,
+        i64 cumulativeDataWeight)
     {
         YT_VERIFY(chunkList->Children().empty());
         YT_VERIFY(!chunkList->IsHunkRelated());
+
+        // NB: Cumulative statistics do not track data weight, so it is enough
+        // to adjust the aggregated statistics of the chunk list.
+        chunkList->Statistics().LogicalDataWeight = cumulativeDataWeight;
 
         if (trimmedRowCount == 0) {
             return;

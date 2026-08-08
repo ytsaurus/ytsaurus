@@ -214,6 +214,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixWaitableLocksAccumulation)                                 (3339))  // ivpiskarev
     ((DetachChunkTrees)                                             (3340))  // babenko
     ((ChunkMergerInfo)                                              (3341))  // aleksandra-zh
+    ((CustomCumulativeDataWeightForNewQueues)                       (3342))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

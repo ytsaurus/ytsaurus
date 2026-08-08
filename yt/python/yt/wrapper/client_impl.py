@@ -2737,7 +2737,7 @@ class YtClient(ClientState):
         self,
         path,
         pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, uniform=None,
-        enable_slicing=None, slicing_accuracy=None, trimmed_row_counts=None, sync=False
+        enable_slicing=None, slicing_accuracy=None, trimmed_row_counts=None, sync=False, cumulative_data_weights=None
     ):
         """
         Changes pivot keys separating tablets of a given table.
@@ -2759,13 +2759,15 @@ class YtClient(ClientState):
         :param List[int] trimmed_row_counts: new initial tirmmed row counts
         for the new tablets of the ordered table.
         :param bool sync: wait for completion.
+        :param List[int] cumulative_data_weights: new initial cumulative data weights
+        for the new tablets of the ordered table.
         """
         return client_api.reshard_table(
             path,
             client=self,
             pivot_keys=pivot_keys, tablet_count=tablet_count, first_tablet_index=first_tablet_index,
             last_tablet_index=last_tablet_index, uniform=uniform, enable_slicing=enable_slicing, slicing_accuracy=slicing_accuracy,
-            trimmed_row_counts=trimmed_row_counts, sync=sync
+            trimmed_row_counts=trimmed_row_counts, sync=sync, cumulative_data_weights=cumulative_data_weights
         )
 
     def reshard_table_automatic(

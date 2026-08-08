@@ -1510,8 +1510,9 @@ private:
         }
 
         YT_LOG_INFO("Tablet mounted (%v, MountRevision: %x, Keys: %v .. %v, "
-            "StoreCount: %v, HunkChunkCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
-            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v, SchemaId: %v, "
+            "StoreCount: %v, HunkChunkCount: %v, PartitionCount: %v, "
+            "TotalRowCount: %v, TrimmedRowCount: %v, CumulativeDataWeight: %v, "
+            "Atomicity: %v, CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v, SchemaId: %v, "
             "MasterAvenueEndpointId: %v, SerializationType: %v, ConflictHorizonTimestamp: %v)",
             tablet->GetLoggingTags(),
             mountRevision,
@@ -1522,6 +1523,7 @@ private:
             tablet->IsPhysicallySorted() ? std::make_optional(tablet->PartitionList().size()) : std::nullopt,
             tablet->IsPhysicallySorted() ? std::nullopt : std::make_optional(tablet->GetTotalRowCount()),
             tablet->IsPhysicallySorted() ? std::nullopt : std::make_optional(tablet->GetTrimmedRowCount()),
+            cumulativeDataWeight,
             tablet->GetAtomicity(),
             tablet->GetCommitOrdering(),
             freeze,

@@ -2391,6 +2391,7 @@ NTabletClient::NProto::TReqReshard TClient::MakeReshardRequest(
         req.set_last_tablet_index(*options.LastTabletIndex);
     }
     ToProto(req.mutable_trimmed_row_counts(), options.TrimmedRowCounts);
+    ToProto(req.mutable_cumulative_data_weights(), options.CumulativeDataWeights);
 
     return req;
 }
