@@ -14,7 +14,7 @@ namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <std::ranges::range TRange, class TPathProj, class TIsEtcProj>
+template <std::ranges::input_range TRange, class TPathProj, class TIsEtcProj>
 void ValidateSortedPaths(const TRange& paths, TPathProj pathProj, TIsEtcProj etcProj)
 {
     auto begin = paths.begin();
@@ -58,6 +58,58 @@ void SortAndRemoveNestedPaths(std::vector<TType>& collection, TPathProj pathProj
     }
 
     collection.resize(lastPath + 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <std::ranges::input_range TRange, class TPathProj, class TIsEtcProj>
+TMergeAttributesPlan::TMergeAttributesPlan(
+    const TRange& paths,
+    TPathProj pathProj,
+    TIsEtcProj isEtcProj)
+{
+    ValidateSortedPaths(paths, pathProj, isEtcProj);
+
+    TCompactVector<std::string, 4> pathToCurrentMap;
+    for (const auto& item : paths) {
+        bool isEtc = std::invoke(isEtcProj, item);
+
+        NYPath::TTokenizer tokenizer(std::invoke(pathProj, item));
+        tokenizer.Expect(NYPath::ETokenType::StartOfStream);
+        tokenizer.Advance();
+
+        TCompactVector<std::string, 4> literals;
+        while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+            tokenizer.Skip(NYPath::ETokenType::Slash);
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+            literals.push_back(tokenizer.GetLiteralValue());
+            tokenizer.Advance();
+        }
+
+        int matchedPrefixLength = 0;
+        while (matchedPrefixLength < std::ssize(pathToCurrentMap) &&
+            matchedPrefixLength < std::ssize(literals) &&
+            pathToCurrentMap[matchedPrefixLength] == literals[matchedPrefixLength])
+        {
+            ++matchedPrefixLength;
+        }
+
+        auto& transition = Transitions_.emplace_back(TTransition{
+            .MapCountToClose = static_cast<int>(std::ssize(pathToCurrentMap) - matchedPrefixLength),
+            .IsEtc = isEtc,
+        });
+
+        pathToCurrentMap.resize(matchedPrefixLength);
+        for (int index = matchedPrefixLength; index < std::ssize(literals); ++index) {
+            if (index + 1 < std::ssize(literals) || isEtc) {
+                pathToCurrentMap.push_back(literals[index]);
+            }
+        }
+
+        transition.Literals.assign(
+            std::make_move_iterator(literals.begin()) + matchedPrefixLength,
+            std::make_move_iterator(literals.end()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

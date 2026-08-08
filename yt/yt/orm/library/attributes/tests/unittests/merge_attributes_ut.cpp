@@ -38,12 +38,12 @@ void PrintTo(const TForcePath& path, std::ostream* os)
 NYson::TYsonString ConsumingMergeAttributes(std::vector<TAttributeValue> values)
 {
     std::ranges::sort(values, /*comparator*/ {}, /*projection*/ &TAttributeValue::Path);
-    ValidateSortedPaths(values, &TAttributeValue::Path, &TAttributeValue::IsEtc);
+    TMergeAttributesPlan mergePlan(values, &TAttributeValue::Path, &TAttributeValue::IsEtc);
 
     NYson::TYsonStringBuilder builder(NYson::EYsonFormat::Text);
-    TMergeAttributesHelper mergeHelper(builder.GetConsumer());
+    auto writer = mergePlan.CreateWriter(builder.GetConsumer());
     for (const auto& value : values) {
-        mergeHelper.ToNextPath(value.Path, value.IsEtc);
+        writer.Advance();
         if (value.IsEtc) {
             TUnwrappingConsumer unwrappingConsumer(builder.GetConsumer());
             unwrappingConsumer.OnRaw(value.Value.AsStringBuf(), value.Value.GetType());
@@ -51,7 +51,7 @@ NYson::TYsonString ConsumingMergeAttributes(std::vector<TAttributeValue> values)
             builder->OnRaw(value.Value);
         }
     }
-    mergeHelper.Finalize();
+    writer.Finalize();
     return builder.Flush();
 }
 
@@ -445,6 +445,40 @@ TEST(TConsumingMergeTest, Multiple)
     ASSERT_EQ(result.ToString(), R"({"data"={};"key"="value";})");
 }
 
+TEST(TConsumingMergeTest, SharedPrefix)
+{
+    auto result = ConsumingMergeAttributes({
+        TAttributeValue{
+            .Path = "/data/left",
+            .Value = NYson::TYsonString{R"("first")"sv},
+            .IsEtc = false,
+        },
+        TAttributeValue{
+            .Path = "/data/right",
+            .Value = NYson::TYsonString{R"("second")"sv},
+            .IsEtc = false,
+        },
+    });
+    ASSERT_EQ(result.ToString(), R"({"data"={"left"="first";"right"="second";};})");
+}
+
+TEST(TConsumingMergeTest, ShrinkingPrefix)
+{
+    auto result = ConsumingMergeAttributes({
+        TAttributeValue{
+            .Path = "/data/inner/value",
+            .Value = NYson::TYsonString{R"("first")"sv},
+            .IsEtc = false,
+        },
+        TAttributeValue{
+            .Path = "/other",
+            .Value = NYson::TYsonString{R"("second")"sv},
+            .IsEtc = false,
+        },
+    });
+    ASSERT_EQ(result.ToString(), R"({"data"={"inner"={"value"="first";};};"other"="second";})");
+}
+
 TEST(TConsumingMergeTest, Etc)
 {
     auto result = ConsumingMergeAttributes({
@@ -472,6 +506,23 @@ TEST(TConsumingMergeTest, MultiEtc)
         },
     });
     ASSERT_EQ(result.ToString(), R"({"key1"=#;"key2"=#;})");
+}
+
+TEST(TConsumingMergeTest, RepeatedNestedEtc)
+{
+    auto result = ConsumingMergeAttributes({
+        TAttributeValue{
+            .Path = "/data",
+            .Value = NYson::TYsonString{R"({"key1"=#;})"sv},
+            .IsEtc = true,
+        },
+        TAttributeValue{
+            .Path = "/data",
+            .Value = NYson::TYsonString{R"({"key2"=#;})"sv},
+            .IsEtc = true,
+        },
+    });
+    ASSERT_EQ(result.ToString(), R"({"data"={"key1"=#;"key2"=#;};})");
 }
 
 TEST(TConsumingMergeTest, MultipleWithEtc)
