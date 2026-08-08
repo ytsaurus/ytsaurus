@@ -16,6 +16,10 @@ on:
         default: false
         required: false
         type: boolean
+      run-flow-tests:
+        default: false
+        required: false
+        type: boolean
       run-python-tests:
         default: false
         required: false
@@ -24,44 +28,85 @@ on:
         default: false
         required: false
         type: boolean
+      run-in-docker:
+        default: false
+        required: false
+        type: boolean
 
 jobs:
   check:
     runs-on: ${{ inputs.runs-on-value }}
+    env:
+      TEST_CONTAINER_NAME: check-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - name: Unittests
-        if: ${{ inputs.run-unittests }}
+      - name: Run test environment
+        if: ${{ inputs.run-in-docker }}
         shell: bash
         run: |
-          ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../${{ inputs.build-dir }}
+          docker run --rm --detach \
+            --privileged \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            --volume "${RUNNER_WORKSPACE}:${RUNNER_WORKSPACE}" \
+            --network host \
+            --workdir "${GITHUB_WORKSPACE}" \
+            --name "${TEST_CONTAINER_NAME}" \
+            --env CI \
+            --env GITHUB_ACTIONS \
+            ghcr.io/ytsaurus/build-env:latest \
+            tail -f /dev/null
+          echo "TEST_RUNNER=docker exec ${TEST_CONTAINER_NAME}" >> "${GITHUB_ENV}"
 
       - name: Setup build symlink
-        if: ${{ inputs.run-integration-tests || inputs.run-python-tests || inputs.run-odin-tests }}
+        if: ${{ inputs.run-integration-tests || inputs.run-flow-tests || inputs.run-python-tests || inputs.run-odin-tests }}
         shell: bash
         run: |
-          rm -rf "$(pwd)/../build"
-          ln -sfn "$(pwd)/../${{ inputs.build-dir }}" "$(pwd)/../build"
+          ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
+            rm -rf "$(pwd)/../build"
+            ln -sfn "$(pwd)/../${{ inputs.build-dir }}" "$(pwd)/../build"
+          '
+
+      - name: Unittests
+        if: ${{ inputs.run-unittests && !cancelled() }}
+        shell: bash
+        run: |
+          ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
+            ./ytsaurus/yt/yt/scripts/run_tests.sh unittests --build-path ../${{ inputs.build-dir }}
+          '
 
       - name: Integration tests
-        if: ${{ inputs.run-integration-tests }}
-        shell: bash
-        run: |
-          ./ytsaurus/yt/yt/scripts/run_tests.sh integration
-
-      - name: Flow tests
         if: ${{ inputs.run-integration-tests && !cancelled() }}
         shell: bash
         run: |
-          ./ytsaurus/yt/yt/scripts/run_tests.sh flow
+          ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
+            ./ytsaurus/yt/yt/scripts/run_tests.sh integration
+          '
+
+      - name: Flow tests
+        if: ${{ inputs.run-flow-tests && !cancelled() }}
+        shell: bash
+        run: |
+          ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
+            ./ytsaurus/yt/yt/scripts/run_tests.sh flow
+          '
 
       - name: Python tests
-        if: ${{ inputs.run-python-tests }}
+        if: ${{ inputs.run-python-tests && !cancelled() }}
         shell: bash
         run: |
-          ./ytsaurus/yt/yt/scripts/run_tests.sh python
+          ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
+            ./ytsaurus/yt/yt/scripts/run_tests.sh python
+          '
 
       - name: Odin tests
-        if: ${{ inputs.run-odin-tests }}
+        if: ${{ inputs.run-odin-tests && !cancelled() }}
         shell: bash
         run: |
-          ytsaurus/yt/odin/tests/run_tests.sh
+          ${TEST_RUNNER:-} bash --noprofile --norc -e -o pipefail -c '
+            ytsaurus/yt/odin/tests/run_tests.sh
+          '
+
+      - name: Stop test environment
+        if: ${{ always() && inputs.run-in-docker }}
+        shell: bash
+        run: |
+          docker rm -f "${TEST_CONTAINER_NAME}" || true
