@@ -6,6 +6,7 @@
 #include "debug_build_warning.h"
 #include "endpoint_provider.h"
 #include "node_info.h"
+#include "porto_tracker.h"
 #include "private.h"
 #include "queue_log_writer.h"
 #include "root_clients_cache.h"
@@ -54,9 +55,6 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/options.h>
 #include <yt/yt/client/api/rpc_proxy/config.h>
-
-#include <yt/yt/library/containers/config.h>
-#include <yt/yt/library/containers/porto_resource_tracker.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -285,11 +283,8 @@ private:
             NProfiling::TResourceTracker::SetCpuToVCpuFactor(*NodeInfo_->VcpuFactor);
         }
 
-        if (Config_->EnablePortoResourceTracker && IsPortoAvailable(Logger())) {
-            // Porto emits the vcpu sensors only when the factor is set; #GetNodeInfo() is its only source.
-            auto podSpec = New<NContainers::TPodSpecConfig>();
-            podSpec->CpuToVCpuFactor = NodeInfo_->VcpuFactor;
-            NContainers::EnablePortoResourceTracker(podSpec);
+        if (Config_->EnablePortoResourceTracker) {
+            TryEnablePortoResourceTracker(NodeInfo_->VcpuFactor, Logger());
         }
 
         ControlQueue_ = NConcurrency::CreateEnumIndexedFairShareActionQueue<NController::EControlQueue>("Control");
