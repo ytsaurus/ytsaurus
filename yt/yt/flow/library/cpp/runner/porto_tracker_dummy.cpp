@@ -1,14 +1,11 @@
-#pragma once
-
-#include "config.h"
-
-#include <yt/yt/flow/library/cpp/common/public.h>
+#include "porto_tracker.h"
 
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeInfoPtr GetNodeInfo(const TFlowNodeConfigPtr& config, const NLogging::TLogger& logger);
+void TryEnablePortoResourceTracker(std::optional<double> /*vcpuFactor*/, const NLogging::TLogger& /*logger*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

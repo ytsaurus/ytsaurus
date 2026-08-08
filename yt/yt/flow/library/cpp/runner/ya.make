@@ -38,7 +38,6 @@ PEERDIR(
     yt/yt/flow/library/cpp/native_client
     yt/yt/client/cache
     yt/yt/library/auth
-    yt/yt/library/containers
     yt/yt/library/coredumper
     yt/yt/library/monitoring
     yt/yt/library/orchid
@@ -51,6 +50,18 @@ PEERDIR(
     library/cpp/yt/phdr_cache
     library/cpp/yt/string/enable_enum_suggestions_on_enum_parse_error
 )
+
+# Porto is linux-only, and library/cpp/porto does not build in the cpp-sdk export,
+# so everything that reaches it lives in a separate source file.
+IF (OS_LINUX AND OPENSOURCE_PROJECT != "yt-cpp-sdk")
+    SRCS(porto_tracker.cpp)
+
+    PEERDIR(
+        yt/yt/library/containers
+    )
+ELSE()
+    SRCS(porto_tracker_dummy.cpp)
+ENDIF()
 
 END()
 

@@ -41,7 +41,6 @@ target_link_libraries(library-cpp-runner PUBLIC
   library-cpp-native_client
   yt-client-cache
   yt-library-auth
-  yt-library-containers
   yt-library-coredumper
   yt-library-monitoring
   yt-library-orchid
@@ -53,6 +52,7 @@ target_link_libraries(library-cpp-runner PUBLIC
   cpp-yt-mlock
   cpp-yt-phdr_cache
   yt-string-enable_enum_suggestions_on_enum_parse_error
+  yt-library-containers
 )
 
 target_sources(library-cpp-runner PRIVATE
@@ -69,5 +69,6 @@ target_sources(library-cpp-runner PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/simple_runner_program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/vanilla_launcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/vanilla_defaults_opensource.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/runner/porto_tracker.cpp
 )
 
