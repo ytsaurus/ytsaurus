@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: tqdm
-Version: 4.69.0
+Version: 4.69.1
 Summary: Fast, Extensible Progress Meter
 Maintainer-email: tqdm developers <devs@tqdm.ml>
 License: MPL-2.0 AND MIT
@@ -105,7 +105,7 @@ iterable with ``tqdm(iterable)``, and you're done!
 
 ``76%|████████████████████████        | 7568/10000 [00:33<00:10, 229.00it/s]``
 
-``trange(N)`` can be also used as a convenient shortcut for
+``trange(N)`` can also be used as a convenient shortcut for
 ``tqdm(range(N))``.
 
 |Screenshot|
