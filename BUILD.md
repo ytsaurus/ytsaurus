@@ -13,6 +13,8 @@ Below is a list of packages that need to be installed before building YTsaurus. 
  - clang-20
  - lld-20
  - lldb-20
+ - clang-18
+ - llvm-18
  - conan 2.28.1
  - git 2.20+
  - python 3.8+
@@ -23,6 +25,9 @@ Below is a list of packages that need to be installed before building YTsaurus. 
  - protoc
  - unzip
 
+Clang 20 compiles YTsaurus itself, while Clang/LLVM 18 generates LLVM bitcode
+consumed by the LLVM 18 query codegen runtime.
+
 #### How to Build
 
  1. Add repositories for dependencies.
@@ -32,7 +37,8 @@ Below is a list of packages that need to be installed before building YTsaurus. 
     ```
     curl -s https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add
     curl -s https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-    echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-18 main" | sudo tee /etc/apt/sources.list.d/llvm.list >/dev/null
+    echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-20 main" | sudo tee /etc/apt/sources.list.d/llvm.list >/dev/null
+    echo "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-18 main" | sudo tee -a /etc/apt/sources.list.d/llvm.list >/dev/null
     echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
     sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
 
@@ -58,7 +64,7 @@ Below is a list of packages that need to be installed before building YTsaurus. 
  1. Install dependencies.
 
     ```
-    sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-20 lld-20 cmake unzip
+    sudo apt-get install -y python3-pip ninja-build libidn11-dev m4 clang-20 lld-20 clang-18 llvm-18 cmake unzip
     sudo python3 -m pip install PyYAML==6.0.1 conan==2.28.1 dacite
     ```
  1. Install protoc.
@@ -86,7 +92,7 @@ Below is a list of packages that need to be installed before building YTsaurus. 
 
     ```
     cd build
-    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DREQUIRED_LLVM_TOOLING_VERSION=20 -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=../ytsaurus/cmake/conan_provider.cmake ../ytsaurus
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DREQUIRED_LLVM_TOOLING_VERSION=18 -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=../ytsaurus/cmake/conan_provider.cmake ../ytsaurus
     ```
 
     To build just run:
