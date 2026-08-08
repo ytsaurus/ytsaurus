@@ -322,7 +322,7 @@ def external_states_to_proto(states_holder: StatesHolder, TState, TStateItem):
 
 def map_process_batch_request(request, job: Job, streams_context: FlowStreamsContext) -> RequestContext:
     """Map TReqProcessBatch to RequestContext."""
-    job_id = _guid_to_str(request.request_id)
+    job_id = _guid_to_str(request.job_id)
     request_id = _guid_to_str(request.request_id)
     key_schema = job.group_by_schema
     stream_specs = job.stream_specs
