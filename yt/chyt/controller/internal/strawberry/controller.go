@@ -49,7 +49,7 @@ type Controller interface {
 	//
 	// Given speclet should have suitable type for the specific controller.
 	// Otherwise, GetOpBriefAttributes may panic.
-	GetOpBriefAttributes(parsedSpeclet any) map[string]any
+	GetOpBriefAttributes(parsedSpeclet any, opletInfo yson.RawValue) map[string]any
 
 	// GetScalerTarget checks whether YT operation should be scaled and returns required scaling parameters.
 	// Returns `nil` if scaling is not required.

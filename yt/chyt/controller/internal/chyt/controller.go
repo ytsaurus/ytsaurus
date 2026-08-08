@@ -662,7 +662,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 	}
 }
 
-func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
+func (c *Controller) GetOpBriefAttributes(parsedSpeclet any, opletInfo yson.RawValue) map[string]any {
 	speclet := parsedSpeclet.(Speclet)
 	var instanceCount, totalCPU, totalMemory any
 	if err := c.populateResources(&speclet); err == nil {
@@ -670,10 +670,18 @@ func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 		totalCPU = speclet.CliqueCPU
 		totalMemory = speclet.CliqueMemory
 	}
+
+	var runningVersion any
+	var info chytOpletInfo
+	if err := yson.Unmarshal(opletInfo, &info); err == nil {
+		runningVersion = info.CHYTRunningVersion
+	}
+
 	return map[string]any{
-		"instance_count": instanceCount,
-		"total_cpu":      totalCPU,
-		"total_memory":   totalMemory,
+		"instance_count":       instanceCount,
+		"total_cpu":            totalCPU,
+		"total_memory":         totalMemory,
+		"chyt_running_version": runningVersion,
 	}
 }
 
