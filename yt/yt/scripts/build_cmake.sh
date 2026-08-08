@@ -39,9 +39,7 @@ EOF
     local extra_cmake_args=()
     [ -n "${cxx_flags_init}" ] && extra_cmake_args+=(-DCMAKE_CXX_FLAGS_INIT="${cxx_flags_init}")
 
-    local llvm_tooling_version
-    llvm_tooling_version="$(clang -dumpversion)"
-    llvm_tooling_version="${llvm_tooling_version%%.*}"
+    local llvm_bitcode_version=18
 
     cd "${build_path}"
     cmake \
@@ -50,8 +48,7 @@ EOF
         -DCMAKE_TOOLCHAIN_FILE="${source_path}/clang.toolchain" \
         -DCMAKE_C_COMPILER_LAUNCHER=ccache \
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-        -DLLVM_TOOLCHAIN_VERSION="${llvm_tooling_version}" \
-        -DREQUIRED_LLVM_TOOLING_VERSION="${llvm_tooling_version}" \
+        -DREQUIRED_LLVM_TOOLING_VERSION="${llvm_bitcode_version}" \
         -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES="${source_path}/cmake/conan_provider.cmake" \
         "${extra_cmake_args[@]}" \
         "${source_path}"

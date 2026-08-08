@@ -7,6 +7,7 @@ ARG NODE_VERSION=16.20.1
 ARG PROTOC_VERSION=3.20.3
 ARG CCACHE_VERSION=4.8.2
 ARG LLVM_VERSION=20
+ARG LLVM_BITCODE_VERSION=18
 ARG PYTHON38_VERSION=3.8.20
 ARG PYTHON39_VERSION=3.9.25
 ARG PYTHON310_VERSION=3.10.19
@@ -158,6 +159,12 @@ RUN wget "https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/
     make install && \
     cd .. && \
     rm -rf "ccache-${CCACHE_VERSION}-linux-x86_64" "ccache-${CCACHE_VERSION}-linux-x86_64.tar.xz"
+
+RUN echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-${LLVM_BITCODE_VERSION} main" > /etc/apt/sources.list.d/llvm-bitcode.list && \
+    apt-get update && \
+    apt-get install -y \
+        "clang-${LLVM_BITCODE_VERSION}" \
+        "llvm-${LLVM_BITCODE_VERSION}"
 
 RUN rm -rf /var/lib/apt/lists/*
 
