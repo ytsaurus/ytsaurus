@@ -56,7 +56,10 @@ struct IJournalBlockDevice
     virtual TFuture<TSnapshotSaveResult> SaveSnapshot(const TSnapshotSaveSpec& spec) = 0;
 
     //! Flushes every block written as of this call into the store.
-    //! A block becomes a journal record only once flushed; until then it is a dirty pool resident.
+    /*!
+     *  Until flushed a block is a dirty pool resident, not a journal record. Fails if the flusher
+     *  has failed or has been stopped by #Finalize.
+     */
     virtual TFuture<void> FlushBlocks() = 0;
 };
 

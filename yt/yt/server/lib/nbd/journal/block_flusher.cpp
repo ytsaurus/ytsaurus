@@ -82,17 +82,12 @@ private:
     //! Highest dirty id drained (EndDrained) so far, or -1.
     i64 LastDrainedId_ = -1;
 
-    //! Absolute tail latched by #RequestFlushBarrier: #OnFlush keeps nothing resident until every block below
-    //! it has been drained. No eager flush is pending once it falls to LastDrainedId_ + 1 or below; it is
-    //! only ever raised (never reset), so its initial -1 is just the first such "not pending" state.
-    i64 FlushBarrierId_ = -1;
-
-    //! Set when a flush fails. This stops any future attempts.
+    //! Set when a flush fails or the flusher is stopped. This stops any future attempts.
     TError FailedError_;
 
     struct TPendingFlushBarrier
     {
-        i64 FlushBarrierId;
+        i64 FlushBarrierId = 0;
         TPromise<void> Promise;
     };
 
@@ -111,12 +106,11 @@ private:
         auto residentTargetCount = GetResidentTargetCount();
 
         while (FailedError_.IsOK()) {
-            // While a flush barrier is pending -- its latched tail not yet drained (LastDrainedId_ +
-            // 1 is the head) -- keep nothing resident; otherwise drain only the excess above the
-            // resident fraction.
-            int targetDirtyCount = FlushBarrierId_ > LastDrainedId_ + 1
-                ? 0
-                : residentTargetCount;
+            // While a flush barrier is pending -- its latched tail not yet drained -- keep nothing
+            // resident; otherwise drain only the excess above the resident fraction.
+            int targetDirtyCount = PendingFlushBarriers_.empty()
+                ? residentTargetCount
+                : 0;
             int excessCount = DirtyPool_->GetSize() - targetDirtyCount;
             if (excessCount <= 0) {
                 break;
@@ -135,15 +129,18 @@ private:
             return MakeFuture(FailedError_);
         }
 
-        // Tail = HeadIndex_ (= LastDrainedId_ + 1) + the resident count.
-        auto barrierId = LastDrainedId_ + 1 + DirtyPool_->GetSize();
-        if (barrierId <= LastDrainedId_ + 1) {
+        int dirtyBlockCount = DirtyPool_->GetSize();
+        if (dirtyBlockCount == 0) {
             return OKFuture;
         }
 
-        FlushBarrierId_ = std::max(FlushBarrierId_, barrierId);
+        // The barrier tail is the pool's current tail: head (= LastDrainedId_ + 1) plus the dirty count.
+        i64 barrierId = LastDrainedId_ + 1 + dirtyBlockCount;
         auto promise = NewPromise<void>();
-        PendingFlushBarriers_.push_back({barrierId, promise});
+        PendingFlushBarriers_.push_back({
+            .FlushBarrierId = barrierId,
+            .Promise = promise,
+        });
         FlushExecutor_->ScheduleOutOfBand();
 
         return promise.ToFuture();
@@ -153,7 +150,13 @@ private:
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
 
-        FailPendingFlushBarriers(TError("Block flusher is stopped"));
+        // Keep an earlier flush error.
+        if (FailedError_.IsOK()) {
+            FailedError_ = TError("Block flusher is stopped");
+        }
+        FailPendingFlushBarriers(FailedError_);
+        // Nothing will drain the pool again, so a parked writer would wait forever.
+        DirtyPool_->Fail(FailedError_);
     }
 
     void SatisfyPendingFlushBarriers()
@@ -205,9 +208,8 @@ private:
             YT_LOG_WARNING(blockIdsOrError, "Block flush failed");
             FailedError_ = TError("Block flush failed") << blockIdsOrError;
             FailPendingFlushBarriers(FailedError_);
-            // TODO(babenko): the pool never frees space again, so writers already parked in
-            // IDirtyBlockPool::Put wait forever -- their NBD requests hang instead of failing, and
-            // SetError does not cancel them. Fail the outstanding waiters here.
+            // The pool will never free space again, so a parked writer would wait forever.
+            DirtyPool_->Fail(FailedError_);
             return 0;
         }
 

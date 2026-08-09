@@ -199,6 +199,57 @@ TEST(TDirtyBlockPoolTest, WrapsAroundTheRing)
     EXPECT_EQ(pool->GetSize(), 0);
 }
 
+TEST(TDirtyBlockPoolTest, FailReleasesWaitingPuts)
+{
+    auto pool = CreateDirtyBlockPool(2);
+    auto blockIds = PutSync(pool, MakeBlocks({1, 2}));
+
+    // The pool is full, so these park.
+    auto firstFuture = pool->Put(MakeBlocks({3}));
+    auto secondFuture = pool->Put(MakeBlocks({4}));
+    ASSERT_FALSE(firstFuture.IsSet());
+    ASSERT_FALSE(secondFuture.IsSet());
+
+    pool->Fail(TError("Block flush failed"));
+
+    EXPECT_FALSE(firstFuture.GetOrCrash().IsOK());
+    EXPECT_FALSE(secondFuture.GetOrCrash().IsOK());
+
+    // The blocks already in the pool are untouched and still readable.
+    EXPECT_EQ(pool->GetSize(), 2);
+    EXPECT_TRUE(pool->Find(blockIds[0], 1));
+}
+
+TEST(TDirtyBlockPoolTest, FailBetweenBeginAndEndDrain)
+{
+    auto pool = CreateDirtyBlockPool(2);
+    PutSync(pool, MakeBlocks({1, 2}));
+    auto parkedFuture = pool->Put(MakeBlocks({3}));
+    ASSERT_FALSE(parkedFuture.IsSet());
+
+    auto drainResult = pool->BeginDrain(2);
+    pool->Fail(TError("Block flush failed"));
+    EXPECT_FALSE(parkedFuture.GetOrCrash().IsOK());
+
+    // The drain still retires its blocks, and the freed space does not resurrect the failed put.
+    pool->EndDrain(drainResult);
+    EXPECT_EQ(pool->GetSize(), 0);
+    EXPECT_FALSE(pool->Put(MakeBlocks({4})).GetOrCrash().IsOK());
+}
+
+TEST(TDirtyBlockPoolTest, FailIsStickyAndKeepsTheFirstError)
+{
+    auto pool = CreateDirtyBlockPool(2);
+    pool->Fail(TError("Block flush failed"));
+    pool->Fail(TError("Something else"));
+
+    // Fails even with the pool empty, and reports the error that shut it down.
+    auto error = pool->Put(MakeBlocks({1})).GetOrCrash();
+    EXPECT_FALSE(error.IsOK());
+    EXPECT_THAT(error.GetMessage(), testing::HasSubstr("Block flush failed"));
+    EXPECT_EQ(pool->GetSize(), 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
