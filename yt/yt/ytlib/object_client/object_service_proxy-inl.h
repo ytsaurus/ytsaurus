@@ -84,7 +84,7 @@ template <class TTypedRequest>
 TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
 TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 {
-    return ExecuteAs(std::string{}, std::move(innerRequest));
+    return ExecuteAs(NRpc::RootUserName, std::move(innerRequest));
 }
 
 template <class TTypedRequest>
@@ -102,7 +102,7 @@ template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
 TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
 TObjectServiceProxy::ExecuteMany(TIntrusivePtr<TTypedRequests>... innerRequests)
 {
-    return ExecuteManyAs(std::string{}, std::move(innerRequests)...);
+    return ExecuteManyAs(NRpc::RootUserName, std::move(innerRequests)...);
 }
 
 template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
