@@ -259,6 +259,11 @@ public:
             .Run();
     }
 
+    TFuture<void> FlushBlocks() final
+    {
+        return BlockFlusher_->RequestFlushBarrier();
+    }
+
 private:
     class TReadSession;
     class TWriteSession;
@@ -845,17 +850,19 @@ public:
                 }
             }
             if (Pending_.empty()) {
-                AllFlushed_.TrySet();
+                AllFlushedPromise_.TrySet();
             }
         }
 
         // The snapshotted dirty versions all sit below the pool's current tail, so an eager flush drains
         // them; wait until every one has been flushed.
-        Owner_->BlockFlusher_->RequestFlushBarrier();
+        auto flushBarrierFuture = Owner_->BlockFlusher_->RequestFlushBarrier();
 
-        // Uncancelable so the timeout cannot cancel AllFlushed_ out from under the flusher callbacks.
-        WaitFor(AllFlushed_.ToFuture()
-            .ToUncancelable()
+        // Neither the timeout nor a failed barrier may cancel AllFlushedPromise_ out from under the flusher
+        // callbacks.
+        WaitFor(AllSucceeded(
+            std::vector{flushBarrierFuture, AllFlushedPromise_.ToFuture()},
+            {.PropagateCancelationToInput = false, .CancelInputOnShortcut = false})
             .WithTimeout(
                 Owner_->Config_->BlockStore->SnapshotFlushTimeout,
                 {.Error = TError("Timed out flushing the snapshot blocks")}))
@@ -881,22 +888,22 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     //! Stored location each block flushed during this session landed at, keyed by its dirty id.
     THashMap<ui64, TStoredBlockId> Flushed_;
-    //! Captured dirty versions not yet flushed; AllFlushed_ fires once this drains.
+    //! Captured dirty versions not yet flushed; AllFlushedPromise_ fires once this drains.
     THashSet<ui64> Pending_;
-    const TPromise<void> AllFlushed_ = NewPromise<void>();
+    const TPromise<void> AllFlushedPromise_ = NewPromise<void>();
 
     void OnBlockFlushObserved(TDirtyBlockId dirtyBlockId, TStoredBlockId storedBlockId)
     {
         auto guard = Guard(Lock_);
         Flushed_[dirtyBlockId.Underlying()] = storedBlockId;
         if (Pending_.erase(dirtyBlockId.Underlying()) > 0 && Pending_.empty()) {
-            AllFlushed_.TrySet();
+            AllFlushedPromise_.TrySet();
         }
     }
 
     void OnFailed(const TError& error)
     {
-        AllFlushed_.TrySet(TError("Device failed while taking a snapshot") << error);
+        AllFlushedPromise_.TrySet(TError("Device failed while taking a snapshot") << error);
     }
 };
 
