@@ -662,22 +662,24 @@ TEST_P(TJournalBlockDeviceTest, RestoreFromSnapshot)
 TEST_P(TJournalBlockDeviceTest, RestoreRecoversSupersededBlockCount)
 {
     auto device = CreateDevice(64 * BlockSize);
+    auto journalDevice = DynamicPointerCast<IJournalBlockDevice>(device);
+    ASSERT_TRUE(journalDevice);
 
     // Write four blocks and let them reach the journal.
     for (int blockIndex : {0, 1, 2, 3}) {
         Write(device, blockIndex * BlockSize, MakeRandomBlock(BlockSize));
     }
-    Sleep(TDuration::Seconds(2));
+    WaitFor(journalDevice->FlushBlocks())
+        .ThrowOnError();
 
     // Overwrite three of them. The superseded versions are already in the append-only journal, so they
     // become garbage there -- counted in written but not referenced.
     for (int blockIndex : {0, 1, 2}) {
         Write(device, blockIndex * BlockSize, MakeRandomBlock(BlockSize));
     }
-    Sleep(TDuration::Seconds(2));
+    WaitFor(journalDevice->FlushBlocks())
+        .ThrowOnError();
 
-    auto journalDevice = DynamicPointerCast<IJournalBlockDevice>(device);
-    ASSERT_TRUE(journalDevice);
     auto path = MakeSnapshotPath();
     SaveSnapshot(journalDevice, path);
     WaitFor(device->Finalize())

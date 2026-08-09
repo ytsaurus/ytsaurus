@@ -37,7 +37,8 @@ struct IBlockFlusher
 
     //! Nudges the flusher to eagerly drain every block enqueued as of this call, down to the pool's
     //! current tail.
-    virtual void RequestFlushBarrier() = 0;
+    //! Set once all of them are in the store; failed if a flush fails or the flusher stops first.
+    virtual TFuture<void> RequestFlushBarrier() = 0;
 
     //! Fired once per block a flush has durably written to the store, in reservation order.
     /*!
