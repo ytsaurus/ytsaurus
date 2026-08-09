@@ -92,6 +92,7 @@ class Clique(object):
     sql_udf_path = None
     query_log_table_path = None
     storage_artifacts_path = None
+    materialized_views_path = None
     election_lock_path = None
 
     def __init__(self, instance_count,
@@ -185,9 +186,20 @@ class Clique(object):
         if enable_object_repository:
             config["yt"]["object_repository"] = dict()
             self.storage_artifacts_path = "//sys/strawberry/chyt/{}/storage_artifacts".format(self.alias)
+            self.materialized_views_path = "//sys/strawberry/chyt/{}/materialized_views".format(self.alias)
             config["yt"]["object_repository"]["root_path"] = self.storage_artifacts_path
+            materialized_views_config = config["yt"].setdefault("materialized_views", {})
+            materialized_views_config.setdefault("root_path", self.materialized_views_path)
+            materialized_views_ace = make_ace(
+                "allow",
+                config["yt"]["user"],
+                ["read", "write", "remove"],
+            )
             create("map_node", self.storage_artifacts_path, recursive=True, ignore_existing=True, attributes={
                 "acl": [ace],
+            })
+            create("map_node", self.materialized_views_path, recursive=True, ignore_existing=True, attributes={
+                "acl": [ace, materialized_views_ace],
             })
 
         spec = {"pool": None}
@@ -488,6 +500,8 @@ class Clique(object):
                 remove(self.sql_udf_path, recursive=True, force=True)
             if self.storage_artifacts_path and self.remove_storage_artifacts_on_exit:
                 remove(self.storage_artifacts_path, recursive=True, force=True)
+            if self.materialized_views_path and self.remove_storage_artifacts_on_exit:
+                remove(self.materialized_views_path, recursive=True, force=True)
 
         except YtError as err:
             print_debug("Error while completing clique operation:", err)

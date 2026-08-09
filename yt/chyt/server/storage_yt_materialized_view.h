@@ -23,6 +23,9 @@ struct TMaterializedViewConfiguration
     std::string CreateStatement;
     NYPath::TYPath SourcePath;
     NYPath::TYPath TargetPath;
+    NObjectClient::TObjectId SourceObjectId;
+    NObjectClient::TObjectId TargetObjectId;
+    i64 InitialSourceRowCount = 0;
 };
 
 TMaterializedViewConfiguration BuildMaterializedViewConfiguration(

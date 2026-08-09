@@ -100,6 +100,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/launcher_compatibility.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/logger.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/logging_transform.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/materialized_view_coordinator.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/memory_watchdog.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/object_lock.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/poco_config.cpp

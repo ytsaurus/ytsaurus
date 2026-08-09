@@ -99,6 +99,8 @@ DECLARE_REFCOUNTED_STRUCT(TPocoOpenSslConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueryCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TUserDefinedSqlObjectsStorageConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressObjectRepositoryConfig)
+DECLARE_REFCOUNTED_STRUCT(TMaterializedViewsConfig)
+DECLARE_REFCOUNTED_CLASS(TMaterializedViewCoordinator)
 DECLARE_REFCOUNTED_STRUCT(TDictionaryAccessControlConfig)
 DECLARE_REFCOUNTED_STRUCT(TSystemLogTableExporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TSystemLogTableExportersConfig)
@@ -156,6 +158,7 @@ struct TSqlObjectInfo;
 struct TQueryFinishInfo;
 struct TQueryProgressValues;
 class TQueryProgress;
+struct TMaterializedViewConfiguration;
 
 struct IStorageDistributor;
 using IStorageDistributorPtr = std::shared_ptr<IStorageDistributor>;

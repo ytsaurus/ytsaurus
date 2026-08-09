@@ -148,7 +148,8 @@ DB::ContextMutablePtr PrepareContextForQuery(
     const std::string& dataBaseUser,
     TDuration timeout,
     THost* host,
-    std::string traceContextRoot)
+    std::string traceContextRoot,
+    TTransactionId parentTransactionId)
 {
     session->authenticate(
         dataBaseUser,
@@ -166,6 +167,9 @@ DB::ContextMutablePtr PrepareContextForQuery(
     contextForQuery->setInitialUserName(contextForQuery->getClientInfo().current_user);
     contextForQuery->setQueryKind(DB::ClientInfo::QueryKind::INITIAL_QUERY);
     contextForQuery->setInitialQueryId(ToString(queryId));
+    if (parentTransactionId) {
+        contextForQuery->setQueryParameter(ParamTransactionId, ToString(parentTransactionId));
+    }
 
     auto traceContext = NTracing::TTraceContext::NewRoot(traceContextRoot);
 

@@ -79,9 +79,7 @@ void TYtDatabaseBase::createTable(
         objectRepository->WriteMaterializedView(
             context,
             table->getStorageID(),
-            config.CreateStatement,
-            config.SourcePath,
-            config.TargetPath);
+            config);
 
     } else if (table->getName() != "StorageDistributor") {
         THROW_ERROR_EXCEPTION("Table engine %Qv may not be stored in YT database: only YtTable, Dictionary and MaterializedView engines are supported",
