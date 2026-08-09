@@ -105,6 +105,31 @@ def _derive_test_name(cls, method) -> str:
     return test_name
 
 
+_LOCAL_CHAOS_TABLET_CELL_BUNDLE = "test-chaos"
+
+
+def _prepare_local_chaos_cluster(client) -> None:
+    bundle_path = f"//sys/tablet_cell_bundles/{_LOCAL_CHAOS_TABLET_CELL_BUNDLE}"
+    if not client.exists(bundle_path):
+        return
+
+    client.set(
+        "//sys/@config/tablet_manager/enable_clock_cell_tag_validation_on_chaos_replica_mount",
+        True,
+    )
+
+    tablet_cell_ids = client.get(f"{bundle_path}/@tablet_cell_ids")
+    if not tablet_cell_ids:
+        tablet_cell_ids = [
+            client.create(
+                "tablet_cell",
+                attributes={"tablet_cell_bundle": _LOCAL_CHAOS_TABLET_CELL_BUNDLE},
+            )
+        ]
+
+    wait(lambda: all(client.get(f"#{cell_id}/@health") == "good" for cell_id in tablet_cell_ids))
+
+
 def _prepare_proxy_role(role: str, client) -> None:
     client.create("rpc_proxy_role_map", "//sys/rpc_proxy_roles", ignore_existing=True)
     if not client.exists(f"//sys/rpc_proxy_roles/{role}"):
@@ -244,10 +269,11 @@ class FlowTestBase:
         url_aliasing_config.update(cls.cluster_name_to_url)
         cls.serialized_url_aliasing_config = str(yson.dumps(url_aliasing_config).decode("utf-8"))
 
-        # On a real external cluster we don't have permissions to redefine //sys/rpc_proxy_roles;
-        # the role must be configured by the cluster owner instead.
+        # Apply cluster-wide test settings only to local recipe clusters. On a real external
+        # cluster we may lack permissions and the cluster owner controls both settings.
         if cls.external_yt_config is None:
             for client in cls.cluster_name_to_client.values():
+                _prepare_local_chaos_cluster(client)
                 _prepare_proxy_role(cls.RPC_PROXY_ROLE, client)
 
         cls.rpc_driver_config = {"proxy_role": cls.RPC_PROXY_ROLE}
