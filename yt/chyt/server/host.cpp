@@ -918,6 +918,9 @@ public:
 
         auto& accessControl = getContext()->getAccessControl();
         auto userId = accessControl.find(DB::AccessEntityType::USER, userName);
+        if (!userId) {
+            return;
+        }
         auto entity = accessControl.read(*userId);
         auto user = std::static_pointer_cast<DB::User>(entity->clone());
 

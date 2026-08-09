@@ -261,7 +261,7 @@ std::optional<TExpressionConvertionResult> ConnverterImpl(
 
                 TConstExpressionPtr foldedExpr;
                 bool bailed = false;
-                for (auto& argNode : arguments) {
+                for (const auto& argNode : arguments) {
                     // NB: CH uses integer literals and columns with the UInt8 data type as boolean values.
                     // To use QL inferrer, we need to adapt such cases to valid logical expressions.
                     auto booleanNode = AdjustToYTBooleanExpression(argNode);

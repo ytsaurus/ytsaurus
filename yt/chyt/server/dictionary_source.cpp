@@ -209,7 +209,7 @@ private:
                     << TErrorAttribute("actual_schema",
                         ToNamesAndTypesList(tableSchema, New<TConversionSettings>()).toString());
             }
-            columns.emplace_back(*column);
+            columns.push_back(*column);
         }
 
         auto readSchema = New<TTableSchema>(std::move(columns));

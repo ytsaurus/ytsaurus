@@ -1625,7 +1625,8 @@ TEST(TTestKeyConversion, TestLowCardinality)
 
         auto& column1 = columnSchemas.emplace_back("dummy_name", ESimpleLogicalValueType::Int64);
         column1.SetRequired(true);
-        auto& column2 = columnSchemas.emplace_back(column1);
+        columnSchemas.push_back(column1);
+        auto& column2 = columnSchemas.back();
         column2.SetLogicalType(TaggedLogicalType(LowCardinalityTag, column2.LogicalType()));
 
         schema = TTableSchema(std::move(columnSchemas));
@@ -1642,7 +1643,14 @@ TEST(TTestKeyConversion, TestLowCardinality)
         /*isUpper=*/false);
     auto upperBound = MakeUpperBound({MakeUnversionedInt64Value(10)});
 
-    auto chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 2, false);
+
+    auto chKeys = ToClickHouseKeys(
+        lowerBound,
+        upperBound,
+        schema,
+        dataTypes,
+        /*usedKeyColumnCount*/ 2,
+        /*tryMakeBoundsInclusive*/false);
     YT_LOG_DEBUG("MinKey %v %v", chKeys.MinKey[0], chKeys.MinKey[1]);
     YT_LOG_DEBUG("MaxKey %v %v", chKeys.MaxKey[0], chKeys.MaxKey[1]);
     EXPECT_EQ(chKeys.MinKey, std::vector<DB::FieldRef>({DB::Field(5L), DB::Field(std::numeric_limits<DB::Int64>::max())}));
@@ -1658,7 +1666,13 @@ TEST(TTestKeyConversion, TestLowCardinality)
         /*isInclusive=*/false,
         /*isUpper=*/false);
 
-    chKeys = ToClickHouseKeys(lowerBound, upperBound, schema, dataTypes, 2, true);
+    chKeys = ToClickHouseKeys(
+        lowerBound,
+        upperBound,
+        schema,
+        dataTypes,
+        /*usedKeyColumnCount*/ 2,
+        /*tryMakeBoundsInclusive*/ true);
     YT_LOG_DEBUG("MinKey %v %v", chKeys.MinKey[0], chKeys.MinKey[1]);
     YT_LOG_DEBUG("MaxKey %v %v", chKeys.MaxKey[0], chKeys.MaxKey[1]);
     EXPECT_EQ(chKeys.MaxKey, std::vector<DB::FieldRef>({DB::Field(10L), DB::Field(4L)}));
