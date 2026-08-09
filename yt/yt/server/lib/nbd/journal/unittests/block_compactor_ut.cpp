@@ -67,6 +67,11 @@ public:
         YT_ABORT();
     }
 
+    bool DiscardBlock(int /*blockIndex*/) final
+    {
+        YT_ABORT();
+    }
+
     int GetUsedBlockCount() const final
     {
         YT_ABORT();

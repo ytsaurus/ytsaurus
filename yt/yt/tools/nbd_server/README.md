@@ -6,13 +6,13 @@ chosen backend type. Each device is described with a polymorphic YSON struct —
 
 ## Supported device backends
 
-| `type`          | Backing store             | Mode | Needs a client |
-|-----------------|---------------------------|------|----------------|
-| `memory`        | process memory            | RW   | no             |
-| `dynamic_table` | a mounted dynamic table   | RW   | yes            |
-| `file`          | a Cypress file (its bytes)| RO   | yes (native)   |
-| `chunk`         | a data node chunk         | RW   | yes (native)   |
-| `journal`       | YT journal chunks         | RW   | yes (native)   |
+| `type`          | Backing store             | Mode | Trim | Needs a client |
+|-----------------|---------------------------|------|------|----------------|
+| `memory`        | process memory            | RW   | no   | no             |
+| `dynamic_table` | a mounted dynamic table   | RW   | no   | yes            |
+| `file`          | a Cypress file (its bytes)| RO   | no   | yes (native)   |
+| `chunk`         | a data node chunk         | RW   | no   | yes (native)   |
+| `journal`       | YT journal chunks         | RW   | yes  | yes (native)   |
 
 The `file` backend serves the raw bytes of a Cypress file read-only — point it at
 a filesystem image and mount the device directly, no `mkfs`. It reads the file's
@@ -55,6 +55,30 @@ Optional `block_compactor` (absent disables it) turns on background compaction,
 which relocates the surviving blocks out of mostly-dead chunks so the old ones
 can be reclaimed. A device restored from a snapshot needs it to ever release the
 snapshot's chunks; since the table pins them, they are freed only once it is removed.
+
+## Trim
+
+Backends marked trimmable in the table above advertise `NBD_FLAG_SEND_TRIM`, so
+the kernel issues discards for them — `blkdiscard`, `mount -o discard`, or
+`fstrim`:
+
+```bash
+# Discard an explicit byte range, or the whole device.
+sudo blkdiscard -o $((4 * 1024 * 1024)) -l $((8 * 1024 * 1024)) /dev/nbd0
+sudo blkdiscard /dev/nbd0
+
+# Or let the filesystem do it: continuously, or in one batch.
+sudo mount -o discard /dev/nbd0 ~/mnt
+sudo fstrim -v ~/mnt
+```
+
+Discarded bytes read back as zeroes. Trim is advisory, so a device may discard
+less than asked: the `journal` backend discards only the blocks a range fully
+covers, leaving a partially covered block at either end untouched. Its trimmed
+blocks stop being referenced, which is what lets a journal chunk go dead and be
+reclaimed; they are also absent from any later snapshot. A backend that is not
+trimmable does not advertise the flag, and a discard against it fails in the
+kernel with `Operation not supported` rather than reaching the server.
 
 ## Client
 
@@ -195,6 +219,7 @@ sudo nbd-client localhost 10809 -l
 # Connect one to /dev/nbd0 (device name is the key from `devices`).
 sudo nbd-client localhost 10809 -N ram_disk /dev/nbd0
 sudo mkfs -t ext4 /dev/nbd0
+# Add -o discard on a trimmable backend to release freed space as you go.
 mkdir ~/mnt && sudo mount /dev/nbd0 ~/mnt
 # ... use ~/mnt ...
 sudo umount ~/mnt

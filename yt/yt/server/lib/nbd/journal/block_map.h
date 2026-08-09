@@ -66,7 +66,16 @@ struct IBlockMap
      */
     virtual bool TryPutBlock(int blockIndex, TMappedBlockId expectedBlockId, TStoredBlockId storedBlockId) = 0;
 
-    //! Returns the number of blocks that have ever been written, i.e. are no longer empty.
+    //! Resets the block at |blockIndex| to empty, so that it reads back as never written. Returns
+    //! whether it was non-empty.
+    /*!
+     *  A superseded stored payload becomes unreferenced (see #StoredBlockUnreferenced). A dirty one is
+     *  not withdrawn from the pool -- its flush simply finds the slot changed and is not adopted, which
+     *  frees the block it wrote.
+     */
+    virtual bool DiscardBlock(int blockIndex) = 0;
+
+    //! Returns the number of currently non-empty blocks.
     virtual int GetUsedBlockCount() const = 0;
 
     //! Snapshots every used block as a single point-in-time cut, concurrently with ongoing writes.

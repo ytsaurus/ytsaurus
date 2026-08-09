@@ -105,13 +105,12 @@ public:
 
             auto& slot = GetSlot(blockIndex);
             auto oldId = TMappedBlockId(slot.load(std::memory_order::acquire));
+            auto bareOldId = WithoutCoW(oldId);
 
-            // The first write to a block makes it non-empty for good.
-            if (oldId == EmptyMappedBlockId) {
+            if (bareOldId == EmptyMappedBlockId) {
                 UsedBlockCount_.fetch_add(1, std::memory_order::relaxed);
             }
 
-            auto bareOldId = WithoutCoW(oldId);
             if (IsStoredMappedBlockId(bareOldId)) {
                 unreferencedStoredBlockId = ToStoredBlockId(bareOldId);
             }
@@ -173,6 +172,41 @@ public:
         }
 
         return succeeded;
+    }
+
+    bool DiscardBlock(int blockIndex) final
+    {
+        std::optional<TStoredBlockId> unreferencedStoredBlockId;
+        {
+            auto guard = Guard(WriteLock_);
+
+            auto& slot = GetSlot(blockIndex);
+            auto oldId = TMappedBlockId(slot.load(std::memory_order::acquire));
+            auto bareOldId = WithoutCoW(oldId);
+            if (bareOldId == EmptyMappedBlockId) {
+                return false;
+            }
+
+            UsedBlockCount_.fetch_sub(1, std::memory_order::relaxed);
+            if (IsStoredMappedBlockId(bareOldId)) {
+                unreferencedStoredBlockId = ToStoredBlockId(bareOldId);
+            }
+
+            auto newId = EmptyMappedBlockId;
+            if (SnapshotState_ == ESnapshotState::CoWActive) {
+                if (!IsCoW(oldId)) {
+                    CoWBlocks_.emplace_back(blockIndex, oldId);
+                }
+                newId = WithCoW(newId);
+            }
+            slot.store(newId.Underlying(), std::memory_order::release);
+        }
+
+        if (unreferencedStoredBlockId) {
+            StoredBlockUnreferenced_.Fire(*unreferencedStoredBlockId);
+        }
+
+        return true;
     }
 
     int GetUsedBlockCount() const final

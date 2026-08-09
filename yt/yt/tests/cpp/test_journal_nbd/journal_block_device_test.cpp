@@ -229,6 +229,12 @@ protected:
             .ThrowOnError();
     }
 
+    void Trim(const IBlockDevicePtr& device, i64 offset, i64 length)
+    {
+        WaitFor(device->Trim(offset, length))
+            .ThrowOnError();
+    }
+
     TSharedRef Read(const IBlockDevicePtr& device, i64 offset, i64 length)
     {
         return WaitFor(device->Read(offset, length))
@@ -452,6 +458,113 @@ TEST_P(TJournalBlockDeviceTest, RejectsOutOfBoundsWrite)
     EXPECT_FALSE(WaitFor(device->Write(15 * BlockSize, MakeRandomBlock(2 * BlockSize))).IsOK());
 
     WaitFor(device->Finalize())
+        .ThrowOnError();
+}
+
+TEST_P(TJournalBlockDeviceTest, TrimZeroesBlocks)
+{
+    auto device = CreateDevice(16 * BlockSize);
+    EXPECT_TRUE(device->IsTrimSupported());
+
+    for (int blockIndex = 0; blockIndex < 4; ++blockIndex) {
+        Write(device, blockIndex * BlockSize, MakeRandomBlock(BlockSize));
+    }
+
+    auto block0 = Read(device, 0, BlockSize);
+    auto block3 = Read(device, 3 * BlockSize, BlockSize);
+    Trim(device, BlockSize, 2 * BlockSize);
+
+    ExpectZero(Read(device, BlockSize, 2 * BlockSize));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(Read(device, 0, BlockSize), block0));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(Read(device, 3 * BlockSize, BlockSize), block3));
+
+    auto rewritten = MakeRandomBlock(BlockSize);
+    Write(device, BlockSize, rewritten);
+    EXPECT_TRUE(TRef::AreBitwiseEqual(Read(device, BlockSize, BlockSize), rewritten));
+
+    WaitFor(device->Finalize())
+        .ThrowOnError();
+}
+
+TEST_P(TJournalBlockDeviceTest, TrimAfterFlush)
+{
+    auto device = CreateDevice(16 * BlockSize);
+
+    // Let the blocks reach the store first, so the trim discards stored (clean) payloads rather than
+    // dirty ones.
+    for (int blockIndex = 0; blockIndex < 4; ++blockIndex) {
+        Write(device, blockIndex * BlockSize, MakeRandomBlock(BlockSize));
+    }
+    Sleep(TDuration::Seconds(2));
+
+    Trim(device, 0, 4 * BlockSize);
+    ExpectZero(Read(device, 0, 4 * BlockSize));
+
+    WaitFor(device->Finalize())
+        .ThrowOnError();
+}
+
+TEST_P(TJournalBlockDeviceTest, TrimSparesPartiallyCoveredBlocks)
+{
+    auto device = CreateDevice(16 * BlockSize);
+
+    for (int blockIndex = 0; blockIndex < 3; ++blockIndex) {
+        Write(device, blockIndex * BlockSize, MakeRandomBlock(BlockSize));
+    }
+    auto block0 = Read(device, 0, BlockSize);
+    auto block2 = Read(device, 2 * BlockSize, BlockSize);
+
+    // The range covers only the tail of block 0 and the head of block 2, so just block 1 is discarded:
+    // a trim may discard less than asked, never more.
+    Trim(device, BlockSize / 2, 2 * BlockSize);
+
+    EXPECT_TRUE(TRef::AreBitwiseEqual(Read(device, 0, BlockSize), block0));
+    ExpectZero(Read(device, BlockSize, BlockSize));
+    EXPECT_TRUE(TRef::AreBitwiseEqual(Read(device, 2 * BlockSize, BlockSize), block2));
+
+    WaitFor(device->Finalize())
+        .ThrowOnError();
+}
+
+TEST_P(TJournalBlockDeviceTest, RejectsOutOfBoundsTrim)
+{
+    auto device = CreateDevice(16 * BlockSize);
+
+    EXPECT_FALSE(WaitFor(device->Trim(16 * BlockSize, BlockSize)).IsOK());
+    EXPECT_FALSE(WaitFor(device->Trim(15 * BlockSize, 2 * BlockSize)).IsOK());
+
+    WaitFor(device->Finalize())
+        .ThrowOnError();
+}
+
+TEST_P(TJournalBlockDeviceTest, TrimmedBlocksAreAbsentFromSnapshot)
+{
+    auto device = CreateDevice(64 * BlockSize);
+
+    std::map<i64, std::string> written;
+    for (int blockIndex : {0, 1, 2, 5, 9}) {
+        auto block = MakeRandomBlock(BlockSize);
+        Write(device, blockIndex * BlockSize, block);
+        written[blockIndex] = std::string(block.ToStringBuf());
+    }
+
+    Trim(device, BlockSize, 2 * BlockSize);
+    written.erase(1);
+    written.erase(2);
+
+    auto journalDevice = DynamicPointerCast<IJournalBlockDevice>(device);
+    ASSERT_TRUE(journalDevice);
+
+    auto path = MakeSnapshotPath();
+    SaveSnapshot(journalDevice, path);
+    EXPECT_EQ(ReadSnapshotTable(path), written);
+
+    WaitFor(device->Finalize())
+        .ThrowOnError();
+    auto restored = CreateDevice(64 * BlockSize, path);
+    ExpectZero(Read(restored, BlockSize, 2 * BlockSize));
+
+    WaitFor(restored->Finalize())
         .ThrowOnError();
 }
 

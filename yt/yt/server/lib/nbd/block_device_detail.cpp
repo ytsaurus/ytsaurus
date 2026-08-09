@@ -70,4 +70,19 @@ void TBlockDeviceBase::UnsubscribeError(const TCallback<void(const TError&)>& ca
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TBlockDeviceBase::IsTrimSupported() const
+{
+    return false;
+}
+
+TFuture<void> TBlockDeviceBase::Trim(
+    i64 /*offset*/,
+    i64 /*length*/,
+    const TTrimOptions& /*options*/)
+{
+    return OKFuture;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NNbd
