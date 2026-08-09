@@ -119,6 +119,9 @@ int main(int argc, const char** argv)
 - `NYT::NFlow::NCompanion::TSwiftMapCompanionComputation`: Реализация [TSwiftMapComputation](../../../flow/concepts/computation.md#tswiftmapcomputation) делегирующая обработку данных процессу-компаньону.
 - `NYT::NFlow::NCompanion::TSwiftOrderedSourceCompanionComputation`: Реализация [TSwiftOrderedSourceComputation](../../../flow/concepts/computation.md#tswiftorderedsourcecomputation) делегирующая обработку данных процессу-компаньону.
 - `NYT::NFlow::NCompanion::TTransformCompanionComputation`: Реализация [TTransformComputation](../../../flow/concepts/computation.md#ttransformcomputation) делегирующая обработку данных процессу-компаньону.
+- `NYT::NFlow::NCompanion::TTransformOrderedSourceCompanionComputation`: Реализация [TTransformOrderedSourceComputation](../../../flow/concepts/computation.md#ttransformorderedsourcecomputation) делегирующая обработку данных процессу-компаньону.
+
+Для Source-компьютейшена доступны два режима. `TSwiftOrderedSourceCompanionComputation` не материализует выход и требует детерминированной обработки без пользовательского стейта. `TTransformOrderedSourceCompanionComputation` материализует выход и фиксирует его вместе с внутренним стейтом и смещением источника в транзакции эпохи. Его следует выбирать для недетерминированной обработки или работы с внутренним стейтом; ключом такого стейта служит ключ партиции источника. Ограничения спеки совпадают с [TTransformOrderedSourceComputation](../../../flow/concepts/computation.md#ttransformorderedsourcecomputation).
 
 Подробнее о реализации пайплайнов с использованием компаньонов: [Java и Kotlin](../../../flow/java/getting-started.md), [Python](../../../flow/python/getting-started.md), [Go](../../../flow/go/getting-started.md).
 

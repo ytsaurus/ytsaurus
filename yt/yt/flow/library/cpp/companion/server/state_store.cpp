@@ -233,10 +233,18 @@ void TCompanionExternalStateManager::CollectModified(
 
 TCompanionExternalStateJoiner::TCompanionExternalStateJoiner(
     std::string name,
-    NTableClient::TTableSchemaPtr keySchema)
+    TCompanionExternalStateJoinerConfig config)
     : Name_(std::move(name))
-    , KeySchema_(std::move(keySchema))
-{ }
+    , KeySchema_(std::move(config.KeySchema))
+    , ConverterCache_(std::move(config.ConverterCache))
+    , KeyProviderStreams_(std::move(config.KeyProviderStreams))
+    , HasKeySchemaOverride_(config.HasKeySchemaOverride)
+{
+    THROW_ERROR_EXCEPTION_UNLESS(
+        !HasKeySchemaOverride_ || (KeySchema_ && ConverterCache_),
+        "External state joiner %Qv with key schema override requires a key schema and converter cache",
+        Name_);
+}
 
 IStateHolderPtr TCompanionExternalStateJoiner::GetState(const TKey& key)
 {
@@ -267,7 +275,7 @@ const std::optional<THashSet<TStreamId>>& TCompanionExternalStateJoiner::GetKeyP
 
 bool TCompanionExternalStateJoiner::HasKeySchemaOverride() const
 {
-    return false;
+    return HasKeySchemaOverride_;
 }
 
 void TCompanionExternalStateJoiner::Reset()
@@ -314,11 +322,13 @@ TCompanionStateStore::TCompanionStateStore(
     THashSet<std::string> internalStateNames,
     THashSet<std::string> externalStateNames,
     THashSet<std::string> joinedStateNames,
-    NTableClient::TTableSchemaPtr keySchema)
+    NTableClient::TTableSchemaPtr keySchema,
+    THashMap<std::string, TCompanionExternalStateJoinerConfig> joinedStateConfigs)
     : InternalStateNames_(BuildCanonicalNameMap(internalStateNames))
     , ExternalStateNames_(BuildCanonicalNameMap(externalStateNames))
     , JoinedStateNames_(BuildCanonicalNameMap(joinedStateNames))
     , KeySchema_(std::move(keySchema))
+    , JoinedStateConfigs_(std::move(joinedStateConfigs))
 { }
 
 IMutableStateKeyProviderPtr TCompanionStateStore::RegisterInternalState(
@@ -366,9 +376,15 @@ IExternalStateJoinerPtr TCompanionStateStore::GetExternalStateJoiner(const std::
     const auto& stateName = declaredIt->second;
     auto it = JoinedStates_.find(stateName);
     if (it == JoinedStates_.end()) {
+        TCompanionExternalStateJoinerConfig config;
+        if (auto configIt = JoinedStateConfigs_.find(stateName); configIt != JoinedStateConfigs_.end()) {
+            config = configIt->second;
+        } else {
+            config.KeySchema = KeySchema_;
+        }
         it = JoinedStates_.emplace(
             stateName,
-            New<TCompanionExternalStateJoiner>(stateName, KeySchema_))
+            New<TCompanionExternalStateJoiner>(stateName, std::move(config)))
             .first;
     }
     return it->second;

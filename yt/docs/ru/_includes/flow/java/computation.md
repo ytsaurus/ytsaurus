@@ -20,6 +20,8 @@
 Для пайплайнов на Java и Kotlin выбор между `Swift` или `Transform` осуществляется через указание `computation_class_name` в статической спеке:
 - `NYT::NFlow::NCompanion::TTransformCompanionComputation` — для `Transform`.
 - `NYT::NFlow::NCompanion::TSwiftMapCompanionComputation` — для `Swift`.
+- `NYT::NFlow::NCompanion::TTransformOrderedSourceCompanionComputation` — для `Transform`-сорса.
+- `NYT::NFlow::NCompanion::TSwiftOrderedSourceCompanionComputation` — для `Swift`-сорса.
 
 ## Создание Computation {#computation}
 
@@ -73,9 +75,11 @@
 
 ## SourceComputation {#sourcecomputation}
 
-`SourceComputation` — вершина в графе пайплайна, осуществляющая чтение данных из внешних источников. Подробнее про [Source Computation](../../../flow/concepts/computation.md#tswiftorderedsourcecomputation).
+`SourceComputation` — вершина в графе пайплайна, осуществляющая чтение данных из внешних источников. На стороне воркера ей соответствует [TSwiftOrderedSourceComputation](../../../flow/concepts/computation.md#tswiftorderedsourcecomputation) или [TTransformOrderedSourceComputation](../../../flow/concepts/computation.md#ttransformorderedsourcecomputation).
 
 В Java `SourceComputation` расширяет `Computation`. Как и у `Computation`, параметр `processFunction` обязателен.
+
+В статической спеке для детерминированной обработки без пользовательского стейта указывают `TSwiftOrderedSourceCompanionComputation`. Если SourceComputation использует внутренний стейт или недетерминированную логику, указывают `TTransformOrderedSourceCompanionComputation`: воркер материализует выход и фиксирует его вместе со стейтом и смещением источника. Ключ внутреннего стейта в таком компьютейшене — ключ партиции источника.
 
 ### Параметры
 
@@ -112,7 +116,7 @@
 
 ### Взаимодействие с Worker {#companion-info}
 
-При инициализации `Worker` запрашивает у Java-[компаньона](../../../flow/concepts/glossary.md#companion) информацию о зарегистрированных объектах `Computation` и `SourceComputation`. Каждое входное сообщение `TSwiftOrderedSourceCompanionComputation` отправляет в Java-компаньон, который применяет к нему `ProcessFunction` и возвращает результат. Worker выполняет один запрос к компаньону на каждое сообщение.
+При инициализации `Worker` запрашивает у Java-[компаньона](../../../flow/concepts/glossary.md#companion) информацию о зарегистрированных объектах `Computation` и `SourceComputation`. Source-компьютейшен на стороне воркера отправляет входные сообщения в Java-компаньон, который применяет к ним `ProcessFunction` и возвращает результат.
 
 ## Process Function
 

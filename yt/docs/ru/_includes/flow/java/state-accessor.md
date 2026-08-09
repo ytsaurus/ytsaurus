@@ -14,7 +14,7 @@ StateAccessor — интерфейс для чтения, модификации
 
 ![](../../../flow/images/state_line_example.svg)
 
-Ключевые колонки в таблице стейта должны совпадать с `group_by_schema` того [компьютейшена](../../../flow/concepts/glossary.md#stream-and-computation), который использует этот стейт.
+Для `TTransformCompanionComputation` ключевые колонки в таблице стейта совпадают с `group_by_schema` [компьютейшена](../../../flow/concepts/glossary.md#stream-and-computation). Для внутреннего стейта `TTransformOrderedSourceCompanionComputation` ключом служит ключ партиции источника: `group_by_schema` в таком SourceComputation не поддерживается.
 
 Колонки значений будут доступны для чтения и модификации через `StateAccessor`. Формат, в котором эти значения будут доступны для чтения и модификации в Java-коде, зависит от реализации `StateAccessor`.
 

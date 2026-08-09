@@ -109,7 +109,11 @@ def on_timer(self, timer, output, ctx):
 
 ## Привязка стейта к ключу {#group-by-schema}
 
-Стейт привязывается к [ключу](../../../flow/concepts/glossary.md#key) сообщения, определяемому через `group_by_schema` в спеке компьютейшена. Все сообщения с одинаковым ключом разделяют один стейт. Подробнее о конфигурации ключей см. [Stateful-вычисления](../../../flow/concepts/stateful.md).
+В `TTransformCompanionComputation` стейт привязывается к [ключу](../../../flow/concepts/glossary.md#key) сообщения, определяемому через `group_by_schema` в спеке компьютейшена. Все сообщения с одинаковым ключом разделяют один стейт.
+
+В `TTransformOrderedSourceCompanionComputation` поле `group_by_schema` не поддерживается. Ключом внутреннего стейта служит ключ партиции источника, поэтому все сообщения одной партиции разделяют стейт. Подробнее о выборе класса для SourceComputation см. в разделе [Computation (Python)](../../../flow/python/computation.md#sourcecomputation).
+
+Подробнее о конфигурации ключей см. [Stateful-вычисления](../../../flow/concepts/stateful.md).
 
 ## Конфигурация стейтов в спеке {#spec-configuration}
 

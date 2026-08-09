@@ -6,34 +6,6 @@ namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStreamSpecsPtr CreateLocalStreamSpecs(
-    const THashMap<TStreamId, NTableClient::TTableSchemaPtr>& sourceStreamsSchemas,
-    const THashSet<TStreamId>& outputStreamIds,
-    const TStreamSpecsPtr& streamSpecs)
-{
-    auto streamSpecsMap = THashMap<TStreamId, TMap<TStreamSpecId, TStreamSpecPtr>>();
-    // StreamSpecId for the current batch.
-    i64 localStreamSpecId = 0;
-
-    // Process source streams.
-    for (const auto& [streamId, payloadSchema] : sourceStreamsSchemas) {
-        auto streamSpec = New<TStreamSpec>();
-        streamSpec->Schema = payloadSchema;
-        streamSpecsMap[streamId].emplace(TStreamSpecId(localStreamSpecId++), std::move(streamSpec));
-    }
-
-    // Process output streams.
-    for (const auto& streamId : outputStreamIds) {
-        auto currentStreamSpecId = streamSpecs->GetLastSpecId(streamId);
-        auto streamSpec = streamSpecs->GetSpec(currentStreamSpecId);
-        streamSpecsMap[streamId].emplace(TStreamSpecId(localStreamSpecId++), std::move(streamSpec));
-    }
-
-    return New<TStreamSpecs>(std::move(streamSpecsMap));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TSwiftOrderedSourceCompanionComputation::TSwiftOrderedSourceCompanionComputation(
     TComputationContextPtr context,
     TDynamicComputationContextPtr dynamicContext)

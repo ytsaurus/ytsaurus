@@ -4,46 +4,43 @@
 #include "companion_model.h"
 #include "public.h"
 
-#include <yt/yt/flow/library/cpp/computation/computation_base.h>
 #include <yt/yt/flow/library/cpp/computation/job_state/job_init_context.h>
-#include <yt/yt/flow/library/cpp/computation/public.h>
-#include <yt/yt/flow/library/cpp/computation/simple_external_state_manager.h>
-#include <yt/yt/flow/library/cpp/computation/transform_computation.h>
-
 #include <yt/yt/flow/library/cpp/computation/job_state/state_manager.h>
+#include <yt/yt/flow/library/cpp/computation/simple_external_state_manager.h>
+#include <yt/yt/flow/library/cpp/computation/transform_ordered_source_computation.h>
 
 namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCompanionParameters
-    : public TTransformComputation::TParameters
+struct TTransformOrderedSourceCompanionParameters
+    : public TTransformOrderedSourceComputation::TParameters
 {
     std::optional<THashSet<std::string>> InternalStates;
 
-    REGISTER_YSON_STRUCT(TCompanionParameters);
+    REGISTER_YSON_STRUCT(TTransformOrderedSourceCompanionParameters);
 
     static void Register(TRegistrar registrar);
 };
 
-struct TCompanionDynamicParameters
-    : public TTransformComputation::TDynamicParameters
+struct TTransformOrderedSourceCompanionDynamicParameters
+    : public TTransformOrderedSourceComputation::TDynamicParameters
 {
-    REGISTER_YSON_STRUCT(TCompanionDynamicParameters);
+    REGISTER_YSON_STRUCT(TTransformOrderedSourceCompanionDynamicParameters);
 
     static void Register(TRegistrar registrar);
 };
 
-class TTransformCompanionComputation
-    : public TCompanionComputationBaseAdapter<TTransformComputation>
+class TTransformOrderedSourceCompanionComputation
+    : public TCompanionComputationBaseAdapter<TTransformOrderedSourceComputation>
 {
 public:
-    TTransformCompanionComputation(
+    TTransformOrderedSourceCompanionComputation(
         TComputationContextPtr context,
         TDynamicComputationContextPtr dynamicContext);
 
-    YT_FLOW_EXTEND_PARAMETERS(TCompanionParameters);
-    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TCompanionDynamicParameters);
+    YT_FLOW_EXTEND_PARAMETERS(TTransformOrderedSourceCompanionParameters);
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TTransformOrderedSourceCompanionDynamicParameters);
 
     void DoInit(IJobInitContextPtr initContext) final;
 
@@ -51,11 +48,10 @@ public:
 
 private:
     THashMap<std::string, TMutableStateKeyClient<TCompanionState>> InternalStateClients_;
-    THashMap<std::string, TMutableStateKeyClient<TSimpleExternalState>> ExternalStateClients_;
     THashMap<std::string, TJoinedStateKeyClient<TSimpleExternalState>> ExternalStateJoiners_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTransformCompanionComputation);
+DEFINE_REFCOUNTED_TYPE(TTransformOrderedSourceCompanionComputation);
 
 ////////////////////////////////////////////////////////////////////////////////
 

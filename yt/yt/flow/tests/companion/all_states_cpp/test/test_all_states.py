@@ -1,9 +1,8 @@
 """E2E test: the exactly-once state carriers of the C++ companion.
 
-The "counter" transform is hosted by a C++ companion binary: it counts words in
-the internal "word-state" state, mirrors the counts into a TSimpleExternalState
-table, and emits every word once. The test asserts the internal states persisted
-by the worker, the external state table, and the output uniqueness.
+The companion-hosted source enriches rows from internal state and a joined
+external table. The downstream transform counts words in internal state, mirrors
+the counts into a mutable external table, and emits every word once.
 """
 
 import logging
@@ -47,17 +46,34 @@ def generate_log(tablet_count):
     return result, expected_counts
 
 
+def parse_state_payload(payload):
+    return yson.loads(yson.get_bytes(payload))
+
+
 class Test(FlowTestCppCompanionBase):
     CPP_COMPANION_BINARY = yatest.common.binary_path("yt/yt/flow/tests/companion/all_states_cpp/companion/companion")
 
-    def _prepare_environment(self, input_queue):
+    def _prepare_environment(self, input_queue, word_metadata):
         tablet_count = 2
         run_yt_sync(self.primary_cluster_name, self.work_yt_path, tablet_count)
         logs, expected_counts = generate_log(tablet_count)
         batching_write_rows(logs, lambda batch: self.client.insert_rows(input_queue, batch), 1000)
+        self.client.insert_rows(
+            word_metadata,
+            [{"word": word, "tag": word[::-1]} for word in expected_counts],
+        )
         self._expected_counts = expected_counts
+        self._tablet_count = tablet_count
 
-    def _prepare_pipeline_config(self, input_queue, input_consumer, output_queue, word_state):
+    def _prepare_pipeline_config(
+        self,
+        input_queue,
+        input_consumer,
+        source_output_queue,
+        output_queue,
+        word_metadata,
+        word_state,
+    ):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
         cluster = self.primary_cluster_name
@@ -68,6 +84,10 @@ class Test(FlowTestCppCompanionBase):
                 "finite": True,
             }
         )
+        reader = pipeline_config["spec"]["computations"]["reader"]
+        reader["sinks"]["source-output"]["parameters"]["queue_path"] = source_output_queue
+        reader["external_state_joiners"]["/word-metadata"]["parameters"]["path"] = word_metadata
+
         pipeline_config["spec"]["computations"]["counter"]["sinks"]["queue"]["parameters"]["queue_path"] = output_queue
         pipeline_config["spec"]["computations"]["counter"]["external_state_managers"]["/word-state-external"][
             "parameters"
@@ -81,12 +101,19 @@ class Test(FlowTestCppCompanionBase):
     def test_all_states(self):
         input_queue = f"{self.work_yt_path}/input_queue"
         input_consumer = f"{self.work_yt_path}/consumer"
+        source_output_queue = f"{self.work_yt_path}/source_output_queue"
         unique_words_queue = f"{self.work_yt_path}/unique_words_queue"
+        word_metadata = f"{self.work_yt_path}/word_metadata"
         word_state = f"{self.work_yt_path}/word_state"
 
-        self._prepare_environment(input_queue)
+        self._prepare_environment(input_queue, word_metadata)
         pipeline_config_path = self._prepare_pipeline_config(
-            input_queue, input_consumer, unique_words_queue, word_state
+            input_queue,
+            input_consumer,
+            source_output_queue,
+            unique_words_queue,
+            word_metadata,
+            word_state,
         )
 
         with self.start_flow_process_federation(
@@ -97,12 +124,28 @@ class Test(FlowTestCppCompanionBase):
             self.wait_pipeline_state("completed", timeout=240)
             logging.info("pipeline completed")
 
+            states = list(self.client.select_rows(f"key, name, state FROM [{self.pipeline_path}/states]"))
+
+            # Ordered-source state is keyed by source partition and drives every output row.
+            source_counts = sorted(
+                parse_state_payload(state["state"]["payload"]) for state in states if state["name"] == "/reader-state"
+            )
+            expected_partition_count = TOTAL_EVENTS // self._tablet_count
+            assert source_counts == [expected_partition_count] * self._tablet_count
+
+            source_rows = list(self.client.select_rows(f"* FROM [{source_output_queue}]"))
+            assert len(source_rows) == TOTAL_EVENTS
+            assert all(row["tag"] == row["word"][::-1] for row in source_rows)
+            assert sorted(row["source_sequence"] for row in source_rows) == sorted(
+                list(range(1, expected_partition_count + 1)) * self._tablet_count
+            )
+
             # Internal state: the persisted "/word-state" counters must match.
             got_counts = {}
-            for state in self.client.select_rows(f"key, name, state FROM [{self.pipeline_path}/states]"):
+            for state in states:
                 if state["name"] != "/word-state":
                     continue
-                got_counts[state["key"][1]] = yson.loads(state["state"]["payload"].encode())
+                got_counts[state["key"][1]] = parse_state_payload(state["state"]["payload"])
             logging.info("Got internal counts: %s", got_counts)
             assert self._expected_counts == got_counts
 

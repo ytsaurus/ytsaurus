@@ -9,14 +9,6 @@ namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Create custom TStreamSpecs enriched with source streams schemas.
-TStreamSpecsPtr CreateLocalStreamSpecs(
-    const THashMap<TStreamId, NTableClient::TTableSchemaPtr>& sourceStreamsSchemas,
-    const THashSet<TStreamId>& outputStreamIds,
-    const TStreamSpecsPtr& streamSpecs);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSwiftOrderedSourceCompanionComputation
     : public TCompanionComputationBaseAdapter<TSwiftOrderedSourceComputation>
 {

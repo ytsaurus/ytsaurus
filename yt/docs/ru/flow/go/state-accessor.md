@@ -8,7 +8,7 @@ StateAccessor — интерфейс для чтения, модификации
 [Стейт](../../flow/concepts/glossary.md#state) во Flow хранится в [сортированных динамических таблицах](../../user-guide/dynamic-tables/sorted-dynamic-tables.md).
 В случае [внешнего стейта](external-state.md) эта таблица создаётся пользователем, в случае [внутреннего стейта](internal-state.md) таблицы создаются и управляются Flow автоматически.
 
-Ключевые колонки в таблице стейта совпадают с `group_by_schema` того [компьютейшена](../../flow/concepts/glossary.md#stream-and-computation), который использует этот стейт. Это означает, что стейт привязан к ключу [сообщения](../../flow/concepts/glossary.md#message) — все сообщения с одинаковым ключом разделяют один стейт.
+Для `TTransformCompanionComputation` ключевые колонки в таблице стейта совпадают с `group_by_schema` [компьютейшена](../../flow/concepts/glossary.md#stream-and-computation). Для внутреннего стейта `TTransformOrderedSourceCompanionComputation` ключом служит ключ партиции источника: `group_by_schema` в таком SourceComputation не поддерживается. Во всех случаях сообщения с одинаковым ключом разделяют один стейт.
 
 Аксессор в Go — это значение, связывающее две вещи: держатель стейта с определённым именем и ключ конкретного входа. Держатели живут в `flow.Runtime` и доступны напрямую (`rt.InternalState(name)`, `rt.ExternalState(name)`, `rt.JoinedExternalState(name)`), но обычному компьютейшену они не нужны: аксессор — это и есть удобный вид на стейт одного ключа.
 

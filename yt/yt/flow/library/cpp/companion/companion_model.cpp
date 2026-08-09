@@ -4,13 +4,52 @@
 
 #include <yt/yt/flow/library/cpp/common/resource.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
+#include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
+
+#include <util/generic/map.h>
 
 namespace NYT::NFlow::NCompanion {
 
 using NYT::FromProto;
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStreamSpecsPtr CreateLocalStreamSpecs(
+    const THashMap<TStreamId, NTableClient::TTableSchemaPtr>& sourceStreamsSchemas,
+    const THashSet<TStreamId>& outputStreamIds,
+    const TStreamSpecsPtr& streamSpecs)
+{
+    auto streamSpecsMap = THashMap<TStreamId, TMap<TStreamSpecId, TStreamSpecPtr>>();
+    // StreamSpecId for the current batch.
+    i64 localStreamSpecId = 0;
+
+    // Process source streams.
+    for (const auto& [streamId, payloadSchema] : sourceStreamsSchemas) {
+        auto streamSpec = New<TStreamSpec>();
+        streamSpec->Schema = payloadSchema;
+        streamSpecsMap[streamId].emplace(TStreamSpecId(localStreamSpecId++), std::move(streamSpec));
+    }
+
+    // Process output streams.
+    for (const auto& streamId : outputStreamIds) {
+        auto currentStreamSpecId = streamSpecs->GetLastSpecId(streamId);
+        auto streamSpec = streamSpecs->GetSpec(currentStreamSpecId);
+        streamSpecsMap[streamId].emplace(TStreamSpecId(localStreamSpecId++), std::move(streamSpec));
+    }
+
+    return New<TStreamSpecs>(std::move(streamSpecsMap));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCompanionState::Register(TRegistrar registrar)
+{
+    registrar.Parameter("payload", &TThis::Payload)
+        .Default();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

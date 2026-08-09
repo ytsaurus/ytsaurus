@@ -32,7 +32,7 @@ pipeline.run()
 Для создания [компьютейшена](../../../flow/concepts/glossary.md#stream-and-computation) на Python необходимо выбрать подходящий режим регистрации, соответствующий [типу Computation-а в C++](../../../flow/concepts/companion.md#vidy-computation-ov-dlya-raboty-s-kompanonami):
 
 - `pipeline.add(id, fn)` — для `TTransformCompanionComputation` и `TSwiftMapCompanionComputation`.
-- `pipeline.add(id, fn, source=True)` — для `TSwiftOrderedSourceCompanionComputation`.
+- `pipeline.add(id, fn, source=True)` — для `TSwiftOrderedSourceCompanionComputation` и `TTransformOrderedSourceCompanionComputation`.
 
 ```python
 # SourceComputation для чтения данных из источника

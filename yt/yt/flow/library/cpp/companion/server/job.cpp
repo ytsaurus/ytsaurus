@@ -196,11 +196,23 @@ bool TJob::EnsureInitialized()
         "sync process functions are not supported in companions",
         *Spec_->ProcessingFunction);
 
+    THashMap<std::string, TCompanionExternalStateJoinerConfig> joinedStateConfigs;
+    for (const auto& [name, joinerSpec] : Spec_->ExternalStateJoiners) {
+        const auto& joinOn = joinerSpec->JoinOn;
+        joinedStateConfigs.emplace(name, TCompanionExternalStateJoinerConfig{
+                .KeySchema = joinOn->KeySchemaOverride ? joinOn->KeySchemaOverride : Spec_->GroupBySchema,
+                .ConverterCache = ConverterCache_,
+                .KeyProviderStreams = joinOn->KeyProviderStreams,
+                .HasKeySchemaOverride = joinOn->KeySchemaOverride != nullptr,
+                                         });
+    }
+
     StateStore_ = New<TCompanionStateStore>(
         InternalStateNames_,
         ExternalStateNames_,
         JoinedStateNames_,
-        Spec_->GroupBySchema);
+        Spec_->GroupBySchema,
+        std::move(joinedStateConfigs));
 
     auto initContext = New<TCompanionRuntimeInitContext>(
         StateStore_,

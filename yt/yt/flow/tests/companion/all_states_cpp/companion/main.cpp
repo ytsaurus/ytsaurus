@@ -12,6 +12,40 @@ namespace NYT::NFlow::NCompanionTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Enriches source rows with partition-local sequence numbers and joined metadata.
+class TStatefulSourceFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        initContext->InitClient(Sequence_, "reader-state");
+        initContext->InitExternalStateClient(Metadata_, "/word-metadata");
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        auto sequence = Sequence_.GetState(message);
+        ++*sequence;
+
+        auto metadata = Metadata_.GetState(message);
+        auto builder = context->MakeOutputMessageBuilder();
+        builder.Payload().Set<std::string>(GetColumnValue<std::string>(message, "word"), "word");
+        builder.Payload().Set<i64>(*sequence, "source_sequence");
+        builder.Payload().Set<std::string>(metadata->GetColumnValue<std::string>("tag"), "tag");
+        output->AddMessage(builder.Finish());
+    }
+
+private:
+    TMutableStateKeyClient<i64> Sequence_;
+    TJoinedStateKeyClient<TSimpleExternalState> Metadata_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Counts words per key: increments the internal "word-state" counter, mirrors
 //! the count into the external state table, and emits the word downstream on
 //! its first occurrence (output uniqueness is asserted by the test).
@@ -57,6 +91,7 @@ private:
 int main(int argc, const char** argv)
 {
     NYT::NFlow::NCompanionServer::TPipeline pipeline;
+    pipeline.AddSource<NYT::NFlow::NCompanionTest::TStatefulSourceFunction>("reader");
     pipeline.AddTransform<NYT::NFlow::NCompanionTest::TWordCountAllStatesFunction>("counter");
     return NYT::NFlow::NCompanionServer::RunCompanionMain(argc, argv, std::move(pipeline));
 }
