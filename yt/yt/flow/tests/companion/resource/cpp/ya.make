@@ -7,6 +7,7 @@ TEST_SRCS(
 )
 
 PEERDIR(
+    yt/yt/flow/tests/companion/resource/common
     yt/yt/flow/library/python/integration_test_base/yt_sync_preset
 )
 

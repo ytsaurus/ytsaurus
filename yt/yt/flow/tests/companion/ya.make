@@ -1,6 +1,7 @@
 RECURSE(
     all_states_cpp
     passthrough_transform
+    resource/common
     resource/cpp
     resource/cpp/companion
     types/common
