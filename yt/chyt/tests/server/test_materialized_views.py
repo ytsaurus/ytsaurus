@@ -2,9 +2,13 @@ from base import ClickHouseTestBase, Clique, QueryFailedError
 
 from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
-from yt_commands import authors, create, create_user, exists, get, raises_yt_error, wait, write_table
+from yt_commands import (authors, create, create_user, exists, get, ls, raises_yt_error,
+                         read_table, remove, set, sync_mount_table, wait, write_table)
+
+import yt.yson as yson
 
 import threading
+import time
 
 
 class TestMaterializedViews(ClickHouseTestBase):
@@ -43,17 +47,26 @@ class TestMaterializedViews(ClickHouseTestBase):
         rows = [{"key": i, "value": str(i)} for i in range(3)]
         write_table("//tmp/target", rows)
 
-        with Clique(2) as clique:
+        config_patch = {"yt": {"materialized_views": {"scan_period": 100}}}
+        with Clique(2, config_patch=config_patch, export_query_log=True) as clique:
             instances = clique.get_active_instances()
             statement_path = self._statement_path(clique)
+            progress_root = clique.materialized_views_path + "/progress"
 
             clique.make_query(self.CREATE_MV_QUERY)
 
             assert exists(statement_path)
             assert get(statement_path + "/@chyt_object_type") == "materialized_view"
-            assert get(statement_path + "/@value") == self.PERSISTED_MV_STATEMENT
-            assert get(statement_path + "/@source_path") == "//tmp/source"
-            assert get(statement_path + "/@target_path") == "//tmp/target"
+            persisted_config = yson.loads(yson.get_bytes(get(statement_path + "/@value")))
+            assert persisted_config["create_statement"] == self.PERSISTED_MV_STATEMENT
+            assert persisted_config["source_path"] == "//tmp/source"
+            assert persisted_config["target_path"] == "//tmp/target"
+            assert persisted_config["initial_source_row_count"] == 0
+
+            view_id = get(statement_path + "/@id")
+            progress_path = progress_root + "/" + view_id
+            wait(lambda: exists(progress_path))
+            assert get(progress_path)["next_row_index"] == 0
 
             for instance in instances:
                 assert clique.make_direct_query(instance, self.SELECT_MV_QUERY) == rows
@@ -74,6 +87,13 @@ class TestMaterializedViews(ClickHouseTestBase):
 
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("DROP TABLE no_such_mv")
+
+            remove(progress_root, recursive=True, force=True)
+            create("document", progress_root)
+            clique.make_query(self.CREATE_MV_QUERY)
+            assert exists(statement_path)
+            clique.make_query("DROP VIEW mv")
+            assert not exists(statement_path)
 
     @authors("buyval01")
     def test_rejections(self):
@@ -125,6 +145,21 @@ class TestMaterializedViews(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query(create_dictionary_query.format("mv"))
 
+        remove("//tmp/source")
+        create("table", "//tmp/source", attributes={
+            "dynamic": True,
+            "schema": self.SCHEMA,
+            "enable_dynamic_store_read": True,
+        })
+        sync_mount_table("//tmp/source")
+        with Clique(1) as clique:
+            with raises_yt_error(message_pattern="source table must be static"):
+                clique.make_query(
+                    'CREATE MATERIALIZED VIEW dynamic_mv TO "//tmp/target" '
+                    'AS SELECT key, value FROM "//tmp/source"')
+
+        remove("//tmp/source")
+        create("table", "//tmp/source", attributes={"schema": self.SCHEMA})
         with Clique(1, enable_object_repository=False) as clique:
             with raises_yt_error(message_pattern="Clique doesn't have configured CypressObjectRepository"):
                 clique.make_query(self.CREATE_MV_QUERY)
@@ -137,12 +172,116 @@ class TestMaterializedViews(ClickHouseTestBase):
         test_alias = "mv_persistence_alias"
         with Clique(1, alias=test_alias, remove_storage_artifacts_on_exit=False) as clique:
             clique.make_query(self.CREATE_MV_QUERY)
+            statement_path = self._statement_path(clique)
+            persisted_config = yson.loads(yson.get_bytes(get(statement_path + "/@value")))
+            del persisted_config["initial_source_row_count"]
+            set(statement_path + "/@value", yson.dumps(persisted_config).decode())
 
         # A new clique incarnation with the same alias picks the view up from Cypress.
         with Clique(1, alias=test_alias) as clique:
             wait(lambda: clique.make_query("EXISTS TABLE mv") == [{"result": 1}])
             assert clique.make_query(self.SELECT_MV_QUERY) == rows
             assert "CREATE MATERIALIZED VIEW" in clique.make_query("SHOW CREATE TABLE mv")[0]["statement"]
+
+    @authors("buyval01")
+    def test_background_refresh(self):
+        write_table("//tmp/source", [
+            {"key": 0, "value": "initial-0"},
+            {"key": 1, "value": "initial-1"},
+        ])
+        expected_rows = [
+            {"key": 2, "value": "new-2"},
+            {"key": 3, "value": "new-3"},
+            {"key": 4, "value": "new-4"},
+        ]
+        config_patch = {
+            "yt": {
+                "materialized_views": {
+                    "scan_period": 100,
+                    "max_rows_per_refresh": 2,
+                },
+            },
+        }
+
+        with Clique(2, config_patch=config_patch, export_query_log=True) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+            assert clique.make_query(self.SELECT_MV_QUERY) == []
+
+            write_table("<append=%true>//tmp/source", expected_rows)
+            wait(lambda: read_table("//tmp/target") == expected_rows)
+
+            statement_path = self._statement_path(clique)
+            view_id = get(statement_path + "/@id")
+            progress_root = clique.materialized_views_path + "/progress"
+            progress_path = progress_root + "/" + view_id
+            assert ls(progress_root) == [view_id]
+            assert get(progress_path + "/@type") == "document"
+            progress = get(progress_path)
+            assert progress["next_row_index"] == 5
+            time.sleep(1)
+            assert read_table("//tmp/target") == expected_rows
+            assert ls(progress_root) == [view_id]
+
+            clique.make_query("DROP VIEW mv")
+
+    @authors("buyval01")
+    def test_background_refresh_persists_initial_validation_error(self):
+        config_patch = {
+            "yt": {
+                "materialized_views": {
+                    "scan_period": 3000,
+                },
+            },
+        }
+
+        with Clique(2, config_patch=config_patch, export_query_log=True) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+
+            remove("//tmp/source")
+            create("table", "//tmp/source", attributes={"schema": self.SCHEMA})
+
+            wait(lambda: exists(progress_path), timeout=10)
+            wait(
+                lambda: "source table was replaced" in get(progress_path + "/@last_error"),
+                ignore_exceptions=True,
+                timeout=10)
+
+    @authors("buyval01")
+    def test_background_refresh_query_failure(self):
+        int_schema = [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "int64"},
+        ]
+        create("table", "//tmp/int_target", attributes={"schema": int_schema})
+        config_patch = {
+            "yt": {
+                "materialized_views": {
+                    "scan_period": 100,
+                },
+            },
+        }
+
+        with Clique(1, config_patch=config_patch, export_query_log=True) as clique:
+            clique.make_query(
+                'CREATE MATERIALIZED VIEW mv TO "//tmp/int_target" '
+                'AS SELECT key, accurateCast(value, \'Int64\') AS value FROM "//tmp/source"')
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+
+            write_table("//tmp/source", [{"key": 1, "value": "not-an-integer"}])
+            wait(
+                lambda: bool(get(progress_path + "/@last_error")),
+                ignore_exceptions=True,
+                timeout=10)
+            assert read_table("//tmp/int_target") == []
+            assert get(progress_path)["next_row_index"] == 0
+
+            expected_rows = [{"key": 2, "value": 42}]
+            write_table("//tmp/source", [{"key": 2, "value": "42"}])
+            wait(lambda: read_table("//tmp/int_target") == expected_rows, timeout=10)
+            assert get(progress_path + "/@last_error") == ""
 
     @authors("buyval01")
     def test_database_scoping(self):
@@ -200,4 +339,5 @@ class TestMaterializedViews(ClickHouseTestBase):
 
             statement_path = self._statement_path(clique)
             assert exists(statement_path)
-            assert get(statement_path + "/@target_path") == "//tmp/target2"
+            persisted_config = yson.loads(yson.get_bytes(get(statement_path + "/@value")))
+            assert persisted_config["target_path"] == "//tmp/target2"

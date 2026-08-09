@@ -1,5 +1,7 @@
 #include "cypress_object_repository.h"
 
+#include "storage_yt_materialized_view.h"
+
 #include "config.h"
 #include "host.h"
 #include "query_context.h"
@@ -26,14 +28,47 @@ namespace NYT::NClickHouseServer {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NCypressClient;
+using namespace NObjectClient;
+using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYPath;
+using namespace NYson;
 
 constinit const auto Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+struct TPersistedMaterializedViewConfiguration
+    : public TYsonStruct
+{
+    std::string CreateStatement;
+    TYPath SourcePath;
+    TYPath TargetPath;
+    std::string Creator;
+    TObjectId SourceObjectId;
+    TObjectId TargetObjectId;
+    i64 InitialSourceRowCount = 0;
+
+    REGISTER_YSON_STRUCT(TPersistedMaterializedViewConfiguration);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("create_statement", &TThis::CreateStatement);
+        registrar.Parameter("source_path", &TThis::SourcePath);
+        registrar.Parameter("target_path", &TThis::TargetPath);
+        registrar.Parameter("creator", &TThis::Creator);
+        registrar.Parameter("source_object_id", &TThis::SourceObjectId);
+        registrar.Parameter("target_object_id", &TThis::TargetObjectId);
+        registrar.Parameter("initial_source_row_count", &TThis::InitialSourceRowCount)
+            .Default(0);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPersistedMaterializedViewConfiguration)
+using TPersistedMaterializedViewConfigurationPtr = TIntrusivePtr<TPersistedMaterializedViewConfiguration>;
 
 DB::ASTPtr ParseMaterializedViewStatement(const std::string& statement)
 {
@@ -109,13 +144,33 @@ struct TCypressObjectRepository::TObjectSnapshot
     {
         ERepositoryObjectType Type;
         std::string Value;
+        TObjectId ObjectId;
         DBPoco::Timestamp UpdateTime;
         NHydra::TRevision Revision;
-        NYTree::IAttributeDictionaryPtr Attributes;
     };
 
     THashMap<std::string, TEntry> Entries;
     std::set<std::string> DictionaryNames;
+
+    static TCypressObjectRepository::TMaterializedView BuildMaterializedView(
+        const std::string& objectName,
+        const TEntry& entry)
+    {
+        auto config = ConvertTo<TPersistedMaterializedViewConfigurationPtr>(TYsonString(entry.Value));
+
+        return {
+            .CreateQuery = ParseMaterializedViewStatement(config->CreateStatement),
+            .SourcePath = config->SourcePath,
+            .TargetPath = config->TargetPath,
+            .Creator = config->Creator,
+            .ObjectName = objectName,
+            .ObjectId = entry.ObjectId,
+            .SourceObjectId = config->SourceObjectId,
+            .TargetObjectId = config->TargetObjectId,
+            .InitialSourceRowCount = config->InitialSourceRowCount,
+            .Revision = entry.Revision,
+        };
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,7 +201,14 @@ TCypressObjectRepository::TObjectSnapshotPtr TCypressObjectRepository::GetSnapsh
 TCypressObjectRepository::TObjectSnapshotPtr TCypressObjectRepository::BuildSnapshot()
 {
     TListNodeOptions options;
-    options.Attributes = {"key", "value", "modification_time", "revision", "chyt_object_type", "target_path"};
+    options.Attributes = {
+        "id",
+        "key",
+        "value",
+        "modification_time",
+        "revision",
+        "chyt_object_type",
+    };
 
     auto listYson = WaitFor(Client_->ListNode(RootPath_, options))
         .ValueOrThrow();
@@ -168,8 +230,8 @@ TCypressObjectRepository::TObjectSnapshotPtr TCypressObjectRepository::BuildSnap
         // COMPAT(buyval01): Documents without the type attribute are dictionaries.
         entry.Type = attributes.Find<ERepositoryObjectType>("chyt_object_type").value_or(ERepositoryObjectType::Dictionary);
         entry.Value = std::move(*value);
+        entry.ObjectId = attributes.Get<TObjectId>("id");
         entry.Revision = attributes.Get<NHydra::TRevision>("revision");
-        entry.Attributes = attributes.Clone();
         if (auto modificationTime = attributes.Find<TInstant>("modification_time")) {
             entry.UpdateTime = DBPoco::Timestamp::fromEpochTime(modificationTime->TimeT());
         }
@@ -260,11 +322,7 @@ std::optional<TCypressObjectRepository::TMaterializedView> TCypressObjectReposit
     if (auto snapshot = GetSnapshot()) {
         auto it = snapshot->Entries.find(objectName);
         if (it != snapshot->Entries.end() && it->second.Type == ERepositoryObjectType::MaterializedView) {
-            return TMaterializedView{
-                .CreateQuery = ParseMaterializedViewStatement(it->second.Value),
-                .TargetPath = it->second.Attributes->Find<TYPath>("target_path").value_or(TYPath()),
-                .Revision = it->second.Revision,
-            };
+            return TObjectSnapshot::BuildMaterializedView(objectName, it->second);
         }
     }
     return std::nullopt;
@@ -303,9 +361,7 @@ void TCypressObjectRepository::WriteDictionary(
 void TCypressObjectRepository::WriteMaterializedView(
     const DB::ContextPtr& context,
     const DB::StorageID& storageId,
-    const std::string& statement,
-    const TYPath& sourcePath,
-    const TYPath& targetPath)
+    const TMaterializedViewConfiguration& config)
 {
     const auto* queryContext = GetQueryContext(context);
     const auto& client = queryContext->Client();
@@ -314,17 +370,24 @@ void TCypressObjectRepository::WriteMaterializedView(
 
     auto objectName = GetObjectName(storageId);
 
-    NApi::TCreateNodeOptions options;
-    options.Attributes = CreateEphemeralAttributes();
-    options.Attributes->Set("value", statement);
-    options.Attributes->Set("chyt_object_type", ERepositoryObjectType::MaterializedView);
-    options.Attributes->Set("source_path", sourcePath);
-    options.Attributes->Set("target_path", targetPath);
-    options.Attributes->Set("creator", context->getClientInfo().initial_user);
+    auto persistedConfig = New<TPersistedMaterializedViewConfiguration>();
+    persistedConfig->CreateStatement = config.CreateStatement;
+    persistedConfig->SourcePath = config.SourcePath;
+    persistedConfig->TargetPath = config.TargetPath;
+    persistedConfig->Creator = context->getClientInfo().initial_user;
+    persistedConfig->SourceObjectId = config.SourceObjectId;
+    persistedConfig->TargetObjectId = config.TargetObjectId;
+    persistedConfig->InitialSourceRowCount = config.InitialSourceRowCount;
 
-    auto resultOrError = WaitFor(client->CreateNode(GetObjectPath(objectName), NCypressClient::EObjectType::Document, options));
+    TCreateNodeOptions options;
+    options.Attributes = CreateEphemeralAttributes();
+    options.Attributes->Set("value", ConvertToYsonString(persistedConfig).ToString());
+    options.Attributes->Set("chyt_object_type", ERepositoryObjectType::MaterializedView);
+
+    auto resultOrError = WaitFor(client->CreateNode(GetObjectPath(objectName), EObjectType::Document, options));
     if (!resultOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while writing materialized view %Qv", storageId.getFullTableName()) << resultOrError;
+        THROW_ERROR_EXCEPTION("Error while writing materialized view %Qv", storageId.getFullTableName())
+            << resultOrError;
     }
 
     RefreshSnapshot();
@@ -361,6 +424,21 @@ void TCypressObjectRepository::DeleteDictionary(
     // Global reload may fail, but eventually all instances will notice that the dictionary has been deleted
     // due to periodic updates to ExternalLoader.
     host->ReloadDictionaryGlobally(objectName);
+}
+
+std::vector<TCypressObjectRepository::TMaterializedView> TCypressObjectRepository::GetAllMaterializedViews()
+{
+    std::vector<TMaterializedView> result;
+    if (auto snapshot = GetSnapshot()) {
+        for (const auto& [objectName, entry] : snapshot->Entries) {
+            if (entry.Type != ERepositoryObjectType::MaterializedView) {
+                continue;
+            }
+            auto view = TObjectSnapshot::BuildMaterializedView(objectName, entry);
+            result.push_back(std::move(view));
+        }
+    }
+    return result;
 }
 
 void TCypressObjectRepository::DeleteMaterializedView(

@@ -695,6 +695,24 @@ DEFINE_REFCOUNTED_TYPE(TCypressObjectRepositoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMaterializedViewsConfig
+    : public NYTree::TYsonStruct
+{
+    NYPath::TYPath RootPath;
+    TDuration ScanPeriod;
+    i64 MaxRowsPerRefresh;
+    TDuration QueryTimeout;
+    TDuration TransactionTimeout;
+
+    REGISTER_YSON_STRUCT(TMaterializedViewsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMaterializedViewsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDictionaryAccessControlConfig
     : public NYTree::TYsonStruct
 {
@@ -861,6 +879,8 @@ struct TYtConfig
     TUserDefinedSqlObjectsStorageConfigPtr UserDefinedSqlObjectsStorage;
 
     TCypressObjectRepositoryConfigPtr CypressObjectRepository;
+
+    TMaterializedViewsConfigPtr MaterializedViews;
 
     TDictionaryAccessControlConfigPtr DictionaryAccessControl;
 

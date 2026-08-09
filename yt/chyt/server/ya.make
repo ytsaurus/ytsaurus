@@ -78,6 +78,7 @@ SRCS(
     launcher_compatibility.cpp
     logger.cpp
     logging_transform.cpp
+    materialized_view_coordinator.cpp
     memory_watchdog.cpp
     object_lock.cpp
     poco_config.cpp

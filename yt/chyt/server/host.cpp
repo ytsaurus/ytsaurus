@@ -9,6 +9,7 @@
 #include "health_checker.h"
 #include "helpers.h"
 #include "invoker_liveness_checker.h"
+#include "materialized_view_coordinator.h"
 #include "memory_watchdog.h"
 #include "query_context.h"
 #include "query_registry.h"
@@ -244,6 +245,14 @@ public:
     {
         YT_VERIFY(context_ && context.expired());
         context = context_;
+        if (CypressObjectRepository_ && ElectionManager_ && Config_->MaterializedViews) {
+            MaterializedViewCoordinator_ = New<TMaterializedViewCoordinator>(
+                Owner_,
+                CypressObjectRepository_,
+                Config_->MaterializedViews);
+        } else if (CypressObjectRepository_ && Config_->MaterializedViews) {
+            YT_LOG_WARNING("Materialized view background processing is disabled because no election manager is configured");
+        }
     }
 
     void InitQueryRegistry()
@@ -300,6 +309,10 @@ public:
 
         if (ElectionManager_) {
             ElectionManager_->Start();
+        }
+
+        if (MaterializedViewCoordinator_) {
+            MaterializedViewCoordinator_->Start();
         }
 
         CreateOrchidNode();
@@ -985,6 +998,7 @@ private:
     IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
 
     TCypressObjectRepositoryPtr CypressObjectRepository_;
+    TMaterializedViewCoordinatorPtr MaterializedViewCoordinator_;
     IDictionaryAccessControlPtr DictionaryAccessControl_;
 
     NProfiling::TEventTimer AttributeFetchTimeCounter_;
@@ -1464,7 +1478,6 @@ NTableClient::TTableColumnarStatisticsCachePtr THost::GetTableColumnarStatistics
 }
 
 THost::~THost() = default;
-
 
 bool THost::HasUserDefinedSqlObjectStorage() const
 {

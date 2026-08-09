@@ -231,24 +231,44 @@ TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
     auto sourcePath = resolveYtPath(selectTableId, "source");
     auto targetPath = resolveYtPath(materializedView->getTargetTableId(), "target");
 
+    std::vector<TTablePtr> sourceAndTarget;
     try {
-        FetchTablesSoft(
+        sourceAndTarget = FetchTablesSoft(
             queryContext,
-            {TRichYPath::Parse(targetPath)},
+            {TRichYPath::Parse(sourcePath), TRichYPath::Parse(targetPath)},
             /*skipUnsuitableNodes*/ false,
-            queryContext->SessionSettings->DynamicTable->EnableDynamicStoreRead,
+            /*enableDynamicStoreRead*/ true,
             queryContext->Logger);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Materialized view target table must exist")
+        THROW_ERROR_EXCEPTION("Materialized view target table must exist and source table must be readable")
             << ex;
     }
 
-    auto statement = DB::getObjectDefinitionFromCreateQuery(cloned);
+    YT_VERIFY(sourceAndTarget.size() == 2);
+    const auto& sourceTable = sourceAndTarget[0];
+    const auto& targetTable = sourceAndTarget[1];
+    if (targetTable->Dynamic) {
+        THROW_ERROR_EXCEPTION("Materialized view target table must be static")
+            << TErrorAttribute("target_path", targetPath);
+    }
+    if (sourceTable->Dynamic) {
+        THROW_ERROR_EXCEPTION("Materialized view source table must be static")
+            << TErrorAttribute("source_path", sourcePath);
+    }
 
+    THROW_ERROR_EXCEPTION_IF(!sourceTable->RowCount,
+        "Materialized view source table has no row count")
+        << TErrorAttribute("source_path", sourcePath);
+
+    // TODO(buyval01): FetchTables may return a stale row count from the attribute cache.
     return {
-        .CreateStatement = statement,
+        .CreateStatement = DB::getObjectDefinitionFromCreateQuery(cloned),
         .SourcePath = sourcePath,
-        .TargetPath = targetPath};
+        .TargetPath = targetPath,
+        .SourceObjectId = sourceTable->ObjectId,
+        .TargetObjectId = targetTable->ObjectId,
+        .InitialSourceRowCount = *sourceTable->RowCount,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

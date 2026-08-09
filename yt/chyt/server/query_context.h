@@ -56,11 +56,12 @@ DEFINE_REFCOUNTED_TYPE(TStorageContext)
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::ContextMutablePtr PrepareContextForQuery(
-        std::shared_ptr<DB::Session> session,
-        const std::string& dataBaseUser,
-        TDuration timeout,
-        THost* host,
-        std::string traceContextRoot);
+    std::shared_ptr<DB::Session> session,
+    const std::string& dataBaseUser,
+    TDuration timeout,
+    THost* host,
+    std::string traceContextRoot,
+    NTransactionClient::TTransactionId parentTransactionId = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

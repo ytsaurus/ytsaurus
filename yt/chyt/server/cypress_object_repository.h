@@ -10,6 +10,8 @@
 
 #include <yt/yt/client/hydra/public.h>
 
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/core/ypath/public.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
@@ -53,7 +55,14 @@ public:
     struct TMaterializedView
     {
         DB::ASTPtr CreateQuery;
+        NYPath::TYPath SourcePath;
         NYPath::TYPath TargetPath;
+        std::string Creator;
+        std::string ObjectName;
+        NObjectClient::TObjectId ObjectId;
+        NObjectClient::TObjectId SourceObjectId;
+        NObjectClient::TObjectId TargetObjectId;
+        i64 InitialSourceRowCount = 0;
         NHydra::TRevision Revision;
     };
 
@@ -74,6 +83,7 @@ public:
     std::optional<NHydra::TRevision> TryGetDictionaryRevision(const DB::StorageID& storageId);
 
     std::optional<TMaterializedView> TryGetMaterializedView(const DB::StorageID& storageId);
+    std::vector<TMaterializedView> GetAllMaterializedViews();
 
     void WriteDictionary(
         const DB::ContextPtr& context,
@@ -83,9 +93,7 @@ public:
     void WriteMaterializedView(
         const DB::ContextPtr& context,
         const DB::StorageID& storageId,
-        const std::string& statement,
-        const NYPath::TYPath& sourcePath,
-        const NYPath::TYPath& targetPath);
+        const TMaterializedViewConfiguration& config);
 
     void DeleteObject(
         const DB::ContextPtr& context,
@@ -111,6 +119,7 @@ private:
         const DB::ContextPtr& context,
         const std::string& objectName,
         NHydra::TRevision revision);
+
     void RemoveObject(
         const NApi::IClientPtr& client,
         const std::string& objectName,
