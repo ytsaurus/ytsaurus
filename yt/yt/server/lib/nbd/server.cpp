@@ -399,8 +399,12 @@ private:
                         << TErrorAttribute("actual_magic", magic);
                 }
 
+                // The bound guards the buffered read and write payloads; a trim carries none, and the
+                // kernel may discard an arbitrarily large range in one request.
                 auto length = InetToHost(message.Length);
-                if (length > TClientRequestMessage::MaxLength) {
+                if (InetToHost(message.Type) != ECommandType::NBD_CMD_TRIM &&
+                    length > TClientRequestMessage::MaxLength)
+                {
                     THROW_ERROR_EXCEPTION("Client request is too long")
                         << TErrorAttribute("max_length", TClientRequestMessage::MaxLength)
                         << TErrorAttribute("actual_length", length);
@@ -491,6 +495,9 @@ private:
             if (Device_->IsReadOnly()) {
                 flags |= ETransmissionFlags::NBD_FLAG_READ_ONLY;
             }
+            if (Device_->IsTrimSupported()) {
+                flags |= ETransmissionFlags::NBD_FLAG_SEND_TRIM;
+            }
 
             TServerExportNameMessage message{
                 .Size = HostToInet<ui64>(Device_->GetTotalSize()),
@@ -537,6 +544,11 @@ private:
                     HandleClientFlushRequest(message);
                     break;
 
+                case ECommandType::NBD_CMD_TRIM:
+                    TNbdProfilerCounters::Get()->GetCounter({}, "/server/request/cmd_trim").Increment(1);
+                    HandleClientTrimRequest(message);
+                    break;
+
                 case ECommandType::NBD_CMD_DISC:
                     TNbdProfilerCounters::Get()->GetCounter({}, "/server/request/cmd_disc").Increment(1);
                     HandleClientDisconnectRequest(message);
@@ -581,7 +593,9 @@ private:
                 return;
             }
 
-            if (offset + length > static_cast<ui64>(Device_->GetTotalSize())) {
+            // Compare without adding: offset is a client-supplied ui64, so offset + length wraps.
+            auto deviceSize = static_cast<ui64>(Device_->GetTotalSize());
+            if (offset > deviceSize || length > deviceSize - offset) {
                 YT_LOG_WARNING("Received an out-of-range NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Size: %v)",
                     cookie,
                     offset,
@@ -620,7 +634,7 @@ private:
             Device_->Read(offset, length, {.Cookie = cookie})
                 .Subscribe(
                     BIND([=, readTimeGuard = std::move(readTimeGuard), this, this_ = MakeStrong(this)] (const TErrorOr<TReadResponse>& result) mutable {
-                        auto duration = readTimeGuard.GetElapsedTime().SecondsFloat();
+                        auto duration = readTimeGuard.GetElapsedTime();
                         {
                             // Destroy readTimeGuard to finalize read time.
                             auto guard = std::move(readTimeGuard);
@@ -693,7 +707,9 @@ private:
                 return;
             }
 
-            if (offset + length > static_cast<ui64>(Device_->GetTotalSize())) {
+            // Compare without adding: offset is a client-supplied ui64, so offset + length wraps.
+            auto deviceSize = static_cast<ui64>(Device_->GetTotalSize());
+            if (offset > deviceSize || length > deviceSize - offset) {
                 YT_LOG_WARNING("Received an out-of-range NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Size: %v)",
                     cookie,
                     offset,
@@ -744,7 +760,7 @@ private:
             Device_->Write(offset, payload, options)
                 .Subscribe(
                     BIND([=, writeTimeGuard = std::move(writeTimeGuard), this, this_ = MakeStrong(this)] (const TErrorOr<TWriteResponse>& result) mutable {
-                        auto duration = writeTimeGuard.GetElapsedTime().SecondsFloat();
+                        auto duration = writeTimeGuard.GetElapsedTime();
                         {
                             // Destroy writeTimeGuard to finalize write time.
                             auto guard = std::move(writeTimeGuard);
@@ -821,7 +837,7 @@ private:
             Device_->Flush({.Cookie = cookie})
                 .Subscribe(
                     BIND([=, flushTimeGuard = std::move(flushTimeGuard), this, this_ = MakeStrong(this)] (const TError& error) mutable {
-                        auto duration = flushTimeGuard.GetElapsedTime().SecondsFloat();
+                        auto duration = flushTimeGuard.GetElapsedTime();
                         {
                             // Destroy flushTimeGuard to finalize flush time.
                             auto guard = std::move(flushTimeGuard);
@@ -836,6 +852,90 @@ private:
                         }
 
                         YT_LOG_DEBUG("Finished serving NBD_CMD_FLUSH request (Cookie: %x, Duration: %v)",
+                            cookie,
+                            duration);
+
+                        WriteServerResponse(EServerError::NBD_OK, cookie);
+                    }));
+        }
+
+        void HandleClientTrimRequest(const TClientRequestMessage& message)
+        {
+            auto flags = InetToHost(message.Flags);
+            auto cookie = InetToHost(message.Cookie);
+            auto offset = InetToHost(message.Offset);
+            auto length = InetToHost(message.Length);
+
+            // Compare without adding: offset is a client-supplied ui64, so offset + length wraps.
+            auto deviceSize = static_cast<ui64>(Device_->GetTotalSize());
+            if (offset > deviceSize || length > deviceSize - offset) {
+                YT_LOG_WARNING("Received an out-of-range NBD_CMD_TRIM request (Cookie: %x, Offset: %v, Length: %v, Size: %v)",
+                    cookie,
+                    offset,
+                    length,
+                    Device_->GetTotalSize());
+                WriteServerResponse(EServerError::NBD_EINVAL, cookie);
+                return;
+            }
+
+            if (!Device_->IsTrimSupported()) {
+                YT_LOG_WARNING("Received NBD_CMD_TRIM request for a device that does not support trim (Cookie: %x)",
+                    cookie);
+                WriteServerResponse(EServerError::NBD_EINVAL, cookie);
+                return;
+            }
+
+            if (Device_->IsReadOnly()) {
+                YT_LOG_WARNING("Received NBD_CMD_TRIM request for a read-only device (Cookie: %x)", cookie);
+                WriteServerResponse(EServerError::NBD_EPERM, cookie);
+                return;
+            }
+
+            YT_LOG_DEBUG("Started serving NBD_CMD_TRIM request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+                cookie,
+                offset,
+                length,
+                flags);
+
+            TEventTimerGuard trimTimeGuard(
+                TNbdProfilerCounters::Get()->GetTimer(
+                    TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                    "/device/trim_time"));
+
+            TNbdProfilerCounters::Get()->GetCounter(
+                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                "/device/trim_count")
+                .Increment(1);
+
+            Device_->Trim(offset, length, {.Cookie = cookie})
+                .Subscribe(
+                    BIND([=, trimTimeGuard = std::move(trimTimeGuard), this, this_ = MakeStrong(this)] (const TError& error) mutable {
+                        auto duration = trimTimeGuard.GetElapsedTime();
+                        {
+                            // Destroy trimTimeGuard to finalize trim time.
+                            auto guard = std::move(trimTimeGuard);
+                        }
+
+                        if (!error.IsOK()) {
+                            YT_LOG_WARNING(error, "NBD_CMD_TRIM request failed (Cookie: %x, Duration: %v)",
+                                cookie,
+                                duration);
+
+                            TNbdProfilerCounters::Get()->GetCounter(
+                                TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                                "/device/trim_errors")
+                                .Increment(1);
+
+                            WriteServerResponse(EServerError::NBD_EIO, cookie);
+                            return;
+                        }
+
+                        TNbdProfilerCounters::Get()->GetCounter(
+                            TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
+                            "/device/trim_bytes")
+                            .Increment(length);
+
+                        YT_LOG_DEBUG("Finished serving NBD_CMD_TRIM request (Cookie: %x, Duration: %v)",
                             cookie,
                             duration);
 

@@ -25,6 +25,11 @@ public:
     void SubscribeError(const TCallback<void(const TError&)>& callback) override;
     void UnsubscribeError(const TCallback<void(const TError&)>& callback) override;
 
+    //! Trimming is opt-in; ignoring a trim outright is legal, so the default is a no-op rather than
+    //! an error.
+    bool IsTrimSupported() const override;
+    TFuture<void> Trim(i64 offset, i64 length, const TTrimOptions& options) override;
+
     //! Exposes the common device status (size, block size, read-only, description, error).
     //! Subclasses add device-specific fields by overriding #DoBuildOrchid.
     NYTree::IYPathServicePtr GetOrchidService() override;

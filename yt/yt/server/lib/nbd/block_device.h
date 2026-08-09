@@ -56,6 +56,14 @@ struct TFlushOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTrimOptions
+{
+    //! Request id issued by linux kernel (NBD module).
+    ui64 Cookie = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Represents a block device that can be exposed via the NBD protocol.
 struct IBlockDevice
     : public virtual TRefCounted
@@ -86,6 +94,19 @@ struct IBlockDevice
         const TWriteOptions& options = {}) = 0;
 
     virtual TFuture<void> Flush(const TFlushOptions& options = {}) = 0;
+
+    //! Whether the device implements #Trim; only such a device is advertised as trimmable.
+    virtual bool IsTrimSupported() const = 0;
+
+    //! Discards the contents of |[offset, offset + length)|, letting the device reclaim their space.
+    /*!
+     *  Advisory: the device may discard less than requested -- typically only the blocks the range
+     *  fully covers -- or nothing at all. Whatever is discarded reads back as zeroes.
+     */
+    virtual TFuture<void> Trim(
+        i64 offset,
+        i64 length,
+        const TTrimOptions& options = {}) = 0;
 
     //! Get the latest error set for device.
     virtual TError GetError() const = 0;

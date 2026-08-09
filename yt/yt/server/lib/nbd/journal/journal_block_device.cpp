@@ -44,6 +44,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/misc/async_slru_cache.h>
@@ -228,6 +229,19 @@ public:
         return OKFuture;
     }
 
+    bool IsTrimSupported() const final
+    {
+        return true;
+    }
+
+    TFuture<void> Trim(i64 offset, i64 length, const TTrimOptions& /*options*/) final
+    {
+        // A whole-device discard covers every block of the map, so keep it off the connection thread.
+        return BIND(&TJournalBlockDevice::DoTrim, MakeStrong(this), offset, length)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
     TJournalBlockDeviceOptionsPtr GetOptions() const final
     {
         return Options_;
@@ -330,6 +344,8 @@ private:
 
     void DoInitialize()
     {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
         if (SnapshotPath_) {
             RestoreFromSnapshot(*SnapshotPath_);
         }
@@ -349,9 +365,11 @@ private:
             DirtyPool_->GetCapacity());
     }
 
-    //! Runs on Invoker_. Loads a previously saved snapshot.
+    //! Loads a previously saved snapshot.
     void RestoreFromSnapshot(const TYPath& path)
     {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
         YT_LOG_INFO("Restoring journal block device from snapshot (Path: %v)", path);
 
         // Take a snapshot lock so the table (and the journal chunks it pins) cannot be removed while we
@@ -431,10 +449,51 @@ private:
             blockCount);
     }
 
-    //! Runs on Invoker_. Saves a crash-consistent point-in-time snapshot of the device to a Cypress
-    //! table, concurrently with ongoing writes.
+    //! Saves a crash-consistent point-in-time snapshot of the device to a Cypress table, concurrently
+    //! with ongoing writes.
     //! Defined out of line, below TSnapshotSession, which it instantiates.
     TSnapshotSaveResult DoSaveSnapshot(const TSnapshotSaveSpec& spec);
+
+    //! Empties the block map over the trimmed range, so the blocks read back as zeroes and their stored
+    //! payloads become unreferenced -- which is what eventually lets a chunk go dead.
+    /*!
+     *  The clean-block cache is left as is: a discarded block's stored id is now unreachable from the
+     *  map, and stored ids are never reused, so a stale entry can never be read back.
+     */
+    void DoTrim(i64 offset, i64 length)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        auto deviceSize = Geometry_.GetByteSize();
+        THROW_ERROR_EXCEPTION_UNLESS(
+            offset >= 0 && length >= 0 && offset <= deviceSize && length <= deviceSize - offset,
+            "Trim request at offset %v of length %v is out of range for a device of size %v",
+            offset,
+            length,
+            deviceSize);
+
+        auto blockSize = Geometry_.BlockSize;
+        // Only the blocks the range fully covers are discarded; a partially covered head or tail block
+        // keeps its content, which is within a trim's latitude.
+        int beginBlockIndex = (offset + blockSize - 1) / blockSize;
+        int endBlockIndex = (offset + length) / blockSize;
+
+        // TODO(babenko): a whole-device discard walks up to 2^30 blocks in one pass, hogging Invoker_
+        // for seconds against reads, writes and the flusher. Batch with yields.
+        int discardedBlockCount = 0;
+        for (int blockIndex = beginBlockIndex; blockIndex < endBlockIndex; ++blockIndex) {
+            if (BlockMap_->DiscardBlock(blockIndex)) {
+                ++discardedBlockCount;
+            }
+        }
+
+        YT_LOG_DEBUG("Blocks discarded (Offset: %v, Length: %v, BlockRange: [%v, %v), DiscardedBlockCount: %v)",
+            offset,
+            length,
+            beginBlockIndex,
+            endBlockIndex,
+            discardedBlockCount);
+    }
 
     struct TEmptyBlockTag
     { };
@@ -596,6 +655,8 @@ private:
 
     void OnBlocksRead(TErrorOr<std::vector<TSharedRef>>&& resultOrError)
     {
+        YT_ASSERT_INVOKER_AFFINITY(Owner_->Invoker_);
+
         if (!resultOrError.IsOK()) {
             auto error = TError("Block read failed") << resultOrError;
             Owner_->SetError(error);
@@ -745,7 +806,7 @@ public:
         : Owner_(std::move(owner))
     { }
 
-    //! Runs on Owner_->Invoker_. Snapshots a consistent point-in-time cut of the block map and returns a
+    //! Snapshots a consistent point-in-time cut of the block map and returns a
     //! stored location for every used block, blocking until each snapshotted dirty version is flushed.
     /*!
      *  Clean blocks resolve straight from the snapshot; dirty ones resolve to the location their flush
@@ -755,6 +816,8 @@ public:
      */
     TBlockMapSnapshot Run()
     {
+        YT_ASSERT_INVOKER_AFFINITY(Owner_->Invoker_);
+
         auto onBlockFlushObserved = BIND(&TSnapshotSession::OnBlockFlushObserved, MakeStrong(this));
         auto onFailed = BIND(&TSnapshotSession::OnFailed, MakeStrong(this));
         Owner_->BlockMap_->SubscribeBlockFlushObserved(onBlockFlushObserved);
@@ -841,6 +904,8 @@ private:
 
 IJournalBlockDevice::TSnapshotSaveResult TJournalBlockDevice::DoSaveSnapshot(const TSnapshotSaveSpec& spec)
 {
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
     BlockStore_->BeginSnapshot();
     auto endSnapshotGuard = Finally([&] {
         BlockStore_->EndSnapshot();

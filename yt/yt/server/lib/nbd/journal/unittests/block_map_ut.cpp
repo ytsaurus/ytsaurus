@@ -129,6 +129,75 @@ TEST(TBlockMapTest, GetUsedBlockCount)
     EXPECT_EQ(blockMap->GetUsedBlockCount(), 2);
 }
 
+TEST(TBlockMapTest, DiscardBlock)
+{
+    auto blockMap = CreateBlockMap(4);
+
+    EXPECT_FALSE(blockMap->DiscardBlock(0));
+    EXPECT_EQ(blockMap->FindBlock(0), EmptyMappedBlockId);
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 0);
+
+    blockMap->PutBlock(1, TDirtyBlockId(11));
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 1);
+    EXPECT_TRUE(blockMap->DiscardBlock(1));
+    EXPECT_EQ(blockMap->FindBlock(1), EmptyMappedBlockId);
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 0);
+
+    EXPECT_FALSE(blockMap->DiscardBlock(1));
+    blockMap->PutBlock(1, TDirtyBlockId(12));
+    EXPECT_EQ(blockMap->FindBlock(1), MakeDirty(12));
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 1);
+}
+
+TEST(TBlockMapTest, DiscardBlockUnreferencesStoredBlock)
+{
+    auto blockMap = CreateBlockMap(2);
+    auto unreferencedIds = TrackUnreferencedStoredBlocks(blockMap);
+
+    blockMap->PutBlock(0, TDirtyBlockId(1));
+    EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(1), TStoredBlockId(10)));
+    EXPECT_TRUE(unreferencedIds->empty());
+
+    EXPECT_TRUE(blockMap->DiscardBlock(0));
+    ASSERT_EQ(std::ssize(*unreferencedIds), 1);
+    EXPECT_EQ((*unreferencedIds)[0], TStoredBlockId(10));
+}
+
+TEST(TBlockMapTest, DiscardBlockDropsInFlightFlush)
+{
+    auto blockMap = CreateBlockMap(1);
+    auto unreferencedIds = TrackUnreferencedStoredBlocks(blockMap);
+
+    // The dirty block stays in the pool and is still flushed, but its stored copy arrives to an
+    // emptied slot: it is not adopted, so it is unreferenced on arrival.
+    blockMap->PutBlock(0, TDirtyBlockId(1));
+    EXPECT_TRUE(blockMap->DiscardBlock(0));
+    EXPECT_TRUE(unreferencedIds->empty());
+
+    EXPECT_FALSE(blockMap->TryPutBlock(0, MakeDirty(1), TStoredBlockId(99)));
+    EXPECT_EQ(blockMap->FindBlock(0), EmptyMappedBlockId);
+    ASSERT_EQ(std::ssize(*unreferencedIds), 1);
+    EXPECT_EQ((*unreferencedIds)[0], TStoredBlockId(99));
+}
+
+TEST(TBlockMapTest, DiscardedBlockIsExcludedFromSnapshotAndIteration)
+{
+    auto blockMap = CreateBlockMap(4);
+    blockMap->PutBlock(1, TDirtyBlockId(11));
+    blockMap->PutBlock(2, TDirtyBlockId(22));
+    EXPECT_TRUE(blockMap->DiscardBlock(1));
+
+    auto snapshot = blockMap->TakeSnapshot();
+    ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
+    EXPECT_EQ(snapshot.Blocks[0], std::pair(2, MakeDirty(22)));
+
+    std::vector<int> visited;
+    blockMap->IterateBlocks([&] (int blockIndex, TMappedBlockId /*mappedId*/) {
+        visited.push_back(blockIndex);
+    });
+    EXPECT_EQ(visited, std::vector{2});
+}
+
 TEST(TBlockMapTest, TakeSnapshot)
 {
     auto blockMap = CreateBlockMap(8);
@@ -311,6 +380,106 @@ TEST(TBlockMapTest, SnapshotStashesOnlyFirstWriteDuringScan)
     ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
     EXPECT_EQ(snapshot.Blocks[0], std::pair(5, MakeDirty(50)));
     EXPECT_EQ(blockMap->FindBlock(5), MakeDirty(52));
+}
+
+TEST(TBlockMapTest, SnapshotKeepsBlockDiscardedDuringScan)
+{
+    // A discard during the scan does not change the captured point-in-time value. Discarding ahead of
+    // the scan is what the CoW bit on the emptied slot exists for: without it the scan would skip the
+    // slot as empty and the stashed pre-flip value would have nowhere to be restored to.
+    for (int discardAt : {0, 7}) {
+        auto blockMap = CreateBlockMap(8);
+        blockMap->PutBlock(5, TDirtyBlockId(50));
+
+        auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
+            if (scanIndex == discardAt) {
+                EXPECT_TRUE(blockMap->DiscardBlock(5));
+            }
+        });
+        ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
+        EXPECT_EQ(snapshot.Blocks[0], std::pair(5, MakeDirty(50)));
+        EXPECT_EQ(blockMap->FindBlock(5), EmptyMappedBlockId);
+    }
+}
+
+TEST(TBlockMapTest, SnapshotKeepsBlockDiscardedAndRewrittenDuringScan)
+{
+    // Only the first mutation stashes, so a discard followed by a rewrite still yields the pre-flip value.
+    auto blockMap = CreateBlockMap(8);
+    blockMap->PutBlock(5, TDirtyBlockId(50));
+
+    auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
+        if (scanIndex == 0) {
+            EXPECT_TRUE(blockMap->DiscardBlock(5));
+            blockMap->PutBlock(5, TDirtyBlockId(51));
+        }
+    });
+    ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
+    EXPECT_EQ(snapshot.Blocks[0], std::pair(5, MakeDirty(50)));
+    EXPECT_EQ(blockMap->FindBlock(5), MakeDirty(51));
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 1);
+}
+
+TEST(TBlockMapTest, UsedBlockCountSurvivesDiscardAndRewriteDuringScan)
+{
+    // Regression: mid-scan a discarded slot holds a CoW-tagged empty, and the used-block count must
+    // still read it as empty. Comparing the raw slot instead skips the re-increment here, leaving the
+    // count permanently low -- negative after enough cycles, which TakeSnapshot's reserve() turns into
+    // a std::length_error.
+    auto blockMap = CreateBlockMap(8);
+    blockMap->PutBlock(5, TDirtyBlockId(50));
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 1);
+
+    blockMap->TakeSnapshot([&] (int scanIndex) {
+        if (scanIndex == 0) {
+            EXPECT_TRUE(blockMap->DiscardBlock(5));
+            EXPECT_EQ(blockMap->GetUsedBlockCount(), 0);
+            blockMap->PutBlock(5, TDirtyBlockId(51));
+            EXPECT_EQ(blockMap->GetUsedBlockCount(), 1);
+        }
+    });
+
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 1);
+    EXPECT_EQ(blockMap->FindBlock(5), MakeDirty(51));
+
+    // The same cycle outside a scan must not drift the count either.
+    EXPECT_TRUE(blockMap->DiscardBlock(5));
+    blockMap->PutBlock(5, TDirtyBlockId(52));
+    EXPECT_EQ(blockMap->GetUsedBlockCount(), 1);
+}
+
+TEST(TBlockMapTest, SnapshotExcludesBlockWrittenAndDiscardedDuringScan)
+{
+    // Empty at the flip, so it is not part of that point-in-time however it churns during the scan.
+    for (int mutateAt : {0, 7}) {
+        auto blockMap = CreateBlockMap(8);
+        auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
+            if (scanIndex == mutateAt) {
+                blockMap->PutBlock(5, TDirtyBlockId(50));
+                EXPECT_TRUE(blockMap->DiscardBlock(5));
+            }
+        });
+        EXPECT_TRUE(snapshot.Blocks.empty());
+        EXPECT_EQ(blockMap->FindBlock(5), EmptyMappedBlockId);
+    }
+}
+
+TEST(TBlockMapTest, RepeatedSnapshotsAfterDiscardDuringScan)
+{
+    // Regression: the CoW bit must be cleared off an emptied slot too, so the next snapshot sees it as
+    // plainly empty rather than as a used block.
+    auto blockMap = CreateBlockMap(8);
+    blockMap->PutBlock(0, TDirtyBlockId(10));
+
+    auto first = blockMap->TakeSnapshot([&] (int scanIndex) {
+        if (scanIndex == 0) {
+            EXPECT_TRUE(blockMap->DiscardBlock(0));
+        }
+    });
+    ASSERT_EQ(std::ssize(first.Blocks), 1);
+    EXPECT_EQ(first.Blocks[0], std::pair(0, MakeDirty(10)));
+
+    EXPECT_TRUE(blockMap->TakeSnapshot().Blocks.empty());
 }
 
 TEST(TBlockMapTest, RepeatedSnapshotsWithWritesAreEachPointInTime)
