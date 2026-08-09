@@ -44,6 +44,26 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Creates local stream specs enriched with source stream schemas.
+TStreamSpecsPtr CreateLocalStreamSpecs(
+    const THashMap<TStreamId, NTableClient::TTableSchemaPtr>& sourceStreamsSchemas,
+    const THashSet<TStreamId>& outputStreamIds,
+    const TStreamSpecsPtr& streamSpecs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCompanionState
+    : public NYTree::TYsonStruct
+{
+    std::optional<std::string> Payload;
+
+    REGISTER_YSON_STRUCT(TCompanionState);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TStatePayload>
 struct TStateItem
 {

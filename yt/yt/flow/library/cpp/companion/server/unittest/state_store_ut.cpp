@@ -3,7 +3,9 @@
 #include <yt/yt/flow/library/cpp/companion/server/runtime_init_context.h>
 #include <yt/yt/flow/library/cpp/companion/server/state_store.h>
 
+#include <yt/yt/flow/library/cpp/common/column_evaluator_cache.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
+#include <yt/yt/flow/library/cpp/common/payload_converter.h>
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
 
@@ -251,6 +253,48 @@ TEST(TCompanionStateStoreTest, ExternalStateResetAndUnchanged)
     ASSERT_EQ(std::ssize(externalStates[0].StateItems), 1);
     EXPECT_EQ(externalStates[0].StateItems[0].Key, key1);
     EXPECT_TRUE(externalStates[0].StateItems[0].Reset);
+}
+
+TEST(TCompanionStateStoreTest, JoinedStateKeySchemaOverride)
+{
+    auto keySchema = NTesting::DefaultTestKeySchema();
+    auto converterCache = CreatePayloadConverterCache(CreateFastColumnEvaluatorCache());
+    auto store = New<TCompanionStateStore>(
+        THashSet<std::string>{},
+        THashSet<std::string>{},
+        THashSet<std::string>{"joined"},
+        New<NTableClient::TTableSchema>(),
+        THashMap<std::string, TCompanionExternalStateJoinerConfig>{
+            {"joined", {
+                    .KeySchema = keySchema,
+                    .ConverterCache = converterCache,
+                    .HasKeySchemaOverride = true,
+                       }},
+        });
+    TJoinedStateKeyClient<TSimpleExternalState> client(store->GetExternalStateJoiner("joined"));
+
+    auto joinedKey = MakeKey(ui64{1});
+    TPayloadBuilder stateBuilder(keySchema);
+    stateBuilder.Set(ui64{42}, "key");
+
+    TBatchInput input;
+    input.Messages.push_back(NTesting::MakeTestMessage(
+        TStreamId("input"),
+        MakeKey(ui64{999}),
+        keySchema,
+        [&] (TMessageBuilder& builder) {
+            builder.Payload().Set(ui64{1}, "key");
+        }));
+    auto& holder = input.JoinedExternalStates["joined"];
+    holder.StateName = "joined";
+    holder.Schema = keySchema;
+    holder.StateItems.push_back({.Key = joinedKey, .Reset = false, .State = stateBuilder.Finish()});
+    store->LoadBatch(input);
+
+    EXPECT_EQ(client.ResolveKey(input.Messages[0]), joinedKey);
+    auto state = client.GetState(input.Messages[0]);
+    ASSERT_TRUE(state.IsInitialized());
+    EXPECT_EQ(state->template GetColumnValue<ui64>("key"), ui64{42});
 }
 
 TEST(TCompanionStateStoreTest, JoinedStateReadOnly)

@@ -8,7 +8,7 @@ StateAccessor — интерфейс для чтения, модификации
 [Стейт](../../../flow/concepts/glossary.md#state) во Flow хранится в [сортированных динамических таблицах](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md).
 В случае [внешнего стейта](../../../flow/python/external-state.md) эта таблица создаётся пользователем, в случае [внутреннего стейта](../../../flow/python/internal-state.md) таблицы создаются и управляются Flow автоматически.
 
-Ключевые колонки в таблице стейта совпадают с `group_by_schema` того [компьютейшена](../../../flow/concepts/glossary.md#stream-and-computation), который использует этот стейт. Это означает, что стейт привязан к ключу [сообщения](../../../flow/concepts/glossary.md#message) — все сообщения с одинаковым ключом разделяют один стейт.
+Для `TTransformCompanionComputation` ключевые колонки в таблице стейта совпадают с `group_by_schema` [компьютейшена](../../../flow/concepts/glossary.md#stream-and-computation). Для внутреннего стейта `TTransformOrderedSourceCompanionComputation` ключом служит ключ партиции источника: `group_by_schema` в таком SourceComputation не поддерживается. Во всех случаях сообщения с одинаковым ключом разделяют один стейт.
 
 ## Чтение и запись данных {#reading-and-writing-data}
 

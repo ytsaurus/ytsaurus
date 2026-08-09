@@ -29,7 +29,7 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
 Для создания [компьютейшена](../../../flow/concepts/glossary.md#stream-and-computation) на Java необходимо выбрать подходящий билдер, соответствующий [типу Computation-a в C++](../../../flow/concepts/companion.md#vidy-computation-ov-dlya-raboty-s-kompanonami):
 
 - `Computation.builder()` — для `TTransformCompanionComputation` и `TSwiftMapCompanionComputation`.
-- `SourceComputation.builder()` — для `TSwiftOrderedSourceCompanionComputation`.
+- `SourceComputation.builder()` — для `TSwiftOrderedSourceCompanionComputation` и `TTransformOrderedSourceCompanionComputation`.
 
 {% list tabs group=lang %}
 

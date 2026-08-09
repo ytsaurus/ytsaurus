@@ -20,14 +20,6 @@ void TCompanionDynamicParameters::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompanionState::Register(TRegistrar registrar)
-{
-    registrar.Parameter("payload", &TThis::Payload)
-        .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTransformCompanionComputation::TTransformCompanionComputation(
     TComputationContextPtr context,
     TDynamicComputationContextPtr dynamicContext)

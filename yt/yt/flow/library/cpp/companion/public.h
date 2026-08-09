@@ -64,6 +64,7 @@ DECLARE_REFCOUNTED_STRUCT(TCompanionResourceParameters);
 DECLARE_REFCOUNTED_CLASS(TSwiftMapCompanionComputation);
 DECLARE_REFCOUNTED_CLASS(TSwiftOrderedSourceCompanionComputation);
 DECLARE_REFCOUNTED_CLASS(TTransformCompanionComputation);
+DECLARE_REFCOUNTED_CLASS(TTransformOrderedSourceCompanionComputation);
 
 DECLARE_REFCOUNTED_STRUCT(TCompanionConfig);
 DECLARE_REFCOUNTED_STRUCT(TCompanionExecutionConfig);

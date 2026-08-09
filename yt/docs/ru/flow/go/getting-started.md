@@ -43,7 +43,7 @@ if err := pipeline.Run(); err != nil {
 Для создания [компьютейшена](../../flow/concepts/glossary.md#stream-and-computation) на Go необходимо выбрать подходящий конструктор, соответствующий [типу Computation-а в C++](../../flow/concepts/companion.md#vidy-computation-ov-dlya-raboty-s-kompanonami):
 
 - `flow.NewRowComputation(id, fn)` и `flow.NewBatchComputation(id, fn)` — для `TTransformCompanionComputation` и `TSwiftMapCompanionComputation`.
-- `flow.NewRowSourceComputation(id, fn)` и `flow.NewBatchSourceComputation(id, fn)` — для `TSwiftOrderedSourceCompanionComputation`.
+- `flow.NewRowSourceComputation(id, fn)` и `flow.NewBatchSourceComputation(id, fn)` — для `TSwiftOrderedSourceCompanionComputation` и `TTransformOrderedSourceCompanionComputation`.
 
 ```go
 // SourceComputation для чтения данных из источника

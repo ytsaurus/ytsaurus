@@ -19,7 +19,8 @@
 
 - `NYT::NFlow::NCompanion::TTransformCompanionComputation` — для `Transform`.
 - `NYT::NFlow::NCompanion::TSwiftMapCompanionComputation` — для `Swift`.
-- `NYT::NFlow::NCompanion::TSwiftOrderedSourceCompanionComputation` — для сорса.
+- `NYT::NFlow::NCompanion::TSwiftOrderedSourceCompanionComputation` — для `Swift`-сорса.
+- `NYT::NFlow::NCompanion::TTransformOrderedSourceCompanionComputation` — для `Transform`-сорса.
 
 На стороне Go выбор конструктора отвечает не за `Swift` против `Transform`, а за то, чем компьютейшен объявляется [воркеру](../../flow/concepts/glossary.md#worker): сорсом или трансформом. `Swift`- и `Transform`-компьютейшены создаются одними и теми же конструкторами, а различает их `computation_class_name` в спеке.
 
@@ -27,8 +28,10 @@
 |-------------|-------------------------|----------------------------------|
 | `flow.NewRowComputation(id, fn)` | `Transform` | `TTransformCompanionComputation` или `TSwiftMapCompanionComputation` |
 | `flow.NewBatchComputation(id, fn)` | `Transform` | `TTransformCompanionComputation` или `TSwiftMapCompanionComputation` |
-| `flow.NewRowSourceComputation(id, fn)` | `Source` | `TSwiftOrderedSourceCompanionComputation` |
-| `flow.NewBatchSourceComputation(id, fn)` | `Source` | `TSwiftOrderedSourceCompanionComputation` |
+| `flow.NewRowSourceComputation(id, fn)` | `Source` | `TSwiftOrderedSourceCompanionComputation` или `TTransformOrderedSourceCompanionComputation` |
+| `flow.NewBatchSourceComputation(id, fn)` | `Source` | `TSwiftOrderedSourceCompanionComputation` или `TTransformOrderedSourceCompanionComputation` |
+
+Для сорса `TSwiftOrderedSourceCompanionComputation` подходит только для детерминированной обработки без пользовательского стейта. Если SourceComputation использует [внутренний стейт](state.md) или недетерминированную логику, в спеке указывают `TTransformOrderedSourceCompanionComputation`: воркер материализует выход и фиксирует его вместе со стейтом и смещением источника. Ключ внутреннего стейта в таком компьютейшене — ключ партиции источника.
 
 ## Создание Computation {#computation}
 
@@ -77,7 +80,7 @@
 
 ## SourceComputation {#sourcecomputation}
 
-`SourceComputation` — вершина в графе [пайплайна](../../flow/concepts/glossary.md#pipeline), осуществляющая чтение данных из внешних источников. Подробнее про [Source Computation](../../flow/concepts/computation.md#tswiftorderedsourcecomputation).
+`SourceComputation` — вершина в графе [пайплайна](../../flow/concepts/glossary.md#pipeline), осуществляющая чтение данных из внешних источников. На стороне воркера ей соответствует [TSwiftOrderedSourceComputation](../../flow/concepts/computation.md#tswiftorderedsourcecomputation) или [TTransformOrderedSourceComputation](../../flow/concepts/computation.md#ttransformorderedsourcecomputation).
 
 В Go сорс создаётся конструкторами `flow.NewRowSourceComputation` и `flow.NewBatchSourceComputation`. Интерфейс функции обработки у сорса тот же, что и у трансформа: сорс отличается от трансформа только тем, каким он объявляется воркеру.
 

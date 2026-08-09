@@ -262,33 +262,45 @@ TConstStateAccessor<T> TJoinedStateKeyClient<T>::GetState(const TKey& key) const
 template <class T>
 TConstStateAccessor<T> TJoinedStateKeyClient<T>::GetState(const TInputMessageConstPtr& message) const
 {
+    return GetState(ResolveKey(message));
+}
+
+template <class T>
+TConstStateAccessor<T> TJoinedStateKeyClient<T>::GetState(const TInputTimerConstPtr& timer) const
+{
+    return GetState(ResolveKey(timer));
+}
+
+template <class T>
+TKey TJoinedStateKeyClient<T>::ResolveKey(const TInputMessageConstPtr& message) const
+{
     EnsureProvider();
     EnsureKeyProviderStream(message->StreamId);
     if (!Provider_->HasKeySchemaOverride()) {
-        return GetState(message->Key);
+        return message->Key;
     }
     auto converted = ConvertPayloadToNewSchema(
         message->Payload,
         message->PayloadSchema,
         Provider_->GetKeySchema(),
         Provider_->GetConverterCache());
-    return GetState(TKey(converted.Underlying()));
+    return TKey(converted.Underlying());
 }
 
 template <class T>
-TConstStateAccessor<T> TJoinedStateKeyClient<T>::GetState(const TInputTimerConstPtr& timer) const
+TKey TJoinedStateKeyClient<T>::ResolveKey(const TInputTimerConstPtr& timer) const
 {
     EnsureProvider();
     EnsureKeyProviderStream(timer->StreamId);
     if (!Provider_->HasKeySchemaOverride()) {
-        return GetState(timer->Key);
+        return timer->Key;
     }
     auto converted = ConvertPayloadToNewSchema(
         TPayload(timer->Key.Underlying()),
         timer->KeySchema,
         Provider_->GetKeySchema(),
         Provider_->GetConverterCache());
-    return GetState(TKey(converted.Underlying()));
+    return TKey(converted.Underlying());
 }
 
 template <class T>

@@ -21,6 +21,7 @@ SRCS(
     swift_map_companion_computation.cpp
     swift_ordered_source_companion_computation.cpp
     transform_companion_computation.cpp
+    transform_ordered_source_companion_computation.cpp
 )
 
 PEERDIR(

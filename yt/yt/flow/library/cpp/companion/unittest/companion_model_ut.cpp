@@ -1,5 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
-#include <yt/yt/flow/library/cpp/companion/swift_ordered_source_companion_computation.h>
+#include <yt/yt/flow/library/cpp/companion/companion_model.h>
+
+#include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
+#include <yt/yt/flow/library/cpp/common/stream_spec_storage_state.h>
 
 namespace NYT::NFlow::NCompanion {
 namespace {
@@ -10,7 +13,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSwiftOrderedSourceCompanionComputationTest, CreateLocalStreamSpecStorage)
+TEST(TCompanionModelTest, CreateLocalStreamSpecs)
 {
     auto sourceSchema = ConvertTo<TTableSchemaPtr>(TYsonString(TStringBuf(R""""(
     [

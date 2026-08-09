@@ -19,6 +19,14 @@ DECLARE_REFCOUNTED_CLASS(TCompanionExternalStateManager);
 DECLARE_REFCOUNTED_CLASS(TCompanionExternalStateJoiner);
 DECLARE_REFCOUNTED_CLASS(TCompanionStateStore);
 
+struct TCompanionExternalStateJoinerConfig
+{
+    NTableClient::TTableSchemaPtr KeySchema;
+    IPayloadConverterCachePtr ConverterCache;
+    std::optional<THashSet<TStreamId>> KeyProviderStreams;
+    bool HasKeySchemaOverride = false;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Internal-state backend over the per-batch wire content. Holders are created by the
@@ -103,7 +111,7 @@ class TCompanionExternalStateJoiner
 public:
     TCompanionExternalStateJoiner(
         std::string name,
-        NTableClient::TTableSchemaPtr keySchema);
+        TCompanionExternalStateJoinerConfig config);
 
     IStateHolderPtr GetState(const TKey& key) override;
     TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) override;
@@ -123,10 +131,9 @@ public:
 private:
     const std::string Name_;
     const NTableClient::TTableSchemaPtr KeySchema_;
-    //! Null; only consulted under HasKeySchemaOverride(), which is false here.
     const IPayloadConverterCachePtr ConverterCache_;
-    //! nullopt — the joined key is taken from any input stream.
     const std::optional<THashSet<TStreamId>> KeyProviderStreams_;
+    const bool HasKeySchemaOverride_;
 
     THashMap<TKey, TIntrusivePtr<TStateHolder<TSimpleExternalState>>> Holders_;
 };
@@ -146,7 +153,8 @@ public:
         THashSet<std::string> internalStateNames,
         THashSet<std::string> externalStateNames,
         THashSet<std::string> joinedStateNames,
-        NTableClient::TTableSchemaPtr keySchema);
+        NTableClient::TTableSchemaPtr keySchema,
+        THashMap<std::string, TCompanionExternalStateJoinerConfig> joinedStateConfigs = {});
 
     //! Called during function Init; |name| must be declared in the computation's
     //! |internal_states| parameter.
@@ -174,6 +182,7 @@ private:
     const THashMap<std::string, std::string> ExternalStateNames_;
     const THashMap<std::string, std::string> JoinedStateNames_;
     const NTableClient::TTableSchemaPtr KeySchema_;
+    const THashMap<std::string, TCompanionExternalStateJoinerConfig> JoinedStateConfigs_;
 
     THashMap<std::string, TCompanionInternalStateProviderPtr> InternalStates_;
     THashMap<std::string, TCompanionExternalStateManagerPtr> ExternalStates_;

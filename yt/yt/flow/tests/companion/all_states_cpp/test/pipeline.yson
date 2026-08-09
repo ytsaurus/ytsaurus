@@ -2,7 +2,8 @@
     "spec" = {
         "computations" = {
             "reader" = {
-                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformOrderedSourceCompanionComputation";
+                "processing_function" = "NYT::NFlow::NCompanionTest::TStatefulSourceFunction";
                 "output_stream_ids" = ["words"];
                 "watermark_strategy" = {
                     "watermark_generator" = {
@@ -20,7 +21,38 @@
                         };
                     };
                 };
-                "parameters" = {};
+                "external_state_joiners" = {
+                    "/word-metadata" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "join_on" = {
+                            "key_schema_override" = [
+                                {"name" = "hash"; "expression" = "farm_hash(word)"; "type" = "uint64"; required = %true;};
+                                {"name" = "word"; "type" = "string";};
+                            ];
+                        };
+                        "parameters" = {
+                            "path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+                "sinks" = {
+                    "source-output" = {
+                        "sink_class_name" = "NYT::NFlow::TSyncQueueSink";
+                        "input_stream_ids" = ["words"];
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = %true;
+                        "controller" = %false;
+                    };
+                };
+                "parameters" = {
+                    "internal_states" = ["reader-state"];
+                };
             };
             "counter" = {
                 "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
@@ -63,6 +95,8 @@
             "words" = {
                 "schema" = [
                     {"name" = "word"; "type" = "string";};
+                    {"name" = "source_sequence"; "type" = "int64";};
+                    {"name" = "tag"; "type" = "string";};
                 ];
             };
             "unique-words" = {
