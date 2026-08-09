@@ -723,7 +723,7 @@ private:
         if (!Bootstrap_->GetNativeConnection()->GetConfig()->DiscoveryConnection) {
             YT_LOG_DEBUG("Skipping discovery v2 because of missing discovery connection config (ClusterConnection: %v)",
                 ConvertToYsonString(Bootstrap_->GetNativeConnection()->GetConfig(), EYsonFormat::Text).ToString());
-            THROW_ERROR_EXCEPTION("Discovery is missed");
+            THROW_ERROR_EXCEPTION("Discovery connection config is missing");
         }
 
         auto config = New<TDiscoveryConfig>();

@@ -71,7 +71,7 @@ DB::ASTPtr TryBuildAdditionalFilterAST(
         const auto& projectionNodes = queryNode->getProjection().getNodes();
         const auto& projectionColumns = queryNode->getProjectionColumns();
         YT_VERIFY(projectionNodes.size() == projectionColumns.size());
-        for (size_t index = 0; index < projectionNodes.size(); ++index) {
+        for (int index = 0; index < ssize(projectionNodes); ++index) {
             projectionNames.insert(projectionColumns[index].name);
 
             auto executionName = DB::calculateActionNodeName(projectionNodes[index], *plannerContext);
@@ -148,8 +148,7 @@ DB::ASTPtr TryBuildAdditionalFilterAST(
             } else {
                 auto it = executionNameToProjection.find(node->result_name);
                 if (it != executionNameToProjection.end()) {
-                    // For a plain column projection, reference the unqualified projection output
-                    // name instead of the qualified column AST.
+                    // Qualified names do not resolve in the re-serialized secondary query.
                     if (it->second.node->getNodeType() == DB::QueryTreeNodeType::COLUMN) {
                         res = std::make_shared<DB::ASTIdentifier>(it->second.outputName);
                     } else {
@@ -360,14 +359,13 @@ DB::ASTPtr TReadFromYTStep::DescribeFilterPushDown() const
         return nullptr;
     }
 
-    DB::ASTPtr filterAst = TryBuildAdditionalFilterAST(plannerContext, QueryInfo_.query_tree, *filter_actions_dag);
+    auto filterAst = TryBuildAdditionalFilterAST(plannerContext, QueryInfo_.query_tree, *filter_actions_dag);
     if (!AddFilterToQuery(context, QueryInfo_.query->clone(), filterAst)) {
         filterAst = nullptr;
     }
 
     return filterAst;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

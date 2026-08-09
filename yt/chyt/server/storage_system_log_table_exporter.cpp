@@ -340,7 +340,7 @@ class TSystemLogExporter
 {
 public:
     TSystemLogExporter(
-        const THost* const host,
+        const THost* host,
         DB::StorageID storageId,
         TYPath cypressTableDirectory,
         NNative::IClientPtr client,
@@ -485,7 +485,7 @@ private:
                     return GetVersionedTablePath(currentVersion);
                 }
             } else {
-                YT_LOG_DEBUG("Not a leader, waiting for leader to create/mount table (LastSeenVersion: %v, Mounted: %v)",
+                YT_LOG_DEBUG("Instance is not a leader; waiting for the leader to create and mount the table (LastSeenVersion: %v, Mounted: %v)",
                     currentVersion,
                     mounted);
             }
@@ -656,7 +656,7 @@ class TStorageSystemLogTableExporter
     : public DB::IStorage
 {
 public:
-    explicit TStorageSystemLogTableExporter(
+    TStorageSystemLogTableExporter(
         DB::StorageID storageId,
         DB::ColumnsDescription columnsDescription,
         TSystemLogTableExporterConfigPtr config,

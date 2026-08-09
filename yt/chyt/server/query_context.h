@@ -92,7 +92,7 @@ public:
     std::optional<TString> YqlOperationId;
 
     // Transactionality
-    //! It is the id of some external acording to chyt query transaction that was passed to the query.
+    //! Id of an external transaction passed in as a query parameter.
     NTransactionClient::TTransactionId ParentTransactionId;
     //! ReadTransactionId is the id of the query transaction in which snapshot locks are taken.
     NTransactionClient::TTransactionId ReadTransactionId;
