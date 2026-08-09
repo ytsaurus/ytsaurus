@@ -832,10 +832,11 @@ private:
 
     void RefillWritableChunks()
     {
+        if (Failed_.IsFired()) {
+            return;
+        }
+
         while (true) {
-            if (Failed_.IsFired()) {
-                return;
-            }
             {
                 auto guard = Guard(WriteLock_);
                 if (std::ssize(WritableChunks_) >= Config_->WriteParallelism) {
