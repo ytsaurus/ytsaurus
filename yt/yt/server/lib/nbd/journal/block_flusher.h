@@ -26,7 +26,8 @@ struct IBlockFlusher
     //! Starts the periodic flush loop. Subscribe to the signals below before calling this.
     virtual void Start() = 0;
 
-    //! Stops the periodic flush loop. Store writes already in flight are not awaited.
+    //! Stops the periodic flush loop; the dirty pool and any pending flush barrier are failed
+    //! asynchronously. Store writes already in flight are not awaited.
     virtual void Stop() = 0;
 
     //! Nudges the flusher to run immediately instead of waiting for the next periodic tick. The write
@@ -37,7 +38,10 @@ struct IBlockFlusher
 
     //! Nudges the flusher to eagerly drain every block enqueued as of this call, down to the pool's
     //! current tail.
-    //! Set once all of them are in the store; failed if a flush fails or the flusher stops first.
+    /*!
+     *  The future is set once every one of them is in the store; it fails if a flush fails or the
+     *  flusher is stopped, and a barrier requested after either is refused outright.
+     */
     virtual TFuture<void> RequestFlushBarrier() = 0;
 
     //! Fired once per block a flush has durably written to the store, in reservation order.

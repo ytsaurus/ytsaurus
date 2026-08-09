@@ -50,11 +50,15 @@ public:
 
     TFuture<std::vector<TDirtyBlockId>> Put(TRange<TDirtyBlockPtr> blocks) final
     {
+        auto guard = Guard(Lock_);
+
+        if (!FailedError_.IsOK()) {
+            return MakeFuture<std::vector<TDirtyBlockId>>(FailedError_);
+        }
+
         if (blocks.empty()) {
             return MakeFuture(std::vector<TDirtyBlockId>{});
         }
-
-        auto guard = Guard(Lock_);
 
         // Accept as many blocks as currently fit (the caller resubmits the rest). Only when
         // nothing fits do we wait for space; puts already waiting keep their place in line.
@@ -69,6 +73,26 @@ public:
             .Blocks = std::vector(blocks.begin(), blocks.end()),
         });
         return PendingPuts_.back().Promise.ToFuture();
+    }
+
+    void Fail(const TError& error) final
+    {
+        YT_VERIFY(!error.IsOK());
+
+        std::deque<TPendingPut> pendingPuts;
+        {
+            auto guard = Guard(Lock_);
+            if (!FailedError_.IsOK()) {
+                return;
+            }
+            FailedError_ = error;
+            pendingPuts = std::exchange(PendingPuts_, {});
+        }
+
+        // Outside the lock, as with the fulfillment in #EndDrain.
+        for (const auto& pendingPut : pendingPuts) {
+            pendingPut.Promise.TrySet(error);
+        }
     }
 
     TDirtyBlockPtr Find(TDirtyBlockId blockId, int blockIndex) final
@@ -122,7 +146,7 @@ public:
 
         // Fulfill the unblocked puts outside the lock.
         for (auto& pendingPut : readyPuts) {
-            pendingPut.Promise.Set(std::move(pendingPut.BlockIds));
+            pendingPut.Promise.TrySet(std::move(pendingPut.BlockIds));
         }
     }
 
@@ -146,6 +170,9 @@ private:
     };
 
     std::deque<TPendingPut> PendingPuts_;
+
+    //! Set by #Fail. Once set, every put fails with it.
+    TError FailedError_;
 
     int GetSizeLocked() const
     {

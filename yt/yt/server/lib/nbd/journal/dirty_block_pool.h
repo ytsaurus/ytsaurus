@@ -47,9 +47,16 @@ struct IDirtyBlockPool
      *  A put may be partial: only a prefix of |blocks| is accepted (as much as currently
      *  fits), and the caller is expected to resubmit the rest. When the pool is momentarily
      *  full, the returned future is set once space frees up and a non-empty prefix is
-     *  accepted. Never fails.
+     *  accepted. Fails only once #Fail has been called.
      */
     virtual TFuture<std::vector<TDirtyBlockId>> Put(TRange<TDirtyBlockPtr> blocks) = 0;
+
+    //! Fails every waiting #Put with |error| and makes all later ones fail likewise.
+    /*!
+     *  Sticky; meant for a pool that can no longer drain. Blocks already in the pool stay
+     *  #Find-able, so reads keep working.
+     */
+    virtual void Fail(const TError& error) = 0;
 
     //! Returns the block put under |blockId|, or null if it is no longer in the pool.
     /*!
