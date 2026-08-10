@@ -83,8 +83,9 @@ public:
         TDynamicKeyVisitorContextPtr dynamicContext);
 
     //! Loads persisted coverage via Store and starts the background fill task.
-    //! Must be called once before GetNextBatch.
-    TFuture<void> Init();
+    //! When |upstreamCompleted|, applies the completion signal after loading coverage
+    //! and before background filling starts. Must be called once before GetNextBatch.
+    TFuture<void> Init(bool upstreamCompleted = false);
 
     //! Updates dynamic settings: throttler rate from `period`, background fill
     //! period, draining flag.
@@ -130,6 +131,9 @@ private:
     const IStatusErrorStatePtr BackgroundFillError_;
 
     bool UpstreamCompleted_ = false;
+    //! True after a Pending range has been chosen and until its read snapshot is
+    //! recorded as Buffered. Such a scan may predate an upstream-completion signal.
+    bool BackgroundFillInProgress_ = false;
 
     THashSet<std::string> NonVisitorJoinerWarned_;
 

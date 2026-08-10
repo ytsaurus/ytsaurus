@@ -217,9 +217,9 @@ class Test(FlowTestBase):
             assert not retired, f"standalone key-visitor partitions retired themselves: {states}"
             assert "executing" in states.values(), f"no partition left running: {states}"
 
-    # The default, finite = %true, on a computation with no upstream at all: upstream
-    # completion is vacuous, so the very first pass is the final one — every key is swept once
-    # and the partitions then retire. The single sweep is the point: the pass is seeded Final,
+    # The default, finite = %true, on a computation with no upstream at all: initialization
+    # marks the very first pass Final before scanning starts, so every key is swept once and
+    # the partitions then retire. The single sweep is the point: the pass is seeded Final,
     # rather than becoming Final only on the rotation after it.
     @pytest.mark.authors(["sergeypozdeev"])
     def test_key_visitor_only_finite_completes_after_one_pass(self):

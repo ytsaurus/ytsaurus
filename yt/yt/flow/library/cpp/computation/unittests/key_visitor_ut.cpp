@@ -22,11 +22,56 @@
 
 #include <cmath>
 #include <limits>
+#include <utility>
 
 namespace NYT::NFlow {
 namespace {
 
 using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBlockingFirstListKeyStates
+    : public NTables::TInMemoryKeyStates
+{
+public:
+    TFuture<TListResult> List(
+        TTableKeyFilter filter,
+        i64 limit,
+        std::optional<TTableKey> offsetExclusive = std::nullopt) override
+    {
+        auto result = WaitFor(NTables::TInMemoryKeyStates::List(
+            std::move(filter),
+            limit,
+            std::move(offsetExclusive)))
+            .ValueOrThrow();
+        if (!std::exchange(BlockFirstList_, false)) {
+            return MakeFuture(std::move(result));
+        }
+
+        FirstListStartedPromise_.Set();
+        return ReleaseFirstListPromise_.ToFuture().Apply(BIND([
+            result = std::move(result)
+        ] () mutable {
+            return std::move(result);
+        }));
+    }
+
+    TFuture<void> GetFirstListStartedFuture() const
+    {
+        return FirstListStartedPromise_.ToFuture();
+    }
+
+    void ReleaseFirstList()
+    {
+        ReleaseFirstListPromise_.Set();
+    }
+
+private:
+    bool BlockFirstList_ = true;
+    const TPromise<void> FirstListStartedPromise_ = NewPromise<void>();
+    const TPromise<void> ReleaseFirstListPromise_ = NewPromise<void>();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -464,8 +509,71 @@ TEST_F(TKeyVisitorTest, NonFiniteVisitorIgnoresUpstreamCompletion)
     StopOnQueue(visitor);
 }
 
-// The signal arrives before anything is swept, so the pass in hand is the final one: one
-// sweep, not two. This is the shape of a computation with no upstream at all.
+// A no-upstream computation marks its initial pass Final before starting the fill, so the
+// first scan is also the last one.
+TEST_F(TKeyVisitorTest, CompletionAtInitSeedsFinalFirstPass)
+{
+    const std::vector<TKey> seeded{MakeUintKey(10), MakeUintKey(20)};
+    auto keyStates = New<TBlockingFirstListKeyStates>();
+    for (const auto& key : seeded) {
+        keyStates->Set({ComputationId, key, "/state"});
+    }
+
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
+    context->KeyStates = keyStates;
+    auto dynamicContext = MakeDynamicContext(
+        /*period*/ TDuration::MilliSeconds(10),
+        /*bufferRowLimit*/ 100);
+    auto visitor = New<TKeyVisitor>(context, dynamicContext);
+    WaitFor(visitor->Init(/*upstreamCompleted*/ true)).ThrowOnError();
+    WaitFor(keyStates->GetFirstListStartedFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+    keyStates->ReleaseFirstList();
+
+    std::vector<TKey> drained;
+    DrainKeys(visitor, &drained, std::ssize(seeded));
+    EXPECT_EQ(ToSet(drained), ToSet(seeded)) << "the seeded final pass must emit every key";
+    EXPECT_TRUE(IsEmptyOnQueue(visitor)) << "the visitor must be empty after its single pass";
+
+    std::vector<TKey> extra;
+    DrainKeys(visitor, &extra, /*stopCount*/ 1, /*batchSize*/ 100, /*timeout*/ TDuration::MilliSeconds(500));
+    EXPECT_TRUE(extra.empty()) << "no pass may follow the seeded final one";
+
+    StopOnQueue(visitor);
+}
+
+// A background read can suspend after taking its snapshot while the last upstream epoch
+// commits. The completion signal must not finalize that still-unrecorded scan in place: the
+// following Final pass is what observes the newly committed key.
+TEST_F(TKeyVisitorTest, CompletionDuringBackgroundReadStartsFreshFinalPass)
+{
+    auto keyStates = New<TBlockingFirstListKeyStates>();
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
+    context->KeyStates = keyStates;
+    auto visitor = New<TKeyVisitor>(
+        context,
+        MakeDynamicContext(
+            /*period*/ TDuration::MilliSeconds(10),
+            /*bufferRowLimit*/ 100));
+    WaitFor(visitor->Init()).ThrowOnError();
+    WaitFor(keyStates->GetFirstListStartedFuture().WithTimeout(TDuration::Seconds(5)))
+        .ThrowOnError();
+
+    const auto committedAfterSnapshot = MakeUintKey(20);
+    keyStates->Set({ComputationId, committedAfterSnapshot, "/state"});
+    SetUpstreamCompletedOnQueue(visitor);
+    keyStates->ReleaseFirstList();
+
+    std::vector<TKey> drained;
+    EXPECT_EQ(DrainKeys(visitor, &drained, /*stopCount*/ 1), 1)
+        << "the Final pass must observe state committed after the stale read began";
+    EXPECT_EQ(drained, std::vector<TKey>{committedAfterSnapshot});
+    EXPECT_TRUE(IsEmptyOnQueue(visitor)) << "the visitor must retire after the fresh Final pass";
+
+    StopOnQueue(visitor);
+}
+
+// A completion signal received before anything is swept finalizes the pass in hand.
 TEST_F(TKeyVisitorTest, FiniteVisitorFinalizesUnsweptPassInPlace)
 {
     const std::vector<TKey> seeded{MakeUintKey(10), MakeUintKey(20)};
@@ -475,10 +583,19 @@ TEST_F(TKeyVisitorTest, FiniteVisitorFinalizesUnsweptPassInPlace)
     auto dynamicContext = MakeDynamicContext(
         /*period*/ TDuration::MilliSeconds(10),
         /*bufferRowLimit*/ 100);
+    // Hold the scanner until the signal lands: the kickstarted background fill
+    // may otherwise sweep a range first, and a swept pass is finalized at rotation, not
+    // in place.
+    dynamicContext->Draining = true;
     auto visitor = New<TKeyVisitor>(context, dynamicContext);
     WaitFor(visitor->Init()).ThrowOnError();
 
     SetUpstreamCompletedOnQueue(visitor);
+    ReconfigureOnQueue(
+        visitor,
+        MakeDynamicContext(
+            /*period*/ TDuration::MilliSeconds(10),
+            /*bufferRowLimit*/ 100));
 
     std::vector<TKey> drained;
     DrainKeys(visitor, &drained, std::ssize(seeded));
