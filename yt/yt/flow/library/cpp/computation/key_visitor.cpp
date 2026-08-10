@@ -103,10 +103,13 @@ TKeyVisitor::TKeyVisitor(
     YT_VERIFY(Context_->Spec);
 }
 
-TFuture<void> TKeyVisitor::Init()
+TFuture<void> TKeyVisitor::Init(bool upstreamCompleted)
 {
-    return BIND([this, strongThis = MakeStrong(this)] {
+    return BIND([this, strongThis = MakeStrong(this), upstreamCompleted] {
         WaitFor(Store_->Init()).ThrowOnError();
+        if (upstreamCompleted) {
+            SetUpstreamCompleted();
+        }
         BackgroundFillExecutor_ = New<TPeriodicExecutor>(
             Context_->SerializedInvoker,
             BIND(&TKeyVisitor::RunBackgroundFillIteration, MakeWeak(this)),
@@ -150,8 +153,12 @@ void TKeyVisitor::SetUpstreamCompleted()
     UpstreamCompleted_ = true;
     // A pass that has swept nothing yet began at or after the completion moment, so it can
     // be the final one; a pass already in flight is left to finish and the rotation marks
-    // the next one instead — unless the caller waived that guarantee.
-    if (Store_->HasCurrentPassSweptNothing() || !DynamicContext_->DynamicSpec->FullFinalPass) {
+    // the next one instead. A scan that is still awaiting its snapshot also counts as
+    // already in flight: it may have started before the last upstream write became visible.
+    const bool canFinalizeCurrentPass =
+        Store_->HasCurrentPassSweptNothing() &&
+        !BackgroundFillInProgress_;
+    if (canFinalizeCurrentPass || !DynamicContext_->DynamicSpec->FullFinalPass) {
         Store_->MarkCurrentPassFinal();
     }
     if (BackgroundFillExecutor_) {
@@ -321,6 +328,12 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIterationGuarded(
     const bool scanAll = !names && !externalNames;
     const bool scanInternal = scanAll || (names && !names->empty());
     const bool scanExternal = scanAll || (externalNames && !externalNames->empty());
+
+    YT_VERIFY(!BackgroundFillInProgress_);
+    BackgroundFillInProgress_ = true;
+    auto fillGuard = Finally([this] {
+        BackgroundFillInProgress_ = false;
+    });
 
     const i64 maxRows = DynamicContext_->DynamicSpec->MaxScanRowsPerIteration;
     YT_VERIFY(maxRows > 0);

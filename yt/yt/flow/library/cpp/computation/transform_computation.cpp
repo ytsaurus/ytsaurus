@@ -76,8 +76,9 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
     YT_VERIFY(InputStore_);
     WaitFor(TimerStore_->Init()).ThrowOnError();
     WaitFor(InputStore_->Init()).ThrowOnError();
+    const bool upstreamCompletedAtInit = GetSpec()->InputStreamIds.empty();
     for (const auto& [_, visitor] : KeyVisitors_) {
-        WaitFor(visitor->Init()).ThrowOnError();
+        WaitFor(visitor->Init(upstreamCompletedAtInit)).ThrowOnError();
     }
 
     bool isFinished = true;
