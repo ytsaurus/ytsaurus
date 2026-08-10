@@ -264,11 +264,15 @@ def build_resource_usage(component: str, add_component_to_title: bool, backend: 
     memory_limit = memory_limit.alias("Limit")
 
     # The vcpu limit is exported by the porto resource tracker, so it exists only
-    # in installations with porto, i.e. not on the grafana backend.
+    # in installations with porto, i.e. not on the grafana backend. All hosts
+    # report the same limit, so collapse them into one line; per-host limits are
+    # all equal and would bury the usage lines in the tooltip. Take the minimum
+    # to show the tightest one if the hosts ever disagree.
     vcpu_limit = None
     if backend == "monitoring":
         vcpu_limit = ((MonitoringExpr(sensor("yt.porto.vcpu.limit")) / 100)
             .value("container_category", "pod")
+            .series_min()
             .alias("Limit"))
 
     return (Rowset()
