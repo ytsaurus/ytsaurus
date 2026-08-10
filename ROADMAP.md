@@ -20,12 +20,12 @@
 - [ ] Renewal of documentation.
 
 ## MapReduce
+- [x] Distributed jobs for data processing: this technology is needed to run GPU batch inference jobs in case of large models that don't fit inside one host. (25.3)
 - [x] Accounting compressed data size in data slicing. (25.4)
 - [ ] API for Modifying Operation Parameters: Develop an API that allows for the modification of operation parameters during execution, enhancing flexibility and control over dynamic operations. 
 - [ ] Shuffle service.
 - [ ] Inter-Cluster Bandwidth Limiting Mechanism: Develop a mechanism to limit inter-cluster bandwidth during operations to optimize network resource usage and prevent overloads.
 - [ ] IO Scheduler: Implement an IO scheduler to optimize input/output operations, improve resource allocation, and enhance overall system performance.
-- [ ] Distributed jobs for data processing: this technology is needed to run GPU batch inference jobs in case of large models that don't fit inside one host.
 - [ ] Support ARM64 host.
 - [ ] Rework sorted chunk pool and make new_sorted_pool default.
 - [ ] Adaptive buffer row count in jobs: this is useful for heavy jobs to reduce number of job abortions caused by interuption timeout.
