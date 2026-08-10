@@ -343,6 +343,9 @@ private:
             .ValueOrThrow()
             .LeaderControllerAddress;
 
+        THROW_ERROR_EXCEPTION_IF(ControllerAddress_.empty(),
+            "Pipeline controller has not published its address yet");
+
         ControllerChannel_ = ChannelFactory_->CreateChannel(ControllerAddress_);
         AtomicControllerChannel_.Store(ControllerChannel_);
     }
