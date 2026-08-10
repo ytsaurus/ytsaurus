@@ -96,11 +96,11 @@ public:
     }
 };
 
-std::string MakeRandomString(size_t stringSize)
+std::string MakeRandomString(int stringSize)
 {
     std::string randomString;
     randomString.reserve(stringSize);
-    for (size_t i = 0; i < stringSize; i++) {
+    for (int i = 0; i < stringSize; i++) {
         randomString += ('a' + rand() % 25);
     }
     return randomString;
@@ -108,7 +108,7 @@ std::string MakeRandomString(size_t stringSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRandomizeChildKeys{};
+struct TRandomizeChildKeys{ };
 
 class TCypressLocksTest
     : public TCypressLocksTestBase
@@ -117,13 +117,12 @@ class TCypressLocksTest
         /*childKey*/ std::variant<TRandomizeChildKeys, std::string>,
         /*workingTxCount*/ int
     >>
-{};
+{ };
 
-
-TEST_P(TCypressLocksTest, TestLockConflictResolution)
+TEST_P(TCypressLocksTest, LockConflictResolution)
 {
     constexpr static int ThreadCount = 8;
-    constexpr static int LocksPerThreadCount = 10000;
+    constexpr static int LocksPerThreadCount = 10'000;
 
     // Setup a blocking exclusive lock, so waitable locks have to wait.
     auto blockingTx = StartCypressTransaction();
@@ -142,7 +141,7 @@ TEST_P(TCypressLocksTest, TestLockConflictResolution)
             workingTxs,
             [] (auto* builder, const auto& transaction) {
                 builder->AppendFormat("%v", transaction->GetId());
-    }));
+            }));
 
     // Setup a lot of waitable locks.
     auto createRequest = [workingTxs = workingTxs, waitbleLockMode = waitbleLockMode, childKey = childKey] {
@@ -193,7 +192,7 @@ TEST_P(TCypressLocksTest, TestLockConflictResolution)
     Y_UNUSED(WaitFor(Client_->SetNode(NodePath + "/@some_attr", ConvertToYsonString("some_value"))));
 
     auto transactionAbortDuration = GetInstant() - start;
-    YT_LOG_DEBUG("Recorded transaction abort duration (AbortDuration: %vms)",
+    YT_LOG_DEBUG("Recorded transaction abort duration (AbortDuration: %v)",
         transactionAbortDuration);
     // 5 seconds is _very_ conservative.
     ASSERT_LT(transactionAbortDuration, TDuration::Seconds(5));
