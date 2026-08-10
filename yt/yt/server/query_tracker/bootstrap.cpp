@@ -298,7 +298,7 @@ private:
         QueryTrackerProxy_ = CreateQueryTrackerProxy(
             NativeClient_,
             Config_->Root,
-            DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig,
+            DynamicConfigManager_->GetConfig()->QueryTracker,
             QueryTracker_->GetEngineProviders(),
             Config_->MinRequiredStateVersion);
 
@@ -382,9 +382,7 @@ private:
         }
 
         if (QueryTrackerProxy_) {
-            QueryTrackerProxy_->Reconfigure(
-                newConfig->QueryTracker->ProxyConfig,
-                newConfig->QueryTracker->NotIndexedQueriesTTL);
+            QueryTrackerProxy_->Reconfigure(newConfig->QueryTracker);
         }
 
         YT_LOG_DEBUG(

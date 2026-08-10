@@ -35,7 +35,7 @@ using TStrictMockTransaction = StrictMock<TMockTransaction>;
 DEFINE_REFCOUNTED_TYPE(TStrictMockTransaction)
 
 const TYPath StateRoot = "//sys/query_tracker";
-const TQueryTrackerProxyConfigPtr Config = New<TQueryTrackerProxyConfig>();
+const TQueryTrackerDynamicConfigPtr Config = New<TQueryTrackerDynamicConfig>();
 
 const TYsonString EmptyMap = TYsonString(TStringBuf("{}"));
 const TYsonString EmptyList = TYsonString(TStringBuf("[]"));

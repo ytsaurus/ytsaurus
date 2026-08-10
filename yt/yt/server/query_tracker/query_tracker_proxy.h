@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "config.h"
 
 #include <yt/yt/client/api/client.h>
 
@@ -19,13 +20,11 @@ public:
     TQueryTrackerProxy(
         NApi::IClientPtr stateClient,
         NYPath::TYPath stateRoot,
-        TQueryTrackerProxyConfigPtr config,
+        TQueryTrackerDynamicConfigPtr config,
         std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders,
         int expectedTablesVersion);
 
-    void Reconfigure(
-        const TQueryTrackerProxyConfigPtr& config,
-        const TDuration notIndexedQueriesTTL);
+    void Reconfigure(const TQueryTrackerDynamicConfigPtr& config);
 
     void StartQuery(
         const TQueryId queryId,
@@ -73,12 +72,11 @@ public:
 private:
     const NApi::IClientPtr StateClient_;
     const NYPath::TYPath StateRoot_;
-    TQueryTrackerProxyConfigPtr ProxyConfig_;
+    TQueryTrackerDynamicConfigPtr DynamicConfig_;
     std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> EngineProviders_;
     const int ExpectedTablesVersion_;
     ISearchIndexPtr TimeBasedIndex_;
     ISearchIndexPtr TokenBasedIndex_;
-    TDuration NotIndexedQueriesTTL_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxy)
@@ -88,7 +86,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxy)
 TQueryTrackerProxyPtr CreateQueryTrackerProxy(
     NApi::IClientPtr stateClient,
     NYPath::TYPath stateRoot,
-    TQueryTrackerProxyConfigPtr config,
+    TQueryTrackerDynamicConfigPtr config,
     std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> engineProviders,
     int expectedTablesVersion);
 

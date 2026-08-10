@@ -38,9 +38,8 @@ public:
         const NRecords::TActiveQuery& activeQuery,
         const TSelectRowsOptions& options,
         const IClientPtr& queryClient,
-        const IInvokerPtr& controlInvoker,
-        const TDuration notIndexedQueriesTTL)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
+        const IInvokerPtr& controlInvoker)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Query_(activeQuery.Query)
         , QueryClient_(queryClient)
         , Options_(options)
@@ -110,14 +109,12 @@ public:
             activeQuery,
             options,
             queryClient,
-            ControlQueue_->GetInvoker(),
-            NotIndexedQueriesTTL_);
+            ControlQueue_->GetInvoker());
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         Config_ = DynamicPointerCast<TQLEngineConfig>(config);
-        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
     std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
@@ -131,7 +128,6 @@ private:
     const TActionQueuePtr ControlQueue_;
     TQLEngineConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
-    TDuration NotIndexedQueriesTTL_;
 
     static TSelectRowsOptions GetOptions(IAttributeDictionary* settings)
     {

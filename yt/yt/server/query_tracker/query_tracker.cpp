@@ -119,11 +119,17 @@ public:
     {
         Config_ = config;
         AcquisitionExecutor_->SetPeriod(config->ActiveQueryAcquisitionPeriod);
-        Engines_[EQueryEngine::Mock]->Reconfigure(config->MockEngine, Config_->NotIndexedQueriesTTL);
-        Engines_[EQueryEngine::Ql]->Reconfigure(config->QLEngine, Config_->NotIndexedQueriesTTL);
-        Engines_[EQueryEngine::Yql]->Reconfigure(config->YqlEngine, Config_->NotIndexedQueriesTTL);
-        Engines_[EQueryEngine::Chyt]->Reconfigure(config->ChytEngine, Config_->NotIndexedQueriesTTL);
-        Engines_[EQueryEngine::Spyt]->Reconfigure(config->SpytEngine, Config_->NotIndexedQueriesTTL);
+
+        auto engines = {
+            EQueryEngine::Mock,
+            EQueryEngine::Ql,
+            EQueryEngine::Yql,
+            EQueryEngine::Chyt,
+            EQueryEngine::Spyt,
+        };
+        for (const auto engine : engines) {
+            Engines_[engine]->Reconfigure(GetConfigByEngine(Config_, engine));
+        }
     }
 
     IYPathServicePtr GetOrchidService() const override
@@ -654,7 +660,8 @@ private:
                     .IsTutorial = activeQueryRecord->IsTutorial,
                 };
                 if (!activeQueryRecord->IsIndexed) {
-                    newRecord.TTL = Config_->NotIndexedQueriesTTL.MilliSeconds();
+                    if (auto ttl = GetConfigByEngine(Config_, activeQueryRecord->Engine)->NotIndexedQueriesTtl)
+                    newRecord.Ttl = ttl->MilliSeconds();
                 }
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),

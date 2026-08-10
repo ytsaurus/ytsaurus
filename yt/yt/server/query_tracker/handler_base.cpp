@@ -151,8 +151,7 @@ TQueryHandlerBase::TQueryHandlerBase(
     const NYPath::TYPath& stateRoot,
     const IInvokerPtr controlInvoker,
     const TEngineConfigBasePtr& config,
-    const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-    const TDuration notIndexedQueriesTTL)
+    const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery)
     : StateClient_(stateClient)
     , StateRoot_(stateRoot)
     , ControlInvoker_(std::move(controlInvoker))
@@ -170,7 +169,6 @@ TQueryHandlerBase::TQueryHandlerBase(
         .WithTag("QueryId", activeQuery.Key.QueryId)
         .WithTag("Engine", activeQuery.Engine))
     , ProgressWriter_(New<TPeriodicExecutor>(ControlInvoker_, BIND(&TQueryHandlerBase::TryWriteProgress, MakeWeak(this)), Config_->QueryProgressWritePeriod))
-    , NotIndexedQueriesTTL_(notIndexedQueriesTTL)
 {
     YT_LOG_INFO("Query handler instantiated");
 }
@@ -442,7 +440,7 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
                     },
                 };
                 if (!record.IsIndexed) {
-                    newRecord.TTL = NotIndexedQueriesTTL_.MilliSeconds();
+                    newRecord.Ttl = Config_->NotIndexedQueriesTtl->MilliSeconds();
                 }
                 if (wireRowsetOrError.IsOK()) {
                     NDetail::ProcessRowset(newRecord, wireRowsetOrError.Value(), Config_->ResultingRowsetValueLengthLimit);

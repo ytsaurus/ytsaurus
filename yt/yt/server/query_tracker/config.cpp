@@ -23,6 +23,8 @@ void TEngineConfigBase::Register(TRegistrar registrar)
         .Default(10'000);
     registrar.Parameter("resulting_rowset_value_length_limit", &TThis::ResultingRowsetValueLengthLimit)
         .Default(1_GB);
+    registrar.Parameter("not_indexed_queries_ttl", &TThis::NotIndexedQueriesTtl)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +134,7 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
         .Default(TDuration::Seconds(1));
-    registrar.Parameter("not_indexed_queries_ttl", &TThis::NotIndexedQueriesTTL)
+    registrar.Parameter("not_indexed_queries_Ttl", &TThis::NotIndexedQueriesTtl)
         .Default(TDuration::Hours(1));
     registrar.Parameter("ql_engine", &TThis::QLEngine)
         .DefaultNew();
@@ -146,6 +148,21 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("proxy_config", &TThis::ProxyConfig)
         .DefaultNew();
+
+    registrar.Postprocessor([&] (TThis* config) {
+        auto engines = std::vector<TEngineConfigBasePtr>{
+            config->MockEngine,
+            config->QLEngine,
+            config->YqlEngine,
+            config->ChytEngine,
+            config->SpytEngine,
+        };
+        for (auto& engine : engines) {
+            if (!engine->NotIndexedQueriesTtl) {
+                engine->NotIndexedQueriesTtl = config->NotIndexedQueriesTtl;
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

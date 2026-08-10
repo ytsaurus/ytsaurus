@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/public.h>
 
@@ -46,6 +48,10 @@ NSecurityClient::ESecurityAction CheckAccessControl(
 
 std::string Compress(const std::string& data, std::optional<ui64> maxCompressedStringSize = std::nullopt, int quality = 9);
 std::string Decompress(const std::string& data);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEngineConfigBasePtr GetConfigByEngine(const TQueryTrackerDynamicConfigPtr& config, const EQueryEngine engine);
 
 ////////////////////////////////////////////////////////////////////////////////
 
