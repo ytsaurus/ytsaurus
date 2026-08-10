@@ -27,6 +27,7 @@
 #include <library/cpp/yt/threading/spin_lock.h>
 
 #include <deque>
+#include <functional>
 
 namespace NYT::NPushBasedShuffleClient {
 
@@ -42,7 +43,7 @@ using namespace NTableClient;
 // Test-only factory: takes an injectable callback for constructing
 // IDistributedChunkWriter so tests can substitute a fake. Defined in
 // yt/yt/ytlib/push_based_shuffle_client/shuffle_writer.cpp.
-using TCreateDistributedChunkWriterCallback = TCallback<
+using TCreateDistributedChunkWriterCallback = std::function<
     IDistributedChunkWriterPtr(TNodeDescriptor, TSessionId)>;
 
 IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
@@ -280,6 +281,17 @@ public:
         ActionQueue_->Resume();
     }
 
+    void SuspendInvoker()
+    {
+        WaitFor(ActionQueue_->Suspend(/*immediately*/ true))
+            .ThrowOnError();
+    }
+
+    void ResumeInvoker()
+    {
+        ActionQueue_->Resume();
+    }
+
     TFakeProviderPtr GetProvider() const { return Provider_; }
 
     //! Snapshot of currently known fake chunk writers, indexed by session id.
@@ -324,6 +336,21 @@ TEST(TPushBasedShuffleWriterTest, EmptyCloseSucceedsImmediately)
     EXPECT_TRUE(closeFuture.IsSet());
     EXPECT_TRUE(closeFuture.GetOrCrash().IsOK());
     EXPECT_TRUE(h.GetChunkWriters().empty());
+}
+
+TEST(TPushBasedShuffleWriterTest, CloseCompletesAfterWriterIsReleased)
+{
+    TWriterHarness h;
+    auto writer = h.CreateWriter(/*partitionCount*/ 1);
+    h.SuspendInvoker();
+
+    auto closeFuture = writer->Close();
+    writer.Reset();
+
+    EXPECT_FALSE(closeFuture.IsSet());
+    h.ResumeInvoker();
+    WaitFor(closeFuture)
+        .ThrowOnError();
 }
 
 TEST(TPushBasedShuffleWriterTest, SingleRowSinglePartitionFlushesOnClose)
