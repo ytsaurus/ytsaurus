@@ -22,9 +22,9 @@ namespace NYT::NPushBasedShuffleClient {
 //! 16-byte fixed POD header preceding each wire shuffle record's payload.
 struct TRecordHeader
 {
-    i32 RowCount;
-    i32 MapperId;
-    i64 StartRow;
+    i32 RowCount = 0;
+    i32 MapperId = 0;
+    i64 StartRow = 0;
 };
 
 static_assert(sizeof(TRecordHeader) == 16, "sizeof(TRecordHeader) != 16");

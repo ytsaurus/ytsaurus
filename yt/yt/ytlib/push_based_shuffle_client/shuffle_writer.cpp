@@ -17,6 +17,7 @@
 #include <yt/yt/core/misc/heap.h>
 
 #include <deque>
+#include <functional>
 
 namespace NYT::NPushBasedShuffleClient {
 
@@ -27,7 +28,7 @@ using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 
-using TCreateDistributedChunkWriterCallback = TCallback<IDistributedChunkWriterPtr(TNodeDescriptor, TSessionId)>;
+using TCreateDistributedChunkWriterCallback = std::function<IDistributedChunkWriterPtr(TNodeDescriptor, TSessionId)>;
 
 namespace {
 
@@ -111,8 +112,9 @@ public:
     TFuture<void> Write(TRange<TUnversionedRow> rows) override
     {
         auto promise = NewPromise<void>();
+        auto future = promise.ToFuture();
         SerializedInvoker_->Invoke(BIND(
-            [this, this_ = MakeStrong(this), rows, promise] () mutable {
+            [this, this_ = MakeStrong(this), rows, promise = std::move(promise)] () mutable {
                 try {
                     DoWrite(rows, promise);
                 } catch (const std::exception& ex) {
@@ -128,11 +130,12 @@ public:
             }));
         // Caller-cancel would auto-set the shared BackpressurePromise_ state
         // and trip YT_VERIFY on the next backpressured Write.
-        return promise.ToFuture().ToUncancelable();
+        return future.ToUncancelable();
     }
 
     TFuture<void> Close() override
     {
+        // The close future owns the writer until its serialized kickoff runs.
         return BIND(&TPushBasedShuffleWriter::DoClose, MakeStrong(this))
             .AsyncVia(SerializedInvoker_)
             .Run()
@@ -423,7 +426,7 @@ private:
             return;
         }
         partitionState.Session = sessionOrError.Value();
-        partitionState.Writer = CreateDistributedChunkWriter_.Run(
+        partitionState.Writer = CreateDistributedChunkWriter_(
             partitionState.Session->SequencerNode,
             partitionState.Session->SessionId);
         YT_LOG_DEBUG(
@@ -562,13 +565,13 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
     THashMap<int, TSessionDescriptor> seededSessions)
 {
     auto writerConfig = config->WriterConfig;
-    auto createWriter = BIND([connection, writerConfig] (TNodeDescriptor sequencerNode, TSessionId sessionId) {
+    auto createWriter = [connection, writerConfig] (TNodeDescriptor sequencerNode, TSessionId sessionId) {
         return CreateDistributedChunkWriter(
             sequencerNode,
             sessionId,
             connection,
             writerConfig);
-    });
+    };
 
     return New<TPushBasedShuffleWriter>(
         std::move(config),
