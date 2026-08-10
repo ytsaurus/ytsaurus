@@ -597,10 +597,6 @@ private:
                 this,
                 this_ = MakeStrong(this)]
             {
-                if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActive()) {
-                    THROW_ERROR_EXCEPTION("Hydra is not active");
-                }
-
                 {
                     auto guard = Guard(Lock_);
                     if (shouldAbortRefreshIteration(guard, epoch, shards)) {
