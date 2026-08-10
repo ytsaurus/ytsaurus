@@ -552,7 +552,7 @@ protected:
     //! with this flag true is guaranteed to have consistent task descriptors.
     bool SwitchedToSlowIntermediateMedium_ = false;
 
-    TEnumIndexedArray<EPartitionDispatchDecision, int> PartitionsDispatchStatistics_;
+    TEnumIndexedArray<EPartitionDispatchDecision, int> PartitionDispatchStatistics_;
 
     //! Implements partition phase for sort operations and map phase for map-reduce operations.
     class TPartitionTask
@@ -907,7 +907,7 @@ protected:
 
                 YT_LOG_DEBUG(
                     "Partitioning completed (PartitionDispatchStatistics: %v)",
-                    Controller_->PartitionsDispatchStatistics_);
+                    Controller_->PartitionDispatchStatistics_);
             }
 
             // NB: This is required at least to mark tasks completed, when there are no pending jobs.
@@ -1985,8 +1985,8 @@ protected:
 
         UnprocessedPhysicalPartitionsCount_ -= std::ssize(physicalPartitionIndices);
         YT_VERIFY(UnprocessedPhysicalPartitionsCount_ >= 0);
-        ++PartitionsDispatchStatistics_[finalPartition->GetDispatchDecision()];
-        YT_VERIFY(Accumulate(PartitionsDispatchStatistics_, 0) == std::ssize(UnorderedFinalPartitions_));
+        ++PartitionDispatchStatistics_[finalPartition->GetDispatchDecision()];
+        YT_VERIFY(Accumulate(PartitionDispatchStatistics_, 0) == std::ssize(UnorderedFinalPartitions_));
 
         YT_LOG_DEBUG(
             "Final partition created (ParentPartitionLevel: %v, ParentPartitionIndex: %v, CreationIndex: %v, DispatchDecision: %v, "
@@ -2001,7 +2001,7 @@ protected:
             finalPartition->ChunkPoolOutput()->GetDataWeightCounter()->GetTotal(),
             finalPartition->ChunkPoolOutput()->GetDataSliceCounter()->GetTotal(),
             UnprocessedPhysicalPartitionsCount_,
-            PartitionsDispatchStatistics_,
+            PartitionDispatchStatistics_,
             physicalPartitionIndices);
 
         switch (finalPartition->GetDispatchDecision()) {
@@ -3166,7 +3166,7 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(45, UnorderedFinalPartitions_);
     PHOENIX_REGISTER_FIELD(46, UnprocessedPhysicalPartitionsCount_);
 
-    PHOENIX_REGISTER_FIELD(47, PartitionsDispatchStatistics_,
+    PHOENIX_REGISTER_FIELD(47, PartitionDispatchStatistics_,
         .SinceVersion(ESnapshotVersion::FixPartitionsDispatchStatistics));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
@@ -3955,7 +3955,7 @@ private:
             // Partitions
             std::ssize(UnorderedFinalPartitions_),
             CompletedPartitionCount_,
-            PartitionsDispatchStatistics_,
+            PartitionDispatchStatistics_,
             // PartitionJobs
             GetPartitionJobCounter(),
             // IntermediateSortJobs
@@ -4921,7 +4921,7 @@ private:
             // Partitions
             std::ssize(UnorderedFinalPartitions_),
             CompletedPartitionCount_,
-            PartitionsDispatchStatistics_,
+            PartitionDispatchStatistics_,
             // MapJobs
             GetPartitionJobCounter(),
             // SortJobs
