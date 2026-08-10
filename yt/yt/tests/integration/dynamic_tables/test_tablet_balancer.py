@@ -288,6 +288,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         for index in range(1, 4):
             wait(lambda: get(f"//tmp/t{index}/@tablet_count") == 1)
 
+        wait_for_tablet_state("//tmp/t3", "mounted")
         sync_unmount_table("//tmp/t3")
         set("//tmp/t3/@tablet_cell_bundle", "another")
 
