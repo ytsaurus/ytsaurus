@@ -519,7 +519,7 @@ items:
                 href: api/python/start.md
               - name: Пользовательская документация
                 href: api/python/userdoc.md
-              - name: Справочник
+              - name: Справочник 🔗
                 href: https://pydoc.ytsaurus.tech
               - name: Датаклассы
                 href: api/python/dataclass.md
@@ -537,10 +537,12 @@ items:
                 href: api/cpp/lambda.md
               - name: Примеры использования
                 href: api/cpp/examples.md
-              #- name: Справочник
-              #  href: api/cpp/reference.md
+              #- name: Справочник 🔗
+              #  href: https://ytsaurus.tech/docs/c++/index.html
           - name: Go API
-            href: api/go/reference.md
+            items:
+              - name: Справочник 🔗
+                href: https://pkg.go.dev/go.ytsaurus.tech/yt/go
           - name: Java API
             href: api/java/examples.md
           - name: JavaScript Wrapper
