@@ -310,6 +310,21 @@ bool NeedProgressInRequest(const TYsonString& progress)
     return NControllerAgent::IsFinishedState(stateEnum);
 }
 
+bool HasOperationReachedRunningState(const TYsonString& events)
+{
+    if (!events) {
+        return false;
+    }
+
+    for (const auto& event : ConvertTo<std::vector<TOperationEvent>>(events)) {
+        if (event.State == EOperationState::Running) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 TUnversionedOwningRow BuildOrderedByIdTableRow(
     const TArchiveOperationRequest& request,
     int version)
@@ -1260,15 +1275,20 @@ private:
             return;
         }
 
-        // NB(bystrovserg): Try to fill missing progress/features from the archive for operations whose request lacks them.
+        // NB(bystrovserg): Try to fill missing progress from the archive for operations whose request lacks them.
         std::vector<TArchiveOperationRequest> missing;
         for (auto operationId : operationIds) {
             const auto& request = GetRequest(operationId);
-            if (!request.Progress || !request.ControllerFeatures) {
+
+            // NB(bystrovserg): Operations that fail during initialization do not have any progress anyway
+            // so we do not mark them as incomplete.
+            bool hasMissingProgress = !request.Progress || !request.BriefProgress;
+            if (hasMissingProgress && NDetail::HasOperationReachedRunningState(request.Events)) {
                 missing.push_back(request);
             }
         }
 
+        std::vector<TOperationId> incompleteIds;
         if (!missing.empty()) {
             FetchHeavyFieldsFromArchive(missing);
             // NB(bystrovserg): If fetching heavy fields fails, the corresponding fields remain empty,
@@ -1281,17 +1301,10 @@ private:
                 if (!request.BriefProgress) {
                     request.BriefProgress = missingRequest.BriefProgress;
                 }
-                if (!request.ControllerFeatures) {
-                    request.ControllerFeatures = missingRequest.ControllerFeatures;
-                }
-            }
-        }
 
-        std::vector<TOperationId> incompleteIds;
-        for (auto operationId : operationIds) {
-            const auto& request = GetRequest(operationId);
-            if (!request.Progress) {
-                incompleteIds.push_back(operationId);
+                if (!request.Progress || !request.BriefProgress) {
+                    incompleteIds.push_back(request.Id);
+                }
             }
         }
 
@@ -1915,11 +1928,9 @@ private:
         auto filter = TColumnFilter{
             idMapping.Progress,
             idMapping.BriefProgress,
-            idMapping.ControllerFeatures,
         };
         auto progressIndex = filter.GetPosition(idMapping.Progress);
         auto briefProgressIndex = filter.GetPosition(idMapping.BriefProgress);
-        auto controllerFeaturesIndex = filter.GetPosition(idMapping.ControllerFeatures);
         auto timeout = Config_->FinishedOperationsArchiveLookupTimeout;
         auto rowsetOrError = LookupOperationsInArchive(Client_, ids, filter, timeout);
         if (!rowsetOrError.IsOK()) {
@@ -1939,7 +1950,6 @@ private:
         for (int i = 0; i < std::ssize(requests); ++i) {
             fetchField(requests[i].Progress, rows[i], progressIndex);
             fetchField(requests[i].BriefProgress, rows[i], briefProgressIndex);
-            fetchField(requests[i].ControllerFeatures, rows[i], controllerFeaturesIndex);
         }
     }
 
@@ -2068,7 +2078,7 @@ private:
         YT_LOG_INFO("Started fetching finished operations from Cypress (OperationCount: %v)", operationIds.size());
         auto operations = FetchOperationsFromCypressForCleaner(operationIds);
 
-        // Controller agent reports progress/brief_progress/controller_features only to
+        // Controller agent reports progress only to
         // the archive, so we fetch them here for operations recovered from Cypress.
         FetchHeavyFieldsFromArchive(operations);
 

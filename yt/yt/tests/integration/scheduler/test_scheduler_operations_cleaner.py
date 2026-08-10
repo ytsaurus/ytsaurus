@@ -222,6 +222,14 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         op = run_test_vanilla("true", track=True)
         assert self._operation_exist(op.id)
 
+        failed_op = run_test_vanilla(
+            "true",
+            task_patch={"file_paths": ["//tmp/missing_file"]},
+        )
+        failed_op.track(raise_on_failed=False)
+        assert failed_op.get_state() == "failed"
+        assert all(event["state"] != "running" for event in get(failed_op.get_path() + "/@events"))
+
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
@@ -233,8 +241,8 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         # Fetch operations from Cypress, progress is lost.
         update_scheduler_config("operations_cleaner/enable", True)
 
-        wait(lambda: not self._operation_exist(op.id))
-        wait(lambda: incomplete_info_counter.get_delta() > 0)
+        wait(lambda: not self._operation_exist(op.id) and not self._operation_exist(failed_op.id))
+        assert incomplete_info_counter.get_delta() == 1
 
     @authors("bystrovserg")
     def test_operations_archive_is_not_initialized(self):
