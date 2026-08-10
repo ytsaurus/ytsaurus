@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/lib/tablet_balancer/public.h>
 
+#include <yt/yt/ytlib/tablet_balancer_client/public.h>
+
 #include <yt/yt/library/server_program/server_program.h>
 
 #include <yt/yt/library/program/helpers.h>
@@ -67,6 +69,10 @@ private:
     {
         if (DryRunConfig_->IsDryRun && Mode_.empty()) {
             THROW_ERROR_EXCEPTION("Option 'mode' is required in dry-run mode");
+        }
+
+        if (!Mode_.empty()) {
+            DryRunConfig_->Mode = ConvertTo<NTabletBalancerClient::EBalancingRequestMode>(Mode_);
         }
 
         if (DryRunConfig_->IsDryRun && DryRunConfig_->Bundle.empty()) {
