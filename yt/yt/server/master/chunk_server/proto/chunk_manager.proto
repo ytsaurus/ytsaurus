@@ -102,7 +102,6 @@ message TReqScheduleMultipleChunkSeals
     repeated NYT.NProto.TGuid chunk_ids = 1;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqUnstageExpiredChunks
