@@ -45,6 +45,7 @@ public:
     void Restart();
 
     //! Stops auto-restartable companion process.
+    //! Never blocks and never throws: it is called from a destructor.
     virtual void Shutdown();
 
 protected:

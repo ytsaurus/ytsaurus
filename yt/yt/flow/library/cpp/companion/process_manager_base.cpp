@@ -145,8 +145,11 @@ void TProcessManagerBase::Shutdown()
             Started_ = false;
         }
         StopIncarnation();
-        Y_UNUSED(NConcurrency::WaitFor(HealthCheckExecutor_->Stop()));
-        Y_UNUSED(NConcurrency::WaitFor(MetricsCollectionExecutor_->Stop()));
+        // #TCompanionManager's destructor calls this, and a resource is released inside a
+        // context-switch-forbidden region, so waiting for an in-flight callback would crash.
+        // The executors hold only weak references, so an outstanding one is harmless.
+        YT_UNUSED_FUTURE(HealthCheckExecutor_->Stop());
+        YT_UNUSED_FUTURE(MetricsCollectionExecutor_->Stop());
     } catch (const std::exception& ex) {
         YT_TLOG_ERROR("Failed to shutdown auto-restartable companion process")
             .With(ex);
