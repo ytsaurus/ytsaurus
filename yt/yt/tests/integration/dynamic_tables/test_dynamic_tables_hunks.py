@@ -5795,6 +5795,34 @@ class TestOrderedDynamicTablesHunksRpc(TestSortedDynamicTablesBase):
     ]
 
     @authors("akozhikhov")
+    def test_unmounted_queue_does_not_write_hunks(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", schema=self.SCHEMA)
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+            "store_rotation_period": 1000000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+
+        hunk_tablet_id = get("//tmp/h/@tablets/0/tablet_id")
+        hunk_tablet_orchid = "//sys/tablets/{}/orchid".format(hunk_tablet_id)
+        wait(lambda: exists("{}/active_store_id".format(hunk_tablet_orchid)))
+        active_store_id = get("{}/active_store_id".format(hunk_tablet_orchid))
+        last_write_time_path = "{}/stores/{}/last_write_time".format(
+            hunk_tablet_orchid,
+            active_store_id,
+        )
+        last_write_time = get(last_write_time_path)
+
+        rows = [{"key": 0, "value": "0" * 100, "$tablet_index": 0}]
+        with raises_yt_error(".* .* has no mounted tablets"):
+            self._insert_rows_with_hunk_storage("//tmp/t", rows)
+
+        assert get(last_write_time_path) == last_write_time
+
+    @authors("akozhikhov")
     def test_unmounted_errors_1(self):
         sync_create_cells(1)
 

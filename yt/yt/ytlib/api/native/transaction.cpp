@@ -957,6 +957,9 @@ private:
                     });
             }
 
+            RandomTabletInfo_ = tableInfo->GetRandomMountedTablet()
+                .ValueOrThrow();
+
             const auto& rowBuffer = transaction->RowBuffer_;
 
             ModificationsData_.resize(Modifications_.size());
@@ -1087,9 +1090,6 @@ private:
                 ? Connection_->GetColumnEvaluatorCache()->Find(primarySchema)
                 : nullptr;
 
-            auto randomTabletInfo = tableInfo->GetRandomMountedTablet()
-                .ValueOrThrow();
-
             std::vector<int> columnIndexToLockIndex;
             GetLocksMapping(
                 *primarySchema,
@@ -1116,7 +1116,7 @@ private:
                     } else {
                         tabletInfo = GetOrderedTabletForRow(
                             tableInfo,
-                            randomTabletInfo,
+                            RandomTabletInfo_,
                             tabletIndexColumnId,
                             TUnversionedRow(GetTypeErasedRow(modification)),
                             true);
@@ -1230,7 +1230,7 @@ private:
                         row = capturedRow.ToTypeErasedRow();
                         tabletInfo = GetOrderedTabletForRow(
                             tableInfo,
-                            randomTabletInfo,
+                            RandomTabletInfo_,
                             tabletIndexColumnId,
                             TUnversionedRow(versionedWrite->Row),
                             true);
@@ -1254,6 +1254,8 @@ private:
 
         const NLogging::TLogger& Logger;
         const TTableCommitSessionPtr TableSession_;
+
+        TTabletInfoPtr RandomTabletInfo_;
 
         struct TModificationData
         {
