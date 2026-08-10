@@ -664,7 +664,7 @@ protected:
 
         auto masterEpoch = Bootstrap_->GetMasterEpoch();
         auto minEpochToStartHeartbeats = GetNodeDynamicConfig()->TestingOptions->MinEpochToStartHeartbeats;
-        if (minEpochToStartHeartbeats.has_value() && masterEpoch < *minEpochToStartHeartbeats) {
+        if (minEpochToStartHeartbeats && masterEpoch < *minEpochToStartHeartbeats) {
             YT_LOG_WARNING(
                 "Will not report heartbeats to master, master epoch is less than MinEpochToStartHeartbeats testing option "
                 "(MasterEpoch: %v, MinEpochToStartHeartbeats: %v)",

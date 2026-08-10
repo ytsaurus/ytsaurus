@@ -718,7 +718,7 @@ class TestNodesThrottling(YTEnvSetup):
             set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
             pass
 
-        # If some nodes are being disposed, than we have retried registration and it was not throttled.
+        # If some nodes are being disposed, then we have retried registration and it was not throttled.
         wait(lambda: self.get_node_count("being_disposed") > 0)
         set("//sys/@config/node_tracker/max_locations_being_disposed", 20)
 
