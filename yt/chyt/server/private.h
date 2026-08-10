@@ -8,7 +8,7 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <library/cpp/yt/misc/global.h>
+#include <library/cpp/yt/misc/leaky_global.h>
 
 #include <Common/COW.h>
 #include <Common/CurrentMetrics.h>
@@ -23,15 +23,15 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! General-purpose logger for our code.
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ClickHouseYtLogger, "ClickHouseYT");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ClickHouseYtLogger, "ClickHouseYT");
 //! Logger which is used by ClickHouse native code.
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ClickHouseNativeLogger, "ClickHouseNative");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ClickHouseNativeLogger, "ClickHouseNative");
 //! Root profiler for all metrics.
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ClickHouseProfiler, "/clickhouse");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, ClickHouseProfiler, "/clickhouse");
 //! Profiler for our own metrics.
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ClickHouseYtProfiler, ClickHouseProfiler().WithPrefix("/yt"));
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, ClickHouseYtProfiler, ClickHouseProfiler().WithPrefix("/yt"));
 //! Profiler exporting raw ClickHouse metrics.
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ClickHouseNativeProfiler, ClickHouseProfiler().WithPrefix("/native"));
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, ClickHouseNativeProfiler, ClickHouseProfiler().WithPrefix("/native"));
 
 DEFINE_ENUM(EServerExitCode,
     ((GracefulInterruption)    (  0))

@@ -27,7 +27,7 @@ inline const std::string ChangelogIndexExtension("index");
 inline const std::string TermFileName("term");
 inline const std::string LockFileName("lock");
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, HydraProfiler, "/hydra");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, HydraProfiler, "/hydra");
 
 ////////////////////////////////////////////////////////////////////////////////
 

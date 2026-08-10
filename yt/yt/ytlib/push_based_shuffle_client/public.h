@@ -22,7 +22,7 @@ DECLARE_REFCOUNTED_STRUCT(TPushShuffleConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, PushBasedShuffleLogger, "PushBasedShuffleClient");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, PushBasedShuffleLogger, "PushBasedShuffleClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

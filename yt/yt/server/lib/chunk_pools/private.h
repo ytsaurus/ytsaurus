@@ -29,8 +29,8 @@ class TNewJobStub;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ChunkPoolLogger, "ChunkPool");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ChunkPoolStructuredLogger, "ChunkPool");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ChunkPoolLogger, "ChunkPool");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ChunkPoolStructuredLogger, "ChunkPool");
 
 ////////////////////////////////////////////////////////////////////////////////
 

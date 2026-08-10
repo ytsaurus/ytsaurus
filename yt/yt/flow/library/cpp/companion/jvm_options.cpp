@@ -14,7 +14,7 @@ namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JvmOptions");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "JvmOptions");
 
 namespace {
 

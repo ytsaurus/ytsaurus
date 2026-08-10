@@ -33,7 +33,7 @@ using namespace NYTree;
 
 using NChunkClient::NProto::TDataStatistics;
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TestEvaluate");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "TestEvaluate");
 
 namespace {
 

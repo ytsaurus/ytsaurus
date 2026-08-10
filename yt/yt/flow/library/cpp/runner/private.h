@@ -10,9 +10,9 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, NodeLogger, "FlowNode");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, RootClientsCacheLogger, "RootClientsCache");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, NodeProfiler, "/flow/node");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, NodeLogger, "FlowNode");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, RootClientsCacheLogger, "RootClientsCache");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, NodeProfiler, "/flow/node");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -42,7 +42,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueBenchmarkLogger, "QueueBenchmark");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueBenchmarkLogger, "QueueBenchmark");
 constinit const auto Logger = QueueBenchmarkLogger;
 
 ////////////////////////////////////////////////////////////////////////////////

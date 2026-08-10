@@ -9,9 +9,9 @@ namespace NYT::NFlow::NWorker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, WorkerLogger, "FlowWorker");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, WorkerLogger, "FlowWorker");
 // Lives here (not private.h) so cross-role code such as the runner can reach it.
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, WorkerProfiler, "", "yt.flow.worker");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, WorkerProfiler, "", "yt.flow.worker");
 
 DECLARE_REFCOUNTED_STRUCT(TJobContext)
 DECLARE_REFCOUNTED_STRUCT(TJobOrchidState)

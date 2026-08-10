@@ -10,8 +10,8 @@ namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, CellMasterLogger, "Master");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, CellMasterProfiler, "/master");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, CellMasterLogger, "Master");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, CellMasterProfiler, "/master");
 
 ////////////////////////////////////////////////////////////////////////////////
 

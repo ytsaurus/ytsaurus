@@ -18,7 +18,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, MemoryWatchdogLogger, "MemoryWatchdog");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, MemoryWatchdogLogger, "MemoryWatchdog");
 
 ////////////////////////////////////////////////////////////////////////////////
 

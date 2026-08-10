@@ -259,8 +259,8 @@ using NTransactionServer::ITransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "MasterBoot");
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "MasterDryRun");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "MasterBoot");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, DryRunLogger, "MasterDryRun");
 
 ////////////////////////////////////////////////////////////////////////////////
 

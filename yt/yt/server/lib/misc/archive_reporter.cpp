@@ -80,7 +80,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, ArchiveReporterLogger, "ArchiveReporter");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ArchiveReporterLogger, "ArchiveReporter");
 static constexpr int QueueIsTooLargeMultiplier = 2;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,7 +8,7 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ChaosNodeLogger, "ChaosNode");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ChaosNodeLogger, "ChaosNode");
 inline const NProfiling::TRegistry ChaosNodeProfiler("/chaos_node");
 
 ////////////////////////////////////////////////////////////////////////////////

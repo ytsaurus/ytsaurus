@@ -8,7 +8,7 @@ namespace NYT::NCypressElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressElectionLogger, "CypressElection");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, CypressElectionLogger, "CypressElection");
 
 ////////////////////////////////////////////////////////////////////////////////
 

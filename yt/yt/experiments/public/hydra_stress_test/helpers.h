@@ -6,7 +6,7 @@ namespace NYT::NHydraStressTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NYT::NLogging::TLogger, HydraStressTestLogger, "HydraStressTest");
+YT_DEFINE_LEAKY_GLOBAL(const NYT::NLogging::TLogger, HydraStressTestLogger, "HydraStressTest");
 
 using TValue = i64;
 

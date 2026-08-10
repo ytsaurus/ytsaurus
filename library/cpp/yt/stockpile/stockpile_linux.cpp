@@ -2,7 +2,7 @@
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
-#include <library/cpp/yt/misc/global.h>
+#include <library/cpp/yt/misc/leaky_global.h>
 
 #include <library/cpp/yt/memory/leaky_singleton.h>
 
@@ -22,7 +22,7 @@ namespace NYT {
 
 namespace {
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Stockpile");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Stockpile");
 constexpr int MADV_STOCKPILE = 0x59410004;
 
 } // namespace

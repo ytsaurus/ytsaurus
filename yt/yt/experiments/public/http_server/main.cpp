@@ -6,7 +6,7 @@ using namespace NYT::NHttp;
 using namespace NYT::NConcurrency;
 
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Test");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Test");
 
 class THandler
     : public IHttpHandler

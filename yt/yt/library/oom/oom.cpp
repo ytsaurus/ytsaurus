@@ -25,7 +25,7 @@ namespace NYT {
 
 namespace {
 
-YT_DEFINE_GLOBAL(const NYT::NLogging::TLogger, Logger, "OOM");
+YT_DEFINE_LEAKY_GLOBAL(const NYT::NLogging::TLogger, Logger, "OOM");
 
 const char* TCMallocStats[] = {
     "tcmalloc.per_cpu_caches_active",

@@ -10,9 +10,9 @@ namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, OffshoreDataGatewayLogger, "OffshoreDataGateway");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, OffshoreDataGatewayLogger, "OffshoreDataGateway");
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, OffshoreDataGatewayProfiler, "/offshore_data_gateway");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, OffshoreDataGatewayProfiler, "/offshore_data_gateway");
 
 ////////////////////////////////////////////////////////////////////////////////
 

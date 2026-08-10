@@ -13,7 +13,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "LogWriterLivenessChecker");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "LogWriterLivenessChecker");
 
 ////////////////////////////////////////////////////////////////////////////////
 

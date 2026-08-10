@@ -6,7 +6,7 @@ namespace NYT::NCppTests {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, CppTestsLogger, "CppTests");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, CppTestsLogger, "CppTests");
 
 // std::optional<
 

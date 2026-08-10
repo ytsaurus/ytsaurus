@@ -10,8 +10,8 @@ namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ClusterNodeLogger, "ClusterNode");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ClusterNodeProfiler, "/cluster_node");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ClusterNodeLogger, "ClusterNode");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, ClusterNodeProfiler, "/cluster_node");
 
 ////////////////////////////////////////////////////////////////////////////////
 

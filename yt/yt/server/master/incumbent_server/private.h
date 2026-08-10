@@ -8,7 +8,7 @@ namespace NYT::NIncumbentServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, IncumbentServerLogger, "IncumbentServer");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, IncumbentServerLogger, "IncumbentServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 

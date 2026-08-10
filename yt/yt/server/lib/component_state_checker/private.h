@@ -6,7 +6,7 @@ namespace NYT::NComponentStateChecker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ComponentStateCheckerLogger, "ComponentStateChecker");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ComponentStateCheckerLogger, "ComponentStateChecker");
 
 ////////////////////////////////////////////////////////////////////////////////
 

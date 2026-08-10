@@ -10,8 +10,8 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, AuthLogger, "Auth");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, AuthProfiler, "/auth");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, AuthLogger, "Auth");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, AuthProfiler, "/auth");
 
 ////////////////////////////////////////////////////////////////////////////////
 

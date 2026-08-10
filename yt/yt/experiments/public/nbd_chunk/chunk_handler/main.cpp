@@ -25,8 +25,8 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NNbd::NChunk;
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Test");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, Profiler, "/test");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Test");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, Profiler, "/test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
