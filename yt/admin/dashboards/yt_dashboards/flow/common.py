@@ -253,15 +253,22 @@ def build_resource_usage(component: str, add_component_to_title: bool, backend: 
         "including the traffic of its sidecars"
     )
 
-    # An unlimited cgroup exports HierarchicalMemoryLimit as PAGE_COUNTER_MAX
-    # (~9.2e18); such points would flatten the RSS line, so drop everything
-    # above 1e18 (real limits are TBs at most).
-    memory_limit = MonitoringExpr(sensor("yt.memory.cgroup.memory_limit"))
+    # Anon memory is what the pod is killed on, so take usage and limit from
+    # porto at pod scope; the limit is equal on all hosts, hence one line.
+    # The cgroup fallback reads PAGE_COUNTER_MAX (~9.2e18) when unset.
+    pod_memory = None
     if backend == "monitoring":
-        memory_limit = memory_limit.query_transformation("drop_above({query}, 1e18)")
+        memory_limit = (MonitoringExpr(sensor("yt.porto.memory.anon_limit"))
+            .value("container_category", "pod")
+            .series_min()
+            .alias("Anon Memory Limit"))
+        pod_memory = (MonitoringExpr(sensor("yt.porto.memory.anon_usage"))
+            .value("container_category", "pod")
+            .alias("Anon Memory Usage - {{host}}"))
     else:
-        memory_limit = memory_limit.query_transformation("({query}) < 1e18")
-    memory_limit = memory_limit.alias("Limit")
+        memory_limit = (MonitoringExpr(sensor("yt.memory.cgroup.memory_limit"))
+            .query_transformation("({query}) < 1e18")
+            .alias("Limit"))
 
     # The vcpu limit is exported by the porto resource tracker, so it exists only
     # in installations with porto, i.e. not on the grafana backend. All hosts
@@ -300,7 +307,8 @@ def build_resource_usage(component: str, add_component_to_title: bool, backend: 
                 "Memory" + title_suffix,
                 MultiSensor(
                     MonitoringExpr(sensor("yt.resource_tracker.memory_usage.rss"))
-                        .alias("RSS"),
+                        .alias("RSS - {{host}}"),
+                    pod_memory,
                     memory_limit)
                     .unit("UNIT_BYTES_SI"))
             # Network usage is exported by the porto resource tracker, so it exists
