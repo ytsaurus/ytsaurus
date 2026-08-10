@@ -82,11 +82,13 @@ private:
     EResourceTreeIncreaseResult IncreaseLocalResourceUsagePrecommitWithCheck(
         const TJobResources& delta,
         bool allowLimitsOvercommit,
+        bool skipSpecifiedResourceLimitsCheck,
         TJobResources* availableResourceLimitsOutput);
 
     EResourceTreeIncreaseResult IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
         const TJobResources& delta,
         bool allowLimitsOvercommit,
+        bool skipSpecifiedResourceLimitsCheck,
         const std::optional<TJobResources>& additionalLocalResourceLimits,
         TJobResources* availableResourceLimitsOutput);
 

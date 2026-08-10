@@ -552,6 +552,8 @@ struct TStrategyTreeConfig
 
     bool UsePrecommitForPreemption;
 
+    bool EnableInfiniteResourceLimitsOvercommit;
+
     TGpuSchedulingPolicyConfigPtr GpuSchedulingPolicy;
     EPolicyKind PolicyKind;
 

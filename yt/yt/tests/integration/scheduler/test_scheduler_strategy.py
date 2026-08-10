@@ -312,6 +312,35 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         wait(lambda: get(scheduler_orchid_operation_path(small_op.id) + "/resource_usage/cpu") == 2.0)
 
     @authors("yaishenka")
+    def test_infinite_resource_limits_overcommit_during_preemption(self):
+        if not self.use_precommit_for_preemption:
+            pytest.skip("Infinite overcommit requires use_precommit_for_preemption")
+
+        update_pool_tree_config_option("default", "enable_infinite_resource_limits_overcommit", True)
+
+        create_pool("pool")
+        set("//sys/pool_trees/default/pool/@resource_limits", {"cpu": 4.0})
+
+        big_op = run_sleeping_vanilla(job_count=2, task_patch={"cpu_limit": 2.0}, spec={"pool": "pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(big_op.id) + "/resource_usage/cpu", default=None) == 4.0)
+
+        # NB: The allocation demands 2 CPU over the pool limit and no overcommit tolerance
+        # is configured, so it can only be scheduled with infinite overcommit.
+        small_op = run_sleeping_vanilla(job_count=1, task_patch={"cpu_limit": 2.0}, spec={"pool": "pool"})
+
+        wait(lambda: get(scheduler_orchid_operation_path(small_op.id) + "/resource_usage/cpu", default=None) == 2.0)
+        wait(lambda: get(scheduler_orchid_operation_path(big_op.id) + "/resource_usage/cpu") == 2.0)
+
+    @authors("yaishenka")
+    def test_infinite_resource_limits_overcommit_requires_precommit_for_preemption(self):
+        if self.use_precommit_for_preemption:
+            pytest.skip("The invalid combination requires use_precommit_for_preemption to be disabled")
+
+        with raises_yt_error("Infinite resource limits overcommit requires precommit for preemption"):
+            update_pool_tree_config_option(
+                "default", "enable_infinite_resource_limits_overcommit", True, wait_for_orchid=False)
+
+    @authors("yaishenka")
     @pytest.mark.skipif(is_asan_build(), reason="Large operation memory usage corrupts test")
     def test_change_precommit_for_preemption_setting(self):
         if not self.use_precommit_for_preemption:

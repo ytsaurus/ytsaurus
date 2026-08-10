@@ -62,6 +62,8 @@ void TResourceTree::UpdateConfig(const TStrategyTreeConfigPtr& config)
     StoreOptionalDuration(ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_, config->TestingOptions->ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay);
     StoreOptionalDuration(ResourceTreeRevertResourceUsagePrecommitRandomDelay_, config->TestingOptions->ResourceTreeRevertResourceUsagePrecommitRandomDelay);
 
+    EnableInfiniteResourceLimitsOvercommit_.store(config->EnableInfiniteResourceLimitsOvercommit);
+
     if (config->UsePrecommitForPreemption != UsePrecommitForPreemption_) {
         auto structureGuard = WriterGuard(StructureLock_);
 
@@ -338,6 +340,8 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
 
     auto availableResourceLimits = TJobResources::Infinite();
 
+    bool skipSpecifiedResourceLimitsCheck = allowLimitsOvercommit && EnableInfiniteResourceLimitsOvercommit_;
+
     TResourceTreeElement* failedParent = nullptr;
 
     {
@@ -345,6 +349,7 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
         auto precommitResult = element->IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
             delta,
             allowLimitsOvercommit,
+            skipSpecifiedResourceLimitsCheck,
             additionalLocalResourceLimits,
             &localAvailableResourceLimits);
         if (precommitResult != EResourceTreeIncreaseResult::Success) {
@@ -356,7 +361,11 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
     TResourceTreeElement* currentElement = element->Parent_.Get();
     while (currentElement) {
         TJobResources localAvailableResourceLimits;
-        auto precommitResult = currentElement->IncreaseLocalResourceUsagePrecommitWithCheck(delta, allowLimitsOvercommit, &localAvailableResourceLimits);
+        auto precommitResult = currentElement->IncreaseLocalResourceUsagePrecommitWithCheck(
+            delta,
+            allowLimitsOvercommit,
+            skipSpecifiedResourceLimitsCheck,
+            &localAvailableResourceLimits);
         if (precommitResult != EResourceTreeIncreaseResult::Success) {
             failedParent = currentElement;
             break;
