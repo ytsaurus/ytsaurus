@@ -169,8 +169,7 @@ public:
                 continue;
             }
 
-            if (!includeNonOnlineReplicas && !location->IsRegisteredOrOnline())
-            {
+            if (!includeNonOnlineReplicas && !location->IsRegisteredOrOnline()) {
                 YT_LOG_TRACE("Found Sequoia chunk replica on non-online node, ignoring replica (ChunkId: %v, NodeAddress: %v, NodeState: %v)",
                     chunkId,
                     node->GetDefaultAddress(),
