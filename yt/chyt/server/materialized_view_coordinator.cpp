@@ -3,7 +3,10 @@
 #include "config.h"
 #include "cypress_object_repository.h"
 #include "host.h"
-#include "query_context.h"
+
+#include <yt/chyt/client/query_service_proxy.h>
+
+#include <yt/yt/server/lib/misc/address_helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -22,21 +25,17 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <Common/ThreadPool.h>
-#include <Interpreters/ClientInfo.h>
-#include <Interpreters/Context.h>
-#include <Interpreters/executeQuery.h>
 #include <Parsers/ASTCreateQuery.h>
 #include <Parsers/ASTInsertQuery.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTSelectWithUnionQuery.h>
-#include <Processors/Executors/CompletedPipelineExecutor.h>
-#include <Processors/Executors/PullingPipelineExecutor.h>
+
+#include <util/random/random.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -186,11 +185,13 @@ class TMaterializedViewRefreshContext
 public:
     TMaterializedViewRefreshContext(
         THost* host,
+        NRpc::IChannelFactoryPtr channelFactory,
         TMaterializedViewsConfigPtr config,
         TMaterializedViewProgressStorePtr progressStore,
         TMasterReadOptions masterReadOptions,
         TCypressObjectRepository::TMaterializedView view)
         : Host_(host)
+        , ChannelFactory_(std::move(channelFactory))
         , Config_(std::move(config))
         , ProgressStore_(std::move(progressStore))
         , MasterReadOptions_(std::move(masterReadOptions))
@@ -221,8 +222,9 @@ public:
 
             if (Refreshed_) {
                 YT_LOG_INFO("Materialized view refresh completed "
-                    "(View: %v, LowerRowIndex: %v, UpperRowIndex: %v)",
+                    "(View: %v, InstanceCookie: %v, LowerRowIndex: %v, UpperRowIndex: %v)",
                     View_.ObjectName,
+                    RefreshInstanceCookie_,
                     Task_.LowerRowIndex,
                     Task_.UpperRowIndex);
             }
@@ -261,6 +263,7 @@ private:
     };
 
     THost* const Host_;
+    const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TMaterializedViewsConfigPtr Config_;
     const TMaterializedViewProgressStorePtr ProgressStore_;
     const TMasterReadOptions MasterReadOptions_;
@@ -277,6 +280,7 @@ private:
     bool ProgressReady_ = false;
     bool Active_ = false;
     bool Refreshed_ = false;
+    int RefreshInstanceCookie_ = -1;
 
     void DoExecute()
     {
@@ -302,10 +306,10 @@ private:
         }
         Task_ = std::move(*task);
 
-        ExecuteRefreshQuery(
-            BuildRefreshQuery(Task_.LowerRowIndex, Task_.UpperRowIndex),
-            View_.Creator,
-            Transaction_->GetId());
+        WaitFor(StartRefreshQuery(BuildRefreshQuery(Task_.LowerRowIndex, Task_.UpperRowIndex)))
+            .ThrowOnError();
+        THROW_ERROR_EXCEPTION_IF(Host_->GetConfig()->QuerySettings->Testing->ThrowExceptionAfterRefreshQuery,
+            "Testing exception after materialized view refresh query");
         ProgressStore_->SetProgress(Transaction_, View_.ObjectId, Task_.UpperRowIndex);
         Refreshed_ = true;
     }
@@ -410,54 +414,41 @@ private:
         return insertQuery->formatWithSecretsOneLine();
     }
 
-    void ExecuteRefreshQuery(
-        std::string query,
-        std::string userName,
-        TTransactionId parentTransactionId)
+    TFuture<void> StartRefreshQuery(const std::string& query)
     {
-        auto promise = NewPromise<void>();
-        auto future = promise.ToFuture();
-        ThreadFromGlobalPool queryThread([
-            host = Host_,
-            userName = std::move(userName),
-            parentTransactionId,
-            query = std::move(query),
-            timeout = Config_->QueryTimeout,
-            promise = std::move(promise)] () mutable
-        {
-            try {
-                auto databaseContext = host->GetContext();
-                auto session = std::make_shared<DB::Session>(databaseContext, DB::ClientInfo::Interface::TCP);
-                auto context = PrepareContextForQuery(
-                    session,
-                    userName,
-                    timeout,
-                    host,
-                    "MaterializedViewRefresh",
-                    parentTransactionId);
+        auto instances = Host_->GetDiscoveryNodes();
+        THROW_ERROR_EXCEPTION_IF(instances.empty(),
+            "Cannot execute query since there are no active clique instances");
 
-                auto blockIO = DB::executeQuery(query, context, {.internal = true}).second;
-                if (blockIO.pipeline.initialized()) {
-                    if (blockIO.pipeline.completed()) {
-                        DB::CompletedPipelineExecutor executor(blockIO.pipeline);
-                        executor.execute();
-                    } else {
-                        DB::PullingPipelineExecutor executor(blockIO.pipeline);
-                        DB::Block block;
-                        while (executor.pull(block)) { }
-                    }
-                }
-                promise.Set();
-            } catch (const std::exception& ex) {
-                promise.Set(TError(ex));
-            }
-        });
+        auto instanceIt = instances.begin();
+        std::advance(instanceIt, RandomNumber<size_t>(instances.size()));
+        const auto& [instanceId, attributes] = *instanceIt;
+        RefreshInstanceCookie_ = attributes->Get<int>("job_cookie");
+        auto endpoint = NNet::BuildServiceAddress(
+            attributes->Get<TString>("host"),
+            attributes->Get<int>("rpc_port"));
 
-        auto finalizer = Finally([&] {
-            queryThread.join();
-        });
-        WaitFor(future).ThrowOnError();
+        YT_LOG_INFO("Executing materialized view refresh query on clique instance "
+            "(View: %v, InstanceId: %v, InstanceCookie: %v, Endpoint: %v)",
+            View_.ObjectName,
+            instanceId,
+            RefreshInstanceCookie_,
+            endpoint);
+
+        TQueryServiceProxy proxy(ChannelFactory_->CreateChannel(endpoint));
+        proxy.SetDefaultTimeout(Config_->QueryTimeout);
+
+        auto req = proxy.ExecuteQuery();
+        NRpc::SetAuthenticationIdentity(req, NRpc::TAuthenticationIdentity(View_.Creator));
+        ToProto(req->mutable_query_id(), TQueryId::Create());
+        ToProto(req->mutable_parent_transaction_id(), Transaction_->GetId());
+        req->mutable_chyt_request()->set_query(query);
+
+        return req->Invoke().Apply(BIND([] (const TQueryServiceProxy::TRspExecuteQueryPtr& rsp) {
+            FromProto<TError>(rsp->error()).ThrowOnError();
+        }));
     }
+
 };
 
 } // namespace
@@ -471,10 +462,12 @@ public:
     TImpl(
         THost* host,
         TCypressObjectRepositoryPtr repository,
-        TMaterializedViewsConfigPtr config)
+        TMaterializedViewsConfigPtr config,
+        NRpc::IChannelFactoryPtr channelFactory)
         : Host_(host)
         , Repository_(std::move(repository))
         , Config_(std::move(config))
+        , ChannelFactory_(std::move(channelFactory))
         , ProgressStore_(New<TMaterializedViewProgressStore>(Host_->GetRootClient(), Config_->RootPath))
         , MasterReadOptions_(*Host_->GetConfig()->TableAttributeCache->MasterReadOptions)
         , ActionQueue_(New<TActionQueue>("MaterializedViews"))
@@ -495,6 +488,7 @@ private:
     THost* const Host_;
     const TCypressObjectRepositoryPtr Repository_;
     const TMaterializedViewsConfigPtr Config_;
+    const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TMaterializedViewProgressStorePtr ProgressStore_;
     const TMasterReadOptions MasterReadOptions_;
     const TActionQueuePtr ActionQueue_;
@@ -531,6 +525,7 @@ private:
     {
         TMaterializedViewRefreshContext context(
             Host_,
+            ChannelFactory_,
             Config_,
             ProgressStore_,
             MasterReadOptions_,
@@ -552,11 +547,13 @@ private:
 TMaterializedViewCoordinator::TMaterializedViewCoordinator(
     THost* host,
     TCypressObjectRepositoryPtr repository,
-    TMaterializedViewsConfigPtr config)
+    TMaterializedViewsConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory)
     : Impl_(New<TImpl>(
         host,
         std::move(repository),
-        std::move(config)))
+        std::move(config),
+        std::move(channelFactory)))
 { }
 
 TMaterializedViewCoordinator::~TMaterializedViewCoordinator() = default;

@@ -25,6 +25,10 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TDiscoveryNodes = THashMap<std::string, NYTree::IAttributeDictionaryPtr>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THost
     : public TRefCounted
 {
@@ -111,6 +115,7 @@ public:
     //! (e.g. the instance is in 'interrupting' state or not started yet).
     //! |alwaysIncludeLocal| controls the behavior in such cases.
     TClusterNodes GetNodes(bool alwaysIncludeLocal = false) const;
+    TDiscoveryNodes GetDiscoveryNodes() const;
     IClusterNodePtr GetLocalNode() const;
 
     int GetInstanceCookie() const;

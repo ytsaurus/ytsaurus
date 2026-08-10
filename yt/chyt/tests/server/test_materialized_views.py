@@ -190,15 +190,14 @@ class TestMaterializedViews(ClickHouseTestBase):
             {"key": 1, "value": "initial-1"},
         ])
         expected_rows = [
-            {"key": 2, "value": "new-2"},
-            {"key": 3, "value": "new-3"},
-            {"key": 4, "value": "new-4"},
+            {"key": i, "value": "new-{}".format(i)}
+            for i in range(2, 34)
         ]
         config_patch = {
             "yt": {
                 "materialized_views": {
                     "scan_period": 100,
-                    "max_rows_per_refresh": 2,
+                    "max_rows_per_refresh": 1,
                 },
             },
         }
@@ -217,7 +216,26 @@ class TestMaterializedViews(ClickHouseTestBase):
             assert ls(progress_root) == [view_id]
             assert get(progress_path + "/@type") == "document"
             progress = get(progress_path)
-            assert progress["next_row_index"] == 5
+            assert progress["next_row_index"] == 34
+
+            target_id = get("//tmp/target/@id")
+            instance_cookies = {
+                instance.attributes["job_cookie"]
+                for instance in clique.get_active_instances()
+            }
+
+            def get_refresh_instance_cookies():
+                return {
+                    row["chyt_instance_cookie"]
+                    for row in read_table(clique.query_log_table_path)
+                    if row.get("type") == "QueryFinish"
+                    and row.get("is_initial_query") == 1
+                    and target_id in row.get("query", "")
+                }
+
+            wait(
+                lambda: get_refresh_instance_cookies() == instance_cookies,
+                ignore_exceptions=True)
             time.sleep(1)
             assert read_table("//tmp/target") == expected_rows
             assert ls(progress_root) == [view_id]
@@ -282,6 +300,48 @@ class TestMaterializedViews(ClickHouseTestBase):
             write_table("//tmp/source", [{"key": 2, "value": "42"}])
             wait(lambda: read_table("//tmp/int_target") == expected_rows, timeout=10)
             assert get(progress_path + "/@last_error") == ""
+
+    @authors("buyval01")
+    def test_background_refresh_parent_transaction_abort(self):
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "testing": {
+                        "throw_exception_after_refresh_query": True,
+                    },
+                },
+                "materialized_views": {
+                    "scan_period": 100,
+                },
+            },
+        }
+
+        with Clique(1, config_patch=config_patch, export_query_log=True) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+            target_id = get("//tmp/target/@id")
+
+            write_table("//tmp/source", [{"key": 1, "value": "new-1"}])
+            wait(
+                lambda: "Testing exception after materialized view refresh query"
+                in get(progress_path + "/@last_error"),
+                ignore_exceptions=True,
+                timeout=10)
+
+            wait(
+                lambda: any(
+                    row.get("type") == "QueryFinish"
+                    and row.get("is_initial_query") == 1
+                    and target_id in row.get("query", "")
+                    for row in read_table(clique.query_log_table_path)),
+                ignore_exceptions=True)
+
+            assert read_table("//tmp/target") == []
+            assert get(progress_path)["next_row_index"] == 0
+            time.sleep(1)
+            assert read_table("//tmp/target") == []
+            assert get(progress_path)["next_row_index"] == 0
 
     @authors("buyval01")
     def test_database_scoping(self):

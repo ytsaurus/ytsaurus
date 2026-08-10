@@ -249,7 +249,8 @@ public:
             MaterializedViewCoordinator_ = New<TMaterializedViewCoordinator>(
                 Owner_,
                 CypressObjectRepository_,
-                Config_->MaterializedViews);
+                Config_->MaterializedViews,
+                ChannelFactory_);
         } else if (CypressObjectRepository_ && Config_->MaterializedViews) {
             YT_LOG_WARNING("Materialized view background processing is disabled because no election manager is configured");
         }
@@ -579,7 +580,7 @@ public:
 
     TClusterNodes GetNodes(bool alwaysIncludeLocal) const
     {
-        auto nodeList = FilterNodesByCliqueId(Discovery_->List());
+        auto nodeList = GetDiscoveryNodes();
         TClusterNodes result;
         result.reserve(nodeList.size());
 
@@ -605,6 +606,11 @@ public:
         }
 
         return result;
+    }
+
+    TDiscoveryNodes GetDiscoveryNodes() const
+    {
+        return FilterNodesByCliqueId(Discovery_->List());
     }
 
     IClusterNodePtr GetLocalNode() const
@@ -1101,9 +1107,9 @@ private:
         YT_UNUSED_FUTURE(Discovery_->UpdateList());
     }
 
-    THashMap<std::string, NYTree::IAttributeDictionaryPtr> FilterNodesByCliqueId(const THashMap<std::string, NYTree::IAttributeDictionaryPtr>& nodes) const
+    TDiscoveryNodes FilterNodesByCliqueId(const TDiscoveryNodes& nodes) const
     {
-        THashMap<std::string, NYTree::IAttributeDictionaryPtr> result;
+        TDiscoveryNodes result;
         for (const auto& [key, attributes] : nodes) {
             if (!attributes || !attributes->Contains("clique_id")) {
                 continue;
@@ -1375,6 +1381,11 @@ const IInvokerPtr& THost::GetClickHouseTaskPullerInvoker() const
 TClusterNodes THost::GetNodes(bool alwaysIncludeLocal) const
 {
     return Impl_->GetNodes(alwaysIncludeLocal);
+}
+
+TDiscoveryNodes THost::GetDiscoveryNodes() const
+{
+    return Impl_->GetDiscoveryNodes();
 }
 
 IClusterNodePtr THost::GetLocalNode() const
