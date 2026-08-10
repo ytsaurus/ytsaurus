@@ -637,7 +637,6 @@ private:
                     mutation->SetAllowLeaderForwarding(true);
                     WaitFor(mutation->CommitAndLog(Logger()))
                         .ThrowOnError();
-
                 }
             });
             WaitFor(refreshChunks
