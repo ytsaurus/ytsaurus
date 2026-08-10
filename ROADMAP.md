@@ -70,14 +70,14 @@
 
 ## SPYT
 - [X] Integration with the YTsaurus internal shuffle service for sorting and subsequent access to sorted portions of data. It supports saving of sorted parts in case of unexpected aborts of executors. (Available from spyt 2.7.0 and YTsaurus 25.2.0).
-- [ ] Support for dynamic allocation by changing the number of jobs in a running operation (as part of direct spark-submit).
+- [X] Support for dynamic allocation by changing the number of jobs in a running operation (as part of direct spark-submit). (Available from spyt 2.8.0).
 - [ ] Support columnar-statistics with using Spark 3.4.x.
 - [X] Support Spark SQL via Query Tracker for working with dynamic tables without specification of suffix with timestamp like /@timestamp_111111111111. (Available from 2.7.0).
 - [X] Support for Java 17. (Available from 2.6.0, see the compatibility matrix).
-- [ ] Support Scala 2.13.
+- [X] Support Scala 2.13. (Available from 2.10.0)
 - [X] Support Apache Spark 3.3.x - 3.5.6. (Available from 2.5.0 version, see the compatibility matrix).
-- [ ] Support Apache Spark 4.x.x.
-- [ ] Deprecate Apache Livy server and support Spark Connect for using via Query Tracker for using Spark SQL.
+- [X] Support Apache Spark 4.x.x. (Available from 2.10.0).
+- [X] Deprecate Apache Livy server and support Spark Connect for using via Query Tracker for using Spark SQL. (Deprecated from 2.10.0).
 - [X] Support Spark Structured Streaming with YTsaurus Queues for micro-batch processing. (Available from 2.6.5)
 
 ## YQL
