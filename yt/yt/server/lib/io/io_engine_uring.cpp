@@ -849,6 +849,18 @@ private:
         }
     }
 
+    const TIOEngineSensors::TRequestSensors& GetSyncSensors(EFlushFileMode mode, EWorkloadCategory category) const
+    {
+        switch (mode) {
+            case EFlushFileMode::All:
+                return Sensors_->SyncSensors[category];
+            case EFlushFileMode::Data:
+                return Sensors_->DataSyncSensors[category];
+            default:
+                YT_ABORT();
+        }
+    }
+
     void HandleFlushFileRequest(TFlushFileUringRequest* request)
     {
         YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Handling flush file request (Request: %p)",
@@ -864,7 +876,7 @@ private:
 
         ++request->IOSyncRequests;
 
-        SetRequestUserData(sqe, request, Sensors_->SyncSensors[request->Category]);
+        SetRequestUserData(sqe, request, GetSyncSensors(request->FlushFileRequest.Mode, request->Category));
     }
 
     void HandleCompletion(const io_uring_cqe* cqe)
