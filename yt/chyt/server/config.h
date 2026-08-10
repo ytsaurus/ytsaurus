@@ -158,6 +158,7 @@ public:
     bool ThrowExceptionInDistributor;
     bool ThrowExceptionInSubquery;
     bool ThrowExceptionInWriterFinish;
+    bool ThrowExceptionAfterRefreshQuery;
     i64 SubqueryAllocationSize;
 
     bool HangControlInvoker;

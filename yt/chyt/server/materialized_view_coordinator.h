@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/core/rpc/public.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,7 +15,8 @@ public:
     TMaterializedViewCoordinator(
         THost* host,
         TCypressObjectRepositoryPtr repository,
-        TMaterializedViewsConfigPtr config);
+        TMaterializedViewsConfigPtr config,
+        NRpc::IChannelFactoryPtr channelFactory);
     ~TMaterializedViewCoordinator();
 
     void Start();

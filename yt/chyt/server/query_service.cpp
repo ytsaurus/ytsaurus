@@ -176,6 +176,12 @@ private:
         QueryContext_->setQueryKind(DB::ClientInfo::QueryKind::INITIAL_QUERY);
         QueryContext_->setCurrentQueryId(ToString(InitialQueryId_));
 
+        if (Request_->has_parent_transaction_id()) {
+            auto parentTransactionId = FromProto<NTransactionClient::TTransactionId>(
+                Request_->parent_transaction_id());
+            QueryContext_->setQueryParameter(ParamTransactionId, ToString(parentTransactionId));
+        }
+
         DB::SettingsChanges settingsChanges;
         auto& chytRequest = Request_->chyt_request();
         for (const auto& [key, value] : chytRequest.settings()) {
