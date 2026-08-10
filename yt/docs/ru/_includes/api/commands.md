@@ -821,7 +821,7 @@ OUTPUT "0-4-191-6c07cd58"
 Выходные данные:
 
 - Тип: `structured`;
-- Значение: строка `true` или `false`.
+- Значение: словарь с ключом `value` и со значением `true` или `false`.
 
 Пример:
 
@@ -829,6 +829,7 @@ OUTPUT "0-4-191-6c07cd58"
 PARAMETERS {
     "path" = "//tmp/my_table/@_format" ;
 }
+OUTPUT { "value" = "true" }
 ```
 
 ### concatenate { #concatenate }
