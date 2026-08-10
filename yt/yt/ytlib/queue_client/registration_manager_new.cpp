@@ -2,7 +2,6 @@
 
 #include "config.h"
 #include "private.h"
-
 #include "registration_manager_base.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -70,9 +69,29 @@ template <typename T, typename F>
 auto GroupBy(F f, std::vector<T> values)
 {
     THashMap<std::invoke_result_t<F, const T&>, std::vector<T>> groupedValues;
+    groupedValues.reserve(values.size());
     for (auto& value : values) {
         auto groupKey = f(value);
         groupedValues[groupKey].push_back(std::move(value));
+    }
+    return groupedValues;
+}
+
+template <typename T, typename F>
+auto GroupByMany(F f, std::vector<T> values)
+{
+    using TGroupKey = std::invoke_result_t<F, const T&>::value_type;
+    THashMap<TGroupKey, std::vector<T>> groupedValues;
+    groupedValues.reserve(values.size());
+    for (auto& value : values) {
+        auto groupKey = f(value);
+        if (groupKey.size() == 1) {
+            groupedValues[groupKey.front()].push_back(std::move(value));
+        } else {
+            for (auto& key : groupKey) {
+                groupedValues[key].push_back(value);
+            }
+        }
     }
     return groupedValues;
 }
@@ -433,15 +452,15 @@ private:
         std::vector<TLookupResult> successfulKeyResults;
         std::vector<TError> failedKeyResults;
 
-        for (i64 i = 0; i < std::ssize(Keys_); ++i) {
+        for (i64 keyIndex = 0; keyIndex < std::ssize(Keys_); ++keyIndex) {
             successfulKeyResults.clear();
             failedKeyResults.clear();
 
             for (auto&& [_, replicaResult] : replicaResults) {
-                if (replicaResult[i].IsOK()) {
-                    successfulKeyResults.push_back(std::move(replicaResult[i].Value()));
+                if (replicaResult[keyIndex].IsOK()) {
+                    successfulKeyResults.push_back(std::move(replicaResult[keyIndex].Value()));
                 } else {
-                    failedKeyResults.push_back(std::move(replicaResult[i]));
+                    failedKeyResults.push_back(std::move(replicaResult[keyIndex]));
                 }
             }
 
@@ -570,6 +589,7 @@ private:
     static constexpr auto ConsumerClusterColumnName_ = "consumer_cluster";
     static constexpr auto ConsumerPathColumnName_ = "consumer_path";
     static constexpr auto ConsumerNameColumnName_ = "consumer_name";
+    static constexpr auto NamedMultiConsumersPlaceholderValueName_ = "named_multi_consumers";
     static constexpr auto ConsumersPlaceholderValueName_ = "consumers";
 
     std::vector<std::vector<TConsumerRegistrationTableRow>> DoLookup(TConsumerRegistrationTablePtr table) const override
@@ -637,29 +657,45 @@ private:
     TFuture<THashMap<TConsumerReference, std::vector<TConsumerRegistrationTableRow>>> ListByConsumer(const TConsumerRegistrationTablePtr& table) const
     {
         static const auto query = Format(
-            "([%v], [%v], [%v]) IN {%v}",
+            "([%v], [%v], [%v]) IN {%v} OR ([%v], [%v]) IN {%v}",
             ConsumerClusterColumnName_,
             ConsumerPathColumnName_,
             ConsumerNameColumnName_,
+            NamedMultiConsumersPlaceholderValueName_,
+            ConsumerClusterColumnName_,
+            ConsumerPathColumnName_,
             ConsumersPlaceholderValueName_);
 
-        std::vector<std::tuple<std::string, std::string, std::optional<std::string>>> consumers;
+        std::vector<std::tuple<std::string, std::string>> consumers;
+        std::vector<std::tuple<std::string, std::string, std::string>> namedMultiConsumers;
         for (const auto& key : Keys_) {
             if (auto consumer = key.Consumer; consumer.has_value()) {
-                consumers.emplace_back(consumer->GetCluster().value(), consumer->GetPath(), consumer->GetQueueConsumerName());
+                if (consumer->GetQueueConsumerName()) {
+                    namedMultiConsumers.emplace_back(consumer->GetCluster().value(), consumer->GetPath(), *consumer->GetQueueConsumerName());
+                } else {
+                    consumers.emplace_back(consumer->GetCluster().value(), consumer->GetPath());
+                }
             }
         }
 
         TSelectRowsOptions options;
         options.PlaceholderValues = BuildYsonStringFluently()
             .BeginMap()
+                .Item(NamedMultiConsumersPlaceholderValueName_).Value(std::move(namedMultiConsumers))
                 .Item(ConsumersPlaceholderValueName_).Value(std::move(consumers))
             .EndMap();
 
         return table->Select(query, options)
             .AsUnique()
             .Apply(BIND([] (std::vector<TConsumerRegistrationTableRow>&& result) {
-                return GroupBy([] (const auto& v) { return v.Consumer; }, std::move(result));
+                auto getKeys = [] (const auto& v) {
+                    if (v.Consumer.GetQueueConsumerName()) {
+                        return std::vector<TConsumerReference>{v.Consumer, TConsumerReference(ToTablePath(v.Consumer))};
+                    } else {
+                        return std::vector<TConsumerReference>{v.Consumer};
+                    }
+                };
+                return GroupByMany(getKeys, result);
             }));
     }
 };
@@ -825,7 +861,7 @@ private:
     public:
         using TReq = TStateLookupBatchSubrequest<TKey, TValue>;
 
-        static constexpr auto StartupBatchDelayJitter = 0.1;
+        static constexpr double StartupBatchDelayJitter = 0.1;
 
         TLookupRequestBatcher(
             TWeakPtr<NNative::IConnection> connection,
