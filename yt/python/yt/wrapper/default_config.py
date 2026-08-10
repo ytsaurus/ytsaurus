@@ -625,7 +625,7 @@ default_config = {
     "default_api_version_for_rpc": "v4",
 
     # Enables generating request id and passing it to native driver.
-    "enable_passing_request_id_to_driver": False,
+    "enable_passing_request_id_to_driver": True,
 
     # Username for native driver requests.
     "driver_user_name": None,
