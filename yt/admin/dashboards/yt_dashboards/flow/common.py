@@ -248,6 +248,11 @@ def build_resource_usage(component: str, add_component_to_title: bool, backend: 
         "If you see significant increase on this graph, check that network limits are not exceeded"
     )
 
+    bandwidth_description = (
+        "Bytes the node's pod received and transmitted per second, "
+        "including the traffic of its sidecars"
+    )
+
     # An unlimited cgroup exports HierarchicalMemoryLimit as PAGE_COUNTER_MAX
     # (~9.2e18); such points would flatten the RSS line, so drop everything
     # above 1e18 (real limits are TBs at most).
@@ -294,6 +299,20 @@ def build_resource_usage(component: str, add_component_to_title: bool, backend: 
                         .alias("RSS"),
                     memory_limit)
                     .unit("UNIT_BYTES_SI"))
+            # Network usage is exported by the porto resource tracker, so it exists
+            # only in installations with porto, i.e. not on the grafana backend.
+            .cell(
+                "Network bandwidth" + title_suffix,
+                MultiSensor(
+                    MonitoringExpr(sensor("yt.porto.network.rx_bytes"))
+                        .value("container_category", "pod")
+                        .alias("Rx - {{host}}"),
+                    MonitoringExpr(sensor("yt.porto.network.tx_bytes"))
+                        .value("container_category", "pod")
+                        .alias("Tx - {{host}}"))
+                    .unit("UNIT_BYTES_SI_PER_SECOND"),
+                description=bandwidth_description,
+                skip_cell=backend != "monitoring")
             .cell(
                 "Network retransmits" + title_suffix,
                 sensor("yt.bus.retransmits.rate")
