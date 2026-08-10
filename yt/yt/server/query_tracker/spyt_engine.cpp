@@ -724,9 +724,8 @@ public:
         const IInvokerPtr& controlInvoker,
         const TSpytEngineConfigPtr& config,
         const TActiveQuery& activeQuery,
-        const TClusterDirectoryPtr& clusterDirectory,
-        const TDuration notIndexedQueriesTTL)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
+        const TClusterDirectoryPtr& clusterDirectory)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Settings_(ConvertTo<TSpytSettingsPtr>(SettingsNode_))
         , Config_(config)
         , Cluster_(Settings_->Cluster.value_or(Config_->DefaultCluster))
@@ -1019,14 +1018,12 @@ public:
             ControlQueue_->GetInvoker(),
             Config_,
             activeQuery,
-            ClusterDirectory_,
-            NotIndexedQueriesTtl_);
+            ClusterDirectory_);
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         Config_ = DynamicPointerCast<TSpytEngineConfig>(config);
-        NotIndexedQueriesTtl_ = notIndexedQueriesTTL;
         ProxyEngineProvider_->Reconfigure(Config_->ProxyConfig);
     }
 
@@ -1041,7 +1038,6 @@ private:
     const TActionQueuePtr ControlQueue_;
     const TClusterDirectoryPtr ClusterDirectory_;
     const TProxySpytEngineProviderPtr ProxyEngineProvider_;
-    TDuration NotIndexedQueriesTtl_;
 
     TSpytEngineConfigPtr Config_;
 };

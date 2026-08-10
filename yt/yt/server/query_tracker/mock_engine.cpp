@@ -87,9 +87,8 @@ public:
         const NYPath::TYPath& stateRoot,
         const TEngineConfigBasePtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-        const IInvokerPtr& controlInvoker,
-        const TDuration notIndexedQueriesTTL)
-        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery, notIndexedQueriesTTL)
+        const IInvokerPtr& controlInvoker)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Settings_(ConvertTo<TMockSettingsPtr>(SettingsNode_))
     { }
 
@@ -167,13 +166,12 @@ public:
 
     IQueryHandlerPtr StartOrAttachQuery(NQueryTrackerClient::NRecords::TActiveQuery activeQuery) override
     {
-        return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker(), NotIndexedQueriesTTL_);
+        return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker());
     }
 
-    void Reconfigure(const TEngineConfigBasePtr& config, const TDuration notIndexedQueriesTTL) override
+    void Reconfigure(const TEngineConfigBasePtr& config) override
     {
         Config_ = config;
-        NotIndexedQueriesTTL_ = notIndexedQueriesTTL;
     }
 
     std::optional<IProxyEngineProviderPtr> GetProxyEngineProvider() override
@@ -185,7 +183,6 @@ private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     TEngineConfigBasePtr Config_;
-    TDuration NotIndexedQueriesTTL_;
 };
 
 IQueryEnginePtr CreateMockEngine(const NApi::IClientPtr& stateClient, const NYPath::TYPath& stateRoot)
