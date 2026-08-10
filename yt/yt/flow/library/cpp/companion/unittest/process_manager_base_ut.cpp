@@ -5,6 +5,7 @@
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/context_switch.h>
 
 #include <yt/yt/library/process/process.h>
 
@@ -64,6 +65,13 @@ public:
         return StatusProfiler_;
     }
 
+    //! Makes every health check hang on |future| instead of consulting the script.
+    //! Must be called before Start().
+    void SetHealthCheckFuture(TFuture<void> future)
+    {
+        HealthCheckFuture_ = std::move(future);
+    }
+
 protected:
     void ValidateParameters() const override
     {
@@ -87,13 +95,18 @@ protected:
 
     TFuture<void> HealthCheck() override
     {
-        auto error = HealthCheckScript_(++HealthCheckCount_);
+        auto healthCheckIndex = ++HealthCheckCount_;
+        if (HealthCheckFuture_) {
+            return HealthCheckFuture_;
+        }
+        auto error = HealthCheckScript_(healthCheckIndex);
         return error.IsOK() ? OKFuture : MakeFuture<void>(error);
     }
 
 private:
     const IStatusProfilerPtr StatusProfiler_;
     const std::function<TError(int healthCheckIndex)> HealthCheckScript_;
+    TFuture<void> HealthCheckFuture_;
     const bool SpawnFailingProcess_ = false;
     const bool InvalidParameters_ = false;
     std::atomic<int> IncarnationCount_ = 0;
@@ -221,6 +234,34 @@ TEST_F(TProcessManagerBaseTest, ThrowsOnInvalidParameters)
     EXPECT_EQ(0, manager->GetIncarnationCount());
 
     manager->Shutdown();
+}
+
+TEST_F(TProcessManagerBaseTest, ShutdownDoesNotContextSwitch)
+{
+    auto healthCheckPromise = NewPromise<void>();
+    auto manager = New<TFakeProcessManager>(
+        ActionQueue_->GetInvoker(),
+        /*startupGracePeriod*/ TDuration::Minutes(1),
+        [] (int /*healthCheckIndex*/) {
+            return TError();
+        });
+    // The health check never answers, so the health check callback stays in flight
+    // and its Stop() future stays unset.
+    manager->SetHealthCheckFuture(healthCheckPromise.ToFuture());
+    manager->Start();
+
+    WaitForPredicate([&] {
+        return manager->GetHealthCheckCount() >= 1;
+    });
+
+    {
+        // A companion manager is released from #TJobTracker::Reconfigure(), which forbids
+        // context switches; waiting here would trip the fiber scheduler's verify.
+        NConcurrency::TForbidContextSwitchGuard contextSwitchGuard;
+        manager->Shutdown();
+    }
+
+    healthCheckPromise.Set();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
