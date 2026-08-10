@@ -4,38 +4,39 @@
  ***
 
 ## Master & Cypress
-- [ ] S3 Support as a Medium: Introduce S3 support as a storage medium, expanding storage flexibility and options.
-- [ ] Support for Apache Parquet/Apache Iceberg file format in S3 as external tables in Cypress.
-- [ ] Develop support for time zones in the YTsaurus type system.
+- [x] Row Level Security.
+- [ ] Develop support for time zones in the YTsaurus type system. (26.1)
+- [ ] S3 Support as a Medium: Introduce S3 support as a storage medium, expanding storage flexibility and options. 
+- [ ] Support for Apache Parquet/Apache Iceberg file format in S3 as external tables in Cypress. 
 - [ ] Delta tables.
-- [x] Row Level Security. 
+
 
 ## Scheduler
 - [X] Operation access control via ACOs (24.2).
 - [X] Gang operations support for distributed ML workloads (25.1).
 - [X] Jobs Timeline UI for Vanilla operations (25.1, UI 1.94.0+).
 - [X] Improved fair share distribution algorithm for gang operations (25.3).
-- [X] New allocation scheduling strategy for ML workloads (25.3+).
 - [ ] Flexible ACL management for pools.
 - [ ] Renewal of documentation.
 
 ## MapReduce
-- [ ] API for Modifying Operation Parameters: Develop an API that allows for the modification of operation parameters during execution, enhancing flexibility and control over dynamic operations.
-- [ ] Shuffle service
+- [x] Accounting compressed data size in data slicing. (25.4)
+- [ ] API for Modifying Operation Parameters: Develop an API that allows for the modification of operation parameters during execution, enhancing flexibility and control over dynamic operations. 
+- [ ] Shuffle service.
 - [ ] Inter-Cluster Bandwidth Limiting Mechanism: Develop a mechanism to limit inter-cluster bandwidth during operations to optimize network resource usage and prevent overloads.
 - [ ] IO Scheduler: Implement an IO scheduler to optimize input/output operations, improve resource allocation, and enhance overall system performance.
 - [ ] Distributed jobs for data processing: this technology is needed to run GPU batch inference jobs in case of large models that don't fit inside one host.
 - [ ] Support ARM64 host.
 - [ ] Rework sorted chunk pool and make new_sorted_pool default.
-- [ ] Accounting compressed data size in data slicing.
 - [ ] Adaptive buffer row count in jobs: this is useful for heavy jobs to reduce number of job abortions caused by interuption timeout.
 
 ## Queues
-- [x] Implement exactly once write semantics for YTsaurus queues
-- [x] Refactor queue exports: add retries and rate limiting
+- [x] Implement exactly once write semantics for YTsaurus queues (25.3)
+- [x] Refactor queue exports: add retries and rate limiting (25.3)
+- [ ] Multi-consumer support — storing offsets for multiple consumers in a single table (26.1)
 - [ ] Kafka proxy
-  - [x] Basic kafka functionality via a single kafka proxy
-  - [ ] Opportunity to run more than one kafka proxy
+  - [x] Basic kafka functionality via a single kafka proxy (25.3)
+  - [ ] Opportunity to run more than one kafka proxy (26.2)
   - [ ] Support transactional producers
 
 
@@ -113,8 +114,7 @@
 ## Microservices
 - [x] Open Source Release of Resource Usage: Provides visibility into account resource consumption.
 - [x] Open Source Release of Access Log Viewer: Enables viewing of all operations on objects in the UI.
-- [ ] Timbertruck: support zstd compression
+- [x] Timbertruck: support zstd compression
 
 ## Other
 - [x] Airflow provider
-- [ ] Debezium integration
