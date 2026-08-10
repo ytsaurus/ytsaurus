@@ -86,7 +86,7 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
 constexpr auto DefaultDQGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
     {"EnableComputeActor", "1"},
     {"ComputeActorType", "async"},
-    {"EnableStrip", "true"},
+    {"EnableStrip", "false"},
     {"EnableInsert", "true"},
     {"ChannelBufferSize", "1000000"},
     {"PullRequestTimeoutMs", "3000000"},
