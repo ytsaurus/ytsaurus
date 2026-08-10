@@ -3176,6 +3176,68 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         # is created later — so the allocation predates its assignment.
         assert allocation["creation_time"] < assignment["creation_time"]
 
+    @authors("yaishenka")
+    def test_full_host_non_gang_revival_on_node_without_module(self):
+        # Scenario: a full-host non-gang operation with a running allocation, scheduler
+        # restarts. Nodes are registered in the GPU policy by the node-attributes watcher,
+        # but a node's scheduling module is only set from the persistent state (which we
+        # defeat by zeroing initialization_timeout) or from the node's scheduling heartbeat
+        # (which we hold back via node_heartbeat_processing_delay). Revival creates a
+        # non-preemptible assignment on a module-less node, and the periodic assignment
+        # plan update must tolerate it: the assignment is skipped until the node's first
+        # scheduling heartbeat brings the module.
+        update_scheduler_config("node_registration_timeout", 100000)
+        update_scheduler_config("node_heartbeat_timeout", 100000)
+        update_scheduler_config("node_reconnection_timeout", 100000)
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        original_allocation_id = list(operation["allocations"].keys())[0]
+        original_node_address = operation["assignments"][0]["node_address"]
+
+        op.wait_for_fresh_snapshot()
+
+        # Nodes re-register at the restarted scheduler past the initialization deadline,
+        # so their modules are not restored from the persistent state.
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/initialization_timeout", 0)
+
+        update_scheduler_config("testing_options/node_heartbeat_processing_delay", {
+            "duration": 8000,
+            "type": "async",
+        })
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        # Revival synthesizes the assignment on a node that has no scheduling module yet.
+        wait(lambda: get_operation_from_gpu_policy_orchid(op)["enabled"])
+        wait(lambda: len(get_operation_gpu_assignments_from_gpu_policy_orchid(op)) == 1)
+
+        # Let the assignment plan update run a few cycles within the module-less window.
+        time.sleep(1)
+
+        revived = get_operation_gpu_assignments_from_gpu_policy_orchid(op)[0]
+        assert revived["node_address"] == original_node_address
+
+        update_scheduler_config("testing_options/node_heartbeat_processing_delay", {
+            "duration": 0,
+            "type": "sync",
+        })
+
+        # The node's scheduling heartbeat sets the module; the operation keeps running
+        # with its original allocation.
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        wait(lambda: original_allocation_id in get_operation_from_gpu_policy_orchid(op).get("allocations", {}))
+
+        op.abort()
+        wait_operation_unregistered(op.id)
+
 ##################################################################
 
 

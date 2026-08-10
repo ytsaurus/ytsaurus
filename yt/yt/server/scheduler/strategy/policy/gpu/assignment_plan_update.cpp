@@ -230,6 +230,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
     // Initialize operations.
     std::vector<std::pair<TOperationId, std::string>> operationsWithUnknownModule;
     std::vector<std::pair<TAssignmentPtr, std::string>> assignmentsWithUnknownModule;
+    std::vector<std::pair<TAssignmentPtr, std::string>> assignmentsOnNodeWithoutModule;
     for (const auto& [operationId, operation] : Operations_) {
         if (!operation->IsFullHostModuleBound()) {
             continue;
@@ -274,7 +275,14 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
                 continue;
             }
 
-            YT_VERIFY(assignment->Node->SchedulingModule());
+            // A revived assignment may reside on a node which has not become schedulable
+            // yet, e.g. its first scheduling heartbeat has not been processed since the
+            // scheduler restarted, so the node has no scheduling module.
+            if (!assignment->Node->IsSchedulable()) {
+                assignmentsOnNodeWithoutModule.emplace_back(assignment, assignment->Node->Address());
+                continue;
+            }
+
             auto it = ModuleStates_.find(*assignment->Node->SchedulingModule());
             if (it == ModuleStates_.end()) {
                 assignmentsWithUnknownModule.emplace_back(assignment, *assignment->Node->SchedulingModule());
@@ -312,6 +320,18 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
     if (!assignmentsWithUnknownModule.empty()) {
         int assignmentsWithUnknownModuleCount = std::ssize(assignmentsWithUnknownModule);
         YT_LOG_WARNING("Found assignments with unknown module (Count: %v)", assignmentsWithUnknownModuleCount);
+    }
+    if (!assignmentsOnNodeWithoutModule.empty()) {
+        int assignmentsOnNodeWithoutModuleCount = std::ssize(assignmentsOnNodeWithoutModule);
+
+        static constexpr int MaxAssignmentOnNodeWithoutModuleSampleSize = 10;
+        assignmentsOnNodeWithoutModule.resize(std::min(assignmentsOnNodeWithoutModuleCount, MaxAssignmentOnNodeWithoutModuleSampleSize));
+        YT_LOG_WARNING("Found assignments on nodes without module (Count: %v, Sample: %v)",
+            assignmentsOnNodeWithoutModuleCount,
+            MakeFormattableView(assignmentsOnNodeWithoutModule, [] (TStringBuilderBase* builder, const auto& assignmentWithNodeAddress) {
+                const auto& [assignment, nodeAddress] = assignmentWithNodeAddress;
+                builder->AppendFormat("{OperationId: %v, NodeAddress: %v}", assignment->OperationId, nodeAddress);
+            }));
     }
 }
 
