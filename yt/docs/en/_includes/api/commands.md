@@ -823,7 +823,7 @@ Input data:
 Output data:
 
 - Type: `structured`.
-- Value: `true` or `false` string.
+- Value: dictionary with a key `value` and `true` or `false` string as a value.
 
 Example:
 
@@ -831,6 +831,7 @@ Example:
 PARAMETERS {
     "path" = "//tmp/my_table/@_format" ;
 }
+OUTPUT { "value" = "true" }
 ```
 
 ### concatenate { #concatenate }
