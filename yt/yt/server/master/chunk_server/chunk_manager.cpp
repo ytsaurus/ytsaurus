@@ -4139,8 +4139,7 @@ private:
         const auto& config = GetDynamicConfig();
         auto oldestConfirmTime = GetCpuInstant() - DurationToCpuDuration(config->ReplicaApproveTimeout);
 
-        while (!RecentlyConfirmedChunksByConfirmTime_.empty())
-        {
+        while (!RecentlyConfirmedChunksByConfirmTime_.empty()) {
             auto [chunkId, confirmTime] = RecentlyConfirmedChunksByConfirmTime_.front();
             if (confirmTime >= oldestConfirmTime) {
                 break;
