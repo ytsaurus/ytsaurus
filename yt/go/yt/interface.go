@@ -125,6 +125,8 @@ type CreateNodeOptions struct {
 	Recursive      bool `http:"recursive"`
 	IgnoreExisting bool `http:"ignore_existing"`
 	Force          bool `http:"force"`
+	// Requires IgnoreExisting.
+	IgnoreTypeMismatch bool `http:"ignore_type_mismatch"`
 
 	Attributes map[string]any `http:"attributes,omitnil"`
 
