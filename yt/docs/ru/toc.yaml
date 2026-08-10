@@ -494,6 +494,10 @@ items:
       - name: Работа с Jupyter Notebooks
         when: audience == "public"
         href: user-guide/jupyt.md
+      - name: AI-инструменты
+        items:
+          - name: Работа с MCP-сервером
+            href: user-guide/ai/mcp-server.md
   - name: API и справочник
     when: audience == "public"
     items:
@@ -573,6 +577,9 @@ items:
             href: admin-guide/install-monitoring.md
           - name: Task-прокси
             href: admin-guide/install-task-proxy.md
+          - name: MCP-сервер
+            when: audience == "public"
+            href: admin-guide/install-mcp.md
       - name: Обновление кластера
         items:
           - name: Стратегии обновления
