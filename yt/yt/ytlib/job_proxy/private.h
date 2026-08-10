@@ -8,7 +8,7 @@ namespace NYT::NJobProxy {
 
 DECLARE_REFCOUNTED_CLASS(TAnyToYsonConverter)
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, JobProxyClientLogger, "JobProxyClient");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, JobProxyClientLogger, "JobProxyClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

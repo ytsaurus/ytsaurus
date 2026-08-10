@@ -66,7 +66,7 @@ using namespace NYTree;
 
 namespace {
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobProxyEnvironment");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "JobProxyEnvironment");
 
 #ifdef _linux_
 static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);

@@ -13,7 +13,7 @@ using namespace NTableClient;
 
 constexpr double MetricError = 1e-10;
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "BalancingHelpersUnittest");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "BalancingHelpersUnittest");
 
 ////////////////////////////////////////////////////////////////////////////////
 

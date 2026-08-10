@@ -29,8 +29,8 @@ namespace NYT::NNbd {
 using namespace NConcurrency;
 using namespace NRpc;
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Test");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, Profiler, "/test");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Test");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, Profiler, "/test");
 
 ////////////////////////////////////////////////////////////////////////////////
 

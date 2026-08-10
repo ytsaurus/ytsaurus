@@ -27,7 +27,7 @@ using namespace NRpc::NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, RpcBenchmarkLogger, "RpcBenchmark");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, RpcBenchmarkLogger, "RpcBenchmark");
 constinit const auto Logger = RpcBenchmarkLogger;
 
 ////////////////////////////////////////////////////////////////////////////////

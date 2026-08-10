@@ -8,7 +8,7 @@
 
 #include <library/cpp/yt/misc/enum.h>
 
-#include <library/cpp/yt/misc/global.h>
+#include <library/cpp/yt/misc/leaky_global.h>
 
 #include <util/system/types.h>
 
@@ -16,7 +16,7 @@ namespace NYT::NNbd::NJournal {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Nbd");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Nbd");
 
 ////////////////////////////////////////////////////////////////////////////////
 

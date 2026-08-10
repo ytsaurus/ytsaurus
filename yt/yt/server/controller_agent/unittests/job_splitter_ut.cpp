@@ -27,7 +27,7 @@ using namespace NCypressClient;
 using namespace NLogging;
 using namespace NObjectClient;
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobSplitterTest");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "JobSplitterTest");
 
 ////////////////////////////////////////////////////////////////////////////////
 

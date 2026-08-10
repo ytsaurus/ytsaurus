@@ -14,8 +14,8 @@ DECLARE_REFCOUNTED_CLASS(TTabletTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, TabletServerLogger, "TabletServer");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, TabletServerProfiler, "/tablet_server");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, TabletServerLogger, "TabletServer");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, TabletServerProfiler, "/tablet_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 

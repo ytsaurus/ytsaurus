@@ -73,10 +73,10 @@ constexpr int MaxStuckInRemovalOperationsToIncludeInAlert = 5;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "OperationsCleaner");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "OperationsCleaner");
 
 // TODO(eshcherbin): It should be nested within SchedulerProfiler().
-static YT_DEFINE_GLOBAL(const TProfiler, Profiler, TProfiler("/operations_cleaner"));
+static YT_DEFINE_LEAKY_GLOBAL(const TProfiler, Profiler, TProfiler("/operations_cleaner"));
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -26,10 +26,10 @@ DECLARE_REFCOUNTED_STRUCT(INodeTracker)
 
 static const NYPath::TYPath DefaultBundleControllerConfigPath = "//sys/bundle_controller/config";
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, CellBalancerLogger, "CellBalancer");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, BundleControllerLogger, "BundleController");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, CellBalancerProfiler, "/cell_balancer");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, BundleControllerProfiler, "/bundle_controller");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, CellBalancerLogger, "CellBalancer");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, BundleControllerLogger, "BundleController");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, CellBalancerProfiler, "/cell_balancer");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, BundleControllerProfiler, "/bundle_controller");
 
 ////////////////////////////////////////////////////////////////////////////////
 

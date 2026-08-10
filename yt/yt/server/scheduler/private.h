@@ -14,7 +14,7 @@ using TNodeYsonList = std::vector<std::pair<NNodeTrackerClient::TNodeId, NYson::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, NodeShardLogger, "NodeShard");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, NodeShardLogger, "NodeShard");
 
 static constexpr int CypressNodeLimit = 1'000'000;
 

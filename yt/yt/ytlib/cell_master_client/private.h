@@ -8,7 +8,7 @@ namespace NYT::NCellMasterClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, CellMasterClientLogger, "CellMasterClient");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, CellMasterClientLogger, "CellMasterClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

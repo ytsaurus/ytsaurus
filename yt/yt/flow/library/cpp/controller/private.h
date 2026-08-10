@@ -9,9 +9,9 @@ namespace NYT::NFlow::NController {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ControllerLogger, "FlowController");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, BalancerLogger, "FlowBalancer");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, WorkerTrackerLogger, "FlowWorkerTracker");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ControllerLogger, "FlowController");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, BalancerLogger, "FlowBalancer");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, WorkerTrackerLogger, "FlowWorkerTracker");
 
 ////////////////////////////////////////////////////////////////////////////////
 

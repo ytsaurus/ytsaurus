@@ -58,7 +58,7 @@ using NNodeTrackerClient::NProto::TDiskResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobResourceManager");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "JobResourceManager");
 
 ////////////////////////////////////////////////////////////////////////////////
 

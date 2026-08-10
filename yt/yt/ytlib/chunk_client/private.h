@@ -10,7 +10,7 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ReaderMemoryManagerLogger, "ReaderMemoryManager");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ReaderMemoryManagerLogger, "ReaderMemoryManager");
 
 //! A suffix to distinguish chunk meta files.
 inline const std::string ChunkMetaSuffix(".meta");

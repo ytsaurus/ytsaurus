@@ -6,8 +6,8 @@ namespace NYT::NPipeIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, PipesLogger, "Pipes");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, PtyLogger, "Pty");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, PipesLogger, "Pipes");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, PtyLogger, "Pty");
 
 ////////////////////////////////////////////////////////////////////////////////
 

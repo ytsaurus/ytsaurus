@@ -10,13 +10,13 @@
 
 #include <yt/yt/client/hydra/public.h>
 
-#include <library/cpp/yt/misc/global.h>
+#include <library/cpp/yt/misc/leaky_global.h>
 
 namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueClientLogger, "QueueClient");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueClientLogger, "QueueClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

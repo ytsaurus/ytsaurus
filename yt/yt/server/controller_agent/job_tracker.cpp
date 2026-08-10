@@ -47,10 +47,10 @@ using NYT::ToProto;
 
 namespace {
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobTracker");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, JobTrackerProfiler, ControllerAgentProfiler().WithPrefix("/job_tracker"));
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, NodeHeartbeatProfiler, JobTrackerProfiler().WithPrefix("/node_heartbeat"));
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SettleJobRequestProfiler, JobTrackerProfiler().WithPrefix("/settle_job"));
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "JobTracker");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, JobTrackerProfiler, ControllerAgentProfiler().WithPrefix("/job_tracker"));
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, NodeHeartbeatProfiler, JobTrackerProfiler().WithPrefix("/node_heartbeat"));
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, SettleJobRequestProfiler, JobTrackerProfiler().WithPrefix("/settle_job"));
 
 EJobStage JobStageFromJobState(EJobState jobState) noexcept
 {

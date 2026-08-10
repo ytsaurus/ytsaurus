@@ -14,20 +14,20 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentLogger, "QueueAgent");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueControllerLogger, "QueueController");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ConsumerControllerLogger, "ConsumerController");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, MultiConsumerControllerLogger, "MultiConsumerController");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExporterLogger, "QueueExporter");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueAgentLogger, "QueueAgent");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueControllerLogger, "QueueController");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ConsumerControllerLogger, "ConsumerController");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, MultiConsumerControllerLogger, "MultiConsumerController");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueExporterLogger, "QueueExporter");
 // COMPAT(apachee): For old queue export implementation.
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueStaticTableExporterLogger, "QueueStaticTableExporterLogger");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExportManagerLogger, "QueueExportManager");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentShardingManagerLogger, "QueueAgentShardingManager");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressSynchronizerLogger, "CypressSynchronizer");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, MultiConsumerNamesGarbageCollectorLogger, "MultiConsumerNamesGarbageCollector");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueStaticTableExporterLogger, "QueueStaticTableExporterLogger");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueExportManagerLogger, "QueueExportManager");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, QueueAgentShardingManagerLogger, "QueueAgentShardingManager");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, CypressSynchronizerLogger, "CypressSynchronizer");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, MultiConsumerNamesGarbageCollectorLogger, "MultiConsumerNamesGarbageCollector");
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, QueueAgentProfiler, "/queue_agent");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, QueueAgentProfilerGlobal, QueueAgentProfiler().WithGlobal());
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, QueueAgentProfiler, "/queue_agent");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, QueueAgentProfilerGlobal, QueueAgentProfiler().WithGlobal());
 
 ////////////////////////////////////////////////////////////////////////////////
 

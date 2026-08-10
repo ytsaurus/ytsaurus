@@ -41,8 +41,8 @@ using TMultiConnectionClientCacheKey = std::tuple<std::optional<std::string>, NR
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, RpcProxyProfiler, "/rpc_proxy");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, RpcProxyLogger, "RpcProxy");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, RpcProxyProfiler, "/rpc_proxy");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, RpcProxyLogger, "RpcProxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 

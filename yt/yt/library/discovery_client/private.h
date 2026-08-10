@@ -8,7 +8,7 @@ namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, DiscoveryClientLogger, "DiscoveryClient");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, DiscoveryClientLogger, "DiscoveryClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

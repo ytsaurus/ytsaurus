@@ -32,7 +32,7 @@ using NObjectClient::TObjectId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "ProxyingDataNodeService");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "ProxyingDataNodeService");
 
 ////////////////////////////////////////////////////////////////////////////////
 

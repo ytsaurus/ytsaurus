@@ -62,7 +62,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ObjectClientLogger, "ObjectClient");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ObjectClientLogger, "ObjectClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

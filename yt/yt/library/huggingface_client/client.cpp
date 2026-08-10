@@ -23,7 +23,7 @@ using namespace NHttp;
 namespace {
 
 const std::string DefaultHuggingfaceUrl = "https://huggingface.co";
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "HuggingFace");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "HuggingFace");
 
 NHttp::IClientPtr CreateHttpClient(
     IPollerPtr poller,

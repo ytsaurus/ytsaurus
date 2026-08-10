@@ -18,7 +18,7 @@ using namespace NLastGetopt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "ChangelogSurgeonLogger");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "ChangelogSurgeonLogger");
 constexpr int MinRecordsPerRead = 1;
 constexpr int DefaultMaxRecordsPerRead = 1'000'000;
 constexpr int ResultingChangelogMaxRecordCount = 100'000'000;

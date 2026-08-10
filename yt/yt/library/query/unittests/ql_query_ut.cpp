@@ -48,7 +48,7 @@ using namespace NYson;
 
 using NCodegen::EExecutionBackend;
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TestLogger");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "TestLogger");
 
 TEnumIndexedArray<EExecutionBackend, TSharedRef> GetTestUdfImplementationFiles(TStringBuf name)
 {

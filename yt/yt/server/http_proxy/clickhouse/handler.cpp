@@ -69,9 +69,9 @@ using namespace NDiscoveryClient;
 
 namespace {
 
-YT_DEFINE_GLOBAL(const TLogger, ClickHouseUnstructuredLogger, "ClickHouseProxy");
-YT_DEFINE_GLOBAL(const TLogger, ClickHouseStructuredLogger, "ClickHouseProxyStructured");
-YT_DEFINE_GLOBAL(const TProfiler, ClickHouseProxyProfiler, "/clickhouse_proxy");
+YT_DEFINE_LEAKY_GLOBAL(const TLogger, ClickHouseUnstructuredLogger, "ClickHouseProxy");
+YT_DEFINE_LEAKY_GLOBAL(const TLogger, ClickHouseStructuredLogger, "ClickHouseProxyStructured");
+YT_DEFINE_LEAKY_GLOBAL(const TProfiler, ClickHouseProxyProfiler, "/clickhouse_proxy");
 
 DEFINE_ENUM(ERetryState,
     (Retrying)

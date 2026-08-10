@@ -10,13 +10,13 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, SecurityServerLogger, "SecurityServer");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, SecurityServerLogger, "SecurityServer");
 
 // NB: Changing this value without reign promotion can lead to abnormalities in profiling during rolling update.
 static constexpr int AccountProfilingProducerCount = 10;
 
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SecurityProfiler, "/security");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, AccountProfiler, "/accounts");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, SecurityProfiler, "/security");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, AccountProfiler, "/accounts");
 
 ////////////////////////////////////////////////////////////////////////////////
 

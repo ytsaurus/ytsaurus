@@ -27,7 +27,7 @@ using TDistributedChunkSessionReaderStatisticsConstPtr =
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, DistributedChunkSessionLogger, "DistributedChunkSessionClient");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, DistributedChunkSessionLogger, "DistributedChunkSessionClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

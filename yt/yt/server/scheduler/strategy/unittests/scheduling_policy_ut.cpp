@@ -37,7 +37,7 @@ using namespace NTestMocks;
 
 // NB(eshcherbin): Set to true, when in pain.
 static constexpr bool EnableDebugLogging = false;
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, EnableDebugLogging
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, EnableDebugLogging
     ? NLogging::TLogger("TestDebug")
     : NLogging::TLogger());
 

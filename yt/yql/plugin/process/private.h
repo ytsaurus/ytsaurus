@@ -12,8 +12,8 @@ DECLARE_REFCOUNTED_STRUCT(TProcessYqlPluginInternalConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ProcessYqlPluginLogger, "ProcessYqlPlugin");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, YqlExecutorProcessLogger, "YqlExecutorProcess");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ProcessYqlPluginLogger, "ProcessYqlPlugin");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, YqlExecutorProcessLogger, "YqlExecutorProcess");
 
 ////////////////////////////////////////////////////////////////////////////////
 

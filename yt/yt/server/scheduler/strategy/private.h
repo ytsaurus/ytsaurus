@@ -8,13 +8,13 @@
 
 #include <library/cpp/yt/logging/logger.h>
 
-#include <library/cpp/yt/misc/global.h>
+#include <library/cpp/yt/misc/leaky_global.h>
 
 namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, StrategyLogger, "Strategy");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, StrategyLogger, "Strategy");
 
 ////////////////////////////////////////////////////////////////////////////////
 

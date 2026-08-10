@@ -53,7 +53,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Process");
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "Process");
 
 static constexpr pid_t InvalidProcessId = -1;
 

@@ -5,7 +5,7 @@
 
 namespace NYT::NYqlPlugin::NProcess {
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, YqlPluginServiceLogger, "YqlPluginService");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, YqlPluginServiceLogger, "YqlPluginService");
 
 
 using namespace NConcurrency;

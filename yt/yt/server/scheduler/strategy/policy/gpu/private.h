@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <library/cpp/yt/misc/global.h>
+#include <library/cpp/yt/misc/leaky_global.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
@@ -10,7 +10,7 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, GpuSchedulingPolicyLogger, "GpuSchedulingPolicy");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, GpuSchedulingPolicyLogger, "GpuSchedulingPolicy");
 
 ////////////////////////////////////////////////////////////////////////////////
 

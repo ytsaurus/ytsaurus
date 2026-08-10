@@ -18,8 +18,8 @@ namespace NYT::NFlow::NController {
 ////////////////////////////////////////////////////////////////////////////////
 
 // These live here (not private.h) so cross-role code such as the runner can reach them.
-YT_DEFINE_GLOBAL(const NLogging::TLogger, PublicControllerLogger, "PublicFlowController");
-YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ControllerProfiler, "", "yt.flow.controller");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, PublicControllerLogger, "PublicFlowController");
+YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, ControllerProfiler, "", "yt.flow.controller");
 
 ////////////////////////////////////////////////////////////////////////////////
 

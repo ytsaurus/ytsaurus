@@ -8,7 +8,7 @@ namespace NYT::NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, ShellLogger, "Shell");
+YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, ShellLogger, "Shell");
 
 extern const std::string ShellToolDirectory;
 extern const std::string ShellToolPath;
