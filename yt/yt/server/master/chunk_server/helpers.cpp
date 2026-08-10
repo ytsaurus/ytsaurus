@@ -774,7 +774,7 @@ TCumulativeStatisticsEntry GetCumulativeStatisticsEntry(TChunkTree* chunkTree)
             return IsHunkChunkFormat(chunk->GetChunkFormat())
                 // NB: In hunk tree unsealed chunks will also be included into cumulative statistics.
                 ? TCumulativeStatisticsEntry(/*rowCount*/ 0, /*chunkCount*/ 1, /*dataSize*/ 0)
-                : TCumulativeStatisticsEntry(chunk->GetStatistics());
+                : TCumulativeStatisticsEntry(chunk->GetStatistics(/*includeReferencedHunkData*/ false));
         }
 
         case EObjectType::ChunkView:
