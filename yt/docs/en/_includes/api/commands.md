@@ -392,6 +392,7 @@ Parameters:
 | `attributes` | No | `{}` | Enables you to set attributes for the created node. |
 | `ignore_existing` | No | `false` | If the created node exists already, it is not recreated. In particular, the transmitted attributes are ignored. Moreover, both the existing and created nodes must have the same type, otherwise the query will return an error. |
 | `lock_existing` | No | `false` | Set an [exclusive lock](../../user-guide/storage/transactions.md#locks) on the specified node even if it already exists. This parameter is only used together with `ignore_existing`. If the lock couldn't be set, the command fails. |
+| `ignore_type_mismatch` | No | `false` | Do not return an error if the existing node has a type different from the requested one. The node is not recreated, and the transmitted attributes are ignored. This parameter is only used together with `ignore_existing`. |
 | `force` | No | `false` | If the specified node already exists, it is deleted and replaced with a new one. In this situation, the existing node can be of any type. When the node is recreated, its ID changes. |
 
 Input data:

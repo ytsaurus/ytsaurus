@@ -64,7 +64,7 @@ func (e *Encoder) CreateNode(
 		Force:                &opts.Force,
 		IgnoreExisting:       &opts.IgnoreExisting,
 		LockExisting:         nil, // todo check unimportant
-		IgnoreTypeMismatch:   nil, // todo check unimportant
+		IgnoreTypeMismatch:   &opts.IgnoreTypeMismatch,
 		TransactionalOptions: convertTransactionOptions(opts.TransactionOptions),
 		PrerequisiteOptions:  convertPrerequisiteOptions(opts.PrerequisiteOptions),
 		MutatingOptions:      convertMutatingOptions(opts.MutatingOptions),

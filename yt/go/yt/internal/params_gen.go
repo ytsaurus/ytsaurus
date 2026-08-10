@@ -234,6 +234,8 @@ func writeCreateNodeOptions(w *yson.Writer, o *yt.CreateNodeOptions) {
 	w.Any(o.IgnoreExisting)
 	w.MapKeyString("force")
 	w.Any(o.Force)
+	w.MapKeyString("ignore_type_mismatch")
+	w.Any(o.IgnoreTypeMismatch)
 	if o.Attributes != nil {
 		w.MapKeyString("attributes")
 		w.Any(o.Attributes)
@@ -257,6 +259,9 @@ func logCreateNodeOptions(o *yt.CreateNodeOptions) []log.Field {
 	}
 	if o.Force {
 		fields = append(fields, log.Any("force", o.Force))
+	}
+	if o.IgnoreTypeMismatch {
+		fields = append(fields, log.Any("ignore_type_mismatch", o.IgnoreTypeMismatch))
 	}
 	if o.Attributes != nil {
 		fields = append(fields, log.Any("attributes", o.Attributes))
