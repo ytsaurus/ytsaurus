@@ -41,6 +41,13 @@ class TestAccessLog(YTEnvSetup):
         for path, log in cls.OPENED_LOG_FILES.items():
             log.close()
 
+    @classmethod
+    def _get_access_log_path(cls, cluster_index, cell_index, peer_index):
+        return os.path.join(
+            cls.get_cluster_path(cluster_index),
+            "logs",
+            f"master-{cell_index}-{peer_index}.access.json.log")
+
     def _get_or_open_log(self, path):
         log = self.OPENED_LOG_FILES.get(path, None)
         if log is None:
@@ -83,7 +90,7 @@ class TestAccessLog(YTEnvSetup):
 
         for peer_index in range(0, self.NUM_MASTERS):
             cell_index = self.master_cell_index_from_cell_tag(cell_tag)
-            path = os.path.join(self.path_to_run, "logs/master-{}-{}.access.json.log".format(cell_index, peer_index))
+            path = self._get_access_log_path(0, cell_index, peer_index)
             self._load_log(path)
             lines = self.LOADED_LOGS[path].get("lines")
             for line in lines:
@@ -132,6 +139,8 @@ class TestAccessLog(YTEnvSetup):
 
     @classmethod
     def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
+        access_log_path = cls._get_access_log_path(cluster_index, cell_index, peer_index)
+
         if "logging" in config:
             config["logging"]["flush_period"] = 100
             config["logging"]["rules"].append(
@@ -144,22 +153,24 @@ class TestAccessLog(YTEnvSetup):
             )
             config["logging"]["writers"]["access"] = {
                 "type": "file",
-                "file_name": os.path.join(cls.path_to_run, f"logs/master-{cell_index}-{peer_index}.access.json.log"),
+                "file_name": access_log_path,
                 "accepted_message_format": "structured",
             }
+
+        access_writer_name = f"access-{cell_index}-{peer_index}"
 
         multidaemon_config["logging"]["flush_period"] = 100
         multidaemon_config["logging"]["rules"].append(
             {
                 "min_level": "debug",
-                "writers": [f"access-{cell_index}-{peer_index}"],
+                "writers": [access_writer_name],
                 "include_categories": ["Access"],
                 "message_format": "structured",
             }
         )
-        multidaemon_config["logging"]["writers"][f"access-{cell_tag}-{peer_index}"] = {
+        multidaemon_config["logging"]["writers"][access_writer_name] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, f"logs/master-{cell_index}-{peer_index}.access.json.log"),
+            "file_name": access_log_path,
             "accepted_message_format": "structured",
         }
 
@@ -814,6 +825,10 @@ class TestAccessLogSequoia(TestAccessLog):
     }
 
     @classmethod
+    def _get_cypress_proxy_access_log_path(cls, cluster_index):
+        return os.path.join(cls.get_cluster_path(cluster_index), "logs", "cypress-proxy.access.json.log")
+
+    @classmethod
     def modify_cypress_proxy_config(cls, config, cluster_index):
         if "logging" not in config:
             config["logging"] = {"flush_period": 100, "rules": [], "writers": {}}
@@ -828,7 +843,7 @@ class TestAccessLogSequoia(TestAccessLog):
         )
         config["logging"]["writers"]["access"] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, "logs/cypress-proxy.access.json.log"),
+            "file_name": cls._get_cypress_proxy_access_log_path(cluster_index),
             "accepted_message_format": "structured",
         }
 
@@ -842,10 +857,7 @@ class TestAccessLogSequoia(TestAccessLog):
 
         for peer_index in range(0, self.NUM_MASTERS):
             cell_index = self.master_cell_index_from_cell_tag(cell_tag)
-            path = os.path.join(
-                self.path_to_run,
-                "logs/master-{}-{}.access.json.log".format(cell_index, peer_index),
-            )
+            path = self._get_access_log_path(0, cell_index, peer_index)
             self._load_log(path)
             for line in self.LOADED_LOGS[path].get("lines", []):
                 if filter_predicate(line):
@@ -853,7 +865,7 @@ class TestAccessLogSequoia(TestAccessLog):
 
         # Bind Cypress proxy to the primary cell to avoid duplicates.
         if cell_tag == 10:
-            proxy_log_path = os.path.join(self.path_to_run, "logs/cypress-proxy.access.json.log")
+            proxy_log_path = self._get_cypress_proxy_access_log_path(0)
             self._load_log(proxy_log_path)
             for line in self.LOADED_LOGS[proxy_log_path].get("lines", []):
                 if filter_predicate(line):
