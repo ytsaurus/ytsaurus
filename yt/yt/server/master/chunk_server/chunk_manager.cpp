@@ -7953,7 +7953,7 @@ private:
                 cellStatistics.set_oldest_part_missing_chunk_count(0);
                 cellStatistics.set_quorum_missing_chunk_count(0);
                 cellStatistics.set_inconsistently_placed_chunk_count(0);
-                if (onlineNodeCount.has_value()) {
+                if (onlineNodeCount) {
                     cellStatistics.set_online_node_count(*onlineNodeCount);
                 }
 
