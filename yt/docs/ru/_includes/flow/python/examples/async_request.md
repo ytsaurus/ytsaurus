@@ -42,10 +42,4 @@ Stateless-обработчик запросов: вычисляет длину �
 - **Stateless-компьютейшен**: `RequestProcessorFunction` не использует стейт — чистое преобразование запроса в ответ, что позволяет масштабировать его независимо.
 - **Двухкомпонентный пайплайн**: `pipeline.add("state", ...)` и `pipeline.add("processor", ...)` регистрируют компьютейшены, стримы между которыми описываются в [спеке](../../../../flow/concepts/glossary.md#spec-and-dynamic-spec).
 
-## См. также
 
-- [Быстрый старт (Python)](../../../../flow/python/getting-started.md)
-- [Computation (Python)](../../../../flow/python/computation.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)
-- [Аналогичный пример на C++](../../../../flow/cpp/examples/async_request.md)
-- [Аналогичный пример на Java](../../../../flow/java/examples/async_request.md)

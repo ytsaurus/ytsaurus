@@ -32,7 +32,4 @@ Transform-функция с external state для подсчёта событи�
 - Парсинг JSON и создание типизированных сообщений через `ctx.message_builder()`.
 - External state с паттерном `to_builder()` / `set()` / `finish()`.
 
-## См. также
 
-- [Быстрый старт (Python)](../../../../flow/python/getting-started.md)
-- [Computation (Python)](../../../../flow/python/computation.md)

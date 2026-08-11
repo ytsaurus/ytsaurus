@@ -26,8 +26,4 @@
 - Внутренний YSON-стейт через `ctx.state()` с `get_or_default` / `set`.
 - Ключ стейта определяется `group_by_schema` из [спеки](../../../../flow/concepts/glossary.md#spec-and-dynamic-spec) (в данном случае -- по полю `word`).
 
-## См. также
 
-- [Быстрый старт (Python)](../../../../flow/python/getting-started.md)
-- [Computation (Python)](../../../../flow/python/computation.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)

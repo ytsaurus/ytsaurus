@@ -37,8 +37,4 @@
 - **MessageBuilder**: `ctx.message_builder("joined_action")` для создания выходных сообщений с заданной схемой.
 - **Обработка нескольких стримов**: ветвление по `message.stream_id` для различной логики обработки hit и action.
 
-## См. также
 
-- [Быстрый старт (Python)](../../../../flow/python/getting-started.md)
-- [Таймеры](../../../../flow/concepts/timers.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)

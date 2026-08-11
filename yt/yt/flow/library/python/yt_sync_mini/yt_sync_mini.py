@@ -228,13 +228,15 @@ def register_consumer(client, queue_path, consumer_path, vital):
     client.register_queue_consumer(queue_path, consumer_path, vital=vital)
 
 
-def create_pipeline(client, path):
+def create_pipeline(client, path, *, tablet_cell_bundle=None):
     """Create the pipeline node, its inner dynamic tables, and mount them.
 
     Idempotent: re-running against an existing pipeline is a no-op.
 
     :param client: ``yt.wrapper.YtClient`` instance.
     :param path: Cypress path of the pipeline node to create.
+    :param tablet_cell_bundle: bundle for the inner tables; ``None`` leaves the
+        attribute unset, so the tables land in the cluster's default bundle.
     """
     # 1. Pipeline map node.
     client.create(
@@ -255,11 +257,14 @@ def create_pipeline(client, path):
     with client.Transaction(type="master", attributes={"title": f"Create pipeline {path}"}):
         for name, descriptor in items:
             table_preset = presets.get(name, {})
+            attributes = _table_attributes(name, descriptor["schema"], table_preset)
+            if tablet_cell_bundle is not None:
+                attributes["tablet_cell_bundle"] = tablet_cell_bundle
             client.create(
                 "table",
                 f"{pipeline_root}/{name}",
                 ignore_existing=True,
-                attributes=_table_attributes(name, descriptor["schema"], table_preset),
+                attributes=attributes,
             )
 
     # 3. Mount.

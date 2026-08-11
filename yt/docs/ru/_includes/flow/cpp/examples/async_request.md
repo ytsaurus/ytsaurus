@@ -60,7 +60,4 @@
 
 {% code '/yt/yt/flow/examples/cpp/async_request/main.cpp' lang='cpp' lines='[BEGIN state_keeper]-[END state_keeper]' keep-indents %}
 
-## См. также
 
-- [Быстрый старт (C++)](../../../../flow/cpp/getting-started.md)
-- [Computation (C++)](../../../../flow/cpp/computation.md)

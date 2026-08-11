@@ -82,10 +82,4 @@ Stateless-компьютейшен: получает запрос из стри�
 - **ExternalStateAccessor с PayloadBuilder** — поле `total_length` обновляется точечно: `current.toBuilder()` → изменение → `stateAccessor.set(updated.finish())`.
 - **Конфигурация через Spring Boot** — компьютейшены регистрируются аннотацией `@FlowComputation`; `flow-spring-boot-starter` управляет жизненным циклом gRPC-сервера.
 
-## См. также
 
-- [Быстрый старт (Java)](../../../../flow/java/getting-started.md)
-- [Computation (Java)](../../../../flow/java/computation.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)
-- [Аналогичный пример на C++](../../../../flow/cpp/examples/async_request.md)
-- [Расширенная версия с ретраями](../../../../flow/java/examples/retryable_async_request.md)

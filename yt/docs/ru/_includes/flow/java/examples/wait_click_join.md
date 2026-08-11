@@ -331,8 +331,4 @@ flowchart TD
 
 6. **Очистка стейта**: После генерации результата стейт очищается через `stateAccessor.clear()`, что удаляет строку из таблицы.
 
-## См. также
 
-- [Быстрый старт (Java)](../../../../flow/java/getting-started.md)
-- [Таймеры](../../../../flow/concepts/timers.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)
