@@ -32,7 +32,7 @@ class TControlledJournalChunkWriter
 public:
     TFuture<void> Open() override
     {
-        return OKFuture;
+        return OpenPromise_.ToFuture();
     }
 
     TFuture<void> Close() override
@@ -68,12 +68,23 @@ public:
         ClosePromise_.Set();
     }
 
+    void SetOpened()
+    {
+        OpenPromise_.Set();
+    }
+
+    void SetWriteSucceeded()
+    {
+        WritePromise_.Set(0);
+    }
+
     void SetWriteError(TError error)
     {
         WritePromise_.Set(std::move(error));
     }
 
 private:
+    const TPromise<void> OpenPromise_ = NewPromise<void>();
     const TPromise<void> ClosePromise_ = NewPromise<void>();
     const TPromise<i64> WritePromise_ = NewPromise<i64>();
 
@@ -82,12 +93,49 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TDistributedChunkSessionSequencerTest, OpenIsUncancelable)
+{
+    auto writer = New<TControlledJournalChunkWriter>();
+    auto sequencer = CreateDistributedChunkSessionSequencerForTesting(TSessionId(), writer);
+
+    auto openFuture = sequencer->Open();
+    openFuture.Cancel(TError("Injected cancellation"));
+    EXPECT_FALSE(openFuture.IsSet());
+
+    writer->SetOpened();
+    WaitFor(openFuture)
+        .ThrowOnError();
+}
+
+TEST(TDistributedChunkSessionSequencerTest, WriteRecordIsUncancelable)
+{
+    auto writer = New<TControlledJournalChunkWriter>();
+    auto sequencer = CreateDistributedChunkSessionSequencerForTesting(TSessionId(), writer);
+
+    auto openFuture = sequencer->Open();
+    writer->SetOpened();
+    WaitFor(openFuture)
+        .ThrowOnError();
+
+    auto writeFuture = sequencer->WriteRecord(TSharedRef::FromString(std::string("record")));
+    writeFuture.Cancel(TError("Injected cancellation"));
+    EXPECT_FALSE(writeFuture.IsSet());
+
+    writer->SetWriteSucceeded();
+    WaitFor(writeFuture)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TDistributedChunkSessionSequencerTest, PendingWriteErrorIsPropagatedAfterSequencerClose)
 {
     auto writer = New<TControlledJournalChunkWriter>();
     auto sequencer = CreateDistributedChunkSessionSequencerForTesting(TSessionId(), writer);
 
-    WaitFor(sequencer->Open())
+    auto openFuture = sequencer->Open();
+    writer->SetOpened();
+    WaitFor(openFuture)
         .ThrowOnError();
 
     auto writeFuture = sequencer->WriteRecord(TSharedRef::FromString(std::string("record")));

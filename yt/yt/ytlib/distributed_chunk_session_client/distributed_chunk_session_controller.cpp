@@ -18,7 +18,7 @@
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
-#include <util/random/shuffle.h>
+#include <util/random/random.h>
 
 namespace NYT::NDistributedChunkSessionClient {
 
@@ -104,14 +104,14 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         CloseSession();
-        return ClosedPromise_.ToFuture();
+        return ClosedPromise_.ToFuture().ToUncancelable();
     }
 
     TFuture<void> GetClosedFuture() final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return ClosedPromise_.ToFuture();
+        return ClosedPromise_.ToFuture().ToUncancelable();
     }
 
     TSessionId GetSessionId() const final
@@ -200,13 +200,11 @@ private:
             /*allocatedAddresses*/ {},
             Logger);
 
-        Shuffle(Targets_.begin(), Targets_.end());
-
         const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
         const auto& channelFactory = Client_->GetChannelFactory();
         const auto& networks = Client_->GetNativeConnection()->GetNetworks();
 
-        SequencerDescriptor_ = nodeDirectory->GetDescriptor(Targets_[0]);
+        SequencerDescriptor_ = nodeDirectory->GetDescriptor(Targets_[RandomNumber(Targets_.size())]);
         SequencerChannel_ = channelFactory->CreateChannel(
             SequencerDescriptor_.GetAddressOrThrow(networks));
 
@@ -288,15 +286,9 @@ private:
         }
 
         if (error.GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
-            YT_LOG_DEBUG(error, "Session has expired, finishing controller");
+            YT_LOG_DEBUG(error, "Session has been lost or expired, finishing controller");
 
-            auto expected = EControllerState::Running;
-            if (State_.compare_exchange_strong(expected, EControllerState::Closed)) {
-                ClosedPromise_.SetFrom(
-                    StopPingExecutor().Apply(BIND([error] {
-                        return MakeFuture(error);
-                    })));
-            }
+            CloseWithError(error);
             return;
         }
 
@@ -310,13 +302,18 @@ private:
         if (ConsecutivePingFailures_ >= Config_->MaxConsecutivePingFailures) {
             YT_LOG_DEBUG(error, "Too many consecutive ping failures, finishing controller");
 
-            auto expected = EControllerState::Running;
-            if (State_.compare_exchange_strong(expected, EControllerState::Closed)) {
-                ClosedPromise_.SetFrom(
-                    StopPingExecutor().Apply(BIND([error] {
-                        return MakeFuture(error.Wrap("Too many consecutive ping failures"));
-                    })));
-            }
+            CloseWithError(error.Wrap("Too many consecutive ping failures"));
+        }
+    }
+
+    void CloseWithError(const TError& error)
+    {
+        auto expected = EControllerState::Running;
+        if (State_.compare_exchange_strong(expected, EControllerState::Closed)) {
+            ClosedPromise_.SetFrom(
+                StopPingExecutor().Apply(BIND([error] {
+                    return MakeFuture(error);
+                })));
         }
     }
 

@@ -27,6 +27,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/rpc/helpers.h>
+
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/transaction.h>
@@ -197,6 +199,7 @@ protected:
             TDataNodeServiceProxy proxy(channel);
 
             auto req = proxy.GetChunkMeta();
+            NRpc::SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
             ToProto(req->mutable_chunk_id(), chunkId);
             req->set_all_extension_tags(true);
 
@@ -801,6 +804,58 @@ TEST_F(TDistributedChunkSessionTest, DoubleClose)
     WaitFor(firstClose)
         .ThrowOnError();
     WaitFor(secondClose)
+        .ThrowOnError();
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, GetClosedFutureIsUncancelable)
+{
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    WaitFor(controller->StartSession())
+        .ThrowOnError();
+
+    auto closedFuture = controller->GetClosedFuture();
+    closedFuture.Cancel(TError("Injected cancellation"));
+    EXPECT_FALSE(closedFuture.IsSet());
+
+    WaitFor(controller->Close())
+        .ThrowOnError();
+    WaitFor(closedFuture)
+        .ThrowOnError();
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, CloseIsUncancelable)
+{
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    WaitFor(controller->StartSession())
+        .ThrowOnError();
+    WaitFor(ActionQueue_->Suspend(/*immediately*/ true))
+        .ThrowOnError();
+
+    auto closeFuture = controller->Close();
+    ASSERT_FALSE(closeFuture.IsSet());
+    closeFuture.Cancel(TError("Injected cancellation"));
+    EXPECT_FALSE(closeFuture.IsSet());
+
+    ActionQueue_->Resume();
+    WaitFor(closeFuture)
         .ThrowOnError();
 
     EnsureControllerIsDestroyed(std::move(controller));
