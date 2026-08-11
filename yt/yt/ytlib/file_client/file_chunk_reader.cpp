@@ -122,9 +122,9 @@ public:
             Logger.AddTag("ReadSessionId", ChunkReadOptions_.ReadSessionId);
         }
 
-        YT_LOG_DEBUG("Creating file chunk reader (StartOffset: %v, EndOffset: %v)",
-            startOffset,
-            endOffset);
+        YT_TLOG_DEBUG("Creating file chunk reader")
+            .With("StartOffset", startOffset)
+            .With("EndOffset", endOffset);
 
         ReadyEvent_ = BIND(&TFileChunkReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
@@ -223,14 +223,14 @@ private:
 
     void DoOpen()
     {
-        YT_LOG_DEBUG("Requesting chunk meta");
+        YT_TLOG_DEBUG("Requesting chunk meta");
 
         auto metaOrError = WaitFor(ChunkReader_->GetMeta(IChunkReader::TGetMetaOptions{
             .ClientOptions = ChunkReadOptions_,
         }));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to get file chunk meta");
 
-        YT_LOG_DEBUG("Chunk meta received");
+        YT_TLOG_DEBUG("Chunk meta received");
         const auto& meta = metaOrError.Value();
 
         auto type = EChunkType(meta->type());
@@ -318,9 +318,9 @@ private:
             ChunkReadOptions_);
         SequentialBlockFetcher_->Start();
 
-        YT_LOG_DEBUG("File chunk reader opened (Blocks: %v, SelectedSize: %v)",
-            FormatBlocks(blockIndex, blockIndex + blockCount - 1),
-            selectedSize);
+        YT_TLOG_DEBUG("File chunk reader opened")
+            .With("Blocks", FormatBlocks(blockIndex, blockIndex + blockCount - 1))
+            .With("SelectedSize", selectedSize);
     }
 
     TBlock GetBlock()

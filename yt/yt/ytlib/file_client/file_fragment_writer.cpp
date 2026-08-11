@@ -123,7 +123,7 @@ private:
 
     void DoOpen()
     {
-        YT_LOG_DEBUG("Opening file fragment writer");
+        YT_TLOG_DEBUG("Opening file fragment writer");
 
         const auto& cookieData = Cookie_.CookieData;
 
@@ -136,7 +136,7 @@ private:
         auto objectIdPath = FromObjectId(cookieData.FileId);
 
         {
-            YT_LOG_DEBUG("Reading file upload parameters");
+            YT_TLOG_DEBUG("Reading file upload parameters");
 
             // TODO(achains): Can we allocate all chunk lists on start session?
             auto masterChannel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cookieData.ExternalCellTag);
@@ -157,9 +157,8 @@ private:
             WriteResult_.CookieId = Cookie_.CookieId;
             WriteResult_.ChunkListId = FromProto<TChunkListId>(rsp->chunk_list_ids()[0]);
 
-            YT_LOG_DEBUG(
-                "File upload parameters read (ChunkListId: %v)",
-                WriteResult_.ChunkListId);
+            YT_TLOG_DEBUG("File upload parameters read")
+                .With("ChunkListId", WriteResult_.ChunkListId);
         }
 
         NChunkClient::TDataSink dataSink;
@@ -181,12 +180,12 @@ private:
 
         Opened_ = true;
 
-        YT_LOG_DEBUG("Opened file fragment writer");
+        YT_TLOG_DEBUG("Opened file fragment writer");
     }
 
     void DoClose()
     {
-        YT_LOG_DEBUG("Closing file fragment writer");
+        YT_TLOG_DEBUG("Closing file fragment writer");
 
         auto underlyingWriterCloseError = WaitFor(UnderlyingWriter_->Close());
 
@@ -202,10 +201,12 @@ private:
             signatureGenerator->Sign(ConvertToYsonString(WriteResult_).ToString()));
 
         // Log all statistics.
-        YT_LOG_DEBUG("Writer data statistics (DataStatistics: %v)", UnderlyingWriter_->GetDataStatistics());
-        YT_LOG_DEBUG("Writer compression codec statistics (CodecStatistics: %v)", UnderlyingWriter_->GetCompressionStatistics());
+        YT_TLOG_DEBUG("Writer data statistics")
+            .With("DataStatistics", UnderlyingWriter_->GetDataStatistics());
+        YT_TLOG_DEBUG("Writer compression codec statistics")
+            .With("CodecStatistics", UnderlyingWriter_->GetCompressionStatistics());
 
-        YT_LOG_DEBUG("Closed file fragment writer");
+        YT_TLOG_DEBUG("Closed file fragment writer");
     }
 
     void ValidateOpened()
