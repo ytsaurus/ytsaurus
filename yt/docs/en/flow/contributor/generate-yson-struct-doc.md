@@ -1,0 +1,1 @@
+{% include [YSON Structure Documentation Generator for {{product-name}} Flow](../../_includes/flow/contributor/generate-yson-struct-doc.md) %}
