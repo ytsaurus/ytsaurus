@@ -21,6 +21,7 @@ namespace NYT::NChaosClient {
 using namespace NHydra;
 using namespace NRpc;
 using namespace NThreading;
+using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NApi::NNative;
 using namespace NLogging;
@@ -115,6 +116,9 @@ private:
         SetChaosCacheStickyGroupBalancingHint(
             replicationCardId,
             req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
+
+        auto traceContext = TTraceContext::NewRoot("ReplicationCardWatcherClient");
+        TTraceContextGuard traceContextGuard(traceContext);
 
         return req->Invoke().AsUnique().Apply(
             BIND(
