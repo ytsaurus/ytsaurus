@@ -18,9 +18,12 @@ Usage::
 """
 
 import copy
+import logging
+import time
 from typing import Any
 
 import yt.yson as yson
+from yt.wrapper.errors import YtResponseError
 
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_FILE_PRESET
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_ORDERED_TABLE_PRESET
@@ -29,6 +32,8 @@ from yt.yt.flow.library.python.pipeline_tables import PIPELINE_QUEUES_PRESET
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_SORTED_TABLE_PRESET
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_TABLES
 from yt.yt.flow.library.python.pipeline_tables import PIPELINE_TABLES_PRESET
+
+log = logging.getLogger(__name__)
 
 # Pipeline-map-node attribute.
 PIPELINE_FORMAT_VERSION_ATTRIBUTE = "pipeline_format_version"
@@ -86,6 +91,10 @@ PRODUCER_ATTRS: dict[str, Any] = {
     },
     "treat_as_queue_producer": True,
 }
+
+# Bound on the resolve retries below: nine sleeps, 27 seconds in total.
+RETRY_ATTEMPTS: int = 10
+RETRY_INTERVAL: float = 3.0
 
 # Key under which a spec dict lists parent presets to merge in first.
 PRESET_MERGE_KEY = "$merge_presets"
@@ -205,6 +214,33 @@ def _table_attributes(name, schema_columns, table_preset):
     return attrs
 
 
+def _retry_on_resolve_error(action, description):
+    """Run ``action``, retrying resolve errors, and return its result.
+
+    An object created moments earlier is not yet resolvable on every master
+    cell, so an operation touching it fails with ``No such object <id>`` until
+    the cells catch up. Every action passed here is idempotent, so replaying it
+    is safe. An error without a resolve error in its chain propagates on the
+    first attempt.
+
+    :param description: what the action does, for the retry log line.
+    """
+    for attempt in range(RETRY_ATTEMPTS):
+        try:
+            return action()
+        except YtResponseError as error:
+            if not error.is_resolve_error() or attempt + 1 == RETRY_ATTEMPTS:
+                raise
+            log.warning(
+                "Failed to %s (attempt %d of %d), retrying: %s",
+                description,
+                attempt + 1,
+                RETRY_ATTEMPTS,
+                error,
+            )
+            time.sleep(RETRY_INTERVAL)
+
+
 def create_table(client, path, schema, attributes=None):
     """Create a dynamic table and mount it; a schema without key columns
     makes it a queue.
@@ -219,13 +255,25 @@ def create_table(client, path, schema, attributes=None):
     if attributes:
         _deep_merge(attrs, attributes)
     attrs["schema"] = _build_schema(schema)
-    client.create("table", path, recursive=True, ignore_existing=True, attributes=attrs)
-    client.mount_table(path, sync=True)
+    _retry_on_resolve_error(
+        lambda: client.create(
+            "table",
+            path,
+            recursive=True,
+            ignore_existing=True,
+            attributes=attrs,
+        ),
+        f"create table {path}",
+    )
+    _retry_on_resolve_error(lambda: client.mount_table(path, sync=True), f"mount table {path}")
 
 
 def register_consumer(client, queue_path, consumer_path, vital):
     """Register the consumer for a queue (both must exist and be mounted)."""
-    client.register_queue_consumer(queue_path, consumer_path, vital=vital)
+    _retry_on_resolve_error(
+        lambda: client.register_queue_consumer(queue_path, consumer_path, vital=vital),
+        f"register consumer {consumer_path} for queue {queue_path}",
+    )
 
 
 def create_pipeline(client, path, *, tablet_cell_bundle=None):
@@ -239,12 +287,15 @@ def create_pipeline(client, path, *, tablet_cell_bundle=None):
         attribute unset, so the tables land in the cluster's default bundle.
     """
     # 1. Pipeline map node.
-    client.create(
-        "map_node",
-        path,
-        recursive=True,
-        ignore_existing=True,
-        attributes={PIPELINE_FORMAT_VERSION_ATTRIBUTE: CURRENT_PIPELINE_FORMAT_VERSION},
+    _retry_on_resolve_error(
+        lambda: client.create(
+            "map_node",
+            path,
+            recursive=True,
+            ignore_existing=True,
+            attributes={PIPELINE_FORMAT_VERSION_ATTRIBUTE: CURRENT_PIPELINE_FORMAT_VERSION},
+        ),
+        f"create pipeline node {path}",
     )
 
     # 2. Inner tables, all in a single master transaction (matches
@@ -254,19 +305,28 @@ def create_pipeline(client, path, *, tablet_cell_bundle=None):
     items = list(PIPELINE_TABLES.items()) + list(PIPELINE_QUEUES.items())
     presets = {**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}
 
-    with client.Transaction(type="master", attributes={"title": f"Create pipeline {path}"}):
-        for name, descriptor in items:
-            table_preset = presets.get(name, {})
-            attributes = _table_attributes(name, descriptor["schema"], table_preset)
-            if tablet_cell_bundle is not None:
-                attributes["tablet_cell_bundle"] = tablet_cell_bundle
-            client.create(
-                "table",
-                f"{pipeline_root}/{name}",
-                ignore_existing=True,
-                attributes=attributes,
-            )
+    def create_inner_tables():
+        with client.Transaction(type="master", attributes={"title": f"Create pipeline {path}"}):
+            for name, descriptor in items:
+                table_preset = presets.get(name, {})
+                attributes = _table_attributes(name, descriptor["schema"], table_preset)
+                if tablet_cell_bundle is not None:
+                    attributes["tablet_cell_bundle"] = tablet_cell_bundle
+                client.create(
+                    "table",
+                    f"{pipeline_root}/{name}",
+                    ignore_existing=True,
+                    attributes=attributes,
+                )
+
+    # The whole transaction is replayed: it is aborted on failure, so a retry
+    # never sees a partial one.
+    _retry_on_resolve_error(create_inner_tables, f"create inner tables of pipeline {path}")
 
     # 3. Mount.
     for name, _ in items:
-        client.mount_table(f"{pipeline_root}/{name}", sync=True)
+        table_path = f"{pipeline_root}/{name}"
+        _retry_on_resolve_error(
+            lambda table_path=table_path: client.mount_table(table_path, sync=True),
+            f"mount table {table_path}",
+        )
