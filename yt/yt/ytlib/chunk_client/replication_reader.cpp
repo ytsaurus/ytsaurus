@@ -3865,15 +3865,10 @@ private:
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
-        // COMPAT(apollo1321): Remove in 26.2.
-        if (PartitionTags_.has_value() && PartitionTags_->size() == 1) {
-            req->set_partition_tag(PartitionTags_->Get()[0]);
-        } else {
-            if (PartitionTags_.has_value()) {
-                req->RequireServerFeature(EChunkClientFeature::MultiplePartitionTags);
-            }
-            YT_OPTIONAL_TO_PROTO(req, partition_tags, PartitionTags_);
+        if (PartitionTags_.has_value()) {
+            req->RequireServerFeature(EChunkClientFeature::MultiplePartitionTags);
         }
+        YT_OPTIONAL_TO_PROTO(req, partition_tags, PartitionTags_);
         YT_OPTIONAL_TO_PROTO(req, extension_tags, ExtensionTags_);
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
         ToProto(req->mutable_replica_spec(), peers[0].Replica);

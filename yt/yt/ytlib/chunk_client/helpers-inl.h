@@ -88,12 +88,7 @@ std::optional<TPartitionTags> GetOptionalPartitionTags(const TProtoMessage& mess
 {
     using NYT::FromProto;
     if (!message.partition_tags().empty()) {
-        YT_VERIFY(!message.has_partition_tag());
         return TPartitionTags(FromProto<TPartitionTags::TUnderlying>(message.partition_tags()));
-    }
-    // COMPAT(namorniradnug)
-    if (message.has_partition_tag()) {
-        return TPartitionTags{message.partition_tag()};
     }
     return {};
 }
