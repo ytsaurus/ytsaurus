@@ -300,28 +300,28 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
     bool cacheHit = false;
     if (entry) {
         if (refreshRevision && entry->GetRevision() != NHydra::NullRevision && entry->GetRevision() <= refreshRevision) {
-            YT_LOG_DEBUG("Cache entry refresh requested (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
-                requestId,
-                key,
-                entry->GetRevision(),
-                entry->GetSuccess());
+            YT_TLOG_DEBUG("Cache entry refresh requested")
+                .With("RequestId", requestId)
+                .With("Key", key)
+                .WithFormat("Revision", "%x", entry->GetRevision())
+                .With("Success", entry->GetSuccess());
 
             tryRemove();
         } else if (IsExpired(entry, expireAfterSuccessfulUpdateTime, expireAfterFailedUpdateTime)) {
-            YT_LOG_DEBUG("Cache entry expired (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
-                requestId,
-                key,
-                entry->GetRevision(),
-                entry->GetSuccess());
+            YT_TLOG_DEBUG("Cache entry expired")
+                .With("RequestId", requestId)
+                .With("Key", key)
+                .WithFormat("Revision", "%x", entry->GetRevision())
+                .With("Success", entry->GetSuccess());
 
             tryRemove();
         } else {
             cacheHit = true;
-            YT_LOG_DEBUG("Cache hit (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
-                requestId,
-                key,
-                entry->GetRevision(),
-                entry->GetSuccess());
+            YT_TLOG_DEBUG("Cache hit")
+                .With("RequestId", requestId)
+                .With("Key", key)
+                .WithFormat("Revision", "%x", entry->GetRevision())
+                .With("Success", entry->GetSuccess());
         }
 
         TouchEntry(entry);
@@ -371,11 +371,11 @@ void TObjectServiceCache::EndLookup(
 {
     const auto& key = cookie.GetKey();
 
-    YT_LOG_DEBUG("Cache population request succeeded (RequestId: %v, Key: %v, Revision: %x, Success: %v)",
-        requestId,
-        key,
-        revision,
-        success);
+    YT_TLOG_DEBUG("Cache population request succeeded")
+        .With("RequestId", requestId)
+        .With("Key", key)
+        .WithFormat("Revision", "%x", revision)
+        .With("Success", success);
 
     TObjectServiceCacheEntryPtr expiredEntry;
     {
@@ -461,11 +461,11 @@ void TObjectServiceCache::OnAdded(const TObjectServiceCacheEntryPtr& entry)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& key = entry->GetKey();
-    YT_LOG_DEBUG("Cache entry added (Key: %v, Revision: %x, Success: %v, TotalSpace: %v)",
-        key,
-        entry->GetRevision(),
-        entry->GetSuccess(),
-        entry->GetTotalSpace());
+    YT_TLOG_DEBUG("Cache entry added")
+        .With("Key", key)
+        .WithFormat("Revision", "%x", entry->GetRevision())
+        .With("Success", entry->GetSuccess())
+        .With("TotalSpace", entry->GetTotalSpace());
 }
 
 void TObjectServiceCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
@@ -473,11 +473,11 @@ void TObjectServiceCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& key = entry->GetKey();
-    YT_LOG_DEBUG("Cache entry removed (Key: %v, Revision: %x, Success: %v, TotalSpace: %v)",
-        key,
-        entry->GetRevision(),
-        entry->GetSuccess(),
-        entry->GetTotalSpace());
+    YT_TLOG_DEBUG("Cache entry removed")
+        .With("Key", key)
+        .WithFormat("Revision", "%x", entry->GetRevision())
+        .With("Success", entry->GetSuccess())
+        .With("TotalSpace", entry->GetTotalSpace());
 
     auto guard = ReaderGuard(ExpiredEntriesLock_);
 
@@ -490,7 +490,8 @@ void TObjectServiceCache::MaybeEraseTopEntry(const TObjectServiceCacheKey& key)
 {
     auto guard = WriterGuard(TopEntriesLock_);
     if (TopEntries_.erase(key) > 0) {
-        YT_LOG_DEBUG("Removed entry from top (Key: %v)", key);
+        YT_TLOG_DEBUG("Removed entry from top")
+            .With("Key", key);
     }
 }
 
@@ -520,10 +521,9 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry, b
 
         if (entry->GetByteRate() >= topEntryByteRateThreshold) {
             if (TopEntries_.emplace(key, entry).second) {
-                YT_LOG_DEBUG("Added entry to top (Key: %v, ByteRate: %v -> %v)",
-                    key,
-                    previous,
-                    current);
+                YT_TLOG_DEBUG("Added entry to top")
+                    .With("Key", key)
+                    .WithFormat("ByteRate", "%v -> %v", previous, current);
             }
         }
     }
@@ -533,10 +533,9 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry, b
 
         if (entry->GetByteRate() < topEntryByteRateThreshold) {
             if (TopEntries_.erase(key) > 0) {
-                YT_LOG_DEBUG("Removed entry from top (Key: %v, ByteRate: %v -> %v)",
-                    key,
-                    previous,
-                    current);
+                YT_TLOG_DEBUG("Removed entry from top")
+                    .With("Key", key)
+                    .WithFormat("ByteRate", "%v -> %v", previous, current);
             }
         }
     }
