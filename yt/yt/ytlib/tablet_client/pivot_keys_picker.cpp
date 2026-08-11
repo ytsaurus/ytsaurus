@@ -128,7 +128,7 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
         /*tableIndex*/ 0,
         {range});
 
-    YT_LOG_DEBUG("Fetching chunk specs");
+    YT_TLOG_DEBUG("Fetching chunk specs");
 
     if (auto result = WaitFor(chunkSpecFetcher->Fetch()); !result.IsOK()) {
         auto error = result.FindMatching(NChunkClient::EErrorCode::TooManyChunksToFetch);
@@ -139,7 +139,7 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
         result.ThrowOnError();
     }
 
-    YT_LOG_DEBUG("Chunk specs fetched");
+    YT_TLOG_DEBUG("Chunk specs fetched");
 
     if (chunkSpecFetcher->ChunkSpecs().empty() && tabletCount > 1) {
         THROW_ERROR_EXCEPTION("Empty table %v cannot be resharded to more than one tablet",
@@ -162,13 +162,12 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
     auto expectedTabletSize = DivCeil<i64>(chunksDataWeight, tabletCount);
     i64 minSliceSize = std::max(expectedTabletSize * accuracy / ExpectedAverageOverlapping, 1.);
 
-    YT_LOG_DEBUG("Initializing pivot keys builder for resharding with slicing"
-        " (ChunksDataWeight: %v, ExpectedTabletSize: %v, MinSliceSize: %v, Accuracy: %v, EnableVerboseLogging: %v)",
-        chunksDataWeight,
-        expectedTabletSize,
-        minSliceSize,
-        accuracy,
-        enableVerboseLogging);
+    YT_TLOG_DEBUG("Initializing pivot keys builder for resharding with slicing")
+        .With("ChunksDataWeight", chunksDataWeight)
+        .With("ExpectedTabletSize", expectedTabletSize)
+        .With("MinSliceSize", minSliceSize)
+        .With("Accuracy", accuracy)
+        .With("EnableVerboseLogging", enableVerboseLogging);
 
     const auto& comparator = tableInfo->Schemas[ETableSchemaKind::Primary]->ToComparator();
     auto keyColumnCount = tableInfo->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
@@ -222,12 +221,12 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
             sizeFetcher->AddChunk(inputChunk);
         }
 
-        YT_LOG_DEBUG("Fetching chunk slice sizes");
+        YT_TLOG_DEBUG("Fetching chunk slice sizes");
 
         WaitFor(sizeFetcher->Fetch())
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Chunk slice sizes fetched");
+        YT_TLOG_DEBUG("Chunk slice sizes fetched");
 
         i64 limitedChunksDataWeight = 0;
         for (const auto& chunk : sizeFetcher->WeightedChunks()) {
@@ -237,17 +236,16 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
 
         auto expectedTabletSize = DivCeil<i64>(limitedChunksDataWeight + unlimitedChunksDataWeight, tabletCount);
         minSliceSize = std::max(expectedTabletSize * accuracy / ExpectedAverageOverlapping, 1.);
-        YT_LOG_DEBUG("Replacing resharding with slicing expected tablet size"
-            " (LimitedChunksDataWeight: %v, UnlimitedChunksDataWeight: %v, ExpectedTabletSize: %v, MinSliceSize: %v)",
-            limitedChunksDataWeight,
-            unlimitedChunksDataWeight,
-            expectedTabletSize,
-            minSliceSize);
+        YT_TLOG_DEBUG("Replacing resharding with slicing expected tablet size")
+            .With("LimitedChunksDataWeight", limitedChunksDataWeight)
+            .With("UnlimitedChunksDataWeight", unlimitedChunksDataWeight)
+            .With("ExpectedTabletSize", expectedTabletSize)
+            .With("MinSliceSize", minSliceSize);
 
         reshardBuilder.SetExpectedTabletSize(expectedTabletSize);
     }
 
-    YT_LOG_DEBUG("Computing chunks for slicing");
+    YT_TLOG_DEBUG("Computing chunks for slicing");
 
     reshardBuilder.ComputeChunksForSlicing();
 
@@ -255,7 +253,7 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
     reshardBuilder.SetFirstPivotKey(tableInfo->GetTabletByIndexOrThrow(firstTabletIndex)->PivotKey);
 
     if (reshardBuilder.AreAllPivotsFound()) {
-        YT_LOG_DEBUG("Picked pivot keys without slicing");
+        YT_TLOG_DEBUG("Picked pivot keys without slicing");
         return reshardBuilder.GetPivotKeys();
     }
 
@@ -287,26 +285,25 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
         auto sliceSize = DivCeil<i64>(size, sliceCount);
         sliceSize = std::max(minSliceSize, sliceSize);
 
-        YT_LOG_DEBUG_IF(enableVerboseLogging,
-            "Adding chunk to chunk slice fetcher (SliceSize: %v, Comparator: %v, DataSlice: %v)",
-            sliceSize,
-            comparator,
-            dataSlice);
+        YT_TLOG_DEBUG_IF(enableVerboseLogging, "Adding chunk to chunk slice fetcher")
+            .With("SliceSize", sliceSize)
+            .With("Comparator", comparator)
+            .With("DataSlice", dataSlice);
         chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true, /*minManiacDataWeight*/ std::nullopt);
     }
 
-    YT_LOG_DEBUG("Fetching chunk slices");
+    YT_TLOG_DEBUG("Fetching chunk slices");
 
     WaitFor(chunkSliceFetcher->Fetch())
         .ThrowOnError();
 
-    YT_LOG_DEBUG("Chunk slices fetched");
+    YT_TLOG_DEBUG("Chunk slices fetched");
 
     for (const auto& slice : chunkSliceFetcher->GetChunkSlices()) {
         reshardBuilder.AddSlice(slice);
     }
 
-    YT_LOG_DEBUG("Computing pivot keys after slicing");
+    YT_TLOG_DEBUG("Computing pivot keys after slicing");
 
     reshardBuilder.ComputeSlicedChunksPivotKeys();
 
