@@ -322,9 +322,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Sort reader entered output phase (BucketCount: %v)",
-            std::ssize(SealedBuckets_));
+        YT_TLOG_DEBUG("Sort reader entered output phase")
+            .With("BucketCount", std::ssize(SealedBuckets_));
 
         PrepareNextBatch();
     }
@@ -466,7 +465,8 @@ private:
             return;
         }
         TerminalError_ = std::move(error);
-        YT_LOG_DEBUG(TerminalError_, "Sort reader failed");
+        YT_TLOG_DEBUG("Sort reader failed")
+            .With(TerminalError_);
         if (CurrentReadFuture_) {
             auto future = std::exchange(CurrentReadFuture_, {});
             future.Cancel(TerminalError_);
