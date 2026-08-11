@@ -508,11 +508,10 @@ message TJobSpecExt
 
     optional string task_name = 25;
 
+    reserved 26;
+
     // Indices of partitions job belongs to. This field is set only in
     // Sort and MapReduce jobs.
-    // COMPAT(namorniradnug)
-    optional int32 partition_tag = 26;
-
     repeated int32 partition_tags = 47;
 
     optional string tree_id = 27;
@@ -670,7 +669,7 @@ message TShallowMergeJobSpecExt
 /*
  * A partition jobs read the input and scatters the rows into buckets depending
  * on their keys. When a bucket becomes full, it is written as a block.
- * Output blocks are marked with |partition_tag| to enable subsequently
+ * Output blocks are marked with partition tags to enable subsequently
  * started sort jobs to fetch appropriate portions of data.
  *
  * The input spec should contain TPartitionJobSpecExt.

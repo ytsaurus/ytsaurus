@@ -2154,12 +2154,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
     }
 
     if (joblet->InputStripeList->GetFilteringPartitionTags()) {
-        if (joblet->InputStripeList->GetFilteringPartitionTags()->size() == 1) {
-            // COMPAT(apollo1321): Remove in 26.2.
-            jobSpecExt->set_partition_tag((*joblet->InputStripeList->GetFilteringPartitionTags())[0]);
-        } else {
-            ToProto(jobSpecExt->mutable_partition_tags(), *joblet->InputStripeList->GetFilteringPartitionTags());
-        }
+        ToProto(jobSpecExt->mutable_partition_tags(), *joblet->InputStripeList->GetFilteringPartitionTags());
     }
 
     jobSpecExt->set_job_cpu_monitor_config(ToProto(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor)));
