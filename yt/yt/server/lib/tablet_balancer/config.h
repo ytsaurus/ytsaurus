@@ -18,6 +18,7 @@ struct TFeatureFlagConfig
     : public virtual NYTree::TYsonStruct
 {
     std::optional<bool> EnableSmoothMovement;
+    std::optional<bool> EnableSmoothMovementForOrdered;
     std::optional<bool> EnableInplaceSplit;
     std::optional<bool> EnableInplaceMerge;
 
