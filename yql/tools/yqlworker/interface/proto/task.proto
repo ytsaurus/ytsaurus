@@ -134,6 +134,7 @@ message TRole {
         UNKNOWN_KIND = 0;
         CLUSTER_USE  = 1;
         CLUSTER_ADMIN = 2;
+        CLUSTER_OWNER = 3;
     }
 
     message TClusterFields {
