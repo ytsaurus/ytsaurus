@@ -15,8 +15,8 @@ namespace NYT::NPushBasedShuffleClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Mapper-side facade over the controller-agent-owned pool. Implementations
-//! translate a partition index to a slot cookie internally; the mapper-side
+//! Writer-side facade over the controller-agent-owned pool. Implementations
+//! translate a partition index to a slot cookie internally; the writer-side
 //! caller never sees slot cookies.
 struct IPartitionWriteSessionProvider
     : public virtual TRefCounted

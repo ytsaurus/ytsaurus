@@ -51,7 +51,7 @@ struct IPushBasedPartitionReader
     : public virtual TRefCounted
 {
     //! Drains up to MaxBytesPerRead from ready chunks. Cross-chunk order is
-    //! unspecified. Deduplicates by (MapperId, StartRow) before decompression.
+    //! unspecified. Deduplicates by (WriterId, StartRow) before decompression.
     //! An empty batch may have Finished=false.
     //!
     //! Reads must not overlap. Canceling a read cancels the reader; subsequent
@@ -76,7 +76,7 @@ DEFINE_REFCOUNTED_TYPE(IPushBasedPartitionReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Optionally appends header-derived mapper and row identity values.
+//! Optionally appends header-derived writer and row identity values.
 IPushBasedPartitionReaderPtr CreatePushBasedPartitionReader(
     TPartitionReaderConfigPtr config,
     NApi::NNative::IClientPtr client,

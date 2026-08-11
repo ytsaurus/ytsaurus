@@ -23,7 +23,7 @@ namespace NYT::NPushBasedShuffleClient {
 struct TRecordHeader
 {
     i32 RowCount = 0;
-    i32 MapperId = 0;
+    i32 WriterId = 0;
     i64 StartRow = 0;
 };
 
@@ -31,11 +31,11 @@ static_assert(sizeof(TRecordHeader) == 16, "sizeof(TRecordHeader) != 16");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TValidMapperIds = THashSet<i32>;
+using TValidWriterIds = THashSet<i32>;
 
 struct TIdentityColumnIds
 {
-    int MapperId = -1;
+    int WriterId = -1;
     int RowId = -1;
 
     bool AreValid() const noexcept;
@@ -65,11 +65,11 @@ struct TParsedRecord
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Accumulates rows from one mapper and emits a TShuffleRecord per flush.
+//! Accumulates rows from one writer and emits a TShuffleRecord per flush.
 class TShuffleRecordBuilder
 {
 public:
-    TShuffleRecordBuilder(i32 mapperId, i64 startRowId);
+    TShuffleRecordBuilder(i32 writerId, i64 startRowId);
 
     void AddRow(NTableClient::TUnversionedRow row);
 
@@ -84,7 +84,7 @@ public:
     i64 GetDataSize() const;
 
 private:
-    const i32 MapperId_;
+    const i32 WriterId_;
     i64 NextRowId_;
     //! Has a 64 KiB+1 minimum reserve floor (a v1 limitation).
     std::optional<NTableClient::THorizontalBlockWriter> BlockWriter_;
@@ -108,7 +108,7 @@ TShuffleRecord DecompressShuffleRecord(
     TRange<TSharedRef> wire,
     NCompression::ECodec codec);
 
-//! Materializes rows and optionally appends mapper and row identity values.
+//! Materializes rows and optionally appends writer and row identity values.
 TParsedRecord ParseShuffleRecord(
     TShuffleRecord record,
     TChunkedMemoryPool* pool,

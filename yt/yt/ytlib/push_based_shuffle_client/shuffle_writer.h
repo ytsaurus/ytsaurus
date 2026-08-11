@@ -47,7 +47,7 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
     IPartitionWriteSessionProviderPtr sessionProvider,
     NTableClient::IPartitionerPtr partitioner,
     NApi::NNative::IConnectionPtr connection,
-    i32 mapperId,
+    i32 writerId,
     IInvokerPtr invoker,
     THashMap<int, NDistributedChunkSessionClient::TSessionDescriptor> seededSessions = {});
 

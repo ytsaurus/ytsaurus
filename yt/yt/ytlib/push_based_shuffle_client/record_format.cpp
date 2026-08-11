@@ -35,17 +35,17 @@ struct TShuffleWireRecordTag { };
 
 bool TIdentityColumnIds::AreValid() const noexcept
 {
-    return MapperId >= 0 &&
-        MapperId < MaxColumnId &&
+    return WriterId >= 0 &&
+        WriterId < MaxColumnId &&
         RowId >= 0 &&
         RowId < MaxColumnId &&
-        MapperId != RowId;
+        WriterId != RowId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TShuffleRecordBuilder::TShuffleRecordBuilder(i32 mapperId, i64 startRowId)
-    : MapperId_(mapperId)
+TShuffleRecordBuilder::TShuffleRecordBuilder(i32 writerId, i64 startRowId)
+    : WriterId_(writerId)
     , NextRowId_(startRowId)
     , BlockWriter_(std::in_place, EmptyTableSchema, GetNullMemoryUsageTracker())
 { }
@@ -72,7 +72,7 @@ std::optional<TShuffleRecord> TShuffleRecordBuilder::FlushRecord()
     return TShuffleRecord{
         .Header = TRecordHeader{
             .RowCount = static_cast<i32>(rowCount),
-            .MapperId = MapperId_,
+            .WriterId = WriterId_,
             .StartRow = startRow,
         },
         .UncompressedPayload = std::move(block.Data),
@@ -223,9 +223,9 @@ TParsedRecord ParseShuffleRecord(
         if (identityColumnIds) {
             if (validateIdentityColumnIds) [[unlikely]] {
                 for (const auto& value : row) {
-                    if (value.Id == identityColumnIds->MapperId) {
+                    if (value.Id == identityColumnIds->WriterId) {
                         THROW_ERROR_EXCEPTION(
-                            "Input row contains mapper identity column ID %v",
+                            "Input row contains writer identity column ID %v",
                             value.Id);
                     }
                     if (value.Id == identityColumnIds->RowId) {
@@ -236,8 +236,8 @@ TParsedRecord ParseShuffleRecord(
                 }
             }
             row.PushBack(MakeUnversionedInt64Value(
-                record.Header.MapperId,
-                identityColumnIds->MapperId));
+                record.Header.WriterId,
+                identityColumnIds->WriterId));
             row.PushBack(MakeUnversionedInt64Value(
                 record.Header.StartRow + rowIndex,
                 identityColumnIds->RowId));

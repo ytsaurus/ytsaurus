@@ -16,7 +16,7 @@ NTableClient::ISchemalessMultiChunkReaderPtr CreateIdentityAwareSortedMergingRea
     const std::vector<NTableClient::ISchemalessMultiChunkReaderPtr>& readers,
     NTableClient::TComparator sortComparator,
     TIdentityColumnIds identityColumnIds,
-    TValidMapperIds validMapperIds);
+    TValidWriterIds validWriterIds);
 
 ////////////////////////////////////////////////////////////////////////////////
 

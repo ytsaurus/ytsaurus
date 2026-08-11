@@ -17,7 +17,12 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, StartShuffle);
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, FetchChunks);
-    DEFINE_RPC_PROXY_METHOD(NProto, RegisterMapper);
+    // COMPAT(apollo1321): Remove RegisterMapper after the 26.2 branch is created.
+    DEFINE_RPC_PROXY_METHOD_GENERIC(
+        RegisterMapper,
+        NProto::TReqRegisterWriter,
+        NProto::TRspRegisterWriter);
+    DEFINE_RPC_PROXY_METHOD(NProto, RegisterWriter);
     DEFINE_RPC_PROXY_METHOD(NProto, GetPartitionWriteSession);
 };
 

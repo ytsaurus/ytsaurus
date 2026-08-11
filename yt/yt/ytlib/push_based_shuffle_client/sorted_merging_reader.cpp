@@ -27,7 +27,7 @@ namespace {
 
 struct TRowIdentity
 {
-    i32 MapperId;
+    i32 WriterId;
     i64 RowId;
 
     bool operator==(const TRowIdentity& other) const = default;
@@ -44,12 +44,12 @@ TRowIdentity ValidateAndGetIdentity(
             .With("expected_min_value_count", keyColumnCount + IdentityColumnCount);
     }
 
-    const auto& mapperValue = row[keyColumnCount];
+    const auto& writerValue = row[keyColumnCount];
     const auto& rowValue = row[keyColumnCount + 1];
-    if (mapperValue.Id != identityColumnIds.MapperId) {
-        THROW_ERROR_EXCEPTION("Unexpected mapper identity column id")
-            .With("expected_column_id", identityColumnIds.MapperId)
-            .With("actual_column_id", mapperValue.Id)
+    if (writerValue.Id != identityColumnIds.WriterId) {
+        THROW_ERROR_EXCEPTION("Unexpected writer identity column id")
+            .With("expected_column_id", identityColumnIds.WriterId)
+            .With("actual_column_id", writerValue.Id)
             .With("row_position", keyColumnCount);
     }
     if (rowValue.Id != identityColumnIds.RowId) {
@@ -58,9 +58,9 @@ TRowIdentity ValidateAndGetIdentity(
             .With("actual_column_id", rowValue.Id)
             .With("row_position", keyColumnCount + 1);
     }
-    if (mapperValue.Type != EValueType::Int64) {
-        THROW_ERROR_EXCEPTION("Unexpected mapper identity value type")
-            .With("value_type", mapperValue.Type)
+    if (writerValue.Type != EValueType::Int64) {
+        THROW_ERROR_EXCEPTION("Unexpected writer identity value type")
+            .With("value_type", writerValue.Type)
             .With("row_position", keyColumnCount);
     }
     if (rowValue.Type != EValueType::Int64) {
@@ -69,12 +69,12 @@ TRowIdentity ValidateAndGetIdentity(
             .With("row_position", keyColumnCount + 1);
     }
 
-    const auto mapperId = mapperValue.Data.Int64;
-    if (mapperId < std::numeric_limits<i32>::min() ||
-        mapperId > std::numeric_limits<i32>::max())
+    const auto writerId = writerValue.Data.Int64;
+    if (writerId < std::numeric_limits<i32>::min() ||
+        writerId > std::numeric_limits<i32>::max())
     {
-        THROW_ERROR_EXCEPTION("Mapper identity value is outside the Int32 range")
-            .With("mapper_value", mapperId)
+        THROW_ERROR_EXCEPTION("Writer identity value is outside the Int32 range")
+            .With("writer_value", writerId)
             .With("row_position", keyColumnCount);
     }
 
@@ -84,7 +84,7 @@ TRowIdentity ValidateAndGetIdentity(
             continue;
         }
         const auto& value = row[index];
-        if (value.Id == identityColumnIds.MapperId || value.Id == identityColumnIds.RowId) {
+        if (value.Id == identityColumnIds.WriterId || value.Id == identityColumnIds.RowId) {
             THROW_ERROR_EXCEPTION("Duplicate identity column id")
                 .With("actual_column_id", value.Id)
                 .With("row_position", index);
@@ -92,7 +92,7 @@ TRowIdentity ValidateAndGetIdentity(
     }
 
     return {
-        .MapperId = static_cast<i32>(mapperId),
+        .WriterId = static_cast<i32>(writerId),
         .RowId = rowValue.Data.Int64,
     };
 }
@@ -116,11 +116,11 @@ public:
         ISchemalessMultiChunkReaderPtr underlyingReader,
         int keyColumnCount,
         TIdentityColumnIds identityColumnIds,
-        TValidMapperIds validMapperIds)
+        TValidWriterIds validWriterIds)
         : UnderlyingReader_(std::move(underlyingReader))
         , KeyColumnCount_(keyColumnCount)
         , IdentityColumnIds_(identityColumnIds)
-        , ValidMapperIds_(std::move(validMapperIds))
+        , ValidWriterIds_(std::move(validWriterIds))
     { }
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -154,7 +154,7 @@ public:
                     row,
                     KeyColumnCount_,
                     IdentityColumnIds_);
-                if (!ValidMapperIds_.contains(identity.MapperId)) {
+                if (!ValidWriterIds_.contains(identity.WriterId)) {
                     ++rejectedRowCount;
                     continue;
                 }
@@ -271,7 +271,7 @@ private:
     const ISchemalessMultiChunkReaderPtr UnderlyingReader_;
     const int KeyColumnCount_;
     const TIdentityColumnIds IdentityColumnIds_;
-    const TValidMapperIds ValidMapperIds_;
+    const TValidWriterIds ValidWriterIds_;
     const TPromise<void> ErrorPromise_ = NewPromise<void>();
 
     std::optional<TRowIdentity> LastEmittedIdentity_;
@@ -288,7 +288,7 @@ ISchemalessMultiChunkReaderPtr CreateIdentityAwareSortedMergingReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
     TComparator sortComparator,
     TIdentityColumnIds identityColumnIds,
-    TValidMapperIds validMapperIds)
+    TValidWriterIds validWriterIds)
 {
     if (readers.empty()) {
         THROW_ERROR_EXCEPTION("Cannot create identity-aware sorted merging reader without input readers");
@@ -300,7 +300,7 @@ ISchemalessMultiChunkReaderPtr CreateIdentityAwareSortedMergingReader(
     }
     if (!identityColumnIds.AreValid()) {
         THROW_ERROR_EXCEPTION("Invalid identity column ids")
-            .With("mapper_id_column_id", identityColumnIds.MapperId)
+            .With("writer_id_column_id", identityColumnIds.WriterId)
             .With("row_id_column_id", identityColumnIds.RowId);
     }
 
@@ -316,7 +316,7 @@ ISchemalessMultiChunkReaderPtr CreateIdentityAwareSortedMergingReader(
         std::move(underlyingReader),
         keyColumnCount,
         identityColumnIds,
-        std::move(validMapperIds));
+        std::move(validWriterIds));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

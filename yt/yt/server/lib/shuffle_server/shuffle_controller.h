@@ -26,19 +26,19 @@ DEFINE_REFCOUNTED_TYPE(IShuffleController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Pull-based shuffle: mappers write their own chunks and register them; readers
+//! Pull-based shuffle: writers write their own chunks and register them; readers
 //! fetch the chunk slices for a partition.
 struct IPullBasedShuffleController
     : public IShuffleController
 {
     virtual TFuture<void> RegisterChunks(
         std::vector<NChunkClient::TInputChunkPtr> chunks,
-        std::optional<int> writerIndex,
+        std::optional<int> logicalWriterIndex,
         bool overwriteExistingWriterData) = 0;
 
     virtual TFuture<std::vector<NChunkClient::TInputChunkSlicePtr>> FetchChunks(
         int partitionIndex,
-        std::optional<std::pair<int, int>> writerIndexRange) = 0;
+        std::optional<std::pair<int, int>> logicalWriterIndexRange) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPullBasedShuffleController)
@@ -46,28 +46,28 @@ DEFINE_REFCOUNTED_TYPE(IPullBasedShuffleController)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Result of a push-based fetch: the partition's journal chunks plus the set of
-//! valid mapper ids used by the reader for deduplication.
+//! valid writer ids used by the reader to filter superseded writer registrations.
 struct TPushBasedFetchResult
 {
     //! Raw (chunk_id, replicas) pairs, bypassing TInputChunk because push-based
     //! chunks are journal chunks without misc meta (row_count etc.) at fetch time.
     std::vector<NDistributedChunkSessionClient::TSlotChunkInfo> Chunks;
-    std::vector<i32> ValidMapperIds;
+    std::vector<i32> ValidWriterIds;
 };
 
-struct TMapperRegistration
+struct TWriterRegistration
 {
-    i32 MapperId = 0;
+    i32 WriterId = 0;
     std::vector<NDistributedChunkSessionClient::TReadySession> ReadySessions;
 };
 
-//! Push-based shuffle: mappers push records into shared per-partition journal
-//! chunk sessions; readers fetch the partition's chunks plus the valid mapper set.
+//! Push-based shuffle: writers push records into shared per-partition journal
+//! chunk sessions; readers fetch the partition's chunks plus the valid writer set.
 struct IPushBasedShuffleController
     : public IShuffleController
 {
-    virtual TFuture<TMapperRegistration> RegisterMapper(
-        std::optional<int> writerIndex,
+    virtual TFuture<TWriterRegistration> RegisterWriter(
+        std::optional<int> logicalWriterIndex,
         bool overwriteExistingWriterData) = 0;
 
     virtual TFuture<NDistributedChunkSessionClient::TSessionDescriptor> GetPartitionWriteSession(
@@ -76,7 +76,7 @@ struct IPushBasedShuffleController
 
     virtual TFuture<TPushBasedFetchResult> FetchChunks(
         int partitionIndex,
-        std::optional<std::pair<int, int>> writerIndexRange) = 0;
+        std::optional<std::pair<int, int>> logicalWriterIndexRange) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPushBasedShuffleController)

@@ -325,7 +325,7 @@ private:
                 drainedBytes += std::ssize(blob);
                 try {
                     auto header = ReadShuffleRecordHeader(blob);
-                    if (!SeenRecords_.emplace(header.MapperId, header.StartRow).second ||
+                    if (!SeenRecords_.emplace(header.WriterId, header.StartRow).second ||
                         (RecordHeaderFilter_ && !RecordHeaderFilter_(header)))
                     {
                         continue;
