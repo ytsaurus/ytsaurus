@@ -99,14 +99,12 @@ public:
         YT_VERIFY(BuildersBudget_ > 0);
         YT_VERIFY(InFlightBudget_ > 0);
         EvictionHeap_.reserve(Partitions_.size());
-        YT_LOG_INFO(
-            "Push-based shuffle writer created "
-            "(PartitionCount: %v, MemoryBudget: %v, BuildersBudget: %v, InFlightBudget: %v, MaxSendAttempts: %v)",
-            Partitions_.size(),
-            Config_->MemoryBudget,
-            BuildersBudget_,
-            InFlightBudget_,
-            Config_->MaxSendAttempts);
+        YT_TLOG_INFO("Push-based shuffle writer created")
+            .With("PartitionCount", Partitions_.size())
+            .With("MemoryBudget", Config_->MemoryBudget)
+            .With("BuildersBudget", BuildersBudget_)
+            .With("InFlightBudget", InFlightBudget_)
+            .With("MaxSendAttempts", Config_->MaxSendAttempts);
     }
 
     TFuture<void> Write(TRange<TUnversionedRow> rows) override
@@ -232,10 +230,9 @@ private:
         if (InFlightBytes_ > InFlightBudget_) {
             YT_VERIFY(!BackpressurePromise_);
             BackpressurePromise_ = std::move(writePromise);
-            YT_LOG_DEBUG(
-                "Backpressure engaged (InFlightBytes: %v, InFlightBudget: %v)",
-                InFlightBytes_,
-                InFlightBudget_);
+            YT_TLOG_DEBUG("Backpressure engaged")
+                .With("InFlightBytes", InFlightBytes_)
+                .With("InFlightBudget", InFlightBudget_);
             return;
         }
         writePromise.Set();
@@ -254,9 +251,8 @@ private:
         Closing_ = true;
         ClosePromise_ = NewPromise<void>();
 
-        YT_LOG_INFO(
-            "Closing shuffle writer (NonEmptyPartitions: %v)",
-            EvictionHeap_.size());
+        YT_TLOG_INFO("Closing shuffle writer")
+            .With("NonEmptyPartitions", EvictionHeap_.size());
 
         std::vector<int> nonEmptySnapshot(EvictionHeap_.begin(), EvictionHeap_.end());
         for (int partitionIndex : nonEmptySnapshot) {
@@ -390,10 +386,9 @@ private:
             }
         }
         if (!partitionState.PendingSessionFuture) {
-            YT_LOG_DEBUG(
-                "Requesting session (PartitionIndex: %v, ExcludedSessionId: %v)",
-                partitionIndex,
-                excluded);
+            YT_TLOG_DEBUG("Requesting session")
+                .With("PartitionIndex", partitionIndex)
+                .With("ExcludedSessionId", excluded);
             partitionState.PendingSessionFuture = SessionProvider_->GetSession(partitionIndex, excluded);
         }
         ++OutstandingWork_;
@@ -429,10 +424,9 @@ private:
         partitionState.Writer = CreateDistributedChunkWriter_(
             partitionState.Session->SequencerNode,
             partitionState.Session->SessionId);
-        YT_LOG_DEBUG(
-            "Session resolved (PartitionIndex: %v, SessionId: %v)",
-            partitionIndex,
-            partitionState.Session->SessionId);
+        YT_TLOG_DEBUG("Session resolved")
+            .With("PartitionIndex", partitionIndex)
+            .With("SessionId", partitionState.Session->SessionId);
 
         // Sweep order is THashMap iteration order — non-deterministic. The
         // writer makes no in-order delivery guarantee per partition (retries
@@ -492,11 +486,10 @@ private:
         }
 
         if (partitionState.Session && partitionState.Session->SessionId == inFlight.SessionId) {
-            YT_LOG_DEBUG(
-                error,
-                "Retiring session after write failure (PartitionIndex: %v, SessionId: %v)",
-                partitionIndex,
-                inFlight.SessionId);
+            YT_TLOG_DEBUG("Retiring session after write failure")
+                .With("PartitionIndex", partitionIndex)
+                .With("SessionId", inFlight.SessionId)
+                .With(error);
             auto excluded = partitionState.Session->SessionId;
             partitionState.Session.reset();
             partitionState.Writer.Reset();
@@ -511,10 +504,9 @@ private:
     void MaybeReleaseBackpressure()
     {
         if (BackpressurePromise_ && InFlightBytes_ <= InFlightBudget_) {
-            YT_LOG_DEBUG(
-                "Backpressure released (InFlightBytes: %v, InFlightBudget: %v)",
-                InFlightBytes_,
-                InFlightBudget_);
+            YT_TLOG_DEBUG("Backpressure released")
+                .With("InFlightBytes", InFlightBytes_)
+                .With("InFlightBudget", InFlightBudget_);
             auto promise = std::move(BackpressurePromise_);
             BackpressurePromise_.Reset();
             promise.Set();
@@ -526,7 +518,7 @@ private:
         if (!Closing_ || ClosePromise_.IsSet() || OutstandingWork_ > 0) {
             return;
         }
-        YT_LOG_INFO("Shuffle writer closed");
+        YT_TLOG_INFO("Shuffle writer closed");
         ClosePromise_.Set();
     }
 
@@ -535,7 +527,8 @@ private:
         if (!TerminalError_.IsOK()) {
             return;
         }
-        YT_LOG_WARNING(error, "Shuffle writer failed");
+        YT_TLOG_WARNING("Shuffle writer failed")
+            .With(error);
         TerminalError_ = error;
         if (BackpressurePromise_) {
             auto promise = std::move(BackpressurePromise_);
