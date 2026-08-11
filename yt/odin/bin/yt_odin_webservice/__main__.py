@@ -8,6 +8,11 @@ from yt_odin.logserver import (
     FULLY_AVAILABLE_STATE,
     TERMINATED_STATE
 )
+from yt_odin.webservice.solomon import (
+    create_solomon_duration_sensors,
+    create_solomon_timed_out_sensors,
+    create_solomon_availability_sensors,
+)
 
 from yt.common import update
 
@@ -33,6 +38,7 @@ app = Flask("yt_odin_webservice")
 DB_TABLE_CLIENT = None
 DB_TABLE_CLIENTS_FOR_CLUSTERS = {}
 SERVICES = []
+SERVICES_EMITTING_AVAILABILITY = set()
 SOLOMON_LAG = 600  # seconds
 
 
@@ -109,40 +115,6 @@ def parse_solomon_timedelta(string):
     return datetime.timedelta(**time_params)
 
 
-def create_solomon_duration_sensors(records):
-    sensors = []
-    for record in records:
-        if record.duration is not None:
-            sensors.append(dict(
-                labels=dict(
-                    sensor="duration",
-                    check=record.service,
-                    proxy=record.cluster,
-                ),
-                ts=record.timestamp,
-                kind="IGAUGE",
-                value=record.duration,
-            ))
-    return sensors
-
-
-def create_solomon_timed_out_sensors(records):
-    sensors = []
-    for record in records:
-        value = 1 if record.duration is None else 0
-        sensors.append(dict(
-            labels=dict(
-                sensor="timed_out",
-                check=record.service,
-                proxy=record.cluster,
-            ),
-            ts=record.timestamp,
-            kind="IGAUGE",
-            value=value,
-        ))
-    return sensors
-
-
 def get_prometheus_metric_line(
         metric_name: str, metric_value: float, timestamp: int | None, labels: dict[str, str] | None = None
 ):
@@ -170,7 +142,8 @@ def solomon_duration():
     db_records = extract_all_records(start_timestamp + 1, stop_timestamp)
     duration_sensors = create_solomon_duration_sensors(db_records)
     timed_out_sensors = create_solomon_timed_out_sensors(db_records)
-    return jsonify({"sensors": duration_sensors + timed_out_sensors})
+    availability_sensors = create_solomon_availability_sensors(db_records, SERVICES_EMITTING_AVAILABILITY)
+    return jsonify({"sensors": duration_sensors + timed_out_sensors + availability_sensors})
 
 
 @app.route("/prometheus")
@@ -331,6 +304,11 @@ def main():
 
     global SERVICES
     SERVICES = config["services"]
+
+    global SERVICES_EMITTING_AVAILABILITY
+    SERVICES_EMITTING_AVAILABILITY = {
+        service["name"] for service in SERVICES if service.get("emit_availability")
+    }
 
     if "logging" in config:
         handler = logging.handlers.WatchedFileHandler(config["logging"]["filename"])

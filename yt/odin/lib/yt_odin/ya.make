@@ -15,4 +15,5 @@ RECURSE(
     odinserver
     storage
     test_helpers
+    webservice
 )
