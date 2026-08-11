@@ -176,7 +176,7 @@ def logbroker_federation():
     ]
 
     yatest.common.process.execute(
-        command=[LOGBROKER_FEDERATION_RECIPE_BINARY, "start"] + common_args,
+        command=[LOGBROKER_FEDERATION_RECIPE_BINARY, "start", "--legacy-pq"] + common_args,
     )
 
     load_env()
