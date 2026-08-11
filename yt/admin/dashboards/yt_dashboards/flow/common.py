@@ -250,7 +250,9 @@ def build_resource_usage(component: str, add_component_to_title: bool, backend: 
 
     bandwidth_description = (
         "Bytes the node's pod received and transmitted per second, "
-        "including the traffic of its sidecars"
+        "including the traffic of its sidecars. "
+        "The guarantee is a floor rather than a cap: traffic above it is served, "
+        "but is the first to be dropped when the host is congested"
     )
 
     # Anon memory is what the pod is killed on, so take usage and limit from
@@ -321,7 +323,11 @@ def build_resource_usage(component: str, add_component_to_title: bool, backend: 
                         .alias("Rx - {{host}}"),
                     MonitoringExpr(sensor("yt.porto.network.tx_bytes"))
                         .value("container_category", "pod")
-                        .alias("Tx - {{host}}"))
+                        .alias("Tx - {{host}}"),
+                    # The guarantee is equal on all hosts, hence one line.
+                    MonitoringExpr(sensor("yt.flow.node.network_bandwidth_guarantee"))
+                        .series_min()
+                        .alias("Guarantee"))
                     .unit("UNIT_BYTES_SI_PER_SECOND"),
                 description=bandwidth_description,
                 skip_cell=backend != "monitoring")
