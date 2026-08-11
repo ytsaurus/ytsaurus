@@ -94,8 +94,4 @@ gRPC-сервер поднимается автоматически через S
 
 Оба класса находятся в одном jar-файле.
 
-## См. также
 
-- [Быстрый старт](../../../../flow/java/getting-started.md)
-- [Computation](../../../../flow/java/computation.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)

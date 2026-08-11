@@ -87,7 +87,4 @@
 - **ExternalStateAccessor** — работа с внешним стейтом через `Payload` и `PayloadBuilder`.
 - **SourceComputation с ProcessFunction** — `reader` использует `EventMapper` для трансформации входных данных на стороне компаньона.
 
-## См. также
 
-- [Быстрый старт (Java)](../../../../flow/java/getting-started.md)
-- [Computation (Java)](../../../../flow/java/computation.md)

@@ -105,9 +105,4 @@
 - **Очистка стейта** — после обработки стейт удаляется через `accessor.clear()`, предотвращая утечку памяти.
 - **YsonStateAccessor** — внутренний стейт сериализуется в YSON и хранится на стороне C++ воркера; Java-объект получается через `getOrDefault`.
 
-## См. также
 
-- [Быстрый старт (Java)](../../../../flow/java/getting-started.md)
-- [Computation (Java)](../../../../flow/java/computation.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)
-- [Аналогичный пример на C++](../../../../flow/cpp/examples/url_downloader.md)

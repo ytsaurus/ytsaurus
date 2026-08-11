@@ -54,8 +54,4 @@
 
 {% code '/yt/yt/flow/examples/cpp/word_count/lib/word_count_functions.cpp' lang='cpp' lines='[BEGIN word_counter]-[END word_counter]' keep-indents %}
 
-## См. также
 
-- [Быстрый старт (C++)](../../../../flow/cpp/getting-started.md)
-- [Computation (C++)](../../../../flow/cpp/computation.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)

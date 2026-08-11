@@ -91,7 +91,4 @@
 
 {% code '/yt/yt/flow/examples/cpp/url_downloader/main.cpp' lang='cpp' lines='[BEGIN limited_url_download]-[END limited_url_download]' keep-indents %}
 
-## См. также
 
-- [Быстрый старт (C++)](../../../../flow/cpp/getting-started.md)
-- [Computation (C++)](../../../../flow/cpp/computation.md)
