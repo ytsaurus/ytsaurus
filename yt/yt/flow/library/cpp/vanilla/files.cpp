@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
+#include <yt/yt/core/logging/log.h>
+
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
@@ -24,10 +26,16 @@
 
 #include <util/stream/file.h>
 
+#include <util/system/file.h>
+
 namespace NYT::NFlow {
 
 using namespace NConcurrency;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const NLogging::TLogger Logger("VanillaFiles");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +61,15 @@ NApi::TCreateNodeOptions MakeCacheFileOptions(const NApi::IClientPtr& client)
 //! Streams `localPath`'s content block by block into an opened file writer.
 void StreamLocalFile(const NApi::IFileWriterPtr& writer, const std::string& localPath)
 {
-    TFileInput input{TString(localPath)};
+    // The mode TFileInput would open the path with; Seq keeps the sequential read-ahead hint for
+    // what is usually a multi-GB binary.
+    TFile file(TString(localPath), OpenExisting | RdOnly | Seq);
+
+    YT_TLOG_INFO("Uploading job file to the cluster cache")
+        .With("Path", localPath)
+        .With("Size", file.GetLength());
+
+    TFileInput input(file);
     TBuffer buffer(UploadBlockSize);
     while (size_t read = input.Read(buffer.Data(), UploadBlockSize)) {
         WaitFor(writer->Write(TSharedRef::FromString(TString(buffer.Data(), read)))).ThrowOnError();
