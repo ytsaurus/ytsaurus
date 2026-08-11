@@ -19,7 +19,7 @@ Documentation is available at [https://h3geo.org/](https://h3geo.org/). Develope
 
 ## Installing
 
-We recommend using prebuilt bindings if they are available for your programming language. Bindings for [Go](https://github.com/uber/h3-go), [Java](https://github.com/uber/h3-java), [JavaScript](https://github.com/uber/h3-js), [Python](https://github.com/uber/h3-py), and [others](https://h3geo.org/docs/community/bindings) are available.
+We recommend using prebuilt bindings if they are available for your programming language. Bindings for [Java](https://github.com/uber/h3-java), [JavaScript](https://github.com/uber/h3-js), [Python](https://github.com/uber/h3-py), and [others](https://h3geo.org/docs/community/bindings) are available.
 
 On macOS, you can install H3 using `brew`:
 ```
@@ -29,7 +29,7 @@ Otherwise, to build H3 from source, please see the following instructions.
 
 ### Building from source
 
-Still here? To build the H3 C library, you'll need a C compiler (tested with `gcc` and `clang`), [CMake](https://cmake.org/), and [Make](https://www.gnu.org/software/make/). If you intend to contribute to H3, you must have [clang-format](https://clang.llvm.org/docs/ClangFormat.html) installed and we recommend installing [ccmake](https://cmake.org/cmake/help/v3.0/manual/ccmake.1.html) and [LCOV](http://ltp.sourceforge.net/coverage/lcov.php) to configure the `cmake` arguments to build and run the tests and generate the code coverage report. We also recommend using `gcc` for the code coverage as some versions of `clang` generate annotations that aren't compatible with `lcov`. [Doxygen](http://www.stack.nl/~dimitri/doxygen/) is needed to build the API documentation.
+Still here? To build the H3 C library, you'll need a C compiler (tested with `gcc` and `clang`), [CMake](https://cmake.org/), and [Make](https://www.gnu.org/software/make/). If you intend to contribute to H3, you must have [clang-format](https://clang.llvm.org/docs/ClangFormat.html) installed and we recommend installing [ccmake](https://cmake.org/cmake/help/v3.0/manual/ccmake.1.html) and [LCOV](http://ltp.sourceforge.net/coverage/lcov.php) to configure the `cmake` arguments to build and run the tests and generate the code coverage report. We also recommend using `gcc` for the code coverage as some versions of `clang` generate annotations that aren't compatible with `lcov`. [Doxygen](https://www.doxygen.nl/index.html) is needed to build the API documentation.
 
 #### Install build-time dependencies
 
@@ -72,12 +72,20 @@ sudo pkg install bash cmake gmake doxygen lcov
 
 #### Compilation
 
+When checking out the H3 Git repository, by default you will check out the latest
+development version of H3. When using H3 in an application, you will want to check
+out the most recently released version:
+
+```
+git checkout v$(<VERSION)
+```
+
 From the repository root, you can compile H3 with:
 
 ```
 mkdir build
 cd build
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
 make
 ```
 
@@ -144,7 +152,7 @@ To build the documentation website, see the [website/](./website/) directory.
 To get the H3 index for some location:
 
 ```
-./bin/geoToH3 --resolution 10 --latitude 40.689167 --longitude -74.044444
+./bin/latLngToCell --resolution 10 --latitude 40.689167 --longitude -74.044444
 ```
 
 10 is the H3 resolution, between 0 (coarsest) and 15 (finest). The coordinates entered are the latitude and longitude, in degrees, you want the index for (these coordinates are the Statue of Liberty).  You should get an H3 index as output, like `8a2a1072b59ffff`.
@@ -152,7 +160,7 @@ To get the H3 index for some location:
 You can then take this index and get some information about it, for example:
 
 ```
-./bin/h3ToGeoBoundary --index 8a2a1072b59ffff
+./bin/cellToBoundary --index 8a2a1072b59ffff
 ```
 
 This will produce the vertices of the hexagon at this location:
@@ -172,7 +180,7 @@ This will produce the vertices of the hexagon at this location:
 You can get the center coordinate of the hexagon like so:
 
 ```
-./bin/h3ToGeo --index 8a2a1072b59ffff
+./bin/cellToLatLng --index 8a2a1072b59ffff
 ```
 
 This will produce some coordinate:

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 Uber Technologies, Inc.
+ * Copyright 2016-2018, 2020 Uber Technologies, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -164,33 +164,19 @@
             (((uint64_t)(digit))                                            \
              << ((MAX_H3_RES - (res)) * H3_PER_DIGIT_OFFSET)))
 
-/**
- * Invalid index used to indicate an error from geoToH3 and related functions
- * or missing data in arrays of h3 indices. Analogous to NaN in floating point.
- */
-#define H3_NULL 0
-
-/*
- * Return codes for compact
- */
-
-#define COMPACT_SUCCESS 0
-#define COMPACT_LOOP_EXCEEDED -1
-#define COMPACT_DUPLICATE -2
-#define COMPACT_ALLOC_FAILED -3
-
-void setH3Index(H3Index* h, int res, int baseCell, Direction initDigit);
-int isResClassIII(int res);
+void setH3Index(H3Index *h, int res, int baseCell, Direction initDigit);
+int isResolutionClassIII(int r);
 
 // Internal functions
 
-int _h3ToFaceIjkWithInitializedFijk(H3Index h, FaceIJK* fijk);
-void _h3ToFaceIjk(H3Index h, FaceIJK* fijk);
-H3Index _faceIjkToH3(const FaceIJK* fijk, int res);
+int _h3ToFaceIjkWithInitializedFijk(H3Index h, FaceIJK *fijk);
+H3Error _h3ToFaceIjk(H3Index h, FaceIJK *fijk);
+H3Index _faceIjkToH3(const FaceIJK *fijk, int res);
 Direction _h3LeadingNonZeroDigit(H3Index h);
 H3Index _h3RotatePent60ccw(H3Index h);
 H3Index _h3RotatePent60cw(H3Index h);
 H3Index _h3Rotate60ccw(H3Index h);
 H3Index _h3Rotate60cw(H3Index h);
+DECLSPEC H3Index _zeroIndexDigits(H3Index h, int start, int end);
 
 #endif

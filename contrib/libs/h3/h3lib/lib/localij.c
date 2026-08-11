@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2019 Uber Technologies, Inc.
+ * Copyright 2018-2020 Uber Technologies, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 
 #include "baseCells.h"
 #include "faceijk.h"
+#include "h3Assert.h"
 #include "h3Index.h"
 #include "mathExtensions.h"
 
@@ -128,15 +129,24 @@ const bool FAILED_DIRECTIONS[7][7] = {
  * @param out ijk+ coordinates of the index will be placed here on success
  * @return 0 on success, or another value on failure.
  */
-int h3ToLocalIjk(H3Index origin, H3Index h3, CoordIJK* out) {
+H3Error cellToLocalIjk(H3Index origin, H3Index h3, CoordIJK *out) {
     int res = H3_GET_RESOLUTION(origin);
 
     if (res != H3_GET_RESOLUTION(h3)) {
-        return 1;
+        return E_RES_MISMATCH;
     }
 
     int originBaseCell = H3_GET_BASE_CELL(origin);
     int baseCell = H3_GET_BASE_CELL(h3);
+
+    if (NEVER(originBaseCell < 0) || originBaseCell >= NUM_BASE_CELLS) {
+        // Base cells less than zero can not be represented in an index
+        return E_CELL_INVALID;
+    }
+    if (NEVER(baseCell < 0) || baseCell >= NUM_BASE_CELLS) {
+        // Base cells less than zero can not be represented in an index
+        return E_CELL_INVALID;
+    }
 
     // Direction from origin base cell to index base cell
     Direction dir = CENTER_DIGIT;
@@ -145,7 +155,7 @@ int h3ToLocalIjk(H3Index origin, H3Index h3, CoordIJK* out) {
         dir = _getBaseCellDirection(originBaseCell, baseCell);
         if (dir == INVALID_DIGIT) {
             // Base cells are not neighbors, can't unfold.
-            return 2;
+            return E_FAILED;
         }
         revDir = _getBaseCellDirection(baseCell, originBaseCell);
         assert(revDir != INVALID_DIGIT);
@@ -187,11 +197,14 @@ int h3ToLocalIjk(H3Index origin, H3Index h3, CoordIJK* out) {
         if (originOnPent) {
             int originLeadingDigit = _h3LeadingNonZeroDigit(origin);
 
+            if (originLeadingDigit == INVALID_DIGIT) {
+                return E_CELL_INVALID;
+            }
             if (FAILED_DIRECTIONS[originLeadingDigit][dir]) {
                 // TODO: We may be unfolding the pentagon incorrectly in this
                 // case; return an error code until this is guaranteed to be
                 // correct.
-                return 3;
+                return E_FAILED;
             }
 
             directionRotations = PENTAGON_ROTATIONS[originLeadingDigit][dir];
@@ -199,18 +212,23 @@ int h3ToLocalIjk(H3Index origin, H3Index h3, CoordIJK* out) {
         } else if (indexOnPent) {
             int indexLeadingDigit = _h3LeadingNonZeroDigit(h3);
 
+            if (indexLeadingDigit == INVALID_DIGIT) {
+                return E_CELL_INVALID;
+            }
             if (FAILED_DIRECTIONS[indexLeadingDigit][revDir]) {
                 // TODO: We may be unfolding the pentagon incorrectly in this
                 // case; return an error code until this is guaranteed to be
                 // correct.
-                return 4;
+                return E_FAILED;
             }
 
             pentagonRotations = PENTAGON_ROTATIONS[revDir][indexLeadingDigit];
         }
 
-        assert(pentagonRotations >= 0);
-        assert(directionRotations >= 0);
+        if (pentagonRotations < 0 || directionRotations < 0) {
+            // This occurs when an invalid K axis digit is present
+            return E_CELL_INVALID;
+        }
 
         for (int i = 0; i < pentagonRotations; i++) {
             _ijkRotate60cw(&indexFijk.coord);
@@ -220,7 +238,7 @@ int h3ToLocalIjk(H3Index origin, H3Index h3, CoordIJK* out) {
         _neighbor(&offset, dir);
         // Scale offset based on resolution
         for (int r = res - 1; r >= 0; r--) {
-            if (isResClassIII(r + 1)) {
+            if (isResolutionClassIII(r + 1)) {
                 // rotate ccw
                 _downAp7(&offset);
             } else {
@@ -245,10 +263,14 @@ int h3ToLocalIjk(H3Index origin, H3Index h3, CoordIJK* out) {
         int originLeadingDigit = _h3LeadingNonZeroDigit(origin);
         int indexLeadingDigit = _h3LeadingNonZeroDigit(h3);
 
+        if (originLeadingDigit == INVALID_DIGIT ||
+            indexLeadingDigit == INVALID_DIGIT) {
+            return E_CELL_INVALID;
+        }
         if (FAILED_DIRECTIONS[originLeadingDigit][indexLeadingDigit]) {
             // TODO: We may be unfolding the pentagon incorrectly in this case;
             // return an error code until this is guaranteed to be correct.
-            return 5;
+            return E_FAILED;
         }
 
         int withinPentagonRotations =
@@ -260,7 +282,7 @@ int h3ToLocalIjk(H3Index origin, H3Index h3, CoordIJK* out) {
     }
 
     *out = indexFijk.coord;
-    return 0;
+    return E_SUCCESS;
 }
 
 /**
@@ -277,32 +299,36 @@ int h3ToLocalIjk(H3Index origin, H3Index h3, CoordIJK* out) {
  * @param out The index will be placed here on success
  * @return 0 on success, or another value on failure.
  */
-int localIjkToH3(H3Index origin, const CoordIJK* ijk, H3Index* out) {
+H3Error localIjkToCell(H3Index origin, const CoordIJK *ijk, H3Index *out) {
     int res = H3_GET_RESOLUTION(origin);
     int originBaseCell = H3_GET_BASE_CELL(origin);
+    if (NEVER(originBaseCell < 0) || originBaseCell >= NUM_BASE_CELLS) {
+        // Base cells less than zero can not be represented in an index
+        return E_CELL_INVALID;
+    }
     int originOnPent = _isBaseCellPentagon(originBaseCell);
 
     // This logic is very similar to faceIjkToH3
     // initialize the index
     *out = H3_INIT;
-    H3_SET_MODE(*out, H3_HEXAGON_MODE);
+    H3_SET_MODE(*out, H3_CELL_MODE);
     H3_SET_RESOLUTION(*out, res);
 
     // check for res 0/base cell
     if (res == 0) {
-        if (ijk->i > 1 || ijk->j > 1 || ijk->k > 1) {
-            // out of range input
-            return 1;
+        const Direction dir = _unitIjkToDigit(ijk);
+        if (dir == INVALID_DIGIT) {
+            // out of range input - not a unit vector or zero vector
+            return E_FAILED;
         }
 
-        const Direction dir = _unitIjkToDigit(ijk);
         const int newBaseCell = _getBaseCellNeighbor(originBaseCell, dir);
         if (newBaseCell == INVALID_BASE_CELL) {
             // Moving in an invalid direction off a pentagon.
-            return 1;
+            return E_FAILED;
         }
         H3_SET_BASE_CELL(*out, newBaseCell);
-        return 0;
+        return E_SUCCESS;
     }
 
     // we need to find the correct base cell offset (if any) for this H3 index;
@@ -316,14 +342,20 @@ int localIjkToH3(H3Index origin, const CoordIJK* ijk, H3Index* out) {
     for (int r = res - 1; r >= 0; r--) {
         CoordIJK lastIJK = ijkCopy;
         CoordIJK lastCenter;
-        if (isResClassIII(r + 1)) {
+        if (isResolutionClassIII(r + 1)) {
             // rotate ccw
-            _upAp7(&ijkCopy);
+            H3Error upAp7Error = _upAp7Checked(&ijkCopy);
+            if (upAp7Error) {
+                return upAp7Error;
+            }
             lastCenter = ijkCopy;
             _downAp7(&lastCenter);
         } else {
             // rotate cw
-            _upAp7r(&ijkCopy);
+            H3Error upAp7rError = _upAp7rChecked(&ijkCopy);
+            if (upAp7rError) {
+                return upAp7rError;
+            }
             lastCenter = ijkCopy;
             _downAp7r(&lastCenter);
         }
@@ -340,7 +372,7 @@ int localIjkToH3(H3Index origin, const CoordIJK* ijk, H3Index* out) {
 
     if (ijkCopy.i > 1 || ijkCopy.j > 1 || ijkCopy.k > 1) {
         // out of range input
-        return 2;
+        return E_FAILED;
     }
 
     // lookup the correct base cell
@@ -358,6 +390,9 @@ int localIjkToH3(H3Index origin, const CoordIJK* ijk, H3Index* out) {
         int pentagonRotations = 0;
         if (originOnPent) {
             const Direction originLeadingDigit = _h3LeadingNonZeroDigit(origin);
+            if (originLeadingDigit == INVALID_DIGIT) {
+                return E_CELL_INVALID;
+            }
             pentagonRotations =
                 PENTAGON_ROTATIONS_REVERSE[originLeadingDigit][dir];
             for (int i = 0; i < pentagonRotations; i++) {
@@ -367,7 +402,7 @@ int localIjkToH3(H3Index origin, const CoordIJK* ijk, H3Index* out) {
             // deleted direction. If it still happens, it means we're moving
             // into a deleted subsequence, so there is no index here.
             if (dir == K_AXES_DIGIT) {
-                return 3;
+                return E_PENTAGON;
             }
             baseCell = _getBaseCellNeighbor(originBaseCell, dir);
 
@@ -400,6 +435,11 @@ int localIjkToH3(H3Index origin, const CoordIJK* ijk, H3Index* out) {
             }
 
             const Direction indexLeadingDigit = _h3LeadingNonZeroDigit(*out);
+            // This case should be unreachable because this function is building
+            // *out, and should never generate an invalid digit, above.
+            if (NEVER(indexLeadingDigit == INVALID_DIGIT)) {
+                return E_CELL_INVALID;
+            }
             if (_isBaseCellPolarPentagon(baseCell)) {
                 pentagonRotations =
                     PENTAGON_ROTATIONS_REVERSE_POLAR[revDir][indexLeadingDigit];
@@ -408,13 +448,20 @@ int localIjkToH3(H3Index origin, const CoordIJK* ijk, H3Index* out) {
                     PENTAGON_ROTATIONS_REVERSE_NONPOLAR[revDir]
                                                        [indexLeadingDigit];
             }
+            // For this to occur, revDir would need to be 1. Since revDir is
+            // from the index base cell (which is a pentagon) towards the
+            // origin, this should never be the case.
+            if (NEVER(pentagonRotations < 0)) {
+                return E_CELL_INVALID;
+            }
 
-            assert(pentagonRotations >= 0);
             for (int i = 0; i < pentagonRotations; i++) {
                 *out = _h3RotatePent60ccw(*out);
             }
         } else {
-            assert(pentagonRotations >= 0);
+            if (pentagonRotations < 0) {
+                return E_CELL_INVALID;
+            }
             for (int i = 0; i < pentagonRotations; i++) {
                 *out = _h3Rotate60ccw(*out);
             }
@@ -428,9 +475,16 @@ int localIjkToH3(H3Index origin, const CoordIJK* ijk, H3Index* out) {
         const int originLeadingDigit = _h3LeadingNonZeroDigit(origin);
         const int indexLeadingDigit = _h3LeadingNonZeroDigit(*out);
 
+        if (originLeadingDigit == INVALID_DIGIT ||
+            indexLeadingDigit == INVALID_DIGIT) {
+            return E_CELL_INVALID;
+        }
         const int withinPentagonRotations =
             PENTAGON_ROTATIONS_REVERSE[originLeadingDigit][indexLeadingDigit];
-        assert(withinPentagonRotations >= 0);
+        if (withinPentagonRotations < 0) {
+            // This occurs when an invalid K axis digit is present
+            return E_CELL_INVALID;
+        }
 
         for (int i = 0; i < withinPentagonRotations; i++) {
             *out = _h3Rotate60ccw(*out);
@@ -438,16 +492,16 @@ int localIjkToH3(H3Index origin, const CoordIJK* ijk, H3Index* out) {
     }
 
     if (indexOnPent) {
-        // TODO: There are cases in h3ToLocalIjk which are failed but not
+        // TODO: There are cases in cellToLocalIjk which are failed but not
         // accounted for here - instead just fail if the recovered index is
         // invalid.
         if (_h3LeadingNonZeroDigit(*out) == K_AXES_DIGIT) {
-            return 4;
+            return E_PENTAGON;
         }
     }
 
     H3_SET_BASE_CELL(*out, baseCell);
-    return 0;
+    return E_SUCCESS;
 }
 
 /**
@@ -462,29 +516,29 @@ int localIjkToH3(H3Index origin, const CoordIJK* ijk, H3Index* out) {
  * Failure may occur if the index is too far away from the origin
  * or if the index is on the other side of a pentagon.
  *
- * This function is experimental, and its output is not guaranteed
+ * This function's output is not guaranteed
  * to be compatible across different versions of H3.
  *
  * @param origin An anchoring index for the ij coordinate system.
  * @param index Index to find the coordinates of
+ * @param mode Mode, must be 0
  * @param out ij coordinates of the index will be placed here on success
  * @return 0 on success, or another value on failure.
  */
-int H3_EXPORT(experimentalH3ToLocalIj)(H3Index origin, H3Index h3,
-                                       CoordIJ* out) {
-    // This function is currently experimental. Once ready to be part of the
-    // non-experimental API, this function (with the experimental prefix) will
-    // be marked as deprecated and to be removed in the next major version. It
-    // will be replaced with a non-prefixed function name.
+H3Error H3_EXPORT(cellToLocalIj)(H3Index origin, H3Index h3, uint32_t mode,
+                                 CoordIJ *out) {
+    if (mode != 0) {
+        return E_OPTION_INVALID;
+    }
     CoordIJK ijk;
-    int failed = h3ToLocalIjk(origin, h3, &ijk);
+    H3Error failed = cellToLocalIjk(origin, h3, &ijk);
     if (failed) {
         return failed;
     }
 
     ijkToIj(&ijk, out);
 
-    return 0;
+    return E_SUCCESS;
 }
 
 /**
@@ -496,24 +550,27 @@ int H3_EXPORT(experimentalH3ToLocalIj)(H3Index origin, H3Index h3,
  * Failure may occur if the index is too far away from the origin
  * or if the index is on the other side of a pentagon.
  *
- * This function is experimental, and its output is not guaranteed
+ * This function's output is not guaranteed
  * to be compatible across different versions of H3.
  *
  * @param origin An anchoring index for the ij coordinate system.
  * @param out ij coordinates to index.
+ * @param mode Mode, must be 0
  * @param index Index will be placed here on success.
  * @return 0 on success, or another value on failure.
  */
-int H3_EXPORT(experimentalLocalIjToH3)(H3Index origin, const CoordIJ* ij,
-                                       H3Index* out) {
-    // This function is currently experimental. Once ready to be part of the
-    // non-experimental API, this function (with the experimental prefix) will
-    // be marked as deprecated and to be removed in the next major version. It
-    // will be replaced with a non-prefixed function name.
+H3Error H3_EXPORT(localIjToCell)(H3Index origin, const CoordIJ *ij,
+                                 uint32_t mode, H3Index *out) {
+    if (mode != 0) {
+        return E_OPTION_INVALID;
+    }
     CoordIJK ijk;
-    ijToIjk(ij, &ijk);
+    H3Error ijToIjkError = ijToIjk(ij, &ijk);
+    if (ijToIjkError) {
+        return ijToIjkError;
+    }
 
-    return localIjkToH3(origin, &ijk, out);
+    return localIjkToCell(origin, &ijk, out);
 }
 
 /**
@@ -528,18 +585,19 @@ int H3_EXPORT(experimentalLocalIjToH3)(H3Index origin, const CoordIJ* ij,
  * @return The distance, or a negative number if the library could not
  * compute the distance.
  */
-int H3_EXPORT(h3Distance)(H3Index origin, H3Index h3) {
+H3Error H3_EXPORT(gridDistance)(H3Index origin, H3Index h3, int64_t *out) {
     CoordIJK originIjk, h3Ijk;
-    if (h3ToLocalIjk(origin, origin, &originIjk)) {
-        // Currently there are no tests that would cause getting the coordinates
-        // for an index the same as the origin to fail.
-        return -1;  // LCOV_EXCL_LINE
+    H3Error originError = cellToLocalIjk(origin, origin, &originIjk);
+    if (originError) {
+        return originError;
     }
-    if (h3ToLocalIjk(origin, h3, &h3Ijk)) {
-        return -1;
+    H3Error destError = cellToLocalIjk(origin, h3, &h3Ijk);
+    if (destError) {
+        return destError;
     }
 
-    return ijkDistance(&originIjk, &h3Ijk);
+    *out = ijkDistance(&originIjk, &h3Ijk);
+    return E_SUCCESS;
 }
 
 /**
@@ -549,12 +607,18 @@ int H3_EXPORT(h3Distance)(H3Index origin, H3Index h3) {
  *
  * @param start Start index of the line
  * @param end End index of the line
- * @return Size of the line, or a negative number if the line cannot
- * be computed.
+ * @param size Size of the line
+ * @returns 0 on success, or another value on error
  */
-int H3_EXPORT(h3LineSize)(H3Index start, H3Index end) {
-    int distance = H3_EXPORT(h3Distance)(start, end);
-    return distance >= 0 ? distance + 1 : distance;
+H3Error H3_EXPORT(gridPathCellsSize)(H3Index start, H3Index end,
+                                     int64_t *size) {
+    int64_t distance;
+    H3Error distanceError = H3_EXPORT(gridDistance)(start, end, &distance);
+    if (distanceError) {
+        return distanceError;
+    }
+    *size = distance + 1;
+    return E_SUCCESS;
 }
 
 /**
@@ -565,7 +629,7 @@ int H3_EXPORT(h3LineSize)(H3Index start, H3Index end) {
  * @param k   Floating-point K coord
  * @param ijk IJK coord struct, modified in place
  */
-static void cubeRound(double i, double j, double k, CoordIJK* ijk) {
+static void cubeRound(double i, double j, double k, CoordIJK *ijk) {
     int ri = round(i);
     int rj = round(j);
     int rk = round(k);
@@ -599,21 +663,22 @@ static void cubeRound(double i, double j, double k, CoordIJK* ijk) {
  *
  *  - The specific output of this function should not be considered stable
  *    across library versions. The only guarantees the library provides are
- *    that the line length will be `h3Distance(start, end) + 1` and that
+ *    that the line length will be `gridDistance(start, end) + 1` and that
  *    every index in the line will be a neighbor of the preceding index.
  *  - Lines are drawn in grid space, and may not correspond exactly to either
  *    Cartesian lines or great arcs.
  *
  * @param start Start index of the line
  * @param end End index of the line
- * @param out Output array, which must be of size h3LineSize(start, end)
+ * @param out Output array, which must be of size gridPathCellsSize(start, end)
  * @return 0 on success, or another value on failure.
  */
-int H3_EXPORT(h3Line)(H3Index start, H3Index end, H3Index* out) {
-    int distance = H3_EXPORT(h3Distance)(start, end);
+H3Error H3_EXPORT(gridPathCells)(H3Index start, H3Index end, H3Index *out) {
+    int64_t distance;
+    H3Error distanceError = H3_EXPORT(gridDistance)(start, end, &distance);
     // Early exit if we can't calculate the line
-    if (distance < 0) {
-        return distance;
+    if (distanceError) {
+        return distanceError;
     }
 
     // Get IJK coords for the start and end. We've already confirmed
@@ -622,8 +687,16 @@ int H3_EXPORT(h3Line)(H3Index start, H3Index end, H3Index* out) {
     CoordIJK endIjk = {0};
 
     // Convert H3 addresses to IJK coords
-    h3ToLocalIjk(start, start, &startIjk);
-    h3ToLocalIjk(start, end, &endIjk);
+    H3Error startError = cellToLocalIjk(start, start, &startIjk);
+    if (NEVER(startError)) {
+        // Unreachable because this was called as part of gridDistance
+        return startError;
+    }
+    H3Error endError = cellToLocalIjk(start, end, &endIjk);
+    if (NEVER(endError)) {
+        // Unreachable because this was called as part of gridDistance
+        return endError;
+    }
 
     // Convert IJK to cube coordinates suitable for linear interpolation
     ijkToCube(&startIjk);
@@ -637,14 +710,19 @@ int H3_EXPORT(h3Line)(H3Index start, H3Index end, H3Index* out) {
         distance ? (double)(endIjk.k - startIjk.k) / (double)distance : 0;
 
     CoordIJK currentIjk = {startIjk.i, startIjk.j, startIjk.k};
-    for (int n = 0; n <= distance; n++) {
+    for (int64_t n = 0; n <= distance; n++) {
         cubeRound((double)startIjk.i + iStep * n,
                   (double)startIjk.j + jStep * n,
                   (double)startIjk.k + kStep * n, &currentIjk);
         // Convert cube -> ijk -> h3 index
         cubeToIjk(&currentIjk);
-        localIjkToH3(start, &currentIjk, &out[n]);
+        H3Error currentError = localIjkToCell(start, &currentIjk, &out[n]);
+        if (currentError) {
+            // The cells between `start` and `end` may fall in pentagon
+            // distortion.
+            return currentError;
+        }
     }
 
-    return 0;
+    return E_SUCCESS;
 }

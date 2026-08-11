@@ -7,6 +7,119 @@ The public API of this library consists of the functions declared in file
 
 ## [Unreleased]
 
+## [4.1.0] - 2023-01-18
+### Added
+- Functions for `cellToChildPos` and `childPosToCell` (#719)
+
+### Fixed
+- Fixed possible signed integer overflow in `h3NeighborRotations` (#707)
+- Fixed possible signed integer overflow in `localIjToCell` (#706, #735)
+
+### Changed
+- `assert` on defensive code blocks that are not already covered. (#720)
+- `clang-format` upgraded to version 11. (#734)
+
+## [4.0.1] - 2022-09-15
+### Fixed
+- Changing an internal `float` to `double` improves the precision of geographic coordinate output (#652)
+- Fixed compacting all children of a resolution 0 cell (#679)
+- Fixed possible signed integer overflow in `maxGridDiskSize` (#686)
+- Fixed possible use of uninitialized values in `cellToVertex` (#683, #690)
+- Fixed possible out of bounds read in `localIjToCell` (#684)
+- Fixed possible memory leak in `compactCells` (#685)
+- Fixed possible out of bounds read in `areNeighborCells` (#677)
+- Fixed possible memory leak in `cellsToLinkedMultiPolygon` (#673)
+
+### Changed
+- Build script does not use toolchain file (#641)
+- Removed a duplicated include preprocessor directive (#682)
+- Improvements to the fuzzer suite and their automatic runs in CI (#671, #674, #687)
+- Increased test coverage (#642)
+- Added a fuzzer targetting internal `algos.c` functions (#675)
+
+## [4.0.0] - 2022-08-23
+### Breaking changes
+- Rename functions according to the terminology RFC (#622, #586, #571, #403, #466, #495, #466)
+- Functions that can experience errors now have an `H3Error` return value. (#617, #586, #581, #551, #550, #509, #505, #507, #508, #503, #478, #468, #436, #359)
+- Cell count parameters use `int64_t` instead of `int`.
+- `polygonToCells` (previously `polyfill`) accepts a flags argument for future expansion. (#570)
+- `cellToLocalIj` and `localIjToCell` accept a mode argument for future expansion. (#586)
+- `exactEdgeLength` functions renamed to `edgeLength` (#639)
+
+### Fixed
+- Fix polyfill bug when vertex latitude exactly matches cell center. (#603)
+- A number of issues detected via unit tests and fuzzers were fixed. (#568, #562, #558, #559, #560, #430)
+- `polygonToCells` returns an error if Infinity is passed in. (#636)
+
+### Changed
+- The file `CMakeTests.cmake` is no longer included if `ENABLE_TESTING` is off. (#609)
+
+### Added
+- Vertex mode and associated functions: (#422, #420, #417)
+    - `cellToVertex(cell, vertexNum)`
+    - `cellToVertexes(cell, out)`
+    - `vertexToLatLng(vertex, out)`
+    - `isValidVertex(vertex)`
+- `h3` CLI application. (#556, #497)
+
+### Other changes
+- Generally use `lng` instead of `lon`
+- Closed-form implementation of `numHexagons`
+- A number of fuzzer harnesses are now included in the H3 core library. (#557, #553, #545, #433)
+- Additional benchmarks are added and benchmarks are regularly run in CI. (#524, #518)
+
+## [4.0.0-rc5] - 2022-08-16
+### Breaking changes
+- `exactEdgeLength` functions renamed to `edgeLength` (#639)
+
+### Fixed
+- `polygonToCells` returns an error if Infinity is passed in. (#636)
+
+## [4.0.0-rc4] - 2022-07-25
+### Breaking changes
+- `distance*` functions (`distanceKm`, etc) renamed to `greatCircleDistance*`. (#622)
+- Error code `E_MEMORY` renamed to `E_MEMORY_ALLOC`. (#617)
+
+## [4.0.0-rc3] - 2022-06-03
+### Fixed
+- Fix polyfill bug when vertex latitude exactly matches cell center. (#603)
+
+### Changed
+- The file `CMakeTests.cmake` is no longer included if `ENABLE_TESTING` is off. (#609)
+
+## [4.0.0-rc2] - 2022-03-16
+### Breaking changes
+- `experimentalH3ToLocalIj` and `experimentalLocalIjToH3` renamed to `cellToLocalIj` and `localIjToCell` respectively. (#586)
+- `cellToLocalIj` and `localIjToCell` accept a mode argument for future expansion. (#586)
+- `cellToCenterChild` (previously `h3ToCenterChild`) returns an error code. (#581)
+
+### Added
+- `E_OPTION_INVALID` error code added. (#586)
+
+## [4.0.0-rc1] - 2022-02-07
+### Breaking changes
+- Rename functions according to the terminology RFC (#571, #403, #466, #495, #466)
+- Functions that can experience errors now have an `H3Error` return value. (#551, #550, #509, #505, #507, #508, #503, #478, #468, #436, #359)
+- Cell count parameters use `int64_t` instead of `int`.
+- `polygonToCells` (previously `polyfill`) accepts a flags argument for future expansion. (#570)
+
+### Added
+- Vertex mode and associated functions: (#422, #420, #417)
+    - `cellToVertex(cell, vertexNum)`
+    - `cellToVertexes(cell, out)`
+    - `vertexToLatLng(vertex, out)`
+    - `isValidVertex(vertex)` 
+- `h3` CLI application. (#556, #497)
+
+### Fixed
+- A number of issues detected via unit tests and fuzzers were fixed. (#568, #562, #558, #559, #560, #430)
+
+### Other changes
+- Generally use `lng` instead of `lon`
+- Closed-form implementation of `numHexagons`
+- A number of fuzzer harnesses are now included in the H3 core library. (#557, #553, #545, #433)
+- Additional benchmarks are added and benchmarks are regularly run in CI. (#524, #518)
+
 ## [3.7.2] - 2021-07-15
 ### Fixed
 - `gridDisk` of invalid indexes should not crash. (#498)
