@@ -1365,10 +1365,10 @@ private:
                                 isSequoiaChunk = sequoiaChunkReplicasConfig->GhostFullHeartbeats;
                             }
                         }
-
                     }
 
                     if (isSequoiaChunk) {
+                        YT_VERIFY(isSequoiaEnabled || isGhostSequoiaEnabled);
                         if constexpr (std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo>) {
                             if (isMasterOnlyChunk) {
                                 sequoiaRequest->add_added_chunks()->CopyFrom(chunkInfo);
