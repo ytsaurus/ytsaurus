@@ -127,6 +127,12 @@ protected:
             GroupConfig_,
             BundleSnapshot_->Bundle->Config);
 
+        auto [orderedHasTrue, orderedHasFalse] = EvaluateFeatureFlag(
+            &TFeatureFlagConfig::EnableSmoothMovementForOrdered,
+            DynamicConfig_,
+            GroupConfig_,
+            BundleSnapshot_->Bundle->Config);
+
         if (hasFalse) {
             return descriptors;
         }
@@ -135,20 +141,26 @@ protected:
             const auto& tablet = GetOrCrash(BundleSnapshot_->Bundle->Tablets, descriptor.TabletId);
             const auto* table = tablet->Table;
 
-            if (!table->Sorted) {
-                continue;
-            }
-
-            if (TypeFromId(table->Id) != EObjectType::Table) {
-                continue;
-            }
-
             // Support smooth movement for frozen tablets: YT-17388.
             if (tablet->State != ETabletState::Mounted) {
                 continue;
             }
 
-            descriptor.Smooth = table->TableConfig->EnableSmoothMovement.value_or(hasTrue);
+            bool smooth = table->TableConfig->EnableSmoothMovement.value_or(hasTrue);
+
+            bool flagForOrdered = !orderedHasFalse && table->TableConfig->EnableSmoothMovementForOrdered.value_or(orderedHasTrue);
+
+            if (!table->Sorted) {
+                smooth &= flagForOrdered;
+            }
+
+            if (TypeFromId(table->Id) == EObjectType::ReplicationLogTable) {
+                smooth &= flagForOrdered;
+            } else if (TypeFromId(table->Id) != EObjectType::Table) {
+                continue;
+            }
+
+            descriptor.Smooth = smooth;
         }
 
         return descriptors;
