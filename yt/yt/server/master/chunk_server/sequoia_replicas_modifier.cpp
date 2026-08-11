@@ -590,7 +590,6 @@ private:
             }
         }
 
-
         for (auto& request : Requests_) {
             // We always clean master request to avoid additional work in automaton thread.
             auto addedChunksEndIt = std::remove_if(
