@@ -247,7 +247,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         update_scheduler_config("operations_cleaner/enable", True)
 
         wait(lambda: not self._operation_exist(op.id) and not self._operation_exist(failed_op.id))
-        assert incomplete_info_counter.get_delta() == 1
+        wait(lambda: incomplete_info_counter.get_delta() == 1)
 
     @authors("bystrovserg")
     def test_operations_archive_is_not_initialized(self):
