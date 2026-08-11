@@ -28,8 +28,7 @@ struct TShuffleWriterConfig
     //! keep the per-partition journal flush loop busy.
     double BuildersBudgetFraction;
 
-    //! Codec used to compress each shuffle record before it leaves the
-    //! mapper.
+    //! Codec used to compress each shuffle record before it leaves the writer.
     NCompression::ECodec Codec;
 
     //! Maximum number of physical send attempts per record before the
@@ -104,7 +103,7 @@ DEFINE_REFCOUNTED_TYPE(TSortReaderConfig)
 struct TPushShuffleConfig
     : public NYTree::TYsonStruct
 {
-    //! Mapper-side L2 writer config (client).
+    //! Writer-side L2 writer config (client).
     TShuffleWriterConfigPtr WriterConfig;
     //! Reducer-side L2 reader config (client).
     TPartitionReaderConfigPtr ReaderConfig;

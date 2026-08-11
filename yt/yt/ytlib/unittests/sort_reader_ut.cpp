@@ -49,7 +49,7 @@ namespace {
 
 constexpr int KeyColumnId = 0;
 constexpr int PayloadColumnId = 1;
-constexpr int MapperIdColumnId = 10;
+constexpr int WriterIdColumnId = 10;
 constexpr int RowIdColumnId = 11;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,7 +168,7 @@ protected:
             config ? std::move(config) : MakeConfig(),
             MockReader_,
             comparator.GetLength() > 0 ? std::move(comparator) : MakeComparator(),
-            TValidMapperIds{},
+            TValidWriterIds{},
             GetInvoker(),
             GetInvoker());
     }
@@ -182,7 +182,7 @@ protected:
             MockReader_,
             comparator.GetLength() > 0 ? std::move(comparator) : MakeComparator(),
             TIdentityColumnIds{
-                .MapperId = MapperIdColumnId,
+                .WriterId = WriterIdColumnId,
                 .RowId = RowIdColumnId,
             },
             GetInvoker(),
@@ -197,12 +197,12 @@ protected:
         return RowBuffer_->CaptureRow(builder.GetRow());
     }
 
-    TShuffleReadRecord MakeRecord(i32 mapperId, i64 startRow, std::vector<TUnversionedRow> rows)
+    TShuffleReadRecord MakeRecord(i32 writerId, i64 startRow, std::vector<TUnversionedRow> rows)
     {
         return TShuffleReadRecord{
             .Header = TRecordHeader{
                 .RowCount = static_cast<i32>(std::ssize(rows)),
-                .MapperId = mapperId,
+                .WriterId = writerId,
                 .StartRow = startRow,
             },
             .Rows = MakeSharedRange(std::move(rows), RowBuffer_),
@@ -210,10 +210,10 @@ protected:
     }
 
     TShuffleReadRecord MakeIdentityPreservingRecord(
-        i32 mapperId,
+        i32 writerId,
         i64 startRow,
         std::vector<TUnversionedRow> rows,
-        int mapperIdColumnId = MapperIdColumnId,
+        int writerIdColumnId = WriterIdColumnId,
         int rowIdColumnId = RowIdColumnId)
     {
         for (int index = 0; index < std::ssize(rows); ++index) {
@@ -221,14 +221,14 @@ protected:
             auto extended = RowBuffer_->AllocateUnversioned(source.GetCount() + 2);
             std::copy(source.Begin(), source.End(), extended.Begin());
             extended[source.GetCount()] = MakeUnversionedInt64Value(
-                mapperId,
-                mapperIdColumnId);
+                writerId,
+                writerIdColumnId);
             extended[source.GetCount() + 1] = MakeUnversionedInt64Value(
                 startRow + index,
                 rowIdColumnId);
             rows[index] = extended;
         }
-        return MakeRecord(mapperId, startRow, std::move(rows));
+        return MakeRecord(writerId, startRow, std::move(rows));
     }
 
     static TShuffleReadBatchPtr MakeBatch(std::vector<TShuffleReadRecord> records, bool finished)
@@ -295,7 +295,7 @@ protected:
     {
         i64 Key = -1;
         i64 Payload = -1;
-        i64 MapperId = -1;
+        i64 WriterId = -1;
         i64 RowId = -1;
         int ValueCount = 0;
     };
@@ -316,8 +316,8 @@ protected:
                         view.Key = value.Data.Int64;
                     } else if (value.Id == PayloadColumnId) {
                         view.Payload = value.Data.Int64;
-                    } else if (value.Id == MapperIdColumnId) {
-                        view.MapperId = value.Data.Int64;
+                    } else if (value.Id == WriterIdColumnId) {
+                        view.WriterId = value.Data.Int64;
                     } else if (value.Id == RowIdColumnId) {
                         view.RowId = value.Data.Int64;
                     }
@@ -415,8 +415,8 @@ TEST_F(TSortReaderTest, SortsAcrossRecordsAndBatchesIdentityFree)
 {
     auto reader = MakeIdentityFreeReader();
 
-    FeedBatch({MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {MakeRow(5, 50), MakeRow(3, 30)})}, /*finished*/ false);
-    FeedBatch({MakeRecord(/*mapperId*/ 1, /*startRow*/ 0, {MakeRow(4, 40), MakeRow(1, 10)})}, /*finished*/ true);
+    FeedBatch({MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {MakeRow(5, 50), MakeRow(3, 30)})}, /*finished*/ false);
+    FeedBatch({MakeRecord(/*writerId*/ 1, /*startRow*/ 0, {MakeRow(4, 40), MakeRow(1, 10)})}, /*finished*/ true);
 
     auto batches = ReadAll(reader);
     auto pairs = ToKeyPayloadPairs(batches);
@@ -429,7 +429,7 @@ TEST_F(TSortReaderTest, IdentityFreeModeEmitsRowsZeroCopy)
 
     auto row1 = MakeRow(2, 20);
     auto row2 = MakeRow(1, 10);
-    FeedBatch({MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {row1, row2})}, /*finished*/ true);
+    FeedBatch({MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {row1, row2})}, /*finished*/ true);
 
     auto batches = ReadAll(reader);
     ASSERT_EQ(std::ssize(batches), 1);
@@ -451,7 +451,7 @@ TEST_F(TSortReaderTest, SortsByKeyPrefix)
     };
 
     FeedBatch(
-        {MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {makeRow(2, 0), makeRow(1, 100)})},
+        {MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {makeRow(2, 0), makeRow(1, 100)})},
         /*finished*/ true);
 
     auto batches = ReadAll(reader);
@@ -470,7 +470,7 @@ TEST_F(TSortReaderTest, NullKeySortsFirst)
     builder.AddValue(MakeUnversionedInt64Value(77, PayloadColumnId));
     auto nullKeyRow = RowBuffer_->CaptureRow(builder.GetRow());
 
-    FeedBatch({MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {MakeRow(1, 10), nullKeyRow})}, /*finished*/ true);
+    FeedBatch({MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {MakeRow(1, 10), nullKeyRow})}, /*finished*/ true);
 
     auto pairs = ToKeyPayloadPairs(ReadAll(reader));
     EXPECT_EQ(pairs, (std::vector<std::pair<i64, i64>>{{-1, 77}, {1, 10}}));
@@ -482,7 +482,7 @@ TEST_F(TSortReaderTest, DescendingSortOrder)
         MakeConfig(),
         MakeComparator(/*length*/ 1, ESortOrder::Descending));
 
-    FeedBatch({MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {MakeRow(1, 10), MakeRow(3, 30), MakeRow(2, 20)})}, /*finished*/ true);
+    FeedBatch({MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {MakeRow(1, 10), MakeRow(3, 30), MakeRow(2, 20)})}, /*finished*/ true);
 
     auto pairs = ToKeyPayloadPairs(ReadAll(reader));
     EXPECT_EQ(pairs, (std::vector<std::pair<i64, i64>>{{3, 30}, {2, 20}, {1, 10}}));
@@ -500,7 +500,7 @@ TEST_F(TSortReaderTest, StringKeysSortLexicographically)
     };
 
     FeedBatch(
-        {MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {makeStringRow("b", 2), makeStringRow("a", 1), makeStringRow("c", 3)})},
+        {MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {makeStringRow("b", 2), makeStringRow("a", 1), makeStringRow("c", 3)})},
         /*finished*/ true);
 
     auto batches = ReadAll(reader);
@@ -521,8 +521,8 @@ TEST_F(TSortReaderTest, MergesAcrossBuckets)
     // Force three buckets.
     auto reader = MakeIdentityFreeReader(MakeConfig(/*bucketRowCount*/ 2));
 
-    FeedBatch({MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {MakeRow(6, 60), MakeRow(1, 10), MakeRow(5, 50)})}, /*finished*/ false);
-    FeedBatch({MakeRecord(/*mapperId*/ 0, /*startRow*/ 3, {MakeRow(2, 20), MakeRow(4, 40), MakeRow(3, 30)})}, /*finished*/ true);
+    FeedBatch({MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {MakeRow(6, 60), MakeRow(1, 10), MakeRow(5, 50)})}, /*finished*/ false);
+    FeedBatch({MakeRecord(/*writerId*/ 0, /*startRow*/ 3, {MakeRow(2, 20), MakeRow(4, 40), MakeRow(3, 30)})}, /*finished*/ true);
 
     auto pairs = ToKeyPayloadPairs(ReadAll(reader));
     EXPECT_EQ(pairs, (std::vector<std::pair<i64, i64>>{
@@ -537,7 +537,7 @@ TEST_F(TSortReaderTest, ParallelSortInvoker)
         MakeConfig(/*bucketRowCount*/ 2),
         MockReader_,
         MakeComparator(),
-        TValidMapperIds{},
+        TValidWriterIds{},
         GetInvoker(),
         sortPool->GetInvoker());
 
@@ -545,7 +545,7 @@ TEST_F(TSortReaderTest, ParallelSortInvoker)
     for (i64 index = 0; index < 100; ++index) {
         rows.push_back(MakeRow(/*key*/ 99 - index, /*payload*/ 99 - index));
     }
-    FeedBatch({MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, std::move(rows))}, /*finished*/ true);
+    FeedBatch({MakeRecord(/*writerId*/ 0, /*startRow*/ 0, std::move(rows))}, /*finished*/ true);
 
     auto pairs = ToKeyPayloadPairs(ReadAll(reader));
     ASSERT_EQ(std::ssize(pairs), 100);
@@ -571,13 +571,13 @@ TEST_F(TSortReaderTest, QueuedSortDoesNotRetainReader)
         MakeConfig(/*bucketRowCount*/ 1),
         MockReader_,
         MakeComparator(),
-        TValidMapperIds{},
+        TValidWriterIds{},
         GetInvoker(),
         sortQueue->GetInvoker());
     auto weakReader = MakeWeak(reader);
 
     FeedBatch(
-        {MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {MakeRow(1, 10)})},
+        {MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {MakeRow(1, 10)})},
         /*finished*/ true);
     reader.Reset();
 
@@ -593,7 +593,7 @@ TEST_F(TSortReaderTest, ReadParkedUntilStreamFinishes)
     auto reader = MakeIdentityFreeReader();
 
     auto future = reader->Read();
-    FeedBatch({MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {MakeRow(1, 10)})}, /*finished*/ false);
+    FeedBatch({MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {MakeRow(1, 10)})}, /*finished*/ false);
     EXPECT_FALSE(future.IsSet());
 
     FeedBatch({}, /*finished*/ true);
@@ -608,7 +608,7 @@ TEST_F(TSortReaderTest, MaxRowsPerReadSplitsOutput)
         MakeConfig(/*bucketRowCount*/ 10'000, /*maxRowsPerRead*/ 2));
 
     FeedBatch(
-        {MakeRecord(/*mapperId*/ 0, /*startRow*/ 0,
+        {MakeRecord(/*writerId*/ 0, /*startRow*/ 0,
             {MakeRow(1, 1), MakeRow(2, 2), MakeRow(3, 3), MakeRow(4, 4), MakeRow(5, 5)})},
         /*finished*/ true);
 
@@ -626,7 +626,7 @@ TEST_F(TSortReaderTest, MaxDataWeightPerReadSplitsOutput)
         MakeConfig(/*bucketRowCount*/ 10'000, /*maxRowsPerRead*/ 10'000, /*maxDataWeightPerRead*/ 1));
 
     FeedBatch(
-        {MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {MakeRow(1, 1), MakeRow(2, 2), MakeRow(3, 3)})},
+        {MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {MakeRow(1, 1), MakeRow(2, 2), MakeRow(3, 3)})},
         /*finished*/ true);
 
     auto batches = ReadAll(reader);
@@ -641,7 +641,7 @@ TEST_F(TSortReaderTest, IdentityFreeModeKeepsIdenticalContentRows)
     auto reader = MakeIdentityFreeReader();
 
     // Identical rows with different row ids must both survive.
-    FeedBatch({MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {MakeRow(1, 10), MakeRow(1, 10)})}, /*finished*/ true);
+    FeedBatch({MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {MakeRow(1, 10), MakeRow(1, 10)})}, /*finished*/ true);
 
     auto pairs = ToKeyPayloadPairs(ReadAll(reader));
     EXPECT_EQ(pairs, (std::vector<std::pair<i64, i64>>{{1, 10}, {1, 10}}));
@@ -653,7 +653,7 @@ TEST_F(TSortReaderTest, IdentityPreservingModeEmitsIdentityValues)
 
     FeedBatch(
         {MakeIdentityPreservingRecord(
-            /*mapperId*/ 7,
+            /*writerId*/ 7,
             /*startRow*/ 100,
             {MakeRow(2, 20), MakeRow(1, 10)})},
         /*finished*/ true);
@@ -663,12 +663,12 @@ TEST_F(TSortReaderTest, IdentityPreservingModeEmitsIdentityValues)
 
     // Row ids are StartRow plus record offsets.
     EXPECT_EQ(views[0].Key, 1);
-    EXPECT_EQ(views[0].MapperId, 7);
+    EXPECT_EQ(views[0].WriterId, 7);
     EXPECT_EQ(views[0].RowId, 101);
     EXPECT_EQ(views[0].ValueCount, 4);
 
     EXPECT_EQ(views[1].Key, 2);
-    EXPECT_EQ(views[1].MapperId, 7);
+    EXPECT_EQ(views[1].WriterId, 7);
     EXPECT_EQ(views[1].RowId, 100);
     EXPECT_EQ(views[1].ValueCount, 4);
 }
@@ -677,7 +677,7 @@ TEST_F(TSortReaderTest, IdentityPreservingModeEmitsRowsZeroCopy)
 {
     auto reader = MakeIdentityPreservingReader();
     auto record = MakeIdentityPreservingRecord(
-        /*mapperId*/ 7,
+        /*writerId*/ 7,
         /*startRow*/ 100,
         {MakeRow(2, 20), MakeRow(1, 10)});
     auto row1 = record.Rows[0];
@@ -696,12 +696,12 @@ TEST_F(TSortReaderTest, IdentityPreservingModeIdentityTiebreak)
 {
     auto reader = MakeIdentityPreservingReader();
 
-    // Equal keys are ordered by (mapper id, row id).
+    // Equal keys are ordered by (writer id, row id).
     FeedBatch(
         {
-            MakeIdentityPreservingRecord(/*mapperId*/ 2, /*startRow*/ 5, {MakeRow(1, 25)}),
-            MakeIdentityPreservingRecord(/*mapperId*/ 1, /*startRow*/ 9, {MakeRow(1, 19)}),
-            MakeIdentityPreservingRecord(/*mapperId*/ 1, /*startRow*/ 3, {MakeRow(1, 13)}),
+            MakeIdentityPreservingRecord(/*writerId*/ 2, /*startRow*/ 5, {MakeRow(1, 25)}),
+            MakeIdentityPreservingRecord(/*writerId*/ 1, /*startRow*/ 9, {MakeRow(1, 19)}),
+            MakeIdentityPreservingRecord(/*writerId*/ 1, /*startRow*/ 3, {MakeRow(1, 13)}),
         },
         /*finished*/ true);
 
@@ -720,7 +720,7 @@ TEST_F(TSortReaderTest, EmptyComparatorSortsByIdentity)
         MockReader_,
         TComparator(),
         TIdentityColumnIds{
-            .MapperId = MapperIdColumnId,
+            .WriterId = WriterIdColumnId,
             .RowId = RowIdColumnId,
         },
         GetInvoker(),
@@ -728,9 +728,9 @@ TEST_F(TSortReaderTest, EmptyComparatorSortsByIdentity)
 
     FeedBatch(
         {
-            MakeIdentityPreservingRecord(/*mapperId*/ 2, /*startRow*/ 0, {MakeRow(1, 20)}),
-            MakeIdentityPreservingRecord(/*mapperId*/ 1, /*startRow*/ 5, {MakeRow(2, 15)}),
-            MakeIdentityPreservingRecord(/*mapperId*/ 1, /*startRow*/ 0, {MakeRow(3, 10)}),
+            MakeIdentityPreservingRecord(/*writerId*/ 2, /*startRow*/ 0, {MakeRow(1, 20)}),
+            MakeIdentityPreservingRecord(/*writerId*/ 1, /*startRow*/ 5, {MakeRow(2, 15)}),
+            MakeIdentityPreservingRecord(/*writerId*/ 1, /*startRow*/ 0, {MakeRow(3, 10)}),
         },
         /*finished*/ true);
 
@@ -741,14 +741,14 @@ TEST_F(TSortReaderTest, EmptyComparatorSortsByIdentity)
     EXPECT_EQ(views[2].Payload, 20);
 }
 
-TEST_F(TSortReaderTest, IdentityPreservingModeKeepsSupersededMappers)
+TEST_F(TSortReaderTest, IdentityPreservingModeKeepsSupersededWriters)
 {
     auto reader = MakeIdentityPreservingReader();
 
     FeedBatch(
         {
-            MakeIdentityPreservingRecord(/*mapperId*/ 0, /*startRow*/ 0, {MakeRow(1, 10)}),
-            MakeIdentityPreservingRecord(/*mapperId*/ 1, /*startRow*/ 0, {MakeRow(2, 20)}),
+            MakeIdentityPreservingRecord(/*writerId*/ 0, /*startRow*/ 0, {MakeRow(1, 10)}),
+            MakeIdentityPreservingRecord(/*writerId*/ 1, /*startRow*/ 0, {MakeRow(2, 20)}),
         },
         /*finished*/ true);
 
@@ -765,7 +765,7 @@ TEST_F(TSortReaderTest, IdentityPreservingModeStringValuesStayShallow)
     builder.AddValue(MakeUnversionedStringValue("payload-bytes", PayloadColumnId));
     auto row = RowBuffer_->CaptureRow(builder.GetRow());
     const char* originalData = row[1].Data.String;
-    auto record = MakeIdentityPreservingRecord(/*mapperId*/ 0, /*startRow*/ 0, {row});
+    auto record = MakeIdentityPreservingRecord(/*writerId*/ 0, /*startRow*/ 0, {row});
     auto input = record.Rows[0];
 
     FeedBatch({std::move(record)}, /*finished*/ true);
@@ -793,7 +793,7 @@ TEST_F(TSortReaderTest, RetainedBatchesKeepStringPayloadsAlive)
     TShuffleReadRecord record{
         .Header = TRecordHeader{
             .RowCount = 1,
-            .MapperId = 0,
+            .WriterId = 0,
             .StartRow = 0,
         },
         .Rows = MakeSharedRange(std::vector<TUnversionedRow>{row}, std::move(localBuffer)),
@@ -822,7 +822,7 @@ TEST_F(TSortReaderTest, OutputBatchRetainsInputWithoutRetainingReader)
     TShuffleReadRecord record{
         .Header = TRecordHeader{
             .RowCount = 1,
-            .MapperId = 0,
+            .WriterId = 0,
             .StartRow = 0,
         },
         .Rows = MakeSharedRange(std::vector<TUnversionedRow>{row}, std::move(localBuffer)),
@@ -853,7 +853,7 @@ TEST_F(TSortReaderTest, FinishedReaderDoesNotRetainInput)
     TShuffleReadRecord record{
         .Header = TRecordHeader{
             .RowCount = 1,
-            .MapperId = 0,
+            .WriterId = 0,
             .StartRow = 0,
         },
         .Rows = MakeSharedRange(
@@ -886,14 +886,14 @@ TEST_F(TSortReaderTest, IdentityPreservingModePayloadsSurviveOutputBatchDrops)
         auto source = localBuffer->CaptureRow(builder.GetRow());
         auto extended = localBuffer->AllocateUnversioned(source.GetCount() + 2);
         std::copy(source.Begin(), source.End(), extended.Begin());
-        extended[source.GetCount()] = MakeUnversionedInt64Value(0, MapperIdColumnId);
+        extended[source.GetCount()] = MakeUnversionedInt64Value(0, WriterIdColumnId);
         extended[source.GetCount() + 1] = MakeUnversionedInt64Value(index, RowIdColumnId);
         rows.push_back(extended);
     }
     TShuffleReadRecord record{
         .Header = TRecordHeader{
             .RowCount = 3,
-            .MapperId = 0,
+            .WriterId = 0,
             .StartRow = 0,
         },
         .Rows = MakeSharedRange(std::move(rows), std::move(localBuffer)),
@@ -960,11 +960,11 @@ TEST_F(TSortReaderTest, CancelingReadWhileSortPendingCancelsReader)
         MakeConfig(/*bucketRowCount*/ 1),
         MockReader_,
         MakeComparator(),
-        TValidMapperIds{},
+        TValidWriterIds{},
         GetInvoker(),
         sortQueue->GetInvoker());
     FeedBatch(
-        {MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {MakeRow(1, 10)})},
+        {MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {MakeRow(1, 10)})},
         /*finished*/ true);
 
     auto future = reader->Read();
@@ -1000,7 +1000,7 @@ TEST_F(TSortReaderTest, CancelingReadReleasesInputAfterPendingSortFinishes)
         MakeConfig(/*bucketRowCount*/ 1),
         MockReader_,
         MakeComparator(),
-        TValidMapperIds{},
+        TValidWriterIds{},
         GetInvoker(),
         sortQueue->GetInvoker());
 
@@ -1013,7 +1013,7 @@ TEST_F(TSortReaderTest, CancelingReadReleasesInputAfterPendingSortFinishes)
     TShuffleReadRecord record{
         .Header = TRecordHeader{
             .RowCount = 1,
-            .MapperId = 0,
+            .WriterId = 0,
             .StartRow = 0,
         },
         .Rows = MakeSharedRange(
@@ -1048,7 +1048,7 @@ TEST_F(TSortReaderTest, IncomparableKeysFailReader)
     };
 
     FeedBatch(
-        {MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {makeAnyKeyRow("{a=1}", 1), makeAnyKeyRow("{b=2}", 2)})},
+        {MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {makeAnyKeyRow("{a=1}", 1), makeAnyKeyRow("{b=2}", 2)})},
         /*finished*/ true);
 
     auto result = WaitFor(reader->Read());
@@ -1068,7 +1068,7 @@ TEST_F(TSortReaderTest, IncomparableKeysAtMergeFailReader)
     };
 
     FeedBatch(
-        {MakeRecord(/*mapperId*/ 0, /*startRow*/ 0, {makeAnyKeyRow("{a=1}", 1), makeAnyKeyRow("{b=2}", 2)})},
+        {MakeRecord(/*writerId*/ 0, /*startRow*/ 0, {makeAnyKeyRow("{a=1}", 1), makeAnyKeyRow("{b=2}", 2)})},
         /*finished*/ true);
 
     auto result = WaitFor(reader->Read());
@@ -1084,14 +1084,14 @@ TEST_F(TSortReaderTest, RandomizedAgainstReference)
     {
         i64 Key = 0;
         i64 Payload = 0;
-        i32 MapperId = 0;
+        i32 WriterId = 0;
         i64 RowId = 0;
     };
 
     std::vector<TShuffleReadRecord> records;
     std::vector<TExpectedRow> expected;
     i64 payloadCounter = 0;
-    for (i32 mapperId = 0; mapperId < 3; ++mapperId) {
+    for (i32 writerId = 0; writerId < 3; ++writerId) {
         i64 nextRowId = 0;
         for (int recordIndex = 0; recordIndex < 20; ++recordIndex) {
             std::vector<TUnversionedRow> rows;
@@ -1104,12 +1104,12 @@ TEST_F(TSortReaderTest, RandomizedAgainstReference)
                 expectedRecord.push_back(TExpectedRow{
                     .Key = key,
                     .Payload = payload,
-                    .MapperId = mapperId,
+                    .WriterId = writerId,
                     .RowId = nextRowId++,
                 });
             }
             expected.insert(expected.end(), expectedRecord.begin(), expectedRecord.end());
-            records.push_back(MakeIdentityPreservingRecord(mapperId, startRow, std::move(rows)));
+            records.push_back(MakeIdentityPreservingRecord(writerId, startRow, std::move(rows)));
         }
     }
     std::shuffle(records.begin(), records.end(), rng);
@@ -1123,8 +1123,8 @@ TEST_F(TSortReaderTest, RandomizedAgainstReference)
         expected.begin(),
         expected.end(),
         [] (const TExpectedRow& lhs, const TExpectedRow& rhs) {
-            return std::tie(lhs.Key, lhs.MapperId, lhs.RowId) <
-                std::tie(rhs.Key, rhs.MapperId, rhs.RowId);
+            return std::tie(lhs.Key, lhs.WriterId, lhs.RowId) <
+                std::tie(rhs.Key, rhs.WriterId, rhs.RowId);
         });
 
     auto views = ToExtendedViews(ReadAll(reader));
@@ -1132,7 +1132,7 @@ TEST_F(TSortReaderTest, RandomizedAgainstReference)
     for (i64 index = 0; index < std::ssize(views); ++index) {
         EXPECT_EQ(views[index].Key, expected[index].Key) << "at index " << index;
         EXPECT_EQ(views[index].Payload, expected[index].Payload) << "at index " << index;
-        EXPECT_EQ(views[index].MapperId, expected[index].MapperId) << "at index " << index;
+        EXPECT_EQ(views[index].WriterId, expected[index].WriterId) << "at index " << index;
         EXPECT_EQ(views[index].RowId, expected[index].RowId) << "at index " << index;
     }
 }
@@ -1145,7 +1145,7 @@ TEST_F(TSortReaderTest, RandomizedAgainstReferenceIdentityFree)
     std::vector<TShuffleReadRecord> records;
     std::vector<std::pair<i64, i64>> expected;
     i64 payloadCounter = 0;
-    for (i32 mapperId = 0; mapperId < 3; ++mapperId) {
+    for (i32 writerId = 0; writerId < 3; ++writerId) {
         i64 nextRowId = 0;
         for (int recordIndex = 0; recordIndex < 20; ++recordIndex) {
             std::vector<TUnversionedRow> rows;
@@ -1159,7 +1159,7 @@ TEST_F(TSortReaderTest, RandomizedAgainstReferenceIdentityFree)
                 expectedRecord.emplace_back(key, payload);
             }
             expected.insert(expected.end(), expectedRecord.begin(), expectedRecord.end());
-            records.push_back(MakeRecord(mapperId, startRow, std::move(rows)));
+            records.push_back(MakeRecord(writerId, startRow, std::move(rows)));
         }
     }
     std::shuffle(records.begin(), records.end(), rng);

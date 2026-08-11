@@ -179,12 +179,12 @@ protected:
     // Builds a TChunkReadResult containing one record with the given header
     // and rows whose values are (int64 k, int64 v).
     TChunkReadResult MakeSingleRecordResult(
-        i32 mapperId,
+        i32 writerId,
         i64 startRow,
         const std::vector<std::pair<i64, i64>>& rows,
         bool finished = false)
     {
-        TShuffleRecordBuilder builder(mapperId, startRow);
+        TShuffleRecordBuilder builder(writerId, startRow);
         for (auto& [k, v] : rows) {
             TUnversionedRowBuilder rowBuilder;
             rowBuilder.AddValue(MakeUnversionedInt64Value(k, /*id*/ 0));
@@ -209,13 +209,13 @@ protected:
     // filter runs BEFORE decompression: if the reader peeked-then-decompressed
     // unconditionally, a rejected blob would still trigger FailReader.
     TSharedRef MakeRecordWithValidHeaderCorruptPayload(
-        i32 mapperId,
+        i32 writerId,
         i64 startRow,
         i32 rowCount)
     {
         TRecordHeader header{
             .RowCount = rowCount,
-            .MapperId = mapperId,
+            .WriterId = writerId,
             .StartRow = startRow,
         };
         std::vector<char> bytes(sizeof(header));
@@ -288,7 +288,7 @@ TEST_F(TPartitionReaderTest, SingleChunkHappyPath)
 
     TChunkReadResult result;
     auto record1 = MakeSingleRecordResult(
-        /*mapperId*/ 7,
+        /*writerId*/ 7,
         /*startRow*/ 0,
         {{10, 100}, {11, 101}},
         /*finished*/ false);
@@ -300,7 +300,7 @@ TEST_F(TPartitionReaderTest, SingleChunkHappyPath)
         .ValueOrThrow();
     EXPECT_TRUE(batch->Finished);
     ASSERT_EQ(std::ssize(batch->Records), 1);
-    EXPECT_EQ(batch->Records[0].Header.MapperId, 7);
+    EXPECT_EQ(batch->Records[0].Header.WriterId, 7);
     EXPECT_EQ(batch->Records[0].Header.StartRow, 0);
     EXPECT_EQ(batch->Records[0].Header.RowCount, 2);
     EXPECT_EQ(std::ssize(batch->Records[0].Rows), 2);
@@ -328,7 +328,7 @@ TEST_F(TPartitionReaderTest, AppendsIdentityValues)
         Invoker(),
         {},
         TIdentityColumnIds{
-            .MapperId = 10,
+            .WriterId = 10,
             .RowId = 11,
         });
 
@@ -341,7 +341,7 @@ TEST_F(TPartitionReaderTest, AppendsIdentityValues)
     ASSERT_TRUE(mock->HasPendingRead());
 
     auto result = MakeSingleRecordResult(
-        /*mapperId*/ 7,
+        /*writerId*/ 7,
         /*startRow*/ 100,
         {{10, 1000}, {11, 1100}},
         /*finished*/ true);
@@ -373,7 +373,7 @@ TEST_F(TPartitionReaderTest, IdentityPreservingSortConsumesExtendedRows)
         return mock;
     };
     TIdentityColumnIds identityColumnIds{
-        .MapperId = 10,
+        .WriterId = 10,
         .RowId = 11,
     };
     auto partitionReader = CreatePushBasedPartitionReaderForTesting(
@@ -400,10 +400,10 @@ TEST_F(TPartitionReaderTest, IdentityPreservingSortConsumesExtendedRows)
     DrainInvoker();
     ASSERT_TRUE(mock->HasPendingRead());
 
-    const i32 mapperId = 7;
+    const i32 writerId = 7;
     const i64 startRowIndex = 100;
     mock->SetNextReadResult(MakeSingleRecordResult(
-        mapperId,
+        writerId,
         startRowIndex,
         {{2, 20}, {1, 10}},
         /*finished*/ true));
@@ -411,11 +411,11 @@ TEST_F(TPartitionReaderTest, IdentityPreservingSortConsumesExtendedRows)
     auto rows = WaitFor(readFuture)
         .ValueOrThrow();
     ASSERT_EQ(std::ssize(rows), 2);
-    EXPECT_EQ(rows[0], MakeUnversionedOwningRow(1, 10, mapperId, startRowIndex + 1));
-    EXPECT_EQ(rows[1], MakeUnversionedOwningRow(2, 20, mapperId, startRowIndex));
+    EXPECT_EQ(rows[0], MakeUnversionedOwningRow(1, 10, writerId, startRowIndex + 1));
+    EXPECT_EQ(rows[1], MakeUnversionedOwningRow(2, 20, writerId, startRowIndex));
     for (const auto& row : rows) {
         ASSERT_EQ(row.GetCount(), 4u);
-        EXPECT_EQ(row[2].Id, identityColumnIds.MapperId);
+        EXPECT_EQ(row[2].Id, identityColumnIds.WriterId);
         EXPECT_EQ(row[3].Id, identityColumnIds.RowId);
     }
 }
@@ -432,14 +432,14 @@ TEST_PI(
     ::testing::Values(
         TIdentityColumnValidationTestCase{
             .IdentityColumnIds = {
-                .MapperId = 1,
+                .WriterId = 1,
                 .RowId = 11,
             },
-            .ExpectedError = "mapper identity column ID 1",
+            .ExpectedError = "writer identity column ID 1",
         },
         TIdentityColumnValidationTestCase{
             .IdentityColumnIds = {
-                .MapperId = 10,
+                .WriterId = 10,
                 .RowId = 1,
             },
             .ExpectedError = "row identity column ID 1",
@@ -472,7 +472,7 @@ TEST_PI(
     auto readFuture = reader->Read();
     DrainInvoker();
     mock->SetNextReadResult(MakeSingleRecordResult(
-        /*mapperId*/ 7,
+        /*writerId*/ 7,
         /*startRow*/ 100,
         {{10, 1000}},
         /*finished*/ true));
@@ -504,8 +504,8 @@ TEST_F(TPartitionReaderTest, MultiChunkStagedCoalescing)
     DrainInvoker();
 
     // Stage BOTH results before issuing Read so MaybeResolveRead drains both.
-    auto r1 = MakeSingleRecordResult(/*mapperId*/ 1, /*startRow*/ 0, {{10, 100}}, /*finished*/ true);
-    auto r2 = MakeSingleRecordResult(/*mapperId*/ 2, /*startRow*/ 0, {{20, 200}}, /*finished*/ true);
+    auto r1 = MakeSingleRecordResult(/*writerId*/ 1, /*startRow*/ 0, {{10, 100}}, /*finished*/ true);
+    auto r2 = MakeSingleRecordResult(/*writerId*/ 2, /*startRow*/ 0, {{20, 200}}, /*finished*/ true);
     mock1->SetNextReadResult(std::move(r1));
     mock2->SetNextReadResult(std::move(r2));
     DrainInvoker();
@@ -515,12 +515,12 @@ TEST_F(TPartitionReaderTest, MultiChunkStagedCoalescing)
     EXPECT_TRUE(batch->Finished);
     EXPECT_EQ(std::ssize(batch->Records), 2);
 
-    std::vector<i32> mapperIds;
+    std::vector<i32> writerIds;
     for (auto& r : batch->Records) {
-        mapperIds.push_back(r.Header.MapperId);
+        writerIds.push_back(r.Header.WriterId);
     }
-    std::sort(mapperIds.begin(), mapperIds.end());
-    EXPECT_EQ(mapperIds, std::vector<i32>({1, 2}));
+    std::sort(writerIds.begin(), writerIds.end());
+    EXPECT_EQ(writerIds, std::vector<i32>({1, 2}));
 }
 
 TEST_F(TPartitionReaderTest, PendingReadResolvesOnFirstResult)
@@ -544,14 +544,14 @@ TEST_F(TPartitionReaderTest, PendingReadResolvesOnFirstResult)
     EXPECT_FALSE(readFuture.IsSet());
 
     // Now fire the result.
-    auto result = MakeSingleRecordResult(/*mapperId*/ 1, 0, {{42, 4200}}, /*finished*/ false);
+    auto result = MakeSingleRecordResult(/*writerId*/ 1, 0, {{42, 4200}}, /*finished*/ false);
     mock->SetNextReadResult(std::move(result));
 
     auto batch = WaitFor(readFuture)
         .ValueOrThrow();
     EXPECT_FALSE(batch->Finished);
     ASSERT_EQ(std::ssize(batch->Records), 1);
-    EXPECT_EQ(batch->Records[0].Header.MapperId, 1);
+    EXPECT_EQ(batch->Records[0].Header.WriterId, 1);
 
     FlushPendingMockRead(mock);
 }
@@ -572,28 +572,28 @@ TEST_F(TPartitionReaderTest, DynamicAddChunk)
     // Phase 1: chunk 1 only, drain its record.
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     DrainInvoker();
-    auto r1 = MakeSingleRecordResult(/*mapperId*/ 1, 0, {{10, 100}}, /*finished*/ true);
+    auto r1 = MakeSingleRecordResult(/*writerId*/ 1, 0, {{10, 100}}, /*finished*/ true);
     mock1->SetNextReadResult(std::move(r1));
 
     auto batch1 = WaitFor(reader->Read())
         .ValueOrThrow();
     EXPECT_FALSE(batch1->Finished); // NoMoreChunks not set yet.
     ASSERT_EQ(std::ssize(batch1->Records), 1);
-    EXPECT_EQ(batch1->Records[0].Header.MapperId, 1);
+    EXPECT_EQ(batch1->Records[0].Header.WriterId, 1);
 
     // Phase 2: AddChunk(C2) + SetNoMoreChunks + drain.
     reader->AddChunk(TChunkId(2, 2, 2, 2), {}, 0, std::nullopt);
     reader->SetNoMoreChunks();
     DrainInvoker();
 
-    auto r2 = MakeSingleRecordResult(/*mapperId*/ 2, 0, {{20, 200}}, /*finished*/ true);
+    auto r2 = MakeSingleRecordResult(/*writerId*/ 2, 0, {{20, 200}}, /*finished*/ true);
     mock2->SetNextReadResult(std::move(r2));
 
     auto batch2 = WaitFor(reader->Read())
         .ValueOrThrow();
     EXPECT_TRUE(batch2->Finished);
     ASSERT_EQ(std::ssize(batch2->Records), 1);
-    EXPECT_EQ(batch2->Records[0].Header.MapperId, 2);
+    EXPECT_EQ(batch2->Records[0].Header.WriterId, 2);
 }
 
 TEST_F(TPartitionReaderTest, FinalNonEmptyBatchCarriesFinished)
@@ -610,7 +610,7 @@ TEST_F(TPartitionReaderTest, FinalNonEmptyBatchCarriesFinished)
     reader->SetNoMoreChunks();
     DrainInvoker();
 
-    auto result = MakeSingleRecordResult(/*mapperId*/ 7, 0, {{1, 10}, {2, 20}}, /*finished*/ true);
+    auto result = MakeSingleRecordResult(/*writerId*/ 7, 0, {{1, 10}, {2, 20}}, /*finished*/ true);
     mock->SetNextReadResult(std::move(result));
 
     auto batch = WaitFor(reader->Read())
@@ -670,8 +670,8 @@ TEST_F(TPartitionReaderTest, MaxBytesPerReadDefersExtraChunks)
     DrainInvoker();
 
     // Stage both chunks ready, each one large enough to exceed the cap on its own.
-    auto r1 = MakeSingleRecordResult(/*mapperId*/ 1, 0, {{1, 1}}, /*finished*/ false);
-    auto r2 = MakeSingleRecordResult(/*mapperId*/ 2, 0, {{2, 2}}, /*finished*/ false);
+    auto r1 = MakeSingleRecordResult(/*writerId*/ 1, 0, {{1, 1}}, /*finished*/ false);
+    auto r2 = MakeSingleRecordResult(/*writerId*/ 2, 0, {{2, 2}}, /*finished*/ false);
     mock1->SetNextReadResult(std::move(r1));
     mock2->SetNextReadResult(std::move(r2));
     DrainInvoker();
@@ -689,7 +689,7 @@ TEST_F(TPartitionReaderTest, MaxBytesPerReadDefersExtraChunks)
     EXPECT_EQ(std::ssize(batch2->Records), 1);
 
     // Drained record should differ.
-    EXPECT_NE(batch1->Records[0].Header.MapperId, batch2->Records[0].Header.MapperId);
+    EXPECT_NE(batch1->Records[0].Header.WriterId, batch2->Records[0].Header.WriterId);
 
     FlushPendingMockRead(mock1);
     FlushPendingMockRead(mock2);
@@ -713,23 +713,23 @@ TEST_F(TPartitionReaderTest, MaxBytesPerReadSplitsSingleChunkResult)
     DrainInvoker();
 
     TChunkReadResult result;
-    for (int mapperId = 0; mapperId < 3; ++mapperId) {
+    for (int writerId = 0; writerId < 3; ++writerId) {
         auto record = MakeSingleRecordResult(
-            mapperId,
+            writerId,
             /*startRow*/ 0,
-            {{mapperId, mapperId}},
+            {{writerId, writerId}},
             /*finished*/ false);
         result.Records.push_back(std::move(record.Records[0]));
     }
     result.Finished = true;
     mock->SetNextReadResult(std::move(result));
 
-    for (int mapperId = 0; mapperId < 3; ++mapperId) {
+    for (int writerId = 0; writerId < 3; ++writerId) {
         auto batch = WaitFor(reader->Read())
             .ValueOrThrow();
         ASSERT_EQ(std::ssize(batch->Records), 1);
-        EXPECT_EQ(batch->Records[0].Header.MapperId, mapperId);
-        EXPECT_EQ(batch->Finished, mapperId == 2);
+        EXPECT_EQ(batch->Records[0].Header.WriterId, writerId);
+        EXPECT_EQ(batch->Finished, writerId == 2);
     }
 }
 
@@ -771,7 +771,7 @@ TEST_F(TPartitionReaderTest, HeaderFilterDropsRejectedRecords)
     };
 
     auto filter = [] (const TRecordHeader& header) {
-        return header.MapperId == 7;
+        return header.WriterId == 7;
     };
 
     auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker(), filter);
@@ -779,18 +779,18 @@ TEST_F(TPartitionReaderTest, HeaderFilterDropsRejectedRecords)
     reader->SetNoMoreChunks();
     DrainInvoker();
 
-    // Three blobs with mapperIds {0, 7, 3}. The filter accepts only mapperId 7.
+    // Three blobs with writerIds {0, 7, 3}. The filter accepts only writerId 7.
     // Rejected blobs have valid 16-byte headers but DELIBERATELY CORRUPT
     // payloads — if the reader decompressed before filtering, the bad payload
     // would throw and propagate to FailReader, surfacing a TerminalError_
     // here instead of a clean batch.
     TChunkReadResult result;
     result.Records.push_back(MakeRecordWithValidHeaderCorruptPayload(
-        /*mapperId*/ 0, /*startRow*/ 0, /*rowCount*/ 1));
-    auto accepted = MakeSingleRecordResult(/*mapperId*/ 7, 0, {{20, 200}}, /*finished*/ false);
+        /*writerId*/ 0, /*startRow*/ 0, /*rowCount*/ 1));
+    auto accepted = MakeSingleRecordResult(/*writerId*/ 7, 0, {{20, 200}}, /*finished*/ false);
     result.Records.push_back(std::move(accepted.Records[0]));
     result.Records.push_back(MakeRecordWithValidHeaderCorruptPayload(
-        /*mapperId*/ 3, /*startRow*/ 0, /*rowCount*/ 1));
+        /*writerId*/ 3, /*startRow*/ 0, /*rowCount*/ 1));
     result.Finished = true;
     mock->SetNextReadResult(std::move(result));
 
@@ -798,7 +798,7 @@ TEST_F(TPartitionReaderTest, HeaderFilterDropsRejectedRecords)
         .ValueOrThrow();
     EXPECT_TRUE(batch->Finished);
     ASSERT_EQ(std::ssize(batch->Records), 1);
-    EXPECT_EQ(batch->Records[0].Header.MapperId, 7);
+    EXPECT_EQ(batch->Records[0].Header.WriterId, 7);
 }
 
 TEST_F(TPartitionReaderTest, DropsDuplicateBeforeDecompression)
@@ -819,12 +819,12 @@ TEST_F(TPartitionReaderTest, DropsDuplicateBeforeDecompression)
     DrainInvoker();
 
     auto result = MakeSingleRecordResult(
-        /*mapperId*/ 7,
+        /*writerId*/ 7,
         /*startRow*/ 10,
         {{20, 200}},
         /*finished*/ false);
     result.Records.push_back(MakeRecordWithValidHeaderCorruptPayload(
-        /*mapperId*/ 7,
+        /*writerId*/ 7,
         /*startRow*/ 10,
         /*rowCount*/ 1));
     result.Finished = true;
@@ -834,7 +834,7 @@ TEST_F(TPartitionReaderTest, DropsDuplicateBeforeDecompression)
         .ValueOrThrow();
     EXPECT_TRUE(batch->Finished);
     ASSERT_EQ(std::ssize(batch->Records), 1);
-    EXPECT_EQ(batch->Records[0].Header.MapperId, 7);
+    EXPECT_EQ(batch->Records[0].Header.WriterId, 7);
     EXPECT_EQ(batch->Records[0].Header.StartRow, 10);
 }
 
@@ -870,7 +870,7 @@ TEST_F(TPartitionReaderTest, ReleasesHeaderFilterAfterFinish)
     auto readFuture = reader->Read();
     DrainInvoker();
     mock->SetNextReadResult(MakeSingleRecordResult(
-        /*mapperId*/ 7,
+        /*writerId*/ 7,
         /*startRow*/ 0,
         {{1, 10}},
         /*finished*/ true));
@@ -1086,14 +1086,14 @@ TEST_F(TPartitionReaderTest, EmptyTerminalOnOneChunkOtherStillActive)
     DrainInvoker();
 
     // Real records on chunk 2.
-    auto r2 = MakeSingleRecordResult(/*mapperId*/ 9, /*startRow*/ 0, {{42, 4242}}, /*finished*/ true);
+    auto r2 = MakeSingleRecordResult(/*writerId*/ 9, /*startRow*/ 0, {{42, 4242}}, /*finished*/ true);
     mock2->SetNextReadResult(std::move(r2));
 
     auto batch = WaitFor(reader->Read())
         .ValueOrThrow();
     EXPECT_TRUE(batch->Finished);
     ASSERT_EQ(std::ssize(batch->Records), 1);
-    EXPECT_EQ(batch->Records[0].Header.MapperId, 9);
+    EXPECT_EQ(batch->Records[0].Header.WriterId, 9);
 }
 
 TEST_F(TPartitionReaderTest, SetNoMoreChunksPropagatesSetAllWritersFinished)

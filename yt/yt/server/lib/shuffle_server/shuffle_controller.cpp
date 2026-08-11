@@ -45,14 +45,14 @@ public:
 
     TFuture<void> RegisterChunks(
         std::vector<TInputChunkPtr> chunks,
-        std::optional<int> writerIndex,
+        std::optional<int> logicalWriterIndex,
         bool overwriteExistingWriterData) override
     {
         return BIND(
             &TPullBasedShuffleController::DoRegisterChunks,
             MakeStrong(this),
             Passed(std::move(chunks)),
-            writerIndex,
+            logicalWriterIndex,
             overwriteExistingWriterData)
             .AsyncVia(SerializedInvoker_)
             .Run();
@@ -60,13 +60,13 @@ public:
 
     TFuture<std::vector<TInputChunkSlicePtr>> FetchChunks(
         int partitionIndex,
-        std::optional<std::pair<int, int>> writerIndexRange) override
+        std::optional<std::pair<int, int>> logicalWriterIndexRange) override
     {
         return BIND(
             &TPullBasedShuffleController::DoFetchChunks,
             MakeStrong(this),
             partitionIndex,
-            writerIndexRange)
+            logicalWriterIndexRange)
             .AsyncVia(SerializedInvoker_)
             .Run();
     }
@@ -76,7 +76,7 @@ private:
     {
         TInputChunkPtr Chunk;
         std::optional<int> Epoch;
-        std::optional<int> WriterIndex;
+        std::optional<int> LogicalWriterIndex;
     };
 
     const int PartitionCount_;
@@ -87,24 +87,27 @@ private:
 
     std::vector<TWriterChunk> Chunks_;
 
-    std::map<int, std::vector<int>> WriterIndexToChunkIndices_;
-    std::unordered_map<int, int> WriterIndexToEpoch_;
+    std::map<int, std::vector<int>> ChunkIndicesByLogicalWriterIndex_;
+    std::unordered_map<int, int> EpochByLogicalWriterIndex_;
 
-    void DoRegisterChunks(std::vector<TInputChunkPtr> chunks, std::optional<int> writerIndex, bool overwriteExistingWriterData)
+    void DoRegisterChunks(
+        std::vector<TInputChunkPtr> chunks,
+        std::optional<int> logicalWriterIndex,
+        bool overwriteExistingWriterData)
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         std::optional<int> currentEpoch;
-        if (writerIndex) {
+        if (logicalWriterIndex) {
             if (overwriteExistingWriterData) {
-                auto it = WriterIndexToEpoch_.find(*writerIndex);
-                if (it == WriterIndexToEpoch_.end()) {
-                    it = WriterIndexToEpoch_.insert({*writerIndex, 0}).first;
+                auto it = EpochByLogicalWriterIndex_.find(*logicalWriterIndex);
+                if (it == EpochByLogicalWriterIndex_.end()) {
+                    it = EpochByLogicalWriterIndex_.insert({*logicalWriterIndex, 0}).first;
                 }
                 YT_VERIFY(it->second < std::numeric_limits<int>::max());
                 ++it->second;
             }
-            currentEpoch = WriterIndexToEpoch_[*writerIndex];
+            currentEpoch = EpochByLogicalWriterIndex_[*logicalWriterIndex];
         }
 
         Chunks_.reserve(Chunks_.size() + chunks.size());
@@ -114,21 +117,21 @@ private:
             YT_VERIFY(partitionsExt->row_counts_size() == PartitionCount_);
             YT_VERIFY(partitionsExt->uncompressed_data_sizes_size() == PartitionCount_);
 
-            if (writerIndex) {
-                WriterIndexToChunkIndices_[*writerIndex].push_back(std::ssize(Chunks_));
+            if (logicalWriterIndex) {
+                ChunkIndicesByLogicalWriterIndex_[*logicalWriterIndex].push_back(std::ssize(Chunks_));
             }
 
             Chunks_.push_back(TWriterChunk{
                 .Chunk = std::move(chunk),
                 .Epoch = currentEpoch,
-                .WriterIndex = writerIndex,
+                .LogicalWriterIndex = logicalWriterIndex,
             });
         }
     }
 
     std::vector<TInputChunkSlicePtr> DoFetchChunks(
         int partitionIndex,
-        std::optional<std::pair<int, int>> writerIndexRange)
+        std::optional<std::pair<int, int>> logicalWriterIndexRange)
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
@@ -142,7 +145,9 @@ private:
 
         auto tryAddChunk = [&] (int index) {
             const auto& chunk = Chunks_[index];
-            if (chunk.WriterIndex.has_value() && chunk.Epoch < WriterIndexToEpoch_[*chunk.WriterIndex]) {
+            if (chunk.LogicalWriterIndex.has_value() &&
+                chunk.Epoch < EpochByLogicalWriterIndex_[*chunk.LogicalWriterIndex])
+            {
                 return;
             }
 
@@ -162,9 +167,9 @@ private:
             }
         };
 
-        if (writerIndexRange) {
-            for (auto it = WriterIndexToChunkIndices_.lower_bound(writerIndexRange->first);
-                it != WriterIndexToChunkIndices_.end() && it->first < writerIndexRange->second;
+        if (logicalWriterIndexRange) {
+            for (auto it = ChunkIndicesByLogicalWriterIndex_.lower_bound(logicalWriterIndexRange->first);
+                it != ChunkIndicesByLogicalWriterIndex_.end() && it->first < logicalWriterIndexRange->second;
                 ++it)
             {
                 for (int index : it->second) {
@@ -259,14 +264,14 @@ public:
         }
     }
 
-    TFuture<TMapperRegistration> RegisterMapper(
-        std::optional<int> writerIndex,
+    TFuture<TWriterRegistration> RegisterWriter(
+        std::optional<int> logicalWriterIndex,
         bool overwriteExistingWriterData) override
     {
         return BIND(
-            &TPushBasedShuffleController::DoRegisterMapper,
+            &TPushBasedShuffleController::DoRegisterWriter,
             MakeStrong(this),
-            writerIndex,
+            logicalWriterIndex,
             overwriteExistingWriterData)
             .AsyncVia(SerializedInvoker_)
             .Run();
@@ -287,13 +292,13 @@ public:
 
     TFuture<TPushBasedFetchResult> FetchChunks(
         int partitionIndex,
-        std::optional<std::pair<int, int>> writerIndexRange) override
+        std::optional<std::pair<int, int>> logicalWriterIndexRange) override
     {
         return BIND(
             &TPushBasedShuffleController::DoFetchChunks,
             MakeStrong(this),
             partitionIndex,
-            writerIndexRange)
+            logicalWriterIndexRange)
             .AsyncVia(SerializedInvoker_)
             .Run();
     }
@@ -306,46 +311,49 @@ private:
 
     // Each partition maps 1:1 to a pool slot cookie equal to its index.
     IDistributedChunkSessionPoolPtr Pool_;
-    i32 NextMapperId_ = 0;
-    THashMap<i32, std::optional<int>> MapperIdToWriterIndex_;
-    // All mapper ids ever allocated per writer index — needed to invalidate the
-    // entire history of a writer index on overwrite (not just the latest).
-    THashMap<int, std::vector<i32>> WriterIndexToMapperIds_;
-    THashSet<i32> ValidMapperIds_;
+    i32 NextWriterId_ = 0;
+    THashMap<i32, std::optional<int>> LogicalWriterIndexByWriterId_;
+    // All writer ids ever allocated per logical writer index — needed to
+    // invalidate the entire history of a logical writer on overwrite.
+    THashMap<int, std::vector<i32>> WriterIdsByLogicalWriterIndex_;
+    THashSet<i32> ValidWriterIds_;
     bool ReadPhaseStarted_ = false;
 
-    TFuture<TMapperRegistration> DoRegisterMapper(std::optional<int> writerIndex, bool overwriteExistingWriterData)
+    TFuture<TWriterRegistration> DoRegisterWriter(
+        std::optional<int> logicalWriterIndex,
+        bool overwriteExistingWriterData)
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         if (ReadPhaseStarted_) {
-            THROW_ERROR_EXCEPTION("Shuffle read phase has started; cannot register a new mapper");
+            THROW_ERROR_EXCEPTION("Shuffle read phase has started; cannot register a new writer");
         }
-        if (overwriteExistingWriterData && !writerIndex) {
-            THROW_ERROR_EXCEPTION("Writer index must be set when overwrite existing writer data option is enabled");
+        if (overwriteExistingWriterData && !logicalWriterIndex) {
+            THROW_ERROR_EXCEPTION(
+                "Logical writer index must be set when overwrite existing writer data option is enabled");
         }
 
-        i32 mapperId = NextMapperId_++;
-        YT_VERIFY(NextMapperId_ > 0);
+        i32 writerId = NextWriterId_++;
+        YT_VERIFY(NextWriterId_ > 0);
 
-        MapperIdToWriterIndex_[mapperId] = writerIndex;
-        if (writerIndex && overwriteExistingWriterData) {
-            auto it = WriterIndexToMapperIds_.find(*writerIndex);
-            if (it != WriterIndexToMapperIds_.end()) {
-                for (i32 priorMapperId : it->second) {
-                    ValidMapperIds_.erase(priorMapperId);
+        LogicalWriterIndexByWriterId_[writerId] = logicalWriterIndex;
+        if (logicalWriterIndex && overwriteExistingWriterData) {
+            auto it = WriterIdsByLogicalWriterIndex_.find(*logicalWriterIndex);
+            if (it != WriterIdsByLogicalWriterIndex_.end()) {
+                for (i32 priorWriterId : it->second) {
+                    ValidWriterIds_.erase(priorWriterId);
                 }
             }
         }
-        if (writerIndex) {
-            WriterIndexToMapperIds_[*writerIndex].push_back(mapperId);
+        if (logicalWriterIndex) {
+            WriterIdsByLogicalWriterIndex_[*logicalWriterIndex].push_back(writerId);
         }
-        ValidMapperIds_.insert(mapperId);
+        ValidWriterIds_.insert(writerId);
 
         return Pool_->GetReadySessions()
-            .Apply(BIND_NO_PROPAGATE([mapperId] (std::vector<TReadySession> readySessions) {
-                return TMapperRegistration{
-                    .MapperId = mapperId,
+            .Apply(BIND_NO_PROPAGATE([writerId] (std::vector<TReadySession> readySessions) {
+                return TWriterRegistration{
+                    .WriterId = writerId,
                     .ReadySessions = std::move(readySessions),
                 };
             }));
@@ -372,7 +380,7 @@ private:
 
     TFuture<TPushBasedFetchResult> DoFetchChunks(
         int partitionIndex,
-        std::optional<std::pair<int, int>> writerIndexRange)
+        std::optional<std::pair<int, int>> logicalWriterIndexRange)
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
@@ -389,47 +397,47 @@ private:
             }
         }
 
-        auto validMapperIds = ComputeValidMapperIdsForRange(writerIndexRange);
+        auto validWriterIds = ComputeValidWriterIdsForRange(logicalWriterIndexRange);
 
         return Pool_->GetSlotChunks(partitionIndex)
             .Apply(BIND_NO_PROPAGATE(
                 &TPushBasedShuffleController::MakeFetchResult,
-                Passed(std::move(validMapperIds))));
+                Passed(std::move(validWriterIds))));
     }
 
     static TPushBasedFetchResult MakeFetchResult(
-        std::vector<i32> validMapperIds,
+        std::vector<i32> validWriterIds,
         std::vector<TSlotChunkInfo> chunkInfos)
     {
         return TPushBasedFetchResult{
             .Chunks = std::move(chunkInfos),
-            .ValidMapperIds = std::move(validMapperIds),
+            .ValidWriterIds = std::move(validWriterIds),
         };
     }
 
-    std::vector<i32> ComputeValidMapperIdsForRange(
-        std::optional<std::pair<int, int>> writerIndexRange) const
+    std::vector<i32> ComputeValidWriterIdsForRange(
+        std::optional<std::pair<int, int>> logicalWriterIndexRange) const
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         std::vector<i32> result;
-        result.reserve(ValidMapperIds_.size());
+        result.reserve(ValidWriterIds_.size());
 
-        if (!writerIndexRange) {
-            for (i32 mapperId : ValidMapperIds_) {
-                result.push_back(mapperId);
+        if (!logicalWriterIndexRange) {
+            for (i32 writerId : ValidWriterIds_) {
+                result.push_back(writerId);
             }
             return result;
         }
 
-        for (i32 mapperId : ValidMapperIds_) {
-            auto it = MapperIdToWriterIndex_.find(mapperId);
-            YT_VERIFY(it != MapperIdToWriterIndex_.end());
+        for (i32 writerId : ValidWriterIds_) {
+            auto it = LogicalWriterIndexByWriterId_.find(writerId);
+            YT_VERIFY(it != LogicalWriterIndexByWriterId_.end());
             if (!it->second) {
                 continue;
             }
-            if (*it->second >= writerIndexRange->first && *it->second < writerIndexRange->second) {
-                result.push_back(mapperId);
+            if (*it->second >= logicalWriterIndexRange->first && *it->second < logicalWriterIndexRange->second) {
+                result.push_back(writerId);
             }
         }
         return result;

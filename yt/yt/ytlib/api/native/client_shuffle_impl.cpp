@@ -75,7 +75,7 @@ IChannelPtr BuildShuffleServiceChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Mapper-side write-session provider that resolves sessions through the shuffle
+//! Writer-side write-session provider that resolves sessions through the shuffle
 //! service's GetPartitionWriteSession RPC. It is shuffle-service-specific, hence
 //! it lives here rather than in the use-case-agnostic push_based_shuffle_client.
 class TRemotePartitionWriteSessionProvider
@@ -129,12 +129,12 @@ public:
         ISchemalessMultiChunkWriterPtr writer,
         TClientPtr client,
         TShuffleHandlePtr shuffleHandle,
-        std::optional<int> writerIndex,
+        std::optional<int> logicalWriterIndex,
         bool overwriteExistingWriterData)
         : Writer_(std::move(writer))
         , Client_(std::move(client))
         , ShuffleHandle_(std::move(shuffleHandle))
-        , WriterIndex_(writerIndex)
+        , LogicalWriterIndex_(logicalWriterIndex)
         , OverwriteExistingWriterData_(overwriteExistingWriterData)
     { }
 
@@ -154,7 +154,7 @@ public:
             return Client_->RegisterShuffleChunks(
                 ShuffleHandle_,
                 Writer_->GetWrittenChunkSpecs(),
-                WriterIndex_,
+                LogicalWriterIndex_,
                 /*options*/ {.OverwriteExistingWriterData = OverwriteExistingWriterData_});
         }));
     }
@@ -168,7 +168,7 @@ private:
     const ISchemalessMultiChunkWriterPtr Writer_;
     const TClientPtr Client_;
     const TShuffleHandlePtr ShuffleHandle_;
-    const std::optional<int> WriterIndex_;
+    const std::optional<int> LogicalWriterIndex_;
     const bool OverwriteExistingWriterData_;
 };
 
@@ -245,7 +245,7 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
     const TClientPtr& client,
     TShuffleHandlePtr handle,
     const std::string& partitionColumn,
-    std::optional<int> writerIndex,
+    std::optional<int> logicalWriterIndex,
     const TShuffleWriterOptions& options)
 {
     THROW_ERROR_EXCEPTION_IF(!handle->Schema, "Push-based shuffle handle is missing a schema");
@@ -255,11 +255,13 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
     auto channel = BuildShuffleServiceChannel(connection, handle->CoordinatorAddress);
 
     TShuffleServiceProxy proxy(channel);
+    // COMPAT(apollo1321): Switch to RegisterWriter and remove RegisterMapper
+    // after the 26.2 branch is created.
     auto registerReq = proxy.RegisterMapper();
     registerReq->SetTimeout(rpcTimeout);
     registerReq->set_shuffle_handle(ToProto(ConvertToYsonString(handle)));
-    if (writerIndex) {
-        registerReq->set_writer_index(*writerIndex);
+    if (logicalWriterIndex) {
+        registerReq->set_logical_writer_index(*logicalWriterIndex);
     }
     registerReq->set_overwrite_existing_writer_data(options.OverwriteExistingWriterData);
 
@@ -271,7 +273,7 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
             channel,
             rpcTimeout
         ] (const TShuffleServiceProxy::TRspRegisterMapperPtr& rsp) -> IRowBatchWriterPtr {
-            i32 mapperId = rsp->mapper_id();
+            i32 writerId = rsp->writer_id();
 
             THashMap<int, TSessionDescriptor> seededSessions;
             seededSessions.reserve(rsp->ready_sessions_size());
@@ -305,7 +307,7 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
                 sessionProvider,
                 partitioner,
                 client->GetNativeConnection(),
-                mapperId,
+                writerId,
                 client->GetConnection()->GetInvoker(),
                 std::move(seededSessions));
 
@@ -419,7 +421,7 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
     const TClientPtr& client,
     TShuffleHandlePtr handle,
     int partitionIndex,
-    std::optional<IShuffleClient::TIndexRange> writerIndexRange)
+    std::optional<IShuffleClient::TIndexRange> logicalWriterIndexRange)
 {
     THROW_ERROR_EXCEPTION_IF(!handle->Schema, "Push-based shuffle handle is missing a schema");
 
@@ -432,10 +434,10 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
     fetchReq->SetTimeout(rpcTimeout);
     fetchReq->set_shuffle_handle(ToProto(ConvertToYsonString(handle)));
     fetchReq->set_partition_index(partitionIndex);
-    if (writerIndexRange) {
-        auto* range = fetchReq->mutable_writer_index_range();
-        range->set_begin(writerIndexRange->first);
-        range->set_end(writerIndexRange->second);
+    if (logicalWriterIndexRange) {
+        auto* range = fetchReq->mutable_logical_writer_index_range();
+        range->set_begin(logicalWriterIndexRange->first);
+        range->set_end(logicalWriterIndexRange->second);
     }
 
     return fetchReq->Invoke()
@@ -445,9 +447,9 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
         ] (const TShuffleServiceProxy::TRspFetchChunksPtr& rsp) -> IRowBatchReaderPtr {
             auto chunkSpecs = FromProto<std::vector<TChunkSpec>>(rsp->chunk_specs());
 
-            auto validIds = THashSet<i32>(rsp->valid_mapper_ids().begin(), rsp->valid_mapper_ids().end());
+            auto validIds = THashSet<i32>(rsp->valid_writer_ids().begin(), rsp->valid_writer_ids().end());
             TRecordHeaderFilter filter = [validIds = std::move(validIds)] (const TRecordHeader& header) {
-                return validIds.contains(header.MapperId);
+                return validIds.contains(header.WriterId);
             };
 
             auto readerConfig = handle->PushConfig
@@ -528,7 +530,7 @@ TSignedShuffleHandlePtr TClient::DoStartShuffle(
 void TClient::DoRegisterShuffleChunks(
     const TShuffleHandlePtr& shuffleHandle,
     const std::vector<TChunkSpec>& chunkSpecs,
-    std::optional<int> writerIndex,
+    std::optional<int> logicalWriterIndex,
     const TRegisterShuffleChunksOptions& options)
 {
     auto shuffleConnection = GetNativeConnection()->CreateChannelByAddress(shuffleHandle->CoordinatorAddress);
@@ -540,8 +542,8 @@ void TClient::DoRegisterShuffleChunks(
 
     req->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
     ToProto(req->mutable_chunk_specs(), chunkSpecs);
-    if (writerIndex) {
-        req->set_writer_index(*writerIndex);
+    if (logicalWriterIndex) {
+        req->set_logical_writer_index(*logicalWriterIndex);
     }
     req->set_overwrite_existing_writer_data(options.OverwriteExistingWriterData);
 
@@ -552,7 +554,7 @@ void TClient::DoRegisterShuffleChunks(
 std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
     const TShuffleHandlePtr& shuffleHandle,
     int partitionIndex,
-    std::optional<std::pair<int, int>> writerIndexRange,
+    std::optional<std::pair<int, int>> logicalWriterIndexRange,
     const TFetchShuffleChunksOptions& options)
 {
     auto shuffleConnection = GetNativeConnection()->CreateChannelByAddress(shuffleHandle->CoordinatorAddress);
@@ -564,10 +566,10 @@ std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
 
     req->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
     req->set_partition_index(partitionIndex);
-    if (writerIndexRange) {
-        auto* writerIndexRangeProto = req->mutable_writer_index_range();
-        writerIndexRangeProto->set_begin(writerIndexRange->first);
-        writerIndexRangeProto->set_end(writerIndexRange->second);
+    if (logicalWriterIndexRange) {
+        auto* logicalWriterIndexRangeProto = req->mutable_logical_writer_index_range();
+        logicalWriterIndexRangeProto->set_begin(logicalWriterIndexRange->first);
+        logicalWriterIndexRangeProto->set_end(logicalWriterIndexRange->second);
     }
 
     auto rsp = WaitFor(req->Invoke())
@@ -581,7 +583,7 @@ std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
 TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
     const TSignedShuffleHandlePtr& signedShuffleHandle,
     int partitionIndex,
-    std::optional<TIndexRange> writerIndexRange,
+    std::optional<TIndexRange> logicalWriterIndexRange,
     const TShuffleReaderOptions& options)
 {
     // TODO(pavook): friendly YSON wrapper.
@@ -591,12 +593,12 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
             MakeStrong(this),
             std::move(shuffleHandle),
             partitionIndex,
-            writerIndexRange);
+            logicalWriterIndexRange);
     }
     return FetchShuffleChunks(
         shuffleHandle,
         partitionIndex,
-        writerIndexRange,
+        logicalWriterIndexRange,
         TFetchShuffleChunksOptions{})
         .AsUnique().Apply(BIND([=, this, this_ = MakeStrong(this)] (std::vector<TChunkSpec>&& chunkSpecs) mutable {
             auto dataSourceDirectory = New<TDataSourceDirectory>();
@@ -638,7 +640,7 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
 TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     const TSignedShuffleHandlePtr& signedShuffleHandle,
     const std::string& partitionColumn,
-    std::optional<int> writerIndex,
+    std::optional<int> logicalWriterIndex,
     const TShuffleWriterOptions& options)
 {
     // TODO(pavook): friendly YSON wrapper.
@@ -648,7 +650,7 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
             MakeStrong(this),
             std::move(shuffleHandle),
             partitionColumn,
-            writerIndex,
+            logicalWriterIndex,
             options);
     }
 
@@ -699,7 +701,7 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
         std::move(writer),
         this,
         std::move(shuffleHandle),
-        writerIndex,
+        logicalWriterIndex,
         options.OverwriteExistingWriterData))
         .As<IRowBatchWriterPtr>();
 }

@@ -59,7 +59,9 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartShuffle));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterChunks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchChunks));
+        // COMPAT(apollo1321): Remove RegisterMapper after the 26.2 branch is created.
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterMapper));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterWriter));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPartitionWriteSession));
     }
 
@@ -145,18 +147,21 @@ public:
     {
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
-        auto writerIndex = request->has_writer_index() ? std::optional<int>(request->writer_index()) : std::nullopt;
+        auto logicalWriterIndex = request->has_logical_writer_index()
+            ? std::optional<int>(request->logical_writer_index())
+            : std::nullopt;
         bool overwriteExistingWriterData = request->overwrite_existing_writer_data();
 
-        if (overwriteExistingWriterData && !writerIndex.has_value()) {
-            THROW_ERROR_EXCEPTION("Writer index must be set when overwrite existing writer data option is enabled");
+        if (overwriteExistingWriterData && !logicalWriterIndex.has_value()) {
+            THROW_ERROR_EXCEPTION(
+                "Logical writer index must be set when overwrite existing writer data option is enabled");
         }
 
         context->SetRequestInfo(
-            "ShuffleHandle: %v, ChunkCount: %v, MapperId: %v, OverwriteExistingWriterData: %v",
+            "ShuffleHandle: %v, ChunkCount: %v, LogicalWriterIndex: %v, OverwriteExistingWriterData: %v",
             shuffleHandle,
             request->chunk_specs_size(),
-            writerIndex,
+            logicalWriterIndex,
             overwriteExistingWriterData);
 
         auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
@@ -167,7 +172,7 @@ public:
 
         WaitFor(pullController->RegisterChunks(
             std::move(chunks),
-            writerIndex,
+            logicalWriterIndex,
             overwriteExistingWriterData))
             .ThrowOnError();
 
@@ -178,52 +183,54 @@ public:
     {
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
-        std::optional<IShuffleClient::TIndexRange> writerIndexRange;
-        if (request->has_writer_index_range()) {
-            if (!request->writer_index_range().has_begin() || !request->writer_index_range().has_end()) {
-                THROW_ERROR_EXCEPTION("Writer index range begin and end fields are required");
+        std::optional<IShuffleClient::TIndexRange> logicalWriterIndexRange;
+        if (request->has_logical_writer_index_range()) {
+            const auto& range = request->logical_writer_index_range();
+            if (!range.has_begin() || !range.has_end()) {
+                THROW_ERROR_EXCEPTION("Logical writer index range begin and end fields are required");
             }
 
-            int writerIndexBegin = request->writer_index_range().begin();
-            int writerIndexEnd = request->writer_index_range().end();
+            int begin = range.begin();
+            int end = range.end();
 
-            if (writerIndexBegin < 0) {
-                THROW_ERROR_EXCEPTION("Received negative lower limit of writer index range %v", writerIndexBegin);
-            }
-
-            if (writerIndexBegin > writerIndexEnd) {
+            if (begin < 0) {
                 THROW_ERROR_EXCEPTION(
-                    "Lower limit of mappers range %v cannot be greater than upper limit %v",
-                    writerIndexBegin,
-                    writerIndexEnd);
+                    "Received negative lower limit of logical writer index range %v",
+                    begin);
+            }
+            if (begin > end) {
+                THROW_ERROR_EXCEPTION(
+                    "Lower limit of logical writer index range %v cannot be greater than upper limit %v",
+                    begin,
+                    end);
             }
 
-            writerIndexRange = std::pair(writerIndexBegin, writerIndexEnd);
+            logicalWriterIndexRange = std::pair(begin, end);
         }
 
         context->SetRequestInfo(
-            "ShuffleHandle: %v, PartitionIndex: %v, WriterIndexRange: %v",
+            "ShuffleHandle: %v, PartitionIndex: %v, LogicalWriterIndexRange: %v",
             shuffleHandle,
             request->partition_index(),
-            writerIndexRange);
+            logicalWriterIndexRange);
 
         auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
             .ValueOrThrow();
 
         if (auto pushController = DynamicPointerCast<IPushBasedShuffleController>(controller)) {
-            auto fetchResult = WaitFor(pushController->FetchChunks(request->partition_index(), writerIndexRange))
+            auto fetchResult = WaitFor(pushController->FetchChunks(request->partition_index(), logicalWriterIndexRange))
                 .ValueOrThrow();
             for (const auto& info : fetchResult.Chunks) {
                 auto* protoChunk = response->add_chunk_specs();
                 ToProto(protoChunk->mutable_chunk_id(), info.ChunkId);
                 ToProto(protoChunk->mutable_replicas(), info.Replicas);
             }
-            for (i32 mapperId : fetchResult.ValidMapperIds) {
-                response->add_valid_mapper_ids(mapperId);
+            for (i32 writerId : fetchResult.ValidWriterIds) {
+                response->add_valid_writer_ids(writerId);
             }
         } else {
             auto pullController = ToPullBasedOrThrow(controller);
-            auto chunkSlices = WaitFor(pullController->FetchChunks(request->partition_index(), writerIndexRange))
+            auto chunkSlices = WaitFor(pullController->FetchChunks(request->partition_index(), logicalWriterIndexRange))
                 .ValueOrThrow();
             for (const auto& chunkSlice : chunkSlices) {
                 auto* protoChunk = response->add_chunk_specs();
@@ -236,42 +243,18 @@ public:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, RegisterMapper)
+    DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, RegisterWriter)
     {
-        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+        DoRegisterWriter(request, response, context);
+    }
 
-        auto writerIndex = request->has_writer_index()
-            ? std::optional<int>(request->writer_index())
-            : std::nullopt;
-        bool overwrite = request->overwrite_existing_writer_data();
-
-        context->SetRequestInfo(
-            "ShuffleHandle: %v, WriterIndex: %v, OverwriteExistingWriterData: %v",
-            shuffleHandle,
-            writerIndex,
-            overwrite);
-
-        auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
-            .ValueOrThrow();
-        auto pushController = ToPushBasedOrThrow(controller);
-
-        auto registration = WaitFor(pushController->RegisterMapper(writerIndex, overwrite))
-            .ValueOrThrow();
-
-        response->set_mapper_id(registration.MapperId);
-        for (const auto& readySession : registration.ReadySessions) {
-            auto* protoSession = response->add_ready_sessions();
-            protoSession->set_partition_index(readySession.SlotCookie);
-            auto* session = protoSession->mutable_session();
-            ToProto(session->mutable_session_id(), readySession.Descriptor.SessionId);
-            ToProto(session->mutable_sequencer_node(), readySession.Descriptor.SequencerNode);
-        }
-
-        context->SetResponseInfo(
-            "MapperId: %v, ReadySessionCount: %v",
-            registration.MapperId,
-            registration.ReadySessions.size());
-        context->Reply();
+    // COMPAT(apollo1321): Remove RegisterMapper after the 26.2 branch is created.
+    DECLARE_RPC_SERVICE_METHOD_VIA_MESSAGES(
+        NShuffleClient::NProto::TReqRegisterWriter,
+        NShuffleClient::NProto::TRspRegisterWriter,
+        RegisterMapper)
+    {
+        DoRegisterWriter(request, response, context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NShuffleClient::NProto, GetPartitionWriteSession)
@@ -308,6 +291,47 @@ public:
 private:
     const std::string LocalServerAddress_;
     const IShuffleManagerPtr ShuffleManager_;
+
+    void DoRegisterWriter(
+        NShuffleClient::NProto::TReqRegisterWriter* request,
+        NShuffleClient::NProto::TRspRegisterWriter* response,
+        const TCtxRegisterWriterPtr& context)
+    {
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+
+        auto logicalWriterIndex = request->has_logical_writer_index()
+            ? std::optional<int>(request->logical_writer_index())
+            : std::nullopt;
+        bool overwriteExistingWriterData = request->overwrite_existing_writer_data();
+
+        context->SetRequestInfo(
+            "ShuffleHandle: %v, LogicalWriterIndex: %v, OverwriteExistingWriterData: %v",
+            shuffleHandle,
+            logicalWriterIndex,
+            overwriteExistingWriterData);
+
+        auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
+            .ValueOrThrow();
+        auto pushController = ToPushBasedOrThrow(controller);
+
+        auto registration = WaitFor(pushController->RegisterWriter(logicalWriterIndex, overwriteExistingWriterData))
+            .ValueOrThrow();
+
+        response->set_writer_id(registration.WriterId);
+        for (const auto& readySession : registration.ReadySessions) {
+            auto* protoSession = response->add_ready_sessions();
+            protoSession->set_partition_index(readySession.SlotCookie);
+            auto* session = protoSession->mutable_session();
+            ToProto(session->mutable_session_id(), readySession.Descriptor.SessionId);
+            ToProto(session->mutable_sequencer_node(), readySession.Descriptor.SequencerNode);
+        }
+
+        context->SetResponseInfo(
+            "WriterId: %v, ReadySessionCount: %v",
+            registration.WriterId,
+            registration.ReadySessions.size());
+        context->Reply();
+    }
 
     static IPullBasedShuffleControllerPtr ToPullBasedOrThrow(const IShuffleControllerPtr& controller)
     {

@@ -81,16 +81,16 @@ public:
         IPartitionWriteSessionProviderPtr sessionProvider,
         IPartitionerPtr partitioner,
         TCreateDistributedChunkWriterCallback createDistributedChunkWriter,
-        i32 mapperId,
+        i32 writerId,
         IInvokerPtr invoker,
         THashMap<int, TSessionDescriptor> seededSessions)
         : Config_(std::move(config))
         , SessionProvider_(std::move(sessionProvider))
         , Partitioner_(std::move(partitioner))
         , CreateDistributedChunkWriter_(std::move(createDistributedChunkWriter))
-        , MapperId_(mapperId)
+        , WriterId_(writerId)
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
-        , Logger(PushBasedShuffleLogger().WithTag("MapperId", MapperId_))
+        , Logger(PushBasedShuffleLogger().WithTag("WriterId", WriterId_))
         , Partitions_(Partitioner_->GetPartitionCount())
         , SeededSessions_(std::move(seededSessions))
         , BuildersBudget_(static_cast<i64>(Config_->MemoryBudget * Config_->BuildersBudgetFraction))
@@ -145,7 +145,7 @@ private:
     const IPartitionWriteSessionProviderPtr SessionProvider_;
     const IPartitionerPtr Partitioner_;
     const TCreateDistributedChunkWriterCallback CreateDistributedChunkWriter_;
-    const i32 MapperId_;
+    const i32 WriterId_;
     const IInvokerPtr SerializedInvoker_;
     const TLogger Logger;
 
@@ -154,8 +154,9 @@ private:
     // front is the next eviction victim. HeapIndex mirrors each slot for
     // O(log P) sift and removal. See yt/yt/core/misc/heap.h.
     std::vector<int> EvictionHeap_;
-    // Sessions handed out by RegisterMapper, consumed (erased) on a partition's first session
-    // request; failovers and unseeded partitions go through the provider.
+    // Sessions handed out during writer registration, consumed (erased) on a
+    // partition's first session request; failovers and unseeded partitions go
+    // through the provider.
     THashMap<int, TSessionDescriptor> SeededSessions_;
 
     const i64 BuildersBudget_;
@@ -193,7 +194,7 @@ private:
             auto& partitionState = Partitions_[partitionIndex];
             if (!partitionState.Builder) {
                 YT_ASSERT(partitionState.BufferedDataSize == 0);
-                partitionState.Builder.emplace(MapperId_, partitionState.NextRowId);
+                partitionState.Builder.emplace(WriterId_, partitionState.NextRowId);
                 PushToEvictionHeap(partitionIndex);
             }
             i64 prevAllocation = partitionState.Builder->GetAllocatedDataSize();
@@ -353,7 +354,7 @@ private:
             if (entry.SendAttempts >= Config_->MaxSendAttempts) {
                 --OutstandingWork_;
                 FailWriter(TError("Failed to write shuffle record after exceeding max send attempts")
-                    .With("mapper_id", MapperId_)
+                    .With("writer_id", WriterId_)
                     .With("partition_index", partitionIndex)
                     .With("send_attempts", entry.SendAttempts));
                 return;
@@ -376,7 +377,7 @@ private:
         auto& partitionState = Partitions_[partitionIndex];
         YT_VERIFY(!partitionState.PendingSessionFuture);
 
-        // The initial (non-excluded) request for a partition uses its RegisterMapper-seeded
+        // The initial (non-excluded) request for a partition uses its registration-seeded
         // session if present; failovers and unseeded partitions go through the provider.
         if (!excluded) {
             auto seedIt = SeededSessions_.find(partitionIndex);
@@ -415,7 +416,7 @@ private:
         }
         if (!sessionOrError.IsOK()) {
             FailWriter(TError("Failed to acquire session for partition")
-                .With("mapper_id", MapperId_)
+                .With("writer_id", WriterId_)
                 .With("partition_index", partitionIndex)
                 .With(static_cast<const TError&>(sessionOrError)));
             return;
@@ -431,7 +432,7 @@ private:
         // Sweep order is THashMap iteration order — non-deterministic. The
         // writer makes no in-order delivery guarantee per partition (retries
         // already break ordering), and the sequencer accepts arbitrary order
-        // from a single mapper.
+        // from a single writer.
         if (excluded) {
             std::vector<i64> toErase;
             for (auto& [cookie, inFlight] : partitionState.InFlight) {
@@ -478,7 +479,7 @@ private:
         if (inFlight.Entry.SendAttempts >= Config_->MaxSendAttempts) {
             --OutstandingWork_;
             FailWriter(TError("Failed to write shuffle record after exceeding max send attempts")
-                .With("mapper_id", MapperId_)
+                .With("writer_id", WriterId_)
                 .With("partition_index", partitionIndex)
                 .With("send_attempts", inFlight.Entry.SendAttempts)
                 .With(error));
@@ -553,7 +554,7 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
     IPartitionWriteSessionProviderPtr sessionProvider,
     IPartitionerPtr partitioner,
     NApi::NNative::IConnectionPtr connection,
-    i32 mapperId,
+    i32 writerId,
     IInvokerPtr invoker,
     THashMap<int, TSessionDescriptor> seededSessions)
 {
@@ -571,7 +572,7 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
         std::move(sessionProvider),
         std::move(partitioner),
         std::move(createWriter),
-        mapperId,
+        writerId,
         std::move(invoker),
         std::move(seededSessions));
 }
@@ -581,7 +582,7 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
     IPartitionWriteSessionProviderPtr sessionProvider,
     IPartitionerPtr partitioner,
     TCreateDistributedChunkWriterCallback createDistributedChunkWriter,
-    i32 mapperId,
+    i32 writerId,
     IInvokerPtr invoker)
 {
     return New<TPushBasedShuffleWriter>(
@@ -589,7 +590,7 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
         std::move(sessionProvider),
         std::move(partitioner),
         std::move(createDistributedChunkWriter),
-        mapperId,
+        writerId,
         std::move(invoker),
         THashMap<int, TSessionDescriptor>{});
 }

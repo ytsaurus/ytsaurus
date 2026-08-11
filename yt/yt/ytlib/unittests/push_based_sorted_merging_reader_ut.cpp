@@ -27,7 +27,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int MapperIdColumnId = 10;
+constexpr int WriterIdColumnId = 10;
 constexpr int RowIdColumnId = 11;
 
 struct TSourceBatchHolder
@@ -162,12 +162,12 @@ private:
 TNameTablePtr CreateNameTable()
 {
     auto nameTable = New<TNameTable>();
-    for (int id = 0; id < MapperIdColumnId; ++id) {
+    for (int id = 0; id < WriterIdColumnId; ++id) {
         EXPECT_EQ(id, nameTable->RegisterName(Format("column_%v", id)));
     }
     EXPECT_EQ(
-        MapperIdColumnId,
-        nameTable->RegisterName("$push_mapper_id"));
+        WriterIdColumnId,
+        nameTable->RegisterName("$push_writer_id"));
     EXPECT_EQ(
         RowIdColumnId,
         nameTable->RegisterName("$push_row_id"));
@@ -176,13 +176,13 @@ TNameTablePtr CreateNameTable()
 
 TUnversionedOwningRow MakePhysicalRow(
     i64 key,
-    i64 mapperId,
+    i64 writerId,
     i64 rowId,
     TUnversionedValue payload)
 {
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(key, /*id*/ 0));
-    builder.AddValue(MakeUnversionedInt64Value(mapperId, MapperIdColumnId));
+    builder.AddValue(MakeUnversionedInt64Value(writerId, WriterIdColumnId));
     builder.AddValue(MakeUnversionedInt64Value(rowId, RowIdColumnId));
     builder.AddValue(payload);
     return builder.FinishRow();
@@ -236,16 +236,16 @@ ISchemalessMultiChunkReaderPtr CreateReader(
     std::vector<ISchemalessMultiChunkReaderPtr> readers,
     TComparator comparator,
     TIdentityColumnIds identityColumnIds = {
-        .MapperId = MapperIdColumnId,
+        .WriterId = WriterIdColumnId,
         .RowId = RowIdColumnId,
     },
-    TValidMapperIds validMapperIds = {1, 2, 3})
+    TValidWriterIds validWriterIds = {1, 2, 3})
 {
     return CreateIdentityAwareSortedMergingReader(
         readers,
         std::move(comparator),
         identityColumnIds,
-        std::move(validMapperIds));
+        std::move(validWriterIds));
 }
 
 IUnversionedRowBatchPtr ReadUntilReadyError(
@@ -308,7 +308,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, MergesMultipleStreamsAndRemovesIdentit
         EXPECT_EQ(row[1].Id, 12);
         EXPECT_EQ(row[1].Data.Int64, expectedPayloads[index]);
         for (const auto& value : row) {
-            EXPECT_NE(value.Id, MapperIdColumnId);
+            EXPECT_NE(value.Id, WriterIdColumnId);
             EXPECT_NE(value.Id, RowIdColumnId);
         }
     }
@@ -354,7 +354,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, AppendsAscendingIdentitiesToDescending
     EXPECT_EQ(rows[4][1].Data.Int64, 201);
 }
 
-TEST_F(TPushBasedSortedMergingReaderTest, FiltersInvalidMappersAfterMerge)
+TEST_F(TPushBasedSortedMergingReaderTest, FiltersInvalidWritersAfterMerge)
 {
     auto nameTable = CreateNameTable();
     std::vector<ISchemalessMultiChunkReaderPtr> readers{
@@ -375,8 +375,8 @@ TEST_F(TPushBasedSortedMergingReaderTest, FiltersInvalidMappersAfterMerge)
     auto rows = ReadAll(CreateReader(
         std::move(readers),
         MakePhysicalSortComparator(ESortOrder::Ascending),
-        {.MapperId = MapperIdColumnId, .RowId = RowIdColumnId},
-        TValidMapperIds{1, 3}));
+        {.WriterId = WriterIdColumnId, .RowId = RowIdColumnId},
+        TValidWriterIds{1, 3}));
 
     ASSERT_EQ(std::ssize(rows), 3);
     EXPECT_EQ(rows[0][1].Data.Int64, 101);
@@ -462,7 +462,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, KeepsDistinctIdentitiesUnderOneUserKey
     EXPECT_EQ(rows[2][1].Data.Int64, 202);
 }
 
-TEST_F(TPushBasedSortedMergingReaderTest, UsesMapperAndRowIdAsDeduplicationKey)
+TEST_F(TPushBasedSortedMergingReaderTest, UsesWriterAndRowIdAsDeduplicationKey)
 {
     auto nameTable = CreateNameTable();
     auto rows = ReadAll(CreateReader(
@@ -491,8 +491,8 @@ TEST_F(TPushBasedSortedMergingReaderTest, ReturnsEmptyNonEosBatchWhenAllRowsAreR
             nameTable,
             /*maxRowsPerBatch*/ 1)},
         MakePhysicalSortComparator(ESortOrder::Ascending),
-        {.MapperId = MapperIdColumnId, .RowId = RowIdColumnId},
-        TValidMapperIds{1});
+        {.WriterId = WriterIdColumnId, .RowId = RowIdColumnId},
+        TValidWriterIds{1});
     TRowBatchReadOptions options;
 
     auto rejectedBatch = reader->Read(options);
@@ -517,7 +517,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, ReportsStableTerminalErrorWithoutCommi
                     MakeUnversionedInt64Value(2, /*id*/ 0),
                     MakeUnversionedInt64Value(1, /*id*/ 12),
                     MakeUnversionedInt64Value(2, RowIdColumnId),
-                    MakeUnversionedInt64Value(1, MapperIdColumnId),
+                    MakeUnversionedInt64Value(1, WriterIdColumnId),
                 }),
             },
             nameTable,
@@ -588,7 +588,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, ReportsMisplacedRowIdentity)
         {New<TMockSchemalessMultiChunkReader>(
             std::vector<TUnversionedOwningRow>{MakeRow({
                 MakeUnversionedInt64Value(1, /*id*/ 0),
-                MakeUnversionedInt64Value(1, MapperIdColumnId),
+                MakeUnversionedInt64Value(1, WriterIdColumnId),
                 MakeUnversionedInt64Value(1, /*id*/ 12),
                 MakeUnversionedInt64Value(1, RowIdColumnId),
             })},
@@ -609,9 +609,9 @@ TEST_F(TPushBasedSortedMergingReaderTest, ReportsDuplicateIdentityColumnId)
         {New<TMockSchemalessMultiChunkReader>(
             std::vector<TUnversionedOwningRow>{MakeRow({
                 MakeUnversionedInt64Value(1, /*id*/ 0),
-                MakeUnversionedInt64Value(1, MapperIdColumnId),
+                MakeUnversionedInt64Value(1, WriterIdColumnId),
                 MakeUnversionedInt64Value(1, RowIdColumnId),
-                MakeUnversionedInt64Value(1, MapperIdColumnId),
+                MakeUnversionedInt64Value(1, WriterIdColumnId),
             })},
             nameTable)},
         MakePhysicalSortComparator(ESortOrder::Ascending));
@@ -629,12 +629,12 @@ TEST_F(TPushBasedSortedMergingReaderTest, ReportsIncorrectIdentityTypes)
     for (const auto& row : std::vector<TUnversionedOwningRow>{
         MakeRow({
             MakeUnversionedInt64Value(1, /*id*/ 0),
-            MakeUnversionedStringValue("mapper", MapperIdColumnId),
+            MakeUnversionedStringValue("writer", WriterIdColumnId),
             MakeUnversionedInt64Value(1, RowIdColumnId),
         }),
         MakeRow({
             MakeUnversionedInt64Value(1, /*id*/ 0),
-            MakeUnversionedInt64Value(1, MapperIdColumnId),
+            MakeUnversionedInt64Value(1, WriterIdColumnId),
             MakeUnversionedStringValue("row", RowIdColumnId),
         }),
     }) {
@@ -652,10 +652,10 @@ TEST_F(TPushBasedSortedMergingReaderTest, ReportsIncorrectIdentityTypes)
     }
 }
 
-TEST_F(TPushBasedSortedMergingReaderTest, ReportsMapperIdOutsideInt32Range)
+TEST_F(TPushBasedSortedMergingReaderTest, ReportsWriterIdOutsideInt32Range)
 {
     auto nameTable = CreateNameTable();
-    for (i64 mapperId : {
+    for (i64 writerId : {
         static_cast<i64>(std::numeric_limits<i32>::min()) - 1,
         static_cast<i64>(std::numeric_limits<i32>::max()) + 1,
     }) {
@@ -663,7 +663,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, ReportsMapperIdOutsideInt32Range)
             {New<TMockSchemalessMultiChunkReader>(
                 std::vector<TUnversionedOwningRow>{MakePhysicalRow(
                     1,
-                    mapperId,
+                    writerId,
                     1,
                     MakeUnversionedInt64Value(1, /*id*/ 12))},
                 nameTable)},
@@ -691,8 +691,8 @@ TEST_F(TPushBasedSortedMergingReaderTest, ReportsProjectedOutputStatistics)
             nameTable,
             /*maxRowsPerBatch*/ 1)},
         MakePhysicalSortComparator(ESortOrder::Ascending),
-        {.MapperId = MapperIdColumnId, .RowId = RowIdColumnId},
-        TValidMapperIds{1});
+        {.WriterId = WriterIdColumnId, .RowId = RowIdColumnId},
+        TValidWriterIds{1});
     TRowBatchReadOptions options;
     options.MaxRowsPerRead = 1;
 
@@ -733,8 +733,8 @@ TEST_F(TPushBasedSortedMergingReaderTest, TotalRowCountConvergesAfterDrain)
             nameTable,
             /*maxRowsPerBatch*/ 1)},
         MakePhysicalSortComparator(ESortOrder::Ascending),
-        {.MapperId = MapperIdColumnId, .RowId = RowIdColumnId},
-        TValidMapperIds{1});
+        {.WriterId = WriterIdColumnId, .RowId = RowIdColumnId},
+        TValidWriterIds{1});
     TRowBatchReadOptions options;
     options.MaxRowsPerRead = 1;
 
@@ -775,7 +775,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, PreservesStringAnyAndCompositePayloads
     auto nameTable = CreateNameTable();
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(1, /*id*/ 0));
-    builder.AddValue(MakeUnversionedInt64Value(1, MapperIdColumnId));
+    builder.AddValue(MakeUnversionedInt64Value(1, WriterIdColumnId));
     builder.AddValue(MakeUnversionedInt64Value(1, RowIdColumnId));
     builder.AddValue(MakeUnversionedStringValue("string", /*id*/ 12));
     builder.AddValue(MakeUnversionedAnyValue("[any;]", /*id*/ 13));
@@ -844,13 +844,13 @@ TEST_F(TPushBasedSortedMergingReaderTest, RejectsInvalidIdentityColumnIds)
         CreateReader(
             {New<TMockSchemalessMultiChunkReader>(std::vector<TUnversionedOwningRow>{}, nameTable)},
             MakePhysicalSortComparator(ESortOrder::Ascending),
-            {.MapperId = -1, .RowId = RowIdColumnId}),
+            {.WriterId = -1, .RowId = RowIdColumnId}),
         TErrorException);
     try {
         CreateReader(
             {New<TMockSchemalessMultiChunkReader>(std::vector<TUnversionedOwningRow>{}, nameTable)},
             MakePhysicalSortComparator(ESortOrder::Ascending),
-            {.MapperId = -1, .RowId = RowIdColumnId});
+            {.WriterId = -1, .RowId = RowIdColumnId});
         ADD_FAILURE();
     } catch (const TErrorException& error) {
         EXPECT_NE(TString(error.what()).find("Invalid identity column ids"), TString::npos);
@@ -864,13 +864,13 @@ TEST_F(TPushBasedSortedMergingReaderTest, RejectsEqualIdentityColumnIds)
         CreateReader(
             {New<TMockSchemalessMultiChunkReader>(std::vector<TUnversionedOwningRow>{}, nameTable)},
             MakePhysicalSortComparator(ESortOrder::Ascending),
-            {.MapperId = MapperIdColumnId, .RowId = MapperIdColumnId}),
+            {.WriterId = WriterIdColumnId, .RowId = WriterIdColumnId}),
         TErrorException);
     try {
         CreateReader(
             {New<TMockSchemalessMultiChunkReader>(std::vector<TUnversionedOwningRow>{}, nameTable)},
             MakePhysicalSortComparator(ESortOrder::Ascending),
-            {.MapperId = MapperIdColumnId, .RowId = MapperIdColumnId});
+            {.WriterId = WriterIdColumnId, .RowId = WriterIdColumnId});
         ADD_FAILURE();
     } catch (const TErrorException& error) {
         EXPECT_NE(TString(error.what()).find("Invalid identity column ids"), TString::npos);

@@ -524,11 +524,11 @@ private:
     {
         YT_VERIFY(row.GetCount() >= IdentityColumnCount);
         auto identityIterator = row.End() - IdentityColumnCount;
-        const auto& mapperId = *identityIterator++;
+        const auto& writerId = *identityIterator++;
         const auto& rowId = *identityIterator;
-        YT_VERIFY(mapperId.Type == EValueType::Int64);
+        YT_VERIFY(writerId.Type == EValueType::Int64);
         YT_VERIFY(rowId.Type == EValueType::Int64);
-        return {mapperId.Data.Int64, rowId.Data.Int64};
+        return {writerId.Data.Int64, rowId.Data.Int64};
     }
 };
 
@@ -579,7 +579,7 @@ ISortReaderPtr CreateSortReaderForTesting(
 
     return Visit(
         mode,
-        [&] (const TValidMapperIds& /*validMapperIds*/) {
+        [&] (const TValidWriterIds& /*validWriterIds*/) {
             return createReader(TIdentityFreeModePolicy());
         },
         [&] (const TIdentityColumnIds& /*identityColumnIds*/) {
@@ -624,11 +624,11 @@ ISortReaderPtr CreateSortReader(
 
     return Visit(
         std::move(mode),
-        [&] (TValidMapperIds validMapperIds) {
+        [&] (TValidWriterIds validWriterIds) {
             auto recordHeaderFilter = [
-                validMapperIds = std::move(validMapperIds)] (const TRecordHeader& header)
+                validWriterIds = std::move(validWriterIds)] (const TRecordHeader& header)
             {
-                return validMapperIds.contains(header.MapperId);
+                return validWriterIds.contains(header.WriterId);
             };
             return createReader(
                 TIdentityFreeModePolicy(),

@@ -46,9 +46,9 @@ DEFINE_REFCOUNTED_TYPE(ISortReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TSortReaderMode = std::variant<TValidMapperIds, TIdentityColumnIds>;
+using TSortReaderMode = std::variant<TValidWriterIds, TIdentityColumnIds>;
 
-//! TValidMapperIds selects identity-free mode; TIdentityColumnIds preserves identity.
+//! TValidWriterIds selects identity-free mode; TIdentityColumnIds preserves identity.
 //! Input keys occupy the first |comparator.GetLength()| values.
 ISortReaderPtr CreateSortReader(
     TSortReaderConfigPtr sortReaderConfig,
