@@ -262,6 +262,9 @@ items:
         - name: Образы ФС
           when: audience == "public"
           href: user-guide/data-processing/layers/layer-paths.md
+        - name: Файловое окружение джобов
+          when: audience == "public"
+          href: user-guide/data-processing/layers/nbd-squashfs-layers.md
         - name: Переключение таблиц
           when: audience == "public"
           href: user-guide/data-processing/operations/table-switch.md
@@ -655,6 +658,8 @@ items:
         href: admin-guide/native-encryption.md
       - name: Квотирование межкластерной сетевой полосы
         href: admin-guide/cluster-throttlers.md
+      - name: NBD на кластере
+        href: admin-guide/nbd.md
       - name: Прочее
         items:
           - name: Чтение с удаленных кластеров через RPC Proxy
