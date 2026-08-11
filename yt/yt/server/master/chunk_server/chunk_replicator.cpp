@@ -2081,7 +2081,7 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 
 void TChunkReplicator::ScheduleLocationRefreshSequoia(const TChunkLocation* location)
 {
-    const auto node = location->GetNode();
+    const auto* node = location->GetNode().Get();
     if (!IsObjectAlive(node)) {
         return;
     }
