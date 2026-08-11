@@ -162,16 +162,25 @@ private:
         TSequoiaTablePathDescriptor tablePathDescriptor{
             .Table = table,
         };
-        return GetGroundClientOrThrow()->LookupRows(
+        auto groundClient = GetGroundClientOrThrow();
+        return groundClient->LookupRows(
             GetSequoiaTablePath(tablePathDescriptor),
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
             options)
-        .Apply(BIND([] (const TErrorOr<TUnversionedLookupRowsResult>& result) {
+        .Apply(BIND([groundClient] (const TErrorOr<TUnversionedLookupRowsResult>& result) -> TErrorOr<TUnversionedLookupRowsResult> {
             static NProfiling::TCounter LookupsSucceeded = SequoiaClientProfiler().Counter("/sequoia_lookups_succeeded");
             static NProfiling::TCounter LookupsFailed = SequoiaClientProfiler().Counter("/sequoia_lookups_failed");
 
             (result.IsOK() ? LookupsSucceeded : LookupsFailed).Increment();
+
+            if (result.GetCode() == NHiveClient::EErrorCode::UnknownCell &&
+                groundClient->GetNativeConnection()->IsTerminated())
+            {
+                return TError(EErrorCode::SequoiaRetriableError, "Sequoia Ground connection was probably reconfigured")
+                    << TError(result);
+            }
+
             return result;
         }));
     }
@@ -185,13 +194,14 @@ private:
             .Table = table,
         };
         return DoSelectRows(descriptor, query, timestamp)
-        .Apply(BIND([] (const TErrorOr<TSelectRowsResult>& result) {
-            static NProfiling::TCounter SelectsSucceeded = SequoiaClientProfiler().Counter("/sequoia_selects_succeeded");
-            static NProfiling::TCounter SelectsFailed = SequoiaClientProfiler().Counter("/sequoia_selects_failed");
+            .Apply(BIND([] (const TErrorOr<TSelectRowsResult>& result) -> TErrorOr<TSelectRowsResult> {
+                static NProfiling::TCounter SelectsSucceeded = SequoiaClientProfiler().Counter("/sequoia_selects_succeeded");
+                static NProfiling::TCounter SelectsFailed = SequoiaClientProfiler().Counter("/sequoia_selects_failed");
 
-            (result.IsOK() ? SelectsSucceeded : SelectsFailed).Increment();
-            return result;
-        }));
+                (result.IsOK() ? SelectsSucceeded : SelectsFailed).Increment();
+
+                return result;
+            }));
     }
 
     TFuture<TSelectRowsResult> DoSelectRows(
@@ -222,8 +232,19 @@ private:
         options.AllowFullScan = false;
         options.Timestamp = timestamp;
 
-        return GetGroundClientOrThrow()
-            ->SelectRows(builder.Build(), options);
+        auto groundClient = GetGroundClientOrThrow();
+        return groundClient
+            ->SelectRows(builder.Build(), options)
+            .Apply(BIND([groundClient] (const TErrorOr<TSelectRowsResult>& result) -> TErrorOr<TSelectRowsResult> {
+                if (result.GetCode() == NHiveClient::EErrorCode::UnknownCell &&
+                    groundClient->GetNativeConnection()->IsTerminated())
+                {
+                    return TError(EErrorCode::SequoiaRetriableError, "Sequoia connection was probably reconfigured")
+                        << TError(result);
+                }
+
+                return result;
+            }));
     }
 
     TFuture<void> DoTrimTable(
