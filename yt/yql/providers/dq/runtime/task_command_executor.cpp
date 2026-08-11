@@ -283,6 +283,13 @@ public:
         //s->SetCodeGenFinalizeTime(stats->CodeGenFinalizeTime);
         //s->SetCodeGenModulePassTime(stats->CodeGenModulePassTime);
 
+        for (const auto& stat : stats->MkqlStats) {
+            auto* mkqlStat = s->AddMkqlStats();
+            mkqlStat->SetName(TString(stat.Key.GetName()));
+            mkqlStat->SetValue(stat.Value);
+            mkqlStat->SetDeriv(stat.Key.IsDeriv());
+        }
+
         for (const auto& [stageId, stageChannels] : stats->OutputChannels) {
             for (const auto& [id, channel] : stageChannels) {
                 ToProto(*s->AddOutputChannels(), *channel);
