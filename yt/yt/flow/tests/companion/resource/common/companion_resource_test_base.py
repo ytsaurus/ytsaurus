@@ -45,6 +45,11 @@ OUTPUT_QUEUE_SCHEMA = [
 ]
 
 
+# The companion's own drain grace plus the supervisor's margin: a process outliving it is
+# one the supervisor had to kill.
+GRACEFUL_STOP_TIMEOUT_SECONDS = 40
+
+
 def find_companion_pids(cmdline_marker, companion_port, expected_count=1):
     """PIDs of this test worker's companion processes, identified by |cmdline_marker|
     and the unique configured port.
@@ -84,6 +89,18 @@ def find_companion_pids(cmdline_marker, companion_port, expected_count=1):
             len(pids) == expected_count
         ), f"expected {expected_count} companion(s) on port {companion_port}, found {pids}"
     return pids
+
+
+def alive_pids(pids):
+    """Subset of |pids| whose processes still exist."""
+    alive = []
+    for pid in pids:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            continue
+        alive.append(pid)
+    return alive
 
 
 def _to_str(value):
@@ -226,3 +243,38 @@ class CompanionResourceTestBase:
             assert row["suffix"] == "v2"
             assert row["dependency_value"] == "dependency-v2"
             logging.info("Phase 3 passed: resource re-initialized after companion kill (row=%s)", row)
+
+            # Phase 4: stop every companion gracefully. A SIGKILL never reaches the shutdown
+            # path, so only this phase proves that a stopping companion drains its batches,
+            # releases its resources and exits on its own — instead of hanging past its
+            # budget and being killed — and that the worker heals the pipeline afterwards
+            # exactly as it does after a kill.
+            old_pids = find_companion_pids(
+                self.COMPANION_CMDLINE_MARKER,
+                federation.workers[0].companion_port,
+                self.EXPECTED_COMPANION_PROCESSES,
+            )
+            logging.info("Stopping companion processes gracefully (pids=%s)", old_pids)
+            for pid in old_pids:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+
+            # A companion still alive after its own drain grace plus the supervisor margin is
+            # one that had to be killed rather than one that stopped.
+            wait(
+                lambda: not alive_pids(old_pids),
+                timeout=GRACEFUL_STOP_TIMEOUT_SECONDS,
+                sleep_backoff=1,
+            )
+
+            row = self.insert_until_output(
+                "phase4",
+                lambda r: r["pid"] not in old_pids,
+                timeout=240,
+            )
+            assert row["greeting"] == "hello"
+            assert row["suffix"] == "v2"
+            assert row["dependency_value"] == "dependency-v2"
+            logging.info("Phase 4 passed: resource re-initialized after graceful stop (row=%s)", row)
