@@ -36,7 +36,7 @@ void LockDynamicTables(
     const TExponentialBackoffOptions& config,
     const TLogger& Logger)
 {
-    YT_LOG_INFO("Locking output dynamic tables");
+    YT_TLOG_INFO("Locking output dynamic tables");
 
     const auto& timestampProvider = connection->GetTimestampProvider();
     auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
@@ -74,7 +74,7 @@ void LockDynamicTables(
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output dynamic tables");
     }
 
-    YT_LOG_INFO("Waiting for dynamic tables lock to complete");
+    YT_TLOG_INFO("Waiting for dynamic tables lock to complete");
 
     TBackoffStrategy backoff(config);
 
@@ -118,7 +118,8 @@ void LockDynamicTables(
                     cumulativeError.ThrowOnError();
                 }
                 innerErrors.push_back(cumulativeError);
-                YT_LOG_DEBUG(cumulativeError, "Error while checking dynamic table lock");
+                YT_TLOG_DEBUG("Error while checking dynamic table lock")
+                    .With(cumulativeError);
                 continue;
             }
 
@@ -136,7 +137,8 @@ void LockDynamicTables(
                         rspOrError.ThrowOnError();
                     }
                     innerErrors.push_back(rspOrError);
-                    YT_LOG_DEBUG(rspOrError, "Error while checking dynamic table lock");
+                    YT_TLOG_DEBUG("Error while checking dynamic table lock")
+                        .With(rspOrError);
                 }
 
                 if (!rspOrError.IsOK() || !rspOrError.Value()->confirmed()) {
@@ -168,7 +170,7 @@ void LockDynamicTables(
             .With(std::move(innerErrors));
     }
 
-    YT_LOG_INFO("Dynamic tables locking completed");
+    YT_TLOG_INFO("Dynamic tables locking completed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

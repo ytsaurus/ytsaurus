@@ -119,7 +119,8 @@ private:
         if (reason == EUpdateReason::PeriodicUpdate) {
             guard.emplace(TTraceContext::NewRoot("PeriodicUpdate"));
 
-            YT_LOG_DEBUG("Running periodic mount info update (TablePath: %v)", key);
+            YT_TLOG_DEBUG("Running periodic mount info update")
+                .With("TablePath", key);
         }
 
         auto session = New<TGetSession>(
@@ -184,10 +185,11 @@ private:
 
                 return mountInfoOrError.ValueOrThrow();
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Error getting table mount info");
+                YT_TLOG_DEBUG("Error getting table mount info")
+                    .With(TError(ex));
                 THROW_ERROR_EXCEPTION("Error getting mount info for %v",
                     Path_)
-                    .With(ex);
+                    .With(TError(ex));
             }
         }
 
@@ -226,8 +228,8 @@ private:
                 return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
             }
 
-            YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %x)",
-                refreshPrimaryRevision);
+            YT_TLOG_DEBUG("Requesting table mount info from primary master")
+                .WithFormat("RefreshPrimaryRevision", "%x", refreshPrimaryRevision);
 
             auto options = GetMasterReadOptions();
 
@@ -296,10 +298,10 @@ private:
                 return MakeFuture<TTableMountInfoPtr>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
             }
 
-            YT_LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %x)",
-                TableId_,
-                CellTag_,
-                refreshSecondaryRevision);
+            YT_TLOG_DEBUG("Requesting table mount info from secondary master")
+                .With("TableId", TableId_)
+                .With("CellTag", CellTag_)
+                .WithFormat("RefreshSecondaryRevision", "%x", refreshSecondaryRevision);
 
             auto options = GetMasterReadOptions();
 
@@ -467,12 +469,12 @@ private:
                 Owner_->TabletInfoOwnerCache_.Insert(tabletInfo->TabletId, MakeWeak(tableInfo));
             }
 
-            YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %x, SecondaryRevision: %x)",
-                tableInfo->TableId,
-                tabletCount,
-                tableInfo->Dynamic,
-                tableInfo->PrimaryRevision,
-                tableInfo->SecondaryRevision);
+            YT_TLOG_DEBUG("Table mount info received")
+                .With("TableId", tableInfo->TableId)
+                .With("TabletCount", tabletCount)
+                .With("Dynamic", tableInfo->Dynamic)
+                .WithFormat("PrimaryRevision", "%x", tableInfo->PrimaryRevision)
+                .WithFormat("SecondaryRevision", "%x", tableInfo->SecondaryRevision);
 
             return tableInfo;
         }
@@ -485,12 +487,14 @@ private:
 
     void OnAdded(const TYPath& key) noexcept override
     {
-        YT_LOG_DEBUG("Table mount info added to cache (Path: %v)", key);
+        YT_TLOG_DEBUG("Table mount info added to cache")
+            .With("Path", key);
     }
 
     void OnRemoved(const TYPath& key) noexcept override
     {
-        YT_LOG_DEBUG("Table mount info removed from cache (Path: %v)", key);
+        YT_TLOG_DEBUG("Table mount info removed from cache")
+            .With("Path", key);
     }
 
     void RegisterCell(INodePtr cellDescriptor) override
