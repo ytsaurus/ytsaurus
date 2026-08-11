@@ -284,20 +284,28 @@ public:
     {
         i64 blockWithHeaderSize = sizeof(THunkPayloadHeader) + Geometry_.BlockSize;
 
+        THashMap<int, TChunkId> chunkIndexToId;
+        {
+            auto guard = ReaderGuard(ChunkLock_);
+            chunkIndexToId.reserve(IndexToChunk_.size());
+            for (const auto& [chunkIndex, chunk] : IndexToChunk_) {
+                EmplaceOrCrash(chunkIndexToId, chunkIndex, chunk->ChunkId);
+            }
+        }
+
         std::vector<TStoredBlockRef> refs;
         refs.reserve(blockIds.size());
 
-        auto guard = ReaderGuard(ChunkLock_);
         for (auto blockId : blockIds) {
             auto parsedBlockId = ParseStoredBlockId(blockId);
-            auto it = IndexToChunk_.find(parsedBlockId.ChunkIndex);
-            if (it == IndexToChunk_.end()) {
+            auto it = chunkIndexToId.find(parsedBlockId.ChunkIndex);
+            if (it == chunkIndexToId.end()) {
                 THROW_ERROR_EXCEPTION("Invalid stored block id: chunk index %v is not a live chunk",
                     parsedBlockId.ChunkIndex);
             }
 
             refs.push_back({
-                .ChunkId = it->second->ChunkId,
+                .ChunkId = it->second,
                 .RecordIndex = parsedBlockId.RecordIndex,
                 .RecordOffset = parsedBlockId.FragmentIndex * blockWithHeaderSize,
                 .PayloadLength = Geometry_.BlockSize,
