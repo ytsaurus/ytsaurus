@@ -393,6 +393,10 @@ void LaunchInVanillaJob(
         return;
     }
 
+    // The vault is only assembled right before the operation starts, i.e. after the binary has been
+    // uploaded; checking the names up front makes a missing variable fail before any of that.
+    ValidateSecretEnv(vanillaConfig->SecretEnv);
+
     auto nodeConfig = BuildDefaultVanillaNodeConfig(pipelinePath, proxyRole);
     if (vanillaConfig->NodeConfigPatch) {
         nodeConfig = ConvertTo<TFlowNodeConfigPtr>(

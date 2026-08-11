@@ -68,6 +68,10 @@ struct TVanillaSpec
 //! the `secret_env` names; call InjectSecureVaultFromEnv right before starting to add the vault.
 NYTree::IMapNodePtr BuildVanillaOperationSpec(const TVanillaSpec& spec);
 
+//! Checks that every name in |secretEnv| is set in the environment; throws otherwise. Called at the
+//! start of a launch, so a missing variable is reported before the binary is uploaded.
+void ValidateSecretEnv(const std::vector<std::string>& secretEnv);
+
 //! Replaces the spec's `secret_env` field with a `secure_vault` rebuilt from the environment, so
 //! secret values never have to be stored in Cypress. YT_TOKEN is always delivered; the rest are the
 //! names the spec declared in `secret_env`. Used right before StartOperation by both launch and
