@@ -265,17 +265,17 @@ void LogInitialDataSources(
     auto ranges = dataSource.Ranges;
     auto keys = dataSource.Keys;
 
-    YT_LOG_DEBUG("Splitting %v (RangeCount: %v, TabletsCount: %v, LowerCapBound: %v, UpperCapBound: %v)",
-        ranges ? "ranges" : "keys",
-        ranges ? ranges.size() : keys.size(),
-        tableInfo->Tablets.size(),
-        tableInfo->LowerCapBound,
-        tableInfo->UpperCapBound);
+    YT_TLOG_DEBUG("Splitting query input")
+        .With("Kind", ranges ? "ranges" : "keys")
+        .With("RangeCount", ranges ? ranges.size() : keys.size())
+        .With("TabletsCount", tableInfo->Tablets.size())
+        .With("LowerCapBound", tableInfo->LowerCapBound)
+        .With("UpperCapBound", tableInfo->UpperCapBound);
 
     if (verboseLogging) {
-        YT_LOG_DEBUG("Splitting %v tablet pivot keys (Pivots: %v)",
-            ranges ? "ranges" : "keys",
-            MakeFormattableView(tableInfo->Tablets, [] (auto* builder, const auto& tablet) {
+        YT_TLOG_DEBUG("Splitting tablet pivot keys")
+            .With("Kind", ranges ? "ranges" : "keys")
+            .With("Pivots", MakeFormattableView(tableInfo->Tablets, [] (auto* builder, const auto& tablet) {
                 builder->AppendFormat("%v", tablet->PivotKey.Get());
             }));
     }
@@ -315,8 +315,8 @@ public:
             if (response->has_feature_flags()) {
                 FromProto(&flags, response->feature_flags());
                 const auto& Logger = this_->Logger;
-                YT_LOG_DEBUG("Got response feature flags (Flags: %v)",
-                    ToString(flags));
+                YT_TLOG_DEBUG("Got response feature flags")
+                    .With("Flags", ToString(flags));
             }
             return flags;
         }));
@@ -404,15 +404,16 @@ private:
                 bottomRowsRead += inner.RowsRead.GetTotal();
             }
 
-            YT_LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v, BottomRowsRead: %v)",
-                Id_,
-                statistics,
-                bottomRowsRead);
+            YT_TLOG_DEBUG("Subquery finished")
+                .With("SubqueryId", Id_)
+                .With("Statistics", statistics)
+                .With("BottomRowsRead", bottomRowsRead);
 
             return statistics;
         } else {
-            YT_LOG_DEBUG(responseOrError, "Subquery failed (SubqueryId: %v)",
-                Id_);
+            YT_TLOG_DEBUG("Subquery failed")
+                .With("SubqueryId", Id_)
+                .With(responseOrError);
 
             return TError(responseOrError);
         }
@@ -579,7 +580,8 @@ private:
 
         if (coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit) == EScanOrder::Reversed) {
             std::reverse(allSplits.begin(), allSplits.end());
-            YT_LOG_DEBUG("Reversed tablet order for DESC scan (SplitCount: %v)", allSplits.size());
+            YT_TLOG_DEBUG("Reversed tablet order for DESC scan")
+                .With("SplitCount", allSplits.size());
         }
 
         std::vector<std::pair<std::vector<TDataSource>, std::string>> groupedDataSplits;
@@ -587,7 +589,8 @@ private:
         auto scanOrder = coordinatedQuery->GetScanOrder(options.AllowUnorderedGroupByWithLimit);
         if (scanOrder == EScanOrder::Ordered || scanOrder == EScanOrder::Reversed) {
             // Splits are ordered by tablet bounds (or reversed for DESC scans).
-            YT_LOG_DEBUG("Got ordered splits (SplitCount: %v)", allSplits.size());
+            YT_TLOG_DEBUG("Got ordered splits")
+                .With("SplitCount", allSplits.size());
 
             for (const auto& [dataSource, address] : allSplits) {
                 groupedDataSplits.emplace_back(std::vector<TDataSource>{dataSource}, address);
@@ -614,12 +617,12 @@ private:
                     THROW_ERROR_EXCEPTION("Primary table key is not used in the where clause (full scan); "
                         "the query is inefficient, consider rewriting it");
                 } else {
-                    YT_LOG_DEBUG("Executing query with full scan");
+                    YT_TLOG_DEBUG("Executing query with full scan");
                 }
             }
 
-            YT_LOG_DEBUG("Regrouping %v splits into groups",
-                allSplits.size());
+            YT_TLOG_DEBUG("Regrouping splits into groups")
+                .With("SplitCount", allSplits.size());
 
             THashMap<std::string, std::vector<TDataSource>> groupsByAddress;
             for (const auto& split : allSplits) {
@@ -631,9 +634,9 @@ private:
                 groupedDataSplits.emplace_back(group.second, group.first);
             }
 
-            YT_LOG_DEBUG("Regrouped %v splits into %v groups",
-                allSplits.size(),
-                groupsByAddress.size());
+            YT_TLOG_DEBUG("Regrouped splits into groups")
+                .With("SplitCount", allSplits.size())
+                .With("GroupCount", groupsByAddress.size());
         }
 
         auto [queryWithPrefetch, prefetchedJoinRowsets, prefetchQueryStatistics] = MaybePrefetchJoinRowsets(
@@ -821,11 +824,11 @@ private:
             // Copy query to generate new id.
             auto bottomQuery = New<TQuery>(*bottomQueryPattern);
 
-            YT_LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v, MinRowCountPerSubquery: %v)",
-                bottomQuery->Id,
-                address,
-                options.MaxSubqueries,
-                options.MinRowCountPerSubquery);
+            YT_TLOG_DEBUG("Delegating subquery")
+                .With("SubQueryId", bottomQuery->Id)
+                .With("Address", address)
+                .With("MaxSubqueries", options.MaxSubqueries)
+                .With("MinRowCountPerSubquery", options.MinRowCountPerSubquery);
 
             auto result = Delegate(
                 bottomQuery,
@@ -846,7 +849,8 @@ private:
                 const ISchemafulUnversionedReaderPtr& reader,
                 TFuture<TFeatureFlags> responseFeatureFlags) -> TQueryStatistics
             {
-                YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", frontQuery->Id);
+                YT_TLOG_DEBUG("Evaluating top query")
+                    .With("TopQueryId", frontQuery->Id);
 
                 auto joinProfilerRegistry = TJoinProfilerRegistry(
                     executePlanCallback,
@@ -891,7 +895,8 @@ private:
                     const ISchemafulUnversionedReaderPtr& reader,
                     TFuture<TFeatureFlags> responseFeatureFlags)
                 {
-                    YT_LOG_DEBUG("Evaluating middle query (MiddleQueryId: %v)", middleQuery->Id);
+                    YT_TLOG_DEBUG("Evaluating middle query")
+                        .With("MiddleQueryId", middleQuery->Id);
 
                     TEvaluateResult middleResult;
                     auto pipe = CreateSchemafulPipe(MemoryChunkProvider_);
@@ -1047,13 +1052,12 @@ private:
         req->Attachments() = prefetchedJoinRowsets;
 
         auto queryFingerprint = InferName(query, {.OmitValues = true});
-        YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
-            "RequestSize: %v)",
-            queryFingerprint,
-            *query->GetReadSchema(),
-            *query->GetTableSchema(),
-            serializationTime,
-            req->ByteSize());
+        YT_TLOG_DEBUG("Sending subquery")
+            .With("Fingerprint", queryFingerprint)
+            .With("ReadSchema", *query->GetReadSchema())
+            .With("ResultSchema", *query->GetTableSchema())
+            .With("SerializationTime", serializationTime)
+            .With("RequestSize", req->ByteSize());
 
         auto resultReader = New<TQueryResponseReader>(
             query->Id,
@@ -1146,10 +1150,10 @@ private:
                 std::move(mainPredicate),
                 std::move(joinPredicate));
 
-            YT_LOG_DEBUG("Inferring ranges to consider prefetching joined tables (JoinIndex: %v, Predicate: %v, TableId: %v)",
-                joinIndex,
-                InferName(totalPredicate),
-                joinClause->ForeignObjectId);
+            YT_TLOG_DEBUG("Inferring ranges to consider prefetching joined tables")
+                .With("JoinIndex", joinIndex)
+                .With("Predicate", InferName(totalPredicate))
+                .With("TableId", joinClause->ForeignObjectId);
 
             auto ranges = CreateNewRangeInferrer(
                 std::move(totalPredicate),
@@ -1162,9 +1166,11 @@ private:
                 false);
 
             if (options.VerboseLogging) {
-                YT_LOG_DEBUG("Ranges are inferred (Ranges: %v)", ranges);
+                YT_TLOG_DEBUG("Ranges are inferred")
+                    .With("Ranges", ranges);
             } else {
-                YT_LOG_DEBUG("Ranges are inferred (RangeCount: %v)", ranges.size());
+                YT_TLOG_DEBUG("Ranges are inferred")
+                    .With("RangeCount", ranges.size());
             }
 
             ui32 keyColumnCount = joinClause->Schema.Original->GetKeyColumnCount();
@@ -1203,7 +1209,7 @@ private:
                     });
 
                 if (!rangesAreStrict) {
-                    YT_LOG_DEBUG("Will not prefetch from table due to loose constraints");
+                    YT_TLOG_DEBUG("Will not prefetch from table due to loose constraints");
                     return false;
                 }
 
@@ -1213,7 +1219,8 @@ private:
                     .ValueOrThrow();
 
                 if (mountInfo->Tablets.size() > 1) {
-                    YT_LOG_DEBUG("Will not prefetch from large table (TabletCount: %v)", mountInfo->Tablets.size());
+                    YT_TLOG_DEBUG("Will not prefetch from large table")
+                        .With("TabletCount", mountInfo->Tablets.size());
                     return false;
                 }
 
@@ -1221,8 +1228,8 @@ private:
             };
 
             if (allRangesAreKeys || checkSmallTableAndStrictEnoughRanges()) {
-                YT_LOG_DEBUG("Prefetching from joined table (TableId: %v)",
-                    joinClause->ForeignObjectId);
+                YT_TLOG_DEBUG("Prefetching from joined table")
+                    .With("TableId", joinClause->ForeignObjectId);
                 prefetched[joinIndex] = true;
             } else {
                 continue;
@@ -1288,9 +1295,9 @@ private:
                 .ValueOrThrow();
 
             if (statistics.IncompleteInput || statistics.IncompleteOutput) {
-                YT_LOG_DEBUG("Join table prefetch failed, fallback (JoinIndex: %v, TableId: %v)",
-                    joinIndex,
-                    joinClause->ForeignObjectId);
+                YT_TLOG_DEBUG("Join table prefetch failed, fallback")
+                    .With("JoinIndex", joinIndex)
+                    .With("TableId", joinClause->ForeignObjectId);
                 continue;
             }
             int firstBlock = prefetchedRowsets.size();
