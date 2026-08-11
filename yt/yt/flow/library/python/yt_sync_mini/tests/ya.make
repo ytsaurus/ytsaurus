@@ -6,6 +6,7 @@ TEST_SRCS(
     test_constants_drift.py
     test_easy_mode.py
     test_preset_merger.py
+    test_retries.py
     test_yt_sync_mini.py
 )
 
