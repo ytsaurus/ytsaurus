@@ -25,6 +25,10 @@ type AdminPanelConfig struct {
 	// MetricsFormat is metrics stream format.
 	// Possible values: 'spack', 'json'.
 	MetricsFormat string `yaml:"metrics_format"`
+
+	// MetricsPath is the path metrics are served under, '/metrics' by default.
+	// Set it to fit the layout a puller expects, e.g. '/solomon/all' for the solomon proxy of a YT cluster.
+	MetricsPath string `yaml:"metrics_path"`
 }
 
 type adminPanel struct {
@@ -49,7 +53,15 @@ func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminP
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/metrics", panel.handleMetrics)
+	metricsPath := config.MetricsPath
+	if metricsPath == "" {
+		metricsPath = "/metrics"
+	} else if metricsPath[0] != '/' {
+		// ServeMux would read the leading segment as a host and serve nothing.
+		err = fmt.Errorf("metrics_path must start with '/', got %q", metricsPath)
+		return
+	}
+	mux.HandleFunc(metricsPath, panel.handleMetrics)
 	mux.HandleFunc("/ping", panel.handlePing)
 	// "For testing purposes"
 	mux.HandleFunc("/log-error", panel.handleLogError)
