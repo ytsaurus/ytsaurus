@@ -5,6 +5,7 @@
 #include "config.h"
 #include "debug_build_warning.h"
 #include "endpoint_provider.h"
+#include "network_bandwidth.h"
 #include "node_info.h"
 #include "porto_tracker.h"
 #include "private.h"
@@ -286,6 +287,8 @@ private:
         if (Config_->EnablePortoResourceTracker) {
             TryEnablePortoResourceTracker(NodeInfo_->VcpuFactor, Logger());
         }
+
+        TryExportNetworkBandwidthGuarantee();
 
         ControlQueue_ = NConcurrency::CreateEnumIndexedFairShareActionQueue<NController::EControlQueue>("Control");
 
