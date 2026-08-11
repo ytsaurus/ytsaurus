@@ -47,7 +47,8 @@ TFuture<std::vector<TErrorOr<TValue>>> TObjectAttributeCacheBase<TKey, TValue>::
     const std::vector<TKey>& keys,
     bool /*isPeriodicUpdate*/) noexcept
 {
-    YT_LOG_DEBUG("Updating object attribute cache (ObjectCount: %v)", keys.size());
+    YT_TLOG_DEBUG("Updating object attribute cache")
+        .With("ObjectCount", keys.size());
 
     auto connection = Connection_.Lock();
     if (!connection) {
@@ -64,7 +65,8 @@ TFuture<std::vector<TErrorOr<TValue>>> TObjectAttributeCacheBase<TKey, TValue>::
     const std::vector<TKey>& keys,
     const NApi::NNative::IClientPtr& client) noexcept
 {
-    YT_LOG_DEBUG("Fetching attributes via object attribute cache (ObjectCount: %v)", keys.size());
+    YT_TLOG_DEBUG("Fetching attributes via object attribute cache")
+        .With("ObjectCount", keys.size());
 
     std::vector<NYPath::TYPath> paths;
     paths.reserve(keys.size());

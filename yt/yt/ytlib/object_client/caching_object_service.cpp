@@ -175,11 +175,11 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             THROW_ERROR_EXCEPTION("Cannot cache responses for requests with attachments");
         }
 
-        YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v, CurrentStickyGroupSize: %v)",
-            requestId,
-            subrequestIndex,
-            key,
-            currentStickyGroupSize);
+        YT_TLOG_DEBUG("Serving subrequest from cache")
+            .With("RequestId", requestId)
+            .With("SubrequestIndex", subrequestIndex)
+            .With("Key", key)
+            .With("CurrentStickyGroupSize", currentStickyGroupSize);
 
         auto expireAfterSuccessfulUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt->expire_after_successful_update_time());
         auto expireAfterFailedUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt->expire_after_failed_update_time());
@@ -240,9 +240,10 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError) mutable
                 {
                     if (!rspOrError.IsOK()) {
-                        YT_LOG_DEBUG(rspOrError, "Cache population request failed (RequestId: %v, Key: %v)",
-                            requestId,
-                            cookie.GetKey());
+                        YT_TLOG_DEBUG("Cache population request failed")
+                            .With("RequestId", requestId)
+                            .With("Key", cookie.GetKey())
+                            .With(rspOrError);
                         cookie.Cancel(rspOrError);
                         return;
                     }
@@ -253,7 +254,8 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 
                     TResponseHeader responseHeader;
                     if (!TryParseResponseHeader(responseMessage, &responseHeader)) {
-                        YT_LOG_ALERT("Error parsing cache population response header (Key: %v)", cookie.GetKey());
+                        YT_TLOG_ALERT("Error parsing cache population response header")
+                            .With("Key", cookie.GetKey());
                         cookie.Cancel(TError(NRpc::EErrorCode::ProtocolError, "Error parsing response header"));
                         return;
                     }
@@ -263,7 +265,8 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 
                     bool cachingEnabled = rsp->caching_enabled();
                     if (CachingEnabled_.exchange(cachingEnabled) != cachingEnabled) {
-                        YT_LOG_INFO("Changing next level object service cache mode (Enable: %v)", cachingEnabled);
+                        YT_TLOG_INFO("Changing next level object service cache mode")
+                            .With("Enable", cachingEnabled);
                     }
 
                     Cache_->EndLookup(requestId, std::move(cookie), responseMessage, revision, responseError.IsOK());
@@ -291,11 +294,11 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     auto currentSize = request->current_sticky_group_size();
                     Cache_->UpdateAdvisedEntryStickyGroupSize(cacheEntry, currentSize);
                     int advisedSize = Cache_->GetAdvisedEntryStickyGroupSize(cacheEntry);
-                    YT_LOG_DEBUG("Cache sticky group size advised (RequestId: %v, Key: %v, CurrentSize: %v, AdvisedSize: %v)",
-                        requestId,
-                        cacheEntry->GetKey(),
-                        currentSize,
-                        advisedSize);
+                    YT_TLOG_DEBUG("Cache sticky group size advised")
+                        .With("RequestId", requestId)
+                        .With("Key", cacheEntry->GetKey())
+                        .With("CurrentSize", currentSize)
+                        .With("AdvisedSize", advisedSize);
                     subresponse->set_advised_sticky_group_size(advisedSize);
                 }
 
