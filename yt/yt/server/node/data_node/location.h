@@ -340,7 +340,6 @@ private:
     const IMemoryUsageTrackerPtr ReadMemoryTracker_;
     const IMemoryUsageTrackerPtr WriteMemoryTracker_;
 
-    TChunkLocationUuid Uuid_;
     TChunkLocationIndex Index_ = NNodeTrackerClient::InvalidChunkLocationIndex;
 
     TAtomicIntrusivePtr<NChunkClient::TMediumDescriptor> MediumDescriptor_;
