@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <util/system/env.h>
+
 namespace NYT::NFlow {
 namespace {
 
@@ -162,6 +164,38 @@ TEST(TVanillaLauncherClientsTest, PipelineClientUsesTheConfiguredConnection)
     EXPECT_EQ(
         std::vector<std::string>{std::string(PinnedProxyAddress)},
         ConvertTo<std::vector<std::string>>(connectionConfig->GetChildOrThrow("proxy_addresses")));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! The secure vault is only assembled once the binary is uploaded, so a missing secret is reported
+//! up front: the launch names the variable rather than stopping at the first cluster it asks for.
+TEST(TVanillaLauncherSecretEnvTest, RejectsUnsetSecretEnvBeforeReachingCluster)
+{
+    auto cache = New<TAssertClientsCache>(/*expectedCluster*/ TStringBuf(), MakeCacheWithPinnedProxy());
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        LaunchInVanillaJob(
+            MakePipelinePath(),
+            /*proxyRole*/ {},
+            MakeVanillaConfig("secret_env=[FLOW_UT_UNSET_SECRET]"),
+            cache),
+        "FLOW_UT_UNSET_SECRET");
+}
+
+TEST(TVanillaLauncherSecretEnvTest, AcceptsSetSecretEnv)
+{
+    SetEnv("FLOW_UT_SECRET", "value");
+    auto cache = New<TAssertClientsCache>(/*expectedCluster*/ TStringBuf(), MakeCacheWithPinnedProxy());
+
+    // Stopped at the cluster, i.e. the declared secret let the launch through.
+    EXPECT_THROW_WITH_SUBSTRING(
+        LaunchInVanillaJob(
+            MakePipelinePath(),
+            /*proxyRole*/ {},
+            MakeVanillaConfig("secret_env=[FLOW_UT_SECRET]"),
+            cache),
+        Format("%v \"pipeline-cluster\"", StopMarker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

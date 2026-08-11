@@ -88,6 +88,26 @@ IMapNodePtr BuildVanillaOperationSpec(const TVanillaSpec& spec)
     return node->AsMap();
 }
 
+namespace {
+
+TString GetSecretEnvOrThrow(const std::string& name)
+{
+    auto value = GetEnv(TString(name));
+    THROW_ERROR_EXCEPTION_IF(value.empty(),
+        "Secret environment variable %Qv (declared in \"secret_env\") is not set",
+        name);
+    return value;
+}
+
+} // namespace
+
+void ValidateSecretEnv(const std::vector<std::string>& secretEnv)
+{
+    for (const auto& name : secretEnv) {
+        GetSecretEnvOrThrow(name);
+    }
+}
+
 void InjectSecureVaultFromEnv(const IMapNodePtr& spec)
 {
     std::vector<std::string> secretEnv;
@@ -99,11 +119,7 @@ void InjectSecureVaultFromEnv(const IMapNodePtr& spec)
     auto secureVault = GetEphemeralNodeFactory()->CreateMap();
     secureVault->AddChild("YT_TOKEN", ConvertToNode(NAuth::LoadToken().value()));
     for (const auto& name : secretEnv) {
-        auto value = GetEnv(TString(name));
-        THROW_ERROR_EXCEPTION_IF(value.empty(),
-            "Secret environment variable %Qv (declared in \"secret_env\") is not set",
-            name);
-        secureVault->AddChild(TString(name), ConvertToNode(value));
+        secureVault->AddChild(TString(name), ConvertToNode(GetSecretEnvOrThrow(name)));
     }
     spec->AddChild("secure_vault", secureVault);
 }
