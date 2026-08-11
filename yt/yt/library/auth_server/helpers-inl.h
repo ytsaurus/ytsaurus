@@ -41,7 +41,7 @@ private:
     void InvokeNext()
     {
         if (CurrentIndex_ >= std::ssize(Authenticators_)) {
-            Promise_.Set(FailureError_ << Errors_);
+            Promise_.Set(FailureError_.With(Errors_));
             return;
         }
 
@@ -69,7 +69,7 @@ TErrorOr<T> GetByYPath(const NYTree::INodePtr& node, const NYPath::TYPath& path)
         }
         return NYTree::ConvertTo<T>(std::move(child));
     } catch (const std::exception& ex) {
-        return TError("Unable to extract %v", path) << ex;
+        return TError("Unable to extract %v", path).With(ex);
     }
 }
 

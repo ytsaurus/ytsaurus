@@ -661,10 +661,10 @@ void TVanillaController::ValidateSnapshot() const
             "Cannot revive operation when \"fail_on_job_restart\" option is set in operation spec or user job spec "
             "and not all jobs have already been started according to the operation snapshot "
             "(i.e. not all jobs are running or completed)")
-            << TErrorAttribute("reason", EFailOnJobRestartReason::JobCountMismatchAfterRevival)
-            << TErrorAttribute("operation_type", OperationType_)
-            << TErrorAttribute("expected_job_count", expectedJobCount)
-            << TErrorAttribute("started_job_count", startedJobCount);
+            .With("reason", EFailOnJobRestartReason::JobCountMismatchAfterRevival)
+            .With("operation_type", OperationType_)
+            .With("expected_job_count", expectedJobCount)
+            .With("started_job_count", startedJobCount);
     }
 }
 
@@ -732,11 +732,11 @@ TOperationSpecBaseConfigurator TVanillaController::GetOperationSpecBaseConfigura
     auto& tasksRegistrar = configurator.MapField("tasks", &TVanillaOperationSpec::Tasks)
         .ValidateOnAdded(BIND_NO_PROPAGATE([] (const std::string& key, const TVanillaTaskSpecPtr& /*newSpec*/) {
             THROW_ERROR_EXCEPTION("Cannot create a new task")
-                << TErrorAttribute("new_task_name", key);
+                .With("new_task_name", key);
         }))
         .ValidateOnRemoved(BIND_NO_PROPAGATE([] (const std::string& key, const TVanillaTaskSpecPtr& /*oldSpec*/) {
             THROW_ERROR_EXCEPTION("Cannot remove a task")
-                << TErrorAttribute("old_task_name", key);
+                .With("old_task_name", key);
         }))
         .OnAdded(BIND_NO_PROPAGATE([] (const std::string& /*key*/, const TVanillaTaskSpecPtr& /*newSpec*/) -> TConfigurator<TVanillaTaskSpec> {
             YT_ABORT();
@@ -1887,7 +1887,7 @@ std::optional<TJobMonitoringDescriptor> TGangOperationController::DoRegisterNewM
         SetOperationAlert(
             EOperationAlertType::UserJobMonitoringLimited,
             TError("Limit of monitored user gangs jobs per controller agent reached, some jobs may be not monitored")
-                << TErrorAttribute("limit_per_gang_operation_controller_agent", Config_->UserJobMonitoring->MaxMonitoredGangsJobsPerAgent));
+                .With("limit_per_gang_operation_controller_agent", Config_->UserJobMonitoring->MaxMonitoredGangsJobsPerAgent));
         return std::nullopt;
     }
 

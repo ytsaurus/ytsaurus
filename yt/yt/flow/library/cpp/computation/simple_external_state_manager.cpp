@@ -175,8 +175,8 @@ TLoadedStates ParseKeyLookupResult(
 
     if (expectedStateSchema && *expectedStateSchema != *canonicalStateSchema) {
         THROW_ERROR_EXCEPTION("State schemas disagree")
-            << TErrorAttribute("expected_state_schema", expectedStateSchema)
-            << TErrorAttribute("actual_state_schema", canonicalStateSchema);
+            .With("expected_state_schema", expectedStateSchema)
+            .With("actual_state_schema", canonicalStateSchema);
     }
     auto stateSchema = expectedStateSchema ? expectedStateSchema : canonicalStateSchema;
 
@@ -217,9 +217,9 @@ void EnsureSchema(
         slot = candidate;
     } else if (*slot != *candidate) {
         THROW_ERROR_EXCEPTION("State schemas disagree")
-            << TErrorAttribute("expected_state_schema", slot)
-            << TErrorAttribute("cached_state_schema", candidate)
-            << TErrorAttribute("key", key);
+            .With("expected_state_schema", slot)
+            .With("cached_state_schema", candidate)
+            .With("key", key);
     }
 }
 

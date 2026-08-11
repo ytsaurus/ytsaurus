@@ -286,8 +286,8 @@ private:
                 term);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error setting remote changelog store term")
-                << TErrorAttribute("store_path", Path_)
-                << ex;
+                .With("store_path", Path_)
+                .With(ex);
         }
     }
 
@@ -370,8 +370,8 @@ private:
                 }));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error creating remote changelog")
-                << TErrorAttribute("changelog_path", path)
-                << ex;
+                .With("changelog_path", path)
+                .With(ex);
         }
     }
 
@@ -390,7 +390,7 @@ private:
                 THROW_ERROR_EXCEPTION(
                     NHydra::EErrorCode::NoSuchChangelog,
                     "Changelog does not exist in remote store")
-                    << TErrorAttribute("changelog_path", path);
+                    .With("changelog_path", path);
             }
             auto node = ConvertToNode(rspOrError.ValueOrThrow());
             const auto& attributes = node->Attributes();
@@ -416,8 +416,8 @@ private:
                 options);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening remote changelog")
-                << TErrorAttribute("changelog_path", path)
-                << ex;
+                .With("changelog_path", path)
+                .With(ex);
         }
     }
 
@@ -440,8 +440,8 @@ private:
                 id);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error removing remote changelog")
-                << TErrorAttribute("changelog_path", path)
-                << ex;
+                .With("changelog_path", path)
+                .With(ex);
         }
     }
 
@@ -682,8 +682,8 @@ private:
                 return ReadRecords(Path_, Owner_->Config_->Get()->Reader, Owner_->Client_, firstRecordId, maxRecords);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error reading remote changelog")
-                    << TErrorAttribute("changelog_path", Path_)
-                    << ex;
+                    .With("changelog_path", Path_)
+                    .With(ex);
             }
         }
 
@@ -702,8 +702,8 @@ private:
                 Writer_ = Owner_->Client_->CreateJournalWriter(Path_, writerOptions);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to open remote changelog writer")
-                    << TErrorAttribute("changelog_path", Path_)
-                    << ex;
+                    .With("changelog_path", Path_)
+                    .With(ex);
             }
 
             WriterOpenFuture_ = Writer_->Open();
@@ -816,8 +816,8 @@ private:
                 Counters_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error locking remote changelog store")
-                << TErrorAttribute("store_path", Path_)
-                << ex;
+                .With("store_path", Path_)
+                .With(ex);
         }
     }
 

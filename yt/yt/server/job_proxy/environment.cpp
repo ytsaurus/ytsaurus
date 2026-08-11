@@ -124,7 +124,7 @@ TErrorOr<TJobEnvironmentCpuStatistics> ExtractJobEnvironmentCpuStatistics(const 
         };
     } catch (const std::exception& ex) {
         return TError("Extract job cpu statistics failed")
-            << ex;
+            .With(ex);
     }
 }
 
@@ -151,7 +151,7 @@ TErrorOr<TJobEnvironmentMemoryStatistics> ExtractJobEnvironmentMemoryStatistics(
         };
     } catch (const std::exception& ex) {
         return TError("Extract job memory statistics failed")
-            << ex;
+            .With(ex);
     }
 }
 
@@ -257,8 +257,8 @@ void TSidecarEnvironmentBase::OnSidecarFinished(const TError& sidecarResult)
             }
 
             FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
-                << TErrorAttribute("sidecar_name", Name_)
-                << TErrorAttribute("sidecar_exit_value", sidecarResult));
+                .With("sidecar_name", Name_)
+                .With("sidecar_exit_value", sidecarResult));
             break;
     }
 }
@@ -451,8 +451,8 @@ public:
                     gpuCorePipeFile);
                 if (mkfifo(gpuCorePipeFile.c_str(), 0666) == -1) {
                     THROW_ERROR_EXCEPTION("Failed to create CUDA GPU core dump pipe")
-                        << TErrorAttribute("path", gpuCorePipeFile)
-                        << TError::FromSystem();
+                        .With("path", gpuCorePipeFile)
+                        .With(TError::FromSystem());
                 }
             }
         } else {
@@ -1592,8 +1592,8 @@ public:
                 );
                 ShutdownSidecars();
                 FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
-                    << TErrorAttribute("sidecar_name", sidecarName)
-                    << TErrorAttribute("sidecar_exit_value", exitValue));
+                    .With("sidecar_name", sidecarName)
+                    .With("sidecar_exit_value", exitValue));
                 break;
         }
     }

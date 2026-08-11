@@ -974,7 +974,7 @@ private:
                 if (!entryOrError.IsOK()) {
                     if (entryOrError.FindMatching(NYT::EErrorCode::Canceled)) {
                         this_->Reply(TError(NRpc::EErrorCode::TransientFailure, "Transient failure")
-                            << entryOrError);
+                            .With(entryOrError));
                     } else {
                         this_->Reply(entryOrError);
                     }
@@ -1247,9 +1247,9 @@ private:
             CreateErrorResponseMessage(TError(
                 NObjectClient::EErrorCode::RequestInvolvesSequoia,
                 "Request resolved in Sequoia")
-                << TErrorAttribute("unresolved_suffix", resolveResult.UnresolvedPathSuffix)
-                << TErrorAttribute("rootstock_node_id", resolveResult.RootstockNodeId)
-                << TErrorAttribute("rootstock_path", resolveResult.RootstockPath)));
+                .With("unresolved_suffix", resolveResult.UnresolvedPathSuffix)
+                .With("rootstock_node_id", resolveResult.RootstockNodeId)
+                .With("rootstock_path", resolveResult.RootstockPath)));
         YT_LOG_DEBUG(
             "Request redirected to Sequoia (SubrequestIndex: %v, TargetPath: %v, "
             "RootstockNodeId: %v, RootstockPath: %v)",
@@ -1771,7 +1771,7 @@ private:
                             YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndexes: %v)",
                                 batch.Indexes);
                             this_->Reply(TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
-                                << forwardingError);
+                                .With(forwardingError));
                             return;
                         }
 
@@ -1900,8 +1900,8 @@ private:
                     NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded,
                     "User %Qv has exceeded its request queue size limit",
                     User_->GetName())
-                    << TErrorAttribute("limit", User_->GetRequestQueueSizeLimit(cellTag))
-                    << TErrorAttribute("cell_tag", cellTag);
+                    .With("limit", User_->GetRequestQueueSizeLimit(cellTag))
+                    .With("cell_tag", cellTag);
                 Owner_->SetStickyUserError(Identity_.User, error);
                 THROW_ERROR error;
             }

@@ -369,9 +369,9 @@ protected:
         } catch (const std::exception& ex) {
             FailedChunkIds_.push_back(storeId);
             SetReadyEvent(MakeFuture(TError("Failed to open remote dynamic store reader")
-                << ex
-                << TErrorAttribute("dynamic_store_id", storeId)
-                << TErrorAttribute("tablet_id", tabletId)));
+                .With(ex)
+                .With("dynamic_store_id", storeId)
+                .With("tablet_id", tabletId)));
         }
 
         return InternalGetReadyEvent();
@@ -915,10 +915,10 @@ protected:
             auto cellId = GetCellIdFromChunkSpec(ChunkSpec_);
 
             auto error = TError("Too many dynamic store locate retries failed")
-                << TErrorAttribute("dynamic_store_id", storeId)
-                << TErrorAttribute("tablet_id", tabletId)
-                << TErrorAttribute("cell_id", cellId)
-                << TErrorAttribute("retry_count", RetryCount_);
+                .With("dynamic_store_id", storeId)
+                .With("tablet_id", tabletId)
+                .With("cell_id", cellId)
+                .With("retry_count", RetryCount_);
 
             promise.Set(std::move(error));
             return;
@@ -957,7 +957,7 @@ protected:
                 EMasterChannelKind::Follower,
                 CellTagFromId(storeId));
         } catch (const std::exception& ex) {
-            promise.Set(TError("Error communicating with master") << ex);
+            promise.Set(TError("Error communicating with master").With(ex));
             return;
         }
 
@@ -1171,7 +1171,7 @@ private:
                 Timestamp_));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error creating remote dynamic store reader")
-                << ex;
+                .With(ex);
         }
     }
 

@@ -216,7 +216,7 @@ void TAutomatonPart::HydraThrowException(
     if (expected) {
         YT_LOG_DEBUG("Throwing expected exception");
         THROW_ERROR_EXCEPTION(NHydra::EErrorCode::ExpectedMutationHandlerException, "Expected mutation exception thrown")
-            << NYT::TError(std::length_error("Good exception"));
+            .With(NYT::TError(std::length_error("Good exception")));
 
     } else {
         YT_LOG_DEBUG("Throwing unexpected exception");

@@ -55,8 +55,8 @@ void ValidateFolderId(const std::string& folderId)
     static constexpr size_t MaxFolderIdLength = 256;
     if (folderId.size() > MaxFolderIdLength) {
         THROW_ERROR_EXCEPTION("Folder id %Qv is too long", folderId)
-            << TErrorAttribute("length", folderId.size())
-            << TErrorAttribute("max_folder_id_length", MaxFolderIdLength);
+            .With("length", folderId.size())
+            .With("max_folder_id_length", MaxFolderIdLength);
     }
     if (folderId.empty()) {
         THROW_ERROR_EXCEPTION("Folder id cannot be empty");
@@ -69,7 +69,7 @@ TError CheckObjectName(TStringBuf name)
 {
     if (name.StartsWith(ObjectIdPathPrefix)) {
         auto error = TError("Invalid object name: starts with %v", ObjectIdPathPrefix)
-            << TErrorAttribute("name", name);
+            .With("name", name);
         if (NHiveServer::IsHiveMutation()) {
             YT_LOG_ALERT(error, "Invalid object name in Hive mutation (Name: %v)", name);
             return {};

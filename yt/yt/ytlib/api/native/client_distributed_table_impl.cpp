@@ -169,9 +169,9 @@ void SortAndValidateDistributedWriteResults(
                 NTableClient::EErrorCode::SortOrderViolation,
                 "Output table %v is not sorted: key ranges overlap with original table",
                 path)
-                << TErrorAttribute("table_max_key", lastKey)
-                << TErrorAttribute("min_key", std::begin(*results)->MinBoundaryKey)
-                << TErrorAttribute("comparator", comparator);
+                .With("table_max_key", lastKey)
+                .With("min_key", std::begin(*results)->MinBoundaryKey)
+                .With("comparator", comparator);
         }
 
         if (cmp == 0 && patchInfo.ChunkSchema->IsUniqueKeys()) {
@@ -179,9 +179,9 @@ void SortAndValidateDistributedWriteResults(
                 NTableClient::EErrorCode::SortOrderViolation,
                 "Output table %v contains duplicate keys: key ranges overlap with original table",
                 path)
-                << TErrorAttribute("table_max_key", lastKey)
-                << TErrorAttribute("min_key", std::begin(*results)->MinBoundaryKey)
-                << TErrorAttribute("comparator", comparator);
+                .With("table_max_key", lastKey)
+                .With("min_key", std::begin(*results)->MinBoundaryKey)
+                .With("comparator", comparator);
         }
     }
 
@@ -198,9 +198,9 @@ void SortAndValidateDistributedWriteResults(
                 NTableClient::EErrorCode::SortOrderViolation,
                 "Output table %v is not sorted: key ranges have overlapping key ranges",
                 path)
-                << TErrorAttribute("current_range_max_key", current->MaxBoundaryKey)
-                << TErrorAttribute("next_range_min_key", next->MinBoundaryKey)
-                << TErrorAttribute("comparator", comparator);
+                .With("current_range_max_key", current->MaxBoundaryKey)
+                .With("next_range_min_key", next->MinBoundaryKey)
+                .With("comparator", comparator);
         }
 
         if (cmp == 0 && patchInfo.ChunkSchema->IsUniqueKeys()) {
@@ -208,9 +208,9 @@ void SortAndValidateDistributedWriteResults(
                 NTableClient::EErrorCode::UniqueKeyViolation,
                 "Output table %v contains duplicate keys: key ranges have overlapping key ranges",
                 path)
-                << TErrorAttribute("current_range_max_key", current->MaxBoundaryKey)
-                << TErrorAttribute("next_range_min_key", next->MinBoundaryKey)
-                << TErrorAttribute("comparator", comparator);
+                .With("current_range_max_key", current->MaxBoundaryKey)
+                .With("next_range_min_key", next->MinBoundaryKey)
+                .With("comparator", comparator);
         }
     }
 }

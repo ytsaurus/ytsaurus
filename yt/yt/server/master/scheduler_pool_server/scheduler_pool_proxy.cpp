@@ -203,8 +203,8 @@ void TSchedulerPoolProxy::ValidateNoAliasClash(
     for (const auto& alias : config->GetAllParameterAliases(uninternedKey)) {
         if (alias != uninternedKey && specifiedAttributes.contains(TInternedAttributeKey::Lookup(alias))) {
             THROW_ERROR_EXCEPTION("Attempt to set the same attribute with different alias")
-                    << TErrorAttribute("previous_alias", alias)
-                    << TErrorAttribute("current_alias", key);
+                    .With("previous_alias", alias)
+                    .With("current_alias", key);
         }
     }
 }
@@ -232,12 +232,12 @@ DEFINE_YPATH_SERVICE_METHOD(TSchedulerPoolProxy, TransferPoolResources)
     auto poolTreeImpl = impl->GetMaybePoolTree();
     if (!poolTreeImpl) {
         THROW_ERROR_EXCEPTION("Transferring pool resources must be targeted at pool tree")
-            << TErrorAttribute("current_scheduler_pool_name", impl->GetName());
+            .With("current_scheduler_pool_name", impl->GetName());
     }
 
     if (request->src_pool() == request->dst_pool()) {
         THROW_ERROR_EXCEPTION("Source and destination pools must differ")
-            << TErrorAttribute("provided_src_and_dst_pool_name", request->src_pool());
+            .With("provided_src_and_dst_pool_name", request->src_pool());
     }
 
     auto* srcPool = request->src_pool() == RootPoolName
@@ -245,22 +245,22 @@ DEFINE_YPATH_SERVICE_METHOD(TSchedulerPoolProxy, TransferPoolResources)
         : schedulerPoolManager->FindSchedulerPoolByName(poolTreeImpl->GetTreeName(), request->src_pool());
     if (!srcPool) {
         THROW_ERROR_EXCEPTION("Source pool does not exist")
-            << TErrorAttribute("pool_name", request->src_pool())
-            << TErrorAttribute("pool_tree", poolTreeImpl->GetTreeName());
+            .With("pool_name", request->src_pool())
+            .With("pool_tree", poolTreeImpl->GetTreeName());
     }
     auto* dstPool = request->dst_pool() == RootPoolName
         ? impl
         : schedulerPoolManager->FindSchedulerPoolByName(poolTreeImpl->GetTreeName(), request->dst_pool());
     if (!dstPool) {
         THROW_ERROR_EXCEPTION("Destination pool does not exist")
-            << TErrorAttribute("pool_name", request->dst_pool())
-            << TErrorAttribute("pool_tree", poolTreeImpl->GetTreeName());
+            .With("pool_name", request->dst_pool())
+            .With("pool_tree", poolTreeImpl->GetTreeName());
     }
 
     auto resourceDelta = ConvertTo<TPoolResourcesPtr>(TYsonString(request->resource_delta()));
     if (!resourceDelta->IsNonNegative()) {
         THROW_ERROR_EXCEPTION("All provided resources must be non-negative")
-            << TErrorAttribute("resource_delta", resourceDelta);
+            .With("resource_delta", resourceDelta);
     }
 
     context->SetRequestInfo("SrcPool: %v, DstPool: %v, PoolTree: %v",

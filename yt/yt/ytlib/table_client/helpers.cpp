@@ -291,10 +291,10 @@ void ValidateDynamicTableTimestamp(
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::TimestampOutOfRange,
                 "Requested timestamp is out of range for table %v",
                 path.GetPath())
-                << TErrorAttribute("requested_timestamp", requested)
-                << TErrorAttribute("retained_timestamp", retained)
-                << TErrorAttribute("unflushed_timestamp", unflushed)
-                << TErrorAttribute("enable_dynamic_store_read", enableDynamicStoreRead);
+                .With("requested_timestamp", requested)
+                .With("retained_timestamp", retained)
+                .With("unflushed_timestamp", unflushed)
+                .With("enable_dynamic_store_read", enableDynamicStoreRead);
         }
     }
 
@@ -303,8 +303,8 @@ void ValidateDynamicTableTimestamp(
         if (retention > requested) {
             THROW_ERROR_EXCEPTION("Retention timestamp for table %v should not be greater than read timestamp",
                 path.GetPath())
-                << TErrorAttribute("read_timestamp", requested)
-                << TErrorAttribute("retention_timestamp", retention);
+                .With("read_timestamp", requested)
+                .With("retention_timestamp", retention);
         }
     }
 }

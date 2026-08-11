@@ -59,7 +59,7 @@ TError WrapCypressProxyRegistrationError(TError error)
     }
 
     return TError(NRpc::EErrorCode::Unavailable, "Cypress proxy is not registered")
-        << std::move(error);
+        .With(std::move(error));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +104,7 @@ TError WrapRetriableResolveError(const TError& error, NCypressClient::TNodeId re
     return TError(
         NSequoiaClient::EErrorCode::SequoiaRetriableError,
         "Object was resolved in Sequoia but missing on master")
-        << error;
+        .With(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,8 +190,8 @@ void ValidateLinkNodeCreation(
 
     if (checkCyclicity(targetPath, linkPath)) {
         THROW_ERROR_EXCEPTION("Failed to create link: link is cyclic")
-            << TErrorAttribute("target_path", targetPath)
-            << TErrorAttribute("path", linkPath);
+            .With("target_path", targetPath)
+            .With("path", linkPath);
     }
 }
 
@@ -344,9 +344,9 @@ TError CheckPrerequisiteRevisionsPaths(
         return TError(
             NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
             "Requests with prerequisite paths different from target paths are prohibited in Cypress ")
-            << TErrorAttribute("prerequisite_path", revision.Path)
-            << TErrorAttribute("target_path", originalTargetPath)
-            << TErrorAttribute("additional_path", originalSourcePath);
+            .With("prerequisite_path", revision.Path)
+            .With("target_path", originalTargetPath)
+            .With("additional_path", originalSourcePath);
     }
 
     return TError();
@@ -376,7 +376,7 @@ TError CheckPrerequisiteTransactions(
 
     auto transactionRowsOrError = WaitFor(sequoiaClient->LookupRows(transactionKeys));
     if (!transactionRowsOrError.IsOK()) {
-        return TError("Failed to check prerequisite transactions") << transactionRowsOrError;
+        return TError("Failed to check prerequisite transactions").With(transactionRowsOrError);
     }
 
     auto doomedTransactionRowsOrError = WaitFor(sequoiaClient->LookupRows(doomedTransactionKeys));

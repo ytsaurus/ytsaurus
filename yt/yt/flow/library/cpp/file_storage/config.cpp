@@ -24,10 +24,10 @@ void TFileStorageConfig::Register(TRegistrar registrar)
             "File storage path %Qv must be absolute",
             config->Path);
         THROW_ERROR_EXCEPTION_UNLESS(
-                config->SoftSizeLimit <= config->HardSizeLimit,
-                "File storage soft size limit must not exceed hard size limit")
-            << TErrorAttribute("soft_size_limit", config->SoftSizeLimit)
-            << TErrorAttribute("hard_size_limit", config->HardSizeLimit);
+            config->SoftSizeLimit <= config->HardSizeLimit,
+            "File storage soft size limit must not exceed hard size limit")
+            .With("soft_size_limit", config->SoftSizeLimit)
+            .With("hard_size_limit", config->HardSizeLimit);
     });
 }
 

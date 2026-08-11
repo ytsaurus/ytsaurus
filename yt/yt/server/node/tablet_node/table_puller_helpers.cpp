@@ -123,24 +123,24 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
 
         return TError(
             "Will not pull rows since actual replication progress is behind replication card replica progress")
-            << TErrorAttribute("replication_progress", replicationProgress)
-            << TErrorAttribute("replica_info", *selfReplica);
+            .With("replication_progress", replicationProgress)
+            .With("replica_info", *selfReplica);
     }
 
     auto oldestTimestamp = GetReplicationProgressMinTimestamp(replicationProgress);
     auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
     if (historyItemIndex == -1) {
         return TError("Will not pull rows since replica history does not cover replication progress")
-            << TErrorAttribute("oldest_timestamp", oldestTimestamp)
-            << TErrorAttribute("history", selfReplica->History);
+            .With("oldest_timestamp", oldestTimestamp)
+            .With("history", selfReplica->History);
     }
 
     YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplica->History));
     const auto& historyItem = selfReplica->History[historyItemIndex];
     if (historyItem.IsSync()) {
         return TError("Will not pull rows since oldest progress timestamp corresponds to sync history item")
-            << TErrorAttribute("oldest_timestamp", oldestTimestamp)
-            << TErrorAttribute("history_item", historyItem);
+            .With("oldest_timestamp", oldestTimestamp)
+            .With("history_item", historyItem);
     }
 
     if (!IsReplicaAsync(selfReplica->Mode)) {

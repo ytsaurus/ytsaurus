@@ -1248,7 +1248,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
 
             case EValueType::Composite: {
                 THROW_ERROR_EXCEPTION("Unsupported value type")
-                    << TErrorAttribute("type", value.Type);
+                    .With("type", value.Type);
             }
 
             default:

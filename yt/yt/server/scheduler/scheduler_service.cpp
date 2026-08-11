@@ -121,9 +121,9 @@ private:
 
         const auto& user = context->GetAuthenticationIdentity().User;
         auto error = TError("Operation aborted by user request")
-            << TErrorAttribute("user", user);
+            .With("user", user);
         if (request->has_abort_message()) {
-            error = error << TError(TRuntimeFormat(request->abort_message()));
+            error = error.With(TError(TRuntimeFormat(request->abort_message())));
         }
 
         auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
@@ -230,7 +230,7 @@ private:
             parametersNode = ConvertToNode(TYsonString(request->parameters()));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing operation parameters")
-                << ex;
+                .With(ex);
         }
 
         auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);

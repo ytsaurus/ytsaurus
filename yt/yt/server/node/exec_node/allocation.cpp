@@ -439,9 +439,9 @@ void TAllocation::Preempt(
         YT_LOG_DEBUG("Allocation is empty; aborting it");
 
         auto error = TError("Allocation preempted")
-            << TErrorAttribute("preemption_reason", preemptionReason)
-            << TErrorAttribute("interruption_reason", EInterruptionReason::Preemption)
-            << TErrorAttribute("abort_reason", EAbortReason::Preemption);
+            .With("preemption_reason", preemptionReason)
+            .With("interruption_reason", EInterruptionReason::Preemption)
+            .With("abort_reason", EAbortReason::Preemption);
 
         Abort(std::move(error));
         return;
@@ -518,7 +518,7 @@ void TAllocation::OnSettledJobReceived(
 
 
         auto error = TError("Failed to get job spec")
-            << jobInfoOrError;
+            .With(jobInfoOrError);
 
         YT_LOG_INFO(error, "Failed to settle job in allocation; aborting allocation");
 
@@ -559,7 +559,7 @@ void TAllocation::OnSettledJobReceived(
             jobInfo.JobId,
             OperationId_);
 
-        Abort(TError("Failed to create job") << error);
+        Abort(TError("Failed to create job").With(error));
     } catch (...) {
         YT_LOG_FATAL(
             "Unexpected failure during job creation (JobId: %v, OperationId: %v)",
@@ -584,9 +584,9 @@ void TAllocation::OnSettledJobReceived(
                     ResourceHolder_->GetResourceUsage(),
                     newDemand);
                 Abort(TError("Failed to set new job resources to allocation")
-                    << TErrorAttribute("new_job_resources", newDemand)
-                    << TErrorAttribute("previous_job_resources", ResourceHolder_->GetResourceUsage())
-                    << TErrorAttribute("abort_reason", EAbortReason::NodeResourceOvercommit));
+                    .With("new_job_resources", newDemand)
+                    .With("previous_job_resources", ResourceHolder_->GetResourceUsage())
+                    .With("abort_reason", EAbortReason::NodeResourceOvercommit));
                 return;
             }
         } else {

@@ -594,8 +594,8 @@ protected:
 
         if (SequoiaSession_->GetCurrentCypressTransactionId()) {
             THROW_ERROR_EXCEPTION("Rootstock cannot be removed under transaction")
-                << TErrorAttribute("scion_id", Id_)
-                << TErrorAttribute("cypress_transaction_id", SequoiaSession_->GetCurrentCypressTransactionId());
+                .With("scion_id", Id_)
+                .With("cypress_transaction_id", SequoiaSession_->GetCurrentCypressTransactionId());
         }
 
         // Scion removal causes rootstock removal.
@@ -1879,8 +1879,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopySource)
     auto nodesToCopy = SequoiaSession_->FetchSubtree(Path_);
     if (std::ssize(nodesToCopy.Nodes) > maxSubtreeSize) {
         THROW_ERROR_EXCEPTION("Subtree is too large for cross-cell copy")
-            << TErrorAttribute("subtree_size", subtreeSize)
-            << TErrorAttribute("max_subtree_size", maxSubtreeSize);
+            .With("subtree_size", subtreeSize)
+            .With("max_subtree_size", maxSubtreeSize);
     }
 
     ValidateCopyFromSourcePermissions(
@@ -2792,7 +2792,7 @@ private:
 
         if (limit && limit < 0) {
             THROW_ERROR_EXCEPTION("Limit is negative")
-                << TErrorAttribute("limit", limit);
+                .With("limit", limit);
         }
 
         ValidatePermissionForThis(EPermission::Read);

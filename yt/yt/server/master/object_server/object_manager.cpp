@@ -180,9 +180,9 @@ static TError ValidatePrerequisiteRevisionPaths(
     return TError(
         NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
         "Requests with prerequisite paths different from target paths are prohibited in Cypress ")
-        << TErrorAttribute("prerequisite_object_id", prerequisiteObjectId)
-        << TErrorAttribute("target_path", GetOriginalRequestTargetYPath(requestHeader))
-        << TErrorAttribute("additional_paths", GetOriginalRequestAdditionalPaths(requestHeader));
+        .With("prerequisite_object_id", prerequisiteObjectId)
+        .With("target_path", GetOriginalRequestTargetYPath(requestHeader))
+        .With("additional_paths", GetOriginalRequestAdditionalPaths(requestHeader));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -650,7 +650,7 @@ public:
                         context->GetRequestId(),
                         forwardedRequestId);
                     auto error = TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
-                        << batchRspOrError;
+                        .With(batchRspOrError);
                     context->Reply(error);
                     if (mutationId) {
                         if (auto setResponseKeeperPromise = responseKeeper->EndRequest(mutationId, error, false)) {
@@ -686,8 +686,8 @@ public:
             ForwardedCellTag_);
 
         THROW_ERROR_EXCEPTION("Unexpected error: TRemoteProxy::DoWriteAttributesFragment called, please report this")
-            << TErrorAttribute("object_id", ObjectId_)
-            << TErrorAttribute("forwarded_cell_tag", ForwardedCellTag_);
+            .With("object_id", ObjectId_)
+            .With("forwarded_cell_tag", ForwardedCellTag_);
     }
 
     bool ShouldHideAttributes() override
@@ -802,10 +802,10 @@ private:
             [&] (const TPathResolver::TSequoiaRedirectPayload& payload) -> IYPathServicePtr {
                 THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
                     "Request involves Sequoia shard")
-                    << TErrorAttribute("path", targetPath)
-                    << TErrorAttribute("unresolved_suffix", resolvePath.UnresolvedPathSuffix)
-                    << TErrorAttribute("rootstock_node_id", payload.RootstockNodeId)
-                    << TErrorAttribute("rootstock_path", payload.RootstockPath);
+                    .With("path", targetPath)
+                    .With("unresolved_suffix", resolvePath.UnresolvedPathSuffix)
+                    .With("rootstock_node_id", payload.RootstockNodeId)
+                    .With("rootstock_path", payload.RootstockPath);
             });
 
         return TResolveResultThere{
@@ -1369,7 +1369,7 @@ TObject* TObjectManager::GetObjectOrThrow(TObjectId id)
             NYTree::EErrorCode::ResolveError,
             "No such object %v",
             id)
-            << TErrorAttribute("missing_object_id", id);
+            .With("missing_object_id", id);
     }
 
     return object;
@@ -1388,7 +1388,7 @@ void TObjectManager::RemoveObject(TObject* object)
     if (object->GetLifeStage() != EObjectLifeStage::CreationCommitted) {
         THROW_ERROR_EXCEPTION("Object life stage is %Qlv",
             object->GetLifeStage())
-            << TErrorAttribute("object_id", object->GetId());
+            .With("object_id", object->GetId());
     }
 
     const auto& handler = GetHandler(object);
@@ -1898,7 +1898,7 @@ auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectI
             ] (const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& responsesOrError) {
                 if (!responsesOrError.IsOK()) {
                     auto error = TError("Error requesting object paths from master cell %v", cellTag)
-                        << responsesOrError;
+                        .With(responsesOrError);
                     for (const auto& [transactionId, index] : originRequestInfos) {
                         (*results)[index] = error;
                     }
@@ -1978,7 +1978,7 @@ void TObjectManager::ValidatePrerequisites(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                 "Prerequisite check failed: failed to resolve path %v",
                 path)
-                << ex;
+                .With(ex);
         }
         if (GetDynamicConfig()->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
             ValidatePrerequisiteRevisionPaths(requestHeader, targetObjectId, additionalObjectIds, trunkNode->GetId())
@@ -2053,7 +2053,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
                 requestId,
                 batchReq->GetRequestId());
             auto error = TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
-                << batchRspOrError;
+                .With(batchRspOrError);
             return CreateErrorResponseMessage(requestId, batchRspOrError);
         }
 
@@ -2199,7 +2199,7 @@ void TObjectManager::HydraExecuteLeader(
         // leader change, we get here.
 
         auto errorResponse = TError("Mutation is already applied, probably the request kept retrying for too long")
-            << TErrorAttribute("mutation_id", mutationId);
+            .With("mutation_id", mutationId);
 
         rpcContext->Reply(errorResponse);
 

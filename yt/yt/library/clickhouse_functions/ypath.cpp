@@ -205,8 +205,8 @@ public:
             } else {
                 if (Strict) {
                     THROW_ERROR_EXCEPTION("Failed to extract value from yson")
-                        << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
-                        << TErrorAttribute("path", TStringBuf(path.data, path.size));
+                        .With("yson", TStringBuf(yson.data, yson.size))
+                        .With("path", TStringBuf(path.data, path.size));
                 }
                 columnTo->insertDefault();
             }
@@ -461,9 +461,9 @@ public:
                 } catch (const std::exception& ex) {
                     // Rethrow the error with additional context.
                     THROW_ERROR_EXCEPTION("Failed to extract value from yson")
-                        << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
-                        << TErrorAttribute("path", TStringBuf(path.data, path.size))
-                        << ex;
+                        .With("yson", TStringBuf(yson.data, yson.size))
+                        .With("path", TStringBuf(path.data, path.size))
+                        .With(ex);
                 }
             } else {
                 TNodeWalkOptions options = FindNodeByYPathOptions;
@@ -592,9 +592,9 @@ public:
                 } catch (const std::exception& ex) {
                     // Rethrow the error with additional context.
                     THROW_ERROR_EXCEPTION("Failed to extract value from yson")
-                        << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
-                        << TErrorAttribute("path", TStringBuf(path.data, path.size))
-                        << ex;
+                        .With("yson", TStringBuf(yson.data, yson.size))
+                        .With("path", TStringBuf(path.data, path.size))
+                        .With(ex);
                 }
             } else {
                 TNodeWalkOptions options = FindNodeByYPathOptions;
@@ -610,8 +610,8 @@ public:
                 if (!error.IsOK()) {
                     if constexpr (Strict) {
                         THROW_ERROR_EXCEPTION("Error converting extracted value")
-                            << TErrorAttribute("yson", TStringBuf(yson.data, yson.size))
-                            << TErrorAttribute("path", TStringBuf(path.data, path.size));
+                            .With("yson", TStringBuf(yson.data, yson.size))
+                            .With("path", TStringBuf(path.data, path.size));
                     } else {
                         // Just ignore errors.
                         columnTo->insertDefault();

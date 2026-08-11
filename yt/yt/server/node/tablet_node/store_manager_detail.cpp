@@ -737,33 +737,33 @@ TError TStoreManagerBase::CheckOverflow() const
 
     if (activeStore->GetRowCount() >= mountConfig->MaxDynamicStoreRowCount) {
         return TError("Dynamic store row count limit reached")
-            << TErrorAttribute("store_id", activeStore->GetId())
-            << TErrorAttribute("row_count", activeStore->GetRowCount())
-            << TErrorAttribute("row_count_limit", mountConfig->MaxDynamicStoreRowCount);
+            .With("store_id", activeStore->GetId())
+            .With("row_count", activeStore->GetRowCount())
+            .With("row_count_limit", mountConfig->MaxDynamicStoreRowCount);
     }
 
     if (activeStore->GetValueCount() >= mountConfig->MaxDynamicStoreValueCount) {
         return TError("Dynamic store value count limit reached")
-            << TErrorAttribute("store_id", activeStore->GetId())
-            << TErrorAttribute("value_count", activeStore->GetValueCount())
-            << TErrorAttribute("value_count_limit", mountConfig->MaxDynamicStoreValueCount);
+            .With("store_id", activeStore->GetId())
+            .With("value_count", activeStore->GetValueCount())
+            .With("value_count_limit", mountConfig->MaxDynamicStoreValueCount);
     }
 
     auto clampedMaxDynamicStoreTimestampCount = activeStore->ClampMaxDynamicStoreTimestampCount(mountConfig->MaxDynamicStoreTimestampCount);
 
     if (activeStore->GetTimestampCount() >= clampedMaxDynamicStoreTimestampCount) {
         return TError("Dynamic store timestamp count limit reached")
-            << TErrorAttribute("store_id", activeStore->GetId())
-            << TErrorAttribute("timestamp_count", activeStore->GetTimestampCount())
-            << TErrorAttribute("timestamp_count_limit", clampedMaxDynamicStoreTimestampCount)
-            << TErrorAttribute("config_timestamp_count_limit", mountConfig->MaxDynamicStoreTimestampCount);
+            .With("store_id", activeStore->GetId())
+            .With("timestamp_count", activeStore->GetTimestampCount())
+            .With("timestamp_count_limit", clampedMaxDynamicStoreTimestampCount)
+            .With("config_timestamp_count_limit", mountConfig->MaxDynamicStoreTimestampCount);
     }
 
     if (activeStore->GetPoolSize() >= mountConfig->MaxDynamicStorePoolSize) {
         return TError("Dynamic store pool size limit reached")
-            << TErrorAttribute("store_id", activeStore->GetId())
-            << TErrorAttribute("pool_size", activeStore->GetPoolSize())
-            << TErrorAttribute("pool_size_limit", mountConfig->MaxDynamicStorePoolSize);
+            .With("store_id", activeStore->GetId())
+            .With("pool_size", activeStore->GetPoolSize())
+            .With("pool_size_limit", mountConfig->MaxDynamicStorePoolSize);
     }
 
     return TError();

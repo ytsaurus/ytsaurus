@@ -373,9 +373,9 @@ protected:
     {
         if (dataWeight > MaxServerVersionedRowDataWeight) {
             THROW_ERROR_EXCEPTION("Versioned row data weight is too large")
-                << TErrorAttribute("key", ToOwningKey(row))
-                << TErrorAttribute("actual_data_weight", dataWeight)
-                << TErrorAttribute("max_data_weight", MaxServerVersionedRowDataWeight);
+                .With("key", ToOwningKey(row))
+                .With("actual_data_weight", dataWeight)
+                .With("max_data_weight", MaxServerVersionedRowDataWeight);
         }
     }
 };
@@ -602,11 +602,11 @@ private:
 
         if (row.GetWriteTimestampCount() > MaxTimestampCountPerRow) {
             THROW_ERROR_EXCEPTION("Too many write timestamps in a versioned row")
-                << TErrorAttribute("key", ToOwningKey(row));
+                .With("key", ToOwningKey(row));
         }
         if (row.GetDeleteTimestampCount() > MaxTimestampCountPerRow) {
             THROW_ERROR_EXCEPTION("Too many delete timestamps in a versioned row")
-                << TErrorAttribute("key", ToOwningKey(row));
+                .With("key", ToOwningKey(row));
         }
     }
 

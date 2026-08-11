@@ -116,8 +116,8 @@ private:
                 }
 
                 TError wrappedError = TError("Failed to scan hunk tablet")
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << error;
+                    .With("tablet_id", Tablet_->GetId())
+                    .With(error);
                 YT_LOG_ERROR(wrappedError);
 
                 Tablet_->Profiler()->GetHunkTabletScannerCounters()->FailedScanCount.Increment(1);
@@ -138,8 +138,8 @@ private:
             // or if previous scan iteration has failed (i.g. due to timeouts to master) but has scheduled a transaction.
             if (auto transactionId = Tablet_->GetLockTransactionId()) {
                 THROW_ERROR_EXCEPTION("Tablet is already locked by transaction")
-                    << TErrorAttribute("transaction_id", transactionId)
-                    << OmitBackingOffAttribute;
+                    .With("transaction_id", transactionId)
+                    .With(OmitBackingOffAttribute);
             }
         }
 
@@ -357,9 +357,9 @@ private:
                     TDelayedExecutor::WaitForDuration(TransactionCommitLocalWaitTime);
                 } else if (lockTransactionId) {
                     THROW_ERROR_EXCEPTION("Hunk tablet scanner encountered lock from unexpected transaction")
-                        << TErrorAttribute("expected_transaction_id", transaction->GetId())
-                        << TErrorAttribute("actual_transaction_id", lockTransactionId)
-                        << OmitBackingOffAttribute;
+                        .With("expected_transaction_id", transaction->GetId())
+                        .With("actual_transaction_id", lockTransactionId)
+                        .With(OmitBackingOffAttribute);
                 } else {
                     YT_LOG_DEBUG("Finished waiting for transaction to unlock tablet");
                     return;
@@ -367,7 +367,7 @@ private:
             }
 
             auto error = TError("Hunk tablet scanner transaction commit wait failed")
-                << TErrorAttribute("transaction_id", transaction->GetId());
+                .With("transaction_id", transaction->GetId());
             YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);
         }
@@ -379,7 +379,7 @@ private:
             } catch (const std::exception& ex) {
                 auto error = TError(NTabletClient::EErrorCode::HunkStoreAllocationFailed,
                     "Hunk tablet scanner failed to allocate stores")
-                    << TError(ex);
+                    .With(TError(ex));
                 Tablet_->OnStoreAllocationFailed(error);
                 THROW_ERROR(error);
             }

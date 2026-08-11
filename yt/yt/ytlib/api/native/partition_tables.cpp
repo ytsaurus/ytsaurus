@@ -264,7 +264,7 @@ void TMultiTablePartitioner::BuildPartitions()
             // If you change the message, please change the tests after deployment.
             // See eg. https://a.yandex-team.ru/arcadia/commit/9c13476686afd16f47ad22838809d17ebd6b9594
             THROW_ERROR_EXCEPTION("Maximum partition count exceeded")
-                << TErrorAttribute("limit", *Options_.MaxPartitionCount);
+                .With("limit", *Options_.MaxPartitionCount);
         }
 
         auto chunkStripeList = ChunkPool_->GetStripeList(cookie);
@@ -369,7 +369,7 @@ void TMultiTablePartitioner::PrepareVersionedSliceFetcher(const TInputTable& inp
     const auto& comparator = GetComparator(tableIndex);
     if (Options_.CompressedDataSizePerPartition) {
         THROW_ERROR_EXCEPTION("Partitioning versioned table by compressed data size is unimplemented")
-            << TErrorAttribute("table_index", tableIndex);
+            .With("table_index", tableIndex);
     }
     YT_VERIFY(Options_.DataWeightPerPartition);
 

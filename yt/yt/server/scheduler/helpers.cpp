@@ -176,7 +176,7 @@ TListOperationsResult ListOperations(
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing operations from //sys/operations/%02x", hash)
-                << ex;
+                .With(ex);
         }
     }
 

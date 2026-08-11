@@ -43,15 +43,15 @@ TError CreateForbiddenStateTransitionError(
     EChaosLeaseManagerState expectedCurrentState)
 {
     return TError("Chaos lease state transition is forbidden")
-        << TErrorAttribute("current_state", currentState)
-        << TErrorAttribute("next_state", nextState)
-        << TErrorAttribute("expected_current_state", expectedCurrentState);
+        .With("current_state", currentState)
+        .With("next_state", nextState)
+        .With("expected_current_state", expectedCurrentState);
 }
 
 TError CreateChaosLeaseNotKnownError(TChaosLeaseId chaosLeaseId)
 {
     return TError(NYTree::EErrorCode::ResolveError, "No such chaos lease")
-            << TErrorAttribute("chaos_lease_id", chaosLeaseId);
+            .With("chaos_lease_id", chaosLeaseId);
 }
 
 TError CreateChaosCellIsNotEnabledError(EChaosLeaseManagerState state)
@@ -59,7 +59,7 @@ TError CreateChaosCellIsNotEnabledError(EChaosLeaseManagerState state)
     return TError(
         NChaosClient::EErrorCode::ChaosCellIsNotEnabled,
         "Chaos cell is not enabled, retry later")
-        << TErrorAttribute("state", state);
+        .With("state", state);
 }
 
 [[noreturn]] void ThrowForbiddenStateTransition(
@@ -767,7 +767,7 @@ private:
 
             if (parent->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval) {
                 THROW_ERROR_EXCEPTION("Failed to create chaos lease since its parent is being removed")
-                    << TErrorAttribute("parent_chaos_lease_id", parentId);
+                    .With("parent_chaos_lease_id", parentId);
             }
 
             chaosLeaseHolder->SetParentId(parentId);

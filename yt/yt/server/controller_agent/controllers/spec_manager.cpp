@@ -152,7 +152,7 @@ void TSpecManager::DoApply(
         THROW_ERROR_EXCEPTION(
             EErrorCode::ExceptionLeadingToOperationFailure,
             "Failed to apply spec patch")
-            << ex;
+            .With(ex);
     } catch (const TAssertionFailedException& ex) {
         Host_->ProcessSafeException(ex);
         YT_LOG_ERROR(

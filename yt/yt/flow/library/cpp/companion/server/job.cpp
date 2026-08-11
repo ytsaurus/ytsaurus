@@ -102,9 +102,9 @@ TJob::TJob(
             NYson::TYsonStringBuf(jobInfo.dynamic_spec()));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to parse job specs")
-            << TErrorAttribute("job_id", JobId_)
-            << TErrorAttribute("computation_id", ComputationId_)
-            << ex;
+            .With("job_id", JobId_)
+            .With("computation_id", ComputationId_)
+            .With(ex);
     }
     StreamSpecs_ = BuildStreamSpecs(jobInfo.streams());
     CompanionResources_.reserve(jobInfo.companion_resources_size());

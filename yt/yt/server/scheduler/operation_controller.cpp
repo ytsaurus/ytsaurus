@@ -29,26 +29,26 @@ TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData)
     auto compositeNeededResources = runtimeData->GetNeededResources();
     if (!Dominates(compositeNeededResources.DefaultResources, TJobResources())) {
         return TError("Controller has reported negative needed resources")
-            << TErrorAttribute("needed_resources", FormatResources(compositeNeededResources));
+            .With("needed_resources", FormatResources(compositeNeededResources));
     }
 
     for (const auto& [treeId, neededResources] : compositeNeededResources.ResourcesByPoolTreeId) {
         if (!Dominates(neededResources, TJobResources())) {
             return TError("Controller has reported negative needed resources")
-                << TErrorAttribute("pool_tree", treeId)
-                << TErrorAttribute("needed_resources", FormatResources(compositeNeededResources));
+                .With("pool_tree", treeId)
+                .With("needed_resources", FormatResources(compositeNeededResources));
         }
     }
 
     for (const auto& [_, allocationGroupResources] : runtimeData->GroupedNeededResources()) {
         if (!Dominates(allocationGroupResources.MinNeededResources.ToJobResources(), TJobResources())) {
             return TError("Controller has reported negative min needed allocation resources")
-                << TErrorAttribute("grouped_needed_resources", runtimeData->GroupedNeededResources());
+                .With("grouped_needed_resources", runtimeData->GroupedNeededResources());
         }
 
         if (allocationGroupResources.AllocationCount < 0) {
             return TError("Controller has reported negative needed allocation count")
-                << TErrorAttribute("grouped_needed_resources", runtimeData->GroupedNeededResources());
+                .With("grouped_needed_resources", runtimeData->GroupedNeededResources());
         }
     }
 

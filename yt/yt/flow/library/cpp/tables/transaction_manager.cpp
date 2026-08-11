@@ -110,10 +110,10 @@ TError TTransactionManager::DoCommitWithRetriesSync(TDynamicRetryableRequestSpec
 
     auto enrichError = [&] (TError error) -> TError {
         return error
-            << TErrorAttribute("total_time", TInstant::Now() - startTime)
-            << TErrorAttribute("total_time_limit", spec->Timeout)
-            << TErrorAttribute("failed_attempts", backoffStrategy.GetInvocationIndex())
-            << TErrorAttribute("attempts_count_limit", backoffStrategy.GetInvocationCount());
+            .With("total_time", TInstant::Now() - startTime)
+            .With("total_time_limit", spec->Timeout)
+            .With("failed_attempts", backoffStrategy.GetInvocationIndex())
+            .With("attempts_count_limit", backoffStrategy.GetInvocationCount());
     };
 
     auto makeNoMoreRetriesError = [&] () -> TError {
@@ -131,7 +131,7 @@ TError TTransactionManager::DoCommitWithRetriesSync(TDynamicRetryableRequestSpec
             try {
                 auto error = committer(innerTimeout);
                 if (!error.IsOK()) {
-                    return enrichError(error) << lastError;
+                    return enrichError(error).With(lastError);
                 }
                 CommitTimer_.Record(TInstant::Now() - startTime);
                 CommitTransactionErrorState_->ClearError();
@@ -145,7 +145,7 @@ TError TTransactionManager::DoCommitWithRetriesSync(TDynamicRetryableRequestSpec
                 lastError = exception.Error();
 
                 if (!IsFlowRetriableError(lastError)) {
-                    return enrichError(TError("Commit attempt failed, error is not retryable")) << lastError;
+                    return enrichError(TError("Commit attempt failed, error is not retryable")).With(lastError);
                 }
 
                 if (!backoffStrategy.Next()) {
@@ -308,7 +308,7 @@ TFuture<std::optional<NTransactionClient::TTimestamp>> TTransactionManager::Load
         }
         return MakeFuture<std::optional<NTransactionClient::TTimestamp>>(
             TError(error.GetCode(), "Failed to load last success transaction start timestamp")
-            << error);
+                .With(error));
     };
 
     return Context_->Client->LookupRows(PartitionTransactionsPath_.GetPath(), nameTable, range, lookupRowsOptions)

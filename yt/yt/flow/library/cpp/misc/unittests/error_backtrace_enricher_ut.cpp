@@ -123,7 +123,7 @@ TEST(TErrorBacktraceEnricherTest, CheckLevel)
     TError canceledError = TError(NYT::EErrorCode::Canceled, "Canceled");
     TError canceledNotTrivialError = TError(NYT::EErrorCode::Canceled, "Canceled because this and this");
     TError stdExceptionError = TError(std::runtime_error("std::runtime_error"));
-    TError goodError = TError(NYT::EErrorCode::Timeout, "request time out") << TErrorAttribute("table_path", "path");
+    TError goodError = TError(NYT::EErrorCode::Timeout, "request time out").With("table_path", "path");
 
     // EnabledForAll, Disabled.
     for (const auto& error : {genericError, canceledError, canceledNotTrivialError, stdExceptionError, goodError}) {
@@ -140,11 +140,11 @@ TEST(TErrorBacktraceEnricherTest, CheckLevel)
     // EnabledForTrivialErrors. Also check wrapped errors here.
     for (const auto& error : {genericError, canceledError, stdExceptionError}) {
         EXPECT_TRUE(CheckLevel(error, EBacktraceEnricherLevel::EnabledForTrivialErrors)) << "error=" << ToString(error);
-        EXPECT_TRUE(CheckLevel(TError("wrapper") << error, EBacktraceEnricherLevel::EnabledForTrivialErrors)) << "error=" << ToString(error);
+        EXPECT_TRUE(CheckLevel(TError("wrapper").With(error), EBacktraceEnricherLevel::EnabledForTrivialErrors)) << "error=" << ToString(error);
     }
     for (const auto& error : {canceledNotTrivialError, goodError}) {
         EXPECT_FALSE(CheckLevel(error, EBacktraceEnricherLevel::EnabledForTrivialErrors)) << "error=" << ToString(error);
-        EXPECT_FALSE(CheckLevel(TError("wrapper") << error, EBacktraceEnricherLevel::EnabledForTrivialErrors)) << "error=" << ToString(error);
+        EXPECT_FALSE(CheckLevel(TError("wrapper").With(error), EBacktraceEnricherLevel::EnabledForTrivialErrors)) << "error=" << ToString(error);
     }
 }
 

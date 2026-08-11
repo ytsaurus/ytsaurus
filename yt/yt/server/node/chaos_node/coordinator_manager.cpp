@@ -457,25 +457,25 @@ private:
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutNotFound,
                 "Shortcut for replication card is not found")
-                << TErrorAttribute("chaos_object_type", TypeFromId(replicationCardId))
-                << TErrorAttribute("chaos_object_id", replicationCardId);
+                .With("chaos_object_type", TypeFromId(replicationCardId))
+                .With("chaos_object_id", replicationCardId);
         }
         if (it->second.State != EShortcutState::Granted) {
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutRevoked,
                 "Shortcut for replication card has been revoked")
-                << TErrorAttribute("chaos_object_type", TypeFromId(replicationCardId))
-                << TErrorAttribute("chaos_object_id", replicationCardId)
-                << TErrorAttribute("shortcut_state", it->second.State);
+                .With("chaos_object_type", TypeFromId(replicationCardId))
+                .With("chaos_object_id", replicationCardId)
+                .With("shortcut_state", it->second.State);
         }
         if (it->second.Era != era) {
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ShortcutHasDifferentEra,
                 "Shortcut for replication card has different era")
-                << TErrorAttribute("chaos_object_type", TypeFromId(replicationCardId))
-                << TErrorAttribute("chaos_object_id", replicationCardId)
-                << TErrorAttribute("shortcut_era", it->second.Era)
-                << TErrorAttribute("replication_card_era", era);
+                .With("chaos_object_type", TypeFromId(replicationCardId))
+                .With("chaos_object_id", replicationCardId)
+                .With("shortcut_era", it->second.Era)
+                .With("replication_card_era", era);
         }
 
         auto transactionId = transaction->GetId();
@@ -490,24 +490,24 @@ private:
                 THROW_ERROR_EXCEPTION(
                     NChaosClient::EErrorCode::ShortcutNotFound,
                     "Shortcut for chaos lease is not found")
-                    << TErrorAttribute("chaos_object_type", TypeFromId(chaosLeaseId))
-                    << TErrorAttribute("chaos_object_id", chaosLeaseId);
+                    .With("chaos_object_type", TypeFromId(chaosLeaseId))
+                    .With("chaos_object_id", chaosLeaseId);
             }
 
             if (leaseIt->second.State != EShortcutState::Granted) {
                 THROW_ERROR_EXCEPTION(
                     NChaosClient::EErrorCode::ShortcutRevoked,
                     "Shortcut for chaos lease has been revoked")
-                    << TErrorAttribute("chaos_object_type", TypeFromId(chaosLeaseId))
-                    << TErrorAttribute("chaos_object_id", chaosLeaseId)
-                    << TErrorAttribute("shortcut_state", leaseIt->second.State);
+                    .With("chaos_object_type", TypeFromId(chaosLeaseId))
+                    .With("chaos_object_id", chaosLeaseId)
+                    .With("shortcut_state", leaseIt->second.State);
             }
 
             if (leaseIt->second.AliveTransactions.contains(transactionId)) {
                 THROW_ERROR_EXCEPTION(
                     "Transaction already prepared for chaos lease")
-                    << TErrorAttribute("chaos_object_id", chaosLeaseId)
-                    << TErrorAttribute("transaction_id", transactionId);
+                    .With("chaos_object_id", chaosLeaseId)
+                    .With("transaction_id", transactionId);
             }
         }
 

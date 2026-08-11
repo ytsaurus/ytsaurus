@@ -277,7 +277,7 @@ private:
             THROW_ERROR_EXCEPTION("%v failed: %Qv",
                 stage,
                 LastSystemErrorText())
-                << TErrorAttribute("driver_config", Options_.Config);
+                .With("driver_config", Options_.Config);
         }
     }
 };
@@ -799,7 +799,7 @@ private:
             THROW_ERROR_EXCEPTION("Uring %v failed: %Qv",
                 stage,
                 LastSystemErrorText(-err))
-                << TErrorAttribute("driver_config", Options_.Config);
+                .With("driver_config", Options_.Config);
         }
     }
 };

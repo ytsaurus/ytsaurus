@@ -67,7 +67,7 @@ template <class TResponse>
 TError TRequestSession<TResponse>::CreateError()
 {
     TGuard errorsGuard(ErrorsLock_);
-    return TError("There are not enough healthy servers known") << Errors_;
+    return TError("There are not enough healthy servers known").With(Errors_);
 }
 
 template <class TResponse>

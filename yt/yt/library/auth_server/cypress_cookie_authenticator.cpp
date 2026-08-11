@@ -73,7 +73,7 @@ public:
                     return TError(
                         NRpc::EErrorCode::InvalidCredentials,
                         "Unknown credentials")
-                        << resultOrError;
+                        .With(resultOrError);
                 }
 
                 return resultOrError;
@@ -120,15 +120,15 @@ private:
         if (cookie->PasswordRevision != passwordRevision) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                 "Native cookie was issued for previous password revision")
-                << TErrorAttribute("cookie_password_revision", cookie->PasswordRevision)
-                << TErrorAttribute("password_revision", passwordRevision);
+                .With("cookie_password_revision", cookie->PasswordRevision)
+                .With("password_revision", passwordRevision);
         }
 
         auto now = TInstant::Now();
         if (cookie->ExpiresAt < now) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                 "Native cookie expired")
-                << TErrorAttribute("cookie_expiration_time", cookie->ExpiresAt);
+                .With("cookie_expiration_time", cookie->ExpiresAt);
         }
 
         const auto& user = cookie->User;

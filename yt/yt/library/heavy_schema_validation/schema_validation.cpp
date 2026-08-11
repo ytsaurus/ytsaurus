@@ -141,11 +141,11 @@ static void ValidateColumnRemoval(
         };
         if (!isTableDynamic && !enabledFeatures.EnableStaticTableDropColumn) {
             THROW_ERROR_EXCEPTION("Deleting columns is not allowed on a static table")
-                << getDeletedColumnNamesAttribute();
+                .With(getDeletedColumnNamesAttribute());
         }
         if (isTableDynamic && !enabledFeatures.EnableDynamicTableDropColumn) {
             THROW_ERROR_EXCEPTION("Deleting columns is not allowed on a dynamic table")
-                << getDeletedColumnNamesAttribute();
+                .With(getDeletedColumnNamesAttribute());
         }
     }
     for (const auto& oldDeletedColumn : oldSchema.DeletedColumns()) {
@@ -249,7 +249,7 @@ static void ValidateKeyColumnWasNotAlteredToAny(const TTableSchema& oldSchema, c
 
         if ((oldType != EValueType::Any) && (newType == EValueType::Any)) {
             THROW_ERROR_EXCEPTION("Altering a key column type to \"any\" is forbidden")
-                << TErrorAttribute("column_name", oldColumn.StableName());
+                .With("column_name", oldColumn.StableName());
         }
     }
 }
@@ -391,9 +391,9 @@ void ValidateTableSchemaUpdateInternal(
         ValidateTableSchemaHeavy(newSchema, isTableDynamic, options);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::InvalidSchemaValue, "New table schema is not valid")
-            << TErrorAttribute("old_schema", oldSchema)
-            << TErrorAttribute("new_schema", newSchema)
-            << ex;
+            .With("old_schema", oldSchema)
+            .With("new_schema", newSchema)
+            .With(ex);
     }
 
     try {
@@ -457,9 +457,9 @@ void ValidateTableSchemaUpdateInternal(
         ValidateNoRequiredColumnsAdded(oldSchema, newSchema);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Table schemas are incompatible")
-            << TErrorAttribute("old_schema", oldSchema)
-            << TErrorAttribute("new_schema", newSchema)
-            << ex;
+            .With("old_schema", oldSchema)
+            .With("new_schema", newSchema)
+            .With(ex);
     }
 }
 
@@ -513,8 +513,8 @@ TError ValidateComputedColumnsCompatibility(
                 THROW_ERROR_EXCEPTION("Computed column %v has different expressions in input "
                     "and output schemas",
                     outputColumn.GetDiagnosticNameString())
-                    << TErrorAttribute("input_schema_expression", inputColumn->Expression())
-                    << TErrorAttribute("output_schema_expression", outputColumn.Expression());
+                    .With("input_schema_expression", inputColumn->Expression())
+                    .With("output_schema_expression", outputColumn.Expression());
             }
             if (*outputColumn.LogicalType() != *inputColumn->LogicalType()) {
                 THROW_ERROR_EXCEPTION("Computed column %v type in the input table %Qlv "
@@ -526,8 +526,8 @@ TError ValidateComputedColumnsCompatibility(
         }
     } catch (const TErrorException& exception) {
         return exception.Error()
-            << TErrorAttribute("input_table_schema", inputSchema)
-            << TErrorAttribute("output_table_schema", outputSchema);
+            .With("input_table_schema", inputSchema)
+            .With("output_table_schema", outputSchema);
     }
 
     return TError();
@@ -563,7 +563,7 @@ static void ValidateAllConstrainedColumnsExist(
     for (const auto& [column, constraint] : constraints) {
         if (!schema.FindColumnByStableName(column)) {
             THROW_ERROR_EXCEPTION("Constraint for unknown column %Qv was found", column)
-                << TErrorAttribute("constraint", constraint);
+                .With("constraint", constraint);
         }
     }
 }
@@ -587,8 +587,8 @@ static void ValidateConstraintsCompatibility(
         auto it = oldConstraints.find(column);
         if (it != oldConstraints.end() && it->second != constraint) {
             THROW_ERROR_EXCEPTION("Constraint for column %Qv cannot be changed", column)
-                << TErrorAttribute("old_constraint", it->second)
-                << TErrorAttribute("new_constraint", constraint);
+                .With("old_constraint", it->second)
+                .With("new_constraint", constraint);
         }
     }
 
@@ -608,10 +608,10 @@ static void ValidateConstraintsCompatibility(
 
         if (typeChanged) {
             THROW_ERROR_EXCEPTION("Altering type for constrained column is forbidden")
-                << TErrorAttribute("column_name", column)
-                << TErrorAttribute("old_type", oldType)
-                << TErrorAttribute("new_type", newType)
-                << TErrorAttribute("column_constraint", constraint);
+                .With("column_name", column)
+                .With("old_type", oldType)
+                .With("new_type", newType)
+                .With("column_constraint", constraint);
         }
     }
 }
@@ -622,8 +622,8 @@ void ValidateConstraintsMatch(
 {
     if (schema.ColumnToConstraint() != constraints) {
         THROW_ERROR_EXCEPTION("Received conflicting constraints")
-            << TErrorAttribute("schema_constraints", schema.ColumnToConstraint())
-            << TErrorAttribute("constraints", constraints);
+            .With("schema_constraints", schema.ColumnToConstraint())
+            .With("constraints", constraints);
     }
 }
 

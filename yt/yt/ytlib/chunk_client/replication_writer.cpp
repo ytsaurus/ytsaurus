@@ -678,8 +678,8 @@ private:
             YT_UNUSED_FUTURE(CancelWriter());
             THROW_ERROR_EXCEPTION("Not enough target nodes to write blob chunk %v",
                 SessionId_)
-                << TErrorAttribute("upload_replication_factor", UploadReplicationFactor_)
-                << ex;
+                .With("upload_replication_factor", UploadReplicationFactor_)
+                .With(ex);
         }
 
         if (Config_->TestingDelay) {
@@ -725,7 +725,7 @@ private:
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::MasterCommunicationFailed,
                 "Failed to allocate write targets, retry count limit exceeded")
-                << TErrorAttribute("retry_count", Config_->AllocateWriteTargetsRetryCount);
+                .With("retry_count", Config_->AllocateWriteTargetsRetryCount);
         }
 
         auto delayTime = TInstant::Now() - AllocateWriteTargetsTimestamp_;
@@ -821,7 +821,7 @@ private:
 
         auto wrappedError = TError("Node %v failed",
             node->GetDefaultAddress())
-            << error;
+            .With(error);
         YT_LOG_ERROR(wrappedError);
 
         if (Config_->BanFailedNodes) {
@@ -1508,7 +1508,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
                     return TError(
                         NChunkClient::EErrorCode::ReaderThrottlingFailed,
                         "Failed to throttle bandwidth in writer")
-                        << error;
+                        .With(error);
                 } else {
                     return TError{};
                 }

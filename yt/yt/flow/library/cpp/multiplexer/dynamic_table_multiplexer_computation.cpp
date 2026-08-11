@@ -33,8 +33,8 @@ std::pair<NTableClient::TTableSchemaPtr, std::vector<std::string>> SplitTableSch
 {
     if (std::ssize(tableSchema.Columns()) <= std::ssize(groupBySchema.Columns())) {
         THROW_ERROR_EXCEPTION("Table schema has fewer columns than group_by_schema")
-            << TErrorAttribute("table_columns", tableSchema.GetColumnCount())
-            << TErrorAttribute("group_by_columns", groupBySchema.GetColumnCount());
+            .With("table_columns", tableSchema.GetColumnCount())
+            .With("group_by_columns", groupBySchema.GetColumnCount());
     }
 
     for (int i = 0; i < std::ssize(groupBySchema.Columns()); ++i) {

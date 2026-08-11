@@ -120,7 +120,7 @@ public:
             AbsorbMetas();
         } catch (const std::exception& ex) {
             YT_LOG_INFO(TError(ex), "Error absorbing metas");
-            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::ShallowMergeFailed, "Shallow merge failed") << ex;
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::ShallowMergeFailed, "Shallow merge failed").With(ex);
         }
 
         YT_LOG_DEBUG("Shallow merging blocks");
@@ -156,7 +156,7 @@ public:
     void Interrupt() override
     {
         THROW_ERROR_EXCEPTION("Interrupting is not supported for this type of jobs")
-            << TErrorAttribute("job_type", NJobTrackerClient::EJobType::ShallowMerge);
+            .With("job_type", NJobTrackerClient::EJobType::ShallowMerge);
     }
 
     double GetProgress() const override
@@ -348,8 +348,8 @@ private:
             };
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to build chunk state")
-                << ex
-                << TErrorAttribute("chunk_id", chunkSpec.chunk_id());
+                .With(ex)
+                .With("chunk_id", chunkSpec.chunk_id());
         }
     }
 
@@ -532,9 +532,9 @@ private:
                     ProcessedBlocksSize_ += block.Size();
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Failed to process block")
-                        << ex
-                        << TErrorAttribute("input_chunk_id", chunkState.ChunkId)
-                        << TErrorAttribute("input_block_index", blockIndex);
+                        .With(ex)
+                        .With("input_chunk_id", chunkState.ChunkId)
+                        .With("input_block_index", blockIndex);
                 }
             }
         }

@@ -70,7 +70,7 @@ public:
         if (clockClusterTag != NativeCellTag_ && clockClusterTag != InvalidCellTag)
         {
             THROW_ERROR_EXCEPTION("%v: clock source is configured to non-native clock", message)
-                << TErrorAttribute("clock_cluster_tag", clockClusterTag);
+                .With("clock_cluster_tag", clockClusterTag);
         }
     }
 

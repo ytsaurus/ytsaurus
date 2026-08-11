@@ -171,8 +171,8 @@ private:
             auto currentPath = cypressManager->GetNodePath(table, nullptr);
             if (path != currentPath) {
                 THROW_ERROR_EXCEPTION("%v path mismatch", table->GetCapitalizedObjectName())
-                    << TErrorAttribute("requested_path", path)
-                    << TErrorAttribute("resolved_path", currentPath);
+                    .With("requested_path", path)
+                    .With("resolved_path", currentPath);
             }
 
             ValidateUsePermissionOnCellBundle(table);

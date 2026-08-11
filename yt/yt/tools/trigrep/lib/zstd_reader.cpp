@@ -78,7 +78,7 @@ private:
             returnCode = ::ZSTD_decompressStream(ZstdContext_.get(), &zstdOutBuffer, &zstdInBuffer);
             if (::ZSTD_isError(returnCode)) {
                 THROW_ERROR_EXCEPTION("Error decompressing Zstd frame")
-                    << TError("%v", ::ZSTD_getErrorName(returnCode));
+                    .With(TError("%v", ::ZSTD_getErrorName(returnCode)));
             }
             if (returnCode == 0) {
                 ZSTD_initDStream(ZstdContext_.get());

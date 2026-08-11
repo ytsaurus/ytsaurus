@@ -181,8 +181,8 @@ public:
                 if (pollResult.FindMatching(NYT::EErrorCode::Timeout)) {
                     if (shell->Terminated()) {
                         THROW_ERROR_EXCEPTION(NShell::EErrorCode::ShellExited, "Shell exited")
-                            << TErrorAttribute("shell_id", parameters.ShellId)
-                            << TErrorAttribute("shell_index", parameters.ShellIndex);
+                            .With("shell_id", parameters.ShellId)
+                            .With("shell_index", parameters.ShellIndex);
                     }
                     resultValue.Output = "";
                     break;
@@ -191,15 +191,15 @@ public:
                     THROW_ERROR_EXCEPTION(
                         EErrorCode::ShellManagerShutDown,
                         "Shell manager was shut down")
-                        << TErrorAttribute("shell_id", parameters.ShellId)
-                        << TErrorAttribute("shell_index", parameters.ShellIndex)
-                        << pollResult;
+                        .With("shell_id", parameters.ShellId)
+                        .With("shell_index", parameters.ShellIndex)
+                        .With(pollResult);
                 }
                 if (!pollResult.IsOK() || pollResult.Value().Empty()) {
                     THROW_ERROR_EXCEPTION(NShell::EErrorCode::ShellExited, "Shell exited")
-                        << TErrorAttribute("shell_id", parameters.ShellId)
-                        << TErrorAttribute("shell_index", parameters.ShellIndex)
-                        << pollResult;
+                        .With("shell_id", parameters.ShellId)
+                        .With("shell_index", parameters.ShellIndex)
+                        .With(pollResult);
                 }
                 resultValue.Output = ToString(pollResult.Value());
                 break;

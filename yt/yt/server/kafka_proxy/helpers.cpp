@@ -186,8 +186,8 @@ TErrorOr<TRecordBatch> ConvertGenericQueueRowsToRecordBatch(
                 if (column.Name() == TimestampColumnName) {
                     if (value.Type != EValueType::Uint64) {
                         THROW_ERROR_EXCEPTION("Unexpected type of timestamp column")
-                            << TErrorAttribute("actual_type", value.Type)
-                            << TErrorAttribute("expected_type", EValueType::Uint64);
+                            .With("actual_type", value.Type)
+                            .With("expected_type", EValueType::Uint64);
                     }
                     rowTimestamp = static_cast<i64>(value.Data.Uint64 / 1'000); // Convert to milliseconds.
 

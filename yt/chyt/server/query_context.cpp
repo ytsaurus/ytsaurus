@@ -597,8 +597,8 @@ void TQueryContext::InitializeQueryWriteTransaction()
         THROW_ERROR_EXCEPTION(
             "Unexpected transaction initialization; "
             "this is a bug; please, file an issue in CHYT queue")
-            << TErrorAttribute("transaction_id", WriteTransactionId)
-            << TErrorAttribute("query_kind", QueryKind);
+            .With("transaction_id", WriteTransactionId)
+            .With("query_kind", QueryKind);
     }
     InitialQueryWriteTransaction_ = WaitFor(Client()->StartNativeTransaction(
         ETransactionType::Master,

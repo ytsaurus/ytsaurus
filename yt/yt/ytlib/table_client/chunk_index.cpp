@@ -107,8 +107,8 @@ THashTableChunkIndexFormatDetail::THashTableChunkIndexFormatDetail(
 
     if (SectorDataSize < EntryByteSize_) {
         THROW_ERROR_EXCEPTION("Cannot build hash table chunk index for specified format parameters")
-            << TErrorAttribute("entry_byte_size", EntryByteSize_)
-            << TErrorAttribute("sector_data_size", SectorDataSize);
+            .With("entry_byte_size", EntryByteSize_)
+            .With("sector_data_size", SectorDataSize);
     }
 
     SlotCountInSector_ = SectorDataSize / EntryByteSize_;

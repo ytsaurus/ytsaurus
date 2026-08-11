@@ -196,7 +196,7 @@ Py::Object DumpSkiff(Py::Tuple& args, Py::Dict& kwargs)
             tableIndex = switcher.getCxxObject()->GetTableIndex();
             if (tableIndex >= schemaObjects.size()) {
                 THROW_ERROR_EXCEPTION("Invalid table index")
-                    << TErrorAttribute("table_index", tableIndex);
+                    .With("table_index", tableIndex);
             }
             continue;
         }

@@ -408,8 +408,8 @@ TFuture<void> TCompanionClient::RemoveJob(const TJobId& jobId)
         auto responseStatus = static_cast<ECompanionResponseStatus>(response->status());
         if (responseStatus != ECompanionResponseStatus::Ok) {
             THROW_ERROR_EXCEPTION("Companion failed to remove job")
-                << TErrorAttribute("job_id", jobId)
-                << TErrorAttribute("status", responseStatus);
+                .With("job_id", jobId)
+                .With("status", responseStatus);
         }
     }));
 }
@@ -427,7 +427,7 @@ TFuture<TCompanionJobList> TCompanionClient::ListJobs()
         auto responseStatus = static_cast<ECompanionResponseStatus>(response->status());
         if (responseStatus != ECompanionResponseStatus::Ok) {
             THROW_ERROR_EXCEPTION("Companion failed to list jobs")
-                << TErrorAttribute("status", responseStatus);
+                .With("status", responseStatus);
         }
         return TCompanionJobList{
             .JobIds = FromProto<std::vector<TJobId>>(response->job_ids()),

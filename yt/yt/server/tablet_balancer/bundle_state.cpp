@@ -160,7 +160,7 @@ TBundleAttributes ParseBundleAttributes(const IAttributeDictionary* attributes, 
             THROW_ERROR_EXCEPTION(
                 NTabletBalancer::EErrorCode::IncorrectConfig,
                 "Bundle has unparsable tablet balancer config")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -1092,7 +1092,7 @@ TBundleSnapshotPtr TBundleState::DoGetBundleSnapshotWithReplicaBalancingStatisti
                 bundleSnapshot->NonFatalError = TError(
                     NTabletBalancer::EErrorCode::StatisticsFetchFailed,
                     "Replica statistics fetch failed")
-                    << ex;
+                    .With(ex);
             }
         }
     }
@@ -1837,7 +1837,7 @@ void TBundleState::FetchReplicaStatistics(
         if (!allowedReplicaClusters.contains(cluster)) {
             THROW_ERROR_EXCEPTION("Table replicas from cluster %Qv are not allowed",
                 cluster)
-                << TErrorAttribute("allowed_replica_clusters", allowedReplicaClusters);
+                .With("allowed_replica_clusters", allowedReplicaClusters);
         }
 
         if (replicaClustersToIgnore.contains(cluster)) {
@@ -2046,8 +2046,8 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
         THROW_ERROR_EXCEPTION(
             "Failed to fetch statistics for some nodes of bundle %Qv",
             Name_)
-            << TErrorAttribute("fetched_count", std::ssize(nodeStatistics))
-            << TErrorAttribute("expected_count", std::ssize(addresses));
+            .With("fetched_count", std::ssize(nodeStatistics))
+            .With("expected_count", std::ssize(addresses));
     }
 
     return nodeStatistics;
@@ -2322,7 +2322,7 @@ void TBundleState::FetchReplicaModes(
         if (!allowedReplicaClusters.contains(*clusterName)) {
             THROW_ERROR_EXCEPTION("Table replicas from cluster %Qv are not allowed",
                 clusterName)
-                << TErrorAttribute("allowed_replica_clusters", allowedReplicaClusters);
+                .With("allowed_replica_clusters", allowedReplicaClusters);
         }
 
         if (replicaClustersToIgnore.contains(*clusterName)) {
@@ -2541,8 +2541,8 @@ THashSet<TTableId> TBundleState::GetReplicaBalancingMajorTables(const TTabletCel
                 THROW_ERROR_EXCEPTION(
                     "Wrong parameterized replica balancing configuration. "
                     "The list of replica clusters must contain current cluster name")
-                    << TErrorAttribute("replica_clusters", replicaClusters)
-                    << TErrorAttribute("current_cluster_name", SelfClusterName_);
+                    .With("replica_clusters", replicaClusters)
+                    .With("current_cluster_name", SelfClusterName_);
             }
             majorTableIds.insert(id);
         }

@@ -25,9 +25,9 @@ void ValidateBlockRequest(i64 offset, i64 length, const TBlockDeviceGeometry& ge
     THROW_ERROR_EXCEPTION_UNLESS(
         offset >= 0 && length >= 0 && offset + length <= geometry.GetByteSize(),
         TError("Request is out of device bounds")
-            << TErrorAttribute("offset", offset)
-            << TErrorAttribute("length", length)
-            << TErrorAttribute("device_size", geometry.GetByteSize()));
+            .With("offset", offset)
+            .With("length", length)
+            .With("device_size", geometry.GetByteSize()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

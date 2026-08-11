@@ -176,7 +176,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto constrainedSchema = combinedAttributes->FindAndRemove<TConstrainedTableSchema>("schema");
     if (constrainedSchema && !constrainedSchema->ColumnToConstraint().empty()) {
         THROW_ERROR_EXCEPTION("Cannot specify constraints in \"schema\" option, use \"constrained_schema\" instead")
-            << TErrorAttribute("constraints", constrainedSchema->ColumnToConstraint());
+            .With("constraints", constrainedSchema->ColumnToConstraint());
     }
     auto tableSchema = constrainedSchema ? New<TCompactTableSchema>(constrainedSchema->TableSchema()) : nullptr;
     auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
@@ -200,7 +200,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     if ((constraints || constrainedSchema) && !effectiveTableSchema) {
         THROW_ERROR_EXCEPTION("Cannot create table with constraints and without schema")
-            << TErrorAttribute("constraints", constraints);
+            .With("constraints", constraints);
     }
     std::optional<NTableClient::TColumnStableNameToConstraintMap> effectiveConstraints;
     TTableSchemaPtr schema;

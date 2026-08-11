@@ -265,7 +265,7 @@ private:
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error creating proxy node %v", ProxyPath_)
-                << ex;
+                .With(ex);
         }
 
         YT_LOG_INFO("Proxy node created (Path: %v)", ProxyPath_);
@@ -326,7 +326,7 @@ private:
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating proxy liveness")
-                << ex;
+                .With(ex);
         }
 
         LastSuccessTimestamp_.store(Now());

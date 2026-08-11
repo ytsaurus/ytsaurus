@@ -376,9 +376,9 @@ void ThrowUponDistributedThrottlerOverdraft(
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
             "Read request is throttled due to %Qlv throttler overdraft",
             tabletThrottlerKind)
-            << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-            << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId)
-            << TErrorAttribute("queue_total_count", distributedThrottler->GetQueueTotalAmount());
+            .With("tablet_id", tabletSnapshot->TabletId)
+            .With("read_session_id", chunkReadOptions.ReadSessionId)
+            .With("queue_total_count", distributedThrottler->GetQueueTotalAmount());
     }
 }
 
@@ -397,9 +397,9 @@ void ThrowUponNodeThrottlerOverdraft(
     if (nodeThrottler->GetEstimatedOverdraftDuration() > maxOverdraftDuration) {
         THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
             "Read request is throttled due to node throttler overdraft")
-            << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId)
-            << TErrorAttribute("queue_total_count", nodeThrottler->GetQueueTotalAmount())
-            << TErrorAttribute("max_overdraft_duration", maxOverdraftDuration);
+            .With("read_session_id", chunkReadOptions.ReadSessionId)
+            .With("queue_total_count", nodeThrottler->GetQueueTotalAmount())
+            .With("max_overdraft_duration", maxOverdraftDuration);
     }
 }
 
@@ -586,9 +586,9 @@ TStoresAndBounds GetStoresAndBounds(
 
     if (std::ssize(stores) > tabletSnapshot->Settings.MountConfig->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
-            << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-            << TErrorAttribute("fan_in", std::ssize(stores))
-            << TErrorAttribute("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
+            .With("tablet_id", tabletSnapshot->TabletId)
+            .With("fan_in", std::ssize(stores))
+            .With("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
     }
 
     return {std::move(stores), std::move(boundsPerStore)};
@@ -761,9 +761,9 @@ ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
 
     if (std::ssize(stores) > tabletSnapshot->Settings.MountConfig->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
-            << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-            << TErrorAttribute("fan_in", std::ssize(stores))
-            << TErrorAttribute("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
+            .With("tablet_id", tabletSnapshot->TabletId)
+            .With("fan_in", std::ssize(stores))
+            .With("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
     }
 
     TUnversionedRow lowerBound;
@@ -868,9 +868,9 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
 
     if (std::ssize(stores) > tabletSnapshot->Settings.MountConfig->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
-            << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-            << TErrorAttribute("fan_in", stores.size())
-            << TErrorAttribute("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
+            .With("tablet_id", tabletSnapshot->TabletId)
+            .With("fan_in", stores.size())
+            .With("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
     }
 
     YT_LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "

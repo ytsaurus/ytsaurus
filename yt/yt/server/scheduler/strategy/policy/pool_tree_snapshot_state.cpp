@@ -128,10 +128,10 @@ TError TPoolTreeSnapshotStateImpl::CheckIsOperationStuck(
             deactivationCount > options->MinScheduleAllocationAttempts)
         {
             return TError("Operation has no successful scheduled allocations for a long period")
-                << TErrorAttribute("period", options->SafeTimeout)
-                << TErrorAttribute("deactivation_count", deactivationCount)
-                << TErrorAttribute("last_schedule_allocation_success_time", lastScheduleAllocationSuccessTime)
-                << TErrorAttribute("starving_since", element->GetStarvingSince());
+                .With("period", options->SafeTimeout)
+                .With("deactivation_count", deactivationCount)
+                .With("last_schedule_allocation_success_time", lastScheduleAllocationSuccessTime)
+                .With("starving_since", element->GetStarvingSince());
         }
     }
 
@@ -162,8 +162,8 @@ TError TPoolTreeSnapshotStateImpl::CheckIsOperationStuck(
                 return TError(
                     "Operation has a module specified in the scheduling tag filter, which causes scheduling problems; "
                     "use \"scheduling_segment_modules\" spec option instead")
-                    << TErrorAttribute("scheduling_tag_filter", tagFilter)
-                    << TErrorAttribute("available_modules", treeSnapshot.TreeConfig()->SchedulingSegments->GetModules());
+                    .With("scheduling_tag_filter", tagFilter)
+                    .With("available_modules", treeSnapshot.TreeConfig()->SchedulingSegments->GetModules());
             }
         }
     }

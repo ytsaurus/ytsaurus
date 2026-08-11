@@ -160,9 +160,9 @@ private:
                     callId,
                     attempt);
                 auto error = TError("Blackbox call attempt %v failed", attempt)
-                    << ex
-                    << TErrorAttribute("call_id", callId)
-                    << TErrorAttribute("attempt", attempt);
+                    .With(ex)
+                    .With("call_id", callId)
+                    .With("attempt", attempt);
                 accumulatedErrors.push_back(std::move(error));
             }
 
@@ -203,9 +203,9 @@ private:
                             attempt);
                         BlackboxCallFatalErrors_.Increment();
                         THROW_ERROR_EXCEPTION("Blackbox has raised an exception")
-                            << TErrorAttribute("call_id", callId)
-                            << TErrorAttribute("attempt", attempt)
-                            << blackboxError;
+                            .With("call_id", callId)
+                            .With("attempt", attempt)
+                            .With(blackboxError);
                 }
             }
 
@@ -219,8 +219,8 @@ private:
 
         BlackboxCallFatalErrors_.Increment();
         THROW_ERROR_EXCEPTION("Blackbox call failed")
-            << std::move(accumulatedErrors)
-            << TErrorAttribute("call_id", callId);
+            .With(std::move(accumulatedErrors))
+            .With("call_id", callId);
     }
 
     static NJson::TJsonFormatConfigPtr MakeJsonFormatConfig()
@@ -264,7 +264,7 @@ private:
         }
         if (!rspOrError.IsOK()) {
             onError(TError("Blackbox call failed")
-                << rspOrError);
+                .With(rspOrError));
         }
 
         const auto& rsp = rspOrError.Value();
@@ -299,13 +299,13 @@ private:
         } catch (const std::exception& ex) {
             onError(TError(
                 "Error parsing Blackbox response")
-                << ex);
+                .With(ex));
         }
 
         if (rootNode->GetType() != ENodeType::Map) {
             THROW_ERROR_EXCEPTION("Blackbox has returned an improper result")
-                << TErrorAttribute("expected_result_type", ENodeType::Map)
-                << TErrorAttribute("actual_result_type", rootNode->GetType());
+                .With("expected_result_type", ENodeType::Map)
+                .With("actual_result_type", rootNode->GetType());
         }
 
         return rootNode;

@@ -26,13 +26,13 @@ TError DoValidatePayload(
     } else {
         if (options.ExpectedSchema && schema.Get() != options.ExpectedSchema.Get() && *schema != *options.ExpectedSchema) {
             return TError("%v has unexpected value", schemaName)
-                << TErrorAttribute("schema", *schema)
-                << TErrorAttribute("expected_schema", *options.ExpectedSchema);
+                .With("schema", *schema)
+                .With("expected_schema", *options.ExpectedSchema);
         }
         if (schema->GetColumnCount() != (int)row.GetCount()) {
             return TError("%v and %v count mismatch", rowName, schemaName)
-                << TErrorAttribute("row_column_count", row.GetCount())
-                << TErrorAttribute("schema_column_count", schema->GetColumnCount());
+                .With("row_column_count", row.GetCount())
+                .With("schema_column_count", schema->GetColumnCount());
         }
     }
 
@@ -40,8 +40,8 @@ TError DoValidatePayload(
         const auto& value = row[index];
         if (index != value.Id) {
             return TError("Value id and index mismatch in %v", rowName)
-                << TErrorAttribute("value_id", static_cast<int>(value.Id))
-                << TErrorAttribute("value_index", index);
+                .With("value_id", static_cast<int>(value.Id))
+                .With("value_index", index);
         }
         if (schema && index >= schema->Columns().size()) {
             return TError("Value index is out of bounds of %v", schemaName);

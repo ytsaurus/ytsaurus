@@ -162,7 +162,7 @@ private:
     void OnLocalChangelogAcquired(const TError& error)
     {
         if (!error.IsOK()) {
-            NewChangelogPromise_.TrySet(TError("Error acquiring local changelog") << error);
+            NewChangelogPromise_.TrySet(TError("Error acquiring local changelog").With(error));
             return;
         }
 
@@ -195,7 +195,7 @@ private:
         NewChangelogPromise_.TrySet(TError("Not enough successful replies: %v out of %v",
             SuccessCount_,
             EpochContext_->CellManager->GetTotalPeerCount())
-            << TErrorAttribute("local_changelog_acquisition_succeeded", LocalSucceeded_));
+            .With("local_changelog_acquisition_succeeded", LocalSucceeded_));
     }
 };
 

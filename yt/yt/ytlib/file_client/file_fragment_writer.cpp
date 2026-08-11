@@ -192,7 +192,7 @@ private:
 
         if (!underlyingWriterCloseError.IsOK()) {
             THROW_ERROR_EXCEPTION("Error closing underlying chunk writer")
-                << underlyingWriterCloseError;
+                .With(underlyingWriterCloseError);
         }
 
         Closed_ = true;

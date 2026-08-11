@@ -281,7 +281,7 @@ private:
 
             if (!isWritten) {
                 THROW_ERROR_EXCEPTION("Cannot write rows to dynamic table %Qv: all retries failed", Path_.GetPath())
-                    << errors;
+                    .With(errors);
             }
         }
     }

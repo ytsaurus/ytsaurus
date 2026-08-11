@@ -67,10 +67,10 @@ public:
                     }
 
                     THROW_ERROR_EXCEPTION("Error polling job shell")
-                        << TErrorAttribute("job_id", JobId_)
-                        << TErrorAttribute("shell_name", ShellName_)
-                        << TErrorAttribute("shell_id", ShellId_)
-                        << error;
+                        .With("job_id", JobId_)
+                        .With("shell_name", ShellName_)
+                        .With("shell_id", ShellId_)
+                        .With(error);
                 }
 
                 const auto& rsp = rspOrError.Value();
@@ -81,9 +81,9 @@ public:
 
                 if (!output) {
                     THROW_ERROR_EXCEPTION("No output from job shell")
-                        << TErrorAttribute("job_id", JobId_)
-                        << TErrorAttribute("shell_name", ShellName_)
-                        << TErrorAttribute("shell_id", ShellId_);
+                        .With("job_id", JobId_)
+                        .With("shell_name", ShellName_)
+                        .With("shell_id", ShellId_);
                 }
 
                 return TSharedRef::FromString(*output);
@@ -125,7 +125,7 @@ void RequestJobInterruption(
     if (!rspOrError.IsOK()) {
         if (IsRevivalError(rspOrError)) {
             THROW_ERROR_EXCEPTION("Failed to interrupt job")
-                << MakeRevivalError(operationId, jobId);
+                .With(MakeRevivalError(operationId, jobId));
         }
 
         THROW_ERROR_EXCEPTION(
@@ -141,8 +141,8 @@ void RequestJobAbort(
     const std::string& user)
 {
     auto error = TError("Job aborted by user request")
-        << TErrorAttribute("abort_reason", NScheduler::EAbortReason::UserRequest)
-        << TErrorAttribute("user", user);
+        .With("abort_reason", NScheduler::EAbortReason::UserRequest)
+        .With("user", user);
 
     auto req = jobProberProxy.Abort();
     ToProto(req->mutable_job_id(), jobId);
@@ -194,7 +194,7 @@ void TClient::DoAbandonJob(
     if (!error.IsOK()) {
         if (IsRevivalError(error)) {
             THROW_ERROR_EXCEPTION("Failed to abandon job")
-                << MakeRevivalError(allocationBriefInfo.OperationId, jobId);
+                .With(MakeRevivalError(allocationBriefInfo.OperationId, jobId));
         }
         THROW_ERROR(error);
     }
@@ -236,10 +236,10 @@ TPollJobShellResponse TClient::DoPollJobShell(
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Error polling job shell")
-            << TErrorAttribute("job_id", jobId)
-            << TErrorAttribute("shell_name", shellName)
-            << TErrorAttribute("subcontainer", jobShellDescriptor.Subcontainer)
-            << rspOrError;
+            .With("job_id", jobId)
+            .With("shell_name", shellName)
+            .With("subcontainer", jobShellDescriptor.Subcontainer)
+            .With(rspOrError);
     }
 
     const auto& rsp = rspOrError.Value();

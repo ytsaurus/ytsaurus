@@ -105,8 +105,8 @@ public:
 
         if (LastCommitTimestamp_ > startTimestamp) {
             return TError("Lock conflict due to concurrent bulk insert")
-                << TErrorAttribute("transaction_start_timestamp", startTimestamp)
-                << TErrorAttribute("bulk_insert_commit_timestamp", LastCommitTimestamp_);
+                .With("transaction_start_timestamp", startTimestamp)
+                .With("bulk_insert_commit_timestamp", LastCommitTimestamp_);
         }
 
         return {};

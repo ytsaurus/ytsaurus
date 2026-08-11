@@ -40,8 +40,8 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const st
 
     if (name.length() > MaxNameLength_) {
         THROW_ERROR_EXCEPTION("Name is too long for an object of type %Qv", this->GetType())
-            << TErrorAttribute("length", name.length())
-            << TErrorAttribute("max_length", MaxNameLength_);
+            .With("length", name.length())
+            .With("max_length", MaxNameLength_);
     }
 
     static NRe2::TRe2Ptr regex = New<NRe2::TRe2>(NameRegex_);

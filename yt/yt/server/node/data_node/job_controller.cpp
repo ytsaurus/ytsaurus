@@ -339,7 +339,7 @@ private:
 
         if (job->GetState() == EJobState::Waiting) {
             job->Abort(TError(NExecNode::EErrorCode::WaitingJobTimeout, "Job waiting has timed out")
-                << TErrorAttribute("timeout", waitingJobTimeout));
+                .With("timeout", waitingJobTimeout));
         }
     }
 

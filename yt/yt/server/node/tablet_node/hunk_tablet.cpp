@@ -206,7 +206,7 @@ THunkStorePtr THunkTablet::GetStoreOrThrow(TStoreId storeId)
         return store;
     } else {
         THROW_ERROR_EXCEPTION("No such store %v", storeId)
-            << TErrorAttribute("store_id", storeId);
+            .With("store_id", storeId);
     }
 }
 
@@ -454,7 +454,7 @@ void THunkTablet::ValidateMounted(NHydra::TRevision mountRevision) const
             NTabletClient::EErrorCode::TabletNotMounted,
             "Tablet %v is not mounted",
             Id_)
-            << TErrorAttribute("state", State_);
+            .With("state", State_);
     }
 
     ValidateMountRevision(mountRevision);

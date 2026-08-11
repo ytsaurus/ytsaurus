@@ -98,9 +98,9 @@ void TMediumUpdater::UpdateLocationMedia(
             alerts.push_back(TError(
                 NChunkClient::EErrorCode::LocationMediumIsMisconfigured,
                 "Location medium is misconfigured")
-                << TErrorAttribute("medium_index", location->GetMediumIndex())
-                << TErrorAttribute("medium_name", location->GetMediumName())
-                << TErrorAttribute("location_uuid", ToString(location->GetUuid())));
+                .With("medium_index", location->GetMediumIndex())
+                .With("medium_name", location->GetMediumName())
+                .With("location_uuid", ToString(location->GetUuid())));
         }
     }
 

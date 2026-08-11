@@ -15,8 +15,8 @@ void TPythonSkiffRawRecordBuilder::OnBeginRow(ui16 schemaIndex)
 {
     if (schemaIndex >= SchemaCount_) {
         THROW_ERROR_EXCEPTION("Invalid schema index")
-            << TErrorAttribute("schema_index", schemaIndex)
-            << TErrorAttribute("schema_count", SchemaCount_);
+            .With("schema_index", schemaIndex)
+            .With("schema_count", SchemaCount_);
     }
 }
 

@@ -51,7 +51,7 @@ void RunHydraTest(const std::string& configFile)
         config = New<TConfig>();
         config->Load(configNode);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading configuration") << ex;
+        THROW_ERROR_EXCEPTION("Error reading configuration").With(ex);
     }
 
     if (config->Logging) {

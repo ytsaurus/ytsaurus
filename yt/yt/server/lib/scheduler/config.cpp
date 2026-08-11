@@ -219,8 +219,8 @@ void TStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
                 auto value = config->ReserveFairResourceAmount.At(segment).GetOrDefault();
                 if (value < 0.0) {
                     THROW_ERROR_EXCEPTION("Reserve fair resource amount must not be negative")
-                        << TErrorAttribute("segment", segment)
-                        << TErrorAttribute("value", value);
+                        .With("segment", segment)
+                        .With("value", value);
                 }
 
                 continue;
@@ -236,16 +236,16 @@ void TStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
 
                 if (!configuredModules.contains(*schedulingSegmentModule)) {
                     THROW_ERROR_EXCEPTION("Reserve fair resource amount can be specified only for configured modules")
-                        << TErrorAttribute("configured_modules", configuredModules)
-                        << TErrorAttribute("specified_module", schedulingSegmentModule);
+                        .With("configured_modules", configuredModules)
+                        .With("specified_module", schedulingSegmentModule);
                 }
 
                 auto value = valuesPerModule.GetOrDefaultAt(schedulingSegmentModule);
                 if (value < 0.0) {
                     THROW_ERROR_EXCEPTION("Reserve fair resource amount must not be negative")
-                        << TErrorAttribute("segment", segment)
-                        << TErrorAttribute("module", schedulingSegmentModule)
-                        << TErrorAttribute("value", value);
+                        .With("segment", segment)
+                        .With("module", schedulingSegmentModule)
+                        .With("value", value);
                 }
             }
         }
@@ -729,13 +729,13 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([&] (TStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
-                << TErrorAttribute("aggressive_threshold", config->AggressivePreemptionSatisfactionThreshold)
-                << TErrorAttribute("threshold", config->PreemptionSatisfactionThreshold);
+                .With("aggressive_threshold", config->AggressivePreemptionSatisfactionThreshold)
+                .With("threshold", config->PreemptionSatisfactionThreshold);
         }
         if (config->FairShareAggressiveStarvationTimeout < config->FairShareStarvationTimeout) {
             THROW_ERROR_EXCEPTION("Aggressive starvation timeout must be greater than starvation timeout")
-                << TErrorAttribute("aggressive_timeout", config->FairShareAggressiveStarvationTimeout)
-                << TErrorAttribute("timeout", config->FairShareStarvationTimeout);
+                .With("aggressive_timeout", config->FairShareAggressiveStarvationTimeout)
+                .With("timeout", config->FairShareStarvationTimeout);
         }
         if (config->EnableInfiniteResourceLimitsOvercommit && !config->UsePrecommitForPreemption) {
             THROW_ERROR_EXCEPTION("Infinite resource limits overcommit requires precommit for preemption to be enabled");
@@ -754,14 +754,14 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         int quantileCount = std::ssize(config->PerPoolSatisfactionProfilingQuantiles);
         if (quantileCount > MaxPerPoolProfilingQuantileCount) {
             THROW_ERROR_EXCEPTION("Too many per pool profiling quantiles specified")
-                << TErrorAttribute("max_quantile_count", MaxPerPoolProfilingQuantileCount)
-                << TErrorAttribute("quantile_count", quantileCount);
+                .With("max_quantile_count", MaxPerPoolProfilingQuantileCount)
+                .With("quantile_count", quantileCount);
         }
 
         for (auto quantile : config->PerPoolSatisfactionProfilingQuantiles) {
             if (quantile < 0.0 || quantile > 1.0) {
                 THROW_ERROR_EXCEPTION("Per pool satisfaction profiling quantiles must be from range [0.0, 1.0]")
-                    << TErrorAttribute("out_of_range_quantile", quantile);
+                    .With("out_of_range_quantile", quantile);
             }
         }
     });
@@ -896,7 +896,7 @@ void TStrategyConfig::Register(TRegistrar registrar)
         for (const auto& [name, value] : config->TemplatePoolTreeConfigMap) {
             if (const auto [it, inserted] = priorityToName.try_emplace(value->Priority, name); !inserted) {
                 THROW_ERROR_EXCEPTION("\"template_pool_tree_config_map\" has equal priority for templates")
-                    << TErrorAttribute("template_names", std::array{it->second, TStringBuf{name}});
+                    .With("template_names", std::array{it->second, TStringBuf{name}});
             }
         }
     });
@@ -1025,15 +1025,15 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
         if (config->MaxArchivationRetrySleepDelay <= config->MinArchivationRetrySleepDelay) {
             THROW_ERROR_EXCEPTION("\"max_archivation_retry_sleep_delay\" must be greater than "
                 "\"min_archivation_retry_sleep_delay\"")
-                << TErrorAttribute("min_archivation_retry_sleep_delay", config->MinArchivationRetrySleepDelay)
-                << TErrorAttribute("max_archivation_retry_sleep_delay", config->MaxArchivationRetrySleepDelay);
+                .With("min_archivation_retry_sleep_delay", config->MinArchivationRetrySleepDelay)
+                .With("max_archivation_retry_sleep_delay", config->MaxArchivationRetrySleepDelay);
         }
 
         if (config->OperationRemovalDropTimeout <= config->OperationRemovalStuckTimeout) {
             THROW_ERROR_EXCEPTION("\"operation_removal_drop_timeout\" must be greater than "
                 "\"operation_removal_stuck_timeout\"")
-                << TErrorAttribute("operation_removal_drop_timeout", config->OperationRemovalDropTimeout)
-                << TErrorAttribute("operation_removal_stuck_timeout", config->OperationRemovalStuckTimeout);
+                .With("operation_removal_drop_timeout", config->OperationRemovalDropTimeout)
+                .With("operation_removal_stuck_timeout", config->OperationRemovalStuckTimeout);
         }
     });
 }
@@ -1414,16 +1414,16 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([&] (TThis* config) {
         if (config->SoftConcurrentHeartbeatLimit > config->HardConcurrentHeartbeatLimit) {
             THROW_ERROR_EXCEPTION("\"soft_limit\" must be less than or equal to \"hard_limit\"")
-                << TErrorAttribute("soft_limit", config->SoftConcurrentHeartbeatLimit)
-                << TErrorAttribute("hard_limit", config->HardConcurrentHeartbeatLimit);
+                .With("soft_limit", config->SoftConcurrentHeartbeatLimit)
+                .With("hard_limit", config->HardConcurrentHeartbeatLimit);
         }
 
         ValidateExperiments(config->Experiments);
 
         if (config->ExperimentAssignmentAlertDuration < 2 * config->ExperimentAssignmentErrorCheckPeriod) {
             THROW_ERROR_EXCEPTION("Experiment assignment error alert duration should be significantly longer than the corresponding check period")
-                << TErrorAttribute("experiment_assignment_alert_duration", config->ExperimentAssignmentAlertDuration)
-                << TErrorAttribute("experiment_assignment_check_period", config->ExperimentAssignmentErrorCheckPeriod);
+                .With("experiment_assignment_alert_duration", config->ExperimentAssignmentAlertDuration)
+                .With("experiment_assignment_check_period", config->ExperimentAssignmentErrorCheckPeriod);
         }
     });
 }

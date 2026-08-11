@@ -400,8 +400,8 @@ void ValidateKey(
         {.ValidateValues = false});
     if (!error.IsOK()) {
         THROW_ERROR_EXCEPTION("Key does not match key schema")
-            << TErrorAttribute("key", key)
-            << error;
+            .With("key", key)
+            .With(error);
     }
 }
 

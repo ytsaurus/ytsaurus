@@ -116,8 +116,8 @@ private:
         if (!result.IsOK()) {
             OAuthCallErrors_.Increment();
             auto error = TError(NRpc::EErrorCode::InvalidCredentials, "OAuth call failed")
-                << result
-                << TErrorAttribute("call_id", callId);
+                .With(result)
+                .With("call_id", callId);
             YT_LOG_WARNING(error);
             THROW_ERROR(error);
         }
@@ -152,8 +152,8 @@ private:
             if (rspNode->GetType() == ENodeType::Map && Config_->UserInfoErrorField) {
                 auto errorNode = rspNode->AsMap()->FindChild(*Config_->UserInfoErrorField);
                 error = error
-                    << TErrorAttribute("error_field_message", ConvertToYsonString(errorNode))
-                    << TErrorAttribute("error_field", *Config_->UserInfoErrorField);
+                    .With("error_field_message", ConvertToYsonString(errorNode))
+                    .With("error_field", *Config_->UserInfoErrorField);
             }
 
             return error;
@@ -161,21 +161,21 @@ private:
 
         if (rspNode->GetType() != ENodeType::Map) {
             return TError("OAuth response content has unexpected node type")
-                << TErrorAttribute("expected_result_type", ENodeType::Map)
-                << TErrorAttribute("actual_result_type", rspNode->GetType());
+                .With("expected_result_type", ENodeType::Map)
+                .With("actual_result_type", rspNode->GetType());
         }
 
         auto loginNode = rspNode->AsMap()->FindChild(Config_->UserInfoLoginField);
         if (!loginNode || loginNode->GetType() != ENodeType::String) {
             return TError("OAuth response content has no login field or login node type is unexpected")
-                << TErrorAttribute("login_field", Config_->UserInfoLoginField);
+                .With("login_field", Config_->UserInfoLoginField);
         }
 
         if (Config_->UserInfoSubjectField) {
             auto subjectNode = rspNode->AsMap()->FindChild(*Config_->UserInfoSubjectField);
             if (!subjectNode || subjectNode->GetType() != ENodeType::String) {
                 return TError("OAuth response content has no subject field or subject node type is unexpected")
-                    << TErrorAttribute("subject_field", Config_->UserInfoSubjectField);
+                    .With("subject_field", Config_->UserInfoSubjectField);
             }
         }
 

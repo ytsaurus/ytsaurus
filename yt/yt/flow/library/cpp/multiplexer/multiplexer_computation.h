@@ -246,17 +246,17 @@ protected:
             // Validate monotonicity: new offset must be strictly greater than current.
             if (state->Offset.has_value() && !(*nextOffset > *state->Offset)) {
                 THROW_ERROR_EXCEPTION("DoFetchBatch returned non-monotonic offset for key %v",
-                        timer.Key)
-                    << TErrorAttribute("current_offset", state->Offset)
-                    << TErrorAttribute("next_offset", *nextOffset);
+                    timer.Key)
+                    .With("current_offset", state->Offset)
+                    .With("next_offset", *nextOffset);
             }
 
             // Validate endOffsetInclusive: new offset must not overshoot.
             if (endOffset.has_value() && !(*nextOffset <= *endOffset)) {
                 THROW_ERROR_EXCEPTION("DoFetchBatch overshot endOffsetInclusive for key %v",
-                        timer.Key)
-                    << TErrorAttribute("next_offset", *nextOffset)
-                    << TErrorAttribute("end_offset", *endOffset);
+                    timer.Key)
+                    .With("next_offset", *nextOffset)
+                    .With("end_offset", *endOffset);
             }
 
             state->Offset = std::move(nextOffset);

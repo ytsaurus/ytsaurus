@@ -227,7 +227,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
                         configFilter,
                         NYTree::ENodeType::Map,
                         configNode->GetType())
-                        << TErrorAttribute("dynamic_config_name", Options_.Name);
+                        .With("dynamic_config_name", Options_.Name);
                 }
 
                 auto configMapNode = configNode->AsMap();
@@ -236,9 +236,9 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
                     if (matchedConfigNode) {
                         THROW_ERROR_EXCEPTION(NDynamicConfig::EErrorCode::DuplicateMatchingDynamicConfigs,
                             "Found duplicate matching dynamic config")
-                            << TErrorAttribute("dynamic_config_name", Options_.Name)
-                            << TErrorAttribute("first_config_filter", matchingConfigFilter)
-                            << TErrorAttribute("second_config_filter", configFilter);
+                            .With("dynamic_config_name", Options_.Name)
+                            .With("first_config_filter", matchingConfigFilter)
+                            .With("second_config_filter", configFilter);
                     }
 
                     YT_LOG_DEBUG("Found matching dynamic config (ConfigFilter: %v)",
@@ -259,8 +259,8 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
             THROW_ERROR_EXCEPTION(
                 NDynamicConfig::EErrorCode::FailedToFetchDynamicConfig,
                 "Failed to fetch dynamic config from Cypress")
-                << TErrorAttribute("config_name", Options_.Name)
-                << configOrError;
+                .With("config_name", Options_.Name)
+                .With(configOrError);
         }
     }
 
@@ -271,7 +271,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         } else {
             THROW_ERROR_EXCEPTION(NDynamicConfig::EErrorCode::NoSuitableDynamicConfig,
                 "No suitable dynamic config was found")
-                << TErrorAttribute("dynamic_config_name", Options_.Name);
+                .With("dynamic_config_name", Options_.Name);
         }
     }
 
@@ -290,8 +290,8 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         THROW_ERROR_EXCEPTION(
             NDynamicConfig::EErrorCode::InvalidDynamicConfig,
             "Invalid dynamic config")
-            << TErrorAttribute("dynamic_config_name", Options_.Name)
-            << ex;
+            .With("dynamic_config_name", Options_.Name)
+            .With(ex);
     }
 
     auto unrecognizedOptions = newConfig->GetRecursiveUnrecognized();
@@ -301,7 +301,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         unrecognizedOptionsError = TError(NDynamicConfig::EErrorCode::UnrecognizedDynamicConfigOption,
             "Found unrecognized options in dynamic config %Qv",
             Options_.Name)
-            << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, NYson::EYsonFormat::Text));
+            .With("unrecognized_options", ConvertToYsonString(unrecognizedOptions, NYson::EYsonFormat::Text));
         YT_LOG_WARNING(unrecognizedOptionsError);
     }
 

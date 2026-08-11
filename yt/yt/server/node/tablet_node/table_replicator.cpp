@@ -219,19 +219,19 @@ private:
             tabletSnapshot = TabletSnapshotStore_->FindTabletSnapshot(TabletId_, MountRevision_);
             if (!tabletSnapshot) {
                 THROW_ERROR_EXCEPTION("No tablet snapshot is available")
-                    << HardErrorAttribute;
+                    .With(HardErrorAttribute);
             }
 
             replicaSnapshot = tabletSnapshot->FindReplicaSnapshot(ReplicaId_);
             if (!replicaSnapshot) {
                 THROW_ERROR_EXCEPTION("No table replica snapshot is available")
-                    << HardErrorAttribute;
+                    .With(HardErrorAttribute);
             }
 
             auto alienConnection = LocalConnection_->GetClusterDirectory()->FindConnection(ClusterName_);
             if (!alienConnection) {
                 THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
-                    << HardErrorAttribute;
+                    .With(HardErrorAttribute);
             }
 
             if (auto* traceContext = TryGetCurrentTraceContext()) {
@@ -452,7 +452,7 @@ private:
                         /*lowerRowIndex*/ std::nullopt,
                         [] {
                             THROW_ERROR_EXCEPTION("No replication log rows are available")
-                                << HardErrorAttribute;
+                                .With(HardErrorAttribute);
                         });
                     YT_VERIFY(startRowIndexOrNullopt);
 
@@ -474,7 +474,7 @@ private:
                     THROW_ERROR_EXCEPTION("Table replicator did not write any rows due to network throttler overdraft");
                 } else {
                     THROW_ERROR_EXCEPTION("Replication reader returned zero rows")
-                        << HardErrorAttribute;
+                        .With(HardErrorAttribute);
                 }
             }
 
@@ -551,7 +551,7 @@ private:
             TError error(ex);
             if (replicaSnapshot) {
                 replicaSnapshot->RuntimeData->Error.Store(
-                    error << TErrorAttribute("tablet_id", TabletId_));
+                    error.With("tablet_id", TabletId_));
             }
 
             if (tabletSnapshot) {

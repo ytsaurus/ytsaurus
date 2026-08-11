@@ -61,12 +61,12 @@ static void SeccompInit(int arch, int error)
 
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
         THROW_ERROR_EXCEPTION("Failed to limit child process privileges")
-            << TError::FromSystem();
+            .With(TError::FromSystem());
     }
 
     if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
         THROW_ERROR_EXCEPTION("Failed to install seccomp ebpf filter")
-            << TError::FromSystem();
+            .With(TError::FromSystem());
     }
 }
 

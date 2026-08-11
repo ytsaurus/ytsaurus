@@ -116,7 +116,7 @@ void TNodeManager::OnMasterConnected(const TMasterHandshakeResult& result)
     auto invokerOrError = WaitFor(AllSucceeded(asyncInvokers));
     if (!invokerOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Error connecting node shards")
-                << invokerOrError;
+                .With(invokerOrError);
     }
 
     const auto& invokers = invokerOrError.Value();
@@ -283,7 +283,7 @@ TError TNodeManager::HandleNodesAttributes(const NYTree::IListNodePtr& nodeList)
 
     if (!handleErrors.empty()) {
         return TError("Failed to update some nodes")
-            << handleErrors;
+            .With(handleErrors);
     }
 
     return {};

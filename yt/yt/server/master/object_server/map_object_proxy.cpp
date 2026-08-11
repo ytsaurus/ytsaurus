@@ -220,7 +220,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
     auto* childImpl = childProxy->GetThisImpl();
     if (childImpl->IsRoot()) {
         THROW_ERROR_EXCEPTION("Root object cannot have a parent")
-            << TErrorAttribute("id", childImpl->GetId());
+            .With("id", childImpl->GetId());
     }
 
     ValidateChildName(key);
@@ -476,7 +476,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
             auto* impl = TBase::GetThisImpl();
             if (!impl->GetParent()) {
                 THROW_ERROR_EXCEPTION("Cannot change parent for a nameless %Qlv", impl->GetType())
-                    << TErrorAttribute("id", impl->GetId());
+                    .With("id", impl->GetId());
             }
 
             auto newParentName = ConvertTo<std::string>(value);
@@ -557,8 +557,8 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateAttachChildSubtreeSize(
     auto newSubtreeSize = child->GetThisImpl()->GetSubtreeSize() + GetTopmostAncestorSubtreeSize(impl);
     if (newSubtreeSize > subtreeSizeLimit) {
         THROW_ERROR_EXCEPTION("Subtree size limit exceeded for %v", impl->GetLowercaseObjectName())
-            << TErrorAttribute("new_subtree_size", newSubtreeSize)
-            << TErrorAttribute("subtree_size_limit", subtreeSizeLimit);
+            .With("new_subtree_size", newSubtreeSize)
+            .With("subtree_size_limit", subtreeSizeLimit);
     }
 }
 
@@ -614,8 +614,8 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
         THROW_ERROR_EXCEPTION(
             NObjectClient::EErrorCode::InactiveObjectLifeStage,
             "Inactive life stage during object removal")
-            << TErrorAttribute("life_stage", impl->GetLifeStage())
-            << TErrorAttribute("id", impl->GetId());
+            .With("life_stage", impl->GetLifeStage())
+            .With("id", impl->GetId());
     }
 
     for (const auto& [_, childImpl] : impl->KeyToChild()) {
@@ -958,7 +958,7 @@ void TNonversionedMapObjectFactoryBase<TObject>::AttachChild(
             "Failed to attach child %Qv to %v",
             key,
             parent->GetObject()->template As<TObject>()->GetLowercaseObjectName())
-            << ex;
+            .With(ex);
     }
 }
 

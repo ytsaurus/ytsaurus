@@ -65,9 +65,9 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
             auto error = TError(NControllerAgent::EErrorCode::OperationControllerMemoryLimitExceeded,
                 "Operation controller memory usage exceeds memory limit, probably input of the operation "
                 "is too large, try splitting the operation into smaller ones")
-                << TErrorAttribute("operation_controller_memory_usage", memory)
-                << TErrorAttribute("operation_controller_memory_limit", Config_->OperationControllerMemoryLimit)
-                << TErrorAttribute("operation_id", operationId);
+                .With("operation_controller_memory_usage", memory)
+                .With("operation_controller_memory_limit", Config_->OperationControllerMemoryLimit)
+                .With("operation_id", operationId);
 
             controller->OnMemoryLimitExceeded(error);
             continue;
@@ -84,7 +84,7 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
                     "Operation controller memory usage exceeds threshold; "
                     "it may be killed by memory watchdog in case of controller agent memory pressure, "
                     "consider reducing amount of input data")
-                    << TErrorAttribute("threshold", Config_->OperationControllerMemoryOverconsumptionThreshold));
+                    .With("threshold", Config_->OperationControllerMemoryOverconsumptionThreshold));
         }
     }
 
@@ -115,8 +115,8 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
             "Operation controller memory usage exceeds threshold: %v > %v",
             memory,
             Config_->OperationControllerMemoryOverconsumptionThreshold)
-            << TErrorAttribute("operation_controller_memory_usage", memory)
-            << TErrorAttribute("threshold", Config_->OperationControllerMemoryOverconsumptionThreshold));
+            .With("operation_controller_memory_usage", memory)
+            .With("threshold", Config_->OperationControllerMemoryOverconsumptionThreshold));
         totalMemory -= memory;
         overconsumptingControllers.pop_back();
     }
@@ -127,8 +127,8 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
             TError(
                 "Total controller memory usage of running operations exceeds limit "
                 "but no particular operation is above threshold")
-                << TErrorAttribute("total_controller_memory_usage", totalMemory)
-                << TErrorAttribute("total_controller_memory_limit", Config_->TotalControllerMemoryLimit));
+                .With("total_controller_memory_usage", totalMemory)
+                .With("total_controller_memory_limit", Config_->TotalControllerMemoryLimit));
     }
 
     YT_LOG_DEBUG("Memory wachdog check finished");

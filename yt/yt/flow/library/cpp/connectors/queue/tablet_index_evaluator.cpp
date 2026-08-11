@@ -77,7 +77,7 @@ TTabletIndexEvaluator::TTabletIndexEvaluator(
         Evaluator_ = CreateFastColumnEvaluatorCache()->Find(evalSchema);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Invalid tablet routing expression %Qv", expression)
-            << ex;
+            .With(ex);
     }
     YT_VERIFY(Evaluator_);
 

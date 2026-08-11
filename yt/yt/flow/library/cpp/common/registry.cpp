@@ -420,7 +420,7 @@ void TRegistry::ValidateYsonMessageType(TStringBuf name, const TYsonMessagePtr& 
     const auto& descriptor = GetYsonMessageDescriptor(name);
     if (ysonMessage->GetMeta() != descriptor.Meta) {
         THROW_ERROR_EXCEPTION("Unexpected class of yson message")
-            << TErrorAttribute("expected_class_name", name);
+            .With("expected_class_name", name);
     }
 }
 
@@ -618,7 +618,7 @@ std::vector<TError> TRegistry::ValidatePipelineSpecParseability(const NYTree::IM
     }
 
     if (!unrecognized->GetKeys().empty()) {
-        errors.push_back(TError("Static spec has unrecognized fields") << TErrorAttribute("unrecognized_fields", unrecognized));
+        errors.push_back(TError("Static spec has unrecognized fields").With("unrecognized_fields", unrecognized));
     }
 
     return errors;
@@ -789,7 +789,7 @@ std::vector<TError> TRegistry::ValidateDynamicPipelineSpecParseability(const TPi
     }
 
     if (!unrecognized->GetKeys().empty()) {
-        errors.push_back(TError("Dynamic spec has unrecognized fields") << TErrorAttribute("unrecognized_fields", unrecognized));
+        errors.push_back(TError("Dynamic spec has unrecognized fields").With("unrecognized_fields", unrecognized));
     }
 
     return errors;

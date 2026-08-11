@@ -54,9 +54,9 @@ int ExtractQueuePartitionIndex(const TKey& key)
 {
     if (key.Underlying().GetCount() != QueueKeyExpectedColumns) {
         THROW_ERROR_EXCEPTION("Queue Key should have exactly %v fields, got: %v",
-                QueueKeyExpectedColumns,
-                key.Underlying().GetCount())
-            << TErrorAttribute("queue_key", key);
+            QueueKeyExpectedColumns,
+            key.Underlying().GetCount())
+            .With("queue_key", key);
     }
     return FromUnversionedValue<i64>(key.Underlying()[QueueKeyPartitionIndexColumn]);
 }
@@ -299,7 +299,7 @@ void TQueueSourceImpl::TryUpdatePartitionInfo()
         }
         UpdatePartitionInfoErrorState_->ClearError();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to update partition info") << TError(ex);
+        auto error = TError("Failed to update partition info").With(TError(ex));
         UpdatePartitionInfoErrorState_->SetError(error);
     }
 }
@@ -439,7 +439,7 @@ auto TQueueSourceImpl::ParseData(
                             .With(ex);
                     } else {
                         THROW_ERROR_EXCEPTION("Failed to parse flow queue meta from %Qv", *raw)
-                            << TError(ex);
+                            .With(TError(ex));
                     }
                 }
             }

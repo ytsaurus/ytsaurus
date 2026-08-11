@@ -77,13 +77,13 @@ private:
             auto actualIncarnationId = ConvertTo<TIncarnationId>(TYsonStringBuf(orchidRequestResult.Value()->value()));
             if (actualIncarnationId != workerNodeInfo.IncarnationId) {
                 THROW_ERROR_EXCEPTION("Worker node incarnation ids mismatch")
-                    << TErrorAttribute("actual_incarnation_id", actualIncarnationId)
-                    << TErrorAttribute("expected_incarnation_id", workerNodeInfo.IncarnationId);
+                    .With("actual_incarnation_id", actualIncarnationId)
+                    .With("expected_incarnation_id", workerNodeInfo.IncarnationId);
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Worker node incarnation id check failed")
-                << TError(ex)
-                << TErrorAttribute("worker_identifying_string", workerNodeInfo.GetIdentifyingString());
+                .With(TError(ex))
+                .With("worker_identifying_string", workerNodeInfo.GetIdentifyingString());
         }
     }
 

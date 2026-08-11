@@ -575,8 +575,8 @@ void TSerializationDumperConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         if (config->LowerLimit >= config->UpperLimit) {
             THROW_ERROR_EXCEPTION("\"upper_limit\" must be greater than \"lower_limit\"")
-                << TErrorAttribute("lower_limit", config->LowerLimit)
-                << TErrorAttribute("upper_limit", config->UpperLimit);
+                .With("lower_limit", config->LowerLimit)
+                .With("upper_limit", config->UpperLimit);
         }
     });
 }

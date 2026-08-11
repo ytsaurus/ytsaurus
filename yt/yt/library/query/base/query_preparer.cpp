@@ -187,7 +187,7 @@ TConstExpressionPtr BuildPredicate(
 {
     if (expressionAst.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
-            << TErrorAttribute("source", FormatExpression(expressionAst));
+            .With("source", FormatExpression(expressionAst));
     }
 
     // TODO(lukyan): BuildTypedExpression(expressionAst.front(), {EValueType::Boolean}) ?
@@ -197,9 +197,9 @@ TConstExpressionPtr BuildPredicate(
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
         THROW_ERROR_EXCEPTION("%v is not a boolean expression", name)
-            << TErrorAttribute("source", expressionAst.front()->GetSource(builder->GetSource()))
-            << TErrorAttribute("actual_type", actualType)
-            << TErrorAttribute("expected_type", expectedType);
+            .With("source", expressionAst.front()->GetSource(builder->GetSource()))
+            .With("actual_type", actualType)
+            .With("expected_type", expectedType);
     }
 
     return ApplyRewriters(typedPredicate);
@@ -475,7 +475,7 @@ private:
 void YsonParseError(TStringBuf message, TYsonStringBuf source)
 {
     THROW_ERROR_EXCEPTION("%v", message)
-        << TErrorAttribute("context", Format("%v", source.AsStringBuf()));
+        .With("context", Format("%v", source.AsStringBuf()));
 }
 
 THashMap<std::string, std::string> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf placeholders)
@@ -542,7 +542,7 @@ NAst::TAstHead ParseQueryString(
 
     if (result != 0) {
         THROW_ERROR_EXCEPTION("Parse failure")
-            << TErrorAttribute("source", source);
+            .With("source", source);
     }
 
     return head;
@@ -760,16 +760,16 @@ TJoinClausePtr BuildJoinClause(
         if (!NTableClient::IsV1Type(selfColumnType) || !NTableClient::IsV1Type(foreignColumnType)) {
             THROW_ERROR_EXCEPTION("Cannot join column %Qv of nonsimple type",
                 columnName)
-                << TErrorAttribute("self_type", selfColumnType)
-                << TErrorAttribute("foreign_type", foreignColumnType);
+                .With("self_type", selfColumnType)
+                .With("foreign_type", foreignColumnType);
         }
 
         // N.B. When we try join optional<int32> and int16 columns it must work.
         if (NTableClient::GetWireType(selfColumnType) != NTableClient::GetWireType(foreignColumnType)) {
             THROW_ERROR_EXCEPTION("Column %Qv type mismatch in join",
                 columnName)
-                << TErrorAttribute("self_type", selfColumnType)
-                << TErrorAttribute("foreign_type", foreignColumnType);
+                .With("self_type", selfColumnType)
+                .With("foreign_type", foreignColumnType);
         }
 
         selfEquations.push_back(New<TReferenceExpression>(selfColumnType, columnName));
@@ -787,8 +787,8 @@ TJoinClausePtr BuildJoinClause(
         THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
             selfEquations.size(),
             foreignEquations.size())
-            << TErrorAttribute("lhs_source", FormatExpression(tableJoin.Lhs))
-            << TErrorAttribute("rhs_source", FormatExpression(tableJoin.Rhs));
+            .With("lhs_source", FormatExpression(tableJoin.Lhs))
+            .With("rhs_source", FormatExpression(tableJoin.Rhs));
     }
 
     for (int index = 0; index < std::ssize(selfEquations); ++index) {
@@ -796,8 +796,8 @@ TJoinClausePtr BuildJoinClause(
             THROW_ERROR_EXCEPTION("Types mismatch in join equation \"%v = %v\"",
                 InferName(selfEquations[index]),
                 InferName(foreignEquations[index]))
-                << TErrorAttribute("self_type", selfEquations[index]->LogicalType)
-                << TErrorAttribute("foreign_type", foreignEquations[index]->LogicalType);
+                .With("self_type", selfEquations[index]->LogicalType)
+                .With("foreign_type", foreignEquations[index]->LogicalType);
         }
     }
 
@@ -1155,7 +1155,7 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
         if (integerValue.has_value() && *integerValue != 0) {
             if (*integerValue < 0 || *integerValue > projectionCount) {
                 THROW_ERROR_EXCEPTION("Reference expression index is out of bounds")
-                    << TErrorAttribute("index", *integerValue);
+                    .With("index", *integerValue);
             }
 
             return true;
@@ -1369,7 +1369,7 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
 {
     if (depth > MaxSubqueryDepth) {
         THROW_ERROR_EXCEPTION("Maximum subquery depth exceeded")
-            << TErrorAttribute("max_subquery_depth", MaxSubqueryDepth);
+            .With("max_subquery_depth", MaxSubqueryDepth);
     }
 
     auto query = New<TQuery>(TGuid::Create());
@@ -1470,22 +1470,22 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
 
     if (std::ssize(query->JoinClauses) > MaxJoinNumber) {
         THROW_ERROR_EXCEPTION("The number of joins exceeds the allowed maximum. Consider rewriting the query.")
-            << TErrorAttribute("join_number", std::ssize(query->JoinClauses))
-            << TErrorAttribute("max_join_number", MaxMultiJoinGroupNumber);
+            .With("join_number", std::ssize(query->JoinClauses))
+            .With("max_join_number", MaxMultiJoinGroupNumber);
     }
 
     auto joinGroups = GetJoinGroups(query->JoinClauses, query->GetRenamedSchema());
     if (std::ssize(joinGroups) > MaxMultiJoinGroupNumber) {
         THROW_ERROR_EXCEPTION("The number of multi-join groups exceeds the allowed maximum. Consider rewriting the query.")
-            << TErrorAttribute("multi_join_group_number", std::ssize(joinGroups))
-            << TErrorAttribute("max_multi_join_group_number", MaxMultiJoinGroupNumber);
+            .With("multi_join_group_number", std::ssize(joinGroups))
+            .With("max_multi_join_group_number", MaxMultiJoinGroupNumber);
     }
 
     if (queryAst.Limit) {
         if (*queryAst.Limit > MaxQueryLimit) {
             THROW_ERROR_EXCEPTION("Maximum LIMIT exceeded")
-                << TErrorAttribute("limit", *queryAst.Limit)
-                << TErrorAttribute("max_limit", MaxQueryLimit);
+                .With("limit", *queryAst.Limit)
+                .With("max_limit", MaxQueryLimit);
         }
 
         query->Limit = *queryAst.Limit;

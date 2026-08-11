@@ -193,9 +193,9 @@ std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& l
         if (locationUuids.contains(location->GetUuid())) {
             // Manual location disable.
             auto result = location->ScheduleDisable(TError("Manual location disabling")
-                << TErrorAttribute("location_uuid", location->GetUuid())
-                << TErrorAttribute("location_path", location->GetPath())
-                << TErrorAttribute("location_disk", location->GetStaticConfig()->DeviceName));
+                .With("location_uuid", location->GetUuid())
+                .With("location_path", location->GetPath())
+                .With("location_disk", location->GetStaticConfig()->DeviceName));
 
             if (result) {
                 locationsForDisable.push_back(location->GetUuid());
@@ -459,20 +459,20 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
             diskFailedAlertsMap[diskInfo.DiskId] = TError(
                 NChunkClient::EErrorCode::DiskFailed,
                 "Disk failed, need hot swap")
-                << TErrorAttribute("disk_id", diskInfo.DiskId)
-                << TErrorAttribute("disk_model", diskInfo.DiskModel)
-                << TErrorAttribute("disk_state", diskInfo.State)
-                << TErrorAttribute("disk_path", diskInfo.DevicePath)
-                << TErrorAttribute("disk_name", diskInfo.DeviceName);
+                .With("disk_id", diskInfo.DiskId)
+                .With("disk_model", diskInfo.DiskModel)
+                .With("disk_state", diskInfo.State)
+                .With("disk_path", diskInfo.DevicePath)
+                .With("disk_name", diskInfo.DeviceName);
         } else if (diskInfo.State == NDiskManager::EDiskState::RecoverWait) {
             diskWaitingReplacementAlertsMap[diskInfo.DiskId] = TError(
                 NChunkClient::EErrorCode::DiskWaitingReplacement,
                 "Disk is waiting replacement")
-                << TErrorAttribute("disk_id", diskInfo.DiskId)
-                << TErrorAttribute("disk_model", diskInfo.DiskModel)
-                << TErrorAttribute("disk_state", diskInfo.State)
-                << TErrorAttribute("disk_path", diskInfo.DevicePath)
-                << TErrorAttribute("disk_name", diskInfo.DeviceName);
+                .With("disk_id", diskInfo.DiskId)
+                .With("disk_model", diskInfo.DiskModel)
+                .With("disk_state", diskInfo.State)
+                .With("disk_path", diskInfo.DevicePath)
+                .With("disk_name", diskInfo.DeviceName);
         }
     }
 

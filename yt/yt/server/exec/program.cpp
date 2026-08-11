@@ -133,7 +133,7 @@ private:
             auto rv = setrlimit(RLIMIT_CORE, &rlimit);
             if (rv) {
                 THROW_ERROR_EXCEPTION("Failed to configure core dump limits")
-                    << TError::FromSystem();
+                    .With(TError::FromSystem());
             }
 
             for (const auto& pipe : config->Pipes) {
@@ -148,8 +148,8 @@ private:
                     auto fd = HandleEintr(::open, path.c_str(), flags);
                     if (fd == -1) {
                         THROW_ERROR_EXCEPTION("Failed to open named pipe")
-                            << TErrorAttribute("path", path)
-                            << TError::FromSystem();
+                            .With("path", path)
+                            .With(TError::FromSystem());
                     }
 
                     if (streamFd != fd) {
@@ -158,9 +158,9 @@ private:
                     }
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Failed to prepare named pipe")
-                        << TErrorAttribute("path", path)
-                        << TErrorAttribute("fd", streamFd)
-                        << ex;
+                        .With("path", path)
+                        .With("fd", streamFd)
+                        .With(ex);
                 }
             }
         } catch (const std::exception& ex) {
@@ -185,10 +185,10 @@ private:
 
         if (config->Pty) {
             if (HandleEintr(setsid) == -1) {
-                THROW_ERROR_EXCEPTION("Failed to create a new session") << TError::FromSystem();
+                THROW_ERROR_EXCEPTION("Failed to create a new session").With(TError::FromSystem());
             }
             if (HandleEintr(::ioctl, *config->Pty, TIOCSCTTY, 1) == -1) {
-                THROW_ERROR_EXCEPTION("Failed to set controlling pseudoterminal") << TError::FromSystem();
+                THROW_ERROR_EXCEPTION("Failed to set controlling pseudoterminal").With(TError::FromSystem());
             }
             SafeDup2(*config->Pty, 0);
             SafeDup2(*config->Pty, 1);

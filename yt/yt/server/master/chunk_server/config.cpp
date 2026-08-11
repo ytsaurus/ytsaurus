@@ -49,8 +49,8 @@ void TChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         if (config->MaxReplicationFactor < MinVitalReplicationFactor) {
             THROW_ERROR_EXCEPTION("\"max_replication_factor\" should be greater than MinVitalReplicationFactor")
-                << TErrorAttribute("max_replication_factor", config->MaxReplicationFactor)
-                << TErrorAttribute("min_vital_replication_factor", MinVitalReplicationFactor);
+                .With("max_replication_factor", config->MaxReplicationFactor)
+                .With("min_vital_replication_factor", MinVitalReplicationFactor);
         }
     });
 }
@@ -83,8 +83,8 @@ void TDomesticMediumConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         if (config->MaxReplicationFactor < MinVitalReplicationFactor) {
             THROW_ERROR_EXCEPTION("\"max_replication_factor\" should be greater than MinVitalReplicationFactor")
-                << TErrorAttribute("max_replication_factor", config->MaxReplicationFactor)
-                << TErrorAttribute("min_vital_replication_factor", MinVitalReplicationFactor);
+                .With("max_replication_factor", config->MaxReplicationFactor)
+                .With("min_vital_replication_factor", MinVitalReplicationFactor);
         }
     });
 }
@@ -220,8 +220,8 @@ void TDynamicMasterCellChunkStatisticsCollectorConfig::Register(TRegistrar regis
 
         if (std::ssize(config->CreationTimeHistogramBucketBounds) > MaxChunkCreationTimeHistogramBuckets) {
             THROW_ERROR_EXCEPTION("\"creation_time_histogram_bucket_bounds\" is too large")
-                << TErrorAttribute("size", std::ssize(config->CreationTimeHistogramBucketBounds))
-                << TErrorAttribute("limit", MaxChunkCreationTimeHistogramBuckets);
+                .With("size", std::ssize(config->CreationTimeHistogramBucketBounds))
+                .With("limit", MaxChunkCreationTimeHistogramBuckets);
         }
 
         Sort(config->CreationTimeHistogramBucketBounds);

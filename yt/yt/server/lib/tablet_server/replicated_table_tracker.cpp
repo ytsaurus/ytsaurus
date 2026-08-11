@@ -316,7 +316,7 @@ protected:
                     }
                     THROW_ERROR_EXCEPTION("Failed to check whether incoming replication to cluster %Qv is enabled",
                         key)
-                        << TError(resultOrError);
+                        .With(TError(resultOrError));
                 }
                 if (!ConvertTo<bool>(resultOrError.Value())) {
                     THROW_ERROR_EXCEPTION("Replica cluster %Qv incoming replication is disabled",
@@ -873,7 +873,7 @@ public:
                 {
                     return TError("Tablet cell bundle health check failed for %v times in a row",
                         IterationsWithoutAcceptableBundleHealth_)
-                        << bundleHealthOrError;
+                        .With(bundleHealthOrError);
                 }
             } else {
                 IterationsWithoutAcceptableBundleHealth_ = 0;

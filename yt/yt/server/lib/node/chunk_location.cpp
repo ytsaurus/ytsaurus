@@ -210,9 +210,9 @@ void TChunkLocationBase::SetIndex(TChunkLocationIndex index)
             index);
 
         THROW_ERROR_EXCEPTION("Attempted to change chunk location index")
-            << TErrorAttribute("location_uuid", Uuid_.Load())
-            << TErrorAttribute("old_index", Index_)
-            << TErrorAttribute("new_index", index);
+            .With("location_uuid", Uuid_.Load())
+            .With("old_index", Index_)
+            .With("new_index", index);
     }
     Index_ = index;
 }
@@ -275,7 +275,7 @@ void TChunkLocationBase::InitializeIds()
         InitializeCellId();
         InitializeUuid();
     } catch (const std::exception& ex) {
-        Crash(TError("Location initialize failed") << ex);
+        Crash(TError("Location initialize failed").With(ex));
     }
 }
 
@@ -287,7 +287,7 @@ void TChunkLocationBase::Start()
     try {
         DoStart();
     } catch (const std::exception& ex) {
-        ScheduleDisable(TError("Location start failed") << ex);
+        ScheduleDisable(TError("Location start failed").With(ex));
     }
 }
 
@@ -343,7 +343,7 @@ i64 TChunkLocationBase::GetAvailableSpace() const
         return availableSpace;
     } catch (const std::exception& ex) {
         auto error = TError("Failed to compute available space")
-            << ex;
+            .With(ex);
         const_cast<TChunkLocationBase*>(this)->ScheduleDisable(error);
         return 0;
     }
@@ -429,7 +429,7 @@ void TChunkLocationBase::RemoveChunkFilesPermanently(TChunkId chunkId)
             NChunkClient::EErrorCode::IOError,
             "Error removing chunk %v",
             chunkId)
-            << ex;
+            .With(ex);
         ScheduleDisable(error);
     }
 }
@@ -610,9 +610,9 @@ void TChunkLocationBase::MarkLocationDiskFailed()
         TError(
             NChunkClient::EErrorCode::LocationDiskFailed,
             "Disk of chunk location is marked as failed")
-            << TErrorAttribute("location_uuid", GetUuid())
-            << TErrorAttribute("location_path", GetPath())
-            << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
+            .With("location_uuid", GetUuid())
+            .With("location_path", GetPath())
+            .With("location_disk", StaticConfig_->DeviceName));
 }
 
 void TChunkLocationBase::MarkLocationDiskWaitingReplacement()
@@ -623,9 +623,9 @@ void TChunkLocationBase::MarkLocationDiskWaitingReplacement()
         TError(
             NChunkClient::EErrorCode::LocationDiskWaitingReplacement,
             "Disk of chunk location is waiting replacement")
-            << TErrorAttribute("location_uuid", GetUuid())
-            << TErrorAttribute("location_path", GetPath())
-            << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
+            .With("location_uuid", GetUuid())
+            .With("location_path", GetPath())
+            .With("location_disk", StaticConfig_->DeviceName));
 }
 
 void TChunkLocationBase::MarkUninitializedLocationDisabled(const TError& error)
@@ -637,10 +637,10 @@ void TChunkLocationBase::MarkUninitializedLocationDisabled(const TError& error)
     LocationDisabledAlert_.Store(TError(
         NChunkClient::EErrorCode::LocationDisabled,
         "Chunk location at %v is disabled", GetPath())
-        << TErrorAttribute("location_uuid", GetUuid())
-        << TErrorAttribute("location_path", GetPath())
-        << TErrorAttribute("location_disk", StaticConfig_->DeviceName)
-        << error);
+        .With("location_uuid", GetUuid())
+        .With("location_path", GetPath())
+        .With("location_disk", StaticConfig_->DeviceName)
+        .With(error));
 
     AvailableSpace_.store(0);
     UsedSpace_.store(0);
@@ -770,7 +770,7 @@ void TChunkLocationBase::CreateDisableLockFile(const TError& reason)
             YT_LOG_ERROR(ex, "Error creating location lock file; aborting");
         } else {
             THROW_ERROR_EXCEPTION("Error creating location lock file; aborting")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -912,9 +912,9 @@ void TChunkLocationBase::Crash(const TError& reason)
         TError(
             NChunkClient::EErrorCode::LocationCrashed,
             "Error during location initialization")
-            << TErrorAttribute("location_path", GetPath())
-            << TErrorAttribute("location_disk", StaticConfig_->DeviceName)
-            << reason);
+            .With("location_path", GetPath())
+            .With("location_disk", StaticConfig_->DeviceName)
+            .With(reason));
 
     ChangeState(ELocationState::Crashed);
 }

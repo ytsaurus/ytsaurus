@@ -164,7 +164,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
 
         if (!path.GetColumns().has_value()) {
             THROW_ERROR_EXCEPTION("Received YPath without column selectors")
-                << TErrorAttribute("ypath", path);
+                .With("ypath", path);
         }
 
         auto transactionId = path.GetTransactionId();
@@ -249,8 +249,8 @@ TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
 
             if (cookieProto.user() != Options_.GetAuthenticatedUser()) {
                 THROW_ERROR_EXCEPTION("Partition must be read by the same user who created it")
-                    << TErrorAttribute("read_partition_user", Options_.GetAuthenticatedUser())
-                    << TErrorAttribute("partition_tables_user", cookieProto.user());
+                    .With("read_partition_user", Options_.GetAuthenticatedUser())
+                    .With("partition_tables_user", cookieProto.user());
             }
 
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(cookieProto.table_input_specs());

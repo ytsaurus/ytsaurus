@@ -1831,8 +1831,8 @@ private:
                 .BackgroundErrors[ETabletBackgroundActivity::Partitioning].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
-                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Partitioning);
+                .With("tablet_id", tabletSnapshot->TabletId)
+                .With("background_activity", ETabletBackgroundActivity::Partitioning);
 
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Partitioning].Store(error);
@@ -1933,8 +1933,8 @@ private:
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
-                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Compaction);
+                .With("tablet_id", tabletSnapshot->TabletId)
+                .With("background_activity", ETabletBackgroundActivity::Compaction);
 
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);
@@ -2253,8 +2253,8 @@ private:
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
-                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Compaction);
+                .With("tablet_id", tabletSnapshot->TabletId)
+                .With("background_activity", ETabletBackgroundActivity::Compaction);
 
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);

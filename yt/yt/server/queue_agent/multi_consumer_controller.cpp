@@ -262,7 +262,7 @@ private:
 
         if (auto error = WaitFor(AllSucceeded(std::vector{snapshotFuture.AsVoid(), consumerNamesInStateFuture.AsVoid()})); !error.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to build snapshot or fetch consumer names in state")
-                << error;
+                .With(error);
         }
         auto snapshot = snapshotFuture.GetOrCrash().Value();
         Snapshot_.Store(snapshot);
@@ -275,7 +275,7 @@ private:
         }
         if (!snapshot->Error.IsOK()) {
             THROW_ERROR_EXCEPTION("Multi consumer controller has snapshot error")
-                << snapshot->Error;
+                .With(snapshot->Error);
         }
 
         auto consumerNamesInState = consumerNamesInStateFuture.GetOrCrash().Value();
@@ -299,7 +299,7 @@ private:
         if (auto error = WaitFor(SyncConsumerNamesInState(namesToWrite, namesToDelete));
                 !error.IsOK()) {
             THROW_ERROR_EXCEPTION("Error while synchronizing multi_consumer_names table")
-                << error;
+                .With(error);
         }
 
         ProfileManager_.Acquire()->Profile(previousSnapshot, snapshot);
@@ -329,7 +329,7 @@ private:
             }
 
             snapshot->Error = TError("Multi consumer is banned by \"queue_agent_banned\" attribute")
-                << TErrorAttribute("banned_since", snapshot->BannedSince);
+                .With("banned_since", snapshot->BannedSince);
 
             return MakeFuture(snapshot);
         }
@@ -348,7 +348,7 @@ private:
                     snapshot->QueueConsumerNames = consumerNamesOrError.Value();
                 } else {
                     snapshot->Error = TError("Error while selecting from user table")
-                        << consumerNamesOrError;
+                        .With(consumerNamesOrError);
                 }
                 return snapshot;
             }));

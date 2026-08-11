@@ -186,7 +186,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::OnBlockRangeReadFromDisk(
             firstBlockIndex,
             firstBlockIndex + blockCount,
             Id_)
-            << blocksOrError;
+            .With(blocksOrError);
         YT_LOG_DEBUG(error);
 
         if (!blockCookies.empty()) {
@@ -254,7 +254,7 @@ void TJournalChunk::OnBlockReadFromDiskForPrecache(
         auto error = TError("Error occured while reading block %v of chunk %v for precache",
             precachedBlockInfo.BlockIndex,
             Id_)
-            << blocksOrError;
+            .With(blocksOrError);
         YT_LOG_DEBUG(error);
 
         precachedBlockInfo.Cookie->SetBlock(std::move(error));
@@ -465,7 +465,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
             }
 
             auto wrappedError = TError(NYT::EErrorCode::Canceled, "ReadBlockRange session canceled")
-                << error;
+                .With(error);
             if (auto changelogReadFuture = session->ChangelogReadFuture.Load()) {
                 changelogReadFuture.Cancel(wrappedError);
             }
@@ -562,7 +562,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
                 NChunkClient::EErrorCode::IOError,
                 "Error reading journal chunk %v",
                 Id_)
-                << blocksOrError;
+                .With(blocksOrError);
             if (!blocksOrError.FindMatching(NHydra::EErrorCode::InvalidChangelogState) &&
                 !blocksOrError.FindMatching(NYT::EErrorCode::Canceled))
             {

@@ -187,8 +187,8 @@ TFuture<void> TCypressKeyWriter::DoRegisterKey(const TCypressKeyWriterConfigPtr&
         .Apply(BIND([ownerId = std::move(ownerId), keyId = std::move(keyId)] (const TError& error) {
             if (!error.IsOK()) {
                 return error.Wrap("Failed to register key")
-                    << TErrorAttribute("owner_id", ownerId)
-                    << TErrorAttribute("key_id", keyId);
+                    .With("owner_id", ownerId)
+                    .With("key_id", keyId);
             }
             YT_LOG_DEBUG("Successfully registered key (OwnerId: %v, KeyId: %v)",
                 ownerId,

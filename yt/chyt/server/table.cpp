@@ -244,8 +244,8 @@ std::vector<TTablePtr> FetchTables(
 
         if (!attributesOrError.IsOK()) {
             errors.push_back(TError("Error fetching table %v", path)
-                << std::move(attributesOrError).Wrap()
-                << TErrorAttribute("path", path));
+                .With(std::move(attributesOrError).Wrap())
+                .With("path", path));
             continue;
         }
 
@@ -297,7 +297,7 @@ std::vector<TTablePtr> FetchTables(
         if (!errors.empty()) {
             // CH drops the error below, so log it.
             auto error = TError("Table fetching failed")
-                << errors;
+                .With(errors);
             YT_LOG_DEBUG(error, "Table fetching failed");
             THROW_ERROR error;
         }

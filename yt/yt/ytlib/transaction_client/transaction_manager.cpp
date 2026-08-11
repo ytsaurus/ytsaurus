@@ -1335,7 +1335,7 @@ private:
                 THROW_ERROR_EXCEPTION(
                     "Cell %v is not a participant and thus cannot be explicitly chosen as coordinator",
                     options.CoordinatorCellId)
-                    << TErrorAttribute("transaction_id", Id_);
+                    .With("transaction_id", Id_);
             }
             return options.CoordinatorCellId;
         }
@@ -1403,14 +1403,14 @@ private:
                         return TError(
                             NTransactionClient::EErrorCode::SomeParticipantsAreDown,
                             "Some transaction participants are known to be down")
-                            << TErrorAttribute("downed_participants", downedParticipantIds);
+                            .With("downed_participants", downedParticipantIds);
                     }
                 } else {
                     YT_LOG_WARNING("Error updating downed participants (CellId: %v)",
                         coordinatorCellId);
                     return TError("Error updating downed participants at cell %v",
                         coordinatorCellId)
-                        << rspOrError;
+                        .With(rspOrError);
                 }
                 return TError();
             }));
@@ -1432,8 +1432,8 @@ private:
         auto wrappedError = TError("Error committing transaction %v at cell %v",
             Id_,
             coordinatorCellId)
-            << TErrorAttribute(ShouldBeStrippedErrorAttributeKey, true)
-            << std::move(error);
+            .With(ShouldBeStrippedErrorAttributeKey, true)
+            .With(std::move(error));
         OnFailure(wrappedError);
         return MakeFuture<TTransactionCommitResult>(std::move(wrappedError));
     }
@@ -1694,7 +1694,7 @@ private:
             return TError("Failed to ping transaction %v at cell %v",
                 Id_,
                 cellId)
-                << rspOrError;
+                .With(rspOrError);
         }
     }
 
@@ -1813,7 +1813,7 @@ private:
                         return TError("Error aborting transaction %v at cell %v",
                             transactionId,
                             cellId)
-                            << rspOrError;
+                            .With(rspOrError);
                     }
                 }));
         } catch (const std::exception& ex) {
@@ -1860,7 +1860,7 @@ private:
                     return TError("Error aborting transaction %v at cell %v",
                         transactionId,
                         cellId)
-                        << rspOrError;
+                        .With(rspOrError);
                 }
             }));
     }

@@ -178,8 +178,8 @@ private:
             context->Reply(TError(
                 NTransactionClient::EErrorCode::ClockClusterTagMismatch,
                 "Different clock cluster tag")
-                << TErrorAttribute("clock_cluster_tag", ClockClusterTag_)
-                << TErrorAttribute("request_clock_cluster_tag", requestClockClusterTag));
+                .With("clock_cluster_tag", ClockClusterTag_)
+                .With("request_clock_cluster_tag", requestClockClusterTag));
             return;
         }
 

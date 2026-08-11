@@ -62,7 +62,7 @@ public:
                 if (extensionTags.value()[index - 1] == extensionTags.value()[index]) {
                     return MakeFuture<TRefCountedChunkMetaPtr>(
                         TError("Extension tags are not unique")
-                            << TErrorAttribute("extension_tags", *extensionTags));
+                            .With("extension_tags", *extensionTags));
                 }
             }
         }
@@ -336,7 +336,7 @@ private:
                     NChunkClient::EErrorCode::ChunkMetaCacheFetchFailed,
                     "Error fetching meta for chunk %v",
                     chunkId)
-                    << metaOrError;
+                    .With(metaOrError);
                 cookie.Cancel(error);
                 THROW_ERROR(error);
             }

@@ -143,9 +143,9 @@ void TFileResourceBase<TData>::ProcessTargets()
             candidate = BuildCandidate(target, sourceRevision);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to prepare file resource revision")
-                << TErrorAttribute("update_state", UpdateState_)
-                << TErrorAttribute("revision_id", target->RevisionId)
-                << TError(ex);
+                .With("update_state", UpdateState_)
+                .With("revision_id", target->RevisionId)
+                .With(TError(ex));
             if (sourceRevision) {
                 error <<= TErrorAttribute("object_id", sourceRevision->ObjectId);
                 error <<= TErrorAttribute("display_version", sourceRevision->DisplayVersion);

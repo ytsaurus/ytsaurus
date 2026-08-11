@@ -262,8 +262,8 @@ void TJobTraceEventProcessor::OnTraceStartedForPid(TProcessId pid, TJobTraceId t
         auto currentTraceId = it->second;
         if (currentTraceId == traceId) {
             THROW_ERROR_EXCEPTION("Received several \"trace_started\" events for trace")
-                << TErrorAttribute("trace_id", traceId)
-                << TErrorAttribute("pid", pid);
+                .With("trace_id", traceId)
+                .With("pid", pid);
         }
 
         YT_LOG_ERROR("Did not receive finish event for previous trace (ProcessId: %v, PreviousTraceId: %v, NewTraceId: %v)",
@@ -305,8 +305,8 @@ void TJobTraceEventProcessor::OnTraceFinishedForPid(TProcessId pid, TJobTraceId 
     auto traceIdIt = PidToTraceId_.find(pid);
     if (traceIdIt == PidToTraceId_.end()) {
         THROW_ERROR_EXCEPTION("Received finish event without start event")
-            << TErrorAttribute("trace_id", traceId)
-            << TErrorAttribute("pid", pid);
+            .With("trace_id", traceId)
+            .With("pid", pid);
     }
 
     PidToTraceId_.erase(traceIdIt);

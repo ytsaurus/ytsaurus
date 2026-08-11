@@ -200,8 +200,8 @@ private:
                 ReconfigureTabletWriteMode();
             } catch (std::exception& ex) {
                 auto error = TError(ex)
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("table_path", Tablet_->GetTablePath());
+                    .With("tablet_id", Tablet_->GetId())
+                    .With("table_path", Tablet_->GetTablePath());
                 YT_LOG_ERROR(error, "Failed to reconfigure tablet write mode");
             }
         } else {

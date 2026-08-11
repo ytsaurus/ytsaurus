@@ -369,9 +369,9 @@ public:
 
             if (!resultOrError.IsOK()) {
                 errors.push_back(resultOrError
-                    << TErrorAttribute("path", paths[index])
-                    << TErrorAttribute("permission", "read")
-                    << TErrorAttribute("columns", paths[index].GetColumns()));
+                    .With("path", paths[index])
+                    .With("permission", "read")
+                    .With("columns", paths[index].GetColumns()));
             } else {
                 rowLevelAclPerTable[index] = resultOrError.Value().RowLevelAcl;
             }
@@ -382,7 +382,7 @@ public:
                 errors.resize(MaxInnerErrorCount);
             }
 
-            THROW_ERROR_EXCEPTION("Error validating permissions for user %Qv", user) << errors;
+            THROW_ERROR_EXCEPTION("Error validating permissions for user %Qv", user).With(errors);
         }
 
         return rowLevelAclPerTable;

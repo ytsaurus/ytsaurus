@@ -56,7 +56,7 @@ void TNamedPipe::Open(int permissions)
 {
     if (mkfifo(Path_.c_str(), permissions) == -1) {
         THROW_ERROR_EXCEPTION("Failed to create named pipe %v", Path_)
-            << TError::FromSystem();
+            .With(TError::FromSystem());
     }
 }
 

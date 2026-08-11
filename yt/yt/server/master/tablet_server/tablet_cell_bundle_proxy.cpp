@@ -359,7 +359,7 @@ private:
                 THROW_ERROR_EXCEPTION("Unexpected object type: expected %Qlv, got %Qlv",
                     EObjectType::Table,
                     node->GetType())
-                    << TErrorAttribute("object_id", tableId);
+                    .With("object_id", tableId);
             }
             movableTables.push_back(node->As<TTableNode>());
         }

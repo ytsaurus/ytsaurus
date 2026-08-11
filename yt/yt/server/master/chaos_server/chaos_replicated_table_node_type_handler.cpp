@@ -95,26 +95,26 @@ private:
         auto replicationCardId = combinedAttributes->GetAndRemove<TReplicationCardId>(EInternedAttributeKey::ReplicationCardId.Unintern(), {});
         if (replicationCardId && TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
             THROW_ERROR_EXCEPTION("Malformed replication card id")
-                << TErrorAttribute("replication_card_id", replicationCardId);
+                .With("replication_card_id", replicationCardId);
         }
 
         auto ownsReplicationCard = combinedAttributes->GetAndRemove<bool>("owns_replication_card", true);
         auto constrainedSchema = combinedAttributes->FindAndRemove<TConstrainedTableSchema>("schema");
         if (constrainedSchema && !constrainedSchema->ColumnToConstraint().empty()) {
             THROW_ERROR_EXCEPTION("Cannot specify constraints in \"schema\" option, use \"constrained_schema\" instead")
-                << TErrorAttribute("constraints", constrainedSchema->ColumnToConstraint());
+                .With("constraints", constrainedSchema->ColumnToConstraint());
         }
         auto tableSchema = constrainedSchema ? New<TCompactTableSchema>(constrainedSchema->TableSchema()) : nullptr;
         auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
         constrainedSchema = combinedAttributes->FindAndRemove<TConstrainedTableSchema>("constrained_schema");
         if (constrainedSchema) {
             THROW_ERROR_EXCEPTION("Attribute \"constrained_schema\" is not supported for chaos replicated tables")
-                << TErrorAttribute("constrained_schema", constrainedSchema);
+                .With("constrained_schema", constrainedSchema);
         }
         auto constraints = combinedAttributes->FindAndRemove<TColumnNameToConstraintMap>("constraints");
         if (constraints) {
             THROW_ERROR_EXCEPTION("Attribute \"constraints\" is not supported for chaos replicated tables")
-                << TErrorAttribute("constraints", constraints);
+                .With("constraints", constraints);
         }
 
         const auto& tableManager = this->GetBootstrap()->GetTableManager();

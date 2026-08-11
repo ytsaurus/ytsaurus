@@ -357,9 +357,9 @@ private:
             if (entry.SendAttempts >= Config_->MaxSendAttempts) {
                 --OutstandingWork_;
                 FailWriter(TError("Failed to write shuffle record after exceeding max send attempts")
-                    << TErrorAttribute("mapper_id", MapperId_)
-                    << TErrorAttribute("partition_index", partitionIndex)
-                    << TErrorAttribute("send_attempts", entry.SendAttempts));
+                    .With("mapper_id", MapperId_)
+                    .With("partition_index", partitionIndex)
+                    .With("send_attempts", entry.SendAttempts));
                 return;
             }
             ++entry.SendAttempts;
@@ -420,9 +420,9 @@ private:
         }
         if (!sessionOrError.IsOK()) {
             FailWriter(TError("Failed to acquire session for partition")
-                << TErrorAttribute("mapper_id", MapperId_)
-                << TErrorAttribute("partition_index", partitionIndex)
-                << static_cast<const TError&>(sessionOrError));
+                .With("mapper_id", MapperId_)
+                .With("partition_index", partitionIndex)
+                .With(static_cast<const TError&>(sessionOrError)));
             return;
         }
         partitionState.Session = sessionOrError.Value();
@@ -484,10 +484,10 @@ private:
         if (inFlight.Entry.SendAttempts >= Config_->MaxSendAttempts) {
             --OutstandingWork_;
             FailWriter(TError("Failed to write shuffle record after exceeding max send attempts")
-                << TErrorAttribute("mapper_id", MapperId_)
-                << TErrorAttribute("partition_index", partitionIndex)
-                << TErrorAttribute("send_attempts", inFlight.Entry.SendAttempts)
-                << error);
+                .With("mapper_id", MapperId_)
+                .With("partition_index", partitionIndex)
+                .With("send_attempts", inFlight.Entry.SendAttempts)
+                .With(error));
             return;
         }
 

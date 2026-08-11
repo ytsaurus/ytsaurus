@@ -87,10 +87,10 @@ public:
                             oldState);
 
                         THROW_ERROR_EXCEPTION("Creating not uninitialized NBD chunk handler")
-                            << TErrorAttribute("chunk_id", ChunkId_)
-                            << TErrorAttribute("chunk_path", ChunkPath_)
-                            << TErrorAttribute("chunk_size", ChunkSize_)
-                            << TErrorAttribute("state", oldState);
+                            .With("chunk_id", ChunkId_)
+                            .With("chunk_path", ChunkPath_)
+                            .With("chunk_size", ChunkSize_)
+                            .With("state", oldState);
                     }
 
                     auto openFuture = IOEngine_->Open(
@@ -147,10 +147,10 @@ public:
                             oldState);
 
                         THROW_ERROR_EXCEPTION("Destroying not initialized NBD chunk handler")
-                            << TErrorAttribute("chunk_id", ChunkId_)
-                            << TErrorAttribute("chunk_path", ChunkPath_)
-                            << TErrorAttribute("chunk_size", ChunkSize_)
-                            << TErrorAttribute("state", oldState);
+                            .With("chunk_id", ChunkId_)
+                            .With("chunk_path", ChunkPath_)
+                            .With("chunk_size", ChunkSize_)
+                            .With("state", oldState);
                     }
 
                     auto closeFuture = IOEngine_->Close(
@@ -213,24 +213,24 @@ public:
                             State_);
 
                         THROW_ERROR_EXCEPTION("Read from uninitialized NBD chunk handler")
-                            << TErrorAttribute("chunk_id", ChunkId_)
-                            << TErrorAttribute("chunk_path", ChunkPath_)
-                            << TErrorAttribute("chunk_size", ChunkSize_)
-                            << TErrorAttribute("offset", offset)
-                            << TErrorAttribute("length", length)
-                            << TErrorAttribute("cookie", cookie)
-                            << TErrorAttribute("state", State_);
+                            .With("chunk_id", ChunkId_)
+                            .With("chunk_path", ChunkPath_)
+                            .With("chunk_size", ChunkSize_)
+                            .With("offset", offset)
+                            .With("length", length)
+                            .With("cookie", cookie)
+                            .With("state", State_);
                     }
 
                     if (offset + length > ChunkSize_) {
                         THROW_ERROR_EXCEPTION("Read is out of range")
-                            << TErrorAttribute("chunk_id", ChunkId_)
-                            << TErrorAttribute("chunk_path", ChunkPath_)
-                            << TErrorAttribute("chunk_size", ChunkSize_)
-                            << TErrorAttribute("offset", offset)
-                            << TErrorAttribute("length", length)
-                            << TErrorAttribute("cookie", cookie)
-                            << TErrorAttribute("state", State_);
+                            .With("chunk_id", ChunkId_)
+                            .With("chunk_path", ChunkPath_)
+                            .With("chunk_size", ChunkSize_)
+                            .With("offset", offset)
+                            .With("length", length)
+                            .With("cookie", cookie)
+                            .With("state", State_);
                     }
 
                     // Throttle both network and disk read in parallel.
@@ -296,17 +296,17 @@ public:
                     auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
                     if (State_ != EState::Initialized) {
                         THROW_ERROR_EXCEPTION("ReadBatch from uninitialized NBD chunk handler")
-                            << TErrorAttribute("chunk_id", ChunkId_)
-                            << TErrorAttribute("state", State_);
+                            .With("chunk_id", ChunkId_)
+                            .With("state", State_);
                     }
 
                     for (const auto& sub : subrequests) {
                         if (sub.Offset + sub.Length > ChunkSize_) {
                             THROW_ERROR_EXCEPTION("ReadBatch subrequest is out of range")
-                                << TErrorAttribute("chunk_id", ChunkId_)
-                                << TErrorAttribute("offset", sub.Offset)
-                                << TErrorAttribute("length", sub.Length)
-                                << TErrorAttribute("chunk_size", ChunkSize_);
+                                .With("chunk_id", ChunkId_)
+                                .With("offset", sub.Offset)
+                                .With("length", sub.Length)
+                                .With("chunk_size", ChunkSize_);
                         }
                     }
 
@@ -388,24 +388,24 @@ public:
                             State_);
 
                         THROW_ERROR_EXCEPTION("Write to uninitialized NBD chunk handler")
-                            << TErrorAttribute("chunk_id", ChunkId_)
-                            << TErrorAttribute("chunk_path", ChunkPath_)
-                            << TErrorAttribute("chunk_size", ChunkSize_)
-                            << TErrorAttribute("offset", offset)
-                            << TErrorAttribute("length", block.Size())
-                            << TErrorAttribute("cookie", cookie)
-                            << TErrorAttribute("state", State_);
+                            .With("chunk_id", ChunkId_)
+                            .With("chunk_path", ChunkPath_)
+                            .With("chunk_size", ChunkSize_)
+                            .With("offset", offset)
+                            .With("length", block.Size())
+                            .With("cookie", cookie)
+                            .With("state", State_);
                     }
 
                     if (offset + std::ssize(block.Data) > ChunkSize_) {
                         THROW_ERROR_EXCEPTION("Write is out of range")
-                            << TErrorAttribute("chunk_id", ChunkId_)
-                            << TErrorAttribute("chunk_path", ChunkPath_)
-                            << TErrorAttribute("chunk_size", ChunkSize_)
-                            << TErrorAttribute("offset", offset)
-                            << TErrorAttribute("length", block.Size())
-                            << TErrorAttribute("cookie", cookie)
-                            << TErrorAttribute("state", State_);
+                            .With("chunk_id", ChunkId_)
+                            .With("chunk_path", ChunkPath_)
+                            .With("chunk_size", ChunkSize_)
+                            .With("offset", offset)
+                            .With("length", block.Size())
+                            .With("cookie", cookie)
+                            .With("state", State_);
                     }
 
                     // Throttle both network and disk write in parallel.
@@ -463,8 +463,8 @@ public:
                     auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
                     if (State_ != EState::Initialized) {
                         THROW_ERROR_EXCEPTION("Flush on uninitialized NBD chunk handler")
-                            << TErrorAttribute("chunk_id", ChunkId_)
-                            << TErrorAttribute("state", State_);
+                            .With("chunk_id", ChunkId_)
+                            .With("state", State_);
                     }
 
                     TWallTimer ioTimer;
@@ -502,8 +502,8 @@ public:
                     auto lockWaitDuration = lockWaitTimer.GetElapsedTime();
                     if (State_ != EState::Initialized) {
                         THROW_ERROR_EXCEPTION("FlushRange on uninitialized NBD chunk handler")
-                            << TErrorAttribute("chunk_id", ChunkId_)
-                            << TErrorAttribute("state", State_);
+                            .With("chunk_id", ChunkId_)
+                            .With("state", State_);
                     }
 
                     TWallTimer ioTimer;

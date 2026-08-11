@@ -281,7 +281,7 @@ public:
 
         void OnSessionFailed(const TError& error)
         {
-            Promise_.Set(error << InnerErrors_);
+            Promise_.Set(error.With(InnerErrors_));
         }
     };
 

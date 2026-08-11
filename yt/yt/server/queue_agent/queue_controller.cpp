@@ -117,7 +117,7 @@ public:
             }
 
             QueueSnapshot_->Error = TError("Queue is banned by \"queue_agent_banned\" attribute")
-                << TErrorAttribute("banned_since", QueueSnapshot_->BannedSince);
+                .With("banned_since", QueueSnapshot_->BannedSince);
 
             return QueueSnapshot_;
         }
@@ -193,7 +193,7 @@ private:
             partitionSnapshots[index]->TabletState = tabletInfo->State;
             if (tabletInfo->State != ETabletState::Mounted && tabletInfo->State != ETabletState::Frozen) {
                 partitionSnapshots[index]->Error = TError("Tablet %v is not mounted or frozen", tabletInfo->TabletId)
-                    << TErrorAttribute("state", tabletInfo->State);
+                    .With("state", tabletInfo->State);
             } else {
                 tabletIndexes.push_back(index);
                 const auto& cellId = tabletInfo->CellId;
@@ -616,7 +616,7 @@ private:
             // XXX(apachee): Generate export and trim alert to explicity show that those are disabled?
             auto guard = WriterGuard(QueueExportsLock_);
             QueueExports_ = TError("Exports are disabled, since this queue is banned")
-                << nextQueueSnapshot->Error;
+                .With(nextQueueSnapshot->Error);
 
             return;
         }
@@ -968,8 +968,8 @@ private:
                 THROW_ERROR_EXCEPTION(
                     "Trimming iteration skipped due to mismatch between partition count of the queue and its replica %v",
                     replicaPath)
-                    << TErrorAttribute("queue_partition_count", queueSnapshot->PartitionCount)
-                    << TErrorAttribute("queue_replica_partition_count", replicaSnapshot->PartitionCount);
+                    .With("queue_partition_count", queueSnapshot->PartitionCount)
+                    .With("queue_replica_partition_count", replicaSnapshot->PartitionCount);
             }
             replicaContexts.emplace_back(replicaPath, replicaSnapshot);
         }
@@ -1011,7 +1011,7 @@ private:
                 THROW_ERROR_EXCEPTION(
                     "Unable to get safe trim row counts for replica %v, trimming iteration skipped",
                     replicaContext.Path)
-                    << safeTrimRowCountsOrError;
+                    .With(safeTrimRowCountsOrError);
             }
 
             for (const auto& [partitionContext, safeTrimRowCountOrError] : Zip(replicaContext.Partitions, safeTrimRowCountsOrError.Value())) {
@@ -1037,7 +1037,7 @@ private:
         if (!queueSnapshot->Error.IsOK()) {
             THROW_ERROR_EXCEPTION(
                 "Trimming iteration skipped due to queue error")
-                << queueSnapshot->Error;
+                .With(queueSnapshot->Error);
         }
 
         const auto& autoTrimConfig = queueSnapshot->Row.AutoTrimConfig;
@@ -1055,7 +1055,7 @@ private:
         auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
         if (!currentTimestampOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Cannot generate timestamp for cluster %Qv, trimming iteration skipped", cluster)
-                << currentTimestampOrError;
+                .With(currentTimestampOrError);
         }
         auto currentTimestamp = currentTimestampOrError.Value();
 
@@ -1094,13 +1094,13 @@ private:
         std::vector<TError> trimSessionErrors;
         for (const auto& [replicaContext, trimSessionPotentialError] : Zip(replicaContexts, trimSessionPotentialErrors)) {
             if (!trimSessionPotentialError.IsOK()) {
-                trimSessionErrors.push_back(trimSessionPotentialError << TErrorAttribute("replica", replicaContext.Path));
+                trimSessionErrors.push_back(trimSessionPotentialError.With("replica", replicaContext.Path));
             }
         }
 
         if (!trimSessionErrors.empty()) {
             THROW_ERROR_EXCEPTION("Error trimming %v queue replicas", trimSessionErrors.size())
-                << trimSessionErrors;
+                .With(trimSessionErrors);
         }
 
         YT_LOG_DEBUG("Trimming finished successfully");
@@ -1251,7 +1251,7 @@ private:
             if (!Context.ReplicaSnapshot->Error.IsOK()) {
                 THROW_ERROR_EXCEPTION(
                     "Trimming iteration skipped due to queue replica error")
-                    << Context.ReplicaSnapshot->Error;
+                    .With(Context.ReplicaSnapshot->Error);
             }
 
             if (QueueSnapshot->PartitionCount != Context.ReplicaSnapshot->PartitionCount) {
@@ -1303,7 +1303,7 @@ private:
                     THROW_ERROR_EXCEPTION(
                         "Trimming iteration skipped due to erroneous registered vital consumer %v",
                         consumerSnapshot->Ref)
-                        << consumerSnapshot->Error;
+                        .With(consumerSnapshot->Error);
                 }
                 auto it = consumerSnapshot->SubSnapshots.find(QueuePath);
                 if (it == consumerSnapshot->SubSnapshots.end()) {
@@ -1316,7 +1316,7 @@ private:
                     THROW_ERROR_EXCEPTION(
                         "Trimming iteration skipped due to erroneous queue sub-snapshot in registered vital consumer %v",
                         consumerSnapshot->Ref)
-                        << consumerSubSnapshot->Error;
+                        .With(consumerSubSnapshot->Error);
                 }
                 VitalConsumerSubSnapshots[consumerSnapshot->Ref] = consumerSubSnapshot;
             }
@@ -1433,7 +1433,7 @@ private:
                 THROW_ERROR_EXCEPTION(
                     "Unable to get safe trim row counts for replica %v to satisfy configured trimming parameters, trimming iteration skipped",
                     Context.Path)
-                    << safeTrimRowCountsOrError;
+                    .With(safeTrimRowCountsOrError);
             }
             const auto& safeTrimRowCountsOrErrors = safeTrimRowCountsOrError.Value();
 
@@ -1446,7 +1446,7 @@ private:
                         "Error getting safe trim row count by timestamp %v, not trimming partition %v",
                         maxTimestampToTrim,
                         partitionIndex)
-                        << safeTrimRowCountOrError);
+                        .With(safeTrimRowCountOrError));
                 } else {
                     Context.Partitions[partitionIndex].Update({
                         .MaxTrimmedRowCount = safeTrimRowCountOrError.Value(),
@@ -1552,13 +1552,13 @@ private:
             std::vector<TError> partitionTrimErrors;
             for (const auto& partitionContext : Context.Partitions) {
                 if (partitionContext.HasCriticalError()) {
-                    partitionTrimErrors.push_back(partitionContext.PartitionError << TErrorAttribute("partition_index", partitionContext.PartitionIndex));
+                    partitionTrimErrors.push_back(partitionContext.PartitionError.With("partition_index", partitionContext.PartitionIndex));
                 }
             }
 
             if (!partitionTrimErrors.empty()) {
                 THROW_ERROR_EXCEPTION("Failed to trim %v partitions", partitionTrimErrors.size())
-                    << partitionTrimErrors;
+                    .With(partitionTrimErrors);
             }
         }
     };
@@ -1611,7 +1611,7 @@ bool UpdateQueueController(
 
     if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
         auto snapshot = New<TQueueSnapshot>(row);
-        snapshot->Error = TError("Queue synchronization error") << *row.SynchronizationError;
+        snapshot->Error = TError("Queue synchronization error").With(*row.SynchronizationError);
         snapshot->ReplicatedTableMappingRow = replicatedTableMappingRow;
         YT_LOG_WARNING(snapshot->Error);
 
@@ -1622,7 +1622,7 @@ bool UpdateQueueController(
     auto queueFamilyOrError = DeduceQueueFamily(row, replicatedTableMappingRow);
     if (!queueFamilyOrError.IsOK()) {
         auto snapshot = New<TQueueSnapshot>(row);
-        snapshot->Error = TError("Error while deducing queue family") << queueFamilyOrError;
+        snapshot->Error = TError("Error while deducing queue family").With(queueFamilyOrError);
         snapshot->ReplicatedTableMappingRow = replicatedTableMappingRow;
         YT_LOG_WARNING(snapshot->Error);
 

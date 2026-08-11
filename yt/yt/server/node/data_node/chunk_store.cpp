@@ -269,14 +269,14 @@ void TChunkStore::RegisterNewChunk(
         auto masterEpoch = ChunkStoreHost_->GetMasterEpoch();
         if (session && masterEpoch != session->GetMasterEpoch()) {
             THROW_ERROR_EXCEPTION("Node has reconnected to master during chunk upload")
-                << TErrorAttribute("session_master_epoch", session->GetMasterEpoch())
-                << TErrorAttribute("current_master_epoch", masterEpoch);
+                .With("session_master_epoch", session->GetMasterEpoch())
+                .With("current_master_epoch", masterEpoch);
         }
 
         if (auto oldChunk = DoFindExistingChunk(chunk).Chunk) {
             THROW_ERROR_EXCEPTION("Attempted to register duplicate chunk")
-                << TErrorAttribute("new_chunk_path", chunk->GetLocation()->GetChunkPath(chunk->GetId()))
-                << TErrorAttribute("old_chunk_path", oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
+                .With("new_chunk_path", chunk->GetLocation()->GetChunkPath(chunk->GetId()))
+                .With("old_chunk_path", oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
         }
 
         // NB: This is multimap.
@@ -897,9 +897,9 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             if (!location->HasEnoughSpace(*options.MinLocationAvailableSpace)) {
                 throttledLocations.push_back(location);
                 throttledLocationErrors.push_back(TError("Session cannot be started due to lack of free space")
-                    << TErrorAttribute("location_id", location->GetId())
-                    << TErrorAttribute("needed_space", *options.MinLocationAvailableSpace)
-                    << TErrorAttribute("available_space", location->GetAvailableSpace()));
+                    .With("location_id", location->GetId())
+                    .With("needed_space", *options.MinLocationAvailableSpace)
+                    .With("available_space", location->GetAvailableSpace()));
                 continue;
             }
         }
@@ -913,9 +913,9 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             {
                 throttledLocations.push_back(location);
                 throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
-                    << TErrorAttribute("location_id", location->GetId())
-                    << TErrorAttribute("used_memory", usedMemory)
-                    << TErrorAttribute("memory_limit", memoryLimit));
+                    .With("location_id", location->GetId())
+                    .With("used_memory", usedMemory)
+                    .With("memory_limit", memoryLimit));
                 continue;
             }
 
@@ -927,9 +927,9 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             {
                 throttledLocations.push_back(location);
                 throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
-                    << TErrorAttribute("location_id", location->GetId())
-                    << TErrorAttribute("category_memory_used", trackedMemory)
-                    << TErrorAttribute("category_memory_limit", totalMemoryLimit));
+                    .With("location_id", location->GetId())
+                    .With("category_memory_used", trackedMemory)
+                    .With("category_memory_limit", totalMemoryLimit));
                 continue;
             }
         }
@@ -939,9 +939,9 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         if (sessionCount >= sessionCountLimit) {
             throttledLocations.push_back(location);
             throttledLocationErrors.push_back(TError("Session cannot be started because of too many concurrent sessions")
-                << TErrorAttribute("location_id", location->GetId())
-                << TErrorAttribute("session_count", sessionCount)
-                << TErrorAttribute("session_count_limit", sessionCountLimit));
+                .With("location_id", location->GetId())
+                .With("session_count", sessionCount)
+                .With("session_count_limit", sessionCountLimit));
             continue;
         }
 
@@ -950,7 +950,7 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             if (diskThrottlingResult.Enabled || diskThrottlingResult.MemoryOvercommit) {
                 throttledLocations.push_back(location);
                 throttledLocationErrors.push_back(TError("Session cannot be started because of disk throttling")
-                    << diskThrottlingResult.Error);
+                    .With(diskThrottlingResult.Error));
                 continue;
             }
         }
@@ -984,7 +984,7 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
         auto error = TError(
             NChunkClient::EErrorCode::NoLocationAvailable,
             "No write location is available")
-            << TErrorAttribute("session_id", ToString(sessionId));
+            .With("session_id", ToString(sessionId));
 
         if (!throttledLocations.empty()) {
             auto size = throttledLocations.size();

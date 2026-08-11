@@ -152,7 +152,7 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for reading",
                 FileName_)
-                << ex;
+                .With(ex);
         }
 
         YT_LOG_DEBUG("Local snapshot reader opened");
@@ -337,7 +337,7 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for writing",
                 FileName_)
-                << ex;
+                .With(ex);
         }
 
         IsOpened_ = true;
@@ -474,7 +474,7 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for reading",
                 FileName_)
-                << ex;
+                .With(ex);
         }
 
         YT_LOG_DEBUG("Local snapshot reader opened");
@@ -595,7 +595,7 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for writing",
                 FileName_)
-                << ex;
+                .With(ex);
         }
 
         IsOpened_ = true;

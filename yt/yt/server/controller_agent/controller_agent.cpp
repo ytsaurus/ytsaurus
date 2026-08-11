@@ -1088,7 +1088,7 @@ public:
                 alert = TError(
                     "Limit of monitored user jobs per controller agent reached, "
                     "some jobs may be not monitored")
-                    << TErrorAttribute(
+                    .With(
                         "limit_per_controller_agent",
                         Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent);
             }
@@ -1108,7 +1108,7 @@ public:
                 alert = TError(
                     "Limit of monitored user gangs jobs per controller agent reached, "
                     "some jobs may be not monitored")
-                    << TErrorAttribute(
+                    .With(
                         "limit_per_controller_agent",
                         Config_->UserJobMonitoring->MaxMonitoredGangsJobsPerAgent);
             }

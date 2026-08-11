@@ -186,9 +186,9 @@ public:
             return NFS::CombinePaths(GetJobLogDirectoryPath(jobId), NFS::GetFileName(logFilePath));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to adjust job log file path")
-                << TErrorAttribute("abort_reason", NScheduler::EAbortReason::JobLogDirectoryNotPrepared)
-                << TErrorAttribute("log_file", logFilePath)
-                << std::move(ex);
+                .With("abort_reason", NScheduler::EAbortReason::JobLogDirectoryNotPrepared)
+                .With("log_file", logFilePath)
+                .With(std::move(ex));
         }
     }
 
@@ -504,9 +504,9 @@ private:
                     targetJobLogPath);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to bind job log directory")
-                    << TErrorAttribute("abort_reason", NScheduler::EAbortReason::JobLogDirectoryNotPrepared)
-                    << TErrorAttribute("symlink_path", symlinkPath)
-                    << std::move(ex);
+                    .With("abort_reason", NScheduler::EAbortReason::JobLogDirectoryNotPrepared)
+                    .With("symlink_path", symlinkPath)
+                    .With(std::move(ex));
             }
         }
     }
@@ -549,7 +549,7 @@ private:
         }
 
         THROW_ERROR_EXCEPTION("Job directory is not found")
-            << TErrorAttribute("job_id", jobId);
+            .With("job_id", jobId);
     }
 
     void DoDumpJobProxyLog(
@@ -578,8 +578,8 @@ private:
                 return TFile(logFilePath, OpenExisting | RdOnly);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to open log file")
-                    << TErrorAttribute("log_file_name", logFileName)
-                    << ex;
+                    .With("log_file_name", logFileName)
+                    .With(ex);
             }
         }();
 
@@ -624,7 +624,7 @@ private:
 
         if (typedWriterConfig->Type != TFileLogWriterConfig::WriterType) {
             THROW_ERROR_EXCEPTION("Log writer %Qv configured for dump must have “file” type", newLogWriterName)
-                << TErrorAttribute("log_writer_type", typedWriterConfig->Type);
+                .With("log_writer_type", typedWriterConfig->Type);
         }
 
         auto fileLogWriterConfig = ConvertTo<TFileLogWriterConfigPtr>(logWriterConfigNode);

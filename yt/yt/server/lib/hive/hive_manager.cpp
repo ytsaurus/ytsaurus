@@ -767,8 +767,8 @@ private:
 
         if (IsEdgeFrozen({.SourceCellId = srcCellId, .DestinationCellId = SelfCellId_})) {
             context->Reply(TError("Edge is frozen; not posting messages along it")
-                << TErrorAttribute("self_cell_id", SelfCellId_)
-                << TErrorAttribute("src_endpoint_id", srcCellId));
+                .With("self_cell_id", SelfCellId_)
+                .With("src_endpoint_id", srcCellId));
             return;
         }
 
@@ -1261,7 +1261,7 @@ private:
             NRpc::EErrorCode::Unavailable,
             "Failed to synchronize with cell %v since it has disconnected",
             cellRuntimeData->EndpointId)
-            << error;
+            .With(error);
 
         {
             NTracing::TNullTraceContextGuard guard;
@@ -1655,7 +1655,7 @@ private:
                     NRpc::EErrorCode::Unavailable,
                     "Failed to synchronize with cell %v",
                     cellId)
-                    << rspOrError;
+                    .With(rspOrError);
             }
 
             if (!cellRuntimeData->Connected.load()) {

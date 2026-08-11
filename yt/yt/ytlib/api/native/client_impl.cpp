@@ -438,7 +438,7 @@ TFuture<T> TClient::Execute(
         .Run()
         .WithTimeout(options.Timeout, TFutureTimeoutOptions{
             .Error = TError(NYT::EErrorCode::Timeout, "Command timed out")
-                << TErrorAttribute("command", commandName),
+                .With("command", commandName),
         });
 }
 
@@ -749,9 +749,9 @@ TObjectId TClient::CreateObjectImpl(
         if (!ok) {
             THROW_ERROR_EXCEPTION("Failed to wait until object %v creation is committed",
                 objectId)
-                << TErrorAttribute("retry_count", retryIndex)
-                << TErrorAttribute("retry_time", timer.GetElapsedTime())
-                << TErrorAttribute("last_seen_life_stage", lifeStage);
+                .With("retry_count", retryIndex)
+                .With("retry_time", timer.GetElapsedTime())
+                .With("last_seen_life_stage", lifeStage);
         }
     }
 
@@ -886,7 +886,7 @@ void TClient::DoCheckClusterLiveness(
             if (!responseOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION(NApi::EErrorCode::ClusterLivenessCheckFailed,
                     "Cluster liveness subrequest failed")
-                    << TError(responseOrError);
+                    .With(TError(responseOrError));
             }
         }
     }
@@ -898,8 +898,8 @@ void TClient::DoCheckClusterLiveness(
         if (health != ETabletCellHealth::Good && health != ETabletCellHealth::Degraded) {
             THROW_ERROR_EXCEPTION(NApi::EErrorCode::ClusterLivenessCheckFailed,
                 "Tablet cell bundle health subrequest failed")
-                << TErrorAttribute("bundle_name", *options.CheckTabletCellBundle)
-                << TErrorAttribute("bundle_health", health);
+                .With("bundle_name", *options.CheckTabletCellBundle)
+                .With("bundle_health", health);
         }
     }
 }

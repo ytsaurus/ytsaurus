@@ -36,8 +36,8 @@ void TPythonSkiffRecordBuilder::OnBeginRow(ui16 schemaIndex)
 {
     if (schemaIndex >= Schemas_.size()) {
         THROW_ERROR_EXCEPTION("Invalid schema index")
-            << TErrorAttribute("schema_index", schemaIndex)
-            << TErrorAttribute("schema_count", Schemas_.size());
+            .With("schema_index", schemaIndex)
+            .With("schema_count", Schemas_.size());
     }
 
     CurrentSchema_ = Schemas_[schemaIndex];

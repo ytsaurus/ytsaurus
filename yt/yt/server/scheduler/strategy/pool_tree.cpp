@@ -381,7 +381,7 @@ public:
                 YT_LOG_WARNING("Pool tree config contains unrecognized options (Unrecognized: %v)",
                     ConvertToYsonString(unrecognized, EYsonFormat::Text));
                 unrecognizedConfgOptionsError = TError("Pool tree config contains unrecognized options")
-                    << TErrorAttribute("unrecognized", unrecognized);
+                    .With("unrecognized", unrecognized);
             }
         }
 
@@ -755,9 +755,9 @@ public:
                         "operation's minimum allocation resource demand",
                         limitingAncestor->GetId(),
                         violatedResourceTypes)
-                        << TErrorAttribute("safe_timeout", options->LimitingAncestorSafeTimeout)
-                        << TErrorAttribute("resource_limits", *resourceLimits)
-                        << TErrorAttribute("min_needed_resources", aggregatedMinNeededResources);
+                        .With("safe_timeout", options->LimitingAncestorSafeTimeout)
+                        .With("resource_limits", *resourceLimits)
+                        .With("min_needed_resources", aggregatedMinNeededResources);
                 }
             } else if (it != OperationIdToFirstFoundLimitingAncestorTime_.end()) {
                 it->second = TInstant::Max();
@@ -981,8 +981,8 @@ public:
                     "User default parent pool %Qv is missing in pool tree %Qv",
                     poolName,
                     TreeId_)
-                    << TErrorAttribute("pool", poolName)
-                    << TErrorAttribute("pool_tree", TreeId_);
+                    .With("pool", poolName)
+                    .With("pool_tree", TreeId_);
             }
         }
 
@@ -1059,11 +1059,11 @@ public:
                         "Operation has jobs with resource demand that violates restrictions for resources %lv in tree %Qlv",
                         resourcesWithViolatedRestrictions,
                         GetId())
-                    << TErrorAttribute("operation_id", element->GetOperationId())
-                    << TErrorAttribute("task", taskName)
-                    << TErrorAttribute("job_resource_demand", allocationGroupResources.MinNeededResources)
-                    << TErrorAttribute("lower_bounds", Config_->MinJobResourceLimits)
-                    << TErrorAttribute("upper_bounds", Config_->MaxJobResourceLimits);
+                    .With("operation_id", element->GetOperationId())
+                    .With("task", taskName)
+                    .With("job_resource_demand", allocationGroupResources.MinNeededResources)
+                    .With("lower_bounds", Config_->MinJobResourceLimits)
+                    .With("upper_bounds", Config_->MaxJobResourceLimits);
             }
         }
 
@@ -1842,7 +1842,7 @@ private:
     void ThrowOrchidIsNotReady() const
     {
         THROW_ERROR_EXCEPTION("Pool tree orchid is not ready yet")
-            << TErrorAttribute("tree_id", TreeId_);
+            .With("tree_id", TreeId_);
     }
 
     TPoolTreeSnapshotPtr GetTreeSnapshot() const noexcept override
@@ -1979,8 +1979,8 @@ private:
         TError error;
         if (!fairShareUpdateResult.Errors.empty()) {
             error = TError("Found pool configuration issues during fair share update in tree %Qv", TreeId_)
-                << TErrorAttribute("pool_tree", TreeId_)
-                << std::move(fairShareUpdateResult.Errors);
+                .With("pool_tree", TreeId_)
+                .With(std::move(fairShareUpdateResult.Errors));
         }
 
         // Copy persistent attributes back to the original tree.
@@ -2342,9 +2342,9 @@ private:
                 "Max running operation count in pool %Qv of tree %Qv is violated ",
                 violatedPool->GetId(),
                 TreeId_)
-                << TErrorAttribute("pool", violatedPool->GetId())
-                << TErrorAttribute("limit", violatedPool->GetMaxRunningOperationCount())
-                << TErrorAttribute("pool_tree", TreeId_)));
+                .With("pool", violatedPool->GetId())
+                .With("limit", violatedPool->GetMaxRunningOperationCount())
+                .With("pool_tree", TreeId_)));
 
         return false;
     }
@@ -2666,10 +2666,10 @@ private:
         THROW_ERROR_EXCEPTION(
             "Operations of type %Qlv must have small enough specified resource limits in some of ancestor pools",
             operation->GetType())
-            << TErrorAttribute("operation_id", operation->GetId())
-            << TErrorAttribute("pool", pool->GetId())
-            << TErrorAttribute("required_resource_limits", requiredLimitsConfig)
-            << TErrorAttribute("tree_id", TreeId_);
+            .With("operation_id", operation->GetId())
+            .With("pool", pool->GetId())
+            .With("required_resource_limits", requiredLimitsConfig)
+            .With("tree_id", TreeId_);
     }
 
     void DoValidateOperationPoolsCanBeUsed(const IOperation* operation, const TPoolName& poolName) const

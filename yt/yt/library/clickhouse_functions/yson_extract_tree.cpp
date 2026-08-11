@@ -111,7 +111,7 @@ public:
         if (!error.IsOK()) {
             return TError("Cannot read %v value from JSON element: %v",
                 DB::TypeName<NumberType>,
-                NYson::ConvertToYsonString(node.GetNode(), NYson::EYsonFormat::Pretty)) << error;
+                NYson::ConvertToYsonString(node.GetNode(), NYson::EYsonFormat::Pretty)).With(error);
         }
 
         if (IsBoolType_) {
@@ -282,7 +282,7 @@ public:
                     tuple.getColumn(index).insertDefault();
                 } else {
                     setSize(oldSize);
-                    return error << TErrorAttribute("tuple_element", index);
+                    return error.With("tuple_element", index);
                 }
             }
 
@@ -302,7 +302,7 @@ public:
                         tuple.getColumn(index).insertDefault();
                     } else {
                         setSize(oldSize);
-                        return error << TErrorAttribute("tuple_element", index);
+                        return error.With("tuple_element", index);
                     }
                 }
             } else {
@@ -315,7 +315,7 @@ public:
                             wereValidElements = true;
                         } else if (!insertSettings.insert_default_on_invalid_elements_in_complex_types) {
                             setSize(oldSize);
-                            return error << TErrorAttribute("tuple_element", key);
+                            return error.With("tuple_element", key);
                         }
                     }
                 }
@@ -385,7 +385,7 @@ public:
                 } else {
                     keyCol.popBack(keyCol.size() - offsets.back());
                     valueCol.popBack(valueCol.size() - offsets.back());
-                    return error << TErrorAttribute("map_key", pair.first);
+                    return error.With("map_key", pair.first);
                 }
             }
         }

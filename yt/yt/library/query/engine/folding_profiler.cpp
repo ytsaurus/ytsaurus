@@ -1421,8 +1421,8 @@ size_t TExpressionProfiler::Profile(
 
         if (type->GetMetatype() != ELogicalMetatype::List) {
             THROW_ERROR_EXCEPTION("Unexpected type instead of list")
-                << TErrorAttribute("column_name", name)
-                << TErrorAttribute("actual_type", type->GetMetatype());
+                .With("column_name", name)
+                .With("actual_type", type->GetMetatype());
         }
 
         nestedColumns.emplace_back(name, type->GetElement());

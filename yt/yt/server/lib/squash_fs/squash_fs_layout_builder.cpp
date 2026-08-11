@@ -498,9 +498,9 @@ TSharedRef TSquashFSLayout::ReadHead(
         offset + length > std::ssize(Head_))
     {
         THROW_ERROR_EXCEPTION("Invalid read of squashfs header")
-            << TErrorAttribute("offset", offset)
-            << TErrorAttribute("length", length)
-            << TErrorAttribute("head_size", std::ssize(Head_));
+            .With("offset", offset)
+            .With("length", length)
+            .With("head_size", std::ssize(Head_));
     }
 
     return Head_.Slice(
@@ -522,9 +522,9 @@ TSharedRef TSquashFSLayout::ReadTail(
         offset + length > std::ssize(Tail_))
     {
         THROW_ERROR_EXCEPTION("Invalid read of squashfs tail")
-            << TErrorAttribute("offset", offset)
-            << TErrorAttribute("length", length)
-            << TErrorAttribute("tail_size", std::ssize(Tail_));
+            .With("offset", offset)
+            .With("length", length)
+            .With("tail_size", std::ssize(Tail_));
     }
 
     return Tail_.Slice(
@@ -644,7 +644,7 @@ TDirectoryPtr TDirectory::CreateDirectory(const std::string& name)
     if (entry) {
         if (entry->GetType() != EInodeType::BasicDirectory) {
             THROW_ERROR_EXCEPTION("Cannot open directory: file with the same name already exists")
-                << TErrorAttribute("name", name);
+                .With("name", name);
         }
 
         return DynamicPointerCast<TDirectory>(entry);
@@ -670,10 +670,10 @@ void TDirectory::CreateFile(
     if (entry) {
         if (entry->GetType() == EInodeType::BasicFile) {
             THROW_ERROR_EXCEPTION("The file was already created")
-                << TErrorAttribute("name", name);
+                .With("name", name);
         }
         THROW_ERROR_EXCEPTION("Cannot create file: directory with the same name already exists")
-            << TErrorAttribute("name", name);
+            .With("name", name);
     }
 
     auto newFile = New<TFile>(
@@ -771,7 +771,7 @@ TSquashFSLayoutBuilder::TSquashFSLayoutBuilder(TSquashFSLayoutBuilderOptions opt
         THROW_ERROR_EXCEPTION("Incorrect squashfs block size: it must be a power of two between %v and %v bytes",
             MinDataBlockSize,
             MaxDataBlockSize)
-            << TErrorAttribute("block_size", BlockSize_);
+            .With("block_size", BlockSize_);
     }
 }
 
@@ -800,8 +800,8 @@ void TSquashFSLayoutBuilder::AddFile(
         {
             THROW_ERROR_EXCEPTION("The directory/file name has incorrect number of symbols: it must be between 1 and %v characters",
                 MaxEntryNameLength)
-                << TErrorAttribute("name", name)
-                << TErrorAttribute("name_size", std::ssize(name));
+                .With("name", name)
+                .With("name_size", std::ssize(name));
         }
     };
 

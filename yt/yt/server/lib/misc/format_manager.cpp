@@ -130,7 +130,7 @@ void TFormatManager::ValidateAndPatchFormatNode(const INodePtr& formatNode, std:
             errorMessage = Format("Format %Qlv is disabled", formatType);
         }
         THROW_ERROR_EXCEPTION(NApi::EErrorCode::FormatDisabled, std::move(errorMessage), TError::DisableFormat)
-            << TErrorAttribute("origin", origin);
+            .With("origin", origin);
     }
 
     const auto& defaultAttributes = formatConfig->DefaultAttributes;
@@ -154,8 +154,8 @@ TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, std::string 
         return ConvertTo<TFormat>(formatNode);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to parse format")
-            << ex
-            << TErrorAttribute("origin", origin);
+            .With(ex)
+            .With("origin", origin);
     }
 }
 

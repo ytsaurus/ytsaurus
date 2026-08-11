@@ -35,9 +35,9 @@ TYsonString SpawnTool(const std::string& toolName, const TYsonString& serialized
     auto result = process.Execute();
     if (!result.Status.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to run %v", toolName)
-            << result.Status
-            << TErrorAttribute("command_line", process.GetCommandLine())
-            << TErrorAttribute("error", std::string(result.Error.Begin(), result.Error.End()));
+            .With(result.Status)
+            .With("command_line", process.GetCommandLine())
+            .With("error", std::string(result.Error.Begin(), result.Error.End()));
     }
 
     auto serializedResultOrError = std::string(result.Output.Begin(), result.Output.End());

@@ -362,7 +362,7 @@ std::vector<INodePtr> ResolveLinks(
             } else {
                 // Errors other than ResolveError are not expected.
                 THROW_ERROR_EXCEPTION("Failed to resolve links in directory")
-                    << resolvedNodeOrError;
+                    .With(resolvedNodeOrError);
             }
             ++linkIndex;
         }
@@ -782,7 +782,7 @@ protected:
                 // Some dirs may not exist, ignore them.
             } else {
                 THROW_ERROR_EXCEPTION("Failed to list directory")
-                    << nodeOrError;
+                    .With(nodeOrError);
             }
         }
 

@@ -1029,7 +1029,7 @@ protected:
         YT_VERIFY(!throttlingError.IsOK());
         auto error = TError(NChunkClient::EErrorCode::ReaderThrottlingFailed,
             "Failed to apply throttling in reader")
-            << throttlingError;
+            .With(throttlingError);
         OnSessionFailed(true, error);
         return error;
     }
@@ -1262,7 +1262,7 @@ protected:
                 std::nullopt);
         }
 
-        auto error = wrappingError << rspOrError;
+        auto error = wrappingError.With(rspOrError);
         if (code == NRpc::EErrorCode::Unavailable ||
             code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
             code == NHydra::EErrorCode::InvalidChangelogState)
@@ -1559,8 +1559,8 @@ protected:
                 "Replication reader retry %v out of %v timed out",
                 RetryIndex_,
                 ReaderConfig_->RetryCount)
-                << TErrorAttribute("retry_start_time", RetryStartTime_)
-                << TErrorAttribute("retry_timeout", ReaderConfig_->RetryTimeout));
+                .With("retry_start_time", RetryStartTime_)
+                .With("retry_timeout", ReaderConfig_->RetryTimeout));
             OnRetryFailed();
             return;
         }
@@ -1592,7 +1592,7 @@ protected:
 
     [[nodiscard]] TError BuildCombinedError(const TError& error)
     {
-        return error << InnerErrors_;
+        return error.With(InnerErrors_);
     }
 
     virtual void NextPass() = 0;
@@ -1966,7 +1966,7 @@ private:
                 RegisterError(TError(
                     NChunkClient::EErrorCode::MasterCommunicationFailed,
                     "Error requesting seeds from master")
-                    << resultOrError);
+                    .With(resultOrError));
             }
             OnSessionFailed(/*fatal*/ true);
             return;
@@ -2016,8 +2016,8 @@ private:
             RegisterError(TError(
                 NChunkClient::EErrorCode::ReaderTimeout,
                 "Replication reader session timed out")
-                << TErrorAttribute("session_start_time", StartTime_)
-                << TErrorAttribute("session_timeout", ReaderConfig_->SessionTimeout));
+                .With("session_start_time", StartTime_)
+                .With("session_timeout", ReaderConfig_->SessionTimeout));
             OnSessionFailed(/*fatal*/ false);
             return true;
         }
@@ -2028,7 +2028,7 @@ private:
                 NChunkClient::EErrorCode::ChunkReadSessionSlow,
                 "Read session of chunk %v is slow; may attempt repair",
                 ChunkId_)
-                << error);
+                .With(error));
             OnSessionFailed(/*fatal*/ false);
             return true;
         }
@@ -3018,7 +3018,7 @@ private:
                 wrappingError);
             CancelAllBlocks(
                 blocks,
-                wrappingError << rspOrError);
+                wrappingError.With(rspOrError));
             return true;
         }
 
@@ -3087,9 +3087,9 @@ private:
                     TError(
                         NChunkClient::EErrorCode::BlockChecksumMismatch,
                         "Failed to validate received block checksum")
-                        << TErrorAttribute("block_id", ToString(blockId))
-                        << TErrorAttribute("peer_id", respondedPeer.Id)
-                        << error,
+                        .With("block_id", ToString(blockId))
+                        .With("peer_id", respondedPeer.Id)
+                        .With(error),
                     /*raiseAlert*/ true);
 
                 ++invalidBlockCount;
@@ -3366,7 +3366,7 @@ private:
     void OnCanceled(const TError& error) override
     {
         auto wrappedError = TError(NYT::EErrorCode::Canceled, "ReadBlockSet session canceled")
-            << error;
+            .With(error);
         TSessionBase::OnCanceled(wrappedError);
         Promise_.TrySet(wrappedError);
     }
@@ -3593,9 +3593,9 @@ private:
                     TError(
                         NChunkClient::EErrorCode::BlockChecksumMismatch,
                         "Failed to validate received block checksum")
-                        << TErrorAttribute("block_id", ToString(TBlockId(ChunkId_, FirstBlockIndex_ + blocksReceived)))
-                        << TErrorAttribute("peer", peerId)
-                        << error,
+                        .With("block_id", ToString(TBlockId(ChunkId_, FirstBlockIndex_ + blocksReceived)))
+                        .With("peer", peerId)
+                        .With(error),
                     /*raiseAlert*/ true);
 
                 BanPeer(peerId, false);
@@ -3680,7 +3680,7 @@ private:
     void OnCanceled(const TError& error) override
     {
         auto wrappedError = TError(NYT::EErrorCode::Canceled, "ReadBlockRange session canceled")
-            << error;
+            .With(error);
         TSessionBase::OnCanceled(wrappedError);
         Promise_.TrySet(wrappedError);
     }
@@ -3954,7 +3954,7 @@ private:
     void OnCanceled(const TError& error) override
     {
         auto wrappedError = TError(NYT::EErrorCode::Canceled, "GetMeta session canceled")
-            << error;
+            .With(error);
         TSessionBase::OnCanceled(wrappedError);
         Promise_.TrySet(wrappedError);
     }
@@ -4547,7 +4547,7 @@ private:
     void OnCanceled(const TError& error) override
     {
         auto wrappedError = TError(NYT::EErrorCode::Canceled, "LookupRows session canceled")
-            << error;
+            .With(error);
         TSessionBase::OnCanceled(wrappedError);
         Promise_.TrySet(wrappedError);
     }

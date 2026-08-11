@@ -872,8 +872,8 @@ private:
                 coordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy)
             {
                 THROW_ERROR_EXCEPTION("Coordinator prepare and commit modes are incompatible")
-                    << TErrorAttribute("coordinator_prepare_mode", coordinatorPrepareMode)
-                    << TErrorAttribute("coordinator_commit_mode", coordinatorCommitMode);
+                    .With("coordinator_prepare_mode", coordinatorPrepareMode)
+                    .With("coordinator_commit_mode", coordinatorCommitMode);
             }
 
             auto owner = GetOwnerOrThrow();
@@ -883,9 +883,9 @@ private:
                 clockClusterTag != owner->SelfClockClusterTag_)
             {
                 THROW_ERROR_EXCEPTION("Transaction origin clock source differs from coordinator clock source")
-                    << TErrorAttribute("transaction_id", transactionId)
-                    << TErrorAttribute("client_clock_cluster_tag", clockClusterTag)
-                    << TErrorAttribute("coordinator_clock_cluster_tag", owner->SelfClockClusterTag_);
+                    .With("transaction_id", transactionId)
+                    .With("client_clock_cluster_tag", clockClusterTag)
+                    .With("coordinator_clock_cluster_tag", owner->SelfClockClusterTag_);
             }
 
             context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, "
@@ -2610,7 +2610,7 @@ private:
                 auto error = TError(
                     NTransactionClient::EErrorCode::ParticipantFailedToPrepare,
                     "Coordinator has failed to prepare")
-                    << ex;
+                    .With(ex);
                 ChangeCommitTransientState(commit, ECommitState::Aborting, error);
                 return false;
             }
@@ -3111,8 +3111,8 @@ private:
                         NTransactionClient::EErrorCode::ParticipantFailedToPrepare,
                         "Participant %v has failed to prepare",
                         participantCellId)
-                        << TErrorAttribute("participant_cell_id", participantCellId)
-                        << error;
+                        .With("participant_cell_id", participantCellId)
+                        .With(error);
                     ChangeCommitTransientState(commit, ECommitState::Aborting, wrappedError);
                     break;
                 }

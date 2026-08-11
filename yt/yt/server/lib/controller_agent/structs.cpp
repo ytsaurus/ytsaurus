@@ -277,7 +277,7 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
     summary.FinishTime = TInstant::Now();
 
     auto error = TError("Allocation finished concurrently with settling job")
-        << TErrorAttribute("abort_reason", EAbortReason::AllocationFinished);
+        .With("abort_reason", EAbortReason::AllocationFinished);
 
     ToProto(
         summary.Result.emplace().mutable_error(),

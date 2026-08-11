@@ -347,30 +347,30 @@ private:
     {
         THROW_ERROR_EXCEPTION_IF(SourceObjectId_ != View_.SourceObjectId,
             "Materialized view source table was replaced")
-            << TErrorAttribute("source_path", View_.SourcePath)
-            << TErrorAttribute("expected_object_id", View_.SourceObjectId)
-            << TErrorAttribute("actual_object_id", SourceObjectId_);
+            .With("source_path", View_.SourcePath)
+            .With("expected_object_id", View_.SourceObjectId)
+            .With("actual_object_id", SourceObjectId_);
         THROW_ERROR_EXCEPTION_IF(TargetObjectId_ != View_.TargetObjectId,
             "Materialized view target table was replaced")
-            << TErrorAttribute("target_path", View_.TargetPath)
-            << TErrorAttribute("expected_object_id", View_.TargetObjectId)
-            << TErrorAttribute("actual_object_id", TargetObjectId_);
+            .With("target_path", View_.TargetPath)
+            .With("expected_object_id", View_.TargetObjectId)
+            .With("actual_object_id", TargetObjectId_);
         THROW_ERROR_EXCEPTION_IF(TargetInfo_.Dynamic,
             "Materialized view target table must be static")
-            << TErrorAttribute("target_path", View_.TargetPath);
+            .With("target_path", View_.TargetPath);
         THROW_ERROR_EXCEPTION_IF(SourceInfo_.Dynamic,
             "Materialized view source table must be static")
-            << TErrorAttribute("source_path", View_.SourcePath);
+            .With("source_path", View_.SourcePath);
         THROW_ERROR_EXCEPTION_IF(!SourceInfo_.RowCount,
             "Materialized view static source has no row count")
-            << TErrorAttribute("source_path", View_.SourcePath);
+            .With("source_path", View_.SourcePath);
 
         auto upperRowIndex = *SourceInfo_.RowCount;
         THROW_ERROR_EXCEPTION_IF(upperRowIndex < Progress_->NextRowIndex,
             "Materialized view source table is not append-only")
-            << TErrorAttribute("source_path", View_.SourcePath)
-            << TErrorAttribute("processed_row_count", Progress_->NextRowIndex)
-            << TErrorAttribute("current_row_count", upperRowIndex);
+            .With("source_path", View_.SourcePath)
+            .With("processed_row_count", Progress_->NextRowIndex)
+            .With("current_row_count", upperRowIndex);
     }
 
     std::optional<TRefreshTask> BuildTask() const

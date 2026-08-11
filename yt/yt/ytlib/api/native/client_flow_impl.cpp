@@ -340,10 +340,10 @@ TFlowExecuteResult TClient::DoFlowExecute(
         if (rspOrError.GetCode() == NRpc::EErrorCode::TransportError) {
             THROW_ERROR_EXCEPTION("Cannot connect to pipeline controller leader. "
                 "Probably controller is stopped or it is failing")
-                << TErrorAttribute("flow_execute_command", req->command())
-                << TErrorAttribute("pipeline_path", pipelinePath)
-                << TErrorAttribute("pipeline_controller_leader_address", descriptor.Address)
-                << rspOrError;
+                .With("flow_execute_command", req->command())
+                .With("pipeline_path", pipelinePath)
+                .With("pipeline_controller_leader_address", descriptor.Address)
+                .With(rspOrError);
         }
         return rspOrError.ValueOrThrow();
     };

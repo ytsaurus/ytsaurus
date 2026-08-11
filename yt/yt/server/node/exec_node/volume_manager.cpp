@@ -172,7 +172,7 @@ public:
             auto error = WaitFor(CleanupTmpfsMountPaths(std::move(mountPaths)));
             if (!error.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to initialize simple volume manager")
-                    << error;
+                    .With(error);
             }
         }
 
@@ -281,7 +281,7 @@ private:
                     if (config->Path != sandboxPath) {
                         if (NFS::Exists(config->Path)) {
                             THROW_ERROR_EXCEPTION("Target path already exists")
-                                << TErrorAttribute("target", config->Path);
+                                .With("target", config->Path);
                         }
                         NFS::MakeDirRecursive(config->Path);
                     }
@@ -497,7 +497,7 @@ public:
             errorFutures.reserve(layerOptions.size());
             for (const auto& layerOption : layerOptions) {
                 errorFutures.push_back(MakeFuture<TOverlayData>(TError("Throw on prepare layers")
-                    << TErrorAttribute("artifact_key", ToString(layerOption.ArtifactKey))));
+                    .With("artifact_key", ToString(layerOption.ArtifactKey))));
             }
             return errorFutures;
         }

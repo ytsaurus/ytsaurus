@@ -37,9 +37,9 @@ struct TYsonMessage
         auto this_ = DynamicPointerCast<T>(MakeStrong(this));
         if (!this_) {
             THROW_ERROR_EXCEPTION("Unexpected message type")
-                << TErrorAttribute("stream_id", Meta->StreamId)
-                << TErrorAttribute("expected_type", TypeName<T>())
-                << TErrorAttribute("got_type", TypeName(this->GetMeta()->GetStructType()));
+                .With("stream_id", Meta->StreamId)
+                .With("expected_type", TypeName<T>())
+                .With("got_type", TypeName(this->GetMeta()->GetStructType()));
         }
         return this_;
     }

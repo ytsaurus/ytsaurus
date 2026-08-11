@@ -144,7 +144,7 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
     if (chunkSpecFetcher->ChunkSpecs().empty() && tabletCount > 1) {
         THROW_ERROR_EXCEPTION("Empty table %v cannot be resharded to more than one tablet",
             path)
-            << TErrorAttribute("tablet_count", tabletCount);
+            .With("tablet_count", tabletCount);
     }
 
     i64 chunksDataWeight = 0;
@@ -262,9 +262,9 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
     if (reshardBuilder.GetChunksForSlicing().empty()) {
         THROW_ERROR_EXCEPTION("Could not reshard table %v to desired tablet count; consider reducing tablet count or specifying pivot keys manually",
             path)
-            << TErrorAttribute("tablet_count", tabletCount)
-            << TErrorAttribute("max_block_size", maxBlockSize)
-            << TErrorAttribute("split_chunk_count", std::ssize(splitChunks));
+            .With("tablet_count", tabletCount)
+            .With("max_block_size", maxBlockSize)
+            .With("split_chunk_count", std::ssize(splitChunks));
     }
 
     auto rowBuffer = New<TRowBuffer>(TPivotKeysPickerTag());
@@ -313,9 +313,9 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
     if (!reshardBuilder.AreAllPivotsFound()) {
         THROW_ERROR_EXCEPTION("Could not reshard table %v to desired tablet count; consider reducing tablet count or specifying pivot keys manually",
             path)
-            << TErrorAttribute("tablet_count", tabletCount)
-            << TErrorAttribute("max_block_size", maxBlockSize)
-            << TErrorAttribute("expected_tablet_size", reshardBuilder.GetExpectedTabletSize());
+            .With("tablet_count", tabletCount)
+            .With("max_block_size", maxBlockSize)
+            .With("expected_tablet_size", reshardBuilder.GetExpectedTabletSize());
     }
 
     return reshardBuilder.GetPivotKeys();

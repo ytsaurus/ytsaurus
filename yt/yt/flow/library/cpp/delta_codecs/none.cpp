@@ -10,7 +10,7 @@ TSharedRef TNoneCodec::ApplyPatch(const TSharedRef& base, const TSharedRef& patc
 {
     if (!patch.ToStringBuf().empty()) {
         THROW_ERROR_EXCEPTION("None codec expects empty patch")
-            << TErrorAttribute("patch_size", patch.ToStringBuf().size());
+            .With("patch_size", patch.ToStringBuf().size());
     }
     return base;
 }

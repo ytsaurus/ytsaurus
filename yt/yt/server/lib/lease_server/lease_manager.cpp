@@ -601,8 +601,8 @@ private:
 
         if (!force && lease->GetState() != ELeaseState::Active) {
             THROW_ERROR_EXCEPTION("Non-active lease cannot be referenced persistently")
-                << TErrorAttribute("lease_id", lease->GetId())
-                << TErrorAttribute("lease_state", lease->GetState());
+                .With("lease_id", lease->GetId())
+                .With("lease_state", lease->GetState());
         }
 
         auto persistentRefCounter = lease->GetPersistentRefCounter() + 1;
@@ -648,8 +648,8 @@ private:
 
         if (!force && lease->GetState() != ELeaseState::Active) {
             THROW_ERROR_EXCEPTION("Non-active lease cannot be referenced transiently")
-                << TErrorAttribute("lease_id", lease->GetId())
-                << TErrorAttribute("lease_state", lease->GetState());
+                .With("lease_id", lease->GetId())
+                .With("lease_state", lease->GetState());
         }
 
         auto transientRefCounter = lease->GetTransientRefCounter() + 1;

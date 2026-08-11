@@ -139,7 +139,7 @@ private:
             auto error = TError(ex);
             Synchronized_.Fire(error);
             THROW_ERROR_EXCEPTION("Error synchronizing cluster directory")
-                << error;
+                .With(error);
         }
     }
 

@@ -69,7 +69,7 @@ void TQueueInfoController::TryUpdatePartitionCount()
             .With("CurrentPartitionCount", State_->CachedPartitionCount);
         ErrorState_->ClearError();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to update partition count") << ex;
+        auto error = TError("Failed to update partition count").With(ex);
         ErrorState_->SetError(error);
     }
 }

@@ -171,7 +171,7 @@ void TVirtualSinglecellWithRemoteItemsMapBase::GetSelf(
 
     if (limit < 0) {
         THROW_ERROR_EXCEPTION("Limit is negative")
-            << TErrorAttribute("limit", limit);
+            .With("limit", limit);
     }
 
     auto items = GetItems(limit);
@@ -254,7 +254,7 @@ void TVirtualSinglecellWithRemoteItemsMapBase::ListSelf(
 
     if (limit < 0) {
         THROW_ERROR_EXCEPTION("Limit is negative")
-            << TErrorAttribute("limit", limit);
+            .With("limit", limit);
     }
 
     auto items = GetItems(limit);
@@ -395,7 +395,7 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchRemoteItems(
             if (!batchRspOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Error fetching content of virtual map from cell %v",
                     cellTag)
-                    << batchRspOrError;
+                    .With(batchRspOrError);
             }
 
             const auto& batchRsp = batchRspOrError.Value();
@@ -747,7 +747,7 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(
                 THROW_ERROR_EXCEPTION("Error fetching size of virtual map %v from cell %v",
                     path,
                     cellTag)
-                    << cumulativeError;
+                    .With(cumulativeError);
             }
 
             const auto& batchRsp = batchRspOrError.Value();
@@ -865,7 +865,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(
                 THROW_ERROR_EXCEPTION("Error fetching content of virtual map %v from cell %v",
                     path,
                     cellTag)
-                    << cumulativeError;
+                    .With(cumulativeError);
             }
 
             const auto& batchRsp = batchRspOrError.Value();

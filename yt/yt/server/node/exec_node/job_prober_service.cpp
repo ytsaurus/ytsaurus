@@ -209,8 +209,8 @@ private:
 
         if (job->GetPhase() < EJobPhase::WaitingForCleanup) {
             THROW_ERROR_EXCEPTION("Failed to abort job %v", jobId)
-                << TErrorAttribute("job_state", job->GetState())
-                << TErrorAttribute("job_phase", job->GetPhase());
+                .With("job_state", job->GetState())
+                .With("job_phase", job->GetPhase());
         }
 
         context->Reply();
@@ -234,7 +234,7 @@ private:
         if (!jobProxyLogManager) {
             THROW_ERROR_EXCEPTION(
                 "Job proxy log manager is disabled")
-                << TErrorAttribute("job_proxy_logging_mode", Bootstrap_->GetConfig()->ExecNode->JobProxy->JobProxyLogging->Mode);
+                .With("job_proxy_logging_mode", Bootstrap_->GetConfig()->ExecNode->JobProxy->JobProxyLogging->Mode);
         }
 
         WaitFor(jobProxyLogManager->DumpJobProxyLog(jobId, path, transactionId))

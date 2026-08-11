@@ -183,15 +183,15 @@ TError CheckCsrfToken(
     auto signTime = TInstant::Seconds(FromString<time_t>(parts[1]));
     if (signTime < expirationTime) {
         return TError(NRpc::EErrorCode::InvalidCsrfToken, "CSRF token expired")
-            << TErrorAttribute("sign_time", signTime);
+            .With("sign_time", signTime);
     }
 
     auto msg = userId + ":" + ToString(signTime.TimeT());
     auto expectedToken = CreateSha256Hmac(key, msg);
     if (!ConstantTimeCompare(expectedToken, parts[0])) {
         return TError(NRpc::EErrorCode::InvalidCsrfToken, "Invalid CSFR token signature")
-            << TErrorAttribute("provided_signature", parts[0])
-            << TErrorAttribute("user_fingerprint", msg);
+            .With("provided_signature", parts[0])
+            .With("user_fingerprint", msg);
     }
 
     return {};
@@ -244,8 +244,8 @@ TError EnsureUserExists(
     auto result = WaitFor(userManager->CheckUserExists(name));
     if (!result.IsOK()) {
         auto error = TError("Failed to verify if user exists")
-            << TErrorAttribute("name", name)
-            << std::move(result);
+            .With("name", name)
+            .With(std::move(result));
         YT_LOG_WARNING(error);
         return error;
     }
@@ -258,7 +258,7 @@ TError EnsureUserExists(
     YT_LOG_DEBUG("User does not exist (Name: %v)", name);
     if (!createIfNotExists) {
         auto error = TError(NRpc::EErrorCode::InvalidCredentials, "User does not exist")
-            << TErrorAttribute("name", name);
+            .With("name", name);
         return error;
     }
 
@@ -271,8 +271,8 @@ TError EnsureUserExists(
     }
 
     auto error = TError("Failed to create user")
-        << TErrorAttribute("name", name)
-        << std::move(userOrError);
+        .With("name", name)
+        .With(std::move(userOrError));
     YT_LOG_WARNING(error);
     return error;
 }

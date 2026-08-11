@@ -1756,7 +1756,7 @@ TFuture<std::vector<IConnectionPtr>> InsistentGetMultipleRemoteConnections(
                         }
 
                         return TError("Failed to get remote connections for some clusters")
-                            << std::move(errors);
+                            .With(std::move(errors));
                     }));
             }
             case EInsistentGetRemoteConnectionMode::WaitFirstSuccessfulSync: {

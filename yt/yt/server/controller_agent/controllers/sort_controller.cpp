@@ -816,15 +816,15 @@ protected:
             const auto& shuffleChunkPool = partition->ShuffleChunkPool();
             if (shuffleChunkPool->GetTotalDataSliceCount() > Controller_->Spec_->MaxShuffleDataSliceCount) {
                 result.OperationFailedError = TError("Too many data slices in shuffle pool, try to decrease size of intermediate data or split operation into several smaller ones")
-                    << TErrorAttribute("shuffle_data_slice_count", shuffleChunkPool->GetTotalDataSliceCount())
-                    << TErrorAttribute("max_shuffle_data_slice_count", Controller_->Spec_->MaxShuffleDataSliceCount);
+                    .With("shuffle_data_slice_count", shuffleChunkPool->GetTotalDataSliceCount())
+                    .With("max_shuffle_data_slice_count", Controller_->Spec_->MaxShuffleDataSliceCount);
                 return result;
             }
 
             if (shuffleChunkPool->GetTotalJobCount() > Controller_->Spec_->MaxShuffleJobCount) {
                 result.OperationFailedError = TError("Too many shuffle jobs, try to decrease size of intermediate data or split operation into several smaller ones")
-                    << TErrorAttribute("shuffle_job_count", shuffleChunkPool->GetTotalJobCount())
-                    << TErrorAttribute("max_shuffle_job_count", Controller_->Spec_->MaxShuffleJobCount);
+                    .With("shuffle_job_count", shuffleChunkPool->GetTotalJobCount())
+                    .With("max_shuffle_job_count", Controller_->Spec_->MaxShuffleJobCount);
                 return result;
             }
 
@@ -1578,8 +1578,8 @@ protected:
                     "Error while finishing input for sorted chunk pool (PartitionIndex: %v)",
                     partitionIndex);
                 return TError("Error while finishing input for sorted chunk pool")
-                        << ex
-                        << TErrorAttribute("partition_index", partitionIndex);
+                        .With(ex)
+                        .With("partition_index", partitionIndex);
             }
 
             return TError();
@@ -2758,8 +2758,8 @@ protected:
                 if (const auto* column = table->Schema->FindColumn(sortColumn.Name)) {
                     if (column->Aggregate()) {
                         THROW_ERROR_EXCEPTION("Sort by aggregate column is not allowed")
-                            << TErrorAttribute("table_path", table->Path)
-                            << TErrorAttribute("column_name", sortColumn.Name);
+                            .With("table_path", table->Path)
+                            .With("column_name", sortColumn.Name);
                     }
                 }
             }
@@ -2841,8 +2841,8 @@ protected:
         if (dataSliceCount > Spec_->MaxMergeDataSliceCount) {
             OnOperationFailed(TError("Too many data slices in merge pools, try to decrease size of "
                 "intermediate data or split operation into several smaller ones")
-                << TErrorAttribute("merge_data_slice_count", dataSliceCount)
-                << TErrorAttribute("max_merge_data_slice_count", Spec_->MaxMergeDataSliceCount));
+                .With("merge_data_slice_count", dataSliceCount)
+                .With("max_merge_data_slice_count", Spec_->MaxMergeDataSliceCount));
         }
     }
 
@@ -3354,9 +3354,9 @@ private:
             table->TableUploadOptions.TableSchema->GetSortColumns() != Spec_->SortBy)
         {
             THROW_ERROR_EXCEPTION("\"sort_by\" is different from output table key columns")
-                << TErrorAttribute("output_table_path", Spec_->OutputTablePath)
-                << TErrorAttribute("output_table_sort_columns", table->TableUploadOptions.TableSchema->GetSortColumns())
-                << TErrorAttribute("sort_by", Spec_->SortBy);
+                .With("output_table_path", Spec_->OutputTablePath)
+                .With("output_table_sort_columns", table->TableUploadOptions.TableSchema->GetSortColumns())
+                .With("sort_by", Spec_->SortBy);
         }
 
         if (auto writeMode = table->TableUploadOptions.VersionedWriteOptions.WriteMode; writeMode != EVersionedIOMode::Default) {
@@ -3420,8 +3420,8 @@ private:
 
         if (EstimatedInputStatistics_->DataWeight > Spec_->MaxInputDataWeight) {
             THROW_ERROR_EXCEPTION("Failed to initialize sort operation, input data weight is too large")
-                << TErrorAttribute("estimated_input_data_weight", EstimatedInputStatistics_->DataWeight)
-                << TErrorAttribute("max_input_data_weight", Spec_->MaxInputDataWeight);
+                .With("estimated_input_data_weight", EstimatedInputStatistics_->DataWeight)
+                .With("max_input_data_weight", Spec_->MaxInputDataWeight);
         }
 
         InitJobIOConfigs();
@@ -4249,9 +4249,9 @@ private:
                 return lhs;
             }
             THROW_ERROR_EXCEPTION("Type mismatch for key column %Qv in input schemas", keyColumn)
-                << errorLhs
-                << TErrorAttribute("lhs_type", lhs)
-                << TErrorAttribute("rhs_type", rhs);
+                .With(errorLhs)
+                .With("lhs_type", lhs)
+                .With("rhs_type", rhs);
         };
 
         TLogicalTypePtr mostGenericType;

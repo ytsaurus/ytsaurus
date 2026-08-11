@@ -789,7 +789,7 @@ public:
 
             if (traverseBudget < 0) {
                 THROW_ERROR_EXCEPTION("Failed to schedule chunk tree reincarnation; traverse budget exceeded")
-                    << TErrorAttribute("traverse_budget", initialTraverseBudget);
+                    .With("traverse_budget", initialTraverseBudget);
             }
 
             --traverseBudget;

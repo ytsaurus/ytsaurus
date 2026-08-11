@@ -378,7 +378,7 @@ void TSimpleJobBase::Interrupt()
 {
     if (!Host_->GetJobSpecHelper()->IsReaderInterruptionSupported()) {
         THROW_ERROR_EXCEPTION("Interrupting is not supported for this type of jobs")
-            << TErrorAttribute("job_type", Host_->GetJobSpecHelper()->GetJobType());
+            .With("job_type", Host_->GetJobSpecHelper()->GetJobType());
     }
 
     if (!Initialized_) {

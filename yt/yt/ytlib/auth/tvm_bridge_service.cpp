@@ -51,7 +51,7 @@ private:
 
         if (FromProto<TTvmId>(request->source()) != TvmService_->GetSelfTvmIdOrThrow()) {
             THROW_ERROR_EXCEPTION("Cannot fetch tickets for provided source")
-                << TErrorAttribute("source", request->source());
+                .With("source", request->source());
         }
 
         for (const auto& destination : request->destinations()) {
@@ -67,9 +67,9 @@ private:
                 ToProto(
                     result->mutable_error(),
                     TError("Could not fetch service ticket")
-                        << ex
-                        << TErrorAttribute("source", request->source())
-                        << TErrorAttribute("destination", destination));
+                        .With(ex)
+                        .With("source", request->source())
+                        .With("destination", destination));
             }
         }
 

@@ -167,7 +167,7 @@ void TSinkController::TryUpdatePartitionCount()
         auto type = attributes.Get<NObjectClient::EObjectType>("type");
         if (type == NObjectClient::EObjectType::ChaosReplicatedTable) {
             THROW_ERROR_EXCEPTION("No support for chaos yet")
-                << TErrorAttribute("queue_path", GetParameters()->TablePath);
+                .With("queue_path", GetParameters()->TablePath);
         }
         auto guard = Guard(StateLock_);
         State_->CachedPartitionCount = attributes.Get<int>("tablet_count");
@@ -175,7 +175,7 @@ void TSinkController::TryUpdatePartitionCount()
             .With("CurrentPartitionCount", State_->CachedPartitionCount);
         UpdatePartitionCountErrorState_->ClearError();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to update partition count") << ex;
+        auto error = TError("Failed to update partition count").With(ex);
         UpdatePartitionCountErrorState_->SetError(error);
     }
 }

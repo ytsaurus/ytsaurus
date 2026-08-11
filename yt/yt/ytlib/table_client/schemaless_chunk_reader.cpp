@@ -262,7 +262,7 @@ static TReaderVirtualValues InitializeVirtualColumns(
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to add virtual columns to name table for schemaless chunk reader")
-            << ex;
+            .With(ex);
     }
 
     return virtualValues;
@@ -867,8 +867,8 @@ public:
             .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
                     THROW_ERROR_EXCEPTION("Failed to initialize chunk reader")
-                        << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
-                        << error;
+                        .With("chunk_id", UnderlyingReader_->GetChunkId())
+                        .With(error);
                 }
 
                 if (InitFirstBlockNeeded_) {
@@ -2741,8 +2741,8 @@ struct TReaderParams
                 omittedInaccessibleColumns);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::NameTableUpdateFailed, "Failed to update name table for schemaless chunk reader")
-                << TErrorAttribute("chunk_id", chunkId)
-                << ex;
+                .With("chunk_id", chunkId)
+                .With(ex);
         }
 
         auto chunkSortColumnNames = GetColumnNames(

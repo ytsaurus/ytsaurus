@@ -285,16 +285,16 @@ TInternalReadResponse DoRead(
 
             if (useDirectIO && reallyRead < toRead && fileOffset + reallyRead != request.Handle->GetLength()) {
                 THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "DirectIO call failed")
-                    << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle))
-                    << TErrorAttribute("to_read_remaining", toReadRemaining)
-                    << TErrorAttribute("max_bytes_per_read", maxBytesPerRead)
-                    << TErrorAttribute("request_size", request.Size)
-                    << TErrorAttribute("request_offset", request.Offset)
-                    << TErrorAttribute("to_read", toRead)
-                    << TErrorAttribute("really_read", reallyRead)
-                    << TErrorAttribute("file_offset", fileOffset)
-                    << TErrorAttribute("file_size", request.Handle->GetLength())
-                    << TError::FromSystem();
+                    .With("handle", static_cast<FHANDLE>(*request.Handle))
+                    .With("to_read_remaining", toReadRemaining)
+                    .With("max_bytes_per_read", maxBytesPerRead)
+                    .With("request_size", request.Size)
+                    .With("request_offset", request.Offset)
+                    .With("to_read", toRead)
+                    .With("really_read", reallyRead)
+                    .With("file_offset", fileOffset)
+                    .With("file_size", request.Handle->GetLength())
+                    .With(TError::FromSystem());
             } else if (useDirectIO && fileOffset + reallyRead == request.Handle->GetLength()) {
                 toReadRemaining = 0;
                 break;
@@ -324,14 +324,14 @@ TInternalReadResponse DoRead(
 
     if (toReadRemaining > 0) {
         THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "Unexpected end-of-file in read request")
-            << TErrorAttribute("to_read_remaining", toReadRemaining)
-            << TErrorAttribute("max_bytes_per_read", maxBytesPerRead)
-            << TErrorAttribute("request_size", request.Size)
-            << TErrorAttribute("request_offset", request.Offset)
-            << TErrorAttribute("file_offset", fileOffset)
-            << TErrorAttribute("file_size", request.Handle->GetLength())
-            << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle))
-            << TError::FromSystem();
+            .With("to_read_remaining", toReadRemaining)
+            .With("max_bytes_per_read", maxBytesPerRead)
+            .With("request_size", request.Size)
+            .With("request_offset", request.Offset)
+            .With("file_offset", fileOffset)
+            .With("file_size", request.Handle->GetLength())
+            .With("handle", static_cast<FHANDLE>(*request.Handle))
+            .With(TError::FromSystem());
     }
 
     return response;

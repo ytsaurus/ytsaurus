@@ -98,7 +98,7 @@ public:
         auto type = Visit(aliasExpr->Expression);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot alias heterogenous expression in filter")
-                << TErrorAttribute("expression", FormatExpression(*aliasExpr->Expression)));
+                .With("expression", FormatExpression(*aliasExpr->Expression)));
         }
         return type;
     }
@@ -109,7 +109,7 @@ public:
         auto type = Visit(unaryExpr->Operand);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot apply unary %lv on heterogenous expression in filter", unaryExpr->Opcode)
-                << TErrorAttribute("expression", FormatExpression(unaryExpr->Operand)));
+                .With("expression", FormatExpression(unaryExpr->Operand)));
         }
         return type;
     }
@@ -142,7 +142,7 @@ public:
         auto commonType = GetCommonType(lhsType, rhsType);
         if (commonType.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot apply binary %lv to heterogenous operands", binaryExpr->Opcode)
-                << TErrorAttribute("expression", FormatExpression(*binaryExpr)));
+                .With("expression", FormatExpression(*binaryExpr)));
         }
         return commonType;
     }
@@ -162,7 +162,7 @@ public:
         auto type = Visit(functionExpr->Arguments);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot call function %v with heterogenous arguments", functionExpr->FunctionName)
-                << TErrorAttribute("expression", FormatExpression(*functionExpr)));
+                .With("expression", FormatExpression(*functionExpr)));
         }
 
         if (IsAggregateFunction(Functions_, functionExpr->FunctionName)) {
@@ -178,7 +178,7 @@ public:
         auto type = Visit(inExpr->Expr);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use in with heterogenous expression")
-                << TErrorAttribute("expression", FormatExpression(*inExpr)));
+                .With("expression", FormatExpression(*inExpr)));
         }
         return type;
     }
@@ -189,7 +189,7 @@ public:
         auto type = Visit(betweenExpr->Expr);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use between with heterogenous expression")
-                << TErrorAttribute("expression", FormatExpression(*betweenExpr)));
+                .With("expression", FormatExpression(*betweenExpr)));
         }
         return type;
     }
@@ -205,7 +205,7 @@ public:
 
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use transform with heterogenous arguments")
-                << TErrorAttribute("expression", FormatExpression(*transformExpr)));
+                .With("expression", FormatExpression(*transformExpr)));
         }
         return type;
     }
@@ -229,7 +229,7 @@ public:
         auto commonType = GetCommonType(types);
         if (commonType.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use case with heterogenous arguments")
-                << TErrorAttribute("expression", FormatExpression(*caseExpr)));
+                .With("expression", FormatExpression(*caseExpr)));
         }
         return commonType;
     }
@@ -245,7 +245,7 @@ public:
 
         if (commonType.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use like with heterogenous arguments")
-                << TErrorAttribute("expression", FormatExpression(*likeExpr)));
+                .With("expression", FormatExpression(*likeExpr)));
         }
         return commonType;
     }
@@ -388,8 +388,8 @@ private:
         THROW_ERROR_EXCEPTION(
             NClient::EErrorCode::InvalidRequestArguments,
             "Cannot split query filter")
-                << std::move(error)
-                << TErrorAttribute("filter", FormatExpression(*FilterExpression_));
+                .With(std::move(error))
+                .With("filter", FormatExpression(*FilterExpression_));
     }
 
     class TDepthGuard

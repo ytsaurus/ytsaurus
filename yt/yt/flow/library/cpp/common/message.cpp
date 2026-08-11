@@ -232,8 +232,8 @@ void ValidateMessage(const TMessage& message, const TValidatePayloadOptions& opt
     auto error = DoValidateMessage(message, options);
     if (!error.IsOK()) {
         THROW_ERROR error
-            << TErrorAttribute("message_id", message.MessageId.Underlying())
-            << TErrorAttribute("stream_id", message.StreamId);
+            .With("message_id", message.MessageId.Underlying())
+            .With("stream_id", message.StreamId);
     }
 }
 
@@ -293,10 +293,10 @@ TOutputMessage::TOutputMessage(TMessage&& message, const TComputationStreamSpecS
         (!PayloadSchema || !expectedSchema || *PayloadSchema != *expectedSchema))
     {
         THROW_ERROR_EXCEPTION("message.PayloadSchema has unexpected value")
-            << TErrorAttribute("schema", PayloadSchema ? NYson::ConvertToYsonString(*PayloadSchema) : NYson::TYsonString())
-            << TErrorAttribute("expected_schema", expectedSchema ? NYson::ConvertToYsonString(*expectedSchema) : NYson::TYsonString())
-            << TErrorAttribute("message_id", MessageId.Underlying())
-            << TErrorAttribute("stream_id", StreamId);
+            .With("schema", PayloadSchema ? NYson::ConvertToYsonString(*PayloadSchema) : NYson::TYsonString())
+            .With("expected_schema", expectedSchema ? NYson::ConvertToYsonString(*expectedSchema) : NYson::TYsonString())
+            .With("message_id", MessageId.Underlying())
+            .With("stream_id", StreamId);
     }
 }
 

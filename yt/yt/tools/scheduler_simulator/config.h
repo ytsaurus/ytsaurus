@@ -34,7 +34,7 @@ TIntrusivePtr<TConfig> LoadConfig(const std::string& configFilename)
         TIFStream configStream{TString(configFilename)};
         configNode = NYTree::ConvertToNode(&configStream);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading scheduler simulator configuration") << ex;
+        THROW_ERROR_EXCEPTION("Error reading scheduler simulator configuration").With(ex);
     }
 
     auto config = ConvertTo<TIntrusivePtr<TConfig>>(configNode);

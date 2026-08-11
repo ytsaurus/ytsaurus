@@ -1584,7 +1584,7 @@ TFuture<TSharedRef> TLookupSession::OnTabletLookupAttemptFailed(
                 request.TabletId,
                 TError("Request failed after %v retries",
                     MaxRetryCount_)
-                    << request.InnerErrors);
+                    .With(request.InnerErrors));
         }
     } else {
         YT_LOG_DEBUG(error, "Tablet lookup request failed (TabletId: %v)",

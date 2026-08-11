@@ -442,7 +442,7 @@ public:
                             "Not all statistics was fetched successfully. Attributes or statistics of table %v on cluster %Qv was not found",
                             minorTablePath,
                             cluster)
-                            << TErrorAttribute("table_id", it->second);
+                            .With("table_id", it->second);
                     }
                 }
             }

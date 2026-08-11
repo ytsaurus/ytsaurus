@@ -158,8 +158,8 @@ protected:
 
         if (!result.IsOK()) {
             auto error = TError(NRpc::EErrorCode::InvalidCredentials, "YC authentication call failed")
-                << result
-                << TErrorAttribute("call_id", callId);
+                .With(result)
+                .With("call_id", callId);
             YT_LOG_WARNING(error);
             THROW_ERROR(error);
         }
@@ -270,14 +270,14 @@ private:
 
         if (rspNode->GetType() != ENodeType::Map) {
             return TError("YC authentication service response content has unexpected node type")
-                << TErrorAttribute("expected_result_type", ENodeType::Map)
-                << TErrorAttribute("actual_result_type", rspNode->GetType());
+                .With("expected_result_type", ENodeType::Map)
+                .With("actual_result_type", rspNode->GetType());
         }
 
         auto loginNode = rspNode->AsMap()->FindChild(AuthenticateLoginField);
         if (!loginNode || loginNode->GetType() != ENodeType::String) {
             return TError("YC authentication service response content has no login field or login node type is unexpected")
-                << TErrorAttribute("login_field", AuthenticateLoginField);
+                .With("login_field", AuthenticateLoginField);
         }
 
         return {};

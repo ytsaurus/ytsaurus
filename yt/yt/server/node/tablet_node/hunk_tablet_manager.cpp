@@ -117,7 +117,7 @@ public:
                 NTabletClient::EErrorCode::NoSuchTablet,
                 "No such tablet %v",
                 tabletId)
-                << TErrorAttribute("tablet_id", tabletId);
+                .With("tablet_id", tabletId);
         }
     }
 
@@ -620,7 +620,7 @@ private:
         if (auto error = store->TryLock(transaction->GetId(), EObjectLockMode::Shared); !error.IsOK()) {
             THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::HunkTabletStoreToggleConflict,
                 "Failed to toggle hunk tablet store")
-                << error;
+                .With(error);
         }
 
         YT_LOG_DEBUG(

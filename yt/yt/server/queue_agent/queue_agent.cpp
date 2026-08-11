@@ -265,9 +265,9 @@ public:
                     "Object %v is not available from instance %v",
                     ref,
                     Owner_->AgentId_)
-                    << TErrorAttribute("cached_object_agent_id", objectAgentId);
+                    .With("cached_object_agent_id", objectAgentId);
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unavailable, retry later")
-                    << error;
+                    .With(error);
             }
 
             auto remoteRoot = Format("%v/%v", ProxyConfig_.RemoteQueryRoot, ToYPathLiteral(key));
@@ -733,7 +733,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
         asyncObjectMappingRows.AsVoid(),
     };
     if (auto error = WaitFor(AllSucceeded(futures)); !error.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while reading dynamic state") << error;
+        THROW_ERROR_EXCEPTION("Error while reading dynamic state").With(error);
     }
 
     auto queueRows = asyncQueueRows.AsUnique().GetOrCrash().Value();

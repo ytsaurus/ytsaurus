@@ -78,7 +78,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
                     columnName,
                     tables[tableIndex]->Path,
                     tables[tableIndexWithColumn]->Path)
-                    << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/reference/settings");
+                    .With("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/reference/settings");
             }
             case EMissingColumnMode::Drop: {
                 shouldDropColumn = true;
@@ -143,7 +143,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
         switch (settings->TypeMismatchMode) {
             case ETypeMismatchMode::Throw: {
                 THROW_ERROR_EXCEPTION(std::move(error))
-                    << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/reference/settings");
+                    .With("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/reference/settings");
             }
             case ETypeMismatchMode::Drop: {
                 shouldDropColumn = true;
@@ -334,7 +334,7 @@ TTableSchemaPtr InferCommonTableSchema(
             "probably there are tables with wrong or empty schema among concatenated tables; "
             "if it is not a mistake, you can disable this check "
             "via setting chyt.concat_tables.allow_empty_schema_intersection")
-            << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/reference/settings");
+            .With("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/reference/settings");
     }
 
     auto commonSchema = New<TTableSchema>(std::move(commonColumns), strict);

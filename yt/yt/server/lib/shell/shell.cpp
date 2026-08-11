@@ -112,8 +112,8 @@ public:
         if (ConsumedOffset_ < inputOffset) {
             // Key sequence from the future is not possible.
             THROW_ERROR_EXCEPTION("Input offset is more than consumed offset")
-                << TErrorAttribute("expected_input_offset", ConsumedOffset_)
-                << TErrorAttribute("actual_input_offset", inputOffset);
+                .With("expected_input_offset", ConsumedOffset_)
+                .With("actual_input_offset", inputOffset);
         }
 
         if (inputOffset + InputOffsetWarningLevel < ConsumedOffset_) {
@@ -317,8 +317,8 @@ public:
                     THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Failed to bind .motd inside job shell");
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error saving shell message file")
-                        << ex
-                        << TErrorAttribute("path", path);
+                        .With(ex)
+                        .With("path", path);
                 }
             }
         }
@@ -340,8 +340,8 @@ public:
 
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error saving shell config file")
-                        << ex
-                        << TErrorAttribute("path", path);
+                        .With(ex)
+                        .With("path", path);
                 }
             }
         }
@@ -454,8 +454,8 @@ public:
                 output.Write(*Options_->MessageOfTheDay);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error saving shell message file")
-                    << ex
-                    << TErrorAttribute("path", path);
+                    .With(ex)
+                    .With("path", path);
             }
         }
         if (Options_->Bashrc) {
@@ -467,8 +467,8 @@ public:
                 output.Write(*Options_->Bashrc);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error saving shell config file")
-                    << ex
-                    << TErrorAttribute("path", path);
+                    .With(ex)
+                    .With("path", path);
             }
         }
 
@@ -503,7 +503,7 @@ public:
                 Serialize(executorConfig, &writer);
                 writer.Flush();
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to write executor config into %v", executorConfigPath) << ex;
+                THROW_ERROR_EXCEPTION("Failed to write executor config into %v", executorConfigPath).With(ex);
             }
 
             Process_->AddArguments({"--config", executorConfigPath});

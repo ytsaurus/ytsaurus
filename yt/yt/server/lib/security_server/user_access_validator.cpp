@@ -78,7 +78,7 @@ private:
                     return client;
                 } else {
                     THROW_ERROR_EXCEPTION("Cannot resolve multiproxy target cluster %Qv", cluster)
-                        << connectionOrError;
+                        .With(connectionOrError);
                 }
             }));
 

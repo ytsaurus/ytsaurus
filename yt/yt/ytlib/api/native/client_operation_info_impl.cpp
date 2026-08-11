@@ -123,7 +123,7 @@ std::optional<int> TClient::TryGetOperationsArchiveVersion()
     }
     if (!versionNodeOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to get operations archive version")
-            << versionNodeOrError;
+            .With(versionNodeOrError);
     }
 
     int version = 0;
@@ -131,7 +131,7 @@ std::optional<int> TClient::TryGetOperationsArchiveVersion()
         version = ConvertTo<int>(versionNodeOrError.Value());
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to parse operations archive version")
-            << ex;
+            .With(ex);
     }
 
     return version;
@@ -149,7 +149,7 @@ static std::vector<std::string> CreateCypressOperationAttributes(const THashSet<
                 NApi::EErrorCode::NoSuchAttribute,
                 "Operation attribute %Qv is not supported",
                 attribute)
-                << TErrorAttribute("attribute_name", attribute);
+                .With("attribute_name", attribute);
 
         }
         if (attribute == "id") {
@@ -179,7 +179,7 @@ static std::vector<std::string> CreateArchiveOperationAttributes(const THashSet<
                 NApi::EErrorCode::NoSuchAttribute,
                 "Operation attribute %Qv is not supported",
                 attribute)
-                << TErrorAttribute("attribute_name", attribute);
+                .With("attribute_name", attribute);
         }
         if (attribute == "id") {
             result.emplace_back("id_hi");
@@ -448,8 +448,8 @@ TOperationId TClient::ResolveOperationAlias(
         return ConvertTo<TOperationId>(TYsonString(rspOrError.Value()->value()));
     } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
         THROW_ERROR_EXCEPTION("Error while resolving alias from scheduler")
-            << rspOrError
-            << TErrorAttribute("operation_alias", alias);
+            .With(rspOrError)
+            .With("operation_alias", alias);
     }
 
     auto rowBuffer = New<TRowBuffer>();
@@ -481,7 +481,7 @@ TOperationId TClient::ResolveOperationAlias(
 
     if (!optionalRecord) {
         THROW_ERROR_EXCEPTION("Operation alias is unknown")
-            << TErrorAttribute("alias", alias);
+            .With("alias", alias);
     }
 
     return TOperationId(TGuid(optionalRecord->OperationIdHi, optionalRecord->OperationIdLo));
@@ -661,7 +661,7 @@ TOperation TClient::DoGetOperationImpl(
             } else {
                 THROW_ERROR_EXCEPTION(
                     "Failed to get operation progress from archive")
-                    << archiveResultOrError;
+                    .With(archiveResultOrError);
             }
         }
 
@@ -1561,8 +1561,8 @@ TCheckOperationPermissionResult TClient::DoCheckOperationPermission(
 
     if (!operationOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to get operation to check permission")
-            << TErrorAttribute("operation_id", operationId)
-            << operationOrError;
+            .With("operation_id", operationId)
+            .With(operationOrError);
     }
 
     const auto& operation = operationOrError.ValueOrThrow();
@@ -1590,8 +1590,8 @@ TCheckOperationPermissionResult TClient::DoCheckOperationPermission(
 
     if (!error.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to check operation permission")
-            << TErrorAttribute("operation_id", operationId)
-            << error;
+            .With("operation_id", operationId)
+            .With(error);
     }
 
     return TCheckOperationPermissionResult{

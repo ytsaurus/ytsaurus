@@ -17,7 +17,7 @@ TIntrusivePtr<TSpec> ParseOperationSpec(NYTree::INodePtr specNode)
     try {
         spec->Load(specNode);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing operation spec") << ex;
+        THROW_ERROR_EXCEPTION("Error parsing operation spec").With(ex);
     }
     return spec;
 }

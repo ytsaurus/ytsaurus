@@ -134,7 +134,7 @@ public:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error reconfiguring %Qlv IO engine",
                     type)
-                    << ex;
+                    .With(ex);
             }
         } else {
             try {
@@ -150,7 +150,7 @@ public:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error creating %Qlv IO engine",
                     type)
-                    << ex;
+                    .With(ex);
             }
         }
 

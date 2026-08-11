@@ -211,7 +211,7 @@ TSimpleMapping TSimpleMapping::FromUnversionedRow(
             FromUnversionedValue(&result.Key.KeyA, row[*idMapping.KeyA]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_a")
-                << ex;
+                .With(ex);
         }
     } else {
         THROW_ERROR_EXCEPTION("No such column %Qv", "key_a");
@@ -224,7 +224,7 @@ TSimpleMapping TSimpleMapping::FromUnversionedRow(
             FromUnversionedValue(&result.Key.KeyB, row[*idMapping.KeyB]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_b")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -235,7 +235,7 @@ TSimpleMapping TSimpleMapping::FromUnversionedRow(
             FromUnversionedValue(&result.Key.KeyC, row[*idMapping.KeyC]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_c")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -246,7 +246,7 @@ TSimpleMapping TSimpleMapping::FromUnversionedRow(
             FromUnversionedValue(&result.ValueA, row[*idMapping.ValueA]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_a")
-                << ex;
+                .With(ex);
         }
     } else {
         THROW_ERROR_EXCEPTION("No such column %Qv", "value_a");
@@ -259,7 +259,7 @@ TSimpleMapping TSimpleMapping::FromUnversionedRow(
             FromUnversionedValue(&result.ValueB, row[*idMapping.ValueB]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_b")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -270,7 +270,7 @@ TSimpleMapping TSimpleMapping::FromUnversionedRow(
             FromUnversionedValue(&result.ValueC, row[*idMapping.ValueC]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_c")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -341,7 +341,7 @@ TSimpleMappingPartial TSimpleMappingPartial::FromUnversionedRow(
             FromUnversionedValue(&result.Key.KeyA, row[id]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_a")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -352,7 +352,7 @@ TSimpleMappingPartial TSimpleMappingPartial::FromUnversionedRow(
             FromUnversionedValue(&result.Key.KeyB, row[id]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_b")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -363,7 +363,7 @@ TSimpleMappingPartial TSimpleMappingPartial::FromUnversionedRow(
             FromUnversionedValue(&result.Key.KeyC, row[id]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "key_c")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -374,7 +374,7 @@ TSimpleMappingPartial TSimpleMappingPartial::FromUnversionedRow(
             FromUnversionedValue(&result.ValueA, row[id]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_a")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -385,7 +385,7 @@ TSimpleMappingPartial TSimpleMappingPartial::FromUnversionedRow(
             FromUnversionedValue(&result.ValueB, row[id]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_b")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -396,7 +396,7 @@ TSimpleMappingPartial TSimpleMappingPartial::FromUnversionedRow(
             FromUnversionedValue(&result.ValueC, row[id]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "value_c")
-                << ex;
+                .With(ex);
         }
     }
 

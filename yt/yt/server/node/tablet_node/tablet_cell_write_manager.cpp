@@ -99,7 +99,7 @@ public:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::TestingFailureBeforeWrite,
                 "Test error before write call execution")
-                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId);
+                .With("tablet_id", tabletSnapshot->TabletId);
         }
 
         const auto& identity = NRpc::GetCurrentAuthenticationIdentity();
@@ -139,8 +139,8 @@ public:
                     NTabletClient::EErrorCode::NoSuchTablet,
                     "No such tablet %v",
                     tabletSnapshot->TabletId)
-                    << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-                    << TErrorAttribute("retryable", retryable);
+                    .With("tablet_id", tabletSnapshot->TabletId)
+                    .With("retryable", retryable);
             }
 
             tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
@@ -166,8 +166,8 @@ public:
             auto error = lockManager->ValidateTransactionConflict(params.TransactionStartTimestamp);
             if (!error.IsOK()) {
                 THROW_ERROR error
-                    << TErrorAttribute("tablet_id", tablet->GetId())
-                    << TErrorAttribute("transaction_id", params.TransactionId);
+                    .With("tablet_id", tablet->GetId())
+                    .With("transaction_id", params.TransactionId);
             }
         }
 
@@ -398,7 +398,7 @@ public:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::TestingFailureAfterWrite,
                 "Test error after write call execution")
-                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId);
+                .With("tablet_id", tabletSnapshot->TabletId);
         }
 
         return commitResult;
@@ -1125,8 +1125,8 @@ private:
             clientInstant < serverInstant - clientTimestampThreshold)
         {
             THROW_ERROR_EXCEPTION("Transaction timestamp is off limits, check the local clock readings")
-            << TErrorAttribute("client_timestamp", clientTimestamp)
-            << TErrorAttribute("server_timestamp", serverTimestamp);
+            .With("client_timestamp", clientTimestamp)
+            .With("server_timestamp", serverTimestamp);
         }
     }
 
@@ -1139,10 +1139,10 @@ private:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Too many stores in tablet, all writes disabled")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("table_path", tablet->GetTablePath())
-                << TErrorAttribute("store_count", storeCount)
-                << TErrorAttribute("store_limit", storeLimit);
+                .With("tablet_id", tablet->GetId())
+                .With("table_path", tablet->GetTablePath())
+                .With("store_count", storeCount)
+                .With("store_limit", storeLimit);
         }
 
         auto overlappingStoreCount = tablet->GetOverlappingStoreCount();
@@ -1151,10 +1151,10 @@ private:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Too many overlapping stores in tablet, all writes disabled")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("table_path", tablet->GetTablePath())
-                << TErrorAttribute("overlapping_store_count", overlappingStoreCount)
-                << TErrorAttribute("overlapping_store_limit", overlappingStoreLimit);
+                .With("tablet_id", tablet->GetId())
+                .With("table_path", tablet->GetTablePath())
+                .With("overlapping_store_count", overlappingStoreCount)
+                .With("overlapping_store_limit", overlappingStoreLimit);
         }
 
         auto edenStoreCount = tablet->GetEdenStoreCount();
@@ -1163,10 +1163,10 @@ private:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Too many eden stores in tablet, all writes disabled")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("table_path", tablet->GetTablePath())
-                << TErrorAttribute("eden_store_count", edenStoreCount)
-                << TErrorAttribute("eden_store_limit", edenStoreCountLimit);
+                .With("tablet_id", tablet->GetId())
+                .With("table_path", tablet->GetTablePath())
+                .With("eden_store_count", edenStoreCount)
+                .With("eden_store_limit", edenStoreCountLimit);
         }
 
         auto dynamicStoreCount = tablet->GetDynamicStoreCount();
@@ -1174,10 +1174,10 @@ private:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Too many dynamic stores in tablet, all writes disabled")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("table_path", tablet->GetTablePath())
-                << TErrorAttribute("dynamic_store_count", dynamicStoreCount)
-                << TErrorAttribute("dynamic_store_count_limit", DynamicStoreCountLimit);
+                .With("tablet_id", tablet->GetId())
+                .With("table_path", tablet->GetTablePath())
+                .With("dynamic_store_count", dynamicStoreCount)
+                .With("dynamic_store_count_limit", DynamicStoreCountLimit);
         }
 
         auto overflow = tablet->GetStoreManager()->CheckOverflow();
@@ -1185,9 +1185,9 @@ private:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Active store is overflown, all writes disabled")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("table_path", tablet->GetTablePath())
-                << overflow;
+                .With("tablet_id", tablet->GetId())
+                .With("table_path", tablet->GetTablePath())
+                .With(overflow);
         }
 
         if (tablet->IsPhysicallyOrdered()) {
@@ -1198,8 +1198,8 @@ private:
                 THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
                     "Size of tablet %v exceeds the limit, all writes disabled",
                     tablet->GetId())
-                    << TErrorAttribute("data_weight", tabletDataWeight)
-                    << TErrorAttribute("data_weight_limit", *maxOrderedTabletDataWeight);
+                    .With("data_weight", tabletDataWeight)
+                    .With("data_weight_limit", *maxOrderedTabletDataWeight);
             }
         }
     }
@@ -1230,34 +1230,34 @@ private:
                 THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::ReplicatorWriteBlockedByUser,
                     "Tablet cannot accept replicator writes since some user mutations are still in flight")
-                    << TErrorAttribute("tablet_id", tablet->GetId())
-                    << TErrorAttribute("table_path", tablet->GetTablePath())
-                    << TErrorAttribute("in_flight_mutation_count", tablet->GetInFlightUserMutationCount());
+                    .With("tablet_id", tablet->GetId())
+                    .With("table_path", tablet->GetTablePath())
+                    .With("in_flight_mutation_count", tablet->GetInFlightUserMutationCount());
             }
             if (tablet->GetPendingUserWriteRecordCount() > 0) {
                 THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::ReplicatorWriteBlockedByUser,
                     "Tablet cannot accept replicator writes since some user writes are still pending")
-                    << TErrorAttribute("tablet_id", tablet->GetId())
-                    << TErrorAttribute("table_path", tablet->GetTablePath())
-                    << TErrorAttribute("pending_write_record_count", tablet->GetPendingUserWriteRecordCount());
+                    .With("tablet_id", tablet->GetId())
+                    .With("table_path", tablet->GetTablePath())
+                    .With("pending_write_record_count", tablet->GetPendingUserWriteRecordCount());
             }
         } else {
             if (tablet->GetInFlightReplicatorMutationCount() > 0) {
                 THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::UserWriteBlockedByReplicator,
                     "Tablet cannot accept user writes since some replicator mutations are still in flight")
-                    << TErrorAttribute("tablet_id", tablet->GetId())
-                    << TErrorAttribute("table_path", tablet->GetTablePath())
-                    << TErrorAttribute("in_flight_mutation_count", tablet->GetInFlightReplicatorMutationCount());
+                    .With("tablet_id", tablet->GetId())
+                    .With("table_path", tablet->GetTablePath())
+                    .With("in_flight_mutation_count", tablet->GetInFlightReplicatorMutationCount());
             }
             if (tablet->GetPendingReplicatorWriteRecordCount() > 0) {
                 THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::UserWriteBlockedByReplicator,
                     "Tablet cannot accept user writes since some replicator writes are still pending")
-                    << TErrorAttribute("tablet_id", tablet->GetId())
-                    << TErrorAttribute("table_path", tablet->GetTablePath())
-                    << TErrorAttribute("pending_write_record_count", tablet->GetPendingReplicatorWriteRecordCount());
+                    .With("tablet_id", tablet->GetId())
+                    .With("table_path", tablet->GetTablePath())
+                    .With("pending_write_record_count", tablet->GetPendingReplicatorWriteRecordCount());
             }
         }
     }

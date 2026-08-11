@@ -159,8 +159,8 @@ private:
     {
         if (!result.IsOK()) {
             auto error = TError("Error sending transaction actions")
-                << TErrorAttribute("cell_id", CellId_)
-                << result;
+                .With("cell_id", CellId_)
+                .With(result);
             YT_LOG_DEBUG(error);
             THROW_ERROR(error);
         }

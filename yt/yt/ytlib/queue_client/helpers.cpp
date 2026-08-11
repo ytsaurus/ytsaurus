@@ -54,7 +54,7 @@ std::optional<TQueueProducerSequenceNumber> GetSequenceNumberFromRow(
                 return TQueueProducerSequenceNumber{FromUnversionedValue<i64>(value)};
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error parsing sequence number from row")
-                    << ex;
+                    .With(ex);
             }
         }
     }

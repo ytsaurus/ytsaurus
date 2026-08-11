@@ -167,10 +167,10 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
         if (userIdRspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::NoSuchUser, "No such user %Qv",
                 user)
-                << userIdRspOrError;
+                .With(userIdRspOrError);
         } else {
             THROW_ERROR_EXCEPTION("Failed to issue new token for user")
-                << userIdRspOrError;
+                .With(userIdRspOrError);
         }
     }
 
@@ -198,7 +198,7 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
             tokenPrefix,
             tokenHash);
         THROW_ERROR_EXCEPTION("Failed to issue new token for user")
-            << rspOrError;
+            .With(rspOrError);
     }
 
     YT_LOG_DEBUG("Issued new token for user (User: %v, TokenPrefix: %v, TokenHash: %v)",
@@ -238,7 +238,7 @@ void TClient::DoRefreshTemporaryToken(
             user,
             tokenHash);
         THROW_ERROR_EXCEPTION("Failed to refresh token for user")
-            << rspOrError;
+            .With(rspOrError);
     }
 
     YT_LOG_DEBUG("Successfully refreshed token for user (User: %v, TokenHash: %v)",
@@ -284,7 +284,7 @@ void TClient::DoRevokeToken(
             tokenUser,
             tokenSha256);
         THROW_ERROR_EXCEPTION("Failed to remove token")
-            << error;
+            .With(error);
     }
 
     YT_LOG_DEBUG("Token removed successfully (User: %v, TokenHash: %v)",
@@ -324,7 +324,7 @@ TListUserTokensResult TClient::DoListUserTokens(
     if (!rspOrError.IsOK()) {
         YT_LOG_DEBUG(rspOrError, "Failed to list tokens");
         THROW_ERROR_EXCEPTION("Failed to list tokens")
-            << rspOrError;
+            .With(rspOrError);
     }
 
     auto userIdRspOrError = WaitFor(rootClient->GetNode(
@@ -334,7 +334,7 @@ TListUserTokensResult TClient::DoListUserTokens(
         YT_LOG_DEBUG(userIdRspOrError, "Failed to list tokens: could not get user ID by username (User: %v)",
             user);
         THROW_ERROR_EXCEPTION("Failed to list tokens")
-            << userIdRspOrError;
+            .With(userIdRspOrError);
     }
     auto userId = ConvertTo<std::string>(userIdRspOrError.Value());
 
@@ -392,13 +392,13 @@ void TClient::ValidateAuthenticationCommandPermissions(
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::NoSuchUser, "No such user %Qv",
                     user)
-                    << rspOrError;
+                    .With(rspOrError);
             } else {
                 THROW_ERROR_EXCEPTION("Failed to check %Qlv permission to administer user %Qv for user %Qv",
                     EPermission::Administer,
                     user,
                     *Options_.User)
-                    << rspOrError;
+                    .With(rspOrError);
             }
         }
 
@@ -412,8 +412,8 @@ void TClient::ValidateAuthenticationCommandPermissions(
                 "or by a user having %Qlv permission on the user",
                 action,
                 EPermission::Administer)
-                << TErrorAttribute("user", user)
-                << TErrorAttribute("authenticated_user", Options_.User);
+                .With("user", user)
+                .With("authenticated_user", Options_.User);
         }
 
         if (Options_.RequirePasswordInAuthenticationCommands) {
@@ -437,7 +437,7 @@ void TClient::ValidateAuthenticationCommandPermissions(
 
             if (HashPasswordSha256(passwordSha256, passwordSalt) != hashedPassword) {
                 THROW_ERROR_EXCEPTION("User provided invalid password")
-                    << TErrorAttribute("password_revision", passwordRevision);
+                    .With("password_revision", passwordRevision);
             }
         }
     }

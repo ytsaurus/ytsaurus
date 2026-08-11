@@ -61,7 +61,7 @@ template <typename... TArgs>
         "Error converting %Qv of type %Qv to ClickHouse",
         descriptor.GetDescription(),
         *descriptor.GetType())
-            << TError(format, std::forward<TArgs>(args)...);
+            .With(TError(format, std::forward<TArgs>(args)...));
 }
 
 //! Perform assignment column = newColumn also checking that new column is similar

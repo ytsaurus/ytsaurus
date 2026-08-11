@@ -127,12 +127,12 @@ public:
                 options.Cookie);
 
             THROW_ERROR_EXCEPTION("Read from uninitialized chunk handler")
-                << TErrorAttribute("chunk_id", SessionId_.ChunkId)
-                << TErrorAttribute("medium_index", SessionId_.MediumIndex)
-                << TErrorAttribute("offset", offset)
-                << TErrorAttribute("length", length)
-                << TErrorAttribute("cookie", options.Cookie)
-                << TErrorAttribute("state", State_);
+                .With("chunk_id", SessionId_.ChunkId)
+                .With("medium_index", SessionId_.MediumIndex)
+                .With("offset", offset)
+                .With("length", length)
+                .With("cookie", options.Cookie)
+                .With("state", State_);
         }
 
         auto req = Proxy_.Read();
@@ -169,12 +169,12 @@ public:
                 options.Cookie);
 
             THROW_ERROR_EXCEPTION("Write to uninitialized chunk handler")
-                << TErrorAttribute("chunk_id", SessionId_.ChunkId)
-                << TErrorAttribute("medium_index", SessionId_.MediumIndex)
-                << TErrorAttribute("offset", offset)
-                << TErrorAttribute("length", data.size())
-                << TErrorAttribute("cookie", options.Cookie)
-                << TErrorAttribute("state", State_);
+                .With("chunk_id", SessionId_.ChunkId)
+                .With("medium_index", SessionId_.MediumIndex)
+                .With("offset", offset)
+                .With("length", data.size())
+                .With("cookie", options.Cookie)
+                .With("state", State_);
         }
 
         auto req = Proxy_.Write();
@@ -207,9 +207,9 @@ public:
     {
         if (State_ != EState::Initialized) {
             THROW_ERROR_EXCEPTION("ReadBatch on uninitialized chunk handler")
-                << TErrorAttribute("chunk_id", SessionId_.ChunkId)
-                << TErrorAttribute("medium_index", SessionId_.MediumIndex)
-                << TErrorAttribute("state", State_);
+                .With("chunk_id", SessionId_.ChunkId)
+                .With("medium_index", SessionId_.MediumIndex)
+                .With("state", State_);
         }
 
         auto req = Proxy_.ReadBatch();
@@ -250,9 +250,9 @@ public:
     {
         if (State_ != EState::Initialized) {
             THROW_ERROR_EXCEPTION("WriteBatch on uninitialized chunk handler")
-                << TErrorAttribute("chunk_id", SessionId_.ChunkId)
-                << TErrorAttribute("medium_index", SessionId_.MediumIndex)
-                << TErrorAttribute("state", State_);
+                .With("chunk_id", SessionId_.ChunkId)
+                .With("medium_index", SessionId_.MediumIndex)
+                .With("state", State_);
         }
 
         auto req = Proxy_.WriteBatch();
@@ -309,12 +309,12 @@ private:
         auto expected = EState::Uninitialized;
         if (!State_.compare_exchange_strong(expected, EState::Initializing)) {
             auto error = TError("Can not initialize chunk handler in non-uninitialized state")
-                << TErrorAttribute("chunk_id", SessionId_.ChunkId)
-                << TErrorAttribute("medium_index", SessionId_.MediumIndex)
-                << TErrorAttribute("size", Config_->Size)
-                << TErrorAttribute("fs_type", Config_->FsType)
-                << TErrorAttribute("actual_state", expected)
-                << TErrorAttribute("expected_state", EState::Uninitialized);
+                .With("chunk_id", SessionId_.ChunkId)
+                .With("medium_index", SessionId_.MediumIndex)
+                .With("size", Config_->Size)
+                .With("fs_type", Config_->FsType)
+                .With("actual_state", expected)
+                .With("expected_state", EState::Uninitialized);
             YT_LOG_WARNING(error);
             return MakeFuture(error);
         }
@@ -329,7 +329,7 @@ private:
             if (!rspOrError.IsOK()) {
                 // Reset state back to Uninitialized.
                 State_ = EState::Uninitialized;
-                THROW_ERROR_EXCEPTION("Failed to open session") << rspOrError;
+                THROW_ERROR_EXCEPTION("Failed to open session").With(rspOrError);
             }
 
             // Set state to Initialized prior to starting KeepSessionAliveExecutor_.
@@ -350,12 +350,12 @@ private:
         auto expected = EState::Initialized;
         if (!State_.compare_exchange_strong(expected, EState::Finalizing)) {
             auto error = TError("Can not finalize chunk handler in non-initialized state")
-                << TErrorAttribute("chunk_id", SessionId_.ChunkId)
-                << TErrorAttribute("medium_index", SessionId_.MediumIndex)
-                << TErrorAttribute("size", Config_->Size)
-                << TErrorAttribute("fs_type", Config_->FsType)
-                << TErrorAttribute("actual_state", expected)
-                << TErrorAttribute("expected_state", EState::Initialized);
+                .With("chunk_id", SessionId_.ChunkId)
+                .With("medium_index", SessionId_.MediumIndex)
+                .With("size", Config_->Size)
+                .With("fs_type", Config_->FsType)
+                .With("actual_state", expected)
+                .With("expected_state", EState::Initialized);
             YT_LOG_WARNING(error);
             return MakeFuture(error);
         }
@@ -370,7 +370,7 @@ private:
         .AsyncVia(Invoker_))
         .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
             if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to close session") << error;
+                THROW_ERROR_EXCEPTION("Failed to close session").With(error);
             }
             State_ = EState::Uninitialized;
         })

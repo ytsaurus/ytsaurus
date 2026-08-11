@@ -222,7 +222,7 @@ TFuture<void> TSimpleTmpfsVolume::Remove()
                     "Failed to remove volume");
 
                 THROW_ERROR_EXCEPTION("Failed to remove volume")
-                    << ex;
+                    .With(ex);
             }
         })
         .AsyncVia(Invoker_)

@@ -213,7 +213,7 @@ private:
             NDataNode::EErrorCode::LocalChunkReaderFailed,
             "Error accessing local chunk %v",
             Chunk_->GetId())
-            << error;
+            .With(error);
     }
 };
 

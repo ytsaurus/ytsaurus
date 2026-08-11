@@ -632,7 +632,7 @@ private:
         if (!succeeded) {
             YT_LOG_DEBUG("Retry limit exceeded (MaxBuildRetryCount: %v)", JobSizeConstraints_->GetMaxBuildRetryCount());
             THROW_ERROR_EXCEPTION("Retry limit exceeded while building jobs")
-                << errors;
+                .With(errors);
         }
 
         // TODO(max42): why does job manager accept a vector of unique pointers to job stubs

@@ -398,9 +398,9 @@ TSetPipelineSpecsResult TFlowExecutor::SetPipelineSpecs(const TSetPipelineSpecsA
             const auto& actualFlowCoreVersion = Controller_->GetNodeInfo()->FlowCoreVersion;
             if (!CheckFlowCoreTarget(targetValue, actualFlowCoreVersion)) {
                 THROW_ERROR_EXCEPTION(NFlow::EErrorCode::FlowCoreTargetMismatch,
-                        "Flow core target mismatches with actual running Controller version, cannot modify Spec")
-                    << TErrorAttribute("flow_core_target", targetValue)
-                    << TErrorAttribute("actual_flow_core_version", actualFlowCoreVersion);
+                    "Flow core target mismatches with actual running Controller version, cannot modify Spec")
+                    .With("flow_core_target", targetValue)
+                    .With("actual_flow_core_version", actualFlowCoreVersion);
             }
 
             auto expectedVersions = MakePipelineImportantVersions(flowView->State, spec);
@@ -440,7 +440,7 @@ TSetPipelineSpecsResult TFlowExecutor::SetPipelineSpecs(const TSetPipelineSpecsA
                     auto specNode = argument.Spec.value()->AsMap();
                     auto specErrors = NFlow::TRegistry::Get()->ValidatePipelineSpecParseability(specNode);
                     if (!specErrors.empty()) {
-                        errors.push_back(TError("Strict validation failed for Spec") << specErrors);
+                        errors.push_back(TError("Strict validation failed for Spec").With(specErrors));
                     }
                 }
 
@@ -448,11 +448,11 @@ TSetPipelineSpecsResult TFlowExecutor::SetPipelineSpecs(const TSetPipelineSpecsA
                 auto dynamicSpecNode = argument.DynamicSpec ? argument.DynamicSpec.value()->AsMap() : ConvertTo<IMapNodePtr>(dynamicSpec->GetValue());
                 auto dynamicSpecErrors = NFlow::TRegistry::Get()->ValidateDynamicPipelineSpecParseability(spec->GetValue(), dynamicSpecNode);
                 if (!dynamicSpecErrors.empty()) {
-                    errors.push_back(TError("Strict validation failed for DynamicSpec") << dynamicSpecErrors);
+                    errors.push_back(TError("Strict validation failed for DynamicSpec").With(dynamicSpecErrors));
                 }
 
                 if (!errors.empty()) {
-                    THROW_ERROR_EXCEPTION("Strict validation failed for specs") << errors;
+                    THROW_ERROR_EXCEPTION("Strict validation failed for specs").With(errors);
                 }
             }
 
@@ -558,11 +558,11 @@ TSetTargetPipelineStateResult TFlowExecutor::SetTargetPipelineState(const TSetTa
         const auto& controllerFlowCoreVersion = Controller_->GetNodeInfo()->FlowCoreVersion;
         if (!CheckFlowCoreTarget(targetValue, controllerFlowCoreVersion)) {
             THROW_ERROR_EXCEPTION(
-                    NFlow::EErrorCode::FlowCoreTargetMismatch,
-                    "Cannot start pipeline: controller FlowCoreVersion does not match FlowCoreTarget. "
-                    "Update the controller binary or reset the target.")
-                << TErrorAttribute("flow_core_target", targetValue)
-                << TErrorAttribute("controller_flow_core_version", controllerFlowCoreVersion);
+                NFlow::EErrorCode::FlowCoreTargetMismatch,
+                "Cannot start pipeline: controller FlowCoreVersion does not match FlowCoreTarget. "
+                "Update the controller binary or reset the target.")
+                .With("flow_core_target", targetValue)
+                .With("controller_flow_core_version", controllerFlowCoreVersion);
         }
     }
 

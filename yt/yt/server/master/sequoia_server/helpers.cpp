@@ -13,8 +13,8 @@ TError CheckSequoiaReign(ESequoiaReign requestReign)
     auto currentReign = GetCurrentSequoiaReign();
     if (requestReign != currentReign) {
         return TError(NSequoiaClient::EErrorCode::InvalidSequoiaReign, "Invalid request Sequoia reign")
-            << TErrorAttribute("request_reign", ToString(requestReign))
-            << TErrorAttribute("current_reign", ToString(currentReign));
+            .With("request_reign", ToString(requestReign))
+            .With("current_reign", ToString(currentReign));
     }
 
     return TError{};

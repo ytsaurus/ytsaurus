@@ -73,8 +73,8 @@ void TTraceConsumer::OnMyListItem()
                     return;
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Failed to process control trace event")
-                        << TErrorAttribute("event", event)
-                        << ex;
+                        .With("event", event)
+                        .With(ex);
                 }
             }
 
@@ -93,8 +93,8 @@ void TTraceConsumer::OnMyListItem()
                 });
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to process job trace event")
-                    << TErrorAttribute("event", event)
-                    << ex;
+                    .With("event", event)
+                    .With(ex);
             }
         });
 }

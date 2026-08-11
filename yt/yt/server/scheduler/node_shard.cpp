@@ -637,7 +637,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
                 node->GetMasterState(),
                 node->GetSchedulerState());
             if (!node->GetRegistrationError().IsOK()) {
-                error = error << node->GetRegistrationError();
+                error = error.With(node->GetRegistrationError());
             }
             context->Reply(error);
             return;
@@ -714,7 +714,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         const auto& address = node->GetDefaultAddress();
 
         auto error = TError("Node without user slots")
-            << TErrorAttribute("abort_reason", EAbortReason::NodeWithDisabledJobs);
+            .With("abort_reason", EAbortReason::NodeWithDisabledJobs);
         for (const auto& allocation : allocations) {
             YT_LOG_DEBUG(
                 "Aborting allocation on node without user slots (Address: %v, AllocationId: %v, OperationId: %v)",
@@ -1028,10 +1028,10 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             auto updateResult = WaitFor(ManagerHost_->GetStrategy()->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
                 auto error = TError("Node tags update failed")
-                    << TErrorAttribute("node_id", nodeId)
-                    << TErrorAttribute("address", address)
-                    << TErrorAttribute("tags", tags)
-                    << updateResult;
+                    .With("node_id", nodeId)
+                    .With("address", address)
+                    .With("tags", tags)
+                    .With(updateResult);
                 YT_LOG_WARNING(error);
                 errors.push_back(error);
 
@@ -1738,7 +1738,7 @@ void TNodeShard::DoAbortAllAllocationsAtNode(const TExecNodePtr& node, EAbortRea
     // Make a copy, the collection will be modified.
     auto allocations = node->Allocations();
     auto error = TError("All allocations on the node were aborted by scheduler")
-        << TErrorAttribute("abort_reason", reason);
+        .With("abort_reason", reason);
     for (const auto& allocation : allocations) {
         OnAllocationAborted(allocation, error, reason);
     }
@@ -1851,7 +1851,7 @@ void TNodeShard::ProcessHeartbeatAllocations(
         }
 
         auto error = TError("Allocation disappeared from node")
-            << TErrorAttribute("abort_reason", EAbortReason::DisappearedFromNode);
+            .With("abort_reason", EAbortReason::DisappearedFromNode);
         for (const auto& allocation : missingAllocations) {
             YT_LOG_DEBUG("Aborting vanished allocation (AllocationId: %v, OperationId: %v)", allocation->GetId(), allocation->GetOperationId());
             OnAllocationAborted(allocation, error, EAbortReason::DisappearedFromNode);
@@ -2385,7 +2385,7 @@ void TNodeShard::SubmitAllocationsToStrategy()
 
             for (const auto& [allocationId, abortReason] : allocationsToAbort) {
                 auto error = TError("Aborting allocation by strategy request")
-                    << TErrorAttribute("abort_reason", abortReason);
+                    .With("abort_reason", abortReason);
                 AbortAllocation(allocationId, error, abortReason);
             }
 

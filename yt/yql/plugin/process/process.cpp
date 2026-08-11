@@ -213,8 +213,8 @@ template<typename T, typename R>
 T TYqlExecutorProcess::ToErrorResponse(const TFormatString<>& errorMessage, const TErrorOr<R>& response) const
 {
     TError error = TError(errorMessage)
-        << response
-        << TErrorAttribute("slot_index", SlotIndex_);
+        .With(response)
+        .With("slot_index", SlotIndex_);
 
     return T{
         .YsonError = ConvertToYsonString<TError>(error).ToString()

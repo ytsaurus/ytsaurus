@@ -236,7 +236,7 @@ bool TContext::TryParseUser()
         Api_->ValidateUser(authenticatedUser);
     } catch (const std::exception& ex) {
         Response_->SetStatus(EStatusCode::Forbidden);
-        ReplyError(TError("User validation failed") << ex);
+        ReplyError(TError("User validation failed").With(ex));
         return false;
     }
 
@@ -322,7 +322,7 @@ bool TContext::TryGetInputFormat()
         ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Unable to parse %Qv header", YTHeaderName)
-            << ex;
+            .With(ex);
     }
     auto contentTypeHeader = Request_->GetHeaders()->Find("Content-Type");
     InputFormat_ = InferFormat(
@@ -364,7 +364,7 @@ bool TContext::TryGetOutputFormat()
         ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Unable to parse %Qv header", YTHeaderName)
-            << ex;
+            .With(ex);
     }
     auto acceptHeader = Request_->GetHeaders()->Find("Accept");
     OutputFormat_ = InferFormat(
@@ -407,7 +407,7 @@ bool TContext::TryGetErrorFormat()
         ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Unable to parse %Qv header", YTHeaderName)
-            << ex;
+            .With(ex);
     }
     ErrorFormat_ = InferFormat(
         *FormatManager_,
@@ -447,7 +447,7 @@ void TContext::CaptureParameters()
         FixupNodesWithAttributes(queryParams);
         DriverRequest_.Parameters = PatchNode(DriverRequest_.Parameters, std::move(queryParams))->AsMap();
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to parse parameters from query string") << ex;
+        THROW_ERROR_EXCEPTION("Unable to parse parameters from query string").With(ex);
     }
 
     try {
@@ -462,7 +462,7 @@ void TContext::CaptureParameters()
             DriverRequest_.Parameters = PatchNode(DriverRequest_.Parameters, fromHeaders)->AsMap();
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to parse parameters from headers") << ex;
+        THROW_ERROR_EXCEPTION("Unable to parse parameters from headers").With(ex);
     }
 
     if (Request_->GetMethod() == EMethod::Post) {
@@ -854,13 +854,13 @@ void TContext::SetEnrichedError(const TError& error)
     if (DriverRequest_.Parameters) {
         if (auto path = DriverRequest_.Parameters->FindChild("path")) {
             Error_ = Error_
-                << TErrorAttribute("path", path->GetValue<TYPath>());
+                .With("path", path->GetValue<TYPath>());
         }
     }
 
     // We wrap it in Unavailable code here, as it is already retryable in all clients.
     if (ShouldWrapInRetryableError(Error_)) {
-        Error_ = TError(NRpc::EErrorCode::Unavailable, "Proxy is unavailable") << error;
+        Error_ = TError(NRpc::EErrorCode::Unavailable, "Proxy is unavailable").With(error);
     }
 
     YT_LOG_ERROR(Error_, "Command failed");
@@ -959,21 +959,21 @@ void TContext::Run()
 
         if (Api_->GetMemoryUsageTracker()->IsTotalExceeded()) {
             THROW_ERROR_EXCEPTION(error)
-                << TErrorAttribute("total_memory_limit", Api_->GetMemoryUsageTracker()->GetTotalLimit())
-                << TErrorAttribute("total_memory_usage", Api_->GetMemoryUsageTracker()->GetTotalUsed());
+                .With("total_memory_limit", Api_->GetMemoryUsageTracker()->GetTotalLimit())
+                .With("total_memory_usage", Api_->GetMemoryUsageTracker()->GetTotalUsed());
         }
 
         if (Api_->GetMemoryUsageTracker()->IsPoolExceeded(userPoolTag)) {
             THROW_ERROR_EXCEPTION(error)
-                << TErrorAttribute("pool_memory_limit", Api_->GetMemoryUsageTracker()->GetPoolLimit(userPoolTag))
-                << TErrorAttribute("pool_memory_usage", Api_->GetMemoryUsageTracker()->GetPoolUsed(userPoolTag));
+                .With("pool_memory_limit", Api_->GetMemoryUsageTracker()->GetPoolLimit(userPoolTag))
+                .With("pool_memory_usage", Api_->GetMemoryUsageTracker()->GetPoolUsed(userPoolTag));
         }
 
         if (Descriptor_->Heavy && Api_->GetMemoryUsageTracker()->IsExceeded(EMemoryCategory::HeavyRequest))
         {
             THROW_ERROR_EXCEPTION(error)
-                << TErrorAttribute("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(EMemoryCategory::HeavyRequest))
-                << TErrorAttribute("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::HeavyRequest));
+                .With("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(EMemoryCategory::HeavyRequest))
+                .With("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::HeavyRequest));
         }
 
         if (Descriptor_->Heavy && Api_->GetMemoryUsageTracker()->IsExceeded(
@@ -981,10 +981,10 @@ void TContext::Run()
             userPoolTag))
         {
             THROW_ERROR_EXCEPTION(error)
-                << TErrorAttribute("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(
+                .With("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(
                     EMemoryCategory::HeavyRequest,
                     userPoolTag))
-                << TErrorAttribute("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(
+                .With("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(
                     EMemoryCategory::HeavyRequest,
                     userPoolTag));
         }

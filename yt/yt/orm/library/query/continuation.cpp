@@ -30,7 +30,7 @@ void DeserializeContinuationToken(
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(NClient::EErrorCode::InvalidContinuationToken,
             "Error deserializing continuation token")
-            << ex;
+            .With(ex);
     }
 }
 

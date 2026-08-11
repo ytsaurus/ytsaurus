@@ -90,8 +90,8 @@ void ValidateModuleShareToNetworkPriority(
     for (const auto& entry : table) {
         if (entry.ModuleShare <= previousModuleShare && entry.ModuleShare > 0) {
             THROW_ERROR_EXCEPTION("Module shares must be in strictly ascending order")
-                << TErrorAttribute("module", entry.ModuleShare)
-                << TErrorAttribute("previous_module_share", previousModuleShare);
+                .With("module", entry.ModuleShare)
+                .With("previous_module_share", previousModuleShare);
         }
         previousModuleShare = entry.ModuleShare;
     }

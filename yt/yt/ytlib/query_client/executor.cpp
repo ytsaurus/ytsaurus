@@ -247,9 +247,9 @@ void ValidateTableInfo(const TTableMountInfoPtr& tableInfo, TTableSchemaPtr expe
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
             "Invalid revision for table info; schema has changed")
-            << TErrorAttribute("path", tableInfo->Path)
-            << TErrorAttribute("original_schema", *expectedQuerySchema)
-            << TErrorAttribute("query_schema", *tableInfo->Schemas[ETableSchemaKind::Query]);
+            .With("path", tableInfo->Path)
+            .With("original_schema", *expectedQuerySchema)
+            .With("query_schema", *tableInfo->Schemas[ETableSchemaKind::Query]);
     }
 
     tableInfo->ValidateDynamic();
@@ -983,7 +983,7 @@ private:
                     servantNotActiveErrors[0].ThrowOnError();
                 } else {
                     THROW_ERROR_EXCEPTION("Some select subrequests failed because tablet servants are not active")
-                        << servantNotActiveErrors;
+                        .With(servantNotActiveErrors);
                 }
             }
 

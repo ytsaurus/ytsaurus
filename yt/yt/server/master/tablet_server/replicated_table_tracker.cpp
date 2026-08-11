@@ -561,8 +561,8 @@ private:
             return lag < SyncReplicaLagThreshold_
                 ? TError()
                 : TError("Replica lag time is over the threshold ")
-                    << TErrorAttribute("replica_lag_time", lag)
-                    << TErrorAttribute("replica_lag_threshold", SyncReplicaLagThreshold_);
+                    .With("replica_lag_time", lag)
+                    .With("replica_lag_threshold", SyncReplicaLagThreshold_);
         }
 
         TFuture<std::string> GetAsyncTabletCellBundleName()

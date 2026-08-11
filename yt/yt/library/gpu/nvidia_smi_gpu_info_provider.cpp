@@ -77,7 +77,7 @@ class TNvidiaSmiGpuInfoProvider
             auto now = TInstant::Now();
             if (now > deadline) {
                 THROW_ERROR_EXCEPTION("Failed to get GPU information within timeout")
-                    << TErrorAttribute("timeout", timeout);
+                    .With("timeout", timeout);
             } else {
                 remainingTimeout = deadline - now;
             }

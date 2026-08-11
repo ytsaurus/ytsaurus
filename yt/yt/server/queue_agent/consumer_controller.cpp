@@ -96,7 +96,7 @@ public:
             }
 
             ConsumerSnapshot_->Error = TError("Consumer is banned by \"queue_agent_banned\" attribute")
-                << TErrorAttribute("banned_since", ConsumerSnapshot_->BannedSince);
+                .With("banned_since", ConsumerSnapshot_->BannedSince);
 
             return ConsumerSnapshot_;
         }

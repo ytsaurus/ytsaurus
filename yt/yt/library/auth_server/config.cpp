@@ -379,7 +379,7 @@ std::string TLdapServiceConfig::GetAdminPassword() const
     // bind must be completed on the connection". Fail loudly instead.
     if (password.empty()) {
         THROW_ERROR_EXCEPTION("LDAP admin password is empty")
-            << TErrorAttribute("source",
+            .With("source",
                 AdminPasswordPath
                     ? Format("file %Qv", *AdminPasswordPath)
                     : Format("env var %Qv", *AdminPasswordEnvVar));

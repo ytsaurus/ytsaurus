@@ -151,7 +151,7 @@ TEST(TRetryableClientTest, PrerequisiteCheckFailedIsNotRetriable)
         .WillOnce(testing::Invoke([&] () {
             return NYT::MakeFuture<TUnversionedLookupRowsResult>(
                 TError("Error committing transaction")
-                << TError(NObjectClient::EErrorCode::PrerequisiteCheckFailed, "Prerequisite check failed"));
+                    .With(TError(NObjectClient::EErrorCode::PrerequisiteCheckFailed, "Prerequisite check failed")));
         }));
 
     auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateSyncStatusProfiler(), TLogger("test"));

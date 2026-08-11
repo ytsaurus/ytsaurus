@@ -97,11 +97,11 @@ public:
         YT_VERIFY(TableSchema_);
         if (!TableSchema_->IsUniqueKeys()) {
             THROW_ERROR_EXCEPTION("Table schema for chunk %v must have unique keys", ChunkId_)
-                << TErrorAttribute("read_session_id", readSessionId);
+                .With("read_session_id", readSessionId);
         }
         if (!TableSchema_->IsStrict()) {
             THROW_ERROR_EXCEPTION("Table schema for chunk %v must be strict", ChunkId_)
-                << TErrorAttribute("read_session_id", readSessionId);
+                .With("read_session_id", readSessionId);
         }
 
         // TODO(akozhikhov): Do not create it when reading fragments (now we need it to read meta).
@@ -179,8 +179,8 @@ private:
         auto type = FromProto<EChunkType>(chunkMeta->type());
         if (type != EChunkType::Table) {
             THROW_ERROR_EXCEPTION("Chunk %v is of invalid type", ChunkId_)
-                << TErrorAttribute("expected_chunk_type", EChunkType::Table)
-                << TErrorAttribute("chunk_type", type);
+                .With("expected_chunk_type", EChunkType::Table)
+                .With("chunk_type", type);
         }
 
         const auto& tableKeyColumns = TableSchema_->GetKeyColumns();
@@ -206,8 +206,8 @@ private:
                 tableKeyColumns.begin());
         if (!isCompatibleKeyColumns) {
             THROW_ERROR_EXCEPTION("Chunk %v has incompatible key columns", ChunkId_)
-                << TErrorAttribute("table_key_columns", tableKeyColumns)
-                << TErrorAttribute("chunk_key_columns", chunkKeyColumns);
+                .With("table_key_columns", tableKeyColumns)
+                .With("chunk_key_columns", chunkKeyColumns);
         }
 
         return true;

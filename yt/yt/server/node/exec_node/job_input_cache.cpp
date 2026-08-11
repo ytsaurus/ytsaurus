@@ -376,7 +376,7 @@ IChunkReaderPtr TJobInputCache::CreateReaderForChunk(TChunkId chunkId)
 
     if (!spec) {
         THROW_ERROR_EXCEPTION("Chunk spec not found")
-            << TErrorAttribute("chunk_id", chunkId);
+            .With("chunk_id", chunkId);
     }
 
     return CreateRemoteReader(

@@ -721,7 +721,7 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
                     it->first,
                     key,
                     it->second)
-                    << TErrorAttribute("unique_index_path", uniqueIndexPath);
+                    .With("unique_index_path", uniqueIndexPath);
             }
         }
     }
@@ -799,7 +799,7 @@ TFuture<void> TSecondaryIndexModifier::ValidateUniqueness(
                             indexKey,
                             tableKey,
                             indexRow)
-                            << TErrorAttribute("unique_index_path", uniqueIndexPath);
+                            .With("unique_index_path", uniqueIndexPath);
                     }
                 }
             }

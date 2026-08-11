@@ -26,7 +26,7 @@ TError TAlert::GetTaggedError() const
     for (const auto& tag : Tags) {
         errorAttributes.emplace_back(tag.first, tag.second);
     }
-    return Error << errorAttributes;
+    return Error.With(errorAttributes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,7 +113,7 @@ public:
 
         THashMap<std::string, TError> alerts;
         for (const auto& [category, aggregatedAlert] : categoryToAggregatedAlerts) {
-            alerts.emplace(category, TError(*aggregatedAlert.ErrorCode, TRuntimeFormat(*aggregatedAlert.Description)) << aggregatedAlert.Errors);
+            alerts.emplace(category, TError(*aggregatedAlert.ErrorCode, TRuntimeFormat(*aggregatedAlert.Description)).With(aggregatedAlert.Errors));
         }
 
         auto guard = WriterGuard(SpinLock_);

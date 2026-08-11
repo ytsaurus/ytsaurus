@@ -292,7 +292,7 @@ private:
                         NChunkClient::EErrorCode::UnsupportedChunkFeature,
                         "Chunk %v has unknown features",
                         chunkId)
-                        << TErrorAttribute("chunk_features", meta->features());
+                        .With("chunk_features", meta->features());
                 }
 
                 // Although it it highly unlikely that job proxy doesn't support some

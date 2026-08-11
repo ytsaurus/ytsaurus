@@ -244,8 +244,8 @@ void TPathVisitor<TSelf>::VisitVectorEntryRelative(
 
     THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
         "Unexpected vector relative path specifier")
-        << TErrorAttribute("relative_index", Self()->GetTokenizerPrefix())
-        << TErrorAttribute("computed_index", index);
+        .With("relative_index", Self()->GetTokenizerPrefix())
+        .With("computed_index", index);
 }
 
 template <typename TSelf>

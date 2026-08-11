@@ -282,7 +282,7 @@ void ValidateEnvironmentVariableName(TStringBuf name)
     for (char c : name) {
         if (!IsAsciiAlnum(c) && c != '_') {
             THROW_ERROR_EXCEPTION("Only alphanumeric characters and underscore are allowed in environment variable names")
-                << TErrorAttribute("name", name);
+                .With("name", name);
         }
     }
 }

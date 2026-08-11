@@ -22,7 +22,7 @@ IResourcePtr TComputationControllerContextBase::GetStaticResource(const TResourc
     auto resource = GetOrDefault(StaticResources, resourceId);
     if (!resource) {
         THROW_ERROR_EXCEPTION("Static resource is not found")
-            << TErrorAttribute("resource_id", resourceId);
+            .With("resource_id", resourceId);
     }
     return resource;
 }

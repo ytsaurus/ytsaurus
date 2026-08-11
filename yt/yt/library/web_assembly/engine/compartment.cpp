@@ -898,7 +898,7 @@ void TWebAssemblyCompartment::AddExportsToGlobalOffsetTable(const IR::Module& ir
     auto description = WAVM::Runtime::describeException(ex);
     WAVM::Runtime::destroyException(ex);
     THROW_ERROR_EXCEPTION("WAVM runtime exception")
-        << TErrorAttribute("description", description);
+        .With("description", description);
 }
 
 void TWebAssemblyCompartment::InstantiateModule(

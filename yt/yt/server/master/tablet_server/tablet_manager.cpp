@@ -465,8 +465,8 @@ public:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::InvalidTabletState,
                 "Cannot create replica table: incompatible atomicity and preserve_timestamps")
-                << TErrorAttribute("\"atomicity\"", atomicity)
-                << TErrorAttribute("\"preserve_timestamps\"", preserveTimestamps);
+                .With("\"atomicity\"", atomicity)
+                .With("\"preserve_timestamps\"", preserveTimestamps);
         }
 
         YT_VERIFY(!startReplicationRowIndexes || startReplicationRowIndexes->size() == table->Tablets().size());
@@ -589,8 +589,8 @@ public:
 
         if (table->GetAggregatedTabletBackupState() != ETabletBackupState::None) {
             THROW_ERROR_EXCEPTION("Cannot alter replica since its table is being backed up")
-                << TErrorAttribute("table_id", table->GetId())
-                << TErrorAttribute("tablet_backup_state", table->GetAggregatedTabletBackupState());
+                .With("table_id", table->GetId())
+                .With("tablet_backup_state", table->GetAggregatedTabletBackupState());
         }
 
         if (enabled) {
@@ -909,8 +909,8 @@ public:
             if (chunkCount > maxChunkCount) {
                 THROW_ERROR_EXCEPTION("Cannot mount tablet %v since it has too many chunks",
                     tablet->GetId())
-                    << TErrorAttribute("chunk_count", chunkCount)
-                    << TErrorAttribute("max_chunks_per_mounted_tablet", maxChunkCount);
+                    .With("chunk_count", chunkCount)
+                    .With("max_chunks_per_mounted_tablet", maxChunkCount);
             }
 
             if (!table->IsPhysicallySorted()) {
@@ -938,8 +938,8 @@ public:
                 {
                     error = TError("Cannot mount tablet %v since it has chunks with too large block size",
                         tablet->GetId())
-                        << TErrorAttribute("chunk_max_block_size", chunkMaxBlockSize)
-                        << TErrorAttribute("max_unversioned_block_size", *maxBlockSize);
+                        .With("chunk_max_block_size", chunkMaxBlockSize)
+                        .With("max_unversioned_block_size", *maxBlockSize);
                 }
 
                 if (auto chunkCompressedDataSize = chunk->GetCompressedDataSize();
@@ -947,8 +947,8 @@ public:
                 {
                     error = TError("Cannot mount tablet %v since it has too large chunks",
                         tablet->GetId())
-                        << TErrorAttribute("chunk_compressed_data_size", chunkCompressedDataSize)
-                        << TErrorAttribute("max_unversioned_chunk_size", maxChunkSize);
+                        .With("chunk_compressed_data_size", chunkCompressedDataSize)
+                        .With("max_unversioned_chunk_size", maxChunkSize);
                 }
             }
         }
@@ -1360,10 +1360,10 @@ public:
 
             if (complexity >= maxReshardComplexity) {
                 THROW_ERROR_EXCEPTION("Reshard complexity exceeds maximum allowed complexity, reshard table gradually")
-                    << TErrorAttribute("chunk_count", chunkCount)
-                    << TErrorAttribute("key_column_count", keyColumnCount)
-                    << TErrorAttribute("reshard_complexity", complexity)
-                    << TErrorAttribute("max_reshard_complexity", maxReshardComplexity);
+                    .With("chunk_count", chunkCount)
+                    .With("key_column_count", keyColumnCount)
+                    .With("reshard_complexity", complexity)
+                    .With("max_reshard_complexity", maxReshardComplexity);
             }
         }
 
@@ -1440,7 +1440,7 @@ public:
             TabletActionManager_->OnTabletActionDisturbed(
                 action,
                 TError("Tablet transition was canceled by user request")
-                    << TErrorAttribute("tablet_id", tablet->GetId()));
+                    .With("tablet_id", tablet->GetId()));
         }
 
         NTabletNode::NProto::TReqCancelTabletTransition req;
@@ -1842,7 +1842,7 @@ public:
         for (const auto& tablet : table->Tablets()) {
             if (tablet->GetAction()) {
                 THROW_ERROR_EXCEPTION("Table is already being balanced, try again later")
-                    << TErrorAttribute("tablet_id", tablet->GetId());
+                    .With("tablet_id", tablet->GetId());
             }
         }
 
@@ -2265,7 +2265,7 @@ public:
                 table->IsPhysicallyLog())
             {
                 THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static for a table that has hunks")
-                    << TErrorAttribute("alter_to_static_with_hunks_enabled", GetDynamicConfig()->EnableAlterToStaticWithHunks);
+                    .With("alter_to_static_with_hunks_enabled", GetDynamicConfig()->EnableAlterToStaticWithHunks);
             }
         }
 
@@ -2359,7 +2359,7 @@ public:
 
         if (table->DynamicTableLocks().contains(transaction->GetId())) {
             THROW_ERROR_EXCEPTION("Dynamic table is already locked by this transaction")
-                << TErrorAttribute("transaction_id", transaction->GetId());
+                .With("transaction_id", transaction->GetId());
         }
 
         table->ValidateNotBackup("Bulk insert into backup tables is not supported");
@@ -2634,7 +2634,7 @@ public:
                 THROW_ERROR_EXCEPTION("Failed to transfer resources from bundle %Qv to bundle %Qv",
                     srcBundle->GetName(),
                     dstBundle->GetName())
-                    << ex;
+                    .With(ex);
             }
         }
     }
@@ -6790,7 +6790,7 @@ private:
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             THROW_ERROR_EXCEPTION("Error cloning table %v",
                 cypressManager->GetNodePath(trunkNode->GetTrunkNode(), trunkNode->GetTransaction()))
-                << ex;
+                .With(ex);
         }
     }
 
@@ -6811,7 +6811,7 @@ private:
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             THROW_ERROR_EXCEPTION("Error cloning hunk storage %v",
                 cypressManager->GetNodePath(trunkNode->GetTrunkNode(), trunkNode->GetTransaction()))
-                << ex;
+                .With(ex);
         }
     }
 

@@ -264,8 +264,8 @@ public:
                 THROW_ERROR_EXCEPTION("Cannot replicate rows into tablet %v since it has already passed "
                     "backup checkpoint and transaction start timestamp is less than checkpoint timestamp",
                     Tablet_->GetId())
-                    << TErrorAttribute("start_timestamp", transaction->GetStartTimestamp())
-                    << TErrorAttribute("checkpoint_timestamp", Tablet_->GetBackupCheckpointTimestamp());
+                    .With("start_timestamp", transaction->GetStartTimestamp())
+                    .With("checkpoint_timestamp", Tablet_->GetBackupCheckpointTimestamp());
             }
         }
     }
@@ -1153,7 +1153,7 @@ private:
                 if (auto error = lockManager->ValidateTransactionConflict(transaction->GetStartTimestamp());
                     !error.IsOK())
                 {
-                    THROW_ERROR error << TErrorAttribute("tablet_id", Tablet_->GetId());
+                    THROW_ERROR error.With("tablet_id", Tablet_->GetId());
                 }
 
                 ValidateSyncReplicaSet(writeRecord.SyncReplicaIds);
@@ -1732,9 +1732,9 @@ private:
                         "Replica %v of tablet %v is not synchronously writeable since some rows are not replicated yet",
                         replicaInfo.GetId(),
                         Tablet_->GetId())
-                        << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
-                        << TErrorAttribute("total_row_count", totalRowCount)
-                        << TErrorAttribute("delayed_lockless_row_count", delayedLocklessRowCount);
+                        .With("current_replication_row_index", currentReplicationRowIndex)
+                        .With("total_row_count", totalRowCount)
+                        .With("delayed_lockless_row_count", delayedLocklessRowCount);
                 }
                 if (currentReplicationRowIndex > totalRowCount + delayedLocklessRowCount) {
                     YT_LOG_ALERT(
@@ -1765,8 +1765,8 @@ private:
                         "Replica %v of tablet %v is not asynchronously writeable: some synchronous writes are still in progress",
                         replicaInfo.GetId(),
                         Tablet_->GetId())
-                        << TErrorAttribute("current_replication_row_index", currentReplicationRowIndex)
-                        << TErrorAttribute("total_row_count", totalRowCount);
+                        .With("current_replication_row_index", currentReplicationRowIndex)
+                        .With("total_row_count", totalRowCount);
                 }
 
                 if (currentReplicationRowIndex >= totalRowCount + delayedLocklessRowCount) {

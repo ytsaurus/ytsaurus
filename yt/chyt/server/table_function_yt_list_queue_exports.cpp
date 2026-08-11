@@ -76,7 +76,7 @@ public:
             queryContext->Client()->GetNode(Format("%v/@queue_static_export_destination", ExportDirectory_)));
         if (!destinationYsonOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Path %Qv does not correspond to a queue static export directory", ExportDirectory_)
-                << destinationYsonOrError;
+                .With(destinationYsonOrError);
         }
 
         auto destinationConfig = NYTree::ConvertTo<NQueueClient::TQueueStaticExportDestinationConfig>(
@@ -90,7 +90,7 @@ public:
             THROW_ERROR_EXCEPTION("Cannot get static export configs for queue %v (originating queue of %Qv)",
                 QueueId_,
                 ExportDirectory_)
-                << exportConfigsYsonOrError;
+                .With(exportConfigsYsonOrError);
         }
 
         auto exportConfigs = NYTree::ConvertTo<THashMap<std::string, NQueueClient::TQueueStaticExportConfigPtr>>(

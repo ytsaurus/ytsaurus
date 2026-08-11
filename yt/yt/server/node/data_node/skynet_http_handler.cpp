@@ -78,8 +78,8 @@ void ParseRequest(TStringBuf rawQuery, TChunkId* chunkId, TReadRange* readRange,
 
     if (*partIndex < 0 || readRange->LowerLimit().GetRowIndex() < 0 || readRange->UpperLimit().GetRowIndex() < 0) {
         THROW_ERROR_EXCEPTION("Parameter is negative")
-            << TErrorAttribute("part_index", *partIndex)
-            << TErrorAttribute("read_range", *readRange);
+            .With("part_index", *partIndex)
+            .With("read_range", *readRange);
     }
 }
 
@@ -95,7 +95,7 @@ void AdjustReadRange(
     httpRange.second += 1;
     if (httpRange.first >= httpRange.second) {
         THROW_ERROR_EXCEPTION("Invalid http range")
-            << TErrorAttribute("http_range", httpRange);
+            .With("http_range", httpRange);
     }
 
     auto skipRows = httpRange.first / SkynetPartSize;
@@ -192,15 +192,15 @@ private:
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
         if (!miscExt.shared_to_skynet()) {
             THROW_ERROR_EXCEPTION("Chunk access not allowed")
-                << TErrorAttribute("chunk_id", chunkId);
+                .With("chunk_id", chunkId);
         }
         if (readRange.LowerLimit().GetRowIndex() >= miscExt.row_count() ||
             readRange.UpperLimit().GetRowIndex() >= miscExt.row_count() + 1 ||
             readRange.LowerLimit().GetRowIndex() >= readRange.UpperLimit().GetRowIndex())
         {
             THROW_ERROR_EXCEPTION("Requested rows are out of bound")
-                << TErrorAttribute("read_range", readRange)
-                << TErrorAttribute("row_count", miscExt.row_count());
+                .With("read_range", readRange)
+                .With("row_count", miscExt.row_count());
         }
 
         auto blockCache = Bootstrap_->GetBlockCacheForMedium(chunk->GetLocation()->GetMediumIndex());
@@ -254,8 +254,8 @@ private:
             if (blob.Empty()) {
                 if (byteLimit && byteWritten != *byteLimit) {
                     THROW_ERROR_EXCEPTION("Truncated file part")
-                        << TErrorAttribute("byte_limit", byteLimit)
-                        << TErrorAttribute("byte_written", byteWritten);
+                        .With("byte_limit", byteLimit)
+                        .With("byte_written", byteWritten);
                 }
 
                 break;

@@ -402,7 +402,7 @@ protected:
                     THROW_ERROR_EXCEPTION_IF(
                         innerError.GetCode() != NObjectClient::EErrorCode::BeginCopyDeprecated,
                         TError("Error requesting serialized subtree for %v", subtreePath)
-                            << cumulativeError);
+                            .With(cumulativeError));
                 }
                 return false;
             }
@@ -1728,7 +1728,7 @@ public:
             THROW_ERROR_EXCEPTION("Error concatenating %v to %v",
                 srcPaths,
                 dstPath)
-                << ex;
+                .With(ex);
         }
     }
 
@@ -2242,8 +2242,8 @@ private:
                 THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                     "Chunk %v has less key columns than output schema",
                     chunkId)
-                    << TErrorAttribute("chunk_key_column_count", chunkSchema.GetKeyColumnCount())
-                    << TErrorAttribute("output_table_key_column_count", OutputTableSchema_->GetKeyColumnCount());
+                    .With("chunk_key_column_count", chunkSchema.GetKeyColumnCount())
+                    .With("output_table_key_column_count", OutputTableSchema_->GetKeyColumnCount());
             }
 
             if (OutputTableSchema_->IsUniqueKeys() && !chunkSchema.IsUniqueKeys()) {
@@ -2291,20 +2291,20 @@ private:
             int comparisonResult = comparator.CompareKeys(currentChunkMaxKey, nextChunkMinKey);
             if (comparisonResult > 0) {
                 THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SortOrderViolation, "Chunks ranges are overlapping")
-                    << TErrorAttribute("current_chunk_id", FromProto<TChunkId>(currentChunkSpec.chunk_id()))
-                    << TErrorAttribute("next_chunk_id", FromProto<TChunkId>(nextChunkSpec.chunk_id()))
-                    << TErrorAttribute("current_chunk_max_key", currentChunkMaxKey)
-                    << TErrorAttribute("next_chunk_min_key", nextChunkMinKey)
-                    << TErrorAttribute("comparator", comparator);
+                    .With("current_chunk_id", FromProto<TChunkId>(currentChunkSpec.chunk_id()))
+                    .With("next_chunk_id", FromProto<TChunkId>(nextChunkSpec.chunk_id()))
+                    .With("current_chunk_max_key", currentChunkMaxKey)
+                    .With("next_chunk_min_key", nextChunkMinKey)
+                    .With("comparator", comparator);
             } else if (comparisonResult == 0 && OutputTableSchema_->IsUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "Key appears in two chunks but output table schema requires unique keys")
-                    << TErrorAttribute("current_chunk_id", FromProto<TChunkId>(currentChunkSpec.chunk_id()))
-                    << TErrorAttribute("next_chunk_id", FromProto<TChunkId>(nextChunkSpec.chunk_id()))
-                    << TErrorAttribute("current_chunk_max_key", currentChunkMaxKey)
-                    << TErrorAttribute("next_chunk_min_key", nextChunkMinKey)
-                    << TErrorAttribute("comparator", comparator);
+                    .With("current_chunk_id", FromProto<TChunkId>(currentChunkSpec.chunk_id()))
+                    .With("next_chunk_id", FromProto<TChunkId>(nextChunkSpec.chunk_id()))
+                    .With("current_chunk_max_key", currentChunkMaxKey)
+                    .With("next_chunk_min_key", nextChunkMinKey)
+                    .With("comparator", comparator);
             }
         }
     }
@@ -2362,18 +2362,18 @@ private:
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::SortOrderViolation,
                     "First key of chunk to append is less than last key in table")
-                    << TErrorAttribute("chunk_id", FromProto<TChunkId>(ChunkSpecs_[0].chunk_id()))
-                    << TErrorAttribute("table_max_key", tableMaxKey)
-                    << TErrorAttribute("first_chunk_min_key", firstChunkMinKey)
-                    << TErrorAttribute("comparator", comparator);
+                    .With("chunk_id", FromProto<TChunkId>(ChunkSpecs_[0].chunk_id()))
+                    .With("table_max_key", tableMaxKey)
+                    .With("first_chunk_min_key", firstChunkMinKey)
+                    .With("comparator", comparator);
             } else if (comparisonResult == 0 && OutputTableSchema_->IsUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "First key of chunk to append equals to last key in table")
-                    << TErrorAttribute("chunk_id", FromProto<TChunkId>(ChunkSpecs_[0].chunk_id()))
-                    << TErrorAttribute("table_max_key", tableMaxKey)
-                    << TErrorAttribute("first_chunk_min_key", firstChunkMinKey)
-                    << TErrorAttribute("comparator", comparator);
+                    .With("chunk_id", FromProto<TChunkId>(ChunkSpecs_[0].chunk_id()))
+                    .With("table_max_key", tableMaxKey)
+                    .With("first_chunk_min_key", firstChunkMinKey)
+                    .With("comparator", comparator);
             }
         }
     }

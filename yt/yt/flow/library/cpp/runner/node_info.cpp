@@ -113,8 +113,8 @@ protected:
 
         if (!resolver->IsLocalAddress(address)) {
             THROW_ERROR_EXCEPTION("Extracted IP of local fqdn is not resolved to one of local IP addresses; probably DNS is updating slowly")
-                << TErrorAttribute("local_fqdn", localFqdn)
-                << TErrorAttribute("resolved_ip", addressStr);
+                .With("local_fqdn", localFqdn)
+                .With("resolved_ip", addressStr);
         }
         return addressStr;
     }
@@ -305,7 +305,7 @@ protected:
         auto* resolver = NNet::TAddressResolver::Get();
         if (!resolver->IsLocalAddress(address)) {
             THROW_ERROR_EXCEPTION("Extracted IP of vanilla job is not one of local IP addresses")
-                << TErrorAttribute("extracted_ip", Ip_);
+                .With("extracted_ip", Ip_);
         }
         return std::string(Ip_);
     }

@@ -213,8 +213,8 @@ TError MakeRevivalError(
     NScheduler::TJobId jobId)
 {
     return MakeOperationRevivalError()
-        << TErrorAttribute("job_id", jobId)
-        << TErrorAttribute("operation_id", operationId);
+        .With("job_id", jobId)
+        .With("operation_id", operationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

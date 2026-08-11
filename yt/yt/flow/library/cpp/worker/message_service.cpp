@@ -223,14 +223,14 @@ private:
             for (const auto& streamOffer : jobData.offers()) {
                 const auto streamId = streamSpecs->GetStreamId(FromProto<TStreamSpecId>(streamOffer.stream_spec_id()));
                 THROW_ERROR_EXCEPTION_UNLESS(IsSorted(streamOffer.min_order_timestamps().begin(), streamOffer.min_order_timestamps().end()), "Buckets of stream offer must be sorted")
-                    << TErrorAttribute("job_id", jobId)
-                    << TErrorAttribute("stream_id", streamId)
-                    << TErrorAttribute("offer", NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
+                    .With("job_id", jobId)
+                    .With("stream_id", streamId)
+                    .With("offer", NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
                 if (streamOffer.min_order_timestamps_size() != streamOffer.inflated_byte_sizes_size()) {
                     THROW_ERROR_EXCEPTION("Invalid request: sizes of \"min_order_timestamps\" and \"inflated_byte_sizes\" mismatch")
-                        << TErrorAttribute("job_id", jobId)
-                        << TErrorAttribute("stream_id", streamId)
-                        << TErrorAttribute("offer", NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
+                        .With("job_id", jobId)
+                        .With("stream_id", streamId)
+                        .With("offer", NYson::ConvertToYsonString(streamOffer, NYson::EYsonFormat::Text));
                 }
 
                 auto& offer = workerOffer[streamId];

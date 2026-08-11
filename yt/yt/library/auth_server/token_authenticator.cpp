@@ -91,7 +91,7 @@ private:
             YT_LOG_DEBUG(result, "Blackbox authentication failed (TokenHash: %v)",
                 tokenHash);
             THROW_ERROR result
-                << TErrorAttribute("token_hash", tokenHash);
+                .With("token_hash", tokenHash);
         }
 
         YT_LOG_DEBUG("Blackbox authentication successful (TokenHash: %v, Login: %v, Realm: %v)",
@@ -115,7 +115,7 @@ private:
             auto reason = error.IsOK() ? error.Value() : "unknown";
             RejectedTokensCounter_.Increment();
             return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected token")
-                << TErrorAttribute("reason", reason);
+                .With("reason", reason);
         }
 
         auto login = BlackboxSevice_->GetLogin(data);
@@ -151,8 +151,8 @@ private:
             if (!matchedScope) {
                 TokenScopeCheckErrorsCounter_.Increment();
                 return TError(NRpc::EErrorCode::InvalidCredentials, "Token does not provide a valid scope")
-                    << TErrorAttribute("provided_scopes", providedScopes)
-                    << TErrorAttribute("allowed_scope", Config_->Scope);
+                    .With("provided_scopes", providedScopes)
+                    .With("allowed_scope", Config_->Scope);
             }
         }
 
@@ -249,14 +249,14 @@ private:
                     tokenHash);
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                     "Token is missing in Cypress")
-                    << TErrorAttribute("token_hash", tokenHash)
-                    << callResult;
+                    .With("token_hash", tokenHash)
+                    .With(callResult);
             } else {
                 YT_LOG_DEBUG(callResult, "Cypress authentication failed (TokenHash: %v)",
                     tokenHash);
                 THROW_ERROR_EXCEPTION("Cypress authentication failed")
-                    << TErrorAttribute("token_hash", tokenHash)
-                    << callResult;
+                    .With("token_hash", tokenHash)
+                    .With(callResult);
             }
         }
 
@@ -273,7 +273,7 @@ private:
             YT_LOG_DEBUG(callResult, "Cypress contains malformed authentication entry (TokenHash: %v)",
                 tokenHash);
             THROW_ERROR_EXCEPTION("Malformed Cypress authentication entry")
-                << TErrorAttribute("token_hash", tokenHash);
+                .With("token_hash", tokenHash);
         }
     }
 };

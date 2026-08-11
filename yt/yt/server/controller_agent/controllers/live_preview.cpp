@@ -37,8 +37,8 @@ TError TLivePreview::TryInsertChunk(TInputChunkPtr chunk)
 {
     if (Schema_->IsSorted() && !chunk->BoundaryKeys()) {
         return TError("Missing boundary keys in a chunk of a sorted live preview table")
-            << NYT::TErrorAttribute("path", Path_)
-            << NYT::TErrorAttribute("chunk_id", chunk->GetChunkId());
+            .With(NYT::TErrorAttribute("path", Path_))
+            .With(NYT::TErrorAttribute("chunk_id", chunk->GetChunkId()));
     }
 
     InsertOrCrash(Chunks_, std::move(chunk));
@@ -50,8 +50,8 @@ TError TLivePreview::TryEraseChunk(const TInputChunkPtr& chunk)
 {
     if (!Chunks_.erase(chunk)) {
         return TError("Erasing non present chunk of a live preview table")
-            << NYT::TErrorAttribute("path", Path_)
-            << NYT::TErrorAttribute("chunk_id", chunk->GetChunkId());
+            .With(NYT::TErrorAttribute("path", Path_))
+            .With(NYT::TErrorAttribute("chunk_id", chunk->GetChunkId()));
     }
 
     return {};

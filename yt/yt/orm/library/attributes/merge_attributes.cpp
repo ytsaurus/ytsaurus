@@ -524,7 +524,7 @@ private:
             std::string prefix = CurrentPathSegments_.empty() ? "" : "/";
             prefix += JoinToString(CurrentPathSegments_, TDefaultFormatter(), "/");
             THROW_ERROR_EXCEPTION("Duplicate key %Qv", key)
-                << TErrorAttribute("key_prefix", prefix);
+                .With("key_prefix", prefix);
         }
         LastKey_ = key;
     }

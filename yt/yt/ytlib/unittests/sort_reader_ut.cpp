@@ -112,7 +112,7 @@ private:
     {
         ReadCanceled_ = true;
         auto promise = std::move(PendingPromise_);
-        promise.Set(TError(NYT::EErrorCode::Canceled, "Mock read canceled") << error);
+        promise.Set(TError(NYT::EErrorCode::Canceled, "Mock read canceled").With(error));
     }
 };
 

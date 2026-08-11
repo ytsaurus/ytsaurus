@@ -181,7 +181,7 @@ private:
 
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing chaos cells in cell directory")
-                << ex;
+                .With(ex);
         }
 
         YT_LOG_DEBUG("Finished synchronizing chaos cells in cell directory");
@@ -265,7 +265,7 @@ private:
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing observed chaos cells in cell directory")
-                << ex;
+                .With(ex);
         }
 
         YT_LOG_DEBUG("Finished synchronizing observed chaos cells in cell directory (ObservedCellCount: %v)",
@@ -309,8 +309,8 @@ private:
                 existingCellId,
                 newCellId);
             THROW_ERROR_EXCEPTION("Duplicate chaos cell id for tag %v", cellTag)
-                << TErrorAttribute("existing_cell_id", existingCellId)
-                << TErrorAttribute("new_cell_id", newCellId);
+                .With("existing_cell_id", existingCellId)
+                .With("new_cell_id", newCellId);
         }
     }
 };

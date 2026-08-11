@@ -156,8 +156,8 @@ void ValidateTabletMountedOrFrozen(const TTableMountInfoPtr& tableInfo, const TT
             tabletInfo->TabletId,
             tableInfo->Path,
             state)
-            << TErrorAttribute("tablet_id", tabletInfo->TabletId)
-            << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
+            .With("tablet_id", tabletInfo->TabletId)
+            .With("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 
@@ -172,8 +172,8 @@ void ValidateTabletMounted(const TTableMountInfoPtr& tableInfo, const TTabletInf
             tableInfo->Path,
             state,
             ETabletState::Mounted)
-            << TErrorAttribute("tablet_id", tabletInfo->TabletId)
-            << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
+            .With("tablet_id", tabletInfo->TabletId)
+            .With("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 
@@ -187,8 +187,8 @@ void ValidateTabletNotUnmounted(const TTableMountInfoPtr& tableInfo, const TTabl
             tabletInfo->TabletId,
             tableInfo->Path,
             state)
-            << TErrorAttribute("tablet_id", tabletInfo->TabletId)
-            << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
+            .With("tablet_id", tabletInfo->TabletId)
+            .With("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 
@@ -311,7 +311,7 @@ TTabletInfoPtr GetOrderedTabletForRow(
                     FromUnversionedValue(&tabletIndex, value);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error parsing tablet index from row")
-                        << ex;
+                        .With(ex);
                 }
 
                 tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);

@@ -293,8 +293,8 @@ public:
                     srcPool->GetName(),
                     dstPool->GetName());
                 THROW_ERROR_EXCEPTION("Pools do not have common ancestor")
-                    << TErrorAttribute("src_pool", srcPool->GetName())
-                    << TErrorAttribute("dst_pool", dstPool->GetName());
+                    .With("src_pool", srcPool->GetName())
+                    .With("dst_pool", dstPool->GetName());
             }
 
             const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -328,7 +328,7 @@ public:
             THROW_ERROR_EXCEPTION("Failed to transfer resources from pool %Qv to pool %Qv",
                 srcPool->GetName(),
                 dstPool->GetName())
-                << ex;
+                .With(ex);
         }
         transaction.Commit();
     }
@@ -367,8 +367,8 @@ public:
 
         if (!validationRegex.ok()) {
             THROW_ERROR_EXCEPTION("Pool name validation regular expression is malformed")
-                << TErrorAttribute("regular_expression", validationRegex.pattern())
-                << TErrorAttribute("inner_error", validationRegex.error());
+                .With("regular_expression", validationRegex.pattern())
+                .With("inner_error", validationRegex.error());
         }
 
         ValidatePoolName(name, validationRegex);

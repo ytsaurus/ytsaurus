@@ -117,13 +117,13 @@ private:
 
             return TError(NRpc::EErrorCode::InvalidCredentials,
                 "Ticket does not provide an allowed scope")
-                << TErrorAttribute("provided_scopes", scopes)
-                << TErrorAttribute("allowed_scopes", allowedScopes);
+                .With("provided_scopes", scopes)
+                .With("allowed_scopes", allowedScopes);
         } catch (const std::exception& ex) {
             TError error(ex);
             YT_LOG_DEBUG(error, "Parsing user ticket failed (TicketHash: %v)",
                 ticketHash);
-            return error << TErrorAttribute("ticket_hash", ticketHash);
+            return error.With("ticket_hash", ticketHash);
         }
     }
 
@@ -137,7 +137,7 @@ private:
             YT_LOG_DEBUG(errorOrResult, "Blackbox authentication failed (TicketHash: %v)",
                 ticketHash);
             THROW_ERROR errorOrResult
-                << TErrorAttribute("ticket_hash", ticketHash);
+                .With("ticket_hash", ticketHash);
         }
 
         auto result = errorOrResult.Value();

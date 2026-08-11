@@ -208,7 +208,7 @@ private:
             } else if (!FirstSuccessPromise_.IsSet() && Revision_ > ClientConfig_->MaxFailedHeartbeatsOnStartup) {
                 FirstSuccessPromise_.TrySet(
                     TError("Error reporting heartbeat %v times on startup", ClientConfig_->MaxFailedHeartbeatsOnStartup)
-                        << rspOrError);
+                        .With(rspOrError));
             }
         } else {
             YT_LOG_DEBUG("Successfully reported heartbeat (Revision: %v)", Revision_);

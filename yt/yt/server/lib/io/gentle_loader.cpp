@@ -125,9 +125,9 @@ private:
 
         if (readSize + offset > fileInfo.FileSize) {
             return MakeFuture<TDuration>(TError("Wrong packets size")
-                << TErrorAttribute("read_size", readSize)
-                << TErrorAttribute("offset", offset)
-                << TErrorAttribute("disk_space", fileInfo.FileSize));
+                .With("read_size", readSize)
+                .With("offset", offset)
+                .With("disk_space", fileInfo.FileSize));
         }
 
         struct TChunkFileReaderBufferTag

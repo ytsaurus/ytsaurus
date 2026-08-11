@@ -65,9 +65,9 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
 
         if (!testFileResultOrError.IsOK()) {
             auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to verify GPU check binary")
-                << TErrorAttribute("check_type", Context_.Type)
-                << TErrorAttribute("path", Context_.Options.BinaryPath)
-                << std::move(testFileResultOrError);
+                .With("check_type", Context_.Type)
+                .With("path", Context_.Options.BinaryPath)
+                .With(std::move(testFileResultOrError));
 
             YT_LOG_INFO(error);
 
@@ -95,8 +95,8 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
 
         if (!resultOrError.IsOK()) {
             auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to run setup commands for GPU check")
-                << TErrorAttribute("check_type", Context_.Type)
-                << std::move(resultOrError);
+                .With("check_type", Context_.Type)
+                .With(std::move(resultOrError));
 
             YT_LOG_INFO(error);
 

@@ -200,8 +200,8 @@ private:
             int stateVersion = ConvertTo<int>(rspOrError.Value());
             if (stateVersion < MinRequiredStateVersion_) {
                 auto alert = TError(NAlerts::EErrorCode::QueryTrackerInvalidState, "Min required state version is not met")
-                    << TErrorAttribute("version", stateVersion)
-                    << TErrorAttribute("min_required_version", MinRequiredStateVersion_);
+                    .With("version", stateVersion)
+                    .With("min_required_version", MinRequiredStateVersion_);
                 AlertCollector_->StageAlert(CreateAlert(
                     NAlerts::EErrorCode::QueryTrackerInvalidState,
                     "Erroneous query tracker state",
@@ -583,8 +583,8 @@ private:
 
         if (finalState == EQueryState::Aborted || finalState == EQueryState::Failed) {
             error = TError("Query %v %lv", queryId, finalState)
-                << error
-                << TErrorAttribute("query_id", queryId);
+                .With(error)
+                .With("query_id", queryId);
         }
 
         while (true) {
@@ -707,8 +707,8 @@ private:
                 "Query incarnation mismatch: expected %v, actual %v",
                 expectedIncarnation,
                 record.Incarnation)
-                    << TErrorAttribute("expected_incarnation", expectedIncarnation)
-                    << TErrorAttribute("actual_incarnation", record.Incarnation);
+                    .With("expected_incarnation", expectedIncarnation)
+                    .With("actual_incarnation", record.Incarnation);
         }
     }
 

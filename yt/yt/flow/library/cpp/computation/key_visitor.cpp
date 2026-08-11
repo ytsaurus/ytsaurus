@@ -284,8 +284,8 @@ TKeyVisitor::EIterationOutcome TKeyVisitor::DoRunBackgroundFillIteration()
         // Retry next tick: a transient backend error clears, a stable one stays
         // visible in the status profiler.
         BackgroundFillError_->SetError(TError(ex)
-            << TErrorAttribute("computation_id", Context_->ComputationId.Underlying())
-            << TErrorAttribute("stream_id", Context_->StreamId.Underlying()));
+                .With("computation_id", Context_->ComputationId.Underlying())
+                .With("stream_id", Context_->StreamId.Underlying()));
         return EIterationOutcome::Idle;
     }
 }

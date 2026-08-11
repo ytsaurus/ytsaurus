@@ -1340,7 +1340,7 @@ private:
                 UnrecognizedOptionsAlert_ = TError(
                     EErrorCode::UnrecognizedConfigOption,
                     "Node config contains unrecognized options")
-                    << TErrorAttribute("unrecognized", unrecognized);
+                    .With("unrecognized", unrecognized);
             }
             if (Config_->AbortOnUnrecognizedOptions) {
                 YT_LOG_ERROR("Node config contains unrecognized options, aborting (Unrecognized: %v)",
@@ -1593,12 +1593,12 @@ private:
 
         if (DynamicConfigManager_->GetConfig()->TotalMemoryLimitExceededThreshold * totalUsed > totalLimit) {
             alerts->push_back(TError(NChunkClient::EErrorCode::TotalMemoryLimitExceeded, "Total memory limit exceeded")
-                << TErrorAttribute("used", totalUsed)
-                << TErrorAttribute("limit", totalLimit));
+                .With("used", totalUsed)
+                .With("limit", totalLimit));
         } else if (DynamicConfigManager_->GetConfig()->MemoryUsageIsCloseToLimitThreshold * totalUsed > totalLimit) {
             alerts->push_back(TError("Memory usage is close to the limit")
-                << TErrorAttribute("used", totalUsed)
-                << TErrorAttribute("limit", totalLimit));
+                .With("used", totalUsed)
+                .With("limit", totalLimit));
         }
     }
 
@@ -1610,8 +1610,8 @@ private:
             if (used > limit * DynamicConfigManager_->GetConfig()->MemoryLimitExceededForCategoryThreshold) {
                 alerts->push_back(TError("Memory limit exceeded for category %Qlv",
                     category)
-                    << TErrorAttribute("used", used)
-                    << TErrorAttribute("limit", limit));
+                    .With("used", used)
+                    .With("limit", limit));
             }
         }
     }

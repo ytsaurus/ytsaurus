@@ -724,8 +724,8 @@ private:
         if (firstOverlayedRowIndex && *firstOverlayedRowIndex > maybeStartRowIndex) {
             THROW_ERROR_EXCEPTION("Sealing chunk %v would produce row gap",
                 chunkId)
-                << TErrorAttribute("start_row_index", maybeStartRowIndex)
-                << TErrorAttribute("first_overlayed_row_index", *quorumInfo.FirstOverlayedRowIndex);
+                .With("start_row_index", maybeStartRowIndex)
+                .With("first_overlayed_row_index", *quorumInfo.FirstOverlayedRowIndex);
         }
 
         i64 sealedRowCount = quorumInfo.RowCount;

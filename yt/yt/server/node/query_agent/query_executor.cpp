@@ -566,7 +566,7 @@ public:
                 servantNotActiveErrors[0].ThrowOnError();
             } else {
                 THROW_ERROR_EXCEPTION("Some tablet servants are not active")
-                    << servantNotActiveErrors;
+                    .With(servantNotActiveErrors);
             }
         }
 

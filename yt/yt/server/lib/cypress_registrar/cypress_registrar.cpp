@@ -54,7 +54,7 @@ public:
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to create Cypress registrar")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -80,7 +80,7 @@ public:
                 if (!error.IsOK()) {
                     YT_LOG_ERROR(error, "Failed to create nodes");
                     THROW_ERROR_EXCEPTION("Cypress registrar failed to create nodes")
-                        << error;
+                        .With(error);
                 }
             }));
     }
@@ -96,7 +96,7 @@ public:
                 if (!error.IsOK()) {
                     YT_LOG_ERROR(error, "Failed to update nodes");
                     THROW_ERROR_EXCEPTION("Cypress registrar failed to update nodes")
-                        << error;
+                        .With(error);
                 }
             }));
     }

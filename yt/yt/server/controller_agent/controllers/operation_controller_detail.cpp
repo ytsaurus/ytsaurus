@@ -233,7 +233,7 @@ namespace {
 TError GetMaxFailedJobCountReachedError(int maxFailedJobCount)
 {
     return TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
-        << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
+        .With("max_failed_job_count", maxFailedJobCount);
 }
 
 TSchedulingTagFilter GetFinalSchedulingTagFilter(
@@ -468,13 +468,13 @@ TError TOperationControllerBase::BuildHighJobThreadCountAlert() const
     for (const auto& [taskName, info] : HighThreadCountJobPerTask_) {
         errors.push_back(
             TError("Jobs exceed thread count limit")
-                << TErrorAttribute("thread_count", info.ThreadCount)
-                << TErrorAttribute("threshold", info.Threshold)
-                << TErrorAttribute("job_id", info.JobId)
-                << TErrorAttribute("task", taskName));
+                .With("thread_count", info.ThreadCount)
+                .With("threshold", info.Threshold)
+                .With("job_id", info.JobId)
+                .With("task", taskName));
     }
 
-    return TError("Some jobs have too many threads") << std::move(errors);
+    return TError("Some jobs have too many threads").With(std::move(errors));
 }
 
 std::unique_ptr<IHistogram> TOperationControllerBase::ComputeFinalPartitionSizeHistogram() const
@@ -781,7 +781,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
                 "Cannot use clean restart when option \"fail_on_job_restart\" is set in operation spec or user job spec")
-                << TErrorAttribute("reason", EFailOnJobRestartReason::RevivalWithCleanStart);
+                .With("reason", EFailOnJobRestartReason::RevivalWithCleanStart);
         }
 
         YT_LOG_INFO("Using clean start instead of revive");
@@ -815,7 +815,7 @@ void TOperationControllerBase::ValidateCollectiveOptions() const
         for (const auto& userJobSpec : GetUserJobSpecs()) {
             if (userJobSpec->CollectiveOptions && userJobSpec->CollectiveOptions->Size > 1) {
                 THROW_ERROR_EXCEPTION("Cannot combine offloading pool trees and collective_options")
-                    << TErrorAttribute("task_title", userJobSpec->TaskTitle);
+                    .With("task_title", userJobSpec->TaskTitle);
             }
         }
     }
@@ -830,8 +830,8 @@ void TOperationControllerBase::ValidateSecureVault() const
     YT_LOG_DEBUG("Operation secure vault size detected (Size: %v)", length);
     if (length > Config_->SecureVaultLengthLimit) {
         THROW_ERROR_EXCEPTION("Secure vault YSON text representation is too long")
-            << TErrorAttribute("length", length)
-            << TErrorAttribute("length_limit", Config_->SecureVaultLengthLimit);
+            .With("length", length)
+            .With("length_limit", Config_->SecureVaultLengthLimit);
     }
 }
 
@@ -841,8 +841,8 @@ void TOperationControllerBase::ValidateOutputTablePaths() const
         if (auto clusterName = ClusterResolver_->GetClusterName(path); !IsLocal(clusterName)) {
             auto localClusterName = ClusterResolver_->GetLocalClusterName();
             THROW_ERROR_EXCEPTION("Output table must be on the same cluster as operation")
-                << TErrorAttribute("table_cluster_name", path.GetCluster())
-                << TErrorAttribute("operation_cluster_name", localClusterName);
+                .With("table_cluster_name", path.GetCluster())
+                .With("operation_cluster_name", localClusterName);
         }
     }
 }
@@ -953,7 +953,7 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : userJobSpec->FilePaths) {
             if (auto filename = path.GetFileName(); filename && filename->contains('\0')) {
                 THROW_ERROR_EXCEPTION("File name must not contain NUL byte")
-                    << TErrorAttribute("file_name", *filename);
+                    .With("file_name", *filename);
             }
 
             files.emplace_back(
@@ -1346,8 +1346,8 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
                     "Schema of output dynamic table %v unexpectedly changed during preparation phase. "
                     "Please send the link to the operation to yt-admin@",
                     table->Path)
-                    << TErrorAttribute("original_schema", *expectedSchema)
-                    << TErrorAttribute("upload_schema", *table->TableUploadOptions.GetUploadSchema());
+                    .With("original_schema", *expectedSchema)
+                    .With("upload_schema", *table->TableUploadOptions.GetUploadSchema());
             }
         }
 
@@ -1417,8 +1417,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
                 TError("\"data_weight_per_job\"  cannot be greater than \"max_data_weight_per_job\". "
                    "Please specify a \"data_weight_per_job\" value less than or equal to \"max_data_weight_per_job\". "
                    "This constraint will be strictly enforced in future releases.")
-                    << TErrorAttribute("data_weight_per_job", spec->DataWeightPerJob)
-                    << TErrorAttribute("max_data_weight_per_job", spec->MaxDataWeightPerJob));
+                    .With("data_weight_per_job", spec->DataWeightPerJob)
+                    .With("max_data_weight_per_job", spec->MaxDataWeightPerJob));
         }
 
         CustomMaterialize();
@@ -1484,7 +1484,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         LogProgress(/*force*/ true);
     } catch (const std::exception& ex) {
         auto wrappedError = TError(NControllerAgent::EErrorCode::MaterializationFailed, "Materialization failed")
-            << ex;
+            .With(ex);
         YT_LOG_INFO(wrappedError);
         DoFailOperation(wrappedError);
         return result;
@@ -1597,7 +1597,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive(bool suspended
             THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
                 "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
-                << TErrorAttribute("reason", EFailOnJobRestartReason::JobRevivalDisabled);
+                .With("reason", EFailOnJobRestartReason::JobRevivalDisabled);
         }
 
         AbortAllJoblets(EAbortReason::JobRevivalDisabled, /*honestly*/ true);
@@ -2099,7 +2099,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
         if (table->Path.GetRowCountLimit()) {
             YT_LOG_INFO("Output table has row count limit, force disabling auto merge (TableIndex: %v)", index);
             auto error = TError("Output table has row count limit, force disabling auto merge")
-                << TErrorAttribute("table_index", index);
+                .With("table_index", index);
             SetOperationAlert(EOperationAlertType::AutoMergeDisabled, error);
             return false;
         }
@@ -2822,9 +2822,9 @@ void TOperationControllerBase::VerifySortedOutput(const TOutputTablePtr& table)
                 NTableClient::EErrorCode::SortOrderViolation,
                 "Output table %v is not sorted: job outputs overlap with original table",
                 table->GetPath())
-                << TErrorAttribute("table_max_key", table->LastKey)
-                << TErrorAttribute("job_output_min_key", outputMinKey)
-                << TErrorAttribute("comparator", comparator);
+                .With("table_max_key", table->LastKey)
+                .With("job_output_min_key", outputMinKey)
+                .With("comparator", comparator);
         }
 
         if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
@@ -2832,9 +2832,9 @@ void TOperationControllerBase::VerifySortedOutput(const TOutputTablePtr& table)
                 NTableClient::EErrorCode::UniqueKeyViolation,
                 "Output table %v contains duplicate keys: job outputs overlap with original table",
                 table->GetPath())
-                << TErrorAttribute("table_max_key", table->LastKey)
-                << TErrorAttribute("job_output_min_key", outputMinKey)
-                << TErrorAttribute("comparator", comparator);
+                .With("table_max_key", table->LastKey)
+                .With("job_output_min_key", outputMinKey)
+                .With("comparator", comparator);
         }
     }
 
@@ -2851,9 +2851,9 @@ void TOperationControllerBase::VerifySortedOutput(const TOutputTablePtr& table)
                 NTableClient::EErrorCode::SortOrderViolation,
                 "Output table %v is not sorted: job outputs have overlapping key ranges",
                 table->GetPath())
-                << TErrorAttribute("current_range_max_key", currentMaxKey)
-                << TErrorAttribute("next_range_min_key", nextMinKey)
-                << TErrorAttribute("comparator", comparator);
+                .With("current_range_max_key", currentMaxKey)
+                .With("next_range_min_key", nextMinKey)
+                .With("comparator", comparator);
         }
 
         if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
@@ -2861,9 +2861,9 @@ void TOperationControllerBase::VerifySortedOutput(const TOutputTablePtr& table)
                 NTableClient::EErrorCode::UniqueKeyViolation,
                 "Output table %v contains duplicate keys: job outputs have overlapping key ranges",
                 table->GetPath())
-                << TErrorAttribute("current_range_max_key", currentMaxKey)
-                << TErrorAttribute("next_range_min_key", nextMinKey)
-                << TErrorAttribute("comparator", comparator);
+                .With("current_range_max_key", currentMaxKey)
+                .With("next_range_min_key", nextMinKey)
+                .With("comparator", comparator);
         }
     }
 }
@@ -3607,14 +3607,14 @@ bool TOperationControllerBase::OnJobFailed(
     if (IsJobUniquenessRequired(joblet)) {
         OnJobUniquenessViolated(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Job failed; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
-            << TErrorAttribute("job_id", joblet->JobId)
-            << TErrorAttribute("reason", EFailOnJobRestartReason::JobFailed)
-            << error);
+            .With("job_id", joblet->JobId)
+            .With("reason", EFailOnJobRestartReason::JobFailed)
+            .With(error));
         return false;
     }
 
     if (error.Attributes().Get<bool>("fatal", false)) {
-        auto wrappedError = TError("Job failed with fatal error") << error;
+        auto wrappedError = TError("Job failed with fatal error").With(error);
         OnOperationFailed(wrappedError);
         return false;
     }
@@ -3626,7 +3626,7 @@ bool TOperationControllerBase::OnJobFailed(
                 << std::move(failureKindError)
                 << error;
         }
-        return std::move(failureKindError) << error;
+        return std::move(failureKindError).With(error);
     };
 
     if (int maxFailedJobCount = SpecManager_->GetSpec()->MaxFailedJobCount; FailedJobCount_ >= maxFailedJobCount) {
@@ -3635,7 +3635,7 @@ bool TOperationControllerBase::OnJobFailed(
     }
     if (IsJobsFailToleranceExceeded(maybeExitCode)) {
         auto jobsFailToleranceExceededError = TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Jobs fail tolerance exceeded")
-            << TErrorAttribute("max_failed_job_count", GetMaxJobFailCountForExitCode(maybeExitCode));
+            .With("max_failed_job_count", GetMaxJobFailCountForExitCode(maybeExitCode));
 
         if (maybeExitCode.has_value()) {
             (jobsFailToleranceExceededError
@@ -3657,7 +3657,7 @@ bool TOperationControllerBase::OnJobFailed(
     }
 
     if (Spec_->SuspendOnJobFailure) {
-        Host_->OnOperationSuspended(TError("Job failed with error") << error);
+        Host_->OnOperationSuspended(TError("Job failed with error").With(error));
     }
 
     UpdateTask(joblet->Task);
@@ -3775,9 +3775,9 @@ bool TOperationControllerBase::OnJobAborted(
         OnJobUniquenessViolated(TError(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Job aborted; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
-            << TErrorAttribute("job_id", joblet->JobId)
-            << TErrorAttribute("reason", EFailOnJobRestartReason::JobAborted)
-            << TErrorAttribute("job_abort_reason", abortReason));
+            .With("job_id", joblet->JobId)
+            .With("reason", EFailOnJobRestartReason::JobAborted)
+            .With("job_abort_reason", abortReason));
         return false;
     }
 
@@ -4281,7 +4281,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 
     if (!completedJob->Restartable && Spec_->UnavailableChunkTactics == EUnavailableChunkAction::Fail) {
         auto error = TError("Intermediate chunk is unavailable")
-            << TErrorAttribute("chunk_id", chunkId);
+            .With("chunk_id", chunkId);
         OnOperationFailed(error, true);
         return false;
     }
@@ -4700,8 +4700,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             NControllerAgent::EErrorCode::NoOnlineNodeToScheduleAllocation,
             errorMessageBuilder.Flush(),
             TError::DisableFormat)
-            << TErrorAttribute("non_matching_filter_node_count", nonMatchingFilterNodeCount)
-            << TErrorAttribute("insufficient_resources_node_count_per_task", insufficientResourcesNodeCountPerTask));
+            .With("non_matching_filter_node_count", nonMatchingFilterNodeCount)
+            .With("insufficient_resources_node_count_per_task", insufficientResourcesNodeCountPerTask));
         return;
     }
 
@@ -4750,9 +4750,9 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
                 TError(
                     NControllerAgent::EErrorCode::NoOnlineNodeToScheduleAllocation,
                     "No online node can satisfy the resource demand")
-                    << TErrorAttribute("task_name", task->GetTitle())
-                    << TErrorAttribute("needed_resources", neededResources.ToJobResources())
-                    << TErrorAttribute("max_available_resources", *CachedMaxAvailableExecNodeResources_));
+                    .With("task_name", task->GetTitle())
+                    .With("needed_resources", neededResources.ToJobResources())
+                    .With("max_available_resources", *CachedMaxAvailableExecNodeResources_));
         }
     }
 }
@@ -5345,7 +5345,7 @@ void TOperationControllerBase::MaybeBanInTentativeTree(const std::string& treeId
         GetAllocationIdsByTreeId(treeId));
 
     auto error = TError("Operation was banned from tentative tree")
-        << TErrorAttribute("tree_id", treeId);
+        .With("tree_id", treeId);
     SetOperationAlert(EOperationAlertType::OperationBannedInTentativeTree, error);
 }
 
@@ -5525,19 +5525,19 @@ void TOperationControllerBase::UpdateAccountResourceUsageLeases()
             {
                 DoFailOperation(
                     TError("Failed to update account usage lease")
-                        << TErrorAttribute("account", account)
-                        << TErrorAttribute("lease_id", info.LeaseId)
-                        << TErrorAttribute("operation_id", OperationId_)
-                        << TErrorAttribute("resource_usage", info.DiskQuota)
-                        << error);
+                        .With("account", account)
+                        .With("lease_id", info.LeaseId)
+                        .With("operation_id", OperationId_)
+                        .With("resource_usage", info.DiskQuota)
+                        .With(error));
             } else {
                 Host_->Disconnect(
                     TError("Failed to update account usage lease")
-                        << TErrorAttribute("account", account)
-                        << TErrorAttribute("lease_id", info.LeaseId)
-                        << TErrorAttribute("operation_id", OperationId_)
-                        << TErrorAttribute("resource_usage", info.DiskQuota)
-                        << error);
+                        .With("account", account)
+                        .With("lease_id", info.LeaseId)
+                        .With("operation_id", OperationId_)
+                        .With("resource_usage", info.DiskQuota)
+                        .With(error));
             }
             return;
         }
@@ -5588,8 +5588,8 @@ void TOperationControllerBase::SafeUpdateGroupedNeededResources()
                 .AllocationCount = task->GetPendingJobCount().DefaultCount};
         } catch (const std::exception& ex) {
             auto error = TError("Failed to update minimum needed resources or pending job count")
-                << TErrorAttribute("task", taskName)
-                << ex;
+                .With("task", taskName)
+                .With(ex);
             DoFailOperation(error);
             return;
         }
@@ -5673,8 +5673,8 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
                 EOperationAlertType::InaccuratelyEstimatedCompressedDataSize,
                 TError("Compressed data size estimation is not accurate; "
                     "use fetcher with \"mode=from_nodes\" to get more accurate job slicing")
-                    << TErrorAttribute("estimated_compressed_data_size", EstimatedInputStatistics_->CompressedDataSize)
-                    << TErrorAttribute("actual_compressed_data_size", actualCompressedData));
+                    .With("estimated_compressed_data_size", EstimatedInputStatistics_->CompressedDataSize)
+                    .With("actual_compressed_data_size", actualCompressedData));
         }
     }
 
@@ -5775,7 +5775,7 @@ std::optional<TDuration> TOperationControllerBase::GetTimeLimit() const
 TError TOperationControllerBase::GetTimeLimitError() const
 {
     return TError("Operation is running for too long, aborted")
-        << TErrorAttribute("time_limit", GetTimeLimit());
+        .With("time_limit", GetTimeLimit());
 }
 
 void TOperationControllerBase::OnOperationTimeLimitExceeded()
@@ -5928,8 +5928,8 @@ void TOperationControllerBase::AddChunksToUnstageList(const std::vector<TInputCh
             auto tableName = "output_" + ToString(it->second.LivePreviewIndex);
             if (Config_->FailOperationOnErrorsInLivePreview) {
                 THROW_ERROR_EXCEPTION(Message)
-                    << TErrorAttribute("table_name", tableName)
-                    << TErrorAttribute("chunk_id", chunk->GetChunkId());
+                    .With("table_name", tableName)
+                    .With("chunk_id", chunk->GetChunkId());
             }
             YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
                 Message,
@@ -5949,7 +5949,7 @@ void TOperationControllerBase::AddChunksToUnstageList(const std::vector<TInputCh
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
 {
     auto error = TError("Exception thrown in operation controller that led to operation failure")
-        << ex;
+        .With(ex);
 
     YT_LOG_ERROR(error);
 
@@ -5963,10 +5963,10 @@ void TOperationControllerBase::ProcessSafeException(const TAssertionFailedExcept
     auto error = TError(
         NScheduler::EErrorCode::OperationControllerCrashed,
         "Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
-        << TErrorAttribute("failed_condition", ex.GetExpression())
-        << TErrorAttribute("stack_trace", ex.GetStackTrace())
-        << TErrorAttribute("core_path", ex.GetCorePath())
-        << TErrorAttribute("operation_id", OperationId_);
+        .With("failed_condition", ex.GetExpression())
+        .With("stack_trace", ex.GetStackTrace())
+        .With("core_path", ex.GetCorePath())
+        .With("operation_id", OperationId_);
 
     YT_LOG_ERROR(error);
 
@@ -6418,7 +6418,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
                 "User %Qv belongs to legacy live preview suppression blacklist; in order "
                 "to overcome this suppression reason, explicitly specify enable_legacy_live_preview = %%true "
                 "in operation spec", AuthenticatedUser_)
-                    << TErrorAttribute(
+                    .With(
                         "legacy_live_preview_blacklist_regex",
                         Config_->LegacyLivePreviewUserBlacklist->pattern()));
         }
@@ -6432,9 +6432,9 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     IsLegacyLivePreviewSuppressed_ = !suppressionErrors.empty();
     if (IsLegacyLivePreviewSuppressed_) {
         auto combinedSuppressionError = TError("Legacy live preview is suppressed due to the following reasons")
-            << suppressionErrors
-            << TErrorAttribute("output_live_preview_mode", GetLegacyOutputLivePreviewMode())
-            << TErrorAttribute("intermediate_live_preview_mode", GetLegacyIntermediateLivePreviewMode());
+            .With(suppressionErrors)
+            .With("output_live_preview_mode", GetLegacyOutputLivePreviewMode())
+            .With("intermediate_live_preview_mode", GetLegacyIntermediateLivePreviewMode());
         YT_LOG_INFO("Suppressing live preview due to some reasons (CombinedError: %v)", combinedSuppressionError);
         SetOperationAlert(EOperationAlertType::LegacyLivePreviewSuppressed, combinedSuppressionError);
     } else {
@@ -6834,7 +6834,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
         if (table->Dynamic) {
             if (!table->TableUploadOptions.TableSchema->IsSorted()) {
                 THROW_ERROR_EXCEPTION("Only sorted dynamic table can be updated")
-                    << TErrorAttribute("table_path", path);
+                    .With("table_path", path);
             }
 
             ValidateOutputDynamicTablesAllowed();
@@ -6844,8 +6844,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
             if (secondaryIndices && Spec_->UpdateSecondaryIndex) {
                 auto keyView = std::views::keys(*secondaryIndices);
                 THROW_ERROR_EXCEPTION("Bulk insert into an indexed table is not supported at the moment")
-                    << TErrorAttribute("table_path", path)
-                    << TErrorAttribute("secondary_index_ids", std::vector<TObjectId>(keyView.begin(), keyView.end()));
+                    .With("table_path", path)
+                    .With("secondary_index_ids", std::vector<TObjectId>(keyView.begin(), keyView.end()));
             }
         }
 
@@ -6858,8 +6858,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
                 THROW_ERROR_EXCEPTION("Attribute \"output_timestamp\" value is out of range [%v, %v]",
                     MinTimestamp,
                     MaxTimestamp)
-                    << TErrorAttribute("output_timestamp", outputTimestamp)
-                    << TErrorAttribute("table_path", path);
+                    .With("output_timestamp", outputTimestamp)
+                    .With("table_path", path);
             }
 
             table->Timestamp = outputTimestamp;
@@ -6891,7 +6891,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
         }
         if (StderrTable_->Dynamic) {
             THROW_ERROR_EXCEPTION("Stderr table cannot be dynamic")
-                << TErrorAttribute("table_path", StderrTable_->Path);
+                .With("table_path", StderrTable_->Path);
         }
     }
 
@@ -6903,7 +6903,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
         }
         if (CoreTable_->Dynamic) {
             THROW_ERROR_EXCEPTION("Core table cannot be dynamic")
-                << TErrorAttribute("table_path", CoreTable_->Path);
+                .With("table_path", CoreTable_->Path);
         }
     }
 }
@@ -6914,7 +6914,7 @@ void TOperationControllerBase::PrepareInputTables()
         for (const auto& table : InputManager_->GetInputTables()) {
             if (table->IsForeign()) {
                 THROW_ERROR_EXCEPTION("Foreign tables are not supported in %Qlv operation", OperationType_)
-                    << TErrorAttribute("foreign_table", table->GetPath());
+                    .With("foreign_table", table->GetPath());
             }
         }
     }
@@ -7066,8 +7066,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     NScheduler::EErrorCode::OperationFailedWithInconsistentLocking,
                     "Schema of an output table %v has changed between schema fetch and lock acquisition",
                     table->GetPath())
-                    << TErrorAttribute("expected_schema_id", table->SchemaId)
-                    << TErrorAttribute("received_schema_id", receivedSchemaId);
+                    .With("expected_schema_id", table->SchemaId)
+                    .With("received_schema_id", receivedSchemaId);
             }
         }
 
@@ -7153,7 +7153,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 if (UserTransactionId_ && !Config_->AllowBulkInsertUnderUserTransaction) {
                     THROW_ERROR_EXCEPTION(
                         "Operations with output to dynamic tables cannot be run under user transaction")
-                        << TErrorAttribute("user_transaction_id", UserTransactionId_);
+                        .With("user_transaction_id", UserTransactionId_);
                 }
 
                 auto atomicity = attributes->Get<EAtomicity>("atomicity");
@@ -7180,8 +7180,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                         THROW_ERROR_EXCEPTION(
                             "Cannot write to output table %v since overlapping store count limit is exceeded",
                             path)
-                            << TErrorAttribute("overlapping_store_count", *overlappingStoreCount)
-                            << TErrorAttribute("max_overlapping_store_count", maxOverlappingStoreCount);
+                            .With("overlapping_store_count", *overlappingStoreCount)
+                            .With("max_overlapping_store_count", maxOverlappingStoreCount);
                     }
                 }
             }
@@ -7205,8 +7205,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 if (mediumDescriptor && mediumDescriptor->IsOffshore()) {
                     THROW_ERROR_EXCEPTION(
                         "Operations on tables with offshore medium are forbidden by controller agent config")
-                        << TErrorAttribute("table_path", table->Path)
-                        << TErrorAttribute("primary_medium", primaryMedium);
+                        .With("table_path", table->Path)
+                        .With("primary_medium", primaryMedium);
                 }
             }
             table->TableWriterOptions->MediumName = primaryMedium;
@@ -7618,7 +7618,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
                 file.Path.GetPath(),
                 chunkCount,
                 userFileLimits->MaxChunkCount)
-                << TErrorAttribute("full_path", file.Path);
+                .With("full_path", file.Path);
         }
         if (file.Type == NObjectClient::EObjectType::Table) {
             i64 dataWeight = 0;
@@ -7631,7 +7631,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
                     file.Path.GetPath(),
                     dataWeight,
                     userFileLimits->MaxTableDataWeight)
-                    << TErrorAttribute("full_path", file.Path);
+                    .With("full_path", file.Path);
             }
         } else {
             i64 uncompressedSize = 0;
@@ -7709,7 +7709,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
         for (const auto& file : files) {
             if (file.Path.GetCluster().has_value()) {
                 THROW_ERROR_EXCEPTION("User file must not have \"cluster\" attribute")
-                    << TErrorAttribute("file_path", file.Path);
+                    .With("file_path", file.Path);
             }
         }
     }
@@ -7863,7 +7863,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     } catch (const std::exception& ex) {
                         // NB: Some of the above Gets and Finds may throw due to, e.g., type mismatch.
                         THROW_ERROR_EXCEPTION("Error parsing attributes of user file %v",
-                            path) << ex;
+                            path).With(ex);
                     }
 
                     switch (file.Type) {
@@ -7933,7 +7933,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                 ConvertTo<TFormat>(file.Format);
                             } catch (const std::exception& ex) {
                                 THROW_ERROR_EXCEPTION("Failed to parse format of table file %v",
-                                    file.Path) << ex;
+                                    file.Path).With(ex);
                             }
                             // Validate that timestamp is correct.
                             ValidateDynamicTableTimestamp(file.Path, file.Dynamic, *file.Schema, attributes);
@@ -7979,8 +7979,8 @@ void TOperationControllerBase::GetUserFilesAttributes()
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error getting user file attributes")
-                << TErrorAttribute("task_title", userJobSpec->TaskTitle)
-                << ex;
+                .With("task_title", userJobSpec->TaskTitle)
+                .With(ex);
         }
     }
 }
@@ -8045,7 +8045,7 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
 
         if (!Config_->UdfRegistryPath) {
             THROW_ERROR_EXCEPTION("External UDF registry is not configured")
-                << TErrorAttribute("external_names", externalNames);
+                .With("external_names", externalNames);
         }
 
         auto keys = std::vector<TExternalFunction>();
@@ -8102,7 +8102,7 @@ void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryab
                 });
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error validating output schema of input query")
-                << ex;
+                .With(ex);
         }
     };
 
@@ -8195,8 +8195,8 @@ void TOperationControllerBase::CollectTotals()
             THROW_ERROR_EXCEPTION(
                 "Total estimated input data weight from cluster %Qv is too large",
                 clusterName)
-                << TErrorAttribute("estimated_data_weight", dataWeight)
-                << TErrorAttribute("max_data_weight", *clusterConfig->MaxTotalDataWeight);
+                .With("estimated_data_weight", dataWeight)
+                .With("max_data_weight", *clusterConfig->MaxTotalDataWeight);
         }
     }
 }
@@ -8261,14 +8261,14 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                 if (Config_->ObligatoryAccountMedia.contains(mediumName)) {
                     if (!diskRequest->Account) {
                         THROW_ERROR_EXCEPTION("Account must be specified for disk request with given medium")
-                            << TErrorAttribute("medium_name", mediumName);
+                            .With("medium_name", mediumName);
                     }
                 }
                 if (Config_->DeprecatedMedia.contains(mediumName) &&
                     volume->DiskRequest->GetType() != NExecNode::EVolumeType::Nbd)
                 {
                     THROW_ERROR_EXCEPTION("Medium is deprecated to be used in disk requests")
-                        << TErrorAttribute("medium_name", mediumName);
+                        .With("medium_name", mediumName);
                 }
                 if (diskRequest->Account) {
                     accounts.insert(*diskRequest->Account);
@@ -8278,7 +8278,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                     // Allow only NBD media.
                     if (!Config_->NbdMedia.contains(mediumName)) {
                         THROW_ERROR_EXCEPTION("Inappropriate medium for NBD")
-                            << TErrorAttribute("medium_name", mediumName);
+                            .With("medium_name", mediumName);
                     }
                 }
             }
@@ -8315,8 +8315,8 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                 };
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to create account resource usage lease")
-                    << TErrorAttribute("account", account)
-                    << ex;
+                    .With("account", account)
+                    .With(ex);
             }
         }
     }
@@ -8955,8 +8955,8 @@ void TOperationControllerBase::AttachToLivePreview(
             static constexpr auto Message = "Error registering a chunk in a live preview";
             if (Config_->FailOperationOnErrorsInLivePreview) {
                 THROW_ERROR_EXCEPTION(Message)
-                    << TErrorAttribute("table_name", tableName)
-                    << TErrorAttribute("chunk_id", chunk->GetChunkId());
+                    .With("table_name", tableName)
+                    .With("chunk_id", chunk->GetChunkId());
             }
             YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
                 Message,
@@ -9643,8 +9643,8 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMon
         SetOperationAlert(
             EOperationAlertType::UserJobMonitoringLimited,
             TError("Limit of monitored user jobs per operation reached, some jobs may be not monitored")
-                << TErrorAttribute("operation_type", OperationType_)
-                << TErrorAttribute("limit_per_operation", Config_->UserJobMonitoring->ExtendedMaxMonitoredUserJobsPerOperation));
+                .With("operation_type", OperationType_)
+                .With("limit_per_operation", Config_->UserJobMonitoring->ExtendedMaxMonitoredUserJobsPerOperation));
         return {};
     }
     if (MonitoredUserJobCount_ >= Config_->UserJobMonitoring->DefaultMaxMonitoredUserJobsPerOperation &&
@@ -9673,7 +9673,7 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::DoRegisterNewM
         SetOperationAlert(
             EOperationAlertType::UserJobMonitoringLimited,
             TError("Limit of monitored user jobs per controller agent reached, some jobs may be not monitored")
-                << TErrorAttribute("limit_per_controller_agent", Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent));
+                .With("limit_per_controller_agent", Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent));
         return {};
     }
     UsedMonitoringDescriptorCount_.Increment();
@@ -10068,7 +10068,7 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
         if (allocation.NewJobsForbiddenReason) {
             THROW_ERROR_EXCEPTION(
                 "Settling new job in allocation is forbidden")
-                << TErrorAttribute("reason", *allocation.NewJobsForbiddenReason);
+                .With("reason", *allocation.NewJobsForbiddenReason);
         }
 
         YT_VERIFY(lastJobId);
@@ -10080,7 +10080,7 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
         if (failReason) {
             THROW_ERROR_EXCEPTION(
                 "Failed to schedule new job in allocation")
-                << TErrorAttribute("fail_reason", *failReason);
+                .With("fail_reason", *failReason);
         }
     }
 
@@ -10250,7 +10250,7 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
     if (isLimitExceeded) {
         SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
             TError("Limit for number of custom statistics exceeded for operation, so they are truncated")
-                << TErrorAttribute("limit", statisticsLimit));
+                .With("limit", statisticsLimit));
     }
 
     // Old aggregated statistics will be destroyed in controller invoker but I am too lazy to fix that now.
@@ -10351,7 +10351,7 @@ void TOperationControllerBase::UpdateAggregatedFinishedJobStatistics(const TJobl
     if (isLimitExceeded) {
         SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
             TError("Limit for number of custom statistics exceeded for operation, so they are truncated")
-                << TErrorAttribute("limit", statisticsLimit));
+                .With("limit", statisticsLimit));
     }
 
     joblet->Task->UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
@@ -10604,7 +10604,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     try {
         threadLimit = userJobOptions->ThreadLimitFormula.Eval({{"cpu", static_cast<i64>(std::ceil(specifiedCpuLimit))}});
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to evaluate %Qv", "thread_limit_formula") << ex;
+        THROW_ERROR_EXCEPTION("Failed to evaluate %Qv", "thread_limit_formula").With(ex);
     }
     jobSpec->set_thread_limit(threadLimit);
 
@@ -11085,10 +11085,10 @@ void TOperationControllerBase::UpdateWriteBufferMemoryAlert(TJobId jobId, i64 cu
             std::min<int>(SubAlertCount, std::ssize(OverrunWriteBufferMemoryPerJob_)),
             [&] (const TOverrunTableWriteBufferMemoryInfo& info) {
                 auto subAlert = TError("More memory was allocated for write buffers with an estimated size than for buffers with a fixed size")
-                    << TErrorAttribute("job_id", ToString(info.GetJobId()))
-                    << TErrorAttribute("difference", info.GetRelativeDifference())
-                    << TErrorAttribute("memory_with_fixed_buffers", info.GetReservedMemoryForJobProxyWithFixedBuffer())
-                    << TErrorAttribute("memory_with_estimated_buffers", info.GetReservedMemoryForJobProxyWithEstimatedBuffer());
+                    .With("job_id", ToString(info.GetJobId()))
+                    .With("difference", info.GetRelativeDifference())
+                    .With("memory_with_fixed_buffers", info.GetReservedMemoryForJobProxyWithFixedBuffer())
+                    .With("memory_with_estimated_buffers", info.GetReservedMemoryForJobProxyWithEstimatedBuffer());
                 alert.MutableInnerErrors()->emplace_back(std::move(subAlert));
             });
 
@@ -11219,10 +11219,10 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
     for (const auto& table : InputManager_->GetInputTables()) {
         if (table->SchemaMode != OutputTables_[0]->TableUploadOptions.SchemaMode) {
             THROW_ERROR_EXCEPTION("Cannot infer output schema from input, tables have different schema modes")
-                << TErrorAttribute("input_table1_path", table->GetPath())
-                << TErrorAttribute("input_table1_schema_mode", table->SchemaMode)
-                << TErrorAttribute("input_table2_path", InputManager_->GetInputTables()[0]->GetPath())
-                << TErrorAttribute("input_table2_schema_mode", InputManager_->GetInputTables()[0]->SchemaMode);
+                .With("input_table1_path", table->GetPath())
+                .With("input_table1_schema_mode", table->SchemaMode)
+                .With("input_table2_path", InputManager_->GetInputTables()[0]->GetPath())
+                .With("input_table2_schema_mode", InputManager_->GetInputTables()[0]->SchemaMode);
         }
     }
 
@@ -11271,8 +11271,8 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
                         NTableClient::EErrorCode::IncompatibleSchemas,
                         "Cannot infer output schema from input in strong schema mode since "
                         "\"enable_merge_schemas_during_schema_infer\" is %%false")
-                        << TErrorAttribute("lhs_schema", InputManager_->GetInputTables()[0]->Schema)
-                        << TErrorAttribute("rhs_schema", table->Schema);
+                        .With("lhs_schema", InputManager_->GetInputTables()[0]->Schema)
+                        .With("rhs_schema", table->Schema);
                 }
             }
         }
@@ -11327,8 +11327,8 @@ void TOperationControllerBase::FilterOutputSchemaByInputColumnSelectors(const TS
     for (const auto& sortColumn : sortColumns) {
         if (!selectedColumns.contains(sortColumn.Name)) {
             THROW_ERROR_EXCEPTION("Sort column %Qv is discarded by input column selectors", sortColumn.Name)
-                << TErrorAttribute("sort_columns", sortColumns)
-                << TErrorAttribute("selected_columns", selectedColumns);
+                .With("sort_columns", sortColumns)
+                .With("selected_columns", selectedColumns);
         }
     }
 
@@ -11342,7 +11342,7 @@ void TOperationControllerBase::ValidateOutputSchemaOrdered() const
 
     if (InputManager_->GetInputTables().size() > 1 && OutputTables_[0]->TableUploadOptions.TableSchema->IsSorted()) {
         THROW_ERROR_EXCEPTION("Cannot generate sorted output for ordered operation with multiple input tables")
-            << TErrorAttribute("output_schema", *OutputTables_[0]->TableUploadOptions.TableSchema);
+            .With("output_schema", *OutputTables_[0]->TableUploadOptions.TableSchema);
     }
 }
 
@@ -11546,8 +11546,8 @@ void TOperationControllerBase::ValidateRevivalAllowed() const
         THROW_ERROR_EXCEPTION(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Cannot revive operation when spec option \"fail_on_job_restart\" is set")
-                << TErrorAttribute("operation_type", OperationType_)
-                << TErrorAttribute("reason", EFailOnJobRestartReason::RevivalIsForbidden);
+                .With("operation_type", OperationType_)
+                .With("reason", EFailOnJobRestartReason::RevivalIsForbidden);
     }
 }
 
@@ -11694,8 +11694,8 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
         auto tableName = "output_" + ToString(index);
         if (Config_->FailOperationOnErrorsInLivePreview) {
             THROW_ERROR_EXCEPTION(Message)
-                << TErrorAttribute("table_name", tableName)
-                << TErrorAttribute("chunk_id", chunk->GetChunkId());
+                .With("table_name", tableName)
+                .With("chunk_id", chunk->GetChunkId());
         }
         YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
             Message,
@@ -11799,8 +11799,8 @@ void TOperationControllerBase::RegisterOutputTables(const std::vector<TRichYPath
             const auto& rhsAttributes = outputTablePath.Attributes();
             if (lhsAttributes != rhsAttributes) {
                 THROW_ERROR_EXCEPTION("Output table %v appears twice with different attributes", outputTablePath.GetPath())
-                    << TErrorAttribute("lhs_attributes", lhsAttributes)
-                    << TErrorAttribute("rhs_attributes", rhsAttributes);
+                    .With("lhs_attributes", lhsAttributes)
+                    .With("rhs_attributes", rhsAttributes);
             }
             continue;
         }
@@ -12309,7 +12309,7 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
                 jobSummary,
                 EAbortReason::UnresolvedNodeId,
                 TError("Job output contains unresolved node id")
-                    << TErrorAttribute("node_id", nodeId));
+                    .With("node_id", nodeId));
         }
 
         OutputNodeDirectory_->AddDescriptor(nodeId, *descriptor);

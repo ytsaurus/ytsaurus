@@ -113,10 +113,10 @@ public:
 
             auto partition = GetOrCrash(layout->Partitions, job->PartitionId);
             auto error = TError("Job is lost since its lease has expired")
-                << TErrorAttribute("job_id", job->JobId)
-                << TErrorAttribute("partition_id", job->PartitionId)
-                << TErrorAttribute("computation_id", partition->ComputationId)
-                << TErrorAttribute("lease_id", job->LeaseId);
+                .With("job_id", job->JobId)
+                .With("partition_id", job->PartitionId)
+                .With("computation_id", partition->ComputationId)
+                .With("lease_id", job->LeaseId);
             YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "")
                 .With(error);
 

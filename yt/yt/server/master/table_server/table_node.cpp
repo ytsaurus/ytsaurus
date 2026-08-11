@@ -847,17 +847,17 @@ void TTableNode::ValidateAndSetHunkStorage(TObject* node)
         THROW_ERROR_EXCEPTION("Unexpected node type: expected %Qlv, got %Qlv",
             EObjectType::HunkStorage,
             node->GetType())
-            << TErrorAttribute("object_id", node->GetId());
+            .With("object_id", node->GetId());
     }
 
     auto* hunkStorage = node->As<THunkStorageNode>();
 
     if (GetExternalCellTag() != hunkStorage->GetExternalCellTag()) {
         THROW_ERROR_EXCEPTION("Table and its hunk storage must reside on the same external cell")
-            << TErrorAttribute("table_id", GetId())
-            << TErrorAttribute("table_external_cell_tag", GetExternalCellTag())
-            << TErrorAttribute("hunk_storage_id", hunkStorage->GetId())
-            << TErrorAttribute("hunk_storage_external_cell_tag", hunkStorage->GetExternalCellTag());
+            .With("table_id", GetId())
+            .With("table_external_cell_tag", GetExternalCellTag())
+            .With("hunk_storage_id", hunkStorage->GetId())
+            .With("hunk_storage_external_cell_tag", hunkStorage->GetExternalCellTag());
     }
 
     SetHunkStorage(hunkStorage);

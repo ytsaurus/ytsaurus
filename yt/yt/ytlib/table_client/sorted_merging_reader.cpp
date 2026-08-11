@@ -151,7 +151,7 @@ private:
             tableIndexId = nameTable->GetIdOrRegisterName(TableIndexColumnName);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to add system column to name table for schemaless merging reader")
-                << ex;
+                .With(ex);
         }
 
         for (const auto& value : row) {
@@ -340,7 +340,7 @@ protected:
             GuardedDoOpen(options);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to open schemaless merging reader")
-                << ex;
+                .With(ex);
         }
     }
 

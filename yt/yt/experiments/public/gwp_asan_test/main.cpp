@@ -62,7 +62,7 @@ protected:
                 "Unknown mode %Qv, expected one of %lv",
                 ModeString_,
                 std::vector(domainValues.begin(), domainValues.end()))
-                << TError(ex);
+                .With(TError(ex));
         }
 
         i64 cumulativeAllocationSize = 0;

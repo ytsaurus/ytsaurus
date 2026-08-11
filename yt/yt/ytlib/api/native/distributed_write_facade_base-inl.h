@@ -288,9 +288,9 @@ void TDistributedWriteFinishFacadeBase<TDerived, TTraits>::FinishSession(
     for (const auto& writeResult : writeResults) {
         if (!addedChunkTrees.insert(writeResult.ChunkListId).second) {
             THROW_ERROR_EXCEPTION("Duplicate chunk list ids")
-                << TErrorAttribute("session_id", writeResult.SessionId)
-                << TErrorAttribute("cookie_id", writeResult.CookieId)
-                << TErrorAttribute("chunk_list_id", writeResult.ChunkListId);
+                .With("session_id", writeResult.SessionId)
+                .With("cookie_id", writeResult.CookieId)
+                .With("chunk_list_id", writeResult.ChunkListId);
         }
         addChunkTree(writeResult.ChunkListId);
     }

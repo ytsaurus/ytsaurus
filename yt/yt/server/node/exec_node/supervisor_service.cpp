@@ -153,8 +153,8 @@ private:
         auto validateJobPhase = [] (EJobPhase jobPhase) {
             if (jobPhase != EJobPhase::SpawningJobProxy) {
                 THROW_ERROR_EXCEPTION("Cannot fetch job spec; job is in wrong phase")
-                    << TErrorAttribute("expected_phase", EJobPhase::SpawningJobProxy)
-                    << TErrorAttribute("actual_phase", jobPhase);
+                    .With("expected_phase", EJobPhase::SpawningJobProxy)
+                    .With("actual_phase", jobPhase);
             }
         };
 

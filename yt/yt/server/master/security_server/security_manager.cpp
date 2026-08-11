@@ -815,7 +815,7 @@ public:
                 if (TypeFromId(id) != EObjectType::Account) {
                     if (throwOnInvalidId) {
                         THROW_ERROR_EXCEPTION("Invalid account id")
-                            << TErrorAttribute("account_id", id);
+                            .With("account_id", id);
                     }
                     return nullptr;
                 }
@@ -910,7 +910,7 @@ public:
         writer.Flush();
 
         THROW_ERROR_EXCEPTION(format, std::forward<TArgs>(args)...)
-            << TErrorAttribute("violated_resources", TYsonString(output.Str()));
+            .With("violated_resources", TYsonString(output.Str()));
     }
 
     void ThrowInvalidResourceLimitsChange(
@@ -926,7 +926,7 @@ public:
             "Failed to change resource limits for account %Qv: "
             "either invalid infinity-related operation or just an integer overflow occurred",
             accountName)
-            << TErrorAttribute("violated_resources", TYsonString(output.Str()));
+            .With("violated_resources", TYsonString(output.Str()));
     }
 
     TClusterResourceLimits ComputeAccountTotalChildrenLimitsForValidation(TAccount* account)
@@ -1185,7 +1185,7 @@ public:
             THROW_ERROR_EXCEPTION("Failed to transfer resources from account %Qv to account %Qv",
                 srcAccount->GetName(),
                 dstAccount->GetName())
-                << ex;
+                .With(ex);
         }
     }
 
@@ -2432,7 +2432,7 @@ public:
                 THROW_ERROR_EXCEPTION(
                     "Cannot specify columns for %Qlv permission check",
                     permission)
-                    << TErrorAttribute("columns", options.Columns);
+                    .With("columns", options.Columns);
             }
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& handler = objectManager->GetHandler(object);
@@ -2718,9 +2718,9 @@ public:
 
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AccountLimitExceeded, std::move(errorMessage), TError::DisableFormat)
-                << TErrorAttribute("usage", usage)
-                << TErrorAttribute("increase", increase)
-                << TErrorAttribute("limit", limit.ToUnderlying());
+                .With("usage", usage)
+                .With("increase", increase)
+                .With("limit", limit.ToUnderlying());
         };
 
         auto validateMasterMemoryIncrease = [&] (TAccount* account) {
@@ -3024,8 +3024,8 @@ public:
             }
             if (std::ssize(ace.SubjectTagFilter->GetFormula()) > maxSubjectTagFilterSize) {
                 THROW_ERROR_EXCEPTION("Cannot set tag filter as tag filter size limit exceeded")
-                    << TErrorAttribute("max_subject_tag_filter_size", maxSubjectTagFilterSize)
-                    << TErrorAttribute("ace", ConvertToYsonString(ace));
+                    .With("max_subject_tag_filter_size", maxSubjectTagFilterSize)
+                    .With("ace", ConvertToYsonString(ace));
             }
         }
     }

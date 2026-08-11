@@ -382,10 +382,10 @@ void TInputCluster::ValidateOutputTableLockedCorrectly(const TOutputTablePtr& ou
                     NScheduler::EErrorCode::OperationFailedWithInconsistentLocking,
                     "Table %v has changed between taking input and output locks",
                     inputTable->GetPath())
-                    << TErrorAttribute("input_object_id", inputTable->ObjectId)
-                    << TErrorAttribute("input_revision", inputTable->Revision)
-                    << TErrorAttribute("output_object_id", outputTable->ObjectId)
-                    << TErrorAttribute("output_revision", outputTable->Revision);
+                    .With("input_object_id", inputTable->ObjectId)
+                    .With("input_revision", inputTable->Revision)
+                    .With("output_object_id", outputTable->ObjectId)
+                    .With("output_revision", outputTable->Revision);
             }
         }
     }
@@ -486,7 +486,7 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(
                 "Too many ranges on table: maximum allowed %v, actual %v",
                 Host_->GetConfig()->MaxRangesOnTable,
                 ranges.size())
-                << TErrorAttribute("table_path", table->Path);
+                .With("table_path", table->Path);
         }
 
         YT_LOG_DEBUG("Adding input table for fetch (Path: %v, Id: %v, Dynamic: %v, ChunkCount: %v, RangeCount: %v, "
@@ -824,7 +824,7 @@ void TInputManager::FetchInputTablesAttributes()
             for (const auto& table : cluster->InputTables()) {
                 if (table->Path.HasRowIndexInRanges() && table->RowLevelAcl) {
                     THROW_ERROR_EXCEPTION("Cannot use ranges with \"row_index\" to read a table with row-level ACL")
-                        << TErrorAttribute("path", table->Path);
+                        .With("path", table->Path);
                 }
             }
         });
@@ -852,7 +852,7 @@ void TInputManager::FetchInputTablesAttributes()
     }
     if (!omittedInaccessibleColumnsList.empty()) {
         auto error = TError("Some columns of input tables are inaccessible and were omitted")
-            << TErrorAttribute("input_tables", omittedInaccessibleColumnsList);
+            .With("input_tables", omittedInaccessibleColumnsList);
         Host_->SetOperationAlert(EOperationAlertType::OmittedInaccessibleColumnsInInputTables, error);
     }
 
@@ -926,8 +926,8 @@ void TInputManager::FetchInputTablesAttributes()
             if (mediumDescriptor && mediumDescriptor->IsOffshore()) {
                 THROW_ERROR_EXCEPTION(
                     "Operations on tables with offshore medium are forbidden by controller agent configuration")
-                    << TErrorAttribute("table_path", table->GetPath())
-                    << TErrorAttribute("primary_medium", mediumName);
+                    .With("table_path", table->GetPath())
+                    .With("primary_medium", mediumName);
             }
         }
     }
@@ -1014,7 +1014,7 @@ void TInputManager::FetchInputTablesAttributes()
         if (!table->ColumnRenameDescriptors.empty()) {
             if (table->Path.GetTeleport()) {
                 THROW_ERROR_EXCEPTION("Cannot rename columns in table with teleport")
-                    << TErrorAttribute("table_path", table->Path);
+                    .With("table_path", table->Path);
             }
             YT_LOG_DEBUG("Start renaming columns of input table");
             auto description = Format("input table %v", table->GetPath());
@@ -1036,7 +1036,7 @@ void TInputManager::FetchInputTablesAttributes()
             if (table->Dynamic) {
                 if (!Host_->GetConfig()->EnableVersionedRemoteCopy) {
                     THROW_ERROR_EXCEPTION("Remote copy for dynamic tables is disabled")
-                        << TErrorAttribute("table_path", table->Path);
+                        .With("table_path", table->Path);
                 }
 
                 auto tabletState = attributes->Get<ETabletState>("tablet_state");
@@ -1046,13 +1046,13 @@ void TInputManager::FetchInputTablesAttributes()
                             tabletState,
                             ETabletState::Frozen,
                             ETabletState::Unmounted)
-                            << TErrorAttribute("table_path", table->Path);
+                            .With("table_path", table->Path);
                     }
                 }
             } else if (table->Schema->HasHunkColumns()) {
                 // NB: This is due to prohibition of remote copy of journal hunk chunks.
                 THROW_ERROR_EXCEPTION("Remote copy for static tables with hunks is not supported")
-                    << TErrorAttribute("table_path", table->Path);
+                    .With("table_path", table->Path);
             }
 
             if (table->Schema->HasHunkColumns()) {
@@ -1060,18 +1060,18 @@ void TInputManager::FetchInputTablesAttributes()
                     !Host_->GetSpec()->BypassHunkRemoteCopyProhibition.value_or(false))
                 {
                     THROW_ERROR_EXCEPTION("Remote copy for tables with hunks is disabled")
-                        << TErrorAttribute("table_path", table->Path);
+                        .With("table_path", table->Path);
                 }
 
                 if (!Host_->GetConfig()->EnableCompressionDictionaryRemoteCopy && HasCompressionDictionaries(attributes)) {
                     THROW_ERROR_EXCEPTION("Remote copy for tables with compression dictionaries is not supported")
-                        << TErrorAttribute("table_path", table->Path);
+                        .With("table_path", table->Path);
                 }
             }
 
             if (table->HunkStorageId) {
                 THROW_ERROR_EXCEPTION("Remote copy for tables connected to hunk storage is not supported")
-                    << TErrorAttribute("table_path", table->Path);
+                    .With("table_path", table->Path);
             }
         }
     }
@@ -1312,7 +1312,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                             } catch (const std::exception& ex) {
                                 //FIXME(savrus) allow data slices to be unavailable.
                                 Host_->OnOperationFailed(TError(NChunkClient::EErrorCode::ChunkUnavailable, "Dynamic table chunk became unavailable")
-                                    << ex);
+                                    .With(ex));
                                 return true;
                             }
                         }),

@@ -109,8 +109,8 @@ void ValidateRowWeight(i64 weight, const TChunkWriterConfigPtr& config, const TC
 
     THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::RowWeightLimitExceeded,
         "Row weight is too large")
-        << TErrorAttribute("row_weight", weight)
-        << TErrorAttribute("row_weight_limit", config->MaxRowWeight);
+        .With("row_weight", weight)
+        .With("row_weight_limit", config->MaxRowWeight);
 }
 
 void ValidateKeyWeight(i64 weight, const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options)
@@ -121,8 +121,8 @@ void ValidateKeyWeight(i64 weight, const TChunkWriterConfigPtr& config, const TC
 
     THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::RowWeightLimitExceeded,
         "Key weight is too large")
-        << TErrorAttribute("key_weight", weight)
-        << TErrorAttribute("key_weight_limit", config->MaxKeyWeight);
+        .With("key_weight", weight)
+        .With("key_weight_limit", config->MaxKeyWeight);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1141,7 +1141,7 @@ protected:
 
             if (!row) {
                 THROW_ERROR_EXCEPTION("Unexpected null row")
-                    << TErrorAttribute("row_index", rowIndex);
+                    .With("row_index", rowIndex);
             }
 
             ValidateDuplicateIds(row);
@@ -1289,8 +1289,8 @@ private:
         }
 
         THROW_ERROR_EXCEPTION("Too many columns in row")
-            << TErrorAttribute("column_count", columnCount)
-            << TErrorAttribute("max_column_count", MaxColumnId);
+            .With("column_count", columnCount)
+            .With("max_column_count", MaxColumnId);
     }
 
     void ValidateDuplicateIds(TUnversionedRow row)
@@ -1309,7 +1309,7 @@ private:
             if (idMark == mark) {
                 auto name = NameTable_->GetNameOrThrow(id);
                 THROW_ERROR_EXCEPTION("Duplicate column %Qv in unversioned row", name)
-                    << TErrorAttribute("id", id);
+                    .With("id", id);
             }
             idMark = mark;
         }
@@ -1414,7 +1414,7 @@ private:
                 "Sort order violation: %v > %v",
                 currentKey,
                 nextKey)
-                << TErrorAttribute("comparator", comparator);
+                .With("comparator", comparator);
             if (Options_->ExplodeOnValidationError) {
                 YT_LOG_FATAL(error);
             }
@@ -2309,8 +2309,8 @@ TTableSchemaPtr GetChunkSchema(
         if (chunkSortColumns->size() < tableSchemaSortColumns.size()) {
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                 "Chunk sort columns list is shorter than table schema sort columns")
-                << TErrorAttribute("chunk_sort_columns_count", chunkSortColumns->size())
-                << TErrorAttribute("table_sort_column_count", tableSchemaSortColumns.size());
+                .With("chunk_sort_columns_count", chunkSortColumns->size())
+                .With("table_sort_column_count", tableSchemaSortColumns.size());
         }
 
         if (tableUniqueKeys && !tableSchemaSortColumns.empty()) {
@@ -2845,7 +2845,7 @@ private:
             YT_VERIFY(UploadTransaction_); // Shouldn't be closing an unopened writer.
             Y_UNUSED(WaitFor(UploadTransaction_->Abort()));
             THROW_ERROR_EXCEPTION("Error closing chunk writer")
-                << underlyingWriterCloseError;
+                .With(underlyingWriterCloseError);
         }
 
         NDetail::EndTableUpload(
@@ -3126,7 +3126,7 @@ private:
 
         if (!underlyingWriterCloseError.IsOK()) {
             THROW_ERROR_EXCEPTION("Error closing underlying chunk writer")
-                << underlyingWriterCloseError;
+                .With(underlyingWriterCloseError);
         }
 
         const auto& signatureGenerator = Client_->GetNativeConnection()->GetSignatureGenerator();

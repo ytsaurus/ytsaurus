@@ -142,7 +142,7 @@ TError ValidateServantIsActive(
     auto error = TError(
         NTabletClient::EErrorCode::TabletServantIsNotActive,
         "Tablet servant is not active")
-        << TErrorAttribute("tablet_id", tabletId);
+        .With("tablet_id", tabletId);
 
     auto siblingCellId = smoothMovementData.SiblingServantCellId.Load();
     auto siblingMountRevision = smoothMovementData.SiblingServantMountRevision.load();
@@ -158,7 +158,7 @@ TError ValidateServantIsActive(
 
     if (smoothMovementData.Role.load() == ESmoothMovementRole::Source) {
         return error
-            << TErrorAttribute("redirection_hint", BuildRedirectionHint(
+            .With("redirection_hint", BuildRedirectionHint(
                 Logger(),
                 cellDirectory,
                 mountRevision,
@@ -236,9 +236,9 @@ void ValidateTabletMounted(TTablet* tablet)
             "Tablet %v is not in %Qlv state",
             tablet->GetId(),
             ETabletState::Mounted)
-            << TErrorAttribute("tablet_id", tablet->GetId())
-            << TErrorAttribute("table_path", tablet->GetTablePath())
-            << TErrorAttribute("is_tablet_unmounted", tablet->GetState() == ETabletState::Unmounted);
+            .With("tablet_id", tablet->GetId())
+            .With("table_path", tablet->GetTablePath())
+            .With("is_tablet_unmounted", tablet->GetState() == ETabletState::Unmounted);
     }
 }
 
@@ -274,11 +274,11 @@ void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmed
             trimmedRowCount > storeStartingRowIndex + storeIt->second->GetRowCount())
         {
             THROW_ERROR_EXCEPTION("Could not trim tablet since trimmed row count is greater than current row count")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("trimmed_row_count", trimmedRowCount)
-                << TErrorAttribute("timestamp", timestamp)
-                << TErrorAttribute("last_store_starting_row_index", storeStartingRowIndex)
-                << TErrorAttribute("last_store_row_count", storeIt->second->GetRowCount());
+                .With("tablet_id", tablet->GetId())
+                .With("trimmed_row_count", trimmedRowCount)
+                .With("timestamp", timestamp)
+                .With("last_store_starting_row_index", storeStartingRowIndex)
+                .With("last_store_row_count", storeIt->second->GetRowCount());
         }
     }
 
@@ -291,8 +291,8 @@ void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmed
             if (trimmedRowCount != storeStartingRowIndex) {
                 THROW_ERROR_EXCEPTION(
                     "Could not fully trim tablet since trimmed row count is greater than current row count")
-                    << TErrorAttribute("trimmed_row_count", trimmedRowCount)
-                    << TErrorAttribute("store_starting_row_index", storeStartingRowIndex);
+                    .With("trimmed_row_count", trimmedRowCount)
+                    .With("store_starting_row_index", storeStartingRowIndex);
             }
 
             // The only remaining store is empty and it's a full trim.
@@ -314,12 +314,12 @@ void ValidateTrimmedRowCountPrecedesTimestamp(const TTablet* tablet, i64 trimmed
         (trimmedRowCount > store->GetStartingRowIndex() && timestamp < store->GetMaxTimestamp()))
     {
         THROW_ERROR_EXCEPTION("Could not trim tablet since some replicas may not be replicated up to this point")
-            << TErrorAttribute("tablet_id", tablet->GetId())
-            << TErrorAttribute("trimmed_row_count", trimmedRowCount)
-            << TErrorAttribute("store_starting_row_index", store->GetStartingRowIndex())
-            << TErrorAttribute("timestamp", timestamp)
-            << TErrorAttribute("store_max_timestamp", store->GetMaxTimestamp())
-            << TErrorAttribute("store_min_timestamp", store->GetMinTimestamp());
+            .With("tablet_id", tablet->GetId())
+            .With("trimmed_row_count", trimmedRowCount)
+            .With("store_starting_row_index", store->GetStartingRowIndex())
+            .With("timestamp", timestamp)
+            .With("store_max_timestamp", store->GetMaxTimestamp())
+            .With("store_min_timestamp", store->GetMinTimestamp());
     }
 }
 
@@ -469,8 +469,8 @@ IDynamicStorePtr TTabletSnapshot::GetDynamicStoreOrThrow(TDynamicStoreId storeId
             NTabletClient::EErrorCode::NoSuchDynamicStore,
             "No such dynamic store %v",
             storeId)
-            << TErrorAttribute("store_id", storeId)
-            << TErrorAttribute("tablet_id", TabletId);
+            .With("store_id", storeId)
+            .With("tablet_id", TabletId);
 
     }
     return dynamicStore;
@@ -500,7 +500,7 @@ void TTabletSnapshot::ValidateMountRevision(NHydra::TRevision mountRevision)
             TabletId,
             MountRevision,
             mountRevision)
-            << TErrorAttribute("tablet_id", TabletId);
+            .With("tablet_id", TabletId);
     }
 }
 
@@ -527,8 +527,8 @@ void TTabletSnapshot::MaybeReplyWithReshardRedirectionHint()
     THROW_ERROR_EXCEPTION(
         NTabletClient::EErrorCode::TabletResharded,
         "Tablet was resharded")
-        << TErrorAttribute("tablet_id", TabletId)
-        << TErrorAttribute("redirection_hint", hint);
+        .With("tablet_id", TabletId)
+        .With("redirection_hint", hint);
 }
 
 void TTabletSnapshot::WaitOnLocks(TTimestamp timestamp) const
@@ -2685,7 +2685,7 @@ void TTablet::ValidateMountRevision(NHydra::TRevision mountRevision)
             Id_,
             MountRevision_,
             mountRevision)
-            << TErrorAttribute("tablet_id", Id_);
+            .With("tablet_id", Id_);
     }
 }
 
@@ -2707,7 +2707,7 @@ TError TTablet::ValidateServantIsWritable(
         "smooth movement %lv in stage %Qlv",
         role,
         stage)
-        << TErrorAttribute("tablet_id", Id_);
+        .With("tablet_id", Id_);
 
     bool retryInplace =
         (role == ESmoothMovementRole::Source && stage == ESmoothMovementStage::WaitingForLocksBeforeActivation) ||

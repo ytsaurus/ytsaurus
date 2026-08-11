@@ -1496,7 +1496,7 @@ private:
                             auto error = TError(ex);
                             if (!error.FindMatching(NFlow::EErrorCode::SpecVersionMismatch) && !error.FindMatching(NFlow::EErrorCode::FlowCoreTargetVersionMismatch)) {
                                 THROW_ERROR_EXCEPTION("Schedule iteration failed")
-                                    << error;
+                                    .With(error);
                             }
                             schedulerActivityContext.FailedIterations.Increment();
                             schedulerActivityContext.ErrorState->SetError(error);
@@ -1538,7 +1538,7 @@ private:
                             .With("Name", name);
                         activityContext.ErrorState->ClearError();
                     } catch (const std::exception& ex) {
-                        auto error = TError("Failed to execute %v iteration", name) << ex;
+                        auto error = TError("Failed to execute %v iteration", name).With(ex);
                         activityContext.FailedIterations.Increment();
                         activityContext.ErrorState->SetError(error);
                         YT_TLOG_EVENT_FLUENT(Logger, getLogLevel(error), "")

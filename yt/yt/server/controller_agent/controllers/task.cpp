@@ -1592,7 +1592,7 @@ void TTask::OnStripeRegistrationFailed(
     // NB: This method can be called during processing OnJob* event,
     // aborting all joblets are unsafe in this situation.
     TaskHost_->OnOperationFailed(error
-        << TErrorAttribute("task_title", GetTitle()),
+        .With("task_title", GetTitle()),
         /*flush*/ false,
         /*abortAllJoblets*/ false);
 }
@@ -1634,8 +1634,8 @@ void TTask::DoCheckResourceDemandSanity(const TJobResources& neededResources)
             TError(
                 EErrorCode::NoOnlineNodeToScheduleAllocation,
                 "No online node can satisfy the resource demand")
-                << TErrorAttribute("task_name", GetTitle())
-                << TErrorAttribute("needed_resources", neededResources));
+                .With("task_name", GetTitle())
+                .With("needed_resources", neededResources));
     }
 }
 
@@ -2351,8 +2351,8 @@ void TTask::RegisterStripe(
                     inputCookie);
             } catch (const std::exception& ex) {
                 auto error = TError("Failure while registering result stripe of a restarted job in a chunk mapping")
-                    << ex
-                    << TErrorAttribute("input_cookie", inputCookie);
+                    .With(ex)
+                    .With("input_cookie", inputCookie);
                 YT_LOG_ERROR(error);
                 OnStripeRegistrationFailed(error, lostIt->second, stripe, streamDescriptor);
             }
@@ -2422,9 +2422,9 @@ void TTask::ValidateAndUpdateJobRowsDigest(
         TError("Restarted job produced dissimilar output; "
                "this may lead to inconsistent operation results; "
                "consider setting enable_intermediate_output_recalculation=%%false.")
-            << TErrorAttribute("task_name", GetVertexDescriptor())
-            << TErrorAttribute("restarted_job_id", jobId)
-            << TErrorAttribute("first_job_id", firstJobId));
+            .With("task_name", GetVertexDescriptor())
+            .With("restarted_job_id", jobId)
+            .With("first_job_id", firstJobId));
 }
 
 std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
@@ -2691,8 +2691,8 @@ void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, cons
     if (isLimitExceeded) {
         TaskHost_->SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
             TError("Limit for number of custom statistics exceeded for task, so they are truncated")
-                << TErrorAttribute("limit", statisticsLimit)
-                << TErrorAttribute("task_name", GetVertexDescriptor()));
+                .With("limit", statisticsLimit)
+                .With("task_name", GetVertexDescriptor()));
     }
 }
 
@@ -2908,10 +2908,10 @@ void TTask::ValidateJobSizeConstraints(const TJobletPtr& joblet) const
         if (joblet->InputStripeList->GetSliceCount() > maxDataSlicesPerJob) {
             TaskHost_->SetOperationAlert(EOperationAlertType::TooManySlicesInJobs,
                 TError("Some jobs have too many data slices in their input; consider decreasing the job count")
-                    << TErrorAttribute("job_id", joblet->JobId)
-                    << TErrorAttribute("task_name", GetVertexDescriptor())
-                    << TErrorAttribute("job_slice_count", joblet->InputStripeList->GetSliceCount())
-                    << TErrorAttribute("max_data_slices_per_job", maxDataSlicesPerJob));
+                    .With("job_id", joblet->JobId)
+                    .With("task_name", GetVertexDescriptor())
+                    .With("job_slice_count", joblet->InputStripeList->GetSliceCount())
+                    .With("max_data_slices_per_job", maxDataSlicesPerJob));
         }
     }
 }

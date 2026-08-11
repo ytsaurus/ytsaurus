@@ -98,7 +98,7 @@ public:
             DoInit(slotCount, cpuLimit, idleCpuFraction);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean up processes during initialization")
-                << ex;
+                .With(ex);
             Disable(error);
             return error;
         }
@@ -135,7 +135,7 @@ public:
                 environmentVariables.push_back(Format("%v=%v", variable->Name, variable->LoadValue()));
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Cannot load environment variable %Qv", variable->Name)
-                    << ex;
+                    .With(ex);
             }
         }
 
@@ -194,7 +194,7 @@ public:
             JobProxyProcesses_[slotIndex] = jobProxyProcess;
             return jobProxyProcess.Result;
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to spawn job proxy") << ex;
+            auto error = TError("Failed to spawn job proxy").With(ex);
             Disable(error);
 
             THROW_ERROR error;
@@ -251,7 +251,7 @@ public:
             return;
         }
 
-        auto alert = TError(NExecNode::EErrorCode::JobEnvironmentDisabled, "Job environment is disabled") << std::move(error);
+        auto alert = TError(NExecNode::EErrorCode::JobEnvironmentDisabled, "Job environment is disabled").With(std::move(error));
         YT_LOG_ERROR(alert);
 
         Alert_.Store(alert);
@@ -378,9 +378,9 @@ public:
             EnsureJobProxyFinished(slotIndex, true);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean processes")
-                << TErrorAttribute("slot_index", slotIndex)
-                << TErrorAttribute("slot_type", slotType)
-                << ex;
+                .With("slot_index", slotIndex)
+                .With("slot_type", slotType)
+                .With(ex);
             Disable(error);
             THROW_ERROR error;
         }
@@ -592,9 +592,9 @@ public:
             JobProxyProcesses_.erase(slotIndex);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean processes")
-                << TErrorAttribute("slot_index", slotIndex)
-                << TErrorAttribute("slot_type", slotType)
-                << ex;
+                .With("slot_index", slotIndex)
+                .With("slot_type", slotType)
+                .With(ex);
 
             Disable(error);
             THROW_ERROR error;
@@ -1168,9 +1168,9 @@ public:
             Executor_->CleanPodSandbox(PodDescriptors_[slotIndex]);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean processes")
-                << TErrorAttribute("slot_index", slotIndex)
-                << TErrorAttribute("slot_type", slotType)
-                << ex;
+                .With("slot_index", slotIndex)
+                .With("slot_type", slotType)
+                .With(ex);
             Disable(error);
             THROW_ERROR error;
         }
@@ -1479,7 +1479,7 @@ private:
                 spec->Credentials.Groups = {groupRetrieved->gr_gid};
             } else {
                 THROW_ERROR_EXCEPTION("Cannot find user group by the specified name")
-                    << TErrorAttribute("container_user_group_name", groupName);
+                    .With("container_user_group_name", groupName);
             }
         }
 #endif

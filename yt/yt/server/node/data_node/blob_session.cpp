@@ -366,7 +366,7 @@ void TBlobSession::OnStarted(const TError& error)
                     NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
                     "Not enough space to start blob session for chunk %v",
                     GetChunkId())
-                << error,
+                .With(error),
                 /*fatal*/ false);
         } else {
             SetFailed(
@@ -374,7 +374,7 @@ void TBlobSession::OnStarted(const TError& error)
                     NChunkClient::EErrorCode::IOError,
                     "Error starting blob session for chunk %v",
                     GetChunkId())
-                << error,
+                .With(error),
                 /*fatal*/ true);
         }
     }
@@ -476,7 +476,7 @@ ISession::TFinishResult TBlobSession::OnFinished(
                     NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
                     "Not enough space to write blocks of chunk %v",
                     GetChunkId())
-                << error,
+                .With(error),
                 /*fatal*/ false);
         } else {
             SetFailed(
@@ -484,7 +484,7 @@ ISession::TFinishResult TBlobSession::OnFinished(
                     NChunkClient::EErrorCode::IOError,
                     "Error writing blocks of chunk %v",
                     SessionId_)
-                << error,
+                .With(error),
                 /*fatal*/ true);
         }
     }
@@ -630,7 +630,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                     THROW_ERROR_EXCEPTION(
                         NChunkClient::EErrorCode::WriteThrottlingActive,
                         "Block reordering timeout")
-                        << TErrorAttribute("timeout", Config_->SessionBlockReorderTimeout);
+                        .With("timeout", Config_->SessionBlockReorderTimeout);
                 }
 
                 if (!error.IsOK()) {
@@ -717,7 +717,7 @@ void TBlobSession::PreparePutBlocks(
                 NChunkClient::EErrorCode::BlockContentMismatch,
                 "Block %v with a different content already received",
                 blockId)
-                << TErrorAttribute("window_start", WindowStartBlockIndex_);
+                .With("window_start", WindowStartBlockIndex_);
         }
 
         BlockCount_.fetch_add(1);
@@ -769,7 +769,7 @@ void TBlobSession::PreparePutBlocks(
 
             if (auto error = slot.Block.CheckChecksum(); !error.IsOK()) {
                 auto blockId = TBlockId(GetChunkId(), WindowIndex_);
-                SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /*fatal*/ false);
+                SetFailed(error.With("block_id", ToString(blockId)), /*fatal*/ false);
                 THROW_ERROR(Error_);
             }
 
@@ -871,7 +871,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
                     NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
                     "Not enough space to finish blob session for chunk %v",
                     GetChunkId())
-                << error,
+                .With(error),
                 /*fatal*/ false);
         } else {
             SetFailed(
@@ -879,7 +879,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
                     NChunkClient::EErrorCode::IOError,
                     "Error writing chunk %v",
                     GetChunkId())
-                << error,
+                .With(error),
                 /*fatal*/ true);
         }
         return;
@@ -1042,7 +1042,7 @@ void TBlobSession::OnAborted(const TError& error)
                 NChunkClient::EErrorCode::IOError,
                 "Error aborting chunk %v",
                 SessionId_)
-            << error,
+            .With(error),
             /*fatal*/ true);
     }
 }
@@ -1194,8 +1194,8 @@ void TBlobSession::SetFailed(const TError& error, bool fatal)
     }
 
     Error_ = TError("Blob session failed")
-        << TErrorAttribute("fatal", fatal)
-        << error;
+        .With("fatal", fatal)
+        .With(error);
     YT_LOG_WARNING(error, "Blob session failed (Fatal: %v)",
         fatal);
 
@@ -1213,7 +1213,7 @@ void TBlobSession::OnSlotCanceled(int blockIndex, const TError& error)
     Cancel(TError(
         "Blob session canceled at block %v",
         TBlockId(GetChunkId(), blockIndex))
-        << error);
+        .With(error));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

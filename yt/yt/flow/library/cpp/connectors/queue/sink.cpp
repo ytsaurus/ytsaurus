@@ -275,7 +275,7 @@ bool TAsyncQueueWriter::TryExecuteIteration(const std::string& producerId, const
         ErrorState_->ClearError();
         return true;
     } catch (const std::exception& ex) {
-        ErrorState_->SetError(TError("Failed to write to the queue") << ex);
+        ErrorState_->SetError(TError("Failed to write to the queue").With(ex));
         ResetSession();
         NConcurrency::TDelayedExecutor::WaitForDuration(DynamicParameters_.Acquire()->BackoffDuration);
         return false;
@@ -618,7 +618,7 @@ void TQueueSinkController::WriteFlowQueueMeta()
         NConcurrency::WaitFor(transaction->Commit()).ValueOrThrow();
         WriteMetaErrorState_->ClearError();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to write flow queue meta heartbeat") << ex;
+        auto error = TError("Failed to write flow queue meta heartbeat").With(ex);
         // TODO: pass to public controller log.
         WriteMetaErrorState_->SetError(error);
     }
@@ -754,7 +754,7 @@ void TMultiClusterQueueSinkController::WriteFlowQueueMeta()
         }
         WriteMetaErrorState_->ClearError();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to write flow queue meta heartbeat") << ex;
+        auto error = TError("Failed to write flow queue meta heartbeat").With(ex);
         // TODO: pass to public controller log.
         WriteMetaErrorState_->SetError(error);
     }

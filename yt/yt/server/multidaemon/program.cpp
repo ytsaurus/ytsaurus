@@ -205,7 +205,7 @@ private:
                 .Apply(BIND([name = slot.Name] (const TError& error) {
                     if (!error.IsOK()) {
                         THROW_ERROR_EXCEPTION("Error starting daemon %Qv", name)
-                            << error;
+                            .With(error);
                     }
                     YT_LOG_INFO("Daemon started (Id: %v)",
                         name);

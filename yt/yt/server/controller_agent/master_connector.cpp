@@ -724,7 +724,7 @@ private:
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation %v node",
                 operationId)
-                << ex;
+                .With(ex);
         }
 
         YT_LOG_DEBUG("Finished updating operation node (OperationId: %v)",
@@ -1157,7 +1157,7 @@ private:
             }
 
             THROW_ERROR_EXCEPTION("Error getting snapshot version")
-                << rspOrError;
+                .With(rspOrError);
         }
 
         const auto& rsp = rspOrError.Value();
@@ -1181,7 +1181,7 @@ private:
                 operationId);
             snapshot.Blocks = downloader->Run();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error downloading snapshot") << ex;
+            THROW_ERROR_EXCEPTION("Error downloading snapshot").With(ex);
         }
         return snapshot;
     }
@@ -1200,7 +1200,7 @@ private:
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         auto error = GetCumulativeError(batchRspOrError);
         if (!error.IsOK()) {
-            Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to remove snapshot") << error);
+            Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to remove snapshot").With(error));
         }
     }
 
@@ -1273,7 +1273,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to update operation node") << error);
+        Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to update operation node").With(error));
     }
 
     void DoAddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)
@@ -1365,7 +1365,7 @@ private:
                 SetControllerAgentAlert(
                     EControllerAgentAlertType::UnrecognizedConfigOptions,
                     TError("Controller agent config contains unrecognized options")
-                        << TErrorAttribute("unrecognized", unrecognized));
+                        .With("unrecognized", unrecognized));
             }
         }
 
@@ -1407,7 +1407,7 @@ private:
                 newConfig = ConvertTo<TControllerAgentConfigPtr>(newConfigNode);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error loading controller agent configuration")
-                    << ex;
+                    .With(ex);
             }
 
             SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());

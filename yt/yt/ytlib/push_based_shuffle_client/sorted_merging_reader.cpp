@@ -40,33 +40,33 @@ TRowIdentity ValidateAndGetIdentity(
 {
     if (static_cast<int>(row.GetCount()) < keyColumnCount + IdentityColumnCount) {
         THROW_ERROR_EXCEPTION("Row is too short to carry identity columns")
-            << TErrorAttribute("value_count", row.GetCount())
-            << TErrorAttribute("expected_min_value_count", keyColumnCount + IdentityColumnCount);
+            .With("value_count", row.GetCount())
+            .With("expected_min_value_count", keyColumnCount + IdentityColumnCount);
     }
 
     const auto& mapperValue = row[keyColumnCount];
     const auto& rowValue = row[keyColumnCount + 1];
     if (mapperValue.Id != identityColumnIds.MapperId) {
         THROW_ERROR_EXCEPTION("Unexpected mapper identity column id")
-            << TErrorAttribute("expected_column_id", identityColumnIds.MapperId)
-            << TErrorAttribute("actual_column_id", mapperValue.Id)
-            << TErrorAttribute("row_position", keyColumnCount);
+            .With("expected_column_id", identityColumnIds.MapperId)
+            .With("actual_column_id", mapperValue.Id)
+            .With("row_position", keyColumnCount);
     }
     if (rowValue.Id != identityColumnIds.RowId) {
         THROW_ERROR_EXCEPTION("Unexpected row identity column id")
-            << TErrorAttribute("expected_column_id", identityColumnIds.RowId)
-            << TErrorAttribute("actual_column_id", rowValue.Id)
-            << TErrorAttribute("row_position", keyColumnCount + 1);
+            .With("expected_column_id", identityColumnIds.RowId)
+            .With("actual_column_id", rowValue.Id)
+            .With("row_position", keyColumnCount + 1);
     }
     if (mapperValue.Type != EValueType::Int64) {
         THROW_ERROR_EXCEPTION("Unexpected mapper identity value type")
-            << TErrorAttribute("value_type", mapperValue.Type)
-            << TErrorAttribute("row_position", keyColumnCount);
+            .With("value_type", mapperValue.Type)
+            .With("row_position", keyColumnCount);
     }
     if (rowValue.Type != EValueType::Int64) {
         THROW_ERROR_EXCEPTION("Unexpected row identity value type")
-            << TErrorAttribute("value_type", rowValue.Type)
-            << TErrorAttribute("row_position", keyColumnCount + 1);
+            .With("value_type", rowValue.Type)
+            .With("row_position", keyColumnCount + 1);
     }
 
     const auto mapperId = mapperValue.Data.Int64;
@@ -74,8 +74,8 @@ TRowIdentity ValidateAndGetIdentity(
         mapperId > std::numeric_limits<i32>::max())
     {
         THROW_ERROR_EXCEPTION("Mapper identity value is outside the Int32 range")
-            << TErrorAttribute("mapper_value", mapperId)
-            << TErrorAttribute("row_position", keyColumnCount);
+            .With("mapper_value", mapperId)
+            .With("row_position", keyColumnCount);
     }
 
     const int rowValueCount = static_cast<int>(row.GetCount());
@@ -86,8 +86,8 @@ TRowIdentity ValidateAndGetIdentity(
         const auto& value = row[index];
         if (value.Id == identityColumnIds.MapperId || value.Id == identityColumnIds.RowId) {
             THROW_ERROR_EXCEPTION("Duplicate identity column id")
-                << TErrorAttribute("actual_column_id", value.Id)
-                << TErrorAttribute("row_position", index);
+                .With("actual_column_id", value.Id)
+                .With("row_position", index);
         }
     }
 
@@ -296,12 +296,12 @@ ISchemalessMultiChunkReaderPtr CreateIdentityAwareSortedMergingReader(
     if (sortComparator.GetLength() < IdentityColumnCount + 1) {
         THROW_ERROR_EXCEPTION(
             "Identity-aware sorted merging reader requires at least three sort columns")
-            << TErrorAttribute("sort_column_count", sortComparator.GetLength());
+            .With("sort_column_count", sortComparator.GetLength());
     }
     if (!identityColumnIds.AreValid()) {
         THROW_ERROR_EXCEPTION("Invalid identity column ids")
-            << TErrorAttribute("mapper_id_column_id", identityColumnIds.MapperId)
-            << TErrorAttribute("row_id_column_id", identityColumnIds.RowId);
+            .With("mapper_id_column_id", identityColumnIds.MapperId)
+            .With("row_id_column_id", identityColumnIds.RowId);
     }
 
     const int keyColumnCount = sortComparator.GetLength() - IdentityColumnCount;

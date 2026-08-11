@@ -1276,7 +1276,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
             YT_LOG_INFO("Node is not registered in job tracker; skip settle job request");
 
             THROW_ERROR_EXCEPTION("Node is not registered in job tracker")
-                << TErrorAttribute("incarnation_id", IncarnationId_);
+                .With("incarnation_id", IncarnationId_);
         }
 
         auto* allocationInfo = nodeInfo->Jobs.FindAllocation(allocationId);
@@ -1346,7 +1346,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
             YT_LOG_INFO("Node has been unregistered from job tracker during settle job request processing");
 
             THROW_ERROR_EXCEPTION("Node has been unregistered from job tracker during settle job request processing")
-                << TErrorAttribute("incarnation_id", IncarnationId_);
+                .With("incarnation_id", IncarnationId_);
         }
 
         // NB(pogorelov): Allocation may finish concurrently.

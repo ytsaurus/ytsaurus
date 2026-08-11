@@ -215,8 +215,8 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
                 break;
             default:
                 THROW_ERROR_EXCEPTION("Cannot apply column selectivity factor for chunk of an unexpected format")
-                    << TErrorAttribute("chunk_id", chunk->GetChunkId())
-                    << TErrorAttribute("chunk_format", chunk->GetChunkFormat());
+                    .With("chunk_id", chunk->GetChunkId())
+                    .With("chunk_format", chunk->GetChunkFormat());
         }
 
         auto totalDataWeight = chunk->GetTotalDataWeight();

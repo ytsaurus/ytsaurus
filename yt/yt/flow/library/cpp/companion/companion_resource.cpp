@@ -135,9 +135,9 @@ ICompanionClientPtr TCompanionResource::CreateCompanionClient(
     auto it = dependencies.find(TResourceId(CompanionManagerAlias));
     if (it == dependencies.end()) {
         THROW_ERROR_EXCEPTION(
-                "Companion resource must declare a dependency on a companion manager under alias %Qv",
-                CompanionManagerAlias)
-            << TErrorAttribute("resource_id", GetContext()->ResourceId);
+            "Companion resource must declare a dependency on a companion manager under alias %Qv",
+            CompanionManagerAlias)
+            .With("resource_id", GetContext()->ResourceId);
     }
     return it->second->As<TCompanionManager>()->CreateCompanionClient(
         GetContext()->StatusProfiler->WithPrefix("/companion_resource_client"));
@@ -158,9 +158,9 @@ void TCompanionResource::DoLoad(const THashMap<TResourceId, IResourcePtr>& depen
         auto it = dependencies.find(alias);
         if (it == dependencies.end()) {
             THROW_ERROR_EXCEPTION("Resource dependency is missing during companion resource load")
-                << TErrorAttribute("resource_id", GetContext()->ResourceId)
-                << TErrorAttribute("dependency_id", resourceId)
-                << TErrorAttribute("dependency_alias", alias);
+                .With("resource_id", GetContext()->ResourceId)
+                .With("dependency_id", resourceId)
+                .With("dependency_alias", alias);
         }
         if (auto companionResource = it->second->TryAs<TCompanionResource>()) {
             CompanionDependencies_.push_back({
@@ -267,9 +267,9 @@ TCompanionResourcePtr TCompanionResource::GetCurrentDependencyResource(
 
     auto initialResource = dependency.InitialResource.Lock();
     THROW_ERROR_EXCEPTION_UNLESS(initialResource,
-            "Companion resource dependency object is no longer available")
-        << TErrorAttribute("resource_id", GetContext()->ResourceId)
-        << TErrorAttribute("dependency_id", dependency.ResourceId);
+        "Companion resource dependency object is no longer available")
+        .With("resource_id", GetContext()->ResourceId)
+        .With("dependency_id", dependency.ResourceId);
     return initialResource;
 }
 
@@ -298,8 +298,8 @@ void TCompanionResource::InitSelfInCompanion(
     if (Retired_.load()) {
         throw TCompanionResourceCommandException(
             ECompanionResourceExecuteStatus::StaleResourceIncarnation) <<= TError("Companion resource incarnation is retired")
-            << TErrorAttribute("resource_id", GetContext()->ResourceId)
-            << TErrorAttribute("resource_instance_id", GetContext()->ResourceInstanceId);
+            .With("resource_id", GetContext()->ResourceId)
+            .With("resource_instance_id", GetContext()->ResourceInstanceId);
     }
     RegisterCompanionClient(client, companionProcessId);
     auto response = ExecuteCommand(
@@ -346,8 +346,8 @@ void TCompanionResource::BuildCompanionResourceGraph(
     }
     if (!visiting->insert(instanceId).second) {
         THROW_ERROR_EXCEPTION("Cycle in companion resource dependency graph")
-            << TErrorAttribute("resource_id", GetContext()->ResourceId)
-            << TErrorAttribute("resource_instance_id", instanceId);
+            .With("resource_id", GetContext()->ResourceId)
+            .With("resource_instance_id", instanceId);
     }
     for (const auto& dependency : CompanionDependencies_) {
         auto resource = GetCurrentDependencyResource(dependency);
@@ -382,9 +382,9 @@ TCompanionResource::TPublicationState TCompanionResource::GetAppliedPublicationS
 {
     auto guard = Guard(PublicationLock_);
     THROW_ERROR_EXCEPTION_UNLESS(
-            AppliedPublicationState_,
-            "Companion resource has no applied publication state")
-        << TErrorAttribute("resource_id", GetContext()->ResourceId);
+        AppliedPublicationState_,
+        "Companion resource has no applied publication state")
+        .With("resource_id", GetContext()->ResourceId);
     return *AppliedPublicationState_;
 }
 
@@ -424,11 +424,11 @@ void TCompanionResource::ThrowCommandFailed(
         ? "Companion has no factory for the companion resource class"
         : "Companion resource command failed";
     throw TCompanionResourceCommandException(response->Status) <<= TError("%v", message)
-        << TErrorAttribute("resource_id", GetContext()->ResourceId)
-        << TErrorAttribute("companion_resource_class", GetParameters()->CompanionResourceClass)
-        << TErrorAttribute("command", command)
-        << TErrorAttribute("status", response->Status)
-        << response->Error;
+        .With("resource_id", GetContext()->ResourceId)
+        .With("companion_resource_class", GetParameters()->CompanionResourceClass)
+        .With("command", command)
+        .With("status", response->Status)
+        .With(response->Error);
 }
 
 TResourceRevisionState TCompanionResource::GetRevisionState() const
@@ -453,20 +453,20 @@ std::optional<TCompanionResource::TPublicationState> TCompanionResource::TrySetP
 {
     if (dynamicContext->TargetRevision) {
         THROW_ERROR_EXCEPTION_UNLESS(resourceRevision,
-                "Resource revision preparation returned no revision for a non-empty target")
-            << TErrorAttribute("resource_id", GetContext()->ResourceId)
-            << TErrorAttribute("target_revision_id", dynamicContext->TargetRevision->RevisionId);
+            "Resource revision preparation returned no revision for a non-empty target")
+            .With("resource_id", GetContext()->ResourceId)
+            .With("target_revision_id", dynamicContext->TargetRevision->RevisionId);
         THROW_ERROR_EXCEPTION_UNLESS(
-                resourceRevision->RevisionId == dynamicContext->TargetRevision->RevisionId,
-                "Prepared resource revision id differs from the target revision id")
-            << TErrorAttribute("resource_id", GetContext()->ResourceId)
-            << TErrorAttribute("target_revision_id", dynamicContext->TargetRevision->RevisionId)
-            << TErrorAttribute("prepared_revision_id", resourceRevision->RevisionId);
+            resourceRevision->RevisionId == dynamicContext->TargetRevision->RevisionId,
+            "Prepared resource revision id differs from the target revision id")
+            .With("resource_id", GetContext()->ResourceId)
+            .With("target_revision_id", dynamicContext->TargetRevision->RevisionId)
+            .With("prepared_revision_id", resourceRevision->RevisionId);
     } else {
         THROW_ERROR_EXCEPTION_UNLESS(!resourceRevision,
-                "Resource revision preparation returned a revision for an empty target")
-            << TErrorAttribute("resource_id", GetContext()->ResourceId)
-            << TErrorAttribute("prepared_revision_id", resourceRevision->RevisionId);
+            "Resource revision preparation returned a revision for an empty target")
+            .With("resource_id", GetContext()->ResourceId)
+            .With("prepared_revision_id", resourceRevision->RevisionId);
     }
 
     auto guard = Guard(PublicationLock_);

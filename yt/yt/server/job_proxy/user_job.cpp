@@ -414,7 +414,7 @@ public:
                 }
                 if (UserJobSpec_.fail_job_on_core_dump()) {
                     innerErrors.push_back(TError(NJobProxy::EErrorCode::UserJobProducedCoreFiles, "User job produced core files")
-                        << TErrorAttribute("core_infos", coreResult.CoreInfos));
+                        .With("core_infos", coreResult.CoreInfos));
                 }
             }
 
@@ -439,15 +439,15 @@ public:
                 auto error = TError(
                     EErrorCode::MemoryLimitExceeded,
                     "User job process killed by OOM")
-                    << TErrorAttribute("oom_kill_count", *oomKillCount)
-                    << TErrorAttribute("abort_reason", EAbortReason::ResourceOverdraft);
+                    .With("oom_kill_count", *oomKillCount)
+                    .With("abort_reason", EAbortReason::ResourceOverdraft);
                 innerErrors.push_back(std::move(error));
             }
         }
 
         auto jobError = innerErrors.empty()
             ? TError()
-            : TError(NJobProxy::EErrorCode::UserJobFailed, "User job failed") << std::move(innerErrors);
+            : TError(NJobProxy::EErrorCode::UserJobFailed, "User job failed").With(std::move(innerErrors));
 
         ToProto(result.mutable_error(), jobError);
         // TODO(arkady-e1ppa): Consider leaving the field empty if exit code is not set.
@@ -548,7 +548,7 @@ public:
             auto fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETFL, O_RDONLY);
             if (fcntlResult < 0) {
                 THROW_ERROR_EXCEPTION("Failed to disable O_RDONLY for artifact pipe")
-                    << TError::FromSystem();
+                    .With(TError::FromSystem());
             }
 
             YT_LOG_INFO("Materializing artifact");
@@ -1019,7 +1019,7 @@ private:
                         UserJobEnvironment_->GetUserJobInstance()->Kill(*signalNumber);
                     } else {
                         THROW_ERROR_EXCEPTION("Unknown signal name")
-                            << TErrorAttribute("signal_name", signal);
+                            .With("signal_name", signal);
                     }
 #else
                     THROW_ERROR_EXCEPTION("Signalling by Porto is not supported at non-linux environment");
@@ -1050,7 +1050,7 @@ private:
     void Fail(TError error) override
     {
         auto jobError = TError("Job failed by node request")
-            << std::move(error);
+            .With(std::move(error));
         YT_LOG_DEBUG(jobError, "User job failed");
         JobErrorPromise_.TrySet(std::move(jobError));
         CleanupUserProcesses();
@@ -1159,7 +1159,7 @@ private:
                     totalBytes);
             } catch (const std::exception& ex) {
                 auto error = wrappingError
-                    << ex;
+                    .With(ex);
                 YT_LOG_ERROR(error);
 
                 onError(asyncInput, error);
@@ -1229,8 +1229,8 @@ private:
                     .ThrowOnError();
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Table input pipe failed")
-                    << TErrorAttribute("fd", jobDescriptor)
-                    << ex;
+                    .With("fd", jobDescriptor)
+                    .With(ex);
             }
         }));
 
@@ -1243,13 +1243,13 @@ private:
                 auto result = WaitFor(future);
                 if (!result.IsOK()) {
                     THROW_ERROR_EXCEPTION("Failed to check input stream after user process")
-                        << TErrorAttribute("fd", jobDescriptor)
-                        << result;
+                        .With("fd", jobDescriptor)
+                        .With(result);
                 }
                 // Try to read some data from the pipe.
                 if (result.Value() > 0) {
                     THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
-                        << TErrorAttribute("fd", jobDescriptor);
+                        .With("fd", jobDescriptor);
                 }
             } catch (const std::exception& ex) {
                 YT_UNUSED_FUTURE(reader->Abort());
@@ -1778,7 +1778,7 @@ private:
             writer.Flush();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to write executor config into %v", executorConfigPath)
-                << ex;
+                .With(ex);
         }
     }
 
@@ -1920,10 +1920,10 @@ private:
             auto error = TError(
                 NJobProxy::EErrorCode::MemoryLimitExceeded,
                 "Memory limit exceeded")
-                << TErrorAttribute("usage", memoryUsage)
-                << TErrorAttribute("limit", memoryLimit)
-                << TErrorAttribute("tmpfs_usage", memoryStatistics->Total.TmpfsUsage)
-                << TErrorAttribute("processes", processesStatistics);
+                .With("usage", memoryUsage)
+                .With("limit", memoryLimit)
+                .With("tmpfs_usage", memoryStatistics->Total.TmpfsUsage)
+                .With("processes", processesStatistics);
             JobErrorPromise_.TrySet(error);
             CleanupUserProcesses();
         }
@@ -2039,7 +2039,7 @@ private:
         auto error = TError(
             NJobProxy::EErrorCode::JobTimeLimitExceeded,
             "Job time limit exceeded")
-            << TErrorAttribute("limit", UserJobSpec_.job_time_limit());
+            .With("limit", UserJobSpec_.job_time_limit());
         JobErrorPromise_.TrySet(error);
         CleanupUserProcesses();
     }

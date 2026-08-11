@@ -65,7 +65,7 @@ void HandleTableMountInfoError(
             THROW_ERROR_EXCEPTION(
                 "Failed to get table mount info to perform registration manager resolutions for object %Qv",
                 objectPath)
-            << tableMountInfoOrError;
+            .With(tableMountInfoOrError);
         }
     }
 }
@@ -160,8 +160,8 @@ IQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistra
         "Consumer %v is not registered for queue %v",
         consumer,
         queue)
-        << TErrorAttribute("raw_queue", rawQueue)
-        << TErrorAttribute("raw_consumer", rawConsumer);
+        .With("raw_queue", rawQueue)
+        .With("raw_consumer", rawConsumer);
 }
 
 std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManagerBase::ListRegistrations(

@@ -132,9 +132,9 @@ void ValidateChaosLeaseType(const TTransactionId& prerequisiteId, const std::str
     if (!IsChaosLeaseType(prerequisiteType)) {
         THROW_ERROR_EXCEPTION(
             "Transaction commit affects chaos tables, only chaos leases allowed as prerequisite ids")
-            << TErrorAttribute("prerequisite_id", prerequisiteId)
-            << TErrorAttribute("prerequisite_type", prerequisiteType)
-            << TErrorAttribute("table_path", path);
+            .With("prerequisite_id", prerequisiteId)
+            .With("prerequisite_type", prerequisiteType)
+            .With("table_path", path);
     }
 }
 
@@ -769,7 +769,7 @@ private:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error preparing rows for table %v",
                     TableSession_->GetInfo()->Path)
-                    << TError(ex);
+                    .With(TError(ex));
             }
         }
 
@@ -1028,7 +1028,7 @@ private:
                 (const TTabletServiceProxy::TErrorOrRspWriteHunksPtr& rspOrError) mutable {
                     if (!rspOrError.IsOK()) {
                         THROW_ERROR_EXCEPTION("Failed to write hunks")
-                            << rspOrError;
+                            .With(rspOrError);
                     }
 
                     const auto& rsp = rspOrError.Value();
@@ -1055,7 +1055,7 @@ private:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error submitting rows for table %v",
                     TableSession_->GetInfo()->Path)
-                    << TError(ex);
+                    .With(TError(ex));
             }
         }
 
@@ -1411,21 +1411,21 @@ private:
                             auto replica = replicationCard->Replicas.FindPtr(TableInfo_->UpstreamReplicaId);
                             if (!replica) {
                                 THROW_ERROR_EXCEPTION("Table uses upstream_replica_id that is not present in replication card")
-                                    << TErrorAttribute("upstream_replica_id", TableInfo_->UpstreamReplicaId)
-                                    << TErrorAttribute("replication_card_id", TableInfo_->ReplicationCardId)
-                                    << TErrorAttribute("table_path", TableInfo_->Path);
+                                    .With("upstream_replica_id", TableInfo_->UpstreamReplicaId)
+                                    .With("replication_card_id", TableInfo_->ReplicationCardId)
+                                    .With("table_path", TableInfo_->Path);
                             }
 
                             const auto& clusterName = transaction->Client_->GetNativeConnection()->GetClusterName().value();
                             if (!NChaosClient::IsReplicaLocationValid(replica, TableInfo_->PhysicalPath, clusterName)) {
                                 THROW_ERROR_EXCEPTION("Table uses upstream_replica_id of other replica")
-                                    << TErrorAttribute("upstream_replica_id", TableInfo_->UpstreamReplicaId)
-                                    << TErrorAttribute("replication_card_id", TableInfo_->ReplicationCardId)
-                                    << TErrorAttribute("table_path", TableInfo_->Path)
-                                    << TErrorAttribute("table_physical_path", TableInfo_->PhysicalPath)
-                                    << TErrorAttribute("expected_path", replica->ReplicaPath)
-                                    << TErrorAttribute("table_cluster", clusterName)
-                                    << TErrorAttribute("expected_cluster", replica->ClusterName);
+                                    .With("upstream_replica_id", TableInfo_->UpstreamReplicaId)
+                                    .With("replication_card_id", TableInfo_->ReplicationCardId)
+                                    .With("table_path", TableInfo_->Path)
+                                    .With("table_physical_path", TableInfo_->PhysicalPath)
+                                    .With("expected_path", replica->ReplicaPath)
+                                    .With("table_cluster", clusterName)
+                                    .With("expected_cluster", replica->ClusterName);
                             }
                         }
 
@@ -1609,8 +1609,8 @@ private:
                             NTabletClient::EErrorCode::SyncReplicaNotInSync,
                             "Cannot write to sync replica %v since it is not in-sync yet",
                             replicaInfo->ReplicaId)
-                            << TErrorAttribute("replica_cluster", replicaInfo->ClusterName)
-                            << TErrorAttribute("replica_path", replicaInfo->ReplicaPath);
+                            .With("replica_cluster", replicaInfo->ClusterName)
+                            .With("replica_path", replicaInfo->ReplicaPath);
                         futures->push_back(MakeFuture(std::move(error)));
                         return;
                     }
@@ -1760,8 +1760,8 @@ private:
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::ProtocolError,
                     "Packet sequence number is negative")
-                    << TErrorAttribute("sequence_number", sequenceNumber->Value)
-                    << TErrorAttribute("sequence_number_source_id", sequenceNumber->SourceId);
+                    .With("sequence_number", sequenceNumber->Value)
+                    .With("sequence_number_source_id", sequenceNumber->SourceId);
             }
             // This may call DoEnqueueModificationRequest right away.
             OrderedRequestsSlidingWindow_.AddPacket(
@@ -2321,7 +2321,7 @@ private:
                 if (coordinatorCellIds.empty()) {
                     THROW_ERROR_EXCEPTION(NTransactionClient::EErrorCode::ChaosCoordinatorsAreNotAvailable,
                         "Coordinators are not available")
-                        << TErrorAttribute("replication_card_id", replicationCardId);
+                        .With("replication_card_id", replicationCardId);
                 }
 
                 if (options.CoordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy) {
@@ -2486,9 +2486,9 @@ private:
                             YT_UNUSED_FUTURE(DoAbort(&guard));
 
                             auto error = TError("Error committing transaction %v", GetId())
-                                << MakeClusterIdErrorAttribute()
-                                << TErrorAttribute(ShouldBeStrippedErrorAttributeKey, true)
-                                << resultOrError;
+                                .With(MakeClusterIdErrorAttribute())
+                                .With(ShouldBeStrippedErrorAttributeKey, true)
+                                .With(resultOrError);
 
                             Client_->GetTableMountCache()->InvalidateOnError(error, /*forceRetry*/ true);
 
@@ -2522,8 +2522,8 @@ private:
                             YT_UNUSED_FUTURE(DoAbort(&guard));
                             THROW_ERROR_EXCEPTION("Error flushing transaction %v",
                                 GetId())
-                                << MakeClusterIdErrorAttribute()
-                                << error;
+                                .With(MakeClusterIdErrorAttribute())
+                                .With(error);
                         }
                     }
 

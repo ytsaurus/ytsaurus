@@ -406,18 +406,18 @@ public:
             // Only replication card origin cell can answer if replication card exists.
             if (IsDomesticReplicationCard(replicationCardId)) {
                 THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such replication card")
-                    << TErrorAttribute("replication_card_id", replicationCardId);
+                    .With("replication_card_id", replicationCardId);
             } else {
                 THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCardNotKnown, "Replication card is not known")
-                    << TErrorAttribute("replication_card_id", replicationCardId);
+                    .With("replication_card_id", replicationCardId);
             }
         }
 
         if (!allowMigrated && IsReplicationCardMigrated(replicationCard)) {
             THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCardMigrated, "Replication card has been migrated")
-                << TErrorAttribute("replication_card_id", replicationCardId)
-                << TErrorAttribute("immigrated_to_cell_id", replicationCard->Migration().ImmigratedToCellId)
-                << TErrorAttribute("immigration_time", replicationCard->Migration().ImmigrationTime);
+                .With("replication_card_id", replicationCardId)
+                .With("immigrated_to_cell_id", replicationCard->Migration().ImmigratedToCellId)
+                .With("immigration_time", replicationCard->Migration().ImmigrationTime);
         }
 
         return replicationCard;
@@ -430,7 +430,7 @@ public:
             THROW_ERROR_EXCEPTION(
                 NChaosClient::EErrorCode::ReplicationCollocationNotKnown,
                 "No such replication card collocation")
-                << TErrorAttribute("replication_card_collocation_id", collocationId);
+                .With("replication_card_collocation_id", collocationId);
         }
 
         return collocation;
@@ -468,7 +468,7 @@ public:
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported object type %Qlv", objectType)
-                    << TErrorAttribute("object_id", chaosObjectId);
+                    .With("object_id", chaosObjectId);
         }
     }
 
@@ -940,7 +940,7 @@ private:
             if (!collocation) {
                 THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCollocationNotKnown,
                     "No such replication card collocation")
-                    << TErrorAttribute("collocation_id", *collocationId);
+                    .With("collocation_id", *collocationId);
             }
             collocation->ValidateNotMigrating();
         } else if (collocationOptions && !replicationCard->GetCollocation()) {
@@ -1008,7 +1008,7 @@ private:
 
         if (Suspended_) {
             THROW_ERROR_EXCEPTION("Chaos cell is suspended")
-                << TErrorAttribute("chaos_cell_id", Slot_->GetCellId());
+                .With("chaos_cell_id", Slot_->GetCellId());
         }
 
         if (Slot_->GetCellId() == replicationCardCellId) {
@@ -1017,7 +1017,7 @@ private:
             if (replicationCard->GetState() != EReplicationCardState::Normal) {
                 THROW_ERROR_EXCEPTION("Trying to attach replication card to remote collocation while it is in %Qlv state",
                     replicationCard->GetState())
-                    << TErrorAttribute("replication_card_id", replicationCardId);
+                    .With("replication_card_id", replicationCardId);
             }
 
             UpdateReplicationCardState(replicationCard, EReplicationCardState::RemoteCollocationAttachPrepared);
@@ -1030,16 +1030,16 @@ private:
             {
                 THROW_ERROR_EXCEPTION("Replication card collocation is in %Qlv state",
                     collocation->GetState())
-                    << TErrorAttribute("replication_collocation_id", collocationId);
+                    .With("replication_collocation_id", collocationId);
             }
 
             collocation->SetState(EReplicationCardCollocationState::Immigrating);
             collocation->SetSize(collocation->GetSize() + 1);
         } else {
             THROW_ERROR_EXCEPTION("Unexpected chaos cell: neither replication card nor collocation")
-                << TErrorAttribute("replication_card_cell_id", replicationCardCellId)
-                << TErrorAttribute("replication_card_collocation_cell_id", collocationCellId)
-                << TErrorAttribute("chaos_cell_id", Slot_->GetCellId());
+                .With("replication_card_cell_id", replicationCardCellId)
+                .With("replication_card_collocation_cell_id", collocationCellId)
+                .With("chaos_cell_id", Slot_->GetCellId());
         }
 
         YT_LOG_DEBUG("Prepared distributed replication card collocation attachment (ReplicationCardId: %v, CollocationId: %v)",
@@ -1124,7 +1124,7 @@ private:
         if (replicationCard->GetState() == EReplicationCardState::RemoteCollocationAttachPrepared) {
             // TODO(savrus) Allow replication card removal during this process
             THROW_ERROR_EXCEPTION("Failed to remove replication card since it is in locked by alter process")
-                << TErrorAttribute("replication_card_id", replicationCardId);
+                .With("replication_card_id", replicationCardId);
         }
 
         replicationCard->ValidateCollocationNotMigrating();
@@ -1270,22 +1270,22 @@ private:
 
         if (std::ssize(replicationCard->Replicas()) >= MaxReplicasPerReplicationCard) {
             THROW_ERROR_EXCEPTION("Replication card already has too many replicas")
-                << TErrorAttribute("replication_card_id", replicationCardId)
-                << TErrorAttribute("limit", MaxReplicasPerReplicationCard);
+                .With("replication_card_id", replicationCardId)
+                .With("limit", MaxReplicasPerReplicationCard);
         }
 
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
             if (replicaInfo.ClusterName == clusterName && replicaInfo.ReplicaPath == replicaPath) {
                 THROW_ERROR_EXCEPTION("Replica already exists")
-                    << TErrorAttribute("replica_id", replicaId)
-                    << TErrorAttribute("cluster_name", replicaInfo.ClusterName)
-                    << TErrorAttribute("replica_path", replicaInfo.ReplicaPath);
+                    .With("replica_id", replicaId)
+                    .With("cluster_name", replicaInfo.ClusterName)
+                    .With("replica_path", replicaInfo.ReplicaPath);
             }
         }
 
         if (!catchup && replicationProgress) {
             THROW_ERROR_EXCEPTION("Replication progress specified while replica is not to be caught up")
-                << TErrorAttribute("replication_progress", *replicationProgress);
+                .With("replication_progress", *replicationProgress);
         }
 
         if (!replicationProgress) {
@@ -1313,7 +1313,7 @@ private:
 
         if (catchup && replicationCard->GetEra() != InitialReplicationEra && !isWaitingReplica()) {
             THROW_ERROR_EXCEPTION("Could not create replica since all other replicas already left it behind")
-                << TErrorAttribute("replication_progress", *replicationProgress);
+                .With("replication_progress", *replicationProgress);
         }
 
         auto newReplicaId = GenerateNewReplicaId(replicationCard);
@@ -1379,9 +1379,9 @@ private:
 
         if (replicaInfo->State != ETableReplicaState::Disabled) {
             THROW_ERROR_EXCEPTION("Could not remove replica since it is not disabled")
-                << TErrorAttribute("replication_card_id", replicationCardId)
-                << TErrorAttribute("replica_id", replicaId)
-                << TErrorAttribute("state", replicaInfo->State);
+                .With("replication_card_id", replicationCardId)
+                .With("replica_id", replicaId)
+                .With("state", replicaInfo->State);
         }
 
         ReplicaCounters_.erase(replicaId);
@@ -1429,9 +1429,9 @@ private:
 
         if (replicationCard->GetState() == EReplicationCardState::RevokingShortcutsForMigration) {
             THROW_ERROR_EXCEPTION("Replication card is migrating")
-                << TErrorAttribute("replication_card_id", replicationCardId)
-                << TErrorAttribute("replica_id", replicaId)
-                << TErrorAttribute("state", replicationCard->GetState());
+                .With("replication_card_id", replicationCardId)
+                .With("replica_id", replicaId)
+                .With("state", replicationCard->GetState());
         }
 
         bool shouldForbidReplicaSwitchToAsync = false;
@@ -1461,9 +1461,9 @@ private:
                         if (!force && shouldThrowOnLowQueuesCount) {
                             THROW_ERROR_EXCEPTION(
                                 "Queue replica cannot be switched to async mode because there will not be enough sync queues")
-                                << TErrorAttribute("replication_card_id", replicationCardId)
-                                << TErrorAttribute("replica_id", replicaId)
-                                << TErrorAttribute("min_sync_queue_count", minSyncQueueCount);
+                                .With("replication_card_id", replicationCardId)
+                                .With("replica_id", replicaId)
+                                .With("min_sync_queue_count", minSyncQueueCount);
                         } else {
                             YT_LOG_WARNING(
                                 "Forcing queue replica switch beyond the minimum sync queues count "
@@ -1492,9 +1492,9 @@ private:
                 if (!force && shouldThrowOnLowQueuesCount) {
                     THROW_ERROR_EXCEPTION(
                         "Queue replica cannot be disabled because there will not be enough sync queues")
-                            << TErrorAttribute("replication_card_id", replicationCardId)
-                        << TErrorAttribute("replica_id", replicaId)
-                        << TErrorAttribute("min_sync_queue_count", minSyncQueueCount);
+                            .With("replication_card_id", replicationCardId)
+                        .With("replica_id", replicaId)
+                        .With("min_sync_queue_count", minSyncQueueCount);
                 } else {
                     YT_LOG_WARNING(
                         "Forcing queue replica disabling beyond the minimum sync queues count "
@@ -1525,9 +1525,9 @@ private:
                     existingReplicaInfo.ReplicaPath == *replicaPath)
                 {
                     THROW_ERROR_EXCEPTION("Replica already exists")
-                        << TErrorAttribute("replica_id", existingReplicaId)
-                        << TErrorAttribute("cluster_name", existingReplicaInfo.ClusterName)
-                        << TErrorAttribute("replica_path", existingReplicaInfo.ReplicaPath);
+                        .With("replica_id", existingReplicaId)
+                        .With("cluster_name", existingReplicaInfo.ClusterName)
+                        .With("replica_path", existingReplicaInfo.ReplicaPath);
                 }
             }
 
@@ -1849,7 +1849,7 @@ private:
         auto it = std::find(CoordinatorCellIds_.begin(), CoordinatorCellIds_.end(), coordinatorCellId);
         if (it != CoordinatorCellIds_.end()) {
             THROW_ERROR_EXCEPTION("Trying to forsake an alive coordinator")
-                << TErrorAttribute("coordinator_cell_id", coordinatorCellId);
+                .With("coordinator_cell_id", coordinatorCellId);
         }
 
         for (auto* chaosObject : GetSortedChaosObjects()) {
@@ -2303,8 +2303,8 @@ private:
         auto descriptor = cellDirectory->FindDescriptorByCellTag(siblingCellTag);
         if (!descriptor) {
             THROW_ERROR_EXCEPTION("Unable to identify sibling cell to migrate replication cards into")
-                << TErrorAttribute("chaos_cell_id", Slot_->GetCellId())
-                << TErrorAttribute("sibling_cell_tag", siblingCellTag);
+                .With("chaos_cell_id", Slot_->GetCellId())
+                .With("sibling_cell_tag", siblingCellTag);
         }
 
         NChaosClient::NProto::TReqMigrateReplicationCards req;
@@ -2786,8 +2786,8 @@ private:
 
         if (replicaInfo->History.empty()) {
             THROW_ERROR_EXCEPTION("Replication progress update is prohibited because replica history has not been started yet")
-                << TErrorAttribute("replication_card_id", replicationCardId)
-                << TErrorAttribute("replica_id", replicaId);
+                .With("replication_card_id", replicationCardId)
+                .With("replica_id", replicaId);
         }
 
         bool needLogFullProgress = force ||

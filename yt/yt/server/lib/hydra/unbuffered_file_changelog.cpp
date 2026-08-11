@@ -111,7 +111,7 @@ public:
                         NHydra::EErrorCode::BrokenChangelog,
                         "Changelog file %v is too small to fit header",
                         FileName_)
-                        << TErrorAttribute("size", headerBuffer.Size());
+                        .With("size", headerBuffer.Size());
                 }
 
                 const auto* header = reinterpret_cast<const TChangelogHeader*>(headerBuffer.Begin());
@@ -222,7 +222,7 @@ public:
                 NHydra::EErrorCode::ChangelogIOError,
                 "Error opening changelog %v",
                 FileName_)
-                << ex);
+                .With(ex));
         }
 
         Open_ = true;
@@ -256,7 +256,7 @@ public:
         } catch (const std::exception& ex) {
             Cleanup();
             RecordErrorAndThrow(TError("Error closing changelog")
-                << ex);
+                .With(ex));
         }
 
         Cleanup();
@@ -292,7 +292,7 @@ public:
                 NHydra::EErrorCode::ChangelogIOError,
                 "Error creating changelog %v",
                 FileName_)
-                << ex);
+                .With(ex));
         }
 
         Open_ = true;
@@ -392,7 +392,7 @@ public:
                 NHydra::EErrorCode::ChangelogIOError,
                 "Error flushing changelog %v",
                 FileName_)
-                << ex);
+                .With(ex));
         }
 
         YT_LOG_DEBUG("Finished flushing changelog");
@@ -491,7 +491,7 @@ public:
                 NHydra::EErrorCode::ChangelogIOError,
                 "Error truncating changelog %v",
                 FileName_)
-                << ex);
+                .With(ex));
         }
     }
 
@@ -623,7 +623,7 @@ private:
                     NHydra::EErrorCode::ChangelogIOError,
                     "Cannot lock %v",
                     FileName_)
-                    << error;
+                    .With(error);
             }
 
             YT_LOG_WARNING(error, "Error locking data file; backing off and retrying");
@@ -812,7 +812,7 @@ private:
                 NHydra::EErrorCode::ChangelogIOError,
                 "Error appending to changelog %v",
                 FileName_)
-                << ex);
+                .With(ex));
         }
     }
 
@@ -850,7 +850,7 @@ private:
                 NHydra::EErrorCode::ChangelogIOError,
                 "Error reading changelog %v",
                 FileName_)
-                << ex);
+                .With(ex));
         }
     }
 
@@ -870,7 +870,7 @@ private:
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::MalformedReadRequest,
                 "Negative block index in fragment descriptor")
-                << makeErrorAttributes();
+                .With(makeErrorAttributes());
         }
 
         auto flushedRecordCount = Index_->GetFlushedDataRecordCount();
@@ -878,8 +878,8 @@ private:
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::MissingJournalChunkRecord,
                 "Journal chunk record is missing")
-                << makeErrorAttributes()
-                << TErrorAttribute("flushed_record_count", flushedRecordCount);
+                .With(makeErrorAttributes())
+                .With("flushed_record_count", flushedRecordCount);
         }
 
         auto range = Index_->GetRecordRange(fragmentDescriptor.BlockIndex);
@@ -892,7 +892,7 @@ private:
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::MalformedReadRequest,
                 "Negative length in fragment descriptor")
-                << makeErrorAttributes();
+                .With(makeErrorAttributes());
         }
 
         if (fragmentDescriptor.BlockOffset < 0 ||
@@ -901,8 +901,8 @@ private:
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::MalformedReadRequest,
                 "Fragment is out of record range")
-                << makeErrorAttributes()
-                << TErrorAttribute("record_length", recordLength);
+                .With(makeErrorAttributes())
+                .With("record_length", recordLength);
         }
 
         return TReadRequest{
@@ -1043,7 +1043,7 @@ private:
             return onError(TError(
                 NHydra::EErrorCode::BrokenChangelog,
                 "Record buffer is too small to fit record header")
-                << TErrorAttribute("record_index", recordIndex));
+                .With("record_index", recordIndex));
         }
 
         const auto* header = reinterpret_cast<const TRecordHeader*>(buffer.Begin() + currentOffset);
@@ -1053,37 +1053,37 @@ private:
             return onError(TError(
                 NHydra::EErrorCode::BrokenChangelog,
                 "Invalid record index in header")
-                << TErrorAttribute("expected_record_index", recordIndex)
-                << TErrorAttribute("actual_record_index", header->RecordIndex));
+                .With("expected_record_index", recordIndex)
+                .With("actual_record_index", header->RecordIndex));
         }
 
         if (header->ChangelogUuid != Uuid_) {
             return onError(TError(
                 NHydra::EErrorCode::BrokenChangelog,
                 "Invalid changelog UUID in record header")
-                << TErrorAttribute("expected_uuid", Uuid_)
-                << TErrorAttribute("actual_uuid", header->ChangelogUuid));
+                .With("expected_uuid", Uuid_)
+                .With("actual_uuid", header->ChangelogUuid));
         }
 
         if (header->PayloadSize < 0) {
             return onError(TError(
                 NHydra::EErrorCode::BrokenChangelog,
                 "Negative payload size in record header")
-                << TErrorAttribute("record_index", recordIndex));
+                .With("record_index", recordIndex));
         }
 
         if (header->PagePaddingSize < 0) {
             return onError(TError(
                 NHydra::EErrorCode::BrokenChangelog,
                 "Negative page padding size in record header")
-                << TErrorAttribute("record_index", recordIndex));
+                .With("record_index", recordIndex));
         }
 
         if (currentOffset + header->PayloadSize > std::ssize(buffer)) {
             return onError(TError(
                 NHydra::EErrorCode::BrokenChangelog,
                 "Read buffer is too small to fit record data")
-                << TErrorAttribute("record_index", recordIndex));
+                .With("record_index", recordIndex));
         }
 
         auto record = buffer.Slice(currentOffset, currentOffset + header->PayloadSize);
@@ -1093,7 +1093,7 @@ private:
             return onError(TError(
                 NHydra::EErrorCode::BrokenChangelog,
                 "Invalid record data checksum")
-                << TErrorAttribute("record_index", recordIndex));
+                .With("record_index", recordIndex));
         }
 
         currentOffset += AlignUpSpace<i64>(header->PayloadSize, ChangelogQWordAlignment);
@@ -1103,7 +1103,7 @@ private:
             return onError(TError(
                 NHydra::EErrorCode::BrokenChangelog,
                 "Read buffer is too small to fit record padding")
-                << TErrorAttribute("record_index", recordIndex));
+                .With("record_index", recordIndex));
         }
 
         return TRecordParseResult{

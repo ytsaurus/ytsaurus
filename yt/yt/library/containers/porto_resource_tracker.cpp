@@ -337,7 +337,7 @@ T TPortoResourceTracker::GetStatistics(
     } catch (const std::exception& ex) {
         if (!cachedStatistics) {
             THROW_ERROR_EXCEPTION("Unable to get %v statistics", statisticsKind)
-                << ex;
+                .With(ex);
         }
         YT_LOG_WARNING(ex, "Unable to get %v statistics; using the last one", statisticsKind);
         return *cachedStatistics;
@@ -460,7 +460,7 @@ void TPortoResourceTracker::ReCalculateResourceUsage(const TResourceUsage& newRe
 
             if (auto newValueIt = (newResourceUsage.*containerStats).find(stat); newValueIt.IsEnd()) {
                 newValue = TError("Missing property %Qlv in Porto response", stat)
-                    << TErrorAttribute("container", Instance_->GetName());
+                    .With("container", Instance_->GetName());
             } else {
                 newValue = newValueIt->second;
             }

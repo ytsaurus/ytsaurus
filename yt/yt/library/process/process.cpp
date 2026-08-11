@@ -72,7 +72,7 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawn_file_actions_init(&Actions_) != 0,
             TError("Failed to initialize spawn file actions object")
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
     }
 
     ~TPosixSpawnFileActions()
@@ -88,9 +88,9 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawn_file_actions_adddup2(&Actions_, oldFD, newFD) != 0,
             TError("Failed to add dup2 file action")
-                << TErrorAttribute("old_fd", oldFD)
-                << TErrorAttribute("new_fd", newFD)
-                << TError::FromSystem());
+                .With("old_fd", oldFD)
+                .With("new_fd", newFD)
+                .With(TError::FromSystem()));
     }
 
 #ifdef __APPLE__
@@ -99,7 +99,7 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawn_file_actions_addchdir_np(&Actions_, path.c_str()) != 0,
             TError("Failed to add chdir file action for path %v", path)
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
     }
 #endif
 
@@ -122,7 +122,7 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_init(&Actions_) != 0,
             TError("Failed to initialize spawnattrs object")
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
     }
 
     ~TPosixSpawnAttrs()
@@ -140,7 +140,7 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setsigdefault(&Actions_, &allBlocked) != 0,
             TError("Failed to set spawnattrs default signal handlers")
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
 
         UpdateFlags(POSIX_SPAWN_SETSIGDEF);
     }
@@ -150,7 +150,7 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setsigmask(&Actions_, sigset) != 0,
             TError("Failed to set spawnattrs signal mask")
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
 
         UpdateFlags(POSIX_SPAWN_SETSIGMASK);
     }
@@ -160,7 +160,7 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setpgroup(&Actions_, 0) != 0,
             TError("Failed to set spawnattrs pgroup")
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
 
         UpdateFlags(POSIX_SPAWN_SETPGROUP);
     }
@@ -179,7 +179,7 @@ private:
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_setflags(&Actions_, currentFlags | mask) != 0,
             TError("Failed to set spawnattrs flags")
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
     }
 
     short GetFlags() const
@@ -189,7 +189,7 @@ private:
         THROW_ERROR_EXCEPTION_IF(
             ::posix_spawnattr_getflags(&Actions_, &flags) != 0,
             TError("Failed to get spawnattrs flags")
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
         return flags;
     }
 };
@@ -212,7 +212,7 @@ TErrorOr<std::string> ResolveBinaryPath(const std::string& binary)
         if (access(path, R_OK | X_OK) == 0) {
             return true;
         } else {
-            auto error = TError("Cannot run %Qlv", path) << TError::FromSystem();
+            auto error = TError("Cannot run %Qlv", path).With(TError::FromSystem());
             accumulatedErrors.push_back(std::move(error));
             return false;
         }
@@ -470,7 +470,7 @@ public:
         const auto& action = SpawnActions_[actionIndex];
 
         return TError("%v", action.ErrorMessage)
-            << TError::FromSystem(errorCode);
+            .With(TError::FromSystem(errorCode));
     #else
         THROW_ERROR_EXCEPTION("Unsupported platform");
     #endif
@@ -610,7 +610,7 @@ private:
         THROW_ERROR_EXCEPTION_IF(
             result != 0,
             TError("Failed to spawn process with posix_spawn")
-                << TError::FromSystem());
+                .With(TError::FromSystem()));
 
         return pid;
     }
@@ -625,8 +625,8 @@ private:
 
         if (pid < 0) {
             THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
-                << TErrorAttribute("path", Path_)
-                << TError::FromSystem();
+                .With("path", Path_)
+                .With(TError::FromSystem());
         }
 
         if (pid == 0) {
@@ -739,7 +739,7 @@ TFuture<void> TProcessBase::Spawn()
 
             if (retryIndex == 0) {
                 THROW_ERROR_EXCEPTION("Failed to resolve binary path %v", Path_)
-                    << innerErrors;
+                    .With(innerErrors);
             }
 
             TDelayedExecutor::WaitForDuration(ResolveRetryTimeout);
@@ -750,7 +750,7 @@ TFuture<void> TProcessBase::Spawn()
         FinishedPromise_.TrySet(TError(EProcessErrorCode::CannotStartProcess,
             "Cannot spawn child process %v",
             ResolvedPath_)
-            << ex);
+            .With(ex));
     }
     return FinishedPromise_.ToFuture().ToUncancelable();
 }
@@ -784,7 +784,7 @@ void TSimpleProcess::DoSpawn()
 
     if (!TrySetSignalMask(&allBlocked, &oldSignals)) {
         THROW_ERROR_EXCEPTION("Failed to block all signals")
-            << TError::FromSystem();
+            .With(TError::FromSystem());
     }
 
     PrepareSpawnActions(&oldSignals);
@@ -987,7 +987,7 @@ void TSimpleProcess::Kill(int signal)
 
     if (!result) {
         THROW_ERROR_EXCEPTION("Failed to kill child process %v", ProcessId_)
-            << TError::FromSystem();
+            .With(TError::FromSystem());
     }
     return;
 #else

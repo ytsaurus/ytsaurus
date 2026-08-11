@@ -128,17 +128,17 @@ TTableSchemaPtr RenameColumnsInSchema(
         }
         if (!columnMapping.empty()) {
             THROW_ERROR_EXCEPTION("Rename is supported only for columns in schema")
-                << TErrorAttribute("failed_rename_descriptors", columnMapping)
-                << TErrorAttribute("schema", schema);
+                .With("failed_rename_descriptors", columnMapping)
+                .With("schema", schema);
         }
         schema = New<TTableSchema>(newColumns, schema->IsStrict(), schema->IsUniqueKeys());
         ValidateColumnUniqueness(*schema);
         return schema;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error renaming columns")
-            << TErrorAttribute("table_description", tableDescription)
-            << TErrorAttribute("column_rename_descriptors", renameDescriptors)
-            << ex;
+            .With("table_description", tableDescription)
+            .With("column_rename_descriptors", renameDescriptors)
+            .With(ex);
     }
 }
 
@@ -212,7 +212,7 @@ void UpdateAbortedJobError(
     if (!error.Attributes().Find<std::string>("abort_reason")) {
         auto inner = std::move(error);
         error = TError("Job aborted by controller agent")
-            << TErrorAttribute("abort_reason", abortReason);
+            .With("abort_reason", abortReason);
         if (!inner.IsOK()) {
             error <<= std::move(inner);
         }

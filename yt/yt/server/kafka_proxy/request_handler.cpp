@@ -564,7 +564,7 @@ private:
         auto authResultOrError = WaitFor(authenticator->Authenticate(TTokenCredentials{.Token = std::move(token)}));
         if (!authResultOrError.IsOK()) {
             auto error = TError("Failed to authenticate user")
-                << authResultOrError;
+                .With(authResultOrError);
             YT_LOG_DEBUG(error);
             fillError(ToString(error));
             return response;

@@ -50,9 +50,9 @@ TMemberPtr TGroup::AddOrUpdateMember(
                 "Cannot add member %v to group %v: member limit exceeded",
                 memberInfo.Id,
                 Id_)
-                << TErrorAttribute("group", memberInfo.Id)
-                << TErrorAttribute("member_count", std::ssize(Members_))
-                << TErrorAttribute("max_members_per_group", groupManagerInfo.Config->MaxMembersPerGroup);
+                .With("group", memberInfo.Id)
+                .With("member_count", std::ssize(Members_))
+                .With("max_members_per_group", groupManagerInfo.Config->MaxMembersPerGroup);
         }
     }
 

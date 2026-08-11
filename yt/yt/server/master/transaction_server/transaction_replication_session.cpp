@@ -183,8 +183,8 @@ void TTransactionReplicationSessionBase::ValidateTransactionCellTags() const
         auto cellTag = CellTagFromId(transactionId);
         if (!isKnownCellTag(cellTag)) {
             THROW_ERROR_EXCEPTION("Unknown transaction cell tag")
-                << TErrorAttribute("transaction_id", transactionId)
-                << TErrorAttribute("cell_tag", cellTag);
+                .With("transaction_id", transactionId)
+                .With("cell_tag", cellTag);
         }
     }
 }
@@ -359,7 +359,7 @@ void TTransactionReplicationSessionBase::LogAndThrowUnknownTransactionPresenceEr
 
     // TODO(shakurov): a more specific error code?
     auto error = TError(NYT::NRpc::EErrorCode::Unavailable, "Cannot reliably check transaction presence; probably current epoch ended; the request will be dropped")
-        << TErrorAttribute("transaction_id", transactionId);
+        .With("transaction_id", transactionId);
     THROW_ERROR(WrapError(std::move(error)));
 }
 
@@ -737,7 +737,7 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
 
                 auto wrappedError = WrapError(
                     error.Wrap("Failed to replicate necessary remote transactions")
-                        << TErrorAttribute("mutation_id", mutationId));
+                        .With("mutation_id", mutationId));
                 return MakeFuture<TSharedRefArray>(std::move(wrappedError));
             }
 

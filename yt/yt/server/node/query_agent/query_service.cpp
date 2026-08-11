@@ -149,7 +149,7 @@ T ExecuteRequestWithRetries(
         }
     }
     THROW_ERROR_EXCEPTION("Request failed after %v retries", maxRetries)
-        << errors;
+        .With(errors);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -618,7 +618,7 @@ private:
                 servantNotActiveErrors[0].ThrowOnError();
             } else {
                 THROW_ERROR_EXCEPTION("Some tablet servants are not active")
-                    << servantNotActiveErrors;
+                    .With(servantNotActiveErrors);
             }
         }
 
@@ -1498,8 +1498,8 @@ private:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error fetching tablet %v stores",
                     tabletId)
-                    << TErrorAttribute("tablet_id", tabletId)
-                    << ex;
+                    .With("tablet_id", tabletId)
+                    .With(ex);
             }
         }
 

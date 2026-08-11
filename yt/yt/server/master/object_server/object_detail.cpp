@@ -876,7 +876,7 @@ void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error setting custom attribute %Qv",
             ToYPathLiteral(key))
-            << ex;
+            .With(ex);
     }
 }
 
@@ -890,7 +890,7 @@ void TObjectProxyBase::GuardedValidateCustomAttributeRemoval(TStringBuf key)
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error removing custom attribute %Qv",
             ToYPathLiteral(key))
-            << ex;
+            .With(ex);
     }
 }
 
@@ -952,8 +952,8 @@ void TObjectProxyBase::ValidateAnnotation(const std::string& annotation)
 {
     if (annotation.size() > MaxAnnotationLength) {
         THROW_ERROR_EXCEPTION("Annotation is too long")
-            << TErrorAttribute("annotation_length", annotation.size())
-            << TErrorAttribute("maximum_annotation_length", MaxAnnotationLength);
+            .With("annotation_length", annotation.size())
+            .With("maximum_annotation_length", MaxAnnotationLength);
     }
 
     auto isAsciiText = [] (char c) {

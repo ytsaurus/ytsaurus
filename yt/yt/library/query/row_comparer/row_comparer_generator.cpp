@@ -260,7 +260,7 @@ private:
                 return TTypeBuilder<TDynamicValueData>::TStringType::Get(Builder_.Context_);
             default:
                 THROW_ERROR_EXCEPTION("Unsupported type")
-                    << TErrorAttribute("type", type);
+                    .With("type", type);
         }
     }
 
@@ -336,7 +336,7 @@ private:
                 return TTypeBuilder<TUnversionedValueData>::TStringType::Get(Builder_.Context_);
             default:
                 THROW_ERROR_EXCEPTION("Unsupported type")
-                    << TErrorAttribute("type", ToString(type));
+                    .With("type", ToString(type));
         }
     }
 
@@ -434,7 +434,7 @@ Value* TComparerBuilder::CreateCmp(Value* lhs, Value* rhs, EValueType type, bool
             return CreateFCmp(isLessThan ? CmpInst::FCMP_ULT : CmpInst::FCMP_UGT, lhs, rhs);
         default:
             THROW_ERROR_EXCEPTION("Unsupported type")
-                << TErrorAttribute("type", ToString(type));
+                .With("type", ToString(type));
     }
 }
 

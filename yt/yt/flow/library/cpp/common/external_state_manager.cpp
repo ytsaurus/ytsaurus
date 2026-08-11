@@ -15,7 +15,7 @@ void IExternalStateManager::TDynamicParametersBase::Register(TRegistrar /*regist
 TFuture<IExternalStateManager::TListResult> IExternalStateManager::List(TFilter /*filter*/, i64 /*limit*/, std::optional<TKey> /*offsetExclusive*/)
 {
     return MakeFuture<IExternalStateManager::TListResult>(TError("List is not implemented")
-        << TErrorAttribute("type", TypeName(*this)));
+            .With("type", TypeName(*this)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,7 +38,7 @@ bool IExternalStateJoiner::IsVisitorDriven() const
 TFuture<IExternalStateJoiner::TListResult> IExternalStateJoiner::List(TFilter /*filter*/, i64 /*limit*/, std::optional<TKey> /*offsetExclusive*/)
 {
     return MakeFuture<IExternalStateJoiner::TListResult>(TError("List is not implemented")
-        << TErrorAttribute("type", TypeName(*this)));
+            .With("type", TypeName(*this)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

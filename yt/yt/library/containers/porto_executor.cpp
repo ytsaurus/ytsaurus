@@ -113,7 +113,7 @@ THashMap<std::string, TErrorOr<std::string>> ParsePortoGetResponse(
             result[property.variable()] = std::string(property.value());
         } else {
             result[property.variable()] = TError(ConvertPortoErrorCode(property.error()), TRuntimeFormat(property.errormsg()))
-                << TErrorAttribute("porto_error", ConvertPortoErrorCode(property.error()));
+                .With("porto_error", ConvertPortoErrorCode(property.error()));
         }
     }
     return result;
@@ -129,7 +129,7 @@ THashMap<std::string, TErrorOr<std::string>> ParseSinglePortoGetResponse(
         }
     }
     THROW_ERROR_EXCEPTION("Unable to get properties from Porto")
-        << TErrorAttribute("container", name);
+        .With("container", name);
 }
 
 THashMap<std::string, THashMap<std::string, TErrorOr<std::string>>> ParseMultiplePortoGetResponse(
@@ -535,8 +535,8 @@ private:
     static TError CreatePortoError(EPortoErrorCode errorCode, const std::string& message)
     {
         return TError(errorCode, "Porto API error")
-            << TErrorAttribute("original_porto_error_code", static_cast<int>(errorCode) - PortoErrorCodeBase)
-            << TErrorAttribute("porto_error_message", message);
+            .With("original_porto_error_code", static_cast<int>(errorCode) - PortoErrorCodeBase)
+            .With("porto_error_message", message);
     }
 
     THashMap<std::string, TErrorOr<std::string>> DoGetContainerProperties(
@@ -1147,7 +1147,7 @@ private:
 
                     it->second.Set(exitStatus);
                 } catch (const std::exception& ex) {
-                    it->second.Set(TError("Failed to parse Porto exit status") << ex);
+                    it->second.Set(TError("Failed to parse Porto exit status").With(ex));
                 }
             }
         }

@@ -96,9 +96,9 @@ public:
     {
         if (TInstant::Now() > Deadline_) {
             auto exceededError = TError(NYT::EErrorCode::Timeout, "Periodic timeout exceeded")
-                << TErrorAttribute("replica_index", Client_->GetIndex())
-                << TErrorAttribute("node_path", NodePath_)
-                << TErrorAttribute("target_version", TargetVersion_);
+                .With("replica_index", Client_->GetIndex())
+                .With("node_path", NodePath_)
+                .With("target_version", TargetVersion_);
             Acquired_.Set(std::move(exceededError));
             return OKFuture;
         }

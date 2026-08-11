@@ -49,9 +49,9 @@ void ValidateIsGroupable(const TTableSchema& schema, const TTableSchema& groupBy
         if (auto* mainColumn = schema.FindColumn(column.Name())) {
             if (*mainColumn->LogicalType() != *column.LogicalType() && *mainColumn->LogicalType() != *DenullifyLogicalType(column.LogicalType())) {
                 THROW_ERROR_EXCEPTION("Column %Qv has inconsistent types in original and group-by schemas",
-                        column.Name())
-                    << TErrorAttribute("source_type", ToString(*mainColumn->LogicalType()))
-                    << TErrorAttribute("group_by_type", ToString(*column.LogicalType()));
+                    column.Name())
+                    .With("source_type", ToString(*mainColumn->LogicalType()))
+                    .With("group_by_type", ToString(*column.LogicalType()));
             }
         } else {
             THROW_ERROR_EXCEPTION("Source schema should contains non-expression group-by column %Qv",
@@ -92,8 +92,8 @@ void ValidateSchemaExpressions(
         YT_VERIFY(evaluator != nullptr);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Invalid expression in schema")
-            << TErrorAttribute("schema", ToString(*schema))
-            << ex;
+            .With("schema", ToString(*schema))
+            .With(ex);
     }
 }
 

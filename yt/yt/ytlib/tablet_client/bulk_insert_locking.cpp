@@ -165,7 +165,7 @@ void LockDynamicTables(
         }
 
         THROW_ERROR_EXCEPTION("Could not lock output dynamic tables %v", failedTables)
-            << std::move(innerErrors);
+            .With(std::move(innerErrors));
     }
 
     YT_LOG_INFO("Dynamic tables locking completed");

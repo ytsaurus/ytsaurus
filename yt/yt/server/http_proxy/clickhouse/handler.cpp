@@ -304,13 +304,13 @@ private:
             } else {
                 return TError(
                     "Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected")
-                    << TErrorAttribute("credentials_decoded", credentialsDecoded);
+                    .With("credentials_decoded", credentialsDecoded);
             }
 
         } else {
             return TError("Unsupported authorization header type %Qv",
                 authorizationType)
-                << TErrorAttribute("token_count", authorizationTypeAndCredentials.size());
+                .With("token_count", authorizationTypeAndCredentials.size());
         }
         YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
 
@@ -409,7 +409,7 @@ private:
             ProxiedRequestHeaders_->Set("X-Yt-Sampled", ToString(traceContext->IsSampled()));
         } catch (const std::exception& ex) {
             ReplyWithError(EStatusCode::InternalServerError, TError("Preparation failed")
-                << ex);
+                .With(ex));
             return false;
         }
         return true;
@@ -486,7 +486,7 @@ private:
             }
         } catch (const std::exception& ex) {
             ReplyWithError(EStatusCode::InternalServerError, TError("Failed to forward request")
-                << ex);
+                .With(ex));
         }
 
         return true;
@@ -643,7 +643,7 @@ private:
             ReplyWithError(
                 EStatusCode::BadRequest,
                 TError("Error while fetching authorization and clique specification data")
-                    << ex);
+                    .With(ex));
             return false;
         }
     }
@@ -703,7 +703,7 @@ private:
             ReplyWithError(
                 EStatusCode::Unauthorized,
                 TError("Authentication failed")
-                    << ex);
+                    .With(ex));
             return false;
         }
     }
@@ -744,7 +744,7 @@ private:
         auto valueOrError = WaitFor(discoveryFuture);
         if (!valueOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Clique discovery is not found")
-                << valueOrError;
+                .With(valueOrError);
         }
 
         return valueOrError.Value();
@@ -781,7 +781,7 @@ private:
             YT_LOG_DEBUG("Discovery is ready");
         } catch (const std::exception& ex) {
             PushError(TError("Failed to create discovery")
-                << ex);
+                .With(ex));
             return false;
         }
 
@@ -825,7 +825,7 @@ private:
             return true;
         } catch (const std::exception& ex) {
             PushError(TError("Failed to discover instances")
-                << ex);
+                .With(ex));
             return false;
         }
     }
@@ -874,7 +874,7 @@ private:
                 ReplyWithError(
                     EStatusCode::BadRequest,
                     TError("Clique %v is not running; actual state = %lv", CliqueAlias_, state)
-                        << TErrorAttribute("operation_id", OperationId_));
+                        .With("operation_id", OperationId_));
                 return false;
             }
 
@@ -901,7 +901,7 @@ private:
             ReplyWithError(
                 EStatusCode::BadRequest,
                 TError("Invalid clique specification")
-                    << ex);
+                    .With(ex));
             return false;
         }
     }
@@ -920,7 +920,7 @@ private:
                 auto replyError = TError("User %Qv has no access to clique %Qv",
                     User_,
                     CliqueAlias_)
-                    << error;
+                    .With(error);
                 if (OperationAcl_) {
                     replyError <<= TErrorAttribute("operation_acl", OperationAcl_);
                 }
@@ -931,7 +931,7 @@ private:
                     TError("Failed to authorize user %Qv to clique %Qv",
                         User_,
                         CliqueAlias_)
-                        << error);
+                        .With(error));
             }
             return false;
         }
@@ -1066,7 +1066,7 @@ private:
                 // Get parameter from any instance, they all have the same value.
                 result = Instances_.cbegin()->second->template Find<std::optional<int>>("query_sticky_group_size");
             } catch (const std::exception& ex) {
-                return TError("Failed to parse query sticky group size") << ex;
+                return TError("Failed to parse query sticky group size").With(ex);
             }
         }
 
@@ -1155,8 +1155,8 @@ private:
                 auto statusCodeStr = ToString(static_cast<int>(statusCode)) + " (" + ToString(statusCode)+ ")";
 
                 responseOrError = TError("The requested server is not a clickhouse instance")
-                    << TErrorAttribute("status_code", statusCodeStr)
-                    << TErrorAttribute("headers", headers);
+                    .With("status_code", statusCodeStr)
+                    .With("headers", headers);
             }
         }
 
@@ -1168,9 +1168,9 @@ private:
             return true;
         } else {
             RequestErrors_.push_back(responseOrError
-                << TErrorAttribute("instance_host", InstanceHost_)
-                << TErrorAttribute("instance_http_port", InstanceHttpPort_)
-                << TErrorAttribute("proxy_retry_index", retryIndex));
+                .With("instance_host", InstanceHost_)
+                .With("instance_http_port", InstanceHttpPort_)
+                .With("proxy_retry_index", retryIndex));
             YT_LOG_DEBUG(responseOrError, "Proxied request failed (RetryIndex: %v)", retryIndex);
             BannedCounter_.Increment();
             Discovery_->Value()->Ban(InstanceId_);
@@ -1181,7 +1181,7 @@ private:
     void ReplyWithAllOccurredErrors(TError error)
     {
         ReplyWithError(EStatusCode::InternalServerError, error
-            << RequestErrors_);
+            .With(RequestErrors_));
     }
 
     void InitializeInstance(const std::string& id, const NYTree::IAttributeDictionaryPtr& attributes)

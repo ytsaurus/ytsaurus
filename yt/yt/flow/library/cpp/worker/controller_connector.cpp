@@ -365,8 +365,8 @@ private:
                 return;
             }
             Disconnect(TError("Controller address was changed")
-                << TErrorAttribute("old_address", ControllerAddress_)
-                << TErrorAttribute("new_address", newAddress));
+                    .With("old_address", ControllerAddress_)
+                    .With("new_address", newAddress));
         } catch (const std::exception& ex) {
             YT_TLOG_ERROR("Failed to check that controller address was not changed")
                 .With(ex);
@@ -471,8 +471,8 @@ private:
                 .With("ControllerWaitTimeout", GetControllerConnectorSpec()->ControllerWaitTimeout);
             JobTracker_->CancelAllJobs(TError(EErrorCode::AbandonedJob,
                 "Job is abandoned: too long without successful controller heartbeats")
-                << TErrorAttribute("last_heartbeat_time", LastHeartbeatTime_)
-                << TErrorAttribute("controller_wait_timeout", GetControllerConnectorSpec()->ControllerWaitTimeout));
+                    .With("last_heartbeat_time", LastHeartbeatTime_)
+                    .With("controller_wait_timeout", GetControllerConnectorSpec()->ControllerWaitTimeout));
         }
 
         Connected_ = false;

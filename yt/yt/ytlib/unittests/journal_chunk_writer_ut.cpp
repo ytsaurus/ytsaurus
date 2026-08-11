@@ -195,8 +195,8 @@ private:
             i64 recordCount = std::ssize(Records_);
             if (held.FirstRecordIndex > recordCount) {
                 error = TError(NChunkClient::EErrorCode::MissingJournalChunkRecord, "Missing blocks")
-                    << TErrorAttribute("start_block_index", recordCount)
-                    << TErrorAttribute("end_block_index", held.FirstRecordIndex - 1);
+                    .With("start_block_index", recordCount)
+                    .With("end_block_index", held.FirstRecordIndex - 1);
             } else {
                 for (i64 index = recordCount - held.FirstRecordIndex; index < std::ssize(held.Records); ++index) {
                     Records_.push_back(held.Records[index]);

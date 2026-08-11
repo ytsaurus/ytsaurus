@@ -76,7 +76,7 @@ THashMap<std::string, int> GetGpuMinorNumbers(TDuration timeout)
                 gpuNumber = FromString<int>(gpuNumberString);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Invalid 'nvidia-smi -q' output format: failed to parse GPU Minor Number")
-                    << ex;
+                    .With(ex);
             }
 
             index = eolIndex;

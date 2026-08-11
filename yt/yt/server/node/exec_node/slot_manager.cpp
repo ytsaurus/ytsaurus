@@ -104,7 +104,7 @@ void TSlotManager::OnContainerDevicesCheckFinished(const TError& error)
             }
 
             result = TError("Test container could not be created, snapshot container needs to be restarted")
-                << error;
+                .With(error);
         }
     }
 
@@ -452,11 +452,11 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDeprecatedDiskReques
 
     if (!bestLocation) {
         THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::SlotNotFound, "No feasible slot found")
-            << TErrorAttribute("alive_location_count", AliveLocations_.size())
-            << TErrorAttribute("feasible_location_count", feasibleLocationCount)
-            << TErrorAttribute("skipped_by_disk_space", skippedByDiskSpace)
-            << TErrorAttribute("skipped_by_medium", skippedByMedium)
-            << TErrorAttribute("skipped_by_disabled", skippedByDisabled);
+            .With("alive_location_count", AliveLocations_.size())
+            .With("feasible_location_count", feasibleLocationCount)
+            .With("skipped_by_disk_space", skippedByDiskSpace)
+            .With("skipped_by_medium", skippedByMedium)
+            .With("skipped_by_disabled", skippedByDisabled);
     }
 
     auto slotType = ESlotType::Common;
@@ -686,7 +686,7 @@ void TSlotManager::InitializeSlots()
                     YT_LOG_DEBUG("Slot initialized (SlotIndex: %v)", slotIndex);
                     Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
                 } else {
-                    auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
+                    auto wrappedError = TError("Failed to initialize slot %v", slotIndex).With(error);
                     jobEnvironment->Disable(std::move(wrappedError));
                 }
             })
@@ -876,7 +876,7 @@ bool TSlotManager::Disable(TError error)
 
         auto wrappedError = TError(NExecNode::EErrorCode::SchedulerJobsDisabled, "Scheduler jobs disabled")
         // NB: Must copy here since error is used in volume manager too.
-            << error;
+            .With(error);
         YT_LOG_WARNING(wrappedError, "Disabling slot manager");
         Alerts_.SetAlertError(
             std::move(wrappedError));
@@ -886,7 +886,7 @@ bool TSlotManager::Disable(TError error)
     auto timeout = dynamicConfig->SlotReleaseTimeout;
 
     auto jobsAbortionError = TError("Job aborted due to fatal alert")
-        << TErrorAttribute("abort_reason", EAbortReason::NodeWithDisabledJobs);
+        .With("abort_reason", EAbortReason::NodeWithDisabledJobs);
 
     constexpr auto abortDramatically = [] (const char* error) {
         NLogging::TLogManager::Get()->Shutdown();
@@ -975,7 +975,7 @@ void TSlotManager::OnPortoExecutorFailed(const TError& error)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    Disable(TError(NExecNode::EErrorCode::PortoExecutorFailure, "Porto exeuctor failed") << error);
+    Disable(TError(NExecNode::EErrorCode::PortoExecutorFailure, "Porto exeuctor failed").With(error));
 }
 
 void TSlotManager::OnWaitingForJobCleanupTimeout(TError error)
@@ -1042,7 +1042,7 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
         setAlert(
             ESlotManagerAlertType::TooManyConsecutiveJobAbortions,
             TError("Too many consecutive scheduler job abortions")
-                << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveJobAborts),
+                .With("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveJobAborts),
             BIND(&TSlotManager::ResetConsecutiveAbortedJobCount, MakeStrong(this)));
     }
 
@@ -1058,7 +1058,7 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
             setAlert(
                 ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures,
                 TError("Too many consecutive GPU job failures")
-                    << TErrorAttribute("max_consecutive_gpu_job_failures", dynamicConfig->MaxConsecutiveGpuJobFailures),
+                    .With("max_consecutive_gpu_job_failures", dynamicConfig->MaxConsecutiveGpuJobFailures),
                 BIND(&TSlotManager::ResetConsecutiveFailedGpuJobCount, MakeStrong(this)));
         }
     }
@@ -1259,7 +1259,7 @@ void TSlotManager::FinishInitialization(const TError& error)
         State_.store(ESlotManagerState::Initialized);
     } else {
         auto wrappedError = TError(NExecNode::EErrorCode::SchedulerJobsDisabled, "Initialization failed")
-            << error;
+            .With(error);
 
         YT_LOG_WARNING(wrappedError, "Initialization failed");
 
@@ -1443,7 +1443,7 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
             locationResources->set_medium_index(info.medium_index());
         } catch (const std::exception& ex) {
             auto alert = TError("Failed to get location disk info")
-                << ex;
+                .With(ex);
             location->Disable(alert);
         }
     }

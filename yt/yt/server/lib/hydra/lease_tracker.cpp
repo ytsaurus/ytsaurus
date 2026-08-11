@@ -166,7 +166,7 @@ private:
 
         if (!Promise_.IsSet()) {
             auto error = TError("Could not acquire quorum")
-                << PingErrors_;
+                .With(PingErrors_);
             Promise_.Set(error);
         }
     }

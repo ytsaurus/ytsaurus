@@ -186,7 +186,7 @@ void TransformWithIndexStatement(
             THROW_ERROR_EXCEPTION("Cannot use index %v with %Qlv correspondence",
                 indexIt->IndexObjectId,
                 correspondence)
-                << TErrorAttribute("index_table_path", indexTableInfo->Path);
+                .With("index_table_path", indexTableInfo->Path);
         }
 
         ValidateIndexSchema(

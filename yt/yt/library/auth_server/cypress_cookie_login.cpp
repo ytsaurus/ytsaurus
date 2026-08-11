@@ -142,7 +142,7 @@ private:
                 ReplyAndLogError(
                     req,
                     rsp,
-                    TError("No such user %Qlv or user has no password set", user) << error,
+                    TError("No such user %Qlv or user has no password set", user).With(error),
                     /*maskError*/ true,
                     std::string(user));
                 return;
@@ -157,7 +157,7 @@ private:
             ReplyAndLogError(
                 req,
                 rsp,
-                TError("Failed to authenticate user %Qlv", user) << error,
+                TError("Failed to authenticate user %Qlv", user).With(error),
                 /*maskError*/ true,
                 std::string(user));
             throw;
@@ -183,7 +183,7 @@ private:
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
             auto error = TError("Failed to fetch password revision for user %Qv", login)
-                << TError(ex);
+                .With(TError(ex));
             ReplyAndLogError(req, rsp, error, /*maskError*/ false, login);
             throw;
         }
@@ -201,7 +201,7 @@ private:
 
         auto error = WaitFor(CookieStore_->RegisterCookie(cookie));
         if (!error.IsOK()) {
-            error = TError("Failed to register cookie in cookie store") << error;
+            error = TError("Failed to register cookie in cookie store").With(error);
             ReplyAndLogError(req, rsp, error, /*maskError*/ false, login);
             // Will return 500.
             error.ThrowOnError();

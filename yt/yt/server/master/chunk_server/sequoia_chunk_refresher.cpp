@@ -779,7 +779,7 @@ private:
                 if (!chunksOrError.IsOK()) {
                     // TODO(grphil): Maybe continue refresh for shards that are fetched.
                     THROW_ERROR_EXCEPTION("Error getting chunks for shard %v", shardIndex)
-                        << std::move(chunksOrError);
+                        .With(std::move(chunksOrError));
                 }
                 chunks[shardIndex] = std::move(chunksOrError).Value();
                 fetchedChunkCount[shardIndex] = chunks[shardIndex].size();

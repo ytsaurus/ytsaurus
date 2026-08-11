@@ -90,9 +90,9 @@ private:
 
         if (TypeFromId(sessionId.ChunkId) != EObjectType::NbdChunk) {
             THROW_ERROR_EXCEPTION("Invalid chunk type in session id")
-                << TErrorAttribute("chunk_id", sessionId.ChunkId)
-                << TErrorAttribute("expected_chunk_type", EObjectType::NbdChunk)
-                << TErrorAttribute("actual_chunk_type", TypeFromId(sessionId.ChunkId));
+                .With("chunk_id", sessionId.ChunkId)
+                .With("expected_chunk_type", EObjectType::NbdChunk)
+                .With("actual_chunk_type", TypeFromId(sessionId.ChunkId));
         }
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();

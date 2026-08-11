@@ -143,10 +143,10 @@ private:
             {
                 YT_LOG_WARNING("Mismatching disk ids found");
                 DiskIdsMismatchedAlert_.Store(TError(NDiskManager::EErrorCode::DiskIdsMismatched, "Disk ids mismatched")
-                    << TErrorAttribute("config_disk_ids", std::vector(configDiskIds.begin(), configDiskIds.end()))
-                    << TErrorAttribute("disk_ids", std::vector(diskIds.begin(), diskIds.end()))
-                    << TErrorAttribute("previous_alive_disk_ids", std::vector(oldDiskIds.begin(), oldDiskIds.end()))
-                    << TErrorAttribute("alive_disk_ids", std::vector(aliveDiskIds.begin(), aliveDiskIds.end())));
+                    .With("config_disk_ids", std::vector(configDiskIds.begin(), configDiskIds.end()))
+                    .With("disk_ids", std::vector(diskIds.begin(), diskIds.end()))
+                    .With("previous_alive_disk_ids", std::vector(oldDiskIds.begin(), oldDiskIds.end()))
+                    .With("alive_disk_ids", std::vector(aliveDiskIds.begin(), aliveDiskIds.end())));
             }
         }
 

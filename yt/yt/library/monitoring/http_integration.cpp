@@ -185,7 +185,7 @@ public:
         if (!path.StartsWith(orchidPrefix)) {
             THROW_ERROR_EXCEPTION("HTTP request must start with %Qv prefix",
                 orchidPrefix)
-                << TErrorAttribute("path", path);
+                .With("path", path);
         }
 
         path = path.substr(orchidPrefix.size(), TString::npos);
@@ -204,7 +204,7 @@ public:
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error parsing value of query parameter %Qv",
                         param.first)
-                        << ex;
+                        .With(ex);
                 }
 
                 options->SetYson(param.first, TYsonString(param.second));

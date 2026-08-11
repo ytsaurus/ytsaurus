@@ -433,7 +433,7 @@ public:
                 return MakeFuture<int>(TError(
                     NHydra::EErrorCode::ReadOnlySnapshotBuilt,
                     "The requested read-only snapshot was already built and its result was already lost")
-                    << TErrorAttribute("snapshot_id", lastSnapshotId));
+                    .With("snapshot_id", lastSnapshotId));
             }
             return MakeFuture<int>(TError(
                 NHydra::EErrorCode::ReadOnlySnapshotBuildFailed,
@@ -1411,8 +1411,8 @@ private:
                 epochContext->Term,
                 term);
             auto error = TError("Received accept mutations with a greater term")
-                << TErrorAttribute("self_term", epochContext->Term)
-                << TErrorAttribute("leader_term", term);
+                .With("self_term", epochContext->Term)
+                .With("leader_term", term);
             ScheduleRestart(epochContext, error);
             // TODO(aleksandra-zh): Maybe replace restart with:
             // epochContext->Term = term;
@@ -2152,7 +2152,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto wrappedError = TError("Error logging mutations")
-            << error;
+            .With(error);
         ScheduleRestart(ControlEpochContext_, wrappedError);
     }
 
@@ -2161,7 +2161,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto wrappedError = TError("Leader lease is lost")
-            << error;
+            .With(error);
         ScheduleRestart(weakEpochContext, wrappedError);
     }
 
@@ -3033,7 +3033,7 @@ private:
             LeaderSyncTimer_.Record(epochContext->LeaderSyncTimer.GetElapsedTime());
         } else {
             wrappedError = TError(NRpc::EErrorCode::Unavailable, "Error synchronizing with leader")
-                << std::move(error);
+                .With(std::move(error));
         }
 
         // NB: Many subscribers are typically waiting for the leader sync to complete.

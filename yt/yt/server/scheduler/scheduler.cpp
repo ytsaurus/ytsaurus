@@ -559,8 +559,8 @@ public:
                 user,
                 poolName,
                 treeId)
-                << result.ToError(user, permission)
-                << TErrorAttribute("path", path);
+                .With(result.ToError(user, permission))
+                .With("path", path);
         }
 
         YT_LOG_DEBUG("Pool permission successfully validated");
@@ -713,8 +713,8 @@ public:
             operation->SetAlertWithoutArchivation(
                 EOperationAlertType::SpecIsTooLarge,
                 TError("Operation spec is too large")
-                    << TErrorAttribute("spec_size", specSize)
-                    << TErrorAttribute("threshold", Config_->OperationSpecTooLargeAlertThreshold));
+                    .With("spec_size", specSize)
+                    .With("threshold", Config_->OperationSpecTooLargeAlertThreshold));
         }
 
         operation->SetStateAndEnqueueEvent(EOperationState::Starting);
@@ -741,7 +741,7 @@ public:
                 return operation->GetStarted();
             }
             auto wrappedError = TError("Operation has failed to start")
-                << ex;
+                .With(ex);
             operation->SetStarted(wrappedError);
             EraseOrCrash(IdToStartingOperation_, operationId);
             THROW_ERROR(wrappedError);
@@ -753,7 +753,7 @@ public:
 
         if (!preprocessedSpec.ExperimentAssignmentErrors.empty()) {
             LastExperimentAssignmentError_ = preprocessedSpec.ExperimentAssignmentErrors.front()
-                << TErrorAttribute("operation_id", operationId);
+                .With("operation_id", operationId);
             LastExperimentAssignmentErrorTime_ = TInstant::Now();
         }
 
@@ -897,13 +897,13 @@ public:
             operation->GetId(),
             EOperationAlertType::OperationCompletedByUserRequest,
             TError("Operation completed by user request")
-                << TErrorAttribute("user", user));
+                .With("user", user));
 
         const auto& controller = operation->GetController();
         auto completeError = WaitFor(controller->Complete());
         if (!completeError.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to complete operation %v", operation->GetId())
-                << completeError;
+                .With(completeError);
         }
 
         return operation->GetFinished();
@@ -987,7 +987,7 @@ public:
             treeId);
 
         auto error = TError("Allocation was in banned tentative pool tree")
-            << TErrorAttribute("abort_reason", EAbortReason::BannedInTentativeTree);
+            .With("abort_reason", EAbortReason::BannedInTentativeTree);
         NodeManager_->AbortAllocations(allocationIds, error, EAbortReason::BannedInTentativeTree);
 
         LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::OperationBannedInTree)
@@ -1048,7 +1048,7 @@ public:
             for (const auto& [jobShellName, options] : update->OptionsPerJobShell) {
                 if (!jobShellNames.contains(jobShellName)) {
                     THROW_ERROR_EXCEPTION("Job shell is not specified in operation")
-                        << TErrorAttribute("job_shell", jobShellName);
+                        .With("job_shell", jobShellName);
                 }
             }
         }
@@ -1154,8 +1154,8 @@ public:
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::TransientFailure,
                 "Cannot patch spec while another patch is in progress")
-                << TErrorAttribute("concurrent_patch_spec_user", operation->PatchSpecInProgress()->User)
-                << TErrorAttribute("concurrent_patch_spec_start_time", operation->PatchSpecInProgress()->StartTime);
+                .With("concurrent_patch_spec_user", operation->PatchSpecInProgress()->User)
+                .With("concurrent_patch_spec_start_time", operation->PatchSpecInProgress()->StartTime);
         }
 
         operation->PatchSpecInProgress().emplace(TPatchSpecInProgressInfo{
@@ -2376,12 +2376,12 @@ private:
                 newConfig->Load(configFromCypress, /*postprocess*/ true, /*setDefaults*/ false);
             } catch (const std::exception& ex) {
                 auto error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating scheduler configuration")
-                    << ex;
+                    .With(ex);
                 THROW_ERROR(error);
             }
         } catch (const std::exception& ex) {
             auto error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error parsing updated scheduler configuration")
-                << ex;
+                .With(ex);
             THROW_ERROR(error);
         }
 
@@ -2466,14 +2466,14 @@ private:
                 SetSchedulerAlert(
                     ESchedulerAlertType::ArchiveIsOutdated,
                     TError("Min required archive version is not met")
-                        << TErrorAttribute("version", version)
-                        << TErrorAttribute("min_required_version", Config_->MinRequiredArchiveVersion));
+                        .With("version", version)
+                        .With("min_required_version", Config_->MinRequiredArchiveVersion));
             } else {
                 SetSchedulerAlert(ESchedulerAlertType::ArchiveIsOutdated, TError());
             }
         } catch (const std::exception& ex) {
             auto error = TError("Error parsing operation archive version")
-                << ex;
+                .With(ex);
             SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, error);
         }
     }
@@ -2559,22 +2559,22 @@ private:
         std::vector<TError> errors;
         if (writeFailures > Config_->JobReporterWriteFailuresAlertThreshold) {
             auto error = TError("Too many job archive writes failed")
-                << TErrorAttribute("aggregation_period", Config_->JobReporterIssuesCheckPeriod)
-                << TErrorAttribute("threshold", Config_->JobReporterWriteFailuresAlertThreshold)
-                << TErrorAttribute("write_failures", writeFailures);
+                .With("aggregation_period", Config_->JobReporterIssuesCheckPeriod)
+                .With("threshold", Config_->JobReporterWriteFailuresAlertThreshold)
+                .With("write_failures", writeFailures);
             errors.push_back(error);
         }
         if (queueIsTooLargeNodeCount > Config_->JobReporterQueueIsTooLargeAlertThreshold) {
             auto error = TError("Too many nodes have large job archivation queues")
-                << TErrorAttribute("threshold", Config_->JobReporterQueueIsTooLargeAlertThreshold)
-                << TErrorAttribute("queue_is_too_large_node_count", queueIsTooLargeNodeCount);
+                .With("threshold", Config_->JobReporterQueueIsTooLargeAlertThreshold)
+                .With("queue_is_too_large_node_count", queueIsTooLargeNodeCount);
             errors.push_back(error);
         }
 
         TError resultError;
         if (!errors.empty()) {
             resultError = TError("Job archivation issues detected")
-                << errors;
+                .With(errors);
         }
 
         SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, resultError);
@@ -2669,12 +2669,12 @@ private:
                     std::vector<TError> treeErrors;
                     for (const auto& [treeId, error] : poolLimitViolations) {
                         treeErrors.push_back(error
-                            << TErrorAttribute("tree_id", treeId));
+                            .With("tree_id", treeId));
                     }
 
                     THROW_ERROR_EXCEPTION("All trees have been erased for operation")
-                        << treeErrors
-                        << TErrorAttribute("operation_id", operation->GetId());
+                        .With(treeErrors)
+                        .With("operation_id", operation->GetId());
                 }
             } catch (const std::exception& ex) {
                 if (aliasRegistered) {
@@ -2712,7 +2712,7 @@ private:
             }
 
             auto wrappedError = TError("Operation has failed to start")
-                << startError;
+                .With(startError);
             operation->SetStarted(wrappedError);
             return;
         }
@@ -2726,7 +2726,7 @@ private:
             } catch (const std::exception& ex) {
                 auto wrappedError = TError("Failed to issue temporary token for operation %v",
                     operation->GetId())
-                    << ex;
+                    .With(ex);
                 operation->SetStarted(wrappedError);
                 UnregisterOperation(operation);
                 return;
@@ -2739,7 +2739,7 @@ private:
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Failed to create Cypress node for operation %v",
                 operation->GetId())
-                << ex;
+                .With(ex);
             operation->SetStarted(wrappedError);
             UnregisterOperation(operation);
             return;
@@ -2829,7 +2829,7 @@ private:
             ValidateOperationState(operation, EOperationState::Initializing);
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
-                << ex;
+                .With(ex);
             OnOperationFailed(operation, wrappedError);
             return;
         }
@@ -2861,7 +2861,7 @@ private:
             operation->SetStateAndEnqueueEvent(EOperationState::Pending);
         } catch (const std::exception& ex) {
             auto wrappedError = TError(NScheduler::EErrorCode::OperationFailedToPrepare, "Operation has failed to prepare")
-                << ex;
+                .With(ex);
             OnOperationFailed(operation, wrappedError);
             return;
         }
@@ -2955,7 +2955,7 @@ private:
             YT_LOG_WARNING(ex, "Operation has failed to revive (OperationId: %v)",
                 operationId);
             auto wrappedError = TError("Operation has failed to revive")
-                << ex;
+                .With(ex);
             OnOperationFailed(operation, wrappedError);
         }
 
@@ -3026,8 +3026,8 @@ private:
         if (it != OperationAliases_.end()) {
             if (it->second.Operation) {
                 THROW_ERROR_EXCEPTION("Operation alias is already used by an operation")
-                    << TErrorAttribute("operation_alias", operation->Alias())
-                    << TErrorAttribute("operation_id", it->second.OperationId);
+                    .With("operation_alias", operation->Alias())
+                    .With("operation_id", it->second.OperationId);
             }
             YT_LOG_DEBUG("Assigning an already existing alias to a new operation (Alias: %v, OldOperationId: %v, NewOperationId: %v)",
                 *operation->Alias(),
@@ -3154,7 +3154,7 @@ private:
                     operation->GetId());
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to wait full heartbeat from agent for operation %v", operation->GetId())
-                    << ex;
+                    .With(ex);
                 YT_LOG_WARNING(error);
                 Bootstrap_->GetControllerAgentTracker()->HandleAgentFailure(agent, error);
             }
@@ -3418,7 +3418,7 @@ private:
             AbortOperationAllocations(
                 operation,
                 error
-                    << TErrorAttribute("abort_reason", EAbortReason::OperationSuspended),
+                    .With("abort_reason", EAbortReason::OperationSuspended),
                 EAbortReason::OperationSuspended,
                 /*terminated*/ false);
         } else {
@@ -3517,9 +3517,9 @@ private:
         AbortOperationAllocations(
             operation,
             TError("Operation terminated")
-                << TErrorAttribute("state", initialState)
-                << TErrorAttribute("abort_reason", allocationAbortReason)
-                << error,
+                .With("state", initialState)
+                .With("abort_reason", allocationAbortReason)
+                .With(error),
             allocationAbortReason,
             /*terminated*/ true);
 
@@ -3546,7 +3546,7 @@ private:
                     .ThrowOnError();
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to abort controller of operation %v", operation->GetId())
-                    << ex;
+                    .With(ex);
                 if (auto agent = operation->FindAgent()) {
                     YT_LOG_WARNING(error);
                     Bootstrap_->GetControllerAgentTracker()->HandleAgentFailure(agent, error);
@@ -3841,7 +3841,7 @@ private:
             SetSchedulerAlert(
                 ESchedulerAlertType::UnrecognizedConfigOptions,
                 TError("Scheduler config contains unrecognized options")
-                    << TErrorAttribute("unrecognized", unrecognized));
+                    .With("unrecognized", unrecognized));
         }
     }
 
@@ -3966,7 +3966,7 @@ private:
             YT_LOG_WARNING(ex, "Operation has failed to revive (OperationId: %v)",
                 operationId);
             auto wrappedError = TError("Operation has failed to revive")
-                << ex;
+                .With(ex);
             OnOperationFailed(operation, wrappedError);
         }
     }
@@ -4154,7 +4154,7 @@ private:
             THROW_ERROR_EXCEPTION("Access to perform %Qlv of operation %v denied",
                 action,
                 operation->GetId())
-                << errors;
+                .With(errors);
         }
     }
 

@@ -261,7 +261,7 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
 
     // No new actions can appear here. Please see TDiskLocation::RegisterAction.
     auto error = TError("Artifact location at %v is disabled", GetPath())
-        << TErrorAttribute("location_uuid", GetUuid());
+        .With("location_uuid", GetUuid());
     error = error << reason;
     LocationDisabledAlert_.Store(error);
 

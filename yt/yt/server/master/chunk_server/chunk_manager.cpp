@@ -2478,7 +2478,7 @@ public:
                 if (!IsMediumType(specifiedType)) {
                     if (throwOnInvalidId) {
                         THROW_ERROR_EXCEPTION("Invalid medium id")
-                            << TErrorAttribute("medium_id", mediumId);
+                            .With("medium_id", mediumId);
                     }
                     return nullptr;
                 }
@@ -2747,7 +2747,7 @@ public:
         if (enable) {
             if (std::ssize(VerboselyLoggedChunks_) >= GetDynamicConfig()->MaxVerboselyLoggedChunks) {
                 THROW_ERROR_EXCEPTION("Too many chunks with verbose logging enabled")
-                    << TErrorAttribute("limit", GetDynamicConfig()->MaxVerboselyLoggedChunks);
+                    .With("limit", GetDynamicConfig()->MaxVerboselyLoggedChunks);
             }
 
             VerboselyLoggedChunks_[chunkId] = GetCurrentMutationContext()->GetTimestamp();
@@ -2994,13 +2994,13 @@ private:
 
                 if (failOnLocationByIndexAndUuidMismatch) {
                     THROW_ERROR_EXCEPTION("UUID and index for the same location points to different locations")
-                        << TErrorAttribute("chunk_id", chunkId)
-                        << TErrorAttribute("node_id", node->GetId())
-                        << TErrorAttribute("node_address", node->GetDefaultAddress())
-                        << TErrorAttribute("location_index", locationIndex)
-                        << TErrorAttribute("location_uuid", locationUuid)
-                        << TErrorAttribute("location_by_index_id", locationByIndex.value() ? locationByIndex.value()->GetId() : NullObjectId)
-                        << TErrorAttribute("location_by_uuid_id", locationByUuid.value() ? locationByUuid.value()->GetId() : NullObjectId);
+                        .With("chunk_id", chunkId)
+                        .With("node_id", node->GetId())
+                        .With("node_address", node->GetDefaultAddress())
+                        .With("location_index", locationIndex)
+                        .With("location_uuid", locationUuid)
+                        .With("location_by_index_id", locationByIndex.value() ? locationByIndex.value()->GetId() : NullObjectId)
+                        .With("location_by_uuid_id", locationByUuid.value() ? locationByUuid.value()->GetId() : NullObjectId);
                 } else {
                     // NB: If locations mismatch and we cannot throw, better to return nullptr.
                     return nullptr;
@@ -7878,7 +7878,7 @@ private:
             return channel;
         } else {
             THROW_ERROR_EXCEPTION("Chunk replicator for chunk %v is not alive", chunk->GetId())
-                << TErrorAttribute("shard_index", chunk->GetShardIndex());
+                .With("shard_index", chunk->GetShardIndex());
         }
     }
 
@@ -8011,9 +8011,9 @@ private:
         for (const auto& [chunkId, enabledAt] : VerboselyLoggedChunks_) {
             if (enabledAt + maxDuration < now) {
                 alerts.push_back(TError("Chunk stays in verbose logging set for too long")
-                    << TErrorAttribute("chunk_id", chunkId)
-                    << TErrorAttribute("enabled_at", enabledAt)
-                    << TErrorAttribute("max_duration", maxDuration));
+                    .With("chunk_id", chunkId)
+                    .With("enabled_at", enabledAt)
+                    .With("max_duration", maxDuration));
             }
         }
 

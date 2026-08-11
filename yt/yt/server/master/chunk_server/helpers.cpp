@@ -1315,9 +1315,9 @@ TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView, std::optio
     } else {
         if (*keyColumnCount < upperLimitKey.GetCount()) {
             THROW_ERROR_EXCEPTION("Unexpected key shortening for chunk view")
-                << TErrorAttribute("chunk_view_id", chunkView->GetId())
-                << TErrorAttribute("key_column_count", *keyColumnCount)
-                << TErrorAttribute("key", ToString(upperLimitKey));
+                .With("chunk_view_id", chunkView->GetId())
+                .With("key_column_count", *keyColumnCount)
+                .With("key", ToString(upperLimitKey));
         }
         return std::min(chunkUpperBound, WidenKey(upperLimitKey, *keyColumnCount));
     }
@@ -1405,9 +1405,9 @@ TLegacyOwningKey GetMinKey(const TChunkView* chunkView, std::optional<int> keyCo
     } else {
         if (*keyColumnCount < lowerLimitKey.GetCount()) {
             THROW_ERROR_EXCEPTION("Unexpected key shortening for chunk view")
-                << TErrorAttribute("chunk_view_id", chunkView->GetId())
-                << TErrorAttribute("key_column_count", *keyColumnCount)
-                << TErrorAttribute("key", ToString(lowerLimitKey));
+                .With("chunk_view_id", chunkView->GetId())
+                .With("key_column_count", *keyColumnCount)
+                .With("key", ToString(lowerLimitKey));
         }
         return std::max(chunkMinKey, WidenKey(lowerLimitKey, *keyColumnCount));
     }
@@ -1572,9 +1572,9 @@ std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChu
             auto nextLowerLimit = lowerLimitOrEmptyKey(chunkView);
             if (nextLowerLimit < upperLimit) {
                 THROW_ERROR_EXCEPTION("Found intersecting chunk view ranges during merge")
-                    << TErrorAttribute("previous_upper_limit", upperLimit)
-                    << TErrorAttribute("lower_limit", lowerLimit)
-                    << TErrorAttribute("chunk_view_id", chunkView->GetId());
+                    .With("previous_upper_limit", upperLimit)
+                    .With("lower_limit", lowerLimit)
+                    .With("chunk_view_id", chunkView->GetId());
             } else if (nextLowerLimit == upperLimit) {
                 upperLimit = upperLimitOrMaxKey(chunkView);
             } else {
