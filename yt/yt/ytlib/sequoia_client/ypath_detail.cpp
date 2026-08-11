@@ -40,7 +40,7 @@ TRelativePath TRelativePath::MakeCanonicalPathOrThrow(TStringBuf path)
         THROW_ERROR_EXCEPTION(
             "Could not canonicalize relative path %v; the path is malformed or invalid",
             path)
-            << ex;
+            .With(ex);
     }
 
     return TRelativePath(builder.Flush());
@@ -72,7 +72,7 @@ TAbsolutePath TAbsolutePath::MakeCanonicalPathOrThrow(TStringBuf path)
         THROW_ERROR_EXCEPTION(
             "Could not canonicalize absolute path %v; the path is malformed or invalid",
             path)
-            << ex;
+            .With(ex);
     }
 
     return TAbsolutePath(builder.Flush());

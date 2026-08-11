@@ -38,7 +38,7 @@ public:
     {
         Underlying_->HandleError(
             TError(EErrorCode::SequoiaRetriableError, "Sequoia ground request failed")
-            << error,
+            .With(error),
             address);
     }
 

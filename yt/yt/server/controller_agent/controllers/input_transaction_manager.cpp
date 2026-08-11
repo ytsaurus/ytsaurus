@@ -196,15 +196,15 @@ TFuture<void> TInputTransactionManager::Revive(TControllerTransactionIds transac
             pingFutures.push_back(
                 MakeFuture(
                     TError("Failed to attach transaction")
-                        << TErrorAttribute("transaction_id", transactionIds.InputIds[i])));
+                        .With("transaction_id", transactionIds.InputIds[i])));
         } else {
             pingFutures.push_back(
                 transaction->Ping()
                     .Apply(BIND([transactionId = transaction->GetId()] (const TError& error) {
                         if (!error.IsOK()) {
                             THROW_ERROR_EXCEPTION("Failed to ping transaction")
-                                << TErrorAttribute("transaction_id", transactionId)
-                                << error;
+                                .With("transaction_id", transactionId)
+                                .With(error);
                         }
                     })
                         .AsyncVia(GetCurrentInvoker())));
@@ -314,17 +314,17 @@ TError TInputTransactionManager::ValidateSchedulerTransactions(
 {
     if (transactionIds.InputIds.size() != ParentToTransaction_.size()) {
         return TError("Inconsistent number of transactions")
-                << TErrorAttribute("cypress_transactions_count", transactionIds.InputIds.size())
-                << TErrorAttribute("controller_transactions_count", ParentToTransaction_.size());
+                .With("cypress_transactions_count", transactionIds.InputIds.size())
+                .With("controller_transactions_count", ParentToTransaction_.size());
     }
 
     for (const auto& [i, transactionId] : Enumerate(transactionIds.InputIds)) {
         if (!transactionId.Id) {
             return TError(
                 "Found null transaction coming from scheduler, considering all transactions to be lost")
-                << TErrorAttribute("transaction_id", transactionId.Id)
-                << TErrorAttribute("parent_transaction_id", transactionId.ParentId)
-                << TErrorAttribute("transaction_index", i);
+                .With("transaction_id", transactionId.Id)
+                .With("parent_transaction_id", transactionId.ParentId)
+                .With("transaction_index", i);
         }
     }
 
@@ -346,7 +346,7 @@ void TInputTransactionManager::ValidateRemoteOperationsAllowed(
         THROW_ERROR_EXCEPTION(
             "Cluster %Qv is not allowed to be an input remote cluster",
             clusterName)
-            << TErrorAttribute("input_table_path", path);
+            .With("input_table_path", path);
     }
 
     const auto& clusterConfig = ControllerConfig_->RemoteOperations[remoteClusterName];
@@ -360,7 +360,7 @@ void TInputTransactionManager::ValidateRemoteOperationsAllowed(
             "User %Qv is not allowed to start operations reading from cluster %Qv",
             authenticatedUser,
             clusterName)
-            << TErrorAttribute("input_table_path", path);
+            .With("input_table_path", path);
     }
 }
 

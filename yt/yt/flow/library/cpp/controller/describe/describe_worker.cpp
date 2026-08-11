@@ -68,7 +68,7 @@ TExtendedWorkerDescription DescribeWorker(
     auto worker = GetOrDefault(flowView->State->Workers, workerAddress);
     if (!worker) {
         THROW_ERROR_EXCEPTION("Worker not found")
-            << TErrorAttribute("worker_address", workerAddress);
+            .With("worker_address", workerAddress);
     }
 
     auto workerPartitions = GetOrDefault(GetWorkersPartitionIntermediateDescriptions(flowView, workerAddress), workerAddress);

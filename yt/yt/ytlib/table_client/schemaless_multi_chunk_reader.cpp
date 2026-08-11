@@ -1116,7 +1116,7 @@ std::tuple<std::vector<int>, TTimestampColumnMapping> CreateTimestampedMappings(
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to update name table for schemaless merging multi chunk reader")
-            << ex;
+            .With(ex);
     }
 
     return std::tuple(

@@ -390,7 +390,7 @@ private:
             THROW_ERROR_EXCEPTION(
                 "Error while fetching all access control objects in the namespace \"queries\"; "
                 "please make sure that the namespace exists")
-                << allAcosOrError;
+                .With(allAcosOrError);
         }
 
         auto allAcos = ConvertToNode(allAcosOrError.Value())->AsList()->GetChildren();
@@ -895,7 +895,7 @@ private:
             return PartialRecordsToQueries(records);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error while selecting active queries")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -967,7 +967,7 @@ private:
             return FetchQueriesByIds(admittedQueryIds, options, indexSearchOptions);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error while selecting finished queries")
-                << ex;
+                .With(ex);
         }
     }
 };
@@ -1090,7 +1090,7 @@ public:
             };
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error while selecting queries using token-based index")
-                << ex;
+                .With(ex);
         }
     }
 

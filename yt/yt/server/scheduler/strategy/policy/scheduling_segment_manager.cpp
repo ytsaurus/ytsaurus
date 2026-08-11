@@ -221,7 +221,7 @@ TError TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
                 }
                 if (!hasKnownModule) {
                     error = TError("Segment modules %v are not found in the tree", *operationState->SpecifiedSchedulingSegmentModules)
-                        << TErrorAttribute("modules", Config_->GetModules());
+                        .With("modules", Config_->GetModules());
                 }
             }
         } else {
@@ -824,8 +824,8 @@ void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingS
     auto validateNodeDescriptor = [&] (const TExecNodeDescriptor& node) -> TError {
         if (!node.InfinibandCluster || !Config_->InfinibandClusters.contains(*node.InfinibandCluster)) {
             return TError("Node's infiniband cluster is invalid or missing")
-                << TErrorAttribute("node_infiniband_cluster", node.InfinibandCluster)
-                << TErrorAttribute("configured_infiniband_clusters", Config_->InfinibandClusters);
+                .With("node_infiniband_cluster", node.InfinibandCluster)
+                .With("configured_infiniband_clusters", Config_->InfinibandClusters);
         }
 
         std::vector<std::string> infinibandClusterTags;
@@ -841,14 +841,14 @@ void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingS
 
         if (std::ssize(infinibandClusterTags) > 1) {
             return TError("Node has more than one infiniband cluster tags")
-                << TErrorAttribute("infiniband_cluster_tags", infinibandClusterTags);
+                .With("infiniband_cluster_tags", infinibandClusterTags);
         }
 
         const auto& tag = infinibandClusterTags[0];
         if (tag != TSchedulingSegmentManager::GetNodeTagFromModuleName(*node.InfinibandCluster, ESchedulingSegmentModuleType::InfinibandCluster)) {
             return TError("Node's infiniband cluster tag doesn't match its infiniband cluster from annotations")
-                << TErrorAttribute("infiniband_cluster", node.InfinibandCluster)
-                << TErrorAttribute("infiniband_cluster_tag", tag);
+                .With("infiniband_cluster", node.InfinibandCluster)
+                .With("infiniband_cluster_tag", tag);
         }
 
         return {};
@@ -857,9 +857,9 @@ void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingS
     for (const auto& [nodeId, node] : context->NodeStates) {
         auto error = validateNodeDescriptor(*node->Descriptor);
         if (!error.IsOK()) {
-            error = error << TErrorAttribute("node_address", NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses));
+            error = error.With("node_address", NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses));
             context->Error = TError("Node's infiniband cluster tags validation failed in tree %Qv", TreeId_)
-                << std::move(error);
+                .With(std::move(error));
             break;
         }
     }

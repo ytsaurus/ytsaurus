@@ -187,9 +187,9 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                         "Client has provided %v header but authenticated user %v is not whitelisted, or a superuser (or is banned)",
                         UserNameHeader,
                         authenticationResult.Login)
-                        << TErrorAttribute("is_superuser", isSuperuserOrError.Value())
-                        << TErrorAttribute("is_banned", isUserBannedOrError.Value())
-                        << TErrorAttribute("is_whitelisted", isWhitelisted);
+                        .With("is_superuser", isSuperuserOrError.Value())
+                        .With("is_banned", isUserBannedOrError.Value())
+                        .With("is_whitelisted", isWhitelisted);
                 }
             }
 

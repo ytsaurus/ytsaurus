@@ -2283,13 +2283,13 @@ void ThrowException(const char* error)
 {
     // TODO(dtorilov): Infer length of error description.
     THROW_ERROR_EXCEPTION("Error while executing UDF")
-        << TError(TRuntimeFormat(PtrFromVM(GetCurrentCompartment(), error)));
+        .With(TError(TRuntimeFormat(PtrFromVM(GetCurrentCompartment(), error))));
 }
 
 void ThrowQueryException(const char* error)
 {
     THROW_ERROR_EXCEPTION("Error while executing query")
-        << TError(TRuntimeFormat(PtrFromVM(GetCurrentCompartment(), error)));
+        .With(TError(TRuntimeFormat(PtrFromVM(GetCurrentCompartment(), error))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2311,7 +2311,7 @@ re2::RE2* RegexCreate(TValue* regexp)
         THROW_ERROR_EXCEPTION(
             "Error parsing regular expression %Qv",
             regexString)
-            << TError(TRuntimeFormat(re2->error().c_str()));
+            .With(TError(TRuntimeFormat(re2->error().c_str())));
     }
     return re2.release();
 }
@@ -3983,7 +3983,7 @@ void LikeOpHelper(
         if (!newRegex->ok()) {
             THROW_ERROR_EXCEPTION("Error parsing regular expression %Qv",
                 asRe2Pattern)
-                << TError(TRuntimeFormat(matcher->error().c_str()));
+                .With(TError(TRuntimeFormat(matcher->error().c_str())));
         }
 
         matcher = newRegex.get();

@@ -663,7 +663,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Owner_->Invoker_);
 
         if (!resultOrError.IsOK()) {
-            auto error = TError("Block read failed") << resultOrError;
+            auto error = TError("Block read failed").With(resultOrError);
             Owner_->SetError(error);
             Promise_.Set(error);
             return;
@@ -903,7 +903,7 @@ private:
 
     void OnFailed(const TError& error)
     {
-        AllFlushedPromise_.TrySet(TError("Device failed while taking a snapshot") << error);
+        AllFlushedPromise_.TrySet(TError("Device failed while taking a snapshot").With(error));
     }
 };
 

@@ -358,7 +358,7 @@ public:
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
             auto error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error parsing pool trees")
-                << ex;
+                .With(ex);
             THROW_ERROR(error);
         }
 
@@ -373,8 +373,8 @@ public:
 
             if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
                 THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::WatcherHandlerFailed, "Pool trees node has invalid type")
-                    << TErrorAttribute("expected_type", NYTree::ENodeType::Map)
-                    << TErrorAttribute("actual_type", poolTreesNode->GetType());
+                    .With("expected_type", NYTree::ENodeType::Map)
+                    .With("actual_type", poolTreesNode->GetType());
             }
 
             auto poolsMap = poolTreesNode->AsMap();
@@ -408,7 +408,7 @@ public:
             if (defaultTreeId && idToTree.find(*defaultTreeId) == idToTree.end()) {
                 errors.push_back(TError("Default tree is missing"));
                 THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
-                    << std::move(errors);
+                    .With(std::move(errors));
             }
 
             // Check that after adding or removing trees each node will belong exactly to one tree.
@@ -417,7 +417,7 @@ public:
 
             if (shouldCheckConfiguration && !CheckTreesConfiguration(treeIdToFilter, &errors)) {
                 THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
-                    << std::move(errors);
+                    .With(std::move(errors));
             }
 
             // Update configs and pools structure of all trees.
@@ -443,7 +443,7 @@ public:
             // Setting alerts.
             if (!errors.empty()) {
                 error = TError(NScheduler::EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
-                    << std::move(errors);
+                    .With(std::move(errors));
             } else {
                 if (!updatedTreeIds.empty() || !treeIdsToRemove.empty() || !treeIdsToAdd.empty()) {
                     Host_->LogEventFluently(&SchedulerEventLogger(), ELogEventType::PoolsInfo)
@@ -488,7 +488,7 @@ public:
         TError result;
         if (!errors.empty()) {
             result = TError("Error updating mapping from user to default parent pool")
-                << std::move(errors);
+                .With(std::move(errors));
         } else {
             for (const auto& [_, tree] : IdToTree_) {
                 tree->ActualizeEphemeralPoolParents(userToDefaultPoolMap);
@@ -579,7 +579,7 @@ public:
         EphemeralPoolNameRegex_.emplace(Config_->EphemeralPoolNameRegex);
         if (!EphemeralPoolNameRegex_->ok()) {
             THROW_ERROR_EXCEPTION("Bad ephemeral pool name regular expression provided in scheduler config")
-                << TErrorAttribute("regex", Config_->EphemeralPoolNameRegex);
+                .With("regex", Config_->EphemeralPoolNameRegex);
         }
     }
 
@@ -998,7 +998,7 @@ public:
 
         if (!errors.empty()) {
             auto error = TError("Found pool configuration issues during fair share update")
-                << std::move(errors);
+                .With(std::move(errors));
             Host_->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, error);
         } else {
             Host_->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, TError());
@@ -1280,7 +1280,7 @@ public:
             std::vector<TError> alerts;
             for (const auto& [treeId, alert] : treeAlerts) {
                 alerts.push_back(alert
-                    << TErrorAttribute("tree_id", treeId));
+                    .With("tree_id", treeId));
             }
 
             Host_->SetSchedulerAlert(
@@ -1405,7 +1405,7 @@ public:
                         .EndMap();
                 });
             return TError("Found no best single non-empty tree for operation")
-                << TErrorAttribute("tree_options", serializedTreeOptions);
+                .With("tree_options", serializedTreeOptions);
         }
 
         YT_LOG_DEBUG("Best tree selected for operation (BestTree: %v, OperationId: %v)",
@@ -1527,13 +1527,13 @@ public:
             auto tree = GetTree(treeId);
             if (auto error = tree->CheckOperationSchedulingInSeveralTreesAllowed(operationId); !error.IsOK()) {
                 multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qv tree's configuration", treeId)
-                    << std::move(error));
+                    .With(std::move(error)));
             }
         }
 
         if (!multiTreeSchedulingErrors.empty() && size(state->TreeIdToPoolNameMap()) > 1) {
             return TError("Scheduling in several trees is forbidden by some trees' configuration")
-                << std::move(multiTreeSchedulingErrors);
+                .With(std::move(multiTreeSchedulingErrors));
         }
 
         return {};
@@ -1741,8 +1741,8 @@ private:
             for (const auto& desc : result) {
                 if (desc.Id == *spec->ProbingPoolTree) {
                     THROW_ERROR_EXCEPTION("Probing pool tree must not be in regular or tentative pool tree lists")
-                        << TErrorAttribute("pool_tree", desc.Id)
-                        << TErrorAttribute("is_tentative", desc.Tentative);
+                        .With("pool_tree", desc.Id)
+                        .With("is_tentative", desc.Tentative);
                 }
             }
 
@@ -2028,7 +2028,7 @@ private:
                 treeConfig = BuildConfig(poolTreesMap, templatePoolTreeConfigMap, treeId);
             } catch (const std::exception& ex) {
                 auto error = TError("Error parsing configuration of tree %Qv", treeId)
-                    << ex;
+                    .With(ex);
                 errors->push_back(error);
                 YT_LOG_WARNING(error);
                 continue;
@@ -2067,9 +2067,9 @@ private:
             if (treeIds.size() > 1) {
                 errors->emplace_back(
                     TError("Cannot update fair-share trees since there is node that belongs to multiple trees")
-                        << TErrorAttribute("node_id", nodeId)
-                        << TErrorAttribute("matched_trees", treeIds)
-                        << TErrorAttribute("node_address", GetOrCrash(NodeIdToDescriptor_, nodeId).Address));
+                        .With("node_id", nodeId)
+                        .With("matched_trees", treeIds)
+                        .With("node_address", GetOrCrash(NodeIdToDescriptor_, nodeId).Address));
                 return false;
             }
         }
@@ -2093,7 +2093,7 @@ private:
                 treeConfigChanged = tree->UpdateConfig(config);
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to configure tree %Qv, defaults will be used", treeId)
-                    << ex;
+                    .With(ex);
                 errors->push_back(error);
                 continue;
             }
@@ -2212,8 +2212,8 @@ private:
             treeId = treeIds[0];
         } else {
             THROW_ERROR_EXCEPTION("Node belongs to more than one pool tree")
-                << TErrorAttribute("node_address", nodeAddress)
-                << TErrorAttribute("matched_pool_trees", treeIds);
+                .With("node_address", nodeAddress)
+                .With("matched_pool_trees", treeIds);
         }
 
         auto it = NodeIdToDescriptor_.find(nodeId);
@@ -2362,9 +2362,9 @@ private:
         Host_->SetSchedulerAlert(
             ESchedulerAlertType::NodesWithoutPoolTree,
             TError("Found nodes that do not match any pool tree")
-                << TErrorAttribute("node_addresses", nodeAddresses)
-                << TErrorAttribute("truncated", truncated)
-                << TErrorAttribute("node_count", NodeIdsWithoutTree_.size()));
+                .With("node_addresses", nodeAddresses)
+                .With("truncated", truncated)
+                .With("node_count", NodeIdsWithoutTree_.size()));
     }
 
     void BuildTreeOrchid(

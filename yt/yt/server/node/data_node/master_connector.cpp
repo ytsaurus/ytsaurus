@@ -715,7 +715,7 @@ protected:
                     cellTag,
                     state);
 
-                return MakeFuture(TError("Invalid node state %Qlv", state) << TErrorAttribute("data_node_state", state));
+                return MakeFuture(TError("Invalid node state %Qlv", state).With("data_node_state", state));
             }
         }
     }

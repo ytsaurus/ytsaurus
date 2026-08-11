@@ -37,7 +37,7 @@ TFuture<T> TDiskLocation::RegisterAction(TCallback<TFuture<T>()> action)
     auto currentState = State_.load();
     if (!CanHandleIncomingActions()) {
         return MakeFuture(TError("Location cannot handle incoming actions")
-            << TErrorAttribute("state", currentState));
+            .With("state", currentState));
     }
 
     auto future = action.Run();

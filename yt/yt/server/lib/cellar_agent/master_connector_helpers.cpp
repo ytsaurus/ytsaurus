@@ -211,8 +211,8 @@ TError UpdateSolomonTags(
     } else {
         NProfiling::TSolomonRegistry::Get()->SetDynamicTags({});
         return TError("Conflicting profiling tags")
-            << TErrorAttribute("cellar_type", cellarType)
-            << TErrorAttribute("tags", seenTags);
+            .With("cellar_type", cellarType)
+            .With("tags", seenTags);
     }
 
     return {};

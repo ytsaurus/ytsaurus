@@ -575,7 +575,7 @@ protected:
         const auto spec = GetContext()->StreamSpecStorage->GetSpec(message.StreamId);
         if (!spec->ClassName) {
             THROW_ERROR_EXCEPTION("Impossible to convert message to yson message due to undefined \"class_name\"")
-                << TErrorAttribute("stream_id", message.StreamId);
+                .With("stream_id", message.StreamId);
         }
         auto ysonMessage = TRegistry::Get()->CreateYsonMessage(*spec->ClassName);
         ::NYT::NFlow::ConvertToYsonMessage(message, ysonMessage);
@@ -595,7 +595,7 @@ protected:
         auto spec = GetContext()->StreamSpecStorage->GetSpec(streamId);
         if (!spec->ClassName) {
             THROW_ERROR_EXCEPTION("Impossible to convert yson message to message due to undefined \"class_name\"")
-                << TErrorAttribute("stream_id", streamId);
+                .With("stream_id", streamId);
         }
         TRegistry::Get()->ValidateYsonMessageType(*spec->ClassName, ysonMessage);
         auto message = ::NYT::NFlow::ConvertToMessage(ysonMessage, spec->Schema);

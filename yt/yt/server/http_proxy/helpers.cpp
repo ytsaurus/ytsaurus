@@ -37,7 +37,7 @@ std::optional<std::string> GatherHeader(const THeadersPtr& headers, const std::s
     for (int i = 0; ; i++) {
         if (i > 1000) {
             THROW_ERROR_EXCEPTION("Too many header parts")
-                << TErrorAttribute("header_name", headerName);
+                .With("header_name", headerName);
         }
 
         {
@@ -81,7 +81,7 @@ std::vector<TStringBuf> TokenizeQueryArgumentName(TStringBuf argument)
         auto closingBracket = argument.find(']', openBracket);
         if (closingBracket == TString::npos) {
             THROW_ERROR_EXCEPTION("Unmatched bracket in query argument name")
-                << TErrorAttribute("argument", argument);
+                .With("argument", argument);
         }
 
         parts.push_back(argument.substr(openBracket + 1, closingBracket - openBracket - 1));
@@ -89,7 +89,7 @@ std::vector<TStringBuf> TokenizeQueryArgumentName(TStringBuf argument)
 
         if (++nesting > MaxNesting) {
             THROW_ERROR_EXCEPTION("Nesting limit reached in query argument name")
-                << TErrorAttribute("argument", argument);
+                .With("argument", argument);
         }
     }
 
@@ -118,7 +118,7 @@ void InsertChildAt(const IMapNodePtr& root, const INodePtr& child, const std::ve
 
             if (intValue < 0 || intValue > MaxListSize) {
                 THROW_ERROR_EXCEPTION("Invalid list index in query argument")
-                    << TErrorAttribute("index", intValue);
+                    .With("index", intValue);
             }
 
             current = listNode->FindChild(intValue);
@@ -145,8 +145,8 @@ void InsertChildAt(const IMapNodePtr& root, const INodePtr& child, const std::ve
 
     if (current && (current->GetType() != ENodeType::Entity)) {
         THROW_ERROR_EXCEPTION("Conflicting values in query argument")
-            << TErrorAttribute("child", child)
-            << TErrorAttribute("conflict", current);
+            .With("child", child)
+            .With("conflict", current);
     }
 
     linkBack(child);

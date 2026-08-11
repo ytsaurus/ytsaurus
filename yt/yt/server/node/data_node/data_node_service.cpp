@@ -685,7 +685,7 @@ private:
                         NChunkClient::EErrorCode::SendBlocksFailed,
                         "Error putting blocks to %v",
                         targetDescriptor.GetDefaultAddress())
-                        << rspOrError;
+                        .With(rspOrError);
                 }
             })));
     }
@@ -750,14 +750,14 @@ private:
         auto blocks = GetRpcAttachedBlocks(request, true /*validateChecksums*/);
         if (std::ssize(blocks) != request->block_indexes_size()) {
             THROW_ERROR_EXCEPTION("Number of attached blocks is different from blocks field length")
-                << TErrorAttribute("attached_block_count", blocks.size())
-                << TErrorAttribute("blocks_length", request->block_indexes_size());
+                .With("attached_block_count", blocks.size())
+                .With("blocks_length", request->block_indexes_size());
         }
 
         if (request->chunk_ids_size() != request->chunk_block_count_size()) {
             THROW_ERROR_EXCEPTION("Invalid block count")
-                << TErrorAttribute("chunk_count", request->chunk_ids_size())
-                << TErrorAttribute("block_count", request->chunk_block_count_size());
+                .With("chunk_count", request->chunk_ids_size())
+                .With("block_count", request->chunk_block_count_size());
         }
 
         int j = 0;
@@ -2192,7 +2192,7 @@ private:
                     NChunkClient::EErrorCode::UnsupportedChunkFeature,
                     "Chunk %v has unknown features",
                     chunkId)
-                    << TErrorAttribute("chunk_features", meta->features());
+                    .With("chunk_features", meta->features());
             }
 
             ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
@@ -2927,7 +2927,7 @@ private:
 
             YT_LOG_DEBUG("Columnar statistics extracted from chunk meta (ChunkId: %v)", chunkId);
         } catch (const std::exception& ex) {
-            auto error = TError("Error fetching columnar statistics for chunk %v", chunkId) << ex;
+            auto error = TError("Error fetching columnar statistics for chunk %v", chunkId).With(ex);
             YT_LOG_WARNING(error);
             ToProto(subresponse->mutable_error(), error);
         }
@@ -2984,7 +2984,7 @@ private:
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::WriteThrottlingActive,
                 "Pending network in throttling queue size exceeds throttling limit")
-                << TErrorAttribute("net_queue_size", netThrottling.QueueSize);
+                .With("net_queue_size", netThrottling.QueueSize);
         }
     }
 

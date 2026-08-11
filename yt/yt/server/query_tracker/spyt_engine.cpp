@@ -261,7 +261,7 @@ public:
             auto operation = result.Operations[0];
             if (!operation.Id) {
                 THROW_ERROR_EXCEPTION("Operation doesn't have an Id field")
-                    << TErrorAttribute("operation", operation);
+                    .With("operation", operation);
             }
             auto operationId = *operation.Id;
             auto runningOpSettingsHash = GetAnnotation(operation, "settings_hash");
@@ -689,7 +689,7 @@ private:
                 "Unexpected HTTP status code from Spark Master: expected %Qlv, actual %Qlv",
                 expected,
                 response->GetStatusCode())
-                    << TErrorAttribute("response_body", response->ReadAll().ToStringBuf());
+                    .With("response_body", response->ReadAll().ToStringBuf());
         }
     }
 
@@ -855,7 +855,7 @@ private:
                         arrowSchema = ipcReader->schema();
                     } else {
                         THROW_ERROR_EXCEPTION("An error has occured during arrow schema reading")
-                            << TErrorAttribute("error", ipcReaderResult.status().ToString());
+                            .With("error", ipcReaderResult.status().ToString());
                     }
                 }
             }
@@ -865,8 +865,8 @@ private:
 
         if (!status.ok()) {
             THROW_ERROR_EXCEPTION("gRPC request failed")
-                << TErrorAttribute("status", static_cast<i32>(status.error_code()))
-                << TErrorAttribute("message", status.error_message());
+                .With("status", static_cast<i32>(status.error_code()))
+                .With("message", status.error_message());
         }
 
         if (!arrowSchema) {

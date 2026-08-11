@@ -242,7 +242,7 @@ TFuture<TCellTag> TChaosResidencyCacheBase::DoGet(
         return MakeFuture<TCellTag>(
             TError("Unable to locate %Qlv: connection terminated",
                 TypeFromId(objectId))
-                << TErrorAttribute("object_id", objectId));
+                .With("object_id", objectId));
     }
 
     auto invoker = connection->GetInvoker();
@@ -498,8 +498,8 @@ private:
                     const auto& sameResidencyValue = sameResidency.Value();
                     if (sameResidencyValue.IsNonExistent()) {
                         THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such chaos object")
-                            << TErrorAttribute("chaos_object_id", ObjectId_)
-                            << TErrorAttribute("chaos_object_type", TypeFromId(ObjectId_));
+                            .With("chaos_object_id", ObjectId_)
+                            .With("chaos_object_type", TypeFromId(ObjectId_));
                     }
 
                     if (sameResidencyValue.IsPresent()) {
@@ -614,8 +614,8 @@ private:
         const auto& locationResult = errorOrCellTag.Value();
         if (locationResult.IsNonExistent()) {
             return TError(NYTree::EErrorCode::ResolveError, "No such chaos object")
-                << TErrorAttribute("chaos_object_id", objectId)
-                << TErrorAttribute("chaos_object_type", TypeFromId(objectId));
+                .With("chaos_object_id", objectId)
+                .With("chaos_object_type", TypeFromId(objectId));
         }
 
         return locationResult.GetCellTag();
@@ -743,7 +743,7 @@ public:
                     THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
                         type,
                         objectId)
-                        << std::move(resultOrError);
+                        .With(std::move(resultOrError));
                 }
 
                 return FromProto<TCellTag>(resultOrError.Value()->chaos_object_cell_tag());

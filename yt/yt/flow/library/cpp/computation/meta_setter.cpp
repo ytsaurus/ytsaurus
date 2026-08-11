@@ -73,8 +73,8 @@ public:
                         key = newKey;
                     } else if (*key != newKey) {
                         THROW_ERROR_EXCEPTION("Impossible to guess timer key: different keys")
-                            << TErrorAttribute("key_1", *key)
-                            << TErrorAttribute("key_2", newKey);
+                            .With("key_1", *key)
+                            .With("key_2", newKey);
                     }
                 };
                 for (const auto& parent : parents->ParentMessages) {
@@ -285,7 +285,7 @@ public:
     {
         if (parents->ParentMessages.size() != 1 || parents->ParentTimers.size() != 0) {
             THROW_ERROR_EXCEPTION("Message should have exactly one parent message (not timer)")
-                << TErrorAttribute("stream_id", meta.StreamId);
+                .With("stream_id", meta.StreamId);
         }
 
         const auto& parent = parents->ParentMessages[0];
@@ -331,11 +331,11 @@ public:
     {
         if (!parents->ParentTimers.empty()) {
             THROW_ERROR_EXCEPTION("Swift map does not support timers as parents")
-                << TErrorAttribute("stream_id", meta.StreamId);
+                .With("stream_id", meta.StreamId);
         }
         if (parents->ParentMessages.empty()) {
             THROW_ERROR_EXCEPTION("Message must have at least one parent")
-                << TErrorAttribute("stream_id", meta.StreamId);
+                .With("stream_id", meta.StreamId);
         }
 
         if (parents->ParentMessages.size() == 1) {

@@ -145,7 +145,7 @@ public:
         auto result = HandleUringEintr(io_uring_queue_init, queueSize, &Uring_, /*flags*/ 0);
         if (result < 0) {
             THROW_ERROR_EXCEPTION("Failed to initialize uring")
-                << TError::FromSystem(-result);
+                .With(TError::FromSystem(-result));
         }
 
         CheckUringResult(

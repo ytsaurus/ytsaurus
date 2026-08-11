@@ -51,13 +51,13 @@ void TJavaProcessManager::ValidateParameters() const
     THROW_ERROR_EXCEPTION_UNLESS(!Classpath_.empty(), "Classpath is empty");
     if (!NFS::Exists(JdkBinPath_)) {
         THROW_ERROR_EXCEPTION("JDK binary file does not exist")
-            << TErrorAttribute("jdk_bin_path", JdkBinPath_);
+            .With("jdk_bin_path", JdkBinPath_);
     }
     if (CompanionConfig_->CompanionProcessCount != 0) {
         THROW_ERROR_EXCEPTION(
-                "%Qv is a Python-companion-only knob and must not be set for the Java companion",
-                "companion_process_count")
-            << TErrorAttribute("companion_process_count", CompanionConfig_->CompanionProcessCount);
+            "%Qv is a Python-companion-only knob and must not be set for the Java companion",
+            "companion_process_count")
+            .With("companion_process_count", CompanionConfig_->CompanionProcessCount);
     }
 }
 

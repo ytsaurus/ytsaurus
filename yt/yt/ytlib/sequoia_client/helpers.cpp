@@ -168,7 +168,7 @@ void ThrowOnSequoiaReplicasError(
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::TransientFailure,
             "Sequoia retriable error")
-            << std::move(error);
+            .With(std::move(error));
     }
     error.ThrowOnError();
 }

@@ -872,7 +872,7 @@ private:
         auto validateOutputNotSorted = [&] {
             if (table->TableUploadOptions.TableSchema->IsSorted()) {
                 THROW_ERROR_EXCEPTION("Cannot perform unordered merge into a sorted table in a \"strong\" schema mode")
-                    << TErrorAttribute("schema", *table->TableUploadOptions.TableSchema);
+                    .With("schema", *table->TableUploadOptions.TableSchema);
             }
         };
 

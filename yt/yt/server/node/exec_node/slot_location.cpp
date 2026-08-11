@@ -284,7 +284,7 @@ TFuture<void> TSlotLocation::ValidateRootFS(const IVolumePtr& rootVolume) const
         }
 
         THROW_ERROR_EXCEPTION("Dynamic linker ld-linux is not found in root filesystem")
-            << TErrorAttribute("root_volume_path", rootVolumeMountPath);
+            .With("root_volume_path", rootVolumeMountPath);
     })
         .AsyncVia(HeavyInvoker_)
         .Run();
@@ -299,7 +299,7 @@ TFuture<void> TSlotLocation::Initialize(IVolumeManagerPtr volumeManager)
             DoInitialize(std::move(volumeManager));
         } catch (const std::exception& ex) {
             auto error = TError("Failed to initialize slot location %v", Config_->Path)
-                << ex;
+                .With(ex);
             Disable(error);
             return;
         }
@@ -374,7 +374,7 @@ void TSlotLocation::DoRepair()
         ChangeState(ELocationState::Disabled, std::nullopt, ex);
 
         auto error = TError("Failed to repair slot location %v", Config_->Path)
-            << ex;
+            .With(ex);
         THROW_ERROR error;
     }
 }
@@ -416,8 +416,8 @@ void TSlotLocation::DoPrepareSandboxDirectories(
             }
         } catch (const std::exception& ex) {
             auto error = TError(NExecNode::EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job sandbox")
-                << TErrorAttribute("sandbox_path", sandboxPath)
-                << ex;
+                .With("sandbox_path", sandboxPath)
+                .With(ex);
             Disable(error);
             THROW_ERROR error;
         }
@@ -436,8 +436,8 @@ void TSlotLocation::DoPrepareSandboxDirectories(
                 .ThrowOnError();
         } catch (const std::exception& ex) {
             auto error = TError(NExecNode::EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job tmp directory")
-                << TErrorAttribute("tmp_path", tmpPath)
-                << ex;
+                .With("tmp_path", tmpPath)
+                .With(ex);
             Disable(error);
             THROW_ERROR error;
         }
@@ -795,8 +795,8 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
                     "Failed to build file %Qv in sandbox %Qv",
                     artifactName,
                     sandboxKind)
-                    << ex
-                    << TErrorAttribute("job_id", jobId);
+                    .With(ex)
+                    .With("job_id", jobId);
             }
 
             // NB: Set permissions for the link _source_ and prevent writes to it.
@@ -890,7 +890,7 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
             // Job will be aborted.
             auto error = TError(NExecNode::EErrorCode::SlotLocationDisabled, "Failed to write job proxy config into %v",
                 proxyConfigPath)
-                << ex;
+                .With(ex);
             Disable(error);
             THROW_ERROR error;
         }
@@ -959,7 +959,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
             BuildSlotRootDirectory(slotIndex);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean sandbox directories")
-                << ex;
+                .With(ex);
             Disable(error);
             THROW_ERROR error;
         }
@@ -1009,7 +1009,7 @@ TFuture<void> TSlotLocation::CleanPortoPlace(int slotIndex)
             BuildSlotRootDirectory(slotIndex);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean porto place")
-                << ex;
+                .With(ex);
             Disable(error);
             THROW_ERROR error;
         }
@@ -1114,8 +1114,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
             "Failed to build file %Qv in sandbox %Qlv: broken pipe",
             artifactName,
             sandboxKind)
-            << error
-            << TErrorAttribute("job_id", jobId);
+            .With(error)
+            .With("job_id", jobId);
     } else if (destinationInsideNonRootVolume && noSpace) {
         YT_LOG_INFO(error, "Failed to build file in sandbox: non-root volume is too small");
 
@@ -1123,8 +1123,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
             "Failed to build file %Qv in sandbox %Qlv: non-root volume is too small",
             artifactName,
             sandboxKind)
-            << error
-            << TErrorAttribute("job_id", jobId);
+            .With(error)
+            .With("job_id", jobId);
     } else if (slotWithQuota && noSpace) {
         YT_LOG_INFO(error, "Failed to build file in sandbox: disk space limit is too small");
 
@@ -1132,8 +1132,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
             "Failed to build file %Qv in sandbox %Qlv: disk space limit is too small",
             artifactName,
             sandboxKind)
-            << error
-            << TErrorAttribute("job_id", jobId);
+            .With(error)
+            .With("job_id", jobId);
     } else if (isReaderError) {
         YT_LOG_INFO(error, "Failed to build file in sandbox: chunk fetching failed");
 
@@ -1141,8 +1141,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
             "Failed to build file %Qv in sandbox %Qlv: chunk fetching failed",
             artifactName,
             sandboxKind)
-            << error
-            << TErrorAttribute("job_id", jobId);
+            .With(error)
+            .With("job_id", jobId);
     } else {
         YT_LOG_INFO(error, "Failed to build file in sandbox:");
 
@@ -1150,8 +1150,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
             "Failed to build file %Qv in sandbox %Qlv",
             artifactName,
             sandboxKind)
-            << error
-            << TErrorAttribute("job_id", jobId);
+            .With(error)
+            .With("job_id", jobId);
 
         if (IsSystemError(wrappedError)) {
             Disable(wrappedError);
@@ -1194,8 +1194,8 @@ void TSlotLocation::ForceSubdirectories(const std::string& filePath, const std::
     auto dirPath = GetDirectoryName(filePath);
     if (!dirPath.starts_with(sandboxPath)) {
         THROW_ERROR_EXCEPTION("Path of the file must be inside the sandbox directory")
-            << TErrorAttribute("sandbox_path", sandboxPath)
-            << TErrorAttribute("file_path", filePath);
+            .With("sandbox_path", sandboxPath)
+            .With("file_path", filePath);
     }
     MakeDirRecursive(dirPath);
 }
@@ -1230,7 +1230,7 @@ void TSlotLocation::Disable(const TError& error)
         auto alert = TError(NExecNode::EErrorCode::SlotLocationDisabled,
             "Slot location at %v is disabled",
             Config_->Path)
-            << error;
+            .With(error);
 
         YT_LOG_ERROR(alert);
         Alert_.Store(alert);
@@ -1402,7 +1402,7 @@ void TSlotLocation::UpdateDiskResources()
             }
         }
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to get disk info") << ex;
+        auto error = TError("Failed to get disk info").With(ex);
         YT_LOG_WARNING(error);
         Disable(error);
     }
@@ -1430,7 +1430,7 @@ void TSlotLocation::UpdateSlotLocationStatistics()
             slotLocationStatistics.set_used_space(locationStatistics.TotalSpace - locationStatistics.AvailableSpace);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to get slot location statistics")
-                << ex;
+                .With(ex);
             YT_LOG_WARNING(error);
             Disable(error);
             return;
@@ -1524,9 +1524,9 @@ void TSlotLocation::RemoveVolumesFromPortoPlace(
     auto removeVolumesResult = WaitFor(volumeManager->RemoveVolumes(portoPlacePath, timeout, preservedVolumePaths));
     if (!removeVolumesResult.IsOK()) {
         auto error = TError("Failed to remove volumes from porto place")
-            << TErrorAttribute("porto_place", portoPlacePath)
-            << TErrorAttribute("slot_index", slotIndex)
-            << removeVolumesResult;
+            .With("porto_place", portoPlacePath)
+            .With("slot_index", slotIndex)
+            .With(removeVolumesResult);
         YT_LOG_ERROR(error);
         // It would be nice to disable just this particular slot index, not the whole slot.
         Disable(error);
@@ -1568,9 +1568,9 @@ void TSlotLocation::RemoveLayersFromPortoPlace(int slotIndex, const IVolumeManag
     auto removeLayersResult = WaitFor(volumeManager->RemoveLayers(portoPlacePath, timeout));
     if (!removeLayersResult.IsOK()) {
         auto error = TError("Failed to remove layers from porto place")
-            << TErrorAttribute("porto_place", portoPlacePath)
-            << TErrorAttribute("slot_index", slotIndex)
-            << removeLayersResult;
+            .With("porto_place", portoPlacePath)
+            .With("slot_index", slotIndex)
+            .With(removeLayersResult);
         YT_LOG_ERROR(error);
         // It would be nice to disable just this particular slot index, not the whole slot.
         Disable(error);

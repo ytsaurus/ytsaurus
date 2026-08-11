@@ -244,7 +244,7 @@ void ValidateNodeTags(const std::vector<std::string>& tags)
             ValidateBooleanFormulaVariable(tag);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Invalid node tag %Qv", tag)
-                << ex;
+                .With(ex);
         }
     }
 }

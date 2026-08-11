@@ -320,7 +320,7 @@ void TNode::ValidateRegistered() const
     }
 
     THROW_ERROR_EXCEPTION(NNodeTrackerClient::EErrorCode::InvalidState, "Node is not registered")
-        << TErrorAttribute("local_node_state", state);
+        .With("local_node_state", state);
 }
 
 void TNode::SetClusterNodeStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics&& statistics)

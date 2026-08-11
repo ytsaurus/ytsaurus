@@ -302,9 +302,9 @@ private:
     {
         if (tablet->GetDynamicStoreCount() >= DynamicStoreCountLimit) {
             auto error = TError("Dynamic store count limit is exceeded")
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Rotation)
-                << TErrorAttribute("limit", DynamicStoreCountLimit);
+                .With("tablet_id", tablet->GetId())
+                .With("background_activity", ETabletBackgroundActivity::Rotation)
+                .With("limit", DynamicStoreCountLimit);
             YT_LOG_DEBUG(error);
             tablet->RuntimeData()->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Rotation].Store(error);
@@ -651,8 +651,8 @@ private:
                 timer.GetElapsedTime());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
-                << TErrorAttribute("tablet_id", tabletId)
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Flush);
+                .With("tablet_id", tabletId)
+                .With("background_activity", ETabletBackgroundActivity::Flush);
 
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Flush].Store(error);

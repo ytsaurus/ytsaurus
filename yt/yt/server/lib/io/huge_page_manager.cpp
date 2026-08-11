@@ -276,9 +276,9 @@ private:
         auto hugePageSize = hugePageManager.GetHugePageSize();
         if (usedHugePageCount + pageCount > HugePageCount_) {
             return TError("Not enough huge pages")
-                << TErrorAttribute("requested_huge_page_count", pageCount)
-                << TErrorAttribute("available_huge_page_count", HugePageCount_)
-                << TErrorAttribute("used_huge_page_count", usedHugePageCount);
+                .With("requested_huge_page_count", pageCount)
+                .With("available_huge_page_count", HugePageCount_)
+                .With("used_huge_page_count", usedHugePageCount);
         }
 #ifdef _linux_
         void* page = mmap(
@@ -291,7 +291,7 @@ private:
 
         if (page == MAP_FAILED || !page) {
             return TError("Failed to allocate huge page")
-                << TSystemError();
+                .With(TSystemError());
         }
 #else
         YT_UNIMPLEMENTED();
@@ -337,21 +337,21 @@ private:
         auto freeHugePageMemory = GetFreeHugePageMemory(hugePageManager);
         if (freeHugePageMemory < pageCount * hugePageSize) {
             return TError("Not enough huge pages")
-                << TErrorAttribute("requested_huge_page_count", pageCount)
-                << TErrorAttribute("available_huge_page_memory", freeHugePageMemory)
-                << TErrorAttribute("used_huge_page_memory", GetHugePageMemory(hugePageManager));
+                .With("requested_huge_page_count", pageCount)
+                .With("available_huge_page_memory", freeHugePageMemory)
+                .With("used_huge_page_memory", GetHugePageMemory(hugePageManager));
         }
 #ifdef _linux_
         void* page = ::aligned_malloc(pageCount * hugePageSize, hugePageSize);
 
         if (!page) {
             return TError("Failed to allocate aligned huge page")
-                << TSystemError();
+                .With(TSystemError());
         }
 
         if (::madvise(page, pageCount * hugePageSize, MADV_HUGEPAGE) != 0) {
             return TError("Failed to mark memory MADV_HUGEPAGE")
-                << TSystemError(errno);
+                .With(TSystemError(errno));
         }
 #else
         YT_UNIMPLEMENTED();

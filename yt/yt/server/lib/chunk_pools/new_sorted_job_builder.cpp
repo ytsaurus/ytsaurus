@@ -334,8 +334,8 @@ public:
                 message,
                 size,
                 maxSize)
-                << TErrorAttribute("lower_bound", job->GetPrimaryLowerBound())
-                << TErrorAttribute("upper_bound", job->GetPrimaryUpperBound());
+                .With("lower_bound", job->GetPrimaryLowerBound())
+                .With("upper_bound", job->GetPrimaryUpperBound());
         };
 
         validateConstraint(
@@ -855,9 +855,9 @@ private:
     {
         if (TotalDataSliceCount_ + currentJobsStatistics.DataSliceCount > Options_.MaxTotalSliceCount) {
             THROW_ERROR_EXCEPTION(NChunkPools::EErrorCode::DataSliceLimitExceeded, "Total number of data slices in sorted pool is too large")
-                << TErrorAttribute("total_data_slice_count", TotalDataSliceCount_ + currentJobsStatistics.DataSliceCount)
-                << TErrorAttribute("max_total_data_slice_count", Options_.MaxTotalSliceCount)
-                << TErrorAttribute("current_job_count", currentJobsStatistics.JobCount);
+                .With("total_data_slice_count", TotalDataSliceCount_ + currentJobsStatistics.DataSliceCount)
+                .With("max_total_data_slice_count", Options_.MaxTotalSliceCount)
+                .With("current_job_count", currentJobsStatistics.JobCount);
         }
     }
 

@@ -144,14 +144,14 @@ void TDiskHealthChecker::DoRunCheck()
 
     if (auto lockFilePath = NFS::CombinePaths(Path_, DisabledLockFileName); NFS::Exists(lockFilePath)) {
         auto lockFileError = TError(NChunkClient::EErrorCode::LockFileIsFound, "Lock file is found")
-            << TErrorAttribute("path", lockFilePath);
+            .With("path", lockFilePath);
         TString fileContents;
         try {
             fileContents = TFileInput(lockFilePath).ReadAll();
         } catch (const std::exception& ex) {
             YT_LOG_INFO(ex, "Failed to extract error from location lock file");
             lockFileError <<= TError("Failed to extract error from location lock file")
-                << ex;
+                .With(ex);
 
             THROW_ERROR(lockFileError);
         }
@@ -166,7 +166,7 @@ void TDiskHealthChecker::DoRunCheck()
             YT_LOG_INFO(ex, "Failed to parse error from location lock file");
 
             lockFileError <<= TError("Failed to parse error from location lock file (%v)", fileContents)
-                << ex;
+                .With(ex);
         }
 
         THROW_ERROR(lockFileError);
@@ -215,7 +215,7 @@ void TDiskHealthChecker::DoRunCheck()
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::DiskHealthCheckFailed, "Disk health check failed at %v", Path_)
-            << ex;
+            .With(ex);
     }
 
     YT_LOG_DEBUG("Disk health check finished");

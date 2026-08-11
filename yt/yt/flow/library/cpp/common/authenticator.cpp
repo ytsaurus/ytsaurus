@@ -116,9 +116,9 @@ public:
         auto secondsDelta = std::abs(TInstant::Now().SecondsFloat() - ticketInstant.SecondsFloat());
         if (secondsDelta > TicketLifetime_.Seconds()) {
             THROW_ERROR_EXCEPTION("Ticket expired")
-                << TErrorAttribute("ticket_timestamp", ticketInstant)
-                << TErrorAttribute("delta_seconds", secondsDelta)
-                << TErrorAttribute("lifetime_seconds", TicketLifetime_.Seconds());
+                .With("ticket_timestamp", ticketInstant)
+                .With("delta_seconds", secondsDelta)
+                .With("lifetime_seconds", TicketLifetime_.Seconds());
         }
         if (ComputeHmac(ticketInstant) != hmac) {
             THROW_ERROR_EXCEPTION("Wrong ticket hmac");

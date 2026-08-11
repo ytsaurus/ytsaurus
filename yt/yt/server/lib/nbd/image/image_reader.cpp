@@ -134,8 +134,8 @@ public:
             offset + length > Size_)
         {
             return MakeFuture<TSharedRef>(TError("Invalid image read request")
-                << TErrorAttribute("offset", offset)
-                << TErrorAttribute("length", length));
+                .With("offset", offset)
+                .With("length", length));
         }
 
         YT_LOG_INFO("Start read virtual squashfs image (Offset: %v, Length: %v)",

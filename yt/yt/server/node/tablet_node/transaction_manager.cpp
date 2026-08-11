@@ -992,8 +992,8 @@ public:
             .value_or(Config_->MaxParallelTransactionCount);
         if (currentTransactionCount > maxTransactionCount) {
             THROW_ERROR_EXCEPTION("Maximum transaction count exceeded")
-                << TErrorAttribute("current_transaction_count", currentTransactionCount)
-                << TErrorAttribute("max_transaction_count", maxTransactionCount);
+                .With("current_transaction_count", currentTransactionCount)
+                .With("max_transaction_count", maxTransactionCount);
         }
     }
 
@@ -1910,9 +1910,9 @@ private:
         if (ClockClusterTag_ != timestampClusterTag) {
             if (Config_->RejectIncorrectClockClusterTag && canThrow) {
                 THROW_ERROR_EXCEPTION("Transaction timestamp is generated from unexpected clock")
-                    << TErrorAttribute("transaction_id", transactionId)
-                    << TErrorAttribute("timestamp_cluster_tag", timestampClusterTag)
-                    << TErrorAttribute("clock_cluster_tag", ClockClusterTag_);
+                    .With("transaction_id", transactionId)
+                    .With("timestamp_cluster_tag", timestampClusterTag)
+                    .With("clock_cluster_tag", ClockClusterTag_);
             }
 
             YT_LOG_ALERT("Transaction timestamp is generated from unexpected clock (TransactionId: %v, TransactionClusterTag: %v, ClockClusterTag: %v)",

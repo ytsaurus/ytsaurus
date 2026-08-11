@@ -107,32 +107,32 @@ void ValidateSurgeonParams(TSurgeonParams* params)
 
     if (params->FirstSequenceNumber < minSequenceNumber) {
         THROW_ERROR_EXCEPTION("First sequence number should be not less than %v", minSequenceNumber)
-            << TErrorAttribute("first_sequence_number", params->FirstSequenceNumber);
+            .With("first_sequence_number", params->FirstSequenceNumber);
     }
 
     if (params->LastSequenceNumber > maxSequenceNumber) {
         THROW_ERROR_EXCEPTION("Last sequence number should be not greater than %v", maxSequenceNumber)
-            << TErrorAttribute("last_sequence_number", params->LastSequenceNumber);
+            .With("last_sequence_number", params->LastSequenceNumber);
     }
 
     if (params->FirstSequenceNumber > params->LastSequenceNumber) {
         THROW_ERROR_EXCEPTION("The first sequence number should be not greater than the last sequence number")
-            << TErrorAttribute("first_sequence_number", params->FirstSequenceNumber)
-            << TErrorAttribute("last_sequence_number", params->LastSequenceNumber);
+            .With("first_sequence_number", params->FirstSequenceNumber)
+            .With("last_sequence_number", params->LastSequenceNumber);
     }
 
     if (params->MaxRecordsPerRead < MinRecordsPerRead || params->MaxRecordsPerRead > ResultingChangelogMaxRecordCount) {
         THROW_ERROR_EXCEPTION(
             "Max records per read should be in the range %v",
             Format("[%v, %v]", MinRecordsPerRead, ResultingChangelogMaxRecordCount))
-            << TErrorAttribute("max_records_per_read", params->MaxRecordsPerRead);
+            .With("max_records_per_read", params->MaxRecordsPerRead);
     }
 
     auto resultingChangelogRecordCount = maxSequenceNumber - minSequenceNumber + 1;
     if (resultingChangelogRecordCount > ResultingChangelogMaxRecordCount) {
         THROW_ERROR_EXCEPTION("Resulting changelog is too big")
-            << TErrorAttribute("resulting_changelog_record_count", resultingChangelogRecordCount)
-            << TErrorAttribute("resulting_changelog_max_record_count", resultingChangelogRecordCount);
+            .With("resulting_changelog_record_count", resultingChangelogRecordCount)
+            .With("resulting_changelog_max_record_count", resultingChangelogRecordCount);
     }
 }
 
@@ -152,14 +152,14 @@ void ValidateRecordIdentity(const TSharedRef& lhs, const TSharedRef& rhs)
     auto serializedRhsMutationHeader = ToString(rhsMutationHeader);
     if (serializedLhsMutationHeader != serializedRhsMutationHeader) {
         THROW_ERROR_EXCEPTION("Mutation headers of mutations with the same sequence number differ")
-            << TErrorAttribute("first_mutation_header", serializedLhsMutationHeader)
-            << TErrorAttribute("second_mutation_header", serializedRhsMutationHeader);
+            .With("first_mutation_header", serializedLhsMutationHeader)
+            .With("second_mutation_header", serializedRhsMutationHeader);
     }
 
     if (!TRef::AreBitwiseEqual(lhsMutationData, rhsMutationData)) {
         THROW_ERROR_EXCEPTION("Mutation data of mutations with the same sequence number differ")
-            << TErrorAttribute("first_mutation_header", serializedLhsMutationHeader)
-            << TErrorAttribute("second_mutation_header", serializedRhsMutationHeader);
+            .With("first_mutation_header", serializedLhsMutationHeader)
+            .With("second_mutation_header", serializedRhsMutationHeader);
     }
 }
 
@@ -219,7 +219,7 @@ void PerformSurgery(const TSurgeonParams& params)
     for (int i = 0; i < ssize(resultingRecords); ++i) {
         if (resultingRecords[i].Empty()) {
             THROW_ERROR_EXCEPTION("Mutation record is missing")
-                << TErrorAttribute("missing_sequence_number", firstSequenceNumber + i);
+                .With("missing_sequence_number", firstSequenceNumber + i);
         }
     }
 
@@ -229,8 +229,8 @@ void PerformSurgery(const TSurgeonParams& params)
         DeserializeMutationRecord(resultingRecords[i], &mutationHeader, &mutationData);
         if (prevMutationHeader && mutationHeader.prev_random_seed() != prevMutationHeader->random_seed()) {
             THROW_ERROR_EXCEPTION("Random seeds do not match")
-                << TErrorAttribute("first_mutation_header", ToString(mutationHeader))
-                << TErrorAttribute("second_mutation_header", ToString(*prevMutationHeader));
+                .With("first_mutation_header", ToString(mutationHeader))
+                .With("second_mutation_header", ToString(*prevMutationHeader));
         }
 
         if (mutationHeader.segment_id() != resultingChangelogId) {

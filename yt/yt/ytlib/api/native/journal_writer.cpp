@@ -151,8 +151,8 @@ private:
         {
             if (Config_->MaxBatchRowCount > options.ReplicaLagLimit) {
                 THROW_ERROR_EXCEPTION("\"max_batch_row_count\" cannot be greater than \"replica_lag_limit\"")
-                    << TErrorAttribute("max_batch_row_count", Config_->MaxBatchRowCount)
-                    << TErrorAttribute("replica_lag_limit", options.ReplicaLagLimit);
+                    .With("max_batch_row_count", Config_->MaxBatchRowCount)
+                    .With("replica_lag_limit", options.ReplicaLagLimit);
             }
 
             if (Options_.TransactionId) {
@@ -952,7 +952,7 @@ private:
                                 promise.TrySet(TError(
                                     NChunkClient::EErrorCode::MasterCommunicationFailed,
                                     "Failed to open chunk session, retry count limit exceeded")
-                                    << TErrorAttribute("retry_count", Config_->OpenSessionRetryCount));
+                                    .With("retry_count", Config_->OpenSessionRetryCount));
                                 return;
                             }
 
@@ -1506,7 +1506,7 @@ private:
                 BanNode(node->Descriptor.GetDefaultAddress());
                 THROW_ERROR_EXCEPTION("Error starting session at %v",
                     node->Descriptor.GetDefaultAddress())
-                    << rspOrError;
+                    .With(rspOrError);
             }
         }
 
@@ -2015,7 +2015,7 @@ private:
         {
             if (!rspOrError.IsOK()) {
                 auto wrappedError = TError("Error sealing chunk")
-                    << rspOrError;
+                    .With(rspOrError);
                 EnqueueCommand(TFailCommand{rspOrError});
                 // SealInProgress_ is left stuck.
                 return;

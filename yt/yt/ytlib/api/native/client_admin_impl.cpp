@@ -690,8 +690,8 @@ void TClient::DoMigrateReplicationCards(
         auto descriptor = cellDirectory->FindDescriptorByCellTag(siblingCellTag);
         if (!descriptor) {
             THROW_ERROR_EXCEPTION("Unable to identify sibling cell to migrate replication cards into")
-                << TErrorAttribute("chaos_cell_id", chaosCellId)
-                << TErrorAttribute("sibling_cell_tag", siblingCellTag);
+                .With("chaos_cell_id", chaosCellId)
+                .With("sibling_cell_tag", siblingCellTag);
         }
 
         destinationCellId = descriptor->CellId;
@@ -728,8 +728,8 @@ void TClient::DoSuspendChaosCells(
             auto descriptor = cellDirectory->FindDescriptorByCellTag(siblingCellTag);
             if (!descriptor) {
                 THROW_ERROR_EXCEPTION("Unable to identify sibling cell to migrate replication cards into")
-                    << TErrorAttribute("chaos_cell_id", chaosCellId)
-                    << TErrorAttribute("sibling_cell_tag", siblingCellTag);
+                    .With("chaos_cell_id", chaosCellId)
+                    .With("sibling_cell_tag", siblingCellTag);
             }
 
             auto req = proxy.MigrateReplicationCards();

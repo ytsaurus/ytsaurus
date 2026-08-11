@@ -242,7 +242,7 @@ TErrorOr<TPermissionValue> TPermissionCache::ParseCheckPermissionResponse(
 
     if (!rspOrError.IsOK()) {
         return TError("Error checking permissions for %v", key.Path)
-            << rspOrError;
+            .With(rspOrError);
     }
     const auto& rsp = rspOrError.Value();
 
@@ -286,8 +286,8 @@ TErrorOr<TPermissionValue> TPermissionCache::ParseCheckPermissionResponse(
                 NSecurityClient::EErrorCode::AuthorizationError,
                 "Access denied for user %Qv: row-level ACL is present, but is not supported by this method yet",
                 key.User)
-                << TErrorAttribute("user", key.User)
-                << TErrorAttribute("permission", key.Permission);
+                .With("user", key.User)
+                .With("permission", key.Permission);
         }
     }
 

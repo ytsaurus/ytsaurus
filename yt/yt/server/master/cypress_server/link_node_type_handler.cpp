@@ -245,8 +245,8 @@ private:
 
             if (!incrementalResolveWithCheck(targetPath, canonicalLinkPath)) {
                 THROW_ERROR_EXCEPTION("Failed to create link: link is cyclic")
-                    <<TErrorAttribute("target_path", targetPath)
-                    << TErrorAttribute("path", originalLinkPath);
+                    .With("target_path", targetPath)
+                    .With("path", originalLinkPath);
             }
         }
 

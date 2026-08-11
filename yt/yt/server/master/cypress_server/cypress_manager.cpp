@@ -1013,7 +1013,7 @@ private:
     void OnError(const TError& error) override
     {
         auto wrappedError = TError("Error computing recursive resource usage")
-            << error;
+            .With(error);
         Promise_.Set(wrappedError);
     }
 
@@ -2734,8 +2734,8 @@ public:
         }
 
         THROW_ERROR_EXCEPTION("Cross-cell links are not supported")
-            << TErrorAttribute("link_node_id", linkNode->GetId())
-            << TErrorAttribute("link_target_path", targetPath);
+            .With("link_node_id", linkNode->GetId())
+            .With("link_target_path", targetPath);
     }
 
     TYPath ComputeEffectiveLinkNodeTargetPathCompat(const TLinkNode* linkNode) const
@@ -3968,7 +3968,7 @@ private:
                         GetNodePath(trunkNode, transaction),
                         existingLock->Request().Mode,
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription()));
+                        .With("winner_transaction", existingTransaction->GetErrorDescription()));
 
                 case ELockKeyKind::Child:
                     return TCheckLockErrorConflict(TError(
@@ -3977,7 +3977,7 @@ private:
                         request.Key.Name,
                         GetNodePath(trunkNode, transaction),
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription()));
+                        .With("winner_transaction", existingTransaction->GetErrorDescription()));
 
                 case ELockKeyKind::Attribute:
                     return TCheckLockErrorConflict(TError(
@@ -3986,7 +3986,7 @@ private:
                         request.Key.Name,
                         GetNodePath(trunkNode, transaction),
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription()));
+                        .With("winner_transaction", existingTransaction->GetErrorDescription()));
 
                 default:
                     YT_ABORT();

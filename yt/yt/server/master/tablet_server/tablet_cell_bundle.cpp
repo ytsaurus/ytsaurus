@@ -77,9 +77,9 @@ void TTabletCellBundle::ValidateResourceUsageIncrease(const TTabletResources& de
                 "Tablet cell bundle %Qv is over %v limit",
                 GetName(),
                 resourceName)
-                << TErrorAttribute("increase", (delta.*resource)())
-                << TErrorAttribute("usage", (usage.*resource)())
-                << TErrorAttribute("limit", (limits.*resource)());
+                .With("increase", (delta.*resource)())
+                .With("usage", (usage.*resource)())
+                .With("limit", (limits.*resource)());
         }
     };
 
@@ -155,14 +155,14 @@ void TTabletCellBundle::ValidateResourceLimitsChange(
         THROW_ERROR_EXCEPTION("Failed to change resource limits of tablet cell bundle %Qv "
             "since it does not have enough resources",
             GetName())
-            << TErrorAttribute("violated_resources", violatedResources);
+            .With("violated_resources", violatedResources);
     }
 
     if (!violatedInfinityChecks.empty()) {
         THROW_ERROR_EXCEPTION("Failed to change resource limits of tablet cell bundle %Qv: "
             "either invalid infinity-related operation or just an integer overflow occurred",
             GetName())
-            << TErrorAttribute("violated_resources", violatedResources);
+            .With("violated_resources", violatedResources);
     }
 }
 

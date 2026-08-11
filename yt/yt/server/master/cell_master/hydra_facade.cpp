@@ -319,7 +319,7 @@ public:
                     replyCallback = std::move(replyCallback)
                 ] (TErrorOr<TAsyncSemaphoreGuard>&& guardOrError) {
                     if (!guardOrError.IsOK()) {
-                        context->Reply(TError("Failed to acquire semaphore") << guardOrError);
+                        context->Reply(TError("Failed to acquire semaphore").With(guardOrError));
                         return;
                     }
 

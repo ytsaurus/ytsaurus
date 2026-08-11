@@ -250,7 +250,7 @@ public:
             &TJobController::AbortAllJobs,
             MakeStrong(this),
             TError("Master disconnected")
-                << TErrorAttribute("abort_reason", EAbortReason::NodeOffline))
+                .With("abort_reason", EAbortReason::NodeOffline))
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run());
     }
@@ -416,7 +416,7 @@ public:
 
         auto job = GetJobOrThrow(jobId);
         job->Abort(TError("Aborting job due to extensive memory thrashing in job container")
-            << TErrorAttribute("abort_reason", NScheduler::EAbortReason::JobMemoryThrashing));
+            .With("abort_reason", NScheduler::EAbortReason::JobMemoryThrashing));
     }
 
     TFuture<void> AbortAllJobs(const TError& error) override
@@ -642,7 +642,7 @@ private:
     TError MakeJobsDisabledError() const
     {
         auto error = TError("Jobs disabled on node")
-            << TErrorAttribute("abort_reason", EAbortReason::NodeWithDisabledJobs);
+            .With("abort_reason", EAbortReason::NodeWithDisabledJobs);
         return error;
     }
 
@@ -716,7 +716,7 @@ private:
                         incarnationId);
 
                     auto error = TError("Descriptor not found but epoch didn't change")
-                        << TErrorAttribute("abort_reason", EAbortReason::Other);
+                        .With("abort_reason", EAbortReason::Other);
                     allocation->Abort(error);
                 }
                 continue;
@@ -956,7 +956,7 @@ private:
                 NExecNode::EErrorCode::ResourceOverdraft,
                 "Resource usage overdraft occurred")
                 // GetResourceUsage can be updated again, but it is pretty rare situation.
-                << TErrorAttribute("resource_usage", currentAllocation->GetResourceUsage()));
+                .With("resource_usage", currentAllocation->GetResourceUsage()));
         } else {
             bool foundJobToAbort = false;
             for (const auto& [_, allocation] : IdToAllocations_) {
@@ -966,8 +966,8 @@ private:
                     allocation->Abort(TError(
                         NExecNode::EErrorCode::ResourceOverdraft,
                         "Some other allocation with guarantee overdraft total node resource usage")
-                        << TErrorAttribute("resource_usage", job->GetResourceUsage())
-                        << TErrorAttribute("other_allocation_id", currentAllocationId));
+                        .With("resource_usage", job->GetResourceUsage())
+                        .With("other_allocation_id", currentAllocationId));
                     foundJobToAbort = true;
                     break;
                 }
@@ -1615,7 +1615,7 @@ private:
                 }
             } catch (const std::exception& ex) {
                 allocation->Abort(TError("Failed to acquire resources for job")
-                    << ex);
+                    .With(ex));
             } catch (...) {
                 YT_LOG_FATAL(
                     "Unexpected exception during starting allocations (CurrentAllocationId: %v)",
@@ -1667,7 +1667,7 @@ private:
         if (allocation->GetState() == EAllocationState::Waiting) {
             // TODO(pogorelov): Rename error code.
             allocation->Abort(TError(NExecNode::EErrorCode::WaitingJobTimeout, "Allocation waiting for resources has timed out")
-                << TErrorAttribute("timeout", waitingForResourcesTimeout));
+                .With("timeout", waitingForResourcesTimeout));
         }
     }
 
@@ -1676,7 +1676,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto error = TError(NExecNode::EErrorCode::AbortByScheduler, "Job aborted by scheduler")
-            << TErrorAttribute("abort_reason", abortAttributes.AbortReason.value_or(EAbortReason::Unknown));
+            .With("abort_reason", abortAttributes.AbortReason.value_or(EAbortReason::Unknown));
 
         allocation->Abort(std::move(error));
     }
@@ -1703,8 +1703,8 @@ private:
             abortReason);
 
         auto error = TError(NExecNode::EErrorCode::AbortByControllerAgent, "Job aborted by controller agent")
-            << TErrorAttribute("abort_reason", abortReason)
-            << TErrorAttribute("graceful_abort", graceful);
+            .With("abort_reason", abortReason)
+            .With("graceful_abort", graceful);
 
         DoAbortJob(job, std::move(error), graceful, requestNewJob);
     }
@@ -2007,7 +2007,7 @@ private:
             buildInfo = ConvertTo<TBuildInfoPtr>(TYsonString(result.Output));
         } catch (const std::exception& ex) {
             buildInfo = TError(NExecNode::EErrorCode::JobProxyUnavailable, "Failed to receive job proxy build info")
-                << ex;
+                .With(ex);
         }
 
         CachedJobProxyBuildInfo_.Store(buildInfo);
@@ -2061,7 +2061,7 @@ private:
                     Bootstrap_->GetJobInvoker());
             } else {
                 auto error = TError("Operation %v is not running", operationId)
-                    << TErrorAttribute("abort_reason", EAbortReason::OperationFinished);
+                    .With("abort_reason", EAbortReason::OperationFinished);
                 job->Abort(std::move(error));
             }
         }

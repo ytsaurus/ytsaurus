@@ -202,7 +202,7 @@ private:
             THROW_ERROR_EXCEPTION("Error parsing %v file %v",
                 ArgumentName_,
                 ConfigPath_)
-                << ex;
+                .With(ex);
         }
     }
 
@@ -220,7 +220,7 @@ private:
             THROW_ERROR_EXCEPTION("Error loading %v file %v",
                 ArgumentName_,
                 ConfigPath_)
-                << ex;
+                .With(ex);
         }
     }
 

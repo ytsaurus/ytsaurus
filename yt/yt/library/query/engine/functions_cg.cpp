@@ -595,10 +595,10 @@ void LoadLlvmBitcode(
 
     if (!implementationModule) {
         THROW_ERROR_EXCEPTION("Could not parse LLVM bitcode for function %Qv", functionName)
-            << TErrorAttribute("line_no", diag.getLineNo())
-            << TErrorAttribute("column_no", diag.getColumnNo())
-            << TErrorAttribute("content", TStringBuf(diag.getLineContents().data(), diag.getLineContents().size()))
-            << TErrorAttribute("message", TStringBuf(diag.getMessage().data(), diag.getMessage().size()));
+            .With("line_no", diag.getLineNo())
+            .With("column_no", diag.getColumnNo())
+            .With("content", TStringBuf(diag.getLineContents().data(), diag.getLineContents().size()))
+            .With("message", TStringBuf(diag.getMessage().data(), diag.getMessage().size()));
     }
 
     for (const auto& symbol : requiredSymbols) {
@@ -672,7 +672,7 @@ void LoadLlvmBitcode(
     if (linkerFailed) {
         THROW_ERROR_EXCEPTION("Error linking LLVM bitcode for function %Qv",
             functionName)
-            << TErrorAttribute("message", what.c_str());
+            .With("message", what.c_str());
     }
 
     module->AddLoadedModule(implementationFile);

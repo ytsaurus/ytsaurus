@@ -196,8 +196,8 @@ public:
 
         auto makeCommonError = [&] {
             return TError("Failed to get declared parameters in process plugin")
-                << TErrorAttribute("query_id", queryId)
-                << TErrorAttribute("slot_index", pluginProcess->SlotIndex());
+                .With("query_id", queryId)
+                .With("slot_index", pluginProcess->SlotIndex());
         };
 
         try {
@@ -209,10 +209,10 @@ public:
                 credentials);
         } catch (const std::exception& ex) {
             error = makeCommonError()
-                << TError(ex);
+                .With(TError(ex));
         } catch (...) {
             error = makeCommonError()
-                << TErrorAttribute("message", CurrentExceptionMessage());
+                .With("message", CurrentExceptionMessage());
         }
 
         if (!error.IsOK()) {
@@ -293,8 +293,8 @@ public:
 
         auto makeQueryCleanupError = [&](TStringBuf message) {
             return TError(std::string(message), TError::DisableFormat)
-                << TErrorAttribute("query_id", queryId)
-                << TErrorAttribute("slot_index", pluginProcess->SlotIndex());
+                .With("query_id", queryId)
+                .With("slot_index", pluginProcess->SlotIndex());
         };
 
         auto makeCommonUnregisterError = [&] {
@@ -319,10 +319,10 @@ public:
             pluginProcess->UnregisterQuery(queryId);
         } catch (const std::exception& ex) {
             error = makeCommonUnregisterError()
-                << TError(ex);
+                .With(TError(ex));
         } catch (...) {
             error = makeCommonUnregisterError()
-                << TErrorAttribute("message", CurrentExceptionMessage());
+                .With("message", CurrentExceptionMessage());
         }
 
         try {
@@ -332,7 +332,7 @@ public:
                 << TError(ex));
         } catch (...) {
             appendError(makeCommonFinishError()
-                << TErrorAttribute("message", CurrentExceptionMessage()));
+                .With("message", CurrentExceptionMessage()));
         }
 
         if (!error.IsOK()) {

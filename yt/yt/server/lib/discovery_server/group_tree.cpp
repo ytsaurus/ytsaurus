@@ -893,18 +893,18 @@ public:
                     THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::NodeLimitExceeded,
                         "Cannot create group %v: too many nodes in group tree",
                         id)
-                        << TErrorAttribute("node", currentPath)
-                        << TErrorAttribute("group_tree_size", groupManagerInfo.GroupTreeSize)
-                        << TErrorAttribute("max_group_tree_size", *config->MaxGroupTreeSize);
+                        .With("node", currentPath)
+                        .With("group_tree_size", groupManagerInfo.GroupTreeSize)
+                        .With("max_group_tree_size", *config->MaxGroupTreeSize);
                 }
 
                 if (exceedsLimit(currentDepth, config->MaxGroupTreeDepth)) {
                     THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::DepthLimitExceeded,
                         "Cannot create group %v: group tree is too deep",
                         id)
-                        << TErrorAttribute("node", currentPath)
-                        << TErrorAttribute("group_tree_depth", currentDepth)
-                        << TErrorAttribute("max_group_tree_depth", *config->MaxGroupTreeDepth);
+                        .With("node", currentPath)
+                        .With("group_tree_depth", currentDepth)
+                        .With("max_group_tree_depth", *config->MaxGroupTreeDepth);
                 }
 
                 auto newNode = New<TGroupNode>(key, ToString(currentPath), MakeWeak(currentNode));
@@ -920,9 +920,9 @@ public:
                     THROW_ERROR_EXCEPTION(NDiscoveryClient::EErrorCode::GroupLimitExceeded,
                         "Cannot create group %v: too many groups already",
                         id)
-                        << TErrorAttribute("group", id)
-                        << TErrorAttribute("group_count", groupManagerInfo.GroupCount)
-                        << TErrorAttribute("max_group_count", *config->MaxGroupCount);
+                        .With("group", id)
+                        .With("group_count", groupManagerInfo.GroupCount)
+                        .With("max_group_count", *config->MaxGroupCount);
                 }
                 ++groupManagerInfo.GroupCount;
 

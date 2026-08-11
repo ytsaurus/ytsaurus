@@ -410,8 +410,8 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedFieldEntryRelative(
 
     THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
         "Unexpected repeated field relative path specifier")
-        << TErrorAttribute("relative_index", Self()->GetTokenizerPrefix())
-        << TErrorAttribute("computed_index", index);
+        .With("relative_index", Self()->GetTokenizerPrefix())
+        .With("computed_index", index);
 }
 
 template <typename TWrappedMessage, typename TSelf>

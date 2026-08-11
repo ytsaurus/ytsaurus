@@ -97,8 +97,8 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         THROW_ERROR_EXCEPTION(
             NTableClient::EErrorCode::CorruptedNameTable,
             "Failed to deserialize name table for partition chunk reader")
-            << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
-            << ex;
+            .With("chunk_id", UnderlyingReader_->GetChunkId())
+            .With(ex);
     }
 
     InitNameTable(chunkNameTable);
@@ -169,7 +169,7 @@ void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)
             ChunkToReaderIdMapping_.push_back(id);
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to add column to name table for partition chunk reader") << ex;
+        THROW_ERROR_EXCEPTION("Failed to add column to name table for partition chunk reader").With(ex);
     }
 }
 

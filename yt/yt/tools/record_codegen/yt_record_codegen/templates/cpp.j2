@@ -238,7 +238,7 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
 {%- endif %}
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "{{field.column_name}}")
-                << ex;
+                .With(ex);
         }
     }
 {%- if field.required %} else {
@@ -301,7 +301,7 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
             FromUnversionedValue(&result.TabletIndex, row[*id]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", TabletIndexColumnName)
-                << ex;
+                .With(ex);
         }
     }
 
@@ -311,7 +311,7 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
             FromUnversionedValue(&result.RowIndex, row[*id]);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", RowIndexColumnName)
-                << ex;
+                .With(ex);
         }
     }
 {%- endif %}
@@ -328,7 +328,7 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
 {%- endif %}
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing column %Qv", "{{field.column_name}}")
-                << ex;
+                .With(ex);
         }
     }
 {%- endfor %}

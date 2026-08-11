@@ -381,9 +381,9 @@ TError VerifyDominates(const TJobResources& lhs, const TJobResources& rhs, TStri
 {
     #define XX(name, Name) if (lhs.Name < rhs.Name) { \
             return TError(TRuntimeFormat(failMessage)) \
-                << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
-                << TErrorAttribute("value", lhs.Name) \
-                << TErrorAttribute("expected_ge_to", rhs.Name); \
+                .With("resource_name", PP_STRINGIZE(name)) \
+                .With("value", lhs.Name) \
+                .With("expected_ge_to", rhs.Name); \
         }
 
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -396,9 +396,9 @@ TError VerifyEquals(const TJobResources& lhs, const TJobResources& rhs, TStringB
 {
     #define XX(name, Name) if (lhs.Name != rhs.Name) { \
             return TError(TRuntimeFormat(failMessage)) \
-                << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
-                << TErrorAttribute("value", lhs.Name) \
-                << TErrorAttribute("expected_e_to", rhs.Name); \
+                .With("resource_name", PP_STRINGIZE(name)) \
+                .With("value", lhs.Name) \
+                .With("expected_e_to", rhs.Name); \
         }
 
     ITERATE_JOB_RESOURCE_FIELDS(XX)
@@ -411,8 +411,8 @@ TError VerifyNonNegative(const TJobResources& resources, TStringBuf failMessage)
 {
     #define XX(name, Name) if (resources.Name < static_cast<decltype(resources.Name)>(0L)) { \
             return TError(TRuntimeFormat(failMessage)) \
-                << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
-                << TErrorAttribute("value", resources.Name); \
+                .With("resource_name", PP_STRINGIZE(name)) \
+                .With("value", resources.Name); \
         }
 
     ITERATE_JOB_RESOURCE_FIELDS(XX)

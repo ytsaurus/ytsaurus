@@ -52,7 +52,7 @@ TResult RunTool(
         serializedArgument = NYson::ConvertToYsonString(arg, NYson::EYsonFormat::Text);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to serialize argument for tool %v", name)
-            << ex;
+            .With(ex);
     }
 
     auto serializedResultOrError = invoker(name, serializedArgument);
@@ -64,8 +64,8 @@ TResult RunTool(
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to parse result of tool %v",
             name)
-            << TErrorAttribute("result", serializedResultOrError.AsStringBuf())
-            << ex;
+            .With("result", serializedResultOrError.AsStringBuf())
+            .With(ex);
     }
 
     THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error occurred during tool run");
@@ -88,7 +88,7 @@ std::vector<std::string> GenerateToolArguments(const TArg& arg)
         serializedArgument = NYson::ConvertToYsonString(arg, NYson::EYsonFormat::Text);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to serialize argument for tool %v", name)
-            << ex;
+            .With(ex);
     }
 
     return std::vector<std::string>{

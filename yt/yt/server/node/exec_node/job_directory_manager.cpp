@@ -200,8 +200,8 @@ public:
             auto error = WaitFor(CleanDirectories(Path_));
             if (!error.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to initialize simple job directory manager")
-                    << TErrorAttribute("path", Path_)
-                    << std::move(error);
+                    .With("path", Path_)
+                    .With(std::move(error));
             }
         }
     }

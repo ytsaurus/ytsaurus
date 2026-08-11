@@ -315,7 +315,7 @@ public:
 
         if (StorageContext_->Settings->Testing->ThrowExceptionInSubquery) {
             THROW_ERROR_EXCEPTION("Testing exception in subquery")
-                << TErrorAttribute("storage_index", StorageContext_->Index);
+                .With("storage_index", StorageContext_->Index);
         }
 
         return DB::Pipe::unitePipes(std::move(pipes));

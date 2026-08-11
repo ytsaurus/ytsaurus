@@ -136,9 +136,9 @@ void ThrowAccessDeniedException(
         "Access denied to query %v due to missing %Qv permission",
         queryId,
         permission)
-        << TErrorAttribute("user", user)
-        << TErrorAttribute("access_control_objects", accessControlObjects)
-        << TErrorAttribute("query_author", queryAuthor);
+        .With("user", user)
+        .With("access_control_objects", accessControlObjects)
+        .With("query_author", queryAuthor);
 }
 
 //! Lookup a query in active_queries and finished_queries tables by query id.
@@ -170,7 +170,7 @@ TQuery LookupQuery(
         THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::QueryNotFound,
             "Query %v is not found neither in active nor in finished query tables",
             queryId)
-            << error;
+            .With(error);
     }
     bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.GetOrCrash().IsOK();
     bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.GetOrCrash().IsOK();
@@ -221,7 +221,7 @@ void VerifyAllAccessControlObjectsExist(const std::vector<std::string>& accessCo
             .Apply(BIND([accessControlObject] (const TErrorOr<bool>& rspOrError) {
                 if (!rspOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION("Failed to check whether access control object %Qv exists", accessControlObject)
-                        << rspOrError;
+                        .With(rspOrError);
                 }
 
                 if (!rspOrError.Value()) {
@@ -551,7 +551,7 @@ void TQueryTrackerProxy::AbortQuery(
         if (error.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict)) {
             // TODO(max42): retry such errors automatically?
             THROW_ERROR_EXCEPTION("Cannot abort query because its state is being changed at the moment; please try again")
-                << error;
+                .With(error);
         }
         THROW_ERROR error;
     }

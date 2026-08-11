@@ -82,19 +82,19 @@ public:
         if (!bytes) {
             THROW_ERROR_EXCEPTION("Failed to create bytes for field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         if (PyTuple_SetItem(OtherColumnsArgs_.ptr(), 0, bytes.release()) == -1) {
             THROW_ERROR_EXCEPTION("Failed to set tuple element for constructor of field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
 
         auto obj = PyObjectPtr(PyObject_Call(OtherColumnsClass_.ptr(), OtherColumnsArgs_.ptr(), /* kwargs */ nullptr));
         if (!obj) {
             THROW_ERROR_EXCEPTION("Failed to create OtherColumns field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         return obj;
     }
@@ -123,14 +123,14 @@ public:
                 Description_,
                 PythonType,
                 WireType)
-                << TError(exception);
+                .With(TError(exception));
         }
         if (!result) {
             THROW_ERROR_EXCEPTION("Failed to parse field %Qv of Python type %Qlv from wire type %Qlv",
                 Description_,
                 PythonType,
                 WireType)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         return result;
     }
@@ -336,7 +336,7 @@ public:
             THROW_ERROR_EXCEPTION("Failed to create field %Qv of class %Qv",
                 Description_,
                 PyTypeStr_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         for (int i = 0; i < std::ssize(FieldConverters_); ++i) {
             auto field = PyObjectPtr(FieldConverters_[i](parser));
@@ -344,7 +344,7 @@ public:
                 THROW_ERROR_EXCEPTION("Failed to set field \"%v.%v\"",
                     Description_,
                     FieldNames_[i])
-                    << Py::BuildErrorFromPythonException(/*clear*/ true);
+                    .With(Py::BuildErrorFromPythonException(/*clear*/ true));
             }
         }
         for (const auto& fieldName : FieldsMissingFromSchema_) {
@@ -352,7 +352,7 @@ public:
                 THROW_ERROR_EXCEPTION("Failed to set missing field \"%v.%v\"",
                     Description_,
                     fieldName)
-                    << Py::BuildErrorFromPythonException(/*clear*/ true);
+                    .With(Py::BuildErrorFromPythonException(/*clear*/ true));
             }
         }
         if (WithPostInit_) {
@@ -361,7 +361,7 @@ public:
                 THROW_ERROR_EXCEPTION("Failed to call __post_init__ for field %Qv of class %Qv",
                     Description_,
                     PyTypeStr_)
-                    << Py::BuildErrorFromPythonException(/*clear*/ true);
+                    .With(Py::BuildErrorFromPythonException(/*clear*/ true));
             }
         }
         return obj;
@@ -405,7 +405,7 @@ public:
         if (!list) {
             THROW_ERROR_EXCEPTION("Failed to create list for field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         while (true) {
             auto tag = parser->ParseVariant8Tag();
@@ -453,7 +453,7 @@ public:
         if (!tuple) {
             THROW_ERROR_EXCEPTION("Failed to create tuple for field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
 
         for (int i = 0; i < std::ssize(ElementConverters_); i++) {
@@ -496,7 +496,7 @@ public:
         if (!dict) {
             THROW_ERROR_EXCEPTION("Failed to create dict for field %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         while (true) {
             auto tag = parser->ParseVariant8Tag();
@@ -573,7 +573,7 @@ public:
         } catch (const std::exception& exception) {
             THROW_ERROR_EXCEPTION("Failed to parse system columns for class %Qv from Skiff",
                 RowClassName_)
-                << TError(exception);
+                .With(TError(exception));
         }
         return obj;
     }

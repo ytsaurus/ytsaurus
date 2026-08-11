@@ -38,7 +38,7 @@ void TCompanionProcessManager::ValidateParameters() const
         "Companion entrypoint executable is empty");
     if (!NFS::Exists(Entrypoint_->Executable)) {
         THROW_ERROR_EXCEPTION("Companion entrypoint executable does not exist")
-            << TErrorAttribute("executable", Entrypoint_->Executable);
+            .With("executable", Entrypoint_->Executable);
     }
 }
 

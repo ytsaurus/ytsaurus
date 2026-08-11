@@ -827,7 +827,7 @@ void TReplicatedTableMappingTableRow::Validate() const
         Y_UNUSED(GetReplicas());
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Invalid (chaos) replicated table meta value")
-            << ex;
+            .With(ex);
     }
 }
 

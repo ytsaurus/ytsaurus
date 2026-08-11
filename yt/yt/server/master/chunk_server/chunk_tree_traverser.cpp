@@ -1335,8 +1335,8 @@ protected:
                 if (startRowIndex < firstOverlayedRowIndex) {
                     THROW_ERROR_EXCEPTION("Row gap detected in overlayed chunk %v",
                         chunk->GetId())
-                        << TErrorAttribute("start_row_index", startRowIndex)
-                        << TErrorAttribute("first_overlayed_row_index", firstOverlayedRowIndex);
+                        .With("start_row_index", startRowIndex)
+                        .With("first_overlayed_row_index", firstOverlayedRowIndex);
                 }
                 auto rowIndexDelta =
                     (startRowIndex - firstOverlayedRowIndex) + // rows overlayed with the previous chunk

@@ -68,22 +68,22 @@ void LockNodeWithWait(
     if (!lockOrError.IsOK()) {
         if (!lockOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             THROW_ERROR_EXCEPTION("Failed to acquire lock")
-                << TErrorAttribute("lock_path", lockPath)
-                << lockOrError;
+                .With("lock_path", lockPath)
+                .With(lockOrError);
         }
 
         // Try to create lock node.
         auto resultOrError = WaitFor(client->CreateNode(lockPath, EObjectType::MapNode, TCreateNodeOptions{.Force = true}));
         if (!resultOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to create lock node")
-                << TErrorAttribute("lock_path", lockPath)
-                << resultOrError;
+                .With("lock_path", lockPath)
+                .With(resultOrError);
         }
         lockOrError = WaitFor(transaction->LockNode(lockPath, ELockMode::Exclusive, TLockNodeOptions{.Waitable = true}));
         if (!lockOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to acquire lock after creating it")
-                << TErrorAttribute("lock_path", lockPath)
-                << lockOrError;
+                .With("lock_path", lockPath)
+                .With(lockOrError);
         }
     }
     auto lockId = lockOrError.Value().LockId;
@@ -93,8 +93,8 @@ void LockNodeWithWait(
         auto stateOrError = WaitFor(transaction->GetNode(Format("#%v/@state", lockId)));
         if (!stateOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to get state of lock")
-                << TErrorAttribute("lock_path", lockPath)
-                << stateOrError;
+                .With("lock_path", lockPath)
+                .With(stateOrError);
         }
         if (ConvertToNode(stateOrError.Value())->AsString()->GetValue() == "acquired") {
             break;
@@ -102,8 +102,8 @@ void LockNodeWithWait(
         TDelayedExecutor::WaitForDuration(checkBackoff);
         if (GetInstant() > deadline) {
             THROW_ERROR_EXCEPTION("Timeout exceeded while waiting for lock")
-                << TErrorAttribute("lock_path", lockPath)
-                << TErrorAttribute("timeout", waitTimeout);
+                .With("lock_path", lockPath)
+                .With("timeout", waitTimeout);
         }
     }
 }

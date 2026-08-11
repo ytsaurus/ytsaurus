@@ -10,24 +10,24 @@ void ValidateStateName(const std::string& name)
 {
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("State name is empty")
-            << TErrorAttribute("name", name);
+            .With("name", name);
     }
     if (name == "/") {
         THROW_ERROR_EXCEPTION("State name is root")
-            << TErrorAttribute("name", name);
+            .With("name", name);
     }
     if (name.back() == '/') {
         THROW_ERROR_EXCEPTION("State name ends with '/'")
-            << TErrorAttribute("name", name);
+            .With("name", name);
     }
     if (name.front() != '/') {
         THROW_ERROR_EXCEPTION("State name does not start with '/'")
-            << TErrorAttribute("name", name);
+            .With("name", name);
     }
     if (auto position = name.find("//"); position != std::string::npos) {
         THROW_ERROR_EXCEPTION("State name contains two adjacent '/'")
-            << TErrorAttribute("name", name)
-            << TErrorAttribute("position", position);
+            .With("name", name)
+            .With("position", position);
     }
 }
 

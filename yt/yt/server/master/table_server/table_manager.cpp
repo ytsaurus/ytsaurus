@@ -927,7 +927,7 @@ public:
 
         if (tableId == indexTableId) {
             THROW_ERROR_EXCEPTION("Table cannot be an index to itself")
-                << TErrorAttribute("table_id", tableId);
+                .With("table_id", tableId);
         }
 
         auto* table = GetTableNodeOrThrow(tableId);
@@ -942,8 +942,8 @@ public:
 
             if (!indexTable->IsNative()) {
                 THROW_ERROR_EXCEPTION("Table and index table native cell tags differ")
-                    << TErrorAttribute("table_cell_tag", tableId)
-                    << TErrorAttribute("index_table_cell_tag", indexTableId);
+                    .With("table_cell_tag", tableId)
+                    .With("index_table_cell_tag", indexTableId);
             }
             if (!indexTable->SecondaryIndices().empty()) {
                 THROW_ERROR_EXCEPTION("Cannot use a table with indices as an index");
@@ -962,8 +962,8 @@ public:
             auto indexTableType = TypeFromId(indexTableId);
             if (tableType != indexTableType) {
                 THROW_ERROR_EXCEPTION("Table type mismatch")
-                    << TErrorAttribute("table_type", tableType)
-                    << TErrorAttribute("index_table_type", indexTableType);
+                    .With("table_type", tableType)
+                    .With("index_table_type", indexTableType);
             }
 
             switch (tableType) {
@@ -979,8 +979,8 @@ public:
                         auto tableCollocationId = tableCollocation ? tableCollocation->GetId() : NullObjectId;
                         auto indexCollocationId = indexCollocation ? indexCollocation->GetId() : NullObjectId;
                         THROW_ERROR_EXCEPTION("Table and index table must belong to the same non-null table collocation")
-                            << TErrorAttribute("table_collocation_id", tableCollocationId)
-                            << TErrorAttribute("index_table_collocation_id", indexCollocationId);
+                            .With("table_collocation_id", tableCollocationId)
+                            .With("index_table_collocation_id", indexCollocationId);
                     }
 
                     if (auto type = tableCollocation->GetType(); type != ETableCollocationType::Replication) {

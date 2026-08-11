@@ -51,11 +51,11 @@ TStreamSpecs::TStreamSpecs(
             {
                 auto [it, inserted] = SchemaToStreamSpecId_.try_emplace(spec->Schema, specId);
                 THROW_ERROR_EXCEPTION_IF(!inserted, "Found two stream spec versions with same schema")
-                    << TErrorAttribute("first_stream_id", streamId)
-                    << TErrorAttribute("second_stream_id", GetOrDefault(Specs_, it->second, {.StreamId = {}}).StreamId)
-                    << TErrorAttribute("first_stream_spec_id", specId)
-                    << TErrorAttribute("second_stream_spec_id", it->second)
-                    << TErrorAttribute("schema", spec->Schema);
+                    .With("first_stream_id", streamId)
+                    .With("second_stream_id", GetOrDefault(Specs_, it->second, {.StreamId = {}}).StreamId)
+                    .With("first_stream_spec_id", specId)
+                    .With("second_stream_spec_id", it->second)
+                    .With("schema", spec->Schema);
             }
         }
     }

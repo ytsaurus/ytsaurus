@@ -577,7 +577,7 @@ public:
         default:
             YT_LOG_ALERT("Invalid maintenance type (Type: %v)", type);
             THROW_ERROR_EXCEPTION("Invalid maintenance type")
-                << TErrorAttribute("type", type);
+                .With("type", type);
         }
     }
 
@@ -1777,7 +1777,7 @@ private:
         auto* node = GetNodeByAddressOrThrow(nodeAddress);
         if (!IsObjectAlive(node)) {
             THROW_ERROR_EXCEPTION("No such node")
-                << TErrorAttribute("address", request->node_address());
+                .With("address", request->node_address());
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -1823,7 +1823,7 @@ private:
         auto* node = GetNodeByAddressOrThrow(nodeAddress);
         if (!IsObjectAlive(node)) {
             THROW_ERROR_EXCEPTION("Node does not exist")
-                << TErrorAttribute("node_address", request->node_address());
+                .With("node_address", request->node_address());
         }
 
         auto id = FromProto<TMaintenanceId>(request->id());
@@ -2950,9 +2950,9 @@ private:
                 dataHeartbeatAlert.OldestNodeAddress,
                 now - dataHeartbeatAlert.OldestNodeChangeTime);
             alerts.push_back(TError("Node(s) had no data heartbeat for too long")
-                << TErrorAttribute("node_count", dataHeartbeatAlert.AlertedNodeCount)
-                << TErrorAttribute("oldest_no_heartbeat_node_address", dataHeartbeatAlert.OldestNodeAddress)
-                << TErrorAttribute("time_since_oldest_data_heartbeat", now - dataHeartbeatAlert.OldestNodeChangeTime));
+                .With("node_count", dataHeartbeatAlert.AlertedNodeCount)
+                .With("oldest_no_heartbeat_node_address", dataHeartbeatAlert.OldestNodeAddress)
+                .With("time_since_oldest_data_heartbeat", now - dataHeartbeatAlert.OldestNodeChangeTime));
         }
         if (jobHeartbeatAlert.AlertedNodeCount > 0) {
             YT_LOG_ALERT(
@@ -2962,9 +2962,9 @@ private:
                 jobHeartbeatAlert.OldestNodeAddress,
                 now - jobHeartbeatAlert.OldestNodeChangeTime);
             alerts.push_back(TError("Node(s) had no job heartbeat for too long")
-                << TErrorAttribute("node_count", jobHeartbeatAlert.AlertedNodeCount)
-                << TErrorAttribute("oldest_no_heartbeat_node_address", jobHeartbeatAlert.OldestNodeAddress)
-                << TErrorAttribute("time_since_oldest_job_heartbeat", now - jobHeartbeatAlert.OldestNodeChangeTime));
+                .With("node_count", jobHeartbeatAlert.AlertedNodeCount)
+                .With("oldest_no_heartbeat_node_address", jobHeartbeatAlert.OldestNodeAddress)
+                .With("time_since_oldest_job_heartbeat", now - jobHeartbeatAlert.OldestNodeChangeTime));
         }
 
         for (const auto& [state, alert] : noStateChangeAlert) {
@@ -2976,10 +2976,10 @@ private:
                 alert.OldestNodeAddress,
                 now - alert.OldestNodeChangeTime);
             alerts.push_back(TError("Node(s) had no state change for too long")
-                << TErrorAttribute("current_state", state)
-                << TErrorAttribute("node_count", alert.AlertedNodeCount)
-                << TErrorAttribute("oldest_no_state_change_node_address", alert.OldestNodeAddress)
-                << TErrorAttribute("time_since_oldest_state_change", now - alert.OldestNodeChangeTime));
+                .With("current_state", state)
+                .With("node_count", alert.AlertedNodeCount)
+                .With("oldest_no_state_change_node_address", alert.OldestNodeAddress)
+                .With("time_since_oldest_state_change", now - alert.OldestNodeChangeTime));
         }
 
         Alerts_ = std::move(alerts);

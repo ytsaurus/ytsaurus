@@ -1153,7 +1153,7 @@ private:
     void OnFailed()
     {
         Promise_.TrySet(TError("Failed to read chunk fragments")
-            << std::move(Errors_));
+            .With(std::move(Errors_)));
     }
 
     void DoRun()
@@ -1529,7 +1529,7 @@ private:
             auto throttlingError = TError(
                 NChunkClient::EErrorCode::ReaderThrottlingFailed,
                 "Failed to apply throttling in fragment chunk reader")
-                << error;
+                .With(error);
 
             SessionInvoker_->Invoke(BIND(
                 &TSimpleReadFragmentsSession::OnGotChunkFragments,
@@ -1716,7 +1716,7 @@ private:
 
         if (rsp->net_throttling()) {
             auto error = TError("Peer net is throttled")
-                << TErrorAttribute("address", peerInfo->Address);
+                .With("address", peerInfo->Address);
             OnError(error);
             return;
         }
@@ -1753,8 +1753,8 @@ private:
 
                 if (subresponse.disk_throttling()) {
                     OnError(TError("Peer disk is throttled")
-                        << TErrorAttribute("address", peerInfo->Address)
-                        << TErrorAttribute("chunk_id", chunkId));
+                        .With("address", peerInfo->Address)
+                        .With("chunk_id", chunkId));
                     continue;
                 }
 
@@ -1763,8 +1763,8 @@ private:
                     // because replica set may happen to be out of date due to eventually consistent nature of DRT.
                     Reader_->DropChunkReplicasFromPeer(chunkId, peerInfo);
                     OnError(TError("Peer does not contain chunk")
-                        << TErrorAttribute("address", peerInfo->Address)
-                        << TErrorAttribute("chunk_id", chunkId));
+                        .With("address", peerInfo->Address)
+                        .With("chunk_id", chunkId));
                     continue;
                 }
 
@@ -1883,7 +1883,7 @@ public:
     {
         if (!Promise_.IsSet()) {
             Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Chunk fragment read session destroyed")
-                << TErrorAttribute("elapsed_time", Timer_.GetElapsedTime()));
+                .With("elapsed_time", Timer_.GetElapsedTime()));
         }
     }
 
@@ -1921,7 +1921,7 @@ private:
     void OnFatalError(TError error)
     {
         YT_LOG_WARNING(error, "Chunk fragment read failed");
-        Promise_.TrySet(std::move(error) << std::move(Errors_));
+        Promise_.TrySet(std::move(error).With(std::move(Errors_)));
     }
 
     void OnSuccess(i64 totalReadFragmentSize)
@@ -1957,7 +1957,7 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Invalid chunk id in fragment read request")
-                    << makeErrorAttributes());
+                    .With(makeErrorAttributes()));
                 return;
             }
 
@@ -1965,7 +1965,7 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Missing block size in fragment read request for erasure chunk")
-                    << makeErrorAttributes());
+                    .With(makeErrorAttributes()));
                 return;
             }
 
@@ -1973,8 +1973,8 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Non-positive block size in fragment read request")
-                    << makeErrorAttributes()
-                    << TErrorAttribute("block_size", *request.BlockSize));
+                    .With(makeErrorAttributes())
+                    .With("block_size", *request.BlockSize));
                 return;
             }
 
@@ -1982,7 +1982,7 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Negative block index in fragment read request")
-                    << makeErrorAttributes());
+                    .With(makeErrorAttributes()));
                 return;
             }
 
@@ -1990,7 +1990,7 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Negative block offset in fragment read request")
-                    << makeErrorAttributes());
+                    .With(makeErrorAttributes()));
                 return;
             }
 
@@ -1998,7 +1998,7 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Negative length in fragment read request")
-                    << makeErrorAttributes());
+                    .With(makeErrorAttributes()));
                 return;
             }
 
@@ -2006,8 +2006,8 @@ private:
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
                     "Fragment read request is out of block range")
-                    << makeErrorAttributes()
-                    << TErrorAttribute("block_size", *request.BlockSize));
+                    .With(makeErrorAttributes())
+                    .With("block_size", *request.BlockSize));
                 return;
             }
 
@@ -2028,13 +2028,13 @@ private:
             OnFatalError(TError(
                 NChunkClient::EErrorCode::ReaderRetryCountLimitExceeded,
                 "Chunk fragment reader has exceeded retry count limit")
-                << TErrorAttribute("retry_count_limit", Reader_->Config_->RetryCountLimit));
+                .With("retry_count_limit", Reader_->Config_->RetryCountLimit));
             return;
         }
 
         if (Timer_.GetElapsedTime() >= Reader_->Config_->ReadTimeLimit) {
             OnFatalError(TError(NChunkClient::EErrorCode::ReaderTimeout, "Chunk fragment reader has exceeded read time limit")
-                << TErrorAttribute("read_time_limit", Reader_->Config_->ReadTimeLimit));
+                .With("read_time_limit", Reader_->Config_->ReadTimeLimit));
             return;
         }
 

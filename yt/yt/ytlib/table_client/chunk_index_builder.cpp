@@ -37,8 +37,8 @@ public:
         if (Config_->MaxBlockSize) {
             if (*Config_->MaxBlockSize < THashTableChunkIndexFormatDetail::SectorSize) {
                 THROW_ERROR_EXCEPTION("Cannot build hash table chunk index for specified parameters")
-                    << TErrorAttribute("max_block_size", *Config_->MaxBlockSize)
-                    << TErrorAttribute("sector_size", THashTableChunkIndexFormatDetail::SectorSize);
+                    .With("max_block_size", *Config_->MaxBlockSize)
+                    .With("sector_size", THashTableChunkIndexFormatDetail::SectorSize);
             }
 
             auto maxSlotCountInBlock = THashTableChunkIndexFormatDetail::GetMaxSlotCountInBlock(
@@ -49,8 +49,8 @@ public:
 
             if (MaxEntryCountInBlock_ == 0) {
                 THROW_ERROR_EXCEPTION("Cannot build hash table chunk index for specified parameters")
-                    << TErrorAttribute("max_block_size", *Config_->MaxBlockSize)
-                    << TErrorAttribute("load_factor", Config_->LoadFactor);
+                    .With("max_block_size", *Config_->MaxBlockSize)
+                    .With("load_factor", Config_->LoadFactor);
             }
         }
     }

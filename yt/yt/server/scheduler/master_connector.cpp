@@ -336,7 +336,7 @@ public:
             }
         } catch (const std::exception& ex) {
             auto error = TError("Error creating operation node %v", operationId)
-                << ex;
+                .With(ex);
             if (IsMasterDisconnectionError(error)) {
                 error.SetCode(NScheduler::EErrorCode::MasterDisconnected);
             }
@@ -502,17 +502,17 @@ public:
 
         return batchReq->Invoke().Apply(BIND([operationId] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
             auto error = TError("Error getting operation node progress attributes")
-                << TErrorAttribute("operation_id", operationId);
+                .With("operation_id", operationId);
             if (!batchRspOrError.IsOK()) {
                 THROW_ERROR error
-                    << batchRspOrError;
+                    .With(batchRspOrError);
             }
 
             const auto& batchRsp = batchRspOrError.Value();
             auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
             if (!rspOrError.IsOK()) {
                 THROW_ERROR error
-                    << rspOrError;
+                    .With(rspOrError);
             }
 
             const auto& rsp = rspOrError.Value();
@@ -528,7 +528,7 @@ public:
             cellTag);
         if (!connection) {
             return MakeFuture(TError("Unknown cell tag %v of user transaction", cellTag)
-                << TErrorAttribute("transaction_id", transactionId));
+                .With("transaction_id", transactionId));
         }
 
         auto proxy = CreateObjectServiceReadProxy(connection, EMasterChannelKind::Follower, cellTag);
@@ -538,17 +538,17 @@ public:
 
         return batchReq->Invoke().Apply(BIND([transactionId] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
             auto error = TError("Error checking user transaction")
-                << TErrorAttribute("transaction_id", transactionId);
+                .With("transaction_id", transactionId);
             if (!batchRspOrError.IsOK()) {
                 THROW_ERROR error
-                    << batchRspOrError;
+                    .With(batchRspOrError);
             }
 
             const auto& batchRsp = batchRspOrError.Value();
             auto rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspGetBasicAttributes>(0);
             if (!rspOrError.IsOK()) {
                 THROW_ERROR error
-                    << rspOrError;
+                    .With(rspOrError);
             }
         }));
     }
@@ -877,7 +877,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Disconnect(TError("Lock transaction aborted")
-            << error);
+            .With(error));
     }
 
     bool DoesOperationsArchiveExist()
@@ -1288,7 +1288,7 @@ private:
                             secureVaultRspOrError.GetCode() != NYTree::EErrorCode::ResolveError) {
                             THROW_ERROR_EXCEPTION("Error while attempting to fetch the secure vault of operation %v",
                                 operationId)
-                                << secureVaultRspOrError;
+                                .With(secureVaultRspOrError);
                         }
 
                         auto attributesNodeStr = TYsonString(attributesRsp->value());
@@ -1651,8 +1651,8 @@ private:
                     attributes = ConvertToAttributes(TYsonString(attributesRsp->value()));
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error parsing attributes of operation")
-                        << TErrorAttribute("operation_id", operationId)
-                        << ex;
+                        .With("operation_id", operationId)
+                        .With(ex);
                 }
                 futures.push_back(
                     BIND(&TImpl::GetTransactionsAndRevivalDescriptor, MakeStrong(this))
@@ -1727,8 +1727,8 @@ private:
                             }
                         } catch (const std::exception& ex) {
                             THROW_ERROR_EXCEPTION("Error parsing revival attributes of operation")
-                                << TErrorAttribute("operation_id", operation->GetId())
-                                << ex;
+                                .With("operation_id", operation->GetId())
+                                .With(ex);
                         }
                     };
 
@@ -1857,7 +1857,7 @@ private:
 
         YT_VERIFY(!error.IsOK());
 
-        Disconnect(TError("Failed to update operation node") << error);
+        Disconnect(TError("Failed to update operation node").With(error));
     }
 
     void DoUpdateOperationNode(const TOperationPtr& operation)
@@ -1969,7 +1969,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError("Error updating operation node %v",
                 operation->GetId())
-                << ex;
+                .With(ex);
             if (IsMasterDisconnectionError(error)) {
                 error.SetCode(NScheduler::EErrorCode::MasterDisconnected);
             }
@@ -2028,7 +2028,7 @@ private:
 
         if (!transactionOrError.IsOK()) {
             THROW_ERROR transactionOrError.Wrap("Failed to start lock transaction for watcher")
-                << TErrorAttribute("watcher_type", watcher.WatcherType);
+                .With("watcher_type", watcher.WatcherType);
         }
 
         YT_LOG_INFO("Watcher lock transaction created (WatcherType: %v, TransactionId: %v)",
@@ -2059,8 +2059,8 @@ private:
             } catch (const std::exception& ex) {
                 HandleWatcherError(
                     TError("Watcher failed to take lock")
-                        << ex
-                        << TErrorAttribute("watcher_type", watcher.WatcherType),
+                        .With(ex)
+                        .With("watcher_type", watcher.WatcherType),
                     strictMode,
                     watcher.AlertType);
                 return;
@@ -2078,7 +2078,7 @@ private:
         if (!batchRspOrError.IsOK()) {
             HandleWatcherError(
                 batchRspOrError.Wrap("Watcher batch request failed")
-                    << TErrorAttribute("watcher_type", watcher.WatcherType),
+                    .With("watcher_type", watcher.WatcherType),
                 strictMode,
                 watcher.AlertType);
             return;
@@ -2204,8 +2204,8 @@ private:
                     LockTransaction_->GetId());
             } else {
                 THROW_ERROR_EXCEPTION("Error updating lock transaction timeout")
-                    << rspOrError
-                    << TErrorAttribute("transaction_id", LockTransaction_->GetId());
+                    .With(rspOrError)
+                    .With("transaction_id", LockTransaction_->GetId());
             }
             return;
         }

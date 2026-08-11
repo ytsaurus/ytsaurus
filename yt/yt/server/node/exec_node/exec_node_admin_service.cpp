@@ -76,7 +76,7 @@ private:
         for (const auto& locationId : requestLocationIds) {
             if (!locationIds.contains(locationId)) {
                 THROW_ERROR_EXCEPTION("Healing requested for unknown location")
-                    << TErrorAttribute("location", locationId);
+                    .With("location", locationId);
             }
         }
 

@@ -1345,8 +1345,8 @@ private:
                         "Role %Qlv cannot be removed from master cell %v, because it still hosts chunks",
                         EMasterCellRoles::ChunkHost,
                         cellTag)
-                        << TErrorAttribute("chunk_count", chunkCount)
-                        << TErrorAttribute("cell_tag", cellTag);
+                        .With("chunk_count", chunkCount)
+                        .With("cell_tag", cellTag);
                     THROW_ERROR_EXCEPTION_IF(
                         chunkCount > 0,
                         error);
@@ -1357,8 +1357,8 @@ private:
                         "Role %Qlv cannot be removed from master cell %v, because it still hosts Cypress nodes",
                         EMasterCellRoles::CypressNodeHost,
                         cellTag)
-                        << TErrorAttribute("portal_count", portalCount)
-                        << TErrorAttribute("cell_tag", cellTag);
+                        .With("portal_count", portalCount)
+                        .With("cell_tag", cellTag);
 
                     THROW_ERROR_EXCEPTION_IF(
                         portalCount > 0,
@@ -1425,7 +1425,7 @@ private:
         for (auto [cellTag, roles] : MasterCellRolesMap_) {
             if (roles == EMasterCellRoles::None && !GetDynamicConfig()->Testing->AllowMasterCellWithEmptyRole) {
                 alerts.push_back(TError("No roles configured for cell")
-                    << TErrorAttribute("cell_tag", cellTag));
+                    .With("cell_tag", cellTag));
             }
         }
         return alerts;
@@ -1540,12 +1540,12 @@ private:
             auto roles = *it->second->Roles;
             if (Any(roles & EMasterCellRoles::ChunkHost) && Any(roles & EMasterCellRoles::DedicatedChunkHost)) {
                 auto alert = TError("Cell received conflicting \"chunk_host\" and \"dedicated_chunk_host\" roles")
-                    << TErrorAttribute("cell_tag", cellTag);
+                    .With("cell_tag", cellTag);
                 ConflictingCellRolesAlerts_.emplace(cellTag, std::move(alert));
             }
             if (Any(roles & EMasterCellRoles::ChunkHost) && Any(roles & EMasterCellRoles::SequoiaNodeHost)) {
                 auto alert = TError("Cell received conflicting \"chunk_host\" and \"sequoia_node_host\" roles")
-                    << TErrorAttribute("cell_tag", cellTag);
+                    .With("cell_tag", cellTag);
                 ConflictingCellRolesAlerts_.emplace(cellTag, std::move(alert));
             }
             return roles;

@@ -30,10 +30,10 @@ std::string ReadArchive(const TFsPath& archive)
     command.Run().Wait();
     auto exitCode = command.GetExitCode();
     THROW_ERROR_EXCEPTION_UNLESS(
-            exitCode.Defined() && *exitCode == 0,
-            "Failed to unpack test file resource archive %Qv",
-            archive.GetPath())
-        << TErrorAttribute("stderr", command.GetError());
+        exitCode.Defined() && *exitCode == 0,
+        "Failed to unpack test file resource archive %Qv",
+        archive.GetPath())
+        .With("stderr", command.GetError());
 
     TVector<TFsPath> entries;
     TFsPath(directory.Name()).List(entries);

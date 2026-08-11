@@ -51,7 +51,7 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
             if (!cumulativeError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Error fetching %v from primary cell",
                     path)
-                    << cumulativeError;
+                    .With(cumulativeError);
             }
 
             const auto& batchRsp = batchRspOrError.Value();
@@ -95,7 +95,7 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
                     THROW_ERROR_EXCEPTION("Error fetching attribute %Qv from cell %v",
                         attribute,
                         cellTag)
-                        << cumulativeError;
+                        .With(cumulativeError);
                 }
 
                 const auto& batchRsp = batchRspOrError.Value();

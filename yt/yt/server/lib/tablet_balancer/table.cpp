@@ -174,9 +174,9 @@ THashMap<TClusterName, std::vector<NYPath::TYPath>> TTable::GetReplicaBalancingM
             if (cluster == selfClusterName) {
                 if (std::ranges::count(it->second, Path) == 0) {
                     THROW_ERROR_EXCEPTION("Replica path overrides for a table must contain this table")
-                        << TErrorAttribute("cluster", cluster)
-                        << TErrorAttribute("table_path", Path)
-                        << TErrorAttribute("overrides", it->second);
+                        .With("cluster", cluster)
+                        .With("table_path", Path)
+                        .With("overrides", it->second);
                 }
             }
 

@@ -154,7 +154,7 @@ static void WaitPipelineState(
     while (true) {
         if (TInstant::Now() > deadline) {
             THROW_ERROR_EXCEPTION("Wait timed out")
-                << TErrorAttribute("timeout", waitTimeout);
+                .With("timeout", waitTimeout);
         }
         int attempt = 0;
         while (true) {

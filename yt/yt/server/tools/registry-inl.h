@@ -23,7 +23,7 @@ TGenericTool Ysonize(std::function<TResult(const TArg&)> internal)
             arg = NYTree::ConvertTo<TArg>(serializedArg);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to parse argument %Qv", serializedArg.AsStringBuf())
-                << ex;
+                .With(ex);
             return NYson::ConvertToYsonString(TErrorOr<TResult>(error), NYson::EYsonFormat::Text);
         }
 
@@ -33,7 +33,7 @@ TGenericTool Ysonize(std::function<TResult(const TArg&)> internal)
             return NYson::ConvertToYsonString(result, NYson::EYsonFormat::Text);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to convert result")
-                << ex;
+                .With(ex);
             return NYson::ConvertToYsonString(TErrorOr<TResult>(error), NYson::EYsonFormat::Text);
         }
     };

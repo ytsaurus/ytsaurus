@@ -217,7 +217,7 @@ void TTransformCompanionComputation::DoProcess(
                 groupVisitParents.push_back(it->second);
             } else {
                 THROW_ERROR_EXCEPTION("Parent message, timer or visit not found")
-                    << TErrorAttribute("parent_id", parentId);
+                    .With("parent_id", parentId);
             }
         }
 
@@ -240,15 +240,15 @@ void TTransformCompanionComputation::DoProcess(
         auto stateMapIt = internalStateMap.find(state.StateName);
         if (stateMapIt == internalStateMap.end()) {
             THROW_ERROR_EXCEPTION("Internal state is not found for state name")
-                << TErrorAttribute("state_name", state.StateName);
+                .With("state_name", state.StateName);
         }
 
         for (const auto& stateItem : state.StateItems) {
             auto stateIt = stateMapIt->second.find(stateItem.Key);
             if (stateIt == internalStateMap[state.StateName].end()) {
                 THROW_ERROR_EXCEPTION("Internal state is not found for key")
-                    << TErrorAttribute("state_name", state.StateName)
-                    << TErrorAttribute("key", stateItem.Key);
+                    .With("state_name", state.StateName)
+                    .With("key", stateItem.Key);
             }
             if (stateItem.Reset) {
                 stateIt->second.Clear();
@@ -262,15 +262,15 @@ void TTransformCompanionComputation::DoProcess(
         auto stateMapIt = externalStateMap.find(state.StateName);
         if (stateMapIt == externalStateMap.end()) {
             THROW_ERROR_EXCEPTION("External state is not found for state name")
-                << TErrorAttribute("state_name", state.StateName);
+                .With("state_name", state.StateName);
         }
 
         for (const auto& stateItem : state.StateItems) {
             auto stateIt = externalStateMap[state.StateName].find(stateItem.Key);
             if (stateIt == externalStateMap[state.StateName].end()) {
                 THROW_ERROR_EXCEPTION("External state is not found for key")
-                    << TErrorAttribute("state_name", state.StateName)
-                    << TErrorAttribute("key", stateItem.Key);
+                    .With("state_name", state.StateName)
+                    .With("key", stateItem.Key);
             }
             if (stateItem.Reset) {
                 stateIt->second->Clear();

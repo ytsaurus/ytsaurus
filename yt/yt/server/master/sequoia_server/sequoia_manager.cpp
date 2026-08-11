@@ -190,14 +190,14 @@ private:
                 THROW_ERROR_EXCEPTION(
                     NSequoiaClient::EErrorCode::SequoiaRetriableError,
                     "Failed to issue leases for prerequisite transactions")
-                    << TErrorAttribute("prerequisite_transaction_ids", prerequisiteTransactionIds)
-                    << resultOrError;
+                    .With("prerequisite_transaction_ids", prerequisiteTransactionIds)
+                    .With(resultOrError);
             } else {
                 THROW_ERROR_EXCEPTION(
                     NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                     "Failed to issue leases for prerequisite transactions")
-                    << TErrorAttribute("prerequisite_transaction_ids", prerequisiteTransactionIds)
-                    << resultOrError;
+                    .With("prerequisite_transaction_ids", prerequisiteTransactionIds)
+                    .With(resultOrError);
             }
         }
     }

@@ -97,7 +97,7 @@ void TProxyCoordinator::ValidateOperable() const
     }
     if (GetBannedState()) {
         THROW_ERROR_EXCEPTION(NApi::NRpcProxy::EErrorCode::ProxyBanned, "Proxy is banned")
-            << TErrorAttribute("message", GetBanMessage());
+            .With("message", GetBanMessage());
     }
 }
 

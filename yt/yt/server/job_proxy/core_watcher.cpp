@@ -70,8 +70,8 @@ TGpuCoreReader::TGpuCoreReader(const std::string& corePipePath)
     Fd_ = HandleEintr(::open, corePipePath.c_str(), O_RDONLY | O_CLOEXEC | O_NONBLOCK);
     if (Fd_ < 0) {
         THROW_ERROR_EXCEPTION("Failed to open GPU core dump pipe")
-            << TErrorAttribute("path", Path_)
-            << TError::FromSystem();
+            .With("path", Path_)
+            .With(TError::FromSystem());
     }
 }
 
@@ -80,8 +80,8 @@ i64 TGpuCoreReader::GetBytesAvailable() const
     int pipeSize;
     if (::ioctl(Fd_, FIONREAD, &pipeSize) < 0) {
         THROW_ERROR_EXCEPTION("Fail to perform ioctl on GPU core dump pipe")
-            << TErrorAttribute("path", Path_)
-            << TError::FromSystem();
+            .With("path", Path_)
+            .With(TError::FromSystem());
     }
 
     return pipeSize;
@@ -310,7 +310,7 @@ void TCoreWatcher::DoProcessLinuxCore(const std::string& coreName, int coreIndex
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Error while processing core");
         auto error = TError("Error while processing core")
-            << ex;
+            .With(ex);
         ToProto(coreInfo.mutable_error(), error);
         if (!coreInfo.has_executable_name()) {
             coreInfo.set_executable_name("(n/a)");
@@ -352,7 +352,7 @@ void TCoreWatcher::DoProcessGpuCore(IAsyncInputStreamPtr coreStream, int coreInd
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Error processing GPU core dump");
         auto error = TError("Error processing GPU core dump")
-            << ex;
+            .With(ex);
         ToProto(coreInfo.mutable_error(), error);
     }
 

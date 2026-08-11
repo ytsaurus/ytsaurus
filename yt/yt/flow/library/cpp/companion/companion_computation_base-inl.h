@@ -46,7 +46,7 @@ void TCompanionComputationBaseAdapter<TBase>::FetchAndValidateCompanionInfo()
     auto computationIt = CompanionInfo_->Computations.find(this->GetComputationId());
     if (computationIt == CompanionInfo_->Computations.end()) {
         THROW_ERROR_EXCEPTION("There is no corresponding computation in companion")
-            << TErrorAttribute("computation_id", this->GetComputationId());
+            .With("computation_id", this->GetComputationId());
     }
 }
 
@@ -228,8 +228,8 @@ void TCompanionComputationBaseAdapter<TBase>::PutJobInfoToCompanion()
         this->GetContext()->ExternalMetricsReporter);
     if (putJobResponse->Status != ECompanionResponseStatus::Ok) {
         THROW_ERROR_EXCEPTION("Failed to put job to companion")
-            << TErrorAttribute("job_id", putJobRequest->JobId)
-            << TErrorAttribute("computation_id", this->GetComputationId());
+            .With("job_id", putJobRequest->JobId)
+            .With("computation_id", this->GetComputationId());
     }
     PublishedCompanionResourceReferences_ = putJobRequest->CompanionResources;
 }
@@ -273,9 +273,9 @@ TCompanionResponsePtr TCompanionComputationBaseAdapter<TBase>::DoProcessWithComp
 
     if (response->Status != ECompanionResponseStatus::Ok) {
         THROW_ERROR_EXCEPTION("Failed to process with companion")
-            << TErrorAttribute("job_id", this->GetJobId())
-            << TErrorAttribute("computation_id", this->GetComputationId())
-            << TErrorAttribute("status", response->Status);
+            .With("job_id", this->GetJobId())
+            .With("computation_id", this->GetComputationId())
+            .With("status", response->Status);
     }
 
     PublishedCompanionResourceReferences_ = request->CompanionResources;

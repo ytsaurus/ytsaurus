@@ -55,8 +55,8 @@ void TOrderedAsyncSinkBase::Distribute(const TOutputMessageConstPtr& message, TO
     }
     if (message->MessageId <= LastDistributedMessageId_) {
         THROW_ERROR_EXCEPTION("Expected message id to be greater than the last distributed message id")
-            << TErrorAttribute("message_id", message->MessageId)
-            << TErrorAttribute("last_distributed_message_id", LastDistributedMessageId_);
+            .With("message_id", message->MessageId)
+            .With("last_distributed_message_id", LastDistributedMessageId_);
     }
     LastDistributedMessageId_ = std::max(LastDistributedMessageId_, message->MessageId);
     LastDistributedSeqNo_ += 1;

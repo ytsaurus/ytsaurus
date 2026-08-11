@@ -63,9 +63,9 @@ TError TPoolTreeSnapshotStateImpl::CheckIsOperationStuck(
         operationInfo.RealizedAssignmentCount == 0)
     {
         return TError("Operation has no successful scheduled allocations for a long period")
-            << TErrorAttribute("period", options->SafeTimeout)
-            << TErrorAttribute("last_schedule_allocation_success_time", operationInfo.LastScheduleAllocationSuccessTime)
-            << TErrorAttribute("starving_since", element->GetStarvingSince());
+            .With("period", options->SafeTimeout)
+            .With("last_schedule_allocation_success_time", operationInfo.LastScheduleAllocationSuccessTime)
+            .With("starving_since", element->GetStarvingSince());
     }
 
     // Module-vs-tag-filter conflict check, ported from classic but sourcing
@@ -94,8 +94,8 @@ TError TPoolTreeSnapshotStateImpl::CheckIsOperationStuck(
             return TError(
                 "Operation has a module specified in the scheduling tag filter, which causes scheduling problems; "
                 "use \"scheduling_segment_modules\" spec option instead")
-                << TErrorAttribute("scheduling_tag_filter", tagFilterFormula)
-                << TErrorAttribute("available_modules", gpuConfig->Modules);
+                .With("scheduling_tag_filter", tagFilterFormula)
+                .With("available_modules", gpuConfig->Modules);
         }
     }
 

@@ -74,7 +74,7 @@ IYPathServicePtr CreateService(
             manifest->Load(manifestNode);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing Orchid manifest")
-                << ex;
+                .With(ex);
         }
 
         IChannelPtr channel;

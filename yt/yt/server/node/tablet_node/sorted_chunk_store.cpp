@@ -1310,12 +1310,12 @@ bool TSortedChunkStore::CheckRowLocks(
         NTabletClient::EErrorCode::CannotCheckConflictsAgainstChunkStore,
         "Checking for transaction conflicts against chunk stores is not supported; "
         "consider reducing transaction duration or increasing store retention time")
-        << TErrorAttribute("transaction_id", transaction->GetId())
-        << TErrorAttribute("transaction_start_time", transaction->GetStartTime())
-        << TErrorAttribute("tablet_id", TabletId_)
-        << TErrorAttribute("table_path", TablePath_)
-        << TErrorAttribute("store_id", StoreId_)
-        << TErrorAttribute("key", RowToKey(row));
+        .With("transaction_id", transaction->GetId())
+        .With("transaction_start_time", transaction->GetStartTime())
+        .With("tablet_id", TabletId_)
+        .With("table_path", TablePath_)
+        .With("store_id", StoreId_)
+        .With("key", RowToKey(row));
     return false;
 }
 
@@ -1455,10 +1455,10 @@ void TSortedChunkStore::ValidateBlockSize(
             const auto& miscExt = chunkMeta->Misc();
             if (miscExt.max_data_block_size() > *blockSizeLimit) {
                 THROW_ERROR_EXCEPTION("Maximum block size limit violated")
-                    << TErrorAttribute("tablet_id", TabletId_)
-                    << TErrorAttribute("chunk_id", GetId())
-                    << TErrorAttribute("block_size", miscExt.max_data_block_size())
-                    << TErrorAttribute("block_size_limit", *blockSizeLimit);
+                    .With("tablet_id", TabletId_)
+                    .With("chunk_id", GetId())
+                    .With("block_size", miscExt.max_data_block_size())
+                    .With("block_size_limit", *blockSizeLimit);
             }
         }
     }

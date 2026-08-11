@@ -52,7 +52,7 @@ void TRemoveDirAsRootTool::operator()(const std::string& path) const
     execl("/bin/rm", "/bin/rm", "-rf", path.c_str(), (void*)nullptr);
 
     THROW_ERROR_EXCEPTION("Failed to remove directory %v: execl failed",
-        path) << TError::FromSystem();
+        path).With(TError::FromSystem());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +77,7 @@ void TSpawnShellTool::operator()(TSpawnShellConfigPtr config) const
     }
 
     THROW_ERROR_EXCEPTION("Failed to spawn job shell")
-        << TError::FromSystem();
+        .With(TError::FromSystem());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,7 +118,7 @@ void TRemoveDirContentAsRootTool::operator()(const std::string& path) const
                     }
                 } catch (const std::exception& ex) {
                     innerErrors.push_back(TError("Failed to remove path %v", it->fts_path)
-                        << ex);
+                        .With(ex));
                 }
             }
         }
@@ -153,7 +153,7 @@ void TRemoveDirContentAsRootTool::operator()(const std::string& path) const
 
     if (!removed) {
         THROW_ERROR_EXCEPTION("Failed to remove directory %v contents", path)
-            << attemptErrors;
+            .With(attemptErrors);
     }
 }
 
@@ -238,7 +238,7 @@ void TCopyDirectoryContentTool::operator()(TCopyDirectoryContentConfigPtr config
     THROW_ERROR_EXCEPTION("Failed to copy directory %Qv to %Qv: execl failed",
         config->Source,
         config->Destination)
-        << TError::FromSystem();
+        .With(TError::FromSystem());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -441,7 +441,7 @@ void TMkFsAsRootTool::operator()(const TMkFsConfigPtr& config) const
     execl("/usr/sbin/mke2fs", "/usr/sbin/mke2fs", "-F", "-q", "-t", config->Type.c_str(), config->Path.c_str(), (void*)nullptr);
 
     THROW_ERROR_EXCEPTION("Failed to make filesystem for %v: execl failed",
-        config->Path) << TError::FromSystem();
+        config->Path).With(TError::FromSystem());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -467,7 +467,7 @@ void TChangeOomScoreAdjAsRootTool::operator()(const TChangeOomScoreAdjAsRootConf
         }
         THROW_ERROR_EXCEPTION(
             "Failed to open oom_score_adj for PID %v",
-            config->Pid) << TError::FromSystem();
+            config->Pid).With(TError::FromSystem());
     }
 
     auto result = HandleEintr(::write, fdGuard.Get(), static_cast<const void*>(scoreStr.data()), scoreStr.size());
@@ -478,7 +478,7 @@ void TChangeOomScoreAdjAsRootTool::operator()(const TChangeOomScoreAdjAsRootConf
         }
         THROW_ERROR_EXCEPTION(
             "Failed to write to oom_score_adj for PID %v",
-            config->Pid) << TError::FromSystem();
+            config->Pid).With(TError::FromSystem());
     }
 }
 

@@ -72,9 +72,9 @@ private:
         }
         TFileStat stat(path, /*nofollow*/ true);
         THROW_ERROR_EXCEPTION_UNLESS(
-                Chmod(path.GetPath().c_str(), stat.Mode | S_IWUSR) == 0,
-                "Failed to make test file storage entry writable")
-            << TError::FromSystem();
+            Chmod(path.GetPath().c_str(), stat.Mode | S_IWUSR) == 0,
+            "Failed to make test file storage entry writable")
+            .With(TError::FromSystem());
         if (stat.IsDir()) {
             TVector<TFsPath> children;
             path.List(children);
@@ -104,9 +104,9 @@ std::string ReadPayload(const IFileStorageObjectPtr& object)
 void ChangePermissions(const TFsPath& path, int mode)
 {
     THROW_ERROR_EXCEPTION_UNLESS(
-            Chmod(path.GetPath().c_str(), mode) == 0,
-            "Failed to change test path permissions")
-        << TError::FromSystem();
+        Chmod(path.GetPath().c_str(), mode) == 0,
+        "Failed to change test path permissions")
+        .With(TError::FromSystem());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -357,9 +357,9 @@ TEST(TFileStorageTest, PublishesPermissionPreservingReadOnlyPayload)
             output << "payload";
             output.Finish();
             THROW_ERROR_EXCEPTION_UNLESS(
-                    Chmod(file.GetPath().c_str(), 0640) == 0,
-                    "Failed to set test file permissions")
-                << TError::FromSystem();
+                Chmod(file.GetPath().c_str(), 0640) == 0,
+                "Failed to set test file permissions")
+                .With(TError::FromSystem());
             return MakeFuture<void>(TError());
         }))
         .ValueOrThrow();
@@ -381,9 +381,9 @@ TEST(TFileStorageTest, WritableCorruptionIsDeletedAndRefilled)
 
     TFileStat stat(file, /*nofollow*/ true);
     THROW_ERROR_EXCEPTION_UNLESS(
-            Chmod(file.GetPath().c_str(), stat.Mode | S_IWUSR) == 0,
-            "Failed to corrupt test file permissions")
-        << TError::FromSystem();
+        Chmod(file.GetPath().c_str(), stat.Mode | S_IWUSR) == 0,
+        "Failed to corrupt test file permissions")
+        .With(TError::FromSystem());
     storage = fixture.MakeStorage();
     auto repaired = WaitFor(storage->GetOrCreate(id, MakeFiller("new", &fillCount))).ValueOrThrow();
     EXPECT_EQ(fillCount, 2);
@@ -591,7 +591,7 @@ TEST(TFileStorageTest, DiskFullAlertSurvivesReconciliationUntilSuccessfulPublica
     auto storage = fixture.MakeStorage(10, 20);
     int fillCount = 0;
 
-    auto fillError = TError("Injected filler ENOSPC") << TError::FromSystem(ENOSPC);
+    auto fillError = TError("Injected filler ENOSPC").With(TError::FromSystem(ENOSPC));
     auto failedFill = WaitFor(storage->GetOrCreate(
         TFileStorageObjectId("test:v1:fill-enospc"),
         [&] (const std::string&) {

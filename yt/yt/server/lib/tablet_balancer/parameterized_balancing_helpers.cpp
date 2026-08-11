@@ -63,9 +63,9 @@ double ExtractMetricValue(
             THROW_ERROR_EXCEPTION(
                 "Tablet metric value type is not numerical: got %Qlv",
                 value.Type)
-                << TErrorAttribute("metric_formula", metric)
-                << TErrorAttribute("tablet_id", tabletId)
-                << TErrorAttribute("table_id", tableId);
+                .With("metric_formula", metric)
+                .With("tablet_id", tabletId)
+                .With("table_id", tableId);
     }
 }
 
@@ -669,12 +669,12 @@ private:
 
                 if (tabletMetric < 0.0) {
                     THROW_ERROR_EXCEPTION("Tablet metric must be nonnegative, got %v", tabletMetric)
-                        << TErrorAttribute("tablet_metric_value", tabletMetric)
-                        << TErrorAttribute("tablet_id", tabletId)
-                        << TErrorAttribute("table_id", tablet->Table->Id)
-                        << TErrorAttribute("metric_formula", Config_.Metric)
-                        << TErrorAttribute("group", GroupName_)
-                        << TErrorAttribute("bundle", Bundle_->Name);
+                        .With("tablet_metric_value", tabletMetric)
+                        .With("tablet_id", tabletId)
+                        .With("table_id", tablet->Table->Id)
+                        .With("metric_formula", Config_.Metric)
+                        .With("group", GroupName_)
+                        .With("bundle", Bundle_->Name);
                 } else if (tabletMetric <= MinimumAcceptableMetricValue) {
                     YT_LOG_DEBUG_IF(
                         Bundle_->Config->EnableVerboseLogging,
@@ -1644,9 +1644,9 @@ private:
             auto tabletMetric = Calculator_->GetTabletMetric(tablet);
             if (tabletMetric < 0.0) {
                 THROW_ERROR_EXCEPTION("Tablet metric must be nonnegative, got %v", tabletMetric)
-                    << TErrorAttribute("tablet_metric_value", tabletMetric)
-                    << TErrorAttribute("tablet_id", tablet->Id)
-                    << TErrorAttribute("metric_formula", Config_.Metric);
+                    .With("tablet_metric_value", tabletMetric)
+                    .With("tablet_id", tablet->Id)
+                    .With("metric_formula", Config_.Metric);
             }
 
             statistics.TabletMetrics.push_back(tabletMetric);

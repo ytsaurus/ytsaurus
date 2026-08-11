@@ -1364,10 +1364,10 @@ TChunkStatePtr TChunkStoreBase::FindPreloadedChunkState() const
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::ChunkIsNotPreloaded,
             "Chunk data is not preloaded yet")
-            << TErrorAttribute("tablet_id", TabletId_)
-            << TErrorAttribute("table_path", TablePath_)
-            << TErrorAttribute("store_id", StoreId_)
-            << TErrorAttribute("chunk_id", ChunkId_);
+            .With("tablet_id", TabletId_)
+            .With("table_path", TablePath_)
+            .With("store_id", StoreId_)
+            .With("chunk_id", ChunkId_);
     }
 
     YT_VERIFY(ChunkState_);

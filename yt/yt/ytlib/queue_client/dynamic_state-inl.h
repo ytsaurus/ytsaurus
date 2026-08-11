@@ -47,7 +47,7 @@ TFuture<R> TTableBase<TRow, TRecordDescriptor>::RetryCallback(
         THROW_ERROR_EXCEPTION("Dynamic state request to %v failed after %v retries",
             path,
             retryBackoffStrategy.GetInvocationCount())
-            << TError(std::move(resultOrError));
+            .With(TError(std::move(resultOrError)));
     })
         .AsyncVia(std::move(invoker))
         .Run();

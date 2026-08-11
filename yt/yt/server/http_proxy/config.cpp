@@ -157,8 +157,8 @@ void TMemoryLimitRatiosConfig::Register(TRegistrar registrar)
         for (const auto& [name, value] : config->UserToMemoryLimitRatio) {
             if (value > 1 || value < 0) {
                 THROW_ERROR_EXCEPTION("User ratio must be in range [0, 1]")
-                    << TErrorAttribute("user_name", name)
-                    << TErrorAttribute("user_ratio", value);
+                    .With("user_name", name)
+                    .With("user_ratio", value);
             }
         }
     });
@@ -225,8 +225,8 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
         for (const auto& [name, value] : config->UserToConcurrencyLimitRatio) {
             if (value > 1 || value < 0) {
                 THROW_ERROR_EXCEPTION("User ratio must be less than 1 and greater than 0")
-                    << TErrorAttribute("user_name", name)
-                    << TErrorAttribute("user_ratio", value);
+                    .With("user_name", name)
+                    .With("user_ratio", value);
             }
         }
     });

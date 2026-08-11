@@ -159,7 +159,7 @@ protected:
             auto error = TError(ex);
             YT_TLOG_ERROR("Flow node failed")
                 .With(error);
-            THROW_ERROR_EXCEPTION("Flow node failed") << error;
+            THROW_ERROR_EXCEPTION("Flow node failed").With(error);
         }
     }
 
@@ -669,8 +669,8 @@ private:
             return ParseEnum<EFlowRunMode>(modeStr);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing %Qv variable",
-                    FlowModeEnvVarName)
-                << ex;
+                FlowModeEnvVarName)
+                .With(ex);
         }
     }
 

@@ -30,13 +30,13 @@ void TDiscoveryServiceConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         if (config->AvailabilityPeriod <= config->LivenessUpdatePeriod) {
             THROW_ERROR_EXCEPTION("Availability period must be greater than liveness update period")
-                << TErrorAttribute("availability_period", config->AvailabilityPeriod)
-                << TErrorAttribute("liveness_update_period", config->LivenessUpdatePeriod);
+                .With("availability_period", config->AvailabilityPeriod)
+                .With("liveness_update_period", config->LivenessUpdatePeriod);
         }
         if (config->BackoffPeriod <= config->AvailabilityPeriod) {
             THROW_ERROR_EXCEPTION("Backoff period must be greater than availability period")
-                << TErrorAttribute("availability_period", config->AvailabilityPeriod)
-                << TErrorAttribute("backoff_period", config->BackoffPeriod);
+                .With("availability_period", config->AvailabilityPeriod)
+                .With("backoff_period", config->BackoffPeriod);
         }
 
         if (!config->CypressRegistrar->AliveChildTtl) {

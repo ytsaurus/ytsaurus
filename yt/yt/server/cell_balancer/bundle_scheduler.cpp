@@ -56,7 +56,7 @@ std::string GenerateShortNameForBundle(
     }
 
     THROW_ERROR_EXCEPTION("Cannot generate short name for bundle")
-        << TErrorAttribute("bundle_name", bundleName);
+        .With("bundle_name", bundleName);
 }
 
 THashMap<std::string, std::string> MapBundlesToShortNames(const TSchedulerInputState& input)

@@ -71,7 +71,7 @@ public:
         auto nativeConnection = NativeConnection_.Lock();
         if (!nativeConnection) {
             THROW_ERROR_EXCEPTION("Cannot generate timestamps: connection terminated")
-                << TErrorAttribute("clock_cluster_tag", clockClusterTag);
+                .With("clock_cluster_tag", clockClusterTag);
         }
 
         return nativeConnection->GetClusterDirectorySynchronizer()->Sync()

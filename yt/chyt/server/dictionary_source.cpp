@@ -205,8 +205,8 @@ private:
             if (!column) {
                 THROW_ERROR_EXCEPTION("Dictionary column %Qv is missing in the source table schema",
                     nameAndType.name)
-                    << TErrorAttribute("config_schema", NamesAndTypesList_.toString())
-                    << TErrorAttribute("actual_schema",
+                    .With("config_schema", NamesAndTypesList_.toString())
+                    .With("actual_schema",
                         ToNamesAndTypesList(tableSchema, New<TConversionSettings>()).toString());
             }
             columns.push_back(*column);
@@ -217,8 +217,8 @@ private:
         auto namesAndTypesList = ToNamesAndTypesList(*readSchema, New<TConversionSettings>());
         if (namesAndTypesList != NamesAndTypesList_) {
             THROW_ERROR_EXCEPTION("Dictionary schema does not match the source table schema")
-                << TErrorAttribute("config_schema", NamesAndTypesList_.toString())
-                << TErrorAttribute("actual_schema", namesAndTypesList.toString());
+                .With("config_schema", NamesAndTypesList_.toString())
+                .With("actual_schema", namesAndTypesList.toString());
         }
 
         return readSchema;

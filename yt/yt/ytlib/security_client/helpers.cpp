@@ -43,7 +43,7 @@ THashSet<std::string> GetSubjectClosure(
             THROW_ERROR_EXCEPTION(
                 "Failed to get \"member_of_closure\" attribute for subject %Qv",
                 subject)
-                << rspOrError;
+                .With(rspOrError);
         }
     }
     THROW_ERROR_EXCEPTION(

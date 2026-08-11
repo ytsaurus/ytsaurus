@@ -146,7 +146,7 @@ private:
             YT_LOG_DEBUG("Finished synchronizing medium directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing medium directory")
-                << ex;
+                .With(ex);
         }
     }
 

@@ -131,7 +131,7 @@ public:
         for (const auto& aliasResolver : AliasResolvers_) {
             if (aliasResolver->NeedSubstitute) {
                 THROW_ERROR_EXCEPTION("Expression or its parts are not in GROUP BY keys")
-                    << TErrorAttribute("expression", InferName(result));
+                    .With("expression", InferName(result));
             }
         }
 
@@ -260,7 +260,7 @@ TConstExpressionPtr TExpressionBuilderV2::DoOnExpression(
 
     if (Depth_ > MaxExpressionDepth) {
         THROW_ERROR_EXCEPTION("Maximum expression depth exceeded")
-            << TErrorAttribute("max_expression_depth", MaxExpressionDepth);
+            .With("max_expression_depth", MaxExpressionDepth);
     }
 
     if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
@@ -326,7 +326,7 @@ TExpressionBuilderV2::ResolveNestedTypesResult TExpressionBuilderV2::ResolveNest
 
                 if (current->GetMetatype() != ELogicalMetatype::Struct) {
                     THROW_ERROR_EXCEPTION("Member %Qv is not found", structMember)
-                        << TErrorAttribute("source", NAst::FormatReference(reference));
+                        .With("source", NAst::FormatReference(reference));
                 }
 
                 const auto& fields = current->AsStructTypeRef().GetFields();
@@ -339,7 +339,7 @@ TExpressionBuilderV2::ResolveNestedTypesResult TExpressionBuilderV2::ResolveNest
                 }
 
                 THROW_ERROR_EXCEPTION("Member %Qv is not found", structMember)
-                    << TErrorAttribute("source", NAst::FormatReference(reference));
+                    .With("source", NAst::FormatReference(reference));
             },
             [&] (const TTupleItemIndexAccessor& itemIndex) {
                 if (current->GetMetatype() == ELogicalMetatype::Optional) {
@@ -349,14 +349,14 @@ TExpressionBuilderV2::ResolveNestedTypesResult TExpressionBuilderV2::ResolveNest
 
                 if (current->GetMetatype() != ELogicalMetatype::Tuple) {
                     THROW_ERROR_EXCEPTION("Member %Qv is not found", itemIndex)
-                        << TErrorAttribute("source", NAst::FormatReference(reference));
+                        .With("source", NAst::FormatReference(reference));
                 }
 
                 const auto& tupleElements = current->AsTupleTypeRef().GetElements();
 
                 if (itemIndex < 0 || itemIndex >= std::ssize(tupleElements)) {
                     THROW_ERROR_EXCEPTION("Member %Qv is not found", itemIndex)
-                        << TErrorAttribute("source", NAst::FormatReference(reference));
+                        .With("source", NAst::FormatReference(reference));
                 }
 
                 current = tupleElements[itemIndex];
@@ -380,12 +380,12 @@ TExpressionBuilderV2::ResolveNestedTypesResult TExpressionBuilderV2::ResolveNest
             if (keyType != EValueType::String) {
                 THROW_ERROR_EXCEPTION("Expected string key type, but got %Qlv",
                     keyType)
-                    << TErrorAttribute("source", NAst::FormatReference(reference));
+                    .With("source", NAst::FormatReference(reference));
             }
             resultType = current->AsDictTypeRef().GetValue();
         } else {
             THROW_ERROR_EXCEPTION("Incorrect nested item accessor")
-                << TErrorAttribute("source", NAst::FormatReference(reference));
+                .With("source", NAst::FormatReference(reference));
         }
     }
 
@@ -408,7 +408,7 @@ TConstExpressionPtr TExpressionBuilderV2::UnwrapListOrDictItemAccessor(
 
     if (std::ssize(itemIndex) != 1) {
         THROW_ERROR_EXCEPTION("Expression inside of the list or dict item accessor should be scalar")
-            << TErrorAttribute("source", NAst::FormatReference(reference));
+            .With("source", NAst::FormatReference(reference));
     }
 
     EValueType expectedType;
@@ -423,9 +423,9 @@ TConstExpressionPtr TExpressionBuilderV2::UnwrapListOrDictItemAccessor(
     auto typedExpression = OnExpression(itemIndex.front());
     if (typedExpression->GetWireType() != expectedType) {
         THROW_ERROR_EXCEPTION("Incorrect type inside of the list or dict item accessor")
-            << TErrorAttribute("source", NAst::FormatReference(reference))
-            << TErrorAttribute("actual_type", ToString(expectedType))
-            << TErrorAttribute("expected_type", ToString(typedExpression->GetWireType()));
+            .With("source", NAst::FormatReference(reference))
+            .With("actual_type", ToString(expectedType))
+            .With("expected_type", ToString(typedExpression->GetWireType()));
     }
 
     return typedExpression;
@@ -476,7 +476,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnColumnReference(const NAst::TColumnR
             for (int index = 0; index + 1 < std::ssize(AliasResolvers_); ++index) {
                 if (AliasResolvers_[index]->NeedSubstitute) {
                     THROW_ERROR_EXCEPTION("Misuse of columns under group by")
-                        << TErrorAttribute("column", InferColumnName(reference));
+                        .With("column", InferColumnName(reference));
                 }
             }
 
@@ -602,7 +602,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnFunction(const NAst::TFunctionExpres
 
         if (AliasResolvers_.empty()) {
             THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv", functionName)
-                << TErrorAttribute("expression", InferColumnName(*functionExpr));
+                .With("expression", InferColumnName(*functionExpr));
         }
 
         auto* aliasResolver = AliasResolvers_.back().get();
@@ -691,8 +691,8 @@ TConstExpressionPtr TExpressionBuilderV2::OnUnaryOp(const NAst::TUnaryOpExpressi
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv",
             GetUnaryOpcodeLexeme(unaryExpr->Opcode))
-            << TErrorAttribute("source", unaryExpr->Operand.front()->GetSource(Source_))
-            << ex;;
+            .With("source", unaryExpr->Operand.front()->GetSource(Source_))
+            .With(ex);;
     }
 
     YT_VERIFY(std::ssize(types) == 2);
@@ -742,11 +742,11 @@ TConstExpressionPtr TExpressionBuilderV2::MakeBinaryExpr(
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv",
             GetBinaryOpcodeLexeme(op))
-            << TErrorAttribute("lhs_source", lhsSource)
-            << TErrorAttribute("rhs_source", rhsSource)
-            << TErrorAttribute("lhs_type", TypingCtx_.GetLogicalType(lhsTypeId))
-            << TErrorAttribute("rhs_type", TypingCtx_.GetLogicalType(rhsTypeId))
-            << ex;
+            .With("lhs_source", lhsSource)
+            .With("rhs_source", rhsSource)
+            .With("lhs_type", TypingCtx_.GetLogicalType(lhsTypeId))
+            .With("rhs_type", TypingCtx_.GetLogicalType(rhsTypeId))
+            .With(ex);
     }
 
     YT_VERIFY(std::ssize(types) == 3);
@@ -842,7 +842,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnBinaryOp(
             THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
                 binaryExpr->Lhs.size(),
                 binaryExpr->Rhs.size())
-                << TErrorAttribute("source", binaryExpr->GetSource(Source_));
+                .With("source", binaryExpr->GetSource(Source_));
         }
 
         int keySize = binaryExpr->Lhs.size();
@@ -850,12 +850,12 @@ TConstExpressionPtr TExpressionBuilderV2::OnBinaryOp(
     } else {
         if (binaryExpr->Lhs.size() != 1) {
             THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                << TErrorAttribute("source", FormatExpression(binaryExpr->Lhs));
+                .With("source", FormatExpression(binaryExpr->Lhs));
         }
 
         if (binaryExpr->Rhs.size() != 1) {
             THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                << TErrorAttribute("source", FormatExpression(binaryExpr->Rhs));
+                .With("source", FormatExpression(binaryExpr->Rhs));
         }
 
         auto typedLhs = OnExpression(binaryExpr->Lhs.front());
@@ -882,7 +882,7 @@ void TExpressionBuilderV2::InferArgumentTypes(
                 THROW_ERROR_EXCEPTION("%v operator has multiple references to column %Qv",
                     operatorName,
                     reference->ColumnName)
-                    << TErrorAttribute("source", source);
+                    .With("source", source);
             }
         }
 
@@ -909,7 +909,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnInOp(
     for (auto type : argTypes) {
         if (IsAnyOrComposite(type)) {
             THROW_ERROR_EXCEPTION("Cannot use expression of type %Qlv with IN operator", type)
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
     }
 
@@ -953,7 +953,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnTransformOp(
 
     if (transformExpr->From.size() != transformExpr->To.size()) {
         THROW_ERROR_EXCEPTION("Size mismatch for source and result arrays in TRANSFORM operator")
-            << TErrorAttribute("source", source);
+            .With("source", source);
     }
 
     std::vector<TTypeId> resultTypes;
@@ -961,7 +961,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnTransformOp(
     for (const auto& tuple : transformExpr->To) {
         if (tuple.size() != 1) {
             THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
 
         resultTypes.push_back(TypingCtx_.GetTypeId(GetType(tuple.front())));
@@ -972,7 +972,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnTransformOp(
     if (const auto& defaultExpr = transformExpr->DefaultExpr) {
         if (defaultExpr->size() != 1) {
             THROW_ERROR_EXCEPTION("Default expression must scalar")
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
 
         defaultTypedExpr = OnExpression(defaultExpr->front());
@@ -998,7 +998,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnTransformOp(
         const auto& sourceTuple = transformExpr->From[index];
         if (sourceTuple.size() != argTypes.size()) {
             THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
         for (int i = 0; i < std::ssize(sourceTuple); ++i) {
             auto valueType = GetType(sourceTuple[i]);
@@ -1011,9 +1011,9 @@ TConstExpressionPtr TExpressionBuilderV2::OnTransformOp(
                     value = CastValueWithCheck(value, argTypes[i]);
                 } else {
                     THROW_ERROR_EXCEPTION("Types mismatch in tuple")
-                        << TErrorAttribute("source", source)
-                        << TErrorAttribute("actual_type", valueType)
-                        << TErrorAttribute("expected_type", argTypes[i]);
+                        .With("source", source)
+                        .With("actual_type", valueType)
+                        .With("expected_type", argTypes[i]);
                 }
             }
             rowBuilder.AddValue(value);
@@ -1049,7 +1049,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnCaseOp(const NAst::TCaseExpression* 
     if (caseExpr->OptionalOperand) {
         if (caseExpr->OptionalOperand->size() != 1) {
             THROW_ERROR_EXCEPTION("Expression inside CASE should be scalar")
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
 
         typedOptionalOperand = OnExpression(caseExpr->OptionalOperand->front());
@@ -1067,7 +1067,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnCaseOp(const NAst::TCaseExpression* 
     for (const auto& [when, then] : caseExpr->WhenThenExpressions) {
         if (when.size() != 1) {
             THROW_ERROR_EXCEPTION("Expression inside CASE WHEN should be scalar")
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
 
         auto whenExpression = OnExpression(when.front());
@@ -1082,12 +1082,12 @@ TConstExpressionPtr TExpressionBuilderV2::OnCaseOp(const NAst::TCaseExpression* 
                 0);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Types mismatch in CASE WHEN expression")
-                << ex;
+                .With(ex);
         }
 
         if (then.size() != 1) {
             THROW_ERROR_EXCEPTION("Expression inside CASE THEN should be scalar")
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
 
         if (actualConditionType != expectedConditionType) {
@@ -1106,7 +1106,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnCaseOp(const NAst::TCaseExpression* 
     if (caseExpr->DefaultExpression) {
         if (caseExpr->DefaultExpression->size() != 1) {
             THROW_ERROR_EXCEPTION("Expression inside CASE ELSE should be scalar")
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
 
         typedDefaultExpression = OnExpression(caseExpr->DefaultExpression->front());
@@ -1123,7 +1123,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnCaseOp(const NAst::TCaseExpression* 
         resultType = UnifyTypes("case", &TypingCtx_, resultTypes);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Types mismatch in CASE THEN/ELSE expression")
-            << ex;
+            .With(ex);
     }
 
     for (auto typedWhenThen : typedWhenThenExpressions) {
@@ -1147,7 +1147,7 @@ TConstExpressionPtr TExpressionBuilderV2::OnLikeOp(const NAst::TLikeExpression* 
 
     if (likeExpr->Opcode == EStringMatchOp::Regex && likeExpr->EscapeCharacter) {
         THROW_ERROR_EXCEPTION("ESCAPE should not be used together with REGEXP (RLIKE)")
-            << TErrorAttribute("source", source);
+            .With("source", source);
     }
 
     auto makeTypedStringExpression = [this] (
@@ -1158,16 +1158,16 @@ TConstExpressionPtr TExpressionBuilderV2::OnLikeOp(const NAst::TLikeExpression* 
         if (expression.size() != 1) {
             THROW_ERROR_EXCEPTION("Expecting scalar %Qv expression",
                 name)
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
 
         auto typedExpression = OnExpression(expression.front());
 
         if (typedExpression->GetWireType() != EValueType::String && typedExpression->GetWireType() != EValueType::Null) {
             THROW_ERROR_EXCEPTION("Types mismatch in %v", name)
-                << TErrorAttribute("source", source)
-                << TErrorAttribute("actual_type", typedExpression->GetWireType())
-                << TErrorAttribute("expected_type", EValueType::String);
+                .With("source", source)
+                .With("actual_type", typedExpression->GetWireType())
+                .With("expected_type", EValueType::String);
         }
 
         return typedExpression;
@@ -1195,7 +1195,7 @@ TConstExpressionPtr BuildPredicate(
 {
     if (expressionAst.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
-            << TErrorAttribute("source", FormatExpression(expressionAst));
+            .With("source", FormatExpression(expressionAst));
     }
 
     // TODO(lukyan): BuildTypedExpression(expressionAst.front(), {EValueType::Boolean}) ?
@@ -1205,9 +1205,9 @@ TConstExpressionPtr BuildPredicate(
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
         THROW_ERROR_EXCEPTION("%v is not a boolean expression", name)
-            << TErrorAttribute("source", expressionAst.front()->GetSource(builder->GetSource()))
-            << TErrorAttribute("actual_type", actualType)
-            << TErrorAttribute("expected_type", expectedType);
+            .With("source", expressionAst.front()->GetSource(builder->GetSource()))
+            .With("actual_type", actualType)
+            .With("expected_type", expectedType);
     }
 
     return ApplyRewriters(typedPredicate);
@@ -1287,8 +1287,8 @@ TConstExpressionPtr TExpressionBuilderV2::OnQueryOp(const NAst::TQueryExpression
 
         if (type->GetMetatype() != ELogicalMetatype::List) {
             THROW_ERROR_EXCEPTION("Unexpected type instead of list")
-                << TErrorAttribute("column_name", columnName)
-                << TErrorAttribute("actual_type", type->GetMetatype());
+                .With("column_name", columnName)
+                .With("actual_type", type->GetMetatype());
         }
 
         columns.emplace_back(columnName, MakeOptionalIfNot(type->GetElement()));

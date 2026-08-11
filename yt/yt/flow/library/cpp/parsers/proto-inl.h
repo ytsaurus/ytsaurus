@@ -23,7 +23,7 @@ void ParseProtoColumnPropagatingHookErrors(
     try {
         rawData = GetColumnValue<std::optional<TStringBuf>>(message, dataColumn);
     } catch (const std::exception& ex) {
-        onUnparsed(TError(ex) << TErrorAttribute("data_column", dataColumn));
+        onUnparsed(TError(ex).With("data_column", dataColumn));
         return;
     }
     if (!rawData) {
@@ -34,7 +34,7 @@ void ParseProtoColumnPropagatingHookErrors(
     TProto proto;
     if (!proto.ParseFromArray(rawData->data(), rawData->size())) {
         auto error = TError("Failed to parse protobuf message %v", proto.GetTypeName())
-            << TErrorAttribute("data_size", rawData->size());
+            .With("data_size", rawData->size());
         if (!proto.IsInitialized()) {
             error <<= TErrorAttribute("initialization_error", proto.InitializationErrorString());
         }

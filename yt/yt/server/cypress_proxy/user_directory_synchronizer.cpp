@@ -144,7 +144,7 @@ private:
             YT_LOG_DEBUG("Finished synchronizing user directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing user directory")
-                << ex;
+                .With(ex);
         }
     }
 

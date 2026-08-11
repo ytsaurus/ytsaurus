@@ -134,8 +134,8 @@ void TJobWorkspaceBuilder::ValidateJobPhase(EJobPhase expectedPhase) const
             expectedPhase);
 
         THROW_ERROR_EXCEPTION("Unexpected job phase")
-            << TErrorAttribute("expected_phase", expectedPhase)
-            << TErrorAttribute("actual_phase", jobPhase);
+            .With("expected_phase", expectedPhase)
+            .With("actual_phase", jobPhase);
     }
 }
 
@@ -410,7 +410,7 @@ private:
             ] (TErrorOr<std::vector<TVolumeResultPtr>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NonRootVolumePreparationFailed, "Failed to prepare non-root volumes")
-                        << volumeResultsOrError;
+                        .With(volumeResultsOrError);
                 }
 
                 auto& volumeResults = volumeResultsOrError.Value();
@@ -648,7 +648,7 @@ private:
                     YT_LOG_WARNING(overlayDataArrayOrError, "Failed to prepare overlay layers");
 
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::OverlayLayerPreparationFailed, "Failed to prepare overlay layers")
-                        << overlayDataArrayOrError;
+                        .With(overlayDataArrayOrError);
                 }
 
                 auto& overlayDataArray = overlayDataArrayOrError.Value();
@@ -720,7 +720,7 @@ private:
                                 YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
 
                                 THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
-                                    << volumeOrError;
+                                    .With(volumeOrError);
                             }
 
                             ResultHolder_.RootVolume = volumeOrError.Value();
@@ -775,7 +775,7 @@ private:
                 BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TVolumeResultPtr>>&& volumeResultsOrError) {
                     if (!volumeResultsOrError.IsOK()) {
                         THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NonRootVolumePreparationFailed, "Failed to prepare non-root volumes")
-                            << volumeResultsOrError;
+                            .With(volumeResultsOrError);
                     }
 
                     Context_.PreparedNonRootVolumes = std::move(volumeResultsOrError.Value());
@@ -825,7 +825,7 @@ private:
                         YT_LOG_WARNING(volumeOrError, "Failed to prepare GPU check volume");
 
                         THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare GPU check volume")
-                            << volumeOrError;
+                            .With(volumeOrError);
                     }
 
                     YT_LOG_DEBUG("GPU check volume prepared");
@@ -861,7 +861,7 @@ private:
                             YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
 
                             THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
-                                << volumeOrError;
+                                .With(volumeOrError);
                         }
 
                         ResultHolder_.RootVolume = std::move(volumeOrError.Value());
@@ -894,7 +894,7 @@ private:
             .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& error) mutable {
                 if (!error.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NonRootVolumeLinkingFailed, "Failed to link non-root volumes")
-                        << error;
+                        .With(error);
                 }
 
                 YT_LOG_DEBUG(
@@ -1211,9 +1211,9 @@ private:
                         YT_LOG_WARNING(imageOrError, "Failed to prepare root volume (Image: %v)", imageDescriptor);
 
                         THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::DockerImagePullingFailed, "Failed to pull docker image")
-                            << TErrorAttribute("docker_image", imageDescriptor.Image)
-                            << TErrorAttribute("authenticated", authenticated)
-                            << imageOrError;
+                            .With("docker_image", imageDescriptor.Image)
+                            .With("authenticated", authenticated)
+                            .With(imageOrError);
                     }
 
                     const auto& cachedImage = imageOrError.Value()->Image();
@@ -1266,7 +1266,7 @@ private:
             ] (TErrorOr<std::vector<TVolumeResultPtr>>&& volumeResultsOrError) {
                 if (!volumeResultsOrError.IsOK()) {
                     THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NonRootVolumePreparationFailed, "Failed to prepare non-root volumes")
-                        << volumeResultsOrError;
+                        .With(volumeResultsOrError);
                 }
 
                 auto& volumeResults = volumeResultsOrError.Value();

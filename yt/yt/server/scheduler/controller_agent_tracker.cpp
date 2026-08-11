@@ -594,8 +594,8 @@ public:
                             YT_UNUSED_FUTURE(scheduler->SetOperationAlert(operationId, EOperationAlertType::InvalidControllerRuntimeData, TError()));
                         } else {
                             auto error = TError("Controller agent reported invalid data for operation")
-                                << TErrorAttribute("operation_id", operation->GetId())
-                                << std::move(controllerRuntimeDataError);
+                                .With("operation_id", operation->GetId())
+                                .With(std::move(controllerRuntimeDataError));
                             YT_UNUSED_FUTURE(scheduler->SetOperationAlert(operationId, EOperationAlertType::InvalidControllerRuntimeData, error));
                         }
                     }
@@ -1126,7 +1126,7 @@ private:
 
         if (!transactionOrError.IsOK()) {
             Bootstrap_->GetScheduler()->Disconnect(transactionOrError);
-            THROW_ERROR_EXCEPTION("Failed to start incarnation transaction") << transactionOrError;
+            THROW_ERROR_EXCEPTION("Failed to start incarnation transaction").With(transactionOrError);
         }
 
         auto transaction = std::move(transactionOrError.Value());
@@ -1349,7 +1349,7 @@ private:
 
         TError error;
         if (!errors.empty()) {
-            error = TError{EErrorCode::WatcherHandlerFailed, "Too few matching agents"} << std::move(errors);
+            error = TError{EErrorCode::WatcherHandlerFailed, "Too few matching agents"}.With(std::move(errors));
             YT_LOG_WARNING(error);
         }
         Bootstrap_->GetScheduler()->GetMasterConnector()->SetSchedulerAlert(

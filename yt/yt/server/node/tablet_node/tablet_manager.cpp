@@ -432,8 +432,8 @@ public:
             if (tablet->GetMountRevision() != tabletSnapshot->MountRevision) {
                 THROW_ERROR_EXCEPTION("Tablet %v has invalid mount revision, cannot externalize transaction",
                     tabletSnapshot->TabletId)
-                    << TErrorAttribute("expected_mount_revision", tabletSnapshot->MountRevision)
-                    << TErrorAttribute("actual_mount_revision", tablet->GetMountRevision());
+                    .With("expected_mount_revision", tabletSnapshot->MountRevision)
+                    .With("actual_mount_revision", tablet->GetMountRevision());
             }
 
             ExternalizeTransactionIfNeeded(tablet, std::move(transaction), transactionKind);
@@ -455,7 +455,7 @@ public:
                 NTabletClient::EErrorCode::NoSuchTablet,
                 "No such tablet %v",
                 id)
-                << TErrorAttribute("tablet_id", id);
+                .With("tablet_id", id);
         }
         return tablet;
     }
@@ -2577,7 +2577,7 @@ private:
 
         if (IsInUnmountWorkflow(tablet->GetState()) && updateReason != ETabletStoresUpdateReason::Flush) {
             THROW_ERROR_EXCEPTION("Tablet is in %Qlv state", tablet->GetState())
-                << TErrorAttribute("update_reason", updateReason);
+                .With("update_reason", updateReason);
         }
 
         THashSet<TChunkId> hunkChunkIdsToAdd;
@@ -2645,8 +2645,8 @@ private:
             if (!hunkChunk->IsDangling()) {
                 THROW_ERROR_EXCEPTION("Hunk chunk %v is not dangling",
                     chunkId)
-                    << TErrorAttribute("store_ref_count", hunkChunk->GetStoreRefCount())
-                    << TErrorAttribute("prepared_store_ref_count", hunkChunk->GetPreparedStoreRefCount());
+                    .With("store_ref_count", hunkChunk->GetStoreRefCount())
+                    .With("prepared_store_ref_count", hunkChunk->GetPreparedStoreRefCount());
             }
         }
 
@@ -3726,8 +3726,8 @@ private:
 
         if (chaosData->PreparedWritePulledRowsTransactionId.Load()) {
             THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
-                << TErrorAttribute("transaction_id", transaction->GetId())
-                << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
+                .With("transaction_id", transaction->GetId())
+                .With("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
         }
 
         // COMPAT(savrus)
@@ -3738,8 +3738,8 @@ private:
         {
             if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
                 THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
-                    << TErrorAttribute("transaction_id", transaction->GetId())
-                    << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
+                    .With("transaction_id", transaction->GetId())
+                    .With("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
             }
         }
 
@@ -3749,13 +3749,13 @@ private:
         }
         if (CompareRows(newProgress.Segments.front().LowerKey.Get(), tablet->GetPivotKey()) != 0) {
             THROW_ERROR_EXCEPTION("Replication progress boundaries differ from tablet pivot keys")
-                << TErrorAttribute("tablet_lower_key", tablet->GetPivotKey())
-                << TErrorAttribute("progress_lower_key", newProgress.Segments.front().LowerKey.Get());
+                .With("tablet_lower_key", tablet->GetPivotKey())
+                .With("progress_lower_key", newProgress.Segments.front().LowerKey.Get());
         }
         if (CompareRows(newProgress.UpperKey.Get(), tablet->GetNextPivotKey()) != 0) {
             THROW_ERROR_EXCEPTION("Replication progress boundaries differ from tablet pivot keys")
-                << TErrorAttribute("tablet_upper_key", tablet->GetNextPivotKey())
-                << TErrorAttribute("progress_upper_key", newProgress.UpperKey.Get());
+                .With("tablet_upper_key", tablet->GetNextPivotKey())
+                .With("progress_upper_key", newProgress.UpperKey.Get());
         }
 
         if (tablet->IsActiveServant()) {
@@ -3942,8 +3942,8 @@ private:
 
         if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
             THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
-                << TErrorAttribute("transaction_id", transaction->GetId())
-                << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
+                .With("transaction_id", transaction->GetId())
+                .With("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
         }
 
         // COMPAT(savrus)
@@ -3954,8 +3954,8 @@ private:
         {
             if (chaosData->PreparedWritePulledRowsTransactionId.Load()) {
                 THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
-                    << TErrorAttribute("transaction_id", transaction->GetId())
-                    << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
+                    .With("transaction_id", transaction->GetId())
+                    .With("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
             }
         }
 
@@ -4161,8 +4161,8 @@ private:
                 THROW_ERROR_EXCEPTION("Cannot prepare rows for replica %v since tablet %v participates in backup",
                     replicaId,
                     tabletId)
-                    << TErrorAttribute("checkpoint_timestamp", checkpointTimestamp)
-                    << TErrorAttribute("start_timestamp", transaction->GetStartTimestamp());
+                    .With("checkpoint_timestamp", checkpointTimestamp)
+                    .With("start_timestamp", transaction->GetStartTimestamp());
             }
         }
 
@@ -4172,8 +4172,8 @@ private:
                     "backup checkpoint exceeding transaction start timestamp",
                     replicaId,
                     tabletId)
-                    << TErrorAttribute("last_passed_checkpoint_timestamp", lastPassedCheckpointTimestamp)
-                    << TErrorAttribute("start_timestamp", transaction->GetStartTimestamp());
+                    .With("last_passed_checkpoint_timestamp", lastPassedCheckpointTimestamp)
+                    .With("start_timestamp", transaction->GetStartTimestamp());
             }
         }
 
@@ -5974,8 +5974,8 @@ private:
         }
 
         auto error = TError("Errors occurred while deserializing tablet config")
-            << TErrorAttribute("tablet_id", tablet->GetId())
-            << configErrors;
+            .With("tablet_id", tablet->GetId())
+            .With(configErrors);
         tablet->RuntimeData()->Errors.ConfigError.Store(error);
     }
 
@@ -6053,7 +6053,7 @@ private:
                 "with non-externalized transaction %v, transaction may be stale",
                 actionKind,
                 transaction->GetId())
-                << TErrorAttribute("tablet_id", tablet->GetId());
+                .With("tablet_id", tablet->GetId());
         }
 
         if (tablet->IsActiveServant() &&
@@ -6065,7 +6065,7 @@ private:
                 "transaction may be stale",
                 actionKind,
                 transaction->GetId())
-                << TErrorAttribute("tablet_id", tablet->GetId());
+                .With("tablet_id", tablet->GetId());
         }
     }
 

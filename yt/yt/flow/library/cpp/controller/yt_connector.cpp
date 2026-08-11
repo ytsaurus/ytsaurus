@@ -260,8 +260,8 @@ private:
                 auto actualIncarnationId = ConvertTo<TIncarnationId>(parsedGetOrchidResult.Value);
                 if (actualIncarnationId != incarnationId) {
                     THROW_ERROR_EXCEPTION("Controller leader node incarnation ids mismatch")
-                        << TErrorAttribute("actual_incarnation_id", actualIncarnationId)
-                        << TErrorAttribute("expected_incarnation_id", incarnationId);
+                        .With("actual_incarnation_id", actualIncarnationId)
+                        .With("expected_incarnation_id", incarnationId);
                 }
             }));
     }

@@ -273,7 +273,7 @@ private:
         try {
             GuardedDoOpen();
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to open chunk") << ex;
+            auto error = TError("Failed to open chunk").With(ex);
             OnFailed(error);
 
             THROW_ERROR_EXCEPTION(error);
@@ -418,7 +418,7 @@ private:
         } else {
             auto error = TError("Failed to start chunk session at %v",
                 node->Descriptor.GetDefaultAddress())
-                << rspOrError;
+                .With(rspOrError);
             YT_LOG_DEBUG(error);
             THROW_ERROR_EXCEPTION(error);
         }
@@ -504,7 +504,7 @@ private:
                 OnCloseDemanded();
             }
         } else {
-            auto error = TError("Failed to ping journal chunk replica") << rspOrError;
+            auto error = TError("Failed to ping journal chunk replica").With(rspOrError);
             OnFailed(error);
         }
     }
@@ -734,7 +734,7 @@ private:
                 node->FirstUnflushedRecordIndex);
         } else {
             auto error = TError("Failed to flush records to replica %v", node->Descriptor.GetDefaultAddress())
-                << rspOrError;
+                .With(rspOrError);
             OnFailed(error);
             return;
         }
@@ -832,7 +832,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto error = TError("Journal chunk writer failed")
-            << innerError;
+            .With(innerError);
         YT_LOG_ERROR(error);
         Error_ = error;
 

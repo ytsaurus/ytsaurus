@@ -187,7 +187,7 @@ private:
                 YT_LOG_DEBUG(ex, "Error getting table mount info");
                 THROW_ERROR_EXCEPTION("Error getting mount info for %v",
                     Path_)
-                    << ex;
+                    .With(ex);
             }
         }
 

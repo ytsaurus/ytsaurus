@@ -439,7 +439,7 @@ public:
         if (functionNode->getArguments().getNodes().size() != 2) {
             THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function %v",
                 functionNode->getFunctionName())
-                << TErrorAttribute("number_of_arguments", functionNode->getArguments().getNodes().size());
+                .With("number_of_arguments", functionNode->getArguments().getNodes().size());
         }
 
         auto rhs = functionNode->getArguments().getNodes()[1];
@@ -879,10 +879,10 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
                 "you can suppress this error at cost of possible performance degradation "
                 "by wrapping the table into subquery",
                 errorPrefix)
-                << TErrorAttribute("table_expression", tableExpression->formatASTForErrorMessage())
-                << TErrorAttribute("table_index", tableIndex)
-                << TErrorAttribute("underlying_table_count", underlyingTables.size())
-                << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/queries/joins");
+                .With("table_expression", tableExpression->formatASTForErrorMessage())
+                .With("table_index", tableIndex)
+                .With("underlying_table_count", underlyingTables.size())
+                .With("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/queries/joins");
         }
 
         const auto& path = underlyingTables.front()->Path;
@@ -895,8 +895,8 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
                 "by wrapping the table into subquery",
                 errorPrefix,
                 path)
-                << TErrorAttribute("table_index", tableIndex)
-                << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/queries/joins");
+                .With("table_index", tableIndex)
+                .With("docs", "https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/queries/joins");
         }
     };
 

@@ -136,7 +136,7 @@ TGpuDriverVersion TGpuDriverVersion::FromString(TStringBuf driverVersionString)
         }
         return {result};
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to parse driver version %v", driverVersionString) << ex;
+        THROW_ERROR_EXCEPTION("Unable to parse driver version %v", driverVersionString).With(ex);
     }
 }
 
@@ -151,7 +151,7 @@ std::string GetNvidiaGpuDriverVersionString()
         TFileInput moduleVersion(NvidiaModuleVersionPath);
         return moduleVersion.ReadLine();
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to read GPU module version from %v", NvidiaModuleVersionPath) << ex;
+        THROW_ERROR_EXCEPTION("Unable to read GPU module version from %v", NvidiaModuleVersionPath).With(ex);
     }
 }
 

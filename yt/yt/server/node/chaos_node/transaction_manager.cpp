@@ -580,9 +580,9 @@ private:
         if (ClockClusterTag_ != timestampClusterTag) {
             if (shouldThrow) {
                 THROW_ERROR_EXCEPTION("Transaction timestamp is generated from unexpected clock")
-                    << TErrorAttribute("transaction_id", transactionId)
-                    << TErrorAttribute("transaction_clock_cluster_tag", timestampClusterTag)
-                    << TErrorAttribute("coordinator_clock_cluster_tag", ClockClusterTag_);
+                    .With("transaction_id", transactionId)
+                    .With("transaction_clock_cluster_tag", timestampClusterTag)
+                    .With("coordinator_clock_cluster_tag", ClockClusterTag_);
             }
 
             YT_LOG_ALERT(

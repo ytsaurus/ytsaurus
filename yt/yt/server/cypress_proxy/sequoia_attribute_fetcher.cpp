@@ -934,7 +934,7 @@ private:
                 if (auto error = WrapRetriableResolveError(rspOrError, nodeId); error.IsOK()) {
                     // Not a resolve error. Pass it through.
                     THROW_ERROR_EXCEPTION("Error getting requested information from master")
-                        << rspOrError;
+                        .With(rspOrError);
                 }
 
                 // A race on a nested node should lead to that node being omitted silently.

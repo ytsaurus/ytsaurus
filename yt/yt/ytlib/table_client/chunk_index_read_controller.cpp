@@ -162,9 +162,9 @@ public:
             auto actualChecksum = GetChecksum(refWithoutChecksum);
             if (expectedChecksum != actualChecksum) {
                 THROW_ERROR_EXCEPTION("Chunk index sector checksum mismatch")
-                    << TErrorAttribute("expected_checksum", expectedChecksum)
-                    << TErrorAttribute("actual_checksum", actualChecksum)
-                    << TErrorAttribute("recalculated_checksum", GetChecksum(refWithoutChecksum));
+                    .With("expected_checksum", expectedChecksum)
+                    .With("actual_checksum", actualChecksum)
+                    .With("recalculated_checksum", GetChecksum(refWithoutChecksum));
             }
 
             PendingSectorAddressToData_[address] = sectorData;

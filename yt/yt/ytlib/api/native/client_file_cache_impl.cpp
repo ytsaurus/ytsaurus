@@ -186,8 +186,8 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
             THROW_ERROR_EXCEPTION("You need %Qlv or %Qlv permission to use file cache",
                 EPermission::Use,
                 EPermission::Write)
-                << usePermissionResult.ToError(Options_.GetAuthenticatedUser(), EPermission::Use)
-                << writePermissionResult.ToError(Options_.GetAuthenticatedUser(), EPermission::Write);
+                .With(usePermissionResult.ToError(Options_.GetAuthenticatedUser(), EPermission::Use))
+                .With(writePermissionResult.ToError(Options_.GetAuthenticatedUser(), EPermission::Write));
         }
     }
 

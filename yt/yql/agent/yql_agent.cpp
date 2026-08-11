@@ -544,8 +544,8 @@ public:
             return response;
         } catch (const std::exception& ex) {
             auto error = TError("Failed to get query progress")
-                << TErrorAttribute("query_id", queryId)
-                << TError(ex);
+                .With("query_id", queryId)
+                .With(TError(ex));
             YT_LOG_INFO(error, "YQL plugin call failed");
             THROW_ERROR error;
         }
@@ -628,7 +628,7 @@ private:
 
         auto makeCommonCleanupError = [&] {
             return TError("Failed to unregister query during cleanup")
-                << TErrorAttribute("query_id", queryState.QueryId);
+                .With("query_id", queryState.QueryId);
         };
 
         if (queryState.Registered) {
@@ -640,7 +640,7 @@ private:
                     << TError(ex);
             } catch (...) {
                 queryState.CleanupError = makeCommonCleanupError()
-                    << TErrorAttribute("message", CurrentExceptionMessage());
+                    .With("message", CurrentExceptionMessage());
             }
         }
 
@@ -683,7 +683,7 @@ private:
 
         auto makeCommonQueryError = [&] {
             return TError("Failed to run query")
-                << TErrorAttribute("query_id", queryId);
+                .With("query_id", queryId);
         };
 
         auto queryType = FromProto<EQueryType>(yqlRequest.query_type());
@@ -836,10 +836,10 @@ private:
             throw;
         } catch (const std::exception& ex) {
             queryState.Error = makeCommonQueryError()
-                << TError(ex);
+                .With(TError(ex));
         } catch (...) {
             queryState.Error = makeCommonQueryError()
-                << TErrorAttribute("message", CurrentExceptionMessage());
+                .With("message", CurrentExceptionMessage());
         }
 
         Cleanup(
@@ -870,7 +870,7 @@ private:
 
         auto makeCommonQueryError = [&] {
             return TError("Failed to get declared parameters for query")
-                << TErrorAttribute("query_id", queryState.QueryId);
+                .With("query_id", queryState.QueryId);
         };
 
         try {
@@ -912,10 +912,10 @@ private:
             throw;
         } catch (const std::exception& ex) {
             queryState.Error = makeCommonQueryError()
-                << TError(ex);
+                .With(TError(ex));
         } catch (...) {
             queryState.Error = makeCommonQueryError()
-                << TErrorAttribute("message", CurrentExceptionMessage());
+                .With("message", CurrentExceptionMessage());
         }
 
         Cleanup(
@@ -945,8 +945,8 @@ private:
             }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to abort query")
-                << TErrorAttribute("query_id", queryId)
-                << TError(ex);
+                .With("query_id", queryId)
+                .With(TError(ex));
             YT_LOG_INFO(error, "YQL plugin call failed");
             THROW_ERROR error;
         }
@@ -1046,8 +1046,8 @@ private:
 
                 if (!insecureSubjects.empty()) {
                     THROW_ERROR_EXCEPTION("Found insecure subjects for provided secret")
-                        << commonErrorAttributes
-                        << TErrorAttribute("insecure_subjects", insecureSubjects);
+                        .With(commonErrorAttributes)
+                        .With("insecure_subjects", insecureSubjects);
                 }
             }
 
@@ -1099,8 +1099,8 @@ private:
                         default:
                             return MakeFuture(TErrorOr<TDiscoveredSecret>(
                                 TError("Unexpected secret node type")
-                                    << commonErrorAttributes
-                                    << TErrorAttribute("node_type", *type)));
+                                    .With(commonErrorAttributes)
+                                    .With("node_type", *type)));
                         }
 
                         return queryClient->CreateFileReader(ypath.GetPath())
@@ -1188,9 +1188,9 @@ private:
                             src.category() != *discoveredCategory
                         ) {
                             auto error = TError("Found mismatch between provided and discovered secret categories")
-                                << commonErrorAttributes
-                                << TErrorAttribute("provided_category", src.category())
-                                << TErrorAttribute("discovered_category", *discoveredCategory);
+                                .With(commonErrorAttributes)
+                                .With("provided_category", src.category())
+                                .With("discovered_category", *discoveredCategory);
 
                             return MakeFuture(std::move(error));
                         }
@@ -1212,9 +1212,9 @@ private:
                             src.subcategory() != *discoveredSubcategory
                         ) {
                             auto error = TError("Found mismatch between provided and discovered secret subcategories")
-                                << commonErrorAttributes
-                                << TErrorAttribute("provided_subcategory", src.subcategory())
-                                << TErrorAttribute("discovered_subcategory", *discoveredSubcategory);
+                                .With(commonErrorAttributes)
+                                .With("provided_subcategory", src.subcategory())
+                                .With("discovered_subcategory", *discoveredSubcategory);
 
                             return MakeFuture(std::move(error));
                         }

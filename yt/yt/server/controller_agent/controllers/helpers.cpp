@@ -374,7 +374,7 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
 
         if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to read tags from %Qv", tagsPath)
-                << rspOrError;
+                .With(rspOrError);
         }
 
         auto rspTags = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
@@ -399,7 +399,7 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
             "Failed to load docker image %v:%v",
             dockerImage.Image,
             dockerImage.Tag)
-            << ex;
+            .With(ex);
     }
 }
 
@@ -621,14 +621,14 @@ void ValidateDynamicTableOutputChunkConstraints(NChunkClient::TInputChunkPtr chu
 
     if (auto chunkMaxBlockSize = chunk->GetMaxBlockSize(); chunkMaxBlockSize > maxBlockSize) {
         THROW_ERROR_EXCEPTION("Cannot attach output chunk to a dynamic table since it has too large block size")
-            << TErrorAttribute("chunk_max_block_size", chunkMaxBlockSize)
-            << TErrorAttribute("max_unversioned_block_size", maxBlockSize);
+            .With("chunk_max_block_size", chunkMaxBlockSize)
+            .With("max_unversioned_block_size", maxBlockSize);
         }
 
     if (auto chunkCompressedDataSize = chunk->GetCompressedDataSize(); chunkCompressedDataSize > maxChunkSize) {
         THROW_ERROR_EXCEPTION("Cannot attach output chunk to a dynamic table since it is too large")
-            << TErrorAttribute("chunk_compressed_data_size", chunkCompressedDataSize)
-            << TErrorAttribute("max_unversioned_chunk_size", maxChunkSize);
+            .With("chunk_compressed_data_size", chunkCompressedDataSize)
+            .With("max_unversioned_chunk_size", maxChunkSize);
     }
 }
 

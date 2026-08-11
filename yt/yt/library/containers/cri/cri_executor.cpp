@@ -57,9 +57,9 @@ static TError DecodeExitCode(int exitCode, const std::string& reason)
             EProcessErrorCode::Signal,
             "Process terminated by signal %v",
             signalNumber)
-            << TErrorAttribute("signal", signalNumber)
-            << TErrorAttribute("reason", reason)
-            << TErrorAttribute("oom_killed", reason == "OOMKilled");
+            .With("signal", signalNumber)
+            .With("reason", reason)
+            .With("oom_killed", reason == "OOMKilled");
     }
 
     // TODO(khkebnikov) check these
@@ -73,8 +73,8 @@ static TError DecodeExitCode(int exitCode, const std::string& reason)
         EProcessErrorCode::NonZeroExitCode,
         "Process exited with code %v",
         exitCode)
-        << TErrorAttribute("exit_code", exitCode)
-        << TErrorAttribute("reason", reason);
+        .With("exit_code", exitCode)
+        .With("reason", reason);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,11 +206,11 @@ private:
             // TODO(khlebnikov): Handle NotFound as abort, but gRPC code is not mapped yet.
             // TODO(khlebnikov): Maybe add common EProcessErrorCode::Lost.
             auto error = TError("Cannot get container status")
-                << TErrorAttribute("container_name", ContainerDescriptor_.Name)
-                << TErrorAttribute("container_id", ContainerDescriptor_.Id)
-                << TErrorAttribute("pod_name", PodDescriptor_->Name)
-                << TErrorAttribute("pod_id", PodDescriptor_->Id)
-                << responseOrError;
+                .With("container_name", ContainerDescriptor_.Name)
+                .With("container_id", ContainerDescriptor_.Id)
+                .With("pod_name", PodDescriptor_->Name)
+                .With("pod_id", PodDescriptor_->Id)
+                .With(responseOrError);
             YT_LOG_ERROR(error, "Process is lost");
             YT_UNUSED_FUTURE(AsyncWaitExecutor_->Stop());
             FinishedPromise_.TrySet(std::move(error));

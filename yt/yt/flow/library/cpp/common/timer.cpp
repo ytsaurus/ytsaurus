@@ -102,8 +102,8 @@ void ValidateTimer(const TTimer& timer, const TValidatePayloadOptions& options)
     auto error = DoValidateTimer(timer, options);
     if (!error.IsOK()) {
         THROW_ERROR error
-            << TErrorAttribute("message_id", timer.MessageId.Underlying())
-            << TErrorAttribute("stream_id", timer.StreamId);
+            .With("message_id", timer.MessageId.Underlying())
+            .With("stream_id", timer.StreamId);
     }
 }
 
@@ -148,7 +148,7 @@ TInputTimer::TInputTimer(TTimer&& timer, const NTableClient::TTableSchemaPtr& ex
         ValidateTimer(*this, {.ExpectedSchema = expectedKeySchema});
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to create timer")
-            << TError(ex);
+            .With(TError(ex));
     }
 }
 

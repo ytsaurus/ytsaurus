@@ -274,8 +274,8 @@ public:
                         "Sizes of columnar statistics differ in chunks %v and %v",
                         FirstChunkId_,
                         chunkId)
-                        << TErrorAttribute("previous", ColumnarStatistics_->GetColumnCount())
-                        << TErrorAttribute("current", chunkColumnarStatistics.GetColumnCount());
+                        .With("previous", ColumnarStatistics_->GetColumnCount())
+                        .With("current", chunkColumnarStatistics.GetColumnCount());
                 }
                 *ColumnarStatistics_ += chunkColumnarStatistics;
             }
@@ -328,8 +328,8 @@ public:
             // shallow merge jobs from running.
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                 "Too many blocks")
-                << TErrorAttribute("actual_total_block_count", totalBlockCount)
-                << TErrorAttribute("max_allowed_total_block_count", *Options_->MaxBlockCount);
+                .With("actual_total_block_count", totalBlockCount)
+                .With("max_allowed_total_block_count", *Options_->MaxBlockCount);
         }
 
         RowCount_ += miscExt.row_count();
@@ -373,8 +373,8 @@ public:
         }
 
         return TError("Chunk meta extensions in input chunks differs from extensions in output chunks")
-            << TErrorAttribute("input_chunks_chunk_meta_extensions", InputChunkMetaExtensions_)
-            << TErrorAttribute("output_chunks_chunk_meta_extensions", outputChunkMetaExtensions);
+            .With("input_chunks_chunk_meta_extensions", InputChunkMetaExtensions_)
+            .With("output_chunks_chunk_meta_extensions", outputChunkMetaExtensions);
     }
 
     TFuture<void> Cancel() override
@@ -441,8 +441,8 @@ private:
                 "Meta types differ in chunks %v and %v",
                 FirstChunkId_,
                 chunkId)
-                << TErrorAttribute("previous", FromProto<EChunkType>(ChunkMeta_->type()))
-                << TErrorAttribute("current", FromProto<EChunkType>(meta->type()));
+                .With("previous", FromProto<EChunkType>(ChunkMeta_->type()))
+                .With("current", FromProto<EChunkType>(meta->type()));
         }
 
         if (ChunkMeta_->format() != meta->format()) {
@@ -450,8 +450,8 @@ private:
                 "Meta formats differ in chunks %v and %v",
                 FirstChunkId_,
                 chunkId)
-                << TErrorAttribute("previous", FromProto<EChunkFormat>(ChunkMeta_->format()))
-                << TErrorAttribute("current", FromProto<EChunkFormat>(meta->format()));
+                .With("previous", FromProto<EChunkFormat>(ChunkMeta_->format()))
+                .With("current", FromProto<EChunkFormat>(meta->format()));
         }
 
         auto nameTableExt = GetProtoExtension<TNameTableExt>(meta->extensions());

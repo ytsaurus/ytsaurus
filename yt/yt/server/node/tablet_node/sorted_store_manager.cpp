@@ -556,15 +556,15 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
             NTabletClient::EErrorCode::CannotCheckConflictsAgainstChunkStore,
             "Checking for transaction conflicts against versions behind conflict horizon is not supported; "
             "consider reducing transaction duration or increasing store retention time")
-            << TErrorAttribute("transaction_id", transaction->GetId())
-            << TErrorAttribute("transaction_start_time", transaction->GetStartTime())
-            << TErrorAttribute("tablet_id", Tablet_->GetId())
-            << TErrorAttribute("table_path", Tablet_->GetTablePath())
-            << TErrorAttribute("row", row)
-            << TErrorAttribute(
+            .With("transaction_id", transaction->GetId())
+            .With("transaction_start_time", transaction->GetStartTime())
+            .With("tablet_id", Tablet_->GetId())
+            .With("table_path", Tablet_->GetTablePath())
+            .With("row", row)
+            .With(
                 "transient_conflict_horizon_timestamp",
                 Tablet_->GetTransientConflictHorizonTimestamp())
-            << TErrorAttribute(
+            .With(
                 "persistent_conflict_horizon_timestamp",
                 Tablet_->GetPersistentConflictHorizonTimestamp());
 
@@ -1839,10 +1839,10 @@ TError TSortedStoreManager::CheckOverflow() const
     const auto& mountConfig = Tablet_->GetSettings().MountConfig;
     if (ActiveStore_ && ActiveStore_->GetMaxDataWeight() >= mountConfig->MaxDynamicStoreRowDataWeight) {
         return TError("Maximum row data weight limit reached")
-            << TErrorAttribute("store_id", ActiveStore_->GetId())
-            << TErrorAttribute("key", RowToKey(*Tablet_->GetPhysicalSchema(), ActiveStore_->GetMaxDataWeightWitnessKey()))
-            << TErrorAttribute("data_weight", ActiveStore_->GetMaxDataWeight())
-            << TErrorAttribute("data_weight_limit", mountConfig->MaxDynamicStoreRowDataWeight);
+            .With("store_id", ActiveStore_->GetId())
+            .With("key", RowToKey(*Tablet_->GetPhysicalSchema(), ActiveStore_->GetMaxDataWeightWitnessKey()))
+            .With("data_weight", ActiveStore_->GetMaxDataWeight())
+            .With("data_weight_limit", mountConfig->MaxDynamicStoreRowDataWeight);
     }
 
     return TStoreManagerBase::CheckOverflow();

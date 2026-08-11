@@ -49,7 +49,7 @@ void TChunkVisitorBase<TResult>::OnFinish(const TError& error)
     if (error.IsOK()) {
         OnSuccess();
     } else {
-        Promise_.Set(TError("Error traversing chunk tree") << error);
+        Promise_.Set(TError("Error traversing chunk tree").With(error));
     }
 }
 

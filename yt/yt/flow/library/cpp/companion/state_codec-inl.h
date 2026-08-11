@@ -43,8 +43,8 @@ void SerializeStateHolder(
             NDetail::IsEmptyStatePayload(item.State))
         {
             THROW_ERROR_EXCEPTION("Empty state value for non-reset state %Qv",
-                    state.StateName)
-                << TErrorAttribute("key", item.Key);
+                state.StateName)
+                .With("key", item.Key);
         }
         auto* protoItem = protoState->add_stateitems();
         NYT::ToProto(protoItem->mutable_key(), item.Key);
@@ -81,8 +81,8 @@ TStateHolder<TStatePayload> ParseStateHolder(
             NDetail::IsEmptyStatePayload(item.State))
         {
             THROW_ERROR_EXCEPTION("Empty state value for non-reset state %Qv",
-                    holder.StateName)
-                << TErrorAttribute("key", item.Key);
+                holder.StateName)
+                .With("key", item.Key);
         }
         holder.StateItems.push_back(std::move(item));
     }

@@ -352,7 +352,7 @@ private:
         auto attribute = impl->FindAttribute(CellIdAttributeKey);
         if (!attribute) {
             THROW_ERROR_EXCEPTION("Attribute \"cell_id\" is not specified for a cell Orchid node")
-                << TErrorAttribute("node_id", impl->GetId());
+                .With("node_id", impl->GetId());
         }
         auto cellId = ConvertTo<TCellId>(*attribute);
 
@@ -411,8 +411,8 @@ private:
             THROW_ERROR_EXCEPTION("Cell has no leader");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error getting leader address")
-                << TErrorAttribute("cell_id", cellId)
-                << ex;
+                .With("cell_id", cellId)
+                .With(ex);
         }
     }
 };

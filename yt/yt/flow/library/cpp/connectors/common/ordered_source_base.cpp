@@ -798,16 +798,16 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
                 message.MessageId = GenerateOrderedMessageId(extractedUniqueSeqNo, GetContext()->SourceStreamId, ConvertOffsetToLexicographicallyComparableString(record.Offset), LexicographicallySerialize(i));
                 if (record.WriteTimestamp == ZeroSystemTimestamp) {
                     THROW_ERROR_EXCEPTION("WriteTimestamp is undefined")
-                        << TErrorAttribute("stream_id", GetContext()->SourceStreamId)
-                        << TErrorAttribute("message_id", message.MessageId);
+                        .With("stream_id", GetContext()->SourceStreamId)
+                        .With("message_id", message.MessageId);
                 }
                 message.SystemTimestamp = record.WriteTimestamp;
                 message.AlignmentTimestamp = alignmentTimestamp;
 
                 if (record.CreateTimestamp == ZeroSystemTimestamp) {
                     THROW_ERROR_EXCEPTION("EventTimestamp is undefined")
-                        << TErrorAttribute("stream_id", GetContext()->SourceStreamId)
-                        << TErrorAttribute("message_id", message.MessageId);
+                        .With("stream_id", GetContext()->SourceStreamId)
+                        .With("message_id", message.MessageId);
                 }
 
                 message.EventTimestamp = record.CreateTimestamp;

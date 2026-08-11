@@ -115,7 +115,7 @@ void TParallelMultiReaderManager::PropagateError(const TError& error)
     if (error.IsOK()) {
         EventQueue_.Enqueue(TReaderFinishedEvent{});
     } else {
-        EventQueue_.Enqueue(TSessionReadyEvent(TError("Multi reader failed") << error));
+        EventQueue_.Enqueue(TSessionReadyEvent(TError("Multi reader failed").With(error)));
     }
 }
 

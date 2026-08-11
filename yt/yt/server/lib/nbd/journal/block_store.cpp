@@ -161,7 +161,7 @@ public:
             .AsUnique()
             .Apply(BIND([this, this_ = MakeStrong(this)] (TErrorOr<std::vector<std::vector<TStoredBlockId>>>&& perRecordBlockIdsOrError) {
                 if (!perRecordBlockIdsOrError.IsOK()) {
-                    auto error = TError("Block write failed") << perRecordBlockIdsOrError;
+                    auto error = TError("Block write failed").With(perRecordBlockIdsOrError);
                     Failed_.Fire(error);
                     THROW_ERROR(error);
                 }
@@ -233,7 +233,7 @@ public:
             .AsUnique()
             .Apply(BIND([this, this_ = MakeStrong(this)] (TErrorOr<IChunkFragmentReader::TReadFragmentsResponse>&& responseOrError) {
                 if (!responseOrError.IsOK()) {
-                    auto error = TError("Block read failed") << responseOrError;
+                    auto error = TError("Block read failed").With(responseOrError);
                     Failed_.Fire(error);
                     THROW_ERROR(error);
                 }
@@ -628,7 +628,7 @@ private:
                 YT_LOG_WARNING("Write session failed, out of retries (AttemptCount: %v)",
                     BackoffStrategy_.GetInvocationCount());
                 Promise_.Set(TError("Failed to write to block store")
-                    << std::move(InnerErrors_));
+                    .With(std::move(InnerErrors_)));
                 return;
             }
 
@@ -858,7 +858,7 @@ private:
                 // remains it can still serve writes, so keep retrying (capped at the max backoff).
                 if (!ChunkCreationBackoff_.Next() && !HasWritableChunks()) {
                     auto error = TError("Failed to create block store chunk, out of retries")
-                        << ex;
+                        .With(ex);
                     YT_LOG_ERROR(error);
                     Failed_.Fire(error);
                     return;
@@ -1015,13 +1015,13 @@ private:
                     if (CellTagFromId(ref.ChunkId) != CellTagFromId(TransactionId_)) {
                         THROW_ERROR_EXCEPTION(
                             "Device transaction cell does not match the snapshot chunks' cell")
-                            << TErrorAttribute("transaction_cell_tag", CellTagFromId(TransactionId_))
-                            << TErrorAttribute("chunk_cell_tag", CellTagFromId(ref.ChunkId))
-                            << TErrorAttribute("chunk_id", ref.ChunkId);
+                            .With("transaction_cell_tag", CellTagFromId(TransactionId_))
+                            .With("chunk_cell_tag", CellTagFromId(ref.ChunkId))
+                            .With("chunk_id", ref.ChunkId);
                     }
                     if (NextChunkIndex_ >= MaxChunksPerDevice) {
                         THROW_ERROR_EXCEPTION("Snapshot references more chunks than a device may address")
-                            << TErrorAttribute("max_chunks_per_device", MaxChunksPerDevice);
+                            .With("max_chunks_per_device", MaxChunksPerDevice);
                     }
                     it->second = NextChunkIndex_++;
                     auto chunk = New<TChunkEntry>(
@@ -1041,29 +1041,29 @@ private:
                 // invariants of MakeStoredBlockId, which only its internal callers are entitled to).
                 if (ref.PayloadLength != Geometry_.BlockSize) {
                     THROW_ERROR_EXCEPTION("Snapshot block payload length does not match the device block size")
-                        << TErrorAttribute("payload_length", ref.PayloadLength)
-                        << TErrorAttribute("block_size", Geometry_.BlockSize)
-                        << TErrorAttribute("chunk_id", ref.ChunkId);
+                        .With("payload_length", ref.PayloadLength)
+                        .With("block_size", Geometry_.BlockSize)
+                        .With("chunk_id", ref.ChunkId);
                 }
                 if (ref.RecordOffset < 0 || ref.RecordOffset % blockWithHeaderSize != 0) {
                     THROW_ERROR_EXCEPTION("Snapshot block record offset is not a multiple of the block size")
-                        << TErrorAttribute("record_offset", ref.RecordOffset)
-                        << TErrorAttribute("block_with_header_size", blockWithHeaderSize)
-                        << TErrorAttribute("chunk_id", ref.ChunkId);
+                        .With("record_offset", ref.RecordOffset)
+                        .With("block_with_header_size", blockWithHeaderSize)
+                        .With("chunk_id", ref.ChunkId);
                 }
 
                 auto fragmentIndex = static_cast<int>(ref.RecordOffset / blockWithHeaderSize);
                 if (fragmentIndex >= MaxBlocksPerRecord) {
                     THROW_ERROR_EXCEPTION("Snapshot block record offset is out of range")
-                        << TErrorAttribute("record_offset", ref.RecordOffset)
-                        << TErrorAttribute("max_blocks_per_record", MaxBlocksPerRecord)
-                        << TErrorAttribute("chunk_id", ref.ChunkId);
+                        .With("record_offset", ref.RecordOffset)
+                        .With("max_blocks_per_record", MaxBlocksPerRecord)
+                        .With("chunk_id", ref.ChunkId);
                 }
                 if (ref.RecordIndex < 0 || ref.RecordIndex >= MaxRecordsPerChunk) {
                     THROW_ERROR_EXCEPTION("Snapshot block record index is out of range")
-                        << TErrorAttribute("record_index", ref.RecordIndex)
-                        << TErrorAttribute("max_records_per_chunk", MaxRecordsPerChunk)
-                        << TErrorAttribute("chunk_id", ref.ChunkId);
+                        .With("record_index", ref.RecordIndex)
+                        .With("max_records_per_chunk", MaxRecordsPerChunk)
+                        .With("chunk_id", ref.ChunkId);
                 }
 
                 ++restoredBlockCounts[it->second];

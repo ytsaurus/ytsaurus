@@ -60,13 +60,13 @@ public:
 
         if (tableType != TypeFromId(indexTableId)) {
             THROW_ERROR_EXCEPTION("Table type mismatch")
-                << TErrorAttribute("table_type", tableType)
-                << TErrorAttribute("index_table_type", TypeFromId(indexTableId));
+                .With("table_type", tableType)
+                .With("index_table_type", TypeFromId(indexTableId));
         }
 
         if (tableId == indexTableId) {
             THROW_ERROR_EXCEPTION("Table cannot be an index to itself")
-                << TErrorAttribute("table_id", tableId);
+                .With("table_id", tableId);
         }
 
         if (tableType != EObjectType::ReplicatedTable && tableType != EObjectType::Table) {
@@ -76,8 +76,8 @@ public:
         auto cellTag = CellTagFromId(tableId);
         if (cellTag != CellTagFromId(indexTableId)) {
             THROW_ERROR_EXCEPTION("Table and index table native cell tags differ")
-                << TErrorAttribute("table_cell_tag", cellTag)
-                << TErrorAttribute("index_table_cell_tag", CellTagFromId(indexTableId));
+                .With("table_cell_tag", cellTag)
+                .With("index_table_cell_tag", CellTagFromId(indexTableId));
         }
 
         auto getUnfoldedColumns = [&] {

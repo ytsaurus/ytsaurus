@@ -338,8 +338,8 @@ TFuture<IExternalStateJoiner::TListResult> TStaticTableKeyVisitorJoiner::List(
         auto guard = Guard(Lock_);
         if (TInstant::Now() < NextAttemptTime_) {
             unavailableError = TError("Source is marked unavailable until the next probe")
-                << TErrorAttribute("next_attempt_time", NextAttemptTime_)
-                << LastSourceError_;
+                .With("next_attempt_time", NextAttemptTime_)
+                .With(LastSourceError_);
         }
     }
     if (!unavailableError.IsOK()) {

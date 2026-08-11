@@ -47,12 +47,12 @@ void TTableFetcherSpec::Register(TRegistrar registrar)
         const bool hasClusters = clusters.has_value();
         if (hasClusters && clusters->empty()) {
             THROW_ERROR_EXCEPTION("table_path must not have an empty <clusters=[]> attribute")
-                << TErrorAttribute("table_path", tablePath);
+                .With("table_path", tablePath);
         }
         if (!hasCluster && !hasClusters) {
             THROW_ERROR_EXCEPTION(
-                    "table_path must specify a cluster via <cluster=...> or <clusters=[...]> attribute")
-                << TErrorAttribute("table_path", tablePath);
+                "table_path must specify a cluster via <cluster=...> or <clusters=[...]> attribute")
+                .With("table_path", tablePath);
         }
     });
 }
@@ -275,7 +275,7 @@ public:
                 } catch (const std::exception& e) {
                     CachedReader_ = std::nullopt;
 
-                    auto error = TError("Error fetching batch") << TError(e);
+                    auto error = TError("Error fetching batch").With(TError(e));
                     ReadErrorState_->SetError(error);
                     RetryableErrorsCounter_.Increment(1);
 
@@ -351,7 +351,7 @@ public:
                     range->Lower->Key = lastKey;
                     range->Lower->Exclusive = true;
                 } catch (const std::exception& e) {
-                    auto error = TError("Error fetching batch") << TError(e);
+                    auto error = TError("Error fetching batch").With(TError(e));
                     ReadErrorState_->SetError(error);
                     RetryableErrorsCounter_.Increment(1);
                     const auto& retryTimeout = Spec_->RetryTimeout;
@@ -453,7 +453,7 @@ private:
                     SupplementaryErrorState_->ClearError();
                     break;
                 } catch (const std::exception& e) {
-                    auto error = TError("Error retrieving schema") << TError(e);
+                    auto error = TError("Error retrieving schema").With(TError(e));
                     SupplementaryErrorState_->SetError(error);
                     RetryableErrorsCounter_.Increment(1);
                     const auto& retryTimeout = Spec_->RetryTimeout;

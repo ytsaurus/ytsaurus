@@ -512,10 +512,10 @@ public:
     {
         if (flowCoreTarget->GetVersion() <= expectedVersions->FlowCoreTargetVersion) {
             THROW_ERROR_EXCEPTION(
-                    NFlow::EErrorCode::FlowCoreTargetVersionMismatch,
-                    "FlowCoreTarget version must strictly increase")
-                << TErrorAttribute("expected_version", expectedVersions->FlowCoreTargetVersion)
-                << TErrorAttribute("new_version", flowCoreTarget->GetVersion());
+                NFlow::EErrorCode::FlowCoreTargetVersionMismatch,
+                "FlowCoreTarget version must strictly increase")
+                .With("expected_version", expectedVersions->FlowCoreTargetVersion)
+                .With("new_version", flowCoreTarget->GetVersion());
         }
 
         auto newVersions = CloneYsonStruct(expectedVersions);

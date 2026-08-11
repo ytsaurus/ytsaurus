@@ -385,8 +385,8 @@ void TBlobChunkBase::DoReadMeta(
         if (error.GetCode() == NYT::EErrorCode::Timeout) {
             readTimer.Stop();
             error = TError(NChunkClient::EErrorCode::ReadMetaTimeout, "Read meta from disk timed out")
-                << TErrorAttribute("chunk_id", Id_)
-                << TErrorAttribute("read_time", readTimer.GetElapsedTime());
+                .With("chunk_id", Id_)
+                .With("read_time", readTimer.GetElapsedTime());
         }
 
         cookie.Cancel(error);
@@ -542,7 +542,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     auto cancelHandler = BIND([this, this_ = MakeStrong(this), session] (const TError& error) {
         FailSession(
             session,
-            TError(NYT::EErrorCode::Canceled, "Session canceled") << error);
+            TError(NYT::EErrorCode::Canceled, "Session canceled").With(error));
     }).Via(session->Invoker);
 
     if (!session->SessionPromise.OnCanceled(cancelHandler)) {
@@ -894,7 +894,7 @@ void TBlobChunkBase::OnBlocksRead(
             NChunkClient::EErrorCode::IOError,
             "Error reading blob chunk %v",
             Id_)
-            << TError(blocksOrError);
+            .With(TError(blocksOrError));
         if (blocksOrError.FindMatching(NChunkClient::EErrorCode::IncorrectChunkFileChecksum)) {
             if (ShouldSyncOnClose()) {
                 Location_->ScheduleDisable(error);

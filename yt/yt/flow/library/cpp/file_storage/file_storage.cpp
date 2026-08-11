@@ -177,10 +177,10 @@ void WriteFile(const TFsPath& path, TStringBuf value)
 void SetPermissions(const TFsPath& path, int mode)
 {
     THROW_ERROR_EXCEPTION_UNLESS(
-            Chmod(path.GetPath().c_str(), mode) == 0,
-            "Failed to change permissions of %Qv",
-            path.GetPath())
-        << TError::FromSystem();
+        Chmod(path.GetPath().c_str(), mode) == 0,
+        "Failed to change permissions of %Qv",
+        path.GetPath())
+        .With(TError::FromSystem());
 }
 
 void FlushFile(const TFsPath& path)
@@ -258,12 +258,12 @@ void ValidateStagingRoot(const TFsPath& stagingDirectory)
         ? std::optional(GetFileStatus(entries.front()))
         : std::nullopt;
     THROW_ERROR_EXCEPTION_UNLESS(
-            entries.size() == 1 &&
-                entries.front().Basename() == "payload" &&
-                payloadStatus->IsDir() &&
-                !payloadStatus->IsSymlink(),
-            "File storage filler must create entries only inside the supplied payload directory")
-        << TErrorAttribute("staging_path", stagingDirectory.GetPath());
+        entries.size() == 1 &&
+            entries.front().Basename() == "payload" &&
+            payloadStatus->IsDir() &&
+            !payloadStatus->IsSymlink(),
+        "File storage filler must create entries only inside the supplied payload directory")
+        .With("staging_path", stagingDirectory.GetPath());
 }
 
 void MakeTreeReadOnly(const TFsPath& path)
@@ -694,10 +694,10 @@ private:
             EnsureDirectoryDurable(prefixDirectory);
             FlushDirectory(Root_ / "objects");
             THROW_ERROR_EXCEPTION_IF(
-                    finalDirectory.Exists(),
-                    "File storage object directory appeared during publication")
-                << TErrorAttribute("object_id", id.Underlying())
-                << TErrorAttribute("path", finalDirectory.GetPath());
+                finalDirectory.Exists(),
+                "File storage object directory appeared during publication")
+                .With("object_id", id.Underlying())
+                .With("path", finalDirectory.GetPath());
             Rename(stagingDirectory, finalDirectory);
             FlushDirectory(prefixDirectory);
 
@@ -714,7 +714,7 @@ private:
             FillFailureCounter_.Increment();
             if (NFS::IsOutOfDiskSpaceError(error)) {
                 DiskFullError_->SetError(
-                    TError("File storage ran out of disk space") << error);
+                    TError("File storage ran out of disk space").With(error));
                 YT_UNUSED_FUTURE(
                     BIND(&TFileStorage::Reconcile, MakeWeak(this))
                         .AsyncVia(Invoker_)
@@ -734,7 +734,7 @@ private:
             } catch (const std::exception& cleanupEx) {
                 StartupError_->SetError(
                     TError("Failed to clean file storage staging directory")
-                    << TError(cleanupEx));
+                        .With(TError(cleanupEx)));
             }
             throw;
         }
@@ -766,9 +766,9 @@ private:
         }
         if (collision) {
             THROW_ERROR_EXCEPTION(
-                    "File storage digest collision for object id %Qv",
-                    id.Underlying())
-                << TErrorAttribute("digest", digest);
+                "File storage digest collision for object id %Qv",
+                id.Underlying())
+                .With("digest", digest);
         }
 
         std::optional<std::string> indexedId;
@@ -788,23 +788,23 @@ private:
         if (indexedId) {
             auto result = Evict(*indexedId, &quarantineError);
             THROW_ERROR_EXCEPTION_UNLESS(
-                    result == EEvictionResult::Evicted,
-                    "Invalid indexed file storage object is pinned or changed during quarantine")
-                << TErrorAttribute("object_id", *indexedId)
-                << TErrorAttribute("path", finalDirectory.GetPath())
-                << quarantineError;
+                result == EEvictionResult::Evicted,
+                "Invalid indexed file storage object is pinned or changed during quarantine")
+                .With("object_id", *indexedId)
+                .With("path", finalDirectory.GetPath())
+                .With(quarantineError);
         } else {
             THROW_ERROR_EXCEPTION_UNLESS(
-                    QuarantineUnknownPath(finalDirectory, &quarantineError),
-                    "Failed to quarantine invalid file storage object")
-                << TErrorAttribute("object_id", id.Underlying())
-                << quarantineError;
+                QuarantineUnknownPath(finalDirectory, &quarantineError),
+                "Failed to quarantine invalid file storage object")
+                .With("object_id", id.Underlying())
+                .With(quarantineError);
         }
         if (finalDirectory.Exists()) {
             THROW_ERROR_EXCEPTION(
-                    "Invalid file storage object remains at its final path")
-                << TErrorAttribute("object_id", id.Underlying())
-                << TErrorAttribute("path", finalDirectory.GetPath());
+                "Invalid file storage object remains at its final path")
+                .With("object_id", id.Underlying())
+                .With("path", finalDirectory.GetPath());
         }
         return nullptr;
     }
@@ -857,8 +857,8 @@ private:
             manifestYson = ReadFile(manifestPath);
         } catch (const std::exception& ex) {
             *error = TError("Failed to read file storage object during validation")
-                << TErrorAttribute("path", finalDirectory.GetPath())
-                << TError(ex);
+                .With("path", finalDirectory.GetPath())
+                .With(TError(ex));
             return EObjectValidationResult::Error;
         }
 
@@ -887,8 +887,8 @@ private:
                 TFileStorageObjectId(parsed->ObjectId));
         } catch (const std::exception& ex) {
             *error = TError("Failed to inspect file storage payload during validation")
-                << TErrorAttribute("path", finalDirectory.GetPath())
-                << TError(ex);
+                .With("path", finalDirectory.GetPath())
+                .With(TError(ex));
             return EObjectValidationResult::Error;
         }
         if (!AreManifestsEqual(actual, parsed)) {
@@ -986,18 +986,18 @@ private:
                 totalSize += ReservedSize_;
                 if (!UnknownRootEntries_.empty() || !UnknownTrashEntries_.empty()) {
                     auto error = TError("File storage cannot publish while cache bytes are unaccounted")
-                        << TErrorAttribute("unknown_root_entries", UnknownRootEntries_)
-                        << TErrorAttribute("unknown_trash_entries", UnknownTrashEntries_);
+                        .With("unknown_root_entries", UnknownRootEntries_)
+                        .With("unknown_trash_entries", UnknownTrashEntries_);
                     rejection = error;
                     rejectionAlert = std::move(error);
                 } else if (initialCheck &&
                     pinnedSize + ReservedSize_ + candidateSize > Config_->HardSizeLimit)
                 {
                     auto error = TError("File storage hard size limit exceeded")
-                        << TErrorAttribute("pinned_size", pinnedSize)
-                        << TErrorAttribute("reserved_size", ReservedSize_)
-                        << TErrorAttribute("candidate_size", candidateSize)
-                        << TErrorAttribute("hard_size_limit", Config_->HardSizeLimit);
+                        .With("pinned_size", pinnedSize)
+                        .With("reserved_size", ReservedSize_)
+                        .With("candidate_size", candidateSize)
+                        .With("hard_size_limit", Config_->HardSizeLimit);
                     rejection = error;
                     rejectionAlert = std::move(error);
                 } else {
@@ -1025,10 +1025,10 @@ private:
                         auto error = evictionError.value_or(
                             TError("File storage could not reclaim enough capacity"));
                         rejectionAlert = TError("File storage hard size limit remains exceeded")
-                            << TErrorAttribute("current_size", totalSize)
-                            << TErrorAttribute("candidate_size", candidateSize)
-                            << TErrorAttribute("hard_size_limit", Config_->HardSizeLimit)
-                            << error;
+                            .With("current_size", totalSize)
+                            .With("candidate_size", candidateSize)
+                            .With("hard_size_limit", Config_->HardSizeLimit)
+                            .With(error);
                         rejection = std::move(error);
                     }
                 }
@@ -1120,9 +1120,9 @@ private:
             return EEvictionResult::Evicted;
         } catch (const std::exception& ex) {
             *error = TError("Failed to remove file storage trash entry")
-                << TErrorAttribute("path", path.GetPath())
-                << TErrorAttribute("size", size)
-                << TError(ex);
+                .With("path", path.GetPath())
+                .With("size", size)
+                .With(TError(ex));
             return EEvictionResult::Failed;
         }
     }
@@ -1145,8 +1145,8 @@ private:
             return true;
         } catch (const std::exception& ex) {
             *error = TError("Failed to remove unaccounted file storage trash entry")
-                << TErrorAttribute("path", path.GetPath())
-                << TError(ex);
+                .With("path", path.GetPath())
+                .With(TError(ex));
             return false;
         }
     }
@@ -1176,9 +1176,9 @@ private:
                 RefreshMetrics();
             }
             *error = TError("Failed to quarantine invalid file storage entry")
-                << TErrorAttribute("source_path", source.GetPath())
-                << TErrorAttribute("trash_path", destination.GetPath())
-                << TError(ex);
+                .With("source_path", source.GetPath())
+                .With("trash_path", destination.GetPath())
+                .With(TError(ex));
             return false;
         }
 
@@ -1218,10 +1218,10 @@ private:
             FlushDirectory(Root_ / "trash");
         } catch (const std::exception& ex) {
             *error = TError("Failed to move file storage object to trash")
-                << TErrorAttribute("object_id", rawId)
-                << TErrorAttribute("source_path", directory.GetPath())
-                << TErrorAttribute("trash_path", trashPath.GetPath())
-                << TError(ex);
+                .With("object_id", rawId)
+                .With("source_path", directory.GetPath())
+                .With("trash_path", trashPath.GetPath())
+                .With(TError(ex));
             if (directory.Exists()) {
                 {
                     auto guard = Guard(Lock_);
@@ -1271,8 +1271,8 @@ private:
             }
             StartupError_->SetError(
                 TError("File storage reconciliation did not cover the whole cache root")
-                << TErrorAttribute("unknown_root_entries", unknownRootEntries)
-                << TErrorAttribute("unknown_trash_entries", unknownTrashEntries));
+                    .With("unknown_root_entries", unknownRootEntries)
+                    .With("unknown_trash_entries", unknownTrashEntries));
         }
         RefreshMetrics();
     }
@@ -1682,8 +1682,8 @@ private:
         if (snapshot.PinnedSize > Config_->HardSizeLimit / 2) {
             PinnedOveruseError_->SetError(
                 TError("Pinned file storage objects consume more than half of the hard limit")
-                << TErrorAttribute("pinned_size", snapshot.PinnedSize)
-                << TErrorAttribute("hard_size_limit", Config_->HardSizeLimit));
+                    .With("pinned_size", snapshot.PinnedSize)
+                    .With("hard_size_limit", Config_->HardSizeLimit));
         } else {
             PinnedOveruseError_->ClearError();
         }

@@ -767,7 +767,7 @@ public:
                 auto unrecognizedOptions = dynamicOptions->GetRecursiveUnrecognized();
                 if (unrecognizedOptions->GetChildCount() > 0) {
                     UnrecognizedOptionsAlert_ = TError("Found unrecognized parameters in dynamic tablet cell options")
-                        << TErrorAttribute("unrecognized_options", unrecognizedOptions);
+                        .With("unrecognized_options", unrecognizedOptions);
                 } else {
                     UnrecognizedOptionsAlert_ = {};
                 }

@@ -93,7 +93,7 @@ TErrorOr<std::vector<NRecords::TPathToNodeId>> WrapSelectSubtreeError(
         NSequoiaClient::EErrorCode::SequoiaSubtreeTooLarge,
         "Sequoia subtree %v is too large to process in a single request",
         rootPath)
-        << TError(std::move(result));
+        .With(TError(std::move(result)));
 }
 
 } // namespace

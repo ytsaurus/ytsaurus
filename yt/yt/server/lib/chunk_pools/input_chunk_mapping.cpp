@@ -154,8 +154,8 @@ void TInputChunkMapping::OnStripeRegenerated(
     if (Mode_ == EChunkMappingMode::Sorted) {
         if (oldStripe->DataSlices().size() != newStripe->DataSlices().size()) {
             THROW_ERROR_EXCEPTION("New stripe has different number of data slices")
-                << TErrorAttribute("old_data_slice_count", oldStripe->DataSlices().size())
-                << TErrorAttribute("new_data_slice_count", newStripe->DataSlices().size());
+                .With("old_data_slice_count", oldStripe->DataSlices().size())
+                .With("new_data_slice_count", newStripe->DataSlices().size());
         }
 
         for (int index = 0; index < std::ssize(oldStripe->DataSlices()); ++index) {
@@ -219,17 +219,17 @@ void TInputChunkMapping::ValidateSortedChunkConsistency(
             newBoundaryKeysYson = TYsonString(TStringBuf("#"));
         }
         THROW_ERROR_EXCEPTION("Corresponding chunks in old and new stripes have different boundary keys")
-            << TErrorAttribute("old_chunk_id", oldChunk->GetChunkId())
-            << TErrorAttribute("old_boundary_keys", oldBoundaryKeysYson)
-            << TErrorAttribute("new_chunk_id", newChunk->GetChunkId())
-            << TErrorAttribute("new_boundary_keys", newBoundaryKeysYson);
+            .With("old_chunk_id", oldChunk->GetChunkId())
+            .With("old_boundary_keys", oldBoundaryKeysYson)
+            .With("new_chunk_id", newChunk->GetChunkId())
+            .With("new_boundary_keys", newBoundaryKeysYson);
     }
     if (oldChunk->GetRowCount() != newChunk->GetRowCount()) {
         THROW_ERROR_EXCEPTION("Corresponding chunks in old and new stripes have different row counts")
-            << TErrorAttribute("old_chunk_id", oldChunk->GetChunkId())
-            << TErrorAttribute("old_row_count", oldChunk->GetRowCount())
-            << TErrorAttribute("new_chunk_id", newChunk->GetChunkId())
-            << TErrorAttribute("new_row_count", newChunk->GetRowCount());
+            .With("old_chunk_id", oldChunk->GetChunkId())
+            .With("old_row_count", oldChunk->GetRowCount())
+            .With("new_chunk_id", newChunk->GetChunkId())
+            .With("new_row_count", newChunk->GetRowCount());
     }
 }
 

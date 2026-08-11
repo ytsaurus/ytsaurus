@@ -229,8 +229,8 @@ public:
             failed = true;
 
             auto error = TError(ex)
-                << TErrorAttribute("tablet_id", TabletId_)
-                << TErrorAttribute("background_activity", ETabletBackgroundActivity::DictionaryBuilding);
+                .With("tablet_id", TabletId_)
+                .With("background_activity", ETabletBackgroundActivity::DictionaryBuilding);
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::DictionaryBuilding].Store(error);
 
@@ -762,9 +762,9 @@ private:
                     storage));
             } catch (const std::exception& ex) {
                 auto error = TError("Trained compression dictionary cannot be digested; skipping it")
-                    << TErrorAttribute("column_id", columnId)
-                    << TErrorAttribute("dictionary_size", columnInfo.Dictionary.Size())
-                    << TError(ex);
+                    .With("column_id", columnId)
+                    .With("dictionary_size", columnInfo.Dictionary.Size())
+                    .With(TError(ex));
                 YT_LOG_ALERT(error);
                 continue;
             }

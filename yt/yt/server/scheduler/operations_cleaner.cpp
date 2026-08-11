@@ -1388,7 +1388,7 @@ private:
                         orderedByIdRowsDataWeight += GetDataWeight(row);
                     } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
-                            << ex;
+                            .With(ex);
                     }
                 }
 
@@ -1419,7 +1419,7 @@ private:
                         orderedByStartTimeRowsDataWeight += GetDataWeight(row);
                     } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
-                            << ex;
+                            .With(ex);
                     }
                 }
 
@@ -1507,8 +1507,8 @@ private:
                     } catch (const std::exception& ex) {
                         int pendingCount = ArchivePending_.load();
                         error = TError("Failed to archive operations")
-                            << TErrorAttribute("pending_count", pendingCount)
-                            << ex;
+                            .With("pending_count", pendingCount)
+                            .With(ex);
                         YT_LOG_WARNING(error);
                         ArchiveErrorCounter_.Increment();
                     }
@@ -1517,7 +1517,7 @@ private:
                 int pendingCount = ArchivePending_.load();
                 if (pendingCount >= Config_->MinOperationCountEnqueuedForAlert) {
                     auto alertError = TError("Too many operations in archivation queue")
-                        << TErrorAttribute("pending_count", pendingCount);
+                        .With("pending_count", pendingCount);
                     if (!error.IsOK()) {
                         alertError.MutableInnerErrors()->push_back(error);
                     }
@@ -1611,8 +1611,8 @@ private:
         SetSchedulerAlert(
             ESchedulerAlertType::OperationStuckInRemoval,
             TError("Removing some operations from Cypress is stuck")
-            << TErrorAttribute("failed_operation_count", StuckInRemovalOperations_.size())
-            << TErrorAttribute("failed_operation_ids", failedOperationIdsToInclude));
+            .With("failed_operation_count", StuckInRemovalOperations_.size())
+            .With("failed_operation_ids", failedOperationIdsToInclude));
     }
 
     void DoRemoveOperations(std::vector<TRemoveOperationRequest> requests)
@@ -1903,7 +1903,7 @@ private:
         SetSchedulerAlert(
             ESchedulerAlertType::OperationsArchivation,
             TError("Max enqueued operations limit reached; archivation is temporarily disabled")
-            << TErrorAttribute("enable_time", enableTime));
+            .With("enable_time", enableTime));
 
         YT_LOG_INFO("Archivation is temporarily disabled (EnableTime: %v)", enableTime);
     }
@@ -1989,7 +1989,7 @@ private:
         auto error = GetCumulativeError(rspOrError);
         if (!error.IsOK()) {
             THROW_ERROR_EXCEPTION("Error requesting operations attributes for archivation")
-                << error;
+                .With(error);
         } else {
             YT_LOG_INFO("Fetched operations attributes for cleaner (OperationCount: %v)", operationIds.size());
         }
@@ -2015,17 +2015,17 @@ private:
                         YT_VERIFY(operationId == operationDataToParse.OperationId);
                     } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Error parsing operation attributes")
-                            << TErrorAttribute("operation_id", operationDataToParse.OperationId)
-                            << ex;
+                            .With("operation_id", operationDataToParse.OperationId)
+                            .With(ex);
                     }
 
                     try {
                         result.push_back(InitializeRequestFromAttributes(*attributes));
                     } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Error initializing operation archivation request")
-                            << TErrorAttribute("operation_id", operationId)
-                            << TErrorAttribute("attributes", ConvertToYsonString(*attributes, EYsonFormat::Text))
-                            << ex;
+                            .With("operation_id", operationId)
+                            .With("attributes", ConvertToYsonString(*attributes, EYsonFormat::Text))
+                            .With(ex);
                     }
                 }
 
@@ -2156,7 +2156,7 @@ private:
             ArchivedOperationAlertEventCounter_.Increment(eventsToSend.size());
         } catch (const std::exception& ex) {
             auto error = TError("Failed to write operation alert events to archive")
-                << ex;
+                .With(ex);
             YT_LOG_WARNING(error);
             if (TInstant::Now() - LastOperationAlertEventSendTime_ > Config_->OperationAlertSenderAlertThreshold) {
                 SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, error);

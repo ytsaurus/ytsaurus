@@ -139,7 +139,7 @@ public:
 
         if (rsp->Attachments().size() != 1) {
             THROW_ERROR_EXCEPTION("Invalid attachment count")
-                << TErrorAttribute("count", rsp->Attachments().size());
+                .With("count", rsp->Attachments().size());
         }
 
         return rsp->Attachments()[0];

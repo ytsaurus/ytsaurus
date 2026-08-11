@@ -241,7 +241,7 @@ TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
             queryContext->Logger);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Materialized view target table must exist and source table must be readable")
-            << ex;
+            .With(ex);
     }
 
     YT_VERIFY(sourceAndTarget.size() == 2);
@@ -249,16 +249,16 @@ TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
     const auto& targetTable = sourceAndTarget[1];
     if (targetTable->Dynamic) {
         THROW_ERROR_EXCEPTION("Materialized view target table must be static")
-            << TErrorAttribute("target_path", targetPath);
+            .With("target_path", targetPath);
     }
     if (sourceTable->Dynamic) {
         THROW_ERROR_EXCEPTION("Materialized view source table must be static")
-            << TErrorAttribute("source_path", sourcePath);
+            .With("source_path", sourcePath);
     }
 
     THROW_ERROR_EXCEPTION_IF(!sourceTable->RowCount,
         "Materialized view source table has no row count")
-        << TErrorAttribute("source_path", sourcePath);
+        .With("source_path", sourcePath);
 
     // TODO(buyval01): FetchTables may return a stale row count from the attribute cache.
     return {

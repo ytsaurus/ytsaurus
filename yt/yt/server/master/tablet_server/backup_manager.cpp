@@ -155,7 +155,7 @@ public:
                 case ETabletState::Frozen:
                     if (!table->GetMountedWithEnabledDynamicStoreRead()) {
                         THROW_ERROR_EXCEPTION("Dynamic store read must be enabled in order to backup a mounted table")
-                            << TErrorAttribute("table_id", table->GetId());
+                            .With("table_id", table->GetId());
                     }
                     break;
 
@@ -182,13 +182,13 @@ public:
 
         if (table->GetUpstreamReplicaId() && !clockClusterTag) {
             THROW_ERROR_EXCEPTION("Clock cluster tag must be specified for a replica table")
-                << TErrorAttribute("table_id", table->GetId());
+                .With("table_id", table->GetId());
         }
 
         if (!table->GetUpstreamReplicaId() && clockClusterTag) {
             THROW_ERROR_EXCEPTION("Clock cluster tag can be specified only for replica tables")
-                << TErrorAttribute("table_id", table->GetId())
-                << TErrorAttribute("clock_cluster_tag", clockClusterTag);
+                .With("table_id", table->GetId())
+                .With("clock_cluster_tag", clockClusterTag);
         }
 
         if (table->IsReplicated()) {
@@ -529,8 +529,8 @@ public:
         auto* table = tablet->GetTable();
 
         auto error = TError("Backup interrupted by unmount")
-            << TErrorAttribute("tablet_id", tablet->GetId())
-            << TErrorAttribute("table_path", table->GetMountPath());
+            .With("tablet_id", tablet->GetId())
+            .With("table_path", table->GetMountPath());
         RegisterBackupError(tablet->GetTable(), error);
 
         YT_LOG_DEBUG("Tablet backup interrupted by unmount (TableId: %v, TabletId: %v)",
@@ -1052,7 +1052,7 @@ private:
             const auto* replica = tabletManager->FindTableReplica(descriptor.ReplicaId);
             if (!replica || replica->GetTable() != table) {
                 THROW_ERROR_EXCEPTION("Table replica %v does not belong to the table", descriptor.ReplicaId)
-                    << TErrorAttribute("table_id", table->GetId());
+                    .With("table_id", table->GetId());
             }
             if (!validateModes) {
                 continue;
@@ -1064,7 +1064,7 @@ private:
                     replica->GetId(),
                     descriptor.Mode,
                     replica->GetMode())
-                    << TErrorAttribute("table_id", table->GetId());
+                    .With("table_id", table->GetId());
             }
 
             if (replica->GetState() != ETableReplicaState::Enabled &&
@@ -1073,7 +1073,7 @@ private:
                 THROW_ERROR_EXCEPTION("Table replica %v is in transient state %Qlv",
                     replica->GetId(),
                     replica->GetState())
-                    << TErrorAttribute("table_id", table->GetId());
+                    .With("table_id", table->GetId());
             }
 
             if (replica->GetState() == ETableReplicaState::Disabled &&
@@ -1082,7 +1082,7 @@ private:
                 THROW_ERROR_EXCEPTION("Sync replica %v is disabled; it must be enabled "
                     "or switched to async mode to be backed up",
                     replica->GetId())
-                    << TErrorAttribute("table_id", table->GetId());
+                    .With("table_id", table->GetId());
             }
 
             if (!replica->GetPreserveTimestamps()) {

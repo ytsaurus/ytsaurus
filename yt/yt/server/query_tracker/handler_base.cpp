@@ -106,7 +106,7 @@ void ProcessRowset(TFinishedQueryResultPartial& newRecord, TWireRowset wireSchem
         try {
             rows = reader->ReadSchemafulRowset(schemaData, /*captureValues*/ false);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to read resulting rowset. Try using INSERT INTO to save result") << ex;
+            THROW_ERROR_EXCEPTION("Failed to read resulting rowset. Try using INSERT INTO to save result").With(ex);
         }
         TDataStatistics dataStatistics;
         dataStatistics.set_row_count(rows.size());
@@ -135,7 +135,7 @@ void ProcessRowset(TFinishedQueryResultPartial& newRecord, TWireRowset wireSchem
         newRecord.Schema = ConvertToYsonString(TString());
         newRecord.DataStatistics = ConvertToYsonString(TDataStatistics());
         newRecord.IsTruncated = true;
-        newRecord.Error = TError("Failed to save rowset") << ex;
+        newRecord.Error = TError("Failed to save rowset").With(ex);
         newRecord.Rowset = TString();
     }
 }

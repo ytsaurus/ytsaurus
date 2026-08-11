@@ -340,7 +340,7 @@ private:
             Phase_);
 
         THROW_ERROR_EXCEPTION("Read attempts exhausted")
-            << InnerErrors_;
+            .With(InnerErrors_);
     }
 
     // Increments the error budget and sleeps.
@@ -802,9 +802,9 @@ private:
             auto error = TError(
                 "Chunk %v read returned more records than requested",
                 ChunkId_)
-                << TErrorAttribute("returned_count", std::ssize(records))
-                << TErrorAttribute("next_read_index", window.NextReadIndex)
-                << TErrorAttribute("requested_end_index", window.InFlightEndIndex);
+                .With("returned_count", std::ssize(records))
+                .With("next_read_index", window.NextReadIndex)
+                .With("requested_end_index", window.InFlightEndIndex);
             YT_LOG_ALERT(error);
             FailPrefetch(std::move(error));
             return;
@@ -890,7 +890,7 @@ private:
         if (window.ErrorAttempts >= Config_->MaxReadAttempts) {
             FailPrefetch(TError("Phase-2 prefetch read attempts exhausted after %v attempts",
                 window.ErrorAttempts)
-                << std::move(readError));
+                .With(std::move(readError)));
             return;
         }
 
@@ -1119,7 +1119,7 @@ private:
                 TError(ex),
                 "Failed to acquire master channel while updating distributed chunk session reader replicas");
             return TError("Failed to acquire master channel for chunk %v", ChunkId_)
-                << TError(ex);
+                .With(TError(ex));
         }
 
         TChunkServiceProxy proxy(std::move(channel));
@@ -1133,7 +1133,7 @@ private:
                 rspOrError,
                 "Failed to locate chunk while updating distributed chunk session reader replicas");
             return TError("Failed to locate chunk %v on master", ChunkId_)
-                << rspOrError;
+                .With(rspOrError);
         }
         const auto& rsp = rspOrError.Value();
 

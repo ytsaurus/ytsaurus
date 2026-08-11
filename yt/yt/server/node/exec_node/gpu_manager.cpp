@@ -461,7 +461,7 @@ void TGpuManager::OnHealthCheck()
             auto guard = Guard(SpinLock_);
             Enabled_ = false;
             Error_ = TError("All GPU devices are disabled")
-                << ex;
+                .With(ex);
         }
     }
 }
@@ -664,8 +664,8 @@ TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
 
     if (std::ssize(FreeSlots_) < slotCount) {
         return TError("Cannot find enough empty GPU slots")
-            << TErrorAttribute("free_slot_count", std::ssize(FreeSlots_))
-            << TErrorAttribute("required_slot_count", slotCount);
+            .With("free_slot_count", std::ssize(FreeSlots_))
+            .With("required_slot_count", slotCount);
     }
 
     // TODO(ignat): use actual topology of GPU-s.

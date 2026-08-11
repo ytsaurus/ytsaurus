@@ -66,7 +66,7 @@ void TClusterBackupSession::ValidateBackupsEnabled()
     } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
         THROW_ERROR_EXCEPTION("Failed to check if backups are enabled at cluster %Qv",
             ClusterName_)
-            << rspOrError;
+            .With(rspOrError);
     }
 
     THROW_ERROR_EXCEPTION("Backups are disabled at cluster %Qv",
@@ -99,7 +99,7 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
 
     if (!dynamic) {
         THROW_ERROR_EXCEPTION("Cannot backup static table %v", tableInfo.SourcePath)
-            << TErrorAttribute("cluster_name", ClusterName_);
+            .With("cluster_name", ClusterName_);
     }
 
     auto sorted = tableInfo.Attributes->Get<bool>("sorted");
@@ -268,8 +268,8 @@ void TClusterBackupSession::LockInputTables()
         const auto& rsp = rspsOrErrors.Value()[tableIndex];
         if (rsp.NodeId != Tables_[tableIndex].SourceTableId) {
             THROW_ERROR_EXCEPTION("Table id changed during locking")
-                << TErrorAttribute("table_path", Tables_[tableIndex].SourcePath)
-                << TErrorAttribute("cluster_name", ClusterName_);
+                .With("table_path", Tables_[tableIndex].SourcePath)
+                .With("cluster_name", ClusterName_);
         }
 
         Tables_[tableIndex].ExternalizedTransactionId = rsp.ExternalizedTransactionId;
@@ -421,9 +421,9 @@ void TClusterBackupSession::WaitForCheckpoint()
 
     if (!unconfirmedTables.empty()) {
         THROW_ERROR_EXCEPTION("Some tables did not confirm backup checkpoint passing within timeout")
-            << TErrorAttribute("remaining_table_count", ssize(unconfirmedTables))
-            << TErrorAttribute("sample_table_path", (*unconfirmedTables.begin())->SourcePath)
-            << TErrorAttribute("cluster_name", ClusterName_);
+            .With("remaining_table_count", ssize(unconfirmedTables))
+            .With("sample_table_path", (*unconfirmedTables.begin())->SourcePath)
+            .With("cluster_name", ClusterName_);
     }
 }
 
@@ -470,9 +470,9 @@ void TClusterBackupSession::CloneTables(ENodeCloneMode nodeCloneMode)
 
         if (rspOrError.GetCode() == NObjectClient::EErrorCode::CrossCellAdditionalPath) {
             THROW_ERROR_EXCEPTION("Cross-cell backups are not supported")
-                << TErrorAttribute("source_path", table.SourcePath)
-                << TErrorAttribute("destination_path", table.DestinationPath)
-                << TErrorAttribute("cluster_name", ClusterName_);
+                .With("source_path", table.SourcePath)
+                .With("destination_path", table.DestinationPath)
+                .With("cluster_name", ClusterName_);
         }
 
         const auto& rsp = rspOrError.ValueOrThrow();
@@ -536,15 +536,15 @@ void TClusterBackupSession::ValidateBackupStates(ETabletBackupState expectedStat
 
         if (actualState != expectedState) {
             if (optionalError && !optionalError->IsOK()) {
-                THROW_ERROR *optionalError
-                    << TErrorAttribute("cluster_name", ClusterName_);
+                THROW_ERROR (*optionalError)
+                    .With("cluster_name", ClusterName_);
 
             }
             THROW_ERROR_EXCEPTION("Destination table %Qv has invalid backup state: expected %Qlv, got %Qlv",
                 table->DestinationPath,
                 expectedState,
                 actualState)
-                << TErrorAttribute("cluster_name", ClusterName_);
+                .With("cluster_name", ClusterName_);
         }
     };
 
@@ -598,7 +598,7 @@ void TClusterBackupSession::FetchClonedReplicaIds()
                     clonedReplicaId,
                     replicaPath,
                     replicaClusterName)
-                    << TErrorAttribute("cluster_name", ClusterName_);
+                    .With("cluster_name", ClusterName_);
             }
         }
     };
@@ -812,7 +812,7 @@ void TClusterBackupSession::ExecuteForAllTables(
 void TClusterBackupSession::ThrowWithClusterNameIfFailed(const TError& error) const
 {
     if (!error.IsOK()) {
-        THROW_ERROR error << TErrorAttribute("cluster_name", ClusterName_);
+        THROW_ERROR error.With("cluster_name", ClusterName_);
     }
 }
 
@@ -1023,7 +1023,7 @@ void TBackupSession::MatchReplicatedTablesWithReplicas()
                 THROW_ERROR_EXCEPTION("Replica table %v is backed up without corresponding "
                     "replicated table",
                     tableInfo->SourcePath)
-                    << TErrorAttribute("cluster_name", clusterName);
+                    .With("cluster_name", clusterName);
             }
 
             auto* replicatedTableInfo = it->second.TableInfo;
@@ -1050,7 +1050,7 @@ void TBackupSession::MatchReplicatedTablesWithReplicas()
             {
                 THROW_ERROR_EXCEPTION("No replicas of replicated table %v are backed up",
                     tableInfo->SourcePath)
-                    << TErrorAttribute("cluster_name", clusterName);
+                    .With("cluster_name", clusterName);
             }
         }
     }

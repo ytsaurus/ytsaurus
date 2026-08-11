@@ -770,8 +770,8 @@ TError TNodeMemoryTracker::DoTryAcquire(ECategory category, i64 size, TPool* poo
         return TError(
             "Not enough memory to serve %Qlv acquisition request",
             category)
-            << TErrorAttribute("bytes_free", freeMemory)
-            << TErrorAttribute("bytes_requested", size);
+            .With("bytes_free", freeMemory)
+            .With("bytes_requested", size);
     }
 
     if (pool) {
@@ -781,8 +781,8 @@ TError TNodeMemoryTracker::DoTryAcquire(ECategory category, i64 size, TPool* poo
                 "Not enough memory to serve %Qlv request in pool %Qv",
                 category,
                 pool->Tag)
-                << TErrorAttribute("bytes_free", poolFreeMemory)
-                << TErrorAttribute("bytes_requested", size);
+                .With("bytes_free", poolFreeMemory)
+                .With("bytes_requested", size);
         }
     }
 

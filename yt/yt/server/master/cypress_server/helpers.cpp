@@ -590,8 +590,8 @@ void ValidateAccessControlObjectNamespaceName(const std::string& name)
 
     if (ssize(name) >= maxNameLength) {
         THROW_ERROR_EXCEPTION("Access control object namespace name is too long")
-            << TErrorAttribute("name_length", name.size())
-            << TErrorAttribute("max_name_length", maxNameLength);
+            .With("name_length", name.size())
+            .With("max_name_length", maxNameLength);
     }
 
     auto isAsciiText = [] (char c) {
@@ -613,8 +613,8 @@ void ValidateAccessControlObjectName(const std::string& name)
 
     if (ssize(name) >= maxNameLength) {
         THROW_ERROR_EXCEPTION("Access control object name is too long")
-            << TErrorAttribute("name_length", name.size())
-            << TErrorAttribute("max_name_length", maxNameLength);
+            .With("name_length", name.size())
+            .With("max_name_length", maxNameLength);
     }
 
     auto isAsciiText = [] (char c) {

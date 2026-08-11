@@ -144,8 +144,8 @@ IStateHolderPtr TPartitionMutableStateProvider::GetState()
         return State_;
     }
     THROW_ERROR_EXCEPTION("State is not loaded")
-        << TErrorAttribute("name", Name_)
-        << TErrorAttribute("partition_id", PartitionId_);
+        .With("name", Name_)
+        .With("partition_id", PartitionId_);
 }
 
 TFuture<void> TPartitionMutableStateProvider::Init()
@@ -216,8 +216,8 @@ IStateHolderPtr TKeyMutableStateProvider::GetState()
         return State_;
     }
     THROW_ERROR_EXCEPTION("State is not loaded")
-        << TErrorAttribute("name", Name_)
-        << TErrorAttribute("key", Key_);
+        .With("name", Name_)
+        .With("key", Key_);
 }
 
 TFuture<void> TKeyMutableStateProvider::Init()
@@ -287,8 +287,8 @@ IStateHolderPtr TJobMutableStateKeyProvider::GetState(const TKey& key)
         return state;
     }
     THROW_ERROR_EXCEPTION("State is not loaded")
-        << TErrorAttribute("name", Name_)
-        << TErrorAttribute("key", key);
+        .With("name", Name_)
+        .With("key", key);
 }
 
 TFuture<void> TJobMutableStateKeyProvider::PreloadKeyStates(const THashSet<TKey>& keys)
@@ -396,9 +396,9 @@ IStateHolderPtr TJobJoinedStateKeyProvider::GetState(const TKey& key)
         return state;
     }
     THROW_ERROR_EXCEPTION("State is not loaded")
-        << TErrorAttribute("name", Name_)
-        << TErrorAttribute("computation_id", Context_->ComputationId)
-        << TErrorAttribute("key", key);
+        .With("name", Name_)
+        .With("computation_id", Context_->ComputationId)
+        .With("key", key);
 }
 
 TFuture<void> TJobJoinedStateKeyProvider::PreloadKeyStates(const THashSet<TKey>& keys)

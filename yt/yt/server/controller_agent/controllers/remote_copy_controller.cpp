@@ -582,8 +582,8 @@ private:
                     {
                         THROW_ERROR_EXCEPTION("Cannot make remote copy into table with \"strong\" schema since "
                             "input table schema differs from output table schema")
-                            << TErrorAttribute("input_table_schema", inputTable->Schema)
-                            << TErrorAttribute("output_table_schema", *table->TableUploadOptions.TableSchema);
+                            .With("input_table_schema", inputTable->Schema)
+                            .With("output_table_schema", *table->TableUploadOptions.TableSchema);
                     }
                 }
                 break;
@@ -607,7 +607,7 @@ private:
                 errorCode,
                 "Remote copy operation does not support dynamic stores; "
                 "flush the input table or set \"enable_dynamic_store_read\" = %%false in the operation spec")
-                << TErrorAttribute("chunk_id", chunk->GetChunkId());
+                .With("chunk_id", chunk->GetChunkId());
         }
         if ((chunk->LowerLimit() && !IsTrivial(*chunk->LowerLimit())) ||
             (chunk->UpperLimit() && !IsTrivial(*chunk->UpperLimit())))
@@ -635,7 +635,7 @@ private:
         for (const auto& attributeName : Spec_->OutputTablePath.Attributes().ListKeys()) {
             if (!allowedAttributes.contains(attributeName)) {
                 THROW_ERROR_EXCEPTION("Found unexpected attribute %Qv in Rich YPath", attributeName)
-                    << TErrorAttribute("path", Spec_->OutputTablePath);
+                    .With("path", Spec_->OutputTablePath);
             }
         }
     }
@@ -994,8 +994,8 @@ private:
                     ValidateYson(value, GetYsonNestingLevelLimit());
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error validating value of copied attribute")
-                        << TErrorAttribute("attribute_key", attribute)
-                        << ex;
+                        .With("attribute_key", attribute)
+                        .With(ex);
                 }
                 subrequest->set_value(ToProto(value));
             }
@@ -1088,7 +1088,7 @@ private:
             return GuardedGetRemoteMasterCacheAddresses();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to get remote master cache addresses")
-                << ex;
+                .With(ex);
         }
     }
 

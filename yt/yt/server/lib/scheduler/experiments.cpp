@@ -232,10 +232,10 @@ std::vector<TErrorOr<TExperimentAssignmentPtr>> TExperimentAssigner::Assign(
 
         if (!isMatchedOrError.IsOK()) {
             auto error = TError("Error matching filter of experiment")
-                << TErrorAttribute("experiment", experimentName)
-                << TErrorAttribute("operation_type", type)
-                << TErrorAttribute("user", user)
-                << isMatchedOrError;
+                .With("experiment", experimentName)
+                .With("operation_type", type)
+                .With("user", user)
+                .With(isMatchedOrError);
             assignments.emplace_back(error);
             continue;
         }
@@ -244,7 +244,7 @@ std::vector<TErrorOr<TExperimentAssignmentPtr>> TExperimentAssigner::Assign(
             if (experimentOverridesNode) {
                 THROW_ERROR_EXCEPTION("Operation does not match filter of experiment %Qv",
                     experimentName)
-                    << TErrorAttribute("filter", experiment->Config->Filter);
+                    .With("filter", experiment->Config->Filter);
             } else {
                 // Skip such experiment.
                 continue;
@@ -471,8 +471,8 @@ void ValidateExperiments(const THashMap<std::string, TExperimentConfigPtr>& expe
         THROW_ERROR_EXCEPTION(
             "Experiment configuration allows operation being assigned to two "
             "distinct controller agent tags simultaneously")
-            << TErrorAttribute("controller_agent_tags", controllerAgentTags)
-            << TErrorAttribute("tag_assigning_dimensions", tagAssigningDimensions);
+            .With("controller_agent_tags", controllerAgentTags)
+            .With("tag_assigning_dimensions", tagAssigningDimensions);
     }
 }
 

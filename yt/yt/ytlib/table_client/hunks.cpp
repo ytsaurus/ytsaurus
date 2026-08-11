@@ -1578,13 +1578,13 @@ TSharedRef GetAndValidateHunkPayload(TSharedRef fragment, const IChunkFragmentRe
     auto actualChecksum = GetChecksum(payload);
     if (actualChecksum != header->Checksum) {
         THROW_ERROR_EXCEPTION("Hunk fragment checksum mismatch")
-            << TErrorAttribute("chunk_id", request.ChunkId)
-            << TErrorAttribute("block_index", request.BlockIndex)
-            << TErrorAttribute("block_offset", request.BlockOffset)
-            << TErrorAttribute("length", request.Length)
-            << TErrorAttribute("expected_checksum", header->Checksum)
-            << TErrorAttribute("actual_checksum", actualChecksum)
-            << TErrorAttribute("recalculated_checksum", GetChecksum(payload));
+            .With("chunk_id", request.ChunkId)
+            .With("block_index", request.BlockIndex)
+            .With("block_offset", request.BlockOffset)
+            .With("length", request.Length)
+            .With("expected_checksum", header->Checksum)
+            .With("actual_checksum", actualChecksum)
+            .With("recalculated_checksum", GetChecksum(payload));
     }
     return payload;
 }

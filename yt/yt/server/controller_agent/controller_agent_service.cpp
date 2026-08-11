@@ -68,7 +68,7 @@ private:
             func();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(NControllerAgent::EErrorCode::AgentCallFailed, "Agent call failed")
-                << ex;
+                .With(ex);
         }
     }
 

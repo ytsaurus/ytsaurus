@@ -114,11 +114,11 @@ private:
             context->Reply(std::move(innerResponseMessage));
         } else {
             context->Reply(TError("Error executing Orchid request")
-                << TErrorAttribute("path", path)
-                << TErrorAttribute("method", method)
-                << TErrorAttribute("endpoint", Options_.Channel->GetEndpointDescription())
-                << TErrorAttribute("remote_root", Options_.RemoteRoot)
-                << rspOrError);
+                .With("path", path)
+                .With("method", method)
+                .With("endpoint", Options_.Channel->GetEndpointDescription())
+                .With("remote_root", Options_.RemoteRoot)
+                .With(rspOrError));
         }
     }
 };

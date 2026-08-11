@@ -61,16 +61,16 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
                     THROW_ERROR_EXCEPTION(
                         "Conflict while merging schemas: duplicate stable name %Qv for columns with differing names",
                         column.StableName())
-                        << TErrorAttribute("first_column_schema", columns[it->second])
-                        << TErrorAttribute("second_column_schema", columns[index]);
+                        .With("first_column_schema", columns[it->second])
+                        .With("second_column_schema", columns[index]);
                 }
             } else {
                 if (columns[it->second] != column) {
                     THROW_ERROR_EXCEPTION(
                         "Conflict while merging schemas: column %v has two conflicting declarations",
                         column.GetDiagnosticNameString())
-                        << TErrorAttribute("first_column_schema", columns[it->second])
-                        << TErrorAttribute("second_column_schema", column);
+                        .With("first_column_schema", columns[it->second])
+                        .With("second_column_schema", column);
                 }
             }
         }

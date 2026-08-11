@@ -179,8 +179,8 @@ public:
                 rowBuffer);
         } catch (const std::exception& ex) {
             return TError("Error evaluating query")
-                << TErrorAttribute("query", ParsedQuery_->Source)
-                << ex;
+                .With("query", ParsedQuery_->Source)
+                .With(ex);
         }
     }
 
@@ -265,7 +265,7 @@ TExpressionPtr CreateFakeTableAttributeSelector(
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating query selector for attribute path %Qv",
             queryAttributePath)
-            << ex;
+            .With(ex);
     }
 }
 

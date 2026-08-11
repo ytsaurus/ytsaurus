@@ -151,7 +151,7 @@ private:
 
         if (failedClusters.size() * 2 >= versionLists.size()) {
             auto error = TError("Can't get versions from cluster quorum")
-                << TErrorAttribute("failed_cluster_indices", failedClusters);
+                .With("failed_cluster_indices", failedClusters);
             *error.MutableInnerErrors() = std::move(innerErrors);
             THROW_ERROR std::move(error);
         }
@@ -199,7 +199,7 @@ private:
 
         if (failedClusters.size() * 2 >= checkResults.size()) {
             auto error = TError("Invalid state directories on cluster quorum")
-                << TErrorAttribute("failed_cluster_indices", failedClusters);
+                .With("failed_cluster_indices", failedClusters);
             *error.MutableInnerErrors() = std::move(innerErrors);
             THROW_ERROR std::move(error);
         }

@@ -404,8 +404,8 @@ TIOEngineHandlePtr TIOEngineBase::DoOpen(const TOpenRequest& request)
         THROW_ERROR_EXCEPTION(
             "Cannot open %v",
             request.Path)
-            << TErrorAttribute("mode", DecodeOpenMode(request.Mode))
-            << TError::FromSystem();
+            .With("mode", DecodeOpenMode(request.Mode))
+            .With(TError::FromSystem());
     }
     return handle;
 }
@@ -462,7 +462,7 @@ void TIOEngineBase::DoAllocate(const TAllocateRequest& request)
             }
         } else {
             THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "fallocate call failed")
-                << TError::FromSystem();
+                .With(TError::FromSystem());
         }
     }
 #else
@@ -549,7 +549,7 @@ void TIOEngineBase::AddWriteWaitTimeSample(TDuration duration)
                 SickWriteWaitStart_ = now;
             } else if (now - *SickWriteWaitStart_ > *config->SickWriteTimeWindow) {
                 auto error = TError("Write is too slow")
-                    << TErrorAttribute("sick_write_wait_start", *SickWriteWaitStart_);
+                    .With("sick_write_wait_start", *SickWriteWaitStart_);
                 guard.Release();
                 SetSickFlag(error);
             }
@@ -571,7 +571,7 @@ void TIOEngineBase::AddReadWaitTimeSample(TDuration duration)
                 SickReadWaitStart_ = now;
             } else if (now - *SickReadWaitStart_ > *config->SickReadTimeWindow) {
                 auto error = TError("Read is too slow")
-                    << TErrorAttribute("sick_read_wait_start", *SickReadWaitStart_);
+                    .With("sick_read_wait_start", *SickReadWaitStart_);
                 guard.Release();
                 SetSickFlag(error);
             }

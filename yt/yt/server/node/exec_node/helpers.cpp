@@ -105,9 +105,9 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
                 path,
                 EObjectType::File,
                 userObject.Type)
-                << TErrorAttribute("path", path)
-                << TErrorAttribute("expected_type", EObjectType::File)
-                << TErrorAttribute("actual_type", userObject.Type);
+                .With("path", path)
+                .With("expected_type", EObjectType::File)
+                .With("actual_type", userObject.Type);
         }
     }
 
@@ -122,7 +122,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 "Error fetching revision for layer %v", path)
-                << ex;
+                .With(ex);
         }
     }
 
@@ -244,7 +244,7 @@ TErrorOr<std::string> TryParseControllerAgentAddress(
         return TError(
             "No suitable controller agent address exists from %v",
             GetValues(addresses))
-            << TError(ex);
+            .With(TError(ex));
     }
 }
 
@@ -280,13 +280,13 @@ TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
 
     if (!proto.has_addresses()) {
         return TError("Controller agent descriptor has no addresses")
-            << TErrorAttribute("incarnation_id", incarnationId);
+            .With("incarnation_id", incarnationId);
     }
 
     auto addressOrError = TryParseControllerAgentAddress(proto.addresses(), networks);
     if (!addressOrError.IsOK()) {
         return TError{std::move(addressOrError)}
-            << TErrorAttribute("incarnation_id", incarnationId);
+            .With("incarnation_id", incarnationId);
     }
 
     return TControllerAgentDescriptor{std::move(addressOrError.Value()), incarnationId};

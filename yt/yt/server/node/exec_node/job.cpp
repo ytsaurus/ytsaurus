@@ -415,8 +415,8 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
 
             if (!resolvedNodeAddresses.IsOK() || (CommonConfig_->Testing && CommonConfig_->Testing->FailAddressResolve)) {
                 THROW_ERROR TError("Failed to resolve node addresses")
-                    << TErrorAttribute("abort_reason", EAbortReason::AddressResolveFailed)
-                    << std::move(resolvedNodeAddresses);
+                    .With("abort_reason", EAbortReason::AddressResolveFailed)
+                    .With(std::move(resolvedNodeAddresses));
             }
 
             ResolvedNodeAddresses_ = std::move(resolvedNodeAddresses.Value());
@@ -518,8 +518,8 @@ void TJob::Start() noexcept
             slot->ValidateEnabled();
         } catch (const std::exception& ex) {
             auto error = TError("Can not start job")
-                << TErrorAttribute("abort_reason", EAbortReason::UserSlotDisabled)
-                << ex;
+                .With("abort_reason", EAbortReason::UserSlotDisabled)
+                .With(ex);
             YT_LOG_WARNING(error);
             Abort(std::move(error));
             return;
@@ -640,7 +640,7 @@ void TJob::PrepareArtifact(
             auto fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETFL, O_WRONLY | O_CLOEXEC);
             if (fcntlResult < 0) {
                 THROW_ERROR_EXCEPTION("Failed to disable O_NONBLOCK for artifact pipe")
-                    << TError::FromSystem();
+                    .With(TError::FromSystem());
             }
 
             ValidateJobPhase(EJobPhase::PreparingArtifacts);
@@ -1639,7 +1639,7 @@ std::vector<TChunkId> TJob::DumpInputContext(TTransactionId transactionId)
         return GetJobProbeOrThrow()->DumpInputContext(transactionId);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error requesting input contexts dump from job proxy")
-            << ex;
+            .With(ex);
     }
 }
 
@@ -1660,7 +1660,7 @@ std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions&
             return GetJobProbeOrThrow()->GetStderr(options);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error requesting stderr from job proxy")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -1719,13 +1719,13 @@ TPollJobShellResponse TJob::PollJobShell(
             THROW_ERROR_EXCEPTION(
                 NExecNode::EErrorCode::JobProxyConnectionFailed,
                 "No connection to job proxy")
-                << ex;
+                .With(ex);
         }
         THROW_ERROR_EXCEPTION("Error polling job shell")
-            << ex;
+            .With(ex);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error polling job shell")
-            << ex;
+            .With(ex);
     }
 }
 
@@ -1812,8 +1812,8 @@ void TJob::AbortJobAfterInterruptionCallFailed(TError internalError)
 {
     if (JobPhase_.load() == NControllerAgent::EJobPhase::Running) {
         auto error = TError(NExecNode::EErrorCode::InterruptionFailed, "Error interrupting job on job proxy")
-            << TErrorAttribute("interruption_reason", InterruptionReason_)
-            << std::move(internalError);
+            .With("interruption_reason", InterruptionReason_)
+            .With(std::move(internalError));
         Abort(std::move(error));
     }
 }
@@ -1860,19 +1860,19 @@ void TJob::DoInterrupt(
         YT_LOG_DEBUG("Job is not interruptible and will be aborted");
 
         auto error = TError(NJobProxy::EErrorCode::InterruptionUnsupported, "Uninterruptible job aborted")
-            << TErrorAttribute("interruption_reason", InterruptionReason_)
-            << TErrorAttribute("abort_reason", EAbortReason::InterruptionUnsupported);
+            .With("interruption_reason", InterruptionReason_)
+            .With("abort_reason", EAbortReason::InterruptionUnsupported);
 
         if (interruptionReason == EInterruptionReason::Preemption) {
-            error = TError("Job preempted") << error;
+            error = TError("Job preempted").With(error);
             error = error
-                << TErrorAttribute("preemption_reason", preemptionReason)
-                << TErrorAttribute("abort_reason", EAbortReason::Preemption);
+                .With("preemption_reason", preemptionReason)
+                .With("abort_reason", EAbortReason::Preemption);
         }
 
         if (interruptionReason == EInterruptionReason::JobsDisabledOnNode) {
             error = TError("Jobs disabled on node")
-                << error;
+                .With(error);
         }
 
         ReportJobInterruptionInfo(now, timeout, interruptionReason, preemptionReason, preemptedFor);
@@ -1883,13 +1883,13 @@ void TJob::DoInterrupt(
 
     if (JobPhase_.load() < EJobPhase::Running) {
         auto error = TError(NJobProxy::EErrorCode::InterruptionFailed, "Interrupting job that has not started yet")
-            << TErrorAttribute("interruption_reason", InterruptionReason_);
+            .With("interruption_reason", InterruptionReason_);
 
         if (interruptionReason == EInterruptionReason::Preemption) {
-            error = TError("Job preempted") << error;
+            error = TError("Job preempted").With(error);
             error = error
-                << TErrorAttribute("preemption_reason", preemptionReason)
-                << TErrorAttribute("abort_reason", EAbortReason::Preemption);
+                .With("preemption_reason", preemptionReason)
+                .With("abort_reason", EAbortReason::Preemption);
         }
 
         ReportJobInterruptionInfo(now, timeout, interruptionReason, preemptionReason, preemptedFor);
@@ -1949,7 +1949,7 @@ void TJob::DoFail(TError error)
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_.load() != EJobPhase::Running) {
-        error = TError("Failing job that is not running") << std::move(error);
+        error = TError("Failing job that is not running").With(std::move(error));
 
         Terminate(EJobState::Failed, std::move(error));
 
@@ -1960,8 +1960,8 @@ void TJob::DoFail(TError error)
         GetJobProbeOrThrow()->Fail(error);
     } catch (const std::exception& ex) {
         auto abortionError = TError("Error failing job on job proxy")
-            << ex
-            << std::move(error);
+            .With(ex)
+            .With(std::move(error));
 
         Abort(std::move(abortionError));
     }
@@ -1996,7 +1996,7 @@ void TJob::DoRequestGracefulAbort(TError error)
         GetJobProbeOrThrow()->GracefulAbort(error);
     } catch (const std::exception& ex) {
         auto abortionError = TError("Error failing job on job proxy")
-            << ex;
+            .With(ex);
         abortionError <<= std::move(error);
         Abort(std::move(abortionError));
     }
@@ -2092,15 +2092,15 @@ void TJob::OnJobInterruptionTimeout(
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto error = TError(NJobProxy::EErrorCode::InterruptionTimeout, "Interruption is timed out")
-        << TErrorAttribute("interruption_reason", InterruptionReason_)
-        << TErrorAttribute("interruption_timeout", interruptionTimeout)
-        << TErrorAttribute("abort_reason", EAbortReason::InterruptionTimeout);
+        .With("interruption_reason", InterruptionReason_)
+        .With("interruption_timeout", interruptionTimeout)
+        .With("abort_reason", EAbortReason::InterruptionTimeout);
 
     if (interruptionReason == EInterruptionReason::Preemption) {
-        error = TError("Job preempted") << error;
+        error = TError("Job preempted").With(error);
         error = error
-            << TErrorAttribute("preemption_reason", preemptionReason)
-            << TErrorAttribute("abort_reason", EAbortReason::Preemption);
+            .With("preemption_reason", preemptionReason)
+            .With("abort_reason", EAbortReason::Preemption);
     }
 
     Abort(std::move(error));
@@ -2204,8 +2204,8 @@ void TJob::ValidateJobRunning() const
             EJobPhase::Running);
 
         THROW_ERROR_EXCEPTION(NJobProberClient::EErrorCode::JobIsNotRunning, "Job %v is not running", Id_)
-            << TErrorAttribute("job_state", JobState_)
-            << TErrorAttribute("job_phase", JobPhase_.load());
+            .With("job_state", JobState_)
+            .With("job_phase", JobPhase_.load());
     }
 }
 
@@ -2363,9 +2363,9 @@ void TJob::ValidateJobPhase(EJobPhase expectedPhase) const
             expectedPhase);
 
         THROW_ERROR_EXCEPTION("Unexpected job phase")
-            << TErrorAttribute("expected_phase", expectedPhase)
-            << TErrorAttribute("actual_phase", JobPhase_.load())
-            << TErrorAttribute("abort_reason", EAbortReason::UnexpectedNodeJobPhase);
+            .With("expected_phase", expectedPhase)
+            .With("actual_phase", JobPhase_.load())
+            .With("abort_reason", EAbortReason::UnexpectedNodeJobPhase);
     }
 }
 
@@ -2621,9 +2621,9 @@ void TJob::OnWorkspacePreparationFinished(TJobWorkspaceBuilderPtr workspaceBuild
         [&] {
             if (!result.LastBuildError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Job preparation failed")
-                    << TErrorAttribute("job_id", GetId())
-                    << TErrorAttribute("operation_id", GetOperationId())
-                    << result.LastBuildError;
+                    .With("job_id", GetId())
+                    .With("operation_id", GetOperationId())
+                    .With(result.LastBuildError);
             }
 
             RunJobProxy();
@@ -2655,10 +2655,10 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
         JobResultExtension_.reset();
 
         auto checkError = TError(NExecNode::EErrorCode::GpuCheckCommandFailed, "Extra GPU check command failed")
-            << error
-            << initialError
-            << TErrorAttribute("job_id", GetId())
-            << TErrorAttribute("operation_id", GetOperationId());
+            .With(error)
+            .With(initialError)
+            .With("job_id", GetId())
+            .With("operation_id", GetOperationId());
 
         YT_LOG_WARNING(checkError, "Extra GPU check command executed after job failure is also failed");
         Finalize(std::move(checkError));
@@ -2742,9 +2742,9 @@ void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
         auto error = TError(
             fatal ? NExecNode::EErrorCode::FatalJobPreparationTimeout : NExecNode::EErrorCode::JobPreparationTimeout,
             "Failed to prepare job within timeout")
-            << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
-            << TErrorAttribute("job_creation_time", CreationTime_)
-            << TErrorAttribute("job_phase", JobPhase_.load());
+            .With("prepare_time_limit", prepareTimeLimit)
+            .With("job_creation_time", CreationTime_)
+            .With("job_phase", JobPhase_.load());
 
         if (fatal) {
             Fail(std::move(error));
@@ -2762,9 +2762,9 @@ void TJob::OnWaitingForCleanupTimeout()
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
         auto error = TError(NExecNode::EErrorCode::WaitingForJobCleanupTimeout, "Failed to wait for job cleanup within timeout")
-            << TErrorAttribute("job_id", Id_)
-            << TErrorAttribute("operation_id", OperationId_)
-            << TErrorAttribute("waiting_for_job_cleanup_timeout", timeout);
+            .With("job_id", Id_)
+            .With("operation_id", OperationId_)
+            .With("waiting_for_job_cleanup_timeout", timeout);
         Bootstrap_->GetSlotManager()->OnWaitingForJobCleanupTimeout(std::move(error));
     }
 }
@@ -2776,9 +2776,9 @@ void TJob::OnCleanupTimeout()
     auto timeout = CommonConfig_->JobCleanupTimeout;
 
     auto error = TError(NExecNode::EErrorCode::JobCleanupTimeout, "Failed to process job cleanup within timeout")
-        << TErrorAttribute("job_id", Id_)
-        << TErrorAttribute("operation_id", OperationId_)
-        << TErrorAttribute("job_cleanup_timeout", timeout);
+        .With("job_id", Id_)
+        .With("operation_id", OperationId_)
+        .With("job_cleanup_timeout", timeout);
 
     Bootstrap_->GetSlotManager()->OnJobCleanupTimeout(std::move(error));
 }
@@ -3616,7 +3616,7 @@ void TJob::BuildVirtualSandbox()
     auto nbdServer = Bootstrap_->GetNbdServer();
     if (!nbdServer) {
         THROW_ERROR_EXCEPTION("NBD server is not present")
-            << TErrorAttribute("device_id", nbdDeviceId);
+            .With("device_id", nbdDeviceId);
     }
 
     auto readerHost = Bootstrap_->GetFileReaderHost();
@@ -3766,7 +3766,7 @@ TError TJob::BuildJobProxyError(const TError& spawnError)
     auto jobProxyError = TError(
         NExecNode::EErrorCode::JobProxyFailed,
         "Job proxy failed")
-        << spawnError;
+        .With(spawnError);
 
     if (spawnError.GetCode() == EProcessErrorCode::NonZeroExitCode) {
         // Try to translate the numeric exit code into some human readable reason.

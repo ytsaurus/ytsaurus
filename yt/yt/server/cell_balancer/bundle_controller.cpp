@@ -1518,16 +1518,16 @@ private:
 
         if (entryList->Attributes().Get("incomplete", false)) {
             THROW_ERROR_EXCEPTION("Cypress list received incomplete results")
-                << TErrorAttribute("path", path);
+                .With("path", path);
         }
 
         TListResult<TEntryInfo> result;
         for (const auto& entry : entryList->GetChildren()) {
             if (entry->GetType() != ENodeType::String) {
                 THROW_ERROR_EXCEPTION("Unexpected entry type")
-                    << TErrorAttribute("parent_path", path)
-                    << TErrorAttribute("expected_type", ENodeType::String)
-                    << TErrorAttribute("actual_type", entry->GetType());
+                    .With("parent_path", path)
+                    .With("expected_type", ENodeType::String)
+                    .With("actual_type", entry->GetType());
             }
             const auto& name = entry->AsString()->GetValue();
 
@@ -1560,7 +1560,7 @@ private:
 
         if (entryMap->Attributes().Get("incomplete", false)) {
             THROW_ERROR_EXCEPTION("Cypress get received incomplete results")
-                << TErrorAttribute("path", path);
+                .With("path", path);
         }
 
         TIndexedEntries<TEntryInfo> result;

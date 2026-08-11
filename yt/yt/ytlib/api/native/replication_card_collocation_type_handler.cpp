@@ -182,7 +182,7 @@ private:
                 // Return retryable error to user.
                 THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCardNotKnown,
                     "Replication card collocation is not known")
-                    << rspOrError;
+                    .With(rspOrError);
             }
         }
 

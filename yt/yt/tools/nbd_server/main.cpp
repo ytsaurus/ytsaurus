@@ -581,7 +581,7 @@ public:
                         }
                         YT_LOG_ERROR(error, "Device transaction aborted, failing the device (Device: %v)",
                             deviceId);
-                        device->SetError(TError("Device transaction aborted") << error);
+                        device->SetError(TError("Device transaction aborted").With(error));
                     });
                 transaction->SubscribeAborted(onTransactionAborted);
                 {

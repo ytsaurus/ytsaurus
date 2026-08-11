@@ -30,7 +30,7 @@ NCompanion::TCompanionExecutionConfigPtr LoadCompanionExecutionConfigFromEnv()
             NYson::TYsonStringBuf(rawConfig));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to parse YT_FLOW_COMPANION_CONFIG")
-            << ex;
+            .With(ex);
     }
 
     THROW_ERROR_EXCEPTION_UNLESS(config->Port > 0,

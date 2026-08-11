@@ -138,12 +138,12 @@ private:
     {
         if (Path_.GetAppend() && Path_.GetCompressionCodec()) {
             THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"compression_codec\" are not compatible")
-                << TErrorAttribute("path", Path_);
+                .With("path", Path_);
         }
 
         if (Path_.GetAppend() && Path_.GetErasureCodec()) {
             THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"erasure_codec\" are not compatible")
-                << TErrorAttribute("path", Path_);
+                .With("path", Path_);
         }
 
         if (Options_.TransactionId) {

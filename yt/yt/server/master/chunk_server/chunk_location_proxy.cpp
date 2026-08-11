@@ -145,10 +145,10 @@ private:
                 if (medium->IsOffshore()) {
                     // TODO(cherepashka): allow this when offshore media will be implemented, but do not forget to forbid it for journal chunks.
                     THROW_ERROR_EXCEPTION("Chunk location medium cannot be overridden with offshore medium")
-                        << TErrorAttribute("location_id", location->GetId())
-                        << TErrorAttribute("medium_index", medium->GetIndex())
-                        << TErrorAttribute("medium_name", medium->GetName())
-                        << TErrorAttribute("medium_type", medium->GetType());
+                        .With("location_id", location->GetId())
+                        .With("medium_index", medium->GetIndex())
+                        .With("medium_name", medium->GetName())
+                        .With("medium_type", medium->GetType());
                 }
 
                 auto* domesticMedium = medium->AsDomestic();
@@ -163,8 +163,8 @@ private:
                     THROW_ERROR_EXCEPTION("Inconsistent medium override: location's disk family %Qv is absent from medium %Qv whitelist",
                         location->Statistics().disk_family(),
                         mediumName)
-                        << TErrorAttribute("location_id", location->GetId())
-                        << TErrorAttribute("medium_family_whitelist", whitelist);
+                        .With("location_id", location->GetId())
+                        .With("medium_family_whitelist", whitelist);
                 }
                 location->MediumOverride() = TDomesticMediumPtr(domesticMedium);
 

@@ -150,7 +150,7 @@ private:
         if (!rspOrError.IsOK()) {
             if (NApi::NNative::IsRevivalError(rspOrError)) {
                 THROW_ERROR_EXCEPTION("Failed to get job shell descriptor")
-                    << NNative::MakeRevivalError(allocationBriefInfo.OperationId, key.JobId);
+                    .With(NNative::MakeRevivalError(allocationBriefInfo.OperationId, key.JobId));
             }
 
             OnJobShellDescriptorFetchingFailed(std::move(rspOrError), key);
@@ -182,10 +182,10 @@ private:
             "Failed to get job shell descriptor (Key: %v)",
             key);
         THROW_ERROR_EXCEPTION("Failed to get job shell descriptor")
-            << TErrorAttribute("user", key.User)
-            << TErrorAttribute("job_id", key.JobId)
-            << TErrorAttribute("shell_name", key.ShellName)
-            << error;
+            .With("user", key.User)
+            .With("job_id", key.JobId)
+            .With("shell_name", key.ShellName)
+            .With(error);
     }
 };
 

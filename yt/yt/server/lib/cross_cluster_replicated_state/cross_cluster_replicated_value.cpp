@@ -402,7 +402,7 @@ private:
 
         if (failedClusters.size() * 2 >= getResults.size()) {
             auto error = TError("Can't get values from cluster quorum")
-                << TErrorAttribute("failed_cluster_indices", failedClusters);
+                .With("failed_cluster_indices", failedClusters);
             *error.MutableInnerErrors() = std::move(innerErrors);
             THROW_ERROR std::move(error);
         }
@@ -426,7 +426,7 @@ private:
 
         if (failedClusters.size() * 2 >= updateResults.size()) {
             auto error = TError("Can't update values on cluster quorum")
-                << TErrorAttribute("failed_cluster_indices", failedClusters);
+                .With("failed_cluster_indices", failedClusters);
             *error.MutableInnerErrors() = std::move(innerErrors);
             THROW_ERROR std::move(error);
         }

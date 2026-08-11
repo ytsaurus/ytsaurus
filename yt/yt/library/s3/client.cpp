@@ -510,7 +510,7 @@ private:
             return Client_->MakeRequest(std::move(req))
                 .AsUnique().Apply(BIND([method = requestMethod] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
                     if (!responseOrError.IsOK()) {
-                        return TError("HTTP request failed") << std::move(responseOrError);
+                        return TError("HTTP request failed").With(std::move(responseOrError));
                     }
                     auto& response = responseOrError.Value();
                     // 3xx are not really errors but we don't handle redirects anyways

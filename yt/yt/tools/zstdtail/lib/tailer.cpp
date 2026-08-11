@@ -283,7 +283,7 @@ private:
             auto result = ::ZSTD_decompressStream(ZstdContext_.get(), &zstdOutBuffer, &zstdInBuffer);
             if (::ZSTD_isError(result)) {
                 THROW_ERROR_EXCEPTION("Error decompressing zstd frame")
-                    << TError("%v", ::ZSTD_getErrorName(result));
+                    .With(TError("%v", ::ZSTD_getErrorName(result)));
             }
 
             auto inSize = zstdInBuffer.pos - oldInPos;

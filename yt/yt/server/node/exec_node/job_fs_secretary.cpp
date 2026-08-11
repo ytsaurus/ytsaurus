@@ -57,15 +57,15 @@ TError CheckArtifacts(
 {
     if (baseline.size() != current.size()) {
         return TError("Job spec artifacts count differs from the first job in this allocation")
-            << TErrorAttribute("baseline_count", baseline.size())
-            << TErrorAttribute("current_count", current.size());
+            .With("baseline_count", baseline.size())
+            .With("current_count", current.size());
     }
     for (int i = 0; i < ssize(current); ++i) {
         if (!baseline[i].IsStaticDescriptionEqualTo(current[i])) {
             return TError("Job spec artifacts differ from the first job in this allocation")
-                << TErrorAttribute("artifact_index", i)
-                << TErrorAttribute("baseline", Format("%v", baseline[i].Key))
-                << TErrorAttribute("current", Format("%v", current[i].Key));
+                .With("artifact_index", i)
+                .With("baseline", Format("%v", baseline[i].Key))
+                .With("current", Format("%v", current[i].Key));
         }
     }
     return {};
@@ -78,15 +78,15 @@ TError CheckLayerArtifactKeyList(
 {
     if (baseline.size() != current.size()) {
         return TError("Job spec %v layer artifact keys count differs from the first job in this allocation", layerKind)
-            << TErrorAttribute("baseline_count", baseline.size())
-            << TErrorAttribute("current_count", current.size());
+            .With("baseline_count", baseline.size())
+            .With("current_count", current.size());
     }
     for (int i = 0; i < ssize(current); ++i) {
         if (baseline[i] != current[i]) {
             return TError("Job spec %v layer artifact keys differ from the first job in this allocation", layerKind)
-                << TErrorAttribute("layer_index", i)
-                << TErrorAttribute("baseline", Format("%v", baseline[i]))
-                << TErrorAttribute("current", Format("%v", current[i]));
+                .With("layer_index", i)
+                .With("baseline", Format("%v", baseline[i]))
+                .With("current", Format("%v", current[i]));
         }
     }
     return {};
@@ -113,8 +113,8 @@ TError CheckDockerImage(
 {
     if (baseline != current) {
         return TError("Job spec docker image differs from the first job in this allocation")
-            << TErrorAttribute("baseline", baseline)
-            << TErrorAttribute("current", current);
+            .With("baseline", baseline)
+            .With("current", current);
     }
     return {};
 }
@@ -127,13 +127,13 @@ TError CheckRootVolumeDiskSpaceAndInodeLimit(
 {
     if (baselineDiskSpace != currentDiskSpace) {
         return TError("Job spec root volume disk space differs from the first job in this allocation")
-            << TErrorAttribute("baseline", baselineDiskSpace)
-            << TErrorAttribute("current", currentDiskSpace);
+            .With("baseline", baselineDiskSpace)
+            .With("current", currentDiskSpace);
     }
     if (baselineInodeLimit != currentInodeLimit) {
         return TError("Job spec root volume inode limit differs from the first job in this allocation")
-            << TErrorAttribute("baseline", baselineInodeLimit)
-            << TErrorAttribute("current", currentInodeLimit);
+            .With("baseline", baselineInodeLimit)
+            .With("current", currentInodeLimit);
     }
     return {};
 }
@@ -144,8 +144,8 @@ TError CheckNonRootVolumeParams(
 {
     if (baseline.size() != current.size()) {
         return TError("Job spec non-root volume params count differs from the first job in this allocation")
-            << TErrorAttribute("baseline_count", baseline.size())
-            << TErrorAttribute("current_count", current.size());
+            .With("baseline_count", baseline.size())
+            .With("current_count", current.size());
     }
 
     // Sort volumes by VolumeId for comparison since protobuf map iteration order is not guaranteed.
@@ -161,9 +161,9 @@ TError CheckNonRootVolumeParams(
     for (int i = 0; i < ssize(sortedCurrent); ++i) {
         if (!(*sortedBaseline[i] == *sortedCurrent[i])) {
             return TError("Job spec non-root volume params differ from the first job in this allocation")
-                << TErrorAttribute("volume_index", i)
-                << TErrorAttribute("baseline", Format("%v", sortedBaseline[i]))
-                << TErrorAttribute("current", Format("%v", sortedCurrent[i]));
+                .With("volume_index", i)
+                .With("baseline", Format("%v", sortedBaseline[i]))
+                .With("current", Format("%v", sortedCurrent[i]));
         }
     }
     return {};
@@ -175,15 +175,15 @@ TError CheckJobVolumeMounts(
 {
     if (baseline.size() != current.size()) {
         return TError("Job spec job volume mounts count differs from the first job in this allocation")
-            << TErrorAttribute("baseline_count", baseline.size())
-            << TErrorAttribute("current_count", current.size());
+            .With("baseline_count", baseline.size())
+            .With("current_count", current.size());
     }
     for (int i = 0; i < ssize(current); ++i) {
         if (*baseline[i] != *current[i]) {
             return TError("Job spec job volume mounts differ from the first job in this allocation")
-                << TErrorAttribute("mount_index", i)
-                << TErrorAttribute("baseline", baseline[i])
-                << TErrorAttribute("current", current[i]);
+                .With("mount_index", i)
+                .With("baseline", baseline[i])
+                .With("current", current[i]);
         }
     }
     return {};
@@ -195,24 +195,24 @@ TError CheckSidecarsVolumeMounts(
 {
     if (baseline.size() != current.size()) {
         return TError("Job spec sidecar volume mounts count differs from the first job in this allocation")
-            << TErrorAttribute("baseline_count", baseline.size())
-            << TErrorAttribute("current_count", current.size());
+            .With("baseline_count", baseline.size())
+            .With("current_count", current.size());
     }
 
     for (const auto& [baselineSidecarName, baselineSidecarMounts] : baseline) {
         auto it = current.find(baselineSidecarName);
         if (it == current.end()) {
             return TError("Job spec sidecar volume mounts count differs from the first job in this allocation")
-                << TErrorAttribute("baseline_count", baseline.size())
-                << TErrorAttribute("current_count", current.size());
+                .With("baseline_count", baseline.size())
+                .With("current_count", current.size());
         }
         const auto& currentSidecarMounts = it->second;
         for (int i = 0; i < ssize(current); ++i) {
             if (*baselineSidecarMounts[i] != *currentSidecarMounts[i]) {
                 return TError("Job spec sidecar volume mounts differ from the first job in this allocation")
-                    << TErrorAttribute("mount_index", i)
-                    << TErrorAttribute("baseline", baselineSidecarMounts[i])
-                    << TErrorAttribute("current", currentSidecarMounts[i]);
+                    .With("mount_index", i)
+                    .With("baseline", baselineSidecarMounts[i])
+                    .With("current", currentSidecarMounts[i]);
             }
         }
     }
@@ -225,16 +225,16 @@ TError CheckSandboxNbdRootVolumeData(
 {
     if (baseline.has_value() != current.has_value()) {
         return TError("Job spec sandbox NBD root volume data presence differs from the first job in this allocation")
-            << TErrorAttribute("baseline_has_value", baseline.has_value())
-            << TErrorAttribute("current_has_value", current.has_value());
+            .With("baseline_has_value", baseline.has_value())
+            .With("current_has_value", current.has_value());
     }
     if (!baseline) {
         return {};
     }
     if (*baseline != *current) {
         return TError("Job spec sandbox NBD root volume data differs from the first job in this allocation")
-            << TErrorAttribute("baseline", Format("%v", *baseline))
-            << TErrorAttribute("current", Format("%v", *current));
+            .With("baseline", Format("%v", *baseline))
+            .With("current", Format("%v", *current));
     }
     return {};
 }

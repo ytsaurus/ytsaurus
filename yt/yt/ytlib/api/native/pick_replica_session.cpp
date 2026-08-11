@@ -393,7 +393,7 @@ TClusterScoreMap TPickReplicaSession::PickViableClusters(
                 NTabletClient::EErrorCode::NoInSyncReplicas,
                 "No cluster contains in-sync replicas for table %v",
                 TableInfos_[index]->Path)
-                << TErrorAttribute("banned_replicas", bannedReplicaIds);
+                .With("banned_replicas", bannedReplicaIds);
 
             *error.MutableInnerErrors() = std::move(replicaErrors);
 
@@ -413,7 +413,7 @@ TClusterScoreMap TPickReplicaSession::PickViableClusters(
             MakeFormattableView(TableInfos_, [] (TStringBuilderBase* builder, const TTableMountInfoPtr& tableInfo) {
                 builder->AppendString(tableInfo->Path);
             }))
-            << TErrorAttribute("banned_replicas", flatBannedReplicaIds);
+            .With("banned_replicas", flatBannedReplicaIds);
 
         *error.MutableInnerErrors() = std::move(flatReplicaErrors);
 

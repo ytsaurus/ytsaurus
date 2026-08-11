@@ -157,12 +157,12 @@ void ValidateReadPermissions(
         if (rowLevelAcl) {
             if (!storageContext->Settings->OmitInaccessibleRows) {
                 THROW_ERROR_EXCEPTION("Table has row-level ACL but \"omit_inaccessible_rows\" is set to false")
-                    << TErrorAttribute("path", table->Path)
-                    << TErrorAttribute("user", queryContext->User);
+                    .With("path", table->Path)
+                    .With("user", queryContext->User);
             }
             if (table->Path.HasRowIndexInRanges()) {
                 THROW_ERROR_EXCEPTION("Cannot use ranges with \"row_index\" to read a table with row-level ACL")
-                    << TErrorAttribute("path", table->Path);
+                    .With("path", table->Path);
             }
 
             table->RowLevelAcl = std::move(rowLevelAcl);
@@ -376,12 +376,12 @@ public:
 
         if (executionSettings->QueryDepthLimit > 0 && QueryContext_->QueryDepth >= executionSettings->QueryDepthLimit) {
             THROW_ERROR_EXCEPTION("Query depth limit exceeded; consider optimizing query or changing the limit")
-                << TErrorAttribute("query_depth_limit", executionSettings->QueryDepthLimit);
+                .With("query_depth_limit", executionSettings->QueryDepthLimit);
         }
 
         if (StorageContext_->Settings->Testing->ThrowExceptionInDistributor) {
             THROW_ERROR_EXCEPTION("Testing exception in distributor")
-                << TErrorAttribute("storage_index", StorageContext_->Index);
+                .With("storage_index", StorageContext_->Index);
         }
 
         if (ProcessingStage_ == DB::QueryProcessingStage::FetchColumns) {
@@ -699,7 +699,7 @@ private:
                         "Subquery exceeds data weight limit: %v > %v",
                         stripeListStatistics.DataWeight,
                         maxDataWeightPerSubquery)
-                        << TErrorAttribute("total_input_data_weight", totalInputDataWeight);
+                        .With("total_input_data_weight", totalInputDataWeight);
                 }
             }
         }
@@ -839,7 +839,7 @@ public:
         YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
         if (Schema_->GetColumnCount() == 0) {
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
-                << TErrorAttribute("path", getStorageID().table_name);
+                .With("path", getStorageID().table_name);
         }
         DB::StorageInMemoryMetadata storageMetadata;
         auto context = WeakContext_.lock();
@@ -1109,7 +1109,7 @@ public:
 
         if (Tables_.size() != 1) {
             THROW_ERROR_EXCEPTION("Cannot write to many tables simultaneously")
-                << TErrorAttribute("paths", getStorageID().table_name);
+                .With("paths", getStorageID().table_name);
         }
         const auto& table = Tables_.front();
         auto& path = table->Path;
@@ -1607,7 +1607,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
             auto* identifier = dynamic_cast<DB::ASTIdentifier*>(child.get());
             if (!identifier) {
                 THROW_ERROR_EXCEPTION("CHYT does not support compound expressions as parts of key")
-                    << TErrorAttribute("expression", child->getColumnName());
+                    .With("expression", child->getColumnName());
             }
             keyColumns.emplace_back(identifier->getColumnName());
         }
@@ -1615,8 +1615,8 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         DB::Names columnNames = args.columns.getNamesOfPhysical();
         if (args.query.select != nullptr && std::mismatch(keyColumns.begin(), keyColumns.end(), columnNames.begin(), columnNames.end()).first != keyColumns.end()) {
             THROW_ERROR_EXCEPTION("The sorting key columns must be a prefix of the schema")
-                << TErrorAttribute("key_columns", keyColumns)
-                << TErrorAttribute("table_columns", columnNames);
+                .With("key_columns", keyColumns)
+                .With("table_columns", columnNames);
         }
     }
 

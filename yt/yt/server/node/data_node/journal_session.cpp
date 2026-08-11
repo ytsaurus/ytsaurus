@@ -137,10 +137,10 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
 
     if (startBlockIndex > recordCount) {
         auto error = TError(NChunkClient::EErrorCode::MissingJournalChunkRecord, "Missing blocks")
-            << TErrorAttribute("chunk_id", SessionId_.ChunkId)
-            << TErrorAttribute("medium_index", SessionId_.MediumIndex)
-            << TErrorAttribute("start_block_index", recordCount)
-            << TErrorAttribute("end_block_index", startBlockIndex - 1);
+            .With("chunk_id", SessionId_.ChunkId)
+            .With("medium_index", SessionId_.MediumIndex)
+            .With("start_block_index", recordCount)
+            .With("end_block_index", startBlockIndex - 1);
 
         THROW_ERROR error;
     }
@@ -161,10 +161,10 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     {
         if (auto error = blocks[index].CheckChecksum(); !error.IsOK()) {
             error = TError("Error appending changelog records")
-                << TErrorAttribute("chunk_id", SessionId_.ChunkId)
-                << TErrorAttribute("medium_index", SessionId_.MediumIndex)
-                << TErrorAttribute("changelog_id", Changelog_->GetId())
-                << error;
+                .With("chunk_id", SessionId_.ChunkId)
+                .With("medium_index", SessionId_.MediumIndex)
+                .With("changelog_id", Changelog_->GetId())
+                .With(error);
 
             YT_LOG_ALERT(error);
             THROW_ERROR error;
@@ -217,10 +217,10 @@ TFuture<ISession::TFlushBlocksResult> TJournalSession::DoFlushBlocks(int blockIn
 
     if (blockIndex > recordCount) {
         auto error = TError(NChunkClient::EErrorCode::MissingJournalChunkRecord, "Missing blocks")
-            << TErrorAttribute("chunk_id", SessionId_.ChunkId)
-            << TErrorAttribute("medium_index", SessionId_.MediumIndex)
-            << TErrorAttribute("start_block_index", recordCount - 1)
-            << TErrorAttribute("end_block_index", blockIndex);
+            .With("chunk_id", SessionId_.ChunkId)
+            .With("medium_index", SessionId_.MediumIndex)
+            .With("start_block_index", recordCount - 1)
+            .With("end_block_index", blockIndex);
 
         THROW_ERROR error;
     }

@@ -90,7 +90,7 @@ TFormat InferFormat(
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Unable to parse %v header",
                 ytHeaderName)
-                << ex;
+                .With(ex);
         }
         return formatManager.ConvertToFormat(formatNode, Format("format from %Qv header", ytHeaderName));
     }
@@ -118,7 +118,7 @@ TFormat InferHeaderFormat(const TFormatManager& formatManager, const std::string
         formatNode = ConvertTo<INodePtr>(header);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Unable to parse X-YT-Header-Format header")
-            << ex;
+            .With(ex);
     }
 
     if (ConvertTo<EFormatType>(formatNode) == EFormatType::Yson) {
@@ -188,7 +188,7 @@ std::string FormatToMime(const NFormats::TFormat& format)
             return "application/x-yaml";
         default:
             THROW_ERROR_EXCEPTION("Cannot determine mime-type for format")
-                << TErrorAttribute("format", format);
+                .With("format", format);
     }
 }
 

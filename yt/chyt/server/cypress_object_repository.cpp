@@ -350,7 +350,7 @@ void TCypressObjectRepository::WriteDictionary(
 
     auto resultOrError = WaitFor(client->CreateNode(path, NCypressClient::EObjectType::Document, options));
     if (!resultOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error while writing dictionary %Qv", configName) << resultOrError;
+        THROW_ERROR_EXCEPTION("Error while writing dictionary %Qv", configName).With(resultOrError);
     }
 
     RefreshSnapshot();
@@ -387,7 +387,7 @@ void TCypressObjectRepository::WriteMaterializedView(
     auto resultOrError = WaitFor(client->CreateNode(GetObjectPath(objectName), EObjectType::Document, options));
     if (!resultOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Error while writing materialized view %Qv", storageId.getFullTableName())
-            << resultOrError;
+            .With(resultOrError);
     }
 
     RefreshSnapshot();
@@ -473,7 +473,7 @@ void TCypressObjectRepository::RemoveObject(
     auto resultOrError = WaitFor(client->RemoveNode(path, options));
     if (!resultOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to remove clique object %Qv due to concurrent object overwrite", objectName)
-            << resultOrError;
+            .With(resultOrError);
     }
 }
 

@@ -82,9 +82,9 @@ void BuildRow(
                 value = CastValueWithCheck(value, argTypes[i]);
             } else {
                 THROW_ERROR_EXCEPTION("Types mismatch in tuple")
-                    << TErrorAttribute("source", source)
-                    << TErrorAttribute("actual_type", valueType)
-                    << TErrorAttribute("expected_type", argTypes[i]);
+                    .With("source", source)
+                    .With("actual_type", valueType)
+                    .With("expected_type", argTypes[i]);
             }
         }
         rowBuilder->AddValue(value);
@@ -103,7 +103,7 @@ TSharedRange<TRow> LiteralTupleListToRows(
     for (const auto& tuple : literalTuples) {
         if (tuple.size() != argTypes.size()) {
             THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
 
         BuildRow(&rowBuilder, tuple, argTypes, source);
@@ -127,12 +127,12 @@ TSharedRange<TRowRange> LiteralRangesListToRows(
     for (const auto& range : literalRanges) {
         if (range.first.size() > argTypes.size()) {
             THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
 
         if (range.second.size() > argTypes.size()) {
             THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
-                << TErrorAttribute("source", source);
+                .With("source", source);
         }
 
         BuildRow(&rowBuilder, range.first, argTypes, source);
@@ -145,8 +145,8 @@ TSharedRange<TRowRange> LiteralRangesListToRows(
 
         if (CompareRows(lower, upper, std::min(lower.GetCount(), upper.GetCount())) > 0) {
             THROW_ERROR_EXCEPTION("Lower bound is greater than upper")
-                << TErrorAttribute("lower", lower)
-                << TErrorAttribute("upper", upper);
+                .With("lower", lower)
+                .With("upper", upper);
         }
 
         ranges.emplace_back(lower, upper);
@@ -164,8 +164,8 @@ TSharedRange<TRowRange> LiteralRangesListToRows(
             std::min(previousUpper.GetCount(), currentLower.GetCount())) >= 0)
         {
             THROW_ERROR_EXCEPTION("Ranges are not disjoint")
-                << TErrorAttribute("first", ranges[index - 1])
-                << TErrorAttribute("second", ranges[index]);
+                .With("first", ranges[index - 1])
+                .With("second", ranges[index]);
         }
     }
 

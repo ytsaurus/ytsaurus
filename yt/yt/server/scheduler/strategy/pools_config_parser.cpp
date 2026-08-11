@@ -98,7 +98,7 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const std::string&
             updatePoolAction.ObjectId = childNode->Attributes().Get<TGuid>("id");
         } catch (const std::exception& ex) {
             Error_ = TError("Parsing configuration of pool %Qv failed", childName)
-                << ex;
+                .With(ex);
             return false;
         }
 
@@ -179,14 +179,14 @@ void TPoolsConfigParser::ValidatePoolPresetConfig(const std::string& presetName,
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Config of preset %Qv failed to load as TPoolPresetConfig",
             presetName)
-            << ex;
+            .With(ex);
     }
 
     auto unrecognized = presetConfig->GetRecursiveUnrecognized();
     if (unrecognized && unrecognized->GetChildCount() > 0) {
         THROW_ERROR_EXCEPTION("Config of preset %Qv contains unrecognized options",
             presetName)
-            << TErrorAttribute("unrecognized", unrecognized);
+            .With("unrecognized", unrecognized);
     }
 }
 

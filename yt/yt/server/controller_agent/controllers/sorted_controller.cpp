@@ -429,19 +429,19 @@ protected:
                     }
                     if (!ok) {
                         THROW_ERROR_EXCEPTION("Sort columns have different types in input tables")
-                                << TErrorAttribute("column_name", sortColumn.Name)
-                                << TErrorAttribute("input_table_1", referenceTable->GetPath())
-                                << TErrorAttribute("type_1", ToString(*referenceColumn->LogicalType()))
-                                << TErrorAttribute("input_table_2", table->GetPath())
-                                << TErrorAttribute("type_2", ToString(*column.LogicalType()));
+                                .With("column_name", sortColumn.Name)
+                                .With("input_table_1", referenceTable->GetPath())
+                                .With("type_1", ToString(*referenceColumn->LogicalType()))
+                                .With("input_table_2", table->GetPath())
+                                .With("type_2", ToString(*column.LogicalType()));
                     }
                     if (referenceColumn->SortOrder() != column.SortOrder()) {
                         THROW_ERROR_EXCEPTION("Sort columns have different sort orders in input tables")
-                                << TErrorAttribute("column_name", sortColumn.Name)
-                                << TErrorAttribute("input_table_1", referenceTable->GetPath())
-                                << TErrorAttribute("sort_order_1", *referenceColumn->SortOrder())
-                                << TErrorAttribute("input_table_2", table->GetPath())
-                                << TErrorAttribute("sort_order_2", *column.SortOrder());
+                                .With("column_name", sortColumn.Name)
+                                .With("input_table_1", referenceTable->GetPath())
+                                .With("sort_order_1", *referenceColumn->SortOrder())
+                                .With("input_table_2", table->GetPath())
+                                .With("sort_order_2", *column.SortOrder());
                     }
                 } else {
                     referenceColumn = &column;
@@ -913,9 +913,9 @@ public:
             if (table->TableUploadOptions.TableSchema->IsSorted()) {
                 if (table->TableUploadOptions.TableSchema->GetSortColumns() != PrimarySortColumns_) {
                     THROW_ERROR_EXCEPTION("Merge sort columns do not match output table schema in \"strong\" schema mode")
-                        << TErrorAttribute("output_schema", *table->TableUploadOptions.TableSchema)
-                        << TErrorAttribute("merge_by", PrimarySortColumns_)
-                        << TErrorAttribute("schema_inference_mode", Spec_->SchemaInferenceMode);
+                        .With("output_schema", *table->TableUploadOptions.TableSchema)
+                        .With("merge_by", PrimarySortColumns_)
+                        .With("schema_inference_mode", Spec_->SchemaInferenceMode);
                 }
             } else {
                 table->TableUploadOptions.TableSchema =
@@ -1178,7 +1178,7 @@ public:
             if (table->Path.GetForeign()) {
                 if (table->Path.GetTeleport()) {
                     THROW_ERROR_EXCEPTION("Foreign table cannot be specified as teleport")
-                        << TErrorAttribute("path", table->Path);
+                        .With("path", table->Path);
                 }
                 ++foreignInputCount;
             }
@@ -1299,13 +1299,13 @@ public:
 
             if (!CheckSortColumnsCompatible(SortColumns_, Spec_->ReduceBy)) {
                 THROW_ERROR_EXCEPTION("Reduce sort columns are not compatible with sort columns")
-                    << TErrorAttribute("reduce_by", Spec_->ReduceBy)
-                    << TErrorAttribute("sort_by", SortColumns_);
+                    .With("reduce_by", Spec_->ReduceBy)
+                    .With("sort_by", SortColumns_);
             }
 
             if (Spec_->ReduceBy.empty()) {
                 THROW_ERROR_EXCEPTION("Reduce by cannot be empty when key guarantee is enabled")
-                    << TErrorAttribute("operation_type", OperationType_);
+                    .With("operation_type", OperationType_);
             }
 
             PrimarySortColumns_ = Spec_->ReduceBy;
@@ -1314,8 +1314,8 @@ public:
                 CheckInputTablesSorted(ForeignSortColumns_, &TInputTable::IsForeign);
                 if (!CheckSortColumnsCompatible(PrimarySortColumns_, ForeignSortColumns_)) {
                     THROW_ERROR_EXCEPTION("Join sort columns are not compatible with reduce sort columns")
-                        << TErrorAttribute("join_by", ForeignSortColumns_)
-                        << TErrorAttribute("reduce_by", PrimarySortColumns_);
+                        .With("join_by", ForeignSortColumns_)
+                        .With("reduce_by", PrimarySortColumns_);
                 }
             }
         } else {
@@ -1328,15 +1328,15 @@ public:
             PrimarySortColumns_ = CheckInputTablesSorted(!Spec_->ReduceBy.empty() ? Spec_->ReduceBy : Spec_->JoinBy);
             if (PrimarySortColumns_.empty()) {
                 THROW_ERROR_EXCEPTION("At least one of reduce_by and join_by should be specified when key guarantee is disabled")
-                    << TErrorAttribute("operation_type", OperationType_);
+                    .With("operation_type", OperationType_);
             }
             SortColumns_ = ForeignSortColumns_ = PrimarySortColumns_;
 
             if (!Spec_->SortBy.empty()) {
                 if (!CheckSortColumnsCompatible(Spec_->SortBy, Spec_->JoinBy)) {
                     THROW_ERROR_EXCEPTION("Join sort columns are not compatible with sort columns")
-                        << TErrorAttribute("join_by", Spec_->JoinBy)
-                        << TErrorAttribute("sort_by", Spec_->SortBy);
+                        .With("join_by", Spec_->JoinBy)
+                        .With("sort_by", Spec_->SortBy);
                 }
                 SortColumns_ = Spec_->SortBy;
             }
@@ -1362,16 +1362,16 @@ public:
             for (const auto& key : Spec_->PivotKeys) {
                 if (key.GetCount() > std::ssize(Spec_->ReduceBy)) {
                     THROW_ERROR_EXCEPTION("Pivot key cannot be longer than reduce key column count")
-                        << TErrorAttribute("key", key)
-                        << TErrorAttribute("reduce_by", Spec_->ReduceBy);
+                        .With("key", key)
+                        .With("reduce_by", Spec_->ReduceBy);
                 }
 
                 auto upperBound = TKeyBound::FromRow() < key;
                 if (previousUpperBound && comparator.CompareKeyBounds(upperBound, previousUpperBound) <= 0) {
                     THROW_ERROR_EXCEPTION("Pivot keys should form a strictly increasing sequence")
-                        << TErrorAttribute("previous", previousUpperBound)
-                        << TErrorAttribute("current", upperBound)
-                        << TErrorAttribute("comparator", comparator);
+                        .With("previous", previousUpperBound)
+                        .With("current", upperBound)
+                        .With("comparator", comparator);
                 }
                 previousUpperBound = upperBound;
             }

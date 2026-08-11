@@ -324,7 +324,7 @@ std::vector<TExternalFunctionSpec> LookupAllNativeUdfDescriptors(
 
             if (result[resultIndex].Chunks.empty()) {
                 THROW_ERROR_EXCEPTION("UDF file is empty")
-                    << TErrorAttribute("udf", functions[resultIndex]);
+                    .With("udf", functions[resultIndex]);
             }
 
             nodeDirectory->DumpTo(&result[resultIndex].NodeDirectory);
@@ -630,7 +630,7 @@ void FetchChunks(
 
             if ((*result)[resultIndex].Chunks.empty()) {
                 THROW_ERROR_EXCEPTION("UDF file is empty, %v %v", functions[resultIndex], resultIndex)
-                    << TErrorAttribute("udf", functions[resultIndex]);
+                    .With("udf", functions[resultIndex]);
             }
 
             nodeDirectory->DumpTo(&(*result)[resultIndex].NodeDirectory);

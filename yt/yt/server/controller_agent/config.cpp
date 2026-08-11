@@ -442,14 +442,14 @@ void TOperationOptions::Register(TRegistrar registrar)
     registrar.Postprocessor([&] (TOperationOptions* options) {
         if (options->MaxSliceDataWeight < options->MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
-                << TErrorAttribute("min_slice_data_weight", options->MinSliceDataWeight)
-                << TErrorAttribute("max_slice_data_weight", options->MaxSliceDataWeight);
+                .With("min_slice_data_weight", options->MinSliceDataWeight)
+                .With("max_slice_data_weight", options->MaxSliceDataWeight);
         }
 
         if (options->MaxDataSlicesPerJobLimit < options->MaxDataSlicesPerJob) {
             THROW_ERROR_EXCEPTION("Default maximum count of data slices per job must be less than or equal to the limit of the maximum count of data slices per job")
-                << TErrorAttribute("max_data_slices_per_job", options->MaxDataSlicesPerJob)
-                << TErrorAttribute("max_data_slices_per_job_limit", options->MaxDataSlicesPerJobLimit);
+                .With("max_data_slices_per_job", options->MaxDataSlicesPerJob)
+                .With("max_data_slices_per_job_limit", options->MaxDataSlicesPerJobLimit);
         }
     });
 }

@@ -1163,7 +1163,7 @@ private:
                 THROW_ERROR_EXCEPTION("ClickHouse type %Qv is not representable as YT type: "
                     "maximum decimal precision in YT is %v",
                     DataType_->getName(), MaxSupportedCHDecimalPrecision)
-                    << TErrorAttribute("docs", "https://ytsaurus.tech/docs/en/user-guide/storage/data-types#schema_decimal");
+                    .With("docs", "https://ytsaurus.tech/docs/en/user-guide/storage/data-types#schema_decimal");
             }
         }
 

@@ -100,7 +100,7 @@ TError TLayerJobExperiment::GetAlert(const TOperationSpecBasePtr& operationSpec)
         "A job with experimental base layer has failed; "
         "this probably means that your job requires a specific environment "
         "that must be put into user delta layer, or into explicitly-specified base layer")
-        << TErrorAttribute("base_layer_path", operationSpec->JobExperiment->BaseLayerPath);
+        .With("base_layer_path", operationSpec->JobExperiment->BaseLayerPath);
 }
 
 void TLayerJobExperiment::RegisterMetadata(auto&& registrar)
@@ -167,7 +167,7 @@ TError TMtnJobExperiment::GetAlert(const TOperationSpecBasePtr& operationSpec) c
         "A job with experimental network settings has failed; "
         "this probably means that your job requires a custom network project "
         "that must be specified explicitly")
-        << TErrorAttribute("network_project", operationSpec->JobExperiment->NetworkProject);
+        .With("network_project", operationSpec->JobExperiment->NetworkProject);
 }
 
 void TMtnJobExperiment::RegisterMetadata(auto&& registrar)
@@ -381,13 +381,13 @@ void TExperimentJobManager::GenerateAlertIfNeeded(
         GetFailedTreatmentJobCount() > 0)
     {
         auto error = JobExperiment_->GetAlert(OperationSpec_)
-            << TErrorAttribute("task_name", taskName)
-            << TErrorAttribute("failed_treatment_job_count", GetFailedTreatmentJobCount())
-            << TErrorAttribute("succeeded_treatment_job_count", GetSucceededTreatmentJobCount())
-            << TErrorAttribute("failed_treatment_job", GetFailedTreatmentJob())
-            << TErrorAttribute("failed_control_job_count", GetFailedControlJobCount());
+            .With("task_name", taskName)
+            .With("failed_treatment_job_count", GetFailedTreatmentJobCount())
+            .With("succeeded_treatment_job_count", GetSucceededTreatmentJobCount())
+            .With("failed_treatment_job", GetFailedTreatmentJob())
+            .With("failed_control_job_count", GetFailedControlJobCount());
         if (GetFailedControlJob()) {
-            error = error << TErrorAttribute("failed_control_job", GetFailedControlJob());
+            error = error.With("failed_control_job", GetFailedControlJob());
         }
 
         taskHost->SetOperationAlert(JobExperiment_->GetAlertType(), error);

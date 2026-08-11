@@ -106,7 +106,7 @@ private:
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError, "Error resolving batched requests");
             auto error = TError("DNS-over-RPC resolve failed")
-                << rspOrError;
+                .With(rspOrError);
             for (const auto& promise : promises) {
                 promise.Set(error);
             }

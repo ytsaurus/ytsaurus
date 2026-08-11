@@ -106,7 +106,7 @@ void THunkChunk::PopulateAddHunkChunkDescriptor(NProto::TAddHunkChunkDescriptor*
 
         THROW_ERROR_EXCEPTION("Cannot replicate hunk chunk %v with nonzero prepared store ref count",
             Id_)
-            << TErrorAttribute("prepared_store_ref_count", PreparedStoreRefCount_);
+            .With("prepared_store_ref_count", PreparedStoreRefCount_);
     }
 
     ToProto(descriptor->mutable_chunk_id(), Id_);

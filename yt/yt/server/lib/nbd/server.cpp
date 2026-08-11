@@ -95,7 +95,7 @@ public:
                     THROW_ERROR_EXCEPTION(
                         "Failed to remove unix domain socket %v",
                         address)
-                        << TError::FromSystem();
+                        .With(TError::FromSystem());
                 }
             } else if (Config_->InternetDomainSocket) {
                 maxBacklogSize = Config_->InternetDomainSocket->MaxBacklogSize;
@@ -354,7 +354,7 @@ private:
                     flags);
                 if (flags != EClientHandshakeFlags::NBD_FLAG_C_FIXED_NEWSTYLE) {
                     THROW_ERROR_EXCEPTION("Unsupported client flags")
-                        << TErrorAttribute("flags", flags);
+                        .With("flags", flags);
                 }
             }
 
@@ -364,15 +364,15 @@ private:
                 auto magic = InetToHost(message.Magic);
                 if (magic != TClientOptionMessage::ExpectedHostMagic) {
                     THROW_ERROR_EXCEPTION("Invalid client option magic")
-                        << TErrorAttribute("expected_magic", TClientOptionMessage::ExpectedHostMagic)
-                        << TErrorAttribute("actual_magic", magic);
+                        .With("expected_magic", TClientOptionMessage::ExpectedHostMagic)
+                        .With("actual_magic", magic);
                 }
 
                 auto length = InetToHost(message.Length);
                 if (length > TClientOptionMessage::MaxLength) {
                     THROW_ERROR_EXCEPTION("Client option is too long")
-                        << TErrorAttribute("max_length", TClientOptionMessage::MaxLength)
-                        << TErrorAttribute("actual_length", length);
+                        .With("max_length", TClientOptionMessage::MaxLength)
+                        .With("actual_length", length);
                 }
 
                 auto option = InetToHost(message.Option);
@@ -395,8 +395,8 @@ private:
                 auto magic = InetToHost(message.Magic);
                 if (magic != TClientRequestMessage::ExpectedHostMagic) {
                     THROW_ERROR_EXCEPTION("Invalid client request magic")
-                        << TErrorAttribute("expected_magic", TClientRequestMessage::ExpectedHostMagic)
-                        << TErrorAttribute("actual_magic", magic);
+                        .With("expected_magic", TClientRequestMessage::ExpectedHostMagic)
+                        .With("actual_magic", magic);
                 }
 
                 // The bound guards the buffered read and write payloads; a trim carries none, and the
@@ -406,8 +406,8 @@ private:
                     length > TClientRequestMessage::MaxLength)
                 {
                     THROW_ERROR_EXCEPTION("Client request is too long")
-                        << TErrorAttribute("max_length", TClientRequestMessage::MaxLength)
-                        << TErrorAttribute("actual_length", length);
+                        .With("max_length", TClientRequestMessage::MaxLength)
+                        .With("actual_length", length);
                 }
 
                 HandleClientRequest(message);
@@ -967,7 +967,7 @@ private:
                         }
                     } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Failed to write server response")
-                            << TErrorAttribute("cookie", cookie) << ex;
+                            .With("cookie", cookie).With(ex);
                     }
                 }));
         }
@@ -1012,7 +1012,7 @@ private:
                     }
                     TNbdProfilerCounters::Get()->GetCounter(tagSet, "/server/request/zero_read_buffer").Increment(1);
                     THROW_ERROR_EXCEPTION("Read returned zero bytes")
-                        << TErrorAttribute("device_tag", strTagSet);
+                        .With("device_tag", strTagSet);
                 }
 
                 offset += readSize;

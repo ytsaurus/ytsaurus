@@ -77,9 +77,9 @@ TError ReadCrashReport(std::string filePath)
         }
 
         auto error = TError("Process crashed")
-            << TErrorAttribute("host", GetLocalHostName())
-            << TErrorAttribute("datetime", TInstant::Seconds(TFileStat(file).MTime))
-            << TErrorAttribute("crash_report", report);
+            .With("host", GetLocalHostName())
+            .With("datetime", TInstant::Seconds(TFileStat(file).MTime))
+            .With("crash_report", report);
         error.UpdateOriginAttributes();
         return error;
     } catch (const TFileError& error) {

@@ -145,8 +145,8 @@ ui64 GetLastExportPeriod(ui64 exportUnixTs, const TQueueStaticExportConfigPtr ex
     auto exportUnixTsCivilSecond = NDatetime::Convert(TInstant::Seconds(exportUnixTs), UTCTimezone);
     if (cronExpression.CronPrev(cronExpression.CronNext(exportUnixTsCivilSecond)) != exportUnixTsCivilSecond) {
         THROW_ERROR_EXCEPTION("Value of exportUnixTs is not a valid export timestamp")
-            << TErrorAttribute("exportUnixTs", exportUnixTs)
-            << TErrorAttribute("cronExpression", *exportConfig->ExportCronSchedule);
+            .With("exportUnixTs", exportUnixTs)
+            .With("cronExpression", *exportConfig->ExportCronSchedule);
     }
     return exportUnixTs - NDatetime::Convert(cronExpression.CronPrev(exportUnixTsCivilSecond), UTCTimezone).Seconds();
 }
@@ -504,8 +504,8 @@ private:
             GuardedRunTaskPart(taskPart, parentTransaction);
         } catch (const std::exception& ex) {
             return TError("Queue export task part failed")
-                << ex
-                << TErrorAttribute("export_unix_ts", taskPart.ExportUnixTs);
+                .With(ex)
+                .With("export_unix_ts", taskPart.ExportUnixTs);
         }
         return TError();
     }
@@ -863,11 +863,11 @@ private:
                 THROW_ERROR_EXCEPTION(
                     "Generated output table name uniqueness invariant violated: output table name pattern should be unique for each export unix ts, "
                     "you may need to adjust (usually increase) export period or export cron schedule to match your output table name pattern")
-                    << TErrorAttribute("output_table_name_pattern", ExportConfig_->OutputTableNamePattern)
-                    << TErrorAttribute("export_period", ExportConfig_->ExportPeriod)
-                    << TErrorAttribute("export_cron_expression", ExportConfig_->ExportCronSchedule)
-                    << TErrorAttribute("export_unix_ts", taskPart.ExportUnixTs)
-                    << ex;
+                    .With("output_table_name_pattern", ExportConfig_->OutputTableNamePattern)
+                    .With("export_period", ExportConfig_->ExportPeriod)
+                    .With("export_cron_expression", ExportConfig_->ExportCronSchedule)
+                    .With("export_unix_ts", taskPart.ExportUnixTs)
+                    .With(ex);
             } else {
                 throw;
             }
@@ -929,10 +929,10 @@ private:
             (cellTags.size() != 1 || cellTags[0] != taskPart.DestinationObject.ExternalCellTag))
         {
             THROW_ERROR_EXCEPTION("Cannot perform cross-cell export of a queue that contains hunks")
-                << TErrorAttribute("queue_object_cell_tag", QueueObject_.ExternalCellTag)
-                << TErrorAttribute("destination_object_cell_tag", destinationObjectCellTag)
-                << TErrorAttribute("destination_object_external_cell_tag", taskPart.DestinationObject.ExternalCellTag)
-                << TErrorAttribute("affected_cell_tags", ToString(cellTags));
+                .With("queue_object_cell_tag", QueueObject_.ExternalCellTag)
+                .With("destination_object_cell_tag", destinationObjectCellTag)
+                .With("destination_object_external_cell_tag", taskPart.DestinationObject.ExternalCellTag)
+                .With("affected_cell_tags", ToString(cellTags));
         }
 
         auto proxy = CreateObjectServiceWriteProxy(Client_, destinationObjectCellTag);
@@ -1427,8 +1427,8 @@ private:
             }
             if (!exportTaskError.IsOK() || !exportTask->GetExportError().IsOK()) {
                 THROW_ERROR_EXCEPTION("Export task has errors")
-                    << TErrorAttribute("task_error", exportTaskError)
-                    << TErrorAttribute("export_error", exportTask->GetExportError());
+                    .With("task_error", exportTaskError)
+                    .With("export_error", exportTask->GetExportError());
             }
             if (!newExportProgressNonNull) {
                 THROW_ERROR_EXCEPTION("Export task result is missing new export progress without any errors");

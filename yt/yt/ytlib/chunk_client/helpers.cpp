@@ -111,8 +111,8 @@ void BuildOriginalColumnNames(
         if (!inserted) {
             THROW_ERROR_EXCEPTION(
                 "Found duplicate target names in \"rename_columns\" attribute")
-                << TErrorAttribute("first_renamed_column", iter->second)
-                << TErrorAttribute("second_renamed_column", descriptor.OriginalName);
+                .With("first_renamed_column", iter->second)
+                .With("second_renamed_column", descriptor.OriginalName);
         }
     }
 
@@ -509,7 +509,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
                 NTabletClient::EErrorCode::TabletNotMounted,
                 "Tablet %v is not mounted",
                 tabletInfo->TabletId)
-                << TErrorAttribute("tablet_state", tabletInfo->State);
+                .With("tablet_state", tabletInfo->State);
         }
 
         TSubrequest subrequest;
@@ -1063,8 +1063,8 @@ void ValidateChunkFeatures(
                     "Chunk %v requires feature %Qlv that is not supported yet",
                     chunkId,
                     TEnumTraits<EChunkFeatures>::FindLiteralByValue(chunkFeature))
-                    << TErrorAttribute("chunk_features", chunkFeatures)
-                    << TErrorAttribute("supported_chunk_features", supportedChunkFeatures);
+                    .With("chunk_features", chunkFeatures)
+                    .With("supported_chunk_features", supportedChunkFeatures);
             }
         }
 
@@ -1074,8 +1074,8 @@ void ValidateChunkFeatures(
         THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::UnsupportedChunkFeature,
             "Processing chunk %v requires feature that is not supported by cluster yet",
             chunkId)
-            << TErrorAttribute("chunk_features", chunkFeatures)
-            << TErrorAttribute("supported_chunk_features", supportedChunkFeatures);
+            .With("chunk_features", chunkFeatures)
+            .With("supported_chunk_features", supportedChunkFeatures);
     }
 }
 

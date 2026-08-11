@@ -110,7 +110,7 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
         for (const auto& numaNode : config->NumaNodes) {
             if (numaNodeIds.contains(numaNode->NumaNodeId)) {
                 THROW_ERROR_EXCEPTION("Numa nodes ids must be unique in \"numa_nodes\" list, but duplicate found")
-                    << TErrorAttribute("numa_node_id", numaNode->NumaNodeId);
+                    .With("numa_node_id", numaNode->NumaNodeId);
             }
             numaNodeIds.insert(numaNode->NumaNodeId);
         }

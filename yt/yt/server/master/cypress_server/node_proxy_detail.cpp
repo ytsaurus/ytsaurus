@@ -321,7 +321,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
             }
 
             THROW_ERROR_EXCEPTION("Error reading the attribute")
-                << TErrorAttribute("attribute_key", EInternedAttributeKey::WrongDoorAsync);
+                .With("attribute_key", EInternedAttributeKey::WrongDoorAsync);
         }
 
         default:
@@ -388,7 +388,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
                 key,
                 GetVersionedId(),
                 externalCellTag)
-                << error;
+                .With(error);
         }
 
         const auto& batchRsp = batchRspOrError.Value();
@@ -1047,7 +1047,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             }
 
             THROW_ERROR_EXCEPTION("Error reading the attribute")
-                << TErrorAttribute("attribute_key", EInternedAttributeKey::WrongDoorSync);
+                .With("attribute_key", EInternedAttributeKey::WrongDoorSync);
         }
 
         default:
@@ -1097,7 +1097,7 @@ void TNontemplateCypressNodeProxyBase::ValidateMethodWhitelistedForTransaction(c
         THROW_ERROR_EXCEPTION("Method %Qv is not supported for type %Qlv",
             method,
             transactionType)
-            << TErrorAttribute("transaction_id", Transaction_->GetId());
+            .With("transaction_id", Transaction_->GetId());
     }
 }
 
@@ -1489,7 +1489,7 @@ TPermissionCheckResponse TNontemplateCypressNodeProxyBase::DoCheckPermission(
                 THROW_ERROR_EXCEPTION(
                     "Cannot specify columns for %Qlv permission check",
                     permission)
-                    << TErrorAttribute("columns", options.Columns);
+                    .With("columns", options.Columns);
             }
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& handler = objectManager->GetHandler(Object_);
@@ -1963,7 +1963,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
                 TypeFromId(transactionId),
                 transactionId);
             THROW_ERROR_EXCEPTION("Cannot create type %Qlv using system transaction", type)
-                << TErrorAttribute("transaction_id", transactionId);
+                .With("transaction_id", transactionId);
         }
     }
 
@@ -2393,8 +2393,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopySource)
 
         if (++subtreeSize >= maxSubtreeSize) {
             THROW_ERROR_EXCEPTION("Subtree is too large for cross-cell copy")
-                << TErrorAttribute("subtree_size", subtreeSize)
-                << TErrorAttribute("max_subtree_size", maxSubtreeSize);
+                .With("subtree_size", subtreeSize)
+                .With("max_subtree_size", maxSubtreeSize);
         }
     }
 
@@ -2757,8 +2757,8 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     if (inplace && TrunkNode_->GetType() != EObjectType::PortalExit) {
         THROW_ERROR_EXCEPTION("Cannot load inplace any node except portal exit")
-            << TErrorAttribute("node_id", TrunkNode_->GetId())
-            << TErrorAttribute("transaction_id", Transaction_->GetId());
+            .With("node_id", TrunkNode_->GetId())
+            .With("transaction_id", Transaction_->GetId());
     }
 
     if (ignoreExisting && force) {

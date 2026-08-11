@@ -1050,12 +1050,12 @@ TDuration TSortedDynamicStore::WaitOnBlockedRow(
             TTransactionId blockingTransactionId = {})
         {
             auto error = TError(errorCode, message)
-                << TErrorAttribute("lock", LockIndexToName_[lockIndex])
-                << TErrorAttribute("tablet_id", TabletId_)
-                << TErrorAttribute("table_path", TablePath_)
-                << TErrorAttribute("key", RowToKey(row))
-                << TErrorAttribute("timeout", maxBlockedRowWaitTime)
-                << TErrorAttribute("timestamp", timestamp);
+                .With("lock", LockIndexToName_[lockIndex])
+                .With("tablet_id", TabletId_)
+                .With("table_path", TablePath_)
+                .With("key", RowToKey(row))
+                .With("timeout", maxBlockedRowWaitTime)
+                .With("timestamp", timestamp);
             if (blockingTransactionId) {
                 error <<= TErrorAttribute("blocking_transaction_id", blockingTransactionId);
             }
@@ -1986,7 +1986,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
                     "Write failed due to concurrent read lock")
-                    << TErrorAttribute("winner_transaction_commit_timestamp", lastReadTimestamp);
+                    .With("winner_transaction_commit_timestamp", lastReadTimestamp);
             }
 
             if (lock->ReadLockCount > 0) {
@@ -1994,7 +1994,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
                     "Write failed due to concurrent read lock")
-                    << TErrorAttribute("read_lock_count", lock->ReadLockCount);
+                    .With("read_lock_count", lock->ReadLockCount);
             }
 
             if (!lock->SharedWriteTransactions.empty()) {
@@ -2002,8 +2002,8 @@ TError TSortedDynamicStore::CheckRowLocks(
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
                     "Write failed due to concurrent shared write lock")
-                    << TErrorAttribute("winner_transaction_id", lock->SharedWriteTransactions.begin()->Transaction->GetId())
-                    << TErrorAttribute("shared_write_lock_count", lock->SharedWriteTransactions.size());
+                    .With("winner_transaction_id", lock->SharedWriteTransactions.begin()->Transaction->GetId())
+                    .With("shared_write_lock_count", lock->SharedWriteTransactions.size());
             }
         }
 
@@ -2016,7 +2016,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
                     "Row lock conflict due to concurrent write")
-                    << TErrorAttribute("winner_transaction_commit_timestamp", lastExclusiveTimestamp);
+                    .With("winner_transaction_commit_timestamp", lastExclusiveTimestamp);
             }
 
             if (lockType != ELockType::SharedWrite) {
@@ -2025,7 +2025,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
                         "Row lock conflict due to concurrent shared write")
-                        << TErrorAttribute("winner_transaction_commit_timestamp", lastSharedWriteTimestamp);
+                        .With("winner_transaction_commit_timestamp", lastSharedWriteTimestamp);
                 }
             }
 
@@ -2033,7 +2033,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                 error = TError(
                     NTabletClient::EErrorCode::TransactionLockConflict,
                     "Row lock conflict due to concurrent write")
-                    << TErrorAttribute("winner_transaction_id", lock->WriteTransaction->GetId());
+                    .With("winner_transaction_id", lock->WriteTransaction->GetId());
             }
 
             if (lockType == ELockType::SharedStrong || lockType == ELockType::SharedWeak) {
@@ -2042,8 +2042,8 @@ TError TSortedDynamicStore::CheckRowLocks(
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
                         "Write failed due to concurrent shared write lock")
-                        << TErrorAttribute("winner_transaction_id", lock->SharedWriteTransactions.begin()->Transaction->GetId())
-                        << TErrorAttribute("shared_write_lock_count", lock->SharedWriteTransactions.size());
+                        .With("winner_transaction_id", lock->SharedWriteTransactions.begin()->Transaction->GetId())
+                        .With("shared_write_lock_count", lock->SharedWriteTransactions.size());
                 }
             }
 
@@ -2053,7 +2053,7 @@ TError TSortedDynamicStore::CheckRowLocks(
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
                         "Write failed due to concurrent read lock")
-                        << TErrorAttribute("read_lock_count", lock->ReadLockCount);
+                        .With("read_lock_count", lock->ReadLockCount);
                 }
 
                 auto lastReadTimestamp = GetLastReadTimestamp(row, index);
@@ -2061,18 +2061,18 @@ TError TSortedDynamicStore::CheckRowLocks(
                     error = TError(
                         NTabletClient::EErrorCode::TransactionLockConflict,
                         "Write failed due to concurrent read lock")
-                        << TErrorAttribute("winner_transaction_commit_timestamp", lastReadTimestamp);
+                        .With("winner_transaction_commit_timestamp", lastReadTimestamp);
                 }
             }
         }
 
         if (!error.IsOK()) {
             error = std::move(error)
-                << TErrorAttribute("loser_transaction_id", transaction->GetId())
-                << TErrorAttribute("tablet_id", TabletId_)
-                << TErrorAttribute("table_path", TablePath_)
-                << TErrorAttribute("key", RowToKey(row))
-                << TErrorAttribute("lock", LockIndexToName_[index]);
+                .With("loser_transaction_id", transaction->GetId())
+                .With("tablet_id", TabletId_)
+                .With("table_path", TablePath_)
+                .With("key", RowToKey(row))
+                .With("lock", LockIndexToName_[index]);
             break;
         }
     }

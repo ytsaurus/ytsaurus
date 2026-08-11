@@ -594,8 +594,8 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             !acquireResult.IsOK(),
             TError("GPU slot acquisition failed")
-                << TErrorAttribute("gpu_count", gpuCount)
-                << acquireResult);
+                .With("gpu_count", gpuCount)
+                .With(acquireResult));
 
         auto result = acquireResult.Value();
 

@@ -84,7 +84,7 @@ void Deserialize(TSignatureHeader& header, INodePtr node)
         header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>();
     } else {
         THROW_ERROR_EXCEPTION("Unknown TSignature version")
-            << TErrorAttribute("version", version);
+            .With("version", version);
     }
 
     std::visit(TDeserializeVisitor{node->AsMap()}, header);

@@ -169,10 +169,10 @@ public:
             ValidateSmoothness();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(ex)
-                << TErrorAttribute("peers_per_cell", PeersPerCell_)
-                << TErrorAttribute("cell_lists", CellLists_)
-                << TErrorAttribute("initial_distribution", InitialDistribution_)
-                << TErrorAttribute("resulting_distribution", GetDistribution());
+                .With("peers_per_cell", PeersPerCell_)
+                .With("cell_lists", CellLists_)
+                .With("initial_distribution", InitialDistribution_)
+                .With("resulting_distribution", GetDistribution());
         }
     }
 

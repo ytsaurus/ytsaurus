@@ -1086,8 +1086,8 @@ private:
                         table->GetId());
 
                     THROW_ERROR_EXCEPTION("Failed to validate table mount settings")
-                        << TErrorAttribute("table_id", table->GetId())
-                        << ex;
+                        .With("table_id", table->GetId())
+                        .With(ex);
                 }
                 auto serializedSettings = SerializeTabletOwnerSettings(tableSettings);
 

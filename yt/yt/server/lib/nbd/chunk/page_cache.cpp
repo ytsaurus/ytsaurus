@@ -114,7 +114,7 @@ TFuture<void> TPageCache::Finalize()
                             }
                             if (!errors.empty()) {
                                 THROW_ERROR_EXCEPTION("Page cache finalization failed")
-                                    << std::move(errors);
+                                    .With(std::move(errors));
                             }
                         }));
                 }));
@@ -337,8 +337,8 @@ TFuture<void> TPageCache::ScheduleDirtyDataWriteback(std::optional<i64> maxDirty
             TInstant::Now() - startTime);
         if (failedCount > 0) {
             THROW_ERROR_EXCEPTION("Failed to write back some dirty pages")
-                << TErrorAttribute("failed_writes", failedCount)
-                << std::move(errors);
+                .With("failed_writes", failedCount)
+                .With(std::move(errors));
         }
     })
         .AsyncVia(SerializedInvoker_)

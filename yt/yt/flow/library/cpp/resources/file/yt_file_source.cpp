@@ -92,12 +92,12 @@ TFuture<void> DownloadYTFile(
     auto client = context->ClientsCache->GetClient(locator->Cluster);
     auto reader = WaitFor(client->CreateFileReader(locator->ObjectPath)).ValueOrThrow();
     THROW_ERROR_EXCEPTION_UNLESS(
-            reader->GetId() == locator->ObjectId && reader->GetRevision() == locator->Revision,
-            "YT file changed between discovery and download")
-        << TErrorAttribute("expected_object_id", locator->ObjectId)
-        << TErrorAttribute("actual_object_id", reader->GetId())
-        << TErrorAttribute("expected_revision", locator->Revision)
-        << TErrorAttribute("actual_revision", reader->GetRevision());
+        reader->GetId() == locator->ObjectId && reader->GetRevision() == locator->Revision,
+        "YT file changed between discovery and download")
+        .With("expected_object_id", locator->ObjectId)
+        .With("actual_object_id", reader->GetId())
+        .With("expected_revision", locator->Revision)
+        .With("actual_revision", reader->GetRevision());
 
     TFileOutput output((TFsPath(stagingDirectory) / locator->Basename).GetPath());
     while (auto block = WaitFor(reader->Read()).ValueOrThrow()) {

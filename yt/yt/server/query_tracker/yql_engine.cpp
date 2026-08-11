@@ -130,8 +130,8 @@ public:
                     "%Qv permission required to run %Qv queries",
                     EPermission::Administer,
                     QueryType_)
-                    << TErrorAttribute("user", User_)
-                    << TErrorAttribute("access_control_objects", AccessControlObjects_);
+                    .With("user", User_)
+                    .With("access_control_objects", AccessControlObjects_);
             }
         }
 

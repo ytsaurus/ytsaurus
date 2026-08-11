@@ -166,7 +166,7 @@ TFuture<void> TTmpfsLayerCache::Initialize()
 
         result = Initialized_.ToFuture();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to create %v tmpfs layer volume cache", CacheName_) << ex;
+        auto error = TError("Failed to create %v tmpfs layer volume cache", CacheName_).With(ex);
         SetAlert(error);
         // That's a fatal error; tmpfs layer cache is broken and we shouldn't start jobs on this node.
         result = MakeFuture(error);
@@ -264,7 +264,7 @@ void TTmpfsLayerCache::UpdateLayers()
             "Failed to list %v tmpfs layers directory %v",
             CacheName_,
             Config_->LayersDirectoryPath)
-            << listNodeRspOrError);
+            .With(listNodeRspOrError));
         return;
     }
     const auto& listNodeRsp = listNodeRspOrError.Value();
@@ -282,7 +282,7 @@ void TTmpfsLayerCache::UpdateLayers()
             NExecNode::EErrorCode::TmpfsLayerImportFailed,
             "Tmpfs layers directory %v has invalid structure",
             Config_->LayersDirectoryPath)
-            << ex);
+            .With(ex));
         return;
     }
 
@@ -325,7 +325,7 @@ void TTmpfsLayerCache::UpdateLayers()
     auto fetchResultsOrError = WaitFor(AllSucceeded(futures));
     if (!fetchResultsOrError.IsOK()) {
         SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Failed to fetch tmpfs layer descriptions")
-            << fetchResultsOrError);
+            .With(fetchResultsOrError));
         return;
     }
 
@@ -385,7 +385,7 @@ void TTmpfsLayerCache::UpdateLayers()
     auto newLayersOrError = WaitFor(AllSet(newLayerFutures));
     if (!newLayersOrError.IsOK()) {
         SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Failed to import new tmpfs layers")
-            << newLayersOrError);
+            .With(newLayersOrError));
         return;
     }
 
@@ -395,7 +395,7 @@ void TTmpfsLayerCache::UpdateLayers()
         if (!newLayerOrError.IsOK()) {
             hasFailedLayer = true;
             SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Failed to import new %v tmpfs layer", CacheName_)
-                << newLayerOrError);
+                .With(newLayerOrError));
             continue;
         }
 

@@ -119,7 +119,7 @@ std::vector<TExecNodePtr> CreateExecNodesFromFile(const std::string& nodeGroupsF
         TIFStream configStream{TString(nodeGroupsFilename)};
         return CreateExecNodesFromNode(ConvertToNode(&configStream));
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading node groups") << ex;
+        THROW_ERROR_EXCEPTION("Error reading node groups").With(ex);
     }
 }
 
@@ -137,7 +137,7 @@ TSchedulerConfigPtr LoadSchedulerConfigFromFile(const std::string& schedulerConf
         TIFStream configStream{TString(schedulerConfigFilename)};
         return LoadSchedulerConfigFromNode(ConvertToNode(&configStream));
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading scheduler config") << ex;
+        THROW_ERROR_EXCEPTION("Error reading scheduler config").With(ex);
     }
 }
 
@@ -173,7 +173,7 @@ TYsonString LoadPoolTreesYson(const std::string& poolTreesFilename)
         TIFStream configStream{TString(poolTreesFilename)};
         return ConvertToYsonString(&configStream);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading pool trees") << ex;
+        THROW_ERROR_EXCEPTION("Error reading pool trees").With(ex);
     }
 }
 

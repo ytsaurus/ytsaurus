@@ -299,7 +299,7 @@ public:
     void Interrupt() override
     {
         THROW_ERROR_EXCEPTION("Interrupting is not supported for this type of jobs")
-            << TErrorAttribute("job_type", EJobType::RemoteCopy);
+            .With("job_type", EJobType::RemoteCopy);
     }
 
     TStatistics GetStatistics() const override
@@ -509,8 +509,8 @@ private:
             auto attachDebugAttributes = [inputChunkId, index] (const TError& error) {
                 if (!error.IsOK()) {
                     return error
-                        << TErrorAttribute("chunk_id", inputChunkId)
-                        << TErrorAttribute("part_index", index);
+                        .With("chunk_id", inputChunkId)
+                        .With("part_index", index);
                 }
                 return error;
             };
@@ -756,8 +756,8 @@ private:
                         // Chunk cannot be repaired, this situation is unrecoverable.
                         if (!erasureCodec->CanRepair(callbackContext->FailedPartSet)) {
                             callbackContext->CanStartRepair.TrySet(TError("Cannot repair erasure chunk")
-                                << callbackContext->CopyErrors
-                                << TErrorAttribute("chunk_id", inputChunkId));
+                                .With(callbackContext->CopyErrors)
+                                .With("chunk_id", inputChunkId));
                         }
                     }
                 })
@@ -1196,8 +1196,8 @@ private:
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
         if (miscExt.has_compression_dictionary_id()) {
             THROW_ERROR_EXCEPTION("Compression dictionaries are not supported for this type of jobs")
-                << TErrorAttribute("chunk_id", chunkId)
-                << TErrorAttribute("job_type", EJobType::RemoteCopy);
+                .With("chunk_id", chunkId)
+                .With("job_type", EJobType::RemoteCopy);
         }
     }
 

@@ -65,8 +65,8 @@ void LogAndThrowAuthorizationError(
             targetObjectName,
             resultSubjectName,
             resultObjectName)
-            << TErrorAttribute("denied_by", result.ObjectId)
-            << TErrorAttribute("denied_for", result.SubjectId);
+            .With("denied_by", result.ObjectId)
+            .With("denied_for", result.SubjectId);
 
         event
             .Item("reason").Value(EAccessDenialReason::DeniedByAce)
@@ -90,7 +90,7 @@ void LogAndThrowAuthorizationError(
     }
 
     if (!targetObjectPath.empty()) {
-        error = error << TErrorAttribute("path", targetObjectPath);
+        error = error.With("path", targetObjectPath);
     }
 
     ThrowAuthorizationError(std::move(error), target, permission, userName);

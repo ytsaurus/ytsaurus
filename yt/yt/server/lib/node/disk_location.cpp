@@ -218,7 +218,7 @@ void TDiskLocation::ValidateLockFile() const
     auto errorData = fileInput.ReadAll();
     if (errorData.empty()) {
         THROW_ERROR_EXCEPTION("Empty lock file found")
-            << TErrorAttribute("lock_file", lockFilePath);
+            .With("lock_file", lockFilePath);
     }
 
     TError error;
@@ -226,12 +226,12 @@ void TDiskLocation::ValidateLockFile() const
         error = ConvertTo<TError>(TYsonString(errorData));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing lock file contents")
-            << TErrorAttribute("lock_file", lockFilePath)
-            << ex;
+            .With("lock_file", lockFilePath)
+            .With(ex);
     }
     THROW_ERROR_EXCEPTION("Lock file found")
-        << TErrorAttribute("lock_file", lockFilePath)
-        << error;
+        .With("lock_file", lockFilePath)
+        .With(error);
 }
 
 void TDiskLocation::ValidateMinimumSpace() const
@@ -246,8 +246,8 @@ void TDiskLocation::ValidateMinimumSpace() const
             THROW_ERROR_EXCEPTION(
                 "Minimum disk space requirement is not met for location %Qv",
                 Id_)
-                << TErrorAttribute("actual_space", totalSpace)
-                << TErrorAttribute("required_space", minSpace);
+                .With("actual_space", totalSpace)
+                .With("required_space", minSpace);
         }
     }
 }

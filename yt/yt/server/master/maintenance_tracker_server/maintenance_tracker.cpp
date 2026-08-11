@@ -334,7 +334,7 @@ private:
                 auto* node = nodeTracker->FindNodeByAddress(address);
                 if (!IsObjectAlive(node)) {
                     return TError("No such node %Qv", address)
-                        << TErrorAttribute("address", address);
+                        .With("address", address);
                 }
 
                 return node;
@@ -360,21 +360,21 @@ private:
                 auto it = targetMap.find(address);
                 if (it == targetMap.end()) {
                     return TError("No such proxy %Qv", address)
-                        << TErrorAttribute("address", address);
+                        .With("address", address);
                 }
 
                 if (it->second->GetType() != EObjectType::ClusterProxyNode) {
                     return TError("Proxy has to be represented by %Qlv instead of %Qlv to be able store maintenance requests",
                         EObjectType::ClusterProxyNode,
                         EObjectType::MapNode)
-                        << TErrorAttribute("address", address);
+                        .With("address", address);
                 }
 
                 return it->second->As<TClusterProxyNode>();
             }
             default:
                 return TError("Maintenance component %Qlv is not supported", component)
-                    << TErrorAttribute("component", component);
+                    .With("component", component);
         }
     }
 

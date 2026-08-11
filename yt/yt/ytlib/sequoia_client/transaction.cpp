@@ -86,8 +86,8 @@ void ValidateSequoiaTableSchema(ESequoiaTable table, const TTableSchemaPtr& actu
         NTableClient::EErrorCode::SchemaViolation,
         "Sequoia table %Qlv has unexpected schema",
         table)
-        << TErrorAttribute("expected_schema", *expectedSchema)
-        << TErrorAttribute("actual_schema", *actualSchema);
+        .With("expected_schema", *expectedSchema)
+        .With("actual_schema", *actualSchema);
 }
 
 } // namespace

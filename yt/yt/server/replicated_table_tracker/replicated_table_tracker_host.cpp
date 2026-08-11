@@ -251,7 +251,7 @@ void TReplicatedTableTrackerHost::RequestStateUpdates()
         {
             RequestLoadingFromSnapshot();
             THROW_ERROR_EXCEPTION("Replicated Table Tracker has stale state; will load from snapshot")
-                << responseOrError;
+                .With(responseOrError);
         }
 
         auto response = responseOrError.ValueOrThrow();

@@ -774,7 +774,7 @@ TErrorOr<TLocationMemoryGuard> TChunkLocation::TryAcquireLocationMemory(
         return TError(NChunkClient::EErrorCode::WriteThrottlingActive,
             "Location memory of category %Qlv exceeds memory limit",
             EMemoryCategory::PendingDiskWrite)
-            << memoryGuardOrError;
+            .With(memoryGuardOrError);
     } else {
         return TError(memoryGuardOrError);
     }
@@ -956,19 +956,19 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
 
     if (readQueueSize > GetReadThrottlingLimit()) {
         error = TError("Pending IO size of workload category exceeds read throttling limit")
-            << TErrorAttribute("workload_category", workloadDescriptor.Category)
-            << TErrorAttribute("pending_io_size", readQueueSize)
-            << TErrorAttribute("read_throttling_limit", GetReadThrottlingLimit());
+            .With("workload_category", workloadDescriptor.Category)
+            .With("pending_io_size", readQueueSize)
+            .With("read_throttling_limit", GetReadThrottlingLimit());
     } else if (IOEngine_->IsInFlightRequestLimitExceeded()) {
         error = TError("In flight IO requests count exceeds total request limit")
-            << TErrorAttribute("in_flight_requests", IOEngine_->GetInFlightRequestCount())
-            << TErrorAttribute("in_flight_write_requests", IOEngine_->GetInFlightWriteRequestCount())
-            << TErrorAttribute("in_flight_read_requests", IOEngine_->GetInFlightReadRequestCount())
-            << TErrorAttribute("total_request_limit", IOEngine_->GetTotalRequestLimit());
+            .With("in_flight_requests", IOEngine_->GetInFlightRequestCount())
+            .With("in_flight_write_requests", IOEngine_->GetInFlightWriteRequestCount())
+            .With("in_flight_read_requests", IOEngine_->GetInFlightReadRequestCount())
+            .With("total_request_limit", IOEngine_->GetTotalRequestLimit());
     } else if (IOEngine_->IsInFlightReadRequestLimitExceeded()) {
         error = TError("In flight IO read request count exceeds read request limit")
-            << TErrorAttribute("in_flight_read_request_count", IOEngine_->GetInFlightReadRequestCount())
-            << TErrorAttribute("read_requests_limit", IOEngine_->GetReadRequestLimit());
+            .With("in_flight_read_request_count", IOEngine_->GetInFlightReadRequestCount())
+            .With("read_requests_limit", IOEngine_->GetReadRequestLimit());
     } else if (i64 usedMemory = GetUsedMemory(EIODirection::Read),
         readMemoryLimit = GetReadMemoryLimit();
         usedMemory > readMemoryLimit)
@@ -976,8 +976,8 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
         error = TError(
             "Location memory of category %Qlv exceeds memory limit",
             EMemoryCategory::PendingDiskRead)
-            << TErrorAttribute("bytes_used", usedMemory)
-            << TErrorAttribute("bytes_limit", readMemoryLimit);
+            .With("bytes_used", usedMemory)
+            .With("bytes_limit", readMemoryLimit);
     } else if (i64 usedMemory = GetUsedMemory(EIODirection::Read) +
             GetUsedMemory(EIODirection::Write),
         memoryLimit = GetTotalMemoryLimit();
@@ -985,14 +985,14 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
     {
         error = TError(
             "Location memory exceeds memory limit")
-            << TErrorAttribute("bytes_used", usedMemory)
-            << TErrorAttribute("bytes_limit", memoryLimit);
+            .With("bytes_used", usedMemory)
+            .With("bytes_limit", memoryLimit);
     } else if (ReadMemoryTracker_->IsExceeded()) {
         error = TError(
             "Memory of category %Qlv exceeds memory limit",
             EMemoryCategory::PendingDiskRead)
-            << TErrorAttribute("bytes_used", ReadMemoryTracker_->GetUsed())
-            << TErrorAttribute("bytes_limit", ReadMemoryTracker_->GetLimit());
+            .With("bytes_used", ReadMemoryTracker_->GetUsed())
+            .With("bytes_limit", ReadMemoryTracker_->GetLimit());
     } else {
         throttled = false;
     }
@@ -1054,8 +1054,8 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             NChunkClient::EErrorCode::WriteThrottlingActive,
             "Memory of category %Qlv exceeds memory limit",
             EMemoryCategory::PendingDiskWrite)
-            << TErrorAttribute("bytes_used", WriteMemoryTracker_->GetUsed())
-            << TErrorAttribute("bytes_limit", WriteMemoryTracker_->GetLimit());
+            .With("bytes_used", WriteMemoryTracker_->GetUsed())
+            .With("bytes_limit", WriteMemoryTracker_->GetLimit());
         memoryOvercommit = true;
     } else if (i64 usedMemory = GetUsedMemory(EIODirection::Write, workloadDescriptor),
         writeMemoryLimit = GetWriteMemoryLimit();
@@ -1065,8 +1065,8 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             NChunkClient::EErrorCode::WriteThrottlingActive,
             "Location memory of category %Qlv exceeds memory limit",
             EMemoryCategory::PendingDiskWrite)
-            << TErrorAttribute("bytes_used", usedMemory)
-            << TErrorAttribute("bytes_limit", writeMemoryLimit);
+            .With("bytes_used", usedMemory)
+            .With("bytes_limit", writeMemoryLimit);
         memoryOvercommit = true;
     } else if (i64 usedMemory = GetUsedMemory(EIODirection::Write),
         writeMemoryLimit = GetWriteMemoryLimit();
@@ -1076,8 +1076,8 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
             NChunkClient::EErrorCode::WriteThrottlingActive,
             "Location memory of category %Qlv exceeds memory limit",
             EMemoryCategory::PendingDiskWrite)
-            << TErrorAttribute("bytes_used", usedMemory)
-            << TErrorAttribute("bytes_limit", writeMemoryLimit);
+            .With("bytes_used", usedMemory)
+            .With("bytes_limit", writeMemoryLimit);
         memoryOvercommit = true;
     } else if (i64 usedMemory = GetUsedMemory(EIODirection::Read) +
             GetUsedMemory(EIODirection::Write),
@@ -1086,22 +1086,22 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
     {
         error = TError(
             "Location memory exceeds memory limit")
-            << TErrorAttribute("bytes_used", usedMemory)
-            << TErrorAttribute("bytes_limit", memoryLimit);
+            .With("bytes_used", usedMemory)
+            .With("bytes_limit", memoryLimit);
     } else if (IOEngine_->IsInFlightRequestLimitExceeded()) {
         error = TError(
             NChunkClient::EErrorCode::WriteThrottlingActive,
             "In flight IO requests count exceeds total request limit")
-            << TErrorAttribute("in_flight_requests", IOEngine_->GetInFlightRequestCount())
-            << TErrorAttribute("in_flight_write_requests", IOEngine_->GetInFlightWriteRequestCount())
-            << TErrorAttribute("in_flight_read_requests", IOEngine_->GetInFlightReadRequestCount())
-            << TErrorAttribute("total_request_limit", IOEngine_->GetTotalRequestLimit());
+            .With("in_flight_requests", IOEngine_->GetInFlightRequestCount())
+            .With("in_flight_write_requests", IOEngine_->GetInFlightWriteRequestCount())
+            .With("in_flight_read_requests", IOEngine_->GetInFlightReadRequestCount())
+            .With("total_request_limit", IOEngine_->GetTotalRequestLimit());
     } else if (IOEngine_->IsInFlightWriteRequestLimitExceeded()) {
         error = TError(
             NChunkClient::EErrorCode::WriteThrottlingActive,
             "In flight IO write request count exceeds write request limit")
-            << TErrorAttribute("in_flight_write_requests", IOEngine_->GetInFlightWriteRequestCount())
-            << TErrorAttribute("write_request_limit", IOEngine_->GetWriteRequestLimit());
+            .With("in_flight_write_requests", IOEngine_->GetInFlightWriteRequestCount())
+            .With("write_request_limit", IOEngine_->GetWriteRequestLimit());
     } else {
         throttled = false;
     }
@@ -1681,7 +1681,7 @@ void TStoreLocation::OnCheckTrash()
         CheckTrashWatermark();
     } catch (const std::exception& ex) {
         auto error = TError("Error checking trash")
-            << ex;
+            .With(ex);
         ScheduleDisable(error);
     }
 }
@@ -1793,7 +1793,7 @@ void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
             NChunkClient::EErrorCode::IOError,
             "Error moving chunk %v to trash",
             chunkId)
-            << ex;
+            .With(ex);
         ScheduleDisable(error);
     }
 }
@@ -1815,7 +1815,7 @@ void TStoreLocation::RemoveLocationChunks()
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Cannot complete unregister chunk futures")
-            << ex;
+            .With(ex);
     }
 }
 
@@ -1832,10 +1832,10 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
     // No new actions can appear here. Please see TDiskLocation::RegisterAction.
     auto error = TError(NChunkClient::EErrorCode::LocationDisabled,
         "Chunk location at %v is disabled", GetPath())
-        << TErrorAttribute("location_uuid", GetUuid())
-        << TErrorAttribute("location_path", GetPath())
-        << TErrorAttribute("location_disk", StaticConfig_->DeviceName)
-        << reason;
+        .With("location_uuid", GetUuid())
+        .With("location_path", GetPath())
+        .With("location_disk", StaticConfig_->DeviceName)
+        .With(reason);
     LocationDisabledAlert_.Store(error);
 
     auto dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;

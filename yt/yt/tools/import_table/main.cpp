@@ -120,7 +120,7 @@ EFileFormat ParseFileFormat(const std::string& fileFormatString)
         return ParseEnum<EFileFormat>(fileFormatString);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Invalid file format %Qv", fileFormatString)
-            << ex;
+            .With(ex);
     }
 }
 

@@ -1037,9 +1037,9 @@ void ExtractErasureBlocks(
         for (int blockIndex = 0; blockIndex < totalBlockCount; ++blockIndex) {
             if (ToString(groundTruth[blockIndex]) != ToString(repairedBlocks[blockIndex].Data)) {
                 THROW_ERROR_EXCEPTION("Block repair failed")
-                    << TErrorAttribute("repair_iteration", iter)
-                    << TErrorAttribute("block_index", blockIndex)
-                    << TErrorAttribute("erased_parts_indices", erasedIndicesStr);
+                    .With("repair_iteration", iter)
+                    .With("block_index", blockIndex)
+                    .With("erased_parts_indices", erasedIndicesStr);
             }
         }
     }

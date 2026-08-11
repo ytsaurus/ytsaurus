@@ -89,8 +89,8 @@ TStateSchemaPtr BuildYsonStateSchema(std::function<TYsonStructPtr()> ctor)
                 formatIsRequired = true;
                 if (!IsStringLikeType(type)) {
                     THROW_ERROR_EXCEPTION("Compressed column should be string like type")
-                        << TErrorAttribute("key", key)
-                        << TErrorAttribute("type", type);
+                        .With("key", key)
+                        .With("type", type);
                 }
                 columns.push_back(TColumnSchema(key, ESimpleLogicalValueType::String).SetRequired(required));
                 break;
@@ -99,8 +99,8 @@ TStateSchemaPtr BuildYsonStateSchema(std::function<TYsonStructPtr()> ctor)
                 formatIsRequired = true;
                 if (!IsStringLikeType(type)) {
                     THROW_ERROR_EXCEPTION("Packable column should be string like type")
-                        << TErrorAttribute("key", key)
-                        << TErrorAttribute("type", type);
+                        .With("key", key)
+                        .With("type", type);
                 }
                 columns.push_back(TColumnSchema(key, ESimpleLogicalValueType::String).SetRequired(required));
                 columns.push_back(TColumnSchema(GetYsonStatePatchField(key), ESimpleLogicalValueType::String).SetRequired(required));
@@ -300,7 +300,7 @@ void TState::ParseTableRow()
             } else {
                 if (!patch.ToStringBuf().empty()) {
                     THROW_ERROR_EXCEPTION("Unexpected non-empty patch")
-                        << TErrorAttribute("column", Schema_->TableSchema->Columns()[tablePatchIndex].Name());
+                        .With("column", Schema_->TableSchema->Columns()[tablePatchIndex].Name());
                 }
                 addValue(MakeUnversionedNullValue());
                 UncompressedPackableTableColumns_[index] = std::nullopt;

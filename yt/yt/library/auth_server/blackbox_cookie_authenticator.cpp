@@ -156,8 +156,8 @@ private:
             auto reason = error.IsOK() ? error.Value() : "unknown";
             auto statusString = status.has_value() ? Format("%lv", *status) : "unknown";
             return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected session cookie")
-                << TErrorAttribute("reason", reason)
-                << TErrorAttribute("blackbox_status_string", statusString);
+                .With("reason", reason)
+                .With("blackbox_status_string", statusString);
         }
 
         auto login = BlackboxService_->GetLogin(data);

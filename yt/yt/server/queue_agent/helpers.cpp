@@ -48,7 +48,7 @@ TErrorOr<EQueueFamily> DeduceQueueFamily(
             replicatedTableMappingRow->Validate();
         } catch (const std::exception& ex) {
             return TError("Invalid replicated table mapping row")
-                << ex;
+                .With(ex);
         }
     }
 
@@ -243,7 +243,7 @@ TFuture<THashMap<std::string, TQueueExportProgressPtr>> GetQueueExportProgressFr
         .Run()
         .AsUnique().Apply(BIND([queuePath] (TErrorOr<THashMap<std::string, TQueueExportProgressPtr>>&& result) -> TErrorOr<THashMap<std::string, TQueueExportProgressPtr>> {
             if (!result.IsOK()) {
-                return TError("Failed to get queue exports progress for %v", queuePath) << TError(result);
+                return TError("Failed to get queue exports progress for %v", queuePath).With(TError(result));
             }
             return result;
         }));
@@ -335,7 +335,7 @@ void ValidateConsumer(
 {
     if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
         THROW_ERROR_EXCEPTION("Consumer synchronization failed")
-            << *row.SynchronizationError;
+            .With(*row.SynchronizationError);
     }
 
     if (!row.RowRevision) {

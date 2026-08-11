@@ -1563,8 +1563,8 @@ private:
                 "dynamic store %v in tablet %v is not flushed",
                 dynamicStore->GetId(),
                 tablet->GetId())
-                << TErrorAttribute("original_table_path", originalTablePath)
-                << TErrorAttribute("table_id", tablet->GetTable()->GetId());
+                .With("original_table_path", originalTablePath)
+                .With("table_id", tablet->GetTable()->GetId());
         };
 
         auto children = EnumerateStoresInChunkTree(tablet->GetChunkList());
@@ -1600,10 +1600,10 @@ private:
                 "Cannot backup ordered tablet %v since it is trimmed "
                 "beyond cutoff row index",
                 tablet->GetId())
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("table_id", tablet->GetTable()->GetId())
-                << TErrorAttribute("trimmed_row_count", tablet->GetTrimmedRowCount())
-                << TErrorAttribute("cutoff_row_index", descriptor.CutoffRowIndex);
+                .With("tablet_id", tablet->GetId())
+                .With("table_id", tablet->GetTable()->GetId())
+                .With("trimmed_row_count", tablet->GetTrimmedRowCount())
+                .With("cutoff_row_index", descriptor.CutoffRowIndex);
         }
 
         if (!descriptor.NextDynamicStoreId) {
@@ -1619,8 +1619,8 @@ private:
                             "Cannot backup ordered tablet %v since it is not fully flushed "
                             "and its origin was not mounted during the backup",
                             tablet->GetId())
-                            << TErrorAttribute("tablet_id", tablet->GetId())
-                            << TErrorAttribute("table_id", tablet->GetTable()->GetId());
+                            .With("tablet_id", tablet->GetId())
+                            .With("table_id", tablet->GetTable()->GetId());
                     }
                 }
             }
@@ -1637,13 +1637,13 @@ private:
 
         auto wrapInternalErrorAndLog = [&] (TError innerError) {
             innerError = innerError
-                << TErrorAttribute("table_id", tablet->GetTable()->GetId())
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("cutoff_row_index", descriptor.CutoffRowIndex)
-                << TErrorAttribute("next_dynamic_store_id", descriptor.NextDynamicStoreId)
-                << TErrorAttribute("cutoff_child_index", cutoffChildIndex);
+                .With("table_id", tablet->GetTable()->GetId())
+                .With("tablet_id", tablet->GetId())
+                .With("cutoff_row_index", descriptor.CutoffRowIndex)
+                .With("next_dynamic_store_id", descriptor.NextDynamicStoreId)
+                .With("cutoff_child_index", cutoffChildIndex);
             auto error = TError("Cannot backup ordered tablet due to an internal error")
-                << innerError;
+                .With(innerError);
             YT_LOG_ALERT(error, "Failed to perform backup cutoff");
             return error;
         };
@@ -1658,7 +1658,7 @@ private:
                 if (cumulativeRowCount > descriptor.CutoffRowIndex) {
                     auto error = TError("Cumulative row count at the cutoff dynamic store "
                         "is greater than expected")
-                        << TErrorAttribute("cumulative_row_count", cumulativeRowCount);
+                        .With("cumulative_row_count", cumulativeRowCount);
                     return wrapInternalErrorAndLog(error);
                 }
 
@@ -1668,7 +1668,7 @@ private:
 
             if (cumulativeRowCount > descriptor.CutoffRowIndex) {
                 auto error = TError("Cumulative row count exceeded cutoff row index")
-                    << TErrorAttribute("cumulative_row_count", cumulativeRowCount);
+                    .With("cumulative_row_count", cumulativeRowCount);
                 return wrapInternalErrorAndLog(error);
             }
 
@@ -1683,7 +1683,7 @@ private:
             !hitDynamicStore)
         {
             auto error = TError("Row count at final cutoff child index does not match cutoff row index")
-                << TErrorAttribute("cumulative_row_count", statistics.GetPreviousSum(cutoffChildIndex).RowCount);
+                .With("cumulative_row_count", statistics.GetPreviousSum(cutoffChildIndex).RowCount);
             return wrapInternalErrorAndLog(error);
         }
 
@@ -2107,8 +2107,8 @@ private:
             auto firstDynamicStore = tabletChunkList->Children()[firstDynamicStoreIndex];
             if (firstDynamicStore->GetId() != storeId) {
                 THROW_ERROR_EXCEPTION("Attempted to flush ordered dynamic store out of order")
-                    << TErrorAttribute("first_dynamic_store_id", firstDynamicStore->GetId())
-                    << TErrorAttribute("flushed_store_id", storeId);
+                    .With("first_dynamic_store_id", firstDynamicStore->GetId())
+                    .With("flushed_store_id", storeId);
             }
         }
     }

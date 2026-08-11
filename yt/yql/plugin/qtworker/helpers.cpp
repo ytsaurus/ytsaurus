@@ -27,7 +27,7 @@ NYql::NProto::TTaskFile::EType FileTypeToProto(EQueryFileContentType type)
             return NYql::NProto::TTaskFile::URL;
         default:
             THROW_ERROR_EXCEPTION("Unexpected file content")
-                << TErrorAttribute("type", static_cast<int>(type));
+                .With("type", static_cast<int>(type));
     }
 }
 

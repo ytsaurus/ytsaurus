@@ -107,7 +107,7 @@ THashSet<std::string> GetUserSubjects(const std::string& user, const IClientPtr&
             return {};
         }
         THROW_ERROR_EXCEPTION("Error while fetching user membership for the user %Qv", user)
-            << userSubjectsOrError;
+            .With(userSubjectsOrError);
     }
     return ConvertTo<THashSet<std::string>>(userSubjectsOrError.Value());
 }

@@ -270,7 +270,7 @@ public:
 
         if (!Engine_) {
             THROW_ERROR_EXCEPTION("Could not create llvm::ExecutionEngine")
-                << TError(std::move(what), TError::DisableFormat);
+                .With(TError(std::move(what), TError::DisableFormat));
         }
 
 #if !LLVM_VERSION_GE(3, 9)

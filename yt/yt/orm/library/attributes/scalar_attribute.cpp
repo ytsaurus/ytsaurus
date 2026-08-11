@@ -343,7 +343,7 @@ protected:
                     GetMissingFieldPolicy() == EMissingFieldPolicy::Force);
                 value = ConvertToYsonString(root);
             } catch (std::exception& ex) {
-                THROW_ERROR_EXCEPTION(TError("Failed to store yson string") << ex);
+                THROW_ERROR_EXCEPTION(TError("Failed to store yson string").With(ex));
             }
         }
     }

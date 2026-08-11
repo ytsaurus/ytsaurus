@@ -1303,8 +1303,8 @@ public:
         auto rootSlotWindowSize = rootBucket->SlotWindowSize.load();
         if (rootRequestWindowSize <= 0 || rootSlotWindowSize <= 0) {
             return TError("Root windows are not filled yet")
-                << TErrorAttribute("request_window_size", rootRequestWindowSize)
-                << TErrorAttribute("slot_window_size", rootSlotWindowSize);
+                .With("request_window_size", rootRequestWindowSize)
+                .With("slot_window_size", rootSlotWindowSize);
         }
 
         constexpr double WeightTolerance = 0.05;

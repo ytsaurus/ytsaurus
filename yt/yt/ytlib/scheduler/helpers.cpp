@@ -523,15 +523,15 @@ TError ValidateCheckPermissionsResults(
         auto error = TError(
             NSecurityClient::EErrorCode::AuthorizationError,
             "Operation access denied")
-            << TErrorAttribute("user", userStr)
-            << TErrorAttribute("required_permissions", permissionSet);
+            .With("user", userStr)
+            .With("required_permissions", permissionSet);
         if (operationId) {
             error = error
-                << TErrorAttribute("operation_id", operationId);
+                .With("operation_id", operationId);
         }
         if (jobId) {
             error = error
-                << TErrorAttribute("job_id", jobId);
+                .With("job_id", jobId);
         }
         return error;
     }
@@ -776,13 +776,13 @@ TError CheckPoolName(const std::string& poolName, const re2::RE2& regex)
 {
     if (poolName == RootPoolName) {
         return TError("Pool name cannot be equal to root pool name")
-            << TErrorAttribute("root_pool_name", RootPoolName);
+            .With("root_pool_name", RootPoolName);
     }
 
     if (poolName.length() > PoolNameMaxLength) {
         return TError("Pool name %Qv is too long", poolName)
-            << TErrorAttribute("length", poolName.length())
-            << TErrorAttribute("max_length", PoolNameMaxLength);
+            .With("length", poolName.length())
+            .With("max_length", PoolNameMaxLength);
     }
 
     if (!NRe2::TRe2::FullMatch(re2::StringPiece(poolName), regex)) {

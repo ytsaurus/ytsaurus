@@ -82,8 +82,8 @@ public:
         // The predicate must evaluate to a boolean; anything else (including NULL) is a misconfigured expression.
         if (result.Type != EValueType::Boolean) {
             THROW_ERROR_EXCEPTION("Message filter expression must evaluate to a boolean value, but got %Qlv",
-                    result.Type)
-                << TErrorAttribute("expression", Expression_);
+                result.Type)
+                .With("expression", Expression_);
         }
         return result.Data.Boolean;
     }

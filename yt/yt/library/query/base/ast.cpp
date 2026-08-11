@@ -77,7 +77,7 @@ size_t TReferenceHasher::operator()(const TReference& reference) const
     if (reference.CompositeTypeAccessor.DictOrListItemAccessor) {
         if (std::ssize(*reference.CompositeTypeAccessor.DictOrListItemAccessor) != 1) {
             THROW_ERROR_EXCEPTION("Expression inside of the list or dict item accessor should be scalar")
-                << TErrorAttribute("source", FormatReference(reference));
+                .With("source", FormatReference(reference));
         }
         HashCombine(result, reference.CompositeTypeAccessor.DictOrListItemAccessor->front());
     }
@@ -520,7 +520,7 @@ void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int 
 {
     if (depth >= MaxExpressionDepth) {
         THROW_ERROR_EXCEPTION("Maximum expression depth exceeded")
-            << TErrorAttribute("max_expression_depth", MaxExpressionDepth);
+            .With("max_expression_depth", MaxExpressionDepth);
     }
     // Preserving existing behavior, see YT-28316.
     auto compatOptions = options;

@@ -66,7 +66,7 @@ std::vector<std::string> THuggingfaceClient::GetParquetFileUrls(const std::strin
 
     if (response->GetStatusCode() != EStatusCode::OK) {
         THROW_ERROR_EXCEPTION("Failed to get Parquet files list")
-            << TErrorAttribute("status_code", response->GetStatusCode());
+            .With("status_code", response->GetStatusCode());
     }
 
     auto data = response->ReadAll();
@@ -91,7 +91,7 @@ IAsyncZeroCopyInputStreamPtr THuggingfaceClient::DownloadFile(const std::string&
 
     if (response->GetStatusCode() != EStatusCode::OK) {
         THROW_ERROR_EXCEPTION("Failed to download file, HTTP proxy discovery request returned an error")
-            << TErrorAttribute("status_code", response->GetStatusCode());
+            .With("status_code", response->GetStatusCode());
     }
 
     return response;

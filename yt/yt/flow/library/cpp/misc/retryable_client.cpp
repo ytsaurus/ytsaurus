@@ -38,10 +38,10 @@ TFuture<TResult> ExecuteWithRetriesSyncImpl(
 
     auto makeError = [&] (TStringBuf message) -> TError {
         return TError("%v", message)
-            << TErrorAttribute("total_time", TInstant::Now() - startTime)
-            << TErrorAttribute("total_time_limit", dynamicSpec->Timeout)
-            << TErrorAttribute("failed_attempts", backoffStrategy.GetInvocationIndex())
-            << TErrorAttribute("attempts_count_limit", backoffStrategy.GetInvocationCount());
+            .With("total_time", TInstant::Now() - startTime)
+            .With("total_time_limit", dynamicSpec->Timeout)
+            .With("failed_attempts", backoffStrategy.GetInvocationIndex())
+            .With("attempts_count_limit", backoffStrategy.GetInvocationCount());
     };
 
     auto makeNoMoreRetriesErrorFuture = [&] () -> TFuture<TResult> {
@@ -65,7 +65,7 @@ TFuture<TResult> ExecuteWithRetriesSyncImpl(
             }
             lastError = resultOrError;
             if (!IsFlowRetriableError(lastError)) {
-                return MakeFuture<TResult>(makeError("Request attempt failed, error is not retryable") << lastError);
+                return MakeFuture<TResult>(makeError("Request attempt failed, error is not retryable").With(lastError));
             }
 
             if (!backoffStrategy.Next()) {

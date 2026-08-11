@@ -108,7 +108,7 @@ TRefCountedChunkMetaPtr DeserializeChunkMeta(
             chunkMetaFilename,
             metaHeader.Checksum,
             checksum)
-            << TErrorAttribute("meta_file_length", metaFileBlob.Size());
+            .With("meta_file_length", metaFileBlob.Size());
     }
 
     if (chunkId != NullChunkId && metaHeader.ChunkId != chunkId) {
@@ -162,8 +162,8 @@ std::vector<TBlock> DeserializeBlocks(
                     chunkFileName,
                     blockInfo.Checksum,
                     checksum)
-                    << TErrorAttribute("first_block_index", blockRange.StartBlockIndex)
-                    << TErrorAttribute("block_count", blockRange.EndBlockIndex - blockRange.StartBlockIndex);
+                    .With("first_block_index", blockRange.StartBlockIndex)
+                    .With("block_count", blockRange.EndBlockIndex - blockRange.StartBlockIndex);
             }
         }
         blocks.emplace_back(block, blockInfo.Checksum);
@@ -370,8 +370,8 @@ TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MalformedReadRequest,
             "Invalid block index in fragment descriptor")
-            << makeErrorAttributes()
-            << TErrorAttribute("block_count", BlocksExt_->Blocks.size());
+            .With(makeErrorAttributes())
+            .With("block_count", BlocksExt_->Blocks.size());
     }
 
     const auto& blockInfo = BlocksExt_->Blocks[fragmentDescriptor.BlockIndex];
@@ -383,7 +383,7 @@ TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MalformedReadRequest,
             "Negative length in fragment descriptor")
-            << makeErrorAttributes();
+            .With(makeErrorAttributes());
     }
 
     if (fragmentDescriptor.BlockOffset < 0 ||
@@ -392,8 +392,8 @@ TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MalformedReadRequest,
             "Fragment is out of block range")
-            << makeErrorAttributes()
-            << TErrorAttribute("block_size", blockInfo.Size);
+            .With(makeErrorAttributes())
+            .With("block_size", blockInfo.Size);
     }
 
     return TReadRequest{

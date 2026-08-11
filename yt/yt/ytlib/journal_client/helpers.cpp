@@ -510,7 +510,7 @@ private:
         } else if (ResponseCounter_ == std::ssize(Replicas_)) {
             auto combinedError = TError("Unable to abort sessions quorum for journal chunk %v",
                 ChunkId_)
-                << InnerErrors_;
+                .With(InnerErrors_);
             Promise_.TrySet(combinedError);
         }
     }
@@ -664,7 +664,7 @@ private:
             YT_LOG_WARNING(rspOrError, "Failed to get journal chunk meta (Replica: %v)",
                 replica);
             ChunkMetaInnerErrors_.push_back(TError("Failed to get chunk meta for replica %v", replica)
-                << rspOrError);
+                .With(rspOrError));
             return;
         }
 
@@ -699,7 +699,7 @@ private:
             YT_LOG_WARNING(rspOrError, "Failed to get journal chunk header block (Replica: %v)",
                 replica);
             HeaderBlockInnerErrors_.push_back(TError("Failed to get journal chunk header block for replica %v", replica)
-                << rspOrError);
+                .With(rspOrError));
             return;
         }
 
@@ -717,7 +717,7 @@ private:
             YT_LOG_WARNING(rspOrError, "Error parsing journal chunk header block (Replica: %v)",
                 replica);
             ChunkMetaInnerErrors_.push_back(TError("Error parsing journal chunk header block received from replica %v", replica)
-                << rspOrError);
+                .With(rspOrError));
             return;
         }
 
@@ -725,7 +725,7 @@ private:
             YT_LOG_WARNING(rspOrError, "Received journal chunk header block without first row index (Replica: %v)",
                 replica);
             ChunkMetaInnerErrors_.push_back(TError("Received journal chunk header block without first row index from replica %v", replica)
-                << rspOrError);
+                .With(rspOrError));
             return;
         }
 
@@ -772,7 +772,7 @@ private:
             if (!Header_) {
                 Promise_.Set(TError("Could not receive successful response to any header request for overlayed journal chunk %v",
                     ChunkId_)
-                    << HeaderBlockInnerErrors_);
+                    .With(HeaderBlockInnerErrors_));
                 return;
             }
             result.FirstOverlayedRowIndex = Header_->first_row_index();

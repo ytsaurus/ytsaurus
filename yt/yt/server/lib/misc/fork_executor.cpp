@@ -86,7 +86,7 @@ TFuture<void> TForkExecutor::Fork()
 
         if (ChildPid_ < 0) {
             THROW_ERROR_EXCEPTION("fork failed")
-                << TError::FromSystem();
+                .With(TError::FromSystem());
         }
 
         if (ChildPid_ == 0) {
@@ -163,7 +163,7 @@ void TForkExecutor::OnWatchdogCheck()
         }
 
         auto error = TError("Child process timed out")
-            << TErrorAttribute("timeout", timeout);
+            .With("timeout", timeout);
         YT_LOG_ERROR(error);
         Result_.TrySet(error);
 
@@ -250,7 +250,7 @@ void TForkExecutor::DoCancel(const TError& error)
     YT_LOG_INFO("Child process killed");
 
     Result_.TrySet(TError(NYT::EErrorCode::Canceled, "Fork executor canceled")
-        << error);
+        .With(error));
     DoEndChild();
 }
 

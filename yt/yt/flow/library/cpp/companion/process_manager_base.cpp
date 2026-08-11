@@ -248,7 +248,7 @@ void TProcessManagerBase::DoStart()
         try {
             ValidateParameters();
         } catch (const std::exception& ex) {
-            auto error = TError("Companion process parameters are invalid") << TError(ex);
+            auto error = TError("Companion process parameters are invalid").With(TError(ex));
             ErrorState_->SetError(error);
             THROW_ERROR error;
         }
@@ -285,7 +285,7 @@ void TProcessManagerBase::OnProcessStopped(const TError& error, const std::strin
     auto exitCode = error.Attributes().Find<int>("exit_code");
 
     auto stopError = TError("Companion process was stopped")
-        << error;
+        .With(error);
     if (exitCode) {
         stopError <<= TErrorAttribute("exit_code", *exitCode);
     }

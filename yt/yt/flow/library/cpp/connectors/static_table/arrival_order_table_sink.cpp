@@ -136,11 +136,11 @@ void TArrivalOrderTableSink::ValidateProgressOwnership(const TArrivalOrderTableS
 {
     auto owner = GetOwner();
     THROW_ERROR_EXCEPTION_UNLESS(*progress->Owner == *owner,
-            "Output directory %v already holds the progress of another writer; "
-            "remove its @progress attribute to hand the directory over",
-            OutputDirectory_)
-        << TErrorAttribute("stored_owner", progress->Owner)
-        << TErrorAttribute("expected_owner", owner);
+        "Output directory %v already holds the progress of another writer; "
+        "remove its @progress attribute to hand the directory over",
+        OutputDirectory_)
+        .With("stored_owner", progress->Owner)
+        .With("expected_owner", owner);
 }
 
 TArrivalOrderTableSinkProgressPtr TArrivalOrderTableSink::ReadOrSeedProgress(

@@ -105,7 +105,7 @@ private:
             YT_LOG_DEBUG("Finished synchronizing cell directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing cell directory")
-                << ex;
+                .With(ex);
         }
     }
 };

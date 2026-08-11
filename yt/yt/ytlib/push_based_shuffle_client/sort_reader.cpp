@@ -167,7 +167,7 @@ private:
             return;
         }
         if (!batchOrError.IsOK()) {
-            Fail(TError("Error reading shuffle partition") << batchOrError);
+            Fail(TError("Error reading shuffle partition").With(batchOrError));
             return;
         }
         const auto& batch = batchOrError.Value();
@@ -262,7 +262,7 @@ private:
         --PendingSortCount_;
         if (!error.IsOK()) {
             if (TerminalError_.IsOK()) {
-                Fail(TError("Error sorting shuffle rows") << error);
+                Fail(TError("Error sorting shuffle rows").With(error));
             } else {
                 MaybeReleaseFailedState();
             }
@@ -318,7 +318,7 @@ private:
         try {
             MakeHeap(MergeHeap_.begin(), MergeHeap_.end(), MakeMergeComparator());
         } catch (const std::exception& ex) {
-            Fail(TError("Error merging sorted shuffle rows") << TError(ex));
+            Fail(TError("Error merging sorted shuffle rows").With(TError(ex)));
             return;
         }
 
@@ -349,7 +349,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-        Fail(TError(NYT::EErrorCode::Canceled, "Sort reader canceled") << error);
+        Fail(TError(NYT::EErrorCode::Canceled, "Sort reader canceled").With(error));
     }
 
     void ResolveRead(const TPromise<TSharedRange<TUnversionedRow>>& promise)
@@ -371,7 +371,7 @@ private:
             Fail(error);
             SetReadPromise(promise, error);
         } catch (const std::exception& ex) {
-            auto error = TError("Error merging sorted shuffle rows") << TError(ex);
+            auto error = TError("Error merging sorted shuffle rows").With(TError(ex));
             Fail(error);
             SetReadPromise(promise, error);
         }
@@ -405,7 +405,7 @@ private:
             Fail(ex.Error());
             return;
         } catch (const std::exception& ex) {
-            Fail(TError("Error merging sorted shuffle rows") << TError(ex));
+            Fail(TError("Error merging sorted shuffle rows").With(TError(ex)));
             return;
         }
 

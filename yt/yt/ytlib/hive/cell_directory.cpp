@@ -87,8 +87,8 @@ public:
             Cluster_);
         return MakeFuture<IChannelPtr>(
             TError(NRpc::EErrorCode::Unavailable, "Cannot find cluster in the cluster directory")
-                << TErrorAttribute("cluster", Cluster_)
-                << TErrorAttribute("directory_avaliable", strongDirectory.operator bool()));
+                .With("cluster", Cluster_)
+                .With("directory_avaliable", strongDirectory.operator bool()));
     }
 
     void Terminate(const TError& /*error*/) override

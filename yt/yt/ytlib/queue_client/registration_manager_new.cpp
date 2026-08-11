@@ -434,14 +434,14 @@ private:
                     replicaLookupErrors.push_back(TError(
                         "Mismatch between requested key count and lookup result count for replica cluster %v",
                         replicaResult.Cluster)
-                        << TErrorAttribute("requested_key_count", Keys_.size())
-                        << TErrorAttribute("lookup_result_count", replicaResult.Result.size()));
+                        .With("requested_key_count", Keys_.size())
+                        .With("lookup_result_count", replicaResult.Result.size()));
                 }
             }
 
             if (!replicaLookupErrors.empty()) {
                 auto error = TError("Replica lookup invariants were violated")
-                    << replicaLookupErrors;
+                    .With(replicaLookupErrors);
                 YT_LOG_ALERT_AND_THROW(error);
             }
         }
@@ -1051,7 +1051,7 @@ private:
 
                 YT_LOG_DEBUG(throttleError, "Unexpected batch request throttler failure");
                 auto error = TError("Unexpected batch request throttler failure")
-                    << std::move(throttleError);
+                    .With(std::move(throttleError));
 
                 for (const auto& request : requests) {
                     SetResponse(request, error);
@@ -1085,7 +1085,7 @@ private:
                 responses = session->Run();
             } catch (const std::exception& ex) {
                 auto error = TError("State lookup batch request failed")
-                    << ex;
+                    .With(ex);
 
                 for (const auto& request : requests) {
                     SetResponse(request, error);
@@ -1207,8 +1207,8 @@ private:
     static TError EnrichError(TError error, bool isBatched = false)
     {
         return error
-            << TErrorAttribute("cache_kind", Format("%lv", CacheKind))
-            << TErrorAttribute("lookup_request_batched", isBatched);
+            .With("cache_kind", Format("%lv", CacheKind))
+            .With("lookup_request_batched", isBatched);
     }
 
     TFuture<TValue> DoGet(
@@ -1408,7 +1408,7 @@ private:
             }
 
             THROW_ERROR_EXCEPTION("Queue consumer registration resolution failed")
-                << TError(std::move(resultOrError));
+                .With(TError(std::move(resultOrError)));
         }
 
         return resultOrError.Value();
@@ -1426,7 +1426,7 @@ private:
             result = DoListRegistrationsGuarded(std::move(resolvedQueue), std::move(resolvedConsumer));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to list queue consumer registrations")
-                << ex;
+                .With(ex);
         }
 
         return result;
@@ -1505,7 +1505,7 @@ private:
                     "Cannot perform request for replica %Qv with unknown [chaos_]replicated_table; please contact YT support,"
                     " unless you specifically understand what this error means",
                     objectPath)
-                    << TError(std::move(resultOrError));
+                    .With(TError(std::move(resultOrError)));
             }
         }
 

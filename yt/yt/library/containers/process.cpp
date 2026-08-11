@@ -95,9 +95,9 @@ void TPortoProcess::DoSpawn()
     } catch (const std::exception& ex) {
         Finished_ = true;
         THROW_ERROR_EXCEPTION("Failed to start child process inside Porto")
-            << TErrorAttribute("path", ResolvedPath_)
-            << TErrorAttribute("container", ContainerLauncher_->GetName())
-            << ex;
+            .With("path", ResolvedPath_)
+            .With("container", ContainerLauncher_->GetName())
+            .With(ex);
     }
 }
 

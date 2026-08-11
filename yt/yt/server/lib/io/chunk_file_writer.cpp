@@ -208,7 +208,7 @@ TFuture<void> TChunkFileWriter::Open()
                 SetFailed(error);
                 THROW_ERROR_EXCEPTION("Failed to open chunk data file %v",
                     FileName_)
-                    << error;
+                    .With(error);
             }
 
             State_.store(EState::Ready);
@@ -287,7 +287,7 @@ bool TChunkFileWriter::WriteBlocks(
                 SetFailed(rspOrError);
                 THROW_ERROR_EXCEPTION("Failed to write chunk data file %v",
                     FileName_)
-                    << rspOrError;
+                    .With(rspOrError);
             }
 
             const auto& rsp = rspOrError.Value();
@@ -423,7 +423,7 @@ TFuture<void> TChunkFileWriter::Close(
                 SetFailed(error);
                 THROW_ERROR_EXCEPTION("Failed to close chunk data file %v",
                     FileName_)
-                    << error;
+                    .With(error);
             }
 
             ChunkInfo_.set_disk_space(DataSize_ + MetaDataSize_);

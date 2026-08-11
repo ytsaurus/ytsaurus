@@ -516,10 +516,10 @@ private:
         auto erasedIndices = GetErasedIndices(availableIndices);
 
         auto error = TError("Erasure journal chunk cannot be read")
-            << TErrorAttribute("chunk_id", Reader_->ChunkId_)
-            << TErrorAttribute("required_indices", Reader_->PartIndices_)
-            << TErrorAttribute("erased_indices", erasedIndices)
-            << TErrorAttribute("available_indices", availableIndices);
+            .With("chunk_id", Reader_->ChunkId_)
+            .With("required_indices", Reader_->PartIndices_)
+            .With("erased_indices", erasedIndices)
+            .With("available_indices", availableIndices);
 
         DoCancelFutures(std::move(guard));
 

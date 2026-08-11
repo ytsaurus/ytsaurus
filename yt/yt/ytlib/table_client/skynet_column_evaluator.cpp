@@ -83,7 +83,7 @@ void ValidateSkynetSchema(const TTableSchema& schema)
 
     if (!validationErrors.empty()) {
         THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation, "Invalid schema for Skynet shared table")
-            << validationErrors;
+            .With(validationErrors);
     }
 }
 

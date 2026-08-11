@@ -299,7 +299,7 @@ void TTabletChunkSpecFetcher::AddSorted(
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Invalid %v limit for table %Qv", limitKind, tableMountInfo.Path)
-                << ex;
+                .With(ex);
         }
     };
 

@@ -96,18 +96,18 @@ void TSchedulerPool::ValidateChildrenCompatibility()
                 childGuarantees->ResourceFlow->IsNonTrivial())
             {
                 THROW_ERROR_EXCEPTION("Integral pool %Qv cannot have children with integral resources", GetName())
-                    << TErrorAttribute("pool_name", GetName())
-                    << TErrorAttribute("pool_guarantee_type", FullConfig()->IntegralGuarantees->GuaranteeType)
-                    << TErrorAttribute("child_pool_name", child->GetName())
-                    << TErrorAttribute("child_burst_guarantee_resources", childGuarantees->BurstGuaranteeResources)
-                    << TErrorAttribute("child_resource_flow", childGuarantees->ResourceFlow);
+                    .With("pool_name", GetName())
+                    .With("pool_guarantee_type", FullConfig()->IntegralGuarantees->GuaranteeType)
+                    .With("child_pool_name", child->GetName())
+                    .With("child_burst_guarantee_resources", childGuarantees->BurstGuaranteeResources)
+                    .With("child_resource_flow", childGuarantees->ResourceFlow);
             }
         }
     }
 
     if (!KeyToChild().empty() && FullConfig_->Mode == ESchedulingMode::Fifo) {
         THROW_ERROR_EXCEPTION("Pool cannot have subpools since it is in FIFO mode")
-            << TErrorAttribute("pool_name", GetName());
+            .With("pool_name", GetName());
     }
 }
 
@@ -135,9 +135,9 @@ void TSchedulerPool::DoValidateStrongGuarantees(const TStrategyTreeConfigPtr& po
 
     if (hasAnyResourceGuarantee && !hasMainResourceGuarantee) {
         THROW_ERROR_EXCEPTION("Main resource guarantee must be specified in order to set guarantees for any other resource")
-            << TErrorAttribute("pool_name", GetName())
-            << TErrorAttribute("main_resource", poolTreeConfig->MainResource)
-            << TErrorAttribute("guarantee_config", FullConfig()->StrongGuaranteeResources);
+            .With("pool_name", GetName())
+            .With("main_resource", poolTreeConfig->MainResource)
+            .With("guarantee_config", FullConfig()->StrongGuaranteeResources);
     }
 
     if (recursive) {
@@ -157,7 +157,7 @@ TStrategyTreeConfigPtr TSchedulerPool::GetPoolTreeConfig() const
     if (!schedulerPool->IsRoot()) {
         // NB: Unlikely to happen.
         THROW_ERROR_EXCEPTION("Failed to get pool tree config because the pool is detached from the hierarchy")
-            << TErrorAttribute("pool_name", GetName());
+            .With("pool_name", GetName());
     }
 
     return schedulerPool->GetMaybePoolTree()->GetDeserializedConfigOrThrow();
@@ -377,8 +377,8 @@ TStrategyTreeConfigPtr TSchedulerPoolTree::GetDeserializedConfigOrThrow() const
             MemoizedDeserializedPoolTreeConfig_ = ConvertTo<TStrategyTreeConfigPtr>(SpecifiedConfig_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Invalid pool tree config")
-                    << TErrorAttribute("pool_tree", GetTreeName())
-                    << ex;
+                    .With("pool_tree", GetTreeName())
+                    .With(ex);
         }
     }
 

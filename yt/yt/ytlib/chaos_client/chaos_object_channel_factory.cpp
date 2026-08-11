@@ -57,7 +57,7 @@ public:
                 .Item("chaos_object_id").Value(chaosObjectId)
             .EndMap()))
         , UnavailableError_(TError(NRpc::EErrorCode::Unavailable, "Chaos object channel is not available")
-            << TErrorAttribute("endpoint", EndpointDescription_))
+            .With("endpoint", EndpointDescription_))
         , Logger(ChaosClientLogger()
             .WithTag("ProviderId", TGuid::Create())
             .WithTag("ChaosObjectId", chaosObjectId)

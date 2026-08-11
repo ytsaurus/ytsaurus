@@ -313,8 +313,8 @@ private:
         } catch (const std::exception& ex) {
             FailedCallCountCounter_.Increment();
             auto error = TError("Failed to get secrets from Vault")
-                << ex
-                << TErrorAttribute("call_id", callId);
+                .With(ex)
+                .With("call_id", callId);
             YT_LOG_DEBUG(error);
             THROW_ERROR error;
         }
@@ -368,8 +368,8 @@ private:
         } catch (const std::exception& ex) {
             FailedCallCountCounter_.Increment();
             auto error = TError("Failed to get delegation token from Vault")
-                << ex
-                << TErrorAttribute("call_id", callId);
+                .With(ex)
+                .With("call_id", callId);
             YT_LOG_DEBUG(error);
             THROW_ERROR error;
         }
@@ -531,8 +531,8 @@ private:
                 ? messageNode->GetValue<std::string>()
                 : "Vault error",
             TError::DisableFormat)
-            << TErrorAttribute("status", statusString)
-            << TErrorAttribute("code", codeString);
+            .With("status", statusString)
+            .With("code", codeString);
     }
 
     static ESecretVaultErrorCode ParseErrorCode(TStringBuf codeString)
@@ -554,7 +554,7 @@ private:
         return TError(
             ESecretVaultErrorCode::UnexpectedStatus,
             "Received unexpected status from Vault")
-            << TErrorAttribute("status", statusString);
+            .With("status", statusString);
     }
 
     static std::string GetWarningMessageFromResponse(const IMapNodePtr& node)

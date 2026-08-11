@@ -102,7 +102,7 @@ void TStateKeeper::ProcessMessage(
         state->Payload = builder.Finish();
     } else {
         THROW_ERROR_EXCEPTION("Unexpected stream_id")
-            << TErrorAttribute("stream_id", message->StreamId);
+            .With("stream_id", message->StreamId);
     }
 }
 

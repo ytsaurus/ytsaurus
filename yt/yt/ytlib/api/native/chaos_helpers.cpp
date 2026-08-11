@@ -176,7 +176,7 @@ TReplicationCardPtr GetSyncReplicationCard(
 
     THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::UnableToSynchronizeReplicationCard,
         "Unable to synchronize replication card")
-        << TErrorAttribute("replication_card_id", replicationCardId);
+        .With("replication_card_id", replicationCardId);
 }
 
 std::vector<TTableReplicaId> GetChaosTableInSyncReplicas(

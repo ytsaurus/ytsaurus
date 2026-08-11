@@ -111,7 +111,7 @@ private:
             return TError(
                 NRpc::EErrorCode::AuthenticationError,
                 "Error validating service ticket")
-                << ex;
+                .With(ex);
         }
     }
 };

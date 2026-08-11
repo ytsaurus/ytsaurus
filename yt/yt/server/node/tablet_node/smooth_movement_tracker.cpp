@@ -841,7 +841,7 @@ private:
                                 TError(
                                     "Active store has locks when smooth movement rotation "
                                     "is requested")
-                                    << TErrorAttribute("store_id", store->GetId()));
+                                    .With("store_id", store->GetId()));
                             break;
                         }
                     }

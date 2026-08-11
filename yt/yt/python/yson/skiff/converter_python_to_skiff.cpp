@@ -111,7 +111,7 @@ public:
             Description_,
             PythonType,
             WireType)
-            << error;
+            .With(error);
     }
 
 private:
@@ -183,7 +183,7 @@ private:
             auto exception = Py::BuildErrorFromPythonException(/*clear*/ true);
             THROW_ERROR_EXCEPTION("Got too large integer value %v",
                 Repr(Py::Object(obj)))
-                << exception;
+                .With(exception);
         }
         if (value > std::numeric_limits<T>::max() || value < std::numeric_limits<T>::min()) {
             THROW_ERROR_EXCEPTION("Got integer value %v out of range [%v, %v]",
@@ -377,7 +377,7 @@ public:
                 THROW_ERROR_EXCEPTION("Failed to get field \"%v.%v\"",
                     Description_,
                     FieldNames_[i])
-                    << Py::BuildErrorFromPythonException(/*clear*/ true);
+                    .With(Py::BuildErrorFromPythonException(/*clear*/ true));
             }
             FieldConverters_[i](field.get(), writer);
         }
@@ -408,7 +408,7 @@ public:
         if (!iterator) {
             THROW_ERROR_EXCEPTION("Failed to iterate over %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         while (auto item = PyObjectPtr(PyIter_Next(iterator.get()))) {
             writer->WriteVariant8Tag(0);
@@ -417,7 +417,7 @@ public:
         if (PyErr_Occurred()) {
             THROW_ERROR_EXCEPTION("Error occurred during iteration over %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         writer->WriteVariant8Tag(EndOfSequenceTag<ui8>());
     }
@@ -448,14 +448,14 @@ public:
             if (!element) {
                 THROW_ERROR_EXCEPTION("Failed to get item from tuple %Qv",
                     Description_)
-                    << Py::BuildErrorFromPythonException(/*clear*/ true);
+                    .With(Py::BuildErrorFromPythonException(/*clear*/ true));
             }
             ElementConverters_[i](element, writer);
         }
         if (PyErr_Occurred()) {
             THROW_ERROR_EXCEPTION("Error occurred during iteration over %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
     }
 
@@ -492,7 +492,7 @@ public:
         if (PyErr_Occurred()) {
             THROW_ERROR_EXCEPTION("Error occurred during iteration over %Qv",
                 Description_)
-                << Py::BuildErrorFromPythonException(/*clear*/ true);
+                .With(Py::BuildErrorFromPythonException(/*clear*/ true));
         }
         writer->WriteVariant8Tag(EndOfSequenceTag<ui8>());
     }
@@ -529,7 +529,7 @@ public:
                 THROW_ERROR_EXCEPTION("Failed to get OtherColumns field \"%v.%v\"",
                     RowClassName_,
                     OtherColumnsFieldName_)
-                    << Py::BuildErrorFromPythonException(/*clear*/ true);
+                    .With(Py::BuildErrorFromPythonException(/*clear*/ true));
             }
             if (field.get() == Py_None) {
                 static constexpr TStringBuf EmptyMapYson = "{}";

@@ -93,8 +93,8 @@ private:
             return std::move(result);
         } catch (const std::exception& ex) {
             auto error = TError("Cypress authentication failed")
-                << TErrorAttribute("token_hash", tokenHash)
-                << ex;
+                .With("token_hash", tokenHash)
+                .With(ex);
             YT_LOG_DEBUG(error, "Cypress authentication failed");
             THROW_ERROR(error);
         }
@@ -116,8 +116,8 @@ private:
         if (isMissingUserAttribute && isMissingUserIdAttribute) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
                 "Token is missing in Cypress or missing attributes \"user_id\" and \"user\" on token Cypress node")
-                << userAttributeRspOrError
-                << userIdAttributeRspOrError;
+                .With(userAttributeRspOrError)
+                .With(userIdAttributeRspOrError);
         }
 
         if (!userAttributeRspOrError.IsOK() && !isMissingUserAttribute) {
@@ -160,8 +160,8 @@ private:
             };
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error resolving user_id")
-                << TErrorAttribute("user_id", userId)
-                << ex;
+                .With("user_id", userId)
+                .With(ex);
         }
     }
 };

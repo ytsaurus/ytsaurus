@@ -352,7 +352,7 @@ private:
 
             return OKFuture;
         } catch (const std::exception& ex) {
-            return MakeFuture(firstBatchError << TErrorAttribute("retry_skip_reason", "retry_limit_exceeded"));
+            return MakeFuture(firstBatchError.With("retry_skip_reason", "retry_limit_exceeded"));
         }
     }
 
@@ -364,7 +364,7 @@ private:
         auto newTabletInfo = tableMountInfo->FindTabletById(TabletInfo_->TabletId);
         if (!newTabletInfo) {
             YT_LOG_DEBUG("Cannot retry sending transaction rows because updated mount info does not contain this tablet");
-            return firstBatchError << TErrorAttribute("retry_skip_reason", "no_such_tablet");
+            return firstBatchError.With("retry_skip_reason", "no_such_tablet");
         }
 
         if (newTabletInfo->LogicalMountRevision != TabletInfo_->LogicalMountRevision) {
@@ -374,7 +374,7 @@ private:
                 newTabletInfo->MountRevision,
                 TabletInfo_->LogicalMountRevision,
                 newTabletInfo->LogicalMountRevision);
-            return firstBatchError << TErrorAttribute("retry_skip_reason", "logical_mount_revision_changed");
+            return firstBatchError.With("retry_skip_reason", "logical_mount_revision_changed");
         }
 
         auto updateMountInfo = [&] (auto&& tabletInfo, auto&& tableInfo, bool cellChanged) {
@@ -408,14 +408,14 @@ private:
                 YT_LOG_DEBUG("Cannot retry sending transaction rows because cell commit session "
                     "has registered transaction actions (CellId: %v)",
                     cellId);
-                return firstBatchError << TErrorAttribute("retry_skip_reason", "has_transaction_actions");
+                return firstBatchError.With("retry_skip_reason", "has_transaction_actions");
             }
 
             if (TypeFromId(cellId) != EObjectType::TabletCell) {
                 YT_LOG_ALERT("Cannot retry sending transaction rows because cell has unexpected type (CellId: %v, CellType: %v)",
                     cellId,
                     TypeFromId(cellId));
-                return firstBatchError << TErrorAttribute("retry_skip_reason", "invalid_cell_type");
+                return firstBatchError.With("retry_skip_reason", "invalid_cell_type");
             }
             return {};
         };
@@ -426,7 +426,7 @@ private:
 
         if (!Config_->UseUniformPrepareSignatures) {
             YT_LOG_DEBUG("Cannot retry sending transaction rows because uniform prepare signature is disabled");
-            return firstBatchError << TErrorAttribute("retry_skip_reason", "uniform_prepare_signature_disabled");
+            return firstBatchError.With("retry_skip_reason", "uniform_prepare_signature_disabled");
         }
 
         int batchCount = std::ssize(Batches_);
@@ -527,11 +527,11 @@ private:
     {
         if (!error.IsOK()) {
             auto wrappedError = TError("Error sending transaction rows")
-                << TErrorAttribute("table_id", TableInfo_->TableId)
-                << TErrorAttribute("tablet_id", TabletInfo_->TabletId)
-                << TErrorAttribute("cell_id", TabletInfo_->CellId)
-                << TErrorAttribute("batch_index", commitContext->BatchIndex)
-                << error;
+                .With("table_id", TableInfo_->TableId)
+                .With("tablet_id", TabletInfo_->TabletId)
+                .With("cell_id", TabletInfo_->CellId)
+                .With("batch_index", commitContext->BatchIndex)
+                .With(error);
             Client_->GetTableMountCache()->InvalidateOnError(
                 wrappedError,
                 /*forceRetry*/ true,
@@ -686,7 +686,7 @@ private:
             YT_UNUSED_FUTURE(backoffFuture.Apply(BIND(&TTabletSessionsCommitter::CommitSessions, MakeStrong(this))));
         } else {
             auto error = TError("Failed to commit tablet sessions")
-                << Errors_;
+                .With(Errors_);
             YT_LOG_DEBUG(error);
 
             Counters_.FailedTabletSessionCommitCounter.Increment();

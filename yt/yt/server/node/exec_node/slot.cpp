@@ -777,7 +777,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
         if (!IsEnabled_.load()) {
             THROW_ERROR_EXCEPTION("User slot is disabled")
-                << TErrorAttribute("slot_index", SlotIndex_);
+                .With("slot_index", SlotIndex_);
         }
 
         Location_->ValidateEnabled();
@@ -829,7 +829,7 @@ private:
             YT_LOG_DEBUG("Skip preparation action since preparation is canceled (ActionName: %v)", actionName);
 
             return MakeFuture<TUnderlyingReturnType>(TError("Job preparation canceled")
-                << TErrorAttribute("slot_index", SlotIndex_));
+                .With("slot_index", SlotIndex_));
         } else {
             YT_LOG_DEBUG("Running preparation action (ActionName: %v)", actionName);
 

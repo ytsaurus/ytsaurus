@@ -267,7 +267,7 @@ private:
             NChunkClient::EErrorCode::ChunkMetaFetchFailed,
             "Failed to get chunk meta of chunk %v from any of valid part readers",
             GetChunkId())
-            << errors;
+            .With(errors);
     }
 
     // ReadBlocks implementation with customizable readers list.

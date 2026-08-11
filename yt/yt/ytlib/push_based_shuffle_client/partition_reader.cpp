@@ -217,7 +217,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-        FailReader(TError(NYT::EErrorCode::Canceled, "Partition reader canceled") << error);
+        FailReader(TError(NYT::EErrorCode::Canceled, "Partition reader canceled").With(error));
     }
 
     void StartChunkSessionRead(TChunkId chunkId, TChunkReadState* state) noexcept

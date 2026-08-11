@@ -305,8 +305,8 @@ TNodeTraverseDataPtr MergeNodeTraverseData(const std::vector<TNodeTraverseDataPt
     for (const auto& node : nodes) {
         if (node->Streams.size() != nodes[0]->Streams.size()) {
             THROW_ERROR_EXCEPTION("Different streams sizes")
-                << TErrorAttribute("got", node->Streams.size())
-                << TErrorAttribute("expected", nodes[0]->Streams.size());
+                .With("got", node->Streams.size())
+                .With("expected", nodes[0]->Streams.size());
         }
     }
 
@@ -340,8 +340,8 @@ TNodeTraverseDataPtr AdvanceNodeTraverseData(
     }
     if (currentNode->ReportTime > newNode->ReportTime) {
         THROW_ERROR_EXCEPTION("ReportTime monotony is broken")
-            << TErrorAttribute("current", currentNode->ReportTime)
-            << TErrorAttribute("new", newNode->ReportTime);
+            .With("current", currentNode->ReportTime)
+            .With("new", newNode->ReportTime);
     }
 
     auto result = NYTree::CloneYsonStruct(newNode);

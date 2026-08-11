@@ -145,7 +145,7 @@ TError BuildErrorFromPythonException(bool clear)
         ? std::string("No message")
         : Str(errorValue);
     auto error = TError(std::move(message), TError::DisableFormat)
-        << TErrorAttribute("exception_type", Str(errorType));
+        .With("exception_type", Str(errorType));
 
     if (!errorBacktrace.isNone()) {
         error <<= TErrorAttribute("backtrace", Str(errorBacktrace));

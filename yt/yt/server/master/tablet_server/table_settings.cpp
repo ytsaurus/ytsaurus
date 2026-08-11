@@ -83,7 +83,7 @@ TTableSettings GetTableSettings(
         result.Provided.MountConfigNode = combinedConfigNode;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
-            << ex;
+            .With(ex);
     }
 
     // Parse and prepare store reader config.
@@ -94,7 +94,7 @@ TTableSettings GetTableSettings(
             tableAttributes.FindYson(EInternedAttributeKey::ChunkReader.Unintern()));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing store reader config")
-            << ex;
+            .With(ex);
     }
 
     // Parse and prepare hunk reader config.
@@ -104,7 +104,7 @@ TTableSettings GetTableSettings(
             tableAttributes.FindYson(EInternedAttributeKey::HunkChunkReader.Unintern()));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing hunk reader config")
-            << ex;
+            .With(ex);
     }
 
     const auto& chunkReplication = table->Replication();
@@ -142,7 +142,7 @@ TTableSettings GetTableSettings(
         result.Provided.StoreWriterOptions->Postprocess();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error preparing store writer options")
-            << ex;
+            .With(ex);
     }
 
     try {
@@ -157,7 +157,7 @@ TTableSettings GetTableSettings(
         result.Provided.HunkWriterOptions->Postprocess();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error preparing hunk writer options")
-            << ex;
+            .With(ex);
     }
 
     // Parse and prepare store writer config.
@@ -179,7 +179,7 @@ TTableSettings GetTableSettings(
             tableAttributes.FindYson(EInternedAttributeKey::ChunkWriter.Unintern()));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error preparing store writer config")
-            << ex;
+            .With(ex);
     }
 
     // Parse and prepare hunk writer config.
@@ -196,7 +196,7 @@ TTableSettings GetTableSettings(
             tableAttributes.FindYson(EInternedAttributeKey::HunkChunkWriter.Unintern()));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error preparing hunk writer config")
-            << ex;
+            .With(ex);
     }
 
     // Set table tablet balancer config.
@@ -205,7 +205,7 @@ TTableSettings GetTableSettings(
             table->TabletBalancerConfig());
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error preparing table tablet balancer config")
-            << ex;
+            .With(ex);
     }
 
     // Set global patch and experiments.
@@ -253,7 +253,7 @@ THunkStorageSettings ValidateAndGetHunkStorageSettings(
         result.MountConfig = ConvertTo<NTabletNode::THunkStorageMountConfigPtr>(tableAttributes);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing hunk storage mount configuration")
-            << ex;
+            .With(ex);
     }
 
     // Parse and prepare store writer config.
@@ -263,7 +263,7 @@ THunkStorageSettings ValidateAndGetHunkStorageSettings(
             tableAttributes.FindYson(EInternedAttributeKey::HunkStoreWriter.Unintern()));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing hunk store writer config")
-            << ex;
+            .With(ex);
     }
 
     // Prepare store writer options.
@@ -286,7 +286,7 @@ THunkStorageSettings ValidateAndGetHunkStorageSettings(
         result.HunkStoreOptions = std::move(storeWriterOptions);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing hunk store writer options")
-            << ex;
+            .With(ex);
     }
 
     return result;

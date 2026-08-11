@@ -472,7 +472,7 @@ private:
         if (RpcContext_->Response().chunks_size() >= dynamicConfig->MaxChunksPerFetch) {
             ReplyError(TError(NChunkClient::EErrorCode::TooManyChunksToFetch,
                 "Attempt to fetch too many chunks in a single request")
-                << TErrorAttribute("limit", dynamicConfig->MaxChunksPerFetch));
+                .With("limit", dynamicConfig->MaxChunksPerFetch));
             return false;
         }
 

@@ -189,7 +189,7 @@ private:
                 &executionContext);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Query evaluation failed");
-            THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
+            THROW_ERROR_EXCEPTION("Query evaluation failed").With(ex);
         }
     }
 
@@ -257,17 +257,17 @@ private:
 
         if (query->Offset < 0) {
             THROW_ERROR_EXCEPTION("Negative OFFSET is forbidden")
-                << TErrorAttribute("offset", query->Offset);
+                .With("offset", query->Offset);
         }
 
         if (query->Limit < 0) {
             THROW_ERROR_EXCEPTION("Negative LIMIT is forbidden")
-                << TErrorAttribute("limit", query->Limit);
+                .With("limit", query->Limit);
         }
 
         if (query->Offset + query->Limit < 0) {
             THROW_ERROR_EXCEPTION("Negative OFFSET + LIMIT is forbidden")
-                << TErrorAttribute("offset_limit_sum", query->Offset + query->Limit);
+                .With("offset_limit_sum", query->Offset + query->Limit);
         }
     }
 };

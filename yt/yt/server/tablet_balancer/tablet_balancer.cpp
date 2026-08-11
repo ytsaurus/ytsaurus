@@ -756,7 +756,7 @@ std::vector<TFuture<void>> TTabletBalancer::BalancerIteration()
             SaveRetryableBundleError(bundleName, TError(
                 NTabletBalancer::EErrorCode::IncorrectConfig,
                 "Bundle has unparsable tablet balancer config")
-                << configOrError);
+                .With(configOrError));
             continue;
         }
 
@@ -1296,7 +1296,7 @@ void TTabletBalancer::RequestBalancing(
     if (!bundleSnapshotOrError.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to get %Qv bundle snapshot for on-demand balancing",
             balancingRequest.BundleName)
-            << bundleSnapshotOrError;
+            .With(bundleSnapshotOrError);
     }
 
     auto bundleSnapshot = std::move(bundleSnapshotOrError).Value();
@@ -1492,7 +1492,7 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
             NTabletBalancer::EErrorCode::ScheduleFormulaEvaluationFailed,
             "Failed to evaluate tablet balancer schedule formula for group %Qv",
             groupTag.second)
-            << ex);
+            .With(ex));
         return false;
     }
 }
@@ -1680,7 +1680,7 @@ bool TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleSnapshotPtr& b
                 NTabletBalancer::EErrorCode::StatisticsFetchFailed,
                 "Parameterized move balancing for group %Qv failed",
                 groupName)
-                << ex);
+                .With(ex));
             return true;
         }
 
@@ -1688,7 +1688,7 @@ bool TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleSnapshotPtr& b
             NTabletBalancer::EErrorCode::ParameterizedBalancingFailed,
             "Parameterized move balancing for group %Qv failed",
             groupName)
-            << ex);
+            .With(ex));
     }
 
     return false;
@@ -1724,7 +1724,7 @@ bool TTabletBalancer::TryBalanceViaReshardParameterized(
                 NTabletBalancer::EErrorCode::StatisticsFetchFailed,
                 "Parameterized move balancing for group %Qv failed",
                 groupName)
-                << ex);
+                .With(ex));
             return true;
         }
 
@@ -1732,7 +1732,7 @@ bool TTabletBalancer::TryBalanceViaReshardParameterized(
             NTabletBalancer::EErrorCode::ParameterizedBalancingFailed,
             "Parameterized reshard balancing for group %Qv failed",
             groupName)
-            << ex);
+            .With(ex));
     }
 
     return false;
@@ -1821,7 +1821,7 @@ void TTabletBalancer::ExecuteReshardIteration(const IReshardIterationPtr& reshar
             "Group %Qv has exceeded the limit for creating actions. "
             "Failed to schedule reshard action",
             reshardIteration->GetGroupName())
-            << TErrorAttribute("limit", limit));
+            .With("limit", limit));
 
         YT_LOG_DEBUG("Group has exceeded the limit for creating actions. "
             "Will not schedule reshard actions anymore "
@@ -1919,7 +1919,7 @@ void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteratio
                     "Failed to schedule %v move action",
                     moveIteration->GetGroupName(),
                     moveIteration->GetActionSubtypeName())
-                    << TErrorAttribute("limit", ActionCountLimiter_.GroupLimit));
+                    .With("limit", ActionCountLimiter_.GroupLimit));
                 break;
             }
 

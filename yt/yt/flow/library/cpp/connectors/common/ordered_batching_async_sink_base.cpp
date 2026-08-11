@@ -73,8 +73,8 @@ void TOrderedBatchingAsyncSinkBase::Distribute(const TOutputMessageConstPtr& mes
     }
     if (message->MessageId <= LastMessageId_) {
         THROW_ERROR_EXCEPTION("Ids of messages passed to Distribute() must strictly increase")
-            << TErrorAttribute("message_id", message->MessageId)
-            << TErrorAttribute("last_message_id", LastMessageId_);
+            .With("message_id", message->MessageId)
+            .With("last_message_id", LastMessageId_);
     }
     LastMessageId_ = std::max(LastMessageId_, message->MessageId);
 
