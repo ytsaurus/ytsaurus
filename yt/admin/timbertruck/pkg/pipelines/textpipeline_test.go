@@ -218,6 +218,38 @@ func TestFollowingPipelinesWithCompression(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestFollowingPipelinesWithZstdSuffix(t *testing.T) {
+	filepath := path.Join(t.TempDir(), "logfile.zstd")
+
+	f, err := os.Create(filepath)
+	require.NoError(t, err)
+
+	e, err := zstd.NewWriter(nil)
+	require.NoError(t, err)
+
+	fileSize, err := f.Write(e.EncodeAll([]byte("foo\n"), nil))
+	require.NoError(t, err)
+	_, err = f.Write(zstdsync.WriteSyncTag(int64(fileSize)))
+	require.NoError(t, err)
+
+	p, lineCh := newTestTextPipeline(t, filepath, pipelines.FilePosition{})
+
+	runComplete := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	go func() {
+		runComplete <- p.Run(ctx)
+	}()
+
+	currentLine := stringLine{}
+	require.True(t, receive(&currentLine, lineCh))
+	require.Equal(t, "foo\n", currentLine.String)
+
+	p.NotifyComplete()
+	require.NoError(t, <-runComplete)
+}
+
 func newTestTextPipeline(t *testing.T, filepath string, filePosition pipelines.FilePosition) (*pipelines.Pipeline, <-chan stringLine) {
 	t.Helper()
 
