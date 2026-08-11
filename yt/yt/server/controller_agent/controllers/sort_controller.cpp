@@ -355,7 +355,7 @@ public:
         }
 
         auto medium = GetIntermediateStreamDescriptorTemplate()->TableWriterOptions->MediumName;
-        return {transaction, medium};
+        return {std::move(transaction), std::move(medium)};
     }
 
     void UpdateIntermediateMediumUsage(i64 usage) override
