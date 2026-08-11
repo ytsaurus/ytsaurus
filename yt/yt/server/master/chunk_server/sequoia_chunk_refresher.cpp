@@ -163,7 +163,7 @@ public:
 
         auto guard = Guard(Lock_);
 
-        const auto node = location->GetNode();
+        const auto* node = location->GetNode().Get();
         if (!IsObjectAlive(node)) {
             YT_LOG_ALERT(
                 "Location scheduled for Sequoia refresh belongs to non alive node (LocationId: %v, LocationIndex: %v)",
