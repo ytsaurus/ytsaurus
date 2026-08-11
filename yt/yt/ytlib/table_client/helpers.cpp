@@ -627,6 +627,19 @@ std::optional<i64> EstimateReadDataSizeForColumns(
         }
     }
 
+    auto logReadEstimationWarning = [&] (i64 readSize) {
+        YT_LOG_WARNING(
+            "Read estimation is greater than the chunk's compressed data size "
+            "(ChunkId: %v, ReadSize: %v, CompressedDataSize: %v, "
+            "IsSchemaStrict: %v, ColumnCount: %v, ReadColumnCount: %v)",
+            chunkId,
+            readSize,
+            compressedDataSize,
+            schema->IsStrict(),
+            schema->GetColumnCount(),
+            std::ssize(columnStableNames));
+    };
+
     auto erasurePlacementExt = FindProtoExtension<TErasurePlacementExt>(meta.extensions());
     if (erasurePlacementExt) {
         auto dataBlockPlacement = BuildDataBlocksPlacementInParts(
@@ -641,6 +654,10 @@ std::optional<i64> EstimateReadDataSizeForColumns(
             }
         }
 
+        if (readSize > compressedDataSize + 1) {
+            logReadEstimationWarning(readSize);
+        }
+
         // Estimation is not exact sometimes and there are cases when readSize = compressedDataSize + 1.
         return std::min(readSize, compressedDataSize);
     }
@@ -653,13 +670,9 @@ std::optional<i64> EstimateReadDataSizeForColumns(
         readSize += blocksExt.blocks(blockIndex).size();
     }
 
-    YT_LOG_WARNING_IF(
-        readSize > compressedDataSize,
-        "Read estimation is greater than the chunk's compressed data size (ChunkId: %v, IsSchemaStrict: %v, ColumnCount: %v, ReadColumnCount: %v)",
-        chunkId,
-        schema->IsStrict(),
-        schema->GetColumnCount(),
-        std::ssize(columnStableNames));
+    if (readSize > compressedDataSize) {
+        logReadEstimationWarning(readSize);
+    }
 
     return std::min(readSize, compressedDataSize);
 }
