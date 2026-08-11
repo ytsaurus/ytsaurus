@@ -131,9 +131,7 @@ def fill_flow_node_test_defaults(config):
 
 def fill_flow_spec_test_defaults(spec, dynamic_spec):
     _put_default_under_config(config=dynamic_spec, default=DEFAULT_DYNAMIC_SPEC)
-    for computation_name, computation_spec in spec["computations"].items():
-        # Exercise the compact output store path by default in tests.
-        computation_spec.setdefault("use_compact_partition_output", True)
+    for computation_name in spec["computations"]:
         computation_dynamic_spec = dynamic_spec.setdefault("computations", {}).setdefault(computation_name, {})
         _put_default_under_config(config=computation_dynamic_spec, default=COMPUTATION_DEFAULT_DYNAMIC_SPEC)
 

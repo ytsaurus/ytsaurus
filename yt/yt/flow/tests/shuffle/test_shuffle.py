@@ -18,8 +18,6 @@ from yt.yt.flow.library.python.queue import batching_write_rows
 
 PIPELINE_CONFIG_PATH = yatest.common.source_path(f"{yatest.common.context.project_path}/pipeline.yson")
 
-SHUFFLE_STAGES = ["shuffle_a", "shuffle_b", "shuffle_c", "shuffle_d"]
-
 INPUT_QUEUE_TABLET_COUNT = 4
 
 QUEUE_SCHEMA = [
@@ -63,7 +61,6 @@ class Test(FlowTestBase):
         input_queue,
         input_consumer,
         output_queue,
-        use_compact_partition_output,
         dynamic_spec_patch=None,
     ):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
@@ -93,11 +90,6 @@ class Test(FlowTestBase):
             "queue",
             "parameters",
         )["queue_path"] = output_queue
-
-        for stage in SHUFFLE_STAGES:
-            pipeline_config["spec"]["computations"][stage][
-                "use_compact_partition_output"
-            ] = use_compact_partition_output
 
         if dynamic_spec_patch is not None:
             for key, patch in dynamic_spec_patch.items():
@@ -138,14 +130,7 @@ class Test(FlowTestBase):
         return rows[0]["cnt"] if rows else 0
 
     @pytest.mark.authors(["pechatnov"])
-    @pytest.mark.parametrize(
-        "use_compact_partition_output",
-        [
-            pytest.param(True, id="compact_partition_output"),
-            pytest.param(False, id="legacy_partition_output"),
-        ],
-    )
-    def test_basic(self, use_compact_partition_output, metrics):
+    def test_basic(self, metrics):
         self._run_yt_sync_with_retries()
         input_queue = f"{self.work_yt_path}/input_queue"
         input_consumer = f"{self.work_yt_path}/consumer"
@@ -157,7 +142,6 @@ class Test(FlowTestBase):
             input_queue=input_queue,
             input_consumer=input_consumer,
             output_queue=output_queue,
-            use_compact_partition_output=use_compact_partition_output,
         )
 
         with self.start_flow_process_federation(
@@ -174,10 +158,9 @@ class Test(FlowTestBase):
         messages_per_second = TOTAL_EVENTS / elapsed
         metrics.set("ytflow_messages_per_second", messages_per_second)
         logging.info(
-            "Pipeline completed in %.2fs (%.0f msgs/s, mode=%s)",
+            "Pipeline completed in %.2fs (%.0f msgs/s)",
             elapsed,
             messages_per_second,
-            "compact" if use_compact_partition_output else "legacy",
         )
 
         wait(lambda: self._count_output_rows(output_queue) == TOTAL_EVENTS, timeout=60, ignore_exceptions=True)
@@ -201,7 +184,6 @@ class Test(FlowTestBase):
             input_queue=input_queue,
             input_consumer=input_consumer,
             output_queue=output_queue,
-            use_compact_partition_output=True,
             dynamic_spec_patch={
                 "controller_connector": {
                     "controller_wait_timeout": "3s",
