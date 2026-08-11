@@ -82,6 +82,7 @@ DEFINE_ENUM(EChunkSealState,
     (Waiting)  // abandoned; a maintenance tick starts the next seal attempt once the backoff elapses
     (Running)  // a seal attempt is in progress
     (Done)     // sealed
+    (Failed)   // abandoned: the chunk object is gone from the master, so no attempt can succeed
 );
 
 DECLARE_REFCOUNTED_STRUCT(IBlockStore)
