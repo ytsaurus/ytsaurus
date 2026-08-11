@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 Uber Technologies, Inc.
+ * Copyright 2016-2021 Uber Technologies, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,17 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/** @file geoCoord.c
- * @brief   Functions for working with lat/lon coordinates.
+/** @file latLng.c
+ * @brief   Functions for working with lat/lng coordinates.
  */
 
-#include "geoCoord.h"
+#include "latLng.h"
 
 #include <math.h>
 #include <stdbool.h>
 
 #include "constants.h"
+#include "h3Assert.h"
 #include "h3api.h"
+#include "mathExtensions.h"
 
 /**
  * Normalizes radians to a value between 0.0 and two PI.
@@ -47,10 +49,10 @@ double _posAngleRads(double rads) {
  * @return Whether or not the two coordinates are within the threshold distance
  *         of each other.
  */
-bool geoAlmostEqualThreshold(const GeoCoord *p1, const GeoCoord *p2,
+bool geoAlmostEqualThreshold(const LatLng *p1, const LatLng *p2,
                              double threshold) {
     return fabs(p1->lat - p2->lat) < threshold &&
-           fabs(p1->lon - p2->lon) < threshold;
+           fabs(p1->lng - p2->lng) < threshold;
 }
 
 /**
@@ -62,7 +64,7 @@ bool geoAlmostEqualThreshold(const GeoCoord *p1, const GeoCoord *p2,
  * @return Whether or not the two coordinates are within the epsilon distance
  *         of each other.
  */
-bool geoAlmostEqual(const GeoCoord *p1, const GeoCoord *p2) {
+bool geoAlmostEqual(const LatLng *p1, const LatLng *p2) {
     return geoAlmostEqualThreshold(p1, p2, EPSILON_RAD);
 }
 
@@ -71,11 +73,11 @@ bool geoAlmostEqual(const GeoCoord *p1, const GeoCoord *p2) {
  *
  * @param p The spherical coordinates.
  * @param latDegs The desired latitude in decimal degrees.
- * @param lonDegs The desired longitude in decimal degrees.
+ * @param lngDegs The desired longitude in decimal degrees.
  */
-void setGeoDegs(GeoCoord *p, double latDegs, double lonDegs) {
+void setGeoDegs(LatLng *p, double latDegs, double lngDegs) {
     _setGeoRads(p, H3_EXPORT(degsToRads)(latDegs),
-                H3_EXPORT(degsToRads)(lonDegs));
+                H3_EXPORT(degsToRads)(lngDegs));
 }
 
 /**
@@ -83,11 +85,11 @@ void setGeoDegs(GeoCoord *p, double latDegs, double lonDegs) {
  *
  * @param p The spherical coordinates.
  * @param latRads The desired latitude in decimal radians.
- * @param lonRads The desired longitude in decimal radians.
+ * @param lngRads The desired longitude in decimal radians.
  */
-void _setGeoRads(GeoCoord *p, double latRads, double lonRads) {
+void _setGeoRads(LatLng *p, double latRads, double lngRads) {
     p->lat = latRads;
-    p->lon = lonRads;
+    p->lng = lngRads;
 }
 
 /**
@@ -148,9 +150,9 @@ double constrainLng(double lng) {
  *
  * @return    the great circle distance in radians between a and b
  */
-double H3_EXPORT(pointDistRads)(const GeoCoord *a, const GeoCoord *b) {
+double H3_EXPORT(greatCircleDistanceRads)(const LatLng *a, const LatLng *b) {
     double sinLat = sin((b->lat - a->lat) / 2.0);
-    double sinLng = sin((b->lon - a->lon) / 2.0);
+    double sinLng = sin((b->lng - a->lng) / 2.0);
 
     double A = sinLat * sinLat + cos(a->lat) * cos(b->lat) * sinLng * sinLng;
 
@@ -160,15 +162,15 @@ double H3_EXPORT(pointDistRads)(const GeoCoord *a, const GeoCoord *b) {
 /**
  * The great circle distance in kilometers between two spherical coordinates.
  */
-double H3_EXPORT(pointDistKm)(const GeoCoord *a, const GeoCoord *b) {
-    return H3_EXPORT(pointDistRads)(a, b) * EARTH_RADIUS_KM;
+double H3_EXPORT(greatCircleDistanceKm)(const LatLng *a, const LatLng *b) {
+    return H3_EXPORT(greatCircleDistanceRads)(a, b) * EARTH_RADIUS_KM;
 }
 
 /**
  * The great circle distance in meters between two spherical coordinates.
  */
-double H3_EXPORT(pointDistM)(const GeoCoord *a, const GeoCoord *b) {
-    return H3_EXPORT(pointDistKm)(a, b) * 1000;
+double H3_EXPORT(greatCircleDistanceM)(const LatLng *a, const LatLng *b) {
+    return H3_EXPORT(greatCircleDistanceKm)(a, b) * 1000;
 }
 
 /**
@@ -178,10 +180,10 @@ double H3_EXPORT(pointDistM)(const GeoCoord *a, const GeoCoord *b) {
  * @param p2 The second spherical coordinates.
  * @return The azimuth in radians from p1 to p2.
  */
-double _geoAzimuthRads(const GeoCoord *p1, const GeoCoord *p2) {
-    return atan2(cos(p2->lat) * sin(p2->lon - p1->lon),
+double _geoAzimuthRads(const LatLng *p1, const LatLng *p2) {
+    return atan2(cos(p2->lat) * sin(p2->lng - p1->lng),
                  cos(p1->lat) * sin(p2->lat) -
-                     sin(p1->lat) * cos(p2->lat) * cos(p2->lon - p1->lon));
+                     sin(p1->lat) * cos(p2->lat) * cos(p2->lng - p1->lng));
 }
 
 /**
@@ -194,14 +196,14 @@ double _geoAzimuthRads(const GeoCoord *p1, const GeoCoord *p2) {
  * @param p2 The spherical coordinates at the desired azimuth and distance from
  * p1.
  */
-void _geoAzDistanceRads(const GeoCoord *p1, double az, double distance,
-                        GeoCoord *p2) {
+void _geoAzDistanceRads(const LatLng *p1, double az, double distance,
+                        LatLng *p2) {
     if (distance < EPSILON) {
         *p2 = *p1;
         return;
     }
 
-    double sinlat, sinlon, coslon;
+    double sinlat, sinlng, coslng;
 
     az = _posAngleRads(az);
 
@@ -215,13 +217,13 @@ void _geoAzDistanceRads(const GeoCoord *p1, double az, double distance,
         if (fabs(p2->lat - M_PI_2) < EPSILON)  // north pole
         {
             p2->lat = M_PI_2;
-            p2->lon = 0.0;
+            p2->lng = 0.0;
         } else if (fabs(p2->lat + M_PI_2) < EPSILON)  // south pole
         {
             p2->lat = -M_PI_2;
-            p2->lon = 0.0;
+            p2->lng = 0.0;
         } else
-            p2->lon = constrainLng(p1->lon);
+            p2->lng = constrainLng(p1->lng);
     } else  // not due north or south
     {
         sinlat = sin(p1->lat) * cos(distance) +
@@ -232,20 +234,20 @@ void _geoAzDistanceRads(const GeoCoord *p1, double az, double distance,
         if (fabs(p2->lat - M_PI_2) < EPSILON)  // north pole
         {
             p2->lat = M_PI_2;
-            p2->lon = 0.0;
+            p2->lng = 0.0;
         } else if (fabs(p2->lat + M_PI_2) < EPSILON)  // south pole
         {
             p2->lat = -M_PI_2;
-            p2->lon = 0.0;
+            p2->lng = 0.0;
         } else {
-            sinlon = sin(az) * sin(distance) / cos(p2->lat);
-            coslon = (cos(distance) - sin(p1->lat) * sin(p2->lat)) /
+            sinlng = sin(az) * sin(distance) / cos(p2->lat);
+            coslng = (cos(distance) - sin(p1->lat) * sin(p2->lat)) /
                      cos(p1->lat) / cos(p2->lat);
-            if (sinlon > 1.0) sinlon = 1.0;
-            if (sinlon < -1.0) sinlon = -1.0;
-            if (coslon > 1.0) coslon = 1.0;
-            if (coslon < -1.0) coslon = -1.0;
-            p2->lon = constrainLng(p1->lon + atan2(sinlon, coslon));
+            if (sinlng > 1.0) sinlng = 1.0;
+            if (sinlng < -1.0) sinlng = -1.0;
+            if (coslng > 1.0) coslng = 1.0;
+            if (coslng < -1.0) coslng = -1.0;
+            p2->lng = constrainLng(p1->lng + atan2(sinlng, coslng));
         }
     }
 }
@@ -258,71 +260,68 @@ void _geoAzDistanceRads(const GeoCoord *p1, double az, double distance,
  * the future.
  */
 
-double H3_EXPORT(hexAreaKm2)(int res) {
+H3Error H3_EXPORT(getHexagonAreaAvgKm2)(int res, double *out) {
     static const double areas[] = {
-        4250546.848, 607220.9782, 86745.85403, 12392.26486,
-        1770.323552, 252.9033645, 36.1290521,  5.1612932,
-        0.7373276,   0.1053325,   0.0150475,   0.0021496,
-        0.0003071,   0.0000439,   0.0000063,   0.0000009};
-    return areas[res];
+        4.357449416078383e+06, 6.097884417941332e+05, 8.680178039899720e+04,
+        1.239343465508816e+04, 1.770347654491307e+03, 2.529038581819449e+02,
+        3.612906216441245e+01, 5.161293359717191e+00, 7.373275975944177e-01,
+        1.053325134272067e-01, 1.504750190766435e-02, 2.149643129451879e-03,
+        3.070918756316060e-04, 4.387026794728296e-05, 6.267181135324313e-06,
+        8.953115907605790e-07};
+    if (res < 0 || res > MAX_H3_RES) {
+        return E_RES_DOMAIN;
+    }
+    *out = areas[res];
+    return E_SUCCESS;
 }
 
-double H3_EXPORT(hexAreaM2)(int res) {
+H3Error H3_EXPORT(getHexagonAreaAvgM2)(int res, double *out) {
     static const double areas[] = {
-        4.25055E+12, 6.07221E+11, 86745854035, 12392264862,
-        1770323552,  252903364.5, 36129052.1,  5161293.2,
-        737327.6,    105332.5,    15047.5,     2149.6,
-        307.1,       43.9,        6.3,         0.9};
-    return areas[res];
+        4.357449416078390e+12, 6.097884417941339e+11, 8.680178039899731e+10,
+        1.239343465508818e+10, 1.770347654491309e+09, 2.529038581819452e+08,
+        3.612906216441250e+07, 5.161293359717198e+06, 7.373275975944188e+05,
+        1.053325134272069e+05, 1.504750190766437e+04, 2.149643129451882e+03,
+        3.070918756316063e+02, 4.387026794728301e+01, 6.267181135324322e+00,
+        8.953115907605802e-01};
+    if (res < 0 || res > MAX_H3_RES) {
+        return E_RES_DOMAIN;
+    }
+    *out = areas[res];
+    return E_SUCCESS;
 }
 
-double H3_EXPORT(edgeLengthKm)(int res) {
+H3Error H3_EXPORT(getHexagonEdgeLengthAvgKm)(int res, double *out) {
     static const double lens[] = {
         1107.712591, 418.6760055, 158.2446558, 59.81085794,
         22.6063794,  8.544408276, 3.229482772, 1.220629759,
         0.461354684, 0.174375668, 0.065907807, 0.024910561,
         0.009415526, 0.003559893, 0.001348575, 0.000509713};
-    return lens[res];
+    if (res < 0 || res > MAX_H3_RES) {
+        return E_RES_DOMAIN;
+    }
+    *out = lens[res];
+    return E_SUCCESS;
 }
 
-double H3_EXPORT(edgeLengthM)(int res) {
+H3Error H3_EXPORT(getHexagonEdgeLengthAvgM)(int res, double *out) {
     static const double lens[] = {
         1107712.591, 418676.0055, 158244.6558, 59810.85794,
         22606.3794,  8544.408276, 3229.482772, 1220.629759,
         461.3546837, 174.3756681, 65.90780749, 24.9105614,
         9.415526211, 3.559893033, 1.348574562, 0.509713273};
-    return lens[res];
+    if (res < 0 || res > MAX_H3_RES) {
+        return E_RES_DOMAIN;
+    }
+    *out = lens[res];
+    return E_SUCCESS;
 }
 
-/** @brief Number of unique valid H3Indexes at given resolution. */
-int64_t H3_EXPORT(numHexagons)(int res) {
-    /**
-     * Note: this *actually* returns the number of *cells*
-     * (which includes the 12 pentagons) at each resolution.
-     *
-     * This table comes from the recurrence:
-     *
-     *  num_cells(0) = 122
-     *  num_cells(i+1) = (num_cells(i)-12)*7 + 12*6
-     *
-     */
-    static const int64_t nums[] = {122L,
-                                   842L,
-                                   5882L,
-                                   41162L,
-                                   288122L,
-                                   2016842L,
-                                   14117882L,
-                                   98825162L,
-                                   691776122L,
-                                   4842432842L,
-                                   33897029882L,
-                                   237279209162L,
-                                   1660954464122L,
-                                   11626681248842L,
-                                   81386768741882L,
-                                   569707381193162L};
-    return nums[res];
+H3Error H3_EXPORT(getNumCells)(int res, int64_t *out) {
+    if (res < 0 || res > MAX_H3_RES) {
+        return E_RES_DOMAIN;
+    }
+    *out = 2 + 120 * _ipow(7, res);
+    return E_SUCCESS;
 }
 
 /**
@@ -357,10 +356,10 @@ double triangleEdgeLengthsToArea(double a, double b, double c) {
  *
  * @return     area of triangle on unit sphere, in radians^2
  */
-double triangleArea(const GeoCoord *a, const GeoCoord *b, const GeoCoord *c) {
-    return triangleEdgeLengthsToArea(H3_EXPORT(pointDistRads)(a, b),
-                                     H3_EXPORT(pointDistRads)(b, c),
-                                     H3_EXPORT(pointDistRads)(c, a));
+double triangleArea(const LatLng *a, const LatLng *b, const LatLng *c) {
+    return triangleEdgeLengthsToArea(H3_EXPORT(greatCircleDistanceRads)(a, b),
+                                     H3_EXPORT(greatCircleDistanceRads)(b, c),
+                                     H3_EXPORT(greatCircleDistanceRads)(c, a));
 }
 
 /**
@@ -373,68 +372,92 @@ double triangleArea(const GeoCoord *a, const GeoCoord *b, const GeoCoord *c) {
  * todo: optimize the computation by re-using the edges shared between triangles
  *
  * @param   cell  H3 cell
- *
- * @return        cell area in radians^2
+ * @param    out  cell area in radians^2
+ * @return        E_SUCCESS on success, or an error code otherwise
  */
-double H3_EXPORT(cellAreaRads2)(H3Index cell) {
-    GeoCoord c;
-    GeoBoundary gb;
-    H3_EXPORT(h3ToGeo)(cell, &c);
-    H3_EXPORT(h3ToGeoBoundary)(cell, &gb);
-
-    double area = 0.0;
-    for (int i = 0; i < gb.numVerts; i++) {
-        int j = (i + 1) % gb.numVerts;
-        area += triangleArea(&gb.verts[i], &gb.verts[j], &c);
+H3Error H3_EXPORT(cellAreaRads2)(H3Index cell, double *out) {
+    LatLng c;
+    CellBoundary cb;
+    H3Error err = H3_EXPORT(cellToLatLng)(cell, &c);
+    if (err) {
+        return err;
+    }
+    err = H3_EXPORT(cellToBoundary)(cell, &cb);
+    if (NEVER(err)) {
+        // Uncoverable because cellToLatLng will have returned an error already
+        return err;
     }
 
-    return area;
+    double area = 0.0;
+    for (int i = 0; i < cb.numVerts; i++) {
+        int j = (i + 1) % cb.numVerts;
+        area += triangleArea(&cb.verts[i], &cb.verts[j], &c);
+    }
+
+    *out = area;
+    return E_SUCCESS;
 }
 
 /**
  * Area of H3 cell in kilometers^2.
  */
-double H3_EXPORT(cellAreaKm2)(H3Index h) {
-    return H3_EXPORT(cellAreaRads2)(h) * EARTH_RADIUS_KM * EARTH_RADIUS_KM;
+H3Error H3_EXPORT(cellAreaKm2)(H3Index cell, double *out) {
+    H3Error err = H3_EXPORT(cellAreaRads2)(cell, out);
+    if (!err) {
+        *out = *out * EARTH_RADIUS_KM * EARTH_RADIUS_KM;
+    }
+    return err;
 }
 
 /**
  * Area of H3 cell in meters^2.
  */
-double H3_EXPORT(cellAreaM2)(H3Index h) {
-    return H3_EXPORT(cellAreaKm2)(h) * 1000 * 1000;
+H3Error H3_EXPORT(cellAreaM2)(H3Index cell, double *out) {
+    H3Error err = H3_EXPORT(cellAreaKm2)(cell, out);
+    if (!err) {
+        *out = *out * 1000 * 1000;
+    }
+    return err;
 }
 
 /**
- * Length of a unidirectional edge in radians.
+ * Length of a directed edge in radians.
  *
- * @param   edge  H3 unidirectional edge
+ * @param   edge  H3 directed edge
  *
  * @return        length in radians
  */
-double H3_EXPORT(exactEdgeLengthRads)(H3Index edge) {
-    GeoBoundary gb;
+H3Error H3_EXPORT(edgeLengthRads)(H3Index edge, double *length) {
+    CellBoundary cb;
 
-    H3_EXPORT(getH3UnidirectionalEdgeBoundary)(edge, &gb);
-
-    double length = 0.0;
-    for (int i = 0; i < gb.numVerts - 1; i++) {
-        length += H3_EXPORT(pointDistRads)(&gb.verts[i], &gb.verts[i + 1]);
+    H3Error err = H3_EXPORT(directedEdgeToBoundary)(edge, &cb);
+    if (err) {
+        return err;
     }
 
-    return length;
+    *length = 0.0;
+    for (int i = 0; i < cb.numVerts - 1; i++) {
+        *length +=
+            H3_EXPORT(greatCircleDistanceRads)(&cb.verts[i], &cb.verts[i + 1]);
+    }
+
+    return E_SUCCESS;
 }
 
 /**
- * Length of a unidirectional edge in kilometers.
+ * Length of a directed edge in kilometers.
  */
-double H3_EXPORT(exactEdgeLengthKm)(H3Index edge) {
-    return H3_EXPORT(exactEdgeLengthRads)(edge) * EARTH_RADIUS_KM;
+H3Error H3_EXPORT(edgeLengthKm)(H3Index edge, double *length) {
+    H3Error err = H3_EXPORT(edgeLengthRads)(edge, length);
+    *length = *length * EARTH_RADIUS_KM;
+    return err;
 }
 
 /**
- * Length of a unidirectional edge in meters.
+ * Length of a directed edge in meters.
  */
-double H3_EXPORT(exactEdgeLengthM)(H3Index edge) {
-    return H3_EXPORT(exactEdgeLengthKm)(edge) * 1000;
+H3Error H3_EXPORT(edgeLengthM)(H3Index edge, double *length) {
+    H3Error err = H3_EXPORT(edgeLengthKm)(edge, length);
+    *length = *length * 1000;
+    return err;
 }

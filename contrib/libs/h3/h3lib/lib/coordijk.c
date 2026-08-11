@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 Uber Technologies, Inc.
+ * Copyright 2016-2018, 2020-2022 Uber Technologies, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
  */
 /** @file coordijk.c
  * @brief   Hex IJK coordinate systems functions including conversions to/from
- * lat/lon.
+ * lat/lng.
  */
 
 #include "coordijk.h"
@@ -26,8 +26,11 @@
 #include <string.h>
 
 #include "constants.h"
-#include "geoCoord.h"
+#include "h3Assert.h"
+#include "latLng.h"
 #include "mathExtensions.h"
+
+#define INT32_MAX_3 (INT32_MAX / 3)
 
 /**
  * Sets an IJK coordinate to the specified component values.
@@ -37,7 +40,7 @@
  * @param j The desired j component value.
  * @param k The desired k component value.
  */
-void _setIJK(CoordIJK* ijk, int i, int j, int k) {
+void _setIJK(CoordIJK *ijk, int i, int j, int k) {
     ijk->i = i;
     ijk->j = j;
     ijk->k = k;
@@ -50,7 +53,7 @@ void _setIJK(CoordIJK* ijk, int i, int j, int k) {
  * @param v The 2D cartesian coordinate vector.
  * @param h The ijk+ coordinates of the containing hex.
  */
-void _hex2dToCoordIJK(const Vec2d* v, CoordIJK* h) {
+void _hex2dToCoordIJK(const Vec2d *v, CoordIJK *h) {
     double a1, a2;
     double x1, x2;
     int m1, m2;
@@ -149,7 +152,7 @@ void _hex2dToCoordIJK(const Vec2d* v, CoordIJK* h) {
  * @param h The ijk coordinates of the hex.
  * @param v The 2D cartesian coordinates of the hex center point.
  */
-void _ijkToHex2d(const CoordIJK* h, Vec2d* v) {
+void _ijkToHex2d(const CoordIJK *h, Vec2d *v) {
     int i = h->i - h->k;
     int j = h->j - h->k;
 
@@ -165,7 +168,7 @@ void _ijkToHex2d(const CoordIJK* h, Vec2d* v) {
  * @param c2 The second set of ijk coordinates.
  * @return 1 if the two addresses match, 0 if they do not.
  */
-int _ijkMatches(const CoordIJK* c1, const CoordIJK* c2) {
+int _ijkMatches(const CoordIJK *c1, const CoordIJK *c2) {
     return (c1->i == c2->i && c1->j == c2->j && c1->k == c2->k);
 }
 
@@ -176,7 +179,7 @@ int _ijkMatches(const CoordIJK* c1, const CoordIJK* c2) {
  * @param h2 The second set of ijk coordinates.
  * @param sum The sum of the two sets of ijk coordinates.
  */
-void _ijkAdd(const CoordIJK* h1, const CoordIJK* h2, CoordIJK* sum) {
+void _ijkAdd(const CoordIJK *h1, const CoordIJK *h2, CoordIJK *sum) {
     sum->i = h1->i + h2->i;
     sum->j = h1->j + h2->j;
     sum->k = h1->k + h2->k;
@@ -189,7 +192,7 @@ void _ijkAdd(const CoordIJK* h1, const CoordIJK* h2, CoordIJK* sum) {
  * @param h2 The second set of ijk coordinates.
  * @param diff The difference of the two sets of ijk coordinates (h1 - h2).
  */
-void _ijkSub(const CoordIJK* h1, const CoordIJK* h2, CoordIJK* diff) {
+void _ijkSub(const CoordIJK *h1, const CoordIJK *h2, CoordIJK *diff) {
     diff->i = h1->i - h2->i;
     diff->j = h1->j - h2->j;
     diff->k = h1->k - h2->k;
@@ -201,19 +204,59 @@ void _ijkSub(const CoordIJK* h1, const CoordIJK* h2, CoordIJK* diff) {
  * @param c The ijk coordinates to scale.
  * @param factor The scaling factor.
  */
-void _ijkScale(CoordIJK* c, int factor) {
+void _ijkScale(CoordIJK *c, int factor) {
     c->i *= factor;
     c->j *= factor;
     c->k *= factor;
 }
 
 /**
+ * Returns true if _ijkNormalize with the given input could have a signed
+ * integer overflow. Assumes k is set to 0.
+ */
+bool _ijkNormalizeCouldOverflow(const CoordIJK *ijk) {
+    // Check for the possibility of overflow
+    int max, min;
+    if (ijk->i > ijk->j) {
+        max = ijk->i;
+        min = ijk->j;
+    } else {
+        max = ijk->j;
+        min = ijk->i;
+    }
+    if (min < 0) {
+        // Only if the min is less than 0 will the resulting number be larger
+        // than max. If min is positive, then max is also positive, and a
+        // positive signed integer minus another positive signed integer will
+        // not overflow.
+        if (ADD_INT32S_OVERFLOWS(max, min)) {
+            // max + min would overflow
+            return true;
+        }
+        if (SUB_INT32S_OVERFLOWS(0, min)) {
+            // 0 - INT32_MIN would overflow
+            return true;
+        }
+        if (SUB_INT32S_OVERFLOWS(max, min)) {
+            // max - min would overflow
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * Normalizes ijk coordinates by setting the components to the smallest possible
  * values. Works in place.
  *
+ * This function does not protect against signed integer overflow. The caller
+ * must ensure that none of (i - j), (i - k), (j - i), (j - k), (k - i), (k - j)
+ * will overflow. This function may be changed in the future to make that check
+ * itself and return an error code.
+ *
  * @param c The ijk coordinates to normalize.
  */
-void _ijkNormalize(CoordIJK* c) {
+void _ijkNormalize(CoordIJK *c) {
     // remove any negative values
     if (c->i < 0) {
         c->j -= c->i;
@@ -245,13 +288,14 @@ void _ijkNormalize(CoordIJK* c) {
 }
 
 /**
- * Determines the H3 digit corresponding to a unit vector in ijk coordinates.
+ * Determines the H3 digit corresponding to a unit vector or the zero vector
+ * in ijk coordinates.
  *
- * @param ijk The ijk coordinates; must be a unit vector.
- * @return The H3 digit (0-6) corresponding to the ijk unit vector, or
- * INVALID_DIGIT on failure.
+ * @param ijk The ijk coordinates; must be a unit vector or zero vector.
+ * @return The H3 digit (0-6) corresponding to the ijk unit vector, zero vector,
+ * or INVALID_DIGIT (7) on failure.
  */
-Direction _unitIjkToDigit(const CoordIJK* ijk) {
+Direction _unitIjkToDigit(const CoordIJK *ijk) {
     CoordIJK c = *ijk;
     _ijkNormalize(&c);
 
@@ -267,12 +311,110 @@ Direction _unitIjkToDigit(const CoordIJK* ijk) {
 }
 
 /**
+ * Returns non-zero if _upAp7 with the given input could have a signed integer
+ * overflow.
+ *
+ * Assumes ijk is IJK+ coordinates (no negative numbers).
+ */
+H3Error _upAp7Checked(CoordIJK *ijk) {
+    // Doesn't need to be checked because i, j, and k must all be non-negative
+    int i = ijk->i - ijk->k;
+    int j = ijk->j - ijk->k;
+
+    // <0 is checked because the input must all be non-negative, but some
+    // negative inputs are used in unit tests to exercise the below.
+    if (i >= INT32_MAX_3 || j >= INT32_MAX_3 || i < 0 || j < 0) {
+        if (ADD_INT32S_OVERFLOWS(i, i)) {
+            return E_FAILED;
+        }
+        int i2 = i + i;
+        if (ADD_INT32S_OVERFLOWS(i2, i)) {
+            return E_FAILED;
+        }
+        int i3 = i2 + i;
+        if (ADD_INT32S_OVERFLOWS(j, j)) {
+            return E_FAILED;
+        }
+        int j2 = j + j;
+
+        if (SUB_INT32S_OVERFLOWS(i3, j)) {
+            return E_FAILED;
+        }
+        if (ADD_INT32S_OVERFLOWS(i, j2)) {
+            return E_FAILED;
+        }
+    }
+
+    // TODO: Do the int math parts here in long double?
+    ijk->i = (int)lroundl(((i * 3) - j) / 7.0L);
+    ijk->j = (int)lroundl((i + (j * 2)) / 7.0L);
+    ijk->k = 0;
+
+    // Expected not to be reachable, because max + min or max - min would need
+    // to overflow.
+    if (NEVER(_ijkNormalizeCouldOverflow(ijk))) {
+        return E_FAILED;
+    }
+    _ijkNormalize(ijk);
+    return E_SUCCESS;
+}
+
+/**
+ * Returns non-zero if _upAp7r with the given input could have a signed integer
+ * overflow.
+ *
+ * Assumes ijk is IJK+ coordinates (no negative numbers).
+ */
+H3Error _upAp7rChecked(CoordIJK *ijk) {
+    // Doesn't need to be checked because i, j, and k must all be non-negative
+    int i = ijk->i - ijk->k;
+    int j = ijk->j - ijk->k;
+
+    // <0 is checked because the input must all be non-negative, but some
+    // negative inputs are used in unit tests to exercise the below.
+    if (i >= INT32_MAX_3 || j >= INT32_MAX_3 || i < 0 || j < 0) {
+        if (ADD_INT32S_OVERFLOWS(i, i)) {
+            return E_FAILED;
+        }
+        int i2 = i + i;
+        if (ADD_INT32S_OVERFLOWS(j, j)) {
+            return E_FAILED;
+        }
+        int j2 = j + j;
+        if (ADD_INT32S_OVERFLOWS(j2, j)) {
+            return E_FAILED;
+        }
+        int j3 = j2 + j;
+
+        if (ADD_INT32S_OVERFLOWS(i2, j)) {
+            return E_FAILED;
+        }
+        if (SUB_INT32S_OVERFLOWS(j3, i)) {
+            return E_FAILED;
+        }
+    }
+
+    // TODO: Do the int math parts here in long double?
+    ijk->i = (int)lroundl(((i * 2) + j) / 7.0L);
+    ijk->j = (int)lroundl(((j * 3) - i) / 7.0L);
+    ijk->k = 0;
+
+    // Expected not to be reachable, because max + min or max - min would need
+    // to overflow.
+    if (NEVER(_ijkNormalizeCouldOverflow(ijk))) {
+        return E_FAILED;
+    }
+    _ijkNormalize(ijk);
+    return E_SUCCESS;
+}
+
+/**
  * Find the normalized ijk coordinates of the indexing parent of a cell in a
  * counter-clockwise aperture 7 grid. Works in place.
  *
  * @param ijk The ijk coordinates.
  */
-void _upAp7(CoordIJK* ijk) {
+void _upAp7(CoordIJK *ijk) {
     // convert to CoordIJ
     int i = ijk->i - ijk->k;
     int j = ijk->j - ijk->k;
@@ -289,7 +431,7 @@ void _upAp7(CoordIJK* ijk) {
  *
  * @param ijk The ijk coordinates.
  */
-void _upAp7r(CoordIJK* ijk) {
+void _upAp7r(CoordIJK *ijk) {
     // convert to CoordIJ
     int i = ijk->i - ijk->k;
     int j = ijk->j - ijk->k;
@@ -307,7 +449,7 @@ void _upAp7r(CoordIJK* ijk) {
  *
  * @param ijk The ijk coordinates.
  */
-void _downAp7(CoordIJK* ijk) {
+void _downAp7(CoordIJK *ijk) {
     // res r unit vectors in res r+1
     CoordIJK iVec = {3, 0, 1};
     CoordIJK jVec = {1, 3, 0};
@@ -329,7 +471,7 @@ void _downAp7(CoordIJK* ijk) {
  *
  * @param ijk The ijk coordinates.
  */
-void _downAp7r(CoordIJK* ijk) {
+void _downAp7r(CoordIJK *ijk) {
     // res r unit vectors in res r+1
     CoordIJK iVec = {3, 1, 0};
     CoordIJK jVec = {0, 3, 1};
@@ -352,7 +494,7 @@ void _downAp7r(CoordIJK* ijk) {
  * @param ijk The ijk coordinates.
  * @param digit The digit direction from the original ijk coordinates.
  */
-void _neighbor(CoordIJK* ijk, Direction digit) {
+void _neighbor(CoordIJK *ijk, Direction digit) {
     if (digit > CENTER_DIGIT && digit < NUM_DIGITS) {
         _ijkAdd(ijk, &UNIT_VECS[digit], ijk);
         _ijkNormalize(ijk);
@@ -364,7 +506,7 @@ void _neighbor(CoordIJK* ijk, Direction digit) {
  *
  * @param ijk The ijk coordinates.
  */
-void _ijkRotate60ccw(CoordIJK* ijk) {
+void _ijkRotate60ccw(CoordIJK *ijk) {
     // unit vector rotations
     CoordIJK iVec = {1, 1, 0};
     CoordIJK jVec = {0, 1, 1};
@@ -385,7 +527,7 @@ void _ijkRotate60ccw(CoordIJK* ijk) {
  *
  * @param ijk The ijk coordinates.
  */
-void _ijkRotate60cw(CoordIJK* ijk) {
+void _ijkRotate60cw(CoordIJK *ijk) {
     // unit vector rotations
     CoordIJK iVec = {1, 0, 1};
     CoordIJK jVec = {1, 1, 0};
@@ -456,7 +598,7 @@ Direction _rotate60cw(Direction digit) {
  *
  * @param ijk The ijk coordinates.
  */
-void _downAp3(CoordIJK* ijk) {
+void _downAp3(CoordIJK *ijk) {
     // res r unit vectors in res r+1
     CoordIJK iVec = {2, 0, 1};
     CoordIJK jVec = {1, 2, 0};
@@ -478,7 +620,7 @@ void _downAp3(CoordIJK* ijk) {
  *
  * @param ijk The ijk coordinates.
  */
-void _downAp3r(CoordIJK* ijk) {
+void _downAp3r(CoordIJK *ijk) {
     // res r unit vectors in res r+1
     CoordIJK iVec = {2, 1, 0};
     CoordIJK jVec = {0, 2, 1};
@@ -500,7 +642,7 @@ void _downAp3r(CoordIJK* ijk) {
  * @param c1 The first set of ijk coordinates.
  * @param c2 The second set of ijk coordinates.
  */
-int ijkDistance(const CoordIJK* c1, const CoordIJK* c2) {
+int ijkDistance(const CoordIJK *c1, const CoordIJK *c2) {
     CoordIJK diff;
     _ijkSub(c1, c2, &diff);
     _ijkNormalize(&diff);
@@ -515,7 +657,7 @@ int ijkDistance(const CoordIJK* c1, const CoordIJK* c2) {
  * @param ijk The input IJK+ coordinates
  * @param ij The output IJ coordinates
  */
-void ijkToIj(const CoordIJK* ijk, CoordIJ* ij) {
+void ijkToIj(const CoordIJK *ijk, CoordIJ *ij) {
     ij->i = ijk->i - ijk->k;
     ij->j = ijk->j - ijk->k;
 }
@@ -526,20 +668,27 @@ void ijkToIj(const CoordIJK* ijk, CoordIJ* ij) {
  *
  * @param ij The input IJ coordinates
  * @param ijk The output IJK+ coordinates
+ * @returns E_SUCCESS on success, E_FAILED if signed integer overflow would have
+ * occurred.
  */
-void ijToIjk(const CoordIJ* ij, CoordIJK* ijk) {
+H3Error ijToIjk(const CoordIJ *ij, CoordIJK *ijk) {
     ijk->i = ij->i;
     ijk->j = ij->j;
     ijk->k = 0;
 
+    if (_ijkNormalizeCouldOverflow(ijk)) {
+        return E_FAILED;
+    }
+
     _ijkNormalize(ijk);
+    return E_SUCCESS;
 }
 
 /**
  * Convert IJK coordinates to cube coordinates, in place
  * @param ijk Coordinate to convert
  */
-void ijkToCube(CoordIJK* ijk) {
+void ijkToCube(CoordIJK *ijk) {
     ijk->i = -ijk->i + ijk->k;
     ijk->j = ijk->j - ijk->k;
     ijk->k = -ijk->i - ijk->j;
@@ -549,7 +698,7 @@ void ijkToCube(CoordIJK* ijk) {
  * Convert cube coordinates to IJK coordinates, in place
  * @param ijk Coordinate to convert
  */
-void cubeToIjk(CoordIJK* ijk) {
+void cubeToIjk(CoordIJK *ijk) {
     ijk->i = -ijk->i;
     ijk->k = 0;
     _ijkNormalize(ijk);
