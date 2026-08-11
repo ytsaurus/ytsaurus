@@ -190,15 +190,16 @@ public:
     void Abort(TError error) override
     {
         if (AbortByPingFailPromise_.ToFuture().Cancel(error)) {
-            YT_LOG_DEBUG(error, "Distributed query session execution cancelled (SessionId: %v)",
-                Context_->SessionId);
+            YT_TLOG_DEBUG("Distributed query session execution cancelled")
+                .With("SessionId", Context_->SessionId)
+                .With(error);
         }
     }
 
     void CloseRemoteSessions() override
     {
-        YT_LOG_DEBUG("Closing remote distributed query session instances (SessionId: %v)",
-            Context_->SessionId);
+        YT_TLOG_DEBUG("Closing remote distributed query session instances")
+            .With("SessionId", Context_->SessionId);
 
         for (auto& pinger : Pingers_) {
             pinger->Close();

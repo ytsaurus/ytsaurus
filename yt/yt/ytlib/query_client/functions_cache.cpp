@@ -213,11 +213,12 @@ std::vector<TExternalFunctionSpec> LookupAllNativeUdfDescriptors(
 
     std::vector<TExternalFunctionSpec> result;
 
-    YT_LOG_DEBUG("Looking for UDFs in Cypress");
+    YT_TLOG_DEBUG("Looking for UDFs in Cypress");
 
     auto timer = NProfiling::TWallTimer();
     auto finally = Finally([&] {
-        YT_LOG_DEBUG("Finished Looking for UDFs in Cypress (LookupUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+        YT_TLOG_DEBUG("Finished Looking for UDFs in Cypress")
+            .With("LookupUdfDescriptorsTime", timer.GetElapsedTime());
     });
 
     auto readOptions = MakeMasterCacheReadOptions();
@@ -272,9 +273,9 @@ std::vector<TExternalFunctionSpec> LookupAllNativeUdfDescriptors(
         auto objectId = NYT::FromProto<NObjectClient::TObjectId>(basicAttrsRsp->object_id());
         auto cellTag = FromProto<TCellTag>(basicAttrsRsp->external_cell_tag());
 
-        YT_LOG_DEBUG("Found UDF implementation in Cypress (Name: %v, Descriptor: %v)",
-            function.Name,
-            ConvertToYsonString(item, NYson::EYsonFormat::Text).AsStringBuf());
+        YT_TLOG_DEBUG("Found UDF implementation in Cypress")
+            .With("Name", function.Name)
+            .With("Descriptor", ConvertToYsonString(item, NYson::EYsonFormat::Text).AsStringBuf());
 
         TExternalFunctionSpec cypressInfo;
         cypressInfo.Descriptor = item;
@@ -436,9 +437,9 @@ void UnpackFunctionDescriptors(
         (*functionToCypressPath)[function] = YPathJoin(function.Path, filename);
 
         if (auto it = resultIndices.find(function); it != resultIndices.end()) {
-            YT_LOG_DEBUG("Found UDF implementation in Cypress (NameAndPath: %v, Descriptor: %v)",
-                function,
-                ConvertToYsonString(functionDescriptor, NYson::EYsonFormat::Text).AsStringBuf());
+            YT_TLOG_DEBUG("Found UDF implementation in Cypress")
+                .With("NameAndPath", function)
+                .With("Descriptor", ConvertToYsonString(functionDescriptor, NYson::EYsonFormat::Text).AsStringBuf());
 
             auto buffer = GetEphemeralNodeFactory()->CreateString();
             buffer->MutableAttributes()->Set(descriptorAttribute, functionDescriptor);
@@ -651,11 +652,12 @@ std::vector<TExternalFunctionSpec> LookupAllWebAssemblyUdfDescriptors(
         return {};
     }
 
-    YT_LOG_DEBUG("Looking for WebAssembly UDFs in Cypress");
+    YT_TLOG_DEBUG("Looking for WebAssembly UDFs in Cypress");
 
     auto timer = NProfiling::TWallTimer();
     auto finally = Finally([&] {
-        YT_LOG_DEBUG("Finished Looking for WebAssembly UDFs in Cypress (LookupUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+        YT_TLOG_DEBUG("Finished Looking for WebAssembly UDFs in Cypress")
+            .With("LookupUdfDescriptorsTime", timer.GetElapsedTime());
     });
 
     auto uniqueDirectories = GetUniqueDirectories(functions);
@@ -787,11 +789,13 @@ void AppendNativeUdfDescriptors(
 {
     YT_VERIFY(functionNames.size() == externalFunctionSpecs.size());
 
-    YT_LOG_DEBUG("Appending UDF descriptors (Count: %v)", externalFunctionSpecs.size());
+    YT_TLOG_DEBUG("Appending UDF descriptors")
+        .With("Count", externalFunctionSpecs.size());
 
     auto timer = NProfiling::TWallTimer();
     auto finally = Finally([&] {
-        YT_LOG_DEBUG("Finished appending UDF descriptors (AppendUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+        YT_TLOG_DEBUG("Finished appending UDF descriptors")
+            .With("AppendUdfDescriptorsTime", timer.GetElapsedTime());
     });
 
     for (size_t index = 0; index < externalFunctionSpecs.size(); ++index) {
@@ -799,9 +803,9 @@ void AppendNativeUdfDescriptors(
         const auto& descriptor = item.Descriptor;
         const auto& name = functionNames[index];
 
-        YT_LOG_DEBUG("Appending UDF descriptor (Name: %v, Descriptor: %v)",
-            name,
-            ConvertToYsonString(descriptor, NYson::EYsonFormat::Text).AsStringBuf());
+        YT_TLOG_DEBUG("Appending UDF descriptor")
+            .With("Name", name)
+            .With("Descriptor", ConvertToYsonString(descriptor, NYson::EYsonFormat::Text).AsStringBuf());
 
         if (!descriptor) {
             continue;
@@ -826,13 +830,14 @@ void AppendNativeUdfDescriptors(
         functionBody.Name = name;
         functionBody.ChunkSpecs = chunks;
 
-        YT_LOG_DEBUG("Appending UDF descriptor {%v}",
-            MakeFormattableView(chunks, [] (TStringBuilderBase* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+        YT_TLOG_DEBUG("Appending UDF descriptor")
+            .With("Chunks", MakeFormattableView(chunks, [] (TStringBuilderBase* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
                 builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
             }));
 
         if (functionDescriptor) {
-            YT_LOG_DEBUG("Appending function UDF descriptor (Name: %v)", name);
+            YT_TLOG_DEBUG("Appending function UDF descriptor")
+                .With("Name", name);
 
             functionBody.IsAggregate = false;
             functionBody.SymbolName = functionDescriptor->Name;
@@ -857,7 +862,8 @@ void AppendNativeUdfDescriptors(
             cgInfo->Functions.push_back(std::move(functionBody));
         } else {
             YT_VERIFY(aggregateDescriptor);
-            YT_LOG_DEBUG("Appending aggregate UDF descriptor (Name: %v)", name);
+            YT_TLOG_DEBUG("Appending aggregate UDF descriptor")
+                .With("Name", name);
 
             functionBody.IsAggregate = true;
             functionBody.SymbolName = aggregateDescriptor->Name;
@@ -882,19 +888,20 @@ void AppendWebAssemblyUdfDescriptors(
     const std::vector<std::string>& functionNames,
     const std::vector<TExternalFunctionSpec>& externalFunctionSpecs)
 {
-    YT_LOG_DEBUG("Appending WebAssembly UDF descriptors (Functions: %v, Files: %v)",
-        functionNames.size(),
-        externalFunctionSpecs.size());
+    YT_TLOG_DEBUG("Appending WebAssembly UDF descriptors")
+        .With("Functions", functionNames.size())
+        .With("Files", externalFunctionSpecs.size());
 
     auto timer = NProfiling::TWallTimer();
     auto finally = Finally([&] {
-        YT_LOG_DEBUG("Finished appending WebAssembly UDF descriptors (AppendUdfDescriptorsTime: %v)", timer.GetElapsedTime());
+        YT_TLOG_DEBUG("Finished appending WebAssembly UDF descriptors")
+            .With("AppendUdfDescriptorsTime", timer.GetElapsedTime());
     });
 
     if (std::ssize(functionNames) + 1 != std::ssize(externalFunctionSpecs)) {
-        YT_LOG_ALERT("Could not load WebAssembly UDFs (Functions: %v, Files: %v)",
-            functionNames.size(),
-            externalFunctionSpecs.size());
+        YT_TLOG_ALERT("Could not load WebAssembly UDFs")
+            .With("Functions", functionNames.size())
+            .With("Files", externalFunctionSpecs.size());
         THROW_ERROR_EXCEPTION("Could not load WebAssembly UDFs");
     }
 
@@ -903,13 +910,14 @@ void AppendWebAssemblyUdfDescriptors(
         auto& functionName = functionNames[functionIndex];
 
         if (!externalFunctionSpec.Descriptor) {
-            YT_LOG_ALERT("Could not load WebAssembly UDFs descriptor (FunctionName: %v)", functionName);
+            YT_TLOG_ALERT("Could not load WebAssembly UDFs descriptor")
+                .With("FunctionName", functionName);
             continue;
         }
 
-        YT_LOG_DEBUG("Appending UDF descriptor (Name: %v Descriptor: %v)",
-            functionName,
-            ConvertToYsonString(externalFunctionSpec.Descriptor, NYson::EYsonFormat::Text).AsStringBuf());
+        YT_TLOG_DEBUG("Appending UDF descriptor")
+            .With("Name", functionName)
+            .With("Descriptor", ConvertToYsonString(externalFunctionSpec.Descriptor, NYson::EYsonFormat::Text).AsStringBuf());
 
         cgInfo->NodeDirectory->MergeFrom(externalFunctionSpec.NodeDirectory);
 
@@ -917,16 +925,16 @@ void AppendWebAssemblyUdfDescriptors(
         auto functionDescriptor = attributes.Find<TCypressFunctionDescriptorPtr>(
             FunctionDescriptorAttribute);
 
-        YT_LOG_DEBUG_IF(functionDescriptor, "Appending UDF descriptor (FunctionName: %v, Descriptor: %v)",
-            functionName,
-            ConvertToYsonString(functionDescriptor, NYson::EYsonFormat::Text).AsStringBuf());
+        YT_TLOG_DEBUG_IF(functionDescriptor, "Appending UDF descriptor")
+            .With("FunctionName", functionName)
+            .With("Descriptor", ConvertToYsonString(functionDescriptor, NYson::EYsonFormat::Text).AsStringBuf());
 
         auto aggregateDescriptor = attributes.Find<TCypressAggregateDescriptorPtr>(
             AggregateDescriptorAttribute);
 
-        YT_LOG_DEBUG_IF(aggregateDescriptor, "Appending aggregate UDF descriptor (FunctionName: %v, Descriptor: %v)",
-            functionName,
-            ConvertToYsonString(aggregateDescriptor, NYson::EYsonFormat::Text).AsStringBuf());
+        YT_TLOG_DEBUG_IF(aggregateDescriptor, "Appending aggregate UDF descriptor")
+            .With("FunctionName", functionName)
+            .With("Descriptor", ConvertToYsonString(aggregateDescriptor, NYson::EYsonFormat::Text).AsStringBuf());
 
         const auto& chunks = externalFunctionSpec.Chunks;
 
@@ -934,15 +942,16 @@ void AppendWebAssemblyUdfDescriptors(
         functionBody.Name = functionName;
         functionBody.ChunkSpecs = chunks;
 
-        YT_LOG_DEBUG("Appending UDF descriptor (Chunks: %v)",
-            MakeFormattableView(chunks, [] (TStringBuilderBase* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+        YT_TLOG_DEBUG("Appending UDF descriptor")
+            .With("Chunks", MakeFormattableView(chunks, [] (TStringBuilderBase* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
                 builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
             }));
 
         if (functionDescriptor) {
             YT_ASSERT(functionDescriptor->Name == functionName);
 
-            YT_LOG_DEBUG("Appending function UDF descriptor (Name: %v)", functionName);
+            YT_TLOG_DEBUG("Appending function UDF descriptor")
+                .With("Name", functionName);
 
             functionBody.IsAggregate = false;
             functionBody.SymbolName = functionDescriptor->Name;
@@ -968,7 +977,8 @@ void AppendWebAssemblyUdfDescriptors(
         } else if (aggregateDescriptor) {
             YT_ASSERT(functionDescriptor->Name == functionName);
 
-            YT_LOG_DEBUG("Appending aggregate UDF descriptor (Name: %v)", functionName);
+            YT_TLOG_DEBUG("Appending aggregate UDF descriptor")
+                .With("Name", functionName);
 
             functionBody.IsAggregate = true;
             functionBody.SymbolName = aggregateDescriptor->Name;
@@ -990,8 +1000,8 @@ void AppendWebAssemblyUdfDescriptors(
 
     auto sdk = externalFunctionSpecs.back();
     cgInfo->Sdk.ChunkSpecs = sdk.Chunks;
-    YT_LOG_DEBUG("Appending SDK descriptor (Chunks: %v)",
-        MakeFormattableView(cgInfo->Sdk.ChunkSpecs, [] (TStringBuilderBase* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
+    YT_TLOG_DEBUG("Appending SDK descriptor")
+        .With("Chunks", MakeFormattableView(cgInfo->Sdk.ChunkSpecs, [] (TStringBuilderBase* builder, const NChunkClient::NProto::TChunkSpec& chunkSpec) {
             builder->AppendFormat("%v", FromProto<TGuid>(chunkSpec.chunk_id()));
         }));
 }
@@ -1246,9 +1256,9 @@ private:
         YT_VERIFY(client);
         auto chunks = key.ChunkSpecs;
 
-        YT_LOG_DEBUG("Downloading implementation for UDF function (Chunks: %v, ReadSessionId: %v)",
-            key,
-            chunkReadOptions.ReadSessionId);
+        YT_TLOG_DEBUG("Downloading implementation for UDF function")
+            .With("Chunks", key)
+            .With("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         client->GetNativeConnection()->GetNodeDirectory()->MergeFrom(nodeDirectory);
 
@@ -1357,29 +1367,29 @@ void FetchFunctionImplementationsFromCypress(
     for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
-        YT_LOG_DEBUG("Fetching UDF implementation (Name: %v, ReadSessionId: %v)",
-            name,
-            chunkReadOptions.ReadSessionId);
+        YT_TLOG_DEBUG("Fetching UDF implementation")
+            .With("Name", name)
+            .With("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         TFunctionImplKey key;
         key.ChunkSpecs = function.ChunkSpecs;
 
-        YT_LOG_DEBUG("Fetching UDF implementation (Name: %v, ChunkSpecs: %v)",
-            name,
-            key.ChunkSpecs);
+        YT_TLOG_DEBUG("Fetching UDF implementation")
+            .With("Name", name)
+            .With("ChunkSpecs", key.ChunkSpecs);
 
         asyncResults.push_back(cache->FetchImplementation(key, externalCGInfo->NodeDirectory, chunkReadOptions));
     }
 
     if (queryOptions.ExecutionBackend == EExecutionBackend::WebAssembly) {
-        YT_LOG_DEBUG("Fetching SDK implementation (ReadSessionId: %v)",
-            chunkReadOptions.ReadSessionId);
+        YT_TLOG_DEBUG("Fetching SDK implementation")
+            .With("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         TFunctionImplKey key;
         key.ChunkSpecs = externalCGInfo->Sdk.ChunkSpecs;
 
-        YT_LOG_DEBUG("Fetching SDK implementation (ChunkSpecs: %v)",
-            key.ChunkSpecs);
+        YT_TLOG_DEBUG("Fetching SDK implementation")
+            .With("ChunkSpecs", key.ChunkSpecs);
 
         asyncResults.push_back(cache->FetchImplementation(key, externalCGInfo->NodeDirectory, chunkReadOptions));
     }
@@ -1415,7 +1425,8 @@ void FetchFunctionImplementationsFromFiles(
     for (const auto& function : externalCGInfo->Functions) {
         const auto& name = function.Name;
 
-        YT_LOG_DEBUG("Fetching UDF implementation (Name: %v)", name);
+        YT_TLOG_DEBUG("Fetching UDF implementation")
+            .With("Name", name);
 
         auto path = TYPath(rootPath) + "/" + function.Name;
         auto file = TUnbufferedFileInput(path);
