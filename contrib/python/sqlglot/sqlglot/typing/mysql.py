@@ -37,8 +37,16 @@ EXPRESSION_METADATA = {
         expr_type: {"returns": exp.DType.DATETIME}
         for expr_type in {
             exp.CurrentTimestamp,
+            exp.ConvertTimezone,
             exp.Localtime,
             exp.Localtimestamp,
+            exp.UtcTimestamp,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DType.DATE}
+        for expr_type in {
+            exp.UtcDate,
         }
     },
     **{
@@ -49,6 +57,8 @@ EXPRESSION_METADATA = {
             exp.NumberToStr,  # format()
             exp.Replace,
             exp.Stuff,  # insert function
+            exp.SubstringIndex,
+            exp.RegexpSubstr,
         }
     },
     **{
@@ -64,6 +74,13 @@ EXPRESSION_METADATA = {
         expr_type: {"returns": exp.DType.TIME}
         for expr_type in {
             exp.TimeFromParts,
+            exp.UtcTime,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DType.VARBINARY}
+        for expr_type in {
+            exp.Unhex,
         }
     },
     **{

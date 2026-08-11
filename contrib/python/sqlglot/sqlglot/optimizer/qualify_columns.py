@@ -819,18 +819,29 @@ def _expand_stars(
     for expression in scope_expression.selects:
         tables: list[str] = []
         if isinstance(expression, exp.Star):
+            # Only a string literal ILIKE pattern can filter the expansion at optimization time
+            ilike = expression.args.get("ilike")
+            if ilike and not ilike.is_string:
+                new_selections.append(expression)
+                continue
+
             tables.extend(scope.selected_sources)
             _add_except_columns(expression, tables, except_columns)
             _add_replace_columns(expression, tables, replace_columns)
             _add_rename_columns(expression, tables, rename_columns)
-            ilike_pattern = _add_ilike_columns(expression)
+            ilike_pattern = _add_ilike_columns(expression, dialect)
         elif expression.is_star:
             if isinstance(expression, exp.Column):
+                ilike = expression.this.args.get("ilike")
+                if ilike and not ilike.is_string:
+                    new_selections.append(expression)
+                    continue
+
                 tables.append(expression.table)
                 _add_except_columns(expression.this, tables, except_columns)
                 _add_replace_columns(expression.this, tables, replace_columns)
                 _add_rename_columns(expression.this, tables, rename_columns)
-                ilike_pattern = _add_ilike_columns(expression.this)
+                ilike_pattern = _add_ilike_columns(expression.this, dialect)
             elif isinstance(expression, exp.Dot):
                 if dialect.REQUIRES_PARENTHESIZED_STRUCT_ACCESS:
                     struct_fields = _expand_struct_stars_with_parens(expression)
@@ -861,7 +872,10 @@ def _expand_stars(
             if pseudocolumns and dialect.EXCLUDES_PSEUDOCOLUMNS_FROM_STAR:
                 columns = [name for name in columns if name.upper() not in pseudocolumns]
 
-            if not columns or "*" in columns:
+            # If a source exposes duplicate output names (e.g. a derived table re-exposing
+            # colliding star-expanded columns), expanding this star would produce ambiguous
+            # projections, so we leave it unexpanded.
+            if not columns or "*" in columns or len(columns) != len(set(columns)):
                 return
 
             table_id = id(table)
@@ -943,13 +957,33 @@ def _output_identifier_quoted(selection: exp.Expr) -> bool:
     return isinstance(identifier, exp.Identifier) and identifier.quoted
 
 
-def _add_ilike_columns(expression: exp.Expr) -> str | None:
+def _add_ilike_columns(expression: exp.Expr, dialect: Dialect) -> str | None:
     ilike = expression.args.get("ilike")
 
     if not ilike:
         return None
 
-    return "".join(".*" if c == "%" else "." if c == "_" else re.escape(c) for c in ilike.name)
+    i = 0
+    chars = []
+    pattern = ilike.name
+    len_pattern = len(pattern)
+
+    while i < len_pattern:
+        c = pattern[i]
+
+        if c == "\\" and dialect.STAR_ILIKE_BACKSLASH_ESCAPE and i + 1 < len_pattern:
+            i += 1
+            chars.append(re.escape(pattern[i]))
+        elif c == "%":
+            chars.append(".*")
+        elif c == "_":
+            chars.append(".")
+        else:
+            chars.append(re.escape(c))
+
+        i += 1
+
+    return "".join(chars)
 
 
 def _add_except_columns(expression: exp.Expr, tables, except_columns: dict[int, set[str]]) -> None:
@@ -1020,15 +1054,28 @@ def qualify_outputs(scope_or_expression: Scope | exp.Expr, dialect: Dialect) -> 
                 dialect.normalize_identifier(alias_identifier)
                 selection.set("alias", exp.TableAlias(this=alias_identifier))
         elif not isinstance(selection, (exp.Alias, exp.Aliases)) and not selection.is_star:
-            source_quoted = isinstance(selection, exp.Column) and selection.this.quoted
+            unwrapped = selection.unnest()
+            if isinstance(unwrapped, exp.Column):
+                source_identifier = unwrapped.this
+            elif isinstance(unwrapped, exp.Dot):
+                source_identifier = unwrapped.expression
+            else:
+                source_identifier = None
+
             selection = alias(
                 selection,
                 alias=selection.output_name or f"_col_{i}",
                 copy=False,
             )
-            if source_quoted:
-                selection.args["alias"].set("quoted", True)
-            dialect.normalize_identifier(selection.args["alias"])
+            if isinstance(source_identifier, exp.Identifier):
+                # The alias copies the exact spelling of an existing identifier, so folding it
+                # here would desync it from other occurrences of that identifier; its casing
+                # is `normalize_identifiers`' concern, which has already run (or was skipped
+                # deliberately) by this point
+                if source_identifier.quoted:
+                    selection.args["alias"].set("quoted", True)
+            else:
+                dialect.normalize_identifier(selection.args["alias"])
         if aliased_column:
             selection.set("alias", exp.to_identifier(aliased_column))
 

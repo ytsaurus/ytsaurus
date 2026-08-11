@@ -135,9 +135,17 @@ class NormalizationStrategy(str, AutoName):
     """Always case-insensitive (uppercase), regardless of quotes."""
 
 
-# "Strict" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd to these in TIME_MAPPING so they
-# roundtrip, since a lax %m/%d renders non-padded there for parse expressions (see HiveGenerator.format_time).
-STRICT_TIME_FORMATS = {"%mstrict": "%m", "%dstrict": "%d"}
+# "Strict" dialects (e.g. modern Hive, Spark 3+) map their zero-padded MM/dd/HH/hh/mm/ss to these in
+# TIME_MAPPING so they roundtrip, since a lax %m/%d renders non-padded there for parse expressions
+# (see HiveGenerator.format_time).
+STRICT_TIME_FORMATS = {
+    "%mstrict": "%m",
+    "%dstrict": "%d",
+    "%Hstrict": "%H",
+    "%Istrict": "%I",
+    "%Mstrict": "%M",
+    "%Sstrict": "%S",
+}
 
 
 def _with_strict_time_inverse(inverse_mapping: dict[str, str]) -> dict[str, str]:
@@ -596,6 +604,13 @@ class Dialect(metaclass=_Dialect):
     This expands to all fields within the struct.
     """
 
+    STAR_ILIKE_BACKSLASH_ESCAPE = False
+    """
+    Whether a backslash in a `SELECT * ILIKE '<pattern>'` filter escapes the following character,
+    so that e.g. `\\_` matches a literal underscore (Snowflake). When False, backslashes in the
+    pattern are matched literally (DuckDB).
+    """
+
     EXCLUDES_PSEUDOCOLUMNS_FROM_STAR = False
     """
     Whether pseudocolumns should be excluded from star expansion (SELECT *).
@@ -736,6 +751,9 @@ class Dialect(metaclass=_Dialect):
     # Whether the double negation can be applied
     # Not safe with MySQL and SQLite due to type coercion (may not return boolean)
     SAFE_TO_ELIMINATE_DOUBLE_NEGATION = True
+
+    # Whether `x IS NOT NULL` can be normalized to `NOT x IS NULL`
+    NORMALIZE_NOT_NULL = True
 
     # Whether the INITCAP function supports custom delimiter characters as the second argument
     # Default delimiter characters for INITCAP function: whitespace and non-alphanumeric characters
