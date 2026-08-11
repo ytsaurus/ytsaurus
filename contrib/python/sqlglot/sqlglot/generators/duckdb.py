@@ -2204,6 +2204,25 @@ class DuckDBGenerator(generator.Generator):
         """
     )
 
+    # BigQuery's `x IN UNNEST(arr)` NULL semantics:
+    #   NULL IN UNNEST([1, 2])  -> NULL
+    #   3 IN UNNEST([1, NULL])  -> NULL
+    #   3 IN UNNEST([1, 2])     -> FALSE
+    #   1 IN UNNEST(NULL)       -> FALSE (not NULL)
+    #   1 IN UNNEST([])         -> FALSE
+    # The default `IN (SELECT UNNEST(...))` rewrite creates a correlated subquery
+    # that DuckDB rejects inside non-inner joins, so a CASE expression is used instead.
+    IN_UNNEST_TEMPLATE: exp.Expr = exp.maybe_parse(
+        """
+        CASE
+            WHEN :arr IS NULL OR ARRAY_LENGTH(:arr) = 0 THEN FALSE
+            WHEN ARRAY_CONTAINS(:arr, :value) THEN TRUE
+            WHEN :value IS NULL OR ARRAY_LENGTH(:arr) <> LIST_COUNT(:arr) THEN NULL
+            ELSE FALSE
+        END
+        """
+    )
+
     STRTOK_TO_ARRAY_TEMPLATE: exp.Expr = exp.maybe_parse(
         """
         CASE WHEN :delimiter IS NULL THEN NULL
@@ -3098,6 +3117,16 @@ class DuckDBGenerator(generator.Generator):
 
         return super().tablesample_sql(expression, tablesample_keyword=tablesample_keyword)
 
+    def in_sql(self, expression: exp.In) -> str:
+        unnest = expression.args.get("unnest")
+        if unnest:
+            return self.sql(
+                exp.replace_placeholders(
+                    self.IN_UNNEST_TEMPLATE, arr=unnest.expressions[0], value=expression.this
+                )
+            )
+        return super().in_sql(expression)
+
     def join_sql(self, expression: exp.Join) -> str:
         if (
             not expression.args.get("using")
@@ -3458,6 +3487,23 @@ class DuckDBGenerator(generator.Generator):
                 this=exp.func("LIST", exp.Distinct(expressions=[expression.this])),
                 expression=exp.Where(this=expression.this.copy().is_(exp.null()).not_()),
             )
+        )
+
+    def arrayconcatagg_sql(self, expression: exp.ArrayConcatAgg) -> str:
+        this = expression.this
+
+        if isinstance(this, exp.Limit):
+            self.unsupported("LIMIT in ARRAY_CONCAT_AGG cannot be transpiled to DuckDB")
+            this = this.this
+
+        inner = this.this if isinstance(this, exp.Order) else this
+
+        return self.func(
+            "FLATTEN",
+            exp.Filter(
+                this=exp.ArrayAgg(this=this),
+                expression=exp.Where(this=inner.copy().is_(exp.null()).not_()),
+            ),
         )
 
     def arrayunionagg_sql(self, expression: exp.ArrayUnionAgg) -> str:
@@ -3917,6 +3963,12 @@ class DuckDBGenerator(generator.Generator):
 
         return super().unnest_sql(expression)
 
+    def arrayagg_sql(self, expression: exp.ArrayAgg) -> str:
+        if isinstance(expression.this, exp.Limit):
+            self.unsupported("LIMIT inside ARRAY_AGG is not supported in DuckDB")
+
+        return super().arrayagg_sql(expression)
+
     def ignorenulls_sql(self, expression: exp.IgnoreNulls) -> str:
         this = expression.this
 
@@ -3924,6 +3976,14 @@ class DuckDBGenerator(generator.Generator):
             # DuckDB should render IGNORE NULLS only for the general-purpose
             # window functions that accept it e.g. FIRST_VALUE(... IGNORE NULLS) OVER (...)
             return super().ignorenulls_sql(expression)
+
+        # For ARRAY_AGG(expr IGNORE NULLS ...), convert IGNORE NULLS to a
+        # FILTER(WHERE expr IS NOT NULL) clause by setting nulls_excluded on
+        # the ArrayAgg.  The existing _add_arrayagg_null_filter method will
+        # emit the FILTER clause during arrayagg_sql / withingroup_sql.
+        if isinstance(this, exp.ArrayAgg):
+            this.set("nulls_excluded", True)
+            return self.sql(this)
 
         if isinstance(this, exp.First):
             this = exp.AnyValue(this=this.this)

@@ -742,6 +742,7 @@ class Parser:
         TokenType.OFFSET,
         TokenType.OPERATOR,
         TokenType.ORDINALITY,
+        TokenType.OUT,
         TokenType.OVER,
         TokenType.OVERLAPS,
         TokenType.OVERWRITE,
@@ -1018,7 +1019,10 @@ class Parser:
             )
         ),
         TokenType.FARROW: lambda self, expressions: self.expression(
-            exp.Kwarg(this=exp.var(expressions[0].name), expression=self._parse_disjunction())
+            exp.Kwarg(
+                this=exp.var(expressions[0].name),
+                expression=self._parse_disjunction() or self._parse_select(),
+            )
         ),
     }
 
@@ -3542,6 +3546,38 @@ class Parser:
 
             this = self._parse_function() if is_function else self._parse_insert_table()
 
+        # MySQL's INSERT ... SET is normalized into the INSERT ... (cols) VALUES (vals) variant
+        set_values = None
+        if self._match(TokenType.SET):
+            columns = []
+            values = []
+
+            def _parse_set_assignment() -> exp.Expr | None:
+                target = self._parse_column()
+                if isinstance(target, exp.Column) and self._match(TokenType.EQ):
+                    if self.dialect.SUPPORTS_VALUES_DEFAULT and self._match(TokenType.DEFAULT):
+                        value: exp.Expr | None = exp.var(self._prev.text.upper())
+                    else:
+                        value = self._parse_disjunction()
+
+                    if value:
+                        columns.append(target.this)
+                        values.append(value)
+                        return value
+
+                self.raise_error("Expected column assignment in INSERT ... SET")
+                return None
+
+            self._parse_csv(_parse_set_assignment)
+
+            this = self.expression(exp.Schema(this=this, expressions=columns))
+            set_values = self.expression(
+                exp.Values(
+                    expressions=[exp.Tuple(expressions=values)],
+                    alias=self._parse_table_alias(),
+                )
+            )
+
         returning = self._parse_returning()  # TSQL allows RETURNING before source
 
         return self.expression(
@@ -3557,7 +3593,9 @@ class Parser:
                 partition=self._match(TokenType.PARTITION_BY) and self._parse_partitioned_by(),
                 settings=self._match_text_seq("SETTINGS") and self._parse_settings_property(),
                 default=self._match_text_seq("DEFAULT", "VALUES"),
-                expression=self._parse_derived_table_values() or self._parse_ddl_select(),
+                expression=set_values
+                or self._parse_derived_table_values()
+                or self._parse_ddl_select(),
                 conflict=self._parse_on_conflict(),
                 returning=returning or self._parse_returning(),
                 overwrite=overwrite,
@@ -5912,8 +5950,11 @@ class Parser:
             elif self._match(TokenType.NOTNULL):
                 # Postgres supports ISNULL and NOTNULL for conditions.
                 # https://blog.andreiavram.ro/postgresql-null-composite-type/
-                this = self.expression(exp.Is(this=this, expression=exp.Null()))
-                this = self.expression(exp.Not(this=this))
+                if self.dialect.NORMALIZE_NOT_NULL:
+                    this = self.expression(exp.Is(this=this, expression=exp.Null()))
+                    this = self.expression(exp.Not(this=this))
+                else:
+                    this = self.expression(exp.Is(this=this, expression=exp.Null(), negate=True))
             else:
                 if negate:
                     self._retreat(self._index - 1)
@@ -5969,8 +6010,12 @@ class Parser:
                 self._retreat(index)
                 return None
 
-        this = self.expression(exp.Is(this=this, expression=expression))
-        this = self.expression(exp.Not(this=this)) if negate else this
+        if negate and isinstance(expression, exp.Null) and not self.dialect.NORMALIZE_NOT_NULL:
+            this = self.expression(exp.Is(this=this, expression=expression, negate=True))
+        else:
+            this = self.expression(exp.Is(this=this, expression=expression))
+            this = self.expression(exp.Not(this=this)) if negate else this
+
         return self._parse_column_ops(this)
 
     def _parse_in(self, this: exp.Expr | None, alias: bool = False) -> exp.In:
@@ -9737,7 +9782,11 @@ class Parser:
                 this.set("unpack", True)
             return this
 
+        index = self._index
         ilike = self._parse_string() if self._match(TokenType.ILIKE) else None
+        if not ilike:
+            # ILIKE without a string pattern is not a star filter, e.g. `* ILIKE (foo)`
+            self._retreat(index)
 
         return self.expression(
             exp.Star(
