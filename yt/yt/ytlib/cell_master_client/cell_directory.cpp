@@ -263,9 +263,9 @@ public:
             for (auto protoRole : item.roles()) {
                 auto role = NYT::FromProto<EMasterCellRole>(protoRole);
                 if (role == EMasterCellRole::Unknown) {
-                    YT_LOG_ALERT("Skipped an unknown cell role while synchronizing master cell directory (MasterCellRole: %v, CellTag: %v)",
-                        protoRole,
-                        cellTag);
+                    YT_TLOG_ALERT("Skipped an unknown cell role while synchronizing master cell directory")
+                        .With("MasterCellRole", protoRole)
+                        .With("CellTag", cellTag);
                     continue;
                 }
                 roles |= EMasterCellRoles(role);
@@ -291,10 +291,9 @@ public:
         auto oldSecondaryMasterConnectionConfigs = GetSecondaryMasterConnectionConfigs();
 
         if (ClusterMasterCompositionChanged(oldSecondaryMasterConnectionConfigs, newSecondaryMasterConnectionConfigs)) {
-            YT_LOG_INFO("Cluster membership configuration has changed, starting reconfiguration "
-                "(SecondaryMasterCellTags: %v, ReceivedSecondaryMasterCellTags: %v)",
-                oldSecondaryMasterCellTags,
-                newSecondaryMasterCellTags);
+            YT_TLOG_INFO("Cluster membership configuration has changed, starting reconfiguration")
+                .With("SecondaryMasterCellTags", oldSecondaryMasterCellTags)
+                .With("ReceivedSecondaryMasterCellTags", newSecondaryMasterCellTags);
 
             ReconfigureMasterCellDirectory(newSecondaryMasterConnectionConfigs);
 
@@ -323,11 +322,11 @@ public:
             if (Config_->PrimaryMaster->Addresses) {
                 auto expectedPrimaryCellAddresses = *Config_->PrimaryMaster->Addresses;
                 const auto& actualPrimaryCellAddresses = cellTagToAddresses[PrimaryMasterCellTag_];
-                YT_LOG_WARNING_UNLESS(
+                YT_TLOG_WARNING_UNLESS(
                     expectedPrimaryCellAddresses == actualPrimaryCellAddresses,
-                    "Synchronized primary master cell addresses do not match, connection config is probably incorrect (ConfigPrimaryMasterAddresses: %v, SynchronizedPrimaryMasterAddresses: %v)",
-                    expectedPrimaryCellAddresses,
-                    actualPrimaryCellAddresses);
+                    "Synchronized primary master cell addresses do not match, connection config is probably incorrect")
+                    .With("ConfigPrimaryMasterAddresses", expectedPrimaryCellAddresses)
+                    .With("SynchronizedPrimaryMasterAddresses", actualPrimaryCellAddresses);
 
                 for (const auto& [cellTag, cellConfig] : oldSecondaryMasterConnectionConfigs) {
                     if (!newSecondaryMasterConnectionConfigs.contains(cellTag)) {
@@ -337,20 +336,19 @@ public:
                         const auto& expectedCellAddresses = *cellConfig->Addresses;
                         const auto& actualCellAddresses = cellTagToAddresses[CellTagFromId(cellConfig->CellId)];
 
-                        YT_LOG_WARNING_UNLESS(
+                        YT_TLOG_WARNING_UNLESS(
                             expectedCellAddresses == actualCellAddresses,
-                            "Synchronized secondary master cell addresses do not match, connection config is probably incorrect "
-                            "(CellTag: %v, ConfigSecondaryMasterAddresses: %v, SynchronizedSecondaryMasterAddresses: %v)",
-                            cellTag,
-                            expectedCellAddresses,
-                            actualCellAddresses);
+                            "Synchronized secondary master cell addresses do not match, connection config is probably incorrect")
+                            .With("CellTag", cellTag)
+                            .With("ConfigSecondaryMasterAddresses", expectedCellAddresses)
+                            .With("SynchronizedSecondaryMasterAddresses", actualCellAddresses);
                     }
                 }
             }
         }
 
-        YT_LOG_DEBUG("Successfully synchronized master cell roles (CellTagToRoles: %v)",
-            cellTagToRoles);
+        YT_TLOG_DEBUG("Successfully synchronized master cell roles")
+            .With("CellTagToRoles", cellTagToRoles);
 
         {
             auto guard = WriterGuard(SpinLock_);
@@ -383,7 +381,7 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Default master cell roles set");
+        YT_TLOG_DEBUG("Default master cell roles set");
     }
 
 private:
@@ -438,10 +436,10 @@ private:
             } else if (const auto& oldAddresses = GetOrCrash(SecondaryMasterConnectionConfigs_, cellTag)->Addresses;
                 secondaryMaster->Addresses != oldAddresses)
             {
-                YT_LOG_INFO("Master cell peer addresses changed and will be merged (CellTag: %v, NewCellAddresses: %v, OldCellAddresses: %v)",
-                    cellTag,
-                    secondaryMaster->Addresses,
-                    oldAddresses);
+                YT_TLOG_INFO("Master cell peer addresses changed and will be merged")
+                    .With("CellTag", cellTag)
+                    .With("NewCellAddresses", secondaryMaster->Addresses)
+                    .With("OldCellAddresses", oldAddresses);
 
                 std::optional<std::vector<std::string>> mergedAddresses;
                 if (oldAddresses) {
@@ -487,14 +485,14 @@ private:
 
             auto [newSecondaryMasterConfigs, changedSecondaryMasterConfigs, removedSecondaryMasterCellTags] = BuildMasterCellDirectoryUpdate(secondaryMasterConnectionConfigs);
 
-            YT_LOG_ALERT_UNLESS(
+            YT_TLOG_ALERT_UNLESS(
                 removedSecondaryMasterCellTags.empty(),
-                "Received probably stale configuration of secondary masters, where some master cells were removed, will not apply removal (RemovedCellTags: %v)",
-                removedSecondaryMasterCellTags);
+                "Received probably stale configuration of secondary masters, where some master cells were removed, will not apply removal")
+                .With("RemovedCellTags", removedSecondaryMasterCellTags);
 
             for (const auto& [cellTag, secondaryMaster] : newSecondaryMasterConfigs) {
-                YT_LOG_INFO("New master cell appeared, initializing channels (CellTag: %v)",
-                    cellTag);
+                YT_TLOG_INFO("New master cell appeared, initializing channels")
+                    .With("CellTag", cellTag);
                 InitMasterChannels(secondaryMaster);
                 if (Config_->EnableHiveCellDirectoryReconfigurationOnNewMasterCells && HiveCellDirectory_) {
                     HiveCellDirectory_->ReconfigureCell(secondaryMaster);
@@ -505,8 +503,8 @@ private:
 
             }
             for (const auto& [cellTag, secondaryMaster] : changedSecondaryMasterConfigs) {
-                YT_LOG_INFO("Existing master cell appeared, reinitializing channels (CellTag: %v)",
-                    cellTag);
+                YT_TLOG_INFO("Existing master cell appeared, reinitializing channels")
+                    .With("CellTag", cellTag);
                 RemoveMasterChannels(cellTag);
                 InitMasterChannels(secondaryMaster);
                 if (Config_->EnableHiveCellDirectoryReconfigurationOnChangedMasterCells && HiveCellDirectory_) {
@@ -514,18 +512,17 @@ private:
                 }
                 auto [it, emplaced] = SecondaryMasterConnectionConfigs_.emplace(cellTag, secondaryMaster);
                 if (emplaced) {
-                    YT_LOG_ALERT("No config was found in master cell directory for existing master cell (CellTag: %v)",
-                        cellTag);
+                    YT_TLOG_ALERT("No config was found in master cell directory for existing master cell")
+                        .With("CellTag", cellTag);
                 } else {
                     it->second = secondaryMaster;
                 }
             }
 
-            YT_LOG_DEBUG("Finished reconfiguration of cell cluster membership "
-                "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
-                GetMasterCellTags(newSecondaryMasterConfigs),
-                GetMasterCellTags(changedSecondaryMasterConfigs),
-                removedSecondaryMasterCellTags);
+            YT_TLOG_DEBUG("Finished reconfiguration of cell cluster membership")
+                .With("NewCellTags", GetMasterCellTags(newSecondaryMasterConfigs))
+                .With("ChangedCellTags", GetMasterCellTags(changedSecondaryMasterConfigs))
+                .With("RemovedCellTags", removedSecondaryMasterCellTags);
 
             CellDirectoryChanged_.Fire(
                 newSecondaryMasterConfigs,
