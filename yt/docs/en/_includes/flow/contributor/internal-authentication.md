@@ -87,7 +87,7 @@ As with proxy → controller, authentication is one-time: a fresh ticket is incl
 
 - **Ticket forgery by an outsider.** Without the static secret (that is, without the pipeline’s token{% if audience == "internal" %} or TVM secret{% endif %}), you can’t compute a valid HMAC.
 - **Reuse across pipelines.** The pipeline path is part of the secret, so a ticket from one pipeline won’t pass validation in another.
-- **Long-lived reuse.** The 10‑minute window limits the time during which an intercepted ticket remains usable.
+- **Long-lived reuse.** The 10-minute window limits the time during which an intercepted ticket remains usable.
 
 **Accepted threats / out of scope:**
 

@@ -8,11 +8,11 @@ In this section, you’ll learn step by step how to implement your first [pipeli
 - Set up `ya make` (the build system).
 - Familiarize yourself with the [basic concepts](../../../flow/concepts/glossary.md) of Flow.
 
-## Step‑by‑step guide
+## Step-by-step guide
 
 ### 1. Define message types {#define-messages}
 
-To work with messages in a type‑safe way, use `TYsonMessage`, a special subclass of `NYTree::TYsonStruct`. You need to register each message type in the global registry using the `YT_FLOW_DEFINE_YSON_MESSAGE` macro.
+To work with messages in a type-safe way, use `TYsonMessage`, a special subclass of `NYTree::TYsonStruct`. You need to register each message type in the global registry using the `YT_FLOW_DEFINE_YSON_MESSAGE` macro.
 
 ```cpp
 #include <yt/yt/flow/library/cpp/common/registry.h>
@@ -121,9 +121,9 @@ YT_FLOW_DEFINE_COMPUTATION(TWordCounter);
 ```
 
 Key points:
-- `TMutableStateKeyClient<TState>` is a type‑safe client for external state. You set the manager’s parameters in the `Computation` spec (see below), not in your own `TParameters`/`TDynamicParameters`.
+- `TMutableStateKeyClient<TState>` is a type-safe client for external state. You set the manager’s parameters in the `Computation` spec (see below), not in your own `TParameters`/`TDynamicParameters`.
 - `InitExternalStateClient(StateClient_, "/state")` binds the client to the external state manager named `"/state"`, which is declared in the `external_state_managers` spec.
-- `ConvertToYsonMessage<T>` converts input messages into a type‑safe structure.
+- `ConvertToYsonMessage<T>` converts input messages into a type-safe structure.
 
 ### 5. Write main.cpp {#write-main}
 
@@ -144,7 +144,7 @@ int main(int argc, const char** argv)
 
 Here:
 - `Initialize(argc, argv)` initializes the Flow runtime.
-- `TSimpleSpecBuilder` is a builder where you register all type‑safe streams. It automatically infers schemas from the registered `TYsonMessage` types.
+- `TSimpleSpecBuilder` is a builder where you register all type-safe streams. It automatically infers schemas from the registered `TYsonMessage` types.
 - `RegisterStream<TWordMessage>("words")` registers the `words` stream with the `TWordMessage` message type.
 - `TSimpleRunnerProgram` is a standard runner that handles starting and managing computations.
 

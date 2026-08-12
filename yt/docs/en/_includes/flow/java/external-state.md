@@ -287,10 +287,10 @@ Example from [wait_click_join]({{source-root}}/yt/yt/flow/examples/java/wait_cli
       public void onMessage(ExtendedMessage message, OutputCollector output, RuntimeContext ctx) {
           var streamId = message.getStreamId();
 
-          // Получение ExternalStateAccessor для текущего ключа
+          // Get the ExternalStateAccessor for the current key
           ExternalStateAccessor stateAccessor = ctx.getExternalStateAccessor("join-state", message);
 
-          // Чтение текущего стейта (или создание пустого)
+          // Read the current state (or create an empty one)
           PayloadBuilder joinState = stateAccessor.getOrDefault().toBuilder();
 
           if ("hit".equals(streamId)) {
@@ -305,10 +305,10 @@ Example from [wait_click_join]({{source-root}}/yt/yt/flow/examples/java/wait_cli
               }
           }
 
-          // Сохранение обновлённого стейта
+          // Save the updated state
           stateAccessor.set(joinState.finish());
 
-          // Установка таймера для закрытия ключа
+          // Set the timer that closes the key
           long maxTime = hitTime + waitTime;
           output.addTimer(maxTime, hitTime);
       }
@@ -318,15 +318,15 @@ Example from [wait_click_join]({{source-root}}/yt/yt/flow/examples/java/wait_cli
           ExternalStateAccessor stateAccessor = ctx.getExternalStateAccessor("join-state", timer);
           Payload joinState = stateAccessor.get().orElseThrow();
 
-          // Генерация выходного сообщения на основе стейта
+          // Build the output message from the state
           if (joinState.get("show_time", Long.class) != null
                   && joinState.get("show_time", Long.class) != 0) {
               JoinedAction result = new JoinedAction();
-              // ... заполнение полей из стейта ...
+              // ... fill in the fields from the state ...
               output.addMessage(new Message("joined_action", result));
           }
 
-          // Очистка стейта после обработки
+          // Clear the state after processing
           stateAccessor.clear();
       }
   }
@@ -340,10 +340,10 @@ Example from [wait_click_join]({{source-root}}/yt/yt/flow/examples/java/wait_cli
       override fun onMessage(message: ExtendedMessage, output: OutputCollector, ctx: RuntimeContext) {
           val streamId = message.getStreamId()
 
-          // Получение ExternalStateAccessor для текущего ключа
+          // Get the ExternalStateAccessor for the current key
           val stateAccessor = ctx.getExternalStateAccessor("join-state", message)
 
-          // Чтение текущего стейта (или создание пустого)
+          // Read the current state (or create an empty one)
           val joinState = stateAccessor.getOrDefault().toBuilder()
 
           if ("hit" == streamId) {
@@ -358,10 +358,10 @@ Example from [wait_click_join]({{source-root}}/yt/yt/flow/examples/java/wait_cli
               }
           }
 
-          // Сохранение обновлённого стейта
+          // Save the updated state
           stateAccessor.set(joinState.finish())
 
-          // Установка таймера для закрытия ключа
+          // Set the timer that closes the key
           val maxTime = hitTime + waitTime
           output.addTimer(maxTime, hitTime)
       }
@@ -370,15 +370,15 @@ Example from [wait_click_join]({{source-root}}/yt/yt/flow/examples/java/wait_cli
           val stateAccessor = ctx.getExternalStateAccessor("join-state", timer)
           val joinState = stateAccessor.get().orElseThrow()
 
-          // Генерация выходного сообщения на основе стейта
+          // Build the output message from the state
           if (joinState.get("show_time", Long::class.java) != null
                   && joinState.get("show_time", Long::class.java) != 0L) {
               val result = JoinedAction()
-              // ... заполнение полей из стейта ...
+              // ... fill in the fields from the state ...
               output.addMessage(Message("joined_action", result))
           }
 
-          // Очистка стейта после обработки
+          // Clear the state after processing
           stateAccessor.clear()
       }
   }

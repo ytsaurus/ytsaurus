@@ -4,7 +4,7 @@ This section lists task descriptions that you can solve efficiently and convenie
 
 {% note tip %}
 
-The page is actively being updated. If your task (or a sufficiently similar one) isn’t listed here — {% if audience == "internal" %}write to the [YT Flow Public](https://nda.ya.ru/t/hcJkQdBD7LNa9V) chat or {% endif %}create a PR with its description (use the pencil icon in the upper-right corner).
+The page is actively being updated. If your task (or a sufficiently similar one) isn’t listed here — {% if audience == "internal" %}write to the [YT Flow Public](https://nda.ya.ru/t/hcJkQdBD7LNa9V) chat or {% endif %}create a PR with its description (use the pencil icon in the upper-right corner).
 
 {% endnote %}
 
@@ -50,7 +50,7 @@ Autobudget manages a campaign so that its metrics (spent budget, cost per conver
 
 To do this, it’s critical to understand the completeness of the processed logs: at a minimum, you must distinguish between no events for a campaign and no logs.
 
-In addition, for effective prediction, data from different sources must be consistent with each other — that is, they must contain information for the same point in time. If the profile shows the number of clicks up to 13:00 and the number of conversions up to 12:30, that’s worse than having information in the profile for exactly 12:30.
+In addition, for effective prediction, data from different sources must be consistent with each other — that is, they must contain information for the same point in time. If the profile shows the number of clicks up to 13:00 and the number of conversions up to 12:30, that’s worse than having information in the profile for exactly 12:30.
 
 ## RT Antifraud
 

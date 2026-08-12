@@ -14,7 +14,7 @@ To run it:
 
 ### How to configure vscode
 
-1. Create a proxy binary to call `ya tool ads-clang-format`: 
+1. Create a proxy binary to call `ya tool ads-clang-format`:
 
     ```bash
     sudo echo -e "#! /bin/bash\nya tool ads-clang-format \$@\n" | sudo tee /usr/bin/ads-clang-format > /dev/null && sudo chmod +x /usr/bin/ads-clang-format

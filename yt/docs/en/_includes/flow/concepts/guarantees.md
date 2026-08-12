@@ -171,7 +171,7 @@ For more details, see [Queue](../../../flow/connectors/queue.md).
 ### Static Table {#static-table-guarantees}
 
 - **Source**: exactly-once — deduplication by read ranges.
-- No sink.
+- **Sink** (`TArrivalOrderTableSink`): exactly-once — the output table and its progress commit in a single master transaction; a per-partition frontier deduplicates replay, so a partially covered replay writes only the uncovered tail without restarting the job; the delivery callback fires only after that external commit and the following Flow commit.
 
 For more details, see [Static Table](../../../flow/connectors/static-table.md).
 

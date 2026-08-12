@@ -150,7 +150,7 @@ $ ls *.log
 controller.log  worker.log
 ```
 
-{% if audience == "internal" %}You can learn how to work with logs in the [Raw logs for the controller and worker](../../flow/release/problems.md#raw-logs) section.{% endif %}
+See [Logs](../../flow/release/logs.md) for how to read the controller and worker logs.
 
 Pipeline graph visualization:
 

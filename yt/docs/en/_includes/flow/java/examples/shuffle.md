@@ -89,7 +89,3 @@ This is the entry point of the companion based on Spring Boot:
 - **ExternalStateAccessor**: you work with the external state using `Payload` and `PayloadBuilder`.
 - **SourceComputation with ProcessFunction**: the `reader` uses `EventMapper` to transform input data on the companion side.
 
-## See also
-
-- [Quick start (Java)](../../../../flow/java/getting-started.md)
-- [Computation (Java)](../../../../flow/java/computation.md)

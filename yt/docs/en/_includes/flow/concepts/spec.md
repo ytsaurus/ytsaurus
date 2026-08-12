@@ -1,6 +1,6 @@
 # Spec, DynamicSpec, and Config in {{product-name}} Flow
 
-Use a spec to describe the pipeline you want. Any high‑level API to Flow generates a pipeline spec.
+Use a spec to describe the pipeline you want. Any high-level API to Flow generates a pipeline spec.
 
 A pipeline has two specs: `Spec` and `DynamicSpec`:
 
@@ -101,17 +101,17 @@ If you don’t specify `streams` and `streams_with_delays`, the timer monitors t
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TSourceSpec.md) %}
 
-Built‑in [source](../../../flow/concepts/glossary.md#source) implementations are described in the [connector documentation](../../../flow/connectors/about.md).
+Built-in [source](../../../flow/concepts/glossary.md#source) implementations are described in the [connector documentation](../../../flow/connectors/about.md).
 
 #### Sink {#sink_spec}
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TSinkSpec.md) %}
 
-Built‑in [sink](../../../flow/concepts/glossary.md#sink) implementations are described in the [connector documentation](../../../flow/connectors/about.md).
+Built-in [sink](../../../flow/concepts/glossary.md#sink) implementations are described in the [connector documentation](../../../flow/connectors/about.md).
 
 #### HeavyHitters
 
-This module detects high‑frequency keys.
+This module detects high-frequency keys.
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_THeavyHittersSpec.md) %}
 

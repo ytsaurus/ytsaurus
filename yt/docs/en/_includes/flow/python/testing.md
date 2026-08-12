@@ -271,9 +271,9 @@ Each `TransformResult` contains:
 | `messages` | `List[Message]` | Output messages |
 | `timers` | `List[NewTimer]` | Created timers |
 
-## End‑to‑end testing with FlowTestPythonBase {#e2e-tests}
+## End-to-end testing with FlowTestPythonBase {#e2e-tests}
 
-Use the `FlowTestPythonBase` base class for full end‑to‑end pipeline testing (with real C++ workers, queues, and streams).
+Use the `FlowTestPythonBase` base class for full end-to-end pipeline testing (with real C++ workers, queues, and streams).
 
 ### Dependencies {#integration-dependencies}
 

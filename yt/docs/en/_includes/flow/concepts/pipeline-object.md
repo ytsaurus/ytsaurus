@@ -105,7 +105,7 @@ When the schema of the [internal tables](#internal_tables) changes in a new Flow
 
 If the pipeline uses [External State](../../../flow/concepts/stateful.md) (user tables outside the node), creating them and evolving their schemas is your responsibility. {% if audience == "internal" %}In the Yandex infrastructure, [YtSync]({{yt-sync-docs}}/) is used for this.{% else %}You perform the operations using standard commands like `yt create table ... --attributes '{dynamic=true; schema=...}'` and `yt mount-table` — see examples in the [Create command](../../../user-guide/storage/cypress-example.md#create) section.{% endif %}
 
-## See Also { #see_also }
+## See also { #see_also }
 
 - [Glossary: Pipeline](../../../flow/concepts/glossary.md#pipeline)
 - [Pipeline internal tables](../../../flow/concepts/glossary.md#inner-pipeline-tables)

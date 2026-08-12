@@ -44,7 +44,7 @@ After a test finishes, you can find its logs in `test-results/py3test/testing_ou
 * `<test_class_name>/<test_name>/Worker_<number>...` — Worker logs.
 * `<test_class_name>/<test_name>/Runner...` — Runner logs.
 
-If something isn’t working, check errors in all these logs.{% if audience == "internal" %} In general, the approach to reviewing logs is the same as in production, as described on the [problem diagnostics page](../../flow/release/problems.md).{% endif %}
+If something isn’t working, check errors in all these logs. The approach to reviewing them is the same as in production — see [Logs](../../flow/release/logs.md).
 
 You can also view logs before the test finishes. To do this, locate the temporary directory where the test runs. The simplest way is to run the test with the `--keep-temps` flag: `ya make --keep-temps -ttt <target>`. In this case, `ya make` won’t delete the temporary directory after the test finishes and will print a link to it in the output.
 

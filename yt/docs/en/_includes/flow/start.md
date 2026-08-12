@@ -26,7 +26,7 @@ No matter which language you choose, creating a pipeline involves the following 
 
 7. **Implement your business logic** in the language you’ve chosen, following the relevant quick start guide.
 
-8. **Create the necessary objects in {{product-name}}** — tables, queues, and the pipeline{% if audience == "internal" %} — using the [YtSync]({{yt-sync-docs}}/) utility (the pipeline specification is described [here]({{yt-sync-docs}}/pipeline_specification)){% endif %}.{% if audience == "internal" %} If needed, do the same in third‑party systems like [Logbroker](../../yandex-specific/flow/extensions/logbroker.md).{% endif %}
+8. **Create the necessary objects in {{product-name}}** — tables, queues, and the pipeline{% if audience == "internal" %} — using the [YtSync]({{yt-sync-docs}}/) utility (the pipeline specification is described [here]({{yt-sync-docs}}/pipeline_specification)){% endif %}.{% if audience == "internal" %} If needed, do the same in third-party systems like [Logbroker](../../yandex-specific/flow/extensions/logbroker.md).{% endif %}
 
 9. **Write tests**. Follow the instructions for your programming language:
    - [C++](../../flow/cpp/testing.md)

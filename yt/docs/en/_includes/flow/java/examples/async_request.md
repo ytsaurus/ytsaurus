@@ -83,10 +83,3 @@ This is the entry point for the Spring Boot–based companion:
 - **ExternalStateAccessor with PayloadBuilder**: you update the `total_length` field selectively: `current.toBuilder()` → make changes → `stateAccessor.set(updated.finish())`.
 - **Configuration via Spring Boot**: you register computations with the `@FlowComputation` annotation; `flow-spring-boot-starter` manages the gRPC server lifecycle.
 
-## See also
-
-- [Quick start (Java)](../../../../flow/java/getting-started.md)
-- [Computation (Java)](../../../../flow/java/computation.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)
-- [Similar example in C++](../../../../flow/cpp/examples/async_request.md)
-- [Extended version with retries](../../../../flow/java/examples/retryable_async_request.md)

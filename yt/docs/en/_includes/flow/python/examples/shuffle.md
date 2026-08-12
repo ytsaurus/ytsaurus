@@ -32,7 +32,3 @@ The transform function uses external state to count events:
 - Parsing JSON and creating typed messages using `ctx.message_builder()`.
 - External state with the `to_builder()` / `set()` / `finish()` pattern.
 
-## See also
-
-- [Quick start (Python)](../../../../flow/python/getting-started.md)
-- [Computation (Python)](../../../../flow/python/computation.md)

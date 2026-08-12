@@ -332,8 +332,3 @@ You run integration testing for Java pipelines the same way as for C++ pipelines
 
 6. **State cleanup**: After you generate the result, you clear the state via `stateAccessor.clear()`, which removes the row from the table.
 
-## See also
-
-- [Quick start (Java)](../../../../flow/java/getting-started.md)
-- [Timers](../../../../flow/concepts/timers.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)

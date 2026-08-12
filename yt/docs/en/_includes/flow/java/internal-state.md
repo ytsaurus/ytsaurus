@@ -1,6 +1,6 @@
 # Internal State in {{product-name}} Flow (Java)
 
-Internal State is a mechanism for working with internal state stored in Flow’s internal tables. Unlike [External State](../../../flow/java/external-state.md), you don’t need to create the tables yourself — Flow manages them automatically.
+Internal State is a mechanism for working with internal state stored in Flow’s internal tables. Unlike [External State](../../../flow/java/external-state.md), you don’t need to create the tables yourself — Flow manages them automatically.
 
 Learn more about `StateAccessor` and working with state: [State Accessor](../../../flow/java/state-accessor.md).
 

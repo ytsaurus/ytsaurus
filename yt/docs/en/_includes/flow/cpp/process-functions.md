@@ -10,13 +10,14 @@ A process function moves your custom logic into a separate, lightweight object. 
 
 The process function isn’t run directly. Instead, a built-in `Computation` adapter executes it. You specify this adapter in the spec via the `computation_class_name` field (see [Registration](#registration)). The adapter gives the function the same environment as a regular `Computation`: the same spec, the same stores and states, and the same epoch-processing logic. That’s why a pipeline with a process function provides the same [processing guarantees](../../../flow/concepts/guarantees.md) (including exactly-once) as a manually written `Computation`.
 
-The adapter also defines the function’s execution mode. There are three built-in adapters:
+The adapter also defines the function’s execution mode. There are four built-in adapters:
 
 | `computation_class_name` | Mode |
 | --- | --- |
 | `NYT::NFlow::TProcessFunctionComputation` | transform |
 | `NYT::NFlow::TProcessFunctionSwiftMapComputation` | swift-map |
 | `NYT::NFlow::TProcessFunctionSourceComputation` | source |
+| `NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation` | [ordered source with output materialization and state](../../../flow/cpp/computation.md#ttransformorderedsourcecomputation) |
 
 You can run the same function under different adapters without rebuilding the binary.
 

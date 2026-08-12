@@ -36,6 +36,7 @@
 | `TTransformComputation` | ✓ |
 | `TSwiftMapComputation` | ✗ |
 | `TSwiftOrderedSourceComputation` | ✗ |
+| `TTransformOrderedSourceComputation` | ✗ |
 
 ## Конфигурация {#configuration}
 

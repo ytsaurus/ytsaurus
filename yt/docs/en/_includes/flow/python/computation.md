@@ -127,7 +127,7 @@ Let’s go line by line:
 #### Example of a batch function
 
 ```python
-from yt.yt.flow.library/python/companion.computation import BatchFunction
+from yt.yt.flow.library.python.companion.computation import BatchFunction
 
 
 class X2BatchMapper(BatchFunction):
@@ -283,7 +283,6 @@ To run a Python companion, you need to declare the `CompanionManager` resource i
 "CompanionManager" = {
     "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
     "parameters" = {
-        "run_process" = %true;
         "entrypoint" = {
             "executable" = "./py_companion";
         };
@@ -292,10 +291,10 @@ To run a Python companion, you need to declare the `CompanionManager` resource i
 };
 ```
 
-The `resource_class_name` parameter specifies the resource class that will launch the companion.  
+The `resource_class_name` parameter specifies the resource class that will launch the companion.
 For a Python companion, `resource_class_name` must always be `NYT::NFlow::NCompanion::TCompanionManager`.
 
-The companion process is described by the `entrypoint` parameter (`executable`, `args`, `env`). If `run_process = %false`, Flow expects the companion to be launched externally (for example, in integration tests). When you [launch a pipeline from a host](../../../flow/python/getting-started.md#launch) via `pipeline.run()`, you don’t need to manually fill in `entrypoint`: the Python binary automatically sets `entrypoint = {"executable" = "./py_companion"}` and `run_process = %true`, and `flow_server` delivers the binary to the job under that name.
+The companion process is described by the `entrypoint` parameter (`executable`, `args`, `env`). When you [launch a pipeline from a host](../../../flow/python/getting-started.md#launch) via `pipeline.run()`, you don’t need to fill in `entrypoint` manually: the Python binary sets `entrypoint = {"executable" = "./py_companion"}` for every `TCompanionManager` resource in the spec, and `flow_server` delivers the binary to the job under that name.
 
 The key difference from the Java configuration is that Java has a separate resource class `NYT::NFlow::NCompanion::TJavaCompanionManager` with parameters `jdk_bin_path`, `classpath`, and `main_class`, while the Python companion uses the shared `TCompanionManager` with the `entrypoint` parameter.
 

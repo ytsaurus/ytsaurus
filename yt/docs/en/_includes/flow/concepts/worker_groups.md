@@ -12,7 +12,7 @@ Worker Groups are a mechanism for grouping [workers](../../../flow/concepts/glos
 
 ### Worker configuration {#worker-config}
 
-You assign workers to groups via the `YT_FLOW_WORKER_GROUPS` environment variable. The value is a comma‑separated list of group names.
+You assign workers to groups via the `YT_FLOW_WORKER_GROUPS` environment variable. The value is a comma-separated list of group names.
 
 Examples:
 

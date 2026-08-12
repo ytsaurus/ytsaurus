@@ -38,8 +38,3 @@ This file holds the core join logic. The function processes two streams and uses
 - **MessageBuilder**: create output messages with a defined schema using `ctx.message_builder("joined_action")`.
 - **Processing multiple streams**: branch on `message.stream_id` to apply different logic for handling hit and action streams.
 
-## See also
-
-- [Quick start (Python)](../../../../flow/python/getting-started.md)
-- [Timers](../../../../flow/concepts/timers.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)

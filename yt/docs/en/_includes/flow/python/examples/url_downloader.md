@@ -33,11 +33,3 @@ This is the entry point: it creates the pipeline and registers the single `url_d
 - **MessageBuilder**: `ctx.message_builder("processed_urls")` builds output messages with an explicit stream schema.
 - **Safety check in `on_timer`**: `if not data or not data.get("pending_urls")` prevents reprocessing data after the state is cleared.
 
-## See also
-
-- [Quick start (Python)](../../../../flow/python/getting-started.md)
-- [Computation (Python)](../../../../flow/python/computation.md)
-- [Timers](../../../../flow/concepts/timers.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)
-- [Similar example in C++](../../../../flow/cpp/examples/url_downloader.md)
-- [Similar example in Java](../../../../flow/java/examples/url_downloader.md)

@@ -110,11 +110,11 @@ After the query finishes, a pipeline starts on the cluster and runs continuously
 
 To track the running pipeline, you can use:
 
-{% if audience == "internal" %}- **Processing graph** with stream characteristics and resource consumption — the **Flow** tab for the pipeline in the {{product-name}} UI](../../../yandex-specific/flow/release/ui.md).{% endif %}
+{% if audience == "internal" %}- **Processing graph** with stream characteristics and resource consumption — the **Flow** tab for the pipeline in the {{product-name}} UI.{% endif %}
 - **Dashboard** — **Flow → Monitoring** tab.
 - **Controller logs** (worker status, possible issues):
   ```bash
-  {{yt-cli}} --proxy <кластер-пайплайна> flow show-logs //home/my-project/pipelines/my-pipeline
+  {{yt-cli}} --proxy <pipeline-cluster> flow show-logs //home/my-project/pipelines/my-pipeline
   ```
 - **Job logs** — via the vanilla operation, which is available through the link from the `flowPublish` cube in the pipeline graph.
 
