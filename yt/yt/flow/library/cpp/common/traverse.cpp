@@ -5,7 +5,55 @@
 
 #include <library/cpp/iterator/concatenate.h>
 
+#include <array>
+
 namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+constexpr std::array IntegralLifecycleMetricMembers = {
+    &TInflightMetrics::ByteSize,
+    &TInflightMetrics::ReadyCount,
+    &TInflightMetrics::ReadyByteSize,
+};
+
+constexpr std::array RateLifecycleMetricMembers = {
+    &TInflightMetrics::NewCountPerSec,
+    &TInflightMetrics::NewBytesPerSec,
+    &TInflightMetrics::OfferedCountPerSec,
+    &TInflightMetrics::OfferedBytesPerSec,
+    &TInflightMetrics::ProcessedCountPerSec,
+    &TInflightMetrics::ProcessedBytesPerSec,
+};
+
+template <class TCallback>
+void ForEachLifecycleMetric(TInflightMetrics* metrics, TCallback&& callback)
+{
+    for (auto member : IntegralLifecycleMetricMembers) {
+        callback(metrics->*member);
+    }
+    for (auto member : RateLifecycleMetricMembers) {
+        callback(metrics->*member);
+    }
+}
+
+template <class TCallback>
+void ForEachLifecycleMetricPair(
+    TInflightMetrics* current,
+    const TInflightMetrics* other,
+    TCallback&& callback)
+{
+    for (auto member : IntegralLifecycleMetricMembers) {
+        callback(current->*member, other->*member);
+    }
+    for (auto member : RateLifecycleMetricMembers) {
+        callback(current->*member, other->*member);
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +74,14 @@ void TInflightMetrics::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("new_bytes_per_sec", &TThis::NewBytesPerSec)
         .Default();
+    registrar.Parameter("ready_count", &TThis::ReadyCount)
+        .Default();
+    registrar.Parameter("ready_byte_size", &TThis::ReadyByteSize)
+        .Default();
+    registrar.Parameter("offered_count_per_sec", &TThis::OfferedCountPerSec)
+        .Default();
+    registrar.Parameter("offered_bytes_per_sec", &TThis::OfferedBytesPerSec)
+        .Default();
     registrar.Parameter("processed_count_per_sec", &TThis::ProcessedCountPerSec)
         .Default();
     registrar.Parameter("processed_bytes_per_sec", &TThis::ProcessedBytesPerSec)
@@ -40,48 +96,35 @@ void InPlaceMergeInflightMetrics(
 {
     if (inflightMerge == EInflightMerge::None) {
         current->Count = 0;
-        current->ByteSize = {};
         current->IdleDuration = {};
-        current->NewCountPerSec = {};
-        current->ProcessedCountPerSec = {};
-        current->NewBytesPerSec = {};
-        current->ProcessedBytesPerSec = {};
         current->UnavailableTimestamp = {};
+        ForEachLifecycleMetric(current.Get(), [] (auto& metric) {
+            metric = {};
+        });
         return;
     }
 
-    if (inflightMerge == EInflightMerge::Sum) {
-        current->Count += other->Count;
-        auto update = [&] (auto& current, auto& other) {
-            if (current && other) {
-                current = *current + *other;
+    if (inflightMerge == EInflightMerge::Sum || inflightMerge == EInflightMerge::Max) {
+        if (inflightMerge == EInflightMerge::Sum) {
+            current->Count += other->Count;
+        } else {
+            current->Count = std::max(current->Count, other->Count);
+        }
+
+        auto update = [&] (auto& currentMetric, const auto& otherMetric) {
+            if (currentMetric && otherMetric) {
+                if (inflightMerge == EInflightMerge::Sum) {
+                    currentMetric = *currentMetric + *otherMetric;
+                } else {
+                    currentMetric = std::max(*currentMetric, *otherMetric);
+                }
             } else if (!allowPartial) {
-                current = {};
-            } else if (other) {
-                current = other;
+                currentMetric = {};
+            } else if (otherMetric) {
+                currentMetric = otherMetric;
             }
         };
-        update(current->ByteSize, other->ByteSize);
-        update(current->NewCountPerSec, other->NewCountPerSec);
-        update(current->ProcessedCountPerSec, other->ProcessedCountPerSec);
-        update(current->NewBytesPerSec, other->NewBytesPerSec);
-        update(current->ProcessedBytesPerSec, other->ProcessedBytesPerSec);
-    } else if (inflightMerge == EInflightMerge::Max) {
-        current->Count = std::max(current->Count, other->Count);
-        auto update = [&] (auto& current, auto& other) {
-            if (current && other) {
-                current = std::max(*current, *other);
-            } else if (!allowPartial) {
-                current = {};
-            } else if (other) {
-                current = other;
-            }
-        };
-        update(current->ByteSize, other->ByteSize);
-        update(current->NewCountPerSec, other->NewCountPerSec);
-        update(current->ProcessedCountPerSec, other->ProcessedCountPerSec);
-        update(current->NewBytesPerSec, other->NewBytesPerSec);
-        update(current->ProcessedBytesPerSec, other->ProcessedBytesPerSec);
+        ForEachLifecycleMetricPair(current.Get(), other.Get(), update);
     }
 
     if (current->Count == 0) {
@@ -142,11 +185,9 @@ TStreamTraverseDataPtr MakeCompletedStreamTraverseData(
     streamTraverseData->SystemWatermark = timestamp;
     streamTraverseData->EventWatermark = timestamp;
     streamTraverseData->InflightMetrics->Count = 0;
-    streamTraverseData->InflightMetrics->ByteSize = 0;
-    streamTraverseData->InflightMetrics->NewCountPerSec = 0;
-    streamTraverseData->InflightMetrics->ProcessedCountPerSec = 0;
-    streamTraverseData->InflightMetrics->NewBytesPerSec = 0;
-    streamTraverseData->InflightMetrics->ProcessedBytesPerSec = 0;
+    ForEachLifecycleMetric(streamTraverseData->InflightMetrics.Get(), [] (auto& metric) {
+        metric = 0;
+    });
     return streamTraverseData;
 }
 
@@ -205,6 +246,18 @@ TStreamTraverseDataPtr AdvanceStreamTraverseData(
     return advanced;
 }
 
+TStreamTraverseDataPtr BuildConsumerStreamTraverseData(
+    const TStreamTraverseDataPtr& consumerStream,
+    const TStreamTraverseDataPtr& producerStream)
+{
+    auto result = NYTree::CloneYsonStruct(consumerStream);
+    result->InflightMetrics->Count = producerStream->InflightMetrics->Count;
+    result->InflightMetrics->ByteSize = producerStream->InflightMetrics->ByteSize;
+    result->InflightMetrics->NewCountPerSec = producerStream->InflightMetrics->NewCountPerSec;
+    result->InflightMetrics->NewBytesPerSec = producerStream->InflightMetrics->NewBytesPerSec;
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TInflightStreamTraverseData::Register(TRegistrar registrar)
@@ -225,8 +278,7 @@ void TInflightStreamTraverseData::Register(TRegistrar registrar)
 
 TStreamTraverseDataPtr ApplyInflightTraverseData(
     const TStreamTraverseDataPtr& stream,
-    const TInflightStreamTraverseDataPtr& inflight,
-    TSystemTimestamp systemWatermark)
+    const TInflightStreamTraverseDataPtr& inflight)
 {
     auto consumingStream = NYTree::CloneYsonStruct(stream);
     bool completed = consumingStream->State == EStreamState::Completed && inflight->Empty;
@@ -238,8 +290,6 @@ TStreamTraverseDataPtr ApplyInflightTraverseData(
     } else {
         consumingStream->State = EStreamState::Active;
     }
-    consumingStream->SystemWatermark = systemWatermark;
-
     if (inflight->MinSystemTimestamp) {
         consumingStream->SystemWatermark = std::min(consumingStream->SystemWatermark, *inflight->MinSystemTimestamp);
     }
@@ -290,13 +340,15 @@ void TNodeTraverseData::Register(TRegistrar registrar)
 {
     registrar.Parameter("report_time", &TThis::ReportTime)
         .Default(ZeroSystemTimestamp);
+    registrar.Parameter("iteration_cycle", &TThis::IterationCycle)
+        .Default();
     registrar.Parameter("streams", &TThis::Streams)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeTraverseDataPtr MergeNodeTraverseData(const std::vector<TNodeTraverseDataPtr>& nodes, const TComputationSpecPtr& spec)
+TNodeTraverseDataPtr MergeNodeTraverseData(const std::vector<TNodeTraverseDataPtr>& nodes)
 {
     if (nodes.empty()) {
         return New<TNodeTraverseData>();
@@ -321,12 +373,12 @@ TNodeTraverseDataPtr MergeNodeTraverseData(const std::vector<TNodeTraverseDataPt
         for (const auto& node : nodes) {
             streamsTraverse.push_back(GetOrCrash(node->Streams, streamId));
         }
-        auto mergeType = EInflightMerge::Sum;
-        if (spec->InputStreamIds.contains(streamId)) {
-            mergeType = EInflightMerge::None;
-        }
-        result->Streams[streamId] = MergeStreamTraverseData(streamsTraverse, mergeType);
+        result->Streams[streamId] = MergeStreamTraverseData(
+            streamsTraverse,
+            EInflightMerge::Sum,
+            /*allowPartial*/ true);
     }
+    // IterationCycle is partition-local and has no meaningful cross-job aggregate.
     return result;
 }
 
@@ -390,6 +442,13 @@ void ValidateComputationInflights(
     const TComputationSpecPtr& spec)
 {
     THashSet<TStreamId> allStreamIds;
+    for (const auto& streamId : spec->InputStreamIds) {
+        allStreamIds.insert(streamId);
+        if (!inflights.contains(streamId)) {
+            THROW_ERROR_EXCEPTION("No inflight data for input stream %Qv",
+                streamId);
+        }
+    }
     for (const auto& streamId : spec->OutputStreamIds) {
         allStreamIds.insert(streamId);
         if (!inflights.contains(streamId)) {
@@ -423,10 +482,6 @@ void ValidateComputationInflights(
     }
 
     for (const auto& streamId : GetKeys(inflights)) {
-        if (spec->InputStreamIds.contains(streamId)) {
-            THROW_ERROR_EXCEPTION("Inflight data for input streams is not supported, but found for %Qv",
-                streamId);
-        }
         if (!allStreamIds.contains(streamId)) {
             THROW_ERROR_EXCEPTION("Inflight for unknown stream %Qv",
                 streamId);

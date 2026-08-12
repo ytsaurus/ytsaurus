@@ -62,6 +62,7 @@ struct IOutputStore
     //! transaction (main-first). Dropping the returned vector loses GC erases (dead-row leak) — hence
     //! [[nodiscard]].
     [[nodiscard]] virtual std::vector<IRetryableTransactionPtr> Sync(NApi::IDynamicTableTransactionPtr epochTransaction) = 0;
+    virtual void Commit() = 0;
 
     virtual THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflight() = 0;
     virtual THashMap<TStreamId, std::pair<i64, i64>> GetCountAndByteSizes() = 0;

@@ -31,16 +31,22 @@ public:
 
     void Register(const TOutputMessageConstPtr& message);
     bool TryRegister(const TOutputMessageConstPtr& message);
+    void Restore(const TOutputMessageConstPtr& message);
     void Register(const TInputTimerConstPtr& timer);
     bool TryRegister(const TInputTimerConstPtr& timer);
+    void Restore(const TInputTimerConstPtr& timer);
+
+    void MarkOffered(const TMessageId& messageId);
+    void MarkTaken(const TMessageId& messageId);
 
     void Unregister(const TMessageId& messageId);
     bool TryUnregister(const TMessageId& messageId);
 
-    // Flushes accumulated counter deltas batched by Register/Unregister into the profiling
-    // counters. If a stream-limit-usage-state was supplied to the constructor, also
-    // publishes the cumulative usage to it. Caller invokes once after a batch of operations.
+    // Flushes accumulated new/offered deltas into the profiling counters. If a
+    // stream-limit-usage-state was supplied, also publishes cumulative usage to it.
     void SyncCounters();
+    // Publishes processed-rate deltas after the corresponding transaction commits.
+    void Commit();
 
     std::optional<TSystemTimestamp> GetMinSystemTimestamp();
     std::optional<TSystemTimestamp> GetMinEventTimestamp();
@@ -71,6 +77,13 @@ private:
 
     struct TMessageState
     {
+        enum class EState
+        {
+            New,
+            Ready,
+            Taken,
+        };
+
         i64 Size{};
         TSystemTimestamp SystemTimestamp;
         TSystemTimestamp EventTimestamp;
@@ -80,6 +93,8 @@ private:
         // Packed with PercentileHeap into a single 64-bit word.
         ui64 EventHeapIndex : 63 {};
         ui64 PercentileHeap : 1 {};
+        // Processed is terminal and therefore is not retained in the inflight map.
+        EState State = EState::New;
     };
 
     using TInflightMap = THashMap<TMessageId, TMessageState>;
@@ -100,17 +115,26 @@ private:
     i64 RegisteredByteSizeTotal_ = 0;
     TSimpleEmaCounter RegisteredCount_;
     TSimpleEmaCounter RegisteredBytes_;
+    TSimpleEmaCounter OfferedCount_;
+    TSimpleEmaCounter OfferedBytes_;
     TSimpleEmaCounter UnregisteredCount_;
     TSimpleEmaCounter UnregisteredBytes_;
     NProfiling::TCounter RegisteredCountCounter_;
     NProfiling::TCounter RegisteredBytesCounter_;
+    NProfiling::TCounter OfferedCountCounter_;
+    NProfiling::TCounter OfferedBytesCounter_;
     NProfiling::TCounter UnregisteredCountCounter_;
     NProfiling::TCounter UnregisteredBytesCounter_;
+
+    i64 ReadyCount_ = 0;
+    i64 ReadyByteSize_ = 0;
 
     struct TPendingCounters
     {
         i64 RegisteredCount = 0;
         i64 RegisteredBytes = 0;
+        i64 OfferedCount = 0;
+        i64 OfferedBytes = 0;
         i64 UnregisteredCount = 0;
         i64 UnregisteredBytes = 0;
     };
@@ -135,7 +159,9 @@ private:
         TMapIterator it,
         i64 byteSize,
         TSystemTimestamp systemTimestamp,
-        TSystemTimestamp eventTimestamp);
+        TSystemTimestamp eventTimestamp,
+        bool reportNew,
+        TMessageState::EState initialState);
 
     // Extracts |it| from every heap, erases it, and updates the in/out counters.
     void FinalizeUnregister(TMapIterator it);
@@ -163,14 +189,19 @@ public:
 
     void Register(const TOutputMessageConstPtr& message);
     bool TryRegister(const TOutputMessageConstPtr& message);
+    void Restore(const TOutputMessageConstPtr& message);
     bool Contains(const TMessageMeta& message) const;
+    void MarkOffered(const TMessageMeta& message);
+    void MarkTaken(const TMessageMeta& message);
     void Unregister(const TMessageMeta& message);
     bool TryUnregister(const TMessageMeta& message);
 
     void Register(const TInputTimerConstPtr& timer);
     bool TryRegister(const TInputTimerConstPtr& timer);
+    void Restore(const TInputTimerConstPtr& timer);
 
     void SyncCounters();
+    void Commit();
 
     THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflights();
     THashMap<TStreamId, std::pair<i64, i64>> GetCountAndByteSizes() const;

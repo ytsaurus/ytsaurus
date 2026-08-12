@@ -717,6 +717,10 @@ public:
         auto spec = New<TPipelineSpec>();
         spec->Computations["healthy"] = CreateGenericComputationSpec<TSimpleComputation>();
         spec->Computations["broken"] = CreateGenericComputationSpec<TBrokenTraverseComputation>();
+        for (const auto& computationSpec : GetValues(spec->Computations)) {
+            computationSpec->InputStreamIds.clear();
+            computationSpec->KeyVisitorStreams["input"] = New<TKeyVisitorStreamSpec>();
+        }
 
         auto dynamicSpec = New<TDynamicPipelineSpec>();
         dynamicSpec->JobManager->AsyncBalancing = false;
@@ -777,6 +781,21 @@ TEST_F(TTraverseIsolationTest, FailingComputationWithoutPreviousDataAborts)
     PrepareTwoComputations();
 
     EXPECT_THROW(JobManager->AggregateTraverseData(FlowView), std::exception);
+}
+
+TEST_F(TTraverseIsolationTest, UnknownExecutionSpecComputationIsIgnored)
+{
+    PrepareTwoComputations();
+    FlowView->State->TraverseData->Computations[TComputationId("broken")] =
+        MakeInputNode(/*epoch*/ 0, TSystemTimestamp(50));
+    FlowView->State->ExecutionSpec->PipelineSpec->GetValue()->Computations["unknown"] =
+        CreateGenericComputationSpec<TSimpleComputation>();
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_EQ(GetInputWatermark(FlowView, TComputationId("healthy")), TSystemTimestamp(100));
+    EXPECT_EQ(GetInputWatermark(FlowView, TComputationId("broken")), TSystemTimestamp(50));
+    EXPECT_FALSE(FlowView->State->TraverseData->Computations.contains(TComputationId("unknown")));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

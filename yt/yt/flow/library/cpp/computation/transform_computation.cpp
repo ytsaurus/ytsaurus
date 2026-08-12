@@ -86,7 +86,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
         auto iterGuard = StartRunIteration(context);
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
         DoInit(StateManager_->CreateContext());
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights());
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
         FinishRunIteration();
     }
 
@@ -142,7 +142,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             auto [processedInput, unprocessedInputs] = InputStore_->Filter(inputs, deduplicateInput);
             YT_TLOG_INFO("Filtered already processed")
                 .With("Inputs", processedInput.size());
-            context->MarkPersisted(processedInput);
+            context->MarkDeduplicated(processedInput);
             return unprocessedInputs;
         }();
 
@@ -197,9 +197,9 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
         }
         Commit(context, tx);
 
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights());
-
         context->MarkPersisted(unprocessedInputs);
+
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
 
         FinishRunIteration();
 

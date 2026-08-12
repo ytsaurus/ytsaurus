@@ -85,9 +85,18 @@ TInflightTracker::TInflightTracker(
     , Profiler_(profiler)
     , RegisteredCountCounter_(Profiler_.Counter("/registered_count"))
     , RegisteredBytesCounter_(Profiler_.Counter("/registered_bytes"))
+    , OfferedCountCounter_(Profiler_.Counter("/offered_count"))
+    , OfferedBytesCounter_(Profiler_.Counter("/offered_bytes"))
     , UnregisteredCountCounter_(Profiler_.Counter("/unregistered_count"))
     , UnregisteredBytesCounter_(Profiler_.Counter("/unregistered_bytes"))
-{ }
+{
+    RegisteredCount_.Update(0);
+    RegisteredBytes_.Update(0);
+    OfferedCount_.Update(0);
+    OfferedBytes_.Update(0);
+    UnregisteredCount_.Update(0);
+    UnregisteredBytes_.Update(0);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -154,12 +163,15 @@ void TInflightTracker::FinalizeRegister(
     TMapIterator it,
     i64 byteSize,
     TSystemTimestamp systemTimestamp,
-    TSystemTimestamp eventTimestamp)
+    TSystemTimestamp eventTimestamp,
+    bool reportNew,
+    TMessageState::EState initialState)
 {
     auto& state = it->second;
     state.Size = byteSize;
     state.SystemTimestamp = systemTimestamp;
     state.EventTimestamp = eventTimestamp;
+    state.State = initialState;
 
     GetSystemTimestampHeap().Push(it);
     GetMinEventTimestampHeap().Push(it);
@@ -179,14 +191,21 @@ void TInflightTracker::FinalizeRegister(
     ByteSize_ += byteSize;
     RegisteredCountTotal_ += 1;
     RegisteredByteSizeTotal_ += byteSize;
-    PendingCounters_.RegisteredCount += 1;
-    PendingCounters_.RegisteredBytes += byteSize;
+    if (state.State == TMessageState::EState::Ready) {
+        ++ReadyCount_;
+        ReadyByteSize_ += byteSize;
+    }
+    if (reportNew) {
+        PendingCounters_.RegisteredCount += 1;
+        PendingCounters_.RegisteredBytes += byteSize;
+    }
 }
 
 void TInflightTracker::FinalizeUnregister(TMapIterator it)
 {
     const auto& state = it->second;
     const auto byteSize = state.Size;
+    const bool ready = state.State == TMessageState::EState::Ready;
 
     GetSystemTimestampHeap().ExtractAt(state.SystemHeapIndex);
     GetMinEventTimestampHeap().ExtractAt(state.MinEventHeapIndex);
@@ -200,6 +219,10 @@ void TInflightTracker::FinalizeUnregister(TMapIterator it)
 
     InflightMessages_.erase(it);
     ByteSize_ -= byteSize;
+    if (ready) {
+        --ReadyCount_;
+        ReadyByteSize_ -= byteSize;
+    }
     PendingCounters_.UnregisteredCount += 1;
     PendingCounters_.UnregisteredBytes += byteSize;
 }
@@ -210,11 +233,14 @@ void TInflightTracker::SyncCounters()
     RegisteredBytes_.Inc(PendingCounters_.RegisteredBytes);
     RegisteredCountCounter_.Increment(PendingCounters_.RegisteredCount);
     RegisteredBytesCounter_.Increment(PendingCounters_.RegisteredBytes);
-    UnregisteredCount_.Inc(PendingCounters_.UnregisteredCount);
-    UnregisteredBytes_.Inc(PendingCounters_.UnregisteredBytes);
-    UnregisteredCountCounter_.Increment(PendingCounters_.UnregisteredCount);
-    UnregisteredBytesCounter_.Increment(PendingCounters_.UnregisteredBytes);
-    PendingCounters_ = {};
+    OfferedCount_.Inc(PendingCounters_.OfferedCount);
+    OfferedBytes_.Inc(PendingCounters_.OfferedBytes);
+    OfferedCountCounter_.Increment(PendingCounters_.OfferedCount);
+    OfferedBytesCounter_.Increment(PendingCounters_.OfferedBytes);
+    PendingCounters_.RegisteredCount = 0;
+    PendingCounters_.RegisteredBytes = 0;
+    PendingCounters_.OfferedCount = 0;
+    PendingCounters_.OfferedBytes = 0;
     if (LimitUsageState_) {
         LimitUsageState_->Update(TStreamUsage{
             .CumulativeByteIn = RegisteredByteSizeTotal_,
@@ -223,6 +249,17 @@ void TInflightTracker::SyncCounters()
             .CumulativeCountOut = RegisteredCountTotal_ - std::ssize(InflightMessages_),
         });
     }
+}
+
+void TInflightTracker::Commit()
+{
+    SyncCounters();
+    UnregisteredCount_.Inc(PendingCounters_.UnregisteredCount);
+    UnregisteredBytes_.Inc(PendingCounters_.UnregisteredBytes);
+    UnregisteredCountCounter_.Increment(PendingCounters_.UnregisteredCount);
+    UnregisteredBytesCounter_.Increment(PendingCounters_.UnregisteredBytes);
+    PendingCounters_.UnregisteredCount = 0;
+    PendingCounters_.UnregisteredBytes = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -293,7 +330,13 @@ void TInflightTracker::Register(const TOutputMessageConstPtr& message)
 {
     auto [it, success] = InflightMessages_.try_emplace(message->MessageId);
     YT_VERIFY(success);
-    FinalizeRegister(it, message->ByteSize, message->SystemTimestamp, message->EventTimestamp);
+    FinalizeRegister(
+        it,
+        message->ByteSize,
+        message->SystemTimestamp,
+        message->EventTimestamp,
+        /*reportNew*/ true,
+        /*initialState*/ TMessageState::EState::New);
 }
 
 bool TInflightTracker::TryRegister(const TOutputMessageConstPtr& message)
@@ -302,15 +345,40 @@ bool TInflightTracker::TryRegister(const TOutputMessageConstPtr& message)
     if (!success) {
         return false;
     }
-    FinalizeRegister(it, message->ByteSize, message->SystemTimestamp, message->EventTimestamp);
+    FinalizeRegister(
+        it,
+        message->ByteSize,
+        message->SystemTimestamp,
+        message->EventTimestamp,
+        /*reportNew*/ true,
+        /*initialState*/ TMessageState::EState::New);
     return true;
+}
+
+void TInflightTracker::Restore(const TOutputMessageConstPtr& message)
+{
+    auto [it, success] = InflightMessages_.try_emplace(message->MessageId);
+    YT_VERIFY(success);
+    FinalizeRegister(
+        it,
+        message->ByteSize,
+        message->SystemTimestamp,
+        message->EventTimestamp,
+        /*reportNew*/ false,
+        /*initialState*/ TMessageState::EState::Ready);
 }
 
 void TInflightTracker::Register(const TInputTimerConstPtr& timer)
 {
     auto [it, success] = InflightMessages_.try_emplace(timer->MessageId);
     YT_VERIFY(success);
-    FinalizeRegister(it, timer->ByteSize, timer->SystemTimestamp, timer->EventTimestamp);
+    FinalizeRegister(
+        it,
+        timer->ByteSize,
+        timer->SystemTimestamp,
+        timer->EventTimestamp,
+        /*reportNew*/ true,
+        /*initialState*/ TMessageState::EState::New);
 }
 
 bool TInflightTracker::TryRegister(const TInputTimerConstPtr& timer)
@@ -319,8 +387,52 @@ bool TInflightTracker::TryRegister(const TInputTimerConstPtr& timer)
     if (!success) {
         return false;
     }
-    FinalizeRegister(it, timer->ByteSize, timer->SystemTimestamp, timer->EventTimestamp);
+    FinalizeRegister(
+        it,
+        timer->ByteSize,
+        timer->SystemTimestamp,
+        timer->EventTimestamp,
+        /*reportNew*/ true,
+        /*initialState*/ TMessageState::EState::New);
     return true;
+}
+
+void TInflightTracker::Restore(const TInputTimerConstPtr& timer)
+{
+    auto [it, success] = InflightMessages_.try_emplace(timer->MessageId);
+    YT_VERIFY(success);
+    FinalizeRegister(
+        it,
+        timer->ByteSize,
+        timer->SystemTimestamp,
+        timer->EventTimestamp,
+        /*reportNew*/ false,
+        /*initialState*/ TMessageState::EState::New);
+}
+
+void TInflightTracker::MarkOffered(const TMessageId& messageId)
+{
+    auto& state = GetIteratorOrCrash(InflightMessages_, messageId)->second;
+    if (state.State != TMessageState::EState::New) {
+        return;
+    }
+    state.State = TMessageState::EState::Ready;
+    ++ReadyCount_;
+    ReadyByteSize_ += state.Size;
+    ++PendingCounters_.OfferedCount;
+    PendingCounters_.OfferedBytes += state.Size;
+}
+
+void TInflightTracker::MarkTaken(const TMessageId& messageId)
+{
+    auto& state = GetIteratorOrCrash(InflightMessages_, messageId)->second;
+    YT_VERIFY(state.State != TMessageState::EState::New);
+    if (state.State == TMessageState::EState::Taken) {
+        return;
+    }
+    state.State = TMessageState::EState::Taken;
+    --ReadyCount_;
+    ReadyByteSize_ -= state.Size;
 }
 
 void TInflightTracker::Unregister(const TMessageId& messageId)
@@ -341,16 +453,19 @@ bool TInflightTracker::TryUnregister(const TMessageId& messageId)
 TInflightStreamTraverseDataPtr TInflightTracker::BuildInflight()
 {
     auto inflight = New<TInflightStreamTraverseData>();
-
     inflight->MinSystemTimestamp = GetMinSystemTimestamp();
     inflight->MinEventTimestamp = GetMinEventTimestamp();
 
     inflight->InflightMetrics->Count = GetCount();
     inflight->InflightMetrics->ByteSize = GetByteSize();
-    inflight->InflightMetrics->NewCountPerSec = RegisteredCount_.GetRate().value_or(0);
-    inflight->InflightMetrics->NewBytesPerSec = RegisteredBytes_.GetRate().value_or(0);
-    inflight->InflightMetrics->ProcessedCountPerSec = UnregisteredCount_.GetRate().value_or(0);
-    inflight->InflightMetrics->ProcessedBytesPerSec = UnregisteredBytes_.GetRate().value_or(0);
+    inflight->InflightMetrics->NewCountPerSec = RegisteredCount_.GetRate();
+    inflight->InflightMetrics->NewBytesPerSec = RegisteredBytes_.GetRate();
+    inflight->InflightMetrics->ReadyCount = ReadyCount_;
+    inflight->InflightMetrics->ReadyByteSize = ReadyByteSize_;
+    inflight->InflightMetrics->OfferedCountPerSec = OfferedCount_.GetRate();
+    inflight->InflightMetrics->OfferedBytesPerSec = OfferedBytes_.GetRate();
+    inflight->InflightMetrics->ProcessedCountPerSec = UnregisteredCount_.GetRate();
+    inflight->InflightMetrics->ProcessedBytesPerSec = UnregisteredBytes_.GetRate();
 
     inflight->Empty = inflight->InflightMetrics->Count == 0;
     inflight->Suspended = false;
@@ -380,7 +495,11 @@ TMultiInflightTracker::TMultiInflightTracker(
     const std::vector<TStreamId>& streams,
     TWatermarkPercentileSpecPtr percentile,
     const TStreamLimitUsageStateMap& streamLimitUsageStates)
-    : TMultiInflightTracker(profiler, THashSet<TStreamId>(streams.begin(), streams.end()), percentile, streamLimitUsageStates)
+    : TMultiInflightTracker(
+        profiler,
+        THashSet<TStreamId>(streams.begin(), streams.end()),
+        percentile,
+        streamLimitUsageStates)
 { }
 
 THashMap<TStreamId, TInflightTrackerPtr> TMultiInflightTracker::CreateInflightTrackers(
@@ -425,9 +544,24 @@ bool TMultiInflightTracker::TryRegister(const TOutputMessageConstPtr& message)
     return ResolveTracker(message->StreamId)->TryRegister(message);
 }
 
+void TMultiInflightTracker::Restore(const TOutputMessageConstPtr& message)
+{
+    ResolveTracker(message->StreamId)->Restore(message);
+}
+
 bool TMultiInflightTracker::Contains(const TMessageMeta& message) const
 {
     return ResolveTracker(message.StreamId)->Contains(message.MessageId);
+}
+
+void TMultiInflightTracker::MarkOffered(const TMessageMeta& message)
+{
+    ResolveTracker(message.StreamId)->MarkOffered(message.MessageId);
+}
+
+void TMultiInflightTracker::MarkTaken(const TMessageMeta& message)
+{
+    ResolveTracker(message.StreamId)->MarkTaken(message.MessageId);
 }
 
 void TMultiInflightTracker::Unregister(const TMessageMeta& message)
@@ -450,10 +584,22 @@ bool TMultiInflightTracker::TryRegister(const TInputTimerConstPtr& timer)
     return ResolveTracker(timer->StreamId)->TryRegister(timer);
 }
 
+void TMultiInflightTracker::Restore(const TInputTimerConstPtr& timer)
+{
+    ResolveTracker(timer->StreamId)->Restore(timer);
+}
+
 void TMultiInflightTracker::SyncCounters()
 {
     for (const auto& [_, tracker] : InflightTrackers_) {
         tracker->SyncCounters();
+    }
+}
+
+void TMultiInflightTracker::Commit()
+{
+    for (const auto& [_, tracker] : InflightTrackers_) {
+        tracker->Commit();
     }
 }
 

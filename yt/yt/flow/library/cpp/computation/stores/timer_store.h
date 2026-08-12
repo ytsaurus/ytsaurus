@@ -65,6 +65,7 @@ struct ITimerStore
 
     virtual TFuture<void> Init() = 0;
     virtual void Sync(NApi::IDynamicTableTransactionPtr tx) = 0;
+    virtual void Commit() = 0;
 
     virtual THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflight() = 0;
 

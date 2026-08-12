@@ -31,6 +31,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/common/unittests/mock
     yt/yt/flow/library/cpp/connectors/random
     yt/yt/flow/library/cpp/tables/unittests/mock
+    yt/yt/library/profiling/solomon
     yt/yt/library/query/engine
 )
 

@@ -12,6 +12,8 @@
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 namespace NYT::NFlow {
 
 using namespace NConcurrency;
@@ -98,6 +100,25 @@ protected:
         auto watermarkState = New<TWatermarkState>();
         watermarkState->Streams[InputStreamId] = watermarks;
         store->UpdateWatermarkState(watermarkState);
+    }
+
+    i64 ReadCounter(const NProfiling::TSolomonRegistryPtr& registry, TStringBuf name)
+    {
+        registry->ProcessRegistrations();
+        registry->Collect();
+        const auto dump = registry->DumpSensors();
+        i64 result = 0;
+        for (const auto& cube : dump.cubes()) {
+            if (cube.name() != name) {
+                continue;
+            }
+            for (const auto& projection : cube.projections()) {
+                if (projection.has_counter()) {
+                    result = std::max(result, projection.counter());
+                }
+            }
+        }
+        return result;
     }
 };
 
@@ -265,6 +286,66 @@ TEST_F(TTimerStoreTest, GetNextBatchReturnsTriggeredTimers)
     EXPECT_EQ(batchAfter[0]->MessageId, TMessageId("timer-1"));
 }
 
+TEST_F(TTimerStoreTest, TracksReadyLifecycle)
+{
+    auto context = MakeContext();
+    auto store = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(store->Init()).ThrowOnError();
+
+    store->Register({MakeTimer("timer-1", /*triggerTimestamp*/ 50)});
+    auto inflight = store->BuildInflight().at(TimerStreamId);
+    EXPECT_EQ(inflight->InflightMetrics->Count, 1);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+
+    SetWatermark(store, /*timestamp*/ 100);
+    inflight = store->BuildInflight().at(TimerStreamId);
+    EXPECT_EQ(inflight->InflightMetrics->Count, 1);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 1);
+
+    auto firstBatch = store->GetNextBatch({TimerStreamId}, /*maxRows*/ 100, /*maxByteSize*/ 1 << 20);
+    inflight = store->BuildInflight().at(TimerStreamId);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+
+    store->Unregister(firstBatch);
+    store->Commit();
+    inflight = store->BuildInflight().at(TimerStreamId);
+    EXPECT_EQ(inflight->InflightMetrics->Count, 0);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+}
+
+TEST_F(TTimerStoreTest, RestoredTimerBecomesReadyOnlyAfterTrigger)
+{
+    auto table = New<NTables::TInMemoryTimers>();
+    auto context = MakeContext(table);
+    context->Partition->LowerKey = MakeKey();
+    context->Partition->UpperKey = MaxKey();
+    context->Partition->SourceKey = MakeKey();
+    {
+        auto store = CreateTimerStore(context, MakeDynamicContext());
+        WaitFor(store->Init()).ThrowOnError();
+        store->Register({MakeTimer("timer-1", /*triggerTimestamp*/ 50)});
+        store->Sync(/*tx*/ nullptr);
+    }
+    ASSERT_EQ(std::ssize(WaitFor(table->LoadAll({
+            .ComputationId = ComputationId,
+            .LowerKey = context->Partition->LowerKey,
+            .ExactKey = context->Partition->SourceKey,
+            .UpperKey = context->Partition->UpperKey,
+                                 }))
+            .ValueOrThrow()),
+        1);
+
+    auto restoredStore = CreateTimerStore(context, MakeDynamicContext());
+    WaitFor(restoredStore->Init()).ThrowOnError();
+    ASSERT_EQ(restoredStore->GetCount(), 1);
+    auto inflight = restoredStore->BuildInflight().at(TimerStreamId);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 0);
+
+    SetWatermark(restoredStore, /*timestamp*/ 100);
+    inflight = restoredStore->BuildInflight().at(TimerStreamId);
+    EXPECT_EQ(inflight->InflightMetrics->ReadyCount, 1);
+}
+
 TEST_F(TTimerStoreTest, DrainingBlocksGetNextBatch)
 {
     auto context = MakeContext();
@@ -368,10 +449,13 @@ TEST_F(TTimerStoreTest, SameTriggerTimestampOrderedByMessageId)
 // only the one with the lowest EventTimestamp is kept; the other is silently unregistered.
 TEST_F(TTimerStoreTest, DeduplicateEqualTimestampsKeepsLowestEventTimestamp)
 {
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
     auto context = MakeContext(
         /*table*/ nullptr,
         ETimeType::SystemTime,
         /*deduplicateEqualTimestamps*/ true);
+    context->Profiler = NProfiling::TProfiler(registry, "/test");
     auto store = CreateTimerStore(context, MakeDynamicContext());
     WaitFor(store->Init()).ThrowOnError();
 
@@ -394,6 +478,12 @@ TEST_F(TTimerStoreTest, DeduplicateEqualTimestampsKeepsLowestEventTimestamp)
 
     // Only one timer must remain after deduplication.
     EXPECT_EQ(store->GetCount(), 1);
+    EXPECT_EQ(ReadCounter(registry, "yt/test/timer_streams/registered_count"), 2);
+    EXPECT_EQ(ReadCounter(registry, "yt/test/timer_streams/offered_count"), 0);
+    EXPECT_EQ(ReadCounter(registry, "yt/test/timer_streams/unregistered_count"), 0);
+
+    store->Commit();
+    EXPECT_EQ(ReadCounter(registry, "yt/test/timer_streams/unregistered_count"), 1);
 
     // Advance watermark to trigger.
     SetWatermark(store, /*timestamp*/ 100);

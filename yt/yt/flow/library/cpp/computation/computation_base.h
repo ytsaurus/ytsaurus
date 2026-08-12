@@ -157,7 +157,8 @@ protected:
     bool UpdateTraverse(
         TSystemTimestamp reportTime,
         TSystemTimestamp systemWatermark,
-        const THashMap<TStreamId, TInflightStreamTraverseDataPtr>& inflights);
+        const THashMap<TStreamId, TInflightStreamTraverseDataPtr>& inflights,
+        i64 iterationCycle);
 
     //! Returns the distributed throttler client for the given id.
     //! Throws if |throttlerId| is not in the dynamic pipeline spec's
@@ -460,7 +461,8 @@ protected:
     TSystemTimestamp GetWatermark(const TStreamId& streamId, ETimeType timeType) const;
     TSystemTimestamp GetEpochWatermark(const TStreamId& streamId, ETimeType timeType) const;
 
-    THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflights() const;
+    THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflights(
+        const IComputationRunContextPtr& context) const;
 
     void RegisterInputBeforeProcessing(
         const std::vector<TInputMessageConstPtr>& inputMessages,

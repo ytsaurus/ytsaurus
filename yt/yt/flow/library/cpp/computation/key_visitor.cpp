@@ -101,6 +101,8 @@ TKeyVisitor::TKeyVisitor(
     , PersistedCounter_(Context_->Profiler.Counter("/persisted_count"))
 {
     YT_VERIFY(Context_->Spec);
+    EmittedRate_.Update(0);
+    ProcessedRate_.Update(0);
 }
 
 TFuture<void> TKeyVisitor::Init(bool upstreamCompleted)
@@ -202,9 +204,7 @@ std::vector<TVisit> TKeyVisitor::GetNextBatch(i64 batchSize)
         }
     }
     if (!result.empty()) {
-        const auto consumed = static_cast<double>(std::ssize(result));
-        ConsumedRate_.Inc(consumed);
-        PersistedCounter_.Increment(static_cast<i64>(consumed));
+        PendingProcessedCount_ += std::ssize(result);
     }
     return result;
 }
@@ -217,8 +217,10 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TKeyVisitor::BuildInflight()
     inflight->Empty =
         Store_->IsCurrentPassFinal() && Store_->IsAllCommitted() && Buffer_.empty();
     inflight->InflightMetrics->Count = inflight->Empty ? 0 : BufferRowCount_;
-    inflight->InflightMetrics->NewCountPerSec = EmittedRate_.GetRate().value_or(0);
-    inflight->InflightMetrics->ProcessedCountPerSec = ConsumedRate_.GetRate().value_or(0);
+    inflight->InflightMetrics->ReadyCount = BufferRowCount_;
+    inflight->InflightMetrics->NewCountPerSec = EmittedRate_.GetRate();
+    inflight->InflightMetrics->OfferedCountPerSec = inflight->InflightMetrics->NewCountPerSec;
+    inflight->InflightMetrics->ProcessedCountPerSec = ProcessedRate_.GetRate();
     if (!inflight->Empty && !Buffer_.empty() && !Buffer_.front().Visits.empty()) {
         const auto& head = Buffer_.front().Visits.front();
         inflight->MinSystemTimestamp = head.SystemTimestamp;
@@ -233,6 +235,17 @@ void TKeyVisitor::Sync(NApi::IDynamicTableTransactionPtr transaction)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->SerializedInvoker);
     Store_->Sync(std::move(transaction));
+}
+
+void TKeyVisitor::Commit()
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->SerializedInvoker);
+    if (PendingProcessedCount_ == 0) {
+        return;
+    }
+    ProcessedRate_.Inc(PendingProcessedCount_);
+    PersistedCounter_.Increment(PendingProcessedCount_);
+    PendingProcessedCount_ = 0;
 }
 
 NConcurrency::TThroughputThrottlerConfigPtr TKeyVisitor::BuildThrottlerConfig() const

@@ -98,7 +98,9 @@ public:
     explicit TComputationRunContext(TWeakPtr<TJob> job);
 
     TFuture<std::vector<TInputMessageConstPtr>> GetNextBatch(const THashSet<TStreamId>& allowedStreams) override;
+    TFuture<THashMap<TStreamId, TInflightMetricsPtr>> GetInputInflightMetrics() override;
     void MarkPersisted(std::span<const TMessageId> messageIds) override;
+    void MarkDeduplicated(std::span<const TMessageId> messageIds) override;
     void RegisterOutputMessages(
         std::span<const TOutputMessageConstPtr> messages,
         std::span<TDistributingTracker> trackers) override;
@@ -405,7 +407,7 @@ public:
                 auto computationStatus = Computation_->GetStatus();
                 if (computationStatus->NodeTraverse) {
                     auto traverseData = New<TFromPartitionTraverseData>();
-                    traverseData->Node = computationStatus->NodeTraverse;
+                    traverseData->Node = std::move(computationStatus->NodeTraverse);
                     // NB: No need to clamp stream->Epoch here — GetNodeTraverse() already returns nullptr
                     // if any stream's Epoch < PendingSpecGeneration_, so the traverse data is always fresh.
                     status->FromPartitionTraverseData = traverseData;
@@ -508,7 +510,27 @@ public:
             }).AsyncVia(JobContext_->PoolInvoker));
     }
 
+    TFuture<THashMap<TStreamId, TInflightMetricsPtr>> GetInputInflightMetrics()
+    {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(JobSerializedInvoker_);
+
+        FlushInputAcknowledgements();
+        return InputBuffer_->GetInflightMetrics();
+    }
+
     void MarkPersisted(std::span<const TMessageId> messageIds)
+    {
+        EnqueueAcknowledgements(messageIds, /*reportProcessed*/ true);
+    }
+
+    void MarkDeduplicated(std::span<const TMessageId> messageIds)
+    {
+        EnqueueAcknowledgements(messageIds, /*reportProcessed*/ false);
+    }
+
+    void EnqueueAcknowledgements(
+        std::span<const TMessageId> messageIds,
+        bool reportProcessed)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -520,18 +542,35 @@ public:
         bool queueWasEmpty = false;
         {
             auto guard = Guard(MarkPersistedQueueLock_);
-            queueWasEmpty = MarkPersistedQueue_.empty();
-            MarkPersistedQueue_.insert(MarkPersistedQueue_.end(), messageIds.begin(), messageIds.end());
+            queueWasEmpty = MarkPersistedQueue_.empty() && DuplicateAcknowledgementQueue_.empty();
+            auto& queue = reportProcessed
+                ? MarkPersistedQueue_
+                : DuplicateAcknowledgementQueue_;
+            queue.insert(queue.end(), messageIds.begin(), messageIds.end());
         }
         if (queueWasEmpty) {
-            JobSerializedInvoker_->Invoke(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] () {
-                std::deque<TMessageId> queuedMessageIds;
-                {
-                    auto guard = Guard(MarkPersistedQueueLock_);
-                    std::swap(queuedMessageIds, MarkPersistedQueue_);
-                }
-                InputBuffer_->MarkPersisted(std::move(queuedMessageIds));
-            }));
+            JobSerializedInvoker_->Invoke(BIND_NO_PROPAGATE(
+                &TJob::FlushInputAcknowledgements,
+                MakeStrong(this)));
+        }
+    }
+
+    void FlushInputAcknowledgements()
+    {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(JobSerializedInvoker_);
+
+        std::deque<TMessageId> queuedMessageIds;
+        std::deque<TMessageId> duplicateMessageIds;
+        {
+            auto guard = Guard(MarkPersistedQueueLock_);
+            std::swap(queuedMessageIds, MarkPersistedQueue_);
+            std::swap(duplicateMessageIds, DuplicateAcknowledgementQueue_);
+        }
+        if (!queuedMessageIds.empty()) {
+            InputBuffer_->MarkPersisted(std::move(queuedMessageIds));
+        }
+        if (!duplicateMessageIds.empty()) {
+            InputBuffer_->MarkDeduplicated(std::move(duplicateMessageIds));
         }
     }
 
@@ -571,13 +610,6 @@ public:
         Distributor_->DistributeOutputMessages(
             GetJobId(),
             std::move(toDistribute));
-    }
-
-    const IInvokerPtr& GetJobInvoker()
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        return JobSerializedInvoker_;
     }
 
 private:
@@ -644,6 +676,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MarkPersistedQueueLock_);
     std::deque<TMessageId> MarkPersistedQueue_;
+    std::deque<TMessageId> DuplicateAcknowledgementQueue_;
 
 private:
     void ExecutorFiber()
@@ -881,10 +914,25 @@ TFuture<std::vector<TInputMessageConstPtr>> TComputationRunContext::GetNextBatch
     return MakeFuture<std::vector<TInputMessageConstPtr>>(MakeExecutionInterruptedError());
 }
 
+TFuture<THashMap<TStreamId, TInflightMetricsPtr>> TComputationRunContext::GetInputInflightMetrics()
+{
+    if (auto job = Job_.Lock()) {
+        return job->GetInputInflightMetrics();
+    }
+    return MakeFuture<THashMap<TStreamId, TInflightMetricsPtr>>(MakeExecutionInterruptedError());
+}
+
 void TComputationRunContext::MarkPersisted(std::span<const TMessageId> messageIds)
 {
     if (auto job = Job_.Lock()) {
         return job->MarkPersisted(messageIds);
+    }
+}
+
+void TComputationRunContext::MarkDeduplicated(std::span<const TMessageId> messageIds)
+{
+    if (auto job = Job_.Lock()) {
+        return job->MarkDeduplicated(messageIds);
     }
 }
 

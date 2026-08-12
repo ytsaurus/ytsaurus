@@ -105,12 +105,18 @@ struct IComputationRunContext
 {
     // Throws exception if PartitionState == Interrupting.
     virtual TFuture<std::vector<TInputMessageConstPtr>> GetNextBatch(const THashSet<TStreamId>& allowedStreams = {}) = 0;
+    // Includes all acknowledgements submitted through this context before the call.
+    virtual TFuture<THashMap<TStreamId, TInflightMetricsPtr>> GetInputInflightMetrics() = 0;
 
-    // Immediately mark messages as persisted.
+    // Acknowledge messages newly persisted by this computation.
     virtual void MarkPersisted(std::span<const TMessageId> messageIds) = 0;
+    // Acknowledge messages that had already been persisted before this attempt.
+    virtual void MarkDeduplicated(std::span<const TMessageId> messageIds) = 0;
 
     void MarkPersisted(const std::vector<TInputMessageConstPtr>& messages);
     void MarkPersisted(TMessageId messageId);
+    void MarkDeduplicated(const std::vector<TInputMessageConstPtr>& messages);
+    void MarkDeduplicated(TMessageId messageId);
 
     // Registers callbacks in tracker for each subscriber (sinks and downstream computations).
     // Distribution starts only after Commit() call.
