@@ -84,7 +84,8 @@ public:
         auto clockClusterTag = newConfig->ClockClusterTag;
         ClockClusterTag_ = clockClusterTag;
 
-        YT_LOG_DEBUG("Clock manager reconfigured (ClockClusterTag: %v)", clockClusterTag);
+        YT_TLOG_DEBUG("Clock manager reconfigured")
+            .With("ClockClusterTag", clockClusterTag);
     }
 
 private:

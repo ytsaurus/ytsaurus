@@ -121,7 +121,7 @@ private:
     {
         auto nativeConnection = NativeConnection_.Lock();
         if (!nativeConnection) {
-            YT_LOG_DEBUG("Cannot initialize timestamp provider: connection terminated");
+            YT_TLOG_DEBUG("Cannot initialize timestamp provider: connection terminated");
             return;
         }
 
@@ -131,8 +131,8 @@ private:
             if (auto connection = FindRemoteConnection(nativeConnection, ClockClusterTag_)) {
                 UnderlyingRemoteCluster_.Store(connection->GetTimestampProvider());
             } else {
-                YT_LOG_DEBUG("Cannot initialize timestamp provider: cluster is not known (ClockClusterTag: %v)",
-                    ClockClusterTag_);
+                YT_TLOG_DEBUG("Cannot initialize timestamp provider: cluster is not known")
+                    .With("ClockClusterTag", ClockClusterTag_);
             }
         } else {
             UnderlyingRemoteCluster_.Store(nativeConnection->GetTimestampProvider());
@@ -161,15 +161,13 @@ private:
                 }
 
                 if (remoteUnderlying) {
-                    YT_LOG_WARNING(
-                        providerResult,
-                        "Wrong clock cluster, trying to generate timestamps via direct call (ClockClusterTag: %v)",
-                        clockClusterTag);
+                    YT_TLOG_WARNING("Wrong clock cluster, trying to generate timestamps via direct call")
+                        .With("ClockClusterTag", clockClusterTag)
+                        .With(providerResult);
                         return remoteUnderlying->GenerateTimestamps(count);
                 } else {
-                    YT_LOG_WARNING(
-                        "Cannot generate timestamps via direct call (ClockClusterTag: %v)",
-                        clockClusterTag);
+                    YT_TLOG_WARNING("Cannot generate timestamps via direct call")
+                        .With("ClockClusterTag", clockClusterTag);
                     return MakeFuture<TTimestamp>(TError(
                         "Timestamp provider for clock cluster tag %v is unavailable at the moment",
                         clockClusterTag));
