@@ -1429,13 +1429,13 @@ public:
 
         auto guard = Guard(SpinLock_);
         i64 reservedAmount = UnderlyingAllocatedSize_ - AllocatedSize_;
-        if (auto toAquire = size - reservedAmount; toAquire > 0) {
-            auto acquireResult = Underlying_->TryAcquire(toAquire);
+        if (auto toAcquire = size - reservedAmount; toAcquire > 0) {
+            auto acquireResult = Underlying_->TryAcquire(toAcquire);
             if (!acquireResult.IsOK()) {
                 return acquireResult;
             }
-            UnderlyingAllocatedSize_ += toAquire;
-            MemoryUsageCounter_.Increment(toAquire);
+            UnderlyingAllocatedSize_ += toAcquire;
+            MemoryUsageCounter_.Increment(toAcquire);
         }
 
         AllocatedSize_ += size;
@@ -1455,10 +1455,10 @@ public:
         auto guard = Guard(SpinLock_);
         i64 reservedAmount = UnderlyingAllocatedSize_ - AllocatedSize_;
         bool result = true;
-        if (auto toAquire = size - reservedAmount; toAquire > 0) {
-            result = Underlying_->Acquire(toAquire);
-            UnderlyingAllocatedSize_ += toAquire;
-            MemoryUsageCounter_.Increment(toAquire);
+        if (auto toAcquire = size - reservedAmount; toAcquire > 0) {
+            result = Underlying_->Acquire(toAcquire);
+            UnderlyingAllocatedSize_ += toAcquire;
+            MemoryUsageCounter_.Increment(toAcquire);
         }
 
         AllocatedSize_ += size;
