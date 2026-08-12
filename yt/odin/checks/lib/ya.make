@@ -2,6 +2,7 @@ RECURSE(
     check_runner
     map_result
     master_chunk_management
+    queue_agent_helpers
     quorum_health
     register_watcher
     controller_agent_alerts

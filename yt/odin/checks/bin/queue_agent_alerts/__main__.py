@@ -1,14 +1,16 @@
 from yt_odin_checks.lib.check_runner import main
+from yt_odin_checks.lib.queue_agent_helpers import (
+    BANNED_ATTRIBUTE_NAME,
+    MAINTENANCE_ATTRIBUTE_NAME,
+    is_attribute_true,
+)
 from yt.wrapper import YtClient
 from yt.wrapper.config import set_command_param
 from yt.common import YtError, YtResponseError
 
-import yt.yson as yson
-
 from copy import deepcopy
 from collections import defaultdict
 
-BANNED_ATTRIBUTE_NAME = "banned"
 
 DEFAULT_GET_ALERTS_TIMEOUT = 15000
 
@@ -51,6 +53,7 @@ def run_check(secrets, yt_client, logger, options, states):
         queue_agent_instances_count = len(queue_agent_instances)
         failed_instance_count = 0
         banned_instance_count = 0
+        maintenance_instance_count = 0
         instances_errors = []
         has_non_transport_error = False
 
@@ -60,14 +63,16 @@ def run_check(secrets, yt_client, logger, options, states):
         alerts_responses = {}
         for yson_instance in queue_agent_instances:
             instance = str(yson_instance)
-            if yson_instance.has_attributes() and BANNED_ATTRIBUTE_NAME in yson_instance.attributes:
-                attribute_value = yson_instance.attributes[BANNED_ATTRIBUTE_NAME]
-                # NB(apachee): Check type to match the behavior of queue agent sharding manager (it ignores anything except bool).
-                if isinstance(attribute_value, yson.YsonBoolean) and attribute_value:
-                    logger.info(f"Skipping collecting alerts from {instance}, since it is banned by {BANNED_ATTRIBUTE_NAME!r} attribute")
-                    banned_instance_count += 1
-                    instances_errors.append(YtError(f"Instance {instance} is banned"))
-                    continue
+            if is_attribute_true(yson_instance, BANNED_ATTRIBUTE_NAME):
+                logger.info(f"Skipping collecting alerts from {instance}, since it is banned by {BANNED_ATTRIBUTE_NAME!r} attribute")
+                banned_instance_count += 1
+                instances_errors.append(YtError(f"Instance {instance} is banned"))
+                continue
+            if is_attribute_true(yson_instance, MAINTENANCE_ATTRIBUTE_NAME):
+                logger.info(f"Skipping collecting alerts from {instance}, since it is in maintenance by {MAINTENANCE_ATTRIBUTE_NAME!r} attribute")
+                maintenance_instance_count += 1
+                instances_errors.append(YtError(f"Instance {instance} is in maintenance"))
+                continue
 
             logger.info(f"Collecting alerts from {instance}")
             alerts_responses[instance] = batch_client.get(f"//sys/queue_agents/instances/{instance}/orchid/alerts")
@@ -112,8 +117,9 @@ def run_check(secrets, yt_client, logger, options, states):
 
         # NB(apachee): These errors only make sense on the same cluster as Queue Agent instances.
         if queue_agent_stage_cluster == cluster_name:
-            short_instances_info = f"(Failed: {failed_instance_count}, Banned: {banned_instance_count}, Total: {len(queue_agent_instances)})"
-            if (banned_instance_count + failed_instance_count) * 2 > queue_agent_instances_count:
+            short_instances_info = f"(Failed: {failed_instance_count}, Banned: {banned_instance_count}, Maintenance: {maintenance_instance_count}, Total: {len(queue_agent_instances)})"
+            unavailable_instance_count = banned_instance_count + maintenance_instance_count + failed_instance_count
+            if unavailable_instance_count * 2 > queue_agent_instances_count:
                 raise YtError(f"More than half of all queue agent instances are not available {short_instances_info}",
                               inner_errors=instances_errors)
             elif has_non_transport_error:
