@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(4.69.1)
+VERSION(4.70.0)
 
 LICENSE(MIT AND MPL-2.0)
 
@@ -63,8 +63,6 @@ RESOURCE_FILES(
     .dist-info/METADATA
     .dist-info/entry_points.txt
     .dist-info/top_level.txt
-    images/logo.gif
-    images/tqdm.gif
     tqdm/completion.sh
     tqdm/tqdm.1
 )
