@@ -167,8 +167,8 @@ TBlockFetcher::TBlockFetcher(
     MemoryManagerHolder_->Get()->SetTotalSize(totalBlockUncompressedSize + Config_->WindowSize);
     MemoryManagerHolder_->Get()->SetPrefetchMemorySize(std::min(Config_->WindowSize, totalRemainingSize));
 
-    YT_LOG_DEBUG("Creating block fetcher (BlockDescriptors: %v)",
-        MakeCompactIntervalView(blockDescriptors));
+    YT_TLOG_DEBUG("Creating block fetcher")
+        .With("BlockDescriptors", MakeCompactIntervalView(blockDescriptors));
 
     YT_VERIFY(totalRemainingSize > 0);
 }
@@ -246,8 +246,8 @@ i64 TBlockFetcher::GetBlockSize(int blockIndex) const
 
 std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlockDescriptor>& blockDescriptors)
 {
-    YT_LOG_DEBUG("Fetching blocks (BlockDescriptors: %v)",
-        MakeCompactIntervalView(blockDescriptors));
+    YT_TLOG_DEBUG("Fetching blocks")
+        .With("BlockDescriptors", MakeCompactIntervalView(blockDescriptors));
 
     YT_VERIFY(Started_);
     YT_VERIFY(HasMoreBlocks());
@@ -281,11 +281,10 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
 
             auto chunkId = Chunks_[readerIndex].Reader->GetChunkId();
 
-            YT_LOG_DEBUG("Fetching block out of turn "
-                "(ChunkId: %v, Block: %v, WindowIndex: %v)",
-                chunkId,
-                blockIndex,
-                windowIndex);
+            YT_TLOG_DEBUG("Fetching block out of turn")
+                .With("ChunkId", chunkId)
+                .With("Block", blockIndex)
+                .With("WindowIndex", windowIndex);
 
             const auto& blockInfo = BlockInfos_[windowIndex];
             windowSlot.MemoryUsageGuard = MemoryManagerHolder_->Get()->Acquire(
@@ -341,8 +340,8 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
         std::vector<TBlockDescriptor> groupBlockDescriptors;
 
         auto requestBlocks = [&] {
-            YT_LOG_DEBUG("Requesting blocks async (BlockDescriptors: %v)",
-                MakeCompactIntervalView(groupBlockDescriptors));
+            YT_TLOG_DEBUG("Requesting blocks async")
+                .With("BlockDescriptors", MakeCompactIntervalView(groupBlockDescriptors));
 
             ReaderInvoker_->Invoke(
                 BIND(&TBlockFetcher::RequestBlocks,
@@ -439,12 +438,11 @@ void TBlockFetcher::DecompressBlocks(
         if (Codec_->GetId() == NCompression::ECodec::None) {
             uncompressedBlock = std::move(compressedBlock.Data);
         } else {
-            YT_LOG_DEBUG("Started decompressing block "
-                "(ChunkId: %v, Block: %v, WindowIndex: %v, Codec: %v)",
-                chunkId,
-                blockIndex,
-                windowIndex,
-                Codec_->GetId());
+            YT_TLOG_DEBUG("Started decompressing block")
+                .With("ChunkId", chunkId)
+                .With("Block", blockIndex)
+                .With("WindowIndex", windowIndex)
+                .With("Codec", Codec_->GetId());
 
             {
                 TWallTimer timer;
@@ -453,14 +451,13 @@ void TBlockFetcher::DecompressBlocks(
                 YT_VERIFY(std::ssize(uncompressedBlock) == blockInfo.UncompressedDataSize);
             }
 
-            YT_LOG_DEBUG("Finished decompressing block "
-                "(ChunkId: %v, Block: %v, WindowIndex: %v, CompressedSize: %v, UncompressedSize: %v, Codec: %v)",
-                chunkId,
-                blockIndex,
-                windowIndex,
-                compressedBlock.Size(),
-                uncompressedBlock.Size(),
-                Codec_->GetId());
+            YT_TLOG_DEBUG("Finished decompressing block")
+                .With("ChunkId", chunkId)
+                .With("Block", blockIndex)
+                .With("WindowIndex", windowIndex)
+                .With("CompressedSize", compressedBlock.Size())
+                .With("UncompressedSize", uncompressedBlock.Size())
+                .With("Codec", Codec_->GetId());
 
             periodicYielder.TryYield();
         }
@@ -506,8 +503,8 @@ void TBlockFetcher::DecompressBlocks(
 void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryUsageGuardOrError)
 {
     if (!memoryUsageGuardOrError.IsOK()) {
-        YT_LOG_INFO(memoryUsageGuardOrError,
-            "Failed to acquire memory in chunk reader memory manager");
+        YT_TLOG_INFO("Failed to acquire memory in chunk reader memory manager")
+            .With(memoryUsageGuardOrError);
         return;
     }
 
@@ -529,10 +526,10 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
         if (windowIndexes.empty() || uncompressedSize + blockInfo.UncompressedDataSize <= availableSlots) {
             if (Window_[FirstUnfetchedWindowIndex_].FetchStarted.test_and_set()) {
                 // This block has been already requested out of order.
-                YT_LOG_DEBUG("Skipping out of turn block (ChunkId: %v, Block: %v, WindowIndex: %v)",
-                    chunkId,
-                    blockIndex,
-                    FirstUnfetchedWindowIndex_);
+                YT_TLOG_DEBUG("Skipping out of turn block")
+                    .With("ChunkId", chunkId)
+                    .With("Block", blockIndex)
+                    .With("WindowIndex", FirstUnfetchedWindowIndex_);
                 ++FirstUnfetchedWindowIndex_;
                 continue;
             }
@@ -618,8 +615,8 @@ void TBlockFetcher::MarkFailedBlocks(const std::vector<int>& windowIndexes, cons
 
 void TBlockFetcher::ReleaseBlocks(const std::vector<int>& windowIndexes)
 {
-    YT_LOG_DEBUG("Releasing blocks (WindowIndexes: %v)",
-        ::NYT::MakeCompactIntervalView(windowIndexes));
+    YT_TLOG_DEBUG("Releasing blocks")
+        .With("WindowIndexes", ::NYT::MakeCompactIntervalView(windowIndexes));
 
     for (auto index : windowIndexes) {
         ResetBlockPromise(Window_[index]);
@@ -670,12 +667,11 @@ void TBlockFetcher::RequestBlocks(
         auto blockIndices = std::move(indexPair.second);
         const auto& chunkReader = Chunks_[readerIndex].Reader;
 
-        YT_LOG_DEBUG("Requesting block group "
-            "(ChunkId: %v, Blocks: %v, UncompressedSize: %v, CompressionRatio: %v)",
-            chunkReader->GetChunkId(),
-            ::NYT::MakeCompactIntervalView(blockIndices),
-            uncompressedSize,
-            CompressionRatio_);
+        YT_TLOG_DEBUG("Requesting block group")
+            .With("ChunkId", chunkReader->GetChunkId())
+            .With("Blocks", ::NYT::MakeCompactIntervalView(blockIndices))
+            .With("UncompressedSize", uncompressedSize)
+            .With("CompressionRatio", CompressionRatio_);
 
         auto future = [&] {
             std::optional<TTraceContextGuard> maybeGuard;
@@ -721,9 +717,9 @@ void TBlockFetcher::OnGotBlocks(
     YT_VERIFY(blocks.size() == windowIndexes.size());
 
     auto chunkId = Chunks_[readerIndex].Reader->GetChunkId();
-    YT_LOG_DEBUG("Got block group (ChunkId: %v, Blocks: %v)",
-        chunkId,
-        ::NYT::MakeCompactIntervalView(blockIndexes));
+    YT_TLOG_DEBUG("Got block group")
+        .With("ChunkId", chunkId)
+        .With("Blocks", ::NYT::MakeCompactIntervalView(blockIndexes));
 
     if (Codec_->GetId() == NCompression::ECodec::None) {
         DecompressBlocks(

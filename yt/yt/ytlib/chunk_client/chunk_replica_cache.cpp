@@ -221,9 +221,9 @@ public:
                         return;
                     }
 
-                    YT_LOG_DEBUG("Locating chunks at master (CellTag: %v, ChunkIds: %v)",
-                        cellTag,
-                        currentChunkIds);
+                    YT_TLOG_DEBUG("Locating chunks at master")
+                        .With("CellTag", cellTag)
+                        .With("ChunkIds", currentChunkIds);
 
                     MasterLocateCallsCounter_.Increment();
                     MasterLocateChunksCounter_.Increment(std::ssize(currentChunkIds));
@@ -315,8 +315,8 @@ public:
                 return;
             }
 
-            YT_LOG_DEBUG("Locating chunks in Sequoia (ChunkIds: %v)",
-                currentChunkIds);
+            YT_TLOG_DEBUG("Locating chunks in Sequoia")
+                .With("ChunkIds", currentChunkIds);
 
             SequoiaLocateCallsCounter_.Increment();
             SequoiaLocateChunksCounter_.Increment(std::ssize(currentChunkIds));
@@ -361,12 +361,12 @@ public:
             entry.LastAccessTime = now;
             if (entry.Future == future) {
                 if (entry.Promise.TrySet(TError(NYT::EErrorCode::Canceled, "Replicas were discarded"))) {
-                    YT_LOG_WARNING("Replicas were discarded before being located");
+                    YT_TLOG_WARNING("Replicas were discarded before being located");
                 }
                 entryGuard.Release();
                 Entries_.erase(it);
-                YT_LOG_DEBUG("Chunk replicas discarded from replica cache (ChunkId: %v)",
-                    chunkId);
+                YT_TLOG_DEBUG("Chunk replicas discarded from replica cache")
+                    .With("ChunkId", chunkId);
                 DiscardsCounter_.Increment();
             }
         }
@@ -420,10 +420,10 @@ public:
             entry->Promise = MakePromise(canonicalReplicas);
             entry->Future = entry->Promise.ToFuture().ToUncancelable();
 
-            YT_LOG_DEBUG("Chunk replicas updated (ChunkId: %v, Replicas: %v, Revision: %x)",
-                chunkId,
-                MakeFormattableView(canonicalReplicas.Replicas, TChunkReplicaAddressFormatter(NodeDirectory_)),
-                canonicalReplicas.Revision);
+            YT_TLOG_DEBUG("Chunk replicas updated")
+                .With("ChunkId", chunkId)
+                .With("Replicas", MakeFormattableView(canonicalReplicas.Replicas, TChunkReplicaAddressFormatter(NodeDirectory_)))
+                .WithFormat("Revision", "%x", canonicalReplicas.Revision);
 
             UpdatesCounter_.Increment();
         };
@@ -564,16 +564,17 @@ private:
         }
 
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error locating chunks at master (CellTag: %v)",
-                cellTag);
+            YT_TLOG_WARNING("Error locating chunks at master")
+                .With("CellTag", cellTag)
+                .With(rspOrError);
 
             OnLocateChunksFailed(chunkIds, promises, rspOrError);
             return;
         }
 
-        YT_LOG_DEBUG("Chunks located at master (CellTag: %v, ChunkCount: %v)",
-            cellTag,
-            std::ssize(promises));
+        YT_TLOG_DEBUG("Chunks located at master")
+            .With("CellTag", cellTag)
+            .With("ChunkCount", std::ssize(promises));
 
         const auto& rsp = rspOrError.Value();
 
@@ -583,7 +584,8 @@ private:
             const auto& subresponse = rsp->subresponses(index);
             if (subresponse.missing()) {
                 auto chunkId = chunkIds[index];
-                YT_LOG_DEBUG("Chunk is missing at master (ChunkId: %v)", chunkId);
+                YT_TLOG_DEBUG("Chunk is missing at master")
+                    .With("ChunkId", chunkId);
                 promises[index].TrySet(TError(
                     NChunkClient::EErrorCode::NoSuchChunk,
                     "No such chunk %v",
@@ -680,7 +682,8 @@ private:
         TErrorOr<std::vector<std::optional<TAllyReplicasInfo>>>&& resultsOrError)
     {
         if (!resultsOrError.IsOK()) {
-            YT_LOG_WARNING(resultsOrError, "Error locating chunks in Sequoia");
+            YT_TLOG_WARNING("Error locating chunks in Sequoia")
+                .With(resultsOrError);
 
             SequoiaLocateChunksFailedCounter_.Increment(std::ssize(chunkIds));
 
@@ -690,8 +693,8 @@ private:
 
         auto& results = resultsOrError.Value();
 
-        YT_LOG_DEBUG("Chunks located in Sequoia (ChunkCount: %v)",
-            std::ssize(promises));
+        YT_TLOG_DEBUG("Chunks located in Sequoia")
+            .With("ChunkCount", std::ssize(promises));
 
         for (int index = 0; index < std::ssize(chunkIds); ++index) {
             auto chunkId = chunkIds[index];
@@ -701,7 +704,8 @@ private:
             if (!optionalResult) {
                 SequoiaLocateChunksMissingCounter_.Increment();
 
-                YT_LOG_DEBUG("Chunk is missing in Sequoia (ChunkId: %v)", chunkId);
+                YT_TLOG_DEBUG("Chunk is missing in Sequoia")
+                    .With("ChunkId", chunkId);
                 promise.TrySet(TError(
                     NChunkClient::EErrorCode::NoSuchChunk,
                     "No such chunk %v",
@@ -743,8 +747,8 @@ private:
         std::vector<TChunkId> expiredChunkIds;
         auto deadline = TInstant::Now() - ExpirationTime_.load(std::memory_order::relaxed);
 
-        YT_LOG_DEBUG("Started expired chunk replica sweep (Deadline: %v)",
-            deadline);
+        YT_TLOG_DEBUG("Started expired chunk replica sweep")
+            .With("Deadline", deadline);
 
         int totalChunkCount;
 
@@ -769,9 +773,9 @@ private:
             OnSizeUpdated();
         }
 
-        YT_LOG_DEBUG("Finished expired chunk replica sweep (TotalChunkCount: %v, ExpiredChunkCount: %v)",
-            totalChunkCount,
-            expiredChunkIds.size());
+        YT_TLOG_DEBUG("Finished expired chunk replica sweep")
+            .With("TotalChunkCount", totalChunkCount)
+            .With("ExpiredChunkCount", expiredChunkIds.size());
     }
 
     void ScheduleRefreshRound(TDuration delay)
@@ -803,13 +807,11 @@ private:
         auto expectedNextRoundStartOffset = period * static_cast<double>(adjustedChunksRefreshed) / adjustedChunksTotal;
         auto delay =  CurrentGenerationStartInstant_ + expectedNextRoundStartOffset - TInstant::Now();
 
-        YT_LOG_DEBUG("Chunk refresh round finished "
-            "(CurrentGenerationStartInstant: %v, ChunksRefreshedInCurrentGeneration: %v, "
-            "ChunksTotal: %v, DelayBeforeNextRound: %v)",
-            CurrentGenerationStartInstant_,
-            ChunksRefreshedInCurrentGeneration_,
-            chunksTotal,
-            delay);
+        YT_TLOG_DEBUG("Chunk refresh round finished")
+            .With("CurrentGenerationStartInstant", CurrentGenerationStartInstant_)
+            .With("ChunksRefreshedInCurrentGeneration", ChunksRefreshedInCurrentGeneration_)
+            .With("ChunksTotal", chunksTotal)
+            .With("DelayBeforeNextRound", delay);
 
         ScheduleRefreshRound(delay);
     }
@@ -858,11 +860,11 @@ private:
             RefreshQueue_.push_back(chunkId);
         }
 
-        YT_LOG_DEBUG("Chunk refresh round started (ChunksNewlyAdded: %v, ChunksDequeued: %v, ChunksEnqueued: %v, GenerationStarted: %v)",
-            newlyAddedChunkIds.size(),
-            chunksDequeued,
-            chunksEnqueued,
-            generationStarted);
+        YT_TLOG_DEBUG("Chunk refresh round started")
+            .With("ChunksNewlyAdded", newlyAddedChunkIds.size())
+            .With("ChunksDequeued", chunksDequeued)
+            .With("ChunksEnqueued", chunksEnqueued)
+            .With("GenerationStarted", generationStarted);
 
         if (generationStarted) {
             ChunksRefreshedInCurrentGeneration_ = 0;
@@ -875,8 +877,8 @@ private:
             const auto& idMapping = NSequoiaClient::NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
             TColumnFilter columnFilter{idMapping.StoredReplicas};
 
-            YT_LOG_DEBUG("Refreshing chunks in Sequoia (ChunkCount: %v)",
-                chunkIdsToRefresh.size());
+            YT_TLOG_DEBUG("Refreshing chunks in Sequoia")
+                .With("ChunkCount", chunkIdsToRefresh.size());
 
             SequoiaLocateCallsCounter_.Increment();
             SequoiaLocateChunksCounter_.Increment(std::ssize(chunkIdsToRefresh));
@@ -887,7 +889,7 @@ private:
                     MakeStrong(this),
                     std::move(chunkIdsToRefresh)));
         } else {
-            YT_LOG_DEBUG("Sequoia chunk refresh is disabled");
+            YT_TLOG_DEBUG("Sequoia chunk refresh is disabled");
             ScheduleNextRefreshRound();
         }
     }
@@ -897,7 +899,7 @@ private:
         TErrorOr<std::vector<std::optional<TAllyReplicasInfo>>>&& resultsOrError)
     {
         if (resultsOrError.IsOK()) {
-            YT_LOG_DEBUG("Chunks refreshed in Sequoia");
+            YT_TLOG_DEBUG("Chunks refreshed in Sequoia");
 
             auto& results = resultsOrError.Value();
 
@@ -938,7 +940,8 @@ private:
             }
         } else {
             SequoiaLocateChunksFailedCounter_.Increment(std::ssize(chunkIds));
-            YT_LOG_WARNING(resultsOrError, "Error refreshing chunks in Sequoia");
+            YT_TLOG_WARNING("Error refreshing chunks in Sequoia")
+                .With(resultsOrError);
         }
 
         ScheduleNextRefreshRound();

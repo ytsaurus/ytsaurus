@@ -243,7 +243,8 @@ private:
         });
 
         if (SessionId_.ChunkId) {
-            YT_LOG_DEBUG("Writing existing chunk (ChunkId: %v)", SessionId_.ChunkId);
+            YT_TLOG_DEBUG("Writing existing chunk")
+                .With("ChunkId", SessionId_.ChunkId);
         } else {
             SessionId_ = NChunkClient::CreateChunk(
                 Client_,
@@ -252,7 +253,8 @@ private:
                 TransactionId_,
                 ParentChunkListId_,
                 Logger);
-            YT_LOG_DEBUG("Chunk created (ChunkId: %v)", SessionId_.ChunkId);
+            YT_TLOG_DEBUG("Chunk created")
+                .With("ChunkId", SessionId_.ChunkId);
         }
 
         Logger.AddTag("ChunkId", SessionId_);
@@ -261,7 +263,7 @@ private:
         WaitFor(UnderlyingWriter_->Open())
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Chunk writer opened");
+        YT_TLOG_DEBUG("Chunk writer opened");
     }
 
     IChunkWriterPtr CreateUnderlyingWriter() const
@@ -326,12 +328,13 @@ private:
             "Failed to close chunk %v",
             SessionId_.ChunkId);
 
-        YT_LOG_DEBUG("Chunk closed");
+        YT_TLOG_DEBUG("Chunk closed");
 
         auto replicas = UnderlyingWriter_->GetWrittenChunkReplicasInfo().Replicas;
         YT_VERIFY(!replicas.empty());
 
-        YT_LOG_DEBUG("Confirming chunk (Replicas: %v)", replicas);
+        YT_TLOG_DEBUG("Confirming chunk")
+            .With("Replicas", replicas);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);
@@ -376,7 +379,7 @@ private:
 
         Closed_ = true;
 
-        YT_LOG_DEBUG("Chunk confirmed");
+        YT_TLOG_DEBUG("Chunk confirmed");
     }
 };
 

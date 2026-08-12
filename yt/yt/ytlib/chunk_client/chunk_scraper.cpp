@@ -309,9 +309,8 @@ public:
     //! Starts periodic polling.
     void Start()
     {
-        YT_LOG_DEBUG(
-            "Starting scraper task (ChunkCount: %v)",
-            ChunkIdsQueue_->GetSize());
+        YT_TLOG_DEBUG("Starting scraper task")
+            .With("ChunkCount", ChunkIdsQueue_->GetSize());
 
         Looper_->Start();
     }
@@ -319,9 +318,8 @@ public:
     //! Stops periodic polling.
     void Stop()
     {
-        YT_LOG_DEBUG(
-            "Stopping scraper task (ChunkCount: %v)",
-            ChunkIdsQueue_->GetSize());
+        YT_TLOG_DEBUG("Stopping scraper task")
+            .With("ChunkCount", ChunkIdsQueue_->GetSize());
 
         Looper_->Stop();
     }
@@ -388,14 +386,14 @@ private:
         ThrottledBatchSize_.reset();
 
         auto sampleChunkIds = MakeShrunkFormattableView(batch, TDefaultFormatter(), /*limit*/ 15);
-        YT_LOG_DEBUG(
-            "Locating chunks (Count: %v, SampleChunkIds: %v)",
-            batch.size(),
-            sampleChunkIds);
+        YT_TLOG_DEBUG("Locating chunks")
+            .With("Count", batch.size())
+            .With("SampleChunkIds", sampleChunkIds);
 
         auto rspOrError = WaitFor(MakeRequest(batch)->Invoke());
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to locate chunks");
+            YT_TLOG_WARNING("Failed to locate chunks")
+                .With(rspOrError);
             return;
         }
 
@@ -422,11 +420,10 @@ private:
             .ToImmediatelyCancelable())
             .ThrowOnError();
 
-        YT_LOG_DEBUG(
-            "Chunks located (Count: %v, AvailabilityStatistics: %v, SampleChunkIds: %v)",
-            batch.size(),
-            chunkAvailabilityCounters,
-            sampleChunkIds);
+        YT_TLOG_DEBUG("Chunks located")
+            .With("Count", batch.size())
+            .With("AvailabilityStatistics", chunkAvailabilityCounters)
+            .With("SampleChunkIds", sampleChunkIds);
 
         OnChunkBatchLocated_(std::move(chunkInfos));
     }
@@ -511,11 +508,10 @@ TChunkScraper::TChunkScraper(
     , AvailabilityPolicy_(availabilityPolicy)
     , Logger(std::move(logger))
 {
-    YT_LOG_INFO(
-        "Chunk scraper initialized (MaxChunksPerRequest: %v, AvailabilityPolicy: %v, IsUnavailableFirstQueue: %v)",
-        Config_->MaxChunksPerRequest,
-        AvailabilityPolicy_,
-        Config_->PrioritizeUnavailableChunks);
+    YT_TLOG_INFO("Chunk scraper initialized")
+        .With("MaxChunksPerRequest", Config_->MaxChunksPerRequest)
+        .With("AvailabilityPolicy", AvailabilityPolicy_)
+        .With("IsUnavailableFirstQueue", Config_->PrioritizeUnavailableChunks);
 }
 
 TChunkScraper::~TChunkScraper()
