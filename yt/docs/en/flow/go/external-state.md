@@ -115,7 +115,7 @@ An empty state corresponds to the absence of a row in the table: `ConvertTo` for
 
 To use External State, declare an external state manager in the `external_state_managers` section of the [computation](../../flow/concepts/glossary.md#stream-and-computation) in the static spec. Here is an example from [static_table_join]({{source-root}}/yt/yt/flow/examples/go/static_table_join), where the `reference_loader` computation owns the reference dataset:
 
-{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' lines='28-51' %}
+{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' %}
 
 The key fields:
 
@@ -132,7 +132,7 @@ The table for External State must be created in advance. The key columns of the 
 
 To create the table, we recommend using [YtSync]({{yt-sync-docs}}/). Here is the description of the state table from [Shuffle](examples/shuffle.md), whose `reducer` computation groups messages by `farm_hash(value), value`:
 
-{% code '/yt/yt/flow/examples/go/shuffle/test/yt_sync.py' lang='python' lines='5-26' %}
+{% code '/yt/yt/flow/examples/go/shuffle/test/yt_sync.py' lang='python' lines='[BEGIN yt_sync_tables]-[END yt_sync_tables]' %}
 
 {% else %}
 
@@ -180,7 +180,7 @@ The worker joins only those keys for which it found rows. Therefore a batch that
 
 The `enricher` computation from the [static_table_join]({{source-root}}/yt/yt/flow/examples/go/static_table_join) example reads the very reference dataset owned by `reference_loader` from the [section above](#static-spec):
 
-{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' lines='52-83' %}
+{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' %}
 
 The fields of `external_state_joiners` repeat the fields of `external_state_managers` up to the class name: `external_state_joiner_class_name` instead of `external_state_manager_class_name`. The `parameters.path` path is resolved on every access, so if you point it at a symlink, switching the symlink replaces the whole reference dataset under a running pipeline, without a restart.
 

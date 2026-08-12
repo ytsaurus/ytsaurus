@@ -52,7 +52,7 @@
 - `streams` содержит один поток `event` - распаршенный поток на выходе из `reader`, доступный другим `Computation`. Для него описана соответствующая схема. Этот же поток зарегистрирован и в `computations/reader/output_stream_ids`.
 - Класс `TQueueReader` - пользовательский класс, отнаследованный от `TSwiftOrderedSourceComputation`. В данном случае не подходит `TDelayableSwiftPassthroughSourceComputation`, так как необходимо реализовать специальный парсинг в рамках `DoProcessMessage` для парсинга `JSON`.
 
-{% code '/yt/yt/flow/examples/cpp/shuffle/main.cpp' lang='cpp' lines='[BEGIN example_shuffle_queue_reader]-[END example_shuffle_queue_reader]' %}
+{% code '/yt/yt/flow/examples/cpp/shuffle/lib/shuffle_functions.cpp' lang='cpp' lines='[BEGIN example_shuffle_queue_reader]-[END example_shuffle_queue_reader]' %}
 
 - Так как `TQueueReader` является наследником `TDelayableSwiftSourceComputation`, то он не сохраняет `output` потоки в {{product-name}}. А сохраняет только метаинформацию, необходимую для детерминированной работы.
 - Так как `TQueueReader` может работать с нелокальными очередями, он берет клиентов {{product-name}} из `GetContext()->ClientsCache`, который отдаёт клиента под нужный кластер.
@@ -137,6 +137,6 @@
 - Для описания логики используется `TReducer`.
 - Для работы со [стейтом](../../../../flow/concepts/glossary.md#state) мы используем `TSimpleExternalStateManager`, который предоставляет прямой доступ к таблице. Мы заводим поле с менеджером и регистрируем его в рамках реализации метода `DoInit()`.
 
-{% code '/yt/yt/flow/examples/cpp/shuffle/main.cpp' lang='cpp' lines='[BEGIN example_shuffle_reducer]-[END example_shuffle_reducer]' %}
+{% code '/yt/yt/flow/examples/cpp/shuffle/lib/shuffle_functions.cpp' lang='cpp' lines='[BEGIN example_shuffle_reducer]-[END example_shuffle_reducer]' %}
 
 

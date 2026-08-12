@@ -178,7 +178,7 @@ Internal State doesn’t require creating external tables. The states are stored
 
 The names of internal states must be declared in the `internal_states` section of the [computation](../../flow/concepts/glossary.md#stream-and-computation) parameters in the static spec:
 
-{% code '/yt/yt/flow/examples/go/word_count/test/pipeline.yson' lang='yson' lines='19-36' %}
+{% code '/yt/yt/flow/examples/go/word_count/test/pipeline.yson' lang='yson' %}
 
 The state name in the code (the second argument of `flow.OpenYSONState`, `flow.OpenRawState`, or `flow.OpenProtoState`) must match the name declared in `internal_states`.
 

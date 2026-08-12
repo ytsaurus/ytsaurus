@@ -25,6 +25,7 @@ public:
   example_cluster: 'cluster_name'
   yql:
     udf-cpp-dir: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs
+    sandbox-prx: <sandbox-proxy>
     udf-ivaluebuilder-example-link: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs/examples/structs
     udf-ivaluebuilder-example: yql/essentials/udfs/examples/structs
     pages:

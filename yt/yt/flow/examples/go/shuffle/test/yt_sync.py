@@ -2,6 +2,7 @@ from yt.yt_sync.runner import StagesSpec, run_yt_sync_easy_mode
 
 
 def run_yt_sync(cluster, folder, queue_tablet_count):
+    # [BEGIN yt_sync_tables]
     tables = {
         "data_state": {
             "default": {
@@ -24,6 +25,7 @@ def run_yt_sync(cluster, folder, queue_tablet_count):
             },
         },
     }
+    # [END yt_sync_tables]
 
     queues = {
         "input_queue": {

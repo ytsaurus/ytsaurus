@@ -178,7 +178,7 @@ Internal State не требует создания внешних таблиц.
 
 Имена внутренних стейтов должны быть объявлены в секции `internal_states` параметров [компьютейшена](../../flow/concepts/glossary.md#stream-and-computation) в статической спеке:
 
-{% code '/yt/yt/flow/examples/go/word_count/test/pipeline.yson' lang='yson' lines='19-36' %}
+{% code '/yt/yt/flow/examples/go/word_count/test/pipeline.yson' lang='yson' %}
 
 Имя стейта в коде (второй аргумент `flow.OpenYSONState`, `flow.OpenRawState` или `flow.OpenProtoState`) должно совпадать с именем, объявленным в `internal_states`.
 

@@ -171,7 +171,7 @@ sequenceDiagram
 Шифрование настраивается через параметры `bus_client` и `bus_server` в конфигурации каждого компонента:
 
 #|
-|| **Параметр** {.cell-align-center}| **Описание** {.cell-align-center}||
+||::{align="center"} **Параметр**|::{align="center"} **Описание**||
 || `encryption_mode` {#encryption_mod}| Режим шифрования:
 - `disabled` — шифрование отключено. Если другая сторона требует шифрование (`required`), соединение не будет установлено;
 - `optional` — шифрование по запросу. Соединение будет с шифрованием, если у другой стороны режим `required`;
@@ -192,7 +192,7 @@ sequenceDiagram
 При установке соединения результат зависит от комбинации режимов в настройках параметра [encryption_mode](#configuration-parameters) для `bus_client` и `bus_server`:
 
 #|
-|| **Клиент** {.cell-align-center}| **Сервер** {.cell-align-center}| **Результат** {.cell-align-center}||
+||::{align="center"} **Клиент**|::{align="center"} **Сервер**|::{align="center"} **Результат**||
 || `disabled` | `disabled` | Соединение без шифрования ||
 || `disabled` | `optional` | Соединение без шифрования ||
 || `disabled` | `required` | Ошибка соединения ||
@@ -523,7 +523,7 @@ bus_server:
   #### Параметры TLS в спецификации оператора {#k8s-tls-parameters}
 
   #|
-  || **Параметр** {.cell-align-center}| **Описание** {.cell-align-center}||
+  ||::{align="center"} **Параметр**|::{align="center"} **Описание**||
   || `caBundle` | Ссылка на секрет с CA сертификатом для проверки ||
   || `tlsSecret` | Секрет с серверным сертификатом (тип kubernetes.io/tls) ||
   || `tlsClientSecret` | Секрет с клиентским сертификатом для mTLS ||

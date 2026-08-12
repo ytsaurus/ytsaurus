@@ -374,7 +374,7 @@ select Block(($arg)->{
 Проект [collections_cofe UDF]({{source-root}}/analytics/collections/cofe_lib_udf/ya.make?rev=6215914) в аркадии.
 
 ``` yql
-PRAGMA File('libcollections_cofe.so', '{{sandbox-prx}}/979991403');
+PRAGMA File('libcollections_cofe.so', '{{yql.sandbox-prx}}/979991403');
 PRAGMA udf('libcollections_cofe.so');
 
 $script = @@#py

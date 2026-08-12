@@ -171,7 +171,7 @@ To enable encryption, configure the appropriate parameters in the cluster compon
 Encryption is enabled via the `bus_client` and `bus_server` parameters in each component's configuration:
 
 #|
-|| **Parameter** {.cell-align-center}| **Description** {.cell-align-center}||
+||::{align="center"} **Parameter**|::{align="center"} **Description**||
 || `encryption_mode` {#encryption_mod}| Encryption mode:
 - `disabled` — encryption is turned off. If the other side requires encryption (`required`), the connection won't be established.
 - `optional` — encryption is used only if requested. The connection will be encrypted if the peer's mode is `required`.
@@ -192,7 +192,7 @@ Encryption is enabled via the `bus_client` and `bus_server` parameters in each c
 When a connection is established, the result depends on the combination of [encryption_mode](#configuration-parameters) settings configured for `bus_client` and `bus_server`:
 
 #|
-|| **Client** {.cell-align-center}| **Server** {.cell-align-center}| **Result** {.cell-align-center}||
+||::{align="center"} **Client**|::{align="center"} **Server**|::{align="center"} **Result**||
 || `disabled` | `disabled` | Unencrypted connection ||
 || `disabled` | `optional` | Unencrypted connection ||
 || `disabled` | `required` | Connection error ||
@@ -523,7 +523,7 @@ The way you configure encryption depends on how your {{product-name}} cluster is
   #### TLS parameters in the operator specification {#k8s-tls-parameters}
 
   #|
-  || **Parameter** {.cell-align-center}| **Description** {.cell-align-center}||
+  ||::{align="center"} **Parameter**|::{align="center"} **Description**||
   || `caBundle` | Reference to the secret containing the CA certificate for verification. ||
   || `tlsSecret` | Secret with the server certificate (type kubernetes.io/tls). ||
   || `tlsClientSecret` | Secret with the client certificate for mTLS. ||

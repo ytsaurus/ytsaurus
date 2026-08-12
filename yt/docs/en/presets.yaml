@@ -1,6 +1,5 @@
 default:
     ipa: _wai-tee-saw-ruhs_
-public:
     web-interface: 'web interface'
     lang: en
     audience: public
@@ -16,5 +15,3 @@ public:
     community-tg: https://t.me/ytsaurus
     cluster-ui: https://<host-root>/<cluster-name>
     python-lib-qt: SystemPython3_8
-
-
