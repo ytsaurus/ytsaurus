@@ -205,14 +205,13 @@ TEST(OperationTracker, ConnectionErrorWhenOperationIsTracked)
     TConfig::Get()->StartOperationRetryCount = 1;
     TConfig::Get()->WaitLockPollInterval = TDuration::MilliSeconds(0);
 
-
     CreateTableWithFooColumn(client, workingDir + "/input");
     auto tx = client->StartTransaction();
 
     auto op = tx->Map(
         TMapOperationSpec()
-        .AddInput<TNode>(workingDir + "/input")
-        .AddOutput<TNode>(workingDir + "/output"),
+            .AddInput<TNode>(workingDir + "/input")
+            .AddOutput<TNode>(workingDir + "/output"),
         new TIdMapper(),
         TOperationOptions().Wait(false));
 
@@ -222,7 +221,9 @@ TEST(OperationTracker, ConnectionErrorWhenOperationIsTracked)
     auto fut = op->Watch();
     fut.Wait();
     EXPECT_THROW(fut.GetValue(), yexception);
-    EXPECT_TRUE(ytPollerTopLoopCounter.GetTotal() > 0);
+    WaitForPredicate([&] {
+        return ytPollerTopLoopCounter.GetTotal() > 0;
+    });
     outage.Stop();
 
     tx->Abort(); // We make sure that operation is stopped
