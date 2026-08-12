@@ -430,6 +430,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("memory_tracker", &TThis::MemoryTracker)
         .DefaultNew();
+
+    registrar.Parameter("auth", &TThis::Auth)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -462,6 +462,11 @@ void TBootstrap::OnDynamicConfigChanged(
     }
 
     Connection_->GetMasterCellDirectorySynchronizer()->ApplyDynamicConfigOverride(newConfig->MasterCellDirectorySynchronizer);
+
+    AuthenticationManager_->Reconfigure(newConfig->Auth);
+    if (TvmOnlyAuthenticationManager_) {
+        TvmOnlyAuthenticationManager_->Reconfigure(newConfig->Auth);
+    }
 }
 
 void TBootstrap::HandleRequest(

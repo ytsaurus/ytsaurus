@@ -247,6 +247,13 @@ public:
         return CypressUserManager_;
     }
 
+    void Reconfigure(const TAuthenticationManagerDynamicConfigPtr& config) override
+    {
+        if (TicketAuthenticator_) {
+            TicketAuthenticator_->Reconfigure(config->TvmService->UserTicketAuthentication);
+        }
+    }
+
 private:
     ITvmServicePtr TvmService_;
     NRpc::IAuthenticatorPtr RpcAuthenticator_;

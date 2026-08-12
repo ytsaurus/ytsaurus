@@ -28,6 +28,7 @@ DECLARE_REFCOUNTED_STRUCT(TDefaultSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TBatchingSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TCachingSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TAuthenticationManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TAuthenticationManagerDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TOAuthAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TOAuthCookieAuthenticatorConfig)
@@ -126,7 +127,7 @@ DEFINE_ENUM(ELdapEncryption,
 
 struct TTokenCredentials;
 struct TCookieCredentials;
-struct TTicketCredentials;
+struct TUserTicketCredentials;
 struct TServiceTicketCredentials;
 
 struct TAuthenticationResult;

@@ -29,6 +29,8 @@ struct IAuthenticationManager
 
     virtual const ICypressCookieManagerPtr& GetCypressCookieManager() const = 0;
     virtual const ICypressUserManagerPtr& GetCypressUserManager() const = 0;
+
+    virtual void Reconfigure(const TAuthenticationManagerDynamicConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAuthenticationManager)

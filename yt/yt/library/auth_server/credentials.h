@@ -25,14 +25,15 @@ struct TCookieCredentials
     bool operator==(const TCookieCredentials&) const = default;
 };
 
-struct TTicketCredentials
+struct TUserTicketCredentials
 {
-    std::string Ticket;
+    std::string UserTicket;
+    std::optional<std::string> ServiceTicket;
 };
 
 struct TServiceTicketCredentials
 {
-    std::string Ticket;
+    std::string ServiceTicket;
 };
 
 struct TAuthenticationResult

@@ -633,6 +633,12 @@ protected:
             .WillByDefault(Return(TParsedTicket{TUid{43}, {"bad", "scope"}}));
         ON_CALL(*Blackbox_, Call("user_ticket", TicketParam("bad_ticket")))
             .WillByDefault(Return(Response("{users=[{login=ScopelessUser;attributes={\"1008\"=scopeless_user}}]}")));
+
+        ON_CALL(*Tvm_, ParseServiceTicket("good_service_ticket"))
+            .WillByDefault(Return(TParsedServiceTicket{TTvmId{42}}));
+        ON_CALL(*Tvm_, ParseServiceTicket("bad_service_ticket"))
+            .WillByDefault(Return(TParsedServiceTicket{TTvmId{43}}));
+
     }
 
     THashMap<std::string, std::string> TicketParam(const std::string& ticket)
@@ -647,7 +653,15 @@ protected:
 
     TFuture<TAuthenticationResult> Invoke(const std::string& ticket)
     {
-        return Authenticator_->Authenticate(TTicketCredentials{ticket});
+        return Authenticator_->Authenticate(TUserTicketCredentials{ticket});
+    }
+
+    TUserTicketAuthenticationConfigPtr CreateUserTicketAuthenticationConfig()
+    {
+        auto config = New<TUserTicketAuthenticationConfig>();
+        config->CheckServiceTickets = true;
+        config->AllowedServiceTvmIds = {TTvmId{42}};
+        return config;
     }
 
     TBlackboxTicketAuthenticatorConfigPtr Config_;
@@ -712,6 +726,56 @@ TEST_P(TTicketAuthenticatorTest, FailOnBlackboxError)
     auto result = WaitForFast(Invoke("good_ticket"));
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("unhappy"));
+}
+
+TEST_P(TTicketAuthenticatorTest, ServiceSuccess)
+{
+    auto result = WaitForFast(
+        Authenticator_->Authenticate(
+            TServiceTicketCredentials("good_service_ticket")));
+    ASSERT_TRUE(result.IsOK());
+    EXPECT_EQ("tvm:42", result.Value().Login);
+    EXPECT_EQ("tvm:service-ticket", result.Value().Realm);
+}
+
+TEST_P(TTicketAuthenticatorTest, UserWithServiceSuccess)
+{
+    Authenticator_->Reconfigure(CreateUserTicketAuthenticationConfig());
+    auto result = WaitForFast(
+        Authenticator_->Authenticate(
+            TUserTicketCredentials{
+                .UserTicket = "good_ticket",
+                .ServiceTicket = "good_service_ticket"}));
+    ASSERT_TRUE(result.IsOK());
+    if (GetParam()) {
+        EXPECT_EQ("the_user", result.Value().Login);
+    } else {
+        EXPECT_EQ("TheUser", result.Value().Login);
+    }
+    EXPECT_EQ("blackbox:user-ticket", result.Value().Realm);
+    EXPECT_EQ("good_ticket", result.Value().UserTicket);
+}
+
+TEST_P(TTicketAuthenticatorTest, UserWithServiceServiceTvmIdNotInList)
+{
+    Authenticator_->Reconfigure(CreateUserTicketAuthenticationConfig());
+    auto result = WaitForFast(
+        Authenticator_->Authenticate(
+            TUserTicketCredentials{
+                .UserTicket = "good_ticket",
+                .ServiceTicket = "bad_service_ticket"}));
+    ASSERT_FALSE(result.IsOK());
+}
+
+TEST_P(TTicketAuthenticatorTest, UserWithServiceServiceNotProvided)
+{
+    Authenticator_->Reconfigure(CreateUserTicketAuthenticationConfig());
+    auto result = WaitForFast(
+        Authenticator_->Authenticate(
+            TUserTicketCredentials{
+                .UserTicket = "good_ticket",
+                .ServiceTicket = std::nullopt}));
+    ASSERT_FALSE(result.IsOK());
 }
 
 INSTANTIATE_TEST_SUITE_P(UseLowercaseLogin, TTicketAuthenticatorTest, ::testing::Values(true));
