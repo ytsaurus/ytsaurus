@@ -10,7 +10,7 @@
 
 #include <morton-nd/mortonND_LUT.h>
 #if USE_MULTITARGET_CODE && defined(__BMI2__)
-#error #include <morton-nd/mortonND_BMI2.h>
+#undef __BMI2__
 #endif
 
 namespace DB
