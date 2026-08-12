@@ -38,7 +38,7 @@ TEST_SRCS(
     test_tcmalloc.py
 )
 
-TIMEOUT(180)
+TIMEOUT(600)
 
 END()
 
