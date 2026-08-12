@@ -30,11 +30,10 @@ TFuture<R> TTableBase<TRow, TRecordDescriptor>::RetryCallback(
         TBackoffStrategy retryBackoffStrategy(retryBackoffOptions);
 
         while (retryBackoffStrategy.Next()) {
-            YT_LOG_DEBUG(
-                resultOrError,
-                "Dynamic state request attempt failed, backing off (Path: %v, Retry: %v)",
-                path,
-                retryBackoffStrategy.GetInvocationIndex());
+            YT_TLOG_DEBUG("Dynamic state request attempt failed, backing off")
+                .With("Path", path)
+                .With("Retry", retryBackoffStrategy.GetInvocationIndex())
+                .With(resultOrError);
 
             NConcurrency::TDelayedExecutor::WaitForDuration(retryBackoffStrategy.GetBackoff());
 

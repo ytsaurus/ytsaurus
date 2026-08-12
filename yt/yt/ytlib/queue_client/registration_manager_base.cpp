@@ -56,10 +56,9 @@ void HandleTableMountInfoError(
     const NLogging::TLogger& Logger)
 {
     if (!tableMountInfoOrError.IsOK()) {
-        YT_LOG_DEBUG(
-            tableMountInfoOrError,
-            "Failed to get table mount info to perform registration manager resolutions (Object: %v)",
-            objectPath);
+        YT_TLOG_DEBUG("Failed to get table mount info to perform registration manager resolutions")
+            .With("Object", objectPath)
+            .With(tableMountInfoOrError);
 
         if (throwOnFailure) {
             THROW_ERROR_EXCEPTION(
@@ -120,14 +119,14 @@ void TQueueConsumerRegistrationManagerBase::StartSync()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_DEBUG("Starting queue consumer registration manager sync");
+    YT_TLOG_DEBUG("Starting queue consumer registration manager sync");
 }
 
 void TQueueConsumerRegistrationManagerBase::StopSync()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_DEBUG("Stopping queue consumer registration manager sync");
+    YT_TLOG_DEBUG("Stopping queue consumer registration manager sync");
 }
 
 IQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistrationManagerBase::GetRegistrationOrThrow(
@@ -180,7 +179,7 @@ std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManagerBase
     // NB(apachee): This provides better diagnostics for finding bad requests.
     if (!queue && !consumer) {
         ProfilingCounters_.ListAllRegistrationsRequestCount.Increment();
-        YT_LOG_DEBUG("List registrations request with both queue and consumer paths missing");
+        YT_TLOG_DEBUG("List registrations request with both queue and consumer paths missing");
 
         THROW_ERROR_EXCEPTION_IF(
             config->DisableListAllRegistrations,
@@ -261,11 +260,11 @@ void TQueueConsumerRegistrationManagerBase::Reconfigure(
 
 void TQueueConsumerRegistrationManagerBase::VerifyConfigImplementation(const TQueueConsumerRegistrationManagerConfigPtr& config)
 {
-    YT_LOG_FATAL_UNLESS(
+    YT_TLOG_FATAL_UNLESS(
         config->Implementation == GetImplementationType(),
-        "Configuration implementation and interface implementation mismatch (ConfigImpl: %v, InterfaceImpl: %v)",
-        config->Implementation,
-        GetImplementationType());
+        "Configuration implementation and interface implementation mismatch")
+        .With("ConfigImpl", config->Implementation)
+        .With("InterfaceImpl", GetImplementationType());
 }
 
 TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManagerBase::GetDynamicConfig() const
@@ -285,10 +284,9 @@ TRichYPath TQueueConsumerRegistrationManagerBase::ResolveObjectPhysicalPath(
     resolvedObjectPath.SetPath(tableMountInfo->PhysicalPath);
 
     if (resolvedObjectPath.GetPath() != objectPath.GetPath()) {
-        YT_LOG_DEBUG(
-            "Using corresponding physical path instead of symlinked path (SymlinkedPath: %v, PhysicalPath: %v)",
-            objectPath,
-            resolvedObjectPath);
+        YT_TLOG_DEBUG("Using corresponding physical path instead of symlinked path")
+            .With("SymlinkedPath", objectPath)
+            .With("PhysicalPath", resolvedObjectPath);
     }
 
     return resolvedObjectPath;

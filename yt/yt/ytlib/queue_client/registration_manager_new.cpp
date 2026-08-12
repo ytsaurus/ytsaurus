@@ -307,7 +307,8 @@ public:
         try {
             return RunGuarded();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Lookup session failed");
+            YT_TLOG_ERROR("Lookup session failed")
+                .With(TError(ex));
             ProfilingCounters_->ErrorCounter.Increment();
             ProfilingCounters_->ErrorKeyCounter.Increment(Keys_.size());
             throw;
@@ -340,10 +341,11 @@ private:
         int successfulLookupsRequired = Config_->SuccessfulLookupsRequired
             .value_or(defaultSuccessfulLookupsRequired);
 
-        YT_LOG_ALERT_AND_THROW_UNLESS(
+        YT_TLOG_ALERT_AND_THROW_UNLESS(
             successfulLookupsRequired > 0 && successfulLookupsRequired <= std::ssize(clients),
-            "Successful lookups required must be between 1 and %v",
-            clients.size());
+            "Successful lookups required is out of bounds")
+            .With("SuccessfulLookupsRequired", successfulLookupsRequired)
+            .With("ClientCount", clients.size());
 
         std::vector<TFuture<TReplicaLookupResult>> replicaLookupFutures;
         replicaLookupFutures.reserve(clients.size());
@@ -442,7 +444,8 @@ private:
             if (!replicaLookupErrors.empty()) {
                 auto error = TError("Replica lookup invariants were violated")
                     .With(replicaLookupErrors);
-                YT_LOG_ALERT_AND_THROW(error);
+                YT_TLOG_ALERT_AND_THROW("Replica lookup invariants were violated")
+                    .With(error);
             }
         }
 
@@ -892,10 +895,11 @@ private:
                     SetResponse(request, error);
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to set error response for batched requests upon destruction");
+                YT_TLOG_ERROR("Failed to set error response for batched requests upon destruction")
+                    .With(TError(ex));
             }
 
-            YT_LOG_DEBUG("Lookup request batcher destroyed");
+            YT_TLOG_DEBUG("Lookup request batcher destroyed");
         }
 
         //! Request a lookup that will be batched along with some other lookup requests.
@@ -1000,7 +1004,7 @@ private:
             if (shouldRunBatch) {
                 if (initialBatch) {
                     YT_UNUSED_FUTURE(RunInitialBatch());
-                    YT_LOG_DEBUG("Lookup request batcher started");
+                    YT_TLOG_DEBUG("Lookup request batcher started");
                 } else /*!initialBatch*/ {
                     YT_UNUSED_FUTURE(RunBatchThrottled());
                 }
@@ -1042,14 +1046,15 @@ private:
 
             if (requests.empty()) {
                 // NB(apachee): Not possible by design, a batch is run on a new lookup request with no active batch in progress.
-                YT_LOG_ALERT("Batch ran without any requests");
+                YT_TLOG_ALERT("Batch ran without any requests");
                 return;
             }
 
             if (!throttleError.IsOK()) {
                 // Something went really wrong, reply to all requests with an error.
 
-                YT_LOG_DEBUG(throttleError, "Unexpected batch request throttler failure");
+                YT_TLOG_DEBUG("Unexpected batch request throttler failure")
+                    .With(throttleError);
                 auto error = TError("Unexpected batch request throttler failure")
                     .With(std::move(throttleError));
 
@@ -1065,7 +1070,8 @@ private:
 
         void RunBatch(std::vector<TReq> requests)
         {
-            YT_LOG_DEBUG("State lookup batch request started (RequestCount: %v)", requests.size());
+            YT_TLOG_DEBUG("State lookup batch request started")
+                .With("RequestCount", requests.size());
 
             YT_VERIFY(!requests.empty());
 
@@ -1098,7 +1104,7 @@ private:
                 SetResponse(request, std::move(response));
             }
 
-            YT_LOG_DEBUG("State lookup batch request completed successfully");
+            YT_TLOG_DEBUG("State lookup batch request completed successfully");
         }
 
         TFuture<void> RunInitialBatch()
@@ -1130,18 +1136,17 @@ private:
                     startupBatchDelayWithJitter,
                     Logger = Logger
                 ] {
-                    YT_LOG_DEBUG(
-                        "Waiting for startup batch delay before running initial batch (Delay: %v)",
-                        startupBatchDelayWithJitter);
+                    YT_TLOG_DEBUG("Waiting for startup batch delay before running initial batch")
+                        .With("Delay", startupBatchDelayWithJitter);
                     TDelayedExecutor::WaitForDuration(startupBatchDelayWithJitter);
 
                     auto strongThis = weakThis.Lock();
                     if (!strongThis) {
-                        YT_LOG_DEBUG("Failed to run initial batch due to expired batcher object");
+                        YT_TLOG_DEBUG("Failed to run initial batch due to expired batcher object");
                         return;
                     }
 
-                    YT_LOG_DEBUG("Running initial batch");
+                    YT_TLOG_DEBUG("Running initial batch");
                     DoRunBatchThrottled(/*initialBatch*/ true);
                 })
                 .AsyncVia(Invoker_)
@@ -1158,9 +1163,12 @@ private:
                 // okay, as each subrequest corresponds to some RPC call. This significantly
                 // simplifies debugging as errors could be searched via RPC call trace id.
                 if (value.IsOK()) {
-                    YT_LOG_DEBUG("Batch state lookup request completed successfully (Key: %v)", req.Key);
+                    YT_TLOG_DEBUG("Batch state lookup request completed successfully")
+                        .With("Key", req.Key);
                 } else {
-                    YT_LOG_DEBUG(value, "Batch state lookup request failed (Key: %v)", req.Key);
+                    YT_TLOG_DEBUG("Batch state lookup request failed")
+                        .With("Key", req.Key)
+                        .With(value);
                 }
             }
 
@@ -1191,10 +1199,9 @@ private:
             LookupSessionFactory_->Reconfigure(/*newLookupSessionConfig*/ newConfig);
 
             if (oldConfig->Table != newConfig->Table) {
-                YT_LOG_DEBUG(
-                    "Invalidating all cache entries, since table path has changed (OldTablePath: %v, NewTablePath: %v)",
-                    oldConfig->Table,
-                    newConfig->Table);
+                YT_TLOG_DEBUG("Invalidating all cache entries, since table path has changed")
+                    .With("OldTablePath", oldConfig->Table)
+                    .With("NewTablePath", newConfig->Table);
                 TBase::Clear();
             }
         }
@@ -1282,12 +1289,14 @@ private:
 
     void OnAdded(const TKey& key) noexcept override
     {
-        YT_LOG_DEBUG("State lookup added to cache (Key: %v)", key);
+        YT_TLOG_DEBUG("State lookup added to cache")
+            .With("Key", key);
     }
 
     void OnRemoved(const TKey& key) noexcept override
     {
-        YT_LOG_DEBUG("State lookup removed from cache (Key: %v)", key);
+        YT_TLOG_DEBUG("State lookup removed from cache")
+            .With("Key", key);
     }
 
     TCompoundStateLookupCacheConfigPtr GetConfig() const
@@ -1488,10 +1497,9 @@ private:
 
         if (resultOrError.IsOK() && resultOrError.Value().has_value()) {
             auto result = resultOrError.Value()->ReplicatedTablePath;
-            YT_LOG_DEBUG(
-                "Using corresponding replicated table path in request instead of replica path (ReplicaPath: %v, ReplicatedTablePath: %v)",
-                objectPath,
-                result);
+            YT_TLOG_DEBUG("Using corresponding replicated table path in request instead of replica path")
+                .With("ReplicaPath", objectPath)
+                .With("ReplicatedTablePath", result);
             return TRichYPath(std::move(result));
         }
 
@@ -1522,10 +1530,9 @@ private:
         ListRegistrationsCache_->Reconfigure(newConfig);
         ReplicaMappingLookupCache_->Reconfigure(newConfig);
 
-        YT_LOG_DEBUG(
-            "Queue consumer registration manager dynamic config changed (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Queue consumer registration manager dynamic config changed")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
     void RefreshCache() override
@@ -1550,7 +1557,7 @@ private:
         ListRegistrationsCache_->Clear();
         ReplicaMappingLookupCache_->Clear();
 
-        YT_LOG_DEBUG("Cleared queue consumer registration manager cache");
+        YT_TLOG_DEBUG("Cleared queue consumer registration manager cache");
     }
 
     void BuildOrchid(NYTree::TFluentAny fluent) override
