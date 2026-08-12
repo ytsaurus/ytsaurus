@@ -1,6 +1,6 @@
 #!usr/bin/env python
 
-from yt.wrapper import YtClient
+from yt.wrapper import YtClient, default_config
 
 import yt.logger as logger
 
@@ -15,7 +15,7 @@ def get_proxy(proxy):
 
 
 def create_client(proxy, token_env_variable):
-    client = YtClient(proxy=get_proxy(proxy))
+    client = YtClient(proxy=get_proxy(proxy), config=default_config.get_config_from_env())
 
     if token_env_variable is None:
         logger.info("'token_env_variable' is None, using 'YT_TOKEN'")
