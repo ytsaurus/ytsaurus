@@ -431,9 +431,9 @@ private:
             futureCellTags.push_back(cellTag);
         }
 
-        YT_LOG_DEBUG("Looking for %v on chaos cells (ChaosCellTags: %v)",
-            Type_,
-            futureCellTags);
+        YT_TLOG_DEBUG("Looking for object on chaos cells")
+            .With("Type", Type_)
+            .With("ChaosCellTags", futureCellTags);
 
         return AnyNSucceeded(foundFutures, 1).Apply(BIND(
             [
@@ -587,9 +587,9 @@ private:
             futureCellTags.push_back(cellTag);
         }
 
-        YT_LOG_DEBUG("Looking for %v on chaos cells (ChaosCellTags: %v)",
-            Type_,
-            futureCellTags);
+        YT_TLOG_DEBUG("Looking for object on chaos cells")
+            .With("Type", Type_)
+            .With("ChaosCellTags", futureCellTags);
 
         if (foundFutures.empty()) {
             // All channels are unavailable.
@@ -729,7 +729,7 @@ public:
             ObjectId_,
             req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
-        YT_LOG_DEBUG("Requesting master cache");
+        YT_TLOG_DEBUG("Requesting master cache");
         return req->Invoke().AsUnique().Apply(BIND(
             [
                 type = Type_,
@@ -820,9 +820,7 @@ IChaosResidencyCachePtr CreateChaosResidencyCache(
 
     if (chaosChannelConfigAddressesInvalid) {
         const auto& Logger = logger;
-        YT_LOG_WARNING(
-            "Chaos cache channel addresses are present but empty, "
-            "falling back to master cache variant of chaos residency cache");
+        YT_TLOG_WARNING("Chaos cache channel addresses are present but empty, falling back to master cache variant of chaos residency cache");
     }
 
     if (!isClientCache || !chaosCacheChannelConfig || chaosChannelConfigAddressesInvalid) {

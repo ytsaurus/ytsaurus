@@ -138,7 +138,7 @@ private:
     void DoSync()
     {
         try {
-            YT_LOG_DEBUG("Started synchronizing chaos cells in cell directory");
+            YT_TLOG_DEBUG("Started synchronizing chaos cells in cell directory");
 
             auto connection = Connection_.Lock();
             if (!connection) {
@@ -184,7 +184,7 @@ private:
                 .With(ex);
         }
 
-        YT_LOG_DEBUG("Finished synchronizing chaos cells in cell directory");
+        YT_TLOG_DEBUG("Finished synchronizing chaos cells in cell directory");
     }
 
     void DoSyncObserved()
@@ -192,14 +192,14 @@ private:
         int observedCellCount = 0;
 
         try {
-            YT_LOG_DEBUG("Started synchronizing observed chaos cells in cell directory");
+            YT_TLOG_DEBUG("Started synchronizing observed chaos cells in cell directory");
 
             std::vector<TCellTag> cellTags;
             {
                 auto guard = Guard(SpinLock_);
 
                 if (ObservedCells_.empty()) {
-                    YT_LOG_DEBUG("Skip synchronizing observed chaos cells as no observed cells found");
+                    YT_TLOG_DEBUG("Skip synchronizing observed chaos cells as no observed cells found");
                     return;
                 }
 
@@ -243,8 +243,8 @@ private:
                             ObservedCells_.erase(it);
                             guard.Release();
 
-                            YT_LOG_DEBUG("Forgetting cell tag in chaos cell synchronizer (CellTag: %v)",
-                                cellTag);
+                            YT_TLOG_DEBUG("Forgetting cell tag in chaos cell synchronizer")
+                                .With("CellTag", cellTag);
                         }
 
                         continue;
@@ -268,8 +268,8 @@ private:
                 .With(ex);
         }
 
-        YT_LOG_DEBUG("Finished synchronizing observed chaos cells in cell directory (ObservedCellCount: %v)",
-            observedCellCount);
+        YT_TLOG_DEBUG("Finished synchronizing observed chaos cells in cell directory")
+            .With("ObservedCellCount", observedCellCount);
     }
 
     void OnSync()
@@ -292,7 +292,8 @@ private:
             }
         } catch (const std::exception& ex) {
             error = TError(ex);
-            YT_LOG_DEBUG(error);
+            YT_TLOG_DEBUG("Error synchronizing chaos cell directory")
+                .With(error);
         }
 
         syncPromise.Set(error);
@@ -304,10 +305,10 @@ private:
         TCellId newCellId)
     {
         if (newCellId != existingCellId) {
-            YT_LOG_ALERT("Duplicate chaos cell id (CellTag: %v, ExistingCellId: %v, NewCellId: %v)",
-                cellTag,
-                existingCellId,
-                newCellId);
+            YT_TLOG_ALERT("Duplicate chaos cell id")
+                .With("CellTag", cellTag)
+                .With("ExistingCellId", existingCellId)
+                .With("NewCellId", newCellId);
             THROW_ERROR_EXCEPTION("Duplicate chaos cell id for tag %v", cellTag)
                 .With("existing_cell_id", existingCellId)
                 .With("new_cell_id", newCellId);

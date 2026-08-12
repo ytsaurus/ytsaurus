@@ -79,8 +79,8 @@ public:
             WatchingFutures_.erase(it);
         }
 
-        YT_LOG_DEBUG("Stopped watching replication card (ReplicationCardId: %v)",
-            replicationCardId);
+        YT_TLOG_DEBUG("Stopped watching replication card")
+            .With("ReplicationCardId", replicationCardId);
 
         localFuture.Cancel(TError("Stopped watching"));
     }
@@ -135,7 +135,8 @@ private:
         if (!response.IsOK()) {
             auto guard = Guard(Lock_);
             WatchingFutures_.erase(replicationCardId);
-            YT_LOG_DEBUG(response, "Error watching replication card");
+            YT_TLOG_DEBUG("Error watching replication card")
+                .With(response);
             return;
         }
 
@@ -158,7 +159,8 @@ private:
             }
 
             guard.Release();
-            YT_LOG_DEBUG("Unknown replication card (Response: %v)", response);
+            YT_TLOG_DEBUG("Unknown replication card")
+                .With("Response", response);
             Callbacks_->OnUnknownReplicationCard(replicationCardId);
             return;
         }
@@ -177,13 +179,13 @@ private:
                 it->second.first = WatchUpstream(replicationCardId, responseTimestamp);
                 it->second.second = responseTimestamp;
             } else {
-                YT_LOG_DEBUG("Changed response received but card was already removed from cache "
-                    "(ReplicationCardId: %v)",
-                    replicationCardId);
+                YT_TLOG_DEBUG("Changed response received but card was already removed from cache")
+                    .With("ReplicationCardId", replicationCardId);
             }
 
             guard.Release();
-            YT_LOG_DEBUG("Replication card changed (Response: %v)", response);
+            YT_TLOG_DEBUG("Replication card changed")
+                .With("Response", response);
             if (residencyCache) {
                 residencyCache->PingChaosObjectResidency(replicationCardId);
             }
@@ -196,13 +198,13 @@ private:
             if (it != WatchingFutures_.end()) {
                 it->second.first = WatchUpstream(replicationCardId, it->second.second);
             } else {
-                YT_LOG_DEBUG("Nothing changed response received but card was already removed from cache "
-                    "(ReplicationCardId: %v)",
-                    replicationCardId);
+                YT_TLOG_DEBUG("Nothing changed response received but card was already removed from cache")
+                    .With("ReplicationCardId", replicationCardId);
             }
 
             guard.Release();
-            YT_LOG_DEBUG("Replication card not changed (Response: %v)", response);
+            YT_TLOG_DEBUG("Replication card not changed")
+                .With("Response", response);
             if (residencyCache) {
                 residencyCache->PingChaosObjectResidency(replicationCardId);
             }
@@ -222,13 +224,13 @@ private:
             if (it != WatchingFutures_.end()) {
                 it->second.first = WatchUpstream(replicationCardId, it->second.second);
             } else {
-                YT_LOG_DEBUG("Replication card migrated response received but card was already removed from cache "
-                    "(ReplicationCardId: %v)",
-                    replicationCardId);
+                YT_TLOG_DEBUG("Replication card migrated response received but card was already removed from cache")
+                    .With("ReplicationCardId", replicationCardId);
             }
 
             guard.Release();
-            YT_LOG_DEBUG("Replication card migrated (Response: %v)", response);
+            YT_TLOG_DEBUG("Replication card migrated")
+                .With("Response", response);
             Callbacks_->OnNothingChanged(replicationCardId);
             return;
         }
@@ -241,13 +243,13 @@ private:
             if (it != WatchingFutures_.end()) {
                 it->second.first = WatchUpstream(replicationCardId, it->second.second);
             } else {
-                YT_LOG_DEBUG("Leader switch response received but card was already removed from cache "
-                    "(ReplicationCardId: %v)",
-                    replicationCardId);
+                YT_TLOG_DEBUG("Leader switch response received but card was already removed from cache")
+                    .With("ReplicationCardId", replicationCardId);
             }
 
             guard.Release();
-            YT_LOG_DEBUG("Instance is not leader (Response: %v)", response);
+            YT_TLOG_DEBUG("Instance is not leader")
+                .With("Response", response);
             Callbacks_->OnNothingChanged(replicationCardId);
             return;
         }
