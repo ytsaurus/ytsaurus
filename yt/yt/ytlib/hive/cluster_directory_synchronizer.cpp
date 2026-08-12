@@ -111,7 +111,7 @@ private:
                 THROW_ERROR_EXCEPTION("Directory connection is not available");
             }
 
-            YT_LOG_DEBUG("Started synchronizing cluster directory");
+            YT_TLOG_DEBUG("Started synchronizing cluster directory");
 
             auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
@@ -132,7 +132,7 @@ private:
             auto result = clusterDirectory->TryUpdateDirectory(*meta.ClusterDirectory);
             HandleSyncResult(std::move(result));
 
-            YT_LOG_DEBUG("Finished synchronizing cluster directory");
+            YT_TLOG_DEBUG("Finished synchronizing cluster directory");
 
             Synchronized_.Fire(TError());
         } catch (const std::exception& ex) {
@@ -195,7 +195,8 @@ private:
         }
 
         auto cumulativeError = result.GetCumulativeError();
-        YT_LOG_ALERT_AND_THROW_UNLESS(cumulativeError.IsOK(), cumulativeError);
+        YT_TLOG_ALERT_AND_THROW_UNLESS(cumulativeError.IsOK(), "Failed to synchronize cluster directory")
+            .With(cumulativeError);
     }
 
     static TError MakeUnknownClusterError(const std::string& clusterName)
