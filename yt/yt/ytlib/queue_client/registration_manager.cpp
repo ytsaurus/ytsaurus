@@ -177,13 +177,15 @@ protected:
         try {
             GuardedRefreshCache();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Could not refresh queue consumer registration cache");
+            YT_TLOG_DEBUG("Could not refresh queue consumer registration cache")
+                .With(TError(ex));
         }
 
         try {
             GuardedRefreshReplicationTableMappingCache();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Could not refresh queue consumer replication table mapping cache");
+            YT_TLOG_DEBUG("Could not refresh queue consumer replication table mapping cache")
+                .With(TError(ex));
         }
     }
 
@@ -199,10 +201,9 @@ protected:
         TBase::Reconfigure(oldConfig, newConfig);
 
         if (newConfig->CacheRefreshPeriod != oldConfig->CacheRefreshPeriod) {
-            YT_LOG_DEBUG(
-                "Resetting queue consumer registration manager cache refresh period (Period: %v, %v)",
-                oldConfig->CacheRefreshPeriod,
-                newConfig->CacheRefreshPeriod);
+            YT_TLOG_DEBUG("Resetting queue consumer registration manager cache refresh period")
+                .With("OldPeriod", oldConfig->CacheRefreshPeriod)
+                .With("NewPeriod", newConfig->CacheRefreshPeriod);
             CacheRefreshExecutor_->SetPeriod(newConfig->CacheRefreshPeriod);
         }
     }
@@ -216,10 +217,9 @@ protected:
 
         auto replicaToReplicatedTableIt = ReplicaToReplicatedTable_.find(TTablePath::FromRichYPath(objectPath));
         if (replicaToReplicatedTableIt != ReplicaToReplicatedTable_.end()) {
-            YT_LOG_DEBUG(
-                "Using corresponding replicated table path in request instead of replica path (ReplicaPath: %v, ReplicatedTablePath: %v)",
-                objectPath,
-                replicaToReplicatedTableIt->second);
+            YT_TLOG_DEBUG("Using corresponding replicated table path in request instead of replica path")
+                .With("ReplicaPath", objectPath)
+                .With("ReplicatedTablePath", replicaToReplicatedTableIt->second);
             return TRichYPath(replicaToReplicatedTableIt->second);
         } else if (tableMountInfo->UpstreamReplicaId != NullObjectId && throwOnFailure) {
             THROW_ERROR_EXCEPTION(
@@ -244,7 +244,8 @@ private:
 
         auto config = GetDynamicConfig();
 
-        YT_LOG_DEBUG("Refreshing queue consumer registration cache (StateReadPath: %v)", config->StateReadPath);
+        YT_TLOG_DEBUG("Refreshing queue consumer registration cache")
+            .With("StateReadPath", config->StateReadPath);
 
         auto registrations = FetchStateRowsOrThrow<TConsumerRegistrationTable>(
             config->StateReadPath,
@@ -258,7 +259,8 @@ private:
             Registrations_.emplace(std::pair{registration.Queue, registration.Consumer}, registration);
         }
 
-        YT_LOG_DEBUG("Queue consumer registration cache refreshed (RegistrationCount: %v)", Registrations_.size());
+        YT_TLOG_DEBUG("Queue consumer registration cache refreshed")
+            .With("RegistrationCount", Registrations_.size());
     }
 
     void GuardedRefreshReplicationTableMappingCache()
@@ -267,7 +269,8 @@ private:
 
         auto config = GetDynamicConfig();
 
-        YT_LOG_DEBUG("Refreshing queue consumer replication table mapping cache (ReplicatedTableMappingReadPath: %v)", config->ReplicatedTableMappingReadPath);
+        YT_TLOG_DEBUG("Refreshing queue consumer replication table mapping cache")
+            .With("ReplicatedTableMappingReadPath", config->ReplicatedTableMappingReadPath);
 
         auto replicatedTableMapping = FetchStateRowsOrThrow<TReplicatedTableMappingTable>(
             config->ReplicatedTableMappingReadPath,
@@ -283,10 +286,9 @@ private:
             }
         }
 
-        YT_LOG_DEBUG(
-            "Queue consumer replication table mapping cache refreshed (MappingRows: %v, Replicas: %v)",
-            replicatedTableMapping.size(),
-            ReplicaToReplicatedTable_.size());
+        YT_TLOG_DEBUG("Queue consumer replication table mapping cache refreshed")
+            .With("MappingRows", replicatedTableMapping.size())
+            .With("Replicas", ReplicaToReplicatedTable_.size());
     }
 
     //! Collects state rows from the clusters specified in state read path.
@@ -492,9 +494,8 @@ private:
 
     TQueueConsumerRegistrationManagerBasePtr CreateRegistrationManagerGuarded(TQueueConsumerRegistrationManagerConfigPtr config)
     {
-        YT_LOG_INFO(
-            "Creating new queue consumer registration manager implementation (Implementation: %v)",
-            config->Implementation);
+        YT_TLOG_INFO("Creating new queue consumer registration manager implementation")
+            .With("Implementation", config->Implementation);
 
         auto registrationManagerImplFactory = GetRegistrationManagerImplFactory(config->Implementation);
         auto impl = registrationManagerImplFactory(std::move(config), Connection_, ClusterName_, Invoker_, Profiler_, Logger);
@@ -515,7 +516,8 @@ private:
         try {
             GuardedRefreshConfiguration();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Could not refresh queue consumer registration manager configuration");
+            YT_TLOG_ERROR("Could not refresh queue consumer registration manager configuration")
+                .With(TError(ex));
         }
     }
 
@@ -523,7 +525,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_INFO("Refreshing queue consumer registration manager configuration");
+        YT_TLOG_INFO("Refreshing queue consumer registration manager configuration");
 
         auto newConfig = Config_;
 
@@ -531,9 +533,8 @@ private:
             if (auto localConnection = Connection_.Lock()) {
                 if (auto remoteConnection = localConnection->GetClusterDirectory()->FindConnection(*ClusterName_)) {
                     newConfig = remoteConnection->GetConfig()->QueueAgent->QueueConsumerRegistrationManager;
-                    YT_LOG_DEBUG(
-                        "Retrieved queue consumer registration manager dynamic config (Config: %v)",
-                        ConvertToYsonString(newConfig, EYsonFormat::Text));
+                    YT_TLOG_DEBUG("Retrieved queue consumer registration manager dynamic config")
+                        .With("Config", ConvertToYsonString(newConfig, EYsonFormat::Text));
                 }
             }
         }
@@ -547,21 +548,20 @@ private:
 
         AppliedConfig_ = newConfig;
 
-        YT_LOG_INFO("Refreshed queue consumer registration manager configuration");
+        YT_TLOG_INFO("Refreshed queue consumer registration manager configuration");
     }
 
     void Reconfigure(const TQueueConsumerRegistrationManagerConfigPtr& oldConfig, const TQueueConsumerRegistrationManagerConfigPtr& newConfig)
     {
         if (*oldConfig == *newConfig) {
-            YT_LOG_INFO("Skipping queue consumer registration manager reconfiguration since the configuration is unchanged");
+            YT_TLOG_INFO("Skipping queue consumer registration manager reconfiguration since the configuration is unchanged");
             return;
         }
 
         if (newConfig->ConfigurationRefreshPeriod != oldConfig->ConfigurationRefreshPeriod) {
-            YT_LOG_INFO(
-                "Resetting queue consumer registration manager configuration refresh period (Period: %v, %v)",
-                oldConfig->ConfigurationRefreshPeriod,
-                newConfig->ConfigurationRefreshPeriod);
+            YT_TLOG_INFO("Resetting queue consumer registration manager configuration refresh period")
+                .With("OldPeriod", oldConfig->ConfigurationRefreshPeriod)
+                .With("NewPeriod", newConfig->ConfigurationRefreshPeriod);
             ConfigurationRefreshExecutor_->SetPeriod(newConfig->ConfigurationRefreshPeriod);
         }
 
@@ -573,10 +573,9 @@ private:
             // Creating old implementation causes full-scans. If reconfiguration fails we might end up stuck here.
             // This would lead to catastrophic dynamic state overload.
             // Maybe use in retrying periodic executor instead?
-            YT_LOG_INFO(
-                "Changing queue consumer registration manager implementation (OldImplementation: %v, NewImplementation: %v)",
-                oldConfig->Implementation,
-                newConfig->Implementation);
+            YT_TLOG_INFO("Changing queue consumer registration manager implementation")
+                .With("OldImplementation", oldConfig->Implementation)
+                .With("NewImplementation", newConfig->Implementation);
 
             auto guard = Guard(StateLock_);
             auto newImpl = CreateRegistrationManager(newConfig, guard);
@@ -584,10 +583,9 @@ private:
             oldImpl->StopSync();
         }
 
-        YT_LOG_INFO(
-            "Queue consumer registration manager reconfigured (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_INFO("Queue consumer registration manager reconfigured")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 };
 

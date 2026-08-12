@@ -434,9 +434,8 @@ TFuture<std::vector<TRow>> TTableBase<TRow, TRecordDescriptor>::Select(
 {
     std::string query = Format("* from [%v] where %v", Path_, where);
 
-    YT_LOG_DEBUG(
-        "Invoking select query (Query: %v)",
-        query);
+    YT_TLOG_DEBUG("Invoking select query")
+        .With("Query", query);
 
     return RetryCallback(BIND(
         &IClient::SelectRows,
