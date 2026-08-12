@@ -45,6 +45,7 @@ jobs:
         run: |
           docker run --rm --detach \
             --privileged \
+            --cgroupns host \
             --volume /var/run/docker.sock:/var/run/docker.sock \
             --volume "${RUNNER_WORKSPACE}:${RUNNER_WORKSPACE}" \
             --network host \
