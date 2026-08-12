@@ -97,7 +97,7 @@ class TestGetOperation(YTEnvSetup):
         del operation_result["brief_progress"]["build_time"]
         del operation_result["progress"]["build_time"]
 
-    @authors("omgronny", "babenko", "ignat")
+    @authors("bystrovserg")
     def test_get_operation(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -165,11 +165,20 @@ class TestGetOperation(YTEnvSetup):
 
         res_get_operations_archive = get_operation(op.id)
 
+        def drop_build_time(result):
+            for key in ["brief_progress", "progress"]:
+                if isinstance(result.get(key), dict):
+                    result[key].pop("build_time", None)
+
+        drop_build_time(res_cypress_finished)
+        drop_build_time(res_get_operations_archive)
+
         for key in res_get_operations_archive.keys():
             if key in res_cypress:
                 assert res_get_operations_archive[key] == res_cypress_finished[key]
 
         res_get_operations_archive_raw = _get_operation_from_archive(op.id)
+        drop_build_time(res_get_operations_archive_raw)
 
         for key in res_get_operations_archive_raw.keys():
             if key in res_cypress and key not in ["start_time", "finish_time"]:
