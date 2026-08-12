@@ -1,7 +1,7 @@
 ---
 metadata:
     - property: 'og:title'
-      content: 'Getting CHYT and {{clickHouse}} versions'
+      content: 'Getting CHYT and {{clickhouse}} versions'
     - property: 'og:description'
       content: 'This article provides information on where to view CHYT and ClickHouse versions in the interface'
     - property: 'og:type'
@@ -16,4 +16,4 @@ metadata:
       content: 'Tatyana Andriyanova'
 ---
 
-{% include [Getting CHYT and {{clickHouse}} versions](../../../../_includes/user-guide/data-processing/chyt/how-to-guides/versions.md) %}
+{% include [Getting CHYT and {{clickhouse}} versions](../../../../_includes/user-guide/data-processing/chyt/how-to-guides/versions.md) %}

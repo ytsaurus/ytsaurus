@@ -1,7 +1,7 @@
 ---
 metadata:
     - property: 'og:title'
-      content: 'Получение версий CHYT и {{clickHouse}}'
+      content: 'Получение версий CHYT и {{clickhouse}}'
     - property: 'og:description'
       content: 'Статья содержит информацию, где в интерфейсе посмотреть версии CHYT и ClickHouse'
     - property: 'og:type'
@@ -16,4 +16,4 @@ metadata:
       content: 'Татьяна Андриянова'
 ---
 
-{% include [Получение версий CHYT и {{clickHouse}}](../../../../_includes/user-guide/data-processing/chyt/how-to-guides/versions.md) %}
+{% include [Получение версий CHYT и {{clickhouse}}](../../../../_includes/user-guide/data-processing/chyt/how-to-guides/versions.md) %}

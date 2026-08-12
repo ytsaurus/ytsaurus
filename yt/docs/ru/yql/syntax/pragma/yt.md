@@ -1272,7 +1272,7 @@ SELECT ... from cluster1.@tmp as t1 JOIN cluster2.@tmp as t2; -- SELECT выпо
 | --- | --- | --- |
 | Строка | — | Динамическая |
 
-Возможность включить [«YT в облаках»]({{yql.pages.syntax.at-yt-cloud}}), указав в значении `external`, или задать любое другое допустимое значение данной настройки `yt`. Подробнее в [документации YT]({{yt-docs-root}}/user-guide/data-processing/operations/operations-options#common_options).
+Возможность включить [«YT в облаках»]({{yql.pages.syntax.pragma.at-yt-cloud}}), указав в значении `external`, или задать любое другое допустимое значение данной настройки `yt`. Подробнее в [документации YT]({{yt-docs-root}}/user-guide/data-processing/operations/operations-options#common_options).
 
 {% endif %}
 

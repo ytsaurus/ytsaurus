@@ -115,7 +115,7 @@ return state.Clear()
 
 Для использования External State необходимо объявить external state manager в секции `external_state_managers` [компьютейшена](../../flow/concepts/glossary.md#stream-and-computation) в статической спеке. Пример из [static_table_join]({{source-root}}/yt/yt/flow/examples/go/static_table_join), где компьютейшен `reference_loader` владеет справочником:
 
-{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' lines='28-51' %}
+{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' %}
 
 Ключевые поля:
 
@@ -130,7 +130,7 @@ return state.Clear()
 
 Для создания таблицы рекомендуется использовать [YtSync]({{yt-sync-docs}}/). Описание таблицы стейта из [Shuffle](examples/shuffle.md), чей компьютейшен `reducer` группирует сообщения по `farm_hash(value), value`:
 
-{% code '/yt/yt/flow/examples/go/shuffle/test/yt_sync.py' lang='python' lines='5-26' %}
+{% code '/yt/yt/flow/examples/go/shuffle/test/yt_sync.py' lang='python' lines='[BEGIN yt_sync_tables]-[END yt_sync_tables]' %}
 
 ## Полный пример — eventReducer из Shuffle {#example}
 
@@ -172,7 +172,7 @@ reference, err := flow.OpenJoinedExternalState(rt, "/reference_state", msg)
 
 Компьютейшен `enricher` из примера [static_table_join]({{source-root}}/yt/yt/flow/examples/go/static_table_join) читает тот самый справочник, которым владеет `reference_loader` из [секции выше](#static-spec):
 
-{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' lines='52-83' %}
+{% code '/yt/yt/flow/examples/go/static_table_join/test/pipeline.yson' lang='yson' %}
 
 Поля `external_state_joiners` повторяют поля `external_state_managers` с точностью до имени класса: `external_state_joiner_class_name` вместо `external_state_manager_class_name`. Путь `parameters.path` резолвится при каждом обращении, поэтому если направить его на симлинк, то переключение симлинка подменяет весь справочник под работающим пайплайном, без рестарта.
 

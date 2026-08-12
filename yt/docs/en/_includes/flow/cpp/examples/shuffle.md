@@ -52,7 +52,7 @@ Let’s break it down.
 - `streams` contains a single `event` flow — the parsed flow output from `reader`, which is available to other `Computation` components. It has an associated schema. This same flow is also registered in `computations/reader/output_stream_ids`.
 - The `TQueueReader` class is a custom class that inherits from `TSwiftOrderedSourceComputation`. `TDelayableSwiftPassthroughSourceComputation` isn’t suitable here, because you need to implement special parsing within `DoProcessMessage` to parse `JSON`.
 
-{% code '/yt/yt/flow/examples/cpp/shuffle/main.cpp' lang='cpp' lines='[BEGIN example_shuffle_queue_reader]-[END example_shuffle_queue_reader]' %}
+{% code '/yt/yt/flow/examples/cpp/shuffle/lib/shuffle_functions.cpp' lang='cpp' lines='[BEGIN example_shuffle_queue_reader]-[END example_shuffle_queue_reader]' %}
 
 - Since `TQueueReader` inherits from `TDelayableSwiftSourceComputation`, it doesn’t save `output` flows in {{product-name}}. It only saves the metadata that’s necessary for deterministic operation.
 - Because `TQueueReader` can work with non-local queues, it gets {{product-name}} clients from `GetContext()->ClientsCache`, which returns a client for the required cluster.
@@ -137,5 +137,5 @@ This is the final `Computation`. It reads the `event_a`, `event_b`, `event_c`, a
 - You use `TReducer` to describe the logic.
 - To work with the [state](../../../../flow/concepts/glossary.md#state), you use `TSimpleExternalStateManager`, which provides direct access to the table. You create a field with the manager and register it as part of the `DoInit()` method implementation.
 
-{% code '/yt/yt/flow/examples/cpp/shuffle/main.cpp' lang='cpp' lines='[BEGIN example_shuffle_reducer]-[END example_shuffle_reducer]' %}
+{% code '/yt/yt/flow/examples/cpp/shuffle/lib/shuffle_functions.cpp' lang='cpp' lines='[BEGIN example_shuffle_reducer]-[END example_shuffle_reducer]' %}
 

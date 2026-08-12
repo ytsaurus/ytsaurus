@@ -33,6 +33,6 @@ To solve this problem, a new operation scheduling mode — *Graceful Preemption*
 
 Below is an example of how `usage_share` (the orange graph) and `fair_share` (the green graph) change after a heavyweight operation is started in the same pool as the clique.
 
-![](../../../../../../images/chyt_graceful_preemption.png){ .center }
+![](../../../../../images/chyt_graceful_preemption.png){ .center }
 
 To use *Graceful Preemption*, set it with the `--spec {preemption_mode = graceful}` parameter.

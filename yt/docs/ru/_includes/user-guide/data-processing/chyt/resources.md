@@ -32,6 +32,6 @@
 
 Ниже представлен пример изменения `usage_share` (оранжевый график) и `fair_share` (зеленый график) после старта операции с большим весом в том же пуле, что и клика.
 
-![](../../../../../../images/chyt_graceful_preemption.png){ .center }
+![](../../../../../images/chyt_graceful_preemption.png){ .center }
 
 Чтобы воспользоваться *Graceful Preemption*, следует указать в параметре `--spec {preemption_mode = graceful}`.

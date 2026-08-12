@@ -152,7 +152,7 @@ Internal State doesn’t require you to create external tables. States are autom
 
 You must declare the names of internal states in the `internal_states` section of the [computation](../../../flow/concepts/glossary.md#stream-and-computation) parameters in the static spec:
 
-{% code '/yt/yt/flow/examples/python/word_count/test/pipeline.yson' lang='yson' lines='19-36' %}
+{% code '/yt/yt/flow/examples/python/word_count/test/pipeline.yson' lang='yson' %}
 
 The state name in your code (the first argument of `ctx.state(...)`, `ctx.raw_state(...)`, or `ctx.proto_state(...)`) must match the name declared in `internal_states`.
 

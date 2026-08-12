@@ -54,10 +54,10 @@
 
 ### TRequestProcessor
 
-{% code '/yt/yt/flow/examples/cpp/async_request/main.cpp' lang='cpp' lines='[BEGIN request_processor]-[END request_processor]' keep-indents %}
+{% code '/yt/yt/flow/examples/cpp/async_request/lib/async_request_functions.cpp' lang='cpp' lines='[BEGIN request_processor]-[END request_processor]' keep-indents %}
 
 ### TStateKeeper
 
-{% code '/yt/yt/flow/examples/cpp/async_request/main.cpp' lang='cpp' lines='[BEGIN state_keeper]-[END state_keeper]' keep-indents %}
+{% code '/yt/yt/flow/examples/cpp/async_request/lib/async_request_functions.cpp' lang='cpp' lines='[BEGIN state_keeper]-[END state_keeper]' keep-indents %}
 
 

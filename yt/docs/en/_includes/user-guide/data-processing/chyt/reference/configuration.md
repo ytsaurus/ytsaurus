@@ -65,10 +65,12 @@ The {{product-name}} part of the instance configuration resides in the `yt_confi
 
 
 {% note warning "Attention" %}
+
 The `max_data_weight_per_subquery` limit uses columnar statistics to account for column sampling from processed tables. Columnar statistics may be missing for old tables created before the statistics became available. For such tables, column orientation is not taken account in the limit. This means that when processing a very narrow slice of columns which forms 1% of the total table volume and is 1 GiB per core, CHYT will calculate that 100 GiB per core are processed. CHYT will not run such a query with the default settings.
 
 
 If this scenario is required or you need to process large amounts of data, configure this setting to a random large value.
+
 {% endnote %}
 
 
@@ -124,7 +126,9 @@ CHYT supports all `layout`, `structure`, and `lifetime` settings of regular Clic
 
 
 {% note info "Note" %}
+
 You can specify sources from original ClickHouse as the `source`, but they are not guaranteed to work. In particular, sources that require networking should technically work, but may face a lack of network access in practice.
+
 {% endnote %}
 
 There is also an additional data source type in which you can use static tables in {{product-name}}. This type is called `yt` and has one parameter:
