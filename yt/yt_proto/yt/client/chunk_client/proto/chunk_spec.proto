@@ -13,6 +13,10 @@ message TChunkReplicaSpec
 {
     // See TChunkReplicaWithMedium.
     required fixed64 encoded_chunk_replica_with_medium = 1;
+
+    // Source object for an externally attached chunk replica. Empty for ordinary
+    // replicas stored by data nodes.
+    optional string source_uri = 2;
 }
 
 // Describes a portion of table chunk.

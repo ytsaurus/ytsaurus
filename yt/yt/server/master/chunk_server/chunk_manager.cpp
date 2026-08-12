@@ -98,6 +98,8 @@
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <yt/yt/library/s3/object.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
@@ -930,7 +932,22 @@ public:
                     const_cast<TMedium*>(medium),
                     replica.GetReplicaIndex());
                 chunk->AddReplica(storedReplica, medium, /*approved*/ true);
+                if (!replica.GetSourceUri().empty()) {
+                    // Parse eagerly so an invalid external object cannot be
+                    // persisted as an otherwise healthy offshore replica.
+                    NS3::TObjectDescriptor::FromUri(std::string(replica.GetSourceUri()));
+                    chunk->SetExternalOffshoreSourceUri(std::string(replica.GetSourceUri()));
+                }
                 ScheduleChunkRefresh(chunk);
+                continue;
+            }
+
+            if (!replica.GetSourceUri().empty()) {
+                YT_LOG_ALERT(
+                    "Confirmed domestic replica unexpectedly contains an external source URI "
+                    "(ChunkId: %v, NodeId: %v)",
+                    chunk->GetId(),
+                    nodeId);
                 continue;
             }
 

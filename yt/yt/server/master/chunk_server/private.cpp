@@ -14,7 +14,7 @@ constinit const auto Logger = ChunkServerLogger;
 TStringBuf SerializeChunkFormatAsTableChunkFormat(EChunkFormat chunkFormat)
 {
     // Update the switch below when adding new EChunkFormat values.
-    static_assert(TEnumTraits<EChunkFormat>::GetDomainSize() == 13);
+    static_assert(TEnumTraits<EChunkFormat>::GetDomainSize() == 14);
 
     switch (chunkFormat) {
         case EChunkFormat::FileDefault:
@@ -25,6 +25,8 @@ TStringBuf SerializeChunkFormatAsTableChunkFormat(EChunkFormat chunkFormat)
             return TStringBuf("unversioned_schemaless_horizontal");
         case EChunkFormat::TableUnversionedColumnar:
             return TStringBuf("unversioned_columnar");
+        case EChunkFormat::TableUnversionedArrowParquet:
+            return TStringBuf("unversioned_arrow_parquet");
         case EChunkFormat::TableVersionedSimple:
             return TStringBuf("versioned_simple");
         case EChunkFormat::TableVersionedColumnar:

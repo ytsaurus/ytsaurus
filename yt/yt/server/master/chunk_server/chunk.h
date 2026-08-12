@@ -26,7 +26,9 @@
 
 #include <library/cpp/yt/misc/property.h>
 
+#include <memory>
 #include <optional>
+#include <string>
 
 namespace NYT::NChunkServer {
 
@@ -184,6 +186,11 @@ public:
         const TMedium* medium,
         bool approved);
     void RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, bool approved);
+
+    // An attached external object has one offshore replica. Keep its URI
+    // separately from the compact replica record used for native S3 chunks.
+    void SetExternalOffshoreSourceUri(std::string sourceUri);
+    TStringBuf GetExternalOffshoreSourceUri() const;
 
     void ApproveReplica(TAugmentedStoredChunkReplicaPtr replica);
     int GetApprovedReplicaCount() const;
@@ -480,6 +487,9 @@ private:
     //! which helps to avoid excessive CoW during snapshot construction.
     std::unique_ptr<TReplicasDataBase> ReplicasData_;
 
+    // Allocated only for an externally attached offshore chunk.
+    std::unique_ptr<std::string> ExternalOffshoreSourceUri_;
+
     TChunkRequisition ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry);
 
     const TReplicasDataBase& ReplicasData() const;
@@ -500,7 +510,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TChunk)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TChunk, 288);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TChunk, 296);
 
 ////////////////////////////////////////////////////////////////////////////////
 

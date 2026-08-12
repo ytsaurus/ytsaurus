@@ -24,14 +24,16 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaList seedReplicas);
+    TChunkReplicaList seedReplicas,
+    EChunkFormat chunkFormat = EChunkFormat::Unknown);
 
 IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaWithMediumList seedReplicas);
+    TChunkReplicaWithMediumList seedReplicas,
+    EChunkFormat chunkFormat = EChunkFormat::Unknown);
 
 ////////////////////////////////////////////////////////////////////////////////
 
