@@ -1359,10 +1359,18 @@ def are_hunks_enabled(client):
 
 
 def is_ttl_column_available(client):
-    host = client.list("//sys/primary_masters")[0]
-    version = client.get(f"//sys/primary_masters/{host}/orchid/build_info/binary_version")
-    version = float(version[:4])
-    return version >= 24.1
+    hosts = client.list("//sys/primary_masters")
+    if not hosts:
+        raise RuntimeError("No primary masters found")
+
+    for index, host in enumerate(hosts):
+        try:
+            version = client.get(f"//sys/primary_masters/{host}/orchid/build_info/binary_version")
+            version = float(version[:4])
+            return version >= 24.1
+        except Exception:
+            if index == len(hosts) - 1:
+                raise
 
 
 def check_operations_archive_version(client, target_version):
