@@ -1196,7 +1196,7 @@ class TestSolomonProxy(HttpProxyTestBase):
 
     DELTA_HTTP_PROXY_CONFIG = {
         "solomon_proxy": {
-            "public_component_names": ["rpc_proxy", "primary_master", "http_proxy"],
+            "public_component_names": ["rpc_proxy", "primary_master", "primary_master_sidecar", "http_proxy"],
             # We will configure the endpoint providers later, since monitoring ports are not yet generated at this point.
         }
     }
@@ -1212,6 +1212,7 @@ class TestSolomonProxy(HttpProxyTestBase):
         rpc_proxy_config = configs["rpc_proxy"][0]
         http_proxy_config = configs["http_proxy"][0]
         scheduler_config = configs["scheduler"][0]
+        controller_agent_config = configs["controller_agent"][0]
 
         configs["http_proxy"][0]["solomon_proxy"]["endpoint_providers"] = [
             {
@@ -1230,6 +1231,14 @@ class TestSolomonProxy(HttpProxyTestBase):
                 "monitoring_port": http_proxy_config["monitoring_port"],
                 "include_port_in_instance_name": True,
             },
+            # Providers for the same component type may only coexist under distinct names.
+            # This one imitates a sidecar: same hosts as the master, its own monitoring port.
+            {
+                "name": "primary_master_sidecar",
+                "component_type": "primary_master",
+                "monitoring_port": controller_agent_config["monitoring_port"],
+                "include_port_in_instance_name": True,
+            },
             # Not declared public above!
             {
                 "component_type": "scheduler",
@@ -1244,6 +1253,7 @@ class TestSolomonProxy(HttpProxyTestBase):
         rpc_proxy_config["solomon_exporter"]["host"] = "rpc-proxy.yt.test"
         http_proxy_config["solomon_exporter"]["host"] = "http-proxy.yt.test"
         scheduler_config["solomon_exporter"]["host"] = "scheduler.yt.test"
+        controller_agent_config["solomon_exporter"]["host"] = "controller-agent.yt.test"
 
     @staticmethod
     def filter_sensors(sensors, sensor_name=None, host=None):
@@ -1277,7 +1287,7 @@ class TestSolomonProxy(HttpProxyTestBase):
 
         build_version_sensors = self.filter_sensors(sensors, sensor_name="build.version")
         # Sensors for schedulers are not returned, since they are declared public.
-        assert len(build_version_sensors) == 3
+        assert len(build_version_sensors) == 4
 
         # No labels should be lost!
         assert self.filter_sensors(build_version_sensors, host="http-proxy")[0]["labels"]["proxy_role"] == "data"
@@ -1286,7 +1296,8 @@ class TestSolomonProxy(HttpProxyTestBase):
     @authors("achulkov2")
     def test_filters(self):
         # Component name.
-        rpc_proxy_sensors = self.get_sensors(params={"component": "rpc_proxies"})
+        rpc_proxy_sensors = self.get_sensors(params={"component": "rpc_proxy"})
+        assert self.get_instance_count(rpc_proxy_sensors) == 1
         assert self.filter_sensors(rpc_proxy_sensors, host="rpc-proxy") == rpc_proxy_sensors
 
         # Instance name.
@@ -1298,35 +1309,47 @@ class TestSolomonProxy(HttpProxyTestBase):
         rpc_proxy_address = ls("//sys/rpc_proxies")[0]
 
         set(f"//sys/rpc_proxies/{rpc_proxy_address}/@banned", True)
-        wait(lambda: self.get_instance_count(self.get_sensors(params={"instance_banned": "0"})) == 2)
-
-        set(f"//sys/rpc_proxies/{rpc_proxy_address}/@banned", False)
         wait(lambda: self.get_instance_count(self.get_sensors(params={"instance_banned": "0"})) == 3)
 
+        set(f"//sys/rpc_proxies/{rpc_proxy_address}/@banned", False)
+        wait(lambda: self.get_instance_count(self.get_sensors(params={"instance_banned": "0"})) == 4)
+
         # Solomon shards (which are also instance labels).
-        assert self.get_instance_count(self.get_sensors(params={"instance_shard": "all"})) == 3
+        assert self.get_instance_count(self.get_sensors(params={"instance_shard": "all"})) == 4
         assert self.get_instance_count(self.get_sensors(params={"instance_shard": "we-miss-prime"})) == 0
 
     @authors("achulkov2")
     def test_sharding(self):
         first_shard_size = self.get_instance_count(self.get_sensors(params={"shard_index": 0, "shard_count": 2}))
         second_shard_size = self.get_instance_count(self.get_sensors(params={"shard_index": 1, "shard_count": 2}))
-        assert first_shard_size + second_shard_size == 3
+        assert first_shard_size + second_shard_size == 4
 
     @authors("achulkov2")
     def test_formats(self):
         # Json (default).
-        assert self.get_instance_count(self.get_sensors(headers={"Accept": "application/json"})) == 3
+        assert self.get_instance_count(self.get_sensors(headers={"Accept": "application/json"})) == 4
 
         # Prometheus.
         prometheus_sensors_rsp = self.get_sensors_raw(headers={"Accept": "text/plain"})
-        assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "# TYPE" not in line and "build_version" in line]) == 3
+        assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "# TYPE" not in line and "build_version" in line]) == 4
         # No counter-to-rate transformation for prometheus format.
         assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "_rate" in line and "_rate_limit" not in line]) == 0
 
         # Spack (only check for errors).
         self.get_sensors_raw(headers={"Accept": "application/x-solomon-spack"})
         self.get_sensors_raw(headers={"Accept": "application/x-solomon-spack", "Accept-Encoding": "zstd"})
+
+    @authors("tinarsky")
+    def test_endpoint_provider_name(self):
+        # Both providers are of the primary_master component type and are told apart by name only.
+        master_sensors = self.get_sensors(params={"component": "primary_master"})
+        assert self.get_instance_count(master_sensors) == 1
+        assert self.filter_sensors(master_sensors, sensor_name="build.version")[0]["labels"]["host"] == "master.yt.test"
+
+        # The named provider is pulled from its own monitoring port.
+        sidecar_sensors = self.get_sensors(params={"component": "primary_master_sidecar"})
+        assert self.get_instance_count(sidecar_sensors) == 1
+        assert self.filter_sensors(sidecar_sensors, sensor_name="build.version")[0]["labels"]["host"] == "controller-agent.yt.test"
 
     @authors("achulkov2")
     def test_errors(self):
