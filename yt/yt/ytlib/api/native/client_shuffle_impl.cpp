@@ -75,6 +75,50 @@ IChannelPtr BuildShuffleServiceChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<TShuffleServiceProxy::TRspFetchChunksPtr> FetchShuffleChunks(
+    IChannelPtr channel,
+    const TShuffleHandlePtr& shuffleHandle,
+    int partitionIndex,
+    std::optional<IShuffleClient::TIndexRange> logicalWriterIndexRange,
+    TDuration rpcTimeout)
+{
+    TShuffleServiceProxy proxy(std::move(channel));
+    auto req = proxy.FetchChunks();
+    req->SetTimeout(rpcTimeout);
+    req->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
+    req->set_partition_index(partitionIndex);
+    if (logicalWriterIndexRange) {
+        auto* range = req->mutable_logical_writer_index_range();
+        range->set_begin(logicalWriterIndexRange->first);
+        range->set_end(logicalWriterIndexRange->second);
+    }
+    return req->Invoke();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> RegisterShuffleChunks(
+    const IConnectionPtr& connection,
+    const TShuffleHandlePtr& shuffleHandle,
+    const std::vector<TChunkSpec>& chunkSpecs,
+    std::optional<int> logicalWriterIndex,
+    bool overwriteExistingWriterData)
+{
+    auto channel = connection->CreateChannelByAddress(shuffleHandle->CoordinatorAddress);
+    TShuffleServiceProxy proxy(std::move(channel));
+    auto req = proxy.RegisterChunks();
+    req->SetTimeout(connection->GetConfig()->DefaultShuffleServiceTimeout);
+    req->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
+    ToProto(req->mutable_chunk_specs(), chunkSpecs);
+    if (logicalWriterIndex) {
+        req->set_logical_writer_index(*logicalWriterIndex);
+    }
+    req->set_overwrite_existing_writer_data(overwriteExistingWriterData);
+    return req->Invoke().AsVoid();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Writer-side write-session provider that resolves sessions through the shuffle
 //! service's GetPartitionWriteSession RPC. It is shuffle-service-specific, hence
 //! it lives here rather than in the use-case-agnostic push_based_shuffle_client.
@@ -127,12 +171,12 @@ class TPullBasedShuffleWriter
 public:
     TPullBasedShuffleWriter(
         ISchemalessMultiChunkWriterPtr writer,
-        TClientPtr client,
+        IConnectionPtr connection,
         TShuffleHandlePtr shuffleHandle,
         std::optional<int> logicalWriterIndex,
         bool overwriteExistingWriterData)
         : Writer_(std::move(writer))
-        , Client_(std::move(client))
+        , Connection_(std::move(connection))
         , ShuffleHandle_(std::move(shuffleHandle))
         , LogicalWriterIndex_(logicalWriterIndex)
         , OverwriteExistingWriterData_(overwriteExistingWriterData)
@@ -151,11 +195,12 @@ public:
     TFuture<void> Close() override
     {
         return Writer_->Close().Apply(BIND([this, this_ = MakeStrong(this)]() {
-            return Client_->RegisterShuffleChunks(
+            return RegisterShuffleChunks(
+                Connection_,
                 ShuffleHandle_,
                 Writer_->GetWrittenChunkSpecs(),
                 LogicalWriterIndex_,
-                /*options*/ {.OverwriteExistingWriterData = OverwriteExistingWriterData_});
+                OverwriteExistingWriterData_);
         }));
     }
 
@@ -166,7 +211,7 @@ public:
 
 private:
     const ISchemalessMultiChunkWriterPtr Writer_;
-    const TClientPtr Client_;
+    const IConnectionPtr Connection_;
     const TShuffleHandlePtr ShuffleHandle_;
     const std::optional<int> LogicalWriterIndex_;
     const bool OverwriteExistingWriterData_;
@@ -320,6 +365,67 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<IRowBatchWriterPtr> CreatePullBasedShuffleWriterImpl(
+    const TClientPtr& client,
+    TShuffleHandlePtr handle,
+    const std::string& partitionColumn,
+    std::optional<int> logicalWriterIndex,
+    const TShuffleWriterOptions& options)
+{
+    // The partition column index must be preserved for the partitioner.
+    // However, the row is partitioned after the row value ids are mapped to
+    // the chunk name table. As a result, the partition column id may differ
+    // from the one specified in the partitioner. To prevent this issue, it is
+    // necessary to specify the table schema with the partition column, as it
+    // guaranteed that the chunk name table always coincides with the column
+    // index in the schema (because the chunk name table is initialized from the
+    // schema columns).
+    // TODO(apollo1321): Carry a schema on the shuffle handle for pull-based too
+    // and use it directly instead of synthesizing this single-column schema.
+    auto schema = New<TTableSchema>(
+        std::vector{TColumnSchema(partitionColumn, ESimpleLogicalValueType::Int64)},
+        /*strict*/ false);
+    auto nameTable = TNameTable::FromSchema(*schema);
+
+    auto partitioner = CreateColumnBasedPartitioner(
+        handle->PartitionCount,
+        nameTable->GetId(partitionColumn));
+
+    // TODO(apollo1321): Carry the writer/reader config on the shuffle handle (set once at
+    // start_shuffle, shared by all writers and readers) for both push and pull, and drop the
+    // per-call options.Config — push already ignores it; pull still consumes it per call.
+    auto tableWriterOptions = New<TTableWriterOptions>();
+    tableWriterOptions->EvaluateComputedColumns = false;
+    tableWriterOptions->Account = handle->Account;
+    tableWriterOptions->ReplicationFactor = handle->ReplicationFactor;
+    tableWriterOptions->MediumName = handle->Medium;
+
+    auto writer = CreatePartitionMultiChunkWriter(
+        options.Config,
+        std::move(tableWriterOptions),
+        std::move(nameTable),
+        std::move(schema),
+        client,
+        /*localHostName*/ "",
+        CellTagFromId(handle->TransactionId),
+        handle->TransactionId,
+        NullTableSchemaId,
+        NullChunkListId,
+        std::move(partitioner),
+        /*dataSink*/ {},
+        /*writeBlocksOptions*/ {});
+
+    return MakeFuture(New<TPullBasedShuffleWriter>(
+        std::move(writer),
+        client->GetNativeConnection(),
+        std::move(handle),
+        logicalWriterIndex,
+        options.OverwriteExistingWriterData))
+        .As<IRowBatchWriterPtr>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPullBasedShuffleReader
     : public IRowBatchReader
 {
@@ -429,18 +535,12 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
     auto rpcTimeout = connection->GetConfig()->DefaultShuffleServiceTimeout;
     auto channel = BuildShuffleServiceChannel(connection, handle->CoordinatorAddress);
 
-    TShuffleServiceProxy proxy(channel);
-    auto fetchReq = proxy.FetchChunks();
-    fetchReq->SetTimeout(rpcTimeout);
-    fetchReq->set_shuffle_handle(ToProto(ConvertToYsonString(handle)));
-    fetchReq->set_partition_index(partitionIndex);
-    if (logicalWriterIndexRange) {
-        auto* range = fetchReq->mutable_logical_writer_index_range();
-        range->set_begin(logicalWriterIndexRange->first);
-        range->set_end(logicalWriterIndexRange->second);
-    }
-
-    return fetchReq->Invoke()
+    return FetchShuffleChunks(
+        std::move(channel),
+        handle,
+        partitionIndex,
+        logicalWriterIndexRange,
+        rpcTimeout)
         .Apply(BIND_NO_PROPAGATE([
             client,
             handle
@@ -488,6 +588,65 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
         }));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<IRowBatchReaderPtr> CreatePullBasedShuffleReaderImpl(
+    const TClientPtr& client,
+    TShuffleHandlePtr handle,
+    int partitionIndex,
+    std::optional<IShuffleClient::TIndexRange> logicalWriterIndexRange,
+    const TShuffleReaderOptions& options)
+{
+    auto connection = client->GetNativeConnection();
+    auto channel = connection->CreateChannelByAddress(handle->CoordinatorAddress);
+    return FetchShuffleChunks(
+        std::move(channel),
+        handle,
+        partitionIndex,
+        logicalWriterIndexRange,
+        connection->GetConfig()->DefaultShuffleServiceTimeout)
+        .Apply(BIND([
+            client,
+            options,
+            partitionIndex
+        ] (const TShuffleServiceProxy::TRspFetchChunksPtr& rsp) {
+            auto chunkSpecs = FromProto<std::vector<TChunkSpec>>(rsp->chunk_specs());
+            auto dataSourceDirectory = New<TDataSourceDirectory>();
+            dataSourceDirectory->DataSources().emplace_back(New<TDataSource>(
+                EDataSourceType::UnversionedTable,
+                /*path*/ "",
+                New<TTableSchema>(),
+                /*virtualKeyPrefixLength*/ 0,
+                /*columns*/ std::nullopt,
+                /*omittedInaccessibleColumns*/ std::vector<std::string>{},
+                NullTimestamp,
+                /*retentionTimestamp*/ NullTimestamp,
+                /*columnRenameDescriptors*/ TColumnRenameDescriptors{}));
+
+            std::vector<TDataSliceDescriptor> dataSlices;
+            dataSlices.reserve(chunkSpecs.size());
+            for (auto& chunk : chunkSpecs) {
+                dataSlices.emplace_back(std::move(chunk));
+            }
+
+            auto reader = CreateSchemalessSequentialMultiReader(
+                options.Config,
+                New<TTableReaderOptions>(),
+                New<TMultiChunkReaderHost>(New<TChunkReaderHost>(client)),
+                dataSourceDirectory,
+                dataSlices,
+                /*hintKeyPrefixes*/ std::nullopt,
+                New<TNameTable>(),
+                TClientChunkReadOptions(),
+                TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
+                /*columnFilter*/ {},
+                TPartitionTags{partitionIndex});
+
+            return New<TPullBasedShuffleReader>(std::move(reader));
+        }))
+        .As<IRowBatchReaderPtr>();
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -530,59 +689,6 @@ TSignedShuffleHandlePtr TClient::DoStartShuffle(
     return TSignedShuffleHandlePtr(signatureGenerator->Sign(rsp->shuffle_handle()));
 }
 
-void TClient::DoRegisterShuffleChunks(
-    const TShuffleHandlePtr& shuffleHandle,
-    const std::vector<TChunkSpec>& chunkSpecs,
-    std::optional<int> logicalWriterIndex,
-    const TRegisterShuffleChunksOptions& options)
-{
-    auto shuffleConnection = GetNativeConnection()->CreateChannelByAddress(shuffleHandle->CoordinatorAddress);
-
-    TShuffleServiceProxy shuffleProxy(shuffleConnection);
-
-    auto req = shuffleProxy.RegisterChunks();
-    req->SetTimeout(options.Timeout.value_or(GetNativeConnection()->GetConfig()->DefaultShuffleServiceTimeout));
-
-    req->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
-    ToProto(req->mutable_chunk_specs(), chunkSpecs);
-    if (logicalWriterIndex) {
-        req->set_logical_writer_index(*logicalWriterIndex);
-    }
-    req->set_overwrite_existing_writer_data(options.OverwriteExistingWriterData);
-
-    WaitFor(req->Invoke())
-        .ThrowOnError();
-}
-
-std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
-    const TShuffleHandlePtr& shuffleHandle,
-    int partitionIndex,
-    std::optional<std::pair<int, int>> logicalWriterIndexRange,
-    const TFetchShuffleChunksOptions& options)
-{
-    auto shuffleConnection = GetNativeConnection()->CreateChannelByAddress(shuffleHandle->CoordinatorAddress);
-
-    TShuffleServiceProxy shuffleProxy(shuffleConnection);
-
-    auto req = shuffleProxy.FetchChunks();
-    req->SetTimeout(options.Timeout.value_or(GetNativeConnection()->GetConfig()->DefaultShuffleServiceTimeout));
-
-    req->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
-    req->set_partition_index(partitionIndex);
-    if (logicalWriterIndexRange) {
-        auto* logicalWriterIndexRangeProto = req->mutable_logical_writer_index_range();
-        logicalWriterIndexRangeProto->set_begin(logicalWriterIndexRange->first);
-        logicalWriterIndexRangeProto->set_end(logicalWriterIndexRange->second);
-    }
-
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
-
-    return FromProto<std::vector<TChunkSpec>>(rsp->chunk_specs());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
     const TSignedShuffleHandlePtr& signedShuffleHandle,
     int partitionIndex,
@@ -598,46 +704,13 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
             partitionIndex,
             logicalWriterIndexRange);
     }
-    return FetchShuffleChunks(
-        shuffleHandle,
+
+    return CreatePullBasedShuffleReaderImpl(
+        MakeStrong(this),
+        std::move(shuffleHandle),
         partitionIndex,
         logicalWriterIndexRange,
-        TFetchShuffleChunksOptions{})
-        .AsUnique().Apply(BIND([=, this, this_ = MakeStrong(this)] (std::vector<TChunkSpec>&& chunkSpecs) mutable {
-            auto dataSourceDirectory = New<TDataSourceDirectory>();
-            dataSourceDirectory->DataSources().emplace_back(New<TDataSource>(
-                EDataSourceType::UnversionedTable,
-                /*path*/ "",
-                New<TTableSchema>(),
-                /*virtualKeyPrefixLength*/ 0,
-                /*columns*/ std::nullopt,
-                /*omittedInaccessibleColumns*/ std::vector<std::string>{},
-                NullTimestamp,
-                /*retentionTimestamp*/ NullTimestamp,
-                /*columnRenameDescriptors*/ TColumnRenameDescriptors{}));
-
-            std::vector<TDataSliceDescriptor> dataSlices;
-            dataSlices.reserve(chunkSpecs.size());
-            for (auto& chunk : chunkSpecs) {
-                dataSlices.emplace_back(std::move(chunk));
-            }
-
-            auto reader = CreateSchemalessSequentialMultiReader(
-                options.Config,
-                New<TTableReaderOptions>(),
-                New<TMultiChunkReaderHost>(New<TChunkReaderHost>(this)),
-                dataSourceDirectory,
-                dataSlices,
-                /*hintKeyPrefixes*/ std::nullopt,
-                New<TNameTable>(),
-                TClientChunkReadOptions(),
-                TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
-                /*columnFilter*/ {},
-                TPartitionTags{partitionIndex});
-
-            return New<TPullBasedShuffleReader>(std::move(reader));
-        }))
-        .As<IRowBatchReaderPtr>();
+        options);
 }
 
 TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
@@ -657,56 +730,12 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
             options);
     }
 
-    // The partition column index must be preserved for the partitioner.
-    // However, the row is partitioned after the row value ids are mapped to
-    // the chunk name table. As a result, the partition column id may differ
-    // from the one specified in the partitioner. To prevent this issue, it is
-    // necessary to specify the table schema with the partition column, as it
-    // guaranteed that the chunk name table always coincides with the column
-    // index in the schema (because the chunk name table is initialized from the
-    // schema columns).
-    // TODO(apollo1321): Carry a schema on the shuffle handle for pull-based too
-    // and use it directly instead of synthesizing this single-column schema.
-    auto schema = New<TTableSchema>(
-        std::vector{TColumnSchema(partitionColumn, ESimpleLogicalValueType::Int64)},
-        /*strict*/ false);
-    auto nameTable = TNameTable::FromSchema(*schema);
-
-    auto partitioner = CreateColumnBasedPartitioner(
-        shuffleHandle->PartitionCount,
-        nameTable->GetId(partitionColumn));
-
-    // TODO(apollo1321): Carry the writer/reader config on the shuffle handle (set once at
-    // start_shuffle, shared by all writers and readers) for both push and pull, and drop the
-    // per-call options.Config — push already ignores it; pull still consumes it per call.
-    auto tableWriterOptions = New<TTableWriterOptions>();
-    tableWriterOptions->EvaluateComputedColumns = false;
-    tableWriterOptions->Account = shuffleHandle->Account;
-    tableWriterOptions->ReplicationFactor = shuffleHandle->ReplicationFactor;
-    tableWriterOptions->MediumName = shuffleHandle->Medium;
-
-    auto writer = CreatePartitionMultiChunkWriter(
-        options.Config,
-        std::move(tableWriterOptions),
-        std::move(nameTable),
-        std::move(schema),
-        this,
-        /*localHostName*/ "",
-        CellTagFromId(shuffleHandle->TransactionId),
-        shuffleHandle->TransactionId,
-        NullTableSchemaId,
-        NullChunkListId,
-        std::move(partitioner),
-        /*dataSink*/ {},
-        /*writeBlocksOptions*/ {});
-
-    return MakeFuture(New<TPullBasedShuffleWriter>(
-        std::move(writer),
-        this,
+    return CreatePullBasedShuffleWriterImpl(
+        MakeStrong(this),
         std::move(shuffleHandle),
+        partitionColumn,
         logicalWriterIndex,
-        options.OverwriteExistingWriterData))
-        .As<IRowBatchWriterPtr>();
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
