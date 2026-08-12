@@ -75,10 +75,9 @@ void ITableDescriptor::ScheduleInitialization()
         .Apply(BIND([threadPool = std::move(threadPool)] (const std::vector<TError>& errors) {
             for (int i : std::views::iota(0, std::ssize(errors))) {
                 if (!errors[i].IsOK()) {
-                    YT_LOG_ERROR(
-                        errors[i],
-                        "Failed to initialize Sequoia table descriptor (Table: %v)",
-                        TEnumTraits<ESequoiaTable>::GetDomainValues()[i]);
+                    YT_TLOG_ERROR("Failed to initialize Sequoia table descriptor")
+                        .With("Table", TEnumTraits<ESequoiaTable>::GetDomainValues()[i])
+                        .With(errors[i]);
                 }
             }
             threadPool->Shutdown();

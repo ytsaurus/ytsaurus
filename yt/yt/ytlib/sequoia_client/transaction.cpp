@@ -77,10 +77,10 @@ void ValidateSequoiaTableSchema(ESequoiaTable table, const TTableSchemaPtr& actu
         return;
     }
 
-    YT_LOG_ALERT("Unexpected schema of Sequoia table (SequoiaTable: %v, Schema: %v, ExpectedSchema: %v)",
-        table,
-        *actualSchema,
-        *expectedSchema);
+    YT_TLOG_ALERT("Unexpected schema of Sequoia table")
+        .With("SequoiaTable", table)
+        .With("Schema", *actualSchema)
+        .With("ExpectedSchema", *expectedSchema);
 
     THROW_ERROR_EXCEPTION(
         NTableClient::EErrorCode::SchemaViolation,
@@ -279,12 +279,11 @@ public:
 
         SortRequests();
 
-        YT_LOG_ALERT_AND_THROW_UNLESS(
+        YT_TLOG_ALERT_AND_THROW_UNLESS(
             options.StrongOrderingTags.empty(),
-            "Commit options have non-empty strong ordering tags "
-            "(TransactiondId: %v, StrongOrderingTags: %v)",
-            Transaction_->GetId(),
-            options.StrongOrderingTags);
+            "Commit options have non-empty strong ordering tags")
+            .With("TransactiondId", Transaction_->GetId())
+            .With("StrongOrderingTags", options.StrongOrderingTags);
 
         options.StrongOrderingTags = ComputeStrongOrderingTags();
 
@@ -369,11 +368,10 @@ public:
         auto commitSession = GetOrCreateTableCommitSession(descriptor);
         commitSession->Requests.push_back(request);
 
-        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
-            "Row locked (SequoiaTable: %v, Key: %v, LockType: %v)",
-            table,
-            key,
-            lockType);
+        YT_TLOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging, "Row locked")
+            .With("SequoiaTable", table)
+            .With("Key", key)
+            .With("LockType", lockType);
     }
 
     void WriteRow(
@@ -406,11 +404,10 @@ public:
         auto commitSession = GetOrCreateTableCommitSession(tableDescriptor);
         commitSession->Requests.push_back(request);
 
-        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
-            "Row written (SequoiaTable: %v, Row: %v, LockType: %v)",
-            tableDescriptor.Table,
-            row,
-            lockType);
+        YT_TLOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging, "Row written")
+            .With("SequoiaTable", tableDescriptor.Table)
+            .With("Row", row)
+            .With("LockType", lockType);
     }
 
     void DeleteRow(
@@ -430,10 +427,9 @@ public:
         auto commitSession = GetOrCreateTableCommitSession(descriptor);
         commitSession->Requests.push_back(request);
 
-        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
-            "Row deleted (SequoiaTable: %v, Key: %v)",
-            table,
-            key);
+        YT_TLOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging, "Row deleted")
+            .With("SequoiaTable", table)
+            .With("Key", key);
     }
 
     void AddTransactionAction(
@@ -673,9 +669,9 @@ private:
 
         Logger.AddTag("TransactionId", Transaction_->GetId());
 
-        YT_LOG_DEBUG("Transaction started (StartTimestamp: %v, PrerequisiteTransactionIds: %v)",
-            Transaction_->GetStartTimestamp(),
-            SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
+        YT_TLOG_DEBUG("Transaction started")
+            .With("StartTimestamp", Transaction_->GetStartTimestamp())
+            .With("PrerequisiteTransactionIds", SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
 
         return MakeStrong(this);
     }
