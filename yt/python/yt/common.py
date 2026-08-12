@@ -143,7 +143,10 @@ class YtError(Exception):
         def find_recursive(error):
             # error may be Python dict; if so, transform it to YtError.
             if not isinstance(error, YtError):
-                error = YtError(**error)
+                try:
+                    error = YtError(**error)
+                except TypeError:
+                    return None
 
             if predicate(error):
                 return error

@@ -185,6 +185,7 @@ TEST_SRCS(
     test_queue_commands.py
     test_query_commands.py
     test_random_sample.py
+    test_retries.py
     test_run_compression_benchmarks.py
     test_spark.py
     test_spec_builders.py
