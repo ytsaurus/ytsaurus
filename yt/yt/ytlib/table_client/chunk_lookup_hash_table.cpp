@@ -190,19 +190,17 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
         chunkFormat != EChunkFormat::TableVersionedSlim &&
         chunkFormat != EChunkFormat::TableUnversionedSchemalessHorizontal)
     {
-        YT_LOG_INFO("Cannot create lookup hash table for improper chunk format "
-            "(ChunkId: %v, ChunkFormat: %v)",
-            chunkId,
-            chunkFormat);
+        YT_TLOG_INFO("Cannot create lookup hash table for improper chunk format")
+            .With("ChunkId", chunkId)
+            .With("ChunkFormat", chunkFormat);
         return nullptr;
     }
 
     int lastBlockIndex = endBlockIndex - 1;
     if (lastBlockIndex > MaxBlockIndex) {
-        YT_LOG_INFO("Cannot create lookup hash table because chunk has too many blocks "
-            "(ChunkId: %v, LastBlock: %v)",
-            chunkId,
-            lastBlockIndex);
+        YT_TLOG_INFO("Cannot create lookup hash table because chunk has too many blocks")
+            .With("ChunkId", chunkId)
+            .With("LastBlock", lastBlockIndex);
         return nullptr;
     }
 
@@ -216,10 +214,9 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
         auto blockId = TBlockId(chunkId, blockIndex);
         auto uncompressedBlock = blockCache->FindBlock(blockId, EBlockType::UncompressedData);
         if (!uncompressedBlock) {
-            YT_LOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache "
-                "(ChunkId: %v, Block: %v)",
-                chunkId,
-                blockIndex);
+            YT_TLOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache")
+                .With("ChunkId", chunkId)
+                .With("Block", blockIndex);
             return nullptr;
         }
 

@@ -123,15 +123,15 @@ public:
         keys.reserve(requests.size());
         for (const auto& request : requests) {
             keys.push_back({request.ObjectId, request.ExternalCellTag, request.ChunkCount, request.Schema, request.MinRevision});
-            YT_LOG_TRACE("Getting fresh columnar statistics (Key: %v)", keys.back());
+            YT_TLOG_TRACE("Getting fresh columnar statistics")
+                .With("Key", keys.back());
         }
 
         std::vector<TErrorOr<TNamedColumnarStatistics>> finalResults;
         finalResults.resize(requests.size());
 
-        YT_LOG_DEBUG(
-            "Getting columnar statistics from cache synchronously (RequestCount: %v)",
-            requests.size());
+        YT_TLOG_DEBUG("Getting columnar statistics from cache synchronously")
+            .With("RequestCount", requests.size());
 
         auto syncResults = FindMany(keys);
         // Collect paths for which statistics are missing or obsolete.
@@ -163,19 +163,17 @@ public:
             }
         }
 
-        YT_LOG_DEBUG(
-            "Got synchronous results from cache (HitCount: %v, MissCount: %v, ObsoleteCount: %v)",
-            hitCount,
-            missCount,
-            obsoleteCount);
+        YT_TLOG_DEBUG("Got synchronous results from cache")
+            .With("HitCount", hitCount)
+            .With("MissCount", missCount)
+            .With("ObsoleteCount", obsoleteCount);
 
         if (missedKeys.empty()) {
             return MakeFuture(finalResults);
         }
 
-        YT_LOG_DEBUG(
-            "Getting columnar statistics from cache asynchronously (RequestCount: %v)",
-            missedKeys.size());
+        YT_TLOG_DEBUG("Getting columnar statistics from cache asynchronously")
+            .With("RequestCount", missedKeys.size());
 
         auto asyncResults = GetMany(missedKeys);
 
@@ -194,7 +192,8 @@ public:
             finalResults[missedIndex] = missedResult.Statistics.MakeNamedStatistics(missedResult.Schema->GetColumnNames());
         }
 
-        YT_LOG_DEBUG("Got asynchronous results from cache (Count: %v)", missedIndices.size());
+        YT_TLOG_DEBUG("Got asynchronous results from cache")
+            .With("Count", missedIndices.size());
 
         return finalResults;
     }

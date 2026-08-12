@@ -285,9 +285,10 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 : nullptr,
                         });
 
-                        YT_LOG_DEBUG("Create chunk reader (HintCount: %v, ChunkFormat: %v, Sorted: %v)",
-                            hintKeyPrefixes ? std::ssize(hintKeyPrefixes->HintPrefixes) : -1,
-                            chunkMeta->GetChunkFormat(), chunkMeta->Misc().sorted());
+                        YT_TLOG_DEBUG("Create chunk reader")
+                            .With("HintCount", hintKeyPrefixes ? std::ssize(hintKeyPrefixes->HintPrefixes) : -1)
+                            .With("ChunkFormat", chunkMeta->GetChunkFormat())
+                            .With("Sorted", chunkMeta->Misc().sorted());
 
                         if (!hintKeyPrefixes || !chunkMeta->Misc().sorted() ||
                             chunkMeta->GetChunkFormat() != EChunkFormat::TableUnversionedSchemalessHorizontal)
@@ -312,7 +313,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 dataSliceDescriptor.VirtualRowIndex,
                                 interruptDescriptorKeyLength);
                         } else {
-                            YT_LOG_DEBUG("Only reading hint prefixes (Count: %v)", hintKeyPrefixes->HintPrefixes.size());
+                            YT_TLOG_DEBUG("Only reading hint prefixes")
+                                .With("Count", hintKeyPrefixes->HintPrefixes.size());
                             return CreateSchemalessKeyRangesChunkReader(
                                 perClusterChunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
                                 std::move(chunkState),
@@ -537,7 +539,8 @@ TSchemalessMultiChunkReader::TSchemalessMultiChunkReader(
 TSchemalessMultiChunkReader::~TSchemalessMultiChunkReader()
 {
     const auto& Logger = MultiReaderManager_->GetLogger();
-    YT_LOG_DEBUG("Multi chunk reader timing statistics (TimingStatistics: %v)", TSchemalessMultiChunkReader::GetTimingStatistics());
+    YT_TLOG_DEBUG("Multi chunk reader timing statistics")
+        .With("TimingStatistics", TSchemalessMultiChunkReader::GetTimingStatistics());
 }
 
 IUnversionedRowBatchPtr TSchemalessMultiChunkReader::Read(const TRowBatchReadOptions& options)
@@ -959,7 +962,8 @@ public:
     ~TSchemalessMergingMultiChunkReader()
     {
         YT_UNUSED_FUTURE(ParallelReaderMemoryManager_->Finalize());
-        YT_LOG_DEBUG("Schemaless merging multi chunk reader data statistics (DataStatistics: %v)", TSchemalessMergingMultiChunkReader::GetDataStatistics());
+        YT_TLOG_DEBUG("Schemaless merging multi chunk reader data statistics")
+            .With("DataStatistics", TSchemalessMergingMultiChunkReader::GetDataStatistics());
     }
 
 private:
@@ -1254,13 +1258,13 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         boundaries.push_back(minKey);
     }
 
-    YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Stores: %v, SystemColumnFilter: %v, TimestampedUserColumnFilter: %v)",
-        boundaries,
-        MakeFormattableView(chunkSpecs, [] (TStringBuilderBase* builder, const TChunkSpec& chunkSpec) {
+    YT_TLOG_DEBUG("Create overlapping range reader")
+        .With("Boundaries", boundaries)
+        .With("Stores", MakeFormattableView(chunkSpecs, [] (TStringBuilderBase* builder, const TChunkSpec& chunkSpec) {
             FormatValue(builder, FromProto<TChunkId>(chunkSpec.chunk_id()), TStringBuf());
-        }),
-        columnFilter,
-        timestampedColumnFilter);
+        }))
+        .With("SystemColumnFilter", columnFilter)
+        .With("TimestampedUserColumnFilter", timestampedColumnFilter);
 
     if (!multiReaderMemoryManager) {
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
@@ -1311,10 +1315,9 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             THROW_ERROR_EXCEPTION("Row index limit is not supported");
         }
 
-        YT_LOG_DEBUG("Creating versioned chunk reader (ChunkId: %v, Range: <%v : %v>)",
-            chunkId,
-            lowerLimit,
-            upperLimit);
+        YT_TLOG_DEBUG("Creating versioned chunk reader")
+            .With("ChunkId", chunkId)
+            .WithFormat("Range", "<%v : %v>", lowerLimit, upperLimit);
 
         auto remoteReader = CreateRemoteReader(
             chunkSpec,

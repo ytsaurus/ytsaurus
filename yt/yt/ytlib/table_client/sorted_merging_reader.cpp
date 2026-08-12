@@ -323,8 +323,8 @@ protected:
         YT_VERIFY(!Opened_);
         Opened_ = true;
 
-        YT_LOG_DEBUG("Opening sorted merging reader (StreamCount: %v)",
-            Streams_.size());
+        YT_TLOG_DEBUG("Opening sorted merging reader")
+            .With("StreamCount", Streams_.size());
 
         auto readyEvent = BIND(&TSortedMergingReaderBase::DoOpen, MakeStrong(this), options)
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
@@ -485,9 +485,9 @@ public:
             }
 
             if (canInterrupt) {
-                YT_LOG_DEBUG("Sorted merging reader interrupted (LastKey: %v, Key: %v)",
-                    lastKey,
-                    key);
+                YT_TLOG_DEBUG("Sorted merging reader interrupted")
+                    .With("LastKey", lastKey)
+                    .With("Key", key);
 
                 SetReadyEvent(OKFuture);
                 StreamHeap_.clear();
@@ -529,8 +529,8 @@ public:
 
     TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override
     {
-        YT_LOG_DEBUG("Creating interrupt descriptor for sorted merging reader (UnreadRowCount: %v)",
-            unreadRows.Size());
+        YT_TLOG_DEBUG("Creating interrupt descriptor for sorted merging reader")
+            .With("UnreadRowCount", unreadRows.Size());
 
         TInterruptDescriptor descriptor;
 
@@ -657,10 +657,10 @@ public:
                         extractCurrentSession = true;
                     }
 
-                    YT_LOG_DEBUG("Extracting primary stream from heap due to interrupt (Key: %v, LastKev: %v, TableIndex: %v)",
-                        key,
-                        lastPrimaryKey,
-                        stream->GetTableIndex());
+                    YT_TLOG_DEBUG("Extracting primary stream from heap due to interrupt")
+                        .With("Key", key)
+                        .With("LastKev", lastPrimaryKey)
+                        .With("TableIndex", stream->GetTableIndex());
                 } else {
                     // Regardless of #interruptAtKeyEdge we have to read all the foreign rows
                     // corresponding to #lastKey.
@@ -675,10 +675,10 @@ public:
                         extractCurrentSession = true;
                     }
 
-                    YT_LOG_DEBUG("Extracting foreign session from heap due to interrupt (Key: %v, LastKey: %v, TableIndex: %v)",
-                        key,
-                        lastPrimaryKey,
-                        stream->GetTableIndex());
+                    YT_TLOG_DEBUG("Extracting foreign session from heap due to interrupt")
+                        .With("Key", key)
+                        .With("LastKey", lastPrimaryKey)
+                        .With("TableIndex", stream->GetTableIndex());
                 }
 
                 if (extractCurrentSession) {

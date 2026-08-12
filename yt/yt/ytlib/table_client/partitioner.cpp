@@ -17,7 +17,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Used only for YT_LOG_FATAL below.
+// Used only for YT_TLOG_FATAL below.
 const static NLogging::TLogger Logger("Partitioner");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,12 +66,10 @@ private:
             const auto& partition = PartitionLowerBounds_[index];
             const auto& nextPartition = PartitionLowerBounds_[index + 1];
             // TODO(gritukan): Check if pivots are not equal.
-            YT_LOG_FATAL_IF(
-                Comparator_.CompareKeyBounds(partition, nextPartition) > 0,
-                "Pivot keys order violation (Index: %v, PartitionLowerBound: %v, NextPartitionLowerBound: %v)",
-                index,
-                partition,
-                nextPartition);
+            YT_TLOG_FATAL_IF(Comparator_.CompareKeyBounds(partition, nextPartition) > 0, "Pivot keys order violation")
+                .With("Index", index)
+                .With("PartitionLowerBound", partition)
+                .With("NextPartitionLowerBound", nextPartition);
         }
     }
 };

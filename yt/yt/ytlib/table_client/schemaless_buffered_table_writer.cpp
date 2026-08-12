@@ -94,7 +94,7 @@ public:
 
         if (!CurrentBuffer_) {
             if (EmptyBuffers_.empty()) {
-                YT_LOG_DEBUG("Buffer overflown; dropping rows");
+                YT_TLOG_DEBUG("Buffer overflown; dropping rows");
                 DroppedRowCount_ += rows.Size();
                 return true;
             }
@@ -225,8 +225,8 @@ private:
 
     void ScheduleBufferFlush(TBuffer* buffer)
     {
-        YT_LOG_DEBUG("Scheduling table chunk flush (BufferIndex: %v)",
-            buffer->GetIndex());
+        YT_TLOG_DEBUG("Scheduling table chunk flush")
+            .With("BufferIndex", buffer->GetIndex());
 
         BufferFlushedFutures_.push_back(BIND(&TSchemalessBufferedTableWriter::FlushBuffer, MakeWeak(this), buffer)
             .AsyncVia(FlushBufferInvoker_)
@@ -245,9 +245,9 @@ private:
         // the buffer is successfully flushed.
         while (true) {
             try {
-                YT_LOG_DEBUG("Started flushing table chunk (BufferIndex: %v, BufferSize: %v)",
-                    buffer->GetIndex(),
-                    buffer->GetSize());
+                YT_TLOG_DEBUG("Started flushing table chunk")
+                    .With("BufferIndex", buffer->GetIndex())
+                    .With("BufferSize", buffer->GetSize());
 
                 TRichYPath richPath(Path_);
                 richPath.SetAppend(true);
@@ -269,8 +269,8 @@ private:
                 WaitFor(writer->Close())
                     .ThrowOnError();
 
-                YT_LOG_DEBUG("Finished flushing table chunk (BufferIndex: %v)",
-                    buffer->GetIndex());
+                YT_TLOG_DEBUG("Finished flushing table chunk")
+                    .With("BufferIndex", buffer->GetIndex());
 
                 buffer->Clear();
 
@@ -282,8 +282,9 @@ private:
 
                 return;
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to flush table chunk; will retry later (BufferIndex: %v)",
-                    buffer->GetIndex());
+                YT_TLOG_WARNING("Failed to flush table chunk; will retry later")
+                    .With("BufferIndex", buffer->GetIndex())
+                    .With(TError(ex));
                 TDelayedExecutor::WaitForDuration(Config_->RetryBackoffTime);
             }
         }

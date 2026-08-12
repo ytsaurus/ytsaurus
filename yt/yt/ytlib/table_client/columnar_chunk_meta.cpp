@@ -121,11 +121,11 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta, bool compres
 
         CompressedBlockLastKeys_ = NColumnarChunkFormat::CompressBlockLastKeys(blockLastKeys, std::move(blockChunkRowCounts), ChunkSchema_);
 
-        YT_LOG_DEBUG("Compressed block last keys (UncompressedSize: %v, CompressedSize: %v, CompressionRatio: %v, Count: %v)",
-            BlockLastKeysSize_,
-            CompressedBlockLastKeys_->GetByteSize(),
-            double(CompressedBlockLastKeys_->GetByteSize()) / BlockLastKeysSize_,
-            DataBlockMeta_->data_blocks_size());
+        YT_TLOG_DEBUG("Compressed block last keys")
+            .With("UncompressedSize", BlockLastKeysSize_)
+            .With("CompressedSize", CompressedBlockLastKeys_->GetByteSize())
+            .With("CompressionRatio", double(CompressedBlockLastKeys_->GetByteSize()) / BlockLastKeysSize_)
+            .With("Count", DataBlockMeta_->data_blocks_size());
 
         BlockLastKeysSize_ = CompressedBlockLastKeys_->GetByteSize();
         BlockLastKeys_.Reset();

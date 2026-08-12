@@ -712,9 +712,9 @@ public:
             "Bad chunk writer configuration. Either column meta in chunk meta or segment meta in blocks"
             "must be allowed");
 
-        YT_LOG_DEBUG("Created columnar versioned chunk writer (ColumnMetaEnabled: %v, SegmentMetaEnabled: %v)",
-            IsColumnMetaInChunkMetaEnabled(),
-            IsSegmentMetaInBlocksEnabled());
+        YT_TLOG_DEBUG("Created columnar versioned chunk writer")
+            .With("ColumnMetaEnabled", IsColumnMetaInChunkMetaEnabled())
+            .With("SegmentMetaEnabled", IsSegmentMetaInBlocksEnabled());
 
         auto createBlockWriter = [&] {
             int blockWriterIndex = std::ssize(BlockWriters_);

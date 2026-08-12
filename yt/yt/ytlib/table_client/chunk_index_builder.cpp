@@ -155,12 +155,11 @@ private:
 
         YT_VERIFY(entryIndex == std::ssize(Entries_));
 
-        YT_LOG_DEBUG("Hash table chunk index is built "
-            "(BlockCount: %v, EntryCount: %v, Size: %v, WallTime: %v)",
-            blocks.size(),
-            Entries_.size(),
-            GetByteSize(blocks),
-            timer.GetElapsedTime());
+        YT_TLOG_DEBUG("Hash table chunk index is built")
+            .With("BlockCount", blocks.size())
+            .With("EntryCount", Entries_.size())
+            .With("Size", GetByteSize(blocks))
+            .With("WallTime", timer.GetElapsedTime());
 
         return blocks;
     }
