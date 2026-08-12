@@ -257,6 +257,9 @@ items:
          - name: Root file system images
            when: audience == "public"
            href: user-guide/data-processing/layers/layer-paths.md
+         - name: Job file environment
+           when: audience == "public"
+           href: user-guide/data-processing/layers/nbd-squashfs-layers.md
          - name: Switching between tables
            when: audience == "public"
            href: user-guide/data-processing/operations/table-switch.md
@@ -371,7 +374,7 @@ items:
                - name: Troubleshooting
                  href: user-guide/data-processing/spyt/problems.md
              - name: SPYT Connect
-               items: 
+               items:
                - name: SPYT Connect
                  href: user-guide/data-processing/spyt/connect.md
                - name: Livy server
@@ -617,6 +620,8 @@ items:
          href: admin-guide/native-encryption.md
        - name: Inter-cluster network bandwidth throttling
          href: admin-guide/cluster-throttlers.md
+       - name: NBD on cluster
+         href: admin-guide/nbd.md
        - name: Misc
          items:
            - name: Reading from remote clusters via RPC proxy
