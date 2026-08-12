@@ -474,6 +474,7 @@ SRCS(
     table_chunk_format/timestamp_writer.cpp
 
     table_client/blob_table_writer.cpp
+    table_client/attach_table.cpp
     table_client/cache_based_versioned_chunk_reader.cpp
     table_client/cached_versioned_chunk_meta.cpp
     table_client/chunk_column_mapping.cpp
@@ -520,6 +521,7 @@ SRCS(
     table_client/schemaless_buffered_table_writer.cpp
     table_client/schemaless_chunk_reader.cpp
     table_client/schemaless_chunk_writer.cpp
+    table_client/schemaless_table_uploader.cpp
     table_client/schemaless_multi_chunk_reader.cpp
     table_client/skynet_column_evaluator.cpp
     table_client/slice_boundary_key.cpp

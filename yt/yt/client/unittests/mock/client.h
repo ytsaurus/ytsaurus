@@ -144,6 +144,12 @@ public:
         const TTableWriterOptions& options),
         (override));
 
+    MOCK_METHOD(TFuture<void>, AttachTable, (
+        const NYPath::TRichYPath& path,
+        std::vector<std::string> sourceUris,
+        const TAttachTableOptions& options),
+        (override));
+
     MOCK_METHOD(TFuture<NYson::TYsonString>, GetNode, (
         const NYPath::TYPath& path,
         const TGetNodeOptions& options),

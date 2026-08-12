@@ -21,6 +21,7 @@
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/attach_table.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <yt/yt/ytlib/table_client/proto/table_partition_cookie.pb.h>
@@ -132,6 +133,28 @@ TFuture<ITableWriterPtr> TClient::CreateTableWriter(
     return asyncSchemalessWriter.Apply(BIND([] (const IUnversionedWriterPtr& schemalessWriter) {
         return CreateApiFromSchemalessWriterAdapter(std::move(schemalessWriter));
     }));
+}
+
+void TClient::DoAttachTable(
+    const NYPath::TRichYPath& path,
+    std::vector<std::string> sourceUris,
+    const TAttachTableOptions& options)
+{
+    NApi::ITransactionPtr transaction;
+    if (options.TransactionId) {
+        TTransactionAttachOptions transactionOptions;
+        transactionOptions.Ping = options.Ping;
+        transactionOptions.PingAncestors = options.PingAncestors;
+        transaction = AttachTransaction(options.TransactionId, transactionOptions);
+    }
+
+    WaitFor(NTableClient::AttachTable(
+        path,
+        std::move(sourceUris),
+        options,
+        this,
+        std::move(transaction)))
+        .ThrowOnError();
 }
 
 std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(

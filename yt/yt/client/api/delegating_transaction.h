@@ -60,6 +60,11 @@ public:
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options) override;
 
+    TFuture<void> AttachTable(
+        const NYPath::TRichYPath& path,
+        std::vector<std::string> sourceUris,
+        const TAttachTableOptions& options) override;
+
     // Cypress
     TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,

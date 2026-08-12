@@ -76,6 +76,11 @@ public:
         const NYPath::TRichYPath& /*path*/,
         const TTableWriterOptions& /*options*/))
 
+    UNIMPLEMENTED_METHOD(TFuture<void>, AttachTable, (
+        const NYPath::TRichYPath& /*path*/,
+        std::vector<std::string> /*sourceUris*/,
+        const TAttachTableOptions& /*options*/))
+
     // Queues
     UNIMPLEMENTED_METHOD(TFuture<NQueueClient::IQueueRowsetPtr>, PullQueue, (
         const NYPath::TRichYPath& /*queuePath*/,

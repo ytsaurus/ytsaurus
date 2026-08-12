@@ -3924,6 +3924,24 @@ class YtClient(ClientState):
             compute_md5=compute_md5, size_hint=size_hint, filename_hint=filename_hint, progress_monitor=progress_monitor
         )
 
+    def attach_table(
+        self,
+        destination_table,
+        source_uris,
+        allow_incompatible_source_schemas=None,
+        medium=None,
+        source_format=None,
+    ):
+        """Attach external Parquet objects as chunks of an existing static table."""
+        return client_api.attach_table(
+            destination_table,
+            source_uris,
+            allow_incompatible_source_schemas=allow_incompatible_source_schemas,
+            medium=medium,
+            source_format=source_format,
+            client=self,
+        )
+
     def write_table(
         self,
         table: Union[str, ForwardRef("TablePath")],
