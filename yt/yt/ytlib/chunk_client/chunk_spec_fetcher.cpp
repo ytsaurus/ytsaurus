@@ -50,12 +50,12 @@ TMasterChunkSpecFetcher::TMasterChunkSpecFetcher(
     NApi::NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    const TMasterChunkSpecFetcherOptions& options,
+    TMasterChunkSpecFetcherOptions options,
     TLogger logger)
     : Client_(std::move(client))
     , NodeDirectory_(std::move(nodeDirectory))
     , Invoker_(std::move(invoker))
-    , Options_(options)
+    , Options_(std::move(options))
     , Logger(std::move(logger))
 { }
 

@@ -45,7 +45,7 @@ public:
         NApi::NNative::IClientPtr client,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        const TMasterChunkSpecFetcherOptions& options,
+        TMasterChunkSpecFetcherOptions options,
         NLogging::TLogger logger);
 
     void Add(
