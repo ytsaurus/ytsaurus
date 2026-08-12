@@ -1032,18 +1032,6 @@ public: \
         NObjectClient::TTransactionId parentTransactionId,
         const TStartShuffleOptions& options),
         (account, partitionCount, parentTransactionId, options))
-    IMPLEMENT_METHOD(void, RegisterShuffleChunks, (
-        const TShuffleHandlePtr& shuffleHandle,
-        const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-        std::optional<int> logicalWriterIndex,
-        const TRegisterShuffleChunksOptions& options),
-        (shuffleHandle, chunkSpecs, logicalWriterIndex, options))
-    IMPLEMENT_METHOD(std::vector<NChunkClient::NProto::TChunkSpec>, FetchShuffleChunks, (
-        const TShuffleHandlePtr& shuffleHandle,
-        int partitionIndex,
-        std::optional<std::pair<int, int>> logicalWriterIndexRange,
-        const TFetchShuffleChunksOptions& options),
-        (shuffleHandle, partitionIndex, logicalWriterIndexRange, options))
     IMPLEMENT_METHOD(void, ForsakeChaosCoordinator, (
         NHydra::TCellId chaosCellId,
         NHydra::TCellId cordinatorCellId,

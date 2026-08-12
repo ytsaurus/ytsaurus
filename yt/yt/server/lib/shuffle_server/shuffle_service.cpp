@@ -217,7 +217,8 @@ public:
         auto controller = WaitFor(ShuffleManager_->GetController(shuffleHandle->TransactionId))
             .ValueOrThrow();
 
-        if (auto pushController = DynamicPointerCast<IPushBasedShuffleController>(controller)) {
+        if (shuffleHandle->UsePushBasedShuffle) {
+            auto pushController = ToPushBasedOrThrow(controller);
             auto fetchResult = WaitFor(pushController->FetchChunks(request->partition_index(), logicalWriterIndexRange))
                 .ValueOrThrow();
             for (const auto& info : fetchResult.Chunks) {
