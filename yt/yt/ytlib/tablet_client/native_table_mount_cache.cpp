@@ -189,7 +189,7 @@ private:
                     .With(TError(ex));
                 THROW_ERROR_EXCEPTION("Error getting mount info for %v",
                     Path_)
-                    .With(TError(ex));
+                    .With(ex);
             }
         }
 
