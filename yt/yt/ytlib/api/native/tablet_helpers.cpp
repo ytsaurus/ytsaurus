@@ -407,10 +407,10 @@ TTableReplicaInfoPtrList OnTabletInfosReceived(
     for (const auto& replicaInfo : tableInfo->Replicas) {
         auto it = replicaIdToCount.find(replicaInfo->ReplicaId);
         if (it != replicaIdToCount.end() && it->second == totalTabletCount) {
-            YT_LOG_DEBUG("In-sync replica found (Path: %v, ReplicaId: %v, ClusterName: %v)",
-                tableInfo->Path,
-                replicaInfo->ReplicaId,
-                replicaInfo->ClusterName);
+            YT_TLOG_DEBUG("In-sync replica found")
+                .With("Path", tableInfo->Path)
+                .With("ReplicaId", replicaInfo->ReplicaId)
+                .With("ClusterName", replicaInfo->ClusterName);
             inSyncReplicaInfos.push_back(replicaInfo);
         }
     }
@@ -454,12 +454,11 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         }
     }
 
-    YT_LOG_DEBUG("Looking for in-sync replicas "
-        "(Path: %v, CellCount: %v, TotalTabletCount: %v, CachedTabletCount: %v)",
-        tableInfo->Path,
-        cellIdToTabletIds.size(),
-        totalTabletCount,
-        cachedTabletCount);
+    YT_TLOG_DEBUG("Looking for in-sync replicas")
+        .With("Path", tableInfo->Path)
+        .With("CellCount", cellIdToTabletIds.size())
+        .With("TotalTabletCount", totalTabletCount)
+        .With("CachedTabletCount", cachedTabletCount);
 
     const auto& channelFactory = connection->GetChannelFactory();
 

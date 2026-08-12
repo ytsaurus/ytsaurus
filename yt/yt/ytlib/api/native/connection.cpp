@@ -267,7 +267,7 @@ public:
         }
 
         if (config->EnableDynamicCacheStickyGroupSize) {
-            YT_LOG_INFO("Dynamic cache sticky group size enabled");
+            YT_TLOG_INFO("Dynamic cache sticky group size enabled");
             StickyGroupSizeCache_ = New<TStickyGroupSizeCache>(
                 config->StickyGroupSizeCacheExpirationTimeout,
                 GetInvoker());
@@ -1008,9 +1008,9 @@ public:
         const std::vector<TCellId>& srcCellIds,
         TCellId dstCellId) override
     {
-        YT_LOG_DEBUG("Started synchronizing Hive cell with others (SrcCellIds: %v, DstCellId: %v)",
-            srcCellIds,
-            dstCellId);
+        YT_TLOG_DEBUG("Started synchronizing Hive cell with others")
+            .With("SrcCellIds", srcCellIds)
+            .With("DstCellId", dstCellId);
 
         auto channel = CellDirectory_->GetChannelByCellIdOrThrow(dstCellId);
         THiveServiceProxy proxy(std::move(channel));
@@ -1026,9 +1026,9 @@ public:
                     "Error synchronizing Hive cell %v with %v",
                     dstCellId,
                     srcCellIds);
-                YT_LOG_DEBUG("Finished synchronizing Hive cell with others (SrcCellIds: %v, DstCellId: %v)",
-                    srcCellIds,
-                    dstCellId);
+                YT_TLOG_DEBUG("Finished synchronizing Hive cell with others")
+                    .With("SrcCellIds", srcCellIds)
+                    .With("DstCellId", dstCellId);
             }));
     }
 
@@ -1419,12 +1419,16 @@ private:
                 try {
                     config = ConvertTo<NNative::TConnectionDynamicConfigPtr>(nativeConnectionConfig);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Cannot update cluster TVM ids because of invalid connection config (Name: %v)", name);
+                    YT_TLOG_ERROR("Cannot update cluster TVM ids because of invalid connection config")
+                        .With("Name", name)
+                        .With(ex);
                     return;
                 }
 
                 if (config->TvmId) {
-                    YT_LOG_INFO("Adding cluster service ticket to TVM client (Name: %v, TvmId: %v)", name, *config->TvmId);
+                    YT_TLOG_INFO("Adding cluster service ticket to TVM client")
+                        .With("Name", name)
+                        .With("TvmId", *config->TvmId);
                     tvmService->AddDestinationServiceIds({*config->TvmId});
                 }
             }));
@@ -1699,7 +1703,8 @@ TFuture<IConnectionPtr> InsistentGetRemoteConnection(
 
         auto Logger = ApiLogger();
         TError error = TError("Unknown insistent get remote connection mode %v", mode);
-        YT_LOG_ALERT(error);
+        YT_TLOG_ALERT("Unknown insistent get remote connection mode")
+            .With("Mode", mode);
         return MakeFuture(error);
     }();
 
@@ -1770,7 +1775,8 @@ TFuture<std::vector<IConnectionPtr>> InsistentGetMultipleRemoteConnections(
 
         auto Logger = ApiLogger();
         TError error = TError("Unknown insistent get remote connection mode %v", mode);
-        YT_LOG_ALERT(error);
+        YT_TLOG_ALERT("Unknown insistent get remote connection mode")
+            .With("Mode", mode);
         return MakeFuture(error);
     }();
 

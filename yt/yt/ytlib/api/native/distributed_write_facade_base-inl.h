@@ -53,8 +53,8 @@ TTraits::TSessionWithCookies TDistributedWriteStartFacadeBase<TDerived, TTraits>
     NYTree::INodePtr nodeWithAttributes;
 
     {
-        YT_LOG_DEBUG("Requesting extended object attributes (ObjectType: %Qlv)",
-            TTraits::ObjectType);
+        YT_TLOG_DEBUG("Requesting extended object attributes")
+            .With("ObjectType", TTraits::ObjectType);
 
         nodeWithAttributes = ToDerived()->RequestExtendedObjectAttributes(
             richPath,
@@ -62,9 +62,9 @@ TTraits::TSessionWithCookies TDistributedWriteStartFacadeBase<TDerived, TTraits>
             objectIdPath,
             userObject);
 
-        YT_LOG_DEBUG("Extended attributes received (Attributes: %v, ObjectType: %Qlv)",
-            ConvertToYsonString(nodeWithAttributes->Attributes(), NYson::EYsonFormat::Text),
-            TTraits::ObjectType);
+        YT_TLOG_DEBUG("Extended attributes received")
+            .With("Attributes", ConvertToYsonString(nodeWithAttributes->Attributes(), NYson::EYsonFormat::Text))
+            .With("ObjectType", TTraits::ObjectType);
     }
 
     auto [chunkSchemaId, uploadTransactionId] = ToDerived()->BeginUpload(

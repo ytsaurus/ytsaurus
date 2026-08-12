@@ -73,36 +73,30 @@ TAllocationBriefInfo ParseGetBreifAllocationInfoResponse(
     YT_VERIFY(allocationId == result.AllocationId);
 
     if (allocationInfoToRequest.OperationId) {
-        YT_LOG_FATAL_UNLESS(
-            result.OperationId,
-            "Operation id is missing in scheduler response (AllocationId: %v)",
-            allocationId);
+        YT_TLOG_FATAL_UNLESS(result.OperationId, "Operation id is missing in scheduler response")
+            .With("AllocationId", allocationId);
     }
 
     if (allocationInfoToRequest.OperationAcl) {
-        YT_LOG_FATAL_UNLESS(
-            result.OperationAcl,
-            "Operation acl is missing in scheduler response (AllocationId: %v)",
-            allocationId);
+        YT_TLOG_FATAL_UNLESS(result.OperationAcl, "Operation acl is missing in scheduler response")
+            .With("AllocationId", allocationId);
     }
 
     if (allocationInfoToRequest.ControllerAgentDescriptor) {
-        YT_LOG_FATAL_UNLESS(
+        YT_TLOG_FATAL_UNLESS(
             result.ControllerAgentDescriptor,
-            "Controller agent descriptor is missing in scheduler response (AllocationId: %v)",
-            allocationId);
-        YT_LOG_FATAL_UNLESS(
+            "Controller agent descriptor is missing in scheduler response")
+            .With("AllocationId", allocationId);
+        YT_TLOG_FATAL_UNLESS(
             result.ControllerAgentDescriptor.Addresses,
-            "Controller agent addresses is missing in scheduler response (AllocationId: %v, ControllerAgentDescriptor: %v))",
-            allocationId,
-            result.ControllerAgentDescriptor);
+            "Controller agent addresses is missing in scheduler response")
+            .With("AllocationId", allocationId)
+            .With("ControllerAgentDescriptor", result.ControllerAgentDescriptor);
     }
 
     if (allocationInfoToRequest.NodeDescriptor) {
-        YT_LOG_FATAL_IF(
-            result.NodeDescriptor.IsNull(),
-            "Node descriptor is missing in scheduler response (AllocationId: %v)",
-            allocationId);
+        YT_TLOG_FATAL_IF(result.NodeDescriptor.IsNull(), "Node descriptor is missing in scheduler response")
+            .With("AllocationId", allocationId);
     }
 
     return result;
@@ -137,30 +131,26 @@ void SetupClusterConnectionDynamicConfigUpdate(
         return;
     }
 
-    YT_LOG_INFO(
-        "Setting up cluster connection dynamic config update (Policy: %v, Cluster: %v)",
-        policy,
-        connection->GetClusterName());
+    YT_TLOG_INFO("Setting up cluster connection dynamic config update")
+        .With("Policy", policy)
+        .With("Cluster", connection->GetClusterName());
 
     connection->GetClusterDirectory()->SubscribeOnClusterUpdated(BIND([=] (const std::string& clusterName, const INodePtr& configNode) {
         if (clusterName != connection->GetClusterName()) {
-            YT_LOG_DEBUG(
-                "Skipping cluster directory update for unrelated cluster (UpdatedCluster: %v)",
-                clusterName);
+            YT_TLOG_DEBUG("Skipping cluster directory update for unrelated cluster")
+                .With("UpdatedCluster", clusterName);
             return;
         }
 
         auto dynamicConfigNode = configNode;
 
-        YT_LOG_DEBUG(
-            "Applying cluster connection update from cluster directory (DynamicConfig: %v)",
-            ConvertToYsonString(dynamicConfigNode, EYsonFormat::Text).ToString());
+        YT_TLOG_DEBUG("Applying cluster connection update from cluster directory")
+            .With("DynamicConfig", ConvertToYsonString(dynamicConfigNode, EYsonFormat::Text).ToString());
 
         if (policy == EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch) {
             dynamicConfigNode = PatchNode(dynamicConfigNode, staticClusterConnectionNode);
-            YT_LOG_DEBUG(
-                "Patching cluster connection dynamic config with static config (DynamicConfig: %v)",
-                ConvertToYsonString(dynamicConfigNode, EYsonFormat::Text).ToString());
+            YT_TLOG_DEBUG("Patching cluster connection dynamic config with static config")
+                .With("DynamicConfig", ConvertToYsonString(dynamicConfigNode, EYsonFormat::Text).ToString());
         }
 
         TConnectionDynamicConfigPtr dynamicConfig;
@@ -168,14 +158,13 @@ void SetupClusterConnectionDynamicConfigUpdate(
             dynamicConfig = ConvertTo<TConnectionDynamicConfigPtr>(dynamicConfigNode);
             connection->Reconfigure(dynamicConfig);
 
-            YT_LOG_DEBUG("Cluster connection dynamic config applied (Policy: %v, Cluster: %v, DynamicConfig: %v)",
-                policy,
-                connection->GetClusterName(),
-                ConvertToYsonString(dynamicConfigNode, EYsonFormat::Text).ToString());
+            YT_TLOG_DEBUG("Cluster connection dynamic config applied")
+                .With("Policy", policy)
+                .With("Cluster", connection->GetClusterName())
+                .With("DynamicConfig", ConvertToYsonString(dynamicConfigNode, EYsonFormat::Text).ToString());
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(
-                ex,
-                "Failed to apply cluster connection dynamic config, ignoring update");
+            YT_TLOG_ERROR("Failed to apply cluster connection dynamic config, ignoring update")
+                .With(ex);
             return;
         }
     }));
@@ -304,9 +293,10 @@ TDuration InvalidateMountCacheAndGetRetryDelay(
 
     TDuration timeToWait;
     if (invalidationResult.Retryable && ++(*retryCount) <= config->TableMountCache->OnErrorRetryCount) {
-        YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",
-            *retryCount,
-            config->TableMountCache->OnErrorRetryCount);
+        YT_TLOG_DEBUG("Got error, will retry")
+            .With("Attempt", *retryCount)
+            .With("AttemptCount", config->TableMountCache->OnErrorRetryCount)
+            .With(error);
 
         if (!invalidationResult.TableInfoUpdatedFromError) {
             auto now = Now();

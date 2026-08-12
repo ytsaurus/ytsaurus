@@ -49,7 +49,7 @@ TClusterBackupSession::TClusterBackupSession(
 TClusterBackupSession::~TClusterBackupSession()
 {
     if (Transaction_) {
-        YT_LOG_DEBUG("Aborting backup transaction due to session failure");
+        YT_TLOG_DEBUG("Aborting backup transaction due to session failure");
         YT_UNUSED_FUTURE(Transaction_->Abort());
     }
 }
@@ -395,11 +395,10 @@ void TClusterBackupSession::WaitForCheckpoint()
         auto confirmedTabletCount = rsp->confirmed_tablet_count();
         auto pendingTabletCount = rsp->pending_tablet_count();
 
-        YT_LOG_DEBUG("Backup checkpoint checked (TablePath: %v, ConfirmedTabletCount: %v, "
-            "PendingTabletCount: %v)",
-            table->SourcePath,
-            confirmedTabletCount,
-            pendingTabletCount);
+        YT_TLOG_DEBUG("Backup checkpoint checked")
+            .With("TablePath", table->SourcePath)
+            .With("ConfirmedTabletCount", confirmedTabletCount)
+            .With("PendingTabletCount", pendingTabletCount);
 
         if (pendingTabletCount == 0) {
             unconfirmedTables.erase(table);
@@ -410,8 +409,8 @@ void TClusterBackupSession::WaitForCheckpoint()
     auto deadline = TInstant::Now() + options.CheckpointCheckTimeout;
 
     while (TInstant::Now() < deadline) {
-        YT_LOG_DEBUG("Waiting for backup checkpoint (RemainingTableCount: %v)",
-            ssize(unconfirmedTables));
+        YT_TLOG_DEBUG("Waiting for backup checkpoint")
+            .With("RemainingTableCount", ssize(unconfirmedTables));
         ExecuteForAllTables(buildRequest, onResponse, /*write*/ false);
         if (unconfirmedTables.empty()) {
             break;
@@ -695,9 +694,9 @@ void TClusterBackupSession::MountRestoredTables()
             YT_VERIFY(table.TabletState == ETabletState::Mounted);
         }
 
-        YT_LOG_DEBUG("Mounting restored table (TableId: %v, TablePath: %v)",
-            table.DestinationTableId,
-            table.DestinationPath);
+        YT_TLOG_DEBUG("Mounting restored table")
+            .With("TableId", table.DestinationTableId)
+            .With("TablePath", table.DestinationPath);
 
         asyncRsps.push_back(Client_->MountTable(
             FromObjectId(table.DestinationTableId),
@@ -715,12 +714,11 @@ void TClusterBackupSession::EnableRestoredReplicas()
     for (const auto& table : Tables_) {
         for (const auto& [replicaId, replicaInfo] : table.Replicas) {
             if (replicaInfo.State == ETableReplicaState::Enabled) {
-                YT_LOG_DEBUG("Enabling restored table replica (TableId: %v, TablePath: %v, "
-                    "ReplicaId: %v, ReplicaCluster: %v)",
-                    table.DestinationTableId,
-                    table.DestinationPath,
-                    replicaId,
-                    replicaInfo.ClusterName);
+                YT_TLOG_DEBUG("Enabling restored table replica")
+                    .With("TableId", table.DestinationTableId)
+                    .With("TablePath", table.DestinationPath)
+                    .With("ReplicaId", replicaId)
+                    .With("ReplicaCluster", replicaInfo.ClusterName);
 
                 asyncRsps.push_back(Client_->AlterTableReplica(
                     replicaInfo.ClonedReplicaId,
@@ -832,52 +830,52 @@ TBackupSession::TBackupSession(
 void TBackupSession::RunCreate()
 {
     const auto& options = std::get<TCreateTableBackupOptions>(Options_);
-    YT_LOG_DEBUG("Generating checkpoint timestamp (Now: %v, Delay: %v)",
-        TInstant::Now(),
-        options.CheckpointTimestampDelay);
+    YT_TLOG_DEBUG("Generating checkpoint timestamp")
+        .With("Now", TInstant::Now())
+        .With("Delay", options.CheckpointTimestampDelay);
     Timestamp_ = InstantToTimestamp(TInstant::Now() + options.CheckpointTimestampDelay).second;
 
-    YT_LOG_DEBUG("Generated checkpoint timestamp for backup (Timestamp: %v)",
-        Timestamp_);
+    YT_TLOG_DEBUG("Generated checkpoint timestamp for backup")
+        .With("Timestamp", Timestamp_);
 
     InitializeAndLockTables(EBackupDirection::Backup);
 
-    YT_LOG_DEBUG("Starting table backups");
+    YT_TLOG_DEBUG("Starting table backups");
     for (const auto& [name, session] : ClusterSessions_) {
         session->StartBackup();
     }
 
-    YT_LOG_DEBUG("Waiting for backup checkpoints");
+    YT_TLOG_DEBUG("Waiting for backup checkpoints");
     for (const auto& [name, session] : ClusterSessions_) {
         session->WaitForCheckpoint();
     }
 
-    YT_LOG_DEBUG("Cloning tables in backup mode");
+    YT_TLOG_DEBUG("Cloning tables in backup mode");
     for (const auto& [name, session] : ClusterSessions_) {
         session->CloneTables(NCypressClient::ENodeCloneMode::Backup);
     }
 
-    YT_LOG_DEBUG("Finishing backups");
+    YT_TLOG_DEBUG("Finishing backups");
     for (const auto& [name, session] : ClusterSessions_) {
         session->FinishBackups();
     }
 
-    YT_LOG_DEBUG("Validating backup states");
+    YT_TLOG_DEBUG("Validating backup states");
     for (const auto& [name, session] : ClusterSessions_) {
         session->ValidateBackupStates(ETabletBackupState::BackupCompleted);
     }
 
-    YT_LOG_DEBUG("Fetching cloned replica ids");
+    YT_TLOG_DEBUG("Fetching cloned replica ids");
     for (const auto& [name, session] : ClusterSessions_) {
         session->FetchClonedReplicaIds();
     }
 
-    YT_LOG_DEBUG("Updating upstream replica ids");
+    YT_TLOG_DEBUG("Updating upstream replica ids");
     for (const auto& [name, session] : ClusterSessions_) {
         session->UpdateUpstreamReplicaIds();
     }
 
-    YT_LOG_DEBUG("Remembering tablet states");
+    YT_TLOG_DEBUG("Remembering tablet states");
     for (const auto& [name, session] : ClusterSessions_) {
         session->RememberTabletStates();
     }
@@ -891,32 +889,32 @@ void TBackupSession::RunRestore()
 
     InitializeAndLockTables(EBackupDirection::Restore);
 
-    YT_LOG_DEBUG("Starting table restores");
+    YT_TLOG_DEBUG("Starting table restores");
     for (const auto& [name, session] : ClusterSessions_) {
         session->StartRestore();
     }
 
-    YT_LOG_DEBUG("Cloning tables in restore mode");
+    YT_TLOG_DEBUG("Cloning tables in restore mode");
     for (const auto& [name, session] : ClusterSessions_) {
         session->CloneTables(NCypressClient::ENodeCloneMode::Restore);
     }
 
-    YT_LOG_DEBUG("Finishing restores");
+    YT_TLOG_DEBUG("Finishing restores");
     for (const auto& [name, session] : ClusterSessions_) {
         session->FinishRestores();
     }
 
-    YT_LOG_DEBUG("Validating backup states");
+    YT_TLOG_DEBUG("Validating backup states");
     for (const auto& [name, session] : ClusterSessions_) {
         session->ValidateBackupStates(ETabletBackupState::None);
     }
 
-    YT_LOG_DEBUG("Fetching cloned replica ids");
+    YT_TLOG_DEBUG("Fetching cloned replica ids");
     for (const auto& [name, session] : ClusterSessions_) {
         session->FetchClonedReplicaIds();
     }
 
-    YT_LOG_DEBUG("Updating upstream replica ids");
+    YT_TLOG_DEBUG("Updating upstream replica ids");
     for (const auto& [name, session] : ClusterSessions_) {
         session->UpdateUpstreamReplicaIds();
     }
@@ -924,14 +922,14 @@ void TBackupSession::RunRestore()
     CommitTransactions();
 
     if (options.Mount) {
-        YT_LOG_DEBUG("Mounting restored tables");
+        YT_TLOG_DEBUG("Mounting restored tables");
         for (const auto& [name, session] : ClusterSessions_) {
             session->MountRestoredTables();
         }
     }
 
     if (options.EnableReplicas) {
-        YT_LOG_DEBUG("Enabling restored replicas");
+        YT_TLOG_DEBUG("Enabling restored replicas");
         for (const auto& [name, session] : ClusterSessions_) {
             session->EnableRestoredReplicas();
         }
@@ -974,12 +972,12 @@ void TBackupSession::InitializeAndLockTables(EBackupDirection direction)
 
     MatchReplicatedTablesWithReplicas();
 
-    YT_LOG_DEBUG("Starting backup transactions");
+    YT_TLOG_DEBUG("Starting backup transactions");
     for (const auto& [name, session] : ClusterSessions_) {
         session->StartTransaction();
     }
 
-    YT_LOG_DEBUG("Locking tables before backup/restore");
+    YT_TLOG_DEBUG("Locking tables before backup/restore");
     for (const auto& [name, session] : ClusterSessions_) {
         session->LockInputTables();
     }
@@ -1058,7 +1056,7 @@ void TBackupSession::MatchReplicatedTablesWithReplicas()
 
 void TBackupSession::CommitTransactions()
 {
-    YT_LOG_DEBUG("Committing backup transactions");
+    YT_TLOG_DEBUG("Committing backup transactions");
     for (const auto& [name, session] : ClusterSessions_) {
         session->CommitTransaction();
     }

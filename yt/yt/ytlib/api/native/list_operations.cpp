@@ -818,7 +818,7 @@ TListOperationsFilter::TListOperationsFilter(
 
 std::vector<TOperation> TListOperationsFilter::BuildOperations(const THashSet<std::string>& attributes) const
 {
-    YT_LOG_DEBUG("Building final operations result");
+    YT_TLOG_DEBUG("Building final operations result");
 
     std::vector<TOperation> operations;
     operations.reserve(LightOperations_.size());
@@ -827,7 +827,8 @@ std::vector<TOperation> TListOperationsFilter::BuildOperations(const THashSet<st
         RunYsonPullParser(lightOperation.Yson, ParseOperationToConsumer<TConstructingOperationConsumer>, &consumer);
     }
 
-    YT_LOG_DEBUG("Operations result built (OperationCount: %v)", operations.size());
+    YT_TLOG_DEBUG("Operations result built")
+        .With("OperationCount", operations.size());
 
     return operations;
 }
@@ -839,7 +840,8 @@ i64 TListOperationsFilter::GetCount() const
 
 void TListOperationsFilter::ParseResponses(std::vector<TYsonString> operationsResponses)
 {
-    YT_LOG_DEBUG("Parsing Cypress responses (ResponseCount: %v)", operationsResponses.size());
+    YT_TLOG_DEBUG("Parsing Cypress responses")
+        .With("ResponseCount", operationsResponses.size());
 
     std::vector<TFuture<TParseResult>> asyncResults;
 
@@ -888,7 +890,8 @@ void TListOperationsFilter::ParseResponses(std::vector<TYsonString> operationsRe
         LightOperations_.resize(operationsToRetain);
     }
 
-    YT_LOG_DEBUG("Cypress responses parsed (OperationCount: %v)", LightOperations_.size());
+    YT_TLOG_DEBUG("Cypress responses parsed")
+        .With("OperationCount", LightOperations_.size());
 }
 
 TListOperationsFilter::TParseResult TListOperationsFilter::ParseOperationsYson(TYsonString operationsYson) const

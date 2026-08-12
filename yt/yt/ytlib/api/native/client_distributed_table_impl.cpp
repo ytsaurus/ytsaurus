@@ -118,10 +118,9 @@ void SortAndValidateDistributedWriteResults(
     const NLogging::TLogger& Logger)
 {
     const auto& path = patchInfo.RichPath.GetPath();
-    YT_LOG_DEBUG(
-        "Sorting output chunk tree ids by boundary keys (ChunkTreeCount: %v, Table: %v)",
-        std::ssize(*results),
-        path);
+    YT_TLOG_DEBUG("Sorting output chunk tree ids by boundary keys")
+        .With("ChunkTreeCount", std::ssize(*results))
+        .With("Table", path);
 
     if (results->empty()) {
         return;
@@ -154,11 +153,10 @@ void SortAndValidateDistributedWriteResults(
     if (tableUploadOptions.UpdateMode == EUpdateMode::Append &&
         lastKey)
     {
-        YT_LOG_DEBUG(
-            "Comparing table last key against first chunk min key (LastKey: %v, MinKey: %v, Comparator: %v)",
-            lastKey,
-            std::begin(*results)->MinBoundaryKey,
-            comparator);
+        YT_TLOG_DEBUG("Comparing table last key against first chunk min key")
+            .With("LastKey", lastKey)
+            .With("MinKey", std::begin(*results)->MinBoundaryKey)
+            .With("Comparator", comparator);
 
         int cmp = comparator.CompareKeys(
             TKey::FromRow(std::begin(*results)->MinBoundaryKey),

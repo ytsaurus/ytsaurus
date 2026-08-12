@@ -134,7 +134,7 @@ private:
 
     void DoOpen()
     {
-        YT_LOG_INFO("Opening file reader");
+        YT_TLOG_INFO("Opening file reader");
 
         TUserObject userObject(Path_);
 
@@ -159,7 +159,7 @@ private:
         Id_ = userObject.ObjectId;
 
         {
-            YT_LOG_INFO("Requesting extended file attributes");
+            YT_TLOG_INFO("Requesting extended file attributes");
 
             auto proxy = CreateObjectServiceReadProxy(
                 Client_,
@@ -191,7 +191,7 @@ private:
 
         bool emptyRead = Options_.Length && *Options_.Length == 0;
         if (!emptyRead) {
-            YT_LOG_INFO("Fetching file chunks");
+            YT_TLOG_INFO("Fetching file chunks");
 
             auto proxy = CreateObjectServiceReadProxy(
                 Client_,
@@ -258,7 +258,7 @@ private:
             StartListenTransaction(Transaction_);
         }
 
-        YT_LOG_INFO("File reader opened");
+        YT_TLOG_INFO("File reader opened");
     }
 };
 

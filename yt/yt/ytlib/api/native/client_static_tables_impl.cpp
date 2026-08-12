@@ -160,7 +160,8 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
         });
 
     for (const auto& path : paths) {
-        YT_LOG_INFO("Collecting table input chunks (Path: %v)", path);
+        YT_TLOG_INFO("Collecting table input chunks")
+            .With("Path", path);
 
         if (!path.GetColumns().has_value()) {
             THROW_ERROR_EXCEPTION("Received YPath without column selectors")
@@ -197,9 +198,9 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
         }
     }
 
-    YT_LOG_INFO("Fetching columnar statistics (FetcherMode: %v, TotalChunkCount: %v)",
-        options.FetcherMode,
-        totalChunkCount);
+    YT_TLOG_INFO("Fetching columnar statistics")
+        .With("FetcherMode", options.FetcherMode)
+        .With("TotalChunkCount", totalChunkCount);
 
     WaitFor(fetcher->Fetch())
         .ThrowOnError();

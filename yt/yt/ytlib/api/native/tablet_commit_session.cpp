@@ -297,20 +297,17 @@ private:
             ToProto(req->mutable_prerequisite_transaction_ids(), Options_.PrerequisiteTransactionIds);
         }
 
-        YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, CellId: %v, "
-            "PrepareSignature: %x, CommitSignature: %x, Versioned: %v, "
-            "UpstreamReplicaId: %v%v, PrerequisiteTransactionIds: %v%v)",
-            batchIndex,
-            Batches_.size(),
-            batch->RowCount,
-            TabletInfo_->CellId,
-            req->prepare_signature(),
-            req->commit_signature(),
-            req->versioned(),
-            Options_.UpstreamReplicaId,
-            MakeFormatterWrapper([&] (auto* builder) {
+        YT_TLOG_DEBUG("Sending transaction rows")
+            .WithFormat("BatchIndex", "%v/%v", batchIndex, Batches_.size())
+            .With("RowCount", batch->RowCount)
+            .With("CellId", TabletInfo_->CellId)
+            .WithFormat("PrepareSignature", "%x", req->prepare_signature())
+            .WithFormat("CommitSignature", "%x", req->commit_signature())
+            .With("Versioned", req->versioned())
+            .With("UpstreamReplicaId", Options_.UpstreamReplicaId)
+            .With("HunkChunksInfo", MakeFormatterWrapper([&] (auto* builder) {
                 if (HunkChunksInfo_) {
-                    builder->AppendFormat(", HunkCellId: %v, HunkTabletId: %v, HunkChunkRefs: %v",
+                    builder->AppendFormat("{CellId: %v, HunkTabletId: %v, HunkChunkRefs: %v}",
                         HunkChunksInfo_->CellId,
                         HunkChunksInfo_->HunkTabletId,
                         MakeFormattableView(
@@ -318,15 +315,12 @@ private:
                             [&] (auto* builder, const auto& info) {
                                 builder->AppendFormat("%v: %v", info.first, info.second.HunkCount);
                             }));
+                } else {
+                    builder->AppendString(TStringBuf("<null>"));
                 }
-            }),
-            Options_.PrerequisiteTransactionIds,
-            MakeFormatterWrapper([&] (auto* builder) {
-                if (commitContext->LocalRetryIndex) {
-                    builder->AppendFormat(", LocalRetryIndex: %v",
-                        commitContext->LocalRetryIndex);
-                }
-            }));
+            }))
+            .With("PrerequisiteTransactionIds", Options_.PrerequisiteTransactionIds)
+            .WithIf(commitContext->LocalRetryIndex != 0, "LocalRetryIndex", commitContext->LocalRetryIndex);
 
         req->Invoke().Subscribe(
             BIND(&TTabletCommitSession::OnResponse, MakeStrong(this), commitContext));
@@ -363,36 +357,27 @@ private:
     {
         auto newTabletInfo = tableMountInfo->FindTabletById(TabletInfo_->TabletId);
         if (!newTabletInfo) {
-            YT_LOG_DEBUG("Cannot retry sending transaction rows because updated mount info does not contain this tablet");
+            YT_TLOG_DEBUG("Cannot retry sending transaction rows because updated mount info does not contain this tablet");
             return firstBatchError.With("retry_skip_reason", "no_such_tablet");
         }
 
         if (newTabletInfo->LogicalMountRevision != TabletInfo_->LogicalMountRevision) {
-            YT_LOG_DEBUG("Cannot retry sending transaction rows because logical mount revision changed "
-                "(OldMountRevision: %x, NewMountRevision: %x, OldLogicalMountRevision: %x, NewLogicalMountRevision: %x)",
-                TabletInfo_->MountRevision,
-                newTabletInfo->MountRevision,
-                TabletInfo_->LogicalMountRevision,
-                newTabletInfo->LogicalMountRevision);
+            YT_TLOG_DEBUG("Cannot retry sending transaction rows because logical mount revision changed")
+                .WithFormat("OldMountRevision", "%x", TabletInfo_->MountRevision)
+                .WithFormat("NewMountRevision", "%x", newTabletInfo->MountRevision)
+                .WithFormat("OldLogicalMountRevision", "%x", TabletInfo_->LogicalMountRevision)
+                .WithFormat("NewLogicalMountRevision", "%x", newTabletInfo->LogicalMountRevision);
             return firstBatchError.With("retry_skip_reason", "logical_mount_revision_changed");
         }
 
         auto updateMountInfo = [&] (auto&& tabletInfo, auto&& tableInfo, bool cellChanged) {
-            YT_LOG_DEBUG("Retrying sending transaction rows%v "
-                "(LogicalMountRevision: %x, OldMountRevision: %x, NewMountRevision: %x%v)",
-                cellChanged ? " after tablet moved to a different cell" : "",
-                TabletInfo_->LogicalMountRevision,
-                TabletInfo_->MountRevision,
-                newTabletInfo->MountRevision,
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (cellChanged) {
-                        builder->AppendFormat(", OldCellId: %v, NewCellId: %v",
-                            TabletInfo_->CellId,
-                            newTabletInfo->CellId);
-                    } else {
-                        builder->AppendFormat(", CellId: %v", TabletInfo_->CellId);
-                    }
-                }));
+            YT_TLOG_DEBUG("Retrying sending transaction rows")
+                .With("TabletMovedToDifferentCell", cellChanged)
+                .WithFormat("LogicalMountRevision", "%x", TabletInfo_->LogicalMountRevision)
+                .WithFormat("OldMountRevision", "%x", TabletInfo_->MountRevision)
+                .WithFormat("NewMountRevision", "%x", newTabletInfo->MountRevision)
+                .With("CellId", TabletInfo_->CellId)
+                .WithIf(cellChanged, "NewCellId", newTabletInfo->CellId);
 
             TabletInfo_ = std::move(tabletInfo);
             TableInfo_ = std::move(tableInfo);
@@ -405,16 +390,15 @@ private:
 
         auto validateCellCommitSession = [&] (const auto& cellCommitSession, auto cellId) -> TError {
             if (cellCommitSession->HasRegisteredActions()) {
-                YT_LOG_DEBUG("Cannot retry sending transaction rows because cell commit session "
-                    "has registered transaction actions (CellId: %v)",
-                    cellId);
+                YT_TLOG_DEBUG("Cannot retry sending transaction rows because cell commit session has registered transaction actions")
+                    .With("CellId", cellId);
                 return firstBatchError.With("retry_skip_reason", "has_transaction_actions");
             }
 
             if (TypeFromId(cellId) != EObjectType::TabletCell) {
-                YT_LOG_ALERT("Cannot retry sending transaction rows because cell has unexpected type (CellId: %v, CellType: %v)",
-                    cellId,
-                    TypeFromId(cellId));
+                YT_TLOG_ALERT("Cannot retry sending transaction rows because cell has unexpected type")
+                    .With("CellId", cellId)
+                    .With("CellType", TypeFromId(cellId));
                 return firstBatchError.With("retry_skip_reason", "invalid_cell_type");
             }
             return {};
@@ -425,7 +409,7 @@ private:
         }
 
         if (!Config_->UseUniformPrepareSignatures) {
-            YT_LOG_DEBUG("Cannot retry sending transaction rows because uniform prepare signature is disabled");
+            YT_TLOG_DEBUG("Cannot retry sending transaction rows because uniform prepare signature is disabled");
             return firstBatchError.With("retry_skip_reason", "uniform_prepare_signature_disabled");
         }
 
@@ -481,7 +465,8 @@ private:
                     Client_->GetTableMountCache()->GetTableInfo(TableInfo_->Path)
                         .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TTableMountInfoPtr>& tableMountInfo) {
                             if (!tableMountInfo.IsOK()) {
-                                YT_LOG_DEBUG(tableMountInfo, "Cannot retry sending transaction rows because updating mount info failed");
+                                YT_TLOG_DEBUG("Cannot retry sending transaction rows because updating mount info failed")
+                                    .With(tableMountInfo);
                                 OnFirstBatchRetryFailed(commitContext, firstBatchError, "failed_to_update_mount_info");
                                 return;
                             }
@@ -539,8 +524,8 @@ private:
             commitContext->CommitPromise.Set(wrappedError);
             return;
         } else if (commitContext->LocalRetryIndex > 0 && commitContext->BatchIndex == 0) {
-            YT_LOG_DEBUG("Successfully retried sending transaction rows of the first batch (RetryIndex: %v)",
-                commitContext->LocalRetryIndex);
+            YT_TLOG_DEBUG("Successfully retried sending transaction rows of the first batch")
+                .With("RetryIndex", commitContext->LocalRetryIndex);
         }
 
         auto owner = Transaction_.Lock();
@@ -548,9 +533,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Transaction rows sent successfully (BatchIndex: %v/%v)",
-            commitContext->BatchIndex,
-            Batches_.size());
+        YT_TLOG_DEBUG("Transaction rows sent successfully")
+            .WithFormat("BatchIndex", "%v/%v", commitContext->BatchIndex, Batches_.size());
 
         commitContext->BatchIndex++;
         InvokeNextBatch(commitContext);
@@ -645,9 +629,8 @@ private:
 
         auto retryIndex = BackoffStrategy_.GetInvocationIndex();
 
-        YT_LOG_DEBUG("Committing tablet sessions (AttemptIndex: %v/%v)",
-            retryIndex,
-            BackoffStrategy_.GetInvocationCount());
+        YT_TLOG_DEBUG("Committing tablet sessions")
+            .WithFormat("AttemptIndex", "%v/%v", retryIndex, BackoffStrategy_.GetInvocationCount());
 
         YT_UNUSED_FUTURE(DoCommitSessions(retryIndex)
             .Apply(BIND(&TTabletSessionsCommitter::OnSessionsCommitted, MakeStrong(this))));
@@ -658,9 +641,8 @@ private:
         auto retryIndex = BackoffStrategy_.GetInvocationIndex();
 
         if (error.IsOK()) {
-            YT_LOG_DEBUG("Tablet sessions committed (AttemptIndex: %v/%v)",
-                retryIndex,
-                BackoffStrategy_.GetInvocationCount());
+            YT_TLOG_DEBUG("Tablet sessions committed")
+                .WithFormat("AttemptIndex", "%v/%v", retryIndex, BackoffStrategy_.GetInvocationCount());
 
             Counters_.SuccessfulTabletSessionCommitCounter.Increment();
             if (retryIndex > 0) {
@@ -673,21 +655,22 @@ private:
 
         Errors_.push_back(error);
 
-        YT_LOG_DEBUG(error, "Tablet sessions commit attempt failed (AttemptIndex: %v/%v)",
-            retryIndex,
-            BackoffStrategy_.GetInvocationCount());
+        YT_TLOG_DEBUG("Tablet sessions commit attempt failed")
+            .WithFormat("AttemptIndex", "%v/%v", retryIndex, BackoffStrategy_.GetInvocationCount())
+            .With(error);
 
         if (BackoffStrategy_.Next()) {
             auto backoff = BackoffStrategy_.GetBackoff();
-            YT_LOG_DEBUG("Waiting before next tablet sessions commit attempt (Backoff: %v)",
-                backoff);
+            YT_TLOG_DEBUG("Waiting before next tablet sessions commit attempt")
+                .With("Backoff", backoff);
 
             auto backoffFuture = TDelayedExecutor::MakeDelayed(backoff);
             YT_UNUSED_FUTURE(backoffFuture.Apply(BIND(&TTabletSessionsCommitter::CommitSessions, MakeStrong(this))));
         } else {
             auto error = TError("Failed to commit tablet sessions")
                 .With(Errors_);
-            YT_LOG_DEBUG(error);
+            YT_TLOG_DEBUG("Failed to commit tablet sessions")
+                .With("Errors", Errors_);
 
             Counters_.FailedTabletSessionCommitCounter.Increment();
 

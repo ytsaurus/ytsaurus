@@ -260,10 +260,10 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
                 options);
     }
 
-    YT_LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %v)",
-        tableInfo->TableId,
-        replicaIds,
-        options.Timestamp);
+    YT_TLOG_DEBUG("Got table in-sync replicas")
+        .With("TableId", tableInfo->TableId)
+        .With("Replicas", replicaIds)
+        .With("Timestamp", options.Timestamp);
 
     return replicaIds;
 }

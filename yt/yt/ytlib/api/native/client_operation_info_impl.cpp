@@ -563,9 +563,9 @@ TOperation TClient::DoGetOperationImpl(
     if (archiveResultOrError.IsOK()) {
         archiveResult = archiveResultOrError.Value();
     } else {
-        YT_LOG_DEBUG("Failed to get information for operation from archive (OperationId: %v, Error: %v)",
-            operationId,
-            archiveResultOrError);
+        YT_TLOG_DEBUG("Failed to get information for operation from archive")
+            .With("OperationId", operationId)
+            .With("Error", archiveResultOrError);
     }
 
     auto mergeResults = [] (const std::optional<TOperation>& archiveResult, std::optional<TOperation>* cypressResult) {
@@ -627,18 +627,16 @@ TOperation TClient::DoGetOperationImpl(
         }
 
         if (cypressProgressAge > options.MaximumCypressProgressAge) {
-            YT_LOG_DEBUG(archiveResultOrError,
-                "Operation progress in Cypress is outdated, while archive request failed "
-                "(OperationId: %v, CypressProgressAge: %v, MaximumCypressProgressAge: %v)",
-                operationId,
-                cypressProgressAge,
-                options.MaximumCypressProgressAge);
+            YT_TLOG_DEBUG("Operation progress in Cypress is outdated, while archive request failed")
+                .With("OperationId", operationId)
+                .With("CypressProgressAge", cypressProgressAge)
+                .With("MaximumCypressProgressAge", options.MaximumCypressProgressAge)
+                .With(archiveResultOrError);
         } else {
-            YT_LOG_DEBUG(archiveResultOrError,
-                "Some attributes are archive only, while archive request failed "
-                "(OperationId: %v, RequestedAttributes: %v)",
-                operationId,
-                options.Attributes);
+            YT_TLOG_DEBUG("Some attributes are archive only, while archive request failed")
+                .With("OperationId", operationId)
+                .With("RequestedAttributes", options.Attributes)
+                .With(archiveResultOrError);
         }
 
         // Archive request timeouted but the Cypress result is outdated.
@@ -685,9 +683,8 @@ TOperation TClient::DoGetOperationImpl(
         //         |               |             |
         //    archive rsp.   archivation   Cypress rsp.
         if (!isCompleteArchiveResult(*archiveResult)) {
-            YT_LOG_DEBUG("Operation missing in Cypress and incomplete in archive, "
-                "retrying due to possible race (OperationId: %v)",
-                operationId);
+            YT_TLOG_DEBUG("Operation missing in Cypress and incomplete in archive, retrying due to possible race")
+                .With("OperationId", operationId);
             archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
         }
     } else if (!archiveResultOrError.IsOK()) {
@@ -701,8 +698,8 @@ TOperation TClient::DoGetOperationImpl(
     }
 
     if (archiveResult && !isCompleteArchiveResult(*archiveResult)) {
-        YT_LOG_DEBUG("Operation missing in Cypress and incomplete in archive (OperationId: %v)",
-            operationId);
+        YT_TLOG_DEBUG("Operation missing in Cypress and incomplete in archive")
+            .With("OperationId", operationId);
     }
 
     if (!archiveResult || !isCompleteArchiveResult(*archiveResult)) {
@@ -768,8 +765,9 @@ TOperation TClient::DoGetOperation(
 
             return operation;
         } catch (const TErrorException& error) {
-            YT_LOG_DEBUG(error, "Failed to get operation (OperationId: %v)",
-                operationId);
+            YT_TLOG_DEBUG("Failed to get operation")
+                .With("OperationId", operationId)
+                .With(error);
             if (!error.Error().FindMatching(NApi::EErrorCode::RetriableArchiveError)) {
                 throw;
             }
@@ -831,7 +829,7 @@ void TClient::DoListOperationsFromCypress(
 
     const THashSet<std::string> IgnoredAttributes = {};
 
-    YT_LOG_DEBUG("Fetching operations from Cypress");
+    YT_TLOG_DEBUG("Fetching operations from Cypress");
 
     auto requestedAttributes = DeduceActualAttributes(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
 
@@ -884,7 +882,7 @@ void TClient::DoListOperationsFromCypress(
         }
     }
 
-    YT_LOG_DEBUG("Operations fetched from Cypress");
+    YT_TLOG_DEBUG("Operations fetched from Cypress");
 
     auto filter = New<TListOperationsFilter>(
         options,
@@ -1043,7 +1041,8 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     std::optional<TDuration> timeout,
     const TLogger& Logger)
 {
-    YT_LOG_DEBUG("Fetching operations from archive (OperationCount: %v)", ids.size());
+    YT_TLOG_DEBUG("Fetching operations from archive")
+        .With("OperationCount", ids.size());
 
     auto nameTable = NRecords::TOrderedByIdDescriptor::Get()->GetNameTable();
     std::vector<int> columns;
@@ -1063,11 +1062,12 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
         .ValueOrThrow();
     auto records = ToOptionalRecords<NRecords::TOrderedByIdPartial>(rowset);
 
-    YT_LOG_DEBUG("Operations fetch from archive finished");
+    YT_TLOG_DEBUG("Operations fetch from archive finished");
 
     THashMap<TOperationId, TOperation> idToOperation;
 
-    YT_LOG_DEBUG("Parsing operations from archive (OperationCount: %v)", ids.size());
+    YT_TLOG_DEBUG("Parsing operations from archive")
+        .With("OperationCount", ids.size());
 
     for (const auto& record : records) {
         if (!record) {
@@ -1120,7 +1120,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
         idToOperation.emplace(operationId, std::move(operation));
     }
 
-    YT_LOG_DEBUG("Operations from archive parsed");
+    YT_TLOG_DEBUG("Operations from archive parsed");
 
     return idToOperation;
 }
@@ -1169,7 +1169,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     };
 
     if (options.IncludeCounters) {
-        YT_LOG_DEBUG("Performing select from archive to calculate counters");
+        YT_TLOG_DEBUG("Performing select from archive to calculate counters");
 
         NQueryClient::TQueryBuilder builder;
         builder.SetSource(GetOperationsArchiveOrderedByStartTimePath());
@@ -1232,7 +1232,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
             countingFilter.Filter(countingFilterAttributes, count);
         }
 
-        YT_LOG_DEBUG("Counters calculated");
+        YT_TLOG_DEBUG("Counters calculated");
     }
 
     NQueryClient::TQueryBuilder builder;
@@ -1302,7 +1302,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         }
     }
 
-    YT_LOG_DEBUG("Select operation ids from archive");
+    YT_TLOG_DEBUG("Select operation ids from archive");
 
     // Retain more operations than limit to track (in)completeness of the response.
     builder.SetLimit(1 + options.Limit);
@@ -1313,7 +1313,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         .ValueOrThrow();
     auto records = ToRecords<NRecords::TOrderedByStartTimePartial>(rowsItemsId.Rowset);
 
-    YT_LOG_DEBUG("Operation ids selected from archive");
+    YT_TLOG_DEBUG("Operation ids selected from archive");
 
     std::vector<TOperationId> ids;
     ids.reserve(records.size());
@@ -1495,7 +1495,8 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
             options.ArchiveFetchingTimeout);
 
         if (!rowsetOrError.IsOK()) {
-            YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' progress, brief_progress and alert_events from Archive");
+            YT_TLOG_DEBUG("Failed to get information about operations' progress, brief_progress and alert_events from Archive")
+                .With(rowsetOrError);
         } else {
             auto rowset = rowsetOrError.Value();
             auto records = ToOptionalRecords<NRecords::TOrderedByIdPartial>(rowset);
@@ -1568,10 +1569,8 @@ TCheckOperationPermissionResult TClient::DoCheckOperationPermission(
     const auto& operation = operationOrError.ValueOrThrow();
     auto accessControlRule = TryGetAccessControlRuleFromOperation(operation);
     if (!accessControlRule) {
-        YT_LOG_WARNING(
-            "Failed to get ACL or ACO name from operation attributes; "
-            "checking against empty ACL (OperationId: %v)",
-            operation.Id);
+        YT_TLOG_WARNING("Failed to get ACL or ACO name from operation attributes; checking against empty ACL")
+            .With("OperationId", operation.Id);
     }
 
     auto error = NScheduler::CheckOperationAccess(

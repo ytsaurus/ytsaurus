@@ -83,11 +83,10 @@ void TClient::DoSetUserPassword(
         multisetAttributesOptions))
         .ThrowOnError();
 
-    YT_LOG_DEBUG("User password updated "
-        "(User: %v, NewPasswordSha256: %v, HashedNewPassword: %v)",
-        user,
-        newPasswordSha256,
-        hashedNewPassword);
+    YT_TLOG_DEBUG("User password updated")
+        .With("User", user)
+        .With("NewPasswordSha256", newPasswordSha256)
+        .With("HashedNewPassword", hashedNewPassword);
 }
 
 TIssueTokenResult TClient::DoIssueToken(
@@ -101,8 +100,8 @@ TIssueTokenResult TClient::DoIssueToken(
         passwordSha256,
         options);
 
-    YT_LOG_DEBUG("Issuing new token for user (User: %v)",
-        user);
+    YT_TLOG_DEBUG("Issuing new token for user")
+        .With("User", user);
 
     auto attributes = CreateEphemeralAttributes();
     attributes->Set("description", options.Description);
@@ -115,8 +114,8 @@ TIssueTokenResult TClient::DoIssueSpecificTemporaryToken(
     const IAttributeDictionaryPtr& attributes,
     const TIssueTemporaryTokenOptions& options)
 {
-    YT_LOG_DEBUG("Issuing specific temporary token for user (User: %v)",
-        user);
+    YT_TLOG_DEBUG("Issuing specific temporary token for user")
+        .With("User", user);
 
     auto attributesCopy = attributes->Clone();
     attributesCopy->Set("expiration_timeout", options.ExpirationTimeout.MilliSeconds());
@@ -129,8 +128,8 @@ TIssueTokenResult TClient::DoIssueTemporaryToken(
     const IAttributeDictionaryPtr& attributes,
     const TIssueTemporaryTokenOptions& options)
 {
-    YT_LOG_DEBUG("Issuing new temporary token for user (User: %v)",
-        user);
+    YT_TLOG_DEBUG("Issuing new temporary token for user")
+        .With("User", user);
 
     auto attributesCopy = attributes->Clone();
     attributesCopy->Set("expiration_timeout", options.ExpirationTimeout.MilliSeconds());
@@ -158,12 +157,11 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
         Format("//sys/users/%v/@id", ToYPathLiteral(user)),
         /*options*/ {}));
     if (!userIdRspOrError.IsOK()) {
-        YT_LOG_DEBUG(userIdRspOrError, "Failed to issue new token for user: "
-            "could not get user ID by username "
-            "(User: %v, TokenPrefix: %v, TokenHash: %v)",
-            user,
-            tokenPrefix,
-            tokenHash);
+        YT_TLOG_DEBUG("Failed to issue new token for user: could not get user ID by username")
+            .With("User", user)
+            .With("TokenPrefix", tokenPrefix)
+            .With("TokenHash", tokenHash)
+            .With(userIdRspOrError);
         if (userIdRspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::NoSuchUser, "No such user %Qv",
                 user)
@@ -180,10 +178,10 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
 
     createOptions.Attributes = attributes;
 
-    YT_LOG_DEBUG("Issuing new token for user (User: %v, TokenPrefix: %v, TokenHash: %v)",
-        user,
-        tokenPrefix,
-        tokenHash);
+    YT_TLOG_DEBUG("Issuing new token for user")
+        .With("User", user)
+        .With("TokenPrefix", tokenPrefix)
+        .With("TokenHash", tokenHash);
 
     auto path = Format("//sys/cypress_tokens/%v", ToYPathLiteral(tokenHash));
     auto rspOrError = WaitFor(rootClient->CreateNode(
@@ -192,19 +190,19 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
         createOptions));
 
     if (!rspOrError.IsOK()) {
-        YT_LOG_DEBUG(rspOrError, "Failed to issue new token for user "
-            "(User: %v, TokenPrefix: %v, TokenHash: %v)",
-            user,
-            tokenPrefix,
-            tokenHash);
+        YT_TLOG_DEBUG("Failed to issue new token for user")
+            .With("User", user)
+            .With("TokenPrefix", tokenPrefix)
+            .With("TokenHash", tokenHash)
+            .With(rspOrError);
         THROW_ERROR_EXCEPTION("Failed to issue new token for user")
             .With(rspOrError);
     }
 
-    YT_LOG_DEBUG("Issued new token for user (User: %v, TokenPrefix: %v, TokenHash: %v)",
-        user,
-        tokenPrefix,
-        tokenHash);
+    YT_TLOG_DEBUG("Issued new token for user")
+        .With("User", user)
+        .With("TokenPrefix", tokenPrefix)
+        .With("TokenHash", tokenHash);
 
     return TIssueTokenResult{
         .Token = token,
@@ -222,9 +220,9 @@ void TClient::DoRefreshTemporaryToken(
     TGetNodeOptions getOptions;
     static_cast<TTimeoutOptions&>(getOptions) = options;
 
-    YT_LOG_DEBUG("Refresh temporary token for user (User: %v, TokenHash: %v)",
-        user,
-        tokenHash);
+    YT_TLOG_DEBUG("Refresh temporary token for user")
+        .With("User", user)
+        .With("TokenHash", tokenHash);
 
     auto rootClient = CreateRootClient();
     auto path = Format("//sys/cypress_tokens/%v", ToYPathLiteral(tokenHash));
@@ -233,17 +231,17 @@ void TClient::DoRefreshTemporaryToken(
         getOptions));
 
     if (!rspOrError.IsOK()) {
-        YT_LOG_WARNING(rspOrError, "Failed to refresh token for user "
-            "(User: %v, TokenHash: %v)",
-            user,
-            tokenHash);
+        YT_TLOG_WARNING("Failed to refresh token for user")
+            .With("User", user)
+            .With("TokenHash", tokenHash)
+            .With(rspOrError);
         THROW_ERROR_EXCEPTION("Failed to refresh token for user")
             .With(rspOrError);
     }
 
-    YT_LOG_DEBUG("Successfully refreshed token for user (User: %v, TokenHash: %v)",
-        user,
-        tokenHash);
+    YT_TLOG_DEBUG("Successfully refreshed token for user")
+        .With("User", user)
+        .With("TokenHash", tokenHash);
 }
 
 void TClient::DoRevokeToken(
@@ -280,16 +278,17 @@ void TClient::DoRevokeToken(
     auto path = Format("//sys/cypress_tokens/%v", ToYPathLiteral(tokenSha256));
     auto error = WaitFor(rootClient->RemoveNode(path, removeOptions));
     if (!error.IsOK()) {
-        YT_LOG_DEBUG(error, "Failed to remove token (User: %v, TokenHash: %v)",
-            tokenUser,
-            tokenSha256);
+        YT_TLOG_DEBUG("Failed to remove token")
+            .With("User", tokenUser)
+            .With("TokenHash", tokenSha256)
+            .With(error);
         THROW_ERROR_EXCEPTION("Failed to remove token")
             .With(error);
     }
 
-    YT_LOG_DEBUG("Token removed successfully (User: %v, TokenHash: %v)",
-        tokenUser,
-        tokenSha256);
+    YT_TLOG_DEBUG("Token removed successfully")
+        .With("User", tokenUser)
+        .With("TokenHash", tokenSha256);
 }
 
 TListUserTokensResult TClient::DoListUserTokens(
@@ -303,9 +302,9 @@ TListUserTokensResult TClient::DoListUserTokens(
         passwordSha256,
         options);
 
-    YT_LOG_DEBUG("Listing tokens for user (User: %v, WithMetadata: %v)",
-        user,
-        options.WithMetadata);
+    YT_TLOG_DEBUG("Listing tokens for user")
+        .With("User", user)
+        .With("WithMetadata", options.WithMetadata);
 
     TListNodeOptions listOptions;
     static_cast<TTimeoutOptions&>(listOptions) = options;
@@ -322,7 +321,8 @@ TListUserTokensResult TClient::DoListUserTokens(
     auto rootClient = CreateRootClient();
     auto rspOrError = WaitFor(rootClient->ListNode("//sys/cypress_tokens", listOptions));
     if (!rspOrError.IsOK()) {
-        YT_LOG_DEBUG(rspOrError, "Failed to list tokens");
+        YT_TLOG_DEBUG("Failed to list tokens")
+            .With(rspOrError);
         THROW_ERROR_EXCEPTION("Failed to list tokens")
             .With(rspOrError);
     }
@@ -331,8 +331,9 @@ TListUserTokensResult TClient::DoListUserTokens(
         Format("//sys/users/%v/@id", ToYPathLiteral(user)),
         /*options*/ {}));
     if (!userIdRspOrError.IsOK()) {
-        YT_LOG_DEBUG(userIdRspOrError, "Failed to list tokens: could not get user ID by username (User: %v)",
-            user);
+        YT_TLOG_DEBUG("Failed to list tokens: could not get user ID by username")
+            .With("User", user)
+            .With(userIdRspOrError);
         THROW_ERROR_EXCEPTION("Failed to list tokens")
             .With(userIdRspOrError);
     }

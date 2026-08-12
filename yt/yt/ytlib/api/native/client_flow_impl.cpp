@@ -114,9 +114,8 @@ TFlowExecuteOptions MakeFlowExecuteOptions(const TOptions& options)
 
 TClient::TPipelineLeaderDescriptor TClient::DiscoverPipelineControllerLeader(const TYPath& pipelinePath)
 {
-    YT_LOG_DEBUG(
-        "Started discovering pipeline controller leader (PipelinePath: %v)",
-        pipelinePath);
+    YT_TLOG_DEBUG("Started discovering pipeline controller leader")
+        .With("PipelinePath", pipelinePath);
 
     TGetNodeOptions options{
         .Attributes = TAttributeFilter(
@@ -158,12 +157,10 @@ TClient::TPipelineLeaderDescriptor TClient::DiscoverPipelineControllerLeader(con
     auto address = attributes.Get<std::string>(LeaderControllerAddressAttribute);
     auto pipelineObjectId = attributes.Get<TObjectId>(IdAttribute);
 
-    YT_LOG_DEBUG(
-        "Finished discovering pipeline controller leader "
-        "(PipelinePath: %v, Address: %v, PipelineObjectId: %v)",
-        pipelinePath,
-        address,
-        pipelineObjectId);
+    YT_TLOG_DEBUG("Finished discovering pipeline controller leader")
+        .With("PipelinePath", pipelinePath)
+        .With("Address", address)
+        .With("PipelineObjectId", pipelineObjectId);
 
     return TPipelineLeaderDescriptor{
         .Address = std::move(address),
