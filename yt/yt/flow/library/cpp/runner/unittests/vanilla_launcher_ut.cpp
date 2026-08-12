@@ -1,5 +1,8 @@
+#include <yt/yt/flow/library/cpp/runner/config.h>
 #include <yt/yt/flow/library/cpp/runner/root_clients_cache.h>
 #include <yt/yt/flow/library/cpp/runner/vanilla_launcher.h>
+
+#include <yt/yt/flow/library/cpp/companion/config.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -105,6 +108,34 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TAssertClientsCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// The companion is dialed on a fixed in-job port, just like rpc and monitoring: a companion
+// pipeline must not have to request YT-allocated ports to run in a vanilla job.
+TEST(TVanillaNodeConfigTest, CarriesCompanionPort)
+{
+    auto nodeConfig = BuildDefaultVanillaNodeConfig(
+        MakePipelinePath(),
+        /*proxyRole*/ std::nullopt,
+        /*workerPortCount*/ std::nullopt);
+
+    ASSERT_TRUE(nodeConfig->Companion);
+    EXPECT_GT(nodeConfig->Companion->Port, 0);
+}
+
+// A worker on YT-allocated ports runs where fixed ones collide, so the fixed companion port
+// would point at whatever neighbouring job took it. It is left out: with `port_count = 3` the
+// port comes from YT_PORT_2, and with fewer the companion refuses to start.
+TEST(TVanillaNodeConfigTest, OmitsCompanionPortForYtAllocatedPorts)
+{
+    auto nodeConfig = BuildDefaultVanillaNodeConfig(
+        MakePipelinePath(),
+        /*proxyRole*/ std::nullopt,
+        /*workerPortCount*/ 2);
+
+    EXPECT_FALSE(nodeConfig->Companion);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

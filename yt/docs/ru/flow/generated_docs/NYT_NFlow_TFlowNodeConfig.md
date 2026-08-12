@@ -38,7 +38,7 @@
 **Значение по умолчанию**: `0`
 API для получения метрик. ||
 || `companion` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::NCompanion::TCompanionConfig](./all_yson_structs#NYT_NFlow_NCompanion_TCompanionConfig)`>`
- ||
+Параметры процесса-компаньона. Нужны любому воркеру, который запускает компаньон (Python, Java, Go, C++-компаньон). В vanilla-запуске заполняются автоматически. ||
 || `controller` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::NController::TControllerConfig](./all_yson_structs#NYT_NFlow_NController_TControllerConfig)`>`
 **Значение по умолчанию**: `{}`
 Параметры `Controller`. ||
@@ -79,6 +79,9 @@ API для получения метрик. ||
 При выставлении значения true Flow Node не будет запускаться при наличии неизвестных опций в конфиге. ||
 || `ignore_singletons_dynamic_config` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
+ ||
+|| `enable_porto_resource_tracker` | **Тип**: `bool`
+**Значение по умолчанию**: `true`
  ||
 |#
 

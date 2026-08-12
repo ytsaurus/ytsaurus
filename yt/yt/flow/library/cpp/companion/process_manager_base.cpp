@@ -104,6 +104,10 @@ void TProcessManagerBase::Start()
         RestartOnStop_ = true;
     }
 
+    // The port is captured at construction and never changes, so check it once here —
+    // and before KillZombieProcessesOnPort() probes it.
+    ValidateCompanionPort();
+
     // Check if the companion port is already in use and kill any zombie process.
     KillZombieProcessesOnPort();
 
@@ -230,6 +234,15 @@ bool TProcessManagerBase::IsWithinStartupGracePeriod()
     }
     auto incarnationAge = TInstant::Now() - IncarnationSpawnTime_;
     return incarnationAge < StartupGracePeriod_;
+}
+
+void TProcessManagerBase::ValidateCompanionPort() const
+{
+    // Without a port the spawned process refuses to serve and the worker dials nowhere,
+    // so say up front where the port comes from instead of looping over dead incarnations.
+    THROW_ERROR_EXCEPTION_UNLESS(CompanionConfig_->Port > 0,
+        "Companion port is not configured; set companion.port in the node config or request "
+        "three ports for the vanilla task (port_count = 3) to receive it via YT_PORT_2");
 }
 
 void TProcessManagerBase::DoStart()

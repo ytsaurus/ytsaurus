@@ -61,6 +61,7 @@ namespace {
 // and ephemeral (>=32768) ranges. The user can still override them via the node_config patch.
 constexpr int DefaultRpcPort = 10080;
 constexpr int DefaultMonitoringPort = 10081;
+constexpr int DefaultCompanionPort = 10082;
 
 // In-job file names for the binary and the node config; also the keys under vanilla/files.
 constexpr TStringBuf BinaryFileName = "flow_server";
@@ -361,8 +362,16 @@ void TVanillaConfig::Register(TRegistrar registrar)
 
 TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
     const NYPath::TRichYPath& pipelinePath,
-    std::optional<std::string> proxyRole)
+    std::optional<std::string> proxyRole,
+    std::optional<int> workerPortCount)
 {
+    // Only the worker hosts a companion, and only a worker left on fixed ports may keep the
+    // fixed companion port: once the task asks YT for ports it runs on a host where fixed ones
+    // collide, and there 10082 could well be a neighbouring worker's companion. Requesting
+    // fewer than three ports then leaves the companion without one — a failure the companion
+    // manager reports, rather than a silent cross-wiring.
+    bool useFixedCompanionPort = workerPortCount.value_or(0) == 0;
+
     // clang-format off
     auto node = BuildYsonNodeFluently()
         .BeginMap()
@@ -373,6 +382,11 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
             })
             .Item("rpc_port").Value(DefaultRpcPort)
             .Item("monitoring_port").Value(DefaultMonitoringPort)
+            .DoIf(useFixedCompanionPort, [&] (auto fluent) {
+                fluent.Item("companion").BeginMap()
+                    .Item("port").Value(DefaultCompanionPort)
+                .EndMap();
+            })
             .Item("abort_on_unrecognized_options").Value(false)
         .EndMap();
     // clang-format on
@@ -397,7 +411,7 @@ void LaunchInVanillaJob(
     // uploaded; checking the names up front makes a missing variable fail before any of that.
     ValidateSecretEnv(vanillaConfig->SecretEnv);
 
-    auto nodeConfig = BuildDefaultVanillaNodeConfig(pipelinePath, proxyRole);
+    auto nodeConfig = BuildDefaultVanillaNodeConfig(pipelinePath, proxyRole, vanillaConfig->Worker->PortCount);
     if (vanillaConfig->NodeConfigPatch) {
         nodeConfig = ConvertTo<TFlowNodeConfigPtr>(
             PatchNode(ConvertToNode(nodeConfig), vanillaConfig->NodeConfigPatch));
