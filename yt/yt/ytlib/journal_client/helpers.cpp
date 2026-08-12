@@ -248,9 +248,7 @@ std::vector<TSharedRef> DecodeErasureJournalRows(
 
     for (i64 rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         const auto* header = reinterpret_cast<const TErasureRowHeader*>(encodedRowLists[0][rowIndex].Begin());
-        YT_LOG_FATAL_UNLESS(
-            header->PaddingSize >= 0,
-            "Journal decoding failed");
+        YT_TLOG_FATAL_UNLESS(header->PaddingSize >= 0, "Journal decoding failed");
 
         i64 bytesRemaining =
             std::ssize(encodedRowLists[0][rowIndex]) * dataPartCount -
@@ -421,9 +419,9 @@ private:
 
     void DoRun()
     {
-        YT_LOG_DEBUG("Aborting journal chunk session quorum (Replicas: %v, ReadQuorum: %v)",
-            Replicas_,
-            ReadQuorum_);
+        YT_TLOG_DEBUG("Aborting journal chunk session quorum")
+            .With("Replicas", Replicas_)
+            .With("ReadQuorum", ReadQuorum_);
 
         if (std::ssize(Replicas_) < ReadQuorum_) {
             auto error = TError("Unable to abort sessions quorum for journal chunk %v: too few replicas known, %v given, %v needed",
@@ -470,11 +468,12 @@ private:
                 SuccessPartIndexes_.set(replica.ReplicaIndex);
             }
 
-            YT_LOG_DEBUG("Journal chunk session aborted successfully (Replica: %v)",
-                replica);
+            YT_TLOG_DEBUG("Journal chunk session aborted successfully")
+                .With("Replica", replica);
         } else {
-            YT_LOG_WARNING(rspOrError, "Failed to abort journal chunk session (Replica: %v)",
-                replica);
+            YT_TLOG_WARNING("Failed to abort journal chunk session")
+                .With("Replica", replica)
+                .With(rspOrError);
             InnerErrors_.push_back(rspOrError);
         }
 
@@ -490,9 +489,9 @@ private:
 
     void OnQuorumSessionDelayReached()
     {
-        YT_LOG_DEBUG("Quorum session delay reached (QuorumSessionDelay: %v, AbortedReplicaCount: %v)",
-            QuorumSessionDelay_,
-            AbortedReplicas_.size());
+        YT_TLOG_DEBUG("Quorum session delay reached")
+            .With("QuorumSessionDelay", QuorumSessionDelay_)
+            .With("AbortedReplicaCount", AbortedReplicas_.size());
 
         QuorumSessionDelayReached_ = true;
         CheckCompleted();
@@ -505,7 +504,7 @@ private:
                 return;
             }
             if (Promise_.TrySet(AbortedReplicas_)) {
-                YT_LOG_DEBUG("Journal chunk session quorum aborted successfully");
+                YT_TLOG_DEBUG("Journal chunk session quorum aborted successfully");
             }
         } else if (ResponseCounter_ == std::ssize(Replicas_)) {
             auto combinedError = TError("Unable to abort sessions quorum for journal chunk %v",
@@ -610,10 +609,10 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Computing quorum info for journal chunk (Replicas: %v, ReadQuorum: %v, Codec: %v)",
-            Replicas_,
-            ReadQuorum_,
-            CodecId_);
+        YT_TLOG_DEBUG("Computing quorum info for journal chunk")
+            .With("Replicas", Replicas_)
+            .With("ReadQuorum", ReadQuorum_)
+            .With("Codec", CodecId_);
 
         std::vector<TFuture<void>> futures;
         for (const auto& replica : Replicas_) {
@@ -661,8 +660,9 @@ private:
         const TDataNodeServiceProxy::TErrorOrRspGetChunkMetaPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to get journal chunk meta (Replica: %v)",
-                replica);
+            YT_TLOG_WARNING("Failed to get journal chunk meta")
+                .With("Replica", replica)
+                .With(rspOrError);
             ChunkMetaInnerErrors_.push_back(TError("Failed to get chunk meta for replica %v", replica)
                 .With(rspOrError));
             return;
@@ -679,12 +679,12 @@ private:
             locationUuid,
         });
 
-        YT_LOG_DEBUG("Received chunk meta for journal chunk (Replica: %v, LocationUuid: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-            replica,
-            locationUuid,
-            miscExt.row_count(),
-            miscExt.uncompressed_data_size(),
-            miscExt.compressed_data_size());
+        YT_TLOG_DEBUG("Received chunk meta for journal chunk")
+            .With("Replica", replica)
+            .With("LocationUuid", locationUuid)
+            .With("RowCount", miscExt.row_count())
+            .With("UncompressedDataSize", miscExt.uncompressed_data_size())
+            .With("CompressedDataSize", miscExt.compressed_data_size());
     }
 
     void OnGetHeaderBlockResponse(
@@ -696,8 +696,9 @@ private:
         }
 
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to get journal chunk header block (Replica: %v)",
-                replica);
+            YT_TLOG_WARNING("Failed to get journal chunk header block")
+                .With("Replica", replica)
+                .With(rspOrError);
             HeaderBlockInnerErrors_.push_back(TError("Failed to get journal chunk header block for replica %v", replica)
                 .With(rspOrError));
             return;
@@ -706,32 +707,35 @@ private:
         const auto& rsp = rspOrError.Value();
 
         if (rsp->Attachments().size() < 1) {
-            YT_LOG_DEBUG(rspOrError, "Journal replica did not return chunk header block (Replica: %v)",
-                replica);
+            YT_TLOG_DEBUG("Journal replica did not return chunk header block")
+                .With("Replica", replica)
+                .With(rspOrError);
             HeaderBlockInnerErrors_.push_back(TError("Journal replica %v did not return chunk header block", replica));
             return;
         }
 
         NJournalClient::NProto::TOverlayedJournalChunkHeader header;
         if (!TryDeserializeProto(&header, rsp->Attachments()[0])) {
-            YT_LOG_WARNING(rspOrError, "Error parsing journal chunk header block (Replica: %v)",
-                replica);
+            YT_TLOG_WARNING("Error parsing journal chunk header block")
+                .With("Replica", replica)
+                .With(rspOrError);
             ChunkMetaInnerErrors_.push_back(TError("Error parsing journal chunk header block received from replica %v", replica)
                 .With(rspOrError));
             return;
         }
 
         if (!header.has_first_row_index()) {
-            YT_LOG_WARNING(rspOrError, "Received journal chunk header block without first row index (Replica: %v)",
-                replica);
+            YT_TLOG_WARNING("Received journal chunk header block without first row index")
+                .With("Replica", replica)
+                .With(rspOrError);
             ChunkMetaInnerErrors_.push_back(TError("Received journal chunk header block without first row index from replica %v", replica)
                 .With(rspOrError));
             return;
         }
 
-        YT_LOG_DEBUG("Received header block for journal chunk (Replica: %v, FirstOverlayedRowIndex: %v)",
-            replica,
-            header.first_row_index());
+        YT_TLOG_DEBUG("Received header block for journal chunk")
+            .With("Replica", replica)
+            .With("FirstOverlayedRowIndex", header.first_row_index());
 
         Header_.emplace(std::move(header));
     }
@@ -788,14 +792,13 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Quorum info for journal chunk computed successfully (PhysicalRowCount: %v, LogicalRowCount: %v, "
-            "FirstOverlayedRowIndex: %v, UncompressedDataSize: %v, CompressedDataSize: %v, RowCountConfirmedReplicaCount: %v)",
-            miscExt.row_count(),
-            result.RowCount,
-            result.FirstOverlayedRowIndex,
-            result.UncompressedDataSize,
-            result.CompressedDataSize,
-            result.RowCountConfirmedReplicaCount);
+        YT_TLOG_DEBUG("Quorum info for journal chunk computed successfully")
+            .With("PhysicalRowCount", miscExt.row_count())
+            .With("LogicalRowCount", result.RowCount)
+            .With("FirstOverlayedRowIndex", result.FirstOverlayedRowIndex)
+            .With("UncompressedDataSize", result.UncompressedDataSize)
+            .With("CompressedDataSize", result.CompressedDataSize)
+            .With("RowCountConfirmedReplicaCount", result.RowCountConfirmedReplicaCount);
 
         Promise_.Set(result);
     }
@@ -830,14 +833,12 @@ private:
         i64 longestReplicaRowCount = GetLogicalChunkRowCount(longestReplica.MiscExt.row_count(), Overlayed_);
         i64 shortestReplicaRowCount = GetLogicalChunkRowCount(shortestReplica.MiscExt.row_count(), Overlayed_);
         if (longestReplicaRowCount - shortestReplicaRowCount > ReplicaLagLimit_) {
-            YT_LOG_ALERT("Replica lag limit violated "
-                "(ShortestReplicaAddress: %v, ShortestReplicaRowCount: %v, "
-                "LongestReplicaAddress: %v, LongestReplicaRowCount: %v, ReplicaLagLimit: %v)",
-                shortestReplica.Address,
-                shortestReplicaRowCount,
-                longestReplica.Address,
-                longestReplicaRowCount,
-                ReplicaLagLimit_);
+            YT_TLOG_ALERT("Replica lag limit violated")
+                .With("ShortestReplicaAddress", shortestReplica.Address)
+                .With("ShortestReplicaRowCount", shortestReplicaRowCount)
+                .With("LongestReplicaAddress", longestReplica.Address)
+                .With("LongestReplicaRowCount", longestReplicaRowCount)
+                .With("ReplicaLagLimit", ReplicaLagLimit_);
         }
     }
 };

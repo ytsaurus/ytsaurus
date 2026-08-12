@@ -49,7 +49,7 @@ void DoRepairErasedParts(
 
     // Open writers.
     {
-        YT_LOG_DEBUG("Started opening writers");
+        YT_TLOG_DEBUG("Started opening writers");
 
         std::vector<TFuture<void>> futures;
         for (const auto& writer : writers) {
@@ -61,15 +61,14 @@ void DoRepairErasedParts(
         WaitFor(AllSucceeded(std::move(futures)))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Writers opened");
+        YT_TLOG_DEBUG("Writers opened");
     }
 
     // Read/write rows.
     i64 firstRowIndex = 0;
     while (firstRowIndex < rowCount) {
-        YT_LOG_DEBUG("Reading rows (Rows: %v-%v)",
-            firstRowIndex,
-            rowCount - 1);
+        YT_TLOG_DEBUG("Reading rows")
+            .WithFormat("Rows", "%v-%v", firstRowIndex, rowCount - 1);
 
         auto future = partsReader->ReadRows(
             chunkReadOptions,
@@ -85,9 +84,8 @@ void DoRepairErasedParts(
             YT_VERIFY(std::ssize(rowList) == readRowCount);
         }
 
-        YT_LOG_DEBUG("Rows received (Rows: %v-%v)",
-            firstRowIndex,
-            firstRowIndex + readRowCount - 1);
+        YT_TLOG_DEBUG("Rows received")
+            .WithFormat("Rows", "%v-%v", firstRowIndex, firstRowIndex + readRowCount - 1);
 
         std::vector<TFuture<void>> futures;
         std::vector<TBlock> blocks;
@@ -111,12 +109,12 @@ void DoRepairErasedParts(
         }
 
         if (!futures.empty()) {
-            YT_LOG_DEBUG("Started waiting for writers");
+            YT_TLOG_DEBUG("Started waiting for writers");
 
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Finished waiting for writers");
+            YT_TLOG_DEBUG("Finished waiting for writers");
         }
 
         firstRowIndex += readRowCount;
@@ -124,7 +122,7 @@ void DoRepairErasedParts(
 
     // Close writers.
     {
-        YT_LOG_DEBUG("Started closing writers");
+        YT_TLOG_DEBUG("Started closing writers");
 
         std::vector<TFuture<void>> futures;
         for (const auto& writer : writers) {
@@ -136,7 +134,7 @@ void DoRepairErasedParts(
         WaitFor(AllSucceeded(std::move(futures)))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Writers closed");
+        YT_TLOG_DEBUG("Writers closed");
     }
 }
 
