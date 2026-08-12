@@ -55,11 +55,16 @@ import signal
 import time
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 from datetime import datetime
+from typing import Optional
 
 from .strawberry_parser import add_strawberry_ctl_parser
 from .command_explain_id import add_explain_id_parser
 
 HAS_SKY_SHARE = hasattr(yt, "sky_share")
+
+EXIT_STATUS_VALID = 0
+EXIT_STATUS_INVALID = 1
+EXIT_STATUS_ERROR = 126
 
 DESCRIPTION = '''Shell utility to work with YT system.\n
 Cypress (metainformation tree) commands:
@@ -300,6 +305,11 @@ def add_read_from_arguments(parser):
 def add_sort_order_argument(parser, name, help, required):
     DESCRIPTION = "In order to choose descending sort order, provide a map of form '{name=foo; sort_order=descending}'"
     add_argument(parser, name, help, DESCRIPTION, action=ParseAppendStructuredDataOrString, required=required)
+
+
+def add_quiet_argument(parser):
+    parser.add_argument("-q", "--quiet", action="store_true",
+                        help="Do not write anything to standard output; exit with 0 if permission is granted, 1 otherwise")
 
 
 def add_boolean_argument(parser, name, negation_prefix="no", default=None, required=False, help=None):
@@ -1998,9 +2008,24 @@ def add_unlock_parser(add_parser):
     add_ypath_argument(parser, "path", hybrid=True)
 
 
+def print_to_output_or_quiet(result: str, quiet: Optional[bool] = None, is_valid: Optional[bool] = None):
+    if quiet:
+        yt.config._cleanup()
+        if is_valid is not None:
+            sys.exit(EXIT_STATUS_VALID if is_valid else EXIT_STATUS_INVALID)
+        sys.exit(EXIT_STATUS_ERROR)
+    else:
+        print_to_output(result, eoln=False)
+
+
 @copy_docstring_from(yt.check_permission)
-def check_permission(**kwargs):
-    print_to_output(yt.check_permission(**kwargs), eoln=False)
+def check_permission(quiet=False, **kwargs):
+    if quiet:
+        kwargs["format"] = None
+
+    result = yt.check_permission(**kwargs)
+
+    print_to_output_or_quiet(result, quiet, is_valid=quiet and (result["action"] == "allow"))
 
 
 def add_check_permission_parser(add_parser):
@@ -2011,6 +2036,7 @@ def add_check_permission_parser(add_parser):
     add_read_from_arguments(parser)
     add_structured_argument(parser, "--columns")
     add_structured_format_argument(parser, default=output_format)
+    add_quiet_argument(parser)
 
 
 def member_args(parser):
