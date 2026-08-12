@@ -1237,9 +1237,7 @@ private:
         }
 
         for (const auto& chunk : chunksToSeal) {
-            YT_UNUSED_FUTURE(BIND(&TBlockStore::SealChunk, MakeStrong(this), chunk)
-                .AsyncVia(Invoker_)
-                .Run());
+            Invoker_->Invoke(BIND(&TBlockStore::SealChunk, MakeStrong(this), chunk));
         }
     }
 
