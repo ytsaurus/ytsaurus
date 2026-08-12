@@ -83,8 +83,8 @@ public:
             return MakeFuture(connection->GetChannelFactory()->CreateChannel(Address_));
         }
 
-        YT_LOG_DEBUG("Cannot find cluster in the cluster directory (Cluster: %v)",
-            Cluster_);
+        YT_TLOG_DEBUG("Cannot find cluster in the cluster directory")
+            .With("Cluster", Cluster_);
         return MakeFuture<IChannelPtr>(
             TError(NRpc::EErrorCode::Unavailable, "Cannot find cluster in the cluster directory")
                 .With("cluster", Cluster_)
@@ -534,22 +534,22 @@ public:
             if (IsGlobalCellId(descriptor.CellId)) {
                 auto cellTag = CellTagFromId(descriptor.CellId);
                 if (auto [jt, inserted] = CellTagToEntry_.emplace(cellTag, entry); !inserted) {
-                    YT_LOG_ALERT("Duplicate global cell id (CellTag: %v, ExistingCellId: %v, NewCellId: %v)",
-                        cellTag,
-                        jt->second->Descriptor->CellId,
-                        descriptor.CellId);
+                    YT_TLOG_ALERT("Duplicate global cell id")
+                        .With("CellTag", cellTag)
+                        .With("ExistingCellId", jt->second->Descriptor->CellId)
+                        .With("NewCellId", descriptor.CellId);
                 }
             }
-            YT_LOG_DEBUG("Cell registered (CellId: %v, ConfigVersion: %v)",
-                descriptor.CellId,
-                descriptor.ConfigVersion);
+            YT_TLOG_DEBUG("Cell registered")
+                .With("CellId", descriptor.CellId)
+                .With("ConfigVersion", descriptor.ConfigVersion);
             return true;
         } else if (it->second.Descriptor->ConfigVersion < descriptor.ConfigVersion) {
             it->second.Descriptor = New<TCellDescriptor>(descriptor);
             InitChannel(&it->second);
-            YT_LOG_DEBUG("Cell reconfigured (CellId: %v, ConfigVersion: %v)",
-                descriptor.CellId,
-                descriptor.ConfigVersion);
+            YT_TLOG_DEBUG("Cell reconfigured")
+                .With("CellId", descriptor.CellId)
+                .With("ConfigVersion", descriptor.ConfigVersion);
             return true;
         }
         return false;
@@ -570,8 +570,8 @@ public:
         if (IsGlobalCellId(cellId)) {
             EraseOrCrash(CellTagToEntry_, CellTagFromId(cellId));
         }
-        YT_LOG_INFO("Cell unregistered (CellId: %v)",
-            cellId);
+        YT_TLOG_INFO("Cell unregistered")
+            .With("CellId", cellId);
         return true;
     }
 

@@ -72,7 +72,7 @@ private:
     void DoSync() override
     {
         try {
-            YT_LOG_DEBUG("Started synchronizing cell directory");
+            YT_TLOG_DEBUG("Started synchronizing cell directory");
 
             auto cellId = SourceOfTruthCellIds_[RandomGenerator_.Generate<size_t>() % SourceOfTruthCellIds_.size()];
             auto channel = CellDirectory_->GetChannelByCellIdOrThrow(cellId, NHydra::EPeerKind::Follower);
@@ -102,7 +102,7 @@ private:
                 CellDirectory_->ReconfigureCell(descriptor);
             }
 
-            YT_LOG_DEBUG("Finished synchronizing cell directory");
+            YT_TLOG_DEBUG("Finished synchronizing cell directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing cell directory")
                 .With(ex);
