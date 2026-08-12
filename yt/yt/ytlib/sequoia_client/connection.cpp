@@ -36,7 +36,7 @@ public:
     {
         Config_.Store(std::move(config));
         DoReconfigure();
-        YT_LOG_DEBUG("Sequoia connection reconfigured");
+        YT_TLOG_DEBUG("Sequoia connection reconfigured");
     }
 
     ISequoiaClientPtr CreateClient(const TAuthenticationIdentity& authenticationIdentity) override
@@ -70,7 +70,7 @@ private:
     void Initialize()
     {
         DoReconfigure();
-        YT_LOG_DEBUG("Sequoia connection initialized");
+        YT_TLOG_DEBUG("Sequoia connection initialized");
     }
 
     void DoReconfigure()
@@ -145,7 +145,7 @@ private:
 
         auto localConnection = LocalConnection_.Lock();
         if (!localConnection) {
-            YT_LOG_INFO("Sequoia connection finds local connection destroyed while creating ground client");
+            YT_TLOG_INFO("Sequoia connection finds local connection destroyed while creating ground client");
             return MakeFuture<IClientPtr>(TError("Local connection has been destroyed"));
         }
 
@@ -176,7 +176,7 @@ private:
 
         auto localConnection = LocalConnection_.Lock();
         if (!localConnection) {
-            YT_LOG_INFO("Sequoia connection finds local connection destroyed while creating client cache");
+            YT_TLOG_INFO("Sequoia connection finds local connection destroyed while creating client cache");
             return nullptr;
         }
 
