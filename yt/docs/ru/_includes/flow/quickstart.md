@@ -179,7 +179,7 @@ $ ya run . -- --input {{flow-example-cluster}}://tmp/example/noop --ttl 1
 }
 ```
 
-Обязательные параметры: `worker.count`, `pool`. Остальные имеют разумные значения по умолчанию: контроллер — 1 джоба, каждая джоба (и контроллера, и воркера) получает 6 CPU и 18 GiB памяти, а порты внутри джобы фиксированные (`rpc_port = 10080`, `monitoring_port = 10081`). При запуске бинарь сам создаст vanilla-операцию с двумя задачами (controller + worker), отправит пайплайн на исполнение и дождётся завершения.
+Обязательные параметры: `worker.count`, `pool`. Остальные имеют разумные значения по умолчанию: контроллер — 1 джоба, каждая джоба (и контроллера, и воркера) получает 6 CPU и 18 GiB памяти, а порты внутри джобы фиксированные (`rpc_port = 10080`, `monitoring_port = 10081`, `companion.port = 10082`). При запуске бинарь сам создаст vanilla-операцию с двумя задачами (controller + worker), отправит пайплайн на исполнение и дождётся завершения.
 
 Полный список полей &mdash; в [TVanillaConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaConfig) (см. также [TVanillaTaskConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaTaskConfig)), подробный разбор запуска &mdash; в разделе [Запуск пайплайна в Vanilla-операции](../../flow/devops/vanilla/initial-deploy.md).
 

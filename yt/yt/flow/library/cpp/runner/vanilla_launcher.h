@@ -114,9 +114,11 @@ DEFINE_REFCOUNTED_TYPE(TVanillaConfig)
 
 //! Builds a TFlowNodeConfig with defaults appropriate for ephemeral
 //! vanilla jobs: stderr logging, OS-picked ports, lenient option parsing.
+//! |workerPortCount| is the worker task's `port_count`.
 TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
     const NYPath::TRichYPath& pipelinePath,
-    std::optional<std::string> proxyRole);
+    std::optional<std::string> proxyRole,
+    std::optional<int> workerPortCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

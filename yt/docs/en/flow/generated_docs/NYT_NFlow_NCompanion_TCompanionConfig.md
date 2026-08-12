@@ -7,7 +7,7 @@ Source: [yt/yt/flow/library/cpp/companion/config.h]({{source-root}}/yt/yt/flow/l
 || **Parameter** | **Description** ||
 || `port` | **Type**: `int`
 **Default value**: `0`
- ||
+The port on which the worker talks to the companion process. The companion does not start without it. For a vanilla launch it is filled in automatically: `10082` while the worker task leaves `port_count` unset, or the value of `YT_PORT_2` when it sets `port_count = 3`. ||
 || `monitoring_port` | **Type**: `int`
 **Default value**: `0`
  ||

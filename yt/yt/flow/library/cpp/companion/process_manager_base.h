@@ -75,6 +75,9 @@ private:
     //! and must not trigger a restart.
     bool IsWithinStartupGracePeriod();
 
+    //! Validates that the companion port is configured.
+    void ValidateCompanionPort() const;
+
     //! Starts a new process incarnation and subscribes to its completion for auto-restart.
     void DoStart();
 

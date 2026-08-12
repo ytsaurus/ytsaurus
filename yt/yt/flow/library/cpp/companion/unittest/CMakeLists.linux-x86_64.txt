@@ -39,6 +39,7 @@ target_link_libraries(yt-flow-library-cpp-companion-unittest PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  cpp-testing-common
   yt-core-test_framework
   library-cpp-companion
 )

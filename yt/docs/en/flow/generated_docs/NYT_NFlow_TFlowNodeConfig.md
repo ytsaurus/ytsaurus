@@ -38,7 +38,7 @@ Main port for communication between workers and controllers, can be different fo
 **Default value**: `0`
 API for obtaining metrics. ||
 || `companion` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NCompanion::TCompanionConfig](./all_yson_structs#NYT_NFlow_NCompanion_TCompanionConfig)`>`
- ||
+Companion process parameters. Needed by any worker that runs a companion (Python, Java, Go, C++ companion). Filled in automatically for a vanilla launch. ||
 || `controller` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NController::TControllerConfig](./all_yson_structs#NYT_NFlow_NController_TControllerConfig)`>`
 **Default value**: `{}`
 `Controller` parameters. ||
@@ -79,6 +79,9 @@ API for obtaining metrics. ||
 When set to true, Flow Node will not start if there are unknown options in the config. ||
 || `ignore_singletons_dynamic_config` | **Type**: `bool`
 **Default value**: `false`
+ ||
+|| `enable_porto_resource_tracker` | **Type**: `bool`
+**Default value**: `true`
  ||
 |#
 

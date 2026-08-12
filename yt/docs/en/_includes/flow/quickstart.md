@@ -181,7 +181,7 @@ If your pipeline uses `TSimpleRunnerProgram` (as in all `examples/cpp/*` example
 }
 ```
 
-Required parameters: `worker.count`, `pool`. Other parameters have reasonable default values: the controller is 1 job × (1 CPU, 4 GB), the worker is 4 CPU and 4 GB per job, and YT assigns ports via `YT_PORT_*`. When you run the binary, it creates a vanilla operation with two tasks (controller + worker), submits the pipeline for execution, and waits for completion.
+Required parameters: `worker.count`, `pool`. Other parameters have reasonable default values: the controller is 1 job × (1 CPU, 4 GB), the worker is 4 CPU and 4 GB per job, and the in-job ports are fixed (`rpc_port = 10080`, `monitoring_port = 10081`, `companion.port = 10082`). When you run the binary, it creates a vanilla operation with two tasks (controller + worker), submits the pipeline for execution, and waits for completion.
 
 For the full list of fields, see [TVanillaConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaConfig) (also see [TVanillaTaskConfig](../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_TVanillaTaskConfig)).
 
