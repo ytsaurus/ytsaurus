@@ -335,6 +335,8 @@ items:
   - name: Инструменты
     when: audience == "internal"
     items:
+      - name: Механизм песочницы
+        href: tools/playground.md
       - name: Draw pipeline graph
         href: tools/draw-pipeline-graph.md
       - name: Job investigation
