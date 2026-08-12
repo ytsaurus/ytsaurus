@@ -18,8 +18,8 @@ constinit const auto Logger = TransactionClientLogger;
 
 void TTransactionListener::StartListenTransaction(const ITransactionPtr& transaction, const TError& error)
 {
-    YT_LOG_DEBUG("Started listening for transaction (TransactionId: %v)",
-        transaction->GetId());
+    YT_TLOG_DEBUG("Started listening for transaction")
+        .With("TransactionId", transaction->GetId());
 
     if (!error.IsOK()) {
         auto guard = Guard(SpinLock_);
@@ -32,8 +32,8 @@ void TTransactionListener::StartListenTransaction(const ITransactionPtr& transac
 
 void TTransactionListener::StopListenTransaction(const ITransactionPtr& transaction)
 {
-    YT_LOG_DEBUG("Stopped listening for transaction (TransactionId: %v)",
-        transaction->GetId());
+    YT_TLOG_DEBUG("Stopped listening for transaction")
+        .With("TransactionId", transaction->GetId());
 
     auto guard = Guard(SpinLock_);
     IgnoredTransactionIds_.push_back(transaction->GetId());
@@ -41,9 +41,9 @@ void TTransactionListener::StopListenTransaction(const ITransactionPtr& transact
 
 void TTransactionListener::StartProbeTransaction(const ITransactionPtr& transaction, TDuration probePeriod)
 {
-    YT_LOG_DEBUG("Started probing transaction (TransactionId: %v, ProbePeriod: %v)",
-        transaction->GetId(),
-        probePeriod);
+    YT_TLOG_DEBUG("Started probing transaction")
+        .With("TransactionId", transaction->GetId())
+        .With("ProbePeriod", probePeriod);
 
     auto guard = Guard(SpinLock_);
     if (TransactionIdToProbeExecutor_.contains(transaction->GetId())) {
@@ -60,8 +60,8 @@ void TTransactionListener::StartProbeTransaction(const ITransactionPtr& transact
 
 void TTransactionListener::StopProbeTransaction(const ITransactionPtr& transaction)
 {
-    YT_LOG_DEBUG("Stopped probing transaction (TransactionId: %v)",
-        transaction->GetId());
+    YT_TLOG_DEBUG("Stopped probing transaction")
+        .With("TransactionId", transaction->GetId());
 
     auto guard = Guard(SpinLock_);
     auto it = TransactionIdToProbeExecutor_.find(transaction->GetId());
@@ -123,8 +123,9 @@ void TTransactionListener::OnTransactionAborted(TTransactionId transactionId, co
     if (std::find(IgnoredTransactionIds_.begin(), IgnoredTransactionIds_.end(), transactionId) != IgnoredTransactionIds_.end()) {
         return;
     }
-    YT_LOG_DEBUG(error, "Transaction abort detected (TransactionId: %v)",
-        transactionId);
+    YT_TLOG_DEBUG("Transaction abort detected")
+        .With("TransactionId", transactionId)
+        .With(error);
     AbortedTransactionIds_.push_back(transactionId);
     Aborted_.store(true);
 }
