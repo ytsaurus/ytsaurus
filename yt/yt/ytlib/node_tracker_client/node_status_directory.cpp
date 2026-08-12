@@ -35,18 +35,18 @@ public:
 
         auto it = SuspiciousNodesMarkTime_.find(nodeId);
         if (it == SuspiciousNodesMarkTime_.end() && suspicious) {
-            YT_LOG_DEBUG("Node is marked as suspicious (NodeId: %v, Address: %v)",
-                nodeId,
-                address);
+            YT_TLOG_DEBUG("Node is marked as suspicious")
+                .With("NodeId", nodeId)
+                .With("Address", address);
             SuspiciousNodesMarkTime_[nodeId] = TInstant::Now();
         }
         if (it != SuspiciousNodesMarkTime_.end() &&
             previousMarkTime == it->second &&
             !suspicious)
         {
-            YT_LOG_DEBUG("Node is not suspicious anymore (NodeId: %v, Address: %v)",
-                nodeId,
-                address);
+            YT_TLOG_DEBUG("Node is not suspicious anymore")
+                .With("NodeId", nodeId)
+                .With("Address", address);
             SuspiciousNodesMarkTime_.erase(nodeId);
         }
     }

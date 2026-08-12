@@ -98,7 +98,7 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Started synchronizing node directory");
+            YT_TLOG_DEBUG("Started synchronizing node directory");
 
             auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
@@ -121,7 +121,7 @@ private:
                 LastSuccessfulSyncTime_ = TInstant::Now();
             }
 
-            YT_LOG_DEBUG("Finished synchronizing node directory");
+            YT_TLOG_DEBUG("Finished synchronizing node directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing node directory")
                 .With(ex);
@@ -133,7 +133,8 @@ private:
         try {
             DoSync();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(TError(ex));
+            YT_TLOG_DEBUG("Error synchronizing node directory")
+                .With(TError(ex));
         }
     }
 
@@ -142,7 +143,8 @@ private:
         try {
             DoSync();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(TError(ex));
+            YT_TLOG_DEBUG("Error synchronizing node directory")
+                .With(TError(ex));
         }
     }
 };
