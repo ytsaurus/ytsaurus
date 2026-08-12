@@ -73,7 +73,7 @@ void RunQuery(
     auto evaluator = CreateEvaluator(New<TExecutorConfig>());
     auto reader = CreateSchemafulReaderAdapter(readerFactory, query->GetReadSchema());
 
-    YT_LOG_INFO("Reading, evaluating query and writing");
+    YT_TLOG_INFO("Reading, evaluating query and writing");
     evaluator->Run(
         query,
         reader,
@@ -164,11 +164,14 @@ TComparator BuildComparator(
 {
     TCallback<NQueryClient::TUUComparerSignature> cgComparer;
     if (!enableCodegen) {
-        YT_LOG_DEBUG("Using default comparator because codegen is disabled (Schema: %v)", schema);
+        YT_TLOG_DEBUG("Using default comparator because codegen is disabled")
+            .With("Schema", schema);
     } else if (!schema->IsCGComparatorApplicable()) {
-        YT_LOG_DEBUG("Using default comparator because codegen is not applicable (Schema: %v)", schema);
+        YT_TLOG_DEBUG("Using default comparator because codegen is not applicable")
+            .With("Schema", schema);
     } else {
-        YT_LOG_DEBUG("Using codegen comparator (Schema: %v)", schema);
+        YT_TLOG_DEBUG("Using codegen comparator")
+            .With("Schema", schema);
         cgComparer = NQueryClient::GenerateStaticTableKeyComparer(schema->GetKeyColumnTypes());
     }
     return schema->ToComparator(std::move(cgComparer));
