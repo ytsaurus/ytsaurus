@@ -52,7 +52,7 @@ void TNativeAuthenticationManager::Reconfigure(const TNativeAuthenticationManage
         WarnOnUnauthenticated_.store(*config->WarnOnUnauthenticated);
     }
     if (EnableValidation_.load() && !EnableSubmission_.load()) {
-        YT_LOG_WARNING("Disabling ticket validation automatically when submission is disabled");
+        YT_TLOG_WARNING("Disabling ticket validation automatically when submission is disabled");
         EnableValidation_.store(false);
     }
 }

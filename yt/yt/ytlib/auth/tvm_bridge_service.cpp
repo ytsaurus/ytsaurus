@@ -61,9 +61,9 @@ private:
                 auto ticket = TvmService_->GetServiceTicket(FromProto<TTvmId>(destination));
                 *result->mutable_ticket() = std::move(ticket);
             } catch (const TErrorException& ex) {
-                YT_LOG_INFO("Could not fetch service ticket (Source: %v, Destination: %v)",
-                    request->source(),
-                    destination);
+                YT_TLOG_INFO("Could not fetch service ticket")
+                    .With("Source", request->source())
+                    .With("Destination", destination);
                 ToProto(
                     result->mutable_error(),
                     TError("Could not fetch service ticket")

@@ -139,16 +139,15 @@ private:
 
         filterFetchedTickets();
         if (serviceIds.empty()) {
-            YT_LOG_DEBUG("No new tickets to fetch");
+            YT_TLOG_DEBUG("No new tickets to fetch");
             return;
         }
 
         while (true) {
-            YT_LOG_INFO("Fetching missing service tickets (ServiceIds: %v, Count: %v, AttemptIndex: %v/%v)",
-                MakeShrunkFormattableView(serviceIds, TDefaultFormatter(), SampleServiceIdCount),
-                serviceIds.size(),
-                backoff.GetInvocationIndex(),
-                backoff.GetInvocationCount());
+            YT_TLOG_INFO("Fetching missing service tickets")
+                .With("ServiceIds", MakeShrunkFormattableView(serviceIds, TDefaultFormatter(), SampleServiceIdCount))
+                .With("Count", serviceIds.size())
+                .WithFormat("AttemptIndex", "%v/%v", backoff.GetInvocationIndex(), backoff.GetInvocationCount());
 
             auto req = Proxy_.FetchTickets();
             req->set_source(ToProto(GetSelfTvmIdOrThrow()));
@@ -161,7 +160,7 @@ private:
 
             filterFetchedTickets();
             if (serviceIds.empty()) {
-                YT_LOG_INFO("All tickets fetched successfully");
+                YT_TLOG_INFO("All tickets fetched successfully");
                 return;
             }
             if (!backoff.Next()) {
@@ -169,13 +168,14 @@ private:
             }
 
             auto backoffDuration = backoff.GetBackoff();
-            YT_LOG_DEBUG("There are unfetched tickets, backing off (Duration: %v)", backoffDuration);
+            YT_TLOG_DEBUG("There are unfetched tickets, backing off")
+                .With("Duration", backoffDuration);
             TDelayedExecutor::WaitForDuration(backoffDuration);
         }
 
-        YT_LOG_ERROR("Failed to fetch service tickets (ServiceIds: %v, Count: %v)",
-            MakeShrunkFormattableView(serviceIds, TDefaultFormatter(), SampleServiceIdCount),
-            serviceIds.size());
+        YT_TLOG_ERROR("Failed to fetch service tickets")
+            .With("ServiceIds", MakeShrunkFormattableView(serviceIds, TDefaultFormatter(), SampleServiceIdCount))
+            .With("Count", serviceIds.size());
 
         THROW_ERROR_EXCEPTION("Failed to fetch service tickets");
     }
@@ -193,7 +193,8 @@ private:
                     !iter->second.IsOK() ||
                     iter->second.Value() != result.ticket())
                 {
-                    YT_LOG_DEBUG("Service ticket updated (Destination: %v)", destination);
+                    YT_TLOG_DEBUG("Service ticket updated")
+                        .With("Destination", destination);
                 }
 
                 ServiceIdToTicket_[destination] = std::string(result.ticket());
@@ -206,7 +207,8 @@ private:
                     ServiceIdToTicket_[destination] = error;
                 }
 
-                YT_LOG_WARNING(error, "Failed to fetch service ticket");
+                YT_TLOG_WARNING("Failed to fetch service ticket")
+                    .With(error);
             }
         }
     }
@@ -215,11 +217,11 @@ private:
     {
         auto selfTvmId = TryGetSelfTvmId();
         if (!selfTvmId) {
-            YT_LOG_DEBUG("Self TVM id is not set, skipping service ticket refresh");
+            YT_TLOG_DEBUG("Self TVM id is not set, skipping service ticket refresh");
             return;
         }
 
-        YT_LOG_DEBUG("Refreshing service tickets");
+        YT_TLOG_DEBUG("Refreshing service tickets");
 
         auto req = Proxy_.FetchTickets();
         {
@@ -230,13 +232,14 @@ private:
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Failed to refresh service tickets");
+            YT_TLOG_WARNING("Failed to refresh service tickets")
+                .With(rspOrError);
             return;
         }
 
         UpdateServiceTickets(*rspOrError.Value());
 
-        YT_LOG_DEBUG("Service tickets refreshed");
+        YT_TLOG_DEBUG("Service tickets refreshed");
     }
 };
 
