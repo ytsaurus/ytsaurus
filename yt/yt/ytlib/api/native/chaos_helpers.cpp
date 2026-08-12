@@ -46,8 +46,8 @@ TCellId GetCoordinatorCellId(
         return downedCellTracker->ChooseOne(replicationCard->CoordinatorCellIds);
     }
 
-    YT_LOG_DEBUG("Replication card contains no coordinators, trying the watched one (ReplicationCardId: %v)",
-        replicationCardId);
+    YT_TLOG_DEBUG("Replication card contains no coordinators, trying the watched one")
+        .With("ReplicationCardId", replicationCardId);
 
     auto watchedCardKey = TReplicationCardCacheKey{
         .CardId = replicationCardId,
@@ -58,9 +58,9 @@ TCellId GetCoordinatorCellId(
     auto watchedReplicationCardOrError = WaitForFast(futureWatchedReplicationCard);
 
     if (!watchedReplicationCardOrError.IsOK()) {
-        YT_LOG_DEBUG(watchedReplicationCardOrError,
-            "Failed to get replication card coordinators from cache (ReplicationCardId: %v)",
-            replicationCardId);
+        YT_TLOG_DEBUG("Failed to get replication card coordinators from cache")
+            .With("ReplicationCardId", replicationCardId)
+            .With(watchedReplicationCardOrError);
 
         return NullCellId;
     }
@@ -68,8 +68,8 @@ TCellId GetCoordinatorCellId(
     const auto& watchedReplicationCard = watchedReplicationCardOrError.Value();
 
     if (watchedReplicationCard->CoordinatorCellIds.empty()) {
-        YT_LOG_DEBUG("Watched replication card contains no coordinators (ReplicationCard: %v)",
-            *replicationCard);
+        YT_TLOG_DEBUG("Watched replication card contains no coordinators")
+            .With("ReplicationCard", *replicationCard);
 
         return NullCellId;
     }
@@ -104,9 +104,9 @@ TReplicationCardPtr GetSyncReplicationCard(
     auto coordinatorEra = InvalidReplicationEra;
 
     for (int retryCount = 0; retryCount < mountCacheConfig->OnErrorRetryCount; ++retryCount) {
-        YT_LOG_DEBUG("Synchronizing replication card (ReplicationCardId: %v, Attempt: %v)",
-            replicationCardId,
-            retryCount);
+        YT_TLOG_DEBUG("Synchronizing replication card")
+            .With("ReplicationCardId", replicationCardId)
+            .With("Attempt", retryCount);
 
         if (retryCount > 0) {
             if (replicationCard && coordinatorEra != InvalidReplicationEra) {
@@ -121,8 +121,9 @@ TReplicationCardPtr GetSyncReplicationCard(
         auto replicationCardOrError = WaitForFast(futureReplicationCard);
 
         if (!replicationCardOrError.IsOK()) {
-            YT_LOG_DEBUG(replicationCardOrError, "Failed to get replication card from cache (ReplicationCardId: %v)",
-                replicationCardId);
+            YT_TLOG_DEBUG("Failed to get replication card from cache")
+                .With("ReplicationCardId", replicationCardId)
+                .With(replicationCardOrError);
             continue;
         }
 
@@ -152,16 +153,17 @@ TReplicationCardPtr GetSyncReplicationCard(
         if (!rspOrError.IsOK()) {
             coordinatorEra = InvalidReplicationEra;
 
-            YT_LOG_DEBUG(rspOrError, "Failed to get replication card from coordinator (ReplicationCardId: %v)",
-                replicationCardId);
+            YT_TLOG_DEBUG("Failed to get replication card from coordinator")
+                .With("ReplicationCardId", replicationCardId)
+                .With(rspOrError);
             continue;
         }
 
         auto rsp = rspOrError.Value();
         coordinatorEra = rsp->replication_era();
 
-        YT_LOG_DEBUG("Got replication card era from coordinator (Era: %v)",
-            coordinatorEra);
+        YT_TLOG_DEBUG("Got replication card era from coordinator")
+            .With("Era", coordinatorEra);
 
         if (replicationCard->Era == coordinatorEra) {
             return replicationCard;
@@ -169,9 +171,9 @@ TReplicationCardPtr GetSyncReplicationCard(
 
         YT_VERIFY(replicationCard->Era < coordinatorEra);
 
-        YT_LOG_DEBUG("Replication card era mismatch coordinator era (ReplicationCardEra: %v, CoordinatorEra: %v)",
-            replicationCard->Era,
-            coordinatorEra);
+        YT_TLOG_DEBUG("Replication card era mismatch coordinator era")
+            .With("ReplicationCardEra", replicationCard->Era)
+            .With("CoordinatorEra", coordinatorEra);
     }
 
     THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::UnableToSynchronizeReplicationCard,
@@ -253,11 +255,11 @@ TTableReplicaInfoPtrList PickInSyncChaosReplicas(
     auto bannedReplicaTracker = connection->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId);
     bannedReplicaTracker->SyncReplicas(replicationCard);
 
-    YT_LOG_DEBUG("Picked in-sync replicas for table (TablePath: %v, ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
-        tableInfo->Path,
-        replicaIds,
-        options.Timestamp,
-        *replicationCard);
+    YT_TLOG_DEBUG("Picked in-sync replicas for table")
+        .With("TablePath", tableInfo->Path)
+        .With("ReplicaIds", replicaIds)
+        .With("Timestamp", options.Timestamp)
+        .With("ReplicationCard", *replicationCard);
 
     TTableReplicaInfoPtrList inSyncReplicas;
     inSyncReplicas.reserve(replicaIds.size());

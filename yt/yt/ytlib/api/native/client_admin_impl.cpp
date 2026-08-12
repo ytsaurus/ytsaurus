@@ -141,7 +141,8 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
 
     std::queue<TSnapshotRequest> requestQueue;
     auto enqueueRequest = [&] (TCellId cellId) {
-        YT_LOG_INFO("Requesting cell to build a snapshot (CellId: %v)", cellId);
+        YT_TLOG_INFO("Requesting cell to build a snapshot")
+            .With("CellId", cellId);
         auto request = constructRequest(channels[cellId]);
         requestQueue.push({request->Invoke(), cellId});
     };
@@ -156,20 +157,26 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
         requestQueue.pop();
 
         auto cellId = request.CellId;
-        YT_LOG_INFO("Waiting for snapshot (CellId: %v)", cellId);
+        YT_TLOG_INFO("Waiting for snapshot")
+            .With("CellId", cellId);
         auto snapshotIdOrError = WaitFor(request.Future);
         if (snapshotIdOrError.IsOK()) {
             auto snapshotId = snapshotIdOrError.Value()->snapshot_id();
-            YT_LOG_INFO("Snapshot built successfully (CellId: %v, SnapshotId: %v)", cellId, snapshotId);
+            YT_TLOG_INFO("Snapshot built successfully")
+                .With("CellId", cellId)
+                .With("SnapshotId", snapshotId);
             cellIdToSnapshotId[cellId] = snapshotId;
         } else {
             auto errorCode = snapshotIdOrError.GetCode();
             if (errorCode == NHydra::EErrorCode::ReadOnlySnapshotBuilt) {
-                YT_LOG_INFO("Skipping cell since it is already in read-only mode and has a valid snapshot (CellId: %v)", cellId);
+                YT_TLOG_INFO("Skipping cell since it is already in read-only mode and has a valid snapshot")
+                    .With("CellId", cellId);
                 auto snapshotId = snapshotIdOrError.Attributes().Get<int>("snapshot_id");
                 cellIdToSnapshotId[cellId] = snapshotId;
             } else if (options.Retry && errorCode != NHydra::EErrorCode::ReadOnlySnapshotBuildFailed) {
-                YT_LOG_INFO(snapshotIdOrError, "Failed to build snapshot; retrying (CellId: %v)", cellId);
+                YT_TLOG_INFO("Failed to build snapshot; retrying")
+                    .With("CellId", cellId)
+                    .With(snapshotIdOrError);
                 enqueueRequest(cellId);
             } else {
                 snapshotIdOrError.ThrowOnError();
@@ -223,7 +230,8 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
     i64 logicalTime;
     std::queue<TGetMasterConsistentStateRequest> requestQueue;
     auto enqueueRequest = [&] (TCellId cellId) {
-        YT_LOG_INFO("Requesting consistent state (CellId: %v)", cellId);
+        YT_TLOG_INFO("Requesting consistent state")
+            .With("CellId", cellId);
         auto request = constructRequest(channels[cellId], logicalTime);
         requestQueue.push({request->Invoke(), cellId});
     };
@@ -238,10 +246,10 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
         auto req = constructRequest(channels[primaryCellId]);
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
-        YT_LOG_INFO("Received consistent state (CellId: %v, LogicalTime: %v, SequenceNumber: %v)",
-            primaryCellId,
-            rsp->logical_time(),
-            rsp->sequence_number());
+        YT_TLOG_INFO("Received consistent state")
+            .With("CellId", primaryCellId)
+            .With("LogicalTime", rsp->logical_time())
+            .With("SequenceNumber", rsp->sequence_number());
         logicalTime = rsp->logical_time();
         EmplaceOrCrash(cellIdToConsistentState, primaryCellId, TMasterConsistentState{
             .SequenceNumber = rsp->sequence_number(),
@@ -263,10 +271,10 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
         auto responseOrError = WaitFor(request.Future);
         if (responseOrError.IsOK()) {
             auto response = responseOrError.Value();
-            YT_LOG_INFO("Received consistent state (CellId: %v, SequenceNumber: %v, SegmentId: %v)",
-                cellId,
-                response->sequence_number(),
-                response->segment_id());
+            YT_TLOG_INFO("Received consistent state")
+                .With("CellId", cellId)
+                .With("SequenceNumber", response->sequence_number())
+                .With("SegmentId", response->segment_id());
             EmplaceOrCrash(cellIdToConsistentState, cellId, TMasterConsistentState{
                 .SequenceNumber = response->sequence_number(),
                 .SegmentId = response->segment_id(),
@@ -274,8 +282,8 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
             continue;
         }
         if (responseOrError.GetCode() == NHiveClient::EErrorCode::TimeEntryNotFound) {
-            YT_LOG_INFO("Requested time is missing; retrying (CellId: %v)",
-                primaryCellId);
+            YT_TLOG_INFO("Requested time is missing; retrying")
+                .With("CellId", primaryCellId);
             resetState();
         } else {
             THROW_ERROR(responseOrError);
@@ -342,7 +350,8 @@ void TClient::DoMasterExitReadOnly(
 
     std::queue<TExitReadOnlyRequest> requestQueue;
     auto enqueueRequest = [&] (TCellId cellId) {
-        YT_LOG_INFO("Requesting exiting read-only mode at cell (CellId: %v)", cellId);
+        YT_TLOG_INFO("Requesting exiting read-only mode at cell")
+            .With("CellId", cellId);
         auto request = constructRequest(channels[cellId]);
         requestQueue.push({request->Invoke(), cellId});
     };
@@ -358,11 +367,14 @@ void TClient::DoMasterExitReadOnly(
         auto cellId = request.CellId;
         auto rspOrError = WaitFor(request.Future);
         if (rspOrError.IsOK()) {
-            YT_LOG_INFO("Exited read-only mode (CellId: %v)", cellId);
+            YT_TLOG_INFO("Exited read-only mode")
+                .With("CellId", cellId);
             continue;
         }
         if (options.Retry) {
-            YT_LOG_INFO(rspOrError, "Failed to exit read-only mode; retrying (CellId: %v)", cellId);
+            YT_TLOG_INFO("Failed to exit read-only mode; retrying")
+                .With("CellId", cellId)
+                .With(rspOrError);
             enqueueRequest(cellId);
         } else {
             THROW_ERROR(rspOrError);

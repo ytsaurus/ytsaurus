@@ -415,10 +415,12 @@ TFuture<T> TClient::Execute(
         ] {
             try {
                 auto prologue = [&] {
-                    YT_LOG_DEBUG("Command started (Command: %v)", commandName);
+                    YT_TLOG_DEBUG("Command started")
+                        .With("Command", commandName);
                 };
                 auto epilogue = [&] {
-                    YT_LOG_DEBUG("Command completed (Command: %v)", commandName);
+                    YT_TLOG_DEBUG("Command completed")
+                        .With("Command", commandName);
                 };
                 prologue();
                 if constexpr (std::is_same_v<T, void>) {
@@ -430,7 +432,9 @@ TFuture<T> TClient::Execute(
                     return result;
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
+                YT_TLOG_DEBUG("Command failed")
+                    .With("Command", commandName)
+                    .With(ex);
                 throw;
             }
         })
@@ -559,7 +563,8 @@ IChannelPtr TClient::GetHydraAdminChannelOrThrow(TCellId cellId)
             SyncCellsIfNeeded({cellId});
         } catch (const TErrorException& ex) {
             if (ex.Error().FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                YT_LOG_WARNING(ex, "Skipping cell directory synchronization");
+                YT_TLOG_WARNING("Skipping cell directory synchronization")
+                    .With(ex);
             } else {
                 throw;
             }
@@ -647,9 +652,9 @@ void TClient::ValidateSuperuserPermissions()
         .ValueOrThrow();
 
     auto groups = ConvertTo<THashSet<std::string>>(groupYsonList);
-    YT_LOG_DEBUG("User group membership info received (Name: %v, Groups: %v)",
-        Options_.User,
-        groups);
+    YT_TLOG_DEBUG("User group membership info received")
+        .With("Name", Options_.User)
+        .With("Groups", groups);
 
     if (!groups.contains(SuperusersGroupName)) {
         THROW_ERROR_EXCEPTION("Superuser permissions required");
@@ -672,16 +677,17 @@ void TClient::ValidatePermissionsWithAcn(
             permission,
             TCheckPermissionOptions());
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Check permission failed");
+        YT_TLOG_ERROR("Check permission failed")
+            .With(ex);
         response = TError(ex);
     }
 
     if (!(response.IsOK() && response.Value().Action == ESecurityAction::Allow)) {
         ValidateSuperuserPermissions();
-        YT_LOG_WARNING("There is no access control object with the necessary permissions (Name: %v, Path: %v, Permission: %v)",
-            Options_.User,
-            objectPath,
-            ToString(permission));
+        YT_TLOG_WARNING("There is no access control object with the necessary permissions")
+            .With("Name", Options_.User)
+            .With("Path", objectPath)
+            .With("Permission", ToString(permission));
     }
 }
 
@@ -726,17 +732,17 @@ TObjectId TClient::CreateObjectImpl(
 
             ++retryIndex;
 
-            YT_LOG_DEBUG("Retrieving object life stage (ObjectId: %v)",
-                objectId);
+            YT_TLOG_DEBUG("Retrieving object life stage")
+                .With("ObjectId", objectId);
 
             auto lifeStageYson = WaitFor(GetNode(FromObjectId(objectId) + "/@life_stage", /*options*/ {}))
                 .ValueOrThrow();
 
             lifeStage = ConvertTo<EObjectLifeStage>(lifeStageYson);
 
-            YT_LOG_DEBUG("Object life stage retrieved (ObjectId: %v, LifeStage: %v)",
-                objectId,
-                lifeStage);
+            YT_TLOG_DEBUG("Object life stage retrieved")
+                .With("ObjectId", objectId)
+                .With("LifeStage", lifeStage);
 
             if (lifeStage == EObjectLifeStage::CreationCommitted) {
                 ok = true;

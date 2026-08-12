@@ -90,8 +90,8 @@ public:
             return MakeFuture(TError(NYT::EErrorCode::Canceled, "Transaction destroyed"));
         }
 
-        YT_LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
-            Actions_.size());
+        YT_TLOG_DEBUG("Sending transaction actions")
+            .With("ActionCount", Actions_.size());
 
         TFuture<void> future;
         switch (TypeFromId(CellId_)) {
@@ -161,11 +161,12 @@ private:
             auto error = TError("Error sending transaction actions")
                 .With("cell_id", CellId_)
                 .With(result);
-            YT_LOG_DEBUG(error);
+            YT_TLOG_DEBUG("Error sending transaction actions")
+                .With(error);
             THROW_ERROR(error);
         }
 
-        YT_LOG_DEBUG("Transaction actions sent successfully");
+        YT_TLOG_DEBUG("Transaction actions sent successfully");
     }
 };
 

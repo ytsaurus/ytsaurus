@@ -62,7 +62,10 @@ public:
                     if (error.FindMatching(NShell::EErrorCode::ShellExited) ||
                         error.FindMatching(NShell::EErrorCode::ShellManagerShutDown))
                     {
-                        YT_LOG_DEBUG(error, "Job shell exited (JobId: %v, ShellId: %v)", JobId_, ShellId_);
+                        YT_TLOG_DEBUG("Job shell exited")
+                            .With("JobId", JobId_)
+                            .With("ShellId", ShellId_)
+                            .With(error);
                         return TSharedRef();
                     }
 
@@ -206,10 +209,9 @@ TPollJobShellResponse TClient::DoPollJobShell(
     const TYsonString& parameters,
     const TPollJobShellOptions& /*options*/)
 {
-    YT_LOG_DEBUG(
-        "Polling job shell (JobId: %v, ShellName: %v)",
-        jobId,
-        shellName);
+    YT_TLOG_DEBUG("Polling job shell")
+        .With("JobId", jobId)
+        .With("ShellName", shellName);
 
     const auto& jobShellDescriptorCache = Connection_->GetJobShellDescriptorCache();
     TJobShellDescriptorKey jobShellDescriptorKey{
@@ -221,9 +223,8 @@ TPollJobShellResponse TClient::DoPollJobShell(
     auto jobShellDescriptor = WaitFor(jobShellDescriptorCache->Get(jobShellDescriptorKey))
         .ValueOrThrow();
 
-    YT_LOG_DEBUG(
-        "Received job shell descriptor (JobShellDescriptor: %v)",
-        jobShellDescriptor);
+    YT_TLOG_DEBUG("Received job shell descriptor")
+        .With("JobShellDescriptor", jobShellDescriptor);
 
     auto nodeChannel = ChannelFactory_->CreateChannel(jobShellDescriptor.NodeDescriptor);
     auto proxy = CreateNodeJobProberServiceProxy(std::move(nodeChannel));
@@ -270,9 +271,9 @@ IAsyncZeroCopyInputStreamPtr TClient::DoRunJobShellCommand(
     auto result = ConvertToNode(rsp.Result);
     auto shellId = result->AsMap()->GetChildValueOrThrow<std::string>("shell_id");
 
-    YT_LOG_DEBUG("Job shell spawned (JobId: %v, ShellId: %v)",
-        jobId,
-        shellId);
+    YT_TLOG_DEBUG("Job shell spawned")
+        .With("JobId", jobId)
+        .With("ShellId", shellId);
 
     return New<TJobShellCommandOutputReader>(
         StaticPointerCast<IClient>(MakeStrong(this)),

@@ -172,9 +172,9 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
 {
     YT_VERIFY(TableMountInfo_->Indices.size() == IndexTableMountInfos_.size());
 
-    YT_LOG_DEBUG("Building secondary index modifications (TablePath: %v, Indices: [%v])",
-        TableMountInfo_->Path,
-        MakeFormattableView(
+    YT_TLOG_DEBUG("Building secondary index modifications")
+        .With("TablePath", TableMountInfo_->Path)
+        .With("Indices", MakeFormattableView(
             TableMountInfo_->Indices,
             [] (auto* builder, const auto& indexInfo) {
                 builder->AppendFormat("(%v: %Qlv)", indexInfo.IndexObjectId, indexInfo.Kind);
@@ -307,10 +307,10 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
             return IsNotValueColumn(*tableSchema, column);
         });
 
-    YT_LOG_DEBUG("Prepared secondary index modification pipeline (IntermediateSchema: %v, SkipLookup: %v, NameTable: %v)",
-        ResultingSchema_,
-        CanSkipLookup_,
-        NameTable_->GetNames());
+    YT_TLOG_DEBUG("Prepared secondary index modification pipeline")
+        .With("IntermediateSchema", ResultingSchema_)
+        .With("SkipLookup", CanSkipLookup_)
+        .With("NameTable", NameTable_->GetNames());
 }
 
 TFuture<void> TSecondaryIndexModifier::LookupRows()

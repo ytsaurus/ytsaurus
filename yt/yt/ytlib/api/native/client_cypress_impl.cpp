@@ -349,7 +349,7 @@ protected:
         const std::string& title,
         const TOptions& options)
     {
-        YT_LOG_DEBUG("Starting transaction");
+        YT_TLOG_DEBUG("Starting transaction");
 
         auto transactionAttributes = CreateEphemeralAttributes();
         transactionAttributes->Set("title", title);
@@ -364,8 +364,8 @@ protected:
         THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error starting transaction");
         Transaction_ = transactionOrError.Value();
 
-        YT_LOG_DEBUG("Transaction started (TransactionId: %v)",
-            Transaction_->GetId());
+        YT_TLOG_DEBUG("Transaction started")
+            .With("TransactionId", Transaction_->GetId());
     }
 
     template <class TOptions>
@@ -386,7 +386,8 @@ protected:
             auto subtreePath = subtreeSerializationQueue.front();
             subtreeSerializationQueue.pop();
 
-            YT_LOG_DEBUG("Requesting serialized subtree (SubtreePath: %v)", subtreePath);
+            YT_TLOG_DEBUG("Requesting serialized subtree")
+                .With("SubtreePath", subtreePath);
 
             auto batchReq = proxy.ExecuteBatch();
             auto req = TCypressYPathProxy::BeginCopy(subtreePath);
@@ -437,16 +438,15 @@ protected:
             } else {
                 dataSize = rsp->serialized_tree().data().size();
             }
-            YT_LOG_DEBUG("Serialized subtree received (RootNodeId: %v, Path: %v, FormatVersion: %v, TreeSize: %v, "
-                "PortalChildIds: %v, ExternalCellTags: %v, OpaqueChildPaths: %v, RegisteredSchemaCount: %v)",
-                subtreeRootId,
-                subtreePath,
-                UseNewerCrossCellCopyProtocol_ ? rsp->version() : rsp->serialized_tree().version(),
-                dataSize,
-                portalChildIds,
-                externalCellTags,
-                opaqueChildPaths,
-                UseNewerCrossCellCopyProtocol_ ? rsp->schema_ids_size() : rsp->schemas_size()); // update value
+            YT_TLOG_DEBUG("Serialized subtree received")
+                .With("RootNodeId", subtreeRootId)
+                .With("Path", subtreePath)
+                .With("FormatVersion", UseNewerCrossCellCopyProtocol_ ? rsp->version() : rsp->serialized_tree().version())
+                .With("TreeSize", dataSize)
+                .With("PortalChildIds", portalChildIds)
+                .With("ExternalCellTags", externalCellTags)
+                .With("OpaqueChildPaths", opaqueChildPaths)
+                .With("RegisteredSchemaCount", UseNewerCrossCellCopyProtocol_ ? rsp->schema_ids_size() : rsp->schemas_size()); // update value
 
             auto relativePath = TryComputeYPathSuffix(subtreePath, ResolvedSrcNodePath_);
             YT_VERIFY(relativePath);
@@ -484,8 +484,8 @@ protected:
     template <class TOptions>
     [[nodiscard]] bool LockCopyDestination(const TYPath& dstPath, const TOptions& options, bool inplace = false)
     {
-        YT_LOG_DEBUG("Locking destination (DestinationPath: %v)",
-            dstPath);
+        YT_TLOG_DEBUG("Locking destination")
+            .With("DestinationPath", dstPath);
 
         auto proxy = CreateObjectServiceWriteProxy(Client_);
 
@@ -505,8 +505,8 @@ protected:
         const auto& rsp = rspOrError.Value();
         if (rsp->has_existing_node_id()) {
             DstNodeId_ = FromProto<TNodeId>(rsp->existing_node_id());
-            YT_LOG_DEBUG("Destination node already exists (NodeId: %v)",
-                DstNodeId_);
+            YT_TLOG_DEBUG("Destination node already exists")
+                .With("NodeId", DstNodeId_);
             return false;
         }
 
@@ -523,12 +523,11 @@ protected:
             NewAccountId_ = FromProto<TAccountId>(rsp->account_id());
         }
 
-        YT_LOG_DEBUG("Locked destination node (IsSequoiaDestination: %v, DstCellTag: %v, "
-            "AccountId: %v, EffectiveInheritableAttributes: %v)",
-            IsSequoiaDestination_,
-            DstCellTag_,
-            NewAccountId_,
-            DstInheritableAttributes_->ListPairs());
+        YT_TLOG_DEBUG("Locked destination node")
+            .With("IsSequoiaDestination", IsSequoiaDestination_)
+            .With("DstCellTag", DstCellTag_)
+            .With("AccountId", NewAccountId_)
+            .With("EffectiveInheritableAttributes", DstInheritableAttributes_->ListPairs());
 
         return true;
     }
@@ -540,7 +539,8 @@ protected:
         // Once BeginCopy will be deleted, make sure that ResolvedSrcNodePath_ is set correctly.
         auto proxy = CreateObjectServiceWriteProxy(Client_);
 
-        YT_LOG_DEBUG("Locking source tree (Path: %v)", ResolvedSrcNodePath_);
+        YT_TLOG_DEBUG("Locking source tree")
+            .With("Path", ResolvedSrcNodePath_);
 
         auto batchReq = proxy.ExecuteBatch();
         auto req = TCypressYPathProxy::LockCopySource(ResolvedSrcNodePath_);
@@ -598,10 +598,10 @@ protected:
 
         ProtocolVersion_ = rsp->version();
 
-        YT_LOG_DEBUG("Source tree locked (RootNodeId: %v, Path: %v, NodeIdToChildrenMappingSize: %v)",
-            subtreeRootId,
-            ResolvedSrcNodePath_,
-            NodeIdToChildrenMapping_.size());
+        YT_TLOG_DEBUG("Source tree locked")
+            .With("RootNodeId", subtreeRootId)
+            .With("Path", ResolvedSrcNodePath_)
+            .With("NodeIdToChildrenMappingSize", NodeIdToChildrenMapping_.size());
     }
 
     template <class TOptions>
@@ -617,8 +617,8 @@ protected:
             }
         }
 
-        YT_LOG_DEBUG("Getting serialized nodes (NodeCount: %v)",
-            nodesToFetch.size());
+        YT_TLOG_DEBUG("Getting serialized nodes")
+            .With("NodeCount", nodesToFetch.size());
 
         auto requestTemplate = TCypressYPathProxy::SerializeNode();
         SetSerializeNodeRequestParameters(requestTemplate, options);
@@ -660,9 +660,9 @@ protected:
                 return size + std::ssize(value.second->serialized_node().data());
             });
 
-        YT_LOG_DEBUG("Finished getting serialized nodes (NodeCount: %v, DataSize: %v)",
-            NodeIdToSerializedData_.size(),
-            dataSize);
+        YT_TLOG_DEBUG("Finished getting serialized nodes")
+            .With("NodeCount", NodeIdToSerializedData_.size())
+            .With("DataSize", dataSize);
 
         FetchMasterTableSchemas();
     }
@@ -673,7 +673,7 @@ protected:
             return;
         }
 
-        YT_LOG_DEBUG("Fetching table schemas used in the subtree");
+        YT_TLOG_DEBUG("Fetching table schemas used in the subtree");
 
         auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
 
@@ -699,13 +699,13 @@ protected:
             EmplaceOrCrash(SchemaIdToSchema_, schemaId, ConvertTo<TTableSchema>(schemaYson));
         }
 
-        YT_LOG_DEBUG("Finished fetching schemas (SchemaCount: %v)",
-            SchemaIdToSchema_.size());
+        YT_TLOG_DEBUG("Finished fetching schemas")
+            .With("SchemaCount", SchemaIdToSchema_.size());
     }
 
     void CalculateInheritedAttributes()
     {
-        YT_LOG_DEBUG("Calculating attributes inherited during copy");
+        YT_TLOG_DEBUG("Calculating attributes inherited during copy");
 
         auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
 
@@ -728,15 +728,15 @@ protected:
             EmplaceOrCrash(NodeToInheritedAttributesOverride_, nodeId, FromProto(entry.attributes()));
         }
 
-        YT_LOG_DEBUG("Finished calculating attributes inherited during copy (OverrideCount: %v)",
-            NodeToInheritedAttributesOverride_.size());
+        YT_TLOG_DEBUG("Finished calculating attributes inherited during copy")
+            .With("OverrideCount", NodeToInheritedAttributesOverride_.size());
     }
 
     void ResolveSourceNode(const TYPath& srcPath)
     {
         auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
 
-        YT_LOG_DEBUG("Resolving source node");
+        YT_TLOG_DEBUG("Resolving source node");
 
         auto batchReq = proxy.ExecuteBatch();
         auto req = TYPathProxy::Get(srcPath + "/@");
@@ -755,15 +755,15 @@ protected:
         SrcNodeId_ = attributes->Get<TNodeId>("id");
         ResolvedSrcNodePath_ = attributes->Get<TYPath>("path");
 
-        YT_LOG_DEBUG("Source node resolved successfully (SourceNodeId: %v, ResolvedSrcNodePath: %v)",
-            SrcNodeId_,
-            ResolvedSrcNodePath_);
+        YT_TLOG_DEBUG("Source node resolved successfully")
+            .With("SourceNodeId", SrcNodeId_)
+            .With("ResolvedSrcNodePath", ResolvedSrcNodePath_);
     }
 
     template <class TOptions>
     void EndCopy(const TYPath& dstPath, const TOptions& options, bool inplace)
     {
-        YT_LOG_DEBUG("Materializing serialized subtrees");
+        YT_TLOG_DEBUG("Materializing serialized subtrees");
 
         auto proxy = CreateObjectServiceWriteProxy(Client_);
 
@@ -807,8 +807,8 @@ protected:
             inplace = true;
         }
 
-        YT_LOG_DEBUG("Serialized subtrees materialized (RootNodeId: %v)",
-            DstNodeId_);
+        YT_TLOG_DEBUG("Serialized subtrees materialized")
+            .With("RootNodeId", DstNodeId_);
     }
 
     void MaterializeCopyPrerequisites()
@@ -817,8 +817,8 @@ protected:
             return;
         }
 
-        YT_LOG_DEBUG("Started materializing copy prerequisites (SchemaCount: %v)",
-            SchemaIdToSchema_.size());
+        YT_TLOG_DEBUG("Started materializing copy prerequisites")
+            .With("SchemaCount", SchemaIdToSchema_.size());
 
         auto proxy = CreateObjectServiceWriteProxy(Client_, DstCellTag_);
         auto batchReq = proxy.ExecuteBatch();
@@ -862,14 +862,14 @@ protected:
         // Freeing up some space, materialized schemas are not needed anymore.
         SchemaIdToSchema_.clear();
 
-        YT_LOG_DEBUG("Finished materializing prerequisites (SrcToDstSchemaIdMapping: %v)",
-            SrcToDstSchemaIdMapping_);
+        YT_TLOG_DEBUG("Finished materializing prerequisites")
+            .With("SrcToDstSchemaIdMapping", SrcToDstSchemaIdMapping_);
     }
 
     template <class TOptions>
     void MaterializeNodes(const TOptions& options, TNodeId portalExitId = {})
     {
-        YT_LOG_DEBUG("Starting the materialization phase");
+        YT_TLOG_DEBUG("Starting the materialization phase");
 
         auto proxy = CreateObjectServiceWriteProxy(Client_, DstCellTag_);
         auto batchReq = proxy.ExecuteBatch();
@@ -934,15 +934,15 @@ protected:
             EmplaceOrCrash(SrcToDstNodeIdMapping_, oldNodeId, newNodeId);
         }
 
-        YT_LOG_DEBUG("Nodes materialized (SrcToDstNodeIdMapping: %v)",
-            SrcToDstNodeIdMapping_);
+        YT_TLOG_DEBUG("Nodes materialized")
+            .With("SrcToDstNodeIdMapping", SrcToDstNodeIdMapping_);
     }
 
     template <class TOptions>
     void AssembleTreeCopy(const TYPath& dstPath, const TOptions& options, bool inplace = false)
     {
-        YT_LOG_DEBUG("Assembling tree copy (Inplace: %v)",
-            inplace);
+        YT_TLOG_DEBUG("Assembling tree copy")
+            .With("Inplace", inplace);
 
         auto proxy = CreateObjectServiceWriteProxy(Client_);
         auto batchReq = proxy.ExecuteBatch();
@@ -982,8 +982,8 @@ protected:
         const auto& rsp = rspOrError.Value();
         DstNodeId_ = FromProto<TNodeId>(rsp->node_id());
 
-        YT_LOG_DEBUG("Finished assembling tree copy (DstNodeId: %v)",
-            DstNodeId_);
+        YT_TLOG_DEBUG("Finished assembling tree copy")
+            .With("DstNodeId", DstNodeId_);
     }
 
     void SyncExternalCellsWithSourceNodeCell()
@@ -1005,8 +1005,8 @@ protected:
         YT_VERIFY(nodeId == SrcNodeId_ || nodeId == DstNodeId_);
         auto nodeKind = nodeId == SrcNodeId_ ? "source" : "cloned";
 
-        YT_LOG_DEBUG("Synchronizing external cells with the %v node cell",
-            nodeKind);
+        YT_TLOG_DEBUG("Synchronizing external cells with the node cell")
+            .With("NodeKind", nodeKind);
 
         auto nodeCellTag = CellTagFromId(nodeId);
         const auto& connection = Client_->GetNativeConnection();
@@ -1021,20 +1021,20 @@ protected:
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error synchronizing external cells with the %v node cell",
             nodeKind);
 
-        YT_LOG_DEBUG("External cells synchronized with the %v node cell",
-            nodeKind);
+        YT_TLOG_DEBUG("External cells synchronized with the node cell")
+            .With("NodeKind", nodeKind);
     }
 
     void CommitTransaction(const TTransactionCommitOptions& options = {})
     {
-        YT_LOG_DEBUG("Committing transaction");
+        YT_TLOG_DEBUG("Committing transaction");
 
         // NB: Failing to commit still means we shouldn't try to abort.
         TransactionCommitted_ = true;
         auto error = WaitFor(Transaction_->Commit(options));
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error committing transaction");
 
-        YT_LOG_DEBUG("Transaction committed");
+        YT_TLOG_DEBUG("Transaction committed");
     }
 
     void MaybeAbortTransaction()
@@ -1043,13 +1043,14 @@ protected:
             return;
         }
 
-        YT_LOG_DEBUG("Aborting transaction");
+        YT_TLOG_DEBUG("Aborting transaction");
 
         auto error = WaitFor(Transaction_->Abort());
         if (!error.IsOK()) {
-            YT_LOG_DEBUG(error, "Error aborting transaction");
+            YT_TLOG_DEBUG("Error aborting transaction")
+                .With(error);
         } else {
-            YT_LOG_DEBUG("Transaction aborted");
+            YT_TLOG_DEBUG("Transaction aborted");
         }
 
     }
@@ -1094,7 +1095,7 @@ private:
 
     TNodeId DoRun()
     {
-        YT_LOG_DEBUG("Cross-cell node cloning started");
+        YT_TLOG_DEBUG("Cross-cell node cloning started");
         StartTransaction(
             Format("Clone %v to %v", SrcPath_, DstPath_),
             Options_);
@@ -1104,7 +1105,7 @@ private:
 
         auto useNewCopyPipeline = !BeginCopy(SrcPath_, Options_, true);
         if (useNewCopyPipeline) {
-            YT_LOG_DEBUG("BeginCopy is deprecated, switching to the new copy pipeline");
+            YT_TLOG_DEBUG("BeginCopy is deprecated, switching to the new copy pipeline");
             if (!LockCopyDestination(DstPath_, Options_)) {
                 YT_VERIFY(DstNodeId_);
                 // NB: in case "lock_existing" flag was specified, a lock was taken in the copy transaction and now it
@@ -1134,19 +1135,19 @@ private:
         SyncExternalCellsWithClonedNodeCell();
         CommitTransaction(commitOptions);
 
-        YT_LOG_DEBUG("Cross-cell node cloning completed");
+        YT_TLOG_DEBUG("Cross-cell node cloning completed");
 
         return DstNodeId_;
     }
 
     void RemoveSource()
     {
-        YT_LOG_DEBUG("Removing source node");
+        YT_TLOG_DEBUG("Removing source node");
 
         auto error = WaitFor(Transaction_->RemoveNode(FromObjectId(SrcNodeId_)));
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error removing source node");
 
-        YT_LOG_DEBUG("Source node removed");
+        YT_TLOG_DEBUG("Source node removed");
     }
 };
 
@@ -1203,7 +1204,7 @@ private:
 
     void DoRun()
     {
-        YT_LOG_DEBUG("Node externalization started");
+        YT_TLOG_DEBUG("Node externalization started");
         StartTransaction(
             Format("Externalize %v to %v", Path_, DstCellTag_),
             Options_);
@@ -1211,7 +1212,7 @@ private:
 
         auto useNewCopyPipeline = !BeginCopy(Path_, GetOptions(), false);
         if (useNewCopyPipeline) {
-            YT_LOG_DEBUG("BeginCopy is deprecated, switching to the new copy pipeline");
+            YT_TLOG_DEBUG("BeginCopy is deprecated, switching to the new copy pipeline");
             // Inplace signifies that the underlying node (in this case, a portal) is created beforehand,
             // and the content of a map node is loaded in said pre-existing object.
             auto shouldContinue = LockCopyDestination(Path_, GetOptions(), /*inplace*/ true);
@@ -1240,12 +1241,12 @@ private:
         }
         SyncExternalCellsWithClonedNodeCell();
         CommitTransaction();
-        YT_LOG_DEBUG("Node externalization completed");
+        YT_TLOG_DEBUG("Node externalization completed");
     }
 
     void RequestAclAndAnnotation()
     {
-        YT_LOG_DEBUG("Requesting root @acl, @inherit_acl and @annotation");
+        YT_TLOG_DEBUG("Requesting root @acl, @inherit_acl and @annotation");
 
         auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
 
@@ -1270,12 +1271,12 @@ private:
             *std::any_cast<TYsonString*>(rsp->Tag()) = TYsonString(rsp->value());
         }
 
-        YT_LOG_DEBUG("Root @acl, @inherit_acl and @annotation received");
+        YT_TLOG_DEBUG("Root @acl, @inherit_acl and @annotation received");
     }
 
     TNodeId CreatePortal()
     {
-        YT_LOG_DEBUG("Creating portal");
+        YT_TLOG_DEBUG("Creating portal");
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("exit_cell_tag", DstCellTag_);
@@ -1296,16 +1297,16 @@ private:
         auto portalEntranceId = nodeIdOrError.Value();
         auto portalExitId = ReplaceCellTagInId(ReplaceTypeInId(portalEntranceId, EObjectType::PortalExit), DstCellTag_);
 
-        YT_LOG_DEBUG("Portal created (EntranceId: %v, ExitId: %v)",
-            portalEntranceId,
-            portalExitId);
+        YT_TLOG_DEBUG("Portal created")
+            .With("EntranceId", portalEntranceId)
+            .With("ExitId", portalExitId);
 
         return portalExitId;
     }
 
     void SyncExitCellWithEntranceCell()
     {
-        YT_LOG_DEBUG("Synchronizing exit cell with entrance cell");
+        YT_TLOG_DEBUG("Synchronizing exit cell with entrance cell");
 
         const auto& connection = Client_->GetNativeConnection();
         auto future = connection->SyncHiveCellWithOthers(
@@ -1315,7 +1316,7 @@ private:
         auto error = WaitFor(future);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error synchronizing exit cell with entrance cell");
 
-        YT_LOG_DEBUG("Exit cell synchronized with entrance cell");
+        YT_TLOG_DEBUG("Exit cell synchronized with entrance cell");
     }
 };
 
@@ -1803,9 +1804,9 @@ private:
 
             asyncTransactions[index] = Client_->StartTransaction(ETransactionType::Master, options);
 
-            YT_LOG_DEBUG("Starting nested input transaction (ParentTransactionId: %v, TransactionIndex: %v)",
-                transactionId,
-                index);
+            YT_TLOG_DEBUG("Starting nested input transaction")
+                .With("ParentTransactionId", transactionId)
+                .With("TransactionIndex", index);
         }
 
         auto transactionsOrError = WaitFor(AllSucceeded(asyncTransactions));
@@ -1817,9 +1818,9 @@ private:
             auto transactionId = *srcObject.TransactionId;
             auto transactionIndex = GetOrCrash(transactionIdToIndex, transactionId);
             auto nestedTransactionId = NestedInputTransactions_[transactionIndex]->GetId();
-            YT_LOG_DEBUG("Setting nested input transaction id for source object (ObjectPath: %v, NestedTransactionId: %v)",
-                srcObject.GetPath(),
-                nestedTransactionId);
+            YT_TLOG_DEBUG("Setting nested input transaction id for source object")
+                .With("ObjectPath", srcObject.GetPath())
+                .With("NestedTransactionId", nestedTransactionId);
             srcObject.TransactionId = nestedTransactionId;
         }
     }
@@ -1868,15 +1869,13 @@ private:
                 }
 
                 // COMPAT(ignat): log object type in 25.1
-                YT_LOG_DEBUG(
-                    "Source object attributes received "
-                    "(Path: %v, ObjectId: %v, ExternalCellTag: %v, SecurityTags: %v, ExternalTransactionId: %v, ChunkCount: %v)",
-                    srcObject->GetPath(),
-                    srcObject->ObjectId,
-                    srcObject->ExternalCellTag,
-                    srcObject->SecurityTags,
-                    srcObject->ExternalTransactionId,
-                    srcObject->ChunkCount);
+                YT_TLOG_DEBUG("Source object attributes received")
+                    .With("Path", srcObject->GetPath())
+                    .With("ObjectId", srcObject->ObjectId)
+                    .With("ExternalCellTag", srcObject->ExternalCellTag)
+                    .With("SecurityTags", srcObject->SecurityTags)
+                    .With("ExternalTransactionId", srcObject->ExternalTransactionId)
+                    .With("ChunkCount", srcObject->ChunkCount);
             }
         }
         {
@@ -1888,10 +1887,10 @@ private:
             dstObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
             dstObject->ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
 
-            YT_LOG_DEBUG("Destination object attributes received (Path: %v, ObjectId: %v, ExternalCellTag: %v)",
-                dstObject->GetPath(),
-                dstObject->ObjectId,
-                dstObject->GetObjectIdPath());
+            YT_TLOG_DEBUG("Destination object attributes received")
+                .With("Path", dstObject->GetPath())
+                .With("ObjectId", dstObject->ObjectId)
+                .With("ExternalCellTag", dstObject->ExternalCellTag);
         }
     }
 
@@ -1971,9 +1970,9 @@ private:
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
             srcObject->Type = attributes->Get<EObjectType>("type");
 
-            YT_LOG_DEBUG("Source object type fetched (Path: %v, Type: %v)",
-                srcObject->GetPath(),
-                srcObject->Type);
+            YT_TLOG_DEBUG("Source object type fetched")
+                .With("Path", srcObject->GetPath())
+                .With("Type", srcObject->Type);
         }
     }
 
@@ -2025,8 +2024,8 @@ private:
             switch (schemaMode) {
                 case ETableSchemaMode::Strong:
                     if (schema.IsSorted()) {
-                        YT_LOG_DEBUG("Using sorted concatenation (PinnedUser: %v)",
-                            Client_->Options_.User);
+                        YT_TLOG_DEBUG("Using sorted concatenation")
+                            .With("PinnedUser", Client_->Options_.User);
                         Sorted_ = true;
                     }
                     outputSchemaInferer = CreateSchemaCompatibilityChecker(DstObject_.GetPath(), New<TTableSchema>(schema));
@@ -2108,7 +2107,7 @@ private:
                 srcObjectIndex);
         }
 
-        YT_LOG_DEBUG("Fetching chunk specs");
+        YT_TLOG_DEBUG("Fetching chunk specs");
 
         WaitFor(chunkSpecFetcher->Fetch())
             .ThrowOnError();
@@ -2137,8 +2136,8 @@ private:
             ChunkSpecs_.insert(ChunkSpecs_.end(), chunkSpecs.begin(), chunkSpecs.end());
         }
 
-        YT_LOG_DEBUG("Chunk specs fetched (ChunkSpecCount: %v)",
-            ChunkSpecs_.size());
+        YT_TLOG_DEBUG("Chunk specs fetched")
+            .With("ChunkSpecCount", ChunkSpecs_.size());
 
         if (Options_.UniqualizeChunks) {
             std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
@@ -2155,8 +2154,8 @@ private:
 
             ChunkSpecs_ = std::move(chunkSpecs);
 
-            YT_LOG_DEBUG("Chunk specs uniqualized (ChunkSpecCount: %v)",
-                ChunkSpecs_.size());
+            YT_TLOG_DEBUG("Chunk specs uniqualized")
+                .With("ChunkSpecCount", ChunkSpecs_.size());
         }
     }
 
@@ -2177,17 +2176,15 @@ private:
                 *OutputTableSchema_,
                 CompatibilityOptions);
             if (compatibility != ESchemaCompatibility::FullyCompatible) {
-                YT_LOG_DEBUG(error,
-                    "Input table schema and output table schema are incompatible; "
-                    "need to validate chunk schemas");
+                YT_TLOG_DEBUG("Input table schema and output table schema are incompatible; need to validate chunk schemas")
+                    .With(error);
                 needChunkSchemasValidation = true;
                 break;
             }
         }
 
         if (!needChunkSchemasValidation) {
-            YT_LOG_DEBUG("Input table schemas and output table schema are compatible; "
-                "skipping chunk schemas validation");
+            YT_TLOG_DEBUG("Input table schemas and output table schema are compatible; skipping chunk schemas validation");
             return;
         }
 
@@ -2207,18 +2204,18 @@ private:
             chunkMetaFetcher->AddChunk(New<TInputChunk>(chunkSpec));
         }
 
-        YT_LOG_DEBUG("Fetching chunk metas");
+        YT_TLOG_DEBUG("Fetching chunk metas");
 
         WaitFor(chunkMetaFetcher->Fetch())
             .ThrowOnError();
         const auto& chunkMetas = chunkMetaFetcher->ChunkMetas();
 
-        YT_LOG_DEBUG("Chunk metas fetched (ChunkMetaCount: %v)",
-            chunkMetas.size());
+        YT_TLOG_DEBUG("Chunk metas fetched")
+            .With("ChunkMetaCount", chunkMetas.size());
 
         YT_VERIFY(ChunkSpecs_.size() == chunkMetas.size());
 
-        YT_LOG_DEBUG("Validating chunks schemas");
+        YT_TLOG_DEBUG("Validating chunks schemas");
 
         for (int chunkIndex = 0; chunkIndex < std::ssize(ChunkSpecs_); ++chunkIndex) {
             const auto& chunkMeta = chunkMetas[chunkIndex];
@@ -2257,7 +2254,7 @@ private:
 
     void SortChunks()
     {
-        YT_LOG_DEBUG("Sorting chunks");
+        YT_TLOG_DEBUG("Sorting chunks");
 
         auto comparator = OutputTableSchema_->ToComparator();
         std::stable_sort(
@@ -2278,7 +2275,7 @@ private:
 
     void ValidateChunkRanges()
     {
-        YT_LOG_DEBUG("Validating chunk ranges");
+        YT_TLOG_DEBUG("Validating chunk ranges");
 
         auto comparator = OutputTableSchema_->ToComparator();
         for (int chunkIndex = 0; chunkIndex + 1 < std::ssize(ChunkSpecs_); ++chunkIndex) {
@@ -2311,7 +2308,7 @@ private:
 
     void FetchAndValidateBoundaryKeys()
     {
-        YT_LOG_DEBUG("Fetch and validate boundary keys of destination table");
+        YT_TLOG_DEBUG("Fetch and validate boundary keys of destination table");
 
         auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
 
@@ -2323,7 +2320,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to fetch boundary keys of destination table %v",
             DstObject_.GetPath());
 
-        YT_LOG_DEBUG("Boundary keys of destination table received");
+        YT_TLOG_DEBUG("Boundary keys of destination table received");
 
         auto boundaryKeysMap = ConvertToNode(TYsonString(rspOrError.Value()->value()))->AsMap();
         auto tableMaxKeyNode = boundaryKeysMap->FindChild("max_key");
@@ -2335,27 +2332,23 @@ private:
 
             auto fixedTableMaxKeyRow = LegacyKeyToKeyFriendlyOwningRow(tableMaxKeyRow, comparator.GetLength());
             if (tableMaxKeyRow != fixedTableMaxKeyRow) {
-                YT_LOG_DEBUG(
-                    "Table max key fixed (MaxKey: %v -> %v)",
-                    tableMaxKeyRow,
-                    fixedTableMaxKeyRow);
+                YT_TLOG_DEBUG("Table max key fixed")
+                    .WithFormat("MaxKey", "%v -> %v", tableMaxKeyRow, fixedTableMaxKeyRow);
                 tableMaxKeyRow = fixedTableMaxKeyRow;
             }
 
             YT_VERIFY(tableMaxKeyRow.GetCount() == comparator.GetLength());
             auto tableMaxKey = TKey::FromRow(tableMaxKeyRow);
 
-            YT_LOG_DEBUG(
-                "Writing to table in sorted append mode (MaxKey: %v)",
-                tableMaxKey);
+            YT_TLOG_DEBUG("Writing to table in sorted append mode")
+                .With("MaxKey", tableMaxKey);
 
             auto firstChunkMinKey = GetChunkBoundaryKeys(ChunkSpecs_[0].chunk_meta()).first;
 
-            YT_LOG_DEBUG(
-                "Comparing table max key against first chunk min key (MaxKey: %v, MinKey: %v, Comparator: %v)",
-                tableMaxKey,
-                firstChunkMinKey,
-                comparator);
+            YT_TLOG_DEBUG("Comparing table max key against first chunk min key")
+                .With("MaxKey", tableMaxKey)
+                .With("MinKey", firstChunkMinKey)
+                .With("Comparator", comparator);
 
             auto comparisonResult = comparator.CompareKeys(tableMaxKey, firstChunkMinKey);
             if (comparisonResult > 0) {
@@ -2511,21 +2504,21 @@ private:
             inferredSecurityTags.insert(inferredSecurityTags.end(), srcObject.SecurityTags.begin(), srcObject.SecurityTags.end());
         }
         SortUnique(inferredSecurityTags);
-        YT_LOG_DEBUG("Security tags inferred (SecurityTags: %v)",
-            inferredSecurityTags);
+        YT_TLOG_DEBUG("Security tags inferred")
+            .With("SecurityTags", inferredSecurityTags);
 
         std::vector<TSecurityTag> securityTags;
         if (auto explicitSecurityTags = DstObject_.Path.GetSecurityTags()) {
             // TODO(babenko): audit
-            YT_LOG_INFO("Destination table is assigned explicit security tags (Path: %v, InferredSecurityTags: %v, ExplicitSecurityTags: %v)",
-                DstObject_.GetPath(),
-                inferredSecurityTags,
-                explicitSecurityTags);
+            YT_TLOG_INFO("Destination table is assigned explicit security tags")
+                .With("Path", DstObject_.GetPath())
+                .With("InferredSecurityTags", inferredSecurityTags)
+                .With("ExplicitSecurityTags", explicitSecurityTags);
             securityTags = *explicitSecurityTags;
         } else {
-            YT_LOG_INFO("Destination table is assigned automatically-inferred security tags (Path: %v, SecurityTags: %v)",
-                DstObject_.GetPath(),
-                inferredSecurityTags);
+            YT_TLOG_INFO("Destination table is assigned automatically-inferred security tags")
+                .With("Path", DstObject_.GetPath())
+                .With("SecurityTags", inferredSecurityTags);
             securityTags = inferredSecurityTags;
         }
 
