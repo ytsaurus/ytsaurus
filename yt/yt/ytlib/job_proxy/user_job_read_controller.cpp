@@ -90,10 +90,9 @@ public:
     //! Returns closure that launches data transfer to given async output.
     TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput) override
     {
-        YT_LOG_DEBUG(
-            "Preparing job input transfer (GuesserEnabled: %v, MaxRowsPerRead: %v)",
-            Guesser_.IsEnabled(),
-            MaxRowsPerRead_);
+        YT_TLOG_DEBUG("Preparing job input transfer")
+            .With("GuesserEnabled", Guesser_.IsEnabled())
+            .With("MaxRowsPerRead", MaxRowsPerRead_);
 
         const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
 
@@ -273,11 +272,10 @@ private:
             , UpperBound_(upperBound)
             , CurrentGuess_(currentGuess)
         {
-            YT_LOG_DEBUG(
-                "Initializing optimal row count guesser (Threshold: %v, CurrentGuess: %v, UpperBound: %v)",
-                Threshold_,
-                CurrentGuess_,
-                UpperBound_);
+            YT_TLOG_DEBUG("Initializing optimal row count guesser")
+                .With("Threshold", Threshold_)
+                .With("CurrentGuess", CurrentGuess_)
+                .With("UpperBound", UpperBound_);
         }
 
         bool IsEnabled() const noexcept
@@ -306,12 +304,11 @@ private:
 
             auto nextGuess = std::max<i64>(CurrentGuess_ * scaling, 1);
 
-            YT_LOG_DEBUG(
-                "Updating guess for batch row count (CurrentGuess: %v, ProcessTime: %v, NextGuess: %v, UpperBound: %v)",
-                CurrentGuess_,
-                processTime,
-                nextGuess,
-                UpperBound_);
+            YT_TLOG_DEBUG("Updating guess for batch row count")
+                .With("CurrentGuess", CurrentGuess_)
+                .With("ProcessTime", processTime)
+                .With("NextGuess", nextGuess)
+                .With("UpperBound", UpperBound_);
 
             CurrentGuess_ = std::min<i64>(nextGuess, UpperBound_);
 
@@ -331,11 +328,10 @@ private:
     bool IsContextSavingEnabled() const
     {
         auto jobIOConfig = JobSpecHelper_->GetJobIOConfig();
-        YT_LOG_DEBUG(
-            "Checking whether context saving is enabled (PipeCapacity: %v, DeliveryFencedWriterFlag: %v, GuesserEnabled: %v)",
-            jobIOConfig->PipeCapacity,
-            jobIOConfig->UseDeliveryFencedPipeWriter,
-            Guesser_.IsEnabled());
+        YT_TLOG_DEBUG("Checking whether context saving is enabled")
+            .With("PipeCapacity", jobIOConfig->PipeCapacity)
+            .With("DeliveryFencedWriterFlag", jobIOConfig->UseDeliveryFencedPipeWriter)
+            .With("GuesserEnabled", Guesser_.IsEnabled());
         return
             !(jobIOConfig->PipeCapacity.has_value() ||
             jobIOConfig->UseDeliveryFencedPipeWriter ||
