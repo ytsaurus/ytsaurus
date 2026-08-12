@@ -268,8 +268,29 @@ def create_table(client, path, schema, attributes=None):
     _retry_on_resolve_error(lambda: client.mount_table(path, sync=True), f"mount table {path}")
 
 
+def _find_registration(client, queue_path, consumer_path):
+    """Return the registration of this consumer for this queue, or ``None``.
+
+    Listing resolves nothing on the master: an unresolvable path just yields no
+    rows, so this is safe to call while the objects are still settling.
+    """
+    registrations = list(client.list_queue_consumer_registrations(queue_path=queue_path, consumer_path=consumer_path))
+    return registrations[0] if registrations else None
+
+
 def register_consumer(client, queue_path, consumer_path, vital):
-    """Register the consumer for a queue (both must exist and be mounted)."""
+    """Register the consumer for a queue (both must exist and be mounted).
+
+    Idempotent, following yt_sync's ``ensure_consumer``: the existing
+    registrations are read first, and one is written only when it is missing or
+    its ``vital`` differs. So a run against a live pipeline whose registration
+    is already in place writes nothing at all.
+    """
+    registration = _find_registration(client, queue_path, consumer_path)
+    if registration is not None and bool(registration["vital"]) == vital:
+        log.debug("Consumer %s is already registered for queue %s", consumer_path, queue_path)
+        return
+
     _retry_on_resolve_error(
         lambda: client.register_queue_consumer(queue_path, consumer_path, vital=vital),
         f"register consumer {consumer_path} for queue {queue_path}",
