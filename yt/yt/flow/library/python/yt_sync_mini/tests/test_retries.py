@@ -3,6 +3,9 @@
 An object created moments earlier is not yet resolvable on every master cell,
 so an operation touching it fails with ``No such object <id>`` until the cells
 catch up. No YT access.
+
+``register_consumer`` writes only what the existing registrations lack, so its
+tests live here too.
 """
 
 import pytest
@@ -20,6 +23,10 @@ OTHER_ERROR_CODE = 1701
 
 def _response_error(code):
     return YtResponseError({"code": code, "message": "No such object 1-2-3-4"})
+
+
+def _registration(vital):
+    return {"queue_path": "//tmp/queue", "consumer_path": "//tmp/consumer", "vital": vital}
 
 
 class _Action:
@@ -48,8 +55,38 @@ class _Client:
     def mount_table(self, *args, **kwargs):
         return self._action()
 
+    def list_queue_consumer_registrations(self, queue_path, consumer_path):
+        return []
+
     def register_queue_consumer(self, *args, **kwargs):
         return self._action()
+
+
+class _RegistrationClient:
+    """Client stub backed by a registration list, as the registration table is."""
+
+    def __init__(self, registrations=(), errors=()):
+        self.registrations = [dict(registration) for registration in registrations]
+        self._errors = list(errors)
+        self.register_calls = 0
+
+    def list_queue_consumer_registrations(self, queue_path, consumer_path):
+        return [
+            registration
+            for registration in self.registrations
+            if registration["queue_path"] == queue_path and registration["consumer_path"] == consumer_path
+        ]
+
+    def register_queue_consumer(self, queue_path, consumer_path, vital):
+        self.register_calls += 1
+        if self._errors:
+            raise self._errors.pop(0)
+        self.registrations = [
+            registration
+            for registration in self.registrations
+            if (registration["queue_path"], registration["consumer_path"]) != (queue_path, consumer_path)
+        ]
+        self.registrations.append({"queue_path": queue_path, "consumer_path": consumer_path, "vital": vital})
 
 
 @pytest.fixture
@@ -114,3 +151,47 @@ def test_register_consumer_retries(sleeps):
 
     assert action.calls == 2
     assert sleeps == [yt_sync_mini.RETRY_INTERVAL]
+
+
+def test_missing_registration_is_created(sleeps):
+    client = _RegistrationClient()
+
+    yt_sync_mini.register_consumer(client, "//tmp/queue", "//tmp/consumer", vital=True)
+
+    assert client.register_calls == 1
+    assert client.registrations == [_registration(vital=True)]
+
+
+def test_matching_registration_is_left_alone(sleeps):
+    """A run against a live pipeline whose registration is in place writes nothing."""
+    client = _RegistrationClient([_registration(vital=True)])
+
+    yt_sync_mini.register_consumer(client, "//tmp/queue", "//tmp/consumer", vital=True)
+
+    assert client.register_calls == 0
+
+
+def test_registration_is_rewritten_when_vital_differs(sleeps):
+    client = _RegistrationClient([_registration(vital=False)])
+
+    yt_sync_mini.register_consumer(client, "//tmp/queue", "//tmp/consumer", vital=True)
+
+    assert client.register_calls == 1
+    assert client.registrations == [_registration(vital=True)]
+
+
+def test_failed_registration_keeps_the_existing_one(sleeps):
+    """Exhausting the retries must not leave a live pipeline unregistered; the
+    stub has no ``unregister_queue_consumer`` at all, so any attempt to drop a
+    registration fails the test."""
+    attempts = yt_sync_mini.RETRY_ATTEMPTS
+    client = _RegistrationClient(
+        [_registration(vital=False)],
+        errors=[_response_error(RESOLVE_ERROR_CODE)] * attempts,
+    )
+
+    with pytest.raises(YtResponseError):
+        yt_sync_mini.register_consumer(client, "//tmp/queue", "//tmp/consumer", vital=True)
+
+    assert client.register_calls == attempts
+    assert client.registrations == [_registration(vital=False)]
