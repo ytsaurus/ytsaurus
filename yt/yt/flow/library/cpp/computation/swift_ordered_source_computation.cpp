@@ -116,7 +116,7 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
         auto iterGuard = StartRunIteration(context);
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
         DoInit(StateManager_->CreateContext());
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, applyTimestampMemory(WatermarkGenerator_->Apply(BuildInflights(), {*ActiveSourceStreamId_})));
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, applyTimestampMemory(WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_})));
         FinishRunIteration();
     }
     initTraceContextGuard.Release();
@@ -172,7 +172,7 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
         }
         Commit(context, tx);
 
-        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, applyTimestampMemory(WatermarkGenerator_->Apply(BuildInflights(), {*ActiveSourceStreamId_})));
+        isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, applyTimestampMemory(WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_})));
         FinishRunIteration();
 
         if (emptyEpoch) {

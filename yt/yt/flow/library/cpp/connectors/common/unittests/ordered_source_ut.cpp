@@ -83,6 +83,7 @@ public:
         UpdatePartitionInfo(TPartitionInfoUpdate{.MaxOffsetExclusive = IntToOffset(MaxOffsetExclusive_)});
     }
 
+    using TOrderedSourceBase::GetOfferedCount;
     using TOrderedSourceBase::GetSourceTotalBytes;
     using TOrderedSourceBase::GetSourceTotalCount;
     using TOrderedSourceBase::UpdatePartitionInfo;
@@ -111,6 +112,16 @@ public:
     void SetTestWriteTimestamps(std::vector<ui64> timestamps)
     {
         WriteTimestamps_ = std::move(timestamps);
+    }
+
+    void SetBacklogRate(TBacklogRate backlogRate)
+    {
+        BacklogRate_ = backlogRate;
+    }
+
+    std::optional<TBacklogRate> EstimateBacklogRate() override
+    {
+        return BacklogRate_;
     }
 
 private:
@@ -176,6 +187,7 @@ private:
 
 private:
     const TTableSchemaPtr Schema_;
+    std::optional<TBacklogRate> BacklogRate_;
     IStatusErrorStatePtr ReadErrorState_;
     IStatusErrorStatePtr ExtraErrorState_;
     i64 MaxOffsetExclusive_ = 0;
@@ -438,6 +450,50 @@ TEST_F(TOrderedSourceTest, SourceTotalCounters)
     const auto [unchangedCount, unchangedBytes] = advanceMaxOffset(5);
     EXPECT_DOUBLE_EQ(unchangedCount, 5.0);
     EXPECT_DOUBLE_EQ(unchangedBytes, 5.0);
+}
+
+TEST_F(TOrderedSourceTest, BacklogRateContributesToNewRate)
+{
+    const auto inflight = RunInInvoker([&] {
+        Source->SetBacklogRate(TBacklogRate{
+            .BytesPerSecond = 456,
+            .MessagesPerSecond = 123,
+        });
+        return Source->BuildInflight();
+    });
+    EXPECT_DOUBLE_EQ(*inflight->InflightMetrics->NewCountPerSec, 123);
+    EXPECT_DOUBLE_EQ(*inflight->InflightMetrics->NewBytesPerSec, 456);
+}
+
+TEST_F(TOrderedSourceTest, ReadyTracksUnreadPartOfExternalBacklog)
+{
+    auto beforeRead = RunInInvoker([&] {
+        Source->SetMaxOffset(5);
+        return Source->BuildInflight();
+    });
+    ASSERT_EQ(beforeRead->InflightMetrics->Count, 5);
+    ASSERT_EQ(beforeRead->InflightMetrics->ReadyCount, 5);
+    EXPECT_EQ(Source->GetSourceTotalCount(), 5);
+    EXPECT_EQ(Source->GetOfferedCount(), 0);
+
+    const auto messages = RunInInvoker([&] {
+        return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+    });
+    ASSERT_EQ(messages.size(), 5u);
+    auto afterRead = RunInInvoker([&] {
+        return Source->BuildInflight();
+    });
+    EXPECT_EQ(afterRead->InflightMetrics->Count, 5);
+    EXPECT_EQ(afterRead->InflightMetrics->ReadyCount, 0);
+    EXPECT_EQ(Source->GetSourceTotalCount(), 5);
+    EXPECT_EQ(Source->GetOfferedCount(), 5);
+
+    const auto empty = RunInInvoker([&] {
+        return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+    });
+    EXPECT_TRUE(empty.empty());
+    EXPECT_EQ(Source->GetSourceTotalCount(), 5);
+    EXPECT_EQ(Source->GetOfferedCount(), 5);
 }
 
 TEST_F(TOrderedSourceTest, EmptyPartition)

@@ -110,6 +110,9 @@ public:
     //! Persists the coverage diff produced since the last Sync.
     void Sync(NApi::IDynamicTableTransactionPtr transaction);
 
+    //! Publishes processed-rate accounting after the coverage transaction commits.
+    void Commit();
+
     //! Stops the background fill executor so the owner can drop its last
     //! strong reference. Idempotent.
     void Stop();
@@ -164,9 +167,10 @@ private:
     //! InflightMetrics->{NewCountPerSec, ProcessedCountPerSec} so that
     //! standard Solomon dashboards see visit-stream throughput like for
     //! source/timer streams. Emitted = visits pushed into Buffer_;
-    //! Consumed = visits handed out via GetNextBatch.
+    //! Processed = visits included in a committed coverage transaction.
     TSimpleEmaCounter EmittedRate_;
-    TSimpleEmaCounter ConsumedRate_;
+    TSimpleEmaCounter ProcessedRate_;
+    i64 PendingProcessedCount_ = 0;
 
     //! Worker-side raw counters surfaced as
     //! /key_visitor_streams/{registered,persisted}_count, mirroring

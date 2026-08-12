@@ -36,6 +36,7 @@ SRCS(
 PEERDIR(
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/common/unittests/mock
+    yt/yt/library/profiling/solomon
     yt/yt/library/query/engine
 )
 

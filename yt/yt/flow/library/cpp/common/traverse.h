@@ -26,6 +26,10 @@ struct TInflightMetrics
 
     std::optional<double> NewCountPerSec;
     std::optional<double> NewBytesPerSec;
+    std::optional<i64> ReadyCount;
+    std::optional<i64> ReadyByteSize;
+    std::optional<double> OfferedCountPerSec;
+    std::optional<double> OfferedBytesPerSec;
     std::optional<double> ProcessedCountPerSec;
     std::optional<double> ProcessedBytesPerSec;
 
@@ -78,6 +82,10 @@ TStreamTraverseDataPtr AdvanceStreamTraverseData(
     const TStreamTraverseDataPtr& currentStream,
     const TStreamTraverseDataPtr& newStream);
 
+TStreamTraverseDataPtr BuildConsumerStreamTraverseData(
+    const TStreamTraverseDataPtr& consumerStream,
+    const TStreamTraverseDataPtr& producerStream);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TInflightStreamTraverseData
@@ -103,8 +111,7 @@ DEFINE_REFCOUNTED_TYPE(TInflightStreamTraverseData);
 
 TStreamTraverseDataPtr ApplyInflightTraverseData(
     const TStreamTraverseDataPtr& stream,
-    const TInflightStreamTraverseDataPtr& inflight,
-    TSystemTimestamp systemWatermark);
+    const TInflightStreamTraverseDataPtr& inflight);
 
 TInflightStreamTraverseDataPtr MergeInflightTraverseData(
     const std::vector<TInflightStreamTraverseDataPtr>& inflights);
@@ -115,6 +122,8 @@ struct TNodeTraverseData
     : public NYTree::TYsonStruct
 {
     TSystemTimestamp ReportTime;
+
+    std::optional<i64> IterationCycle;
 
     THashMap<TStreamId, TStreamTraverseDataPtr> Streams;
 
@@ -127,7 +136,7 @@ DEFINE_REFCOUNTED_TYPE(TNodeTraverseData);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeTraverseDataPtr MergeNodeTraverseData(const std::vector<TNodeTraverseDataPtr>& nodes, const TComputationSpecPtr& spec);
+TNodeTraverseDataPtr MergeNodeTraverseData(const std::vector<TNodeTraverseDataPtr>& nodes);
 
 TNodeTraverseDataPtr AdvanceNodeTraverseData(
     const TNodeTraverseDataPtr& currentNode,

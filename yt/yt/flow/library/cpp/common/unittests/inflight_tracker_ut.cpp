@@ -7,10 +7,12 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 #include <yt/yt/flow/library/cpp/common/timer.h>
+#include <yt/yt/flow/library/cpp/common/traverse.h>
 
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -69,6 +71,25 @@ TOutputMessageConstPtr MakeOutputMessage(
     builder.SetAlignmentTimestamp(TSystemTimestamp(systemTimestamp));
     builder.Payload().Set("payload", "payload");
     return New<TOutputMessage>(builder.Finish(), MakeSpecStorage(streamId, schema));
+}
+
+i64 ReadCounter(const NProfiling::TSolomonRegistryPtr& registry, TStringBuf name)
+{
+    registry->ProcessRegistrations();
+    registry->Collect();
+    const auto dump = registry->DumpSensors();
+    i64 result = 0;
+    for (const auto& cube : dump.cubes()) {
+        if (cube.name() != name) {
+            continue;
+        }
+        for (const auto& projection : cube.projections()) {
+            if (projection.has_counter()) {
+                result = std::max(result, projection.counter());
+            }
+        }
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,6 +195,158 @@ TEST(TTestInflightStoreTest, RegisteredTotalsCountSuccessfulRegistersOnly)
     store->SyncCounters();
     EXPECT_EQ(state->Read().CumulativeCountIn, 2);
     EXPECT_EQ(state->Read().CumulativeByteIn, first->ByteSize + second->ByteSize);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TTestInflightStoreTest, TracksReadyLifecycle)
+{
+    const auto schema = New<NTableClient::TTableSchema>(
+        std::vector{
+            NTableClient::TColumnSchema("payload", NTableClient::EValueType::String),
+        });
+    auto spec = New<TWatermarkPercentileSpec>();
+    spec->Value = PreciseWatermarkPercentile;
+    const auto store = New<TInflightTracker>(NProfiling::TProfiler{}, spec);
+    auto message = MakeOutputMessage(
+        TStreamId("stream"),
+        schema,
+        "message",
+        1747052500ull,
+        1747052500ull);
+
+    store->Register(message);
+    auto metrics = store->BuildInflight()->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 1);
+    EXPECT_EQ(metrics->ReadyCount, 0);
+
+    store->MarkOffered(message->MessageId);
+    store->MarkOffered(message->MessageId);
+    metrics = store->BuildInflight()->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 1);
+    EXPECT_EQ(metrics->ReadyCount, 1);
+
+    store->MarkTaken(message->MessageId);
+    store->MarkTaken(message->MessageId);
+    metrics = store->BuildInflight()->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 1);
+    EXPECT_EQ(metrics->ReadyCount, 0);
+
+    store->Unregister(message->MessageId);
+    store->Commit();
+    metrics = store->BuildInflight()->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 0);
+    EXPECT_EQ(metrics->ReadyCount, 0);
+}
+
+TEST(TTestInflightStoreTest, DuplicateRegistrationAndRemovalDoNotChangeLifecycleState)
+{
+    const auto schema = New<NTableClient::TTableSchema>(
+        std::vector{
+            NTableClient::TColumnSchema("payload", NTableClient::EValueType::String),
+        });
+    auto spec = New<TWatermarkPercentileSpec>();
+    spec->Value = PreciseWatermarkPercentile;
+    const auto store = New<TInflightTracker>(NProfiling::TProfiler{}, spec);
+    auto message = MakeOutputMessage(
+        TStreamId("stream"),
+        schema,
+        "message",
+        1747052500ull,
+        1747052500ull);
+
+    EXPECT_TRUE(store->TryRegister(message));
+    EXPECT_FALSE(store->TryRegister(message));
+    store->MarkOffered(message->MessageId);
+    store->MarkOffered(message->MessageId);
+    auto metrics = store->BuildInflight()->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 1);
+    EXPECT_EQ(metrics->ReadyCount, 1);
+
+    EXPECT_TRUE(store->TryUnregister(message->MessageId));
+    EXPECT_FALSE(store->TryUnregister(message->MessageId));
+    metrics = store->BuildInflight()->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 0);
+    EXPECT_EQ(metrics->ReadyCount, 0);
+}
+
+TEST(TTestInflightStoreTest, DirectCompletionReportsProcessedOnlyOnCommit)
+{
+    const auto schema = New<NTableClient::TTableSchema>(
+        std::vector{
+            NTableClient::TColumnSchema("payload", NTableClient::EValueType::String),
+        });
+    auto spec = New<TWatermarkPercentileSpec>();
+    spec->Value = PreciseWatermarkPercentile;
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
+    NProfiling::TProfiler profiler(registry, "/test");
+    const auto store = New<TInflightTracker>(profiler, spec);
+    auto message = MakeOutputMessage(
+        TStreamId("stream"),
+        schema,
+        "message",
+        1747052500ull,
+        1747052500ull);
+
+    store->Register(message);
+    store->SyncCounters();
+    store->Unregister(message->MessageId);
+    store->SyncCounters();
+
+    EXPECT_EQ(ReadCounter(registry, "yt/test/registered_count"), 1);
+    EXPECT_EQ(ReadCounter(registry, "yt/test/offered_count"), 0);
+    EXPECT_EQ(ReadCounter(registry, "yt/test/unregistered_count"), 0);
+
+    store->Commit();
+    EXPECT_EQ(ReadCounter(registry, "yt/test/unregistered_count"), 1);
+}
+
+TEST(TTestInflightStoreTest, RestoredOutputIsReady)
+{
+    const auto schema = New<NTableClient::TTableSchema>(
+        std::vector{
+            NTableClient::TColumnSchema("payload", NTableClient::EValueType::String),
+        });
+    auto spec = New<TWatermarkPercentileSpec>();
+    spec->Value = PreciseWatermarkPercentile;
+    const auto store = New<TInflightTracker>(NProfiling::TProfiler{}, spec);
+    auto message = MakeOutputMessage(
+        TStreamId("stream"),
+        schema,
+        "message",
+        1747052500ull,
+        1747052500ull);
+
+    store->Restore(message);
+    const auto metrics = store->BuildInflight()->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 1);
+    EXPECT_EQ(metrics->ReadyCount, 1);
+}
+
+TEST(TTestInflightStoreTest, RestoredTimerIsNotReadyUntilOffered)
+{
+    auto spec = New<TWatermarkPercentileSpec>();
+    spec->Value = PreciseWatermarkPercentile;
+    const auto store = New<TInflightTracker>(NProfiling::TProfiler{}, spec);
+    TTimer timerData;
+    timerData.MessageId = TMessageId("timer");
+    timerData.StreamId = TStreamId("stream");
+    timerData.SystemTimestamp = TSystemTimestamp(1747052500ull);
+    timerData.EventTimestamp = TSystemTimestamp(1747052500ull);
+    timerData.TriggerTimestamp = TSystemTimestamp(1747052500ull);
+    timerData.KeySchema = New<NTableClient::TTableSchema>();
+    timerData.Key = MakeKey();
+    auto timer = New<TInputTimer>(std::move(timerData));
+
+    store->Restore(timer);
+    auto metrics = store->BuildInflight()->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 1);
+    EXPECT_EQ(metrics->ReadyCount, 0);
+
+    store->MarkOffered(timer->MessageId);
+    metrics = store->BuildInflight()->InflightMetrics;
+    EXPECT_EQ(metrics->ReadyCount, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

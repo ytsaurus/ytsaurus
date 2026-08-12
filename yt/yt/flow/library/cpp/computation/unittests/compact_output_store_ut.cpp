@@ -2,6 +2,7 @@
 
 #include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
+#include <yt/yt/flow/library/cpp/common/distributing_tracker.h>
 #include <yt/yt/flow/library/cpp/tables/unittests/mock/compact_output_messages.h>
 #include <yt/yt/flow/library/cpp/tables/unittests/mock/compact_partition_output_messages.h>
 
@@ -17,6 +18,8 @@
 
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/test_framework/framework.h>
+
+#include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <random>
 
@@ -107,6 +110,25 @@ protected:
     {
         return ParseMessageBatch(data, MakeStreamSpecStorage(OutputStreamId, Schema_)->GetStreamSpecs());
     }
+
+    i64 ReadCounter(const NProfiling::TSolomonRegistryPtr& registry, TStringBuf name)
+    {
+        registry->ProcessRegistrations();
+        registry->Collect();
+        const auto dump = registry->DumpSensors();
+        i64 result = 0;
+        for (const auto& cube : dump.cubes()) {
+            if (cube.name() != name) {
+                continue;
+            }
+            for (const auto& projection : cube.projections()) {
+                if (projection.has_counter()) {
+                    result = std::max(result, projection.counter());
+                }
+            }
+        }
+        return result;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,6 +200,109 @@ TEST_F(TCompactOutputStoreTest, ContainsAfterRegister)
 
     store->RegisterBatch(std::array{msg}, /*persist*/ false);
     EXPECT_TRUE(store->Contains(*msg));
+}
+
+TEST_F(TCompactOutputStoreTest, OutputBecomesReadyOnlyAfterCommit)
+{
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
+    auto context = MakeContext();
+    context->Profiler = NProfiling::TProfiler(registry, "/test");
+    auto store = CreateCompactOutputStore(context, New<TDynamicOutputStoreSpec>());
+    WaitFor(store->Init(/*loadKeyState*/ false)).ThrowOnError();
+
+    auto message = MakeMessage("msg-1");
+    store->RegisterBatch(std::array{message}, /*persist*/ false);
+    store->TryRegisterBatch(std::array{message}, /*persist*/ false);
+
+    auto metrics = store->BuildInflight().at(OutputStreamId)->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 1);
+    EXPECT_EQ(metrics->ReadyCount, 0);
+    EXPECT_FALSE(metrics->OfferedCountPerSec);
+    EXPECT_EQ(ReadCounter(registry, "yt/test/output_streams/registered_count"), 1);
+    EXPECT_EQ(ReadCounter(registry, "yt/test/output_streams/offered_count"), 0);
+
+    store->Commit();
+    metrics = store->BuildInflight().at(OutputStreamId)->InflightMetrics;
+    EXPECT_EQ(metrics->ReadyCount, 1);
+    EXPECT_EQ(ReadCounter(registry, "yt/test/output_streams/offered_count"), 1);
+
+    store->TryRegisterBatch(std::array{message}, /*persist*/ false);
+    store->Commit();
+    metrics = store->BuildInflight().at(OutputStreamId)->InflightMetrics;
+    EXPECT_EQ(metrics->ReadyCount, 1);
+    EXPECT_EQ(ReadCounter(registry, "yt/test/output_streams/offered_count"), 0);
+
+    store->TryUnregisterBatch(std::array{&message->GetMeta()});
+    metrics = store->BuildInflight().at(OutputStreamId)->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 0);
+    EXPECT_EQ(metrics->ReadyCount, 0);
+}
+
+TEST_F(TCompactOutputStoreTest, RestoreIsReadyWithoutReportingNewOrOffered)
+{
+    auto partitionTable = New<NTables::TInMemoryCompactPartitionOutputMessages>();
+    {
+        auto context = MakeContext(partitionTable);
+        auto store = CreateCompactOutputStore(context, New<TDynamicOutputStoreSpec>());
+        WaitFor(store->Init(/*loadKeyState*/ false)).ThrowOnError();
+
+        auto message = MakeMessage("msg-1");
+        store->RegisterBatch(std::array{message}, /*persist*/ true);
+        EXPECT_TRUE(store->Sync(/*tx*/ nullptr).empty());
+        store->Commit();
+    }
+
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
+    auto context = MakeContext(partitionTable);
+    context->Profiler = NProfiling::TProfiler(registry, "/restore");
+    auto restoredStore = CreateCompactOutputStore(context, New<TDynamicOutputStoreSpec>());
+    auto restoredMessages = WaitFor(restoredStore->Init(/*loadKeyState*/ false)).ValueOrThrow();
+
+    ASSERT_EQ(restoredMessages.size(), 1u);
+    auto metrics = restoredStore->BuildInflight().at(OutputStreamId)->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 1);
+    EXPECT_EQ(metrics->ReadyCount, 1);
+    EXPECT_EQ(ReadCounter(registry, "yt/restore/output_streams/registered_count"), 0);
+    EXPECT_EQ(ReadCounter(registry, "yt/restore/output_streams/offered_count"), 0);
+
+    restoredStore->Commit();
+    EXPECT_EQ(ReadCounter(registry, "yt/restore/output_streams/offered_count"), 0);
+}
+
+TEST_F(TCompactOutputStoreTest, FanoutPublishesProcessedOnlyAfterEveryDestinationAndCommit)
+{
+    auto registry = New<NProfiling::TSolomonRegistry>();
+    registry->SetWindowSize(12);
+    auto context = MakeContext();
+    context->Profiler = NProfiling::TProfiler(registry, "/test");
+    auto store = CreateCompactOutputStore(context, New<TDynamicOutputStoreSpec>());
+    WaitFor(store->Init(/*loadKeyState*/ false)).ThrowOnError();
+
+    auto message = MakeMessage("msg-1");
+    store->RegisterBatch(std::array{message}, /*persist*/ false);
+    store->Commit();
+
+    auto tracker = TDistributingTracker([store, message] {
+        store->TryUnregisterBatch(std::array{&message->GetMeta()});
+    });
+    auto firstDestination = tracker.AddDestination();
+    auto secondDestination = tracker.AddDestination();
+    tracker.Activate();
+
+    firstDestination();
+    auto metrics = store->BuildInflight().at(OutputStreamId)->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 1);
+    EXPECT_EQ(ReadCounter(registry, "yt/test/output_streams/unregistered_count"), 0);
+
+    secondDestination();
+    metrics = store->BuildInflight().at(OutputStreamId)->InflightMetrics;
+    EXPECT_EQ(metrics->Count, 0);
+    EXPECT_EQ(ReadCounter(registry, "yt/test/output_streams/unregistered_count"), 0);
+
+    store->Commit();
+    EXPECT_EQ(ReadCounter(registry, "yt/test/output_streams/unregistered_count"), 1);
 }
 
 // Unkeyed (partition) message: RegisterBatch(persist=true) + Sync() writes a chunk to the partition table.
@@ -489,6 +614,11 @@ TEST_F(TCompactOutputStoreTest, InitLoadsMessagesFromChunks)
     ASSERT_EQ(std::ssize(loaded), 1);
     EXPECT_EQ(loaded[0].first->MessageId, TMessageId("msg-saved"));
     EXPECT_TRUE(store2->Contains(*loaded[0].first));
+
+    const auto metrics = store2->BuildInflight().at(OutputStreamId)->InflightMetrics;
+    EXPECT_EQ(metrics->ReadyCount, 1);
+    EXPECT_FALSE(metrics->NewCountPerSec);
+    EXPECT_FALSE(metrics->OfferedCountPerSec);
 }
 
 // Processed bits persisted across restart — already-delivered messages

@@ -502,10 +502,7 @@ TEST_F(TArrivalOrderTableSinkTest, SourceWideWatermarkWaitsForSlowPartitionBefor
         return partition;
     };
     const auto mergePartitions = [&] (TSystemTimestamp first, TSystemTimestamp second) {
-        auto computationSpec = New<TComputationSpec>();
-        auto merged = MergeNodeTraverseData(
-            {makePartition(first), makePartition(second)},
-            computationSpec);
+        auto merged = MergeNodeTraverseData({makePartition(first), makePartition(second)});
         return merged->Streams.at(StreamId)->SystemWatermark;
     };
 
@@ -738,6 +735,11 @@ TEST_F(TArrivalOrderTableSinkTest, CommitRetryStopsOnFiberCancellationAndRelease
     EXPECT_EQ(NYT::EErrorCode::Canceled, result.GetCode());
     commitFuture.Reset();
 
+    WaitFor(BIND([] {
+    })
+            .AsyncVia(ThreadPool->GetInvoker())
+            .Run())
+        .ThrowOnError();
     EXPECT_FALSE(weakSink.Lock());
     EXPECT_FALSE(callback->load());
 }

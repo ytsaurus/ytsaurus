@@ -127,7 +127,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
         auto generateReportTimeFuture = GetTimeProvider()->GetTimestamp(/*barrier*/ true);
         DoInit(StateManager_->CreateContext());
         const auto now = WaitFor(generateReportTimeFuture).ValueOrThrow();
-        isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights());
+        isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights(context));
         FinishRunIteration();
     }
 
@@ -178,7 +178,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             auto [processedInput, unprocessedInputs] = InputStore_->Filter(inputs, /*checkState*/ false);
             YT_TLOG_INFO("Filtered already processed")
                 .With("Inputs", processedInput.size());
-            context->MarkPersisted(processedInput);
+            context->MarkDeduplicated(processedInput);
             return unprocessedInputs;
         }();
 
@@ -311,7 +311,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
         Commit(context, tx);
 
         const auto now = WaitForFast(generateReportTimeFuture).ValueOrThrow().Timestamp;
-        isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights());
+        isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights(context));
         FinishRunIteration();
 
         WaitForBackoff(dynamicSpec, outputLimitsCheckResult,

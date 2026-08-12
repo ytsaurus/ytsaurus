@@ -371,6 +371,91 @@ TEST(TInputBufferEpochCycleTest, SamplesInterExtractionIntervals)
     EXPECT_EQ(*medianCycle, TDuration::Seconds(5));
 }
 
+TEST(TInputBufferInflightMetricsTest, ExcludesExtractedAndDeduplicatedMessages)
+{
+    const TStreamId streamId("input");
+    auto computationSpec = New<TComputationSpec>();
+    computationSpec->InputStreamIds.insert(streamId);
+    auto dynamicSpec = New<TDynamicComputationSpec>();
+    dynamicSpec->BatchDuration = TDuration::Zero();
+    auto now = std::make_shared<TInstant>(TInstant::Seconds(1000));
+
+    auto buffer = New<TInputBuffer>(
+        TJobId(TGuid::Create()),
+        NFlow::TStreamLimitUsageStateMap{{streamId, New<TStreamLimitUsageState>(/*inflationPerMessage*/ 0)}},
+        /*epochCycleTracker*/ nullptr,
+        THashMap<TStreamId, NFlow::TOfferedRateEstimatorPtr>{},
+        computationSpec,
+        TComputationId("computation"),
+        dynamicSpec,
+        GetSyncInvoker(),
+        NProfiling::TProfiler{},
+        [now] {
+            return *now;
+        });
+    buffer->UpdateMessageTransferingInfo(New<TMessageTransferingInfo>());
+
+    const auto connectionId = TGuid::Create();
+    buffer->AddConnectionOffer(connectionId, {{streamId, {
+                    {TSystemTimestamp(1020), 1'000},
+                    {TSystemTimestamp(1010), 1'000},
+                                                         }}});
+
+    auto schema = New<NTableClient::TTableSchema>();
+    auto acknowledged = std::make_shared<THashSet<TMessageId>>();
+    auto addMessage = [&] (int index) {
+        TMessageBuilder builder(streamId, schema);
+        auto messageId = TMessageId(Format("msg-%v", index));
+        builder.SetMessageId(messageId);
+        builder.SetSystemTimestamp(TSystemTimestamp(100 + index));
+        builder.SetAlignmentTimestamp(TSystemTimestamp(100 + index));
+        builder.SetEventTimestamp(TSystemTimestamp(100 + index));
+        auto message = New<TInputMessage>(builder.Finish(), MakeKey(ToString(index)));
+        auto onProcessed = BIND([acknowledged] (TJobId, std::vector<TMessageId> messageIds) {
+            acknowledged->insert(messageIds.begin(), messageIds.end());
+        });
+        NConcurrency::WaitFor(buffer->AddMessages(connectionId, {std::move(message)}, std::move(onProcessed)))
+            .ThrowOnError();
+        return messageId;
+    };
+
+    auto firstId = addMessage(1);
+    auto metrics = NConcurrency::WaitFor(buffer->GetInflightMetrics()).ValueOrThrow().at(streamId);
+    EXPECT_EQ(metrics->Count, 1);
+    ASSERT_TRUE(metrics->ByteSize);
+    EXPECT_GT(*metrics->ByteSize, 0);
+    ASSERT_EQ(metrics->ReadyCount, 1);
+    EXPECT_FALSE(metrics->OfferedCountPerSec);
+    EXPECT_FALSE(metrics->ProcessedCountPerSec);
+
+    NConcurrency::WaitFor(buffer->GetInputBatch({streamId})).ThrowOnError();
+    metrics = NConcurrency::WaitFor(buffer->GetInflightMetrics()).ValueOrThrow().at(streamId);
+    EXPECT_EQ(metrics->Count, 1);
+    ASSERT_EQ(metrics->ReadyCount, 0);
+
+    buffer->MarkDeduplicated({firstId});
+
+    metrics = NConcurrency::WaitFor(buffer->GetInflightMetrics()).ValueOrThrow().at(streamId);
+    EXPECT_EQ(metrics->Count, 0);
+    EXPECT_EQ(metrics->ByteSize, 0);
+    ASSERT_EQ(metrics->ReadyCount, 0);
+    EXPECT_FALSE(metrics->ProcessedCountPerSec);
+    EXPECT_TRUE(acknowledged->contains(firstId));
+
+    auto secondId = addMessage(2);
+    NConcurrency::WaitFor(buffer->GetInputBatch({streamId})).ThrowOnError();
+    *now += TDuration::Minutes(5);
+    buffer->MarkPersisted({secondId});
+
+    metrics = NConcurrency::WaitFor(buffer->GetInflightMetrics()).ValueOrThrow().at(streamId);
+    EXPECT_EQ(metrics->Count, 0);
+    EXPECT_EQ(metrics->ByteSize, 0);
+    ASSERT_EQ(metrics->ReadyCount, 0);
+    ASSERT_TRUE(metrics->ProcessedCountPerSec);
+    EXPECT_GT(*metrics->ProcessedCountPerSec, 0);
+    EXPECT_TRUE(acknowledged->contains(secondId));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

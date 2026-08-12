@@ -357,6 +357,19 @@ public:
                     .With("computation_id", computationId);
             }
         }
+
+        for (const auto& [computationId, computationSpec] : spec->Computations) {
+            auto computationTraverseIt = traverseData->Computations.find(computationId);
+            if (computationTraverseIt == traverseData->Computations.end()) {
+                continue;
+            }
+            const auto& computationTraverse = computationTraverseIt->second;
+            for (const auto& streamId : computationSpec->InputStreamIds) {
+                computationTraverse->Streams[streamId] = BuildConsumerStreamTraverseData(
+                    GetOrCrash(computationTraverse->Streams, streamId),
+                    GetOrCrash(streamsTraverseData, streamId));
+            }
+        }
         traverseData->Streams = std::move(streamsTraverseData);
 
         YT_TLOG_INFO("TraverseData")

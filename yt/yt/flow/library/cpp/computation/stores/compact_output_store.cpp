@@ -389,6 +389,15 @@ public:
         return asyncEraseTransactions;
     }
 
+    void Commit() override
+    {
+        for (const auto& [_, message] : PendingOffers_) {
+            InflightStore_->MarkOffered(*message);
+        }
+        PendingOffers_.clear();
+        InflightStore_->Commit();
+    }
+
     THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflight() override
     {
         return InflightStore_->BuildInflights();
@@ -429,10 +438,15 @@ private:
             return;
         }
         // First-time registration.
+        bool registered;
         if (ensure) {
             InflightStore_->Register(message);
+            registered = true;
         } else {
-            InflightStore_->TryRegister(message);
+            registered = InflightStore_->TryRegister(message);
+        }
+        if (registered) {
+            PendingOffers_.emplace(message->MessageId, message);
         }
         if (persist) {
             ToPersist_.emplace(message, key);
@@ -456,6 +470,7 @@ private:
         } else {
             InflightStore_->TryUnregister(messageMeta);
         }
+        PendingOffers_.erase(messageMeta.MessageId);
         std::optional<TKey> key;
         if (auto it = Keys_.find(messageMeta.MessageId); it != Keys_.end()) {
             key = std::move(it->second);
@@ -527,7 +542,7 @@ private:
                     .PositionInChunk = static_cast<ui64>(position),
                 });
             YT_VERIFY(inserted);
-            InflightStore_->Register(outputMessage);
+            InflightStore_->Restore(outputMessage);
             ++state.RemainingCount;
             messages.emplace_back(std::move(outputMessage), state.Key);
         }
@@ -648,6 +663,8 @@ private:
 
     // Newly produced messages awaiting chunk packing on the next Sync.
     absl::flat_hash_map<TOutputMessageConstPtr, std::optional<TKey>, TMessageHashMapOpsByMessageId, TMessageHashMapOpsByMessageId> ToPersist_;
+
+    absl::flat_hash_map<TMessageId, TOutputMessageConstPtr, ::THash<TMessageId>> PendingOffers_;
 
     struct TChunkState
     {

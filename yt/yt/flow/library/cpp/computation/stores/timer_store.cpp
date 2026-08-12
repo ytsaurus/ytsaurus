@@ -57,7 +57,11 @@ public:
         : Context_(std::move(context))
         , Table_(Context_->TimersTable)
         , Logger(Context_->Logger)
-        , InflightStore_(New<TMultiInflightTracker>(Context_->Profiler.WithPrefix("/timer_streams"), GetKeys(Context_->TimerSpecs), Context_->WatermarkPercentileSpec))
+        , InflightStore_(New<TMultiInflightTracker>(
+            Context_->Profiler.WithPrefix("/timer_streams"),
+            GetKeys(Context_->TimerSpecs),
+            Context_->WatermarkPercentileSpec,
+            TStreamLimitUsageStateMap{}))
     {
         YT_VERIFY(Table_);
         Reconfigure(std::move(dynamicContext));
@@ -102,6 +106,7 @@ public:
                 // newly registered timers with the same (Key, TriggerTimestamp)
                 // do not evict an already-extracted timer.
                 UnregisterTimerKeyIndex(timer);
+                InflightStore_->MarkTaken(*timer);
                 timers.push_back(timer);
             });
 
@@ -133,7 +138,7 @@ public:
             TimerDeduplicationState_.erase(it);
             TimerDeduplicationState_.emplace(timer);
         }
-        Unregister(std::vector<TInputTimerConstPtr>{timerToUnregister});
+        DoUnregister(std::vector<TInputTimerConstPtr>{timerToUnregister});
         Deduplicated_.insert(timerToUnregister);
     }
 
@@ -151,6 +156,11 @@ public:
 
     void Register(std::vector<TTimer>&& timers) override
     {
+        RegisterImpl(std::move(timers), /*restored*/ false);
+    }
+
+    void RegisterImpl(std::vector<TTimer>&& timers, bool restored)
+    {
         for (auto& timer : timers) {
             if (!Context_->TimerSpecs.contains(timer.StreamId)) {
                 THROW_ERROR_EXCEPTION("Unknown timer stream %Qv during register",
@@ -158,7 +168,11 @@ public:
             }
 
             auto inputTimer = New<TInputTimer>(std::move(timer), Context_->KeySchema);
-            InflightStore_->Register(inputTimer);
+            if (restored) {
+                InflightStore_->Restore(inputTimer);
+            } else {
+                InflightStore_->Register(inputTimer);
+            }
 
             SortedTimers_[inputTimer->StreamId].insert(inputTimer);
 
@@ -173,6 +187,11 @@ public:
     }
 
     void Unregister(const std::vector<TInputTimerConstPtr>& timers) override
+    {
+        DoUnregister(timers);
+    }
+
+    void DoUnregister(const std::vector<TInputTimerConstPtr>& timers)
     {
         for (const auto& timer : timers) {
             if (Deduplicated_.contains(timer)) {
@@ -203,7 +222,7 @@ public:
         }
         YT_TLOG_DEBUG("Timers loaded")
             .With("Count", timers.size());
-        Register(std::move(timers));
+        RegisterImpl(std::move(timers), /*restored*/ true);
         ModificationQueue_.clear();
         YT_TLOG_DEBUG("Timer store init completed");
     }
@@ -252,6 +271,11 @@ public:
         ModificationQueue_.clear();
     }
 
+    void Commit() override
+    {
+        InflightStore_->Commit();
+    }
+
     i64 GetByteSize() const override
     {
         return InflightStore_->GetTotalByteSize();
@@ -296,6 +320,7 @@ private:
 private:
     void TriggerTimers()
     {
+        bool offered = false;
         for (auto& [timerStreamId, timers] : SortedTimers_) {
             auto timerSpec = GetOrCrash(Context_->TimerSpecs, timerStreamId);
             TSystemTimestamp watermark = InfinitySystemTimestamp;
@@ -322,8 +347,13 @@ private:
                     .With("MessageId", timer->MessageId)
                     .With("StreamId", timer->StreamId);
                 triggeredTimers.insert(timer);
+                InflightStore_->MarkOffered(*timer);
+                offered = true;
                 timers.erase(timers.begin());
             }
+        }
+        if (offered) {
+            InflightStore_->SyncCounters();
         }
     }
 

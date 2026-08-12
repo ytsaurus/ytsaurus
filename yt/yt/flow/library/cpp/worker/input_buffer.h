@@ -39,6 +39,9 @@ struct IInputBuffer
     // Pass-by-value so the caller can `std::move` ownership in; the implementation moves the
     // deque through Passed() into the SerializedInvoker BIND closure, avoiding a copy.
     virtual void MarkPersisted(std::deque<TMessageId> messageIds) = 0;
+    virtual void MarkDeduplicated(std::deque<TMessageId> messageIds) = 0;
+
+    virtual TFuture<THashMap<TStreamId, TInflightMetricsPtr>> GetInflightMetrics() = 0;
 
     virtual TFuture<std::vector<TInputMessageConstPtr>> GetInputBatch(const THashSet<TStreamId>& allowedStreams) = 0;
 

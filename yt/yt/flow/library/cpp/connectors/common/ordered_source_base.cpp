@@ -241,6 +241,10 @@ void TOrderedSourceBase::Init(IInitContextPtr initContext)
 
     SourceTotalCount_.Update(0);
     SourceTotalBytes_.Update(0);
+    OfferedCount_.Update(0);
+    OfferedBytes_.Update(0);
+    PersistedCount_.Update(0);
+    PersistedBytes_.Update(0);
 
     UpdateStatusProfilerMute();
     SubscribeReconfigured(
@@ -335,6 +339,11 @@ double TOrderedSourceBase::GetSourceTotalCount() const
 double TOrderedSourceBase::GetSourceTotalBytes() const
 {
     return SourceTotalBytes_.GetTotal();
+}
+
+double TOrderedSourceBase::GetOfferedCount() const
+{
+    return OfferedCount_.GetTotal();
 }
 
 void TOrderedSourceBase::FlushDelayedPartitionInfoUpdates()
@@ -638,15 +647,32 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
     }
     inflight->InflightMetrics->ByteSize = offsetLag * State_->AvgOffsetByteSize;
 
+    const i64 readyOffsetLag =
+        DoGetEstimatedRowsAtOffset(State_->MaxOffsetExclusive) - DoGetEstimatedRowsAtOffset(NextReadOffset_);
+    inflight->InflightMetrics->ReadyCount = readyOffsetLag == 0
+        ? 0
+        : std::max<i64>(1, readyOffsetLag * State_->AvgOffsetCountSize);
+    inflight->InflightMetrics->ReadyByteSize = readyOffsetLag * State_->AvgOffsetByteSize;
+
     if (inflight->InflightMetrics->Count == 0 && State_->LastIdleInstant > State_->LastNotIdleInstant) {
         inflight->InflightMetrics->IdleDuration = State_->LastIdleInstant - State_->LastNotIdleInstant;
         inflight->InflightMetrics->LastIdleTimestamp = TSystemTimestamp(State_->LastIdleInstant.Seconds());
     }
 
-    inflight->InflightMetrics->NewCountPerSec = SourceTotalCount_.GetRate().value_or(0);
-    inflight->InflightMetrics->NewBytesPerSec = SourceTotalBytes_.GetRate().value_or(0);
-    inflight->InflightMetrics->ProcessedCountPerSec = PersistedCount_.GetRate().value_or(0);
-    inflight->InflightMetrics->ProcessedBytesPerSec = PersistedBytes_.GetRate().value_or(0);
+    inflight->InflightMetrics->NewCountPerSec = SourceTotalCount_.GetRate();
+    inflight->InflightMetrics->NewBytesPerSec = SourceTotalBytes_.GetRate();
+    if (auto backlogRate = EstimateBacklogRate()) {
+        inflight->InflightMetrics->NewCountPerSec = std::max(
+            inflight->InflightMetrics->NewCountPerSec.value_or(0),
+            std::max(0.0, backlogRate->MessagesPerSecond));
+        inflight->InflightMetrics->NewBytesPerSec = std::max(
+            inflight->InflightMetrics->NewBytesPerSec.value_or(0),
+            std::max(0.0, backlogRate->BytesPerSecond));
+    }
+    inflight->InflightMetrics->OfferedCountPerSec = OfferedCount_.GetRate();
+    inflight->InflightMetrics->OfferedBytesPerSec = OfferedBytes_.GetRate();
+    inflight->InflightMetrics->ProcessedCountPerSec = PersistedCount_.GetRate();
+    inflight->InflightMetrics->ProcessedBytesPerSec = PersistedBytes_.GetRate();
 
     if (State_->LastUnavailableInstant) {
         const auto threshold = GetDynamicParameters()->UnavailableThreshold;
@@ -726,6 +752,8 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
     }
 
     std::vector<ISource::TMessageBatch> parsedMessages;
+    i64 offeredCount = 0;
+    i64 offeredBytes = 0;
     for (i64 recordIndex = 0; recordIndex < std::ssize(records); ++recordIndex) {
         auto& record = records[recordIndex];
         const bool isLastRecord = (recordIndex + 1 == std::ssize(records));
@@ -839,6 +867,8 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
                 .Cookie = TSourceMessageBatchCookie(std::any(TMessageCookieData{.OffsetInfoIt = offsetInfoIt})),
                 .Messages = std::move(messages),
             });
+            offeredCount += offsetInfoIt->Count;
+            offeredBytes += offsetInfoIt->ByteSize;
         }
         TryCollapseOffsetInfo(std::prev(InflightOffsets_.end()));
     }
@@ -847,6 +877,8 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
         State_->LastIdleInstant = TInstant::Zero();
         TryIncreaseMaxOffsetExclusive(NextReadOffset_, false);
     }
+    OfferedCount_.Inc(offeredCount);
+    OfferedBytes_.Inc(offeredBytes);
     CleanUpInflightOffsets();
     return parsedMessages;
 }
