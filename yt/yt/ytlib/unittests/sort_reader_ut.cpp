@@ -60,6 +60,7 @@ class TMockPartitionReader
 public:
     DEFINE_BYVAL_RO_PROPERTY(int, AddChunkCallCount);
     DEFINE_BYVAL_RO_PROPERTY(int, SetNoMoreChunksCallCount);
+    DEFINE_BYVAL_RO_PROPERTY(int, FinishAtCurrentCommittedRecordCountCallCount);
     DEFINE_BYVAL_RO_PROPERTY(bool, ReadCanceled);
 
     TFuture<TShuffleReadBatchPtr> Read() override
@@ -84,6 +85,11 @@ public:
     void SetNoMoreChunks() override
     {
         ++SetNoMoreChunksCallCount_;
+    }
+
+    void FinishAtCurrentCommittedRecordCount() override
+    {
+        ++FinishAtCurrentCommittedRecordCountCallCount_;
     }
 
     bool HasPendingRead() const
@@ -345,9 +351,11 @@ TEST_F(TSortReaderTest, ForwardsPartitionControl)
         /*startRecordIndex*/ 5,
         /*rangeEndRecordIndex*/ 10);
     reader->SetNoMoreChunks();
+    reader->FinishAtCurrentCommittedRecordCount();
 
     EXPECT_EQ(MockReader_->GetAddChunkCallCount(), 1);
     EXPECT_EQ(MockReader_->GetSetNoMoreChunksCallCount(), 1);
+    EXPECT_EQ(MockReader_->GetFinishAtCurrentCommittedRecordCountCallCount(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

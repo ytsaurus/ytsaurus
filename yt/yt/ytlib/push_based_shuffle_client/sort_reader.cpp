@@ -106,6 +106,11 @@ public:
         UnderlyingReader_->SetNoMoreChunks();
     }
 
+    void FinishAtCurrentCommittedRecordCount() override
+    {
+        UnderlyingReader_->FinishAtCurrentCommittedRecordCount();
+    }
+
 private:
     struct TBucket
     {
