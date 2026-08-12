@@ -43,7 +43,7 @@ public:
 
     std::string GetComponentName() const override
     {
-        return FormatEnum(Config_->ComponentType);
+        return Config_->GetName();
     }
 
     // TODO(achulkov2): Introduce client-side caching, either in the endpoint provider hierarchy, or in the component discoverer itself.
