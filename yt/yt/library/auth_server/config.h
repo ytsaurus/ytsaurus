@@ -655,4 +655,18 @@ DEFINE_REFCOUNTED_TYPE(TAuthenticationManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAuthenticationManagerDynamicConfig
+    : public virtual NYT::NYTree::TYsonStruct
+{
+    TTvmServiceDynamicConfigPtr TvmService;
+
+    REGISTER_YSON_STRUCT(TAuthenticationManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAuthenticationManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NAuth

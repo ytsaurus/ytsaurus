@@ -417,6 +417,8 @@ struct TProxyDynamicConfig
 
     TNodeMemoryTrackerConfigPtr MemoryTracker;
 
+    NAuth::TAuthenticationManagerDynamicConfigPtr Auth;
+
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);

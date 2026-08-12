@@ -38,6 +38,8 @@ DEFINE_REFCOUNTED_TYPE(TCompositeHttpAuthenticator)
 
 void SetStatusFromAuthError(const NHttp::IResponseWriterPtr& rsp, const TError& error)
 {
+    // TODO(dagorokhov): Some credential rejections are not marked with InvalidCredentials
+    // and are reported as ServiceUnavailable instead of Unauthorized.
     if (error.FindMatching(NRpc::EErrorCode::InvalidCredentials)) {
         rsp->SetStatus(EStatusCode::Unauthorized);
     } else if (error.FindMatching(NRpc::EErrorCode::InvalidCsrfToken)) {
@@ -236,7 +238,10 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
     }
 
-    if (auto userTicketHeader = request->GetHeaders()->Find(NHeaders::UserTicketHeaderName)) {
+    auto userTicketHeader = request->GetHeaders()->Find(NHeaders::UserTicketHeaderName);
+    auto serviceTicketHeader = request->GetHeaders()->Find(NHeaders::ServiceTicketHeaderName);
+
+    if (userTicketHeader) {
         const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
         if (!ticketAuthenticator) {
             return TError(
@@ -244,18 +249,19 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                 "Client has provided a user ticket, but no ticket authenticator is configured");
         }
 
-        TTicketCredentials credentials{
-            .Ticket = *userTicketHeader,
+        TUserTicketCredentials credentials{
+            .UserTicket = *userTicketHeader,
+            .ServiceTicket = serviceTicketHeader ? std::optional<std::string>(*serviceTicketHeader) : std::nullopt,
         };
+
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {
             return TError(authResult);
         }
-
         return TAuthenticationResultAndToken{authResult.Value(), {}};
     }
 
-    if (auto serviceTicketHeader = request->GetHeaders()->Find(NHeaders::ServiceTicketHeaderName)) {
+    if (serviceTicketHeader) {
         const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
         if (!ticketAuthenticator) {
             return TError(
@@ -264,13 +270,13 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
 
         TServiceTicketCredentials credentials{
-            .Ticket = *serviceTicketHeader,
+            .ServiceTicket = *serviceTicketHeader,
         };
+
         auto authResult = WaitFor(ticketAuthenticator->Authenticate(credentials));
         if (!authResult.IsOK()) {
             return TError(authResult);
         }
-
         return TAuthenticationResultAndToken{authResult.Value(), {}};
     }
 

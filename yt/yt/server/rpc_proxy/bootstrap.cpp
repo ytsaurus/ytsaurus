@@ -588,6 +588,11 @@ void TBootstrap::OnDynamicConfigChanged(
     WorkerWeightProvider_->SetOverrides(newConfig->WorkerPoolWeightOverrides);
 
     WorkerPool_->SetThreadCount(newConfig->WorkerThreadPoolSize.value_or(Config_->WorkerThreadPoolSize));
+
+    AuthenticationManager_->Reconfigure(newConfig->Auth);
+    if (TvmOnlyAuthenticationManager_) {
+        TvmOnlyAuthenticationManager_->Reconfigure(newConfig->Auth);
+    }
 }
 
 void TBootstrap::OnBundleDynamicConfigChanged(

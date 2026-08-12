@@ -21,6 +21,8 @@ public:
 
     TFuture<TValue> Get(const TKey& key, const TContext& context);
 
+    void Clear();
+
 private:
     struct TEntry final
     {

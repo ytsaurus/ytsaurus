@@ -38,7 +38,7 @@ public:
         IBlackboxServicePtr blackboxService,
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
-        , BlackboxSevice_(std::move(blackboxService))
+        , BlackboxService_(std::move(blackboxService))
         , RejectedTokensCounter_(profiler.Counter("/rejected_tokens"))
         , InvalidBlackboxResponsesCounter_(profiler.Counter("/invalid_responses"))
         , TokenScopeCheckErrorsCounter_(profiler.Counter("/scope_check_errors"))
@@ -68,7 +68,7 @@ public:
             params["get_user_ticket"] = "yes";
         }
 
-        return BlackboxSevice_->Call("oauth", params)
+        return BlackboxService_->Call("oauth", params)
             .Apply(BIND(
                 &TBlackboxTokenAuthenticator::OnCallResult,
                 MakeStrong(this),
@@ -77,7 +77,7 @@ public:
 
 private:
     const TBlackboxTokenAuthenticatorConfigPtr Config_;
-    const IBlackboxServicePtr BlackboxSevice_;
+    const IBlackboxServicePtr BlackboxService_;
 
     const TCounter RejectedTokensCounter_;
     const TCounter InvalidBlackboxResponsesCounter_;
@@ -118,7 +118,7 @@ private:
                 .With("reason", reason);
         }
 
-        auto login = BlackboxSevice_->GetLogin(data);
+        auto login = BlackboxService_->GetLogin(data);
         auto oauthClientId = GetByYPath<std::string>(data, "/oauth/client_id");
         auto oauthClientName = GetByYPath<std::string>(data, "/oauth/client_name");
         auto oauthScope = GetByYPath<std::string>(data, "/oauth/scope");

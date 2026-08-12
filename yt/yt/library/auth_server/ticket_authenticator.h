@@ -18,10 +18,12 @@ struct ITicketAuthenticator
     : public virtual TRefCounted
 {
     virtual TFuture<TAuthenticationResult> Authenticate(
-        const TTicketCredentials& credentials) = 0;
+        const TUserTicketCredentials& credentials) = 0;
 
     virtual TFuture<TAuthenticationResult> Authenticate(
         const TServiceTicketCredentials& credentials) = 0;
+
+    virtual bool Reconfigure(const TUserTicketAuthenticationConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITicketAuthenticator)

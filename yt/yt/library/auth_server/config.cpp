@@ -580,4 +580,12 @@ void TAuthenticationManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAuthenticationManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tvm_service", &TThis::TvmService)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NAuth

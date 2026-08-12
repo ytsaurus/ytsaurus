@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/misc/jitter.h>
 
+#include <utility>
+
 namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,6 +109,16 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
 
     auto guard = Guard(entry->Lock);
     return entry->Future;
+}
+
+template <class TKey, class TValue, class TContext>
+void TAuthCache<TKey, TValue, TContext>::Clear()
+{
+    THashMap<TKey, TEntryPtr> cache;
+    {
+        auto guard = WriterGuard(SpinLock_);
+        cache = std::exchange(Cache_, {});
+    }
 }
 
 template <class TKey, class TValue, class TContext>
