@@ -352,7 +352,8 @@ private:
 
         block->Checksum = expectedChecksum;
         if (auto error = block->CheckChecksum(); !error.IsOK()) {
-            YT_LOG_ALERT(error);
+            YT_TLOG_ALERT("Invalid block checksum")
+                .With(error);
             THROW_ERROR_EXCEPTION(error);
         }
     }

@@ -64,11 +64,11 @@ TFuture<void> TChunkTeleporter::Run()
 
 void TChunkTeleporter::DoRun()
 {
-    YT_LOG_INFO("Chunk teleport started (ChunkCount: %v)",
-        Chunks_.size());
+    YT_TLOG_INFO("Chunk teleport started")
+        .With("ChunkCount", Chunks_.size());
     Export();
     Import();
-    YT_LOG_INFO("Chunk teleport completed");
+    YT_TLOG_INFO("Chunk teleport completed");
 }
 
 int TChunkTeleporter::GetExportedObjectCount(TCellTag cellTag)
@@ -142,9 +142,9 @@ void TChunkTeleporter::DoExport(TCellTag cellTag, const std::vector<TChunkEntry*
             protoData->set_destination_cell_tag(ToProto(entry->DestinationCellTag));
         }
 
-        YT_LOG_INFO("Exporting chunks (CellTag: %v, ChunkCount: %v)",
-            cellTag,
-            req->chunks_size());
+        YT_TLOG_INFO("Exporting chunks")
+            .With("CellTag", cellTag)
+            .With("ChunkCount", req->chunks_size());
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error exporting chunks in transaction %v in cell %v",
@@ -226,9 +226,9 @@ void TChunkTeleporter::DoImport(TCellTag cellTag, const std::vector<TChunkEntry*
             req->add_chunks()->Swap(&chunks[index]->Data);
         }
 
-        YT_LOG_INFO("Importing chunks (CellTag: %v, ChunkCount: %v)",
-            cellTag,
-            req->chunks_size());
+        YT_TLOG_INFO("Importing chunks")
+            .With("CellTag", cellTag)
+            .With("ChunkCount", req->chunks_size());
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error importing chunks in transaction %v in cell %v",

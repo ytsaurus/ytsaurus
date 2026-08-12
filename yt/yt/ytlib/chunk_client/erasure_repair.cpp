@@ -597,7 +597,8 @@ private:
                             .With("actual_checksum", actualChecksum)
                             .With("recalculated_checksum", GetChecksum(blocks[index].Data));
 
-                        YT_LOG_ALERT(error);
+                        YT_TLOG_ALERT("Invalid block checksum in repaired part")
+                            .With(error);
                         THROW_ERROR error;
                     }
                 }
@@ -793,7 +794,8 @@ TFuture<void> AdaptiveRepairErasedParts(
                     .Apply(BIND([=] (const TError& cancelError) {
                         if (!cancelError.IsOK()) {
                             const auto& Logger = logger;
-                            YT_LOG_WARNING(cancelError, "Failed to cancel chunk writers");
+                            YT_TLOG_WARNING("Failed to cancel chunk writers")
+                                .With(cancelError);
                             return TError(
                                 NChunkClient::EErrorCode::UnrecoverableRepairError,
                                 "Failed to cancel chunk writers")

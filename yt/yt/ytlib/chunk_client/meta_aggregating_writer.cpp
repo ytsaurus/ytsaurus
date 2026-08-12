@@ -184,9 +184,9 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Absorbing meta (ChunkId: %v, ChunkMetaExtensions: %v)",
-            chunkId,
-            chunkExtensions);
+        YT_TLOG_DEBUG("Absorbing meta")
+            .With("ChunkId", chunkId)
+            .With("ChunkMetaExtensions", chunkExtensions);
 
         if (!MetaInitialized_) {
             AbsorbFirstMeta(meta, chunkId);
@@ -224,7 +224,8 @@ public:
                 auto currentMinRow = FromProto<TLegacyOwningKey>(boundaryKeysExt->Min);
                 auto previousMaxRow = FromProto<TLegacyOwningKey>(BoundaryKeys_->Max);
                 if (SchemaComparator_.CompareKeys(TKey::FromRow(previousMaxRow), TKey::FromRow(currentMinRow)) > 0) {
-                    YT_LOG_ALERT("Incorrectly sorted chunk occured during absorption of meta (ChunkId: %v)", chunkId);
+                    YT_TLOG_ALERT("Incorrectly sorted chunk occured during absorption of meta")
+                        .With("ChunkId", chunkId);
                     THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
                         "Chunk %v is marked sorted, although it is not",
                         chunkId);
@@ -491,11 +492,10 @@ private:
 
                 auto getLastSegmentRowCount = [&] () -> i64 {
                     if (resultColumn.Segments.empty()) {
-                        YT_LOG_ALERT(
-                            "Previous chunk has no segment (ColumnIndex: %v, FirstChunkId: %v, CurrentChunkId: %v)",
-                            i,
-                            FirstChunkId_,
-                            chunkId);
+                        YT_TLOG_ALERT("Previous chunk has no segment")
+                            .With("ColumnIndex", i)
+                            .With("FirstChunkId", FirstChunkId_)
+                            .With("CurrentChunkId", chunkId);
                         return 0;
                     }
                     const auto& lastSegment = resultColumn.Segments.back();

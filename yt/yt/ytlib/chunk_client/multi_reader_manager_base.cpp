@@ -24,17 +24,18 @@ TMultiReaderManagerBase::TMultiReaderManagerBase(
     , UncancelableCompletionError_(CompletionError_.ToFuture().ToUncancelable())
     , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
 {
-    YT_LOG_DEBUG("Creating multi reader (ReaderCount: %v)",
-        ReaderFactories_.size());
+    YT_TLOG_DEBUG("Creating multi reader")
+        .With("ReaderCount", ReaderFactories_.size());
 
     MultiReaderMemoryManager_->AddChunkReaderInfo(Id_);
 
     UncancelableCompletionError_.Subscribe(
         BIND([Logger = Logger] (const TError& error) {
             if (error.IsOK()) {
-                YT_LOG_DEBUG("Multi reader completed");
+                YT_TLOG_DEBUG("Multi reader completed");
             } else {
-                YT_LOG_WARNING(error, "Multi reader failed");
+                YT_TLOG_WARNING("Multi reader failed")
+                    .With(error);
             }
         }));
 
@@ -54,9 +55,12 @@ TMultiReaderManagerBase::~TMultiReaderManagerBase()
 {
     YT_UNUSED_FUTURE(MultiReaderMemoryManager_->Finalize());
 
-    YT_LOG_DEBUG("Multi reader manager data statistics (DataStatistics: %v)", TMultiReaderManagerBase::GetDataStatistics());
-    YT_LOG_DEBUG("Multi reader manager decompression codec statistics (CodecStatistics: %v)", TMultiReaderManagerBase::GetDecompressionStatistics());
-    YT_LOG_DEBUG("Multi reader manager timing statistics (TimingStatistics: %v)", TMultiReaderManagerBase::GetTimingStatistics());
+    YT_TLOG_DEBUG("Multi reader manager data statistics")
+        .With("DataStatistics", TMultiReaderManagerBase::GetDataStatistics());
+    YT_TLOG_DEBUG("Multi reader manager decompression codec statistics")
+        .With("CodecStatistics", TMultiReaderManagerBase::GetDecompressionStatistics());
+    YT_TLOG_DEBUG("Multi reader manager timing statistics")
+        .With("TimingStatistics", TMultiReaderManagerBase::GetTimingStatistics());
 }
 
 void TMultiReaderManagerBase::Open()
@@ -146,9 +150,9 @@ void TMultiReaderManagerBase::OpenNextReaders()
 
     ++ActiveReaderCount_;
 
-    YT_LOG_DEBUG("Scheduling next reader creation (Index: %v, ActiveReaderCount: %v)",
-        PrefetchIndex_,
-        ActiveReaderCount_.load());
+    YT_TLOG_DEBUG("Scheduling next reader creation")
+        .With("Index", PrefetchIndex_)
+        .With("ActiveReaderCount", ActiveReaderCount_.load());
 
     ReaderInvoker_->Invoke(
         BIND(&TMultiReaderManagerBase::DoCreateReader, MakeWeak(this), PrefetchIndex_));
@@ -167,7 +171,8 @@ void TMultiReaderManagerBase::DoCreateReader(int index)
         return;
     }
 
-    YT_LOG_DEBUG("Creating reader (Index: %v)", index);
+    YT_TLOG_DEBUG("Creating reader")
+        .With("Index", index);
 
     try {
         // NB: MakeStrong here delays MultiReaderMemoryManager finalization until child reader is fully created.
@@ -196,9 +201,10 @@ void TMultiReaderManagerBase::OnReaderCreated(
             chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
         }
 
-        YT_LOG_WARNING(readerOrError, "Failed to create reader (Index: %v, ChunkIds: %v)",
-            index,
-            chunkIds);
+        YT_TLOG_WARNING("Failed to create reader")
+            .With("Index", index)
+            .With("ChunkIds", chunkIds)
+            .With(readerOrError);
 
         {
             auto guard = Guard(FailedChunksLock_);
@@ -262,9 +268,9 @@ void TMultiReaderManagerBase::OnReaderFinished()
 
     --ActiveReaderCount_;
 
-    YT_LOG_DEBUG("Reader finished (Index: %v, ActiveReaderCount: %v)",
-        CurrentSession_.Index,
-        ActiveReaderCount_.load());
+    YT_TLOG_DEBUG("Reader finished")
+        .With("Index", CurrentSession_.Index)
+        .With("ActiveReaderCount", ActiveReaderCount_.load());
 
     CurrentSession_.Reset();
     OpenNextReaders();
@@ -291,7 +297,8 @@ TFuture<void> TMultiReaderManagerBase::CombineCompletionError(TFuture<void> futu
 void TMultiReaderManagerBase::RegisterFailedReader(const IReaderBasePtr& reader)
 {
     auto chunkIds = reader->GetFailedChunkIds();
-    YT_LOG_WARNING("Chunk reader failed (ChunkIds: %v)", chunkIds);
+    YT_TLOG_WARNING("Chunk reader failed")
+        .With("ChunkIds", chunkIds);
 
     {
         auto guard = Guard(FailedChunksLock_);

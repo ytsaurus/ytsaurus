@@ -122,10 +122,9 @@ private:
         }
         UnavailableFetcherChunkCount_.store(chunkIds.size());
 
-        YT_LOG_DEBUG(
-            "Starting to scrape chunks (ChunkCount: %v, Epoch: %v)",
-            size(chunkSpecs),
-            Epoch_);
+        YT_TLOG_DEBUG("Starting to scrape chunks")
+            .With("ChunkCount", size(chunkSpecs))
+            .With("Epoch", Epoch_);
 
         Scraper_->Start();
 
@@ -139,53 +138,51 @@ private:
     void OnCanceled(i64 epoch, const TError& error)
     {
         if (epoch != Epoch_) {
-            YT_LOG_WARNING(
-                "Previous incarnation of scraper canceled (Epoch: %v, CurrentEpoch: %v)",
-                epoch,
-                Epoch_);
+            YT_TLOG_WARNING("Previous incarnation of scraper canceled")
+                .With("Epoch", epoch)
+                .With("CurrentEpoch", Epoch_);
             return;
         }
-        YT_LOG_DEBUG(error, "Fetcher chunk scraper canceled");
+        YT_TLOG_DEBUG("Fetcher chunk scraper canceled")
+            .With(error);
         Scraper_->Stop();
     }
 
     void OnLocated(i64 epoch, const TError& error)
     {
         if (epoch != Epoch_) {
-            YT_LOG_WARNING(
-                "Stopping previous incarnation of scraper (Epoch: %v, CurrentEpoch: %v)",
-                epoch,
-                Epoch_);
+            YT_TLOG_WARNING("Stopping previous incarnation of scraper")
+                .With("Epoch", epoch)
+                .With("CurrentEpoch", Epoch_);
             return;
         }
-        YT_LOG_DEBUG(error, "Stopping fetcher chunk scraper");
+        YT_TLOG_DEBUG("Stopping fetcher chunk scraper")
+            .With(error);
         Scraper_->Stop();
     }
 
     void OnChunkBatchLocated(i64 epoch, const std::vector<TScrapedChunkInfo>& chunkInfos)
     {
         if (epoch != Epoch_) {
-            YT_LOG_WARNING(
-                "Previous incarnation of scraper located chunks (Epoch: %v, CurrentEpoch: %v)",
-                epoch,
-                Epoch_);
+            YT_TLOG_WARNING("Previous incarnation of scraper located chunks")
+                .With("Epoch", epoch)
+                .With("CurrentEpoch", Epoch_);
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Located another batch of chunks (Count: %v, UnavailableFetcherChunkCount: %v)",
-            size(chunkInfos),
-            UnavailableFetcherChunkCount_.load());
+        YT_TLOG_DEBUG("Located another batch of chunks")
+            .With("Count", size(chunkInfos))
+            .With("UnavailableFetcherChunkCount", UnavailableFetcherChunkCount_.load());
 
         for (const auto& chunkInfo : chunkInfos) {
-            YT_LOG_TRACE(
-                "Fetcher chunk is located (ChunkId: %v, Replicas: %v, Availability: %v)",
-                chunkInfo.ChunkId,
-                chunkInfo.Replicas,
-                chunkInfo.Availability);
+            YT_TLOG_TRACE("Fetcher chunk is located")
+                .With("ChunkId", chunkInfo.ChunkId)
+                .With("Replicas", chunkInfo.Replicas)
+                .With("Availability", chunkInfo.Availability);
 
             if (chunkInfo.Availability == EChunkAvailability::Missing) {
-                YT_LOG_DEBUG("Chunk being scraped is missing; scraper terminated (ChunkId: %v)", chunkInfo.ChunkId);
+                YT_TLOG_DEBUG("Chunk being scraped is missing; scraper terminated")
+                    .With("ChunkId", chunkInfo.ChunkId);
 
                 BatchLocatedPromise_.TrySet(TError("Chunk scraper failed: chunk %v is missing", chunkInfo.ChunkId));
                 return;
@@ -202,10 +199,9 @@ private:
                 continue;
             }
 
-            YT_LOG_TRACE(
-                "Fetcher chunk is available (ChunkId: %v, Replicas: %v)",
-                chunkInfo.ChunkId,
-                chunkInfo.Replicas);
+            YT_TLOG_TRACE("Fetcher chunk is available")
+                .With("ChunkId", chunkInfo.ChunkId)
+                .With("Replicas", chunkInfo.Replicas);
 
             // Update replicas in place for all input chunks with current chunkId.
             for (const auto& chunkSpec : description.ChunkSpecs) {
@@ -216,7 +212,7 @@ private:
             YT_VERIFY(observedCount >= 0);
             if (observedCount == 0) {
                 BatchLocatedPromise_.TrySet();
-                YT_LOG_DEBUG("All fetcher chunks are available");
+                YT_TLOG_DEBUG("All fetcher chunks are available");
                 return;
             }
         }
@@ -327,19 +323,17 @@ void TFetcherBase::PerformFetchingRoundStep(TPromise<void> fetchingRoundPromise,
     // This code was intentionally rewritten without WaitFor to avoid extensive fiber creation.
     const auto& nodeAddress = NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress();
     if (fetchingRoundPromise.IsCanceled()) {
-        YT_LOG_DEBUG(
-            "Node fetching round was canceled (NodeId: %v, NodeAddress: %v)",
-            nodeId,
-            nodeAddress);
+        YT_TLOG_DEBUG("Node fetching round was canceled")
+            .With("NodeId", nodeId)
+            .With("NodeAddress", nodeAddress);
         return;
     }
 
     auto finishRound = [&] () {
-        YT_LOG_DEBUG(
-            "Node fetching round completed (NodeId: %v, NodeAddress: %v, UnfetchedChunkCount: %v)",
-            nodeId,
-            nodeAddress,
-            NodeToChunkIndexesToFetch_[nodeId].size());
+        YT_TLOG_DEBUG("Node fetching round completed")
+            .With("NodeId", nodeId)
+            .With("NodeAddress", nodeAddress)
+            .With("UnfetchedChunkCount", NodeToChunkIndexesToFetch_[nodeId].size());
 
         UnfetchedChunkIndexes_.insert(
             NodeToChunkIndexesToFetch_[nodeId].begin(),
@@ -349,10 +343,9 @@ void TFetcherBase::PerformFetchingRoundStep(TPromise<void> fetchingRoundPromise,
     };
 
     if (DeadNodes_.contains(nodeId)) {
-        YT_LOG_DEBUG(
-            "Node is dead, stop fetching round (NodeId: %v, NodeAddress: %v)",
-            nodeId,
-            nodeAddress);
+        YT_TLOG_DEBUG("Node is dead, stop fetching round")
+            .With("NodeId", nodeId)
+            .With("NodeAddress", nodeAddress);
         finishRound();
         return;
     }
@@ -370,11 +363,10 @@ void TFetcherBase::PerformFetchingRoundStep(TPromise<void> fetchingRoundPromise,
     std::vector<int> chunkIndexes(chunkIndexesToFetch.begin(), lastIt);
     chunkIndexesToFetch.erase(chunkIndexesToFetch.begin(), lastIt);
 
-    YT_LOG_DEBUG(
-        "Fetching from node (NodeId: %v, NodeAddress: %v, ChunkCount: %v)",
-        nodeId,
-        nodeAddress,
-        chunkIndexes.size());
+    YT_TLOG_DEBUG("Fetching from node")
+        .With("NodeId", nodeId)
+        .With("NodeAddress", nodeAddress)
+        .With("ChunkCount", chunkIndexes.size());
 
     FetchFromNode(nodeId, std::move(chunkIndexes))
         .Subscribe(BIND([
@@ -390,15 +382,15 @@ void TFetcherBase::PerformFetchingRoundStep(TPromise<void> fetchingRoundPromise,
                 return;
             }
             if (!error.IsOK()) {
-                YT_LOG_DEBUG(error, "Stopping node fetching round due to an error");
+                YT_TLOG_DEBUG("Stopping node fetching round due to an error")
+                    .With(error);
                 fetchingRoundPromise.TrySet(error);
                 return;
             }
 
             if (NodeToChunkIndexesToFetch_[nodeId].size() == oldChunksToFetchCount) {
-                YT_LOG_DEBUG(
-                    "Fetching step did not make any progress, considering node dead (Address: %v)",
-                    NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
+                YT_TLOG_DEBUG("Fetching step did not make any progress, considering node dead")
+                    .With("Address", NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
                 DeadNodes_.insert(nodeId);
             }
             // Some chunks are still unfetched - run next step of current fetching round.
@@ -411,11 +403,10 @@ TFuture<void> TFetcherBase::PerformFetchingRoundFromNode(NNodeTrackerClient::TNo
     auto promise = NewPromise<void>();
 
     const auto& nodeAddress = NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress();
-    YT_LOG_DEBUG(
-        "Starting node fetching round (NodeId: %v, NodeAddress: %v, ChunkCount: %v)",
-        nodeId,
-        nodeAddress,
-        NodeToChunkIndexesToFetch_[nodeId].size());
+    YT_TLOG_DEBUG("Starting node fetching round")
+        .With("NodeId", nodeId)
+        .With("NodeAddress", nodeAddress)
+        .With("ChunkCount", NodeToChunkIndexesToFetch_[nodeId].size());
 
     auto future = promise.ToFuture();
     PerformFetchingRoundStep(std::move(promise), nodeId);
@@ -427,30 +418,29 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
 
     if (!preparationError.IsOK()) {
-        YT_LOG_ERROR(preparationError, "Fetching preparation failed, abort fetching round");
+        YT_TLOG_ERROR("Fetching preparation failed, abort fetching round")
+            .With(preparationError);
         Promise_.TrySet(preparationError);
         return;
     }
 
     if (Promise_.IsCanceled()) {
-        YT_LOG_DEBUG("Fetcher canceled, abort fetching round");
+        YT_TLOG_DEBUG("Fetcher canceled, abort fetching round");
         return;
     }
 
-    YT_LOG_DEBUG(
-        "Starting fetching round (UnfetchedChunkCount: %v, DeadNodes: %v, DeadChunks: %v)",
-        UnfetchedChunkIndexes_.size(),
-        DeadNodes_.size(),
-        DeadChunks_.size());
+    YT_TLOG_DEBUG("Starting fetching round")
+        .With("UnfetchedChunkCount", UnfetchedChunkIndexes_.size())
+        .With("DeadNodes", DeadNodes_.size())
+        .With("DeadChunks", DeadChunks_.size());
 
     // Unban nodes with expired ban duration.
     auto now = TInstant::Now();
     while (!BannedNodes_.empty() && BannedNodes_.begin()->first <= now) {
         auto nodeId = BannedNodes_.begin()->second;
-        YT_LOG_DEBUG(
-            "Unbanning node (Address: %v, Now: %v)",
-            NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
-            now);
+        YT_TLOG_DEBUG("Unbanning node")
+            .With("Address", NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress())
+            .With("Now", now);
 
         EraseOrCrash(UnbanTime_, nodeId);
         BannedNodes_.erase(BannedNodes_.begin());
@@ -493,11 +483,10 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
 
     if (!unavailableChunks.empty()) {
         YT_VERIFY(ChunkScraper_);
-        YT_LOG_DEBUG(
-            "Found unavailable chunks, starting scraper (UnavailableChunkCount: %v)",
-            unavailableChunks.size());
+        YT_TLOG_DEBUG("Found unavailable chunks, starting scraper")
+            .With("UnavailableChunkCount", unavailableChunks.size());
         auto error = WaitFor(ChunkScraper_->ScrapeChunks(std::move(unavailableChunks)));
-        YT_LOG_DEBUG("All unavailable chunks are located");
+        YT_TLOG_DEBUG("All unavailable chunks are located");
         DeadNodes_.clear();
         DeadChunks_.clear();
         Invoker_->Invoke(
@@ -561,10 +550,16 @@ void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& e
     const auto& address = NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress();
 
     if (error.FindMatching(NYT::EErrorCode::Timeout)) {
-        YT_LOG_DEBUG(error, "Timed out fetching chunk info (ChunkId: %v, Address: %v)", chunkId, address);
+        YT_TLOG_DEBUG("Timed out fetching chunk info")
+            .With("ChunkId", chunkId)
+            .With("Address", address)
+            .With(error);
         EmplaceOrCrash(NodeToChunkIndexesToFetch_[nodeId], chunkIndex);
     } else {
-        YT_LOG_DEBUG(error, "Error fetching chunk info (ChunkId: %v, Address: %v)", chunkId, address);
+        YT_TLOG_DEBUG("Error fetching chunk info")
+            .With("ChunkId", chunkId)
+            .With("Address", address)
+            .With(error);
         DeadChunks_.emplace(nodeId, chunkId);
         EmplaceOrCrash(UnfetchedChunkIndexes_, chunkIndex);
     }
@@ -572,10 +567,9 @@ void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& e
 
 void TFetcherBase::OnNodeFailed(TNodeId nodeId, const std::vector<int>& chunkIndexes)
 {
-    YT_LOG_DEBUG(
-        "Error fetching chunks from node (Address: %v, ChunkCount: %v)",
-        NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
-        chunkIndexes.size());
+    YT_TLOG_DEBUG("Error fetching chunks from node")
+        .With("Address", NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress())
+        .With("ChunkCount", chunkIndexes.size());
 
     DeadNodes_.insert(nodeId);
     UnfetchedChunkIndexes_.insert(chunkIndexes.begin(), chunkIndexes.end());
@@ -584,10 +578,9 @@ void TFetcherBase::OnNodeFailed(TNodeId nodeId, const std::vector<int>& chunkInd
 void TFetcherBase::OnRequestThrottled(TNodeId nodeId, const std::vector<int>& chunkIndexes)
 {
     auto nodeAddress = NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress();
-    YT_LOG_DEBUG(
-        "Fetch request throttled by node (Address: %v, ChunkCount: %v)",
-        nodeAddress,
-        chunkIndexes.size());
+    YT_TLOG_DEBUG("Fetch request throttled by node")
+        .With("Address", nodeAddress)
+        .With("ChunkCount", chunkIndexes.size());
 
     auto unbanTime = TInstant::Zero();
     if (UnbanTime_.contains(nodeId)) {
@@ -598,10 +591,9 @@ void TFetcherBase::OnRequestThrottled(TNodeId nodeId, const std::vector<int>& ch
 
     unbanTime = std::max(unbanTime, TInstant::Now() + Config_->NodeBanDuration);
 
-    YT_LOG_DEBUG(
-        "Node banned (Address: %v, UnbanTime: %v)",
-        nodeAddress,
-        unbanTime);
+    YT_TLOG_DEBUG("Node banned")
+        .With("Address", nodeAddress)
+        .With("UnbanTime", unbanTime);
 
     EmplaceOrCrash(BannedNodes_, unbanTime, nodeId);
     EmplaceOrCrash(UnbanTime_, nodeId, unbanTime);
@@ -612,19 +604,21 @@ void TFetcherBase::OnRequestThrottled(TNodeId nodeId, const std::vector<int>& ch
 void TFetcherBase::OnFetchingRoundCompleted(bool backoff, const TError& error)
 {
     if (!error.IsOK()) {
-        YT_LOG_ERROR(error, "Fetching failed");
+        YT_TLOG_ERROR("Fetching failed")
+            .With(error);
         Promise_.Set(error);
         return;
     }
 
     if (UnfetchedChunkIndexes_.empty()) {
-        YT_LOG_DEBUG("Fetching complete");
+        YT_TLOG_DEBUG("Fetching complete");
         OnFetchingCompleted();
         Promise_.Set(TError());
         return;
     }
 
-    YT_LOG_DEBUG("Fetching round completed (UnfetchedChunkCount: %v)", UnfetchedChunkIndexes_.size());
+    YT_TLOG_DEBUG("Fetching round completed")
+        .With("UnfetchedChunkCount", UnfetchedChunkIndexes_.size());
 
     if (backoff) {
         TDelayedExecutor::WaitForDuration(Config_->BackoffTime);
@@ -643,7 +637,8 @@ void TFetcherBase::OnFetchingCompleted()
 
 void TFetcherBase::OnCanceled(const TError& error)
 {
-    YT_LOG_DEBUG(error, "Fetcher canceled");
+    YT_TLOG_DEBUG("Fetcher canceled")
+        .With(error);
     if (auto future = ActiveTaskFuture_.Load()) {
         future.Cancel(error);
     }

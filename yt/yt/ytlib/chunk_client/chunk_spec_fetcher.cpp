@@ -112,14 +112,13 @@ void TMasterChunkSpecFetcher::Add(
     // XXX(gritukan, babenko): YT-11825
     TotalChunkCount_ += chunkCount < 0 ? 1 : chunkCount;
 
-    YT_LOG_DEBUG("Table added for chunk spec fetching (ObjectId: %v, ExternalCellTag: %v, ChunkCount: %v, RangeCount: %v, "
-        "TableIndex: %v, ReqCount: %v)",
-        objectId,
-        externalCellTag,
-        chunkCount,
-        ranges.size(),
-        tableIndex,
-        state.ReqCount - oldReqCount);
+    YT_TLOG_DEBUG("Table added for chunk spec fetching")
+        .With("ObjectId", objectId)
+        .With("ExternalCellTag", externalCellTag)
+        .With("ChunkCount", chunkCount)
+        .With("RangeCount", ranges.size())
+        .With("TableIndex", tableIndex)
+        .With("ReqCount", state.ReqCount - oldReqCount);
 }
 
 NNodeTrackerClient::TNodeDirectoryPtr TMasterChunkSpecFetcher::GetNodeDirectory() const
@@ -171,10 +170,10 @@ TFuture<void> TMasterChunkSpecFetcher::Fetch()
 
 void TMasterChunkSpecFetcher::DoFetch()
 {
-    YT_LOG_DEBUG("Fetching chunk specs from masters (CellCount: %v, TotalChunkCount: %v, TableCount: %v)",
-        CellTagToState_.size(),
-        TotalChunkCount_,
-        TableCount_);
+    YT_TLOG_DEBUG("Fetching chunk specs from masters")
+        .With("CellCount", CellTagToState_.size())
+        .With("TotalChunkCount", TotalChunkCount_)
+        .With("TableCount", TableCount_);
 
     std::vector<TFuture<void>> asyncResults;
     for (auto& [cellTag, cellState] : CellTagToState_) {
@@ -192,10 +191,11 @@ void TMasterChunkSpecFetcher::DoFetch()
     }
 
     if (!foreignChunkSpecs.empty()) {
-        YT_LOG_DEBUG("Locating foreign chunks (ForeignChunkCount: %v)", foreignChunkSpecs.size());
+        YT_TLOG_DEBUG("Locating foreign chunks")
+            .With("ForeignChunkCount", foreignChunkSpecs.size());
         // TODO(dakovalkov): Use MasterReadOptions.
         LocateChunks(Client_, Options_.MaxChunksPerLocateRequest, foreignChunkSpecs, NodeDirectory_, Logger, Options_.SkipUnavailableChunks);
-        YT_LOG_DEBUG("Finished locating foreign chunks");
+        YT_TLOG_DEBUG("Finished locating foreign chunks");
     }
 
     for (auto& [cellTag, cellState] : CellTagToState_) {
@@ -204,14 +204,17 @@ void TMasterChunkSpecFetcher::DoFetch()
         }
     }
 
-    YT_LOG_DEBUG("Chunk specs fetched from masters (ChunkCount: %v)", ChunkSpecs_.size());
+    YT_TLOG_DEBUG("Chunk specs fetched from masters")
+        .With("ChunkCount", ChunkSpecs_.size());
 }
 
 void TMasterChunkSpecFetcher::DoFetchFromCell(TCellTag cellTag)
 {
     auto& cellState = CellTagToState_[cellTag];
 
-    YT_LOG_DEBUG("Fetching chunk specs from master cell (CellTag: %v, FetchRequestCount: %v)", cellTag, cellState.ReqCount);
+    YT_TLOG_DEBUG("Fetching chunk specs from master cell")
+        .With("CellTag", cellTag)
+        .With("FetchRequestCount", cellState.ReqCount);
 
     auto batchRspOrError = WaitFor(cellState.BatchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -241,10 +244,10 @@ void TMasterChunkSpecFetcher::DoFetchFromCell(TCellTag cellTag)
             cellState.ForeignChunkSpecs.push_back(&chunkSpec);
         }
     }
-    YT_LOG_DEBUG("Finished processing chunk specs from master cell (CellTag: %v, FetchedChunkCount: %v, ForeignChunkCount: %v)",
-        cellTag,
-        cellState.ChunkSpecs.size(),
-        cellState.ForeignChunkSpecs.size());
+    YT_TLOG_DEBUG("Finished processing chunk specs from master cell")
+        .With("CellTag", cellTag)
+        .With("FetchedChunkCount", cellState.ChunkSpecs.size())
+        .With("ForeignChunkCount", cellState.ForeignChunkSpecs.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -371,16 +374,13 @@ void TTabletChunkSpecFetcher::AddSorted(
             subrequest->add_range_indices(rangeIndex);
             ToProto(subrequest->add_ranges(), subrange);
 
-            YT_LOG_TRACE(
-                "Adding range for tablet (Path: %v, TabletIndex: %v, "
-                "TabletLowerBound: %v, TabletUpperBound: %v, SubrangeLowerBound: %v, "
-                "SubrangeUpperBound: %v",
-                tableMountInfo.Path,
-                tabletIndex,
-                tabletLowerBound,
-                tabletUpperBound,
-                subrangeLowerBound,
-                subrangeUpperBound);
+            YT_TLOG_TRACE("Adding range for tablet")
+                .With("Path", tableMountInfo.Path)
+                .With("TabletIndex", tabletIndex)
+                .With("TabletLowerBound", tabletLowerBound)
+                .With("TabletUpperBound", tabletUpperBound)
+                .With("SubrangeLowerBound", subrangeLowerBound)
+                .With("SubrangeUpperBound", subrangeUpperBound);
         }
     }
 
@@ -392,12 +392,11 @@ void TTabletChunkSpecFetcher::AddSorted(
         const auto& tablet = tabletInfos[tabletIndex];
         auto& subrequest = tabletIndexToSubrequest[tabletIndex];
         if (subrequest) {
-            YT_LOG_TRACE(
-                "Adding subrequest for tablet (Path: %v, TabletIndex: %v, TabletId: %v, CellId: %v)",
-                tableMountInfo.Path,
-                tabletIndex,
-                tablet->TabletId,
-                tablet->CellId);
+            YT_TLOG_TRACE("Adding subrequest for tablet")
+                .With("Path", tableMountInfo.Path)
+                .With("TabletIndex", tabletIndex)
+                .With("TabletId", tablet->TabletId)
+                .With("CellId", tablet->CellId);
             auto cellId = tablet->CellId;
             auto cellDescriptor = cellDirectory->GetDescriptorByCellIdOrThrow(cellId);
             const auto& primaryPeerDescriptor = NApi::NNative::GetPrimaryTabletPeerDescriptor(
@@ -421,10 +420,10 @@ TFuture<void> TTabletChunkSpecFetcher::Fetch()
 
 void TTabletChunkSpecFetcher::DoFetch()
 {
-    YT_LOG_DEBUG("Fetching chunk specs from tablet nodes (NodeCount: %v, TotalChunkCount: %v, TableCount: %v)",
-        NodeAddressToState_.size(),
-        TotalChunkCount_,
-        TableCount_);
+    YT_TLOG_DEBUG("Fetching chunk specs from tablet nodes")
+        .With("NodeCount", NodeAddressToState_.size())
+        .With("TotalChunkCount", TotalChunkCount_)
+        .With("TableCount", TableCount_);
 
     std::vector<TFuture<void>> asyncResults;
     for (auto& address : GetKeys(NodeAddressToState_)) {
@@ -446,11 +445,10 @@ void TTabletChunkSpecFetcher::DoFetch()
         }
     }
 
-    YT_LOG_DEBUG(
-        "Chunk specs fetched from tablet nodes (ChunkCount: %v, MissingTabletCount: %v, MissingTabletIds: %v)",
-        ChunkSpecs_.size(),
-        missingTabletIds.size(),
-        MakeShrunkFormattableView(missingTabletIds, TDefaultFormatter(), MissingTabletIdCountLimit));
+    YT_TLOG_DEBUG("Chunk specs fetched from tablet nodes")
+        .With("ChunkCount", ChunkSpecs_.size())
+        .With("MissingTabletCount", missingTabletIds.size())
+        .With("MissingTabletIds", MakeShrunkFormattableView(missingTabletIds, TDefaultFormatter(), MissingTabletIdCountLimit));
 
     if (!missingTabletIds.empty()) {
         if (missingTabletIds.size() > MissingTabletIdCountLimit) {
@@ -465,10 +463,9 @@ void TTabletChunkSpecFetcher::DoFetchFromNode(const std::string& address)
 {
     auto& state = NodeAddressToState_[address];
 
-    YT_LOG_DEBUG(
-        "Fetching chunk specs from tablet node (Address: %v, TabletCount: %v)",
-        address,
-        state.Subrequests.size());
+    YT_TLOG_DEBUG("Fetching chunk specs from tablet node")
+        .With("Address", address)
+        .With("TabletCount", state.Subrequests.size());
 
     const auto& connection = Options_.Client->GetNativeConnection();
     const auto& tableMountCache = connection->GetTableMountCache();
@@ -490,7 +487,8 @@ void TTabletChunkSpecFetcher::DoFetchFromNode(const std::string& address)
     for (const auto& [index, subresponse] : Enumerate(*rsp->mutable_subresponses())) {
         if (subresponse.tablet_missing() || subresponse.has_error()) {
             auto error = FromProto<TError>(subresponse.error());
-            YT_LOG_TRACE(error, "Received error from tablet");
+            YT_TLOG_TRACE("Received error from tablet")
+                .With(error);
             if (subresponse.tablet_missing() || error.GetCode() == NTabletClient::EErrorCode::NoSuchTablet) {
                 const auto& tablet = state.Tablets[index];
                 tableMountCache->InvalidateTablet(tablet->TabletId);
@@ -500,20 +498,18 @@ void TTabletChunkSpecFetcher::DoFetchFromNode(const std::string& address)
             }
         } else {
             for (auto& chunkSpec : *subresponse.mutable_stores()) {
-                YT_LOG_TRACE("Received chunk spec from tablet (ChunkSpec: %v)",
-                    chunkSpec.ShortDebugString());
+                YT_TLOG_TRACE("Received chunk spec from tablet")
+                    .With("ChunkSpec", chunkSpec.ShortDebugString());
                 state.ChunkSpecs.push_back(std::move(chunkSpec));
             }
         }
     }
 
-    YT_LOG_DEBUG(
-        "Finished processing chunk specs from tablet node (Address: %v, "
-        "FetchedChunkCount: %v, MissingTabletCount: %v, MissingTabletIds: %v)",
-        address,
-        state.ChunkSpecs.size(),
-        state.MissingTabletIds.size(),
-        MakeShrunkFormattableView(state.MissingTabletIds, TDefaultFormatter(), MissingTabletIdCountLimit));
+    YT_TLOG_DEBUG("Finished processing chunk specs from tablet node")
+        .With("Address", address)
+        .With("FetchedChunkCount", state.ChunkSpecs.size())
+        .With("MissingTabletCount", state.MissingTabletIds.size())
+        .With("MissingTabletIds", MakeShrunkFormattableView(state.MissingTabletIds, TDefaultFormatter(), MissingTabletIdCountLimit));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

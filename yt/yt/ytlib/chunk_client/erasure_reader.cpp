@@ -296,9 +296,9 @@ private:
                 const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders)
             {
                 if (!erasedParts.empty()) {
-                    YT_LOG_DEBUG("Reading blocks with repair (Blocks: %v, BannedPartIndices: %v)",
-                        MakeCompactIntervalView(blockIndexes),
-                        erasedParts);
+                    YT_TLOG_DEBUG("Reading blocks with repair")
+                        .With("Blocks", MakeCompactIntervalView(blockIndexes))
+                        .With("BannedPartIndices", erasedParts);
                 }
 
                 const auto& reader = availableReaders[RandomNumber(availableReaders.size())];

@@ -157,15 +157,15 @@ public:
             auto entry = New<TAsyncBlockCacheEntry>(id, TCachedBlock(block));
             cookie.EndInsert(std::move(entry));
 
-            YT_LOG_DEBUG("Block is put into cache (BlockId: %v, BlockType: %v, BlockSize: %v)",
-                id,
-                Type_,
-                block.Size());
+            YT_TLOG_DEBUG("Block is put into cache")
+                .With("BlockId", id)
+                .With("BlockType", Type_)
+                .With("BlockSize", block.Size());
         } else {
             // Already have the block cached, do nothing.
-            YT_LOG_TRACE("Block is already in cache (BlockId: %v, BlockType: %v)",
-                id,
-                Type_);
+            YT_TLOG_TRACE("Block is already in cache")
+                .With("BlockId", id)
+                .With("BlockType", Type_);
         }
     }
 
@@ -177,14 +177,14 @@ public:
 
         auto block = TAsyncSlruCacheBase::Find(id);
         if (block) {
-            YT_LOG_TRACE("Block cache hit (BlockId: %v, BlockType: %v)",
-                id,
-                Type_);
+            YT_TLOG_TRACE("Block cache hit")
+                .With("BlockId", id)
+                .With("BlockType", Type_);
             return block->CachedBlock();
         } else {
-            YT_LOG_TRACE("Block cache miss (BlockId: %v, BlockType: %v)",
-                id,
-                Type_);
+            YT_TLOG_TRACE("Block cache miss")
+                .With("BlockId", id)
+                .With("BlockType", Type_);
             return {};
         }
     }
