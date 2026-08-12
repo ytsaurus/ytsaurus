@@ -128,7 +128,7 @@ private:
         // TODO(cherepashka) remove after testing.
         TTraceContextGuard traceContextGuard(GetOrCreateTraceContext("MasterCellDirectory"));
         try {
-            YT_LOG_DEBUG("Started synchronizing master cell directory");
+            YT_TLOG_DEBUG("Started synchronizing master cell directory");
 
             // NB: Here, we count on the directory being able to provide us with a
             // channel to primary cell even before the first sync happens.
@@ -163,7 +163,7 @@ private:
                 Directory_->UpdateDefault();
             }
 
-            YT_LOG_DEBUG("Finished synchronizing master cell directory");
+            YT_TLOG_DEBUG("Finished synchronizing master cell directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing cell directory")
                 .With(ex);
@@ -181,7 +181,8 @@ private:
             DoSync();
         } catch (const std::exception& ex) {
             error = ex;
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Error synchronizing cell directory")
+                .With(error);
             if (config->RetryPeriod) {
                 period = config->RetryPeriod;
             }
