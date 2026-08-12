@@ -1187,6 +1187,7 @@ SHORTCUTS = {
     "YT_PROXY_URL_ALIASING_CONFIG": "proxy/aliases",
     "YT_HTTP_PROXY_ROLE": "proxy/http_proxy_role",
     "YT_RPC_PROXY_ROLE": "proxy/rpc_proxy_role",
+    "YT_PREFER_HTTPS": "proxy/prefer_https",
 
     "YT_TOKEN": "token",
     "YT_TOKEN_PATH": "token_path",
