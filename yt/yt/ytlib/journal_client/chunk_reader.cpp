@@ -130,10 +130,10 @@ public:
         , InitialReplicas_(std::move(replicas))
     {
         const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
-        YT_LOG_DEBUG("Erasure chunk reader created (ChunkId: %v, Codec: %v, InitialReplicas: %v)",
-            ChunkId_,
-            Codec_->GetId(),
-            MakeFormattableView(InitialReplicas_.Load(), TChunkReplicaAddressFormatter(nodeDirectory)));
+        YT_TLOG_DEBUG("Erasure chunk reader created")
+            .With("ChunkId", ChunkId_)
+            .With("Codec", Codec_->GetId())
+            .With("InitialReplicas", MakeFormattableView(InitialReplicas_.Load(), TChunkReplicaAddressFormatter(nodeDirectory)));
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -187,9 +187,8 @@ public:
         void DoRetry()
         {
             ++RetryIndex_;
-            YT_LOG_DEBUG("Retry started (RetryIndex: %v/%v)",
-                RetryIndex_,
-                Reader_->Config_->RetryCount);
+            YT_TLOG_DEBUG("Retry started")
+                .WithFormat("RetryIndex", "%v/%v", RetryIndex_, Reader_->Config_->RetryCount);
 
             if (!InitialReplicas_.empty()) {
                 ReplicasFuture_ = MakeFuture(TAllyReplicasInfo::FromChunkReplicas(InitialReplicas_));
@@ -257,9 +256,9 @@ public:
 
         void OnRetryFailed(const TError& error)
         {
-            YT_LOG_DEBUG(error, "Retry failed (RetryIndex: %v/%v)",
-                RetryIndex_,
-                Reader_->Config_->RetryCount);
+            YT_TLOG_DEBUG("Retry failed")
+                .WithFormat("RetryIndex", "%v/%v", RetryIndex_, Reader_->Config_->RetryCount)
+                .With(error);
 
             InnerErrors_.push_back(error);
 

@@ -285,9 +285,9 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (WriteTargets_) {
-            YT_LOG_DEBUG("Write targets were preallocated (SessionId: %v, Targets: %v)",
-                SessionId_,
-                *WriteTargets_);
+            YT_TLOG_DEBUG("Write targets were preallocated")
+                .With("SessionId", SessionId_)
+                .With("Targets", *WriteTargets_);
         } else {
             WriteTargets_ = AllocateWriteTargets();
         }
@@ -295,17 +295,17 @@ private:
         StartChunkSessions();
         ConfirmChunk(*WriteTargets_);
 
-        YT_LOG_DEBUG("Journal chunk writer opened (MaxInFlightFlushCount: %v)",
-            Config_->MaxInFlightFlushCount);
+        YT_TLOG_DEBUG("Journal chunk writer opened")
+            .With("MaxInFlightFlushCount", Config_->MaxInFlightFlushCount);
     }
 
     TChunkReplicaWithMediumList AllocateWriteTargets()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_DEBUG("Allocating write targets (SessionId: %v, ReplicaCount: %v)",
-            SessionId_,
-            ReplicaCount_);
+        YT_TLOG_DEBUG("Allocating write targets")
+            .With("SessionId", SessionId_)
+            .With("ReplicaCount", ReplicaCount_);
 
         TEventTimerGuard timingGuard(Counters_.AllocateWriteTargetsTimer);
 
@@ -329,7 +329,8 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Write targets allocated (Targets: %v)", replicas);
+        YT_TLOG_DEBUG("Write targets allocated")
+            .With("Targets", replicas);
 
         return replicas;
     }
@@ -365,8 +366,8 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_DEBUG("Starting chunk sessions at nodes (SessionId: %v)",
-            SessionId_);
+        YT_TLOG_DEBUG("Starting chunk sessions at nodes")
+            .With("SessionId", SessionId_);
 
         TEventTimerGuard timingGuard(Counters_.StartNodeSessionTimer);
 
@@ -386,8 +387,8 @@ private:
         auto result = WaitFor(AllSucceeded(std::move(futures)));
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
 
-        YT_LOG_DEBUG("Chunk sessions started at nodes (SessionId: %v)",
-            SessionId_);
+        YT_TLOG_DEBUG("Chunk sessions started at nodes")
+            .With("SessionId", SessionId_);
     }
 
     void OnChunkSessionStarted(
@@ -411,15 +412,16 @@ private:
                 Config_->NodePingPeriod);
             node->PingExecutor->Start();
 
-            YT_LOG_DEBUG("Chunk session started at node (Address: %v, TargetLocationUuid: %v, TargetLocationIndex: %v)",
-                node->Descriptor.GetDefaultAddress(),
-                node->TargetLocationUuid,
-                node->TargetLocationIndex);
+            YT_TLOG_DEBUG("Chunk session started at node")
+                .With("Address", node->Descriptor.GetDefaultAddress())
+                .With("TargetLocationUuid", node->TargetLocationUuid)
+                .With("TargetLocationIndex", node->TargetLocationIndex);
         } else {
             auto error = TError("Failed to start chunk session at %v",
                 node->Descriptor.GetDefaultAddress())
                 .With(rspOrError);
-            YT_LOG_DEBUG(error);
+            YT_TLOG_DEBUG("Failed to start chunk session at node")
+                .With(error);
             THROW_ERROR_EXCEPTION(error);
         }
     }
@@ -428,7 +430,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_DEBUG("Confirming chunk");
+        YT_TLOG_DEBUG("Confirming chunk");
 
         TEventTimerGuard timingGuard(Counters_.ConfirmChunkTimer);
 
@@ -465,7 +467,7 @@ private:
             "Error confirming chunk %v",
             ChunkId_);
 
-        YT_LOG_DEBUG("Chunk confirmed");
+        YT_TLOG_DEBUG("Chunk confirmed");
     }
 
     void PingSession(const TWeakPtr<TNode>& weakNode)
@@ -477,9 +479,9 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Sending ping (Address: %v, SessionId: %v)",
-            node->Descriptor.GetDefaultAddress(),
-            SessionId_);
+        YT_TLOG_DEBUG("Sending ping")
+            .With("Address", node->Descriptor.GetDefaultAddress())
+            .With("SessionId", SessionId_);
 
         auto req = node->LightProxy.PingSession();
         ToProto(req->mutable_session_id(), GetSessionIdForNode(node));
@@ -495,9 +497,9 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (rspOrError.IsOK()) {
-            YT_LOG_DEBUG("Ping succeeded (Address: %v, SessionId: %v)",
-                node->Descriptor.GetDefaultAddress(),
-                SessionId_);
+            YT_TLOG_DEBUG("Ping succeeded")
+                .With("Address", node->Descriptor.GetDefaultAddress())
+                .With("SessionId", SessionId_);
 
             const auto& rsp = rspOrError.Value();
             if (rsp->close_demanded()) {
@@ -578,8 +580,8 @@ private:
         Counters_.WriteQuorumLag.Record(CpuDurationToDuration(replicaLagTimes[Options_->WriteQuorum - 1].first));
         Counters_.MaxReplicaLag.Record(CpuDurationToDuration(replicaLagTimes.back().first));
 
-        YT_LOG_DEBUG("Hunk journal replicas lag updated (Replicas: %v)",
-            MakeFormattableView(replicaLagTimes, [&] (auto* builder, const auto& replicaInfo) {
+        YT_TLOG_DEBUG("Hunk journal replicas lag updated")
+            .With("Replicas", MakeFormattableView(replicaLagTimes, [&] (auto* builder, const auto& replicaInfo) {
                 builder->AppendFormat("%v=>%v",
                     Nodes_[replicaInfo.second]->Descriptor.GetDefaultAddress(),
                     CpuDurationToDuration(replicaInfo.first));
@@ -670,16 +672,13 @@ private:
         }
         node->FirstUnsentRecordIndex = firstRecordIndexToSend + flushRecordCount;
 
-        YT_LOG_DEBUG(
-            "Writing journal replica (Address: %v, Records: %v-%v, DataSize: %v, "
-            "FirstUnflushedRecordIndex: %v, FirstUnsentRecordIndex: %v, InFlightFlushRequestCount: %v)",
-            node->Descriptor.GetDefaultAddress(),
-            firstRecordIndexToSend,
-            firstRecordIndexToSend + flushRecordCount - 1,
-            flushDataSize,
-            node->FirstUnflushedRecordIndex,
-            node->FirstUnsentRecordIndex,
-            node->InFlightFlushRequestCount);
+        YT_TLOG_DEBUG("Writing journal replica")
+            .With("Address", node->Descriptor.GetDefaultAddress())
+            .WithFormat("Records", "%v-%v", firstRecordIndexToSend, firstRecordIndexToSend + flushRecordCount - 1)
+            .With("DataSize", flushDataSize)
+            .With("FirstUnflushedRecordIndex", node->FirstUnflushedRecordIndex)
+            .With("FirstUnsentRecordIndex", node->FirstUnsentRecordIndex)
+            .With("InFlightFlushRequestCount", node->InFlightFlushRequestCount);
 
         req->Invoke().Subscribe(
             BIND_NO_PROPAGATE(&TJournalChunkWriter::OnRecordsFlushed,
@@ -713,25 +712,19 @@ private:
         if (rspOrError.IsOK()) {
             OnFlushSucceeded(node, firstRecordIndex, lastRecordIndex, rspOrError.Value());
         } else if (rspOrError.FindMatching(NChunkClient::EErrorCode::MissingJournalChunkRecord)) {
-            YT_LOG_DEBUG(
-                "Journal flush arrived out of order and was rejected by replica "
-                "(Address: %v, RejectedRecords: %v-%v, FirstUnflushedRecordIndex: %v)",
-                node->Descriptor.GetDefaultAddress(),
-                firstRecordIndex,
-                lastRecordIndex,
-                node->FirstUnflushedRecordIndex);
+            YT_TLOG_DEBUG("Journal flush arrived out of order and was rejected by replica")
+                .With("Address", node->Descriptor.GetDefaultAddress())
+                .WithFormat("RejectedRecords", "%v-%v", firstRecordIndex, lastRecordIndex)
+                .With("FirstUnflushedRecordIndex", node->FirstUnflushedRecordIndex);
 
             if (!IsRecordConfirmedOnNode(lastRecordIndex, node)) {
                 node->NeedsRewind = true;
             }
         } else if (IsRecordConfirmedOnNode(lastRecordIndex, node)) {
-            YT_LOG_DEBUG(
-                "Ignored a flush failure for an already confirmed record range "
-                "(Address: %v, Records: %v-%v, FirstUnflushedRecordIndex: %v)",
-                node->Descriptor.GetDefaultAddress(),
-                firstRecordIndex,
-                lastRecordIndex,
-                node->FirstUnflushedRecordIndex);
+            YT_TLOG_DEBUG("Ignored a flush failure for an already confirmed record range")
+                .With("Address", node->Descriptor.GetDefaultAddress())
+                .WithFormat("Records", "%v-%v", firstRecordIndex, lastRecordIndex)
+                .With("FirstUnflushedRecordIndex", node->FirstUnflushedRecordIndex);
         } else {
             auto error = TError("Failed to flush records to replica %v", node->Descriptor.GetDefaultAddress())
                 .With(rspOrError);
@@ -758,15 +751,12 @@ private:
         Counters_.MediumWrittenBytes.Increment(rsp->statistics().data_bytes_written_to_medium());
         Counters_.IORequestCount.Increment(rsp->statistics().io_requests());
 
-        YT_LOG_DEBUG(
-            "Journal replica written (Address: %v, Records: %v-%v, FirstUnflushedRecordIndex: %v, "
-            "FirstUnsentRecordIndex: %v, InFlightFlushRequestCount: %v)",
-            node->Descriptor.GetDefaultAddress(),
-            firstRecordIndex,
-            lastRecordIndex,
-            node->FirstUnflushedRecordIndex,
-            node->FirstUnsentRecordIndex,
-            node->InFlightFlushRequestCount);
+        YT_TLOG_DEBUG("Journal replica written")
+            .With("Address", node->Descriptor.GetDefaultAddress())
+            .WithFormat("Records", "%v-%v", firstRecordIndex, lastRecordIndex)
+            .With("FirstUnflushedRecordIndex", node->FirstUnflushedRecordIndex)
+            .With("FirstUnsentRecordIndex", node->FirstUnsentRecordIndex)
+            .With("InFlightFlushRequestCount", node->InFlightFlushRequestCount);
 
         if (IsRecordConfirmedOnNode(lastRecordIndex, node)) {
             return;
@@ -785,12 +775,14 @@ private:
             int flushedReplicaCount = ++record->FlushedReplicaCount;
 
             if (flushedReplicaCount == Options_->WriteQuorum) {
-                YT_LOG_DEBUG("Record is flushed to quorum (Record: %v)", recordIndex);
+                YT_TLOG_DEBUG("Record is flushed to quorum")
+                    .With("Record", recordIndex);
                 fulfilledPromises.push_back(record->QuorumFlushedPromise);
             }
 
             if (flushedReplicaCount == ReplicaCount_) {
-                YT_LOG_DEBUG("Record is flushed to all replicas (Record: %v)", recordIndex);
+                YT_TLOG_DEBUG("Record is flushed to all replicas")
+                    .With("Record", recordIndex);
                 YT_VERIFY(recordIndex == FirstPendingRecordIndex_);
                 ++FirstPendingRecordIndex_;
                 PendingRecords_.pop_front();
@@ -833,7 +825,8 @@ private:
 
         auto error = TError("Journal chunk writer failed")
             .With(innerError);
-        YT_LOG_ERROR(error);
+        YT_TLOG_ERROR("Journal chunk writer failed")
+            .With(error);
         Error_ = error;
 
         for (const auto& record : PendingRecords_) {
@@ -855,7 +848,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (!IsCloseDemanded_.exchange(true)) {
-            YT_LOG_DEBUG("Journal chunk writer close demanded");
+            YT_TLOG_DEBUG("Journal chunk writer close demanded");
         }
     }
 
@@ -867,7 +860,7 @@ private:
             return MakeFuture(Error_);
         }
 
-        YT_LOG_DEBUG("Closing journal chunk writer");
+        YT_TLOG_DEBUG("Closing journal chunk writer");
 
         ClosingPromise_ = NewPromise<void>();
         if (PendingRecords_.empty()) {
@@ -887,8 +880,8 @@ private:
             this,
             this_ = MakeStrong(this)
         ] {
-            YT_LOG_DEBUG("Will gracefully wait before finalizing journal chunk writer close (MaxWaitPeriod: %v)",
-                Config_->ChunkCloseGracePeriod);
+            YT_TLOG_DEBUG("Will gracefully wait before finalizing journal chunk writer close")
+                .With("MaxWaitPeriod", Config_->ChunkCloseGracePeriod);
 
             // NB: We wait for the grace period to let replicas remaining after quorum flush
             // to finish as well so subsequent seal will not trigger undesireable recovery.
@@ -922,7 +915,7 @@ private:
 
         TDelayedExecutor::CancelAndClear(CurrentRecordsFlushCookie_);
 
-        YT_LOG_DEBUG("Journal chunk writer finished");
+        YT_TLOG_DEBUG("Journal chunk writer finished");
     }
 
     TRecordPtr CreateRecord(std::vector<TSharedRef> recordParts, bool alreadyEncoded)
