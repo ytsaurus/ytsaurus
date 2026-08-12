@@ -4,7 +4,7 @@ VERSION(3.4.2)
 
 LICENSE(Apache-2.0)
 
-ORIGINAL_SOURCE(https://repo1.maven.org/maven2)
+ORIGINAL_SOURCE(git@github.com:docker-java/docker-java.git)
 
 JAR_RESOURCE(9273209053)
 
