@@ -114,13 +114,11 @@ public:
         YT_VERIFY(startRecordIndex >= 0);
         YT_VERIFY(!RangeEndIndex_ || *RangeEndIndex_ >= startRecordIndex);
 
-        YT_LOG_DEBUG(
-            "Created distributed chunk session reader (ReadQuorum: %v, StartRecordIndex: %v, "
-            "RangeEndRecordIndex: %v, ReplicaCount: %v)",
-            ReadQuorum_,
-            startRecordIndex,
-            RangeEndIndex_,
-            Replicas_.size());
+        YT_TLOG_DEBUG("Created distributed chunk session reader")
+            .With("ReadQuorum", ReadQuorum_)
+            .With("StartRecordIndex", startRecordIndex)
+            .With("RangeEndRecordIndex", RangeEndIndex_)
+            .With("ReplicaCount", Replicas_.size());
     }
 
     TFuture<TChunkReadResult> Read() override
@@ -274,15 +272,12 @@ private:
             finalRecordCount,
             finalCompressedDataSize
         ] {
-            YT_LOG_DEBUG(
-                "All writers finished for distributed chunk session reader "
-                "(FinalRecordCount: %v, FinalCompressedDataSize: %v, CurrentPhase: %v, "
-                "CurrentRecordCount: %v, Cursor: %v)",
-                finalRecordCount,
-                finalCompressedDataSize,
-                Phase_,
-                ChunkRecordCount_,
-                Cursor_);
+            YT_TLOG_DEBUG("All writers finished for distributed chunk session reader")
+                .With("FinalRecordCount", finalRecordCount)
+                .With("FinalCompressedDataSize", finalCompressedDataSize)
+                .With("CurrentPhase", Phase_)
+                .With("CurrentRecordCount", ChunkRecordCount_)
+                .With("Cursor", Cursor_);
 
             Phase_ = EPhase::Final;
             if (finalRecordCount && !ChunkRecordCount_) {
@@ -303,20 +298,17 @@ private:
             ErrorBackoffStrategy_.Restart();
         });
 
-        YT_LOG_DEBUG(
-            "Started distributed chunk session reader read (Phase: %v, Cursor: %v, EffectiveEnd: %v)",
-            Phase_,
-            Cursor_,
-            ComputeEffectiveEnd());
+        YT_TLOG_DEBUG("Started distributed chunk session reader read")
+            .With("Phase", Phase_)
+            .With("Cursor", Cursor_)
+            .With("EffectiveEnd", ComputeEffectiveEnd());
 
         while (ErrorAttempts_ < Config_->MaxReadAttempts) {
             if (Cursor_ >= ComputeEffectiveEnd()) {
-                YT_LOG_DEBUG(
-                    "Finished distributed chunk session reader read at effective end "
-                    "(Cursor: %v, EffectiveEnd: %v, ErrorAttempts: %v)",
-                    Cursor_,
-                    ComputeEffectiveEnd(),
-                    ErrorAttempts_);
+                YT_TLOG_DEBUG("Finished distributed chunk session reader read at effective end")
+                    .With("Cursor", Cursor_)
+                    .With("EffectiveEnd", ComputeEffectiveEnd())
+                    .With("ErrorAttempts", ErrorAttempts_);
                 return TChunkReadResult{
                     .Records = {},
                     .Finished = true,
@@ -332,12 +324,10 @@ private:
             }
         }
 
-        YT_LOG_DEBUG(
-            "Failed to read distributed chunk session records; attempts exhausted "
-            "(MaxReadAttempts: %v, Cursor: %v, Phase: %v)",
-            Config_->MaxReadAttempts,
-            Cursor_,
-            Phase_);
+        YT_TLOG_DEBUG("Failed to read distributed chunk session records; attempts exhausted")
+            .With("MaxReadAttempts", Config_->MaxReadAttempts)
+            .With("Cursor", Cursor_)
+            .With("Phase", Phase_);
 
         THROW_ERROR_EXCEPTION("Read attempts exhausted")
             .With(InnerErrors_);
@@ -355,11 +345,9 @@ private:
 
     void TryFetchChunkRecordCount()
     {
-        YT_LOG_DEBUG(
-            "Computing distributed chunk session chunk quorum info "
-            "(ReadQuorum: %v, ReplicaCount: %v)",
-            ReadQuorum_,
-            Replicas_.size());
+        YT_TLOG_DEBUG("Computing distributed chunk session chunk quorum info")
+            .With("ReadQuorum", ReadQuorum_)
+            .With("ReplicaCount", Replicas_.size());
 
         Statistics_->ComputeQuorumInfoCount.fetch_add(1, std::memory_order::relaxed);
 
@@ -377,19 +365,15 @@ private:
             ChunkRecordCount_ = quorumInfoOrError.Value().RowCount;
             CompressedDataSize_ = quorumInfoOrError.Value().CompressedDataSize;
             Statistics_->ComputeQuorumInfoSuccessCount.fetch_add(1, std::memory_order::relaxed);
-            YT_LOG_DEBUG(
-                "Computed distributed chunk session chunk quorum info "
-                "(ChunkRecordCount: %v)",
-                *ChunkRecordCount_);
+            YT_TLOG_DEBUG("Computed distributed chunk session chunk quorum info")
+                .With("ChunkRecordCount", *ChunkRecordCount_);
             return;
         }
 
-        YT_LOG_DEBUG(
-            quorumInfoOrError,
-            "Failed to compute distributed chunk session chunk quorum info "
-            "(ReadQuorum: %v, ReplicaCount: %v)",
-            ReadQuorum_,
-            Replicas_.size());
+        YT_TLOG_DEBUG("Failed to compute distributed chunk session chunk quorum info")
+            .With("ReadQuorum", ReadQuorum_)
+            .With("ReplicaCount", Replicas_.size())
+            .With(quorumInfoOrError);
 
         auto replicaUpdateResult = UpdateReplicasFromMaster();
         if (!replicaUpdateResult.IsOK()) {
@@ -403,10 +387,8 @@ private:
     {
         auto replicaUpdateResult = UpdateReplicasFromMaster();
         if (replicaUpdateResult.IsOK() && replicaUpdateResult.Value()) {
-            YT_LOG_DEBUG(
-                "Switching distributed chunk session reader to final phase after replica set update "
-                "(ReplicaCount: %v)",
-                Replicas_.size());
+            YT_TLOG_DEBUG("Switching distributed chunk session reader to final phase after replica set update")
+                .With("ReplicaCount", Replicas_.size());
             Phase_ = EPhase::Final;
             return;
         }
@@ -427,13 +409,11 @@ private:
             endIndex - Cursor_,
             static_cast<i64>(std::numeric_limits<int>::max())));
 
-        YT_LOG_DEBUG(
-            "Reading distributed chunk session records from single replica "
-            "(Replica: %v, Cursor: %v, EndIndex: %v, BlockCount: %v)",
-            replica,
-            Cursor_,
-            endIndex,
-            blockCount);
+        YT_TLOG_DEBUG("Reading distributed chunk session records from single replica")
+            .With("Replica", replica)
+            .With("Cursor", Cursor_)
+            .With("EndIndex", endIndex)
+            .With("BlockCount", blockCount);
 
         auto reader = MakeUnderlyingReader(TChunkReplicaList{replica});
 
@@ -460,12 +440,10 @@ private:
 
             Cursor_ += std::ssize(records);
 
-            YT_LOG_DEBUG(
-                "Read distributed chunk session records from single replica "
-                "(RecordCount: %v, Cursor: %v, Finished: %v)",
-                records.size(),
-                Cursor_,
-                Cursor_ >= ComputeEffectiveEnd());
+            YT_TLOG_DEBUG("Read distributed chunk session records from single replica")
+                .With("RecordCount", records.size())
+                .With("Cursor", Cursor_)
+                .With("Finished", Cursor_ >= ComputeEffectiveEnd());
 
             return TChunkReadResult{
                 .Records = std::move(records),
@@ -474,21 +452,17 @@ private:
         }
 
         if (!blocksOrError.IsOK()) {
-            YT_LOG_DEBUG(
-                blocksOrError,
-                "Failed to read distributed chunk session records from single replica "
-                "(Replica: %v, Cursor: %v, BlockCount: %v)",
-                replica,
-                Cursor_,
-                blockCount);
+            YT_TLOG_DEBUG("Failed to read distributed chunk session records from single replica")
+                .With("Replica", replica)
+                .With("Cursor", Cursor_)
+                .With("BlockCount", blockCount)
+                .With(blocksOrError);
             InnerErrors_.push_back(blocksOrError);
         } else {
-            YT_LOG_DEBUG(
-                "Received empty distributed chunk session read response from single replica "
-                "(Replica: %v, Cursor: %v, BlockCount: %v)",
-                replica,
-                Cursor_,
-                blockCount);
+            YT_TLOG_DEBUG("Received empty distributed chunk session read response from single replica")
+                .With("Replica", replica)
+                .With("Cursor", Cursor_)
+                .With("BlockCount", blockCount);
         }
 
         AccountError();
@@ -500,12 +474,10 @@ private:
     {
         auto replicaProgress = GetReplicaProgress();
 
-        YT_LOG_DEBUG(
-            "Completed distributed chunk session reader replica progress query "
-            "(Outcome: %v, Cursor: %v, PickedRowCount: %v)",
-            replicaProgress.Outcome,
-            Cursor_,
-            replicaProgress.PickedRowCount);
+        YT_TLOG_DEBUG("Completed distributed chunk session reader replica progress query")
+            .With("Outcome", replicaProgress.Outcome)
+            .With("Cursor", Cursor_)
+            .With("PickedRowCount", replicaProgress.PickedRowCount);
 
         switch (replicaProgress.Outcome) {
             case EReplicaProgressOutcome::HasData: {
@@ -520,7 +492,7 @@ private:
                 return ReadFromSingleReplica(*replicaProgress.PickedReplica, endIndex);
             }
             case EReplicaProgressOutcome::Sealed:
-                YT_LOG_DEBUG("Switching distributed chunk session reader to final phase after replica reported seal");
+                YT_TLOG_DEBUG("Switching distributed chunk session reader to final phase after replica reported seal");
                 Phase_ = EPhase::Final;
                 return std::nullopt;
             case EReplicaProgressOutcome::NoNewData:
@@ -604,14 +576,12 @@ private:
             });
         }
 
-        YT_LOG_DEBUG(
-            "Started Phase-2 prefetch (Cursor: %v, EffectiveEnd: %v, WindowCount: %v, "
-            "BlocksPerRead: %v, Depth: %v)",
-            begin,
-            end,
-            windowCount,
-            BlocksPerRead_,
-            Config_->PrefetchDepth);
+        YT_TLOG_DEBUG("Started Phase-2 prefetch")
+            .With("Cursor", begin)
+            .With("EffectiveEnd", end)
+            .With("WindowCount", windowCount)
+            .With("BlocksPerRead", BlocksPerRead_)
+            .With("Depth", Config_->PrefetchDepth);
 
         // Kick off the autonomous prefetch; it runs on its own from here on.
         RunPrefetchStep(TError());
@@ -805,7 +775,8 @@ private:
                 .With("returned_count", std::ssize(records))
                 .With("next_read_index", window.NextReadIndex)
                 .With("requested_end_index", window.InFlightEndIndex);
-            YT_LOG_ALERT(error);
+            YT_TLOG_ALERT("Chunk read returned more records than requested")
+                .With(error);
             FailPrefetch(std::move(error));
             return;
         }
@@ -830,18 +801,14 @@ private:
     void StartWindowRecovery(TWindow& window, const TErrorOr<std::vector<TBlock>>& blocksOrError) noexcept
     {
         if (!blocksOrError.IsOK()) {
-            YT_LOG_DEBUG(
-                blocksOrError,
-                "Failed to read Phase-2 prefetch window "
-                "(BeginIndex: %v, EndIndex: %v)",
-                window.NextReadIndex,
-                window.InFlightEndIndex);
+            YT_TLOG_DEBUG("Failed to read Phase-2 prefetch window")
+                .With("BeginIndex", window.NextReadIndex)
+                .With("EndIndex", window.InFlightEndIndex)
+                .With(blocksOrError);
         } else {
-            YT_LOG_DEBUG(
-                "Received empty Phase-2 prefetch window response "
-                "(BeginIndex: %v, EndIndex: %v)",
-                window.NextReadIndex,
-                window.InFlightEndIndex);
+            YT_TLOG_DEBUG("Received empty Phase-2 prefetch window response")
+                .With("BeginIndex", window.NextReadIndex)
+                .With("EndIndex", window.InFlightEndIndex);
         }
 
         Statistics_->PrefetchRetryCount.fetch_add(1, std::memory_order::relaxed);
@@ -930,10 +897,9 @@ private:
         idleWindow.InFlightEndIndex = splitIndex;
         idleWindow.EndIndex = victimEnd;
 
-        YT_LOG_DEBUG(
-            "Prefetch window stole work (StolenCount: %v, SplitIndex: %v)",
-            stolenCount,
-            splitIndex);
+        YT_TLOG_DEBUG("Prefetch window stole work")
+            .With("StolenCount", stolenCount)
+            .With("SplitIndex", splitIndex);
     }
 
     // Returns the next batch to deliver: the window holding the most ready batches, with
@@ -1105,9 +1071,8 @@ private:
     // and a separate master backoff are deferred.
     TErrorOr<bool> UpdateReplicasFromMaster()
     {
-        YT_LOG_DEBUG(
-            "Updating distributed chunk session reader replicas from master (ReplicaCount: %v)",
-            Replicas_.size());
+        YT_TLOG_DEBUG("Updating distributed chunk session reader replicas from master")
+            .With("ReplicaCount", Replicas_.size());
 
         IChannelPtr channel;
         try {
@@ -1115,11 +1080,10 @@ private:
                 EMasterChannelKind::Follower,
                 CellTagFromId(ChunkId_));
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(
-                TError(ex),
-                "Failed to acquire master channel while updating distributed chunk session reader replicas");
-            return TError("Failed to acquire master channel for chunk %v", ChunkId_)
+            YT_TLOG_DEBUG("Failed to acquire master channel while updating distributed chunk session reader replicas")
                 .With(TError(ex));
+            return TError("Failed to acquire master channel for chunk %v", ChunkId_)
+                .With(ex);
         }
 
         TChunkServiceProxy proxy(std::move(channel));
@@ -1129,9 +1093,8 @@ private:
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG(
-                rspOrError,
-                "Failed to locate chunk while updating distributed chunk session reader replicas");
+            YT_TLOG_DEBUG("Failed to locate chunk while updating distributed chunk session reader replicas")
+                .With(rspOrError);
             return TError("Failed to locate chunk %v on master", ChunkId_)
                 .With(rspOrError);
         }
@@ -1142,7 +1105,7 @@ private:
         YT_VERIFY(rsp->subresponses_size() == 1);
         const auto& subresponse = rsp->subresponses(0);
         if (subresponse.missing()) {
-            YT_LOG_DEBUG("Chunk is missing on master while updating distributed chunk session reader replicas");
+            YT_TLOG_DEBUG("Chunk is missing on master while updating distributed chunk session reader replicas");
             return TError(NChunkClient::EErrorCode::NoSuchChunk,
                 "Chunk %v is missing on master", ChunkId_);
         }
@@ -1166,12 +1129,10 @@ private:
 
         Statistics_->MasterRefreshCount.fetch_add(1, std::memory_order::relaxed);
 
-        YT_LOG_DEBUG(
-            "Updated distributed chunk session reader replicas from master "
-            "(ReplicasChanged: %v, OldReplicaCount: %v, NewReplicaCount: %v)",
-            replicasChanged,
-            oldReplicaCount,
-            Replicas_.size());
+        YT_TLOG_DEBUG("Updated distributed chunk session reader replicas from master")
+            .With("ReplicasChanged", replicasChanged)
+            .With("OldReplicaCount", oldReplicaCount)
+            .With("NewReplicaCount", Replicas_.size());
 
         return replicasChanged;
     }
