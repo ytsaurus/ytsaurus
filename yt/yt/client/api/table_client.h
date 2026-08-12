@@ -66,8 +66,7 @@ struct TAttachTableOptions
     //! If specified, must be the table's S3 primary medium.
     std::optional<std::string> Medium;
 
-    //! Overrides format deduction from a source URI. Only Parquet is enabled
-    //! today; this keeps the wire API extensible for later source formats.
+    //! Overrides format deduction from a source URI.
     std::optional<NChunkClient::EExternalSourceFormat> SourceFormat;
 };
 
