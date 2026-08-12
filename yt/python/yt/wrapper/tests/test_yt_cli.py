@@ -4,17 +4,13 @@ from .conftest import authors
 from .helpers import get_tests_sandbox, wait, get_environment_for_binary_test, set_cypress_attribute
 from .helpers_cli import YtCli
 
-
 from yt import yson
-
 from yt.testlib.test_environment import YtTestEnvironment
-
 from yt.common import makedirp
-
 import yt.wrapper as yt
 
-
 from flaky import flaky
+from unittest.mock import patch
 
 import os
 import json
@@ -626,6 +622,12 @@ class TestYtBinary(object):
         assert b"allow" in stdout
         stdout = yt_cli.check_output(["yt", "check-permission", "test_user", "read", "//home/wrapper_test/table", "--columns", "[a]"])
         assert b"allow" in stdout
+
+        with patch.dict(yt_cli.env, {"YT_LOG_LEVEL": "ERROR"}):
+            completed_process = yt_cli.run(["yt", "check-permission", "test_user", "read", table, "--quiet"])
+        assert completed_process.returncode == 0
+        assert completed_process.stdout == b""
+        assert completed_process.stderr == b""
 
     @authors("ilyaibraev")
     def test_transfer_account_resources(self, yt_cli: YtCli):
