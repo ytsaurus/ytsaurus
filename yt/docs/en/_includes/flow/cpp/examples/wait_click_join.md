@@ -132,7 +132,7 @@ First, let’s look more closely at the join spec:
 - The pipeline needs a [timer](../../../../flow/concepts/glossary.md#timer) to close the hit, so we register `timer` in `timers`. We don’t specify extra settings because timers, by default, use `event_time` and the input streams.
 - To send the `joined_event` to an ordered dynamic table (which might be on another cluster), we use an asynchronous `TQueueSink`.
 
-The join itself is implemented as a [process function](../../../../flow/cpp/process-functions.md) called `TJoinFunction` (a subclass of `IProcessFunction` that processes messages and timers element by element). It’s executed by the built‑in `TProcessFunctionComputation`. In the spec, you set it via `processing_function`, and `wait_for_actions` is passed through `processing_function_parameters`. We recommend reading the code in the repository because it’s continuously improved.
+The join itself is implemented as a [process function](../../../../flow/cpp/process-functions.md) called `TJoinFunction` (a subclass of `IProcessFunction` that processes messages and timers element by element). It’s executed by the built-in `TProcessFunctionComputation`. In the spec, you set it via `processing_function`, and `wait_for_actions` is passed through `processing_function_parameters`. We recommend reading the code in the repository because it’s continuously improved.
 
 Key ideas:
 
@@ -157,20 +157,3 @@ The imaginary system described above includes the following objects:
 - `state` — a [table](../../../../user-guide/dynamic-tables/sorted-dynamic-tables.md) for storing the key profile.
 - `pipeline` — the pipeline itself, which is a collection of tables and files.
 
-## See also
-
-- [Quick start (C++)](../../../../flow/cpp/getting-started.md)
-- [Timers](../../../../flow/concepts/timers.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)
-
-You must create all these objects in {{product-name}} before you [start the pipeline](../../../../flow/release/basic-rules.md#launch-flow).{% if audience == "internal" %} You can use the [YtSync]({{yt-sync-docs}}/) library to create the objects. It lets you concisely describe the objects and their differences across various [environments](../../../../flow/concepts/glossary.md#environment) and perform create, update, and [migration](../../../../flow/concepts/glossary.md#migration) operations (in some cases).{% endif %}
-
-{% if audience == "internal" %}This example demonstrates the use of easy mode. You can find detailed documentation on it [here]({{yt-sync-docs}}/stages_specification).{% endif %}
-
-The example source code that uses `YtSync` is in [tools/yt_sync]({{source-root}}/yt/yt/flow/examples/cpp/wait_click_join/tools/yt_sync):
-
-- [queues.py]({{source-root}}/yt/yt/flow/examples/cpp/wait_click_join/tools/yt_sync/queues.py) — description of queues, consumers, and producers.
-- [tables.py]({{source-root}}/yt/yt/flow/examples/cpp/wait_click_join/tools/yt_sync/tables.py) — description of the `state` profile table.
-- [pipelines.py]({{source-root}}/yt/yt/flow/examples/cpp/wait_click_join/tools/yt_sync/pipelines.py) — description of the pipeline.
-- [stages.py]({{source-root}}/yt/yt/flow/examples/cpp/wait_click_join/tools/yt_sync/stages.py) — global settings for environments.
-- [__main__.py]({{source-root}}/yt/yt/flow/examples/cpp/wait_click_join/tools/yt_sync/__main__.py) — the program’s main entry point, which boils down to calling a single library function.

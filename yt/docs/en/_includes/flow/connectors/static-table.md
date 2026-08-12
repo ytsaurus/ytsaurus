@@ -20,6 +20,28 @@ Source class: `NYT::NFlow::NStaticTableConnector::TSource`.
 
 {% include [NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource.md) %}
 
+### Writing to static tables in arrival order
+
+Sink class: `NYT::NFlow::NStaticTableConnector::TArrivalOrderTableSink`.
+
+The sink creates a continuous sequence of tables with a fixed `table_period` step. A non-empty current slot is closed either at the time boundary or when `max_row_count`/`max_data_weight` is reached; closing by limit also shifts the next logical timestamp by one period, so the sequence can run ahead of the wall clock. While the sequence is ahead of the wall clock, closing by time doesn’t happen: an incomplete batch is written only once the wall clock catches up with the current logical timestamp, and a restart doesn’t reset this, because the lag is kept in external state. The size of the delay is proportional to the burst: the number of slots closed by limit multiplied by `table_period`. An empty slot `T` is created strictly in order, only if `T <= wall clock` and the known non-zero system watermark of the input stream is strictly greater than `T + table_period`. A watermark equal to the boundary is therefore not enough, and empty tables aren’t created in the future.
+
+The table and the progress are committed in a single master transaction. The progress is kept in the `@progress` attribute of the `output_directory` itself and contains the owner `(pipeline, computation, sink id)`, the shared table sequence, and a separate frontier `(system_timestamp, message_id)` for each partition. All partitions share one table sequence, and the frontier is used for deduplication during replay: with a partially covered replay, the sink writes only the uncovered tail without restarting the job. The delivery callback is invoked only after a successful external commit and the next Flow commit. Progress writers are separated by a shared lock with the `progress` attribute key, so creating output tables in the same directory isn’t blocked.
+
+Each sink needs its own `output_directory`: if a different owner is recorded in the attribute, the sink fails with an error and asks you to delete the attribute manually. Before handing the directory over to another pipeline, stop the writing pipeline; the new owner continues the grid after the most recent table in the directory. The sink doesn’t accept a directory with children that have no `table_timestamp` attribute: it fails with an error until they are removed. In particular, the main and DLQ sinks of one reader must write to different directories. A partition’s frontier is deleted as soon as its `system_timestamp` drops below the system watermark of the input stream: by that moment the partition has certainly delivered everything it produced, so its frontier is no longer needed.
+
+The `output_directory` can be located on a cluster other than the pipeline’s cluster. The mandatory `table_ttl` parameter bounds the lifetime of the output tables: the Cypress `expiration_time` set on each table is `max(table_timestamp, table-creation time) + table_ttl`, not simply `table_timestamp + table_ttl` — a catch-up table whose `table_timestamp` already lies further in the past than `table_ttl` is clamped to expire `table_ttl` after it’s created instead of expiring immediately. While the table sequence tracks wall-clock time, this keeps the directory to at most `table_ttl / table_period` tables; a burst of catch-up tables created close together can keep more than that alive at once, since the clamp gives them all roughly the same expiration. A spec with a `table_ttl / table_period` ratio greater than 40000 is rejected because of the Cypress limit on the number of children.
+
+The sink requires exactly one input stream with increasing `MessageId` values within it, so it applies to `Transform` and `SwiftOrderedSource` computations. A partition is identified by `SourceKey` if it is present, and by `PartitionId` otherwise. The schema of the output tables is taken from the input stream. By default, the message weight for the `max_data_weight` limit equals the message size; the optional `data_weight_column` (type `int64` or `uint64`, non-negative values) sets a custom weight, and a `null` in it means the message size. The initialization and commit transaction is retried until it succeeds or the job is aborted. For empty tables to be created even without input messages, your source computation must initialize each sink in advance in `DoInit`.
+
+##### Static spec:
+
+{% include [NYT_NFlow_TUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink](../../../flow/generated_docs/NYT_NFlow_TUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink.md) %}
+
+##### Dynamic spec:
+
+{% include [NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink.md) %}
+
 ## Importing a static table into state {#import-into-state}
 
 A typical scenario is that a batch process (YQL{% if audience == "internal" %}, Nirvana{% endif %}, …) periodically rebuilds a reference dataset as a static YT table, and the real-time pipeline needs to join its stream against the latest version of this reference. The `static_table` connector supports this scenario out of the box, letting you load such a table into the pipeline’s [state](../../../flow/concepts/stateful.md) with custom business logic applied to each row before writing.
@@ -112,6 +134,7 @@ Fully working pipelines with tests that demonstrate this approach:
 - Python: [`examples/python/static_table_join`]({{source-root}}/yt/yt/flow/examples/python/static_table_join)
 - Java: [`examples/java/static_table_join`]({{source-root}}/yt/yt/flow/examples/java/static_table_join)
 - Kotlin: [`examples/kotlin/static_table_join`]({{source-root}}/yt/yt/flow/examples/kotlin/static_table_join)
+- Go: [`examples/go/static_table_join`]({{source-root}}/yt/yt/flow/examples/go/static_table_join)
 
 ## Alternatives {#alternatives}
 
@@ -137,6 +160,7 @@ In the pipeline, the `path` of the external-state connector points to the symlin
 - Python: [`examples/python/external_state_join`]({{source-root}}/yt/yt/flow/examples/python/external_state_join)
 - Java: [`examples/java/external_state_join`]({{source-root}}/yt/yt/flow/examples/java/external_state_join)
 - Kotlin: [`examples/kotlin/external_state_join`]({{source-root}}/yt/yt/flow/examples/kotlin/external_state_join)
+- Go: [`examples/go/external_state_join`]({{source-root}}/yt/yt/flow/examples/go/external_state_join)
 
 In the example tests, `yt_sync` first builds `reference.v1` and links `current → reference.v1`; the pipeline enriches the event with value `v1`. Then `reference.v2` is built, the symlink is atomically redirected to the new version, and for **the same key**, the pipeline starts returning value `v2`.
 

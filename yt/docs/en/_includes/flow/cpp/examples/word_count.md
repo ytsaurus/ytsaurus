@@ -12,7 +12,7 @@ Both units of user logic are written as [process functions](../../../../flow/cpp
 
 `TTextReadFunction` is a process function (`IProcessFunction`) that is executed by `TProcessFunctionSourceComputation` (the source adapter). It reads text messages from the input queue, splits the text into words (by whitespace characters), and for each word with a length of at least `min_word_length`, it generates a `TWordMessage` object in the `words` output stream. The `min_word_length` parameter is read in `Init` via `initContext->GetParameters<TTextReaderParameters>()` from the `processing_function_parameters` block of the spec.
 
-Since the executing `Computation` is a source (`TSwiftOrderedSourceComputation`), the output messages are not stored in {{product-name}} — only the metadata required for deterministic operation is saved. For more details about computation types, see the [Computations](../../../../flow/concepts/computation.md) section.
+Since the executing `Computation` is a source (`TSwiftOrderedSourceComputation`), the output messages are not stored in {{product-name}} — only the metadata required for deterministic operation is saved. For more details about computation types, see the [Computations](../../../../flow/concepts/computation.md) section.
 
 ### TWordCountFunction
 
@@ -35,16 +35,16 @@ The pipeline consists of two adapter computations connected by the `words` strea
 1. **source** (input queue) → **TProcessFunctionSourceComputation** (`processing_function = TTextReadFunction`) → `words` stream.
 2. `words` stream → **TProcessFunctionComputation** (`processing_function = TWordCountFunction`) → state table (word → count).
 
-In the spec for the counter, you specify `group_by_schema` with a hash of the word and the word itself — to ensure correct [partitioning](../../../../flow/concepts/glossary.md#partition). The state parameters (`TSimpleExternalStateManager` and the table path) are declared in the `external_state_managers` section of the `Computation` spec.
+In the spec for the counter, you specify `group_by_schema` with a hash of the word and the word itself — to ensure correct [partitioning](../../../../flow/concepts/glossary.md#partition). The state parameters (`TSimpleExternalStateManager` and the table path) are declared in the `external_state_managers` section of the `Computation` spec.
 
 ## The main function
 
 In `main`, you do the following:
 
-1. `NYT::NFlow::Initialize(argc, argv)` — initialize the Flow library.
+1. `NYT::NFlow::Initialize(argc, argv)` — initialize the Flow library.
 2. Register the functions via `YT_FLOW_DEFINE_PROCESS_FUNCTION(TTextReadFunction)` and `YT_FLOW_DEFINE_PROCESS_FUNCTION(TWordCountFunction)`.
-3. `TSimpleSpecBuilder` — a builder for registering streams. You register the `words` stream with the `TWordMessage` message type via `RegisterStream<TWordMessage>("words")`.
-4. `TSimpleRunnerProgram` — run the pipeline.
+3. `TSimpleSpecBuilder` — a builder for registering streams. You register the `words` stream with the `TWordMessage` message type via `RegisterStream<TWordMessage>("words")`.
+4. `TSimpleRunnerProgram` — run the pipeline.
 
 ## Source code
 
@@ -56,8 +56,3 @@ In `main`, you do the following:
 
 {% code '/yt/yt/flow/examples/cpp/word_count/lib/word_count_functions.cpp' lang='cpp' lines='[BEGIN word_counter]-[END word_counter]' keep-indents %}
 
-## See also
-
-- [Getting started (C++)](../../../../flow/cpp/getting-started.md)
-- [Computation (C++)](../../../../flow/cpp/computation.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)

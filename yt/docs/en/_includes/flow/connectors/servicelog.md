@@ -38,7 +38,7 @@ Access via the meta-cluster RPC is only possible with `FetchType = EFetchType::S
 
 You can specify multiple fetchers in the service log. This can be used for the “fullstate” scenario. A fullstate is a table external to the [pipeline](../../../flow/concepts/glossary.md#pipeline) that contains data for the same [keys](../../../flow/concepts/glossary.md#key) for which there is a [state](../../../flow/concepts/glossary.md#state) in the pipeline. This table is periodically loaded into the pipeline. You can do this efficiently: when generating the service log, join the pipeline’s state table and the fullstate table by keys right away. This way, events are generated for keys that exist in at least one of the fetchers. This approach gives you two useful properties:
 
-- During a single joined pass of the service log, each state is touched once. Instead of twice — once for the main service log event and once for loading the fullstate row.
+- During a single joined pass of the service log, each state is touched once. Instead of twice — once for the main service log event and once for loading the fullstate row.
 - The pipeline can react to events where a key exists in the pipeline’s state but not in the external fullstate.
 
 You can distinguish the case where “all non-key columns are null” from the case where “there is no key match” using the `ispresent` system column.

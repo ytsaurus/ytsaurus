@@ -47,7 +47,7 @@ By default, the Runner sets `FlowCoreTarget` with each spec push. You can disabl
     }
     ```
 
-- **For a single run** — using the `--skip-set-flow-core-target` flag in the Runner’s command line. This is convenient for one‑off hotfixes or experiments.
+- **For a single run** — using the `--skip-set-flow-core-target` flag in the Runner’s command line. This is convenient for one-off hotfixes or experiments.
 
 ### Manual Commands {#flow-core-target-manual}
 

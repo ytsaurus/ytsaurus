@@ -2,13 +2,13 @@
 
 {% note info %}
 
-This page describes the specifics of working with states in C++. For a language‑agnostic description of the concept, see the [Stateful processing](../../../flow/concepts/stateful.md) section.
+This page describes the specifics of working with states in C++. For a language-agnostic description of the concept, see the [Stateful processing](../../../flow/concepts/stateful.md) section.
 
 {% endnote %}
 
 ## Internal State {#internal-state}
 
-This is the simplest way to store a state inside a `Computation`. Data is automatically loaded at the start of the [epoch](../../../flow/concepts/glossary.md#epoch) and written on commit. You don’t need to create tables yourself — Flow manages them automatically.
+This is the simplest way to store a state inside a `Computation`. Data is automatically loaded at the start of the [epoch](../../../flow/concepts/glossary.md#epoch) and written on commit. You don’t need to create tables yourself — Flow manages them automatically.
 
 ### Usage
 
@@ -18,14 +18,14 @@ You can use **any type** as a state type, as long as it has serialization and de
 
 By default, a state is considered empty if it equals the default value (`TMyState{}`), and clearing it recreates it. To override this behavior, the state type can inherit optional mixins from `NYT::NFlow`:
 
-- `ICustomStateOps` — custom logic for `Clear()` and `IsEmpty()` (specified as a pair);
-- `ICustomYsonView` — custom representation for `ToYsonView()` for read‑state introspection.
+- `ICustomStateOps` — custom logic for `Clear()` and `IsEmpty()` (specified as a pair);
+- `ICustomYsonView` — custom representation for `ToYsonView()` for read-state introspection.
 
 You need to:
 
 1. Declare a `TMutableStateKeyClient<TMyState> MyStateClient_` field in your `TComputation`.
 2. Override `DoInit(IJobInitContextPtr initContext)` and call the initialization `initContext->InitClient<TMyState>(MyStateClient_, "my_state")` in it. Use a string that’s unique within the `Computation` as the name.
-3. To get the state by key, use `MyStateClient_.GetState(message->Key)`. The returned accessor `TStateAccessor<TMyState>` behaves like a smart pointer to `TMyState` (`state->...`, `*state`) and is valid only within the current epoch — you can’t store it in fields.
+3. To get the state by key, use `MyStateClient_.GetState(message->Key)`. The returned accessor `TStateAccessor<TMyState>` behaves like a smart pointer to `TMyState` (`state->...`, `*state`) and is valid only within the current epoch — you can’t store it in fields.
 4. To clear the state (delete the row from the table), call `state.Clear()` on the accessor.
 
 If the state is empty, the corresponding row will be deleted.
@@ -83,10 +83,10 @@ private:
 
 ### Compression
 
-Internal State supports data compression. You configure it in [DynamicSpec](../../../flow/concepts/spec.md) for each state separately — in the `state_manager` section of the computation, in `overrides/<state_name>/format`:
+Internal State supports data compression. You configure it in [DynamicSpec](../../../flow/concepts/spec.md) for each state separately — in the `state_manager` section of the computation, in `overrides/<state_name>/format`:
 
-- `compress` — enable compression (default `false`);
-- `recode_probability` — probability to recode the state to the specified format during the next processing; this ensures gradual migration of states after changing the format (default `0.1`).
+- `compress` — enable compression (default `false`);
+- `recode_probability` — probability to recode the state to the specified format during the next processing; this ensures gradual migration of states after changing the format (default `0.1`).
 
 ## Yson State Reader
 
@@ -98,7 +98,7 @@ This functionality is not yet implemented.
 
 ## External State {#external-state}
 
-External State is a state stored in a user‑defined dynamic table in {{product-name}}. Unlike Internal State, the tables are created and managed by the user{% if audience == "internal" %} (for example, via [YtSync]({{yt-sync-docs}})){% endif %}.
+External State is a state stored in a user-defined dynamic table in {{product-name}}. Unlike Internal State, the tables are created and managed by the user{% if audience == "internal" %} (for example, via [YtSync]({{yt-sync-docs}})){% endif %}.
 
 The external state manager is declared in the `Computation` spec under a unique name in the `external_state_managers` section and connected to the `Computation` via a typed client `TMutableStateKeyClient<TState>`. The names in the spec must start with `/` (for example, `"/state"`) and match the name passed to `InitExternalStateClient`. The implementation is looked up in the registry by `external_state_manager_class_name`.
 
@@ -107,7 +107,7 @@ The external state manager is declared in the `Computation` spec under a unique 
 To work with External State, you need to:
 
 1. Declare a `TMutableStateKeyClient<TState> StateClient_` field in your `TComputation`, where `TState` is the state type returned by the corresponding external state manager (see below for specific implementations).
-2. Override `DoInit(IJobInitContextPtr initContext)` and call `initContext->InitExternalStateClient(StateClient_, "/state")` in it. Use a string that’s unique within the `Computation` as the name — this same name must appear in the spec.
+2. Override `DoInit(IJobInitContextPtr initContext)` and call `initContext->InitExternalStateClient(StateClient_, "/state")` in it. Use a string that’s unique within the `Computation` as the name — this same name must appear in the spec.
 3. To get the state by key, use `StateClient_.GetState(message->Key)`. The returned accessor `TStateAccessor<TState>` behaves like a smart pointer to `TState` and is valid only within the current epoch.
 
 Example:
@@ -157,7 +157,7 @@ private:
 
 `TSimpleExternalStateManager` is the standard implementation of an external state manager. It works with a single dynamic table whose keys match the `group_by_schema`. `GetState` returns an accessor over `TSimpleExternalState` with `Payload` and `Schema` fields; columns are retrieved and written via `GetColumn[Value]<T>` / `TPayloadBuilder` by name or index. State caching happens automatically via the shared [StateCache](#state-cache).
 
-You don’t need to register `TSimpleExternalStateManager` in `register.cpp` — it’s already registered in the Flow library itself.
+You don’t need to register `TSimpleExternalStateManager` in `register.cpp` — it’s already registered in the Flow library itself.
 
 Spec:
 
@@ -175,7 +175,7 @@ For a complete example of using `TSimpleExternalStateManager`, see the breakdown
 
 `TProfileManager<TProfile>` is an external state manager compatible with BigRT profiles. It lets you reuse existing BigRT profiles in Flow [pipelines](../../../flow/concepts/glossary.md#pipeline).
 
-Unlike `TSimpleExternalStateManager`, `TProfileManager` is parameterized by a user‑defined profile type and therefore must be registered by the user. In the client, it’s convenient to use the helper state type `TProfileManagerState<TMyProfile>`, which lets you specify only the profile itself (without the manager alias). For brevity, there’s a client alias next to the state type: `NBigRTExtensions::TProfileMutableStateKeyClient<TMyProfile>` — it’s fully equivalent to `TMutableStateKeyClient<NBigRTExtensions::TProfileManagerState<TMyProfile>>`. Example:
+Unlike `TSimpleExternalStateManager`, `TProfileManager` is parameterized by a user-defined profile type and therefore must be registered by the user. In the client, it’s convenient to use the helper state type `TProfileManagerState<TMyProfile>`, which lets you specify only the profile itself (without the manager alias). For brevity, there’s a client alias next to the state type: `NBigRTExtensions::TProfileMutableStateKeyClient<TMyProfile>` — it’s fully equivalent to `TMutableStateKeyClient<NBigRTExtensions::TProfileManagerState<TMyProfile>>`. Example:
 
 ```cpp
 // header: connect the client with the state type bound to the profile.

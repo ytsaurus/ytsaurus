@@ -36,6 +36,7 @@ The timer is also bound to the **[grouping key](../../../flow/concepts/glossary.
 | `TTransformComputation` | ✓ |
 | `TSwiftMapComputation` | ✗ |
 | `TSwiftOrderedSourceComputation` | ✗ |
+| `TTransformOrderedSourceComputation` | ✗ |
 
 ## Configuration {#configuration}
 
@@ -45,7 +46,7 @@ To enable timers in a computation, you must fill the `timers` field in its spec.
 
 Explanations:
 
-- **`time_type` defines the scale that the system uses to compare `TriggerTimestamp` with the current watermark:
+- **`time_type`** defines the scale that the system uses to compare `TriggerTimestamp` with the current watermark:
   - `event_time` (default) — compared with `EventWatermark` across all `input` streams (or the streams listed in `streams`).
   - `system_time` — compared with `SystemWatermark`.
   - `real_time` — compared with real astronomical time.
@@ -114,13 +115,40 @@ def on_timers(self, timers, output, ctx):
 
 For more details, see the [Computation (Python)](../../../flow/python/computation.md) section.
 
+### Go {#api-go}
+
+```go
+// Create a timer in OnMessage:
+out.AddTimer(flow.TimerRequest{
+    TriggerTimestamp: msg.EventTimestamp + 30*60_000_000_000,
+    EventTimestamp:   msg.EventTimestamp,
+})
+
+// Process the triggered timer (RowFunction):
+func (f myFunction) OnTimer(
+    ctx context.Context,
+    rt flow.Runtime,
+    timer flow.Timer,
+    out flow.OutputCollector,
+) error {
+    // timer.Key, timer.EventTimestamp, timer.TriggerTimestamp, timer.StreamID
+    return nil
+}
+
+// For BatchFunction:
+func (f myFunction) OnTimers(ctx context.Context, rt flow.Runtime, timers []flow.Timer, out flow.OutputCollector) error { ... }
+```
+
+For more details, see the [Computation (Go)](../../../flow/go/computation.md) section.
+
 ## Examples {#examples}
 
-Example implementation of a join with wait (impression + click, 30‑minute timeout):
+Example implementation of a join with wait (impression + click, 30-minute timeout):
 
 - [C++](../../../flow/cpp/examples/wait_click_join.md)
 - [Java](../../../flow/java/examples/wait_click_join.md)
 - [Python](../../../flow/python/examples/wait_click_join.md)
+- [Go](../../../flow/go/examples/wait_click_join.md)
 
 ## Limitations and known issues {#limitations}
 
@@ -140,3 +168,4 @@ Example implementation of a join with wait (impression + click, 30‑minute time
 - [Computation (C++)](../../../flow/cpp/computation.md)
 - [Computation (Java)](../../../flow/java/computation.md)
 - [Computation (Python)](../../../flow/python/computation.md)
+- [Computation (Go)](../../../flow/go/computation.md)

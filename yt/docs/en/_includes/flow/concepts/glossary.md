@@ -184,6 +184,10 @@ A module responsible for creating and pinging `Lease` — master transactions th
 
 One of the two main types of processes in the system, performing the actual computations within the [jobs](#job) assigned to it. It regularly sends [heartbeats](#heartbeat) to the [controller](#controller), reporting the statuses of all jobs. In return, it receives the current system settings, in particular the [Layout](#layout).
 
+#### Heartbeat {#heartbeat}
+
+A periodic message a [worker](#worker) sends to the [controller](#controller) reporting the statuses of all its [jobs](#job). The controller's response carries the current system settings, in particular the [Layout](#layout); a worker that stops sending heartbeats is treated as unavailable.
+
 #### Message Distributor {#message-distributor}
 
 A [worker](#worker) module responsible for distributing messages between different [jobs](#job). It runs based on the system’s current [layout](#layout). It sends a message until it receives confirmation from the recipient about processing, including the fact of a reliable commit of the processing result (referred to in the codebase as `MarkPersisted`).

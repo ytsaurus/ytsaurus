@@ -1,6 +1,6 @@
 # Typed Streams in {{product-name}} Flow (Java)
 
-Use the Java SDK Flow (Java and Kotlin) to work with typed streams via `FlowStreams.typed`. This lets you automatically serialize and deserialize messages into POJO objects, which simplifies working with data in [ProcessFunction](../../../flow/java/computation.md#rowfunction).
+Use the Java SDK Flow (Java and Kotlin) to work with typed streams: declare them with the `@FlowMessage` annotation (the recommended way) or register them imperatively via `FlowStreams.typed`. Either way, messages are serialized and deserialized into POJO objects automatically, which simplifies working with data in [ProcessFunction](../../../flow/java/computation.md#rowfunction). Both registration modes are described in [Registering streams](#registering-streams).
 
 The binary format for untyped (`FlowStreams.raw`) and typed (`FlowStreams.typed`) streams is fully identical. It matches the binary format of `UnversionedRow` in varint encoding, which Flow uses to transfer data between cluster nodes.
 
@@ -60,13 +60,63 @@ The `@Column` annotation is optional. If a class field doesn’t have this annot
 
 With `@Column`, you can set the column name via the `name` attribute and specify the column type via the `columnDefinition` attribute.
 
-The `columnDefinition` attribute accepts a string with a Type V3 name. See the [full list of types](../../../flow/user-guide/storage/data-types#schema).
+The `columnDefinition` attribute accepts a string with a Type V3 name. See the [full list of types](../../../user-guide/storage/data-types.md#schema).
 
 ### Registering streams
 
-You must register all typed streams in `PipelineContext`.
+You must register all typed streams before the companion server starts.
 
-Create typed streams using the factory method `FlowStreams.typed`, which takes two arguments: `streamId` and the message class.
+#### Via the `@FlowMessage` annotation (recommended)
+
+Mark the message POJO class with the `@FlowMessage` annotation listing the stream identifiers (`streamIds`) it serves. The annotation is used together with `@Entity`, which the schema is derived from, and doesn’t replace it. A single POJO can serve several streams with the same schema; in that case, list several identifiers in `streamIds`.
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  @Entity
+  @FlowMessage(streamIds = {"hit"})
+  public class Hit {
+      // fields...
+  }
+  ```
+
+- Kotlin
+
+  ```kotlin
+  @Entity
+  @FlowMessage(streamIds = ["hit"])
+  class Hit {
+      // fields...
+  }
+  ```
+
+{% endlist %}
+
+In Spring Boot applications, such classes are found by scanning the application packages and are registered automatically. By default, the Spring Boot autoconfiguration packages are scanned: the package of the class annotated with `@SpringBootApplication` and its nested packages. You can specify additional packages with the `flow.entity-scan-packages` property.
+
+Without Spring Boot, pass the classes directly to `PipelineContext.registerTypedStreams`:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  context.registerTypedStreams(Hit.class, Action.class, JoinedAction.class);
+  ```
+
+- Kotlin
+
+  ```kotlin
+  context.registerTypedStreams(Hit::class.java, Action::class.java, JoinedAction::class.java)
+  ```
+
+{% endlist %}
+
+#### Via `FlowStreams.typed` (imperative)
+
+You can also create and register typed streams manually via the `FlowStreams.typed` factory method, which takes two arguments: `streamId` and the message class. In Spring Boot applications, you can declare streams via `ComputationProvider` (the `getStreams()` method) or as separate `FlowStream<?>` beans.
 
 {% list tabs group=lang %}
 

@@ -42,12 +42,3 @@ This is the entry point: its structure matches `async_request`, but it imports d
 - **Clearing state on success**: `state.clear()` after successful processing prevents the timer from triggering again on outdated data.
 - **Separation of concerns**: `StateKeeperFunction` doesn’t know about retries — all retry logic is encapsulated in `RequestProcessorFunction`, which makes it easier to swap retry strategies.
 
-## See also
-
-- [Quick start (Python)](../../../../flow/python/getting-started.md)
-- [Computation (Python)](../../../../flow/python/computation.md)
-- [Timers](../../../../flow/concepts/timers.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)
-- [AsyncRequest (Python)](../../../../flow/python/examples/async_request.md)
-- [Similar example in C++](../../../../flow/cpp/examples/retryable_async_request.md)
-- [Similar example in Java](../../../../flow/java/examples/retryable_async_request.md)

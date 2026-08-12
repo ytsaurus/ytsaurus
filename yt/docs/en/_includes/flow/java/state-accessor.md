@@ -4,7 +4,7 @@ StateAccessor is an interface for reading, modifying, and deleting state values.
 
 ## How it works {#how-it-works}
 
-The [state](../../../flow/concepts/glossary.md#state) in Flow is stored in [sorted dynamic tables](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md).  
+The [state](../../../flow/concepts/glossary.md#state) in Flow is stored in [sorted dynamic tables](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md).
 If you use [external state](../../../flow/java/external-state.md), you create this table. If you use [internal state](../../../flow/java/internal-state.md), Flow creates and manages these tables automatically.
 
 For simplicity, the following description focuses on an example with external state.

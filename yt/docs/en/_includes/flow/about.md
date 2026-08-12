@@ -31,7 +31,7 @@ If you have a question with a complex context or found a bug, create a ticket in
 - Support for [stateful processing](../../flow/concepts/stateful.md) with persistent state in {{product-name}} dynamic tables.
 - Support for running in {{product-name}}{% if audience == "internal"%}, and in [Deploy](https://docs.yandex-team.ru/deploy){% endif %}.
 
-{% include [Выбор языка](language-choice.md) %}
+{% include [Language choice](language-choice.md) %}
 
 ## Target system properties {#target-properties}
 

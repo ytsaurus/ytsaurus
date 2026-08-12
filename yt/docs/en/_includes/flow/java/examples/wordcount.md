@@ -94,8 +94,3 @@ You run the pipeline with two processes:
 
 Both classes are in the same JAR file.
 
-## See also
-
-- [Quick start](../../../../flow/java/getting-started.md)
-- [Computation](../../../../flow/java/computation.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)

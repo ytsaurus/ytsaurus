@@ -106,9 +106,3 @@ This is the entry point for the companion based on Spring Boot.
 - **State cleanup**: after processing, you delete the state via `accessor.clear()` to prevent memory leaks.
 - **YsonStateAccessor**: the internal state is serialized to YSON and stored on the C++ worker side. You get the Java object via `getOrDefault`.
 
-## See also
-
-- [Quick start (Java)](../../../../flow/java/getting-started.md)
-- [Computation (Java)](../../../../flow/java/computation.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)
-- [Similar example in C++](../../../../flow/cpp/examples/url_downloader.md)

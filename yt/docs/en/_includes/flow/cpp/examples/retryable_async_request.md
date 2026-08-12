@@ -59,8 +59,3 @@ In the [spec](../../../../flow/concepts/glossary.md#spec-and-dynamic-spec) for `
 
 {% code '/yt/yt/flow/examples/cpp/retryable_async_request/main.cpp' lang='cpp' lines='[BEGIN state_keeper]-[END state_keeper]' keep-indents %}
 
-## See Also
-
-- [Quick Start (C++)](../../../../flow/cpp/getting-started.md)
-- [Timers](../../../../flow/concepts/timers.md)
-- [Example: Asynchronous Requests (C++)](../../../../flow/cpp/examples/async_request.md)

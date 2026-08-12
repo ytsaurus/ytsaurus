@@ -226,7 +226,7 @@ The key differences from `RowFunction` are:
 
 ## Registering in PipelineContext {#pipeline-context}
 
-You must register all `Computation` objects and typed streams (created via `FlowStreams.typed`) in `PipelineContext` before you run `GrpcServerExecution`.  
+You must register all `Computation` objects and typed streams (created via `FlowStreams.typed`) in `PipelineContext` before you run `GrpcServerExecution`.
 You don’t need to register untyped streams (created via `FlowStreams.raw`). Flow creates them automatically based on the `streams` block in the static spec.
 
 Learn more about [Typed Streams](../../../flow/java/typed-streams.md).
@@ -402,13 +402,12 @@ To run a companion in Java or Kotlin, you must declare the `CompanionManager` re
         "jdk_bin_path" = "/app/ytflow/jdk/bin/java";
         "main_class" = "tech.ytsaurus.flow.examples.waitclickjoin.NodeCompanionMain";
         "classpath" = "/app/ytflow/lib/*";
-        "run_process" = %true;
     };
     "dependencies" = {};
 };
 ```
 
-The `resource_class_name` parameter specifies the resource class that will run the companion.  
+The `resource_class_name` parameter specifies the resource class that will run the companion.
 For a Java or Kotlin companion, `resource_class_name` must always be `NYT::NFlow::NCompanion::TJavaCompanionManager` (it supports both languages via the JVM).
 
 Learn more about the spec in the [Spec, DynamicSpec and Config](../../../flow/concepts/spec.md) section.

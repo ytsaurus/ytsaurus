@@ -26,8 +26,3 @@ This `RowFunction` uses `ctx.state()` to work with the YSON-state. For each mess
 - Internal YSON-state via `ctx.state()` with `get_or_default` and `set`.
 - The state key is defined by `group_by_schema` from the spec (in this case, by the `word` field).
 
-## See also
-
-- [Quick start (Python)](../../../../flow/python/getting-started.md)
-- [Computation (Python)](../../../../flow/python/computation.md)
-- [Stateful processing](../../../../flow/concepts/stateful.md)

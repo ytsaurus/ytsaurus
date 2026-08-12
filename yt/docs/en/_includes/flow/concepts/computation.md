@@ -4,7 +4,7 @@ Use a Computation as the main building block of a [pipeline](../../../flow/conce
 
 ## Computation types {#computation-types}
 
-Flow implements three basic Computation types. You’ll find each type described in the sections below.
+Flow implements four basic Computation types. You’ll find each type described in the sections below.
 
 Classes with `Swift` in their name follow the [Swift](../../../flow/concepts/swift.md) principle. This is an approach to data processing without full materialization, while preserving [exactly-once](../../../flow/concepts/glossary.md#exactly-once) guarantees and requiring deterministic transformations.
 
@@ -19,6 +19,16 @@ This implements a deterministic Map without materializing results in {{product-n
 ### TSwiftOrderedSourceComputation {#tswiftorderedsourcecomputation}
 
 This is the main class for reading data from external sources. It requires that the data stream from each instance is ordered. It supports `WatermarkStrategy` to estimate [watermarks](../../../flow/concepts/glossary.md#timestamps-and-watermarks). For a passthrough variant, use [TSwiftPassthroughOrderedSourceComputation](#passthrough).
+
+### TTransformOrderedSourceComputation {#ttransformorderedsourcecomputation}
+
+This class processes `Source` data with arbitrary custom logic (parsing, filtering, expanding one message into several): you override `DoProcessMessage`/`DoProcess` the same way as in `TTransformComputation`, instead of chaining `TSwiftPassthroughOrderedSourceComputation` → `TTransformComputation`.
+
+The processing result is materialized in {{product-name}}, as in `TTransformComputation`, so there are no determinism requirements: after a restart, Flow delivers the already materialized messages with the `MessageId` values previously assigned to them instead of recomputing them. The source offset, the materialized output messages, and the [states](../../../flow/concepts/stateful.md) are committed in a single {{product-name}} transaction — processing of each source message is applied exactly once, including state updates.
+
+You declare your own state yourself, exactly as in `TTransformComputation`: a `TMutableStateKeyClient<T>` field, initialization via `initContext->InitClient(...)` in `DoInit(IJobInitContextPtr)`, and a `GetState(message->Key)` call during processing (for an example, see the [Computation (C++)](../../../flow/cpp/computation.md#ttransformorderedsourcecomputation) section).
+
+Supported: `source_streams` (exactly one ordered `Source`), several output streams, `watermark_strategy` (`watermark_generator` estimates the source watermarks, `watermark_alignment` aligns reading, `event_timestamp_assigner` assigns `event_timestamp`), `skip_if_expression`, and messages with `distribute = false`. A non-empty `group_by_schema`, `input` streams, [timers](../../../flow/concepts/glossary.md#timer), and [key-visitor streams](../../../flow/concepts/key_visitor.md) cause a spec validation error.
 
 ## Passthrough Computation {#passthrough}
 

@@ -8,7 +8,7 @@ You can find the connector code [here]({{source-root}}/yt/yt/flow/library/cpp/co
 
 When you read from a queue using the simplest method, messages arrive in [`Computation`](../../../flow/concepts/glossary.md#stream-and-computation) with the same schema as the queue table rows.
 
-By default, the message’s `event_time` and `system_time` are calculated based on the `$timestamp` column, which contains the YT timestamp of the row record (for more details, see the [documentation for ordered dynamic tables](../../../user-guide/dynamic-tables/queues.md)).  
+By default, the message’s `event_time` and `system_time` are calculated based on the `$timestamp` column, which contains the YT timestamp of the row record (for more details, see the [documentation for ordered dynamic tables](../../../user-guide/dynamic-tables/queues.md)).
 But if the queue has a column with metadata (see the static spec parameters for the source), the message’s `event_time` can be taken from the corresponding field. You can also get stream watermark information from the metadata.
 
 The [source](../../../flow/concepts/glossary.md#source) class is `NYT::NFlow::TQueueSource`.
@@ -69,11 +69,11 @@ For more information about usage, check the [code]({{source-root}}/bigrt/cli/lib
 
 {% endif %}
 
-### Static Spec
+### Static spec
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TUnitedParameters_NYT_NFlow_TQueueSource.md) %}
 
-### Dynamic Spec
+### Dynamic spec
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TQueueSource.md) %}
 
@@ -81,25 +81,25 @@ For more information about usage, check the [code]({{source-root}}/bigrt/cli/lib
 
 To write messages to a queue in a [sink](../../../flow/concepts/glossary.md#sink), send messages with the same schema as the table where you plan to write. You can also configure writing metadata to a special column to pass information about the message’s `event_time` and the stream watermark to queue readers.
 
-There are two sink options: synchronous (`NYT::NFlow::TSyncQueueSink`) and asynchronous (`NYT::NFlow::TAsyncQueueSink`). Writing to a synchronous sink happens in the main transaction of the [epoch](../../../flow/concepts/glossary.md#epoch). This is efficient, but you can only write to a queue on the main processing cluster. Writing to an asynchronous sink happens after the main epoch transaction, using messages stored in output messages. This is more resource‑intensive, but you can write to a queue on any cluster.
+There are two sink options: synchronous (`NYT::NFlow::TSyncQueueSink`) and asynchronous (`NYT::NFlow::TAsyncQueueSink`). Writing to a synchronous sink happens in the main transaction of the [epoch](../../../flow/concepts/glossary.md#epoch). This is efficient, but you can only write to a queue on the main processing cluster. Writing to an asynchronous sink happens after the main epoch transaction, using messages stored in output messages. This is more resource-intensive, but you can write to a queue on any cluster.
 
-### Parameters for Synchronous Sink Specs
+### Parameters for synchronous sink specs
 
-#### Static Spec
+#### Static spec
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TUnitedParameters_NYT_NFlow_TSyncQueueSink.md) %}
 
-#### Dynamic Spec
+#### Dynamic spec
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TSyncQueueSink.md) %}
 
-### Parameters for Asynchronous Sink Specs
+### Parameters for asynchronous sink specs
 
-#### Static Spec
+#### Static spec
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TUnitedParameters_NYT_NFlow_TAsyncQueueSink.md) %}
 
-#### Dynamic Spec
+#### Dynamic spec
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAsyncQueueSink.md) %}
 
@@ -111,7 +111,7 @@ To work with queues in BigRT format (batching and compressing into a single colu
 
 {% endif %}
 
-## See Also
+## See also
 
 - [List of Connectors](../../../flow/connectors/about.md)
 - [Spec and DynamicSpec](../../../flow/concepts/spec.md)

@@ -6,7 +6,7 @@ Java companion includes continuous profiling based on [JDK Flight Recorder](http
 
 JFR files contain comprehensive telemetry for the Java application and JVM. This lets you:
 
-- Analyze performance — identify CPU/RAM‑intensive methods and bottlenecks.
+- Analyze performance — identify CPU/RAM-intensive methods and bottlenecks.
 - Diagnose memory and GC issues.
 - Investigate incidents after the fact using data from the failure period.
 
@@ -14,7 +14,7 @@ JFR has low overhead and is a standard tool for monitoring Java applications in 
 
 You can open and analyze the resulting JFR files with [Java Mission Control (JMC)](https://wiki.openjdk.org/spaces/jmc/overview), the standard tool for analyzing JFR recordings.
 
-## How it works {#how-it-works}
+## How it works {#how-it-works} {#jfr-defaults}
 
 Profiling is enabled by default via the following JVM options:
 

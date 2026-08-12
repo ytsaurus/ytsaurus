@@ -172,7 +172,7 @@ Flow **не гарантирует** глобальный порядок обр�
 ### Static Table {#static-table-guarantees}
 
 - **Source**: exactly-once — дедупликация по диапазонам чтения.
-- Синк отсутствует.
+- **Синк** (`TArrivalOrderTableSink`): exactly-once — таблица и прогресс коммитятся одной master-транзакцией; frontier партиции дедуплицирует replay, поэтому при частично покрытом replay записывается только непокрытый хвост без перезапуска job; callback доставки вызывается только после этого внешнего коммита и следующего коммита Flow.
 
 Подробнее — [Static Table](../../../flow/connectors/static-table.md).
 
