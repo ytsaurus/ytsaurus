@@ -1,5 +1,7 @@
 PY3TEST()
 
+NO_BUILD_IF(SANITIZER_TYPE)
+
 PY_SRCS(
     common.py
 )
