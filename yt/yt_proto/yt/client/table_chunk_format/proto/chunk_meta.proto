@@ -390,4 +390,12 @@ message TColumnNameToConstraintMap
     repeated TColumnNameToConstraintEntry entries = 3;
 }
 
+// The footer is retained because an externally attached Parquet row group is
+// read as an isolated block rather than as a complete Parquet file.
+message TParquetFormatMetaExt
+{
+    optional bytes footer = 1;
+    optional int64 file_size = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

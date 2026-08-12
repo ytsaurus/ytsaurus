@@ -440,4 +440,93 @@ TArrowSchemaPtr CreateArrowSchemaFromOrcMetadata(const std::string* metadata, i6
 
 ////////////////////////////////////////////////////////////////////////////////
 
+arrow20::Result<std::shared_ptr<arrow20::Buffer>> TStatelessArrowRandomAccessFileBase::ReadAt(int64_t position, int64_t nbytes)
+{
+    ARROW_ASSIGN_OR_RAISE(auto buffer, arrow20::AllocateResizableBuffer(nbytes));
+    ARROW_ASSIGN_OR_RAISE(auto bytesRead, ReadAt(position, nbytes, buffer->mutable_data()));
+
+    if (bytesRead < nbytes) {
+        ARROW_RETURN_NOT_OK(buffer->Resize(bytesRead));
+        buffer->ZeroPadding();
+    }
+
+    return buffer;
+}
+
+arrow20::Status TStatelessArrowRandomAccessFileBase::Seek(int64_t position)
+{
+    FilePosition_ = position;
+    return arrow20::Status::OK();
+}
+
+arrow20::Result<int64_t> TStatelessArrowRandomAccessFileBase::Tell() const
+{
+    return FilePosition_;
+}
+
+arrow20::Result<int64_t> TStatelessArrowRandomAccessFileBase::Read(int64_t nbytes, void* out)
+{
+    ARROW_ASSIGN_OR_RAISE(auto bytesRead, ReadAt(FilePosition_, nbytes, out));
+    FilePosition_ += bytesRead;
+    return bytesRead;
+}
+
+arrow20::Result<std::shared_ptr<arrow20::Buffer>> TStatelessArrowRandomAccessFileBase::Read(int64_t nbytes)
+{
+    ARROW_ASSIGN_OR_RAISE(auto buffer, ReadAt(FilePosition_, nbytes));
+    FilePosition_ += buffer->size();
+    return buffer;
+}
+
+arrow20::Status TStatelessArrowRandomAccessFileBase::Close()
+{
+    Closed_.store(true);
+    return arrow20::Status::OK();
+}
+
+bool TStatelessArrowRandomAccessFileBase::closed() const
+{
+    return Closed_.load();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompositeBufferArrowRandomAccessFile::TCompositeBufferArrowRandomAccessFile(
+    std::vector<TBufferDescriptor> buffers,
+    i64 fileSize)
+    : Buffers_(std::move(buffers))
+    , FileSize_(fileSize)
+{
+    YT_VERIFY(!Buffers_.empty());
+    YT_VERIFY(FileSize_ > 0);
+    YT_VERIFY(std::all_of(Buffers_.begin(), Buffers_.end(), [this] (const auto& buffer) {
+        return buffer.Offset >= 0 && buffer.Offset + std::ssize(buffer.Data) <= FileSize_;
+    }));
+}
+
+arrow20::Result<int64_t> TCompositeBufferArrowRandomAccessFile::GetSize()
+{
+    return FileSize_;
+}
+
+arrow20::Result<int64_t> TCompositeBufferArrowRandomAccessFile::ReadAt(int64_t position, int64_t nbytes, void* out)
+{
+    if (position < 0 || nbytes < 0 || position + nbytes > FileSize_) {
+        return arrow20::Status::IOError(Format(
+            "Cannot read %v bytes at position %v from file of size %v", nbytes, position, FileSize_));
+    }
+
+    for (const auto& buffer : Buffers_) {
+        if (position >= buffer.Offset && position + nbytes <= buffer.Offset + std::ssize(buffer.Data)) {
+            std::memcpy(out, buffer.Data.Begin() + position - buffer.Offset, nbytes);
+            return nbytes;
+        }
+    }
+
+    return arrow20::Status::IOError(Format(
+        "Requested read range [%v, %v) does not fall into any buffer", position, position + nbytes));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NArrow

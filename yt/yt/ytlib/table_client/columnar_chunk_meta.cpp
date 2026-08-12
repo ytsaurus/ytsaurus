@@ -64,6 +64,9 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta, bool compres
     ChunkFeatures_ = FromProto<EChunkFeatures>(chunkMeta.features());
 
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+    if (auto blocksExt = FindProtoExtension<TBlocksExt>(chunkMeta.extensions())) {
+        Blocks_ = New<TRefCountedBlocksExt>(std::move(*blocksExt));
+    }
     DataBlockMeta_ = New<TRefCountedDataBlockMeta>(GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions()));
 
     if (auto columnGroupInfos = FindProtoExtension<TColumnGroupInfosExt>(chunkMeta.extensions())) {
@@ -80,6 +83,11 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta, bool compres
     if (auto nameTableExt = FindProtoExtension<TNameTableExt>(chunkMeta.extensions())) {
         ChunkNameTable_ = New<TNameTable>();
         FromProto(&ChunkNameTable_, *nameTableExt);
+    } else if (ChunkFormat_ == EChunkFormat::TableUnversionedArrowParquet) {
+        // External Parquet metadata uses the master extension budget for the
+        // footer and block layout, so its name table is reconstructed from its
+        // schema instead of being persisted as a separate extension.
+        ChunkNameTable_ = TNameTable::FromSchema(*ChunkSchema_);
     }
 
     auto buffer = New<TRowBuffer>(TBlockLastKeysBufferTag());
@@ -147,6 +155,7 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta, bool compres
 
     ColumnarStatisticsExt_ = FindProtoExtension<TColumnarStatisticsExt>(chunkMeta.extensions());
     LargeColumnarStatisticsExt_ = FindProtoExtension<TLargeColumnarStatisticsExt>(chunkMeta.extensions());
+    ParquetFormatMetaExt_ = FindProtoExtension<TParquetFormatMetaExt>(chunkMeta.extensions());
 }
 
 i64 TColumnarChunkMeta::GetMemoryUsage() const
@@ -158,6 +167,7 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
 
     return
         BlockLastKeysSize_ +
+        (Blocks_ ? Blocks_->GetSize() * metaMemoryFactor : 0) +
         Misc_.SpaceUsedLong() +
         (DataBlockMeta_ ? DataBlockMeta_->GetSize() * metaMemoryFactor : 0) +
         (ColumnGroupInfos_ ? ColumnGroupInfos_->GetSize() * metaMemoryFactor : 0) +

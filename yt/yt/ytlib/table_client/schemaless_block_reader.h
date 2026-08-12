@@ -32,10 +32,7 @@ std::vector<bool> GetHunkColumnFlags(
     NChunkClient::EChunkFeatures chunkFeatures,
     const TTableSchemaPtr& schema);
 
-////////////////////////////////////////////////////////////////////////////////
-
 class THorizontalBlockReader
-    : public TNonCopyable
 {
 public:
     /*!
@@ -116,6 +113,53 @@ private:
 
     bool IsHunkValue(TUnversionedValue value);
     TUnversionedValue DecodeAnyValue(TUnversionedValue value);
+    int GetChunkKeyColumnCount() const;
+    int GetKeyColumnCount() const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Decodes an externally attached Parquet row group into regular YT rows.
+//! External chunks are unsorted; key-oriented methods remain available only to
+//! satisfy the common horizontal-reader interface.
+class TArrowHorizontalBlockReader
+{
+public:
+    TArrowHorizontalBlockReader(
+        const TSharedRef& block,
+        const NProto::TDataBlockMeta& dataBlockMeta,
+        const TColumnarChunkMetaPtr& chunkMeta,
+        const std::vector<int>& chunkToReaderIdMapping,
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix,
+        const TKeyWideningOptions& keyWideningOptions,
+        int extraColumnCount = 0);
+
+    bool NextRow();
+    bool SkipToRowIndex(i64 rowIndex);
+    bool SkipToKeyBound(const TKeyBoundRef& lowerBound);
+    bool SkipToKey(TUnversionedRow lowerBound);
+    bool JumpToRowIndex(i64 rowIndex);
+
+    TLegacyKey GetLegacyKey() const;
+    TKey GetKey() const;
+    TMutableUnversionedRow GetRow(TChunkedMemoryPool* memoryPool, bool remapIds);
+    i64 GetRowIndex() const;
+
+private:
+    const NProto::TDataBlockMeta DataBlockMeta_;
+    const TColumnarChunkMetaPtr ChunkMeta_;
+    const std::vector<int> ChunkToReaderIdMapping_;
+    const TRange<ESortOrder> SortOrders_;
+    const int CommonKeyPrefix_;
+    const TKeyWideningOptions KeyWideningOptions_;
+    const int ExtraColumnCount_;
+
+    i64 RowIndex_ = 0;
+    std::vector<TUnversionedOwningRow> Rows_;
+    TCompactVector<char, 128> KeyBuffer_;
+    TMutableUnversionedRow Key_;
+
     int GetChunkKeyColumnCount() const;
     int GetKeyColumnCount() const;
 };

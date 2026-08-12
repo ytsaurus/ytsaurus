@@ -38,6 +38,7 @@ REGISTER_PROTO_EXTENSION(TVersionedRowDigestExt, 66, versioned_row_digest);
 REGISTER_PROTO_EXTENSION(TColumnGroupInfosExt, 67, column_group_infos);
 REGISTER_PROTO_EXTENSION(TCompressionDictionaryExt, 68, compression_dictionary);
 REGISTER_PROTO_EXTENSION(TLargeColumnarStatisticsExt, 69, large_columnar_statistics);
+REGISTER_PROTO_EXTENSION(TParquetFormatMetaExt, 70, parquet_format_meta);
 
 ////////////////////////////////////////////////////////////////////////////////
 

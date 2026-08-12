@@ -176,6 +176,7 @@ SRCS(
     chunk_client/erasure_reader.cpp
     chunk_client/erasure_repair.cpp
     chunk_client/erasure_writer.cpp
+    chunk_client/external_parquet.cpp
     chunk_client/fetcher.cpp
     chunk_client/format.cpp
     chunk_client/helpers.cpp
@@ -838,6 +839,7 @@ PEERDIR(
     yt/yt/core
     yt/yt/core/http
     yt/yt/library/auth_server
+    yt/yt/library/arrow_adapter
     yt/yt/library/event_log
     yt/yt/library/heavy_schema_validation
     yt/yt/library/min_hash_digest
@@ -846,6 +848,7 @@ PEERDIR(
     yt/yt/library/tvm/service
     yt/yt/library/xor_filter
     yt/yt/client
+    yt/yt/client/arrow
     yt/yt/client/federated
     yt/yt/client/logging
     yt/yt/library/formats
