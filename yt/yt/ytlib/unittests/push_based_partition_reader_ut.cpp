@@ -1096,10 +1096,8 @@ TEST_F(TPartitionReaderTest, EmptyTerminalOnOneChunkOtherStillActive)
     EXPECT_EQ(batch->Records[0].Header.WriterId, 9);
 }
 
-TEST_F(TPartitionReaderTest, SetNoMoreChunksPropagatesSetAllWritersFinished)
+TEST_F(TPartitionReaderTest, SetNoMoreChunksDoesNotPropagateSetAllWritersFinished)
 {
-    // SetNoMoreChunks must call SetAllWritersFinished on all live (not-yet-
-    // finished) chunk session readers, so paused active-phase polls wind down.
     auto mock1 = New<TMockChunkSessionReader>();
     auto mock2 = New<TMockChunkSessionReader>();
     int n = 0;
@@ -1117,6 +1115,33 @@ TEST_F(TPartitionReaderTest, SetNoMoreChunksPropagatesSetAllWritersFinished)
     EXPECT_FALSE(mock2->WasSetAllWritersFinishedCalled());
 
     reader->SetNoMoreChunks();
+    DrainInvoker();
+
+    EXPECT_FALSE(mock1->WasSetAllWritersFinishedCalled());
+    EXPECT_FALSE(mock2->WasSetAllWritersFinishedCalled());
+
+    FlushPendingMockRead(mock1);
+    FlushPendingMockRead(mock2);
+}
+
+TEST_F(TPartitionReaderTest, FinishAtCurrentCommittedRecordCountPropagatesToChunkReaders)
+{
+    auto mock1 = New<TMockChunkSessionReader>();
+    auto mock2 = New<TMockChunkSessionReader>();
+    int callCount = 0;
+    auto createSessionReader = [&] (
+        TChunkId, TChunkReplicaList, i64, std::optional<i64>)
+    {
+        return (callCount++ == 0) ? mock1 : mock2;
+    };
+
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
+    reader->AddChunk(TChunkId(2, 2, 2, 2), {}, 0, std::nullopt);
+    reader->SetNoMoreChunks();
+    DrainInvoker();
+
+    reader->FinishAtCurrentCommittedRecordCount();
     DrainInvoker();
 
     EXPECT_TRUE(mock1->WasSetAllWritersFinishedCalled());
@@ -1206,6 +1231,14 @@ TEST_F(TPartitionReaderDeathTest, AddChunkAfterSetNoMoreChunks)
         reader->SetNoMoreChunks();
         reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     }, "!NoMoreChunks_");
+}
+
+TEST_F(TPartitionReaderDeathTest, FinishAtCurrentCommittedRecordCountBeforeSetNoMoreChunks)
+{
+    EXPECT_DEATH({
+        auto reader = MakeReader();
+        reader->FinishAtCurrentCommittedRecordCount();
+    }, "NoMoreChunks_");
 }
 
 TEST_F(TPartitionReaderDeathTest, DuplicateChunkId)

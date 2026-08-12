@@ -475,6 +475,9 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
                 partitionReader->AddChunk(chunkId, replicas, /*startRecordIndex*/ 0, /*rangeEndRecordIndex*/ {});
             }
             partitionReader->SetNoMoreChunks();
+            // TODO(apollo1321): Wait for all writers to finish instead of taking a snapshot
+            // that can omit subsequently written records (YT-29240).
+            partitionReader->FinishAtCurrentCommittedRecordCount();
 
             // The shuffle schema is the single source of the column name-to-id
             // mapping, so the output name table is derived directly from it and

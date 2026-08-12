@@ -67,9 +67,14 @@ struct IPushBasedPartitionReader
         i64 startRecordIndex = 0,
         std::optional<i64> rangeEndRecordIndex = {}) = 0;
 
-    //! Declare partition done. Idempotent; silently ignored after a terminal
-    //! error.
+    //! Declares that no additional chunks will be added. Idempotent; silently
+    //! ignored after a terminal error.
     virtual void SetNoMoreChunks() = 0;
+
+    //! Finishes each chunk reader at its current quorum-confirmed record count.
+    //! Must be called after SetNoMoreChunks(). Silently ignored after a terminal
+    //! error.
+    virtual void FinishAtCurrentCommittedRecordCount() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPushBasedPartitionReader)

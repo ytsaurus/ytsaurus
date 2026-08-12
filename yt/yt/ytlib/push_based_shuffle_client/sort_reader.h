@@ -38,8 +38,12 @@ struct ISortReader
         i64 startRecordIndex = 0,
         std::optional<i64> rangeEndRecordIndex = {}) = 0;
 
-    //! Seals the owned partition reader.
+    //! Declares that no additional chunks will be added to the owned partition reader.
     virtual void SetNoMoreChunks() = 0;
+
+    //! Finishes the owned partition reader at the current committed record count.
+    //! Must be called after SetNoMoreChunks().
+    virtual void FinishAtCurrentCommittedRecordCount() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISortReader)

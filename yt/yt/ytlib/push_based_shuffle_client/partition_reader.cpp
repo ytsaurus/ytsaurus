@@ -129,6 +129,13 @@ public:
             MakeWeak(this)));
     }
 
+    void FinishAtCurrentCommittedRecordCount() override
+    {
+        SerializedInvoker_->Invoke(BIND_NO_PROPAGATE(
+            &TPushBasedPartitionReader::DoFinishAtCurrentCommittedRecordCount,
+            MakeWeak(this)));
+    }
+
 private:
     const TPartitionReaderConfigPtr Config_;
     const TCreateChunkSessionReaderCallback CreateDistributedChunkSessionReader_;
@@ -194,12 +201,25 @@ private:
             return;
         }
         NoMoreChunks_ = true;
+        MaybeResolveRead();
+
+        YT_TLOG_DEBUG("No more chunks will be added to shuffle reader");
+    }
+
+    void DoFinishAtCurrentCommittedRecordCount() noexcept
+    {
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
+
+        if (!TerminalError_.IsOK()) {
+            return;
+        }
+        YT_VERIFY(NoMoreChunks_);
+
         for (auto& [_, state] : ChunkStates_) {
             state.ChunkSessionReader->SetAllWritersFinished();
         }
-        MaybeResolveRead();
 
-        YT_TLOG_DEBUG("Shuffle reader sealed");
+        YT_TLOG_DEBUG("Finishing shuffle reader at current committed record count");
     }
 
     void DoRead(TPromise<TShuffleReadBatchPtr> promise) noexcept
