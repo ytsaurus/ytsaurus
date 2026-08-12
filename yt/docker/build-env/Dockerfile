@@ -44,9 +44,10 @@ RUN apt-get update && \
         tk-dev \
         liblzma-dev
 
-RUN add-apt-repository -y ppa:ubuntu-toolchain-r/test && \
-    curl -s https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add && \
-    echo 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-18 main' >> /etc/apt/sources.list.d/llvm.list && \
+RUN curl --fail --show-error --silent --location --retry 5 --retry-delay 5 \
+        --output /usr/share/keyrings/llvm-snapshot.gpg.key \
+        https://apt.llvm.org/llvm-snapshot.gpg.key && \
+    echo 'deb [signed-by=/usr/share/keyrings/llvm-snapshot.gpg.key] https://apt.llvm.org/focal/ llvm-toolchain-focal-18 main' > /etc/apt/sources.list.d/llvm.list && \
     apt-get update && \
     apt-get install -y clang-18 lld-18 libc++-18-dev libc++abi-18-dev
 
