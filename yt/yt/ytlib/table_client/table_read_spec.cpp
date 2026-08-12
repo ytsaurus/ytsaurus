@@ -45,7 +45,7 @@ TTableReadSpec FetchRegularTableReadSpec(
     const TLogger& logger)
 {
     const auto& Logger = logger;
-    YT_LOG_INFO("Fetching regular table");
+    YT_TLOG_INFO("Fetching regular table");
 
     auto tablePath = path.GetPath();
     auto suppressAccessTracking = options.GetUserObjectBasicAttributesOptions.SuppressAccessTracking;
@@ -57,7 +57,7 @@ TTableReadSpec FetchRegularTableReadSpec(
     bool fetchFromTablets;
     std::string account;
     {
-        YT_LOG_INFO("Requesting extended table attributes");
+        YT_TLOG_INFO("Requesting extended table attributes");
 
         auto proxy = CreateObjectServiceReadProxy(
             client,
@@ -109,15 +109,15 @@ TTableReadSpec FetchRegularTableReadSpec(
 
     {
         if (fetchFromTablets) {
-            YT_LOG_INFO("Fetching table chunks from tablets");
+            YT_TLOG_INFO("Fetching table chunks from tablets");
             chunkSpecs = FetchTabletStores(
                 client,
                 *userObject,
                 path.GetNewRanges(schema->ToComparator(), schema->GetKeyColumnTypes()),
                 logger);
         } else {
-            YT_LOG_INFO("Fetching table chunks (ChunkCount: %v)",
-                chunkCount);
+            YT_TLOG_INFO("Fetching table chunks")
+                .With("ChunkCount", chunkCount);
 
             chunkSpecs = FetchChunkSpecs(
                 client,
@@ -205,7 +205,7 @@ TTableReadSpec FetchSingleTableReadSpec(
         .WithTag("TransactionId", options.TransactionId)
         .WithTag("ReadSessionId", options.ReadSessionId);
 
-    YT_LOG_INFO("Fetching table read spec");
+    YT_TLOG_INFO("Fetching table read spec");
 
     GetUserObjectBasicAttributes(
         client,
@@ -220,7 +220,7 @@ TTableReadSpec FetchSingleTableReadSpec(
     if (userObject->ObjectId) {
         type = userObject->Type;
     } else {
-        YT_LOG_INFO("Table is virtual");
+        YT_TLOG_INFO("Table is virtual");
         // Just assume this is indeed a table.
         type = EObjectType::Table;
     }

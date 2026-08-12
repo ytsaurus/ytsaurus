@@ -187,7 +187,7 @@ public:
             THROW_ERROR_EXCEPTION("Remote dynamic store reader expects absolute row indices in chunk spec");
         }
 
-        YT_LOG_DEBUG("Created remote dynamic store reader");
+        YT_TLOG_DEBUG("Created remote dynamic store reader");
     }
 
     TDataStatistics GetDataStatistics() const override
@@ -271,7 +271,7 @@ protected:
         if (RowsFuture_.IsSet() && RowsFuture_.GetOrCrash().IsOK()) {
             const auto& loadedRows = RowsFuture_.GetOrCrash().Value();
             if (loadedRows.Empty()) {
-                YT_LOG_DEBUG("Got empty streaming response, closing reader");
+                YT_TLOG_DEBUG("Got empty streaming response, closing reader");
                 return nullptr;
             }
 
@@ -303,7 +303,7 @@ protected:
 
     TFuture<void> DoOpen()
     {
-        YT_LOG_DEBUG("Opening remote dynamic store reader");
+        YT_TLOG_DEBUG("Opening remote dynamic store reader");
 
         auto storeId = GetObjectIdFromChunkSpec(ChunkSpec_);
         auto tabletId = GetTabletIdFromChunkSpec(ChunkSpec_);
@@ -357,12 +357,12 @@ protected:
             SetReadyEvent(CreateRpcClientInputStream(std::move(req))
                 .Apply(BIND([&, this_ = MakeStrong(this)] (const TErrorOr<IAsyncZeroCopyInputStreamPtr>& errorOrStream) {
                     if (errorOrStream.IsOK()) {
-                        YT_LOG_DEBUG("Input stream initialized");
+                        YT_TLOG_DEBUG("Input stream initialized");
                         InputStream_ = errorOrStream.Value();
                         RequestRows();
                         return RowsFuture_.AsVoid();
                     } else {
-                        YT_LOG_DEBUG("Failed to initialize input stream");
+                        YT_TLOG_DEBUG("Failed to initialize input stream");
                         return MakeFuture<void>(errorOrStream);
                     }
                 })));
@@ -448,11 +448,10 @@ private:
 
         req->set_timestamp(ToProto(Timestamp_));
 
-        YT_LOG_DEBUG("Collected remote dynamic store reader parameters (Range: <%v .. %v>, Timestamp: %v, ColumnFilter: %v)",
-            lowerLimit,
-            upperLimit,
-            Timestamp_,
-            ColumnFilter_);
+        YT_TLOG_DEBUG("Collected remote dynamic store reader parameters")
+            .WithFormat("Range", "<%v .. %v>", lowerLimit, upperLimit)
+            .With("Timestamp", Timestamp_)
+            .With("ColumnFilter", ColumnFilter_);
     }
 
     TRows DeserializeRows(const TSharedRef& data) override
@@ -583,10 +582,9 @@ private:
             req->set_end_row_index(upperLimit.GetRowIndex());
         }
 
-        YT_LOG_DEBUG("Collected remote dynamic store reader parameters (Range: <%v .. %v>, ColumnFilter: %v)",
-            lowerLimit,
-            upperLimit,
-            ColumnFilter_);
+        YT_TLOG_DEBUG("Collected remote dynamic store reader parameters")
+            .WithFormat("Range", "<%v .. %v>", lowerLimit, upperLimit)
+            .With("ColumnFilter", ColumnFilter_);
     }
 
     TRows DeserializeRows(const TSharedRef& data) override
@@ -599,7 +597,8 @@ private:
         if (!StartRowIndex_.has_value()) {
             StartRowIndex_ = reader->ReadInt64();
             CurrentRowIndex_ = *StartRowIndex_;
-            YT_LOG_DEBUG("Received start row index (StartRowIndex: %v)", StartRowIndex_);
+            YT_TLOG_DEBUG("Received start row index")
+                .With("StartRowIndex", StartRowIndex_);
         }
 
         return reader->ReadUnversionedRowset(/*captureValues*/ true, &IdMapping_);
@@ -725,12 +724,12 @@ public:
             .AddTag("StoreId", GetObjectIdFromChunkSpec(ChunkSpec_))
             .AddTag("ReadSessionId", ReadSessionId_);
 
-        YT_LOG_DEBUG("Retrying remote dynamic store reader created");
+        YT_TLOG_DEBUG("Retrying remote dynamic store reader created");
     }
 
     ~TRetryingRemoteDynamicStoreReaderBase() override
     {
-        YT_LOG_DEBUG("Retrying remote dynamic store reader destroyed");
+        YT_TLOG_DEBUG("Retrying remote dynamic store reader destroyed");
     }
 
     TFuture<void> DoOpen()
@@ -898,11 +897,11 @@ protected:
 
         // TODO(max42): do not retry if error is not retryable?
 
-        YT_LOG_DEBUG(error, "Remote dynamic store reader failed, retrying "
-            "(RetryCount: %v, MaxRetryCount: %v, LastLocateRequestTimestamp: %v)",
-            RetryCount_,
-            Config_->RetryCount,
-            LastLocateRequestTimestamp_);
+        YT_TLOG_DEBUG("Remote dynamic store reader failed, retrying")
+            .With("RetryCount", RetryCount_)
+            .With("MaxRetryCount", Config_->RetryCount)
+            .With("LastLocateRequestTimestamp", LastLocateRequestTimestamp_)
+            .With(error);
 
         LocateDynamicStore(std::move(promise));
     }
@@ -945,9 +944,9 @@ protected:
         LastLocateRequestTimestamp_ = TInstant::Now();
         ++RetryCount_;
 
-        YT_LOG_DEBUG("Locating dynamic store (RetryCount: %v, MaxRetryCount: %v)",
-            RetryCount_,
-            Config_->RetryCount);
+        YT_TLOG_DEBUG("Locating dynamic store")
+            .With("RetryCount", RetryCount_)
+            .With("MaxRetryCount", Config_->RetryCount);
 
         auto storeId = GetObjectIdFromChunkSpec(ChunkSpec_);
 
@@ -980,7 +979,8 @@ protected:
     void OnLocateResponse(TPromise<void> promise, const TChunkServiceProxy::TErrorOrRspLocateDynamicStoresPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG(rspOrError, "Failed to locate dynamic store");
+            YT_TLOG_DEBUG("Failed to locate dynamic store")
+                .With(rspOrError);
             LocateDynamicStore(std::move(promise));
             return;
         }
@@ -991,7 +991,7 @@ protected:
 
         // Dynamic store is missing.
         if (subresponse.missing()) {
-            YT_LOG_DEBUG("Dynamic store located: store is missing");
+            YT_TLOG_DEBUG("Dynamic store located: store is missing");
             promise.Set(TError("Dynamic store is missing"));
             return;
         }
@@ -1003,7 +1003,7 @@ protected:
 
         // Dynamic store was empty and flushed to no chunk.
         if (!subresponse.has_chunk_spec()) {
-            YT_LOG_DEBUG("Dynamic store located: store is flushed to no chunk");
+            YT_TLOG_DEBUG("Dynamic store located: store is flushed to no chunk");
             CurrentReader_.Store(nullptr);
             ChunkReaderFallbackOccurred_ = true;
             FlushedToEmptyChunk_ = true;
@@ -1018,12 +1018,12 @@ protected:
         if (IsDynamicStoreSpec(chunkSpec)) {
             auto replicas = GetReplicasFromChunkSpec(chunkSpec);
             if (replicas.empty()) {
-                YT_LOG_DEBUG("Dynamic store located: store has no replicas");
+                YT_TLOG_DEBUG("Dynamic store located: store has no replicas");
                 LocateDynamicStore(std::move(promise));
                 return;
             }
 
-            YT_LOG_DEBUG("Dynamic store located: got new replicas");
+            YT_TLOG_DEBUG("Dynamic store located: got new replicas");
             ToProto(ChunkSpec_.mutable_replicas(), TChunkReplicaWithMediumList(replicas.begin(), replicas.end()));
 
             PatchChunkSpecWithContinuationToken();
@@ -1055,8 +1055,8 @@ protected:
             std::swap(ChunkSpec_, chunkSpec);
             PatchChunkSpecWithContinuationToken();
 
-            YT_LOG_DEBUG("Dynamic store located: falling back to chunk reader (ChunkId: %v)",
-                GetObjectIdFromChunkSpec(ChunkSpec_));
+            YT_TLOG_DEBUG("Dynamic store located: falling back to chunk reader")
+                .With("ChunkId", GetObjectIdFromChunkSpec(ChunkSpec_));
 
             promise.SetFrom(ChunkReaderFactory_(ChunkSpec_, ReaderMemoryManagerHolder_)
                 .Apply(BIND(&TRetryingRemoteDynamicStoreReaderBase::OnChunkReaderCreated, MakeStrong(this))));

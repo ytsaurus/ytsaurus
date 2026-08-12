@@ -740,8 +740,8 @@ protected:
 
 TFuture<void> THorizontalSchemalessChunkReaderBase::InitBlockFetcher()
 {
-    YT_LOG_DEBUG("Reading blocks (BlockCount: %v)",
-        BlockIndexes_.size());
+    YT_TLOG_DEBUG("Reading blocks")
+        .With("BlockCount", BlockIndexes_.size());
 
     std::vector<TBlockFetcher::TBlockInfo> blocks;
     blocks.reserve(BlockIndexes_.size());
@@ -822,7 +822,8 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        YT_LOG_DEBUG("Initializing horizontal schemaless range chunk reader (Range: %v)", ReadRange_);
+        YT_TLOG_DEBUG("Initializing horizontal schemaless range chunk reader")
+            .With("Range", ReadRange_);
 
         // Initialize to lowest reasonable value.
         RowIndex_ = ReadRange_.LowerLimit().GetRowIndex().value_or(0);
@@ -1405,7 +1406,8 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
 {
     TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-    YT_LOG_DEBUG("Initializing horizontal schemaless lookup chunk reader (KeyCount: %v)", std::ssize(keys));
+    YT_TLOG_DEBUG("Initializing horizontal schemaless lookup chunk reader")
+        .With("KeyCount", std::ssize(keys));
 
     const auto& misc = ChunkMeta_->Misc();
     if (!misc.unique_keys()) {
@@ -1470,7 +1472,8 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
 {
     TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-    YT_LOG_DEBUG("Initializing horizontal schemaless key ranges chunk reader (PrefixRangesKeyCount: %v)", std::ssize(keys));
+    YT_TLOG_DEBUG("Initializing horizontal schemaless key ranges chunk reader")
+        .With("PrefixRangesKeyCount", std::ssize(keys));
 
     ApplyLimits();
     ComputeBlockIndexes(PrefixRange_);
@@ -1892,7 +1895,8 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        YT_LOG_DEBUG("Initializing columnar schemaless range chunk reader (Range: %v)", readRange);
+        YT_TLOG_DEBUG("Initializing columnar schemaless range chunk reader")
+            .With("Range", readRange);
 
         LowerLimit_ = readRange.LowerLimit();
         UpperLimit_ = readRange.UpperLimit();
@@ -1920,10 +1924,10 @@ public:
         InitLowerRowIndex();
         InitUpperRowIndex();
 
-        YT_LOG_DEBUG("Initialized row index limits (LowerRowIndex: %v, SafeUpperRowIndex: %v, HardUpperRowIndex: %v)",
-            LowerRowIndex_,
-            SafeUpperRowIndex_,
-            HardUpperRowIndex_);
+        YT_TLOG_DEBUG("Initialized row index limits")
+            .With("LowerRowIndex", LowerRowIndex_)
+            .With("SafeUpperRowIndex", SafeUpperRowIndex_)
+            .With("HardUpperRowIndex", HardUpperRowIndex_);
 
         if (LowerRowIndex_ >= HardUpperRowIndex_) {
             Completed_ = true;
@@ -1950,9 +1954,9 @@ public:
                     RowIndex_ = LowerRowIndex_;
                     LowerKeyLimitReached_ = !LowerLimit_.KeyBound();
 
-                    YT_LOG_DEBUG("Initialized start row index (LowerKeyLimitReached: %v, RowIndex: %v)",
-                        LowerKeyLimitReached_,
-                        RowIndex_);
+                    YT_TLOG_DEBUG("Initialized start row index")
+                        .With("LowerKeyLimitReached", LowerKeyLimitReached_)
+                        .With("RowIndex", RowIndex_);
 
                     if (RowIndex_ >= HardUpperRowIndex_) {
                         Completed_ = true;
@@ -1965,7 +1969,8 @@ public:
 
     ~TColumnarSchemalessRangeChunkReader()
     {
-        YT_LOG_DEBUG("Columnar reader timing statistics (TimingStatistics: %v)", TTimingReaderBase::GetTimingStatistics());
+        YT_TLOG_DEBUG("Columnar reader timing statistics")
+            .With("TimingStatistics", TTimingReaderBase::GetTimingStatistics());
     }
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -2535,7 +2540,8 @@ public:
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
-        YT_LOG_DEBUG("Initializing columnar schemaless lookup chunk reader (KeyCount: %v)", std::size(keys));
+        YT_TLOG_DEBUG("Initializing columnar schemaless lookup chunk reader")
+            .With("KeyCount", std::size(keys));
 
         Keys_ = keys;
 

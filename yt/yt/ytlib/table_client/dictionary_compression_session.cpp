@@ -70,8 +70,8 @@ public:
         THashSet<TChunkId> dictionaryIdSet(dictionaryIds.begin(), dictionaryIds.end());
         YT_VERIFY(!dictionaryIdSet.contains(NullChunkId));
 
-        YT_LOG_DEBUG("Dictionary decompression session will fetch decompressors from cache (DictionaryIds: %v)",
-            dictionaryIdSet);
+        YT_TLOG_DEBUG("Dictionary decompression session will fetch decompressors from cache")
+            .With("DictionaryIds", dictionaryIdSet);
 
         auto decompressorsFuture = dictionaryCompressionFactory->GetDecompressors(
             chunkReadOptions,
@@ -176,7 +176,8 @@ private:
                     .With("new_decompressed_value_count", newDecompressedValueCount)
                     .With("decompressed_size", decompressedSize);
 
-                YT_LOG_ALERT(error);
+                YT_TLOG_ALERT("Decompressed value count mismatch")
+                    .With(error);
                 Promise_.TrySet(error);
                 return;
             }
@@ -225,14 +226,12 @@ private:
 
         YT_VERIFY(currentDecompressedSize == std::ssize(blob));
 
-        YT_LOG_DEBUG("Dictionary decompression session successfully decompressed values "
-            "(DecompressionTime: %v, ProcessedValueCount: %v/%v, CompressedSize: %v, DecompressedSize: %v, UncompressedSize: %v)",
-            decompressionTimer.GetElapsedTime(),
-            newDecompressedValueCount,
-            values.size(),
-            currentCompressedSize,
-            currentDecompressedSize,
-            currentUncompressedSize);
+        YT_TLOG_DEBUG("Dictionary decompression session successfully decompressed values")
+            .With("DecompressionTime", decompressionTimer.GetElapsedTime())
+            .WithFormat("ProcessedValueCount", "%v/%v", newDecompressedValueCount, values.size())
+            .With("CompressedSize", currentCompressedSize)
+            .With("DecompressedSize", currentDecompressedSize)
+            .With("UncompressedSize", currentUncompressedSize);
 
         DecompressionTime_ += decompressionTimer.GetElapsedTime();
 
@@ -441,8 +440,8 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
         chunkReadOptions.ChunkReaderStatistics = hunkChunkReaderStatistics->GetChunkReaderStatistics();
     }
 
-    YT_LOG_DEBUG("Will read fragments of a dictionary chunk (FragmentCount: %v)",
-        requests.size());
+    YT_TLOG_DEBUG("Will read fragments of a dictionary chunk")
+        .With("FragmentCount", requests.size());
 
     return chunkFragmentReader->ReadFragments(
         std::move(requests),
@@ -469,7 +468,7 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
             const auto& response = responseOrError.Value();
             YT_VERIFY(response.Fragments.size() == columnIdMapping.size());
 
-            YT_LOG_DEBUG("Successfully read fragments of a dictionary chunk");
+            YT_TLOG_DEBUG("Successfully read fragments of a dictionary chunk");
 
             if (hunkChunkReaderStatistics) {
                 hunkChunkReaderStatistics->DataWeight() += GetByteSize(response.Fragments);
@@ -525,7 +524,8 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                             .With("column_id", columnId)
                             .With("dictionary_id", dictionaryId)
                             .With("read_session_id", chunkReadOptions.ReadSessionId);
-                        YT_LOG_ALERT(error);
+                        YT_TLOG_ALERT("Failed to construct digested dictionary")
+                            .With(error);
                         THROW_ERROR(error);
                     }
                     startOffset += estimatedSize;
@@ -589,7 +589,8 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                             .With("column_id", columnId)
                             .With("dictionary_id", dictionaryId)
                             .With("read_session_id", chunkReadOptions.ReadSessionId);
-                        YT_LOG_ALERT(error);
+                        YT_TLOG_ALERT("Failed to construct digested dictionary")
+                            .With(error);
                         THROW_ERROR(error);
                     }
                     startOffset += estimatedSize;
@@ -626,7 +627,7 @@ TFuture<TRowDigestedDictionary> ReadDigestedDictionary(
 
     const auto& Logger = logger;
 
-    YT_LOG_DEBUG("Will read meta of a dictionary chunk");
+    YT_TLOG_DEBUG("Will read meta of a dictionary chunk");
 
     TWallTimer metaWaitTimer;
 

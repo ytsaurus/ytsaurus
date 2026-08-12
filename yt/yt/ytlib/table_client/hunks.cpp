@@ -1214,12 +1214,11 @@ public:
                     return;
                 }
 
-                YT_LOG_DEBUG("Hunk chunk references written (StoreId: %v, HunkChunkRefs: %v, "
-                    "NewDictionaryId: %v, DictionaryIds: %v)",
-                    underlying->GetChunkId(),
-                    hunkChunkRefs,
-                    newDictionaryId,
-                    dictionaryIds);
+                YT_TLOG_DEBUG("Hunk chunk references written")
+                    .With("StoreId", underlying->GetChunkId())
+                    .With("HunkChunkRefs", hunkChunkRefs)
+                    .With("NewDictionaryId", newDictionaryId)
+                    .With("DictionaryIds", dictionaryIds);
 
                 NTableClient::NProto::THunkChunkRefsExt hunkChunkRefsExt;
                 ToProto(hunkChunkRefsExt.mutable_refs(), hunkChunkRefs);
@@ -1958,8 +1957,8 @@ protected:
             EncodedRows_ = UnderlyingRowBatch_->MaterializeRows();
             CurrentEncodedRowIndex_ = 0;
 
-            YT_LOG_DEBUG("Hunk-encoded rows materialized (RowCount: %v)",
-                EncodedRows_.size());
+            YT_TLOG_DEBUG("Hunk-encoded rows materialized")
+                .With("RowCount", EncodedRows_.size());
         }
 
         RowBuffer_->Clear();
@@ -1992,12 +1991,11 @@ protected:
             return MakeBatch(MakeSharedRange(std::move(DecodableRows_), MakeStrong(this)));
         }
 
-        YT_LOG_DEBUG("Fetching hunks in row slice "
-            "(StartRowIndex: %v, EndRowIndex: %v, HunkCount: %v, TotalHunkLength: %v)",
-            startRowIndex,
-            endRowIndex,
-            hunkCount,
-            totalHunkLength);
+        YT_TLOG_DEBUG("Fetching hunks in row slice")
+            .With("StartRowIndex", startRowIndex)
+            .With("EndRowIndex", endRowIndex)
+            .With("HunkCount", hunkCount)
+            .With("TotalHunkLength", totalHunkLength);
 
         ReadyEvent_ =
             DecodeHunks(

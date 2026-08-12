@@ -120,9 +120,8 @@ public:
 
     TFuture<void> Fetch() override
     {
-        YT_LOG_DEBUG(
-            "Started fetching chunk slices (ChunkCount: %v)",
-            Chunks_.size());
+        YT_TLOG_DEBUG("Started fetching chunk slices")
+            .With("ChunkCount", Chunks_.size());
         return TFetcherBase::Fetch();
     }
 
@@ -276,10 +275,9 @@ private:
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspGetChunkSlicesPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            YT_LOG_INFO(
-                "Failed to get chunk slices from node (Address: %v, NodeId: %v)",
-                NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
-                nodeId);
+            YT_TLOG_INFO("Failed to get chunk slices from node")
+                .With("Address", NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress())
+                .With("NodeId", nodeId);
 
             OnNodeFailed(nodeId, requestedChunkIndexes);
 
@@ -322,10 +320,9 @@ private:
                 continue;
             }
 
-            YT_LOG_TRACE(
-                "Received %v chunk slices for chunk #%v",
-                sliceResponse.chunk_slices_size(),
-                index);
+            YT_TLOG_TRACE("Received chunk slices for chunk")
+                .With("ChunkSliceCount", sliceResponse.chunk_slices_size())
+                .With("ChunkIndex", index);
 
             YT_VERIFY(index < std::ssize(SlicesByChunkIndex_));
 

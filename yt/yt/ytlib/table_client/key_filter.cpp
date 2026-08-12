@@ -100,8 +100,9 @@ private:
                 Config_->EffectiveBitsPerKey,
                 Config_->TrialCount);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to build XOR filter (KeyCount: %v)",
-                ssize(Keys_));
+            YT_TLOG_WARNING("Failed to build XOR filter")
+                .With("KeyCount", ssize(Keys_))
+                .With(TError(ex));
 
             Keys_.clear();
             FilterBuildingFailed_ = true;

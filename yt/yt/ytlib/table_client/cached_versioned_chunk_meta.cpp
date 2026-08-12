@@ -249,9 +249,9 @@ void TCachedVersionedChunkMeta::ParseSystemBlocksMeta(const NProto::TSystemBlock
                 xorFilterBlockExt);
         } else if (systemBlockMeta.HasExtension(TMinHashDigestSystemBlockMeta::min_hash_digest_block_meta)) {
             if (MinHashDigestBlockIndex_) {
-                YT_LOG_ALERT("There are two blocks with min hash digest (FirstBlockIndex: %v, SecondBlockIndex: %v)",
-                    *MinHashDigestBlockIndex_,
-                    blockIndex);
+                YT_TLOG_ALERT("There are two blocks with min hash digest")
+                    .With("FirstBlockIndex", *MinHashDigestBlockIndex_)
+                    .With("SecondBlockIndex", blockIndex);
             }
 
             MinHashDigestBlockIndex_ = blockIndex;

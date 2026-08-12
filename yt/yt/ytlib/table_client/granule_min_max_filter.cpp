@@ -40,10 +40,10 @@ public:
 
     ~TGranuleMinMaxFilter()
     {
-        YT_LOG_DEBUG("Destroying granule filter (SeenGranules: %v, SkippedGranules: %v, TotalTimeSpentMilliSeconds: %vms)",
-            SeenGranules_,
-            SkippedGranules_,
-            TotalTimeSpentMilliSeconds_);
+        YT_TLOG_DEBUG("Destroying granule filter")
+            .With("SeenGranules", SeenGranules_)
+            .With("SkippedGranules", SkippedGranules_)
+            .WithFormat("TotalTimeSpentMilliSeconds", "%vms", TotalTimeSpentMilliSeconds_);
     }
 
     bool CanSkip(

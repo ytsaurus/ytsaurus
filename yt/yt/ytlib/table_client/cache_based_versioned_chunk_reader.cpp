@@ -235,8 +235,8 @@ private:
             return uncompressedBlock;
         }
 
-        YT_LOG_FATAL("Cached block is missing (BlockId: %v)",
-            blockId);
+        YT_TLOG_FATAL("Cached block is missing")
+            .With("BlockId", blockId);
     }
 };
 

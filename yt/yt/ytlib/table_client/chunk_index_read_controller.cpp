@@ -590,7 +590,7 @@ private:
     {
         if (IsFinished()) {
             // Read session is finished now.
-            YT_LOG_DEBUG("Hash table chunk index read controller has no new requests");
+            YT_TLOG_DEBUG("Hash table chunk index read controller has no new requests");
             return;
         }
 
@@ -599,12 +599,11 @@ private:
             fragmentsSize += request.Length;
         }
 
-        YT_LOG_DEBUG("Hash table chunk index read controller generated new requests "
-            "(FragmentCount: %v, FragmentsSize: %v, SystemBlockCount: %v, RequestedHashIndexSectorCount: %v)",
-            ReadRequest_.FragmentSubrequests.size(),
-            fragmentsSize,
-            ReadRequest_.SystemBlockIndexes.size(),
-            PendingSectorDescriptors_.size());
+        YT_TLOG_DEBUG("Hash table chunk index read controller generated new requests")
+            .With("FragmentCount", ReadRequest_.FragmentSubrequests.size())
+            .With("FragmentsSize", fragmentsSize)
+            .With("SystemBlockCount", ReadRequest_.SystemBlockIndexes.size())
+            .With("RequestedHashIndexSectorCount", PendingSectorDescriptors_.size());
     }
 };
 

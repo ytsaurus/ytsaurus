@@ -52,7 +52,9 @@ bool ValidatePredicateApplicability(
     } catch (const std::exception& ex) {
         switch (rowLevelAce.InapplicableRowAccessPredicateMode) {
             case EInapplicableRowAccessPredicateMode::Ignore: {
-                YT_LOG_INFO(ex, "Ignored row access predicate (RowAccessPredicate: %v)", rowLevelAce.RowAccessPredicate);
+                YT_TLOG_INFO("Ignored row access predicate")
+                    .With("RowAccessPredicate", rowLevelAce.RowAccessPredicate)
+                    .With(TError(ex));
                 return false;
             }
             case EInapplicableRowAccessPredicateMode::Fail: {
@@ -109,9 +111,9 @@ std::optional<std::string> ValidateAndBuildPredicate(
     auto predicate = builder.Flush();
     if (predicate.empty()) {
         if (rowLevelAcl.empty()) {
-            YT_LOG_INFO("RL ACL is empty; denying to read any rows");
+            YT_TLOG_INFO("RL ACL is empty; denying to read any rows");
         } else {
-            YT_LOG_INFO("All RL ACEs for a data source were ignored; no rows will be read");
+            YT_TLOG_INFO("All RL ACEs for a data source were ignored; no rows will be read");
         }
         return std::nullopt;
     }
