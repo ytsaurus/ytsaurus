@@ -211,18 +211,22 @@ private:
 
         auto& slot = Slots_[slotCookie];
         if (slot.Finalized) {
-            YT_LOG_DEBUG("Rejecting session request for finalized slot (SlotCookie: %v)", slotCookie);
+            YT_TLOG_DEBUG("Rejecting session request for finalized slot")
+                .With("SlotCookie", slotCookie);
             return MakeFuture<TSessionDescriptor>(TError("Slot %v is finalized", slotCookie));
         }
 
         if (!excludedSessionId) {
             if (auto sessionId = PickActiveSession(slot, std::nullopt)) {
-                YT_LOG_DEBUG("Returning active session (SlotCookie: %v, SessionId: %v)", slotCookie, *sessionId);
+                YT_TLOG_DEBUG("Returning active session")
+                    .With("SlotCookie", slotCookie)
+                    .With("SessionId", *sessionId);
                 return MakeDescriptorFuture(slot, *sessionId);
             }
 
             if (!slot.PendingSessions.empty()) {
-                YT_LOG_DEBUG("Returning pending session future (SlotCookie: %v)", slotCookie);
+                YT_TLOG_DEBUG("Returning pending session future")
+                    .With("SlotCookie", slotCookie);
                 return slot.PendingSessions.front().second;
             }
 
@@ -232,11 +236,10 @@ private:
         if (std::ssize(slot.ActiveSessionIds) + std::ssize(slot.PendingSessions) >= Config_->MaxActiveSessionsPerSlot) {
             auto sessionId = PickActiveSession(slot, excludedSessionId);
             if (sessionId) {
-                YT_LOG_DEBUG(
-                    "Returning alternative active session (SlotCookie: %v, SessionId: %v, ExcludedSessionId: %v)",
-                    slotCookie,
-                    *sessionId,
-                    *excludedSessionId);
+                YT_TLOG_DEBUG("Returning alternative active session")
+                    .With("SlotCookie", slotCookie)
+                    .With("SessionId", *sessionId)
+                    .With("ExcludedSessionId", *excludedSessionId);
                 return MakeDescriptorFuture(slot, *sessionId);
             }
 
@@ -244,18 +247,16 @@ private:
                 sessionId = PickActiveSession(slot, std::nullopt);
                 YT_VERIFY(sessionId);
 
-                YT_LOG_DEBUG(
-                    "Returning fallback active session (SlotCookie: %v, SessionId: %v, ExcludedSessionId: %v)",
-                    slotCookie,
-                    *sessionId,
-                    *excludedSessionId);
+                YT_TLOG_DEBUG("Returning fallback active session")
+                    .With("SlotCookie", slotCookie)
+                    .With("SessionId", *sessionId)
+                    .With("ExcludedSessionId", *excludedSessionId);
                 return MakeDescriptorFuture(slot, *sessionId);
             }
 
-            YT_LOG_DEBUG(
-                "Returning pending session future after exclusion (SlotCookie: %v, ExcludedSessionId: %v)",
-                slotCookie,
-                *excludedSessionId);
+            YT_TLOG_DEBUG("Returning pending session future after exclusion")
+                .With("SlotCookie", slotCookie)
+                .With("ExcludedSessionId", *excludedSessionId);
             return slot.PendingSessions.front().second;
         }
 
@@ -268,7 +269,9 @@ private:
 
         auto pendingToken = NextPendingSessionToken_++;
         auto controller = CreateController_();
-        YT_LOG_DEBUG("Creating session (SlotCookie: %v, PendingToken: %v)", slotCookie, pendingToken);
+        YT_TLOG_DEBUG("Creating session")
+            .With("SlotCookie", slotCookie)
+            .With("PendingToken", pendingToken);
 
         auto sessionFuture = controller->StartSession()
             .Apply(BIND_NO_PROPAGATE(
@@ -303,11 +306,10 @@ private:
             slot.PendingSessions.end());
 
         if (!startedSessionOrError.IsOK()) {
-            YT_LOG_DEBUG(
-                static_cast<const TError&>(startedSessionOrError),
-                "Failed to start session (SlotCookie: %v, PendingToken: %v)",
-                slotCookie,
-                pendingToken);
+            YT_TLOG_DEBUG("Failed to start session")
+                .With("SlotCookie", slotCookie)
+                .With("PendingToken", pendingToken)
+                .With(static_cast<const TError&>(startedSessionOrError));
 
             startedSessionOrError.ThrowOnError();
         }
@@ -336,22 +338,20 @@ private:
         slot.AllSessionIds.push_back(sessionId);
 
         if (slot.Finalized) {
-            YT_LOG_DEBUG(
-                "Closing session started for finalized slot (SlotCookie: %v, SessionId: %v, PendingToken: %v)",
-                slotCookie,
-                sessionId,
-                pendingToken);
+            YT_TLOG_DEBUG("Closing session started for finalized slot")
+                .With("SlotCookie", slotCookie)
+                .With("SessionId", sessionId)
+                .With("PendingToken", pendingToken);
             Y_UNUSED(sessionIt->second.Controller->Close());
             THROW_ERROR_EXCEPTION("Slot %v is finalized", slotCookie);
         }
 
         slot.ActiveSessionIds.push_back(sessionId);
 
-        YT_LOG_DEBUG(
-            "Session started (SlotCookie: %v, SessionId: %v, PendingToken: %v)",
-            slotCookie,
-            sessionId,
-            pendingToken);
+        YT_TLOG_DEBUG("Session started")
+            .With("SlotCookie", slotCookie)
+            .With("SessionId", sessionId)
+            .With("PendingToken", pendingToken);
 
         return TSessionDescriptor{
             .SessionId = startedSession.SessionId,
@@ -385,7 +385,10 @@ private:
             entry.Active = false;
         }
 
-        YT_LOG_DEBUG(closeError, "Session closed (SlotCookie: %v, SessionId: %v)", slotCookie, sessionId);
+        YT_TLOG_DEBUG("Session closed")
+            .With("SlotCookie", slotCookie)
+            .With("SessionId", sessionId)
+            .With(closeError);
 
         if (auto chunkId = MaybeMarkSessionSealed(&entry)) {
             ScheduleChunkSeal(slotCookie, sessionId, *chunkId);
@@ -400,7 +403,8 @@ private:
         std::vector<TSessionId> sessionsToSeal;
         auto& slot = Slots_[slotCookie];
         if (slot.Finalized) {
-            YT_LOG_DEBUG("Slot is already finalized (SlotCookie: %v)", slotCookie);
+            YT_TLOG_DEBUG("Slot is already finalized")
+                .With("SlotCookie", slotCookie);
             return;
         }
 
@@ -422,12 +426,11 @@ private:
 
         slot.ActiveSessionIds.clear();
 
-        YT_LOG_DEBUG(
-            "Finalizing slot (SlotCookie: %v, SessionCount: %v, ActiveSessionCount: %v, SealedChunkCount: %v)",
-            slotCookie,
-            sessionCount,
-            std::ssize(activeSessions),
-            std::ssize(sessionsToSeal));
+        YT_TLOG_DEBUG("Finalizing slot")
+            .With("SlotCookie", slotCookie)
+            .With("SessionCount", sessionCount)
+            .With("ActiveSessionCount", std::ssize(activeSessions))
+            .With("SealedChunkCount", std::ssize(sessionsToSeal));
 
         // TODO(apollo1321): For now session close and chunk seal scheduling run in parallel.
         // Finalize through sequencer stats first and seal directly when close succeeds; keep
@@ -447,10 +450,9 @@ private:
             ScheduleChunkSeal(slotCookie, sessionId, sessionId.ChunkId);
         }
 
-        YT_LOG_DEBUG(
-            "Slot finalized (SlotCookie: %v, SealedChunkCount: %v)",
-            slotCookie,
-            std::ssize(sessionsToSeal));
+        YT_TLOG_DEBUG("Slot finalized")
+            .With("SlotCookie", slotCookie)
+            .With("SealedChunkCount", std::ssize(sessionsToSeal));
     }
 
     void OnSessionCloseFailedDuringFinalize(
@@ -464,22 +466,20 @@ private:
             return;
         }
 
-        YT_LOG_WARNING(
-            error,
-            "Session close failed during slot finalization (SlotCookie: %v, SessionId: %v)",
-            slotCookie,
-            sessionId);
+        YT_TLOG_WARNING("Session close failed during slot finalization")
+            .With("SlotCookie", slotCookie)
+            .With("SessionId", sessionId)
+            .With(error);
     }
 
     void ScheduleChunkSeal(int slotCookie, TSessionId sessionId, TChunkId chunkId)
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-        YT_LOG_DEBUG(
-            "Scheduling chunk sealing (SlotCookie: %v, SessionId: %v, ChunkId: %v)",
-            slotCookie,
-            sessionId,
-            chunkId);
+        YT_TLOG_DEBUG("Scheduling chunk sealing")
+            .With("SlotCookie", slotCookie)
+            .With("SessionId", sessionId)
+            .With("ChunkId", chunkId);
 
         SendChunkSealRequest_(chunkId)
             .Subscribe(BIND_NO_PROPAGATE(
@@ -508,11 +508,10 @@ private:
 
             sessionIt->second.SealRetryBackoff.reset();
 
-            YT_LOG_DEBUG(
-                "Chunk sealing scheduled (SlotCookie: %v, SessionId: %v, ChunkId: %v)",
-                slotCookie,
-                sessionId,
-                chunkId);
+            YT_TLOG_DEBUG("Chunk sealing scheduled")
+                .With("SlotCookie", slotCookie)
+                .With("SessionId", sessionId)
+                .With("ChunkId", chunkId);
             return;
         }
 
@@ -528,26 +527,24 @@ private:
         }
 
         if (!sealRetryBackoff->Next()) {
-            YT_LOG_ALERT(
-                error,
-                "Failed to schedule chunk sealing; retries exhausted (SlotCookie: %v, SessionId: %v, ChunkId: %v, InvocationCount: %v)",
-                slotCookie,
-                sessionId,
-                chunkId,
-                sealRetryBackoff->GetInvocationCount());
+            YT_TLOG_ALERT("Failed to schedule chunk sealing; retries exhausted")
+                .With("SlotCookie", slotCookie)
+                .With("SessionId", sessionId)
+                .With("ChunkId", chunkId)
+                .With("InvocationCount", sealRetryBackoff->GetInvocationCount())
+                .With(error);
             return;
         }
 
         TDuration retryBackoff = sealRetryBackoff->GetBackoff();
 
-        YT_LOG_WARNING(
-            error,
-            "Failed to schedule chunk sealing; retrying (SlotCookie: %v, SessionId: %v, ChunkId: %v, RetryIndex: %v, RetryBackoff: %v)",
-            slotCookie,
-            sessionId,
-            chunkId,
-            sealRetryBackoff->GetInvocationIndex(),
-            retryBackoff);
+        YT_TLOG_WARNING("Failed to schedule chunk sealing; retrying")
+            .With("SlotCookie", slotCookie)
+            .With("SessionId", sessionId)
+            .With("ChunkId", chunkId)
+            .With("RetryIndex", sealRetryBackoff->GetInvocationIndex())
+            .With("RetryBackoff", retryBackoff)
+            .With(error);
 
         TDelayedExecutor::Submit(
             BIND_NO_PROPAGATE(
@@ -645,7 +642,8 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPool(
     });
 
     auto sendChunkSealRequest = BIND_NO_PROPAGATE([client, chunkSealRpcTimeout, Logger] (TChunkId chunkId) {
-        YT_LOG_DEBUG("Sending chunk seal request (ChunkId: %v)", chunkId);
+        YT_TLOG_DEBUG("Sending chunk seal request")
+            .With("ChunkId", chunkId);
 
         auto channel = client->GetMasterChannelOrThrow(
             NApi::EMasterChannelKind::Leader,
@@ -660,9 +658,12 @@ IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPool(
         auto future = req->Invoke().AsVoid();
         future.Subscribe(BIND_NO_PROPAGATE([Logger, chunkId] (const TError& error) {
             if (error.IsOK()) {
-                YT_LOG_DEBUG("Chunk seal request succeeded (ChunkId: %v)", chunkId);
+                YT_TLOG_DEBUG("Chunk seal request succeeded")
+                    .With("ChunkId", chunkId);
             } else {
-                YT_LOG_WARNING(error, "Chunk seal request failed (ChunkId: %v)", chunkId);
+                YT_TLOG_WARNING("Chunk seal request failed")
+                    .With("ChunkId", chunkId)
+                    .With(error);
             }
         }));
 
