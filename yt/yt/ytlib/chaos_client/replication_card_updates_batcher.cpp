@@ -89,14 +89,14 @@ public:
                     if (Progress_.Segments.empty()) {
                         Progress_ = std::move(progressUpdate);
                     } else {
-                        YT_LOG_DEBUG("Updating replication progress (CurrentProgress: %v, ProgressUpdate: %v)",
-                            Progress_,
-                            progressUpdate);
+                        YT_TLOG_DEBUG("Updating replication progress")
+                            .With("CurrentProgress", Progress_)
+                            .With("ProgressUpdate", progressUpdate);
 
                         Progress_ = BuildMaxProgress(Progress_, progressUpdate);
 
-                        YT_LOG_DEBUG("Resulting progress (ResultingProgress: %v)",
-                            Progress_);
+                        YT_TLOG_DEBUG("Resulting progress")
+                            .With("ResultingProgress", Progress_);
                     }
                 })
             .AsyncVia(GetCurrentInvoker()));
@@ -461,14 +461,16 @@ public:
         // Wait for all updates to be settled in the batch.
         auto barrierFutureWaitResult = WaitFor(WorkerBarrier_.GetBarrierFuture());
         if (!barrierFutureWaitResult.IsOK()) {
-            YT_LOG_WARNING(barrierFutureWaitResult, "Failed to wait for a barrier on shutdown");
+            YT_TLOG_WARNING("Failed to wait for a barrier on shutdown")
+                .With(barrierFutureWaitResult);
         }
 
         SubmittingExecutor_->ScheduleOutOfBand();
 
         auto futureStop = WaitFor(SubmittingExecutor_->Stop());
         if (!futureStop.IsOK()) {
-            YT_LOG_WARNING(futureStop, "Failed to stop submitting executor");
+            YT_TLOG_WARNING("Failed to stop submitting executor")
+                .With(futureStop);
         }
 
     }
@@ -493,11 +495,11 @@ private:
 
     void SubmitBatch()
     {
-        YT_LOG_DEBUG("Started progress updates batch flush");
+        YT_TLOG_DEBUG("Started progress updates batch flush");
 
         auto connection = Connection_.Lock();
         if (!connection) {
-            YT_LOG_DEBUG("Connection is not available");
+            YT_TLOG_DEBUG("Connection is not available");
             return;
         }
 
@@ -510,7 +512,7 @@ private:
             connection,
             std::move(previousAccumulator->ExtractUpdates()));
 
-        YT_LOG_DEBUG("Finished progress updates batch flush");
+        YT_TLOG_DEBUG("Finished progress updates batch flush");
     }
 
     void ValidateRunning(const TBarrierLockGuardPtr /*barrierLock*/) const
@@ -539,10 +541,10 @@ public:
             connection,
             replicationCardProgressUpdatesEntries);
 
-        YT_LOG_DEBUG("Updates grouping finished (BatchSize: %v, ChaosCellsCount: %v, ResolvingErrorCount: %v)",
-            replicationCardProgressUpdatesEntries.size(),
-            replicationCardUpdateByChaosCells.ReplicationCardIdsByChaosCells.size(),
-            replicationCardUpdateByChaosCells.ResolvingErrors.size());
+        YT_TLOG_DEBUG("Updates grouping finished")
+            .With("BatchSize", replicationCardProgressUpdatesEntries.size())
+            .With("ChaosCellsCount", replicationCardUpdateByChaosCells.ReplicationCardIdsByChaosCells.size())
+            .With("ResolvingErrorCount", replicationCardUpdateByChaosCells.ResolvingErrors.size());
 
         const auto& replicationCardIdsByChaosCells = replicationCardUpdateByChaosCells.ReplicationCardIdsByChaosCells;
         for (const auto& [cellTag, replicationCardIds] : replicationCardIdsByChaosCells) {
@@ -615,14 +617,13 @@ private:
                             auto replicationCardId = FromProto<TReplicationCardId>(response.replication_card_id());
                             auto it = promises.find(replicationCardId);
                             if (it == promises.end()) {
-                                YT_LOG_WARNING(
-                                    "Received response for unknown replication card (ReplicationCardId: %v)",
-                                    replicationCardId);
+                                YT_TLOG_WARNING("Received response for unknown replication card")
+                                    .With("ReplicationCardId", replicationCardId);
                                 continue;
                             }
 
-                            YT_LOG_DEBUG("Received response for replication card (ReplicationCardId: %v)",
-                                replicationCardId);
+                            YT_TLOG_DEBUG("Received response for replication card")
+                                .With("ReplicationCardId", replicationCardId);
 
                             if (response.has_error()) {
                                 it->second.Set(FromProto<TError>(response.error()));
@@ -657,9 +658,9 @@ private:
         TReplicationCardUpdatesByChaosCells result;
         for (const auto& [replicationCardId, future] : futureTagById) {
             if (auto cellTagOrError = future.GetOrCrash(); !cellTagOrError.IsOK()) {
-                YT_LOG_DEBUG(cellTagOrError,
-                    "Failed to get cell tag for replication card, update skipped (ReplicationCardId: %v)",
-                    replicationCardId);
+                YT_TLOG_DEBUG("Failed to get cell tag for replication card, update skipped")
+                    .With("ReplicationCardId", replicationCardId)
+                    .With(cellTagOrError);
 
                 result.ResolvingErrors.emplace(replicationCardId, cellTagOrError);
             } else {
@@ -695,9 +696,9 @@ public:
             update.ReplicaProgressUpdates = entry.ExtractProgressByReplicaId();
             update.FetchOptions = entry.ExtractFetchOptions();
 
-            YT_LOG_DEBUG("Sending update for replication card (ReplicationCardId: %v, ProgressUpdates: %v)",
-                replicationCardId,
-                update.ReplicaProgressUpdates);
+            YT_TLOG_DEBUG("Sending update for replication card")
+                .With("ReplicationCardId", replicationCardId)
+                .With("ProgressUpdates", update.ReplicaProgressUpdates);
 
             auto req = proxy.UpdateTableProgress();
             req->SetTimeout(timeout);

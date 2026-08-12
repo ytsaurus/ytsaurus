@@ -60,7 +60,7 @@ public:
     {
         auto channel = CellDirectory_->FindChannelByCellTag(CellTag_, PeerKind_);
         if (!channel) {
-            YT_LOG_DEBUG("No chaos cell channel found");
+            YT_TLOG_DEBUG("No chaos cell channel found");
             return MakeFuture<IChannelPtr>(TError(
                 NRpc::EErrorCode::TransientFailure,
                 "No cell with tag %v is known",

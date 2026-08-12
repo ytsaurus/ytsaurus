@@ -20,7 +20,7 @@ public:
     explicit TBannedReplicaTracker(NLogging::TLogger logger)
         : Logger(std::move(logger))
     {
-        YT_LOG_DEBUG("Banned replica tracker created");
+        YT_TLOG_DEBUG("Banned replica tracker created");
     }
 
     bool IsReplicaBanned(TReplicaId replicaId) override
@@ -30,9 +30,9 @@ public:
         auto it = BannedReplicas_.find(replicaId);
         bool result = it != BannedReplicas_.end() && it->second.Counter > 0;
 
-        YT_LOG_TRACE("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
-            replicaId,
-            result);
+        YT_TLOG_TRACE("Banned replica tracker checking replica")
+            .With("ReplicaId", replicaId)
+            .With("Result", result);
 
         return result;
     }
@@ -57,9 +57,9 @@ public:
             .Error = std::move(error)
         };
 
-        YT_LOG_DEBUG("Banned replica tracker has banned replica (ReplicaId: %v, ReplicasSize: %v)",
-            replicaId,
-            BannedReplicas_.size());
+        YT_TLOG_DEBUG("Banned replica tracker has banned replica")
+            .With("ReplicaId", replicaId)
+            .With("ReplicasSize", BannedReplicas_.size());
     }
 
     void SyncReplicas(const TReplicationCardPtr& replicationCard) override
@@ -76,8 +76,8 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Banned replica tracker synced replicas (Replicas: %v)",
-            BannedReplicas_.size());
+        YT_TLOG_DEBUG("Banned replica tracker synced replicas")
+            .With("Replicas", BannedReplicas_.size());
 
         DecreaseCounters();
     }

@@ -120,7 +120,9 @@ private:
 
     void OnChannelFailed(const IChannelPtr& channel, const TError& error)
     {
-        YT_LOG_DEBUG(error, "Chaos object channel failed (IsUnavailable: %v)", IsUnavailableError(error));
+        YT_TLOG_DEBUG("Chaos object channel failed")
+            .With("IsUnavailable", IsUnavailableError(error))
+            .With(error);
 
         auto cellTag = InvalidCellTag;
 
@@ -133,13 +135,13 @@ private:
             ChaosResidencyCache_->ForceRefresh(ChaosObjectId_, cellTag);
             ChannelFuture_.Store(TFuture<IChannelPtr>());
 
-            YT_LOG_DEBUG("Invalidated chaos object cell tag from residency cache");
+            YT_TLOG_DEBUG("Invalidated chaos object cell tag from residency cache");
         }
     }
 
     TFuture<IChannelPtr> CreateChannel()
     {
-        YT_LOG_DEBUG("Creating new chaos object channel");
+        YT_TLOG_DEBUG("Creating new chaos object channel");
 
         auto future = ChaosResidencyCache_->GetChaosResidency(ChaosObjectId_)
             .Apply(BIND(&TChaosObjectChannelProvider::OnChaosResidencyFound, MakeStrong(this)));
@@ -150,8 +152,8 @@ private:
 
     TFuture<IChannelPtr> OnChaosResidencyFound(TCellTag cellTag)
     {
-        YT_LOG_DEBUG("Found chaos object residency (CellTag: %v)",
-            cellTag);
+        YT_TLOG_DEBUG("Found chaos object residency")
+            .With("CellTag", cellTag);
 
         if (auto channel = CellDirectory_->FindChannelByCellTag(cellTag, PeerKind_)) {
             auto detectingChannel = CreateFailureDetectingChannel(
@@ -166,14 +168,13 @@ private:
                 Channel_ = detectingChannel;
             }
 
-            YT_LOG_DEBUG("Created chaos object channel");
+            YT_TLOG_DEBUG("Created chaos object channel");
 
             return MakeFuture<IChannelPtr>(detectingChannel);
         }
 
-        YT_LOG_DEBUG(
-            "Unable to create chaos object channel due to cell tag absence in cell directory (CellTag: %v)",
-            cellTag);
+        YT_TLOG_DEBUG("Unable to create chaos object channel due to cell tag absence in cell directory")
+            .With("CellTag", cellTag);
 
         return MakeFuture<IChannelPtr>(UnavailableError_);
     }

@@ -100,7 +100,8 @@ public:
 
         auto stopResult = WaitFor(ExpirationExecutor_->Stop());
         if (!stopResult.IsOK()) {
-            YT_LOG_WARNING(stopResult, "Failed to stop expiration executor");
+            YT_TLOG_WARNING("Failed to stop expiration executor")
+                .With(stopResult);
         }
     }
 
@@ -135,15 +136,15 @@ public:
         const TReplicationCardPtr& replicationCard,
         TTimestamp timestamp) override
     {
-        YT_LOG_DEBUG("Replication card updated in watcher (ReplicationCardId: %v, Timestamp: %v)",
-            replicationCardId,
-            timestamp);
+        YT_TLOG_DEBUG("Replication card updated in watcher")
+            .With("ReplicationCardId", replicationCardId)
+            .With("Timestamp", timestamp);
 
         auto readGuard = ReaderGuard(EntriesLock_);
         auto it = WatchersByCardId_.find(replicationCardId);
         if (it == WatchersByCardId_.end()) {
-            YT_LOG_WARNING("Replication card was not registered in watcher for update (ReplicationCardId: %v)",
-                replicationCardId);
+            YT_TLOG_WARNING("Replication card was not registered in watcher for update")
+                .With("ReplicationCardId", replicationCardId);
             return;
         }
 
@@ -168,8 +169,8 @@ public:
 
     void OnReplicationCardRemoved(TReplicationCardId replicationCardId) override
     {
-        YT_LOG_DEBUG("Replication card removed from watcher (ReplicationCardId: %v)",
-                replicationCardId);
+        YT_TLOG_DEBUG("Replication card removed from watcher")
+            .With("ReplicationCardId", replicationCardId);
 
         {
             TInstant now = TInstant::Now();
@@ -183,8 +184,8 @@ public:
             auto it = WatchersByCardId_.find(replicationCardId);
             if (it == WatchersByCardId_.end()) {
                 writeGuard.Release();
-                YT_LOG_DEBUG("Replication card was not registered for remove in watcher (ReplicationCardId: %v)",
-                    replicationCardId);
+                YT_TLOG_DEBUG("Replication card was not registered for remove in watcher")
+                    .With("ReplicationCardId", replicationCardId);
                 return;
             }
 
@@ -200,7 +201,7 @@ public:
 
     void OnReplicationCardMigrated(const std::vector<std::pair<TReplicationCardId, TCellId>>& replicationCardIds) override
     {
-        YT_LOG_DEBUG("Replication cards migrated: start notifying watching clients");
+        YT_TLOG_DEBUG("Replication cards migrated: start notifying watching clients");
 
         struct TReplicationCardMigrationDescriptor {
             TReplicationCardId ReplicationCardId;
@@ -229,8 +230,8 @@ public:
             for (const auto& [replicationCardId, cellId] : replicationCardIds) {
                 auto it = WatchersByCardId_.find(replicationCardId);
                 if (it == WatchersByCardId_.end()) {
-                    YT_LOG_WARNING("Replication card was not registered for migration in watcher (ReplicationCardId: %v)",
-                        replicationCardId);
+                    YT_TLOG_WARNING("Replication card was not registered for migration in watcher")
+                        .With("ReplicationCardId", replicationCardId);
                     continue;
                 }
 
@@ -263,8 +264,8 @@ public:
             if (auto it = MigratedCards_.find(replicationCardId); it != MigratedCards_.end()) {
                 auto destination = it->second.Destination;
                 migratedCardsGuard.Release();
-                YT_LOG_DEBUG("Replication card was already migrated (ReplicationCardId: %v)",
-                    replicationCardId);
+                YT_TLOG_DEBUG("Replication card was already migrated")
+                    .With("ReplicationCardId", replicationCardId);
                 callbacks->OnReplicationCardMigrated(destination);
                 return EReplicationCardWatherState::Migrated;
             }
@@ -274,8 +275,8 @@ public:
             auto deletedCardsGuard = ReaderGuard(DeletedCardsLock_);
             if (DeletedCards_.contains(replicationCardId)) {
                 deletedCardsGuard.Release();
-                YT_LOG_DEBUG("Replication card was already deleted (ReplicationCardId: %v)",
-                    replicationCardId);
+                YT_TLOG_DEBUG("Replication card was already deleted")
+                    .With("ReplicationCardId", replicationCardId);
                 callbacks->OnReplicationCardDeleted();
                 return EReplicationCardWatherState::Deleted;
             }
@@ -294,10 +295,10 @@ public:
                     entryGuard.Release();
                     readGuard.Release();
 
-                    YT_LOG_DEBUG(
-                        "Replication card updated between watches "
-                        "(ReplicationCardId: %v, CurrentCacheTimestamp: %v, CacheTimestamp: %v)",
-                        replicationCardId, timestamp, cacheTimestamp);
+                    YT_TLOG_DEBUG("Replication card updated between watches")
+                        .With("ReplicationCardId", replicationCardId)
+                        .With("CurrentCacheTimestamp", timestamp)
+                        .With("CacheTimestamp", cacheTimestamp);
 
                     callbacks->OnReplicationCardChanged(replicationCard, timestamp);
                     return EReplicationCardWatherState::Normal;
@@ -311,8 +312,8 @@ public:
                 entryGuard.Release();
                 readGuard.Release();
 
-                YT_LOG_DEBUG("Added request to watchers list (ReplicationCardId: %v)",
-                    replicationCardId);
+                YT_TLOG_DEBUG("Added request to watchers list")
+                    .With("ReplicationCardId", replicationCardId);
 
                 return EReplicationCardWatherState::Normal;
             }
@@ -344,8 +345,8 @@ public:
             return EReplicationCardWatherState::Normal;
         }
 
-        YT_LOG_WARNING("Replication card was not registered for update in watcher (ReplicationCardId: %v)",
-            replicationCardId);
+        YT_TLOG_WARNING("Replication card was not registered for update in watcher")
+            .With("ReplicationCardId", replicationCardId);
         callbacks->OnUnknownReplicationCard();
         return EReplicationCardWatherState::Unknown;
     }
@@ -401,7 +402,7 @@ private:
 
     void OnExpirationSweep()
     {
-        YT_LOG_DEBUG("Started expired watchers sweep");
+        YT_TLOG_DEBUG("Started expired watchers sweep");
 
         std::vector<TReplicationCardWatcherEntry> expiredWatcherEntries;
         {
@@ -469,7 +470,7 @@ private:
 
         idsToRemove.clear();
 
-        YT_LOG_DEBUG("Finished expired watchers sweep");
+        YT_TLOG_DEBUG("Finished expired watchers sweep");
     }
 };
 

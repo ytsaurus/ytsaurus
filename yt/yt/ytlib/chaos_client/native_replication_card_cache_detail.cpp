@@ -70,10 +70,10 @@ public:
         const TReplicationCardPtr& replicationCard,
         NTransactionClient::TTimestamp timestamp) override
     {
-        YT_LOG_DEBUG("Replication card updated (ReplicationCardId: %v, Timestamp: %v, ReplicationCard: %v)",
-            replicationCardId,
-            timestamp,
-            *replicationCard);
+        YT_TLOG_DEBUG("Replication card updated")
+            .With("ReplicationCardId", replicationCardId)
+            .With("Timestamp", timestamp)
+            .With("ReplicationCard", *replicationCard);
 
         if (auto cache = Cache_.Lock()) {
             cache->Set(GetKey(replicationCardId), replicationCard);
@@ -82,8 +82,8 @@ public:
 
     void OnReplicationCardDeleted(TReplicationCardId replicationCardId) override
     {
-        YT_LOG_DEBUG("Replication card deleted (ReplicationCardId: %v)",
-            replicationCardId);
+        YT_TLOG_DEBUG("Replication card deleted")
+            .With("ReplicationCardId", replicationCardId);
 
         if (auto cache = Cache_.Lock()) {
             cache->InvalidateActive(GetKey(replicationCardId));
@@ -97,8 +97,8 @@ public:
 
     void OnNothingChanged(TReplicationCardId replicationCardId) override
     {
-        YT_LOG_DEBUG("Nothing changed (ReplicationCardId: %v)",
-            replicationCardId);
+        YT_TLOG_DEBUG("Nothing changed")
+            .With("ReplicationCardId", replicationCardId);
     }
 
 private:
@@ -195,8 +195,8 @@ public:
 
         FromProto(replicationCard.Get(), rsp->replication_card());
 
-        YT_LOG_DEBUG("Got replication card (ReplicationCard: %v)",
-            *replicationCard);
+        YT_TLOG_DEBUG("Got replication card")
+            .With("ReplicationCard", *replicationCard);
 
         if (auto connection = Owner_->Connection_.Lock()) {
             const auto& synchronizer = connection->GetChaosCellDirectorySynchronizer();
@@ -217,10 +217,10 @@ public:
             };
 
             if (!isSyncCell(Key_.CardId) || !isSyncCells(replicationCard->CoordinatorCellIds)) {
-                YT_LOG_DEBUG("Synchronizing replication card chaos cells");
+                YT_TLOG_DEBUG("Synchronizing replication card chaos cells");
                 WaitFor(synchronizer->Sync())
                     .ThrowOnError();
-                YT_LOG_DEBUG("Finished synchronizing replication card chaos cells");
+                YT_TLOG_DEBUG("Finished synchronizing replication card chaos cells");
             }
         }
 
@@ -274,8 +274,8 @@ TFuture<TReplicationCardPtr> TReplicationCardCache::GetReplicationCard(const TRe
     }
 
     if (shouldWatch) {
-        YT_LOG_DEBUG("Will watch replication card (ReplicationCardId: %v)",
-            key.CardId);
+        YT_TLOG_DEBUG("Will watch replication card")
+            .With("ReplicationCardId", key.CardId);
 
         future.Subscribe(BIND([this_ = MakeStrong(this), id = key.CardId] (const TErrorOr<TReplicationCardPtr>& card) {
             if (card.IsOK()) {
@@ -301,9 +301,9 @@ TFuture<TReplicationCardPtr> TReplicationCardCache::DoGet(const TReplicationCard
     auto sessionId = TGuid::Create();
     auto session = New<TGetSession>(this, key, Logger, sessionId, timeout);
 
-    YT_LOG_DEBUG("Requesting replication card (ReplicationCardId: %v, CacheSessionId: %v)",
-        key.CardId,
-        sessionId);
+    YT_TLOG_DEBUG("Requesting replication card")
+        .With("ReplicationCardId", key.CardId)
+        .With("CacheSessionId", sessionId);
 
     return BIND(&TGetSession::Run, std::move(session))
         .AsyncVia(std::move(invoker))
