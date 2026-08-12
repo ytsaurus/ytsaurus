@@ -80,10 +80,9 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
         std::tie(entry.DirName, entry.BaseName) = DirNameAndBaseName(path);
     }
 
-    YT_LOG_DEBUG(
-        "Batch attribute fetcher initialized (PathCount: %v, InvalidPathCount: %v)",
-        paths.size(),
-        invalidPathCount);
+    YT_TLOG_DEBUG("Batch attribute fetcher initialized")
+        .With("PathCount", paths.size())
+        .With("InvalidPathCount", invalidPathCount);
 
     std::sort(Entries_.begin(), Entries_.end(), [] (auto lhs, auto rhs) {
         return std::tie(lhs.DirName, lhs.BaseName) < std::tie(rhs.DirName, rhs.BaseName);
@@ -173,7 +172,8 @@ void TBatchAttributeFetcher::FetchBatchCounts()
         return;
     }
 
-    YT_LOG_DEBUG("Collecting node counts (DirectoryCount: %v)", ListEntries_.size());
+    YT_TLOG_DEBUG("Collecting node counts")
+        .With("DirectoryCount", ListEntries_.size());
 
     auto proxy = CreateObjectServiceReadProxy(Client_, MasterReadOptions_.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
@@ -191,7 +191,7 @@ void TBatchAttributeFetcher::FetchBatchCounts()
     auto result = WaitFor(batchReq->Invoke())
         .ValueOrThrow();
 
-    YT_LOG_DEBUG("Node counts collected");
+    YT_TLOG_DEBUG("Node counts collected");
 
     for (const auto& [tag, attributesOrError] : result->GetTaggedResponses<TYPathProxy::TRspGet>()) {
         auto* listEntry = std::any_cast<TListEntry*>(tag);
@@ -204,16 +204,14 @@ void TBatchAttributeFetcher::FetchBatchCounts()
             //   (since nodes may reside on different masters), making List-batching pointless;
             // * there are too many "useless" items besides the requested ones.
             if (IsSequoiaId(attributes->Get<TObjectId>("id"))) {
-                YT_LOG_DEBUG("Directory corresponds to Sequia node, falling back to singular get requests (DirName: %v)",
-                    listEntry->DirName);
+                YT_TLOG_DEBUG("Directory corresponds to Sequia node, falling back to singular get requests")
+                    .With("DirName", listEntry->DirName);
                 listEntry->FetchAsBatch = false;
             } else if (listEntry->DirNodeCount - listEntry->RequestedEntryCount > MaxUnusedNodeCount) {
-                YT_LOG_DEBUG(
-                    "There are too many nodes in directory, falling back to singular get requests "
-                    "(DirName: %v, RequestedNodeCount: %v, DirNodeCount: %v)",
-                    listEntry->DirName,
-                    listEntry->RequestedEntryCount,
-                    listEntry->DirNodeCount);
+                YT_TLOG_DEBUG("There are too many nodes in directory, falling back to singular get requests")
+                    .With("DirName", listEntry->DirName)
+                    .With("RequestedNodeCount", listEntry->RequestedEntryCount)
+                    .With("DirNodeCount", listEntry->DirNodeCount);
                 listEntry->FetchAsBatch = false;
             }
             if (!listEntry->FetchAsBatch) {
@@ -262,11 +260,10 @@ void TBatchAttributeFetcher::FetchAttributes()
         }
     }
 
-    YT_LOG_DEBUG(
-        "Performing batch attribute request (ListCount: %v, ListEntryCount: %v, GetCount: %v)",
-        listCount,
-        listEntryCount,
-        getCount);
+    YT_TLOG_DEBUG("Performing batch attribute request")
+        .With("ListCount", listCount)
+        .With("ListEntryCount", listEntryCount)
+        .With("GetCount", getCount);
 
     auto result = WaitFor(batchReq->Invoke())
         .ValueOrThrow();
@@ -311,7 +308,7 @@ void TBatchAttributeFetcher::FetchAttributes()
         }
     }
 
-    YT_LOG_DEBUG("Batch attribute request finished");
+    YT_TLOG_DEBUG("Batch attribute request finished");
 }
 
 void TBatchAttributeFetcher::FetchSymlinks()
@@ -344,12 +341,13 @@ void TBatchAttributeFetcher::FetchSymlinks()
         return;
     }
 
-    YT_LOG_DEBUG("Fetching link attributes (LinkCount: %v)", linkCount);
+    YT_TLOG_DEBUG("Fetching link attributes")
+        .With("LinkCount", linkCount);
 
     auto result = WaitFor(batchReq->Invoke())
         .ValueOrThrow();
 
-    YT_LOG_DEBUG("Link attributes fetched");
+    YT_TLOG_DEBUG("Link attributes fetched");
 
     for (const auto& [tag, getRspOrError] : result->GetTaggedResponses<TYPathProxy::TRspGet>()) {
         auto* entry = std::any_cast<TEntry*>(tag);
@@ -388,12 +386,12 @@ void TBatchAttributeFetcher::FillResult()
 
 void TBatchAttributeFetcher::DoFetch()
 {
-    YT_LOG_DEBUG("Batch attribute fetcher started");
+    YT_TLOG_DEBUG("Batch attribute fetcher started");
     FetchBatchCounts();
     FetchAttributes();
     FetchSymlinks();
     FillResult();
-    YT_LOG_DEBUG("Batch attribute fetcher finished");
+    YT_TLOG_DEBUG("Batch attribute fetcher finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
