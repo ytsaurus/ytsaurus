@@ -99,14 +99,12 @@ private:
         const TJobShellDescriptorKey& key,
         const NNative::IConnectionPtr& connection)
     {
-        YT_LOG_DEBUG(
-            "Requesting job shell descriptor from controller agent (Key: %v)",
-            key);
+        YT_TLOG_DEBUG("Requesting job shell descriptor from controller agent")
+            .With("Key", key);
         auto allocationId = NScheduler::AllocationIdFromJobId(key.JobId);
 
-        YT_LOG_DEBUG(
-            "Requesting allocation brief info (AllocationId: %v)",
-            allocationId);
+        YT_TLOG_DEBUG("Requesting allocation brief info")
+            .With("AllocationId", allocationId);
 
         auto allocationBriefInfo = WaitFor(NApi::NNative::GetAllocationBriefInfo(
             TOperationServiceProxy(connection->GetSchedulerChannel()),
@@ -119,9 +117,8 @@ private:
             }))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG(
-            "Allocation brief info received (AllocationId: %v)",
-            allocationId);
+        YT_TLOG_DEBUG("Allocation brief info received")
+            .With("AllocationId", allocationId);
 
         auto controllerAgentChannel = ChannelFactory_->CreateChannel(
             *allocationBriefInfo.ControllerAgentDescriptor.Addresses);
@@ -132,10 +129,9 @@ private:
         // TODO(nadya02): Set the correct timeout here.
         jobProberProxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
 
-        YT_LOG_DEBUG(
-            "Getting job shell descriptor from agent (AllocationId: %v, OperationId: %v)",
-            allocationId,
-            allocationBriefInfo.OperationId);
+        YT_TLOG_DEBUG("Getting job shell descriptor from agent")
+            .With("AllocationId", allocationId)
+            .With("OperationId", allocationBriefInfo.OperationId);
 
         auto req = jobProberProxy.GetJobShellDescriptor();
 
@@ -163,10 +159,9 @@ private:
         jobShellDescriptor.NodeDescriptor = std::move(allocationBriefInfo.NodeDescriptor);
         jobShellDescriptor.Subcontainer = rsp->subcontainer();
 
-        YT_LOG_DEBUG(
-            "Job shell descriptor received (Key: %v, Descriptor: %v)",
-            key,
-            jobShellDescriptor);
+        YT_TLOG_DEBUG("Job shell descriptor received")
+            .With("Key", key)
+            .With("Descriptor", jobShellDescriptor);
 
         return jobShellDescriptor;
     }
@@ -177,10 +172,9 @@ private:
     {
         YT_VERIFY(!error.IsOK());
 
-        YT_LOG_DEBUG(
-            error,
-            "Failed to get job shell descriptor (Key: %v)",
-            key);
+        YT_TLOG_DEBUG("Failed to get job shell descriptor")
+            .With("Key", key)
+            .With(error);
         THROW_ERROR_EXCEPTION("Failed to get job shell descriptor")
             .With("user", key.User)
             .With("job_id", key.JobId)

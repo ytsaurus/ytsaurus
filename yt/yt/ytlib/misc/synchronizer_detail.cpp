@@ -91,7 +91,8 @@ void TSynchronizerBase::OnSync()
         FirstSuccessfulSyncPromise_.TrySet();
     } catch (const std::exception& ex) {
         TError error(ex);
-        YT_LOG_DEBUG(error);
+        YT_TLOG_DEBUG("Error synchronizing")
+            .With(error);
         promise.Set(std::move(error));
     }
 }

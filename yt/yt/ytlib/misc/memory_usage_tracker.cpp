@@ -695,11 +695,10 @@ bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
     if (currentFree < 0) {
         overcommitted = true;
 
-        YT_LOG_WARNING(
-            "Total memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
-            -currentFree,
-            category,
-            size);
+        YT_TLOG_WARNING("Total memory overcommit detected")
+            .With("Debt", -currentFree)
+            .With("RequestCategory", category)
+            .With("RequestSize", size);
     }
 
     if (pool) {
@@ -708,12 +707,11 @@ bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
         if (poolUsed > poolLimit) {
             overcommitted = true;
 
-            YT_LOG_WARNING(
-                "Per-pool memory overcommit detected (Debt: %v, RequestCategory: %v, PoolTag: %v, RequestSize: %v)",
-                poolUsed - poolLimit,
-                category,
-                *poolTag,
-                size);
+            YT_TLOG_WARNING("Per-pool memory overcommit detected")
+                .With("Debt", poolUsed - poolLimit)
+                .With("RequestCategory", category)
+                .With("PoolTag", *poolTag)
+                .With("RequestSize", size);
         }
     }
 
@@ -723,11 +721,10 @@ bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
         if (categoryUsed > categoryLimit) {
             overcommitted = true;
 
-            YT_LOG_WARNING(
-                "Per-category memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
-                categoryUsed - categoryLimit,
-                category,
-                size);
+            YT_TLOG_WARNING("Per-category memory overcommit detected")
+                .With("Debt", categoryUsed - categoryLimit)
+                .With("RequestCategory", category)
+                .With("RequestSize", size);
         }
     }
 
@@ -997,19 +994,13 @@ void TNodeMemoryTracker::UpdateSystemCategories()
     i64 logging = TRefCountedTracker::Get()->GetBytesAlive(GetRefCountedTypeKey<NLogging::NDetail::TMessageBufferTag>());
     i64 oldLogging = UpdateUsage(EMemoryCategory::Logging, logging);
 
-    YT_LOG_INFO(
-        "System categories memory usage updated (BytesCommitted: %v, BytesUsed: %v, Footprint: %v -> %v, "
-        "Fragmentation: %v -> %v, Profiling: %v -> %v, Logging: %v -> %v)",
-        bytesCommitted,
-        bytesUsed,
-        oldFootprint,
-        newFootprint,
-        oldFragmentation,
-        newFragmentation,
-        oldProfiling,
-        profiling,
-        oldLogging,
-        logging);
+    YT_TLOG_INFO("System categories memory usage updated")
+        .With("BytesCommitted", bytesCommitted)
+        .With("BytesUsed", bytesUsed)
+        .WithFormat("Footprint", "%v -> %v", oldFootprint, newFootprint)
+        .WithFormat("Fragmentation", "%v -> %v", oldFragmentation, newFragmentation)
+        .WithFormat("Profiling", "%v -> %v", oldProfiling, profiling)
+        .WithFormat("Logging", "%v -> %v", oldLogging, logging);
 }
 
 TErrorOr<TSharedRef> TNodeMemoryTracker::DoTryTrackMemory(

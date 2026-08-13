@@ -40,10 +40,10 @@ TCellManager::TCellManager(
         PeerChannels_[id] = CreatePeerChannel(id, Config_->Peers[id]);
     }
 
-    YT_LOG_INFO("Cell initialized (SelfId: %v, Peers: %v, VotingPeers: %v)",
-        SelfId_,
-        Config_->Peers,
-        VotingPeerCount_);
+    YT_TLOG_INFO("Cell initialized")
+        .With("SelfId", SelfId_)
+        .With("Peers", Config_->Peers)
+        .With("VotingPeers", VotingPeerCount_);
 }
 
 TCellId TCellManager::GetCellId() const

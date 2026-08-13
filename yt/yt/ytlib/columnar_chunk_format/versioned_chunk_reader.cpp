@@ -550,7 +550,8 @@ public:
 
     ~TReaderWrapper()
     {
-        YT_LOG_DEBUG("Reader statistics (%v)", *ReaderStatistics_);
+        YT_TLOG_DEBUG("Reader statistics")
+            .With("ReaderStatistics", *ReaderStatistics_);
     }
 
     TFuture<void> Open() override
@@ -885,19 +886,16 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     readerStatistics->CreateBlockManagerTime = getDurationAndReset();
 
     // Do not log in case of reading from memory.
-    YT_LOG_DEBUG_IF(
-        !blockManager->IsFetchingCompleted(),
-        "Creating rowset builder (ReadItemCount: %v, GroupIds: %v, KeyTypes: %v, "
-        "ReadItemWidth: %v, KeyColumnIndexes: %v, ValueTypes: %v, NewMeta: %v)",
-        readItemCount,
-        groupIds,
-        keyTypes,
-        readItemWidth,
-        keyColumnIndexes,
-        MakeFormattableView(valueSchema, [] (TStringBuilderBase* builder, const TValueSchema& valueSchema) {
+    YT_TLOG_DEBUG_IF(!blockManager->IsFetchingCompleted(), "Creating rowset builder")
+        .With("ReadItemCount", readItemCount)
+        .With("GroupIds", groupIds)
+        .With("KeyTypes", keyTypes)
+        .With("ReadItemWidth", readItemWidth)
+        .With("KeyColumnIndexes", keyColumnIndexes)
+        .With("ValueTypes", MakeFormattableView(valueSchema, [] (TStringBuilderBase* builder, const TValueSchema& valueSchema) {
             builder->AppendFormat("(Type: %v, ConvertToAny: %v)", valueSchema.Type, valueSchema.ConvertToAny);
-        }),
-        preparedChunkMeta->FullNewMeta);
+        }))
+        .With("NewMeta", preparedChunkMeta->FullNewMeta);
 
     // NB: to avoid use-after-move down the line.
     bool itemsAreKeys = IsKeys(readItems);
@@ -1074,9 +1072,9 @@ TKeysWithHints BuildKeyHintsUsingLookupTable(
     std::sort(indexList.begin(), indexList.end());
     TCpuDuration sortTime = GetCpuInstant() - sortStart;
 
-    YT_LOG_DEBUG("BuildKeyHintsUsingLookupTable (Lookup/Sort Time: %v / %v )",
-        CpuDurationToDuration(lookupInHashTableTime),
-        CpuDurationToDuration(sortTime));
+    YT_TLOG_DEBUG("Built key hints using lookup table")
+        .With("LookupTime", CpuDurationToDuration(lookupInHashTableTime))
+        .With("SortTime", CpuDurationToDuration(sortTime));
 
     if (!keys.empty()) {
         indexList.emplace_back(SentinelRowIndex, keys.size() - 1);

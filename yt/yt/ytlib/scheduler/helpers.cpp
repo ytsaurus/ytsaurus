@@ -536,10 +536,10 @@ TError ValidateCheckPermissionsResults(
         return error;
     }
 
-    YT_LOG_DEBUG("Operation access successfully validated (User: %v, Permissions: %v, AccessControlRule: %v)",
-        user,
-        permissionSet,
-        accessControlRule.GetAclString());
+    YT_TLOG_DEBUG("Operation access successfully validated")
+        .With("User", user)
+        .With("Permissions", permissionSet)
+        .With("AccessControlRule", accessControlRule.GetAclString());
 
     return TError();
 }
@@ -635,9 +635,8 @@ TError CheckOperationAccessByAcl(
         .ValueOrThrow();
 
     if (!results.empty() && !results.front().MissingSubjects.empty()) {
-        YT_LOG_DEBUG(
-            "Operation has missing subjects in ACL (MissingSubjects: %v)",
-            results.front().MissingSubjects);
+        YT_TLOG_DEBUG("Operation has missing subjects in ACL")
+            .With("MissingSubjects", results.front().MissingSubjects);
     }
 
     return ValidateCheckPermissionsResults(
