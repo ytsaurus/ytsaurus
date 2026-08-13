@@ -674,7 +674,6 @@ private:
         UpdateLeaderInfo(attributes);
 
         YQL_CLOG(INFO, ProviderDq) << "Become leader, epoch=" << CurrentResourceId.Epoch;
-        YQL_CLOG(INFO, ProviderDq) << "Leader attributes leader=" << ev->Get()->Attributes;
         YQL_CLOG(INFO, ProviderDq) << "Leader resolver=" << LeaderHost << ":" << LeaderPort;
 
         if (LeaderPinger) {
