@@ -1255,7 +1255,7 @@ protected:
             YT_TLOG_WARNING("Node is marked as suspicious")
                 .With("Replica", peer.Replica)
                 .With("PeerId", peer.Id)
-                .With("Error", rspOrError);
+                .With(rspOrError);
             NodeStatusDirectory_->UpdateSuspicionMarkTime(
                 peer.Replica.GetNodeId(),
                 *peer.Id.Address,
