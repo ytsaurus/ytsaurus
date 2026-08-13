@@ -9,6 +9,10 @@ IF (SANITIZER_TYPE)
         cpu:36
         ram:48
     )
+ELSE()
+    REQUIREMENTS(
+        ram:24
+    )
 ENDIF()
 
 PEERDIR(
