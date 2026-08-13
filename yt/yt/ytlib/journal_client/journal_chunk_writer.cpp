@@ -826,7 +826,7 @@ private:
         auto error = TError("Journal chunk writer failed")
             .With(innerError);
         YT_TLOG_ERROR("Journal chunk writer failed")
-            .With(error);
+            .With(innerError);
         Error_ = error;
 
         for (const auto& record : PendingRecords_) {
