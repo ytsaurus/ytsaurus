@@ -282,7 +282,7 @@ public:
         YT_TLOG_ALERT_AND_THROW_UNLESS(
             options.StrongOrderingTags.empty(),
             "Commit options have non-empty strong ordering tags")
-            .With("TransactiondId", Transaction_->GetId())
+            .With("TransactionId", Transaction_->GetId())
             .With("StrongOrderingTags", options.StrongOrderingTags);
 
         options.StrongOrderingTags = ComputeStrongOrderingTags();
