@@ -489,13 +489,16 @@ TEST_P(TJournalBlockDeviceTest, TrimZeroesBlocks)
 TEST_P(TJournalBlockDeviceTest, TrimAfterFlush)
 {
     auto device = CreateDevice(16 * BlockSize);
+    auto journalDevice = DynamicPointerCast<IJournalBlockDevice>(device);
+    ASSERT_TRUE(journalDevice);
 
     // Let the blocks reach the store first, so the trim discards stored (clean) payloads rather than
     // dirty ones.
     for (int blockIndex = 0; blockIndex < 4; ++blockIndex) {
         Write(device, blockIndex * BlockSize, MakeRandomBlock(BlockSize));
     }
-    Sleep(TDuration::Seconds(2));
+    WaitFor(journalDevice->FlushBlocks())
+        .ThrowOnError();
 
     Trim(device, 0, 4 * BlockSize);
     ExpectZero(Read(device, 0, 4 * BlockSize));
