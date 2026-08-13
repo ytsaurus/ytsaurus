@@ -4,7 +4,7 @@ VERSION(5.12.2)
 
 LICENSE(EPL-1.0)
 
-ORIGINAL_SOURCE(https://repo1.maven.org/maven2)
+ORIGINAL_SOURCE(https://github.com/junit-team/junit5)
 
 PEERDIR(
     contrib/java/org/junit/jupiter/junit-jupiter-api/5.12.2

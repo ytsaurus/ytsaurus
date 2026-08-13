@@ -4,7 +4,7 @@ VERSION(5.13.4)
 
 LICENSE(EPL-1.0)
 
-ORIGINAL_SOURCE(https://repo1.maven.org/maven2)
+ORIGINAL_SOURCE(https://github.com/junit-team/junit-framework)
 
 PEERDIR(
     contrib/java/org/opentest4j/opentest4j/1.3.0
