@@ -1332,7 +1332,7 @@ TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteeAndRelaxedPoolVsRela
     }
 }
 
-TEST_P(TFairShareUpdateParametrizedTest, PromisedFairShareOfIntegralPools)
+TEST_P(TFairShareUpdateParametrizedTest, GuaranteeSharesOfIntegralPools)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1356,11 +1356,16 @@ TEST_P(TFairShareUpdateParametrizedTest, PromisedFairShareOfIntegralPools)
         TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
         EXPECT_RV_NEAR(unit * 3, burstPool->Attributes().PromisedFairShare);
         EXPECT_RV_NEAR(unit * 3, burstPoolParent->Attributes().PromisedFairShare);
+        EXPECT_EQ(unit * 0, burstPool->Attributes().EstimatedGuaranteeShare);
+        EXPECT_EQ(unit * 0, burstPoolParent->Attributes().EstimatedGuaranteeShare);
 
         EXPECT_RV_NEAR(unit * 7, relaxedPool->Attributes().PromisedFairShare);
         EXPECT_RV_NEAR(unit * 7, relaxedPoolParent->Attributes().PromisedFairShare);
+        EXPECT_EQ(unit * 0, relaxedPool->Attributes().EstimatedGuaranteeShare);
+        EXPECT_EQ(unit * 0, relaxedPoolParent->Attributes().EstimatedGuaranteeShare);
 
         EXPECT_EQ(unit * 10, rootElement->Attributes().PromisedFairShare);
+        EXPECT_EQ(unit * 0, rootElement->Attributes().EstimatedGuaranteeShare);
     }
 }
 
