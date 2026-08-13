@@ -507,8 +507,6 @@ THashMap<TYPath, std::pair<NObjectClient::TObjectId, TCellTag>> FetchBasicAttrib
     auto batchRsp = WaitFor(batchReq->Invoke())
         .ValueOrThrow();
 
-    auto getRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_attributes");
-
     auto basicAttributesRspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
 
     auto basicAttributes = THashMap<TYPath, std::pair<NObjectClient::TObjectId, TCellTag>>();
@@ -516,7 +514,7 @@ THashMap<TYPath, std::pair<NObjectClient::TObjectId, TCellTag>> FetchBasicAttrib
     for (i64 index = 0; index < std::ssize(paths); ++index) {
         THROW_ERROR_EXCEPTION_IF_FAILED(
             basicAttributesRspsOrError[index],
-            "Failed to fetch basic attributes of at %v in Cypress",
+            "Failed to fetch basic attributes at %v in Cypress",
             paths[index]);
 
         auto basicAttrsRsp = basicAttributesRspsOrError[index]
@@ -844,7 +842,7 @@ void AppendNativeUdfDescriptors(
             functionBody.CallingConvention = functionDescriptor->CallingConvention;
             functionBody.RepeatedArgType = functionDescriptor->RepeatedArgumentType
                 ? functionDescriptor->RepeatedArgumentType->Type
-                : EValueType::Null,
+                : EValueType::Null;
             functionBody.RepeatedArgIndex = int(functionDescriptor->GetArgumentsTypes().size());
             functionBody.UseFunctionContext = functionDescriptor->UseFunctionContext;
 
@@ -958,7 +956,7 @@ void AppendWebAssemblyUdfDescriptors(
             functionBody.CallingConvention = functionDescriptor->CallingConvention;
             functionBody.RepeatedArgType = functionDescriptor->RepeatedArgumentType
                 ? functionDescriptor->RepeatedArgumentType->Type
-                : EValueType::Null,
+                : EValueType::Null;
             functionBody.RepeatedArgIndex = std::ssize(functionDescriptor->GetArgumentsTypes());
             functionBody.UseFunctionContext = functionDescriptor->UseFunctionContext;
 
@@ -975,7 +973,7 @@ void AppendWebAssemblyUdfDescriptors(
             typeInferrers->emplace(functionName, typer);
             cgInfo->Functions.push_back(std::move(functionBody));
         } else if (aggregateDescriptor) {
-            YT_ASSERT(functionDescriptor->Name == functionName);
+            YT_ASSERT(aggregateDescriptor->Name == functionName);
 
             YT_TLOG_DEBUG("Appending aggregate UDF descriptor")
                 .With("Name", functionName);
@@ -1067,13 +1065,17 @@ public:
 
         return GetMany(keys)
             .Apply(BIND([names] (std::vector<TErrorOr<TExternalFunctionSpec>> specs) {
-                int index = 0;
-                for (const auto& spec : specs) {
+                for (int index = 0; index < std::ssize(specs); ++index) {
+                    const auto& spec = specs[index];
                     if (!spec.IsOK()) {
-                        THROW_ERROR_EXCEPTION("Function %Qv is not known", names[index])
-                            << spec;
+                        if (index < std::ssize(names)) {
+                            THROW_ERROR_EXCEPTION("Function %Qv is not known", names[index])
+                                .With(spec);
+                        } else {
+                            THROW_ERROR_EXCEPTION("Failed to fetch WebAssembly UDF SDK")
+                                .With(spec);
+                        }
                     }
-                    index++;
                 }
                 std::vector<TExternalFunctionSpec> result;
                 result.reserve(specs.size());
