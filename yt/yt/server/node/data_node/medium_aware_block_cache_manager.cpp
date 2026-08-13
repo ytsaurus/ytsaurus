@@ -16,6 +16,50 @@ using namespace NChunkClient;
 
 namespace {
 
+void ScaleCapacity(const TSlruCacheConfigPtr& config, int locationCount)
+{
+    YT_VERIFY(locationCount >= 0);
+    config->Capacity *= locationCount;
+}
+
+void ScaleCapacity(
+    const TSlruCacheConfigPtr& staticConfig,
+    const TSlruCacheDynamicConfigPtr& dynamicConfig,
+    int locationCount)
+{
+    YT_VERIFY(locationCount >= 0);
+    dynamicConfig->Capacity = dynamicConfig->Capacity.value_or(staticConfig->Capacity) * locationCount;
+}
+
+TBlockCacheConfigPtr CreateEffectiveBlockCacheConfig(
+    const TBlockCacheConfigPtr& config,
+    int locationCount)
+{
+    auto result = NYTree::CloneYsonStruct(config);
+    ScaleCapacity(result->CompressedData, locationCount);
+    ScaleCapacity(result->UncompressedData, locationCount);
+    ScaleCapacity(result->HashTableChunkIndex, locationCount);
+    ScaleCapacity(result->XorFilter, locationCount);
+    ScaleCapacity(result->ChunkFragmentsData, locationCount);
+    ScaleCapacity(result->MinHashDigest, locationCount);
+    return result;
+}
+
+TBlockCacheDynamicConfigPtr CreateEffectiveBlockCacheDynamicConfig(
+    const TBlockCacheConfigPtr& staticConfig,
+    const TBlockCacheDynamicConfigPtr& dynamicConfig,
+    int locationCount)
+{
+    auto result = NYTree::CloneYsonStruct(dynamicConfig);
+    ScaleCapacity(staticConfig->CompressedData, result->CompressedData, locationCount);
+    ScaleCapacity(staticConfig->UncompressedData, result->UncompressedData, locationCount);
+    ScaleCapacity(staticConfig->HashTableChunkIndex, result->HashTableChunkIndex, locationCount);
+    ScaleCapacity(staticConfig->XorFilter, result->XorFilter, locationCount);
+    ScaleCapacity(staticConfig->ChunkFragmentsData, result->ChunkFragmentsData, locationCount);
+    ScaleCapacity(staticConfig->MinHashDigest, result->MinHashDigest, locationCount);
+    return result;
+}
+
 TBlockCacheDynamicConfigPtr CreateDisabledBlockCacheConfig()
 {
     auto config = New<TBlockCacheDynamicConfig>();
@@ -38,10 +82,13 @@ class TMediumAwareBlockCacheManager
 public:
     TMediumAwareBlockCacheManager(
         TMediumAwareBlockCacheManagerConfigPtr config,
+        TLocationCountPerMedium locationCountPerMedium,
         IMemoryUsageTrackerPtr memoryUsageTracker,
         TMediumNameResolver mediumNameResolver,
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
+        , LocationCountPerMedium_(std::move(locationCountPerMedium))
+        , DynamicConfig_(New<TMediumAwareBlockCacheManagerDynamicConfig>())
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , MediumNameResolver_(std::move(mediumNameResolver))
         , Profiler_(std::move(profiler))
@@ -74,13 +121,6 @@ public:
     {
         auto enabled = config->Enable.value_or(Config_->Enable);
 
-        for (const auto& [mediumName, _] : config->BlockCacheConfigPerMedium) {
-            THROW_ERROR_EXCEPTION_UNLESS(
-                Config_->BlockCacheConfigPerMedium.contains(mediumName),
-                "Cannot dynamically configure block cache for unknown medium %Qv.",
-                mediumName);
-        }
-
         // NB: Mutations happen on the control thread, while reads happen on RPC threads.
         if (!enabled) {
             Enabled_.store(false, std::memory_order::relaxed);
@@ -93,30 +133,73 @@ public:
             for (const auto& [_, cache] : oldCaches) {
                 cache->Reconfigure(zeroCapacityConfig);
             }
+            DynamicConfig_ = config;
             return;
         }
 
-        auto caches = GetPerMediumCaches();
-        bool cachesCreated = false;
-        if (caches.empty()) {
-            caches = CreatePerMediumCaches();
-            cachesCreated = true;
+        auto oldCaches = GetPerMediumCaches();
+        THashMap<std::string, IClientBlockCachePtr> caches;
+        auto addCache = [&] (const std::string& mediumName) {
+            if (caches.contains(mediumName)) {
+                return;
+            }
+
+            auto oldCacheIt = oldCaches.find(mediumName);
+            EmplaceOrCrash(
+                caches,
+                mediumName,
+                oldCacheIt == oldCaches.end()
+                    ? CreatePerMediumCache(mediumName)
+                    : oldCacheIt->second);
+        };
+        for (const auto& [mediumName, _] : Config_->BlockCacheConfigPerMediumPerLocation) {
+            addCache(mediumName);
+        }
+        for (const auto& [mediumName, _] : config->BlockCacheConfigPerMediumPerLocation) {
+            addCache(mediumName);
+        }
+
+        THashMap<std::string, TBlockCacheDynamicConfigPtr> effectiveConfigs;
+        for (const auto& [mediumName, _] : caches) {
+            EmplaceOrCrash(
+                effectiveConfigs,
+                mediumName,
+                CreateEffectiveDynamicConfig(config, mediumName, GetLocationCount(mediumName)));
         }
 
         for (const auto& [mediumName, cache] : caches) {
-            auto dynamicConfigIt = config->BlockCacheConfigPerMedium.find(mediumName);
-            cache->Reconfigure(
-                dynamicConfigIt == config->BlockCacheConfigPerMedium.end()
-                    ? New<TBlockCacheDynamicConfig>()
-                    : dynamicConfigIt->second);
+            cache->Reconfigure(GetOrCrash(effectiveConfigs, mediumName));
         }
 
-        if (cachesCreated) {
+        {
             auto guard = WriterGuard(PerMediumLock_);
-            PerMedium_ = std::move(caches);
+            PerMedium_ = caches;
         }
 
+        auto zeroCapacityConfig = CreateDisabledBlockCacheConfig();
+        for (const auto& [mediumName, cache] : oldCaches) {
+            if (!caches.contains(mediumName)) {
+                cache->Reconfigure(zeroCapacityConfig);
+            }
+        }
+
+        DynamicConfig_ = config;
         Enabled_.store(true, std::memory_order::relaxed);
+    }
+
+    void UpdateLocationCountPerMedium(const TLocationCountPerMedium& locationCountPerMedium) override
+    {
+        if (Enabled_.load(std::memory_order::relaxed)) {
+            for (const auto& [mediumName, _] : GetPerMediumCaches()) {
+                auto oldLocationCount = GetLocationCount(mediumName);
+                auto newLocationCount = GetLocationCount(locationCountPerMedium, mediumName);
+                if (newLocationCount != oldLocationCount) {
+                    ReconfigureCache(mediumName, newLocationCount);
+                }
+            }
+        }
+
+        LocationCountPerMedium_ = locationCountPerMedium;
     }
 
     void RemoveChunkBlocks(TChunkId chunkId) override
@@ -138,6 +221,8 @@ public:
 
 private:
     const TMediumAwareBlockCacheManagerConfigPtr Config_;
+    TLocationCountPerMedium LocationCountPerMedium_;
+    TMediumAwareBlockCacheManagerDynamicConfigPtr DynamicConfig_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const TMediumNameResolver MediumNameResolver_;
     const NProfiling::TProfiler Profiler_;
@@ -147,20 +232,68 @@ private:
     mutable YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PerMediumLock_);
     THashMap<std::string, IClientBlockCachePtr> PerMedium_;
 
+    static int GetLocationCount(
+        const TLocationCountPerMedium& locationCountPerMedium,
+        const std::string& mediumName)
+    {
+        auto it = locationCountPerMedium.find(mediumName);
+        return it == locationCountPerMedium.end() ? 0 : it->second;
+    }
+
+    int GetLocationCount(const std::string& mediumName) const
+    {
+        return GetLocationCount(LocationCountPerMedium_, mediumName);
+    }
+
+    TBlockCacheConfigPtr GetStaticConfig(const std::string& mediumName) const
+    {
+        auto it = Config_->BlockCacheConfigPerMediumPerLocation.find(mediumName);
+        return it == Config_->BlockCacheConfigPerMediumPerLocation.end()
+            ? New<TBlockCacheConfig>()
+            : it->second;
+    }
+
+    TBlockCacheDynamicConfigPtr CreateEffectiveDynamicConfig(
+        const TMediumAwareBlockCacheManagerDynamicConfigPtr& managerDynamicConfig,
+        const std::string& mediumName,
+        int locationCount) const
+    {
+        auto staticConfig = GetStaticConfig(mediumName);
+        auto dynamicConfigIt = managerDynamicConfig->BlockCacheConfigPerMediumPerLocation.find(mediumName);
+        auto dynamicConfig = dynamicConfigIt == managerDynamicConfig->BlockCacheConfigPerMediumPerLocation.end()
+            ? New<TBlockCacheDynamicConfig>()
+            : dynamicConfigIt->second;
+        return CreateEffectiveBlockCacheDynamicConfig(
+            staticConfig,
+            dynamicConfig,
+            locationCount);
+    }
+
+    IClientBlockCachePtr CreatePerMediumCache(const std::string& mediumName) const
+    {
+        auto staticConfig = GetStaticConfig(mediumName);
+        auto effectiveConfig = CreateEffectiveBlockCacheConfig(staticConfig, GetLocationCount(mediumName));
+        return CreateClientBlockCache(
+            effectiveConfig,
+            EBlockType::UncompressedData | EBlockType::CompressedData | EBlockType::HashTableChunkIndex |
+                EBlockType::XorFilter | EBlockType::ChunkFragmentsData | EBlockType::MinHashDigest,
+            MemoryUsageTracker_,
+            Profiler_.WithTag("medium", mediumName),
+            /*manageMemoryLimit*/ false);
+    }
+
+    void ReconfigureCache(const std::string& mediumName, int locationCount)
+    {
+        auto caches = GetPerMediumCaches();
+        GetOrCrash(caches, mediumName)->Reconfigure(
+            CreateEffectiveDynamicConfig(DynamicConfig_, mediumName, locationCount));
+    }
+
     THashMap<std::string, IClientBlockCachePtr> CreatePerMediumCaches() const
     {
         THashMap<std::string, IClientBlockCachePtr> result;
-        for (const auto& [mediumName, blockCacheConfig] : Config_->BlockCacheConfigPerMedium) {
-            EmplaceOrCrash(
-                result,
-                mediumName,
-                CreateClientBlockCache(
-                    blockCacheConfig,
-                    EBlockType::UncompressedData | EBlockType::CompressedData | EBlockType::HashTableChunkIndex |
-                        EBlockType::XorFilter | EBlockType::ChunkFragmentsData | EBlockType::MinHashDigest,
-                    MemoryUsageTracker_,
-                    Profiler_.WithTag("medium", mediumName),
-                    /*manageMemoryLimit*/ false));
+        for (const auto& [mediumName, _] : Config_->BlockCacheConfigPerMediumPerLocation) {
+            EmplaceOrCrash(result, mediumName, CreatePerMediumCache(mediumName));
         }
         return result;
     }
@@ -176,12 +309,14 @@ private:
 
 IMediumAwareBlockCacheManagerPtr CreateMediumAwareBlockCacheManager(
     TMediumAwareBlockCacheManagerConfigPtr config,
+    TLocationCountPerMedium locationCountPerMedium,
     IMemoryUsageTrackerPtr memoryUsageTracker,
     TMediumNameResolver mediumNameResolver,
     NProfiling::TProfiler profiler)
 {
     return New<TMediumAwareBlockCacheManager>(
         std::move(config),
+        std::move(locationCountPerMedium),
         std::move(memoryUsageTracker),
         std::move(mediumNameResolver),
         std::move(profiler));

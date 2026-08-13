@@ -191,6 +191,26 @@ void TChunkStore::Shutdown()
     Locations_.clear();
 }
 
+void TChunkStore::SetMediumAwareBlockCacheManager(IMediumAwareBlockCacheManagerPtr manager)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+    YT_VERIFY(manager);
+    YT_VERIFY(!MediumAwareBlockCacheManager_);
+
+    MediumAwareBlockCacheManager_ = std::move(manager);
+}
+
+TLocationCountPerMedium TChunkStore::GetLocationCountPerMedium() const
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    TLocationCountPerMedium result;
+    for (const auto& location : Locations_) {
+        ++result[location->GetMediumName()];
+    }
+    return result;
+}
+
 void TChunkStore::ReconfigureLocation(const TChunkLocationPtr& location)
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
@@ -524,12 +544,18 @@ void TChunkStore::ChangeLocationMedium(const TChunkLocationPtr& location, int ol
 
     ReconfigureLocation(location);
 
-    auto guard = ReaderGuard(ChunkMapLock_);
-    for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
-        const auto& chunk = chunkEntry.Chunk;
-        if (chunk->GetLocation() == location) {
-            ChunkMediumChanged_.Fire(chunk, oldMediumIndex);
+    {
+        auto guard = ReaderGuard(ChunkMapLock_);
+        for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
+            const auto& chunk = chunkEntry.Chunk;
+            if (chunk->GetLocation() == location) {
+                ChunkMediumChanged_.Fire(chunk, oldMediumIndex);
+            }
         }
+    }
+
+    if (MediumAwareBlockCacheManager_) {
+        MediumAwareBlockCacheManager_->UpdateLocationCountPerMedium(GetLocationCountPerMedium());
     }
 }
 

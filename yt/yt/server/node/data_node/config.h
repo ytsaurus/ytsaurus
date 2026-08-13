@@ -870,8 +870,9 @@ struct TMediumAwareBlockCacheManagerConfig
     : public NYTree::TYsonStruct
 {
     bool Enable = false;
-    //! Fixed block cache capacity grouped by medium name.
-    THashMap<std::string, NChunkClient::TBlockCacheConfigPtr> BlockCacheConfigPerMedium;
+    //! Block cache configuration grouped by medium name.
+    //! Each capacity is specified per location and multiplied by the location count for the medium.
+    THashMap<std::string, NChunkClient::TBlockCacheConfigPtr> BlockCacheConfigPerMediumPerLocation;
 
     REGISTER_YSON_STRUCT(TMediumAwareBlockCacheManagerConfig);
 
@@ -886,8 +887,9 @@ struct TMediumAwareBlockCacheManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
     std::optional<bool> Enable;
-    //! Fixed block cache capacity overrides grouped by medium name.
-    THashMap<std::string, NChunkClient::TBlockCacheDynamicConfigPtr> BlockCacheConfigPerMedium;
+    //! Block cache overrides grouped by medium name.
+    //! Each capacity is specified per location and multiplied by the location count for the medium.
+    THashMap<std::string, NChunkClient::TBlockCacheDynamicConfigPtr> BlockCacheConfigPerMediumPerLocation;
 
     REGISTER_YSON_STRUCT(TMediumAwareBlockCacheManagerDynamicConfig);
 
