@@ -4652,10 +4652,12 @@ class TestQueueStaticExportOldImpl(TestQueueStaticExport):
 
         self._create_export_destination(export_dir, queue_id)
 
+        export_period_seconds = 5
         set(f"{queue_path}/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": 2 * 1000,
+                # Keep the period above the expected duration of a Sequoia export iteration.
+                "export_period": export_period_seconds * 1000,
             },
         })
 
@@ -4670,8 +4672,16 @@ class TestQueueStaticExportOldImpl(TestQueueStaticExport):
         assert last_exported_fragment_iteration_instant == last_successful_export_iteration_instant
 
         previous_exported_fragment_iteration_instant = last_exported_fragment_iteration_instant
+        successful_export_iteration_instants = [last_successful_export_iteration_instant]
 
-        time.sleep(10)
+        def has_two_more_successful_export_iterations():
+            current_instant = datetime.datetime.fromisoformat(
+                get(f"{export_dir}/@queue_static_export_progress")["last_successful_export_iteration_instant"])
+            if current_instant > successful_export_iteration_instants[-1]:
+                successful_export_iteration_instants.append(current_instant)
+            return len(successful_export_iteration_instants) >= 3
+
+        wait(has_two_more_successful_export_iterations, timeout=3 * export_period_seconds)
 
         export_progress = get(f"{export_dir}/@queue_static_export_progress")
         last_exported_fragment_iteration_instant = datetime.datetime.fromisoformat(export_progress["last_exported_fragment_iteration_instant"])
@@ -4679,10 +4689,6 @@ class TestQueueStaticExportOldImpl(TestQueueStaticExport):
 
         assert last_exported_fragment_iteration_instant == previous_exported_fragment_iteration_instant
         assert last_exported_fragment_iteration_instant < last_successful_export_iteration_instant
-
-        # 2-second exports, comparing to 3 to account for edge-cases.
-        # time.sleep(10) above should be enough to check the required behavior.
-        assert (datetime.datetime.now(pytz.UTC) - last_successful_export_iteration_instant).seconds <= 3
 
         self.remove_export_destination(export_dir)
 
