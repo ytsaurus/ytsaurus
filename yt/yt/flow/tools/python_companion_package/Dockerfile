@@ -29,20 +29,8 @@ COPY yt/yt_proto/yt/core/misc/proto /src/yt/yt_proto/yt/core/misc/proto
 COPY yt/yt_proto/yt/core/ytree/proto /src/yt/yt_proto/yt/core/ytree/proto
 COPY yt/yt_proto/yt/core/yson/proto /src/yt/yt_proto/yt/core/yson/proto
 
-# The runtime dependencies are installed by name and the package itself with --no-deps: its
-# install_requires names yandex-yt-proto, which is not published on PyPI. The four yt_proto stubs
-# its generated *_pb2.py import at runtime are compiled here from the checkout instead.
 RUN set -eux; \
-    site_packages=$(python -c 'import site; print(site.getsitepackages()[0])'); \
-    pip install --no-cache-dir \
-        "grpcio>=1.70.0" "protobuf>=5.29.0,<7.0.0" ytsaurus-client "grpcio-tools==1.70.0"; \
-    python -m grpc_tools.protoc -I/src/yt --python_out="$site_packages" \
-        yt_proto/yt/core/misc/proto/guid.proto \
-        yt_proto/yt/core/misc/proto/error.proto \
-        yt_proto/yt/core/ytree/proto/attributes.proto \
-        yt_proto/yt/core/yson/proto/protobuf_interop.proto; \
-    pip install --no-cache-dir --no-deps /src/yt/yt/flow/tools/python_companion_package; \
-    pip uninstall -y grpcio-tools; \
+    pip install --no-cache-dir /src/yt/yt/flow/tools/python_companion_package; \
     rm -rf /src; \
     python -c 'from yt.yt.flow.library.python.companion import Pipeline, server'
 
