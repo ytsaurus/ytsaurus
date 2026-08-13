@@ -16,8 +16,8 @@ The connectors used by a pipeline directly affect the message processing guarant
 || **Connector** | **Has source** | **Has sink** | **Description** ||
 || [Queue](../../../flow/connectors/queue.md) | &#10003; | &#10003; |
 Reading from and writing to an ordered dynamic table using the [Queue API](../../../user-guide/dynamic-tables/queues.md) ||
-|| [Static Table](../../../flow/connectors/static-table.md) | &#10003; | &#65794; |
-Reading from static tables. It can read a fixed set of tables or an unlimited sequence from a directory ||
+|| [Static Table](../../../flow/connectors/static-table.md) | &#10003; | &#10003; |
+Reading from static tables: a fixed set or an unlimited sequence from a directory. Writing a continuous sequence of static tables in message arrival order ||
 || Random | &#10003; | &#65794; |
 Reading random data generated on the fly. Used for testing ||
 || [Service Log](../../../flow/connectors/servicelog.md) | &#10003; | &#65794; |
