@@ -1505,6 +1505,11 @@ private:
                     columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
                 }
                 auto localizedPayload = WriteHunkValue(pool, localRefHunkValue);
+                if (valueDataWeights) {
+                    // The original value is no longer stored in the store chunk;
+                    // account the local hunk reference instead.
+                    DataWeight_ += std::ssize(localizedPayload) - (*valueDataWeights)[valueIndex];
+                }
                 SetValueRef(&value, localizedPayload);
                 value.Flags |= EValueFlags::Hunk;
             };
@@ -1614,6 +1619,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     int inlineHunkValueCount = 0;
     std::vector<IChunkFragmentReader::TChunkFragmentRequest> requests;
     std::vector<TUnversionedValue*> requestedValues;
+    std::vector<bool> requestedValuesAreCompressed;
 
     std::vector<TUnversionedValue*> compressedValues;
     std::vector<TChunkId> compressionDictionaryIds;
@@ -1654,6 +1660,8 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                     .BlockSize = globalRefHunkValue.BlockSize,
                 });
                 requestedValues.push_back(value);
+                requestedValuesAreCompressed.push_back(static_cast<bool>(
+                    globalRefHunkValue.CompressionDictionaryId));
 
                 if (globalRefHunkValue.CompressionDictionaryId) {
                     compressedValues.push_back(value);
@@ -1676,6 +1684,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
             requests = std::move(requests),
             values = std::move(values),
             requestedValues = std::move(requestedValues),
+            requestedValuesAreCompressed = std::move(requestedValuesAreCompressed),
             compressedValues = std::move(compressedValues),
             compressionDictionaryIds = std::move(compressionDictionaryIds),
             hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics),
@@ -1684,12 +1693,15 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
             performanceCounters = std::move(performanceCounters)
         ] (IChunkFragmentReader::TReadFragmentsResponse&& response) mutable {
             YT_VERIFY(response.Fragments.size() == requestedValues.size());
+            YT_VERIFY(response.Fragments.size() == requestedValuesAreCompressed.size());
             YT_VERIFY(performanceCounters);
 
-            i64 dataWeight = 0;
+            i64 nonCompressedDataWeight = 0;
             for (int index = 0; index < std::ssize(response.Fragments); ++index) {
                 const auto& fragment = response.Fragments[index];
-                dataWeight += fragment.Size();
+                if (!requestedValuesAreCompressed[index]) {
+                    nonCompressedDataWeight += fragment.Size();
+                }
                 auto payload = GetAndValidateHunkPayload(fragment, requests[index]);
                 setValuePayload(requestedValues[index], payload);
             }
@@ -1703,7 +1715,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                 hunkChunkReaderStatistics->BackendProbingRequestCount() += response.BackendProbingRequestCount;
 
                 if (compressedValues.empty()) {
-                    hunkChunkReaderStatistics->DataWeight() += dataWeight;
+                    hunkChunkReaderStatistics->DataWeight() += nonCompressedDataWeight;
                 }
             }
 
@@ -1712,7 +1724,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
             if (compressedValues.empty()) {
                 performanceCounters->IncrementHunkDataWeight(
                     initialQueryKind,
-                    dataWeight,
+                    nonCompressedDataWeight,
                     options.WorkloadDescriptor.Category);
             }
 
@@ -1735,9 +1747,10 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                         hunkChunkReaderStatistics = std::move(hunkChunkReaderStatistics),
                         performanceCounters = std::move(performanceCounters),
                         initialQueryKind,
-                        workloadCategory
+                        workloadCategory,
+                        nonCompressedDataWeight
                     ] (std::vector<TSharedRef>&& decompressionResults) {
-                        auto dataWeight = GetByteSize(decompressionResults);
+                        auto dataWeight = nonCompressedDataWeight + GetByteSize(decompressionResults);
                         if (hunkChunkReaderStatistics) {
                             hunkChunkReaderStatistics->DataWeight() += dataWeight;
                         }
