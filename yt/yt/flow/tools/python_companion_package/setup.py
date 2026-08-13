@@ -18,6 +18,16 @@ PLAIN_PROTOS = [
     "yt/flow/library/cpp/common/proto/visit.proto",
 ]
 
+# The core protos the Flow ones import. Their stubs are compiled into this wheel too, so that a
+# plain `pip install` yields an importable package: the generated *_pb2.py import yt_proto at
+# runtime, and no package publishing it exists on PyPI.
+CORE_PROTOS = [
+    "yt_proto/yt/core/misc/proto/guid.proto",
+    "yt_proto/yt/core/misc/proto/error.proto",
+    "yt_proto/yt/core/ytree/proto/attributes.proto",
+    "yt_proto/yt/core/yson/proto/protobuf_interop.proto",
+]
+
 
 def get_version():
     # In the ytsaurus package-build flow (build_ytsaurus_packages.sh does
@@ -68,7 +78,9 @@ def main():
             wkt_include = os.path.join(os.path.dirname(grpc_tools.__file__), "_proto")
 
             missing = [
-                proto for proto in GRPC_PROTOS + PLAIN_PROTOS if not os.path.exists(os.path.join(proto_root, proto))
+                proto
+                for proto in GRPC_PROTOS + PLAIN_PROTOS + CORE_PROTOS
+                if not os.path.exists(os.path.join(proto_root, proto))
             ]
             if missing:
                 raise RuntimeError(
@@ -78,7 +90,9 @@ def main():
 
             gen_dir = tempfile.mkdtemp(prefix="flow_companion_protos_")
             try:
-                for proto, with_grpc in [(p, True) for p in GRPC_PROTOS] + [(p, False) for p in PLAIN_PROTOS]:
+                for proto, with_grpc in [(p, True) for p in GRPC_PROTOS] + [
+                    (p, False) for p in PLAIN_PROTOS + CORE_PROTOS
+                ]:
                     args = [
                         "grpc_tools.protoc",
                         "-I" + proto_root,
@@ -91,18 +105,26 @@ def main():
                     if protoc.main(args) != 0:
                         raise RuntimeError("protoc failed on " + proto)
 
-                # Relocate yt/flow/... to the real prefix and make the generated
-                # subtree regular packages (only below library/cpp, which this wheel
-                # owns exclusively; upper levels stay implicit namespace packages
-                # shared with ytsaurus-client and ytsaurus-flow-yt-sync-mini).
-                src = os.path.join(gen_dir, "yt", "flow", "library", "cpp")
-                dst = os.path.join(self.build_lib, "yt", "yt", "flow", "library", "cpp")
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-                for dirpath, _, _ in os.walk(dst):
-                    init_py = os.path.join(dirpath, "__init__.py")
-                    if not os.path.exists(init_py):
-                        with open(init_py, "w"):
-                            pass
+                # Relocate yt/flow/... to the real prefix, and make each relocated subtree
+                # regular packages. Both roots below are owned by this wheel exclusively;
+                # the levels above them stay implicit namespace packages shared with
+                # ytsaurus-client and ytsaurus-flow-yt-sync-mini.
+                relocations = [
+                    (
+                        os.path.join(gen_dir, "yt", "flow", "library", "cpp"),
+                        os.path.join(self.build_lib, "yt", "yt", "flow", "library", "cpp"),
+                    ),
+                    # yt_proto keeps its own top-level name: that is the path its generated
+                    # siblings import it by.
+                    (os.path.join(gen_dir, "yt_proto"), os.path.join(self.build_lib, "yt_proto")),
+                ]
+                for src, dst in relocations:
+                    shutil.copytree(src, dst, dirs_exist_ok=True)
+                    for dirpath, _, _ in os.walk(dst):
+                        init_py = os.path.join(dirpath, "__init__.py")
+                        if not os.path.exists(init_py):
+                            with open(init_py, "w"):
+                                pass
             finally:
                 shutil.rmtree(gen_dir, ignore_errors=True)
 
@@ -140,7 +162,6 @@ def main():
             GRPCIO_RUNTIME,
             PROTOBUF_RUNTIME,
             "ytsaurus-client",
-            "yandex-yt-proto",
         ],
     )
 
