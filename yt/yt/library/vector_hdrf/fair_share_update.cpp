@@ -572,17 +572,22 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
 
 void TCompositeElement::ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* context)
 {
-    auto computeGuaranteeFairShare = [&] (TResourceVector TSchedulableAttributes::* estimatedGuaranteeFairShare) {
+    auto computeGuaranteeFairShare = [&] (
+        TResourceVector TSchedulableAttributes::* estimatedGuaranteeFairShare,
+        bool includeResourceFlow)
+    {
         double weightSum = 0.0;
         auto undistributedEstimatedGuaranteeFairShare = Attributes().*estimatedGuaranteeFairShare;
         for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
             weightSum += child->GetWeight();
 
-            // NB: Sum of total strong guarantee share and total resource flow can be greater than total resource limits. This results in a scheduler alert.
-            // However, no additional adjustment is done so we need to handle this case here as well.
+            auto childGuaranteeShare = child->Attributes().StrongGuaranteeShare;
+            if (includeResourceFlow) {
+                childGuaranteeShare += TResourceVector::FromDouble(child->Attributes().TotalResourceFlowRatio);
+            }
             child->Attributes().*estimatedGuaranteeFairShare = TResourceVector::Min(
-                child->Attributes().StrongGuaranteeShare + TResourceVector::FromDouble(child->Attributes().TotalResourceFlowRatio),
+                childGuaranteeShare,
                 undistributedEstimatedGuaranteeFairShare);
             undistributedEstimatedGuaranteeFairShare -= child->Attributes().*estimatedGuaranteeFairShare;
         }
@@ -595,8 +600,12 @@ void TCompositeElement::ComputeEstimatedGuaranteeShare(const TFairShareUpdateCon
         }
     };
 
-    computeGuaranteeFairShare(/*estimatedGuaranteeFairShare*/ &TSchedulableAttributes::PromisedFairShare);
-    computeGuaranteeFairShare(/*estimatedGuaranteeFairShare*/ &TSchedulableAttributes::EstimatedGuaranteeShare);
+    computeGuaranteeFairShare(
+        /*estimatedGuaranteeFairShare*/ &TSchedulableAttributes::PromisedFairShare,
+        /*includeResourceFlow*/ true);
+    computeGuaranteeFairShare(
+        /*estimatedGuaranteeFairShare*/ &TSchedulableAttributes::EstimatedGuaranteeShare,
+        /*includeResourceFlow*/ false);
 
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         GetChild(childIndex)->ComputeEstimatedGuaranteeShare(context);
