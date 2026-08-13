@@ -131,7 +131,7 @@ private:
             *queryStatistics = TQueryStatistics::FromExecutionStatistics(
                 statistics,
                 options.StatisticsAggregation);
-            YT_LOG_DEBUG("Finalizing evaluation; query statistics (%v)", *queryStatistics);
+            YT_LOG_DEBUG("Finalizing evaluation (QueryStatistics: %v)", *queryStatistics);
         });
 
         // TODO(dtorilov): Catch here WAVM::Runtime::Exception*.
