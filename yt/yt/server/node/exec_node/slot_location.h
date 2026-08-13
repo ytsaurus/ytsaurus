@@ -39,6 +39,7 @@ public:
         IJobDirectoryManagerPtr jobDirectoryManager,
         int slotCount,
         std::function<int(int)> slotIndexToUserId);
+    ~TSlotLocation();
 
     TFuture<void> Initialize(IVolumeManagerPtr volumeManager = nullptr);
 
@@ -233,6 +234,9 @@ private:
 
     const NProfiling::TGauge CopyRate_;
     const NProfiling::TGauge CopyRateEma_;
+
+    class TGaugeGrid;
+    const std::unique_ptr<TGaugeGrid> CopyRateGrid_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CopyRateAggregatorLock_);
     TAverageAdjustedExponentialMovingAverage CopyRateAggregator_;
