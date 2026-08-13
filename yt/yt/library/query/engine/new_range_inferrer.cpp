@@ -1036,7 +1036,7 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
                 auto it = nonOverlappingEnrichedRanges.lower_bound(newRange);
 
                 auto mergeStart = it;
-                auto mergedLower = newRange.first;;
+                auto mergedLower = newRange.first;
                 if (it != nonOverlappingEnrichedRanges.begin()) {
                     auto prev = std::prev(it);
                     if (!(prev->second < newRange.first)) {

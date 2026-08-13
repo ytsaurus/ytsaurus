@@ -867,6 +867,7 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
 
     registrar.Preprocessor([] (TThis* config) {
         config->VersionedChunkMetaCache->Capacity = 10_GB;
+        config->ClientCache->Capacity = 1024;
     });
 
     registrar.Postprocessor([] (TThis* config) {
