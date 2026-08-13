@@ -62,6 +62,39 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSlotLocation::TGaugeGrid
+{
+public:
+    template <NMpl::CInvocable<TGauge(i64)> TMaker>
+    TGaugeGrid(
+        std::span<const i64> grid,
+        TMaker&& makeGauge)
+        : Grid_(grid.begin(), grid.end())
+    {
+        YT_VERIFY(!grid.empty() && grid[0] == 0);
+        YT_VERIFY(std::ranges::is_sorted(grid));
+        for (i64 bucket : grid) {
+            Gauges_.push_back(makeGauge(bucket));
+        }
+    }
+
+    void Update(i64 bucketSelector, double value)
+    {
+        auto bucketIndex = std::ranges::upper_bound(Grid_, bucketSelector) - Grid_.begin();
+        // As long as bucketSelector is >= 0, we should never get 0 here.
+        YT_VERIFY(bucketIndex > 0 && bucketIndex <= std::ssize(Grid_));
+        Gauges_[bucketIndex - 1].Update(value);
+    }
+
+private:
+    const std::vector<i64> Grid_;
+    std::vector<NProfiling::TGauge> Gauges_;
+};
+
+static constexpr i64 CopyRateGaugeGrid[] = {0, 1_MB, 10_MB, 100_MB, 1000_MB};
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::optional<NExecNode::EVolumeType> TSlotLocation::TNonRootVolumeRegistry::IsInsideNonRootVolume(const std::string& path, const NLogging::TLogger& Logger) const
 {
     YT_LOG_DEBUG(
@@ -156,12 +189,21 @@ TSlotLocation::TSlotLocation(
         .WithTag("location_id", Id_))
     , CopyRate_(Profiler_.Gauge("/copy/rate"))
     , CopyRateEma_(Profiler_.Gauge("/copy/rate_ema"))
+    , CopyRateGrid_(std::make_unique<TGaugeGrid>(
+        CopyRateGaugeGrid,
+        [&] (i64 bucket) -> TGauge {
+            return Profiler_
+                .WithTag("bucket", Format("%vM", bucket / 1_MB))
+                .Gauge("/copy/rate_grid");
+        }))
     , CopyRateAggregator_(SlotManagerDynamicConfig_.Acquire()->CopyRateAggregatorHalfLife)
 {
     InitializeDiskLocationProfiling(Profiler_);
 
     Bootstrap_->SubscribePopulateAlerts(BIND(&TSlotLocation::PopulateAlerts, MakeWeak(this)));
 }
+
+TSlotLocation::~TSlotLocation() = default;
 
 void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& config)
 {
@@ -709,6 +751,8 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 CopyRateAggregator_.UpdateAt(TInstant::Now(), copyRate);
                 CopyRateEma_.Update(CopyRateAggregator_.GetAverage());
             }
+
+            CopyRateGrid_->Update(bytesTransferred, copyRate);
 
             if (!transferError.IsOK()) {
                 YT_LOG_INFO(
