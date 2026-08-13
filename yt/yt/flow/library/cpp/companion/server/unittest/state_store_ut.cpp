@@ -3,9 +3,9 @@
 #include <yt/yt/flow/library/cpp/companion/server/runtime_init_context.h>
 #include <yt/yt/flow/library/cpp/companion/server/state_store.h>
 
-#include <yt/yt/flow/library/cpp/common/column_evaluator_cache.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/payload_converter.h>
+#include <yt/yt/flow/library/cpp/common/schema.h>
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
 
@@ -47,6 +47,54 @@ TBatchInput MakeBatchInputWithKeys(const std::vector<ui64>& keyValues)
             }));
     }
     return input;
+}
+
+//! Key schema of a joined state whose partitioning column is computed, as
+//! |join_on.key_schema_override| declares it in a pipeline spec.
+NTableClient::TTableSchemaPtr ComputedJoinedKeySchema()
+{
+    return ConvertTo<NTableClient::TTableSchemaPtr>(NYson::TYsonString(TStringBuf(R"""(
+        [
+            {name="hash"; type="uint64"; required=%true; expression="farm_hash(word)"; sort_order="ascending";};
+            {name="word"; type="string"; sort_order="ascending";};
+        ]
+    )""")));
+}
+
+NTableClient::TTableSchemaPtr JoinedStateSchema()
+{
+    return ConvertTo<NTableClient::TTableSchemaPtr>(NYson::TYsonString(TStringBuf(R"""(
+        [
+            {name="count"; type="uint64";};
+        ]
+    )""")));
+}
+
+NTableClient::TTableSchemaPtr WordMessageSchema()
+{
+    return ConvertTo<NTableClient::TTableSchemaPtr>(NYson::TYsonString(TStringBuf(R"""(
+        [
+            {name="word"; type="string";};
+        ]
+    )""")));
+}
+
+TCompanionStateStorePtr MakeJoinedStore(
+    const NTableClient::TTableSchemaPtr& keySchema,
+    bool hasKeySchemaOverride)
+{
+    return New<TCompanionStateStore>(
+        THashSet<std::string>{},
+        THashSet<std::string>{},
+        THashSet<std::string>{"joined"},
+        New<NTableClient::TTableSchema>(),
+        THashMap<std::string, TCompanionExternalStateJoinerConfig>{
+            {"joined", {
+                    .KeySchema = keySchema,
+                    .ConverterCache = CreatePayloadConverterCache(/*evaluatorCache*/ nullptr),
+                    .HasKeySchemaOverride = hasKeySchemaOverride,
+                       }},
+        });
 }
 
 TEST(TCompanionStateStoreTest, InternalStateLifecycle)
@@ -258,19 +306,7 @@ TEST(TCompanionStateStoreTest, ExternalStateResetAndUnchanged)
 TEST(TCompanionStateStoreTest, JoinedStateKeySchemaOverride)
 {
     auto keySchema = NTesting::DefaultTestKeySchema();
-    auto converterCache = CreatePayloadConverterCache(CreateFastColumnEvaluatorCache());
-    auto store = New<TCompanionStateStore>(
-        THashSet<std::string>{},
-        THashSet<std::string>{},
-        THashSet<std::string>{"joined"},
-        New<NTableClient::TTableSchema>(),
-        THashMap<std::string, TCompanionExternalStateJoinerConfig>{
-            {"joined", {
-                    .KeySchema = keySchema,
-                    .ConverterCache = converterCache,
-                    .HasKeySchemaOverride = true,
-                       }},
-        });
+    auto store = MakeJoinedStore(keySchema, /*hasKeySchemaOverride*/ true);
     TJoinedStateKeyClient<TSimpleExternalState> client(store->GetExternalStateJoiner("joined"));
 
     auto joinedKey = MakeKey(ui64{1});
@@ -295,6 +331,111 @@ TEST(TCompanionStateStoreTest, JoinedStateKeySchemaOverride)
     auto state = client.GetState(input.Messages[0]);
     ASSERT_TRUE(state.IsInitialized());
     EXPECT_EQ(state->template GetColumnValue<ui64>("key"), ui64{42});
+}
+
+TEST(TCompanionStateStoreTest, JoinedStateKeySchemaOverrideStripsExpressionColumns)
+{
+    auto keySchema = ComputedJoinedKeySchema();
+    auto store = MakeJoinedStore(keySchema, /*hasKeySchemaOverride*/ true);
+    TJoinedStateKeyClient<TSimpleExternalState> client(store->GetExternalStateJoiner("joined"));
+
+    auto stateSchema = JoinedStateSchema();
+    TPayloadBuilder stateBuilder(stateSchema);
+    stateBuilder.Set(ui64{42}, "count");
+
+    TBatchInput input;
+    input.Messages.push_back(NTesting::MakeTestMessage(
+        TStreamId("input"),
+        MakeKey(ui64{999}),
+        WordMessageSchema(),
+        [&] (TMessageBuilder& builder) {
+            builder.Payload().Set("hello", "word");
+        }));
+    auto& holder = input.JoinedExternalStates["joined"];
+    holder.StateName = "joined";
+    holder.Schema = stateSchema;
+    // The worker sends keys laid out on the full override schema, hash included.
+    holder.StateItems.push_back({
+        .Key = MakeKey(ui64{12345}, TStringBuf("hello")),
+        .Reset = false,
+        .State = stateBuilder.Finish(),
+    });
+    store->LoadBatch(input);
+
+    EXPECT_EQ(*StripExpressionColumns(keySchema), *client.GetKeySchema());
+    EXPECT_EQ(MakeKey(TStringBuf("hello")), client.ResolveKey(input.Messages[0]));
+
+    auto state = client.GetState(input.Messages[0]);
+    ASSERT_TRUE(state.IsInitialized());
+    EXPECT_EQ(state->template GetColumnValue<ui64>("count"), ui64{42});
+
+    // The state stays addressable by the full key the worker sent, too.
+    auto stateByWireKey = client.GetState(MakeKey(ui64{12345}, TStringBuf("hello")));
+    ASSERT_TRUE(stateByWireKey.IsInitialized());
+    EXPECT_EQ(stateByWireKey->template GetColumnValue<ui64>("count"), ui64{42});
+
+    // A key the batch carried no joined state for is an uninitialized accessor.
+    EXPECT_FALSE(client.GetState(MakeKey(TStringBuf("missing"))).IsInitialized());
+}
+
+TEST(TCompanionStateStoreTest, JoinedStateWireKeyOutsideOverrideSchemaIsKeptVerbatim)
+{
+    auto store = MakeJoinedStore(ComputedJoinedKeySchema(), /*hasKeySchemaOverride*/ true);
+    TJoinedStateKeyClient<TSimpleExternalState> client(store->GetExternalStateJoiner("joined"));
+
+    auto stateSchema = JoinedStateSchema();
+    TPayloadBuilder stateBuilder(stateSchema);
+    stateBuilder.Set(ui64{42}, "count");
+
+    auto wireKey = MakeKey(ui64{12345});
+
+    TBatchInput input;
+    auto& holder = input.JoinedExternalStates["joined"];
+    holder.StateName = "joined";
+    holder.Schema = stateSchema;
+    // A key narrower than the override schema is not laid out on it, so it must not be re-laid
+    // out: doing so would read past its end.
+    holder.StateItems.push_back({.Key = wireKey, .Reset = false, .State = stateBuilder.Finish()});
+    store->LoadBatch(input);
+
+    auto state = client.GetState(wireKey);
+    ASSERT_TRUE(state.IsInitialized());
+    EXPECT_EQ(state->template GetColumnValue<ui64>("count"), ui64{42});
+}
+
+TEST(TCompanionStateStoreTest, JoinedStateWithoutOverrideKeepsWireKeys)
+{
+    auto keySchema = ComputedJoinedKeySchema();
+    auto store = MakeJoinedStore(keySchema, /*hasKeySchemaOverride*/ false);
+    TJoinedStateKeyClient<TSimpleExternalState> client(store->GetExternalStateJoiner("joined"));
+
+    auto stateSchema = JoinedStateSchema();
+    TPayloadBuilder stateBuilder(stateSchema);
+    stateBuilder.Set(ui64{42}, "count");
+
+    auto wireKey = MakeKey(ui64{12345}, TStringBuf("hello"));
+
+    TBatchInput input;
+    input.Messages.push_back(NTesting::MakeTestMessage(
+        TStreamId("input"),
+        wireKey,
+        WordMessageSchema(),
+        [&] (TMessageBuilder& builder) {
+            builder.Payload().Set("hello", "word");
+        }));
+    auto& holder = input.JoinedExternalStates["joined"];
+    holder.StateName = "joined";
+    holder.Schema = stateSchema;
+    holder.StateItems.push_back({.Key = wireKey, .Reset = false, .State = stateBuilder.Finish()});
+    store->LoadBatch(input);
+
+    // Without an override the message key is used verbatim, expression columns and all.
+    EXPECT_EQ(wireKey, client.ResolveKey(input.Messages[0]));
+
+    auto state = client.GetState(input.Messages[0]);
+    ASSERT_TRUE(state.IsInitialized());
+    EXPECT_EQ(state->template GetColumnValue<ui64>("count"), ui64{42});
+    EXPECT_FALSE(client.GetState(MakeKey(TStringBuf("hello"))).IsInitialized());
 }
 
 TEST(TCompanionStateStoreTest, JoinedStateReadOnly)

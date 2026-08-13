@@ -73,6 +73,9 @@ DEFINE_REFCOUNTED_TYPE(IPayloadConverterCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! |evaluatorCache| may be null. Such a cache converts to computed-column-free target schemas only;
+//! a conversion to a target schema with computed columns throws instead of evaluating them. Pass
+//! null to keep the query engine implementation out of the binary (see CreateFastColumnEvaluatorCache).
 IPayloadConverterCachePtr CreatePayloadConverterCache(
     NQueryClient::IColumnEvaluatorCachePtr evaluatorCache);
 

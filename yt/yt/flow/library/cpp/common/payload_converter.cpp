@@ -48,7 +48,7 @@ public:
         , HasComputedColumns_(targetSchema->HasComputedColumns())
         , Evaluator_(std::move(evaluator))
     {
-        YT_VERIFY(Evaluator_);
+        YT_VERIFY(!HasComputedColumns_ || Evaluator_);
 
         Actions_.reserve(TargetColumnCount_);
 
@@ -159,9 +159,7 @@ class TPayloadConverterCache
 public:
     explicit TPayloadConverterCache(IColumnEvaluatorCachePtr evaluatorCache)
         : EvaluatorCache_(std::move(evaluatorCache))
-    {
-        YT_VERIFY(EvaluatorCache_);
-    }
+    { }
 
     const IPayloadConverterPtr& GetImpl(
         const TTableSchemaPtr& sourceSchema,
@@ -169,8 +167,15 @@ public:
     {
         auto key = std::pair(sourceSchema.Get(), targetSchema.Get());
         const auto& entry = Cache_->FindOrInsert(key, [&] {
+            TColumnEvaluatorPtr evaluator;
+            if (targetSchema->HasComputedColumns()) {
+                THROW_ERROR_EXCEPTION_UNLESS(EvaluatorCache_,
+                    "Cannot convert to schema %v with computed columns: no column evaluator is available",
+                    *targetSchema);
+                evaluator = EvaluatorCache_->Find(targetSchema);
+            }
             return TCacheEntry{
-                New<TPayloadConverter>(sourceSchema, targetSchema, EvaluatorCache_->Find(targetSchema)),
+                New<TPayloadConverter>(sourceSchema, targetSchema, std::move(evaluator)),
                 sourceSchema,
                 targetSchema,
             };

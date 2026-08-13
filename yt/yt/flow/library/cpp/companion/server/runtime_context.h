@@ -11,7 +11,9 @@ namespace NYT::NFlow::NCompanionServer {
 DECLARE_REFCOUNTED_CLASS(TCompanionRuntimeContext);
 
 //! Companion-side IRuntimeContext: the production context minus worker-only
-//! facilities (distributed throttlers, the epoch timestamp).
+//! facilities (distributed throttlers, the epoch timestamp) and minus
+//! #TComputationStreamSpecStorage::ComputeKey() for a computed group-by schema:
+//! process functions take the key from the input, which arrives with it.
 class TCompanionRuntimeContext
     : public TComputationRuntimeContext
 {

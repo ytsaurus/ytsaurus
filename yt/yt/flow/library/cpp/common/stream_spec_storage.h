@@ -87,6 +87,8 @@ public:
 
     const NTableClient::TTableSchemaPtr& GetGroupBySchema() const;
 
+    //! Computes the group-by key of |message|. Needs a column evaluator when the group-by schema
+    //! has computed columns, so it is unavailable in a companion — use the key the worker sent.
     TKey ComputeKey(const TMessage& message) const;
 
     TStreamSpecsPtr GetStreamSpecs() const;

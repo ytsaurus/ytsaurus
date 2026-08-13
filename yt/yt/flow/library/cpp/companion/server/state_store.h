@@ -105,6 +105,8 @@ DEFINE_REFCOUNTED_TYPE(TCompanionExternalStateManager);
 
 //! Read-only joined-external-state backend over the per-batch wire content.
 //! A key the batch carried no state for surfaces as an uninitialized accessor.
+//! Under a key schema override #GetKeySchema() drops the expression columns; a state is addressable
+//! by that key and by the full key the worker sent.
 class TCompanionExternalStateJoiner
     : public IExternalStateJoiner
 {
@@ -130,6 +132,9 @@ public:
 
 private:
     const std::string Name_;
+    //! The key schema as the worker sends it, expression columns included.
+    const NTableClient::TTableSchemaPtr WireKeySchema_;
+    //! Under a key schema override, #WireKeySchema_ without its expression columns.
     const NTableClient::TTableSchemaPtr KeySchema_;
     const IPayloadConverterCachePtr ConverterCache_;
     const std::optional<THashSet<TStreamId>> KeyProviderStreams_;
