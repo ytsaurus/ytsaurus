@@ -432,7 +432,6 @@ private:
         }
 
         YT_TLOG_DEBUG("Looking for object on chaos cells")
-            .With("Type", Type_)
             .With("ChaosCellTags", futureCellTags);
 
         return AnyNSucceeded(foundFutures, 1).Apply(BIND(
@@ -588,7 +587,6 @@ private:
         }
 
         YT_TLOG_DEBUG("Looking for object on chaos cells")
-            .With("Type", Type_)
             .With("ChaosCellTags", futureCellTags);
 
         if (foundFutures.empty()) {
