@@ -444,7 +444,7 @@ private:
             if (!replicaLookupErrors.empty()) {
                 auto error = TError("Replica lookup invariants were violated")
                     .With(replicaLookupErrors);
-                YT_TLOG_ALERT_AND_THROW("Replica lookup invariants were violated")
+                YT_TLOG_ALERT_AND_THROW("Registration lookup failed")
                     .With(error);
             }
         }
