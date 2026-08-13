@@ -2,8 +2,9 @@ from base import ClickHouseTestBase, Clique, QueryFailedError
 
 from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
-from yt_commands import (authors, create, create_user, exists, get, ls, raises_yt_error,
-                         read_table, remove, set, sync_mount_table, wait, write_table)
+from yt_commands import (abort_transaction, authors, create, create_user, exists, get, lock, ls,
+                         raises_yt_error, read_table, remove, start_transaction, sync_mount_table,
+                         wait, write_table)
 
 import yt.yson as yson
 
@@ -61,12 +62,13 @@ class TestMaterializedViews(ClickHouseTestBase):
             assert persisted_config["create_statement"] == self.PERSISTED_MV_STATEMENT
             assert persisted_config["source_path"] == "//tmp/source"
             assert persisted_config["target_path"] == "//tmp/target"
-            assert persisted_config["initial_source_row_count"] == 0
 
             view_id = get(statement_path + "/@id")
             progress_path = progress_root + "/" + view_id
-            wait(lambda: exists(progress_path))
-            assert get(progress_path)["next_row_index"] == 0
+            assert exists(progress_path)
+            persisted_progress = get(progress_path)
+            assert persisted_progress["next_row_index"] == 0
+            assert persisted_progress["last_error"] == ""
 
             for instance in instances:
                 assert clique.make_direct_query(instance, self.SELECT_MV_QUERY) == rows
@@ -90,9 +92,8 @@ class TestMaterializedViews(ClickHouseTestBase):
 
             remove(progress_root, recursive=True, force=True)
             create("document", progress_root)
-            clique.make_query(self.CREATE_MV_QUERY)
-            assert exists(statement_path)
-            clique.make_query("DROP VIEW mv")
+            with raises_yt_error(code=QueryFailedError):
+                clique.make_query(self.CREATE_MV_QUERY)
             assert not exists(statement_path)
 
     @authors("buyval01")
@@ -161,7 +162,7 @@ class TestMaterializedViews(ClickHouseTestBase):
         remove("//tmp/source")
         create("table", "//tmp/source", attributes={"schema": self.SCHEMA})
         with Clique(1, enable_object_repository=False) as clique:
-            with raises_yt_error(message_pattern="Clique doesn't have configured CypressObjectRepository"):
+            with raises_yt_error(message_pattern="Clique has no configured CypressObjectRepository"):
                 clique.make_query(self.CREATE_MV_QUERY)
 
     @authors("buyval01")
@@ -172,10 +173,6 @@ class TestMaterializedViews(ClickHouseTestBase):
         test_alias = "mv_persistence_alias"
         with Clique(1, alias=test_alias, remove_storage_artifacts_on_exit=False) as clique:
             clique.make_query(self.CREATE_MV_QUERY)
-            statement_path = self._statement_path(clique)
-            persisted_config = yson.loads(yson.get_bytes(get(statement_path + "/@value")))
-            del persisted_config["initial_source_row_count"]
-            set(statement_path + "/@value", yson.dumps(persisted_config).decode())
 
         # A new clique incarnation with the same alias picks the view up from Cypress.
         with Clique(1, alias=test_alias) as clique:
@@ -206,41 +203,35 @@ class TestMaterializedViews(ClickHouseTestBase):
             clique.make_query(self.CREATE_MV_QUERY)
             assert clique.make_query(self.SELECT_MV_QUERY) == []
 
-            write_table("<append=%true>//tmp/source", expected_rows)
-            wait(lambda: read_table("//tmp/target") == expected_rows)
-
             statement_path = self._statement_path(clique)
             view_id = get(statement_path + "/@id")
             progress_root = clique.materialized_views_path + "/progress"
             progress_path = progress_root + "/" + view_id
+            assert get(progress_path)["next_row_index"] == 2
+            assert read_table("//tmp/target") == []
+
+            write_table("<append=%true>//tmp/source", expected_rows)
+            wait(lambda: read_table("//tmp/target") == expected_rows)
+
             assert ls(progress_root) == [view_id]
             assert get(progress_path + "/@type") == "document"
             progress = get(progress_path)
             assert progress["next_row_index"] == 34
 
             target_id = get("//tmp/target/@id")
-            instance_cookies = {
-                instance.attributes["job_cookie"]
-                for instance in clique.get_active_instances()
-            }
 
-            def get_refresh_instance_cookies():
+            def get_refresh_queries():
                 return {
-                    row["chyt_instance_cookie"]
+                    row["query_id"]
                     for row in read_table(clique.query_log_table_path)
                     if row.get("type") == "QueryFinish"
+                    and row.get("query_kind") == "Insert"
                     and row.get("is_initial_query") == 1
                     and target_id in row.get("query", "")
                 }
 
-            wait(
-                lambda: get_refresh_instance_cookies() == instance_cookies,
-                ignore_exceptions=True)
-            time.sleep(1)
-            assert read_table("//tmp/target") == expected_rows
-            assert ls(progress_root) == [view_id]
-
-            clique.make_query("DROP VIEW mv")
+            # max_rows_per_refresh is 1, so each refresh query must move 1 row.
+            wait(lambda: len(get_refresh_queries()) == len(expected_rows))
 
     @authors("buyval01")
     def test_background_refresh_persists_initial_validation_error(self):
@@ -260,11 +251,29 @@ class TestMaterializedViews(ClickHouseTestBase):
             remove("//tmp/source")
             create("table", "//tmp/source", attributes={"schema": self.SCHEMA})
 
-            wait(lambda: exists(progress_path), timeout=10)
             wait(
-                lambda: "source table was replaced" in get(progress_path + "/@last_error"),
+                lambda: "source table was replaced" in get(progress_path)["last_error"],
                 ignore_exceptions=True,
                 timeout=10)
+
+    @authors("buyval01")
+    def test_background_refresh_lock_contention(self):
+        config_patch = {"yt": {"materialized_views": {"scan_period": 1000}}}
+        expected_rows = [{"key": 1, "value": "new-1"}]
+
+        with Clique(2, config_patch=config_patch, export_query_log=True) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+            transaction_id = start_transaction(timeout=10000)
+            try:
+                lock("//tmp/target", mode="exclusive", tx=transaction_id)
+                write_table("<append=%true>//tmp/source", expected_rows)
+                time.sleep(2)
+                assert read_table("//tmp/target") == []
+                clique.make_query("SELECT 1")
+            finally:
+                abort_transaction(transaction_id)
+
+            wait(lambda: read_table("//tmp/target") == expected_rows, timeout=10)
 
     @authors("buyval01")
     def test_background_refresh_query_failure(self):
@@ -289,8 +298,9 @@ class TestMaterializedViews(ClickHouseTestBase):
             progress_path = clique.materialized_views_path + "/progress/" + view_id
 
             write_table("//tmp/source", [{"key": 1, "value": "not-an-integer"}])
+
             wait(
-                lambda: bool(get(progress_path + "/@last_error")),
+                lambda: bool(get(progress_path)["last_error"]),
                 ignore_exceptions=True,
                 timeout=10)
             assert read_table("//tmp/int_target") == []
@@ -299,7 +309,7 @@ class TestMaterializedViews(ClickHouseTestBase):
             expected_rows = [{"key": 2, "value": 42}]
             write_table("//tmp/source", [{"key": 2, "value": "42"}])
             wait(lambda: read_table("//tmp/int_target") == expected_rows, timeout=10)
-            assert get(progress_path + "/@last_error") == ""
+            assert get(progress_path)["last_error"] == ""
 
     @authors("buyval01")
     def test_background_refresh_parent_transaction_abort(self):
@@ -325,7 +335,7 @@ class TestMaterializedViews(ClickHouseTestBase):
             write_table("//tmp/source", [{"key": 1, "value": "new-1"}])
             wait(
                 lambda: "Testing exception after materialized view refresh query"
-                in get(progress_path + "/@last_error"),
+                in get(progress_path)["last_error"],
                 ignore_exceptions=True,
                 timeout=10)
 
@@ -337,9 +347,6 @@ class TestMaterializedViews(ClickHouseTestBase):
                     for row in read_table(clique.query_log_table_path)),
                 ignore_exceptions=True)
 
-            assert read_table("//tmp/target") == []
-            assert get(progress_path)["next_row_index"] == 0
-            time.sleep(1)
             assert read_table("//tmp/target") == []
             assert get(progress_path)["next_row_index"] == 0
 

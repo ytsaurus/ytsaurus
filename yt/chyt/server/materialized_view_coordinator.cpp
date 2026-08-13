@@ -55,13 +55,12 @@ constinit const auto Logger = ClickHouseYtLogger;
 
 namespace {
 
-const std::string LastErrorAttribute = "last_error";
-
 struct TMaterializedViewProgress
     : public TYsonStruct
 {
     i64 NextRowIndex;
-    TInstant LastSuccessfulRefreshTime;
+    std::optional<TInstant> LastSuccessfulRefreshTime;
+    std::string LastError;
 
     REGISTER_YSON_STRUCT(TMaterializedViewProgress);
 
@@ -71,19 +70,13 @@ struct TMaterializedViewProgress
             .Default(0);
         registrar.Parameter("last_successful_refresh_time", &TThis::LastSuccessfulRefreshTime)
             .Default();
+        registrar.Parameter("last_error", &TThis::LastError)
+            .Default();
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TMaterializedViewProgress)
 using TMaterializedViewProgressPtr = TIntrusivePtr<TMaterializedViewProgress>;
-
-TMaterializedViewProgressPtr BuildProgress(i64 nextRowIndex, TInstant lastRefreshTime)
-{
-    auto progress = New<TMaterializedViewProgress>();
-    progress->NextRowIndex = nextRowIndex;
-    progress->LastSuccessfulRefreshTime = lastRefreshTime;
-    return progress;
-}
 
 class TMaterializedViewProgressStore
     : public TRefCounted
@@ -96,25 +89,12 @@ public:
         , ProgressRootPath_(rootPath + "/progress")
     { }
 
-    void EnsureReady()
+    void EnsureReady(const IClientBasePtr& client)
     {
         TCreateNodeOptions options;
         options.IgnoreExisting = true;
         options.Recursive = true;
-        WaitFor(Client_->CreateNode(ProgressRootPath_, EObjectType::MapNode, options))
-            .ThrowOnError();
-    }
-
-    void EnsureView(TObjectId viewId, i64 initialRowCount)
-    {
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("value", BuildProgress(initialRowCount, /*lastRefreshTime*/ {}));
-        attributes->Set(LastErrorAttribute, std::string());
-
-        TCreateNodeOptions options;
-        options.IgnoreExisting = true;
-        options.Attributes = std::move(attributes);
-        WaitFor(Client_->CreateNode(GetProgressNodePath(viewId), EObjectType::Document, options))
+        WaitFor(client->CreateNode(ProgressRootPath_, EObjectType::MapNode, options))
             .ThrowOnError();
     }
 
@@ -124,14 +104,33 @@ public:
             WaitFor(client->GetNode(GetProgressNodePath(viewId))).ValueOrThrow());
     }
 
+    void CreateProgress(
+        const NApi::ITransactionPtr& transaction,
+        TObjectId viewId,
+        TMaterializedViewProgressPtr progress) const
+    {
+        progress->LastError.clear();
+
+        TCreateNodeOptions options;
+        options.Attributes = CreateEphemeralAttributes();
+        options.Attributes->Set("value", std::move(progress));
+        WaitFor(transaction->CreateNode(
+            GetProgressNodePath(viewId),
+            EObjectType::Document,
+            options))
+            .ThrowOnError();
+    }
+
     void SetProgress(
         const NApi::ITransactionPtr& transaction,
         TObjectId viewId,
-        i64 nextRowIndex) const
+        TMaterializedViewProgressPtr progress) const
     {
+        progress->LastError.clear();
+
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("value", BuildProgress(nextRowIndex, TInstant::Now()));
-        attributes->Set(LastErrorAttribute, std::string());
+        attributes->Set("value", std::move(progress));
+
         WaitFor(transaction->MultisetAttributesNode(
             GetProgressNodePath(viewId) + "/@",
             attributes->ToMap()))
@@ -140,9 +139,10 @@ public:
 
     void SetError(TObjectId viewId, const TError& error) const
     {
+        auto lastError = error.IsOK() ? std::string() : error.GetMessage();
         WaitFor(Client_->SetNode(
-            GetProgressNodePath(viewId) + "/@" + LastErrorAttribute,
-            NYson::ConvertToYsonString(error.IsOK() ? std::string() : error.GetMessage())))
+            GetProgressNodePath(viewId) + "/last_error",
+            NYson::ConvertToYsonString(lastError)))
             .ThrowOnError();
     }
 
@@ -222,11 +222,10 @@ public:
 
             if (Refreshed_) {
                 YT_LOG_INFO("Materialized view refresh completed "
-                    "(View: %v, InstanceCookie: %v, LowerRowIndex: %v, UpperRowIndex: %v)",
+                    "(View: %v, InstanceCookie: %v, NewRowIndex: %v)",
                     View_.ObjectName,
                     RefreshInstanceCookie_,
-                    Task_.LowerRowIndex,
-                    Task_.UpperRowIndex);
+                    Progress_->NextRowIndex);
             }
             return {};
         } catch (const std::exception& ex) {
@@ -245,21 +244,33 @@ public:
             Transaction_.Reset();
         }
 
-        if (ProgressReady_) {
-            try {
-                ProgressStore_->SetError(View_.ObjectId, error);
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to persist materialized view refresh error "
-                    "(View: %v)", View_.ObjectName);
-            }
+        try {
+            ProgressStore_->SetError(View_.ObjectId, error);
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to persist materialized view refresh error "
+                "(View: %v)", View_.ObjectName);
         }
     }
 
 private:
     struct TRefreshTask
     {
-        i64 LowerRowIndex = -1;
-        i64 UpperRowIndex = -1;
+        i64 LowerRowIndex = 0;
+        i64 UpperRowIndex = 0;
+
+        bool IsEmpty() const
+        {
+            return LowerRowIndex == UpperRowIndex;
+        }
+
+        TMaterializedViewProgressPtr BuildUpdatedProgress(
+            const TMaterializedViewProgressPtr& currentProgress) const
+        {
+            auto progress = CloneYsonStruct(currentProgress);
+            progress->NextRowIndex = UpperRowIndex;
+            progress->LastSuccessfulRefreshTime = TInstant::Now();
+            return progress;
+        }
     };
 
     THost* const Host_;
@@ -276,16 +287,12 @@ private:
     TTableInfo TargetInfo_;
     NApi::ITransactionPtr Transaction_;
     TMaterializedViewProgressPtr Progress_;
-    TRefreshTask Task_;
-    bool ProgressReady_ = false;
     bool Active_ = false;
     bool Refreshed_ = false;
     int RefreshInstanceCookie_ = -1;
 
     void DoExecute()
     {
-        ProgressStore_->EnsureView(View_.ObjectId, View_.InitialSourceRowCount);
-        ProgressReady_ = true;
         Client_ = Host_->CreateClient(View_.Creator);
 
         TTransactionStartOptions options;
@@ -293,47 +300,62 @@ private:
         Transaction_ = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
 
-        Active_ = CollectLocks();
+        Active_ = TryLockViewForRefresh();
         if (!Active_) {
             return;
         }
 
+        CollectSnapshotLocks();
         LoadRefreshState();
         ValidateRefreshState();
+
         auto task = BuildTask();
-        if (!task) {
+        if (task.IsEmpty()) {
             return;
         }
-        Task_ = std::move(*task);
 
-        WaitFor(StartRefreshQuery(BuildRefreshQuery(Task_.LowerRowIndex, Task_.UpperRowIndex)))
+        WaitFor(StartRefreshQuery(BuildRefreshQuery(task.LowerRowIndex, task.UpperRowIndex)))
             .ThrowOnError();
+
         THROW_ERROR_EXCEPTION_IF(Host_->GetConfig()->QuerySettings->Testing->ThrowExceptionAfterRefreshQuery,
             "Testing exception after materialized view refresh query");
-        ProgressStore_->SetProgress(Transaction_, View_.ObjectId, Task_.UpperRowIndex);
+
+        auto updatedProgress = task.BuildUpdatedProgress(Progress_);
+        ProgressStore_->SetProgress(
+            Transaction_,
+            View_.ObjectId,
+            updatedProgress);
+
+        Progress_ = std::move(updatedProgress);
         Refreshed_ = true;
     }
 
-    bool CollectLocks()
+    bool TryLockViewForRefresh()
     {
-        auto progressLock = Transaction_->LockNode(
-            ProgressStore_->GetProgressNodePath(View_.ObjectId),
-            ELockMode::Exclusive);
-        auto targetLock = Transaction_->LockNode(View_.TargetPath, ELockMode::Shared);
-        auto mainLocksOrError = WaitFor(AllSucceeded(std::vector{progressLock, targetLock}));
-        if (mainLocksOrError.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
+        auto lockPath = ProgressStore_->GetProgressNodePath(View_.ObjectId);
+
+        auto resultOrError = WaitFor(AllSucceeded(std::vector{
+            Transaction_->LockNode(View_.TargetPath, ELockMode::Shared),
+            Transaction_->LockNode(lockPath, ELockMode::Exclusive),
+        }));
+
+        if (resultOrError.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
             return false;
         }
-        auto mainLocks = std::move(mainLocksOrError).ValueOrThrow();
-        TargetObjectId_ = mainLocks[1].NodeId;
 
-        std::vector<TFuture<TLockNodeResult>> futures;
-        futures.push_back(Transaction_->LockNode(FromObjectId(View_.ObjectId), ELockMode::Snapshot));
-        futures.push_back(Transaction_->LockNode(View_.SourcePath, ELockMode::Snapshot));
+        TargetObjectId_ = resultOrError.ValueOrThrow()[0].NodeId;
 
-        auto auxiliaryLocks = WaitFor(AllSucceeded(futures)).ValueOrThrow();
-        SourceObjectId_ = auxiliaryLocks[1].NodeId;
         return true;
+    }
+
+    void CollectSnapshotLocks()
+    {
+        auto results = WaitFor(AllSucceeded(std::vector{
+            Transaction_->LockNode(View_.SourcePath, ELockMode::Snapshot),
+            Transaction_->LockNode(FromObjectId(View_.ObjectId), ELockMode::Snapshot),
+        })).ValueOrThrow();
+
+        SourceObjectId_ = results[0].NodeId;
     }
 
     void LoadRefreshState()
@@ -341,6 +363,9 @@ private:
         SourceInfo_ = GetTableInfo(Transaction_, FromObjectId(SourceObjectId_), MasterReadOptions_);
         TargetInfo_ = GetTableInfo(Transaction_, FromObjectId(TargetObjectId_), MasterReadOptions_);
         Progress_ = ProgressStore_->GetProgress(Transaction_, View_.ObjectId);
+        THROW_ERROR_EXCEPTION_IF(!Progress_->LastSuccessfulRefreshTime,
+            "Materialized view progress is not initialized")
+            .With("view_id", View_.ObjectId);
     }
 
     void ValidateRefreshState() const
@@ -373,20 +398,18 @@ private:
             .With("current_row_count", upperRowIndex);
     }
 
-    std::optional<TRefreshTask> BuildTask() const
+    TRefreshTask BuildTask() const
     {
-        auto lowerRowIndex = Progress_->NextRowIndex;
-        auto upperRowIndex = *SourceInfo_.RowCount;
-        if (upperRowIndex == lowerRowIndex) {
-            return std::nullopt;
-        }
-        if (Config_->MaxRowsPerRefresh > 0) {
-            upperRowIndex = std::min(upperRowIndex, lowerRowIndex + Config_->MaxRowsPerRefresh);
-        }
-        return TRefreshTask{
-            .LowerRowIndex = lowerRowIndex,
-            .UpperRowIndex = upperRowIndex,
+        TRefreshTask task{
+            .LowerRowIndex = Progress_->NextRowIndex,
+            .UpperRowIndex = *SourceInfo_.RowCount,
         };
+
+        if (Config_->MaxRowsPerRefresh > 0) {
+            task.UpperRowIndex = std::min(task.UpperRowIndex, task.LowerRowIndex + Config_->MaxRowsPerRefresh);
+        }
+
+        return task;
     }
 
     std::string BuildRefreshQuery(
@@ -480,8 +503,22 @@ public:
 
     void Start()
     {
-        ProgressStore_->EnsureReady();
+        ProgressStore_->EnsureReady(Host_->GetRootClient());
         PeriodicExecutor_->Start();
+    }
+
+    void InitializeProgress(
+        const NApi::ITransactionPtr& transaction,
+        TObjectId viewId,
+        TObjectId sourceObjectId)
+    {
+        ProgressStore_->EnsureReady(transaction);
+        auto sourceInfo = GetTableInfo(transaction, FromObjectId(sourceObjectId), MasterReadOptions_);
+
+        auto progress = New<TMaterializedViewProgress>();
+        progress->NextRowIndex = sourceInfo.RowCount.value_or(0);
+        progress->LastSuccessfulRefreshTime = TInstant::Now();
+        ProgressStore_->CreateProgress(transaction, viewId, std::move(progress));
     }
 
 private:
@@ -561,6 +598,14 @@ TMaterializedViewCoordinator::~TMaterializedViewCoordinator() = default;
 void TMaterializedViewCoordinator::Start()
 {
     Impl_->Start();
+}
+
+void TMaterializedViewCoordinator::InitializeProgress(
+    const NApi::ITransactionPtr& transaction,
+    TObjectId viewId,
+    TObjectId sourceObjectId)
+{
+    Impl_->InitializeProgress(transaction, viewId, sourceObjectId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

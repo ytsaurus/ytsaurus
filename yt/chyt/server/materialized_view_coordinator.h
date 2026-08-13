@@ -2,6 +2,10 @@
 
 #include "private.h"
 
+#include <yt/yt/client/api/public.h>
+
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NClickHouseServer {
@@ -20,6 +24,11 @@ public:
     ~TMaterializedViewCoordinator();
 
     void Start();
+
+    void InitializeProgress(
+        const NApi::ITransactionPtr& transaction,
+        NObjectClient::TObjectId viewId,
+        NObjectClient::TObjectId sourceObjectId);
 
 private:
     class TImpl;

@@ -160,6 +160,8 @@ public:
 
     TCypressObjectRepositoryPtr GetCypressObjectRepository() const;
 
+    TMaterializedViewCoordinatorPtr GetMaterializedViewCoordinator() const;
+
     void RefreshCypressObjectRepositoryGlobally() const;
 
     void PrepareClickHouseUser(const std::string& userName);

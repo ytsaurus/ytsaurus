@@ -25,7 +25,6 @@ struct TMaterializedViewConfiguration
     NYPath::TYPath TargetPath;
     NObjectClient::TObjectId SourceObjectId;
     NObjectClient::TObjectId TargetObjectId;
-    i64 InitialSourceRowCount = 0;
 };
 
 TMaterializedViewConfiguration BuildMaterializedViewConfiguration(

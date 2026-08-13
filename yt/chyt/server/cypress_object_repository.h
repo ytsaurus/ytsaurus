@@ -62,7 +62,6 @@ public:
         NObjectClient::TObjectId ObjectId;
         NObjectClient::TObjectId SourceObjectId;
         NObjectClient::TObjectId TargetObjectId;
-        i64 InitialSourceRowCount = 0;
         NHydra::TRevision Revision;
     };
 
