@@ -1103,6 +1103,39 @@
             "uri": "https://{canondata_backend}/1937027/355bf69b3673f52387430e814a279e3f7385e270/resource.tar.gz#test.test_key_filter-extend_over_map_with_same_schema-default.txt-Results_/results.txt"
         }
     ],
+    "test.test[lineage-flatten_list_from_range--Debug]": [
+        {
+            "checksum": "982cf6a0a762736297889e08209c96cd",
+            "size": 4553,
+            "uri": "https://{canondata_backend}/1871182/6c3f8b9e1a515603566edc1577e25e7ec6773213/resource.tar.gz#test.test_lineage-flatten_list_from_range--Debug_/opt.yql"
+        }
+    ],
+    "test.test[lineage-flatten_list_from_range--Lineage]": [
+        {
+            "checksum": "ede800ada5a612a1e8eefa998092c1bf",
+            "size": 914,
+            "uri": "https://{canondata_backend}/1871182/6c3f8b9e1a515603566edc1577e25e7ec6773213/resource.tar.gz#test.test_lineage-flatten_list_from_range--Lineage_/results.txt"
+        }
+    ],
+    "test.test[lineage-flatten_list_from_range--Plan]": [
+        {
+            "checksum": "172c920ad0b9dac805c5fb67f9da4f79",
+            "size": 8685,
+            "uri": "https://{canondata_backend}/1871182/6c3f8b9e1a515603566edc1577e25e7ec6773213/resource.tar.gz#test.test_lineage-flatten_list_from_range--Plan_/plan.txt"
+        }
+    ],
+    "test.test[lineage-flatten_list_from_range--Results]": [
+        {
+            "checksum": "3d29336a1ef5c25cb6d6355450b445b8",
+            "size": 17080,
+            "uri": "https://{canondata_backend}/1871182/6c3f8b9e1a515603566edc1577e25e7ec6773213/resource.tar.gz#test.test_lineage-flatten_list_from_range--Results_/Output.txt"
+        },
+        {
+            "checksum": "6b29329e1992fdd95f23e9952fb5700a",
+            "size": 435,
+            "uri": "https://{canondata_backend}/1871182/6c3f8b9e1a515603566edc1577e25e7ec6773213/resource.tar.gz#test.test_lineage-flatten_list_from_range--Results_/Output.yqlrun.txt.attr"
+        }
+    ],
     "test.test[lineage-reduce--Debug]": [
         {
             "checksum": "48ae18dd0903d3b206a9bc3079c39751",

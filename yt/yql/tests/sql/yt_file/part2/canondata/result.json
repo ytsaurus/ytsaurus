@@ -1504,9 +1504,9 @@
     ],
     "test.test[lineage-group_by_asstruct_key-default.txt-Lineage]": [
         {
-            "checksum": "bc3917a40f5ac45438aba58cf7027a81",
-            "size": 1187,
-            "uri": "https://{canondata_backend}/1942100/1cc3b7c2aa358ba033a674706448bac66713e7f0/resource.tar.gz#test.test_lineage-group_by_asstruct_key-default.txt-Lineage_/results.txt"
+            "checksum": "f9daf6d5e6654fc8724f4e8143787d4f",
+            "size": 1197,
+            "uri": "https://{canondata_backend}/1871182/7af1e35db3bf6cde71218bbc73f9133317f36ec9/resource.tar.gz#test.test_lineage-group_by_asstruct_key-default.txt-Lineage_/results.txt"
         }
     ],
     "test.test[lineage-group_by_asstruct_key-default.txt-Plan]": [
