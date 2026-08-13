@@ -11,6 +11,7 @@
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
+#include <yt/yt/client/table_client/tracked_memory_chunk_provider.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -132,6 +133,12 @@ private:
                 statistics,
                 options.StatisticsAggregation);
             YT_LOG_DEBUG("Finalizing evaluation (QueryStatistics: %v)", *queryStatistics);
+
+            NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
+                if (auto* tracked = dynamic_cast<NTableClient::TTrackedMemoryChunkProvider*>(memoryChunkProvider.Get())) {
+                    traceContext->AddTag("peak_memory_usage", tracked->GetMaxAllocated());
+                }
+            });
         });
 
         // TODO(dtorilov): Catch here WAVM::Runtime::Exception*.
