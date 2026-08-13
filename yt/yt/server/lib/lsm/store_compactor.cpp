@@ -917,8 +917,13 @@ private:
 
     bool IsStorePeriodicCompactionNeeded(const TStore* store) const
     {
-        auto mountConfig = store->GetTablet()->GetMountConfig();
-        if (!mountConfig->AutoCompactionPeriod) {
+        auto* tablet = store->GetTablet();
+        auto mountConfig = tablet->GetMountConfig();
+
+        bool digestsNotAllowed = tablet->GetHasTtlColumn() || mountConfig->RowMergerType == ERowMergerType::Watermark;
+        bool periodicCompactionForcefullyDisabled = mountConfig->DisablePeriodicCompactionOnlyIfDigestsAllowed && !digestsNotAllowed;
+
+        if (!mountConfig->AutoCompactionPeriod || periodicCompactionForcefullyDisabled) {
             return false;
         }
 
