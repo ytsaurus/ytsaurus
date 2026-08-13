@@ -8,4 +8,6 @@ JAR_RESOURCE(5307241842)
 
 SRC_RESOURCE(5307241843)
 
+ORIGINAL_SOURCE(https://gitbox.apache.org/repos/asf?p=commons-compress.git)
+
 END()
