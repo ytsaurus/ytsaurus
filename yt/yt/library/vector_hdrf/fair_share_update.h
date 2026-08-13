@@ -69,8 +69,6 @@ struct TSchedulableAttributes
     TResourceVector StrongGuaranteeShare;
     TEnumIndexedArray<EStrongGuaranteeTier, TResourceVector> StrongGuaranteeShareByTier;
     TResourceVector ProposedIntegralShare;
-    // TODO(eshcherbin): Remove this attribute.
-    TResourceVector PromisedFairShare;
     TResourceVector EstimatedGuaranteeShare;
 
     TResourceVolume VolumeOverflow;
