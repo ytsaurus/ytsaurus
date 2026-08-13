@@ -204,7 +204,7 @@ void TBatchAttributeFetcher::FetchBatchCounts()
             //   (since nodes may reside on different masters), making List-batching pointless;
             // * there are too many "useless" items besides the requested ones.
             if (IsSequoiaId(attributes->Get<TObjectId>("id"))) {
-                YT_TLOG_DEBUG("Directory corresponds to Sequia node, falling back to singular get requests")
+                YT_TLOG_DEBUG("Directory corresponds to Sequoia node, falling back to singular get requests")
                     .With("DirName", listEntry->DirName);
                 listEntry->FetchAsBatch = false;
             } else if (listEntry->DirNodeCount - listEntry->RequestedEntryCount > MaxUnusedNodeCount) {
