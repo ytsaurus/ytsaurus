@@ -1,5 +1,8 @@
 #include "state_store.h"
 
+#include <yt/yt/flow/library/cpp/common/key.h>
+#include <yt/yt/flow/library/cpp/common/schema.h>
+
 #include <yt/yt/core/actions/future.h>
 
 namespace NYT::NFlow::NCompanionServer {
@@ -231,11 +234,16 @@ void TCompanionExternalStateManager::CollectModified(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Expression columns are dropped because evaluating them would pull the query engine into every
+// companion binary; these keys only index Holders_, where the plain columns already separate them.
 TCompanionExternalStateJoiner::TCompanionExternalStateJoiner(
     std::string name,
     TCompanionExternalStateJoinerConfig config)
     : Name_(std::move(name))
-    , KeySchema_(std::move(config.KeySchema))
+    , WireKeySchema_(std::move(config.KeySchema))
+    , KeySchema_(config.HasKeySchemaOverride && WireKeySchema_
+            ? StripExpressionColumns(WireKeySchema_)
+            : WireKeySchema_)
     , ConverterCache_(std::move(config.ConverterCache))
     , KeyProviderStreams_(std::move(config.KeyProviderStreams))
     , HasKeySchemaOverride_(config.HasKeySchemaOverride)
@@ -305,6 +313,13 @@ void TCompanionExternalStateJoiner::LoadBatch(
     if (!incoming) {
         return;
     }
+    // Index each state under both layouts: the key the worker sent, and the stripped key
+    // GetKeySchema() advertises. Stripping cannot merge distinct keys, so the two entries of one
+    // state never collide with another's. The converter depends on the schema pair only.
+    IPayloadConverterPtr keyConverter;
+    if (KeySchema_ != WireKeySchema_) {
+        keyConverter = ConverterCache_->Get(WireKeySchema_, KeySchema_);
+    }
     for (const auto& item : incoming->StateItems) {
         if (item.Reset) {
             continue;
@@ -312,6 +327,11 @@ void TCompanionExternalStateJoiner::LoadBatch(
         auto holder = New<TStateHolder<TSimpleExternalState>>();
         holder->Get().Schema = incoming->Schema;
         holder->Get().Payload = item.State;
+        // The converter addresses the row by the wire schema's column positions, so only re-lay out
+        // a key that is actually laid out on it.
+        if (keyConverter && item.Key.Underlying().GetCount() == WireKeySchema_->GetColumnCount()) {
+            Holders_[keyConverter->Convert(item.Key)] = holder;
+        }
         Holders_[item.Key] = std::move(holder);
     }
 }

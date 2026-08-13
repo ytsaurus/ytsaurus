@@ -113,6 +113,30 @@ void ValidateGroupBySchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableSchemaPtr StripExpressionColumns(const TTableSchemaPtr& schema)
+{
+    // An expression may only reference columns of its own schema (ValidateSchemaExpressions rejects
+    // the rest), and only expression columns are dropped, so every column an expression reads
+    // survives: the stripped columns still determine the dropped ones.
+    YT_VERIFY(schema);
+
+    if (!schema->HasComputedColumns()) {
+        return schema;
+    }
+
+    std::vector<TColumnSchema> columns;
+    columns.reserve(schema->Columns().size());
+    for (const auto& column : schema->Columns()) {
+        if (!column.Expression()) {
+            columns.push_back(column);
+        }
+    }
+
+    return New<TTableSchema>(std::move(columns), schema->IsStrict(), schema->IsUniqueKeys());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPayload ConvertPayloadToNewSchema(
     const TPayload& payload,
     const NTableClient::TTableSchemaPtr& sourceSchema,

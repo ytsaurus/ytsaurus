@@ -24,6 +24,13 @@ void ValidateGroupBySchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Returns |schema| without its expression columns, keeping the order and sort orders of the rest.
+//! Two rows agree on the stripped columns iff they agree on all of |schema|, so the result is a key
+//! schema for in-memory lookups only: a dynamic table needs the computed columns to select a tablet.
+NTableClient::TTableSchemaPtr StripExpressionColumns(const NTableClient::TTableSchemaPtr& schema);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMessage ConvertMessageToNewSchema(
     const TMessage& message,
     const NTableClient::TTableSchemaPtr& targetSchema,

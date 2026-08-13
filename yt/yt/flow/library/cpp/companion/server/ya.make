@@ -23,10 +23,6 @@ PEERDIR(
     yt/yt/flow/library/cpp/computation
     yt/yt/flow/library/cpp/process_function/host
     yt/yt/library/program
-
-    # The payload converter cache evaluates expression columns and needs the
-    # query engine implementation linked into the companion binary.
-    yt/yt/library/query/engine
 )
 
 END()

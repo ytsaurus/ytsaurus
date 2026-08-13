@@ -6,7 +6,6 @@
 #include "runtime_context.h"
 #include "runtime_init_context.h"
 
-#include <yt/yt/flow/library/cpp/common/column_evaluator_cache.h>
 #include <yt/yt/flow/library/cpp/common/input_context.h>
 
 #include <yt/yt/flow/library/cpp/process_function/host/computation.h>
@@ -94,7 +93,11 @@ TJob::TJob(
     : JobId_(jobId)
     , ComputationId_(std::move(computationId))
     , ResourceStore_(std::move(resourceStore))
-    , ConverterCache_(CreatePayloadConverterCache(CreateFastColumnEvaluatorCache()))
+    // A companion never evaluates expression columns: stream schemas cannot have them, keys arrive
+    // on the wire, and joined-state keys are stripped by TCompanionExternalStateJoiner. This keeps
+    // the query engine out of every binary users ship, at the price of ComputeKey() on a computed
+    // group-by schema — see TCompanionRuntimeContext.
+    , ConverterCache_(CreatePayloadConverterCache(/*evaluatorCache*/ nullptr))
 {
     try {
         Spec_ = ConvertTo<TComputationSpecPtr>(NYson::TYsonStringBuf(jobInfo.spec()));

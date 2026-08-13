@@ -108,6 +108,7 @@ Limitations of the first version of the C++ companion:
 
 - sync process functions aren’t supported (the companion protocol has no Sync phase);
 - static [resources](../../../flow/concepts/glossary.md#resource), distributed throttlers, and the epoch timestamp (`GetCurrentTimestamp`) aren’t available;
+- `GetStreamSpecs()->ComputeKey()` can’t compute a key when `group_by_schema` has computed columns: a companion doesn’t evaluate expressions. The key arrives with the message — use `message->Key`;
 - external states are supported only as `TSimpleExternalState`;
 - output timers can only reference the key of one of the parent entities of the batch;
 - the companion runs as a single multithreaded process (`companion_process_count` is 0 or 1).
