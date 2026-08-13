@@ -304,6 +304,7 @@ public:
 
         MediumAwareBlockCacheManager_ = CreateMediumAwareBlockCacheManager(
             GetConfig()->DataNode->MediumAwareBlockCacheManager,
+            ChunkStore_->GetLocationCountPerMedium(),
             GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::BlockCache),
             BIND([mediumDirectoryManager = MediumDirectoryManager_] (int mediumIndex) -> std::optional<std::string> {
                 auto medium = mediumDirectoryManager->GetMediumDirectory()->FindByIndex(mediumIndex);
@@ -312,6 +313,7 @@ public:
                     : std::nullopt;
             }),
             DataNodeProfiler().WithPrefix("/block_cache/per_medium"));
+        ChunkStore_->SetMediumAwareBlockCacheManager(MediumAwareBlockCacheManager_);
 
         if (hotswapManager) {
             SubscribePopulateAlerts(BIND(&IHotswapManager::PopulateAlerts, hotswapManager));

@@ -26,6 +26,9 @@ struct IMediumAwareBlockCacheManager
     //! Applies dynamic manager configuration.
     virtual void Reconfigure(const TMediumAwareBlockCacheManagerDynamicConfigPtr& config) = 0;
 
+    //! Applies a full location-count snapshot.
+    virtual void UpdateLocationCountPerMedium(const TLocationCountPerMedium& locationCountPerMedium) = 0;
+
     //! Removes blocks by chunk id from all managed caches.
     virtual void RemoveChunkBlocks(NChunkClient::TChunkId chunkId) = 0;
 
@@ -45,6 +48,7 @@ using TMediumNameResolver = TCallback<std::optional<std::string>(int)>;
 
 IMediumAwareBlockCacheManagerPtr CreateMediumAwareBlockCacheManager(
     TMediumAwareBlockCacheManagerConfigPtr config,
+    TLocationCountPerMedium locationCountPerMedium,
     IMemoryUsageTrackerPtr memoryUsageTracker,
     TMediumNameResolver mediumNameResolver,
     NProfiling::TProfiler profiler);

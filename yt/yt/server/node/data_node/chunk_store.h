@@ -197,6 +197,10 @@ public:
     //! Triggers medium change for all chunks in location.
     void ChangeLocationMedium(const TChunkLocationPtr& location, int oldMediumIndex);
 
+    void SetMediumAwareBlockCacheManager(IMediumAwareBlockCacheManagerPtr manager);
+
+    TLocationCountPerMedium GetLocationCountPerMedium() const;
+
     //! Finds a suitable storage location for a new chunk.
     /*!
      *  The initial set of candidates consists of locations that are not full,
@@ -245,6 +249,8 @@ private:
     const TChunkContextPtr ChunkContext_;
     const IChunkStoreHostPtr ChunkStoreHost_;
     const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
+
+    IMediumAwareBlockCacheManagerPtr MediumAwareBlockCacheManager_;
 
     TAtomicIntrusivePtr<TDataNodeDynamicConfig> DynamicConfig_;
 

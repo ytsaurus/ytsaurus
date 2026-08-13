@@ -14,7 +14,14 @@ namespace {
 
 using namespace NChunkClient;
 
-TBlockCacheConfigPtr CreateBlockCacheConfig(
+const std::string SsdBlobsMediumName = "ssd_blobs";
+const std::string SsdIntermediateMediumName = "ssd_intermediate";
+
+constexpr int SsdBlobsMediumIndex = 42;
+constexpr int SsdIntermediateMediumIndex = 43;
+constexpr int UnknownMediumIndex = 44;
+
+TBlockCacheConfigPtr CreateOrdinaryBlockCacheConfig(
     i64 compressedDataCapacity,
     i64 uncompressedDataCapacity = 0)
 {
@@ -24,19 +31,50 @@ TBlockCacheConfigPtr CreateBlockCacheConfig(
     return config;
 }
 
+TBlockCacheConfigPtr CreateMediumAwareBlockCacheConfig(i64 compressedDataCapacityPerLocation)
+{
+    auto config = New<TBlockCacheConfig>();
+    config->CompressedData->Capacity = compressedDataCapacityPerLocation;
+    return config;
+}
+
+TBlockCacheDynamicConfigPtr CreateMediumAwareBlockCacheDynamicConfig(
+    i64 compressedDataCapacityPerLocation,
+    std::optional<i64> uncompressedDataCapacityPerLocation = {})
+{
+    auto config = New<TBlockCacheDynamicConfig>();
+    config->CompressedData->Capacity = compressedDataCapacityPerLocation;
+    config->UncompressedData->Capacity = uncompressedDataCapacityPerLocation;
+    return config;
+}
+
+TMediumAwareBlockCacheManagerConfigPtr CreateManagerConfig(
+    const THashMap<std::string, i64>& compressedDataCapacityPerMediumPerLocation)
+{
+    auto config = New<TMediumAwareBlockCacheManagerConfig>();
+    config->Enable = true;
+    for (const auto& [mediumName, capacity] : compressedDataCapacityPerMediumPerLocation) {
+        config->BlockCacheConfigPerMediumPerLocation[mediumName] =
+            CreateMediumAwareBlockCacheConfig(capacity);
+    }
+    return config;
+}
+
 IMediumAwareBlockCacheManagerPtr CreateManager(
     const TMediumAwareBlockCacheManagerConfigPtr& managerConfig,
-    const IMemoryUsageTrackerPtr& tracker)
+    const IMemoryUsageTrackerPtr& tracker,
+    TLocationCountPerMedium locationCountPerMedium = {{SsdBlobsMediumName, 1}})
 {
     return CreateMediumAwareBlockCacheManager(
         managerConfig,
+        std::move(locationCountPerMedium),
         tracker,
         BIND([] (int mediumIndex) -> std::optional<std::string> {
-            if (mediumIndex == 42) {
-                return "ssd_blobs";
+            if (mediumIndex == SsdBlobsMediumIndex) {
+                return SsdBlobsMediumName;
             }
-            if (mediumIndex == 43) {
-                return "ssd_intermediate";
+            if (mediumIndex == SsdIntermediateMediumIndex) {
+                return SsdIntermediateMediumName;
             }
             return std::nullopt;
         }),
@@ -49,7 +87,7 @@ TEST(TClientBlockCacheMemoryLimitTest, DoesNotUpdateTrackerLimitWhenMemoryLimitM
 {
     auto tracker = New<TTestNodeMemoryTracker>(1_GB);
     auto cache = CreateClientBlockCache(
-        CreateBlockCacheConfig(/*compressedDataCapacity*/ 1000),
+        CreateOrdinaryBlockCacheConfig(/*compressedDataCapacity*/ 1000),
         EBlockType::CompressedData,
         tracker,
         /*profiler*/ {},
@@ -66,65 +104,73 @@ TEST(TClientBlockCacheMemoryLimitTest, DoesNotUpdateTrackerLimitWhenMemoryLimitM
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TMediumAwareBlockCacheManagerTest, RoutesConfiguredMediumToDedicatedCache)
+TEST(TMediumAwareBlockCacheManagerTest, ScalesStaticAndDynamicCapacityWithLocationCount)
 {
     auto tracker = New<TTestNodeMemoryTracker>(1_GB);
 
-    auto managerConfig = New<TMediumAwareBlockCacheManagerConfig>();
-    managerConfig->Enable = true;
-    managerConfig->BlockCacheConfigPerMedium["ssd_blobs"] =
-        CreateBlockCacheConfig(/*compressedDataCapacity*/ 100);
-    auto manager = CreateManager(managerConfig, tracker);
+    auto managerConfig = CreateManagerConfig({{SsdBlobsMediumName, 4}});
+    auto blockCacheConfig = GetOrCrash(
+        managerConfig->BlockCacheConfigPerMediumPerLocation,
+        SsdBlobsMediumName);
+    blockCacheConfig->CompressedData->ShardCount = 1;
+    auto manager = CreateManager(managerConfig, tracker, {});
 
-    auto mediumCache = manager->GetBlockCacheForMedium(/*mediumIndex*/ 42);
+    auto mediumCache = manager->GetBlockCacheForMedium(SsdBlobsMediumIndex);
     ASSERT_TRUE(mediumCache);
-    EXPECT_FALSE(manager->GetBlockCacheForMedium(/*mediumIndex*/ 43));
-    EXPECT_FALSE(manager->GetBlockCacheForMedium(/*mediumIndex*/ 44));
+    EXPECT_FALSE(mediumCache->IsBlockTypeActive(EBlockType::CompressedData));
+
+    manager->UpdateLocationCountPerMedium({{SsdBlobsMediumName, 1}});
+    EXPECT_TRUE(mediumCache->IsBlockTypeActive(EBlockType::CompressedData));
 
     auto chunkId = TChunkId::Create();
-    TBlockId blockId(chunkId, /*blockIndex*/ 0);
-    mediumCache->PutBlock(
-        blockId,
-        EBlockType::CompressedData,
-        TBlock(TSharedRef::FromString(TString("data"))));
+    std::vector<TBlockId> blockIds = {
+        TBlockId(chunkId, /*blockIndex*/ 0),
+        TBlockId(chunkId, /*blockIndex*/ 1),
+    };
 
-    EXPECT_TRUE(mediumCache->FindBlock(blockId, EBlockType::CompressedData));
-}
+    auto putBlocks = [&] {
+        for (const auto& blockId : blockIds) {
+            mediumCache->PutBlock(
+                blockId,
+                EBlockType::CompressedData,
+                TBlock(TSharedRef::FromString(TString("data"))));
+        }
+    };
 
-TEST(TMediumAwareBlockCacheManagerTest, ReconfiguresPerMediumCache)
-{
-    auto tracker = New<TTestNodeMemoryTracker>(1_GB);
+    putBlocks();
+    EXPECT_EQ(mediumCache->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData).size(), 1u);
 
-    auto managerConfig = New<TMediumAwareBlockCacheManagerConfig>();
-    managerConfig->Enable = true;
-    managerConfig->BlockCacheConfigPerMedium["ssd_blobs"] =
-        CreateBlockCacheConfig(/*compressedDataCapacity*/ 100);
-    auto manager = CreateManager(managerConfig, tracker);
+    manager->UpdateLocationCountPerMedium({{SsdBlobsMediumName, 2}});
+    putBlocks();
+    EXPECT_EQ(mediumCache->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData).size(), 2u);
 
-    auto mediumCache = manager->GetBlockCacheForMedium(/*mediumIndex*/ 42);
-    ASSERT_TRUE(mediumCache);
-    ASSERT_TRUE(mediumCache->IsBlockTypeActive(EBlockType::CompressedData));
+    manager->UpdateLocationCountPerMedium({{SsdBlobsMediumName, 1}});
+    EXPECT_EQ(mediumCache->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData).size(), 1u);
 
-    auto managerDynamicConfig = New<TMediumAwareBlockCacheManagerDynamicConfig>();
-    auto mediumDynamicConfig = New<TBlockCacheDynamicConfig>();
-    mediumDynamicConfig->CompressedData->Capacity = 0;
-    managerDynamicConfig->BlockCacheConfigPerMedium["ssd_blobs"] = mediumDynamicConfig;
-    manager->Reconfigure(managerDynamicConfig);
-
+    manager->UpdateLocationCountPerMedium({});
     EXPECT_FALSE(mediumCache->IsBlockTypeActive(EBlockType::CompressedData));
+    EXPECT_TRUE(mediumCache->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData).empty());
+
+    manager->UpdateLocationCountPerMedium({{SsdBlobsMediumName, 2}});
+    putBlocks();
+    EXPECT_EQ(mediumCache->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData).size(), 2u);
+
+    // Two dynamic bytes per location and two locations give a four-byte cache that holds one block.
+    auto dynamicConfig = New<TMediumAwareBlockCacheManagerDynamicConfig>();
+    dynamicConfig->BlockCacheConfigPerMediumPerLocation[SsdBlobsMediumName] =
+        CreateMediumAwareBlockCacheDynamicConfig(/*compressedDataCapacityPerLocation*/ 2);
+    manager->Reconfigure(dynamicConfig);
+    EXPECT_EQ(mediumCache->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData).size(), 1u);
 }
 
 TEST(TMediumAwareBlockCacheManagerTest, ClearsPerMediumCachesWhenDisabled)
 {
     auto tracker = New<TTestNodeMemoryTracker>(1_GB);
 
-    auto managerConfig = New<TMediumAwareBlockCacheManagerConfig>();
-    managerConfig->Enable = true;
-    managerConfig->BlockCacheConfigPerMedium["ssd_blobs"] =
-        CreateBlockCacheConfig(/*compressedDataCapacity*/ 100);
+    auto managerConfig = CreateManagerConfig({{SsdBlobsMediumName, 100}});
     auto manager = CreateManager(managerConfig, tracker);
 
-    auto mediumCache = manager->GetBlockCacheForMedium(/*mediumIndex*/ 42);
+    auto mediumCache = manager->GetBlockCacheForMedium(SsdBlobsMediumIndex);
     ASSERT_TRUE(mediumCache);
     auto blockId = TBlockId(TChunkId::Create(), /*blockIndex*/ 0);
     mediumCache->PutBlock(
@@ -137,36 +183,44 @@ TEST(TMediumAwareBlockCacheManagerTest, ClearsPerMediumCachesWhenDisabled)
     auto disabledConfig = New<TMediumAwareBlockCacheManagerDynamicConfig>();
     disabledConfig->Enable = false;
     manager->Reconfigure(disabledConfig);
-    EXPECT_FALSE(manager->GetBlockCacheForMedium(/*mediumIndex*/ 42));
+    EXPECT_FALSE(manager->GetBlockCacheForMedium(SsdBlobsMediumIndex));
     EXPECT_FALSE(mediumCache->IsBlockTypeActive(EBlockType::CompressedData));
     EXPECT_FALSE(mediumCache->FindBlock(blockId, EBlockType::CompressedData));
     EXPECT_EQ(tracker->GetUsed(), 0);
+
+    manager->UpdateLocationCountPerMedium({});
 
     auto disabledMediumCache = mediumCache;
     auto enabledConfig = New<TMediumAwareBlockCacheManagerDynamicConfig>();
     enabledConfig->Enable = true;
     manager->Reconfigure(enabledConfig);
-    mediumCache = manager->GetBlockCacheForMedium(/*mediumIndex*/ 42);
+    mediumCache = manager->GetBlockCacheForMedium(SsdBlobsMediumIndex);
     ASSERT_TRUE(mediumCache);
     EXPECT_NE(mediumCache.Get(), disabledMediumCache.Get());
     EXPECT_FALSE(mediumCache->FindBlock(blockId, EBlockType::CompressedData));
+    EXPECT_FALSE(mediumCache->IsBlockTypeActive(EBlockType::CompressedData));
+
+    manager->UpdateLocationCountPerMedium({{SsdBlobsMediumName, 1}});
+    EXPECT_TRUE(mediumCache->IsBlockTypeActive(EBlockType::CompressedData));
 }
 
-TEST(TMediumAwareBlockCacheManagerTest, AggregatesAndRemovesBlocksAcrossPerMediumCaches)
+TEST(TMediumAwareBlockCacheManagerTest, RoutesAndManagesBlocksAcrossPerMediumCaches)
 {
     auto tracker = New<TTestNodeMemoryTracker>(1_GB);
 
-    auto managerConfig = New<TMediumAwareBlockCacheManagerConfig>();
-    managerConfig->Enable = true;
-    managerConfig->BlockCacheConfigPerMedium["ssd_blobs"] =
-        CreateBlockCacheConfig(/*compressedDataCapacity*/ 100);
-    managerConfig->BlockCacheConfigPerMedium["ssd_intermediate"] =
-        CreateBlockCacheConfig(/*compressedDataCapacity*/ 100);
-    auto manager = CreateManager(managerConfig, tracker);
-    auto firstMediumCache = manager->GetBlockCacheForMedium(/*mediumIndex*/ 42);
-    auto secondMediumCache = manager->GetBlockCacheForMedium(/*mediumIndex*/ 43);
+    auto managerConfig = CreateManagerConfig({
+        {SsdBlobsMediumName, 100},
+        {SsdIntermediateMediumName, 100},
+    });
+    auto manager = CreateManager(
+        managerConfig,
+        tracker,
+        {{SsdBlobsMediumName, 1}, {SsdIntermediateMediumName, 1}});
+    auto firstMediumCache = manager->GetBlockCacheForMedium(SsdBlobsMediumIndex);
+    auto secondMediumCache = manager->GetBlockCacheForMedium(SsdIntermediateMediumIndex);
     ASSERT_TRUE(firstMediumCache);
     ASSERT_TRUE(secondMediumCache);
+    EXPECT_FALSE(manager->GetBlockCacheForMedium(UnknownMediumIndex));
 
     auto chunkId = TChunkId::Create();
     TBlockId firstBlockId(chunkId, /*blockIndex*/ 0);

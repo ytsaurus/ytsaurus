@@ -19,6 +19,8 @@ using NNodeTrackerClient::TChunkLocationIndex;
 
 using NNodeTrackerClient::TNodeId;
 
+using TLocationCountPerMedium = THashMap<std::string, int>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSessionOptions;

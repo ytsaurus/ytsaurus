@@ -841,7 +841,7 @@ void TMediumAwareBlockCacheManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
-    registrar.Parameter("block_cache_config_per_medium", &TThis::BlockCacheConfigPerMedium)
+    registrar.Parameter("block_cache_config_per_medium_per_location", &TThis::BlockCacheConfigPerMediumPerLocation)
         .Default();
 }
 
@@ -849,7 +849,7 @@ void TMediumAwareBlockCacheManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Optional();
-    registrar.Parameter("block_cache_config_per_medium", &TThis::BlockCacheConfigPerMedium)
+    registrar.Parameter("block_cache_config_per_medium_per_location", &TThis::BlockCacheConfigPerMediumPerLocation)
         .Default();
 }
 
