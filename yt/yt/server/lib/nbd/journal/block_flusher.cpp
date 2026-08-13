@@ -87,7 +87,7 @@ private:
 
     struct TPendingFlushBarrier
     {
-        i64 FlushBarrierId = 0;
+        i64 FlushBarrierId = -1;
         TPromise<void> Promise;
     };
 
