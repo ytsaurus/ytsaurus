@@ -2,7 +2,6 @@
 
 #include "block_map.h"
 #include "block_store.h"
-#include "block_store_helpers.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -167,18 +166,7 @@ private:
 
     void CompactChunk(const TChunkInfo& chunkInfo)
     {
-        std::vector<std::pair<int, TStoredBlockId>> blocks;
-        // TODO(babenko): this walks every slot of the map to collect one chunk's blocks, once per
-        // scan period.
-        BlockMap_->IterateBlocks([&] (int blockIndex, TMappedBlockId mappedId) {
-            if (!IsStoredMappedBlockId(mappedId)) {
-                return;
-            }
-            auto storedBlockId = ToStoredBlockId(mappedId);
-            if (ParseStoredBlockId(storedBlockId).ChunkIndex == chunkInfo.ChunkIndex) {
-                blocks.emplace_back(blockIndex, storedBlockId);
-            }
-        });
+        auto blocks = BlockMap_->GetChunkBlocks(chunkInfo.ChunkIndex);
 
         YT_LOG_INFO("Started compacting block store chunk (ChunkId: %v, ReferencedBlockCount: %v, WrittenBlockCount: %v, "
             "GarbageRatio: %.2f, RelocatableBlockCount: %v)",

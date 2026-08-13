@@ -103,11 +103,11 @@ struct IBlockMap
     //! Ends the batched load of a device snapshot.
     virtual void EndLoadSnapshot() = 0;
 
-    //! Invokes |onBlock| with each used block's index and current mapped id, in ascending index order.
+    //! Returns the blocks whose content is stored in the chunk at |chunkIndex|, in ascending index order.
     /*!
      *  A racy lock-free scan: it reflects each slot at the moment it is visited.
      */
-    virtual void IterateBlocks(const std::function<void(int blockIndex, TMappedBlockId mappedId)>& onBlock) const = 0;
+    virtual std::vector<std::pair<int, TStoredBlockId>> GetChunkBlocks(int chunkIndex) const = 0;
 
     //! Fired once the map has processed the flush of a dirty block, reporting where its payload landed.
     DECLARE_INTERFACE_SIGNAL(void(TDirtyBlockId dirtyBlockId, TStoredBlockId storedBlockId), BlockFlushObserved);

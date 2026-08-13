@@ -316,14 +316,24 @@ public:
         LoadingSnapshot_ = false;
     }
 
-    void IterateBlocks(const std::function<void(int blockIndex, TMappedBlockId mappedId)>& onBlock) const final
+    std::vector<std::pair<int, TStoredBlockId>> GetChunkBlocks(int chunkIndex) const final
     {
+        YT_VERIFY(0 <= chunkIndex && chunkIndex < MaxChunksPerDevice);
+
+        using namespace NStoredBlockIdLayout;
+
+        auto slotMask = TagMask | (((1ULL << ChunkIndexBits) - 1) << (RecordIndexBits + BlockIndexBits));
+        auto slotExpected = (StoredTag << PayloadBits) |
+            (static_cast<ui64>(chunkIndex) << (RecordIndexBits + BlockIndexBits));
+
+        std::vector<std::pair<int, TStoredBlockId>> blocks;
         for (int index = 0; index < std::ssize(Slots_); ++index) {
-            auto id = WithoutCoW(TMappedBlockId(Slots_[index].load(std::memory_order::acquire)));
-            if (id != EmptyMappedBlockId) {
-                onBlock(index, id);
+            auto slot = Slots_[index].load(std::memory_order::acquire);
+            if ((slot & slotMask) == slotExpected) {
+                blocks.emplace_back(index, ToStoredBlockId(TMappedBlockId(slot)));
             }
         }
+        return blocks;
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(TDirtyBlockId dirtyBlockId, TStoredBlockId storedBlockId), BlockFlushObserved);

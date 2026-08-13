@@ -45,11 +45,15 @@ public:
         : Blocks_(std::move(blocks))
     { }
 
-    void IterateBlocks(const std::function<void(int, TMappedBlockId)>& onBlock) const final
+    std::vector<std::pair<int, TStoredBlockId>> GetChunkBlocks(int chunkIndex) const final
     {
+        std::vector<std::pair<int, TStoredBlockId>> blocks;
         for (const auto& [blockIndex, storedBlockId] : Blocks_) {
-            onBlock(blockIndex, ToMappedBlockId(storedBlockId));
+            if (ParseStoredBlockId(storedBlockId).ChunkIndex == chunkIndex) {
+                blocks.emplace_back(blockIndex, storedBlockId);
+            }
         }
+        return blocks;
     }
 
     bool TryPutBlock(int /*blockIndex*/, TMappedBlockId /*expectedBlockId*/, TStoredBlockId /*storedBlockId*/) final
