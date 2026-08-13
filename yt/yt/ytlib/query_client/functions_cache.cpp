@@ -217,7 +217,7 @@ std::vector<TExternalFunctionSpec> LookupAllNativeUdfDescriptors(
 
     auto timer = NProfiling::TWallTimer();
     auto finally = Finally([&] {
-        YT_TLOG_DEBUG("Finished Looking for UDFs in Cypress")
+        YT_TLOG_DEBUG("Finished looking for UDFs in Cypress")
             .With("LookupUdfDescriptorsTime", timer.GetElapsedTime());
     });
 
@@ -654,7 +654,7 @@ std::vector<TExternalFunctionSpec> LookupAllWebAssemblyUdfDescriptors(
 
     auto timer = NProfiling::TWallTimer();
     auto finally = Finally([&] {
-        YT_TLOG_DEBUG("Finished Looking for WebAssembly UDFs in Cypress")
+        YT_TLOG_DEBUG("Finished looking for WebAssembly UDFs in Cypress")
             .With("LookupUdfDescriptorsTime", timer.GetElapsedTime());
     });
 

@@ -268,7 +268,7 @@ void LogInitialDataSources(
     YT_TLOG_DEBUG("Splitting query input")
         .With("Kind", ranges ? "ranges" : "keys")
         .With("RangeCount", ranges ? ranges.size() : keys.size())
-        .With("TabletsCount", tableInfo->Tablets.size())
+        .With("TabletCount", tableInfo->Tablets.size())
         .With("LowerCapBound", tableInfo->LowerCapBound)
         .With("UpperCapBound", tableInfo->UpperCapBound);
 
