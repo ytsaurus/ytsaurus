@@ -1,5 +1,6 @@
 RECURSE(
     async_request
+    docker_vanilla_companion
     external_state_join
     retryable_async_request
     shuffle

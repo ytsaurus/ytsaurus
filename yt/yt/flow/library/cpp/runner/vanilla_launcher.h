@@ -48,6 +48,10 @@ struct TVanillaTaskConfig
     //! Per-task base OS layer; overrides the default system layer when set.
     std::optional<std::string> SystemLayerPath;
 
+    //! Root filesystem image for the task, on clusters whose job environment pulls images rather
+    //! than mounting porto layers. Mutually exclusive with `Layers`.
+    std::optional<std::string> DockerImage;
+
     REGISTER_YSON_STRUCT(TVanillaTaskConfig);
 
     static void Register(TRegistrar registrar);
@@ -150,6 +154,7 @@ struct TFlowVanillaTask
     THashMap<std::string, std::string> CypressFiles;
     std::vector<std::string> Layers;
     std::optional<std::string> SystemLayerPath;
+    std::optional<std::string> DockerImage;
 };
 
 //! Options for launching a Flow federation as a vanilla operation directly, without the pipeline

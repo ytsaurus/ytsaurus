@@ -77,6 +77,9 @@ IMapNodePtr BuildVanillaOperationSpec(const TVanillaSpec& spec)
                     .DoIf(task.SystemLayerPath.has_value(), [&] (auto fluent) {
                         fluent.Item("system_layer_path").Value(*task.SystemLayerPath);
                     })
+                    .DoIf(task.DockerImage.has_value(), [&] (auto fluent) {
+                        fluent.Item("docker_image").Value(*task.DockerImage);
+                    })
                     .DoIf(task.NetworkProject.has_value(), [&] (auto fluent) {
                         fluent.Item("network_project").Value(*task.NetworkProject);
                     })

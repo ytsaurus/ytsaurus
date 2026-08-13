@@ -254,6 +254,7 @@ TVanillaTaskSpec BuildTaskSpec(
         : Format("./%v --config %v", BinaryFileName, NodeConfigFileName);
     taskSpec.NetworkProject = networkProject;
     taskSpec.SystemLayerPath = task.SystemLayerPath;
+    taskSpec.DockerImage = task.DockerImage;
     taskSpec.Environment = task.Environment;
     for (const auto& layer : task.Layers) {
         taskSpec.Layers.push_back(NYPath::TYPath(layer));
@@ -303,6 +304,8 @@ void TVanillaTaskConfig::Register(TRegistrar registrar)
     registrar.Parameter("layers", &TThis::Layers)
         .Default();
     registrar.Parameter("system_layer_path", &TThis::SystemLayerPath)
+        .Default();
+    registrar.Parameter("docker_image", &TThis::DockerImage)
         .Default();
 }
 
@@ -459,6 +462,7 @@ void LaunchInVanillaJob(
         task.CypressFiles = config->CypressFiles;
         task.Layers = config->Layers;
         task.SystemLayerPath = config->SystemLayerPath;
+        task.DockerImage = config->DockerImage;
         if (aliasingConfig) {
             task.Environment["YT_PROXY_URL_ALIASING_CONFIG"] = *aliasingConfig;
         }

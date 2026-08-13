@@ -25,5 +25,7 @@ Number of ports to request from YT (ports are provided via `YT_PORT_<i>` and ove
 Cypress paths of the porto layers mounted into the task's root filesystem. A non-empty list on at least one task enables porto jobs for the whole vanilla operation. ||
 || `system_layer_path` | **Type**: `std::optional<std::string>`
 The task's base OS layer; overrides the default system layer. ||
+|| `docker_image` | **Type**: `std::optional<std::string>`
+Docker image for the task's root filesystem, for clusters whose job environment pulls images rather than mounting porto layers. Mutually exclusive with `layers`. ||
 |#
 

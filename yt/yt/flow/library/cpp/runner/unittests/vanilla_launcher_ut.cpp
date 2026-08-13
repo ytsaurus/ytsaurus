@@ -46,6 +46,15 @@ TEST(TVanillaConfigTest, EntityDisablesDefaultNetworkProject)
     EXPECT_FALSE(config->NetworkProject.has_value());
 }
 
+TEST(TVanillaConfigTest, AllowsPerTaskDockerImage)
+{
+    auto config = ConvertTo<TVanillaConfigPtr>(
+        TYsonStringBuf(R"({pool=test;worker={count=1;docker_image="registry.example.com/image:tag"}})"));
+
+    EXPECT_EQ(config->Worker->DockerImage, std::optional<std::string>("registry.example.com/image:tag"));
+    EXPECT_FALSE(config->Controller->DockerImage.has_value());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr TStringBuf PipelineCluster = "pipeline-cluster";
