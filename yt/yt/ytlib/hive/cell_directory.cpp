@@ -636,8 +636,16 @@ private:
             ClusterDirectory_,
             Logger);
 
-        for (auto kind : TEnumTraits<EPeerKind>::GetDomainValues()) {
-            entry->Channels[kind] = CreatePeerChannel(peerConfig, alienClusterChannelFactory, kind);
+        // A single-peer cell has no followers so the sole peer serves every kind.
+        if (std::ssize(entry->Descriptor->Peers) == 1) {
+            auto channel = CreatePeerChannel(peerConfig, alienClusterChannelFactory, EPeerKind::Leader);
+            for (auto kind : TEnumTraits<EPeerKind>::GetDomainValues()) {
+                entry->Channels[kind] = channel;
+            }
+        } else {
+            for (auto kind : TEnumTraits<EPeerKind>::GetDomainValues()) {
+                entry->Channels[kind] = CreatePeerChannel(peerConfig, alienClusterChannelFactory, kind);
+            }
         }
     }
 };
