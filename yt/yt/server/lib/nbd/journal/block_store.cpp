@@ -410,11 +410,6 @@ private:
     //! Failure is terminal: once fired, every entry point refuses work and every retry loop gives up.
     TSingleShotCallbackList<void(const TError&)> Failed_;
 
-    static TError MakeFailedError()
-    {
-        return TError("Block store has failed");
-    }
-
     struct TChunkEntry final
     {
         TChunkEntry(
@@ -490,6 +485,11 @@ private:
     TInstant ChunkCreationRetryDeadline_;
 
     std::atomic<bool> SnapshotInProgress_ = false;
+
+    static TError MakeFailedError()
+    {
+        return TError("Block store has failed");
+    }
 
     TChunkEntryPtr FindChunkById(TChunkId chunkId)
     {
