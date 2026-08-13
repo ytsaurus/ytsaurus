@@ -4594,7 +4594,8 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
             chunk_format_statistics = get("//tmp/t/@chunk_format_statistics")
             if chunk_format_statistics["hunk_default"]["chunk_count"] != 3:
                 return False
-            assert chunk_format_statistics["table_versioned_simple"]["data_weight"] == 18080
+            # External values contribute local hunk references to the store chunk data weight.
+            assert chunk_format_statistics["table_versioned_simple"]["data_weight"] == 7890
             assert chunk_format_statistics["table_versioned_simple"]["uncompressed_data_size"] == 10016
             assert chunk_format_statistics["table_versioned_simple"]["compressed_data_size"] < 5000
             # TODO(akozhikhov): YT-26629
@@ -4603,6 +4604,121 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
             return True
 
         wait(lambda: _check_statistics())
+
+    @authors("akozhikhov")
+    def test_value_compression_mixed_hunk_read_data_weight(self):
+        sync_create_cells(1)
+        self._create_table(max_inline_hunk_size=1)
+        self._setup_for_dictionary_compression("//tmp/t")
+        set("//tmp/t/@hunk_chunk_reader/max_hunk_count_per_read", 10)
+        set("//tmp/t/@hunk_chunk_reader/max_total_hunk_length_per_read", 10000)
+        set("//tmp/t/@min_compaction_store_count", 100)
+        set("//tmp/t/@max_compaction_store_count", 200)
+        set("//tmp/t/@min_partitioning_store_count", 100)
+        set("//tmp/t/@max_partitioning_store_count", 200)
+        sync_mount_table("//tmp/t")
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "compression_dictionary_cache": {
+                    "capacity": 10000000,
+                }
+            }
+        })
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 100} for i in range(100)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        uncompressed_hunk_chunk_ids = builtins.set(self._find_data_hunk_chunks("//tmp/t"))
+        assert len(uncompressed_hunk_chunk_ids) == 1
+        uncompressed_hunk_chunk_id = next(iter(uncompressed_hunk_chunk_ids))
+        assert not exists("#{}/@compression_dictionary_id".format(uncompressed_hunk_chunk_id))
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+
+        compressed_row = {"key": 100, "value": "value100" + "x" * 100}
+        insert_rows("//tmp/t", [compressed_row])
+        sync_flush_table("//tmp/t")
+
+        compressed_hunk_chunk_ids = (
+            builtins.set(self._find_data_hunk_chunks("//tmp/t")) - uncompressed_hunk_chunk_ids)
+        assert len(compressed_hunk_chunk_ids) == 1
+        compressed_hunk_chunk_id = next(iter(compressed_hunk_chunk_ids))
+        assert exists("#{}/@compression_dictionary_id".format(compressed_hunk_chunk_id))
+
+        hunk_count = get("#{}/@hunk_count".format(uncompressed_hunk_chunk_id))
+        total_hunk_length = get("#{}/@total_hunk_length".format(uncompressed_hunk_chunk_id))
+        uncompressed_data_size = get("#{}/@uncompressed_data_size".format(uncompressed_hunk_chunk_id))
+        assert (uncompressed_data_size - total_hunk_length) % hunk_count == 0
+        hunk_header_size = (uncompressed_data_size - total_hunk_length) // hunk_count
+
+        expected_data_weight = hunk_header_size + len(rows[0]["value"]) + len(compressed_row["value"])
+        hunk_data_weight = self._init_tablet_sensor("//tmp/t", "lookup/hunks/data_weight")
+
+        assert_items_equal(
+            lookup_rows("//tmp/t", [{"key": rows[0]["key"]}, {"key": compressed_row["key"]}]),
+            [rows[0], compressed_row])
+
+        wait(lambda: hunk_data_weight.get_delta() >= expected_data_weight)
+        assert hunk_data_weight.get_delta() == expected_data_weight
+
+    @authors("akozhikhov")
+    def test_value_compression_external_hunk_store_data_weight(self):
+        sync_create_cells(1)
+        self._create_table(max_inline_hunk_size=1)
+        self._setup_for_dictionary_compression("//tmp/t")
+        set("//tmp/t/@min_compaction_store_count", 100)
+        set("//tmp/t/@max_compaction_store_count", 200)
+        set("//tmp/t/@min_partitioning_store_count", 100)
+        set("//tmp/t/@max_partitioning_store_count", 200)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 100} for i in range(100)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+
+        store_chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+        data_hunk_chunk_ids = builtins.set(self._find_data_hunk_chunks("//tmp/t"))
+
+        row = {"key": 100, "value": "value100" + "x" * 100}
+        insert_rows("//tmp/t", [row])
+        sync_flush_table("//tmp/t")
+
+        new_store_chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t")) - store_chunk_ids
+        assert len(new_store_chunk_ids) == 1
+        new_store_chunk_id = next(iter(new_store_chunk_ids))
+        assert exists("#{}/@compression_dictionary_id".format(new_store_chunk_id))
+
+        new_data_hunk_chunk_ids = (
+            builtins.set(self._find_data_hunk_chunks("//tmp/t")) - data_hunk_chunk_ids)
+        assert len(new_data_hunk_chunk_ids) == 1
+        new_data_hunk_chunk_id = next(iter(new_data_hunk_chunk_ids))
+        assert exists("#{}/@compression_dictionary_id".format(new_data_hunk_chunk_id))
+
+        hunk_chunk_refs = get("#{}/@hunk_chunk_refs".format(new_store_chunk_id))
+        data_hunk_chunk_refs = [
+            (index, ref)
+            for index, ref in enumerate(hunk_chunk_refs)
+            if ref["hunk_count"] > 0
+        ]
+        assert len(data_hunk_chunk_refs) == 1
+        hunk_chunk_index, hunk_chunk_ref = data_hunk_chunk_refs[0]
+        assert hunk_chunk_ref["chunk_id"] == new_data_hunk_chunk_id
+        assert hunk_chunk_ref["hunk_count"] == 1
+
+        def get_varuint_size(value):
+            return max(1, (value.bit_length() + 6) // 7)
+
+        local_hunk_ref_size = (
+            1 +
+            get_varuint_size(hunk_chunk_index) +
+            get_varuint_size(hunk_chunk_ref["total_hunk_length"]) +
+            get_varuint_size(0) +
+            get_varuint_size(0))
+        expected_store_data_weight = 3 * 8 + local_hunk_ref_size
+        assert get("#{}/@data_weight".format(new_store_chunk_id)) == expected_store_data_weight
 
     @authors("akozhikhov")
     def test_value_compression_dictionary_cache(self):
