@@ -222,8 +222,7 @@ private:
         auto result = std::get<0>(*ev->Get());
         if (result.IsOK()) {
             YQL_CLOG(DEBUG, ProviderDq) << "Lock: become follower"
-                << " lock=" << LockName
-                << " leader_info=" << result.ValueOrThrow().ToString();
+                << " lock=" << LockName;
             Send(ParentId, new TEvBecomeFollower(result.ValueOrThrow().ToString()));
         } else {
             YQL_CLOG(WARN, ProviderDq) << "Lock: failed to read leader info"
