@@ -750,6 +750,8 @@ class TestIoEngine(YTEnvSetup):
                 profiler_factory().at_node(node).gauge(name="location/sick", fixed_tags={"location_type": "store"}).get()
                 for node in ls("//sys/cluster_nodes")
             )
+
+        old_dynamic_config = get("//sys/cluster_nodes/@config")
         try:
             create("table", "//tmp/sick")
             write_table("//tmp/sick", [{"a": i} for i in range(100)])
@@ -773,6 +775,8 @@ class TestIoEngine(YTEnvSetup):
             write_table("//tmp/sick", [{"a": i} for i in range(100)])
             wait(lambda: get_sick_count() > 0)
         finally:
+            update_nodes_dynamic_config(old_dynamic_config, replace=True)
+
             # Restart nodes to clear the sick state.
             with Restarter(self.Env, NODES_SERVICE):
                 pass
