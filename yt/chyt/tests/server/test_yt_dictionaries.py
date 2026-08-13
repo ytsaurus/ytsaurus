@@ -324,7 +324,7 @@ class TestYtDictionaries(ClickHouseTestBase):
                 assert clique.make_direct_query(instance, system_query) == [{"database": "YT", "name": "t_dict"}]
 
         with Clique(1, enable_object_repository=False) as clique:
-            with raises_yt_error(message_pattern="Clique doesn't have configured CypressObjectRepository"):
+            with raises_yt_error(message_pattern="Clique has no configured CypressObjectRepository"):
                 clique.make_query("CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
 
     @authors("buyval01")

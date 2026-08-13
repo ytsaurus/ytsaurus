@@ -245,14 +245,12 @@ public:
     {
         YT_VERIFY(context_ && context.expired());
         context = context_;
-        if (CypressObjectRepository_ && ElectionManager_ && Config_->MaterializedViews) {
+        if (CypressObjectRepository_ && Config_->MaterializedViews) {
             MaterializedViewCoordinator_ = New<TMaterializedViewCoordinator>(
                 Owner_,
                 CypressObjectRepository_,
                 Config_->MaterializedViews,
                 ChannelFactory_);
-        } else if (CypressObjectRepository_ && Config_->MaterializedViews) {
-            YT_LOG_WARNING("Materialized view background processing is disabled because no election manager is configured");
         }
     }
 
@@ -313,7 +311,11 @@ public:
         }
 
         if (MaterializedViewCoordinator_) {
-            MaterializedViewCoordinator_->Start();
+            if (ElectionManager_) {
+                MaterializedViewCoordinator_->Start();
+            } else {
+                YT_LOG_WARNING("Materialized view background processing is disabled because no election manager is configured");
+            }
         }
 
         CreateOrchidNode();
@@ -879,12 +881,20 @@ public:
             .ThrowOnError();
     }
 
-    TCypressObjectRepositoryPtr GetCypressObjectRepository()
+    TCypressObjectRepositoryPtr GetCypressObjectRepository() const
     {
         THROW_ERROR_EXCEPTION_IF(
             !CypressObjectRepository_,
-            "Clique doesn't have configured CypressObjectRepository");
+            "Clique has no configured CypressObjectRepository");
         return CypressObjectRepository_;
+    }
+
+    TMaterializedViewCoordinatorPtr GetMaterializedViewCoordinator() const
+    {
+        THROW_ERROR_EXCEPTION_IF(
+            !MaterializedViewCoordinator_,
+            "Clique has no configured materialized view coordinator");
+        return MaterializedViewCoordinator_;
     }
 
     void RefreshCypressObjectRepositoryGlobally() const
@@ -1518,6 +1528,11 @@ void THost::ReloadDictionaryGlobally(const std::string& configPath) const
 TCypressObjectRepositoryPtr THost::GetCypressObjectRepository() const
 {
     return Impl_->GetCypressObjectRepository();
+}
+
+TMaterializedViewCoordinatorPtr THost::GetMaterializedViewCoordinator() const
+{
+    return Impl_->GetMaterializedViewCoordinator();
 }
 
 void THost::RefreshCypressObjectRepositoryGlobally() const

@@ -260,14 +260,12 @@ TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
         "Materialized view source table has no row count")
         .With("source_path", sourcePath);
 
-    // TODO(buyval01): FetchTables may return a stale row count from the attribute cache.
     return {
         .CreateStatement = DB::getObjectDefinitionFromCreateQuery(cloned),
         .SourcePath = sourcePath,
         .TargetPath = targetPath,
         .SourceObjectId = sourceTable->ObjectId,
         .TargetObjectId = targetTable->ObjectId,
-        .InitialSourceRowCount = *sourceTable->RowCount,
     };
 }
 
