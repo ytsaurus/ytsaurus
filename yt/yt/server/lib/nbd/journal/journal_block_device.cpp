@@ -520,13 +520,12 @@ private:
             byteSize,
             blockSize);
 
-        constexpr i64 MaxBlockCount = 1LL << 30;
         auto blockCount = byteSize / blockSize;
         THROW_ERROR_EXCEPTION_UNLESS(
-            blockCount < MaxBlockCount,
+            blockCount < MaxBlocksPerDevice,
             "Journal device block count %v must be less than %v",
             blockCount,
-            MaxBlockCount);
+            MaxBlocksPerDevice);
 
         return TBlockDeviceGeometry{
             .BlockSize = blockSize,
@@ -805,6 +804,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Walks an open snapshot in parts of |partSize| blocks, handing each to |onPart|. Bounds what a caller
+//! holds at once to one part, whatever the device's size.
+template <class TOnPart>
+void ScanSnapshot(const IBlockMapPtr& blockMap, int partSize, const TOnPart& onPart)
+{
+    YT_VERIFY(partSize > 0);
+
+    int blockCount = blockMap->GetBlockCount();
+    for (int begin = 0; begin < blockCount; begin += partSize) {
+        onPart(blockMap->ScanSnapshotPart(begin, std::min(begin + partSize, blockCount)));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJournalBlockDevice::TSnapshotSession
     : public TRefCounted
 {
@@ -813,15 +827,17 @@ public:
         : Owner_(std::move(owner))
     { }
 
-    //! Snapshots a consistent point-in-time cut of the block map and returns a
-    //! stored location for every used block, blocking until each snapshotted dirty version is flushed.
+    //! Registers every dirty version the open snapshot captures and blocks until each is flushed,
+    //! returning how many blocks the cut holds.
     /*!
-     *  Clean blocks resolve straight from the snapshot; dirty ones resolve to the location their flush
-     *  yields. We subscribe to BlockFlushObserved before arming the scan and the map fires it strictly
+     *  Clean blocks resolve straight from the cut; dirty ones resolve to the location their flush
+     *  yields. We subscribe to BlockFlushObserved before arming the cut and the map fires it strictly
      *  after updating the slot, so no flush the snapshot may reference is missed: a block captured dirty is
      *  either already in Flushed_ (not registered as pending) or still Pending_ and waited for.
+     *
+     *  Leaves the cut armed for the caller to scan; ends it if this throws.
      */
-    TBlockMapSnapshot Run()
+    i64 Run()
     {
         YT_ASSERT_INVOKER_AFFINITY(Owner_->Invoker_);
 
@@ -834,21 +850,31 @@ public:
             Owner_->UnsubscribeError(onFailed);
         });
 
-        // Costs 16 bytes per used block -- tens of gigabytes on a large device -- and must outlive the
-        // flush barrier below, since a dirty block's stored location is only known once flushed.
-        // TODO(babenko): stream it: scan once to register the pending dirty versions, then, with CoW
-        // still armed, re-scan after the barrier to emit the rows in batches.
-        auto snapshot = Owner_->BlockMap_->TakeSnapshot();
+        // Register the captured dirty versions not already flushed as pending; each one's flush yields
+        // its stored location via OnBlockFlushObserved. Retains nothing per block: the caller re-scans
+        // the same cut to emit the rows once the flushes have landed.
+        Owner_->BlockMap_->BeginSnapshot();
+        auto endSnapshotGuard = Finally([&] {
+            Owner_->BlockMap_->EndSnapshot();
+        });
 
-        // Register the snapshotted dirty versions not already flushed as pending; each one's flush
-        // yields its stored location via OnBlockFlushObserved.
+        i64 blockCount = 0;
+        // Bounded by the dirty pool's capacity, unlike the cut itself.
+        std::vector<ui64> dirtyBlockIds;
+        ScanSnapshot(Owner_->BlockMap_, Owner_->Config_->SnapshotBlocksPerBatch, [&] (const TBlockMapSnapshot& part) {
+            blockCount += std::ssize(part.Blocks);
+            for (auto [blockIndex, mappedBlockId] : part.Blocks) {
+                if (IsDirtyMappedBlockId(mappedBlockId)) {
+                    dirtyBlockIds.push_back(ToDirtyBlockId(mappedBlockId).Underlying());
+                }
+            }
+        });
+
         {
             auto guard = Guard(Lock_);
-            for (const auto& [blockIndex, mappedBlockId] : snapshot.Blocks) {
-                if (IsDirtyMappedBlockId(mappedBlockId) &&
-                    !Flushed_.contains(ToDirtyBlockId(mappedBlockId).Underlying()))
-                {
-                    Pending_.insert(ToDirtyBlockId(mappedBlockId).Underlying());
+            for (auto dirtyBlockId : dirtyBlockIds) {
+                if (!Flushed_.contains(dirtyBlockId)) {
+                    Pending_.insert(dirtyBlockId);
                 }
             }
             if (Pending_.empty()) {
@@ -870,7 +896,8 @@ public:
                 {.Error = TError("Timed out flushing the snapshot blocks")}))
             .ThrowOnError();
 
-        return snapshot;
+        endSnapshotGuard.Release();
+        return blockCount;
     }
 
     //! Resolves a snapshotted mapped id to where its content ended up. Only after #Run has returned,
@@ -916,20 +943,21 @@ IJournalBlockDevice::TSnapshotSaveResult TJournalBlockDevice::DoSaveSnapshot(con
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     BlockStore_->BeginSnapshot();
-    auto endSnapshotGuard = Finally([&] {
+    auto endStoreSnapshotGuard = Finally([&] {
         BlockStore_->EndSnapshot();
     });
 
-    // Blocks come back in ascending index order, as the sorted snapshot table requires.
     auto session = New<TSnapshotSession>(MakeStrong(this));
-    auto snapshot = session->Run();
+    auto blockCount = session->Run();
 
-    // Resolve and write the rows in batches: materializing them all at once costs O(block count)
-    // memory, which a large device makes prohibitive.
+    // Run leaves the cut armed so that the second pass below reads it too.
+    auto endMapSnapshotGuard = Finally([&] {
+        BlockMap_->EndSnapshot();
+    });
+
     // Reference exactly the chunks the snapshot uses, not every chunk the store ever created -- an
     // empty chunk is unconfirmed and could never be sealed.
     std::vector<TChunkId> hunkChunkIds;
-    i64 blockCount = std::ssize(snapshot.Blocks);
     if (blockCount > 0) {
         // The caller has created and resolved the table (|spec|) under its transaction; write the rows
         // into it under the same transaction (the caller commits it).
@@ -937,28 +965,45 @@ IJournalBlockDevice::TSnapshotSaveResult TJournalBlockDevice::DoSaveSnapshot(con
         WaitFor(writer->Open())
             .ThrowOnError();
 
-        auto batchSize = Config_->SnapshotBlocksPerBatch;
+        // Emit the rows a batch at a time, re-scanning the cut rather than holding it in memory: a
+        // materialized cut costs O(block count), which a large device makes prohibitive. Blocks come
+        // back in ascending index order, as the sorted snapshot table requires.
         std::vector<TStoredBlockId> storedBlockIds;
         std::vector<TSnapshotBlock> snapshotBlocks;
-        for (i64 begin = 0; begin < blockCount; begin += batchSize) {
-            auto end = std::min(begin + batchSize, blockCount);
+        i64 writtenBlockCount = 0;
+
+        ScanSnapshot(BlockMap_, Config_->SnapshotBlocksPerBatch, [&] (const TBlockMapSnapshot& part) {
+            if (part.Blocks.empty()) {
+                return;
+            }
 
             storedBlockIds.clear();
-            for (auto index = begin; index < end; ++index) {
-                storedBlockIds.push_back(session->ResolveStoredBlockId(snapshot.Blocks[index].second));
+            for (auto [blockIndex, mappedBlockId] : part.Blocks) {
+                storedBlockIds.push_back(session->ResolveStoredBlockId(mappedBlockId));
             }
             auto blockRefs = BlockStore_->GetBlockRefs(storedBlockIds);
 
             snapshotBlocks.clear();
-            for (auto index = begin; index < end; ++index) {
-                const auto& blockRef = blockRefs[index - begin];
+            for (int index = 0; index < std::ssize(part.Blocks); ++index) {
                 snapshotBlocks.push_back({
-                    .Index = snapshot.Blocks[index].first,
-                    .Ref = blockRef,
+                    .Index = part.Blocks[index].first,
+                    .Ref = blockRefs[index],
                 });
             }
             WaitFor(writer->WriteBlocks(snapshotBlocks))
                 .ThrowOnError();
+
+            writtenBlockCount += std::ssize(part.Blocks);
+        });
+
+        endMapSnapshotGuard.Release();
+        BlockMap_->EndSnapshot();
+
+        // Both scans see the same cut, so the rows written must match what the first pass counted.
+        if (writtenBlockCount != blockCount) {
+            YT_LOG_ALERT_AND_THROW("Snapshot wrote an unexpected number of blocks (Written: %v, Expected: %v)",
+                writtenBlockCount,
+                blockCount);
         }
 
         hunkChunkIds = writer->GetReferencedChunkIds();

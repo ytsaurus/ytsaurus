@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include "private.h"
+
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
 #include <yt/yt/client/api/config.h>
@@ -159,7 +161,7 @@ void TJournalBlockDeviceConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("snapshot_blocks_per_batch", &TThis::SnapshotBlocksPerBatch)
         .Default(1'000'000)
-        .GreaterThan(0);
+        .InRange(1, MaxBlocksPerDevice);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
