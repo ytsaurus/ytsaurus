@@ -56,8 +56,8 @@ public:
         , CachedNonStickyChannel_(CreateChannel(/*sticky*/ false))
     {
         if (Config_->DataGatewayUpdatePeriod) {
-            YT_LOG_DEBUG("Start periodic offshore data gateway list updater (UpdatePeriod: %v)",
-                *Config_->DataGatewayUpdatePeriod);
+            YT_TLOG_DEBUG("Start periodic offshore data gateway list updater")
+                .With("UpdatePeriod", *Config_->DataGatewayUpdatePeriod);
 
             RefreshExecutor_ = New<TPeriodicExecutor>(
                 // TODO(ponasenko-rs): Use better specified invoker for refresh. See YT-29080.
@@ -158,15 +158,16 @@ private:
                 const TErrorOr<TYPathProxy::TRspListPtr>& rsp)
             {
                 if (!rsp.IsOK()) {
-                    YT_LOG_WARNING(rsp, "Failed to refresh offshore data gateways list");
+                    YT_TLOG_WARNING("Failed to refresh offshore data gateways list")
+                        .With(rsp);
                     return;
                 }
 
                 auto addresses = ConvertTo<std::vector<std::string>>(
                     TYsonString(rsp.ValueOrCrash()->value()));
 
-                YT_LOG_DEBUG("Offshore data gateways list refreshed (Addresses: %v)",
-                    addresses);
+                YT_TLOG_DEBUG("Offshore data gateways list refreshed")
+                    .With("Addresses", addresses);
                 ChannelPool_->SetPeers(addresses);
             }));
     }
