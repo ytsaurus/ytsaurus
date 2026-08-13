@@ -163,7 +163,7 @@ void TPoolTreeElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrapp
     delimitedBuilder->AppendFormat(
         "Status: %v, DominantResource: %v, DemandShare: %.6g, UsageShare: %.6g, LimitsShare: %.6g, "
         "StrongGuaranteeShare: %.6g, TotalFairShare: %.6g, FairShare: %.6g, Satisfaction: %.4lg, LocalSatisfaction: %.4lg, "
-        "PromisedFairShare: %.6g, StarvationStatus: %v, Weight: %v, Volume: %v",
+        "StarvationStatus: %v, Weight: %v, Volume: %v",
         GetStatus(),
         Attributes_.DominantResource,
         Attributes_.DemandShare,
@@ -174,7 +174,6 @@ void TPoolTreeElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrapp
         Attributes_.FairShare,
         PostUpdateAttributes_.SatisfactionRatio,
         PostUpdateAttributes_.LocalSatisfactionRatio,
-        Attributes_.PromisedFairShare,
         GetStarvationStatus(),
         GetWeight(),
         GetAccumulatedResourceRatioVolume());
