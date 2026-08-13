@@ -89,10 +89,10 @@ char* CaptureStringLikeValues(NTableClient::TMutableVersionedRow versionedRow);
 template <class TAlloc>
 TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedRow> rows, NTableClient::TTimestamp retainedTimestamp)
 {
-    int valueCount = 0;
-    int writeTimestampCount = 0;
-    int deleteTimestampCount = 0;
-    int blobDataSize = 0;
+    i64 valueCount = 0;
+    i64 writeTimestampCount = 0;
+    i64 deleteTimestampCount = 0;
+    i64 blobDataSize = 0;
 
     NTableClient::TVersionedRow nonSentinelRow;
     for (auto row : rows) {
@@ -115,6 +115,10 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
         return nullptr;
     }
 
+    if (valueCount > Max<int>() || writeTimestampCount > Max<int>() || deleteTimestampCount > Max<int>()) {
+        return nullptr;
+    }
+
     int keyCount = nonSentinelRow.GetKeyCount();
     for (const auto& value : nonSentinelRow.Keys()) {
         if (IsStringLikeType(value.Type)) {
@@ -122,13 +126,16 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
         }
     }
 
-    auto rowSize = NTableClient::GetVersionedRowByteSize(
+    size_t rowSize = NTableClient::GetVersionedRowByteSize(
         keyCount,
         valueCount,
         writeTimestampCount,
         deleteTimestampCount);
 
-    auto totalSize = rowSize + blobDataSize;
+    size_t totalSize = rowSize + blobDataSize;
+    if (totalSize > static_cast<size_t>(NTableClient::MaxServerVersionedRowDataWeight)) {
+        return nullptr;
+    }
     auto cachedRow = TryNewWithExtraSpace<TCachedRow>(allocator, totalSize, totalSize);
     if (!cachedRow) {
         return nullptr;
