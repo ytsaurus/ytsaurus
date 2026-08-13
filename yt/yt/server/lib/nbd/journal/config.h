@@ -169,9 +169,9 @@ struct TJournalBlockDeviceConfig
     //! Background compaction of mostly-dead chunks; absent disables it.
     TJournalBlockCompactorConfigPtr BlockCompactor;
 
-    //! How many blocks a snapshot resolves and writes at a time. Caps the save's peak memory, which
-    //! would otherwise scale with the device's block count.
-    i64 SnapshotBlocksPerBatch;
+    //! How wide a block index window a snapshot scans, resolves and writes at a time. Caps the save's
+    //! peak memory, which would otherwise scale with the device's block count.
+    int SnapshotBlocksPerBatch;
 
     REGISTER_YSON_STRUCT(TJournalBlockDeviceConfig);
 

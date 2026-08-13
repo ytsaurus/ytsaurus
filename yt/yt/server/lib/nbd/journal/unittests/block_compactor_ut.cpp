@@ -81,7 +81,22 @@ public:
         YT_ABORT();
     }
 
-    TBlockMapSnapshot TakeSnapshot(const std::function<void(int)>& /*onScanned*/) final
+    int GetBlockCount() const final
+    {
+        YT_ABORT();
+    }
+
+    void BeginSnapshot() final
+    {
+        YT_ABORT();
+    }
+
+    TBlockMapSnapshot ScanSnapshotPart(int /*beginBlockIndex*/, int /*endBlockIndex*/) final
+    {
+        YT_ABORT();
+    }
+
+    void EndSnapshot() final
     {
         YT_ABORT();
     }

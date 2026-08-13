@@ -4,7 +4,6 @@
 
 #include <yt/yt/core/actions/signal.h>
 
-#include <functional>
 #include <utility>
 #include <vector>
 
@@ -25,12 +24,12 @@ TMappedBlockId ToMappedBlockId(TDirtyBlockId id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A snapshot of the map's used blocks: a (block index, mapped block id) pair per non-empty block, in
-//! ascending index order. A point-in-time cut of the whole map when produced by #TakeSnapshot, or one
-//! batch of a larger snapshot when fed to #LoadSnapshotPart.
+//! A run of the map's used blocks: a (block index, mapped block id) pair per non-empty block, in
+//! ascending index order. Part of a point-in-time cut when produced by #ScanSnapshotPart, or one batch
+//! of a device snapshot when fed to #LoadSnapshotPart.
 /*!
- *  A snapshot of a live (concurrently written) device (see #TakeSnapshot) may mix stored (clean) and
- *  dirty mapped ids; a snapshot handed to #LoadSnapshotPart must hold only stored (clean) mapped ids.
+ *  A cut of a live (concurrently written) device may mix stored (clean) and dirty mapped ids; a batch
+ *  handed to #LoadSnapshotPart must hold only stored (clean) ones.
  */
 struct TBlockMapSnapshot
 {
@@ -57,12 +56,12 @@ struct IBlockMap
     //! Points the block at |blockIndex| at |storedBlockId|, a freshly stored copy of its content, but
     //! only if it still maps to |expectedBlockId| -- i.e. no newer write superseded it. Returns whether it did.
     /*!
-     *  Guards last-write-wins for the two publishers of stored content: a flush (|expectedBlockId| a dirty id,
-     *  as drained from the pool) and a compaction relocation (|expectedBlockId| a stored id).
+     *  Guards last-write-wins for the two publishers of stored content: a flush (|expectedBlockId| a dirty id)
+     *  and a compaction relocation (|expectedBlockId| a stored id).
      *
      *  A dirty |expectedBlockId| additionally fires #BlockFlushObserved (always, adopted or not) reporting where the
-     *  flush landed. On success a superseded stored |expectedBlockId| becomes unreferenced (a dirty one was
-     *  never a stored block); on failure the orphaned |storedBlockId| does (see #StoredBlockUnreferenced).
+     *  flush landed. On success a superseded stored |expectedBlockId| becomes unreferenced; on failure the orphaned
+     *  |storedBlockId| does (see #StoredBlockUnreferenced).
      */
     virtual bool TryPutBlock(int blockIndex, TMappedBlockId expectedBlockId, TStoredBlockId storedBlockId) = 0;
 
@@ -78,15 +77,28 @@ struct IBlockMap
     //! Returns the number of currently non-empty blocks.
     virtual int GetUsedBlockCount() const = 0;
 
-    //! Snapshots every used block as a single point-in-time cut, concurrently with ongoing writes.
+    //! Returns the number of blocks the map covers, empty ones included.
+    virtual int GetBlockCount() const = 0;
+
+    //! Fixes the point in time a snapshot cuts at, concurrently with ongoing writes.
     /*!
-     *  Empty blocks are omitted; used blocks are reported by their mapped id (stored if clean, dirty if
-     *  still in the pool), in ascending block index order. At most one snapshot may run at a time.
+     *  Arms copy-on-write: a writer stashes a block's pre-snapshot value the first time it overwrites
+     *  it, so #ScanSnapshotPart can report that value however late it runs. At most one snapshot may be
+     *  open at a time, and #EndSnapshot must close it.
      *
-     *  Testing only: |onScanned|, if set, is invoked with each slot index before that slot is read, so a
-     *  test can inject concurrent mutations at a chosen scan position.
+     *  The stash grows with the number of distinct blocks written while the snapshot is open, so a
+     *  caller should not hold one open longer than it must.
      */
-    virtual TBlockMapSnapshot TakeSnapshot(const std::function<void(int blockIndex)>& onScanned = {}) = 0;
+    virtual void BeginSnapshot() = 0;
+
+    //! Returns the blocks of [|beginBlockIndex|, |endBlockIndex|) used as of #BeginSnapshot.
+    /*!
+     *  Every part reads the same cut however late it is taken.
+     */
+    virtual TBlockMapSnapshot ScanSnapshotPart(int beginBlockIndex, int endBlockIndex) = 0;
+
+    //! Closes the snapshot: disarms copy-on-write and drops the stash.
+    virtual void EndSnapshot() = 0;
 
     //! Brackets a batched load of a previously saved device snapshot. Only valid before the device
     //! serves any I/O.

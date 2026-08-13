@@ -67,6 +67,9 @@ static_assert(ReservedBits + ChunkIndexBits + RecordIndexBits + BlockIndexBits =
 
 // Capacity limits implied by the id layout above.
 
+//! Exclusive upper bound on a device's block count.
+constexpr i64 MaxBlocksPerDevice = 1LL << 30;
+
 //! Total number of chunks a store may ever allocate; exceeding it is fatal.
 constexpr i64 MaxChunksPerDevice = 1LL << NStoredBlockIdLayout::ChunkIndexBits;
 

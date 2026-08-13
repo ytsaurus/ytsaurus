@@ -3,6 +3,10 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/misc/finally.h>
+
+#include <functional>
+
 namespace NYT::NNbd::NJournal {
 namespace {
 
@@ -36,6 +40,30 @@ std::shared_ptr<std::vector<TStoredBlockId>> TrackUnreferencedStoredBlocks(const
         },
         unreferencedIds));
     return unreferencedIds;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! The block map exposes a snapshot as an open scan; these tests want the whole cut in hand.
+TBlockMapSnapshot TakeSnapshot(
+    const IBlockMapPtr& blockMap,
+    const std::function<void(int blockIndex)>& onScanned = {})
+{
+    blockMap->BeginSnapshot();
+    auto endSnapshotGuard = Finally([&] {
+        blockMap->EndSnapshot();
+    });
+
+    // A part per slot, so |onScanned| can inject a write at any scan position.
+    TBlockMapSnapshot snapshot;
+    for (int blockIndex = 0; blockIndex < blockMap->GetBlockCount(); ++blockIndex) {
+        if (onScanned) {
+            onScanned(blockIndex);
+        }
+        auto part = blockMap->ScanSnapshotPart(blockIndex, blockIndex + 1);
+        snapshot.Blocks.insert(snapshot.Blocks.end(), part.Blocks.begin(), part.Blocks.end());
+    }
+    return snapshot;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -187,7 +215,7 @@ TEST(TBlockMapTest, DiscardedBlockIsExcludedFromSnapshot)
     blockMap->PutBlock(2, TDirtyBlockId(22));
     EXPECT_TRUE(blockMap->DiscardBlock(1));
 
-    auto snapshot = blockMap->TakeSnapshot();
+    auto snapshot = TakeSnapshot(blockMap);
     ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
     EXPECT_EQ(snapshot.Blocks[0], std::pair(2, MakeDirty(22)));
 }
@@ -202,7 +230,7 @@ TEST(TBlockMapTest, TakeSnapshot)
     EXPECT_TRUE(blockMap->TryPutBlock(3, MakeDirty(33), TStoredBlockId(333)));
     blockMap->PutBlock(5, TDirtyBlockId(55));
 
-    auto snapshot = blockMap->TakeSnapshot();
+    auto snapshot = TakeSnapshot(blockMap);
 
     // Reported by ascending block index: dirty 1, clean 3, dirty 5.
     ASSERT_EQ(std::ssize(snapshot.Blocks), 3);
@@ -238,7 +266,7 @@ TEST(TBlockMapTest, SnapshotThenLoadRoundtrip)
     blockMap->PutBlock(4, TDirtyBlockId(44));
     EXPECT_TRUE(blockMap->TryPutBlock(4, MakeDirty(44), TStoredBlockId(444)));
 
-    auto snapshot = blockMap->TakeSnapshot();
+    auto snapshot = TakeSnapshot(blockMap);
 
     auto restored = CreateBlockMap(8);
     restored->BeginLoadSnapshot();
@@ -258,26 +286,98 @@ TEST(TBlockMapTest, RepeatedSnapshots)
     blockMap->PutBlock(2, TDirtyBlockId(22));
 
     // Back-to-back snapshots with no intervening write are identical and leave the map reusable.
-    auto first = blockMap->TakeSnapshot();
-    auto second = blockMap->TakeSnapshot();
+    auto first = TakeSnapshot(blockMap);
+    auto second = TakeSnapshot(blockMap);
     EXPECT_EQ(first.Blocks, second.Blocks);
     ASSERT_EQ(std::ssize(first.Blocks), 2);
 
     // A later write shows up in the next snapshot.
     blockMap->PutBlock(3, TDirtyBlockId(33));
-    auto third = blockMap->TakeSnapshot();
+    auto third = TakeSnapshot(blockMap);
     ASSERT_EQ(std::ssize(third.Blocks), 3);
     EXPECT_EQ(third.Blocks[2], std::pair(3, MakeDirty(33)));
+}
+
+TEST(TBlockMapTest, RescanReproducesTheSameCut)
+{
+    auto blockMap = CreateBlockMap(4);
+    blockMap->PutBlock(1, TDirtyBlockId(11));
+    blockMap->PutBlock(2, TDirtyBlockId(22));
+
+    blockMap->BeginSnapshot();
+    auto endSnapshotGuard = Finally([&] {
+        blockMap->EndSnapshot();
+    });
+
+    auto scan = [&] {
+        return blockMap->ScanSnapshotPart(0, blockMap->GetBlockCount()).Blocks;
+    };
+
+    auto expected = std::vector<std::pair<int, TMappedBlockId>>{
+        {1, MakeDirty(11)},
+        {2, MakeDirty(22)},
+    };
+    EXPECT_EQ(scan(), expected);
+
+    // Every way a slot can move on: overwritten, emptied, and written for the first time.
+    blockMap->PutBlock(1, TDirtyBlockId(111));
+    EXPECT_TRUE(blockMap->DiscardBlock(2));
+    blockMap->PutBlock(3, TDirtyBlockId(33));
+
+    EXPECT_EQ(scan(), expected);
+}
+
+TEST(TBlockMapTest, ScanSnapshotPartHonoursItsRange)
+{
+    auto blockMap = CreateBlockMap(8);
+    blockMap->PutBlock(1, TDirtyBlockId(11));
+    blockMap->PutBlock(5, TDirtyBlockId(55));
+
+    blockMap->BeginSnapshot();
+    auto endSnapshotGuard = Finally([&] {
+        blockMap->EndSnapshot();
+    });
+
+    EXPECT_EQ(blockMap->ScanSnapshotPart(0, 4).Blocks, (std::vector<std::pair<int, TMappedBlockId>>{
+        {1, MakeDirty(11)},
+    }));
+    EXPECT_EQ(blockMap->ScanSnapshotPart(4, 8).Blocks, (std::vector<std::pair<int, TMappedBlockId>>{
+        {5, MakeDirty(55)},
+    }));
+    EXPECT_TRUE(blockMap->ScanSnapshotPart(2, 5).Blocks.empty());
+    EXPECT_TRUE(blockMap->ScanSnapshotPart(3, 3).Blocks.empty());
+}
+
+TEST(TBlockMapTest, ScanSnapshotPartDropsABlockFirstWrittenMidPart)
+{
+    auto blockMap = CreateBlockMap(8);
+    blockMap->PutBlock(1, TDirtyBlockId(11));
+    blockMap->PutBlock(5, TDirtyBlockId(55));
+
+    blockMap->BeginSnapshot();
+    auto endSnapshotGuard = Finally([&] {
+        blockMap->EndSnapshot();
+    });
+
+    // Block 3 is dropped from the middle of the part and block 1 is restored from the stash, so the
+    // survivors on either side must keep their own values rather than a neighbour's.
+    blockMap->PutBlock(3, TDirtyBlockId(33));
+    blockMap->PutBlock(1, TDirtyBlockId(111));
+
+    EXPECT_EQ(blockMap->ScanSnapshotPart(0, 8).Blocks, (std::vector<std::pair<int, TMappedBlockId>>{
+        {1, MakeDirty(11)},
+        {5, MakeDirty(55)},
+    }));
 }
 
 TEST(TBlockMapTest, TakeSnapshotEmpty)
 {
     auto blockMap = CreateBlockMap(4);
-    EXPECT_TRUE(blockMap->TakeSnapshot().Blocks.empty());
+    EXPECT_TRUE(TakeSnapshot(blockMap).Blocks.empty());
 
     // The empty snapshot leaves the map reusable.
     blockMap->PutBlock(0, TDirtyBlockId(7));
-    auto snapshot = blockMap->TakeSnapshot();
+    auto snapshot = TakeSnapshot(blockMap);
     ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
     EXPECT_EQ(snapshot.Blocks[0], std::pair(0, MakeDirty(7)));
 }
@@ -286,7 +386,7 @@ TEST(TBlockMapTest, ZeroBlocks)
 {
     auto blockMap = CreateBlockMap(0);
     EXPECT_EQ(blockMap->GetUsedBlockCount(), 0);
-    EXPECT_TRUE(blockMap->TakeSnapshot().Blocks.empty());
+    EXPECT_TRUE(TakeSnapshot(blockMap).Blocks.empty());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -302,7 +402,7 @@ TEST(TBlockMapTest, SnapshotWithWriteBeforeScannedSlot)
     blockMap->PutBlock(5, TDirtyBlockId(50));
 
     // The snapshot keeps the pre-flip value; the map keeps the new one.
-    auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
+    auto snapshot = TakeSnapshot(blockMap, [&] (int scanIndex) {
         if (scanIndex == 0) {
             blockMap->PutBlock(5, TDirtyBlockId(51));
         }
@@ -317,7 +417,7 @@ TEST(TBlockMapTest, SnapshotWithWriteAfterScannedSlot)
     auto blockMap = CreateBlockMap(8);
     blockMap->PutBlock(5, TDirtyBlockId(50));
 
-    auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
+    auto snapshot = TakeSnapshot(blockMap, [&] (int scanIndex) {
         if (scanIndex == 7) {
             blockMap->PutBlock(5, TDirtyBlockId(51));
         }
@@ -333,7 +433,7 @@ TEST(TBlockMapTest, SnapshotExcludesBlockFirstWrittenDuringScan)
     // whether the write lands before or after the scan reaches its slot.
     for (int writeAt : {0, 7}) {
         auto blockMap = CreateBlockMap(8);
-        auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
+        auto snapshot = TakeSnapshot(blockMap, [&] (int scanIndex) {
             if (scanIndex == writeAt) {
                 blockMap->PutBlock(5, TDirtyBlockId(50));
             }
@@ -349,7 +449,7 @@ TEST(TBlockMapTest, SnapshotKeepsDirtyWhenMadeCleanDuringScan)
     auto blockMap = CreateBlockMap(8);
     blockMap->PutBlock(5, TDirtyBlockId(50));
 
-    auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
+    auto snapshot = TakeSnapshot(blockMap, [&] (int scanIndex) {
         if (scanIndex == 0) {
             EXPECT_TRUE(blockMap->TryPutBlock(5, MakeDirty(50), TStoredBlockId(500)));
         }
@@ -365,7 +465,7 @@ TEST(TBlockMapTest, SnapshotStashesOnlyFirstWriteDuringScan)
     auto blockMap = CreateBlockMap(8);
     blockMap->PutBlock(5, TDirtyBlockId(50));
 
-    auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
+    auto snapshot = TakeSnapshot(blockMap, [&] (int scanIndex) {
         if (scanIndex == 0) {
             blockMap->PutBlock(5, TDirtyBlockId(51));
             blockMap->PutBlock(5, TDirtyBlockId(52));
@@ -385,7 +485,7 @@ TEST(TBlockMapTest, SnapshotKeepsBlockDiscardedDuringScan)
         auto blockMap = CreateBlockMap(8);
         blockMap->PutBlock(5, TDirtyBlockId(50));
 
-        auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
+        auto snapshot = TakeSnapshot(blockMap, [&] (int scanIndex) {
             if (scanIndex == discardAt) {
                 EXPECT_TRUE(blockMap->DiscardBlock(5));
             }
@@ -402,7 +502,7 @@ TEST(TBlockMapTest, SnapshotKeepsBlockDiscardedAndRewrittenDuringScan)
     auto blockMap = CreateBlockMap(8);
     blockMap->PutBlock(5, TDirtyBlockId(50));
 
-    auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
+    auto snapshot = TakeSnapshot(blockMap, [&] (int scanIndex) {
         if (scanIndex == 0) {
             EXPECT_TRUE(blockMap->DiscardBlock(5));
             blockMap->PutBlock(5, TDirtyBlockId(51));
@@ -418,13 +518,12 @@ TEST(TBlockMapTest, UsedBlockCountSurvivesDiscardAndRewriteDuringScan)
 {
     // Regression: mid-scan a discarded slot holds a CoW-tagged empty, and the used-block count must
     // still read it as empty. Comparing the raw slot instead skips the re-increment here, leaving the
-    // count permanently low -- negative after enough cycles, which TakeSnapshot's reserve() turns into
-    // a std::length_error.
+    // count permanently low.
     auto blockMap = CreateBlockMap(8);
     blockMap->PutBlock(5, TDirtyBlockId(50));
     EXPECT_EQ(blockMap->GetUsedBlockCount(), 1);
 
-    blockMap->TakeSnapshot([&] (int scanIndex) {
+    TakeSnapshot(blockMap, [&] (int scanIndex) {
         if (scanIndex == 0) {
             EXPECT_TRUE(blockMap->DiscardBlock(5));
             EXPECT_EQ(blockMap->GetUsedBlockCount(), 0);
@@ -447,7 +546,7 @@ TEST(TBlockMapTest, SnapshotExcludesBlockWrittenAndDiscardedDuringScan)
     // Empty at the flip, so it is not part of that point-in-time however it churns during the scan.
     for (int mutateAt : {0, 7}) {
         auto blockMap = CreateBlockMap(8);
-        auto snapshot = blockMap->TakeSnapshot([&] (int scanIndex) {
+        auto snapshot = TakeSnapshot(blockMap, [&] (int scanIndex) {
             if (scanIndex == mutateAt) {
                 blockMap->PutBlock(5, TDirtyBlockId(50));
                 EXPECT_TRUE(blockMap->DiscardBlock(5));
@@ -465,7 +564,7 @@ TEST(TBlockMapTest, RepeatedSnapshotsAfterDiscardDuringScan)
     auto blockMap = CreateBlockMap(8);
     blockMap->PutBlock(0, TDirtyBlockId(10));
 
-    auto first = blockMap->TakeSnapshot([&] (int scanIndex) {
+    auto first = TakeSnapshot(blockMap, [&] (int scanIndex) {
         if (scanIndex == 0) {
             EXPECT_TRUE(blockMap->DiscardBlock(0));
         }
@@ -473,7 +572,7 @@ TEST(TBlockMapTest, RepeatedSnapshotsAfterDiscardDuringScan)
     ASSERT_EQ(std::ssize(first.Blocks), 1);
     EXPECT_EQ(first.Blocks[0], std::pair(0, MakeDirty(10)));
 
-    EXPECT_TRUE(blockMap->TakeSnapshot().Blocks.empty());
+    EXPECT_TRUE(TakeSnapshot(blockMap).Blocks.empty());
 }
 
 TEST(TBlockMapTest, RepeatedSnapshotsWithWritesAreEachPointInTime)
@@ -483,7 +582,7 @@ TEST(TBlockMapTest, RepeatedSnapshotsWithWritesAreEachPointInTime)
     auto blockMap = CreateBlockMap(8);
     blockMap->PutBlock(0, TDirtyBlockId(10));
 
-    auto first = blockMap->TakeSnapshot([&] (int scanIndex) {
+    auto first = TakeSnapshot(blockMap, [&] (int scanIndex) {
         if (scanIndex == 0) {
             blockMap->PutBlock(0, TDirtyBlockId(11));
         }
@@ -491,7 +590,7 @@ TEST(TBlockMapTest, RepeatedSnapshotsWithWritesAreEachPointInTime)
     ASSERT_EQ(std::ssize(first.Blocks), 1);
     EXPECT_EQ(first.Blocks[0], std::pair(0, MakeDirty(10)));
 
-    auto second = blockMap->TakeSnapshot([&] (int scanIndex) {
+    auto second = TakeSnapshot(blockMap, [&] (int scanIndex) {
         if (scanIndex == 0) {
             blockMap->PutBlock(0, TDirtyBlockId(12));
         }
@@ -657,7 +756,7 @@ TEST(TBlockMapTest, GetChunkBlocksSeesBlocksWrittenUnderSnapshot)
     // value rather than the snapshotted one.
     auto storedBlockId = MakeStoredInChunk(3, 0);
     std::vector<std::pair<int, TStoredBlockId>> duringSnapshot;
-    blockMap->TakeSnapshot([&] (int scanIndex) {
+    TakeSnapshot(blockMap, [&] (int scanIndex) {
         if (scanIndex == 0) {
             EXPECT_TRUE(blockMap->TryPutBlock(1, MakeDirty(11), storedBlockId));
             duringSnapshot = blockMap->GetChunkBlocks(3);
