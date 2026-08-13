@@ -43,6 +43,7 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/concurrency/periodic_yielder.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -483,10 +484,11 @@ private:
         int beginBlockIndex = (offset + blockSize - 1) / blockSize;
         int endBlockIndex = (offset + length) / blockSize;
 
-        // TODO(babenko): a whole-device discard walks up to 2^30 blocks in one pass, hogging Invoker_
-        // for seconds against reads, writes and the flusher. Batch with yields.
+        // Do not hog Invoker_ for seconds.
+        auto yielder = CreatePeriodicYielder(TDuration::MilliSeconds(100));
         int discardedBlockCount = 0;
         for (int blockIndex = beginBlockIndex; blockIndex < endBlockIndex; ++blockIndex) {
+            yielder.TryYield();
             if (BlockMap_->DiscardBlock(blockIndex)) {
                 ++discardedBlockCount;
             }
