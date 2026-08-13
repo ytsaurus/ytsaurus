@@ -38,6 +38,8 @@ using namespace NAuth;
 void TProfilingEndpointProviderConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("component_type", &TThis::ComponentType);
+    registrar.Parameter("name", &TThis::Name)
+        .Default();
     registrar.Parameter("monitoring_port", &TThis::MonitoringPort);
     registrar.Parameter("shards", &TThis::Shards)
         .Default({"all"});
@@ -45,10 +47,26 @@ void TProfilingEndpointProviderConfig::Register(TRegistrar registrar)
         .Default(false);
 }
 
+std::string TProfilingEndpointProviderConfig::GetName() const
+{
+    return Name.value_or(FormatEnum(ComponentType));
+}
+
 void TSolomonProxyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("endpoint_providers", &TThis::EndpointProviders)
         .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        THashSet<std::string> names;
+        for (const auto& endpointProvider : config->EndpointProviders) {
+            auto name = endpointProvider->GetName();
+            if (!names.insert(name).second) {
+                THROW_ERROR_EXCEPTION("Endpoint provider names must be distinct")
+                    << TErrorAttribute("name", name);
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
