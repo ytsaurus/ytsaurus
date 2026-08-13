@@ -1,10 +1,10 @@
 pragma AnsiInForEmptyOrNullableItemsCollections;
 pragma AnsiOptionalAs;
 --pragma CompactGroupBy;
-pragma TablePathPrefix = "home/tpcds/3Tb";
+pragma TablePathPrefix = "home/tpcds/3Tb_unique_keys";
 pragma EmitUnionMerge;
 pragma yt.UseIntermediateStreams;
-pragma yt.EnableFuseMapToMapReduce = 'true';
+pragma yt.FuseMapToMapReduce = 'normal';
 pragma config.flags(
     "OptimizerFlags",
     "EmitPruneKeys",
@@ -17,14 +17,15 @@ pragma config.flags(
     "FuseEquiJoinsInputMultiLabels",
     "KeepPruneKeysOnInputTables",
     "EqualityFilterOverJoin",
-    "NormalizeEqualityFilterOverJoin"
+    "NormalizeEqualityFilterOverJoin",
+    "ExtractOrPredicatesOverEquiJoin"
 );
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerPartition = "16M";
 pragma yt.DataSizePerJob = "16M";
 pragma yt.DataSizePerMapJob = "16M";
-pragma yt.HybridDqExecution = "true";
-pragma dq.AnalyzeQuery = "true";
+pragma yt.HybridDqExecution = "false";
+pragma dq.AnalyzeQuery = "false";
 pragma yt.MapJoinLimit = "4G";
 pragma yt.MaxReplicationFactorToFuseOperations="100";
 pragma yt.PartitionByConstantKeysViaMap;
@@ -48,3 +49,7 @@ pragma yt.TemporaryCompressionCodec="zstd_1";
 pragma yt.IntermediateReplicationFactor="1";
 pragma yt.MaxJobCount="200";
 pragma yt.UseDefaultArrowAllocatorInJobs;
+pragma yt.JoinCommonUseFlatPayload="true";
+pragma yt.JoinCommonUseMapMultiOut="false";
+pragma yt.UseNativeYtDefaultColumnOrder;
+pragma yt.JoinMergeTablesLimit = "0";
