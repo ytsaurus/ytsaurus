@@ -732,7 +732,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
         // NB: zombifying a child will remove it from the member set.
-        auto members = thisImpl->Members();
+        auto members = SortHashMapByKeys(thisImpl->Members());
         for (const auto& [name, member] : members) {
             YT_VERIFY(IsObjectAlive(member));
             objectManager->RemoveObject(member);
