@@ -549,7 +549,7 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
             .With("EstimatedRowCount", inputRowCount)
             .With("ActualRowCount", primaryRowCount)
             .With("DedupedRowCount", std::ssize(hintKeyPrefixes->HintPrefixes))
-            .With("NumForeignTables", jobSpecExt.foreign_input_table_specsSize());
+            .With("ForeignTableCount", jobSpecExt.foreign_input_table_specsSize());
 
         if (preparationDataStatistics) {
             *preparationDataStatistics += statistics;
