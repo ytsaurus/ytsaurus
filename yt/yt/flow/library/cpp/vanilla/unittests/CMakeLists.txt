@@ -12,35 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(unittests)
-
-add_library(library-cpp-vanilla)
-
-
-target_compile_options(library-cpp-vanilla PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(library-cpp-vanilla PUBLIC
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-native_client
-  yt-yt-client
-  yt-client-cache
-  yt-library-auth
-  yt-yt-core
-  cpp-digest-md5
-)
-
-target_sources(library-cpp-vanilla PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/vanilla/current_operation.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/vanilla/files.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/vanilla/spec.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

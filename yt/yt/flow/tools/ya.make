@@ -3,6 +3,7 @@ RECURSE(
     flamegraph
     job_investigation
     pipeline_chaos_monkey
+    python_companion_package
     reanimate_vanilla_operation
     reshard_flow_tables
     yt_sync_mini

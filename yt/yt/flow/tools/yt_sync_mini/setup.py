@@ -44,8 +44,6 @@ def main():
             "yt.yt.flow.library.python.yt_sync_mini": "../../library/python/yt_sync_mini",
         },
 
-        author="YTsaurus",
-        author_email="dev@ytsaurus.tech",
         license="Apache 2.0",
 
         description="Flow yt_sync_mini + pipeline_tables: bootstrap Cypress objects for Flow pipelines.",
