@@ -21,5 +21,5 @@ DEFINE_REFCOUNTED_TYPE(IAlienCellPeerChannelFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::Election
+} // namespace NYT::NElection
 
