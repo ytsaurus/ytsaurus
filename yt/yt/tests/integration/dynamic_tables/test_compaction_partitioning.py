@@ -695,6 +695,47 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         tablet_id = get("//tmp/t/@tablets")[0]["tablet_id"]
         wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/lsm_statistics/pending_compaction_store_count/periodic") == 1)
 
+    @authors("dave11ar")
+    @pytest.mark.parametrize("has_ttl_column, row_merger_type, expect_compaction", [
+        (False, "new", False),
+        (True, "new", True),
+        (False, "watermark", True),
+    ])
+    def test_disable_periodic_compaction_only_if_digests_allowed(self, has_ttl_column, row_merger_type, expect_compaction):
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        row = {"key": 1, "value": "value"}
+        if has_ttl_column:
+            schema.append({"name": "$ttl", "type": "uint64"})
+            row["$ttl"] = 3_600_000
+
+        self._create_simple_table(
+            "//tmp/t",
+            schema=schema,
+            mount_config={
+                "disable_periodic_compaction_only_if_digests_allowed": True,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+                "row_merger_type": row_merger_type,
+            })
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [row])
+        sync_flush_table("//tmp/t")
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        set("//tmp/t/@mount_config/auto_compaction_period", 1)
+        remount_table("//tmp/t")
+
+        if expect_compaction:
+            wait(lambda: get_singular_chunk_id("//tmp/t") != chunk_id)
+        else:
+            sleep(3)
+            assert get_singular_chunk_id("//tmp/t") == chunk_id
+
     @authors("alexelexa")
     def test_narrow_chunk_view_compaction(self):
         sync_create_cells(1)
