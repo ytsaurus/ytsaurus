@@ -180,7 +180,7 @@ TEST(TBlockMapTest, DiscardBlockDropsInFlightFlush)
     EXPECT_EQ((*unreferencedIds)[0], TStoredBlockId(99));
 }
 
-TEST(TBlockMapTest, DiscardedBlockIsExcludedFromSnapshotAndIteration)
+TEST(TBlockMapTest, DiscardedBlockIsExcludedFromSnapshot)
 {
     auto blockMap = CreateBlockMap(4);
     blockMap->PutBlock(1, TDirtyBlockId(11));
@@ -190,12 +190,6 @@ TEST(TBlockMapTest, DiscardedBlockIsExcludedFromSnapshotAndIteration)
     auto snapshot = blockMap->TakeSnapshot();
     ASSERT_EQ(std::ssize(snapshot.Blocks), 1);
     EXPECT_EQ(snapshot.Blocks[0], std::pair(2, MakeDirty(22)));
-
-    std::vector<int> visited;
-    blockMap->IterateBlocks([&] (int blockIndex, TMappedBlockId /*mappedId*/) {
-        visited.push_back(blockIndex);
-    });
-    EXPECT_EQ(visited, std::vector{2});
 }
 
 TEST(TBlockMapTest, TakeSnapshot)
@@ -612,7 +606,7 @@ TEST(TBlockMapTest, TryPutBlockRejectsSupersededRelocation)
     EXPECT_EQ((*unreferencedIds)[1], newId);
 }
 
-TEST(TBlockMapTest, IterateBlocks)
+TEST(TBlockMapTest, GetChunkBlocks)
 {
     auto blockMap = CreateBlockMap(5);
 
@@ -623,19 +617,56 @@ TEST(TBlockMapTest, IterateBlocks)
     putStored(0, 1, MakeStoredInChunk(7, 0));
     putStored(3, 2, MakeStoredInChunk(7, 5));
     putStored(1, 3, MakeStoredInChunk(9, 0));
+    // Block 2 stays dirty and block 4 empty; neither belongs to a chunk.
     blockMap->PutBlock(2, TDirtyBlockId(4));
 
-    // Every used block, stored and dirty alike, in ascending index order; the empty block 4 is skipped.
-    std::vector<std::pair<int, TMappedBlockId>> visited;
-    blockMap->IterateBlocks([&] (int blockIndex, TMappedBlockId mappedId) {
-        visited.emplace_back(blockIndex, mappedId);
-    });
-    EXPECT_EQ(visited, (std::vector<std::pair<int, TMappedBlockId>>{
-        {0, ToMappedBlockId(MakeStoredInChunk(7, 0))},
-        {1, ToMappedBlockId(MakeStoredInChunk(9, 0))},
-        {2, MakeDirty(4)},
-        {3, ToMappedBlockId(MakeStoredInChunk(7, 5))},
+    EXPECT_EQ(blockMap->GetChunkBlocks(7), (std::vector<std::pair<int, TStoredBlockId>>{
+        {0, MakeStoredInChunk(7, 0)},
+        {3, MakeStoredInChunk(7, 5)},
     }));
+    EXPECT_EQ(blockMap->GetChunkBlocks(9), (std::vector<std::pair<int, TStoredBlockId>>{
+        {1, MakeStoredInChunk(9, 0)},
+    }));
+    EXPECT_TRUE(blockMap->GetChunkBlocks(8).empty());
+}
+
+TEST(TBlockMapTest, GetChunkBlocksAtLayoutBounds)
+{
+    auto blockMap = CreateBlockMap(2);
+
+    // Every field at its maximum, so any bleed between the chunk index and the tag bits shows up here.
+    auto maxStoredBlockId = MakeStoredInChunk(
+        MaxChunksPerDevice - 1,
+        MaxRecordsPerChunk - 1,
+        MaxBlocksPerRecord - 1);
+    blockMap->PutBlock(0, TDirtyBlockId(1));
+    EXPECT_TRUE(blockMap->TryPutBlock(0, MakeDirty(1), maxStoredBlockId));
+
+    EXPECT_EQ(blockMap->GetChunkBlocks(MaxChunksPerDevice - 1), (std::vector<std::pair<int, TStoredBlockId>>{
+        {0, maxStoredBlockId},
+    }));
+    EXPECT_TRUE(blockMap->GetChunkBlocks(0).empty());
+}
+
+TEST(TBlockMapTest, GetChunkBlocksSeesBlocksWrittenUnderSnapshot)
+{
+    auto blockMap = CreateBlockMap(4);
+    blockMap->PutBlock(1, TDirtyBlockId(11));
+
+    // A slot rewritten mid-scan carries the CoW mark; the chunk lookup must still report its current
+    // value rather than the snapshotted one.
+    auto storedBlockId = MakeStoredInChunk(3, 0);
+    std::vector<std::pair<int, TStoredBlockId>> duringSnapshot;
+    blockMap->TakeSnapshot([&] (int scanIndex) {
+        if (scanIndex == 0) {
+            EXPECT_TRUE(blockMap->TryPutBlock(1, MakeDirty(11), storedBlockId));
+            duringSnapshot = blockMap->GetChunkBlocks(3);
+        }
+    });
+
+    auto expected = std::vector<std::pair<int, TStoredBlockId>>{{1, storedBlockId}};
+    EXPECT_EQ(duringSnapshot, expected);
+    EXPECT_EQ(blockMap->GetChunkBlocks(3), expected);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
