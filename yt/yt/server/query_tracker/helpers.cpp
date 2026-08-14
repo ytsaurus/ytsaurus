@@ -202,9 +202,9 @@ std::string Decompress(const std::string& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEngineConfigBasePtr GetConfigByEngine(const TQueryTrackerDynamicConfigPtr& config, const EQueryEngine engine)
+TEngineConfigBasePtr GetConfigByEngine(const TQueryTrackerDynamicConfigPtr& config, EQueryEngine engine)
 {
-    switch(engine) {
+    switch (engine) {
         case EQueryEngine::Mock:
             return config->MockEngine;
         case EQueryEngine::Ql:

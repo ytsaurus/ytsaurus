@@ -412,7 +412,9 @@ void TQueryTrackerProxy::StartQuery(
                 .IsTutorial = isTutorial,
             };
             if (!isIndexed) {
-                newRecord.Ttl = GetConfigByEngine(DynamicConfig_, engine)->NotIndexedQueriesTtl->MilliSeconds();
+                if (auto ttl = GetConfigByEngine(DynamicConfig_, engine)->NotIndexedQueriesTtl) {
+                    newRecord.Ttl = ttl->MilliSeconds();
+                }
             }
 
             filterFactors = GetFilterFactors(newRecord);

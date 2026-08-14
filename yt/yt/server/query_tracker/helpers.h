@@ -51,7 +51,7 @@ std::string Decompress(const std::string& data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEngineConfigBasePtr GetConfigByEngine(const TQueryTrackerDynamicConfigPtr& config, const EQueryEngine engine);
+TEngineConfigBasePtr GetConfigByEngine(const TQueryTrackerDynamicConfigPtr& config, EQueryEngine engine);
 
 ////////////////////////////////////////////////////////////////////////////////
 
