@@ -2317,7 +2317,8 @@ class TestWriteRetries(TestSortedDynamicTablesBase):
         return error.contains_code(yt_error_codes.ParticipantFailedToPrepare) or \
             error.contains_code(yt_error_codes.InvalidTransactionState) or \
             not error.contains_text("Error sending transaction rows") or \
-            error.contains_text("Cannot write into tablet since it is a smooth movement source in stage")
+            error.contains_text("Cannot write into tablet since it is a smooth movement source in stage") or \
+            error.contains_text("Abort was requested for transaction")
 
     @authors("alexelexa")
     def test_move_to_itself(self):

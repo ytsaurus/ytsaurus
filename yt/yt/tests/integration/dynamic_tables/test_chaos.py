@@ -7229,7 +7229,7 @@ class TestChaosWriteRetries(WriteRetriesBase, ChaosTestBase):
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": replica_path},
             {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": queue_path},
             {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": replica_path},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": queue_path}
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": queue_path},
         ]
         replica_ids = self._create_chaos_table_replicas(replicas, table_path=path)
         self._create_replica_tables(replicas, replica_ids, create_tablet_cells=False, schema=schema, mount_tables=False)

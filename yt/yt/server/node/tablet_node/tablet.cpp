@@ -3908,7 +3908,7 @@ void WaitUntilServantIsWritable(
         }
 
         YT_LOG_DEBUG(stageChangedError,
-            "Timed out while waiting for source servant lock barrier future (%v, Timeout: %v)",
+            "Failed to wait for source servant lock barrier future (%v, Timeout: %v)",
             loggingTags,
             waitForLockBarrierTimeout);
     }
