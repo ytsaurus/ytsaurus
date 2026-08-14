@@ -165,7 +165,7 @@ int main()
         ConvertTo<NLogging::TLogManagerConfigPtr>(config->GetChildOrThrow("logging")));
 
     NLogging::TLogger Logger("XXXX");
-    YT_LOG_INFO("Trulala");
+    YT_TLOG_INFO("Trulala");
 
     auto nameTable = New<TNameTable>();
     auto names = std::vector<std::string>{"k", "v", "a"};

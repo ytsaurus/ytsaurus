@@ -46,7 +46,7 @@ IClientRequestControlPtr TPeerChannel::Send(
                     responseHandler->HandleError(std::move(error));
                 }),
                 timeout);
-            YT_LOG_DEBUG("Request timeout");
+            YT_TLOG_DEBUG("Request timeout");
             return nullptr;
         }
 
