@@ -179,7 +179,7 @@ private:
                     statuses[jobId] = jobStatus;
                 } catch (const std::exception& ex) {
                     // Job would be dropped anyway after LostJobTimeout.
-                    YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Job sent invalid status, ignored")
+                    YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Job sent invalid status, ignored")
                         .With("WorkerIdentifyingString", workerInfo.GetIdentifyingString())
                         .With("JobId", jobId)
                         .With(ex);

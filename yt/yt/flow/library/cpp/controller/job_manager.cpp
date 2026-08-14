@@ -320,7 +320,7 @@ public:
                     THROW_ERROR_EXCEPTION(ex)
                         .With("computation_id", computationId);
                 }
-                YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Failed to process partition traverse data, reusing the previous one")
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Failed to process partition traverse data, reusing the previous one")
                     .With("ComputationId", computationId)
                     .With("Error", TError(ex));
             }
@@ -562,7 +562,7 @@ public:
                             .With("computation_id", partition->ComputationId)
                             .With("partition_state", partition->State);
                     }
-                    YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Info, "Job completed")
+                    YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Info, "Job completed")
                         .With("JobId", currentJobStatus->JobId)
                         .With("PartitionId", partitionId)
                         .With("ComputationId", partition->ComputationId);
@@ -603,7 +603,7 @@ public:
                     continue;
                 }
                 foundError += 1;
-                YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Job failed")
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Job failed")
                     .With("JobId", currentJobStatus->JobId)
                     .With("PartitionId", partitionId)
                     .With("ComputationId", GetOrCrash(layout->Partitions, partitionId)->ComputationId)
@@ -678,7 +678,7 @@ public:
                 partition->PartitionId,
                 partition->ComputationId,
                 lostReasonTags);
-            YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "")
+            YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "")
                 .With(error);
             removed++;
             layout->RemoveJob(jobId, EJobFinishReason::LostWorker);
@@ -878,7 +878,7 @@ public:
                         workersInGroup,
                         minimumWorkerCount);
                 errorState->SetError(std::move(error));
-                YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Too few workers in worker group")
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Too few workers in worker group")
                     .With("WorkerGroup", workerGroup)
                     .With("Count", workersInGroup)
                     .With("Required", minimumWorkerCount);
@@ -921,7 +921,7 @@ public:
             // "worker is lost" error. Name the real problem instead.
             const auto* partitionState = flowView->EphemeralState->Partitions.FindPtr(partitionId);
             if (!partitionState || !(*partitionState)->DynamicPartitionSpec->ComputationPartitionSpec) {
-                YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Creating job for a partition without dynamic partition spec; the job cannot start until the spec appears")
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Creating job for a partition without dynamic partition spec; the job cannot start until the spec appears")
                     .With("PartitionId", partitionId)
                     .With("ComputationId", GetOrCrash(layout->Partitions, partitionId)->ComputationId);
             }

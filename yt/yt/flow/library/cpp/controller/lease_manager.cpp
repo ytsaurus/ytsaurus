@@ -117,7 +117,7 @@ public:
                 .With("partition_id", job->PartitionId)
                 .With("computation_id", partition->ComputationId)
                 .With("lease_id", job->LeaseId);
-            YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "")
+            YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "")
                 .With(error);
 
             auto partitionState = flowView->EphemeralState->GetPartitionState(job->PartitionId);

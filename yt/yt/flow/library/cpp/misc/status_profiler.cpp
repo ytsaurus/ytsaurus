@@ -308,12 +308,12 @@ private:
         const auto brokenLevel = GetBrokenLogLevel();
         switch (pending.Kind) {
             case TPendingLog::EKind::Break:
-                YT_TLOG_EVENT_FLUENT(Logger, brokenLevel, "Component became broken")
+                YT_TLOG_EVENT(Logger, brokenLevel, "Component became broken")
                     .With("Component", Prefix_)
                     .With(pending.Error);
                 break;
             case TPendingLog::EKind::StillBroken:
-                YT_TLOG_EVENT_FLUENT(Logger, brokenLevel, "Component is still broken")
+                YT_TLOG_EVENT(Logger, brokenLevel, "Component is still broken")
                     .With("Component", Prefix_)
                     .With("BrokenFor", pending.BrokenFor)
                     .With(pending.Error);
@@ -335,7 +335,7 @@ private:
         }
         const auto& Logger = LoggingContext_->Logger;
         if (report.Broken) {
-            YT_TLOG_EVENT_FLUENT(Logger, GetBrokenLogLevel(), "Component status report")
+            YT_TLOG_EVENT(Logger, GetBrokenLogLevel(), "Component status report")
                 .With("Component", Prefix_)
                 .With("Status", "Broken")
                 .With("TimeSinceLastOK", report.TimeSinceLastOK)
