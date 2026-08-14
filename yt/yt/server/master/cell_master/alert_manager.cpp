@@ -179,7 +179,8 @@ private:
             for (const auto& alert : alertSource()) {
                 if (!isPrefixOf(
                         alert.GetMessage(),
-                        Bootstrap_->GetConfigManager()->GetConfig()->CellMaster->SuppressedAlerts)) {
+                        Bootstrap_->GetConfigManager()->GetConfig()->CellMaster->SuppressedAlerts))
+                {
                     localAlerts.emplace_back(alert);
                 }
             }
