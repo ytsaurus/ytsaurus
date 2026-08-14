@@ -20,7 +20,8 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     IChunkWriterPtr chunkWriter,
     IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     IBlockCachePtr blockCache,
-    NLogging::TLogger logger)
+    NLogging::TLogger logger,
+    IInvokerPtr compressionInvokerOverride)
     : Meta_(New<TMemoryTrackedDeferredChunkMeta>(
         TMemoryUsageTrackerGuard::Acquire(
             options->MemoryUsageTracker,
@@ -35,7 +36,8 @@ TEncodingChunkWriter::TEncodingChunkWriter(
         ChunkWriter_,
         WriteBlocksOptions_,
         blockCache,
-        std::move(logger)))
+        std::move(logger),
+        std::move(compressionInvokerOverride)))
 {
     MiscExt_.set_compression_codec(ToProto(options->CompressionCodec));
     MiscExt_.set_erasure_codec(ToProto(ChunkWriter_->GetErasureCodecId()));
