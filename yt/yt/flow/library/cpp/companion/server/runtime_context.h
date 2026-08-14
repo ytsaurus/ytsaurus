@@ -25,6 +25,10 @@ public:
     //! The epoch timestamp does not travel to the companion; throwing beats
     //! silently returning zero (which would misdate every relative timer).
     TSystemTimestamp GetCurrentTimestamp() const override;
+
+    //! Likewise the epoch sequence number: it is minted by the worker's epoch loop and
+    //! never crosses the wire.
+    TUniqueSeqNo GetEpochUniqueSeqNo() const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionRuntimeContext);

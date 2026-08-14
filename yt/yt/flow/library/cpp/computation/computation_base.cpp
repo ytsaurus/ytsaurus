@@ -1427,6 +1427,9 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
     }));
     // Apply pending state before any computation in this iteration.
     ApplyPendingStates();
+    // Drop the previous epoch's number: a loop that mints none must not leak a stale one
+    // into user code through IRuntimeContext.
+    EpochUniqueSeqNo_.reset();
 
     if (TimerStore_) {
         TimerStore_->UpdateWatermarkState(GetWatermarkState());
@@ -1703,6 +1706,20 @@ ITimeProvider::TGlobalUniqueSeqNo TUniversalComputationBase::GenerateGlobalUniqu
 {
     NTracing::TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("GenerateGlobalUniqueSeqNo"));
     return WaitFor(GetTimeProvider()->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
+}
+
+void TUniversalComputationBase::SetEpochUniqueSeqNo(TUniqueSeqNo seqNo)
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+
+    EpochUniqueSeqNo_ = seqNo;
+}
+
+std::optional<TUniqueSeqNo> TUniversalComputationBase::GetEpochUniqueSeqNo() const
+{
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+
+    return EpochUniqueSeqNo_;
 }
 
 void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRunContextPtr& context)

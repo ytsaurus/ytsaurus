@@ -33,7 +33,10 @@ TComputationRuntimeContext::TComputationRuntimeContext(
     , EmptyDynamicParametersNode_(GetEphemeralNodeFactory()->CreateMap())
 { }
 
-void TComputationRuntimeContext::RefreshEpochState(TWatermarkStatePtr watermarkState, NYTree::IMapNodePtr dynamicParametersNode)
+void TComputationRuntimeContext::RefreshEpochState(
+    TWatermarkStatePtr watermarkState,
+    NYTree::IMapNodePtr dynamicParametersNode,
+    std::optional<TUniqueSeqNo> epochUniqueSeqNo)
 {
     WatermarkState_ = std::move(watermarkState);
     if (dynamicParametersNode) {
@@ -41,6 +44,7 @@ void TComputationRuntimeContext::RefreshEpochState(TWatermarkStatePtr watermarkS
     } else {
         DynamicParametersNode_ = EmptyDynamicParametersNode_;
     }
+    EpochUniqueSeqNo_ = epochUniqueSeqNo;
 }
 
 TSystemTimestamp TComputationRuntimeContext::GetWatermark(const TStreamId& streamId) const
@@ -65,6 +69,16 @@ TWatermarkStatePtr TComputationRuntimeContext::GetEpochWatermarkState() const
 TSystemTimestamp TComputationRuntimeContext::GetCurrentTimestamp() const
 {
     return GetEpochWatermarkState()->GetCurrentTimestamp();
+}
+
+TUniqueSeqNo TComputationRuntimeContext::GetEpochUniqueSeqNo() const
+{
+    if (!EpochUniqueSeqNo_) {
+        THROW_ERROR_EXCEPTION("The epoch sequence number was not published for this epoch")
+            .With("computation_class_name", Spec_->ComputationClassName);
+    }
+
+    return *EpochUniqueSeqNo_;
 }
 
 const TComputationSpecPtr& TComputationRuntimeContext::GetSpec() const
