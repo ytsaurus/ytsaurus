@@ -163,7 +163,7 @@ public:
 
     void SetCoreInfos(NControllerAgent::TCoreInfos value);
 
-    const NJobAgent::TArtifactCacheStatistics& GetArtifactCacheStatistics() const;
+    const NJobAgent::TArtifactStatistics& GetArtifactStatistics() const;
 
     NYson::TYsonString GetStatistics() const;
     NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics() const;
@@ -427,7 +427,7 @@ private:
     TNetworkAttributes NetworkAttributes_;
 
     // Artifact statistics.
-    NJobAgent::TArtifactCacheStatistics ArtifactCacheStatistics_;
+    NJobAgent::TArtifactStatistics ArtifactStatistics_;
 
     std::vector<TFuture<void>> ArtifactPrepareFutures_;
 
@@ -564,7 +564,7 @@ private:
 
     TNetworkAttributes BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject) const;
 
-    TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
+    TArtifactDownloadOptions MakeArtifactDownloadOptions();
 
     // Start async artifacts download.
     TFuture<std::vector<TArtifactPtr>> DownloadArtifacts();
@@ -589,7 +589,10 @@ private:
 
     void UpdateIOStatistics(const TStatistics& statistics);
 
-    void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit);
+    void UpdateArtifactStatistics(
+        i64 compressedDataSize,
+        bool cacheHit,
+        bool isLayer);
 
     std::vector<TShellCommandConfigPtr> GetSetupCommands();
 

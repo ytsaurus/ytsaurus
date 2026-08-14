@@ -1313,6 +1313,11 @@ class TestArtifactCacheBypass(YTEnvSetup):
             "exec_agent.artifacts.cache_bypassed_artifacts_size",
             lambda bypassed_size: bypassed_size == 18))
 
+        wait(lambda: assert_statistics(
+            op,
+            "exec_agent.artifacts.files_downloaded_size",
+            lambda size: size == 18))
+
         wait(lambda: sum(counter.get_delta() for counter in counters) == 18)
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]

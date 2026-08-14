@@ -255,6 +255,15 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"exec_agent/artifacts/cache_bypassed_artifacts_size", "Size of artifacts with bypass_artifact_cache == true", "bytes"},
         {"exec_agent/artifacts/cache_hit_artifacts_size", "Size of artifacts retrieved from cache", "bytes"},
         {"exec_agent/artifacts/cache_miss_artifacts_size", "Size of artifacts that were not found in cache", "bytes"},
+        {"exec_agent/artifacts/files_cached_size", "Total bytes of files served from cache (from memory or disk)", "bytes"},
+        {"exec_agent/artifacts/files_downloaded_size", "Total bytes of files downloaded from data nodes", "bytes"},
+        {"exec_agent/artifacts/files_copied_size", "Total bytes of files copied from cache to sandbox", "bytes"},
+        {"exec_agent/artifacts/files_downloaded_total_duration", "Sum of per-file download durations", "ms"},
+        {"exec_agent/artifacts/files_copied_total_duration", "Sum of per-file copy durations", "ms"},
+        {"exec_agent/artifacts/layers_cached_size", "Total bytes of layers served from cache", "bytes"},
+        {"exec_agent/artifacts/layers_downloaded_size", "Total bytes of layers downloaded from data nodes", "bytes"},
+        {"exec_agent/artifacts/layers_downloaded_total_duration", "Sum of per-layer download durations", "ms"},
+        {"exec_agent/artifacts/layers_import_total_duration", "Sum of per-layer import durations into porto", "ms"},
 
         // Job Memory.
         {"job/memory/major_page_faults", "Major page faults by the job", "pieces"},
