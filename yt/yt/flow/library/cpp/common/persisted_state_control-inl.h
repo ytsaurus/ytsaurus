@@ -969,7 +969,7 @@ void TPersistedStateControl<TDBKey, TDBValue, TDefaultSerializer>::Apply(const T
     if (it != States_.end()) {
         it->second->Apply(row.SequenceId, row.KeyLeft, row.KeyRight, row.Value, droppedIds);
     } else {
-        YT_TLOG_EVENT_FLUENT(PersistedStateLogger, NLogging::ELogLevel::Warning, "State row not applied: state name is unknown")
+        YT_TLOG_EVENT(PersistedStateLogger, NLogging::ELogLevel::Warning, "State row not applied: state name is unknown")
             .With("StateName", row.Name);
     }
 }
@@ -988,7 +988,7 @@ std::vector<TPersistedStateStorageRow<TDBKey, TDBValue>> TPersistedStateControl<
     TSequenceId sequenceIdFrom,
     ssize_t limit)
 {
-    YT_TLOG_EVENT_FLUENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow begin")
+    YT_TLOG_EVENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow begin")
         .With("SequenceIdFrom", sequenceIdFrom);
 
     auto guard = Guard(TransactionalLock_);
@@ -1005,7 +1005,7 @@ std::vector<TPersistedStateStorageRow<TDBKey, TDBValue>> TPersistedStateControl<
     }
     guard.Release();
 
-    YT_TLOG_EVENT_FLUENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow found")
+    YT_TLOG_EVENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow found")
         .With("SequenceIdFrom", sequenceIdFrom)
         .With("FoundRecords", std::ssize(foundRecords));
 
@@ -1016,7 +1016,7 @@ std::vector<TPersistedStateStorageRow<TDBKey, TDBValue>> TPersistedStateControl<
         result.emplace_back(state->RecordToRow(*knownRecord.Record));
     }
 
-    YT_TLOG_EVENT_FLUENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow converted")
+    YT_TLOG_EVENT(PersistedStateLogger, NLogging::ELogLevel::Info, "Persisted state follow converted")
         .With("SequenceIdFrom", sequenceIdFrom)
         .With("FoundRecords", std::ssize(result));
 

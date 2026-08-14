@@ -405,7 +405,7 @@ void TUniversalComputationController::DoPartitioning(
                 }
                 auto partition = GetOrCrash(flowView->State->ExecutionSpec->Layout->Partitions, partitionId);
                 if (partition->State == EPartitionState::Completed) {
-                    YT_TLOG_EVENT_FLUENT(GetContext()->PublicLogger, NLogging::ELogLevel::Info, "Removing completed source partition")
+                    YT_TLOG_EVENT(GetContext()->PublicLogger, NLogging::ELogLevel::Info, "Removing completed source partition")
                         .With("PartitionId", partitionId)
                         .With("Partition", NYson::ConvertToYsonString(partition, EYsonFormat::Text));
                     flowView->State->ExecutionSpec->Layout->RemovePartition(partitionId);

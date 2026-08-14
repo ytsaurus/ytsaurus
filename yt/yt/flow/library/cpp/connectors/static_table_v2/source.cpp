@@ -1050,7 +1050,7 @@ void TSourceController::ReconcileDistributingTable(TListedTables listed)
         serving->Path.GetCluster() == current->Path.GetCluster() &&
         serving->Path.GetPath() != current->Path.GetPath())
     {
-        YT_TLOG_EVENT_FLUENT(GetContext()->PublicLogger, ELogLevel::Warning, "Current table was recreated under a new object id; rereading from scratch")
+        YT_TLOG_EVENT(GetContext()->PublicLogger, ELogLevel::Warning, "Current table was recreated under a new object id; rereading from scratch")
             .With("Cluster", activeCluster)
             .With("EventTimestamp", current->EventTimestamp)
             .With("OldId", current->Path.GetPath())
@@ -1076,7 +1076,7 @@ void TSourceController::ReconcileDistributingTable(TListedTables listed)
     state->ClusterProgress->ByCluster[decision->StashedCluster] = NYTree::CloneYsonStruct(current);
     state->ClusterProgress->ByCluster.erase(toCluster);
 
-    YT_TLOG_EVENT_FLUENT(
+    YT_TLOG_EVENT(
         GetContext()->PublicLogger,
         ELogLevel::Info,
         "Failing over current table to another cluster")
@@ -1181,7 +1181,7 @@ std::optional<TFailoverDecision> TSourceController::DecideFailover(
     if (auto it = stash.find(*servingReplica->Path.GetCluster()); it != stash.end()) {
         resumeFrom = it->second;
         if (resumeFrom->Path.GetPath() != servingReplica->Path.GetPath()) {
-            YT_TLOG_EVENT_FLUENT(publicLogger, ELogLevel::Warning, "Stashed table was recreated on the target cluster; rereading from scratch")
+            YT_TLOG_EVENT(publicLogger, ELogLevel::Warning, "Stashed table was recreated on the target cluster; rereading from scratch")
                 .With("Cluster", *servingReplica->Path.GetCluster())
                 .With("EventTimestamp", current->EventTimestamp)
                 .With("StashedId", resumeFrom->Path.GetPath())
@@ -1287,7 +1287,7 @@ void TSourceController::UpdateControllerState(
         ++it;
     } else {
         if (state->DistributingTable->GetNotDistributedRows() != 0) {
-            YT_TLOG_EVENT_FLUENT(
+            YT_TLOG_EVENT(
                 publicLogger,
                 ELogLevel::Error,
                 "Data loss was detected, table was removed before it is fully read")
@@ -1317,7 +1317,7 @@ void TSourceController::UpdateControllerState(
     }
 
     if (needStartNewTable) {
-        YT_TLOG_EVENT_FLUENT(
+        YT_TLOG_EVENT(
             publicLogger,
             ELogLevel::Info,
             "Starting to read new table")
@@ -1338,7 +1338,7 @@ void TSourceController::ApplyRestartInstantLogic(
 {
     auto now = TInstant::Now();
     if (restartInstant > now) {
-        YT_TLOG_EVENT_FLUENT(
+        YT_TLOG_EVENT(
             publicLogger,
             ELogLevel::Warning,
             "Misconfiguration: restart instant in dynamic parameters is greater than now")
@@ -1349,7 +1349,7 @@ void TSourceController::ApplyRestartInstantLogic(
         state->DistributingTable->SkipRemainingRows();
 
         state->Era += 1;
-        YT_TLOG_EVENT_FLUENT(
+        YT_TLOG_EVENT(
             publicLogger,
             ELogLevel::Warning,
             "Starting new era")
@@ -1384,7 +1384,7 @@ bool TSourceController::CheckDistributingTable()
                 CheckDistributingTableErrorState_->ClearError();
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to update distributing table").With(ex);
-                YT_TLOG_EVENT_FLUENT(
+                YT_TLOG_EVENT(
                     GetContext()->PublicLogger,
                     ELogLevel::Error,
                     "Failed to update distributing table")
@@ -1393,7 +1393,7 @@ bool TSourceController::CheckDistributingTable()
             }
         } else {
             auto error = TError("Failed to get tables") << TablesFuture_.GetOrCrash();
-            YT_TLOG_EVENT_FLUENT(
+            YT_TLOG_EVENT(
                 GetContext()->PublicLogger,
                 ELogLevel::Error,
                 "Failed to get tables")
@@ -1463,7 +1463,7 @@ void TSourceController::CheckDistributionFinished()
 
     state->DistributionFinished = true;
     state->ProcessedTables += 1;
-    YT_TLOG_EVENT_FLUENT(
+    YT_TLOG_EVENT(
         GetContext()->PublicLogger,
         ELogLevel::Info,
         "Table was processed")

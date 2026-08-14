@@ -545,11 +545,11 @@ public:
             if (flowCoreTargetMatched != FlowCoreTargetMatched_) {
                 const auto& flowCoreTarget = flowView->State->ExecutionSpec->FlowCoreTarget->GetValue();
                 if (flowCoreTargetMatched) {
-                    YT_TLOG_EVENT_FLUENT(PublicControllerLogger(), NLogging::ELogLevel::Info, "Controller FlowCoreVersion matches FlowCoreTarget, resuming scheduling")
+                    YT_TLOG_EVENT(PublicControllerLogger(), NLogging::ELogLevel::Info, "Controller FlowCoreVersion matches FlowCoreTarget, resuming scheduling")
                         .With("FlowCoreVersion", NodeInfo_->FlowCoreVersion)
                         .With("FlowCoreTarget", flowCoreTarget);
                 } else {
-                    YT_TLOG_EVENT_FLUENT(PublicControllerLogger(), NLogging::ELogLevel::Info, "Controller FlowCoreVersion mismatches FlowCoreTarget, scheduling is paused")
+                    YT_TLOG_EVENT(PublicControllerLogger(), NLogging::ELogLevel::Info, "Controller FlowCoreVersion mismatches FlowCoreTarget, scheduling is paused")
                         .With("FlowCoreVersion", NodeInfo_->FlowCoreVersion)
                         .With("FlowCoreTarget", flowCoreTarget);
                 }
@@ -756,7 +756,7 @@ private:
                 context->StatusProfiler = StatusProfiler_->WithPrefix("/job_manager");
                 JobManager_ = CreateJobManager(std::move(context), executionSpec->PipelineSpec->GetValue(), executionSpec->DynamicPipelineSpec->GetValue(), flowState->JobManagerState, PipelineAuthenticator_);
             } catch (const std::exception& ex) {
-                YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Failed to create job manager")
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Failed to create job manager")
                     .With(ex);
                 JobManager_ = nullptr;
             }
@@ -1037,7 +1037,7 @@ private:
         const auto pipelineState = flowView->IsSynced()
             ? flowView->State->ExecutionSpec->PipelineState->GetValue()
             : EPipelineState::Unknown;
-        YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Info, "Jobs status")
+        YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Info, "Jobs status")
             .With("PipelineState", pipelineState)
             .With("Workers", std::ssize(flowView->State->Workers))
             .With("WorkingOld", totalCounters.WorkingOld)
@@ -1049,7 +1049,7 @@ private:
             .With("FlowViewAge", TInstant::Now() - TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying()));
 
         if (const auto& computations = flowView->EphemeralState->TraverseUncoveredComputations) {
-            YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Some computations has partial traverse coverage")
+            YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Some computations has partial traverse coverage")
                 .With("Computations", computations);
         }
     }
@@ -1192,7 +1192,7 @@ private:
         std::vector<TPartitionId> interruptedPartitions;
         for (const auto& [partitionId, partition] : flowLayout->Partitions) {
             if (partition->State == EPartitionState::Interrupted) {
-                YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Info, "Removing interrupted partition")
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Info, "Removing interrupted partition")
                     .With("PartitionId", partitionId)
                     .With("Partition", NYson::ConvertToYsonString(partition, EYsonFormat::Text));
                 interruptedPartitions.push_back(partitionId);
@@ -1500,7 +1500,7 @@ private:
                             }
                             schedulerActivityContext.FailedIterations.Increment();
                             schedulerActivityContext.ErrorState->SetError(error);
-                            YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Schedule iteration failed")
+                            YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Schedule iteration failed")
                                 .With(error);
                         }
                         TDelayedExecutor::WaitForDuration(Config_->SchedulerPeriod);
@@ -1511,7 +1511,7 @@ private:
                     schedulerActivityContext.FailedIterations.Increment();
                     schedulerActivityContext.ErrorState->SetError(error);
                     DoCleanUp();
-                    YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Scheduler Executor thread failed and restarted")
+                    YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Scheduler Executor thread failed and restarted")
                         .With(error);
                     TDelayedExecutor::WaitForDuration(Config_->SchedulerPeriod);
                 }
@@ -1541,7 +1541,7 @@ private:
                         auto error = TError("Failed to execute %v iteration", name).With(ex);
                         activityContext.FailedIterations.Increment();
                         activityContext.ErrorState->SetError(error);
-                        YT_TLOG_EVENT_FLUENT(Logger, getLogLevel(error), "")
+                        YT_TLOG_EVENT(Logger, getLogLevel(error), "")
                             .With(error);
                     }
                     TDelayedExecutor::WaitForDuration(period);
@@ -1587,7 +1587,7 @@ private:
                 for (const auto& [component, currentError] : currentStatus.Errors) {
                     TError* previousError = previousErrors.FindPtr(component);
                     if (!previousError || currentError != *previousError) {
-                        YT_TLOG_EVENT_FLUENT(PublicControllerLogger, getLogLevel(currentError), "Found new retryable errors in controller")
+                        YT_TLOG_EVENT(PublicControllerLogger, getLogLevel(currentError), "Found new retryable errors in controller")
                             .With("Component", component)
                             .With(currentError);
                     }
@@ -1700,7 +1700,7 @@ private:
                     TError* currentError = previousJobStatus ? previousJobStatus->RetryableErrors.FindPtr(component) : nullptr;
                     if (!currentError || *currentError != error) {
                         partitionJobStatus->LastRetryableErrorInstant = std::min(std::max(partitionJobStatus->LastRetryableErrorInstant, error.GetDatetime()), now);
-                        YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Received job retryable error")
+                        YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Received job retryable error")
                             .With("Component", component)
                             .With("JobId", jobId)
                             .With("PartitionId", partition->PartitionId)
@@ -1716,14 +1716,14 @@ private:
         for (const auto& [workerAddress, newWorkerStatus] : freshWorkerStatuses) {
             auto& workerStatus = feedback->WorkerStatuses[workerAddress];
             if (!newWorkerStatus->PreviousCrashError.IsOK() && (!workerStatus || workerStatus->PreviousCrashError != newWorkerStatus->PreviousCrashError)) {
-                YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Received worker crash error")
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Received worker crash error")
                     .With("WorkerAddress", workerAddress)
                     .With(newWorkerStatus->PreviousCrashError);
             }
             for (const auto& [component, error] : newWorkerStatus->Errors) {
                 TError* currentError = workerStatus ? workerStatus->Errors.FindPtr(component) : nullptr;
                 if (!currentError || *currentError != error) {
-                    YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Received worker error")
+                    YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Received worker error")
                         .With("Component", component)
                         .With("WorkerAddress", workerAddress)
                         .With(error);

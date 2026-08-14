@@ -259,7 +259,7 @@ private:
         auto lastHeartbeatTime = worker ? worker->GetLastHeartbeatTime() : TInstant::Zero();
         guard.Release();
 
-        YT_TLOG_EVENT_FLUENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Worker lease timed out; unregistered")
+        YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Worker lease timed out; unregistered")
             .With("WorkerIdentifyingString", workerInfo.GetIdentifyingString())
             .With("LastHeartbeatTime", lastHeartbeatTime);
     }

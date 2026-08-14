@@ -830,7 +830,7 @@ void TSourceController::UpdateControllerState(
         ++it;
     } else {
         if (state->DistributingTable->GetNotDistributedRows() != 0) {
-            YT_TLOG_EVENT_FLUENT(
+            YT_TLOG_EVENT(
                 publicLogger,
                 ELogLevel::Error,
                 "Data loss was detected, table was removed before it is fully read")
@@ -860,7 +860,7 @@ void TSourceController::UpdateControllerState(
     }
 
     if (needStartNewTable) {
-        YT_TLOG_EVENT_FLUENT(
+        YT_TLOG_EVENT(
             publicLogger,
             ELogLevel::Info,
             "Starting to read new table")
@@ -881,7 +881,7 @@ void TSourceController::ApplyRestartInstantLogic(
 {
     auto now = TInstant::Now();
     if (restartInstant > now) {
-        YT_TLOG_EVENT_FLUENT(
+        YT_TLOG_EVENT(
             publicLogger,
             ELogLevel::Warning,
             "Misconfiguration: restart instant in dynamic parameters is greater than now")
@@ -892,7 +892,7 @@ void TSourceController::ApplyRestartInstantLogic(
         state->DistributingTable->SkipRemainingRows();
 
         state->Era += 1;
-        YT_TLOG_EVENT_FLUENT(
+        YT_TLOG_EVENT(
             publicLogger,
             ELogLevel::Warning,
             "Starting new era")
@@ -926,7 +926,7 @@ bool TSourceController::CheckDistributingTable()
                 CheckDistributingTableErrorState_->ClearError();
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to update distributing table").With(ex);
-                YT_TLOG_EVENT_FLUENT(
+                YT_TLOG_EVENT(
                     GetContext()->PublicLogger,
                     ELogLevel::Error,
                     "Failed to update distributing table")
@@ -935,7 +935,7 @@ bool TSourceController::CheckDistributingTable()
             }
         } else {
             auto error = TError("Failed to get tables") << TablesFuture_.GetOrCrash();
-            YT_TLOG_EVENT_FLUENT(
+            YT_TLOG_EVENT(
                 GetContext()->PublicLogger,
                 ELogLevel::Error,
                 "Failed to get tables")
@@ -983,7 +983,7 @@ void TSourceController::CheckDistributionFinished()
     } else if (distributingTable->GetNotDistributedRows() == 0 && distributingTable->DistributingRanges.empty()) {
         State_->DistributionFinished = true;
         State_->ProcessedTables += 1;
-        YT_TLOG_EVENT_FLUENT(
+        YT_TLOG_EVENT(
             GetContext()->PublicLogger,
             ELogLevel::Info,
             "Table was processed")
