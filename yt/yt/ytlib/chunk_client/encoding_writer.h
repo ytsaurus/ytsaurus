@@ -31,7 +31,8 @@ public:
         IChunkWriterPtr chunkWriter,
         IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
-        NLogging::TLogger logger);
+        NLogging::TLogger logger,
+        IInvokerPtr compressionInvokerOverride = {});
 
     bool IsReady() const;
     TFuture<void> GetReadyEvent();

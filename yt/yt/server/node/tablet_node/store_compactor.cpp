@@ -87,6 +87,8 @@
 #include <library/cpp/iterator/enumerate.h>
 #include <library/cpp/iterator/zip.h>
 
+#include <library/cpp/yt/system/thread_name.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -529,6 +531,18 @@ private:
             .ValueOrThrow();
     }
 
+    IInvokerPtr ComputeCompressionInvoker() const
+    {
+        if (!Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ReuseCompactionInvokerForWriterCompression) {
+            return nullptr;
+        }
+
+        auto threadName = std::string(GetCurrentThreadName().ToStringBuf());
+        YT_VERIFY(threadName.starts_with("StoreCompact:") || threadName.starts_with("Query:"));
+
+        return GetCurrentInvoker();
+    }
+
     TCompactionSessionFinalizeResult Finalize()
     {
         WaitFor(AllSucceeded(std::move(CloseFutures_)))
@@ -593,7 +607,8 @@ private:
                 std::move(underlyingWriter),
                 WriteBlocksOptions_,
                 /*dataSink*/ std::nullopt,
-                BlockCache_),
+                BlockCache_,
+                ComputeCompressionInvoker()),
             TabletSnapshot_->PhysicalSchema,
             HunkChunkPayloadWriter_,
             HunkChunkWriterStatistics_,

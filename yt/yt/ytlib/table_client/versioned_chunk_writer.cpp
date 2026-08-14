@@ -72,7 +72,8 @@ public:
         IChunkWriterPtr chunkWriter,
         IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
-        const std::optional<NChunkClient::TDataSink>& dataSink)
+        const std::optional<NChunkClient::TDataSink>& dataSink,
+        IInvokerPtr compressionInvokerOverride)
         : Logger(TableClientLogger().WithTag("ChunkWriterId", TGuid::Create()))
         , Options_(std::move(options))
         , Config_(std::move(config))
@@ -89,7 +90,8 @@ public:
             chunkWriter,
             std::move(writeBlocksOptions),
             std::move(blockCache),
-            Logger))
+            Logger,
+            std::move(compressionInvokerOverride)))
         , LastKey_(TUnversionedValueRange(nullptr, nullptr))
         , MinTimestamp_(MaxTimestamp)
         , MaxTimestamp_(MinTimestamp)
@@ -541,7 +543,8 @@ public:
         IChunkWriterPtr chunkWriter,
         IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
-        const std::optional<NChunkClient::TDataSink>& dataSink)
+        const std::optional<NChunkClient::TDataSink>& dataSink,
+        IInvokerPtr compressionInvokerOverride)
         : TVersionedChunkWriterBase(
             std::move(config),
             std::move(options),
@@ -549,7 +552,8 @@ public:
             std::move(chunkWriter),
             std::move(writeBlocksOptions),
             std::move(blockCache),
-            dataSink)
+            dataSink,
+            std::move(compressionInvokerOverride))
         , TBlockFormatAdapter(
             Config_,
             Schema_,
@@ -697,7 +701,8 @@ public:
         IChunkWriterPtr chunkWriter,
         IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
-        const std::optional<NChunkClient::TDataSink>& dataSink)
+        const std::optional<NChunkClient::TDataSink>& dataSink,
+        IInvokerPtr compressionInvokerOverride)
         : TVersionedChunkWriterBase(
             std::move(config),
             std::move(options),
@@ -705,7 +710,8 @@ public:
             std::move(chunkWriter),
             std::move(writeBlocksOptions),
             std::move(blockCache),
-            dataSink)
+            dataSink,
+            std::move(compressionInvokerOverride))
         , DataToBlockFlush_(std::min(BlockSize_, BufferSize_))
     {
         THROW_ERROR_EXCEPTION_IF(!IsColumnMetaInChunkMetaEnabled() && !IsSegmentMetaInBlocksEnabled(),
@@ -989,7 +995,8 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     IChunkWriterPtr chunkWriter,
     NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const std::optional<NChunkClient::TDataSink>& dataSink,
-    IBlockCachePtr blockCache)
+    IBlockCachePtr blockCache,
+    IInvokerPtr compressionInvokerOverride)
 {
     if (blockCache->GetSupportedBlockTypes() != EBlockType::None) {
         // It is hard to support both reordering and uncompressed block caching
@@ -1007,7 +1014,8 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
             std::move(chunkWriter),
             std::move(writeBlocksOptions),
             std::move(blockCache),
-            dataSink);
+            dataSink,
+            std::move(compressionInvokerOverride));
     };
 
     auto chunkFormat = options->GetEffectiveChunkFormat(/*versioned*/ true);
@@ -1062,46 +1070,6 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         parentChunkListId,
         std::move(chunkWriterFactory),
         /*trafficMeter*/ nullptr,
-        std::move(throttler),
-        std::move(blockCache));
-}
-
-IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
-    TTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
-    TTableSchemaPtr schema,
-    NNative::IClientPtr client,
-    std::string localHostName,
-    TCellTag cellTag,
-    TTransactionId transactionId,
-    TMasterTableSchemaId schemaId,
-    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
-    const std::optional<NChunkClient::TDataSink>& dataSink,
-    TChunkListId parentChunkListId,
-    IThroughputThrottlerPtr throttler,
-    IBlockCachePtr blockCache)
-{
-    auto chunkWriterFactory = [=] (IChunkWriterPtr underlyingWriter) {
-        return CreateVersionedChunkWriter(
-            config,
-            options,
-            schema,
-            std::move(underlyingWriter),
-            writeBlocksOptions,
-            dataSink,
-            blockCache);
-    };
-
-    return CreateVersionedMultiChunkWriter(
-        std::move(chunkWriterFactory),
-        std::move(config),
-        std::move(options),
-        std::move(client),
-        std::move(localHostName),
-        cellTag,
-        transactionId,
-        schemaId,
-        parentChunkListId,
         std::move(throttler),
         std::move(blockCache));
 }
