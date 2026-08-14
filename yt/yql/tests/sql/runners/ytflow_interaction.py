@@ -84,6 +84,11 @@ Ytflow {
     }
 
     DefaultSettings {
+        Name: "EnableComputationPatternResources"
+        Value: "false"
+    }
+
+    DefaultSettings {
         Name: "UpdateTimeout"
         Value: "600s"
     }
