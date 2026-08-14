@@ -577,6 +577,7 @@ class TestJobOomScore(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "footprint_memory": 0,
+            "exec_footprint_memory": 0,
         },
     }
 
@@ -613,6 +614,7 @@ class TestJobOomScore(YTEnvSetup):
                 "job_controller": {
                     "job_proxy": {
                         "oom_score_adj_on_exceeded_memory_reserve": target_score,
+                        "read_oom_score_adj_before_update": True,
                     },
                 },
             },
@@ -691,8 +693,9 @@ time.sleep(100500)
         wait(lambda: self._get_oom_score_adj(pid) == 0)
 
         if not self.USE_PORTO:
-            # Check job proxy oom_score_adj.
-            assert self._get_oom_score_adj(self._get_ppid(pid)) == target_score
+            # Check job proxy oom_score_adj. We use wait instead of assert because there might be
+            # noise if we're currently running inside of another job that has this option enabled.
+            wait(lambda: self._get_oom_score_adj(self._get_ppid(pid)) == target_score)
 
 
 @authors("dann239")

@@ -2128,28 +2128,17 @@ private:
         OomScoreAdjs_.clear();
 
         for (auto pid : pids) {
-            if (auto it = oldOomScoreAdjs.find(pid); it != oldOomScoreAdjs.end() && it->second == score) {
-                OomScoreAdjs_[pid] = score;
-                continue;
-            }
-
-            YT_LOG_DEBUG(
-                "Changing oom_score_adj of a user job process (Pid: %v, OomScoreAdj: %v)",
-                pid,
-                score);
-
-            auto config = New<TChangeOomScoreAdjAsRootConfig>();
-            config->Pid = pid;
-            config->Score = score;
-
-            try {
-                RunTool<TChangeOomScoreAdjAsRootTool>(config);
-                OomScoreAdjs_[pid] = score;
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(
-                    ex,
-                    "Failed to set oom_score_adj of a user job process (Pid: %v)",
-                    pid);
+            if (auto oldIt = oldOomScoreAdjs.find(pid); oldIt != oldOomScoreAdjs.end()) {
+                auto newIt = OomScoreAdjs_.emplace(*oldIt).first;
+                bool success = Host_->UpdateOomScoreAdj(pid, &newIt->second, score);
+                if (!success) {
+                    OomScoreAdjs_.erase(newIt);
+                }
+            } else {
+                bool success = Host_->UpdateOomScoreAdj(pid, nullptr, score);
+                if (success) {
+                    OomScoreAdjs_.emplace(pid, score);
+                }
             }
         }
     }

@@ -286,6 +286,7 @@ private:
 
     void LogSystemStats() const;
 
+    bool UpdateOomScoreAdj(pid_t pid, int* mutableExpectedScoreAdj, int desiredScoreAdj) override;
     void SetOomScoreAdj(int score);
 
     void OnMemoryReserveExceeded(i64 usage);
