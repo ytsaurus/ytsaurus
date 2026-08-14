@@ -1,0 +1,5 @@
+rules:
+  - yt/docs/AGENTS.md
+
+skills:
+  - yt/docs/ai/artifacts/skills
