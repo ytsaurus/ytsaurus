@@ -146,11 +146,14 @@ void TJobWorkspaceBuilder::SetJobPhase(EJobPhase phase)
     UpdateBuilderPhase_.Fire(phase);
 }
 
-void TJobWorkspaceBuilder::UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit)
+void TJobWorkspaceBuilder::UpdateArtifactStatistics(
+    i64 compressedDataSize,
+    bool cacheHit,
+    bool isLayer)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    UpdateArtifactStatistics_.Fire(compressedDataSize, cacheHit);
+    UpdateArtifactStatistics_.Fire(compressedDataSize, cacheHit, isLayer);
 }
 
 void TJobWorkspaceBuilder::MakeArtifactSymlinks()
@@ -618,7 +621,10 @@ private:
         std::vector<TOverlayLayerPreparationOptions> layerOptions;
         layerOptions.reserve(totalLayerCount);
         for (const auto& key : uniqueLayers) {
-            UpdateArtifactStatistics(key.GetCompressedDataSize(), slot->IsLayerCached(key));
+            UpdateArtifactStatistics(
+                key.GetCompressedDataSize(),
+                slot->IsLayerCached(key),
+                /*isLayer*/ true);
             layerOptions.push_back(TOverlayLayerPreparationOptions{
                 .ArtifactKey = key,
             });

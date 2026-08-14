@@ -473,12 +473,19 @@ public:
 
         if (cookie.IsActive()) {
             if (auto optionalDescriptor = ExtractRegisteredChunk(key)) {
+                // Artifact is on disk but not in the in-memory SLRU index (e.g. after node restart).
+                // NB: fetchedFromCache is set optimistically before validation completes.
+                // If DoValidateChunk finds corruption and falls back to DoDownloadArtifact,
+                // the artifact will be fetched over the network despite fetchedFromCache=true.
                 DoValidateArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, *optionalDescriptor, Logger);
+                if (fetchedFromCache) {
+                    *fetchedFromCache = true;
+                }
             } else {
                 DoDownloadArtifact(std::move(cookie), key, artifactDownloadOptions, chunkReadOptions, Logger);
-            }
-            if (fetchedFromCache) {
-                *fetchedFromCache = false;
+                if (fetchedFromCache) {
+                    *fetchedFromCache = false;
+                }
             }
         } else {
             YT_LOG_INFO(
