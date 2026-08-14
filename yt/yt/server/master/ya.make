@@ -203,7 +203,6 @@ SRCS(
     cypress_server/scion_node.cpp
     cypress_server/scion_proxy.cpp
     cypress_server/scion_type_handler.cpp
-    cypress_server/sequoia_actions_executor.cpp
     cypress_server/sequoia_actions_executor_state.cpp
     cypress_server/serialize.cpp
     cypress_server/shard_map_type_handler.cpp
@@ -447,6 +446,16 @@ SRCS(
 
     transaction_server/proto/transaction_manager.proto
 )
+
+IF (YT_ENABLE_SEQUOIA)
+    SRCS(
+        cypress_server/sequoia_actions_executor.cpp
+    )
+ELSE()
+    SRCS(
+        cypress_server/sequoia_actions_executor_dummy.cpp
+    )
+ENDIF()
 
 PEERDIR(
     library/cpp/containers/absl_flat_hash

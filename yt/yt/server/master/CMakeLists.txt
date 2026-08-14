@@ -260,7 +260,6 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/scion_node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/scion_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/scion_type_handler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/sequoia_actions_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/sequoia_actions_executor_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/shard_map_type_handler.cpp
@@ -481,6 +480,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/sequoia_actions_executor_dummy.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.pb.h
