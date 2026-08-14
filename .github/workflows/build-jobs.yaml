@@ -219,7 +219,7 @@ jobs:
   ya-make_build:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
-    timeout-minutes: 480
+    timeout-minutes: 720
     if: ${{ inputs.cpp-build-system == 'ya-make' }}
     strategy:
       fail-fast: false
@@ -329,23 +329,15 @@ jobs:
             FOLDERS_WITH_UNITTESTS="${FOLDERS_WITH_UNITTESTS} ${folder}"
           done
 
-          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare --bazel-remote-put ${FOLDERS_WITH_UNITTESTS}
-          fi
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FOLDERS_WITH_UNITTESTS}
 
-          for build_folder in yt/yt/tests/integration/size_s \
-                              yt/yt/tests/integration/size_m \
-                              yt/yt/tests/integration/size_l \
-                              yt/yt/tests/integration/size_xl
-          do
-            echo ${build_folder}
-            build_folder=../ytsaurus/ytsaurus/${build_folder}
-            if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-              ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare --bazel-remote-put
-            fi
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare
-          done
+          INTEGRATION_TEST_TARGETS="\
+            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_s \
+            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_m \
+            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_l \
+            ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_xl"
+
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${INTEGRATION_TEST_TARGETS} -A --test-prepare
 
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
