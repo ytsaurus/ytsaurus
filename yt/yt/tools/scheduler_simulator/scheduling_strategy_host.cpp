@@ -225,7 +225,9 @@ const NLogging::TLogger* TStrategyHost::GetEventLogger()
 void TStrategyHost::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
 {
     if (!alert.IsOK()) {
-        YT_LOG_WARNING(alert, "Setting scheduler alert (AlertType: %v)", alertType);
+        YT_TLOG_WARNING("Setting scheduler alert")
+            .With("AlertType", alertType)
+            .With(alert);
     }
 }
 

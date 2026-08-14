@@ -501,9 +501,9 @@ void TSimulatorOperationController::UpdateGroupedNeededResources()
             .AllocationCount = pendingJobCount,
         };
 
-        YT_LOG_DEBUG("Aggregated allocation group resources for jobs (JobType: %v, AllocationGroupResources: %v)",
-            jobType,
-            resources);
+        YT_TLOG_DEBUG("Aggregated allocation group resources for jobs")
+            .With("JobType", jobType)
+            .With("AllocationGroupResources", resources);
 
         result.emplace(FormatEnum(jobType), std::move(resources));
     }

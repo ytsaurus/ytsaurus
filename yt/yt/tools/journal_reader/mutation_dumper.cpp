@@ -109,8 +109,8 @@ public:
         while (!reader->IsFinished()) {
             auto command = reader->ReadCommand();
             if (command != EWireProtocolCommand::WriteRow) {
-                YT_LOG_INFO("Unknown wire protocol command (Command: %v)",
-                    command);
+                YT_TLOG_INFO("Unknown wire protocol command")
+                    .With("Command", command);
                 return;
             }
 
@@ -129,8 +129,8 @@ public:
 
         Consumer_->Flush();
 
-        YT_LOG_DEBUG("TReqWriteRows dumped (RowCount: %v)",
-            rowCount);
+        YT_TLOG_DEBUG("TReqWriteRows dumped")
+            .With("RowCount", rowCount);
     }
 
 private:

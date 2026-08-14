@@ -421,9 +421,9 @@ public:
 
         NProfiling::TWallTimer timer;
 
-        YT_LOG_INFO("Started building chunk index (ChunkIndex: %v, StartOffset: %v)",
-            ChunkIndex_,
-            Reader_->GetCurrentFrameStartOffset());
+        YT_TLOG_INFO("Started building chunk index")
+            .With("ChunkIndex", ChunkIndex_)
+            .With("StartOffset", Reader_->GetCurrentFrameStartOffset());
 
         ReportProgress();
 
@@ -438,10 +438,10 @@ public:
                 blockHeader = {};
                 blockHeader.LineCount = blockLineCount;
 
-                YT_LOG_DEBUG("Block finished (BlockIndex: %v, BlockLineCount: %v, BlockSize: %v)",
-                    blockIndex,
-                    blockLineCount,
-                    blockSize);
+                YT_TLOG_DEBUG("Block finished")
+                    .With("BlockIndex", blockIndex)
+                    .With("BlockLineCount", blockLineCount)
+                    .With("BlockSize", blockSize);
 
                 ++blockIndex;
                 ++frameBlockCount;
@@ -452,17 +452,17 @@ public:
         };
 
         auto startBlock = [&] {
-            YT_LOG_DEBUG("Block started (BlockIndex: %v)",
-                blockIndex);
+            YT_TLOG_DEBUG("Block started")
+                .With("BlockIndex", blockIndex);
         };
 
         int frameIndex = 0;
         for (;;) {
             auto frameStartOffset = Reader_->GetCurrentFrameStartOffset();
 
-            YT_LOG_DEBUG("Started reading chunk frame (FrameIndex: %v, FrameStartOffset: %v)",
-                frameIndex,
-                frameStartOffset);
+            YT_TLOG_DEBUG("Started reading chunk frame")
+                .With("FrameIndex", frameIndex)
+                .With("FrameStartOffset", frameStartOffset);
 
             TLineReader lineReader(input.get());
             ui32 perFrameLineIndex = 0;
@@ -493,14 +493,12 @@ public:
             frameHeader.LineCount = perFrameLineIndex;
             frameHeader.BlockCount = frameBlockCount;
 
-            YT_LOG_DEBUG(
-                "Finished reading chunk frame (FrameIndex: %v, FrameInputSize: %v, "
-                "FrameLineCount: %v, FrameBlockCount: %v, FrameChecksum: %x)",
-                frameIndex,
-                frameHeader.InputSize,
-                frameHeader.LineCount,
-                frameHeader.BlockCount,
-                frameHeader.Checksum);
+            YT_TLOG_DEBUG("Finished reading chunk frame")
+                .With("FrameIndex", frameIndex)
+                .With("FrameInputSize", frameHeader.InputSize)
+                .With("FrameLineCount", frameHeader.LineCount)
+                .With("FrameBlockCount", frameHeader.BlockCount)
+                .WithFormat("FrameChecksum", "%x", frameHeader.Checksum);
 
             if (UncompressedInputSize_ >= Options_.ChunkSize || frameIndex + 1 == MaxBlocksPerChunk) {
                 break;
@@ -521,13 +519,12 @@ public:
         ChunkHeader_.FrameCount = std::ssize(FrameHeaders_);
         ChunkHeader_.BlockCount = std::ssize(BlockHeaders_);
 
-        YT_LOG_INFO("Finished indexing chunk frames (LineCount: %v, FrameCount: %v, BlockCount: %v, "
-            "InputSize: %v, UncompressedInputSize: %v)",
-            ChunkHeader_.LineCount,
-            std::ssize(FrameHeaders_),
-            std::ssize(BlockHeaders_),
-            ChunkHeader_.InputSize,
-            UncompressedInputSize_);
+        YT_TLOG_INFO("Finished indexing chunk frames")
+            .With("LineCount", ChunkHeader_.LineCount)
+            .With("FrameCount", std::ssize(FrameHeaders_))
+            .With("BlockCount", std::ssize(BlockHeaders_))
+            .With("InputSize", ChunkHeader_.InputSize)
+            .With("UncompressedInputSize", UncompressedInputSize_);
 
         SortTrigrams();
 
@@ -538,15 +535,16 @@ public:
         ReportProgress();
         WriteIndex();
 
-        YT_LOG_INFO(
-            "Finished building chunk index "
-            "(ChunkIndex: %v, ElapsedTime: %v, Trigrams: %v, IndexedTrigrams: %v (%v%%), SegmentCount: %v)",
-            ChunkIndex_,
-            timer.GetElapsedTime(),
-            ChunkHeader_.TrigramCount,
-            ChunkHeader_.IndexedTrigramCount,
-            ChunkHeader_.IndexedTrigramCount * 100 / ChunkHeader_.TrigramCount,
-            std::ssize(SegmentHeaders_));
+        YT_TLOG_INFO("Finished building chunk index")
+            .With("ChunkIndex", ChunkIndex_)
+            .With("ElapsedTime", timer.GetElapsedTime())
+            .With("TrigramCount", ChunkHeader_.TrigramCount)
+            .WithFormat(
+                "IndexedTrigrams",
+                "%v (%v%%)",
+                ChunkHeader_.IndexedTrigramCount,
+                ChunkHeader_.IndexedTrigramCount * 100 / ChunkHeader_.TrigramCount)
+            .With("SegmentCount", std::ssize(SegmentHeaders_));
 
         return true;
     }
@@ -586,7 +584,7 @@ private:
 
     void SortTrigrams()
     {
-        YT_LOG_INFO("Sorting trigrams");
+        YT_TLOG_INFO("Sorting trigrams");
 
         SortedTrigrams_.reserve(TotalTrigramCount);
         for (TTrigram trigram = TTrigram(0); trigram.Underlying() < TotalTrigramCount; trigram = TTrigram(trigram.Underlying() + 1)) {
@@ -616,10 +614,10 @@ private:
         segmentHeader.PostingCount = IndexSegmentBuilder_.GetPostingCount();
         segmentHeader.ByteSize = byteSize;
 
-        YT_LOG_DEBUG("Index segment finished (TrigramCount: %v, PostingCount: %v, ByteSize: %v)",
-            segmentHeader.TrigramCount,
-            segmentHeader.PostingCount,
-            segmentHeader.ByteSize);
+        YT_TLOG_DEBUG("Index segment finished")
+            .With("TrigramCount", segmentHeader.TrigramCount)
+            .With("PostingCount", segmentHeader.PostingCount)
+            .With("ByteSize", segmentHeader.ByteSize);
 
         JoinedCompressedIndexSegments_.insert(
             JoinedCompressedIndexSegments_.end(),
@@ -630,7 +628,7 @@ private:
 
     void BuildCompressedPostingLists()
     {
-        YT_LOG_INFO("Started building compressed posting lists");
+        YT_TLOG_INFO("Started building compressed posting lists");
 
         int maxPostingListSize = SortedTrigrams_.empty() ? 0 : PostingMap_.GetPostingCount(SortedTrigrams_.back());
         auto postingListBuffer = std::make_unique<TPosting[]>(maxPostingListSize);
@@ -670,7 +668,7 @@ private:
 
         ChunkHeader_.SegmentsSize = std::ssize(JoinedCompressedIndexSegments_);
 
-        YT_LOG_INFO("Finished building compressed posting lists");
+        YT_TLOG_INFO("Finished building compressed posting lists");
     }
 
     std::vector<char> BuildTrigramBuffer()
@@ -734,7 +732,7 @@ public:
 
     void Run()
     {
-        YT_LOG_INFO("Started building file index");
+        YT_TLOG_INFO("Started building file index");
 
         WriteHeader();
 
@@ -753,7 +751,7 @@ public:
             currentLineIndex += builder.GetChunkLineCount();
         }
 
-        YT_LOG_INFO("Finished building file index");
+        YT_TLOG_INFO("Finished building file index");
     }
 
 private:
