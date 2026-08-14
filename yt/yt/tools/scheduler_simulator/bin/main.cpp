@@ -216,7 +216,8 @@ private:
         OnEntryExtracted_(ConvertTo<T>(node));
         ++ExtractedCount_;
         if (ExtractedCount_ % 1000 == 0) {
-            YT_LOG_INFO("Records extracted: %v", ExtractedCount_);
+            YT_TLOG_INFO("Records extracted")
+                .With("RecordCount", ExtractedCount_);
         }
     }
 
@@ -253,7 +254,7 @@ protected:
         // but this occasionally still happens by mistake. Thus we now immediately crash unless debug
         // mode has been explicitly allowed.
 #ifndef NDEBUG
-        YT_LOG_FATAL_IF(
+        YT_TLOG_FATAL_IF(
             !AllowDebugMode_,
             "Running the simulator in debug mode is forbidden by default. Use '--allow-debug-mode' to allow it explicitly.");
 #endif
@@ -281,7 +282,8 @@ protected:
                 &monitoringManager,
                 &orchidRoot);
 
-            YT_LOG_INFO("Listening for HTTP requests on port %v", httpServer->GetAddress().GetPort());
+            YT_TLOG_INFO("Listening for HTTP requests")
+                .With("Port", httpServer->GetAddress().GetPort());
             httpServer->Start();
 
             RunSimulation(config);
@@ -298,11 +300,12 @@ private:
 
     void RunSimulation(const TSchedulerSimulatorConfigPtr& config)
     {
-        YT_LOG_INFO("Reading operations description");
+        YT_TLOG_INFO("Reading operations description");
 
         std::vector<TExecNodePtr> execNodes = CreateExecNodesFromFile(config->NodeGroupsFilename);
 
-        YT_LOG_INFO("Discovered %v nodes", execNodes.size());
+        YT_TLOG_INFO("Discovered nodes")
+            .With("NodeCount", execNodes.size());
 
         YT_VERIFY(!execNodes.empty());
 

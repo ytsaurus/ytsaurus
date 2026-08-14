@@ -579,8 +579,9 @@ public:
                         if (!device) {
                             return;
                         }
-                        YT_LOG_ERROR(error, "Device transaction aborted, failing the device (Device: %v)",
-                            deviceId);
+                        YT_TLOG_ERROR("Device transaction aborted, failing the device")
+                            .With("Device", deviceId)
+                            .With(error);
                         device->SetError(TError("Device transaction aborted").With(error));
                     });
                 transaction->SubscribeAborted(onTransactionAborted);
@@ -642,12 +643,13 @@ public:
 
         auto error = WaitFor(transaction->Abort());
         if (!error.IsOK()) {
-            YT_LOG_WARNING(error, "Failed to abort device transaction (TransactionId: %v)",
-                transaction->GetId());
+            YT_TLOG_WARNING("Failed to abort device transaction")
+                .With("TransactionId", transaction->GetId())
+                .With(error);
             return;
         }
-        YT_LOG_INFO("Device transaction aborted (TransactionId: %v)",
-            transaction->GetId());
+        YT_TLOG_INFO("Device transaction aborted")
+            .With("TransactionId", transaction->GetId());
     }
 
 private:
@@ -1140,26 +1142,30 @@ private:
         TSignalRegistry::Get()->PushCallback(SIGINT, signalHandler);
 
         const auto& Logger = nbdServer->GetLogger();
-        YT_LOG_INFO("NBD server started, waiting for shutdown signal");
+        YT_TLOG_INFO("NBD server started, waiting for shutdown signal");
 
         shutdownEvent.Wait();
 
-        YT_LOG_INFO("Shutdown signal received, deregistering and finalizing devices");
+        YT_TLOG_INFO("Shutdown signal received, deregistering and finalizing devices");
 
         for (const auto& [name, deviceConfig] : config->Devices) {
             if (auto device = nbdServer->TryUnregisterDevice(name)) {
-                YT_LOG_INFO("Deregistered device (Device: %v)", name);
+                YT_TLOG_INFO("Deregistered device")
+                    .With("Device", name);
                 auto finalizeResult = WaitFor(device->Finalize());
                 if (!finalizeResult.IsOK()) {
-                    YT_LOG_ERROR(finalizeResult, "Failed to finalize device (Device: %v)", name);
+                    YT_TLOG_ERROR("Failed to finalize device")
+                        .With("Device", name)
+                        .With(finalizeResult);
                 } else {
-                    YT_LOG_INFO("Finalized device (Device: %v)", name);
+                    YT_TLOG_INFO("Finalized device")
+                        .With("Device", name);
                 }
                 deviceManager->AbortDeviceTransaction(deviceManager->TakeDeviceTransaction(name));
             }
         }
 
-        YT_LOG_INFO("NBD server stopped");
+        YT_TLOG_INFO("NBD server stopped");
     }
 };
 

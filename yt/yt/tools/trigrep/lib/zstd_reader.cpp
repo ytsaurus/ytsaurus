@@ -68,7 +68,7 @@ private:
                 BufferPosition_ = 0;
                 if (zstdInBuffer.size == 0) {
                     if (returnCode != 0) {
-                        YT_LOG_WARNING("Incomplete Zstd block");
+                        YT_TLOG_WARNING("Incomplete Zstd block");
                         return 0;
                     }
                     break;

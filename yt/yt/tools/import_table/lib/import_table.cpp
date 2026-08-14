@@ -730,7 +730,7 @@ std::vector<TTempTable> CreateOutputParserTables(
     const TString& outputInformationTablePath,
     EFileFormat fileFormat)
 {
-    YT_LOG_INFO("Prepare information about output tables for reduce operation");
+    YT_TLOG_INFO("Prepare information about output tables for reduce operation");
 
     std::vector<TTempTable> outputParserTables;
 
@@ -788,7 +788,7 @@ std::vector<TTempTable> CreateOutputParserTables(
 
     outputInformationTableWriter->Finish();
 
-    YT_LOG_INFO("Starting sorting the output information table");
+    YT_TLOG_INFO("Starting sorting the output information table");
 
     ytClient->Sort(TSortOperationSpec()
         .SortBy({FileIndexColumnName, PartIndexColumnName})
@@ -809,7 +809,7 @@ void ImportFilesFromSource(
     // TODO(babenko): drop cast once CreateClient accepts std::string.
     auto ytClient = NYT::CreateClient(TString(proxy));
 
-    YT_LOG_INFO("Create table with meta information");
+    YT_TLOG_INFO("Create table with meta information");
     TTempTable metaInformationTable(
         ytClient,
         /*prefix*/ TString(),
@@ -846,10 +846,9 @@ void ImportFilesFromSource(
     }
     writer->Finish();
 
-    YT_LOG_INFO(
-        "Create tables with data and meta Parquet information from Parquet files (ParquetFileRegex: %v, FileCount: %v)",
-        config->ParquetFileRegex->pattern(),
-        fileIndex);
+    YT_TLOG_INFO("Create tables with data and meta Parquet information from Parquet files")
+        .With("ParquetFileRegex", config->ParquetFileRegex->pattern())
+        .With("FileCount", fileIndex);
 
     TBlobTableSchema blobTableSchema;
     // TODO(babenko): migrate to std::string
@@ -897,12 +896,14 @@ void ImportFilesFromSource(
     auto supposedLibIconvPath = NFS::JoinPaths(selfDir, "libiconv.so");
     bool attachLibIconv = NFS::Exists(supposedLibIconvPath);
     if (attachLibIconv) {
-        YT_LOG_INFO("libiconv.so exists, it will be attached to the user jobs (Path: %v)", supposedLibIconvPath);
+        YT_TLOG_INFO("libiconv.so exists, it will be attached to the user jobs")
+            .With("Path", supposedLibIconvPath);
     } else {
-        YT_LOG_INFO("libiconv.so does not exist, assuming static linkage (SupposedPath: %v)", supposedLibIconvPath);
+        YT_TLOG_INFO("libiconv.so does not exist, assuming static linkage")
+            .With("SupposedPath", supposedLibIconvPath);
     }
 
-    YT_LOG_INFO("Starting download operation of Parquet files");
+    YT_TLOG_INFO("Starting download operation of Parquet files");
 
     {
         TOperationOptions operationOptions;
@@ -941,7 +942,7 @@ void ImportFilesFromSource(
             operationOptions);
     }
 
-    YT_LOG_INFO("Starting sort operation of data and metadata blob tables");
+    YT_TLOG_INFO("Starting sort operation of data and metadata blob tables");
 
     ytClient->Sort(TSortOperationSpec()
         .SortBy({FileIndexColumnName, PartIndexColumnName})
@@ -1008,7 +1009,8 @@ void ImportFilesFromSource(
         }
         reduceOperationSpec = reduceOperationSpec.ReducerSpec(jobSpec);
 
-        YT_LOG_INFO("Starting reduce operation for parsing arrow and producing rows in the temporary tables (MaxRowWeight: %v)", config->MaxRowWeight);
+        YT_TLOG_INFO("Starting reduce operation for parsing arrow and producing rows in the temporary tables")
+            .With("MaxRowWeight", config->MaxRowWeight);
 
         ytClient->RawReduce(
             reduceOperationSpec,
@@ -1025,11 +1027,13 @@ void ImportFilesFromSource(
             .Output(TString(resultTable))
             .SchemaInferenceMode(ESchemaInferenceMode::FromInput);
 
-        YT_LOG_INFO("Start merge operation: filling rows in the result table (MaxRowWeight: %v)", config->MaxRowWeight);
+        YT_TLOG_INFO("Start merge operation: filling rows in the result table")
+            .With("MaxRowWeight", config->MaxRowWeight);
         ytClient->Merge(mergeOperationSpec, operationOptions);
     }
 
-    YT_LOG_INFO("Parquet files were successfully uploaded (ResultTable: %v)", resultTable);
+    YT_TLOG_INFO("Parquet files were successfully uploaded")
+        .With("ResultTable", resultTable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1054,15 +1058,16 @@ void ImportFilesFromS3(
         .Bucket = bucket,
     });
 
-    YT_LOG_INFO("Receiving file name from S3 (Url: %v, Region: %v, Bucket: %v, Prefix: %v)",
-        url,
-        region,
-        bucket,
-        prefix);
+    YT_TLOG_INFO("Receiving file name from S3")
+        .With("Url", url)
+        .With("Region", region)
+        .With("Bucket", bucket)
+        .With("Prefix", prefix);
 
     auto fileKeys = GetListFilesKeysFromS3(s3Config, accessKeyId, secretAccessKey, prefix);
 
-    YT_LOG_INFO("Successfully received file names from S3 (Count: %v)", fileKeys.size());
+    YT_TLOG_INFO("Successfully received file names from S3")
+        .With("Count", fileKeys.size());
 
     ImportFilesFromSource(
         proxy,
@@ -1087,10 +1092,10 @@ void ImportFilesFromHuggingface(
     const std::optional<std::string>& urlOverride,
     TImportConfigPtr config)
 {
-    YT_LOG_INFO("Receiving file name from Huggingface (Dataset: %v, Subset: %v, Split: %v)",
-        dataset,
-        subset,
-        split);
+    YT_TLOG_INFO("Receiving file name from Huggingface")
+        .With("Dataset", dataset)
+        .With("Subset", subset)
+        .With("Split", split);
 
     auto huggingfaceToken = GetEnvOrNull("HUGGINGFACE_TOKEN");
 
@@ -1099,7 +1104,8 @@ void ImportFilesFromHuggingface(
 
     auto fileIds = huggingfaceClient.GetParquetFileUrls(dataset, subset, split);
 
-    YT_LOG_INFO("Successfully received file names from Huggingface (Count: %v)", fileIds.size());
+    YT_TLOG_INFO("Successfully received file names from Huggingface")
+        .With("Count", fileIds.size());
 
     ImportFilesFromSource(
         proxy,

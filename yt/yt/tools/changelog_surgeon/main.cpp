@@ -57,8 +57,8 @@ std::pair<i64, i64> GetSequenceNumberRange(const TVector<std::string>& changelog
 
         auto recordCount = currentChangelog->GetRecordCount();
         if (recordCount == 0) {
-            YT_LOG_INFO("Changelog is empty (Filename: %v)",
-                fileName);
+            YT_TLOG_INFO("Changelog is empty")
+                .With("FileName", fileName);
             continue;
         }
         changelogsEmpty = false;
@@ -80,10 +80,9 @@ std::pair<i64, i64> GetSequenceNumberRange(const TVector<std::string>& changelog
         THROW_ERROR_EXCEPTION("All changelogs are empty");
     }
 
-    YT_LOG_INFO(
-        "Computed the records range (MinSequenuceNumber: %v, MaxSequenceNumber: %v)",
-        minSequenceNumber,
-        maxSequenceNumber);
+    YT_TLOG_INFO("Computed the records range")
+        .With("MinSequenceNumber", minSequenceNumber)
+        .With("MaxSequenceNumber", maxSequenceNumber);
 
     return {minSequenceNumber, maxSequenceNumber};
 }
@@ -94,14 +93,14 @@ void ValidateSurgeonParams(TSurgeonParams* params)
     auto [minSequenceNumber, maxSequenceNumber] = GetSequenceNumberRange(changelogFileNames);
 
     if (!params->FirstSequenceNumber.has_value()) {
-        YT_LOG_INFO("Deduced the first sequence number (FirstSequenceNumber: %v)",
-            minSequenceNumber);
+        YT_TLOG_INFO("Deduced the first sequence number")
+            .With("FirstSequenceNumber", minSequenceNumber);
         params->FirstSequenceNumber = minSequenceNumber;
     }
 
     if (!params->LastSequenceNumber.has_value()) {
-        YT_LOG_INFO("Deduced the last sequence number (LastSequenceNumber: %v)",
-            maxSequenceNumber);
+        YT_TLOG_INFO("Deduced the last sequence number")
+            .With("LastSequenceNumber", maxSequenceNumber);
         params->LastSequenceNumber = maxSequenceNumber;
     }
 
@@ -234,15 +233,15 @@ void PerformSurgery(const TSurgeonParams& params)
         }
 
         if (mutationHeader.segment_id() != resultingChangelogId) {
-            YT_LOG_DEBUG("An original mutation segment_id was substituted with a new one (OldSegmentId: %v, NewSegmentId: %v)",
-                mutationHeader.segment_id(),
-                resultingChangelogId);
+            YT_TLOG_DEBUG("An original mutation segment_id was substituted with a new one")
+                .With("OldSegmentId", mutationHeader.segment_id())
+                .With("NewSegmentId", resultingChangelogId);
         }
 
         if (mutationHeader.record_id() != i) {
-            YT_LOG_DEBUG("An original mutation record_id was substituted with a new one (OldRecordId: %v, NewRecordId: %v)",
-                mutationHeader.record_id(),
-                i);
+            YT_TLOG_DEBUG("An original mutation record_id was substituted with a new one")
+                .With("OldRecordId", mutationHeader.record_id())
+                .With("NewRecordId", i);
         }
 
         mutationHeader.set_segment_id(resultingChangelogId);
@@ -297,7 +296,8 @@ void Run(int argc, char** argv)
         ValidateSurgeonParams(&params);
         PerformSurgery(params);
     } catch (const TErrorException& ex) {
-        YT_LOG_ERROR(ex, "Changelog surgery failed");
+        YT_TLOG_ERROR("Changelog surgery failed")
+            .With(TError(ex));
     }
 }
 

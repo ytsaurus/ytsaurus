@@ -88,9 +88,9 @@ public:
             return false;
         }
 
-        YT_LOG_INFO("Matching chunk (ChunkIndex: %v, IndexOffset: %v)",
-            ChunkIndex_,
-            IndexFile_->GetPosition());
+        YT_TLOG_INFO("Matching chunk")
+            .With("ChunkIndex", ChunkIndex_)
+            .With("IndexOffset", IndexFile_->GetPosition());
 
         ReadIndex();
 
@@ -224,13 +224,12 @@ private:
             }
         }
 
-        YT_LOG_INFO("Chunk index read (TrigramCount: %v, IndexedTrigramCount: %v, "
-            "BlockCount: %v, FrameCount: %v, SegmentCount: %v)",
-            ChunkHeader_.TrigramCount,
-            ChunkHeader_.IndexedTrigramCount,
-            BlockHeaders_.size(),
-            FrameHeaders_.size(),
-            SegmentHeaders_.size());
+        YT_TLOG_INFO("Chunk index read")
+            .With("TrigramCount", ChunkHeader_.TrigramCount)
+            .With("IndexedTrigramCount", ChunkHeader_.IndexedTrigramCount)
+            .With("BlockCount", BlockHeaders_.size())
+            .With("FrameCount", FrameHeaders_.size())
+            .With("SegmentCount", SegmentHeaders_.size());
     }
 
     bool ComputePatternTrigramIndexes()
@@ -240,30 +239,23 @@ private:
 
             auto it = TrigramsToIndex_.find(trigram);
             if (it == TrigramsToIndex_.end()) {
-                YT_LOG_INFO("Trigram is missing, no matches in chunk (Trigram: %v%v%v)",
-                    unpackedTrigram[0],
-                    unpackedTrigram[1],
-                    unpackedTrigram[2]);
+                YT_TLOG_INFO("Trigram is missing, no matches in chunk")
+                    .WithFormat("Trigram", "%v%v%v", unpackedTrigram[0], unpackedTrigram[1], unpackedTrigram[2]);
                 return false;
             }
 
             auto trigramIndex = it->second;
             if (trigramIndex >= ChunkHeader_.IndexedTrigramCount) {
-                YT_LOG_TRACE("Trigram is not indexed (Trigram: %v%v%v)",
-                    unpackedTrigram[0],
-                    unpackedTrigram[1],
-                    unpackedTrigram[2]);
+                YT_TLOG_TRACE("Trigram is not indexed")
+                    .WithFormat("Trigram", "%v%v%v", unpackedTrigram[0], unpackedTrigram[1], unpackedTrigram[2]);
                 continue;
             }
 
             auto trigramCompositeIndex = TrigramIndexToTrigramCompositeIndex_[trigramIndex];
-            YT_LOG_TRACE("Trigram is indexed (Trigram: %v%v%v, Index: %v, CompositeIndex: %v:%v)",
-                unpackedTrigram[0],
-                unpackedTrigram[1],
-                unpackedTrigram[2],
-                trigramIndex,
-                trigramCompositeIndex.SegmentIndex,
-                trigramCompositeIndex.PerSegmentTrigramIndex);
+            YT_TLOG_TRACE("Trigram is indexed")
+                .WithFormat("Trigram", "%v%v%v", unpackedTrigram[0], unpackedTrigram[1], unpackedTrigram[2])
+                .With("Index", trigramIndex)
+                .WithFormat("CompositeIndex", "%v:%v", trigramCompositeIndex.SegmentIndex, trigramCompositeIndex.PerSegmentTrigramIndex);
 
             PatternsTrigramCompositeIndexes_.push_back(trigramCompositeIndex);
         }
@@ -289,7 +281,7 @@ private:
                 PatternsTrigramCompositeIndexes_.begin() + endIndex));
 
             if (PostingListsIntersection_->empty()) {
-                YT_LOG_INFO("Posting lists intersection is empty, no matches in chunk");
+                YT_TLOG_INFO("Posting lists intersection is empty, no matches in chunk");
                 break;
             }
 
@@ -318,10 +310,10 @@ private:
     {
         int segmentIndex = trigramCompositeIndexes.Front().SegmentIndex;
 
-        YT_LOG_DEBUG("Matching index segment (SegmentIndex: %v, TrigramCount: %v, CandidatesRemaining: %v)",
-            segmentIndex,
-            trigramCompositeIndexes.size(),
-            PostingListsIntersection_ ? std::to_string(PostingListsIntersection_->size()) : "INF");
+        YT_TLOG_DEBUG("Matching index segment")
+            .With("SegmentIndex", segmentIndex)
+            .With("TrigramCount", trigramCompositeIndexes.size())
+            .With("CandidatesRemaining", PostingListsIntersection_ ? std::to_string(PostingListsIntersection_->size()) : "INF");
 
         auto unpackedIndexSegment = UnpackIndexSegment(segmentIndex);
         for (auto [_, perSegmentIndex] : trigramCompositeIndexes) {
@@ -355,7 +347,7 @@ private:
                 return;
             }
 
-            YT_LOG_INFO("Scanning matching frames");
+            YT_TLOG_INFO("Scanning matching frames");
 
             int startIndex = 0;
             while (startIndex < std::ssize(*PostingListsIntersection_)) {
@@ -378,7 +370,7 @@ private:
                 startIndex = endIndex;
             }
         } else {
-            YT_LOG_INFO("Falling back to full scan");
+            YT_TLOG_INFO("Falling back to full scan");
 
             Statistics_->FramesSelected += ChunkHeader_.FrameCount;
             Statistics_->BytesSelected += ChunkHeader_.InputSize;
@@ -393,11 +385,11 @@ private:
     void CheckCandidateFrame(int frameIndex, const absl::flat_hash_set<TPosting>* postingSet)
     {
         const auto& frameHeader = FrameHeaders_[frameIndex];
-        YT_LOG_DEBUG("Checking frame (FrameIndex: %v, InputStartOffset: %v, InputSize: %v, LineCount: %v)",
-            frameIndex,
-            frameHeader.InputStartOffset,
-            frameHeader.InputSize,
-            frameHeader.LineCount);
+        YT_TLOG_DEBUG("Checking frame")
+            .With("FrameIndex", frameIndex)
+            .With("InputStartOffset", frameHeader.InputStartOffset)
+            .With("InputSize", frameHeader.InputSize)
+            .With("LineCount", frameHeader.LineCount);
 
         auto input = Reader_->CreateFrameStream(
             frameHeader.InputStartOffset,
@@ -445,13 +437,13 @@ private:
 
         auto matchingRanges = ComputeMatchingRanges(line, Patterns_);
         if (matchingRanges.empty()) {
-            YT_LOG_TRACE("Line does not match (LineIndex: %v, Line: %v)",
-                lineIndex,
-                line);
+            YT_TLOG_TRACE("Line does not match")
+                .With("LineIndex", lineIndex)
+                .With("Line", line);
         } else {
-            YT_LOG_TRACE("Line matches (LineIndex: %v, Line: %v)",
-                lineIndex,
-                line);
+            YT_TLOG_TRACE("Line matches")
+                .With("LineIndex", lineIndex)
+                .With("Line", line);
             Callbacks_->OnMatch(lineIndex, line, matchingRanges);
             ++Statistics_->LinesMatched;
         }
@@ -480,7 +472,7 @@ public:
     {
         NProfiling::TWallTimer timer;
 
-        YT_LOG_INFO("Started matching file");
+        YT_TLOG_INFO("Started matching file");
 
         ReadHeader();
 
@@ -502,18 +494,16 @@ public:
             }
         }
 
-        YT_LOG_INFO("Finished matching file (ElapsedTime: %v, FramesChecked: %v, LinesRead: %v, "
-            "LinesChecked: %v, LinesMatched: %v, FramesSelected: %v, FramesTotal: %v, "
-            "BytesSelected: %v, BytesTotal: %v)",
-            timer.GetElapsedTime(),
-            Statistics_.FramesChecked,
-            Statistics_.LinesRead,
-            Statistics_.LinesChecked,
-            Statistics_.LinesMatched,
-            Statistics_.FramesSelected,
-            Statistics_.FramesTotal,
-            Statistics_.BytesSelected,
-            Statistics_.BytesTotal);
+        YT_TLOG_INFO("Finished matching file")
+            .With("ElapsedTime", timer.GetElapsedTime())
+            .With("FramesChecked", Statistics_.FramesChecked)
+            .With("LinesRead", Statistics_.LinesRead)
+            .With("LinesChecked", Statistics_.LinesChecked)
+            .With("LinesMatched", Statistics_.LinesMatched)
+            .With("FramesSelected", Statistics_.FramesSelected)
+            .With("FramesTotal", Statistics_.FramesTotal)
+            .With("BytesSelected", Statistics_.BytesSelected)
+            .With("BytesTotal", Statistics_.BytesTotal);
 
         return Statistics_;
     }
@@ -546,8 +536,8 @@ private:
             }
         }
 
-        YT_LOG_INFO("Pattern trigrams built (TrigramCount: %v)",
-            PatternTrigrams_.size());
+        YT_TLOG_INFO("Pattern trigrams built")
+            .With("TrigramCount", PatternTrigrams_.size());
     }
 };
 
