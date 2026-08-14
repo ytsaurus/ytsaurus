@@ -34,10 +34,8 @@ std::string MakeNbdDeviceId(TJobId jobId, int nbdDeviceIndex)
     return ToString(nbdDeviceId);
 }
 
-// A global cache mapping TArtifactKey to a stable NBD device id.
-// This ensures that the same artifact content always maps to the same device id
-// across different jobs, enabling the RO NBD volume cache to work correctly.
-constexpr size_t NbdDeviceIdCacheMaxSize = 100'000;
+// A global cache mapping TArtifactKey to a stable NBD device id (eviction is acceptable).
+constexpr i64 NbdDeviceIdCacheMaxSize = 100'000;
 TSimpleLruCache<TArtifactKey, std::string> NbdDeviceIdCache(NbdDeviceIdCacheMaxSize);
 YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NbdDeviceIdCacheLock);
 
