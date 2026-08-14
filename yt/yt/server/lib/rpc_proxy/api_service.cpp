@@ -60,10 +60,9 @@
 
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 #include <yt/yt/client/api/rpc_proxy/protocol_version.h>
+#include <yt/yt/client/api/rpc_proxy/request_info.h>
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
 #include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
-
-#include <yt/yt/client/rpc/request_info.h>
 
 #include <yt/yt/client/security_client/helpers.h>
 
@@ -6394,10 +6393,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadFile)
         FromProto(&options, request->suppressable_access_tracking_options());
     }
 
-    context->SetRequestInfo("Path: %v, Offset: %v, Length: %v",
-        path,
-        options.Offset,
-        options.Length);
+    SetReadFileRequestInfo(context, *request);
 
     PutMethodInfoInTraceContext("read_file");
 
@@ -6436,10 +6432,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteFile)
         FromProto(&options, request->prerequisite_options());
     }
 
-    context->SetRequestInfo(
-        "Path: %v, ComputeMD5: %v",
-        path,
-        options.ComputeMD5);
+    SetWriteFileRequestInfo(context, path, *request);
 
     PutMethodInfoInTraceContext("write_file");
 
@@ -6631,10 +6624,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTable)
         format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
 
-    SetReadTableRequestInfo(
-        context,
-        path,
-        *request);
+    SetReadTableRequestInfo(context, path, *request);
 
     PutMethodInfoInTraceContext("read_table");
 
@@ -6776,9 +6766,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteTable)
     PutMethodInfoInTraceContext("write_table");
 
     auto path = FromProto<TRichYPath>(request->path());
-    context->SetRequestInfo(
-        "Path: %v",
-        path);
+    SetWriteTableRequestInfo(context, path);
 
     NApi::TTableWriterOptions options;
     std::string tableWriterConfig("{}");
@@ -6903,15 +6891,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionTables)
         FromProto(&options, request->transactional_options());
     }
 
-    context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, CompressedDataSizePerPartition: %v, AdjustDataWeightPerPartition: %v, EnableCookies: %v, FetchCookieNodeDescriptors: %v",
-        paths,
-        options.PartitionMode,
-        options.EnableKeyGuarantee,
-        options.DataWeightPerPartition,
-        options.CompressedDataSizePerPartition,
-        options.AdjustDataWeightPerPartition,
-        options.EnableCookies,
-        options.FetchCookieNodeDescriptors);
+    SetPartitionTablesRequestInfo(context, paths, *request);
 
     ExecuteCall(
         context,
@@ -6953,12 +6933,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadTablePartition)
         format = ConvertTo<NFormats::TFormat>(*rawFormat);
     }
 
-    context->SetRequestInfo(
-        "Unordered: %v, OmitInaccessibleColumns: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
-        options.Unordered,
-        options.OmitInaccessibleColumns,
-        NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat),
-        NApi::NRpcProxy::NProto::ERowsetFormat_Name(arrowFallbackRowsetFormat));
+    SetReadTablePartitionRequestInfo(context, *request);
 
     PutMethodInfoInTraceContext("read_table_partition");
 
@@ -7039,9 +7014,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartDistributedWriteSession)
     TDistributedWriteSessionStartOptions options;
     ParseRequest(&path, &options, *request);
 
-    context->SetRequestInfo(
-        "Path: %v",
-        path);
+    SetStartDistributedWriteSessionRequestInfo(context, path);
 
     ExecuteCall(
         context,
@@ -7065,9 +7038,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingDistributedWriteSession)
     ParseRequest(&session, &options, *request);
 
     auto concreteSession = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(session.Underlying()->Payload()));
-    context->SetRequestInfo(
-        "TableId: %v",
-        concreteSession.PatchInfo.ObjectId);
+    SetPingDistributedWriteSessionRequestInfo(context, concreteSession.PatchInfo.ObjectId);
 
     ExecuteCall(
         context,
@@ -7087,9 +7058,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FinishDistributedWriteSession)
 
     auto session = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
 
-    context->SetRequestInfo(
-        "TableId: %v",
-        session.PatchInfo.ObjectId);
+    SetFinishDistributedWriteSessionRequestInfo(context, session.PatchInfo.ObjectId);
 
     ExecuteCall(
         context,
@@ -7137,10 +7106,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteTableFragment)
 
     auto concreteCookie = ConvertTo<TWriteFragmentCookie>(TYsonStringBuf(cookie.Underlying()->Payload()));
 
-    context->SetRequestInfo(
-        "TableId: %v, Main transaction id: %v",
-        concreteCookie.PatchInfo.ObjectId,
-        concreteCookie.MainTransactionId);
+    SetWriteTableFragmentRequestInfo(context, concreteCookie.PatchInfo.ObjectId, concreteCookie.MainTransactionId);
 
     auto isValid = WaitFor(ValidateSignature(cookie.Underlying()))
         .ValueOrThrow();
@@ -7176,9 +7142,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartDistributedWriteFileSession)
     TRichYPath path;
     TDistributedWriteFileSessionStartOptions options;
     ParseRequest(&path, &options, *request);
-    context->SetRequestInfo(
-        "Path: %v",
-        path);
+    SetStartDistributedWriteFileSessionRequestInfo(context, path);
 
     ExecuteCall(
         context,
@@ -7202,9 +7166,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingDistributedWriteFileSession)
     ParseRequest(&session, &options, *request);
 
     auto concreteSession = ConvertTo<TDistributedWriteFileSession>(TYsonStringBuf(session.Underlying()->Payload()));
-    context->SetRequestInfo(
-        "FileId: %v",
-        concreteSession.HostData.FileId);
+    SetPingDistributedWriteFileSessionRequestInfo(context, concreteSession.HostData.FileId);
 
     ExecuteCall(
         context,
@@ -7224,9 +7186,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, FinishDistributedWriteFileSession)
 
     auto session = ConvertTo<TDistributedWriteFileSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
 
-    context->SetRequestInfo(
-        "FileId: %v",
-        session.HostData.FileId);
+    SetFinishDistributedWriteFileSessionRequestInfo(context, session.HostData.FileId);
 
     ExecuteCall(
         context,
@@ -7273,10 +7233,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteFileFragment)
     auto concreteCookie = ConvertTo<TWriteFileFragmentCookie>(TYsonStringBuf(cookie.Underlying()->Payload()));
     const auto& cookieData = concreteCookie.CookieData;
 
-    context->SetRequestInfo(
-        "FileId: %v, Main transaction id: %v",
-        cookieData.FileId,
-        cookieData.MainTransactionId);
+    SetWriteFileFragmentRequestInfo(context, cookieData.FileId, cookieData.MainTransactionId);
 
     auto isValid = WaitFor(ValidateSignature(cookie.Underlying()))
         .ValueOrThrow();
