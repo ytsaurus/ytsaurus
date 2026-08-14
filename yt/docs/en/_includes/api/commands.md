@@ -832,7 +832,7 @@ PARAMETERS {
     "path" = "//tmp/my_table/@_format" ;
 }
 OUTPUT(API v4) { "value" = "true" }
-OUTPUT(API v3) "true"
+OUTPUT(API v3) true
 ```
 
 ### concatenate { #concatenate }
