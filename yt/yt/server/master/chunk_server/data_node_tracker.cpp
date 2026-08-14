@@ -355,10 +355,6 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        if (!GetDynamicConfig()->EnablePerLocationFullHeartbeats) {
-            THROW_ERROR_EXCEPTION("Per-location full data node heartbeats are disabled");
-        }
-
         ValidateHeartbeatRequest(node, context->Request());
 
         auto locationUuid = FromProto<TChunkLocationUuid>(context->Request().location_uuid());
@@ -747,7 +743,7 @@ public:
             SerializeMediumOverrides(node, dataNodeInfoExt->mutable_medium_overrides());
 
             dataNodeInfoExt->set_require_location_uuids(false);
-            dataNodeInfoExt->set_per_location_full_heartbeats_enabled(GetDynamicConfig()->EnablePerLocationFullHeartbeats);
+            dataNodeInfoExt->set_per_location_full_heartbeats_enabled(true);
             dataNodeInfoExt->set_location_indexes_in_heartbeats_enabled(
                 GetDynamicConfig()->EnableLocationIndexesInDataNodeHeartbeats
                 && request->location_indexes_in_heartbeats_supported());
@@ -1790,7 +1786,7 @@ private:
         }
 
         if (oldConfig->ChunkManager->DataNodeTracker->EnableValidationFullHeartbeats &&
-            (!GetDynamicConfig()->EnablePerLocationFullHeartbeats || !GetDynamicConfig()->EnableValidationFullHeartbeats))
+            !GetDynamicConfig()->EnableValidationFullHeartbeats)
         {
             ResetScheduledValidationFullHeartbeats();
         }

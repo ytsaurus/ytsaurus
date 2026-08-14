@@ -1295,7 +1295,6 @@ private:
                 node->GetAggregatedState() == ENodeState::Online &&
                 options.Flavors.contains(ENodeFlavor::Data) &&
                 options.LocationIndexesInHeartbeatsSupported &&
-                Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->DataNodeTracker->EnablePerLocationFullHeartbeats &&
                 node->IsPendingRestart() &&
                 allLocationsAreReported())
             {

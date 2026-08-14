@@ -381,10 +381,6 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
-        if (config->EnableValidationFullHeartbeats && !config->EnablePerLocationFullHeartbeats) {
-            THROW_ERROR_EXCEPTION("Validation full heartbeats requires location full heartbeats to be enabled");
-        }
-
         if (!config->EnableLocationIndexesInDataNodeHeartbeats) {
             if (config->UseLocationIndexesInSequoiaChunkConfirmation) {
                 THROW_ERROR_EXCEPTION("Location indices in chunk confirmation requires location indices in data node heartbeats to be enabled");
