@@ -68,7 +68,7 @@ TEST(TProxyTest, SolomonProxyEndpointProviderNames)
     };
 
     auto parseProviders = [] (const std::vector<TProvider>& providers) {
-        auto config = NYTree::BuildYsonStringFluently()
+        auto config = BuildYsonStringFluently()
             .BeginMap()
                 .Item("endpoint_providers").DoListFor(providers, [] (auto item, const TProvider& provider) {
                     item.Item()
@@ -88,10 +88,10 @@ TEST(TProxyTest, SolomonProxyEndpointProviderNames)
     // One component type twice requires a name, which must not collide with another default name.
     EXPECT_THROW_WITH_SUBSTRING(
         parseProviders({{EClusterComponentType::Scheduler}, {EClusterComponentType::Scheduler}}),
-        "must be distinct");
+        "Duplicate endpoint provider name");
     EXPECT_THROW_WITH_SUBSTRING(
         parseProviders({{EClusterComponentType::HttpProxy}, {EClusterComponentType::Scheduler, "http_proxy"}}),
-        "must be distinct");
+        "Duplicate endpoint provider name");
     EXPECT_NO_THROW(parseProviders({{EClusterComponentType::Scheduler}, {EClusterComponentType::Scheduler, "timbertruck"}}));
 }
 

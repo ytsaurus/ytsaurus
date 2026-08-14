@@ -55,8 +55,6 @@ struct TProfilingEndpointProviderConfig
 {
     EClusterComponentType ComponentType;
     //! Name this provider is registered and filtered by, defaults to the component type.
-    //! Names of all providers must be distinct; set this to configure several providers for
-    //! one component type, e.g. to pull from a sidecar sharing hosts with the component.
     std::optional<std::string> Name;
     //! This monitoring port will be used with all hosts discovered for the configured component.
     int MonitoringPort;
