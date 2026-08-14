@@ -617,9 +617,8 @@ public:
         TransactionIdToPersistentWriteState_.erase(transaction->GetId());
         TransactionIdToTransientWriteState_.erase(transaction->GetId());
 
-        YT_LOG_DEBUG(
-            "Transaction finished in tablet (TransactionId: %v)",
-            transaction->GetId());
+        YT_TLOG_DEBUG("Transaction finished in tablet")
+            .With("TransactionId", transaction->GetId());
     }
 
     bool HasUnfinishedTransientTransactions() const override
@@ -998,8 +997,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Transaction inserted into per-tablet barrier (TransactionId: %v)",
-            transaction->GetId());
+        YT_TLOG_DEBUG("Transaction inserted into per-tablet barrier")
+            .With("TransactionId", transaction->GetId());
 
         const auto& runtimeData = Tablet_->RuntimeData();
         auto cookie = runtimeData->PreparedTransactionBarrier.Insert();
@@ -1022,8 +1021,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Transaction removed from per-tablet barrier (TransactionId: %v)",
-            transaction->GetId());
+        YT_TLOG_DEBUG("Transaction removed from per-tablet barrier")
+            .With("TransactionId", transaction->GetId());
 
         const auto& runtimeData = Tablet_->RuntimeData();
         runtimeData->PreparedTransactionBarrier.Remove(cookie);
@@ -1079,12 +1078,11 @@ private:
 
         UpdateWriteRecordCounters(transaction, writeRecord);
 
-        YT_LOG_DEBUG(
-            "Write record enqueued (TransactionId: %v, Size: %v, RowCount: %v, Lockless: %v)",
-            transaction->GetId(),
-            writeRecord.DataWeight,
-            writeRecord.RowCount,
-            lockless);
+        YT_TLOG_DEBUG("Write record enqueued")
+            .With("TransactionId", transaction->GetId())
+            .With("Size", writeRecord.DataWeight)
+            .With("RowCount", writeRecord.RowCount)
+            .With("Lockless", lockless);
     }
 
     void DropTransactionWriteLog(
@@ -1204,10 +1202,9 @@ private:
             }
         }
 
-        YT_LOG_DEBUG(
-            "Lockless rows committed (TransactionId: %v, RowCount: %v)",
-            transaction->GetId(),
-            committedRowCount);
+        YT_TLOG_DEBUG("Lockless rows committed")
+            .With("TransactionId", transaction->GetId())
+            .With("RowCount", committedRowCount);
 
         if (delayed && Tablet_->IsPhysicallyLog()) {
             auto oldDelayedLocklessRowCount = Tablet_->GetDelayedLocklessRowCount();
@@ -1383,10 +1380,9 @@ private:
             transaction->SetHasSharedWriteLocks(true);
         }
 
-        YT_LOG_DEBUG(
-            "Rows locked (TransactionId: %v, RowCount: %v)",
-            transaction->GetId(),
-            context.RowCount);
+        YT_TLOG_DEBUG("Rows locked")
+            .With("TransactionId", transaction->GetId())
+            .With("RowCount", context.RowCount);
     }
 
     void PrepareLockedRows(TTransaction* transaction)
@@ -1408,11 +1404,9 @@ private:
             prepareRow(lockedRow);
         }
 
-        YT_LOG_DEBUG_IF(
-            std::ssize(lockedRows) > 0,
-            "Locked rows prepared (TransactionId: %v, LockedRowCount: %v)",
-            transaction->GetId(),
-            lockedRows.size());
+        YT_TLOG_DEBUG_IF(std::ssize(lockedRows) > 0, "Locked rows prepared")
+            .With("TransactionId", transaction->GetId())
+            .With("LockedRowCount", lockedRows.size());
 
         auto& prelockedRows = transientWriteState->PrelockedRows;
         for (const auto& prelockedRow : TRingQueueIterableWrapper(prelockedRows)) {
@@ -1634,18 +1628,15 @@ private:
             Tablet_->UpdateTotalRowCount();
             Tablet_->GetStoreManager()->UpdateCommittedStoreRowCount();
             auto newTotalRowCount = Tablet_->GetTotalRowCount();
-            YT_LOG_DEBUG_IF(oldTotalRowCount != newTotalRowCount,
-                "Tablet total row count updated (TabletId: %v, TotalRowCount: %v -> %v)",
-                Tablet_->GetId(),
-                oldTotalRowCount,
-                newTotalRowCount);
+            YT_TLOG_DEBUG_IF(oldTotalRowCount != newTotalRowCount, "Tablet total row count updated")
+                .With("TabletId", Tablet_->GetId())
+                .WithFormat("TotalRowCount", "%v -> %v", oldTotalRowCount, newTotalRowCount);
         }
 
-        YT_LOG_DEBUG(
-            "Finished transaction commit in tablet (TabletId: %v, TransactionId: %v, CommitTimestamp: %v)",
-            Tablet_->GetId(),
-            transactionId,
-            commitTimestamp);
+        YT_TLOG_DEBUG("Finished transaction commit in tablet")
+            .With("TabletId", Tablet_->GetId())
+            .With("TransactionId", transactionId)
+            .With("CommitTimestamp", commitTimestamp);
     }
 
 

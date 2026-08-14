@@ -484,22 +484,21 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     }
 
     if (mutationType == NHydra::HeartbeatMutationType) {
-        YT_LOG_DEBUG("Skipping heartbeat mutation (Version: %v)", version);
+        YT_TLOG_DEBUG("Skipping heartbeat mutation")
+            .With("Version", version);
     } else {
         NProfiling::TWallTimer timer;
 
-        YT_LOG_DEBUG(
-            "Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %x, PrevRandomSeed: %x, "
-            "StateHash: %x, MutationType: %v, MutationId: %v, MutationSize: %v, WaitTime: %v)",
-            version,
-            context->GetSequenceNumber(),
-            context->GetRandomSeed(),
-            context->GetPrevRandomSeed(),
-            context->GetStateHash(),
-            mutationType,
-            mutationId,
-            request.Data.Size(),
-            waitTime);
+        YT_TLOG_DEBUG("Applying mutation")
+            .With("Version", version)
+            .With("SequenceNumber", context->GetSequenceNumber())
+            .WithFormat("RandomSeed", "%x", context->GetRandomSeed())
+            .WithFormat("PrevRandomSeed", "%x", context->GetPrevRandomSeed())
+            .WithFormat("StateHash", "%x", context->GetStateHash())
+            .With("MutationType", mutationType)
+            .With("MutationId", mutationId)
+            .With("MutationSize", request.Data.Size())
+            .With("WaitTime", waitTime);
 
         auto* descriptor = GetMethodDescriptor(mutationType);
         const auto& handler = request.Handler;
