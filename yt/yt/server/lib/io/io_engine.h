@@ -79,6 +79,8 @@ struct TWriteResponse
 {
     i64 IOWriteRequests = 0;
     i64 IOSyncRequests = 0;
+
+    //! Number of bytes actually written, including direct IO padding.
     i64 WrittenBytes = 0;
 };
 
@@ -167,6 +169,10 @@ struct IIOEngine
         TRefCountedTypeCookie tagCookie,
         TIOSessionId sessionId = {},
         bool useDedicatedAllocations = false) = 0;
+
+    //! For direct IO handles, \p request.Offset must be a multiple of the direct IO
+    //! block size, otherwise the write fails. Unaligned buffers are combined and
+    //! zero-padded to the next block boundary; the padding is written to the file.
     virtual TFuture<TWriteResponse> Write(
         TWriteRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle,

@@ -236,9 +236,19 @@ protected:
     void DoResize(const TResizeRequest& request);
     void AddWriteWaitTimeSample(TDuration duration);
     void AddReadWaitTimeSample(TDuration duration);
+
+    //! Rounds \p size up to a multiple of \p directIoBlockSize.
     TSharedMutableRef AllocateWriteBlob(
         i64 size,
         i64 directIoBlockSize);
+
+    //! Returns \p buffers as-is if they already satisfy the direct IO alignment
+    //! requirements; otherwise copies them into a single blob zero-padded up to
+    //! a multiple of \p directIoBlockSize.
+    std::vector<TSharedRef> PrepareDirectIOWriteBuffers(
+        const std::vector<TSharedRef>& buffers,
+        i64 directIoBlockSize);
+
     TSharedMutableRef AllocateHugeBlob();
     void Reconfigure(const NYTree::INodePtr& node) override;
 

@@ -12,6 +12,8 @@
 #include <util/system/fs.h>
 #include <util/system/tempfile.h>
 
+#include <optional>
+
 namespace NYT::NIO {
 namespace {
 
@@ -352,7 +354,7 @@ TEST_P(TIOEngineTest, ChangeDynamicConfig)
         {
             uring_thread_count = %v;
             read_thread_count = %v;
-            enable_slicing = %v;
+            enable_slicing = %lv;
             simulated_max_bytes_per_write = 512;
         })";
 
@@ -550,30 +552,31 @@ const char CustomConfig[] =
 bool AllocatorBehaviourCollocate(false);
 bool AllocatorBehaviourSeparate(true);
 
+const auto IOEngineTestParams = ::testing::Values(
+    std::tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::ThreadPool, CustomConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
+
+    std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareThreadPool, CustomConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
+
+    std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareHierarchical, CustomConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourSeparate),
+
+    std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::Uring, CustomConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourSeparate),
+
+    std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareUring, CustomConfig, AllocatorBehaviourCollocate),
+    std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourSeparate));
+
 INSTANTIATE_TEST_SUITE_P(
     TIOEngineTest,
     TIOEngineTest,
-    ::testing::Values(
-        std::tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::ThreadPool, CustomConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
-
-        std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareThreadPool, CustomConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
-
-        std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareHierarchical, CustomConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareHierarchical, DefaultConfig, AllocatorBehaviourSeparate),
-
-        std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::Uring, CustomConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourSeparate),
-
-        std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareUring, CustomConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourSeparate))
-);
+    IOEngineTestParams);
 
 TEST_P(TIOEngineTest, Lock)
 {
@@ -628,6 +631,124 @@ TEST_P(TIOEngineTest, Lock)
     }))
         .ThrowOnError();
 }
+
+class TIOEngineDirectIOWriteTest
+    : public TIOEngineTest
+{
+protected:
+    void WriteAndUpdateExpected(
+        const IIOEnginePtr& engine,
+        const TSharedMutableRef& expected,
+        const TIOEngineHandlePtr& handle,
+        i64 offset,
+        TSharedMutableRef buffer)
+    {
+        auto size = std::ssize(buffer);
+        auto paddedSize = AlignUp(size, engine->GetBlockSize());
+        auto paddedEnd = std::min<i64>(expected.Size(), offset + paddedSize);
+        std::copy(buffer.Begin(), buffer.End(), expected.Begin() + offset);
+        std::fill(expected.Begin() + offset + size, expected.Begin() + paddedEnd, 0);
+        WaitForFast(engine->Write({
+            .Handle = handle,
+            .Offset = offset,
+            .Buffers = {std::move(buffer)},
+            .Flush = true,
+        }))
+            .ThrowOnError();
+    }
+
+    auto CreateFilledBuffer(i64 bufferSize, char symbol, std::optional<i64> alignment = {})
+    {
+        auto res = alignment
+            ? TSharedMutableRef::AllocateAligned(bufferSize, *alignment, {.InitializeStorage = false}, {})
+            : TSharedMutableRef::Allocate(bufferSize);
+        std::fill(res.Begin(), res.End(), symbol);
+        return res;
+    }
+
+    auto ReadFile(const std::string& fileName, i64 fileSize)
+    {
+        auto data = TSharedMutableRef::Allocate(fileSize);
+        TFile rawFile(fileName, RdOnly);
+        rawFile.Pload(data.Begin(), data.Size(), 0);
+        return data;
+    }
+};
+
+TEST_P(TIOEngineDirectIOWriteTest, WriteWithUnalignedOffset)
+{
+    auto engine = CreateIOEngine();
+
+    const i64 blockSize = engine->GetBlockSize();
+    const i64 fileSize = 5 * blockSize;
+
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+
+    auto initialData = TSharedMutableRef::Allocate(fileSize);
+    std::fill(initialData.Begin(), initialData.End(), 'A');
+    WriteFile(fileName, initialData);
+
+    auto file = WaitForFast(engine->Open({
+        fileName,
+        RdWr | DirectAligned,
+    }))
+        .ValueOrThrow();
+
+    ASSERT_TRUE(file->IsOpenForDirectIO());
+    EXPECT_THROW({
+        WaitForFast(engine->Write({
+            .Handle = file,
+            .Offset = blockSize + 1,
+            .Buffers = {CreateFilledBuffer(blockSize, 'B', blockSize)},
+            .Flush = true,
+        }))
+            .ThrowOnError();
+    }, TErrorException);
+}
+
+TEST_P(TIOEngineDirectIOWriteTest, WriteWithUnalignedBufferAndSize)
+{
+    auto engine = CreateIOEngine();
+
+    const i64 blockSize = engine->GetBlockSize();
+    const i64 fileSize = 5 * blockSize;
+
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+
+    auto initialData = TSharedMutableRef::Allocate(fileSize);
+    std::fill(initialData.Begin(), initialData.End(), 'A');
+    WriteFile(fileName, initialData);
+
+    auto file = WaitForFast(engine->Open({
+        fileName,
+        RdWr | DirectAligned,
+    }))
+        .ValueOrThrow();
+
+    ASSERT_TRUE(file->IsOpenForDirectIO());
+    auto unalignedBuffer = CreateFilledBuffer(blockSize + 1, 'B', blockSize).Slice(1, blockSize + 1);
+    ASSERT_NE(reinterpret_cast<i64>(unalignedBuffer.Begin()) % blockSize, 0);
+    ASSERT_NO_THROW(WriteAndUpdateExpected(engine, initialData, file, blockSize, std::move(unalignedBuffer)));
+
+    ASSERT_NO_THROW(WriteAndUpdateExpected(engine, initialData, file, blockSize * 3, CreateFilledBuffer(blockSize + 1, 'C', blockSize)));
+
+    WaitForFast(engine->FlushFile({
+        file,
+        EFlushFileMode::Data,
+    }))
+        .ThrowOnError();
+
+    file.Reset();
+
+    EXPECT_TRUE(TRef::AreBitwiseEqual(ReadFile(fileName, fileSize), initialData));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TIOEngineDirectIOWriteTest,
+    TIOEngineDirectIOWriteTest,
+    IOEngineTestParams);
 
 ////////////////////////////////////////////////////////////////////////////////
 

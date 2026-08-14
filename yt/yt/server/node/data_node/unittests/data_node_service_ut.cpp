@@ -1189,8 +1189,7 @@ public:
         : TDataNodeTest(
             TDataNodeTest::TDataNodeTestParams {
                 .EnableHugePageManager = GetParam().UseDirectIo,
-                // TODO(depression): Enable after Direct IO issues get fixed
-                .UseDirectIOForWrites = NIO::EDirectIOPolicy::Never,
+                .UseDirectIOForWrites = NIO::EDirectIOPolicy::OnDemand,
                 .ReadThreadCount = 4,
                 .WriteThreadCount = 4,
                 .UseProbePutBlocks = GetParam().UseProbePutBlocks,

@@ -37,14 +37,22 @@ constinit const auto Logger = IOLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializedBlocksRequest SerializeBlocks(i64 startOffset, const std::vector<TBlock>& blocks, NChunkClient::NProto::TBlocksExt& blocksExt)
+TSerializedBlocksRequest SerializeBlocks(
+    i64 startOffset,
+    const std::vector<TBlock>& blocks,
+    NChunkClient::NProto::TBlocksExt& blocksExt,
+    const TSharedRef& tailBuffer)
 {
     TSerializedBlocksRequest request;
 
     request.StartOffset = startOffset;
     request.EndOffset = request.StartOffset;
 
-    request.Buffers.reserve(blocks.size());
+    const bool hasTailBuffer = !tailBuffer.empty();
+    request.Buffers.reserve(blocks.size() + hasTailBuffer);
+    if (hasTailBuffer) {
+        request.Buffers.push_back(tailBuffer);
+    }
 
     for (const auto& block : blocks) {
         auto error = block.CheckChecksum();
@@ -61,6 +69,8 @@ TSerializedBlocksRequest SerializeBlocks(i64 startOffset, const std::vector<TBlo
         request.EndOffset += block.Size();
         request.Buffers.push_back(block.Data);
     }
+
+    request.StartOffset -= std::ssize(tailBuffer);
 
     return request;
 }
@@ -99,6 +109,33 @@ TSharedMutableRef SerializeChunkMeta(TChunkId chunkId, const TRefCountedChunkMet
     return buffer;
 }
 
+namespace {
+
+TSharedRef CopySuffix(const std::vector<TSharedRef>& buffers, i64 size)
+{
+    if (size == 0) {
+        return {};
+    }
+
+    struct TDirectIOTailBufferTag
+    { };
+
+    YT_VERIFY(static_cast<i64>(GetByteSize(buffers)) >= size);
+    auto result = TSharedMutableRef::Allocate<TDirectIOTailBufferTag>(size, {.InitializeStorage = false});
+    auto* current = result.End();
+
+    for (auto it = buffers.rbegin(); it != buffers.rend() && current != result.Begin(); ++it) {
+        auto sizeToCopy = std::min<i64>(it->Size(), current - result.Begin());
+        current -= sizeToCopy;
+        std::copy(it->End() - sizeToCopy, it->End(), current);
+    }
+
+    YT_VERIFY(current == result.Begin());
+    return result;
+}
+
+} // namespace
+
 //////////////////////////////////////////////////////////////////////////////
 
 TChunkFileWriter::TChunkFileWriter(
@@ -112,6 +149,7 @@ TChunkFileWriter::TChunkFileWriter(
     , FileName_(std::move(fileName))
     , SyncOnClose_(syncOnClose)
     , UseDirectIO_(useDirectIO)
+    , DirectIOBlockSize_(IOEngine_->GetBlockSize())
 {
     BlocksExt_.set_sync_on_close(SyncOnClose_);
 }
@@ -263,7 +301,14 @@ bool TChunkFileWriter::WriteBlocks(
         return false;
     }
 
-    auto writeRequest = SerializeBlocks(DataSize_, blocks, BlocksExt_);
+    const bool useDirectIO = DataFile_->IsOpenForDirectIO();
+    auto writeRequest = SerializeBlocks(DataSize_, blocks, BlocksExt_, TailBuffer_);
+    YT_VERIFY(!useDirectIO || writeRequest.StartOffset % DirectIOBlockSize_ == 0);
+
+    const auto ioWriteSize = writeRequest.EndOffset - writeRequest.StartOffset;
+    auto newTailBuffer = useDirectIO
+        ? CopySuffix(writeRequest.Buffers, writeRequest.EndOffset % DirectIOBlockSize_)
+        : TSharedRef{};
 
     ReadyEvent_ =
         IOEngine_->Write({
@@ -278,9 +323,12 @@ bool TChunkFileWriter::WriteBlocks(
             this,
             this_ = MakeStrong(this),
             newDataSize = writeRequest.EndOffset,
+            useDirectIO,
+            ioWriteSize,
+            newTailBuffer = std::move(newTailBuffer),
             blockCount = blocks.size(),
             chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
-        ] (const TErrorOr<TWriteResponse>& rspOrError) {
+        ] (const TErrorOr<TWriteResponse>& rspOrError) mutable {
             YT_VERIFY(State_.load() == EState::WritingBlocks);
 
             if (!rspOrError.IsOK()) {
@@ -291,7 +339,10 @@ bool TChunkFileWriter::WriteBlocks(
             }
 
             const auto& rsp = rspOrError.Value();
-            YT_VERIFY(newDataSize - DataSize_ == rsp.WrittenBytes);
+            const auto expectedWrittenBytes = useDirectIO
+                ? AlignUp(ioWriteSize, DirectIOBlockSize_)
+                : ioWriteSize;
+            YT_VERIFY(rsp.WrittenBytes == expectedWrittenBytes);
 
             chunkWriterStatistics->DataBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
             chunkWriterStatistics->DataBlocksWrittenToDisk.fetch_add(blockCount, std::memory_order::relaxed);
@@ -299,6 +350,7 @@ bool TChunkFileWriter::WriteBlocks(
             chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
 
             DataSize_ = newDataSize;
+            TailBuffer_ = std::move(newTailBuffer);
             State_.store(EState::Ready);
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()));
 
@@ -358,6 +410,7 @@ TFuture<void> TChunkFileWriter::Close(
 
             auto buffer = SerializeChunkMeta(ChunkId_, ChunkMeta_);
             MetaDataSize_ = buffer.size();
+            const bool useDirectIO = chunkMetaFile->IsOpenForDirectIO();
 
             return
                 IOEngine_->Write({
@@ -371,9 +424,13 @@ TFuture<void> TChunkFileWriter::Close(
                 .Apply(BIND([
                     this,
                     this_ = MakeStrong(this),
+                    useDirectIO,
                     chunkWriterStatistics
                 ] (const TWriteResponse& rsp) {
-                    YT_VERIFY(MetaDataSize_ == rsp.WrittenBytes);
+                    auto expectedWrittenBytes = useDirectIO
+                        ? AlignUp(MetaDataSize_, DirectIOBlockSize_)
+                        : MetaDataSize_;
+                    YT_VERIFY(rsp.WrittenBytes == expectedWrittenBytes);
 
                     chunkWriterStatistics->MetaBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
                     chunkWriterStatistics->MetaIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);

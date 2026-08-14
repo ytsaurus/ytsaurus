@@ -30,7 +30,8 @@ struct TSerializedBlocksRequest
 TSerializedBlocksRequest SerializeBlocks(
     i64 startOffset,
     const std::vector<NChunkClient::TBlock>& blocks,
-    NChunkClient::NProto::TBlocksExt& blocksExt);
+    NChunkClient::NProto::TBlocksExt& blocksExt,
+    const TSharedRef& tailBuffer = {});
 
 NChunkClient::TRefCountedChunkMetaPtr FinalizeChunkMeta(
     NChunkClient::TDeferredChunkMetaPtr chunkMeta,
@@ -141,6 +142,7 @@ private:
     const std::string FileName_;
     const bool SyncOnClose_;
     const bool UseDirectIO_;
+    const i64 DirectIOBlockSize_;
 
     using EState = EFileWriterState;
     std::atomic<EState> State_ = EFileWriterState::Created;
@@ -153,6 +155,9 @@ private:
     i64 DiskSpace_ = 0;
 
     TIOEngineHandlePtr DataFile_;
+
+    //! Last partial direct IO block of the data file; prepended to (and rewritten by) the next write.
+    TSharedRef TailBuffer_;
 
     const NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_ = New<NChunkClient::TRefCountedChunkMeta>();
     NChunkClient::NProto::TChunkInfo ChunkInfo_;
