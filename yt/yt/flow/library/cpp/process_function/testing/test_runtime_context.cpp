@@ -73,6 +73,12 @@ TTestRuntimeContextBuilder& TTestRuntimeContextBuilder::SetCurrentTimestamp(TSys
     return *this;
 }
 
+TTestRuntimeContextBuilder& TTestRuntimeContextBuilder::SetEpochUniqueSeqNo(TUniqueSeqNo value)
+{
+    EpochUniqueSeqNo_ = value;
+    return *this;
+}
+
 TTestRuntimeContextBuilder& TTestRuntimeContextBuilder::SetKeySchema(TTableSchemaPtr schema)
 {
     KeySchema_ = std::move(schema);
@@ -124,7 +130,7 @@ IRuntimeContextPtr TTestRuntimeContextBuilder::Build() const
         std::move(keySchema),
         std::move(converterCache),
         New<TUnlimitedThrottlerFactory>());
-    context->RefreshEpochState(MakeWatermarkState(Watermarks_, CurrentTimestamp_), DynamicParametersNode_);
+    context->RefreshEpochState(MakeWatermarkState(Watermarks_, CurrentTimestamp_), DynamicParametersNode_, EpochUniqueSeqNo_);
     return context;
 }
 

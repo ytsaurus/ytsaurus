@@ -18,6 +18,11 @@ TSystemTimestamp TCompanionRuntimeContext::GetCurrentTimestamp() const
     THROW_ERROR_EXCEPTION("The epoch timestamp is not available in a companion process");
 }
 
+TUniqueSeqNo TCompanionRuntimeContext::GetEpochUniqueSeqNo() const
+{
+    THROW_ERROR_EXCEPTION("The epoch sequence number is not available in a companion process");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TWatermarkStatePtr BuildWatermarkState(const THashMap<TStreamId, TSystemTimestamp>& watermarks)

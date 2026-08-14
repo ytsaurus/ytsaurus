@@ -439,6 +439,24 @@ TEST(TProcessFunctionTest, SourceFunctionEmitsWords)
     EXPECT_EQ(GetColumnValue<std::string>(output->GetMessages()[2].Message, "word"), "flow");
 }
 
+TEST(TProcessFunctionTest, EpochUniqueSeqNoIsExposedWhenPublished)
+{
+    auto context = TTestRuntimeContextBuilder()
+        .SetEpochUniqueSeqNo(TUniqueSeqNo(1'900'000'000'000'000'000ull))
+        .Build();
+
+    EXPECT_EQ(context->GetEpochUniqueSeqNo(), TUniqueSeqNo(1'900'000'000'000'000'000ull));
+}
+
+TEST(TProcessFunctionTest, EpochUniqueSeqNoThrowsWhenNotPublished)
+{
+    auto context = TTestRuntimeContextBuilder().Build();
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(context->GetEpochUniqueSeqNo()),
+        "was not published for this epoch");
+}
+
 TEST(TProcessFunctionTest, OutputCollectorStampsParents)
 {
     auto output = New<TRecordingOutputCollector>();

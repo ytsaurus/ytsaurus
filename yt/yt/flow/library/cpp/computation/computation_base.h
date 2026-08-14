@@ -532,6 +532,10 @@ protected:
 
     ITimeProvider::TGlobalUniqueSeqNo GenerateGlobalUniqueSeqNo();
 
+    void SetEpochUniqueSeqNo(TUniqueSeqNo seqNo);
+
+    std::optional<TUniqueSeqNo> GetEpochUniqueSeqNo() const;
+
     template <class... T>
     void ClearAsynchronously(T&&... args) const
     {
@@ -660,6 +664,8 @@ private:
 
     NProfiling::TEventTimer EpochTimer_;
     NProfiling::TCounter EpochCounter_;
+    //! Touched from the run fiber only; see SetEpochUniqueSeqNo.
+    std::optional<TUniqueSeqNo> EpochUniqueSeqNo_;
     THashMap<TStreamId, TStreamMessageCounters> StreamMessageCounters_;
 
     TStreamEventLagObserver InputEventLagObserver_;

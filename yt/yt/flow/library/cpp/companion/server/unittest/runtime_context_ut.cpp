@@ -98,6 +98,15 @@ TEST(TCompanionRuntimeContextTest, CurrentTimestampThrows)
         "not available in a companion process");
 }
 
+TEST(TCompanionRuntimeContextTest, EpochUniqueSeqNoThrows)
+{
+    auto context = MakeRuntimeContext();
+    context->RefreshEpochState(BuildWatermarkState({}), nullptr);
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(context->GetEpochUniqueSeqNo()),
+        "not available in a companion process");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

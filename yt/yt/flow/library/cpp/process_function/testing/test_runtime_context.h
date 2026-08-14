@@ -32,6 +32,9 @@ public:
     TTestRuntimeContextBuilder& SetWatermark(const TStreamId& streamId, TSystemTimestamp value);
     //! Sets the timestamp returned by IRuntimeContext::GetCurrentTimestamp().
     TTestRuntimeContextBuilder& SetCurrentTimestamp(TSystemTimestamp value);
+    //! Sets the sequence number returned by IRuntimeContext::GetEpochUniqueSeqNo(). Left unset the
+    //! accessor throws, matching a computation kind that publishes none.
+    TTestRuntimeContextBuilder& SetEpochUniqueSeqNo(TUniqueSeqNo value);
     TTestRuntimeContextBuilder& SetKeySchema(NTableClient::TTableSchemaPtr schema);
     TTestRuntimeContextBuilder& SetSpec(TComputationSpecPtr spec);
 
@@ -52,6 +55,7 @@ private:
     THashMap<TStreamId, TStreamSpecPtr> Streams_;
     THashMap<TStreamId, TSystemTimestamp> Watermarks_;
     TSystemTimestamp CurrentTimestamp_;
+    std::optional<TUniqueSeqNo> EpochUniqueSeqNo_;
     NTableClient::TTableSchemaPtr KeySchema_;
     TComputationSpecPtr Spec_;
     NYTree::IMapNodePtr DynamicParametersNode_;

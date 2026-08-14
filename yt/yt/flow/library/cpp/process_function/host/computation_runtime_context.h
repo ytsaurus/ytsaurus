@@ -25,14 +25,19 @@ public:
         IPayloadConverterCachePtr converterCache,
         NDistributedThrottler::IDistributedThrottlerFactoryPtr throttlerFactory);
 
-    //! Installs the per-batch state: the watermark snapshot and the latest dynamic
-    //! `function_parameters` node (empty if absent).
-    void RefreshEpochState(TWatermarkStatePtr watermarkState, NYTree::IMapNodePtr dynamicParametersNode);
+    //! Installs the per-batch state: the watermark snapshot, the latest dynamic
+    //! `function_parameters` node (empty if absent) and the epoch's sequence number
+    //! (defaulted to null for hosts that publish none).
+    void RefreshEpochState(
+        TWatermarkStatePtr watermarkState,
+        NYTree::IMapNodePtr dynamicParametersNode,
+        std::optional<TUniqueSeqNo> epochUniqueSeqNo = std::nullopt);
 
     TSystemTimestamp GetWatermark(const TStreamId& streamId) const override;
     TSystemTimestamp GetInputEventWatermark() const override;
     TWatermarkStatePtr GetEpochWatermarkState() const override;
     TSystemTimestamp GetCurrentTimestamp() const override;
+    TUniqueSeqNo GetEpochUniqueSeqNo() const override;
 
     const TComputationSpecPtr& GetSpec() const override;
     const TComputationStreamSpecStoragePtr& GetStreamSpecs() const override;
@@ -62,6 +67,7 @@ private:
     const NYTree::IMapNodePtr EmptyDynamicParametersNode_;
     TWatermarkStatePtr WatermarkState_;
     NYTree::IMapNodePtr DynamicParametersNode_;
+    std::optional<TUniqueSeqNo> EpochUniqueSeqNo_;
 
     TStreamId GuessStreamId(std::optional<TStreamId> streamId) const;
 };

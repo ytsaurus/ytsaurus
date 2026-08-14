@@ -85,6 +85,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
     {
         auto iterGuard = StartRunIteration(context);
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
+        SetEpochUniqueSeqNo(uniqueSeqNo);
         DoInit(StateManager_->CreateContext());
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
         FinishRunIteration();
@@ -132,6 +133,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             }
         }
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
+        SetEpochUniqueSeqNo(uniqueSeqNo);
         YT_TLOG_INFO("Got batch")
             .With("Inputs", inputs.size())
             .With("Timers", inputTimers.size())

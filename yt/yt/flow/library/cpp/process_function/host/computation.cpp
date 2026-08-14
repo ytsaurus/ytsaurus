@@ -58,7 +58,10 @@ void TProcessFunctionComputationBase<TBase>::DoInit(IJobInitContextPtr initConte
 template <class TBase>
 void TProcessFunctionComputationBase<TBase>::DoProcess(IInputContextPtr input, IOutputCollectorPtr output)
 {
-    RuntimeContext_->RefreshEpochState(this->GetWatermarkState(), this->GetDynamicSpec()->ProcessingFunctionParameters);
+    RuntimeContext_->RefreshEpochState(
+        this->GetWatermarkState(),
+        this->GetDynamicSpec()->ProcessingFunctionParameters,
+        this->GetEpochUniqueSeqNo());
     Batch_->Process(input, output, RuntimeContext_);
 }
 
