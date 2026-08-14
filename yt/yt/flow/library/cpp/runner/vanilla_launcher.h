@@ -37,9 +37,11 @@ struct TVanillaTaskConfig
     std::optional<NYTree::TSize> MemoryLimit;
     std::optional<int> CpuLimit;
 
-    //! When set, the task requests this many YT-allocated ports (exposed as YT_PORT_<i>),
+    //! When positive, the task requests this many YT-allocated ports (exposed as YT_PORT_<i>),
     //! overriding the fixed ports from the node config. Needed on a shared-network host
-    //! (e.g. local tests) where fixed ports of co-located jobs would collide.
+    //! (e.g. local tests) where fixed ports of co-located jobs would collide, so when the
+    //! launch has no network project it defaults to 2 (controller) / 3 (worker); an explicit
+    //! 0 keeps the fixed ports.
     std::optional<int> PortCount;
 
     //! Extra files delivered into the task sandbox: sandbox file name -> path.
