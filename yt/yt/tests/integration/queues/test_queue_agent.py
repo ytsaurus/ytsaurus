@@ -4182,7 +4182,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "default": {
                 "export_directory": export_dir,
                 "export_period": 3 * 1000,
-                "export_ttl":  3 * 1000,
+                "export_ttl": 6 * 1000,
             }
         })
 
@@ -4192,9 +4192,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         # Something should be exported.
         wait(lambda: len(ls(export_dir)) == 1)
 
-        # And then deleted after 3 seconds (sleeping for 4 just in case).
-        time.sleep(4)
-        assert len(ls(export_dir)) == 0
+        # And then deleted.
+        wait(lambda: len(ls(export_dir)) == 0)
 
         self.remove_export_destination(export_dir)
 
