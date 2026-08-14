@@ -77,7 +77,8 @@ void TDriverBase::Initialize(const IDriverPtr& driver, const INodePtr& configNod
 
     auto config = ConvertTo<NApi::TConnectionConfigPtr>(ConfigNode_);
 
-    YT_LOG_DEBUG("Driver created (ConnectionType: %v)", config->ConnectionType);
+    YT_TLOG_DEBUG("Driver created")
+        .With("ConnectionType", config->ConnectionType);
 }
 
 void TDriverBase::DoTerminate()
@@ -112,7 +113,7 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
 
     TCurrentTraceContextGuard guard(traceContext);
 
-    YT_LOG_DEBUG("Preparing driver request");
+    YT_TLOG_DEBUG("Preparing driver request");
 
     ValidateArgumentsEmpty(args, kwargs);
 
@@ -191,10 +192,10 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
         }
     } CATCH_AND_CREATE_YT_ERROR("Driver command execution failed");
 
-    YT_LOG_DEBUG("Request execution started (RequestId: %v, CommandName: %v, User: %v)",
-        request.Id,
-        request.CommandName,
-        request.AuthenticatedUser);
+    YT_TLOG_DEBUG("Request execution started")
+        .With("RequestId", request.Id)
+        .With("CommandName", request.CommandName)
+        .With("User", request.AuthenticatedUser);
 
     return pythonResponse;
 }
@@ -334,17 +335,18 @@ void TDriverModuleBase::Initialize(
         /*index*/ 0);
     RegisterAfterFinalizeShutdownCallback(
         BIND([] {
-            YT_LOG_DEBUG("Module shutdown started");
+            YT_TLOG_DEBUG("Module shutdown started");
             for (const auto& [driverId, weakDriver] : ActiveDrivers) {
                 auto driver = weakDriver.Lock();
                 if (!driver) {
                     continue;
                 }
-                YT_LOG_INFO("Terminating leaked driver (DriverId: %v)", driverId);
+                YT_TLOG_INFO("Terminating leaked driver")
+                    .With("DriverId", driverId);
                 driver->Terminate();
             }
             ActiveDrivers.clear();
-            YT_LOG_DEBUG("Module shutdown finished");
+            YT_TLOG_DEBUG("Module shutdown finished");
         }),
         /*index*/ 1);
 }
