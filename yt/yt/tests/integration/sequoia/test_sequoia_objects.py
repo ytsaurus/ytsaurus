@@ -1239,9 +1239,6 @@ class TestSequoiaReplicasLocationReplacementInHeartbeats(TestSequoiaReplicas):
         },
         "chunk_manager": {
             "replica_approve_timeout": 5000,
-            "data_node_tracker": {
-                "enable_per_location_full_heartbeats": True,
-            },
             # COMPAT(grphil): We keep sequoia store configs in compat format to test config migrations
             "sequoia_chunk_replicas": {
                 "replicas_percentage": 100,

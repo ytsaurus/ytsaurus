@@ -1097,9 +1097,6 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
             "profiling_period": 100,
         },
         "chunk_manager": {
-            "data_node_tracker": {
-                "enable_per_location_full_heartbeats": True,
-            },
             "disposed_pending_restart_node_chunk_refresh_delay": 0,
             "always_fetch_non_online_replicas": False,
             "refresh_node_on_online": True,
@@ -1509,9 +1506,6 @@ class TestNoDisposalForRestartingNodesSequoia(TestNoDisposalForRestartingNodes):
             "profiling_period": 100,
         },
         "chunk_manager": {
-            "data_node_tracker": {
-                "enable_per_location_full_heartbeats": True,
-            },
             "disposed_pending_restart_node_chunk_refresh_delay": 0,
             "always_fetch_non_online_replicas": False,
             "refresh_node_on_online": True,
@@ -1554,9 +1548,6 @@ class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNod
             "profiling_period": 100,
         },
         "chunk_manager": {
-            "data_node_tracker": {
-                "enable_per_location_full_heartbeats": True,
-            },
             "disposed_pending_restart_node_chunk_refresh_delay": 0,
             "always_fetch_non_online_replicas": False,
             "refresh_node_on_online": True,
@@ -1595,11 +1586,6 @@ class TestFullHeartbeatLocationBackpressure(YTEnvSetup):
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "node_tracker": {
             "profiling_period": 100,
-        },
-        "chunk_manager": {
-            "data_node_tracker": {
-                "enable_per_location_full_heartbeats": True,
-            },
         },
     }
 
@@ -1675,7 +1661,6 @@ class TestSequoiaReplicasBatchingWithHeartbeatThrottling(YTEnvSetup):
         },
         "chunk_manager": {
             "data_node_tracker": {
-                "enable_per_location_full_heartbeats": True,
                 "max_concurrent_location_full_heartbeats": 1,
                 "max_concurrent_incremental_heartbeats": 2,
                 "max_concurrent_chunk_replicas_during_full_heartbeat": 1,
