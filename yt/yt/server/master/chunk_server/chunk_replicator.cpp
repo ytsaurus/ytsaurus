@@ -1905,13 +1905,13 @@ void TChunkReplicator::RefreshChunk(
                 "Chunk is lost (ChunkId: %v, WasLostVital: %v, ChunkReplicas: %v)",
                 chunk->GetId(),
                 wasLostVital,
-                chunkReplicas);
+                MakeFormattableView(chunkReplicas, TDefaultFormatter{}));
         }
     } else if (wasLostVital) {
         YT_LOG_DEBUG_IF(std::ssize(LostVitalChunks_) < maxLostVitalChunksToLog,
             "Chunk is no longer lost (ChunkId: %v, ChunkReplicas: %v)",
             chunk->GetId(),
-            chunkReplicas);
+            MakeFormattableView(chunkReplicas, TDefaultFormatter{}));
     }
 
     if (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::DataMissing)) {

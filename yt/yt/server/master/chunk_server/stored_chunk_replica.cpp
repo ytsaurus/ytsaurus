@@ -212,11 +212,11 @@ void FormatValue(TStringBuilderBase* builder, TAugmentedStoredChunkReplicaPtr va
 {
     switch (value.GetStoredReplicaType()) {
         case EStoredReplicaType::ChunkLocation: {
-            FormatValue(builder, value.As<EStoredReplicaType::ChunkLocation>(), spec);
+            FormatValue(builder, *value.As<EStoredReplicaType::ChunkLocation>(), spec);
             break;
         }
         case EStoredReplicaType::OffshoreMedia: {
-            FormatValue(builder, value.As<EStoredReplicaType::OffshoreMedia>(), spec);
+            FormatValue(builder, *value.As<EStoredReplicaType::OffshoreMedia>(), spec);
             break;
         }
     }
