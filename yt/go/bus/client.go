@@ -251,7 +251,7 @@ func (c *ClientConn) runSender() {
 			}
 
 			packetID := guid.New()
-			c.log.Debug("Sending cancel packet",
+			c.log.Trace("Sending cancel packet",
 				log.String("id", packetID.String()),
 				log.String("request_id", misc.NewGUIDFromProto(req.reqHeader.RequestId).String()))
 
@@ -281,7 +281,7 @@ func (c *ClientConn) runSender() {
 				c.addUnackedReq(req.id, packetID)
 			}
 
-			c.log.Debug("Sending packet",
+			c.log.Trace("Sending packet",
 				log.String("id", packetID.String()),
 				log.String("request_id", misc.NewGUIDFromProto(req.reqHeader.RequestId).String()))
 
