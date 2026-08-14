@@ -6,6 +6,7 @@ import "yt/yql/providers/dq/config/config.proto";
 import "yql/essentials/utils/log/proto/logger_config.proto";
 import "yt/yql/providers/yt/lib/access_provider/proto/access_provider.proto";
 import "yt/yql/providers/yt/lib/tvm_client/proto/tvm_client.proto";
+import "yql/essentials/providers/common/proto/static_gateways_config.proto";
 
 message TWorkerServerConfig {
     optional uint32 PortStart = 1;
@@ -147,4 +148,5 @@ message TWorkerConfig {
     optional TSolomonAgentClientConfig SolomonAgentClient = 12;
     optional bool DisableUnwinding = 13 [default = false];
     optional TQtWorkerConfig Qt = 14;
+    optional TStaticGatewaysConfig StaticGateways = 15;
 }
