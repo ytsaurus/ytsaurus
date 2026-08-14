@@ -931,13 +931,8 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         }
 
         case EInternedAttributeKey::ImmediateAnnotation: {
-            if (auto annotation = node->TryGetAnnotation()) {
-                BuildYsonFluently(consumer)
-                    .Value(*annotation);
-            } else {
-                BuildYsonFluently(consumer)
-                    .Entity();
-            }
+            BuildYsonFluently(consumer)
+                .Value(node->TryGetAnnotation());
             return true;
         }
 

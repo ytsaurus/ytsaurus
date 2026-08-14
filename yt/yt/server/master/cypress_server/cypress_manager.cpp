@@ -3391,7 +3391,7 @@ private:
                 // See sequoia_actions_executor for more details.
                 if (node->IsSequoia() && node->MutableSequoiaProperties() && node->MutableSequoiaProperties()->BeingCreated) {
                     YT_LOG_ALERT_UNLESS(expectedRefCounter == actualRefCounter + 1,
-                "Node in BeingCreated state has unexpected ref counter "
+                        "Node in BeingCreated state has unexpected ref counter "
                         "(NodeId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
                         node->GetId(),
                         expectedRefCounter,
@@ -3432,7 +3432,7 @@ private:
 
         for (auto [nodeId, node] : NodeMap_) {
             if (!node->IsTrunk()) {
-               continue;
+                continue;
             }
 
             auto trunkRefCounter = 0;
@@ -3517,7 +3517,7 @@ private:
         }
 
         for (const auto* childrenMap : childrenMaps) {
-            for (auto& [child, _] : childrenMap->ChildToKey()) {
+            for (const auto& [child, _] : childrenMap->ChildToKey()) {
                 ++nodeToRefCounter[child.Get()];
             }
         }

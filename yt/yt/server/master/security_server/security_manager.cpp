@@ -3438,7 +3438,6 @@ private:
         BufferedProducer_->Update(std::move(buffer));
     }
 
-
     void DoAddMember(TGroup* group, TSubject* member)
     {
         YT_VERIFY(group->Members().insert(member).second);
@@ -4517,7 +4516,7 @@ private:
     void SendAccountStatisticsGossipFromPrimaryCell()
     {
         // For each secondary cell, account statistics are being combined and sent.
-        // Note, however, that every cell receives the sum of all other cells' information with it's own data excluded.
+        // Note, however, that every cell receives the sum of all other cells' information with its own data excluded.
         // This is done because cell statistics on the primary master might be outdated for any particular cell.
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
