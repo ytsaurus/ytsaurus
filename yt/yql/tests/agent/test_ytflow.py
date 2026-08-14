@@ -42,7 +42,7 @@ from yt.yql.tests.common.test_framework.test_utils import (
 
 from yt_commands import (
     authors, create, sync_mount_table, insert_rows, select_rows,
-    list_queue_consumer_registrations, raises_yt_error,
+    list_queue_consumer_registrations, raises_yt_error, get,
 )
 
 from yt_queries import start_query
@@ -501,6 +501,13 @@ class TestYtflowBase(TestQueueAgentBase):
     def _assert_yt_table_content(self, table_path, expected_rows):
         assert_items_equal(self._read_yt_table(table_path), expected_rows)
 
+    def _get_yt_table_key_columns(self, table_path):
+        schema = get(f"{table_path}/@schema")
+        return [column["name"] for column in schema if "sort_order" in column]
+
+    def _assert_yt_table_key_columns(self, table_path, expected_key_columns):
+        assert self._get_yt_table_key_columns(table_path) == list(expected_key_columns)
+
     def _write_logbroker_topic(self, topic_path, data, logbroker_client):
         with closing(logbroker_client.create_topic_writer(topic_path)) as topic_writer:
             topic_writer.write(data)
@@ -947,6 +954,62 @@ select * from $stream;
 
         expected_data = [{"Value": row["Value"] + 1} for row in input_data]
         self._assert_yt_table_content(out_table_path, expected_data)
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    def test_create_sorted_table_by_order_by(self, query_tracker, yql_agent, run_query):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "key", "type": "string"},
+                {"name": "value", "type": "int64"},
+            ]),
+        ))
+        input_data = [
+            {"key": "foo", "value": 1},
+            {"key": "bar", "value": 10},
+            {"key": "baz", "value": 100},
+        ]
+        self._write_yt_table(input_table_path, input_data)
+
+        out_table_path = self._allocate_yt_table_path()
+
+        run_query(f"""
+replace into `{out_table_path}`
+select key, value from `{input_table_path}`
+order by key;
+""")
+
+        self._assert_yt_table_key_columns(out_table_path, ["key"])
+        self._assert_yt_table_content(out_table_path, input_data)
+
+    @authors("artemmashin")
+    @pytest.mark.timeout(180)
+    @pytest.mark.parametrize("order_by_keys", [("key_a", "key_b"), ("key_b", "key_a")])
+    def test_create_sorted_table_by_composite_order_by(self, query_tracker, yql_agent, run_query, order_by_keys):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "key_a", "type": "int64"},
+                {"name": "key_b", "type": "string"},
+                {"name": "value", "type": "int64"},
+            ]),
+        ))
+        input_data = [
+            {"key_a": 1, "key_b": "foo", "value": 5},
+            {"key_a": 2, "key_b": "foo", "value": 15},
+            {"key_a": 1, "key_b": "bar", "value": 25},
+        ]
+        self._write_yt_table(input_table_path, input_data)
+
+        out_table_path = self._allocate_yt_table_path()
+
+        run_query(f"""
+replace into `{out_table_path}`
+select key_a, key_b, value from `{input_table_path}`
+order by {", ".join(order_by_keys)};
+""")
+
+        self._assert_yt_table_key_columns(out_table_path, order_by_keys)
+        self._assert_yt_table_content(out_table_path, input_data)
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
