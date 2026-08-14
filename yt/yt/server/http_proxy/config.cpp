@@ -62,8 +62,7 @@ void TSolomonProxyConfig::Register(TRegistrar registrar)
         for (const auto& endpointProvider : config->EndpointProviders) {
             auto name = endpointProvider->GetName();
             if (!names.insert(name).second) {
-                THROW_ERROR_EXCEPTION("Endpoint provider names must be distinct")
-                    .With("name", name);
+                THROW_ERROR_EXCEPTION("Duplicate endpoint provider name %Qv", name);
             }
         }
     });
