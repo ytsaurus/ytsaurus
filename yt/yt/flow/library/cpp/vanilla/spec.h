@@ -52,6 +52,8 @@ struct TVanillaSpec
     std::string Alias;
     std::optional<std::string> Title;
     int MaxFailedJobCount = 0;
+    //! Number of jobs whose stderr the scheduler retains after they finish.
+    int MaxStderrCount = 0;
     std::string SolomonResolverTag;
     int MonitoringPort = 0;
     //! Optional operation `description` annotation (shown in the YT UI).

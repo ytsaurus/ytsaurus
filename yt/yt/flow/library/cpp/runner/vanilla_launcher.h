@@ -20,6 +20,12 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! The scheduler cap. Its own default of ten is too few: a job's stderr is the only artifact that
+//! survives the operation, so it is worth retaining for every job.
+constexpr int DefaultMaxStderrCount = 150;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(TVanillaTaskConfig)
 
 //! Per-task (controller or worker) sizing in a Flow vanilla launch.
@@ -87,6 +93,7 @@ struct TVanillaConfig
     NYPath::TYPath CachePath;
 
     ui64 MaxFailedJobCount{};
+    int MaxStderrCount{};
     TDuration WaitTimeout;
     std::string SolomonResolverTag;
 
@@ -172,6 +179,8 @@ struct TFlowVanillaOptions
     std::optional<std::string> NetworkProject;
     std::string SolomonResolverTag;
     int MaxFailedJobCount = 10000;
+    //! Number of jobs whose stderr the scheduler retains after they finish.
+    int MaxStderrCount = DefaultMaxStderrCount;
     //! Optional operation `description` annotation.
     NYTree::IMapNodePtr Description;
     //! Cluster to run the operation on; defaults to the node config's cluster.

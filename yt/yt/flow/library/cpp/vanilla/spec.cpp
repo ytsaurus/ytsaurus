@@ -24,6 +24,7 @@ IMapNodePtr BuildVanillaOperationSpec(const TVanillaSpec& spec)
         .BeginMap()
             .Item("max_speculative_job_count_per_task").Value(0)
             .Item("max_failed_job_count").Value(spec.MaxFailedJobCount)
+            .Item("max_stderr_count").Value(spec.MaxStderrCount)
             .Item("alias").Value(spec.Alias)
             .Item("secret_env").Value(spec.SecretEnv)
             .DoIf(spec.Pool.has_value(), [&] (auto fluent) {
