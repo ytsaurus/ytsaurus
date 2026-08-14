@@ -10,6 +10,9 @@ PEERDIR(
 )
 
 JAR_RESOURCE(1786002446)
+
 SRC_RESOURCE(1786002384)
+
+ORIGINAL_SOURCE(http://github.com/FasterXML/jackson-databind)
 
 END()

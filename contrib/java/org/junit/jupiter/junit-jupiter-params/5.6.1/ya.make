@@ -10,6 +10,9 @@ PEERDIR(
 )
 
 JAR_RESOURCE(1418289029)
+
 SRC_RESOURCE(1418288952)
+
+ORIGINAL_SOURCE(https://github.com/junit-team/junit5)
 
 END()

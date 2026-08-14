@@ -5,6 +5,9 @@ VERSION(4.1.42.Final)
 LICENSE(Apache-2.0)
 
 JAR_RESOURCE(1167120947)
+
 SRC_RESOURCE(1167119637)
+
+ORIGINAL_SOURCE(https://github.com/netty/netty)
 
 END()

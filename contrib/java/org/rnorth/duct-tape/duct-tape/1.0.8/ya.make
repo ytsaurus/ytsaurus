@@ -9,6 +9,9 @@ PEERDIR(
 )
 
 JAR_RESOURCE(1368546230)
+
 SRC_RESOURCE(1368547975)
+
+ORIGINAL_SOURCE(https://github.com/rnorth/duct-tape)
 
 END()

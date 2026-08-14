@@ -5,6 +5,9 @@ VERSION(17.0.0)
 LICENSE(Apache-2.0)
 
 JAR_RESOURCE(879190998)
+
 SRC_RESOURCE(879191024)
+
+ORIGINAL_SOURCE(https://github.com/JetBrains/java-annotations)
 
 END()

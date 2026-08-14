@@ -5,6 +5,9 @@ VERSION(2.11.3)
 LICENSE(Apache-2.0)
 
 JAR_RESOURCE(1786000886)
+
 SRC_RESOURCE(1786002365)
+
+ORIGINAL_SOURCE(http://github.com/FasterXML/jackson-core)
 
 END()

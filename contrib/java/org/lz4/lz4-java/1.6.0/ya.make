@@ -5,6 +5,9 @@ VERSION(1.6.0)
 LICENSE(Apache-2.0)
 
 JAR_RESOURCE(1239715628)
+
 SRC_RESOURCE(1239715849)
+
+ORIGINAL_SOURCE(git://github.com/lz4/lz4-java.git)
 
 END()
