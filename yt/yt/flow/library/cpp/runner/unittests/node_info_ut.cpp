@@ -467,6 +467,69 @@ TEST(TGetNodeInfoTest, DefaultConfigUsesIPv6)
     EXPECT_THAT(nodeInfo->RpcAddress, testing::HasSubstr("4321"));
 }
 
+TEST(TTryExtractDeploySnapshotIdTest, SnapshotWorkloadStart)
+{
+    std::vector<TProcessCgroup> cgroups{
+        {1, "freezer", {"freezer"}, "/porto%noop-pipeline-snap-worker-57/pod_agent_workload_flow-main_sn_C9CB3595F9_start"},
+    };
+    EXPECT_EQ(TryExtractDeploySnapshotId(cgroups), std::optional<std::string>("C9CB3595F9"));
+}
+
+TEST(TTryExtractDeploySnapshotIdTest, ClassicWorkloadStart)
+{
+    std::vector<TProcessCgroup> cgroups{
+        {1, "freezer", {"freezer"}, "/porto%noop-pipeline-worker-1/pod_agent_workload_flow-main_start"},
+    };
+    EXPECT_EQ(TryExtractDeploySnapshotId(cgroups), std::nullopt);
+}
+
+TEST(TTryExtractDeploySnapshotIdTest, CgroupV2SingleLine)
+{
+    std::vector<TProcessCgroup> cgroups{
+        {0, "", {}, "/porto%pod-1/pod_agent_workload_flow-main_sn_ABCDEF_start"},
+    };
+    EXPECT_EQ(TryExtractDeploySnapshotId(cgroups), std::optional<std::string>("ABCDEF"));
+}
+
+TEST(TTryExtractDeploySnapshotIdTest, LastSnapshotInfixWins)
+{
+    std::vector<TProcessCgroup> cgroups{
+        {1, "freezer", {"freezer"}, "/porto%pod-1/pod_agent_workload_user_sn_123_sn_456_start"},
+    };
+    EXPECT_EQ(TryExtractDeploySnapshotId(cgroups), std::optional<std::string>("456"));
+}
+
+TEST(TTryExtractDeploySnapshotIdTest, LowercaseIdRejected)
+{
+    std::vector<TProcessCgroup> cgroups{
+        {1, "freezer", {"freezer"}, "/porto%pod-1/pod_agent_workload_flow-main_sn_c9cb_start"},
+    };
+    EXPECT_EQ(TryExtractDeploySnapshotId(cgroups), std::nullopt);
+}
+
+TEST(TTryExtractDeploySnapshotIdTest, EmptyIdRejected)
+{
+    std::vector<TProcessCgroup> cgroups{
+        {1, "freezer", {"freezer"}, "/porto%pod-1/pod_agent_workload_flow-main_sn__start"},
+    };
+    EXPECT_EQ(TryExtractDeploySnapshotId(cgroups), std::nullopt);
+}
+
+TEST(TTryExtractDeploySnapshotIdTest, NonStartContainersIgnored)
+{
+    std::vector<TProcessCgroup> cgroups{
+        {1, "freezer", {"freezer"}, "/porto%pod-1/pod_agent_workload_flow-main_sn_C9CB3595F9_readiness"},
+    };
+    EXPECT_EQ(TryExtractDeploySnapshotId(cgroups), std::nullopt);
+}
+
+TEST(TTryExtractDeploySnapshotIdTest, EmptyCgroups)
+{
+    EXPECT_EQ(TryExtractDeploySnapshotId({}), std::nullopt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TGetNodeInfoTest, DefaultConfigRejectsIPv4Address)
 {
     auto config = MakeConfig(TString(R"({

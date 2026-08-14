@@ -23,6 +23,10 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <util/generic/algorithm.h>
+
+#include <util/string/split.h>
+
 namespace NYT::NFlow {
 
 using namespace NLogging;
@@ -204,27 +208,60 @@ protected:
 
     std::string GetRemoteShellCommand() override
     {
+        const auto& fqdn = TryGetDeployBoxFqdn();
+        if (!fqdn) {
+            return {};
+        }
+
         // SSH answers on the box IP, not on the pod IP, and the box IP is only
         // available via DNS, which may still be propagating after a pod reschedule;
         // try to resolve it once and fall back to the box FQDN.
-        auto fqdn = GetDeployBoxFqdn();
         if (!BoxAddress_) {
             try {
-                BoxAddress_ = ResolveLocalAddress(fqdn);
+                BoxAddress_ = ResolveLocalAddress(*fqdn);
             } catch (const std::exception& ex) {
                 YT_TLOG_WARNING("Failed to resolve box IP, using fqdn in remote shell command")
-                    .With("Fqdn", fqdn)
+                    .With("Fqdn", *fqdn)
                     .With(ex);
             }
         }
         if (BoxAddress_) {
-            return Format("ssh nobody@%v (or ssh nobody@%v)", *BoxAddress_, fqdn);
+            return Format("ssh nobody@%v (or ssh nobody@%v)", *BoxAddress_, *fqdn);
         }
-        return Format("ssh nobody@%v", fqdn);
+        return Format("ssh nobody@%v", *fqdn);
     }
 
     std::string GetDeployBoxFqdn()
     {
+        return TryGetDeployBoxFqdn().value_or(Format("%v.%v", BoxName_, PodFqdn_));
+    }
+
+    //! Returns null when the cgroups cannot be read, so that a snapshot stage box
+    //! cannot be told from a classic one.
+    const std::optional<std::string>& TryGetDeployBoxFqdn()
+    {
+        if (!BoxFqdnBuilt_) {
+            BoxFqdn_ = TryBuildDeployBoxFqdn();
+            BoxFqdnBuilt_ = true;
+        }
+        return BoxFqdn_;
+    }
+
+    std::optional<std::string> TryBuildDeployBoxFqdn()
+    {
+        std::optional<std::string> snapshotId;
+        try {
+            snapshotId = TryExtractDeploySnapshotId(GetProcessCgroups());
+        } catch (const std::exception& ex) {
+            YT_TLOG_WARNING("Failed to extract snapshot id from process cgroups, box fqdn is unknown")
+                .With(ex);
+            return std::nullopt;
+        }
+        if (snapshotId) {
+            YT_TLOG_INFO("Detected snapshot stage box, using suffixed box fqdn")
+                .With("SnapshotId", *snapshotId);
+            return Format("%v_sn_%v.%v", BoxName_, *snapshotId, PodFqdn_);
+        }
         return Format("%v.%v", BoxName_, PodFqdn_);
     }
 
@@ -265,6 +302,10 @@ private:
     const char* BoxName_ = std::getenv("DEPLOY_BOX_ID");
     const char* VcpuFactor_ = std::getenv("DEPLOY_CPU_TO_VCPU_FACTOR");
     const char* VcpuLimit_ = std::getenv("DEPLOY_VCPU_LIMIT");
+
+    //! Box FQDN build result, cached to avoid re-reading cgroups.
+    std::optional<std::string> BoxFqdn_;
+    bool BoxFqdnBuilt_ = false;
 
     //! Box FQDN resolve result, cached to avoid a second DNS query.
     std::optional<std::string> BoxAddress_;
@@ -399,6 +440,43 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Pod agent composes container names as "<box id>/workload_<workload id>_<command>",
+// see TPathHolder::GetWorkloadContainerWithName in
+// infra/pod_agent/libs/path_util/path_holder.cpp. On a snapshot stage both ids carry
+// a "_sn_<snapshot id>" suffix, see StageConverter::patchPodAgentSpecBySnapshot in
+// infra/snapshot_controller/service/src/main/java/ru/yandex/infra/snapshotctl/core/converter/StageConverter.java.
+std::optional<std::string> TryExtractDeploySnapshotId(const std::vector<TProcessCgroup>& cgroups)
+{
+    constexpr TStringBuf StartSuffix = "_start";
+    constexpr TStringBuf SnapshotInfix = "_sn_";
+
+    for (const auto& cgroup : cgroups) {
+        for (TStringBuf segment : StringSplitter(cgroup.Path).Split('/').SkipEmpty()) {
+            // The long-running workload command is the "_start" container; the other
+            // commands (readiness, stop, ...) never host this process.
+            if (!segment.ChopSuffix(StartSuffix)) {
+                continue;
+            }
+            // The snapshot suffix is appended last, so a user workload id
+            // containing "_sn_" cannot shadow it.
+            auto infixPos = segment.rfind(SnapshotInfix);
+            if (infixPos == TStringBuf::npos) {
+                continue;
+            }
+            auto id = segment.SubStr(infixPos + SnapshotInfix.size());
+            auto isSnapshotIdChar = [] (char c) {
+                return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F');
+            };
+            if (!id.empty() && AllOf(id, isSnapshotIdChar)) {
+                return std::string(id);
+            }
+        }
+    }
+    return std::nullopt;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
