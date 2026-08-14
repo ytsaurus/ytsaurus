@@ -29,6 +29,8 @@
 #include <yql/essentials/providers/common/codec/yql_codec.h>
 #include <yql/essentials/providers/common/comp_nodes/yql_factory.h>
 #include <yql/essentials/providers/common/proto/gateways_config.pb.h>
+#include <yql/essentials/providers/common/proto/static_gateways_config.pb.h>
+#include <yql/essentials/providers/common/gateways_utils/gateways_utils.h>
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <yql/essentials/providers/common/udf_resolve/yql_simple_udf_resolver.h>
 
@@ -417,6 +419,9 @@ public:
                 NYson::ReflectProtobufMessageType<NYql::TSolomonGatewayConfig>(),
                 protobufWriterOptions));
 
+            // TODO(aneporada): Add static gatewaays config to TYqlNativePluginOptions
+            SyncWithStaticGateways(StaticGatewaysConfig_, GatewaysConfigInitial_);
+
             NYql::TFileStorageConfig fileStorageConfig;
             fileStorageConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
                 options.FileStorageConfig,
@@ -445,8 +450,13 @@ public:
                 NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
             const NKikimr::NMiniKQL::TUdfModuleRemappings emptyRemappings;
             FuncRegistry_->SetBackTraceCallback(&NYql::NBacktrace::KikimrBackTrace);
+
+            auto* staticGatewayYtConfig = StaticGatewaysConfig_.MutableYt();
+            staticGatewayYtConfig->SetMrJobBinMd5(CalculateMD5Checksum(staticGatewayYtConfig->GetMrJobBin()));
+            YQL_LOG(DEBUG) <<  "SetMrJobBinMd5 ready";
+
             TVector<TString> udfPaths;
-            NKikimr::NMiniKQL::FindUdfsInDir(gatewayYtConfig->GetMrJobUdfsDir(), &udfPaths);
+            NKikimr::NMiniKQL::FindUdfsInDir(staticGatewayYtConfig->GetMrJobUdfsDir(), &udfPaths);
             for (const auto& path : udfPaths) {
                 // Skip YQL plugin shared library itself, it is not a UDF.
                 if (path.EndsWith("libyqlplugin.so")) {
@@ -462,7 +472,7 @@ public:
                     DqManagerConfig_->UdfsWithMd5.emplace(path, CalculateMD5Checksum(path));
                 }
             }
-            gatewayYtConfig->ClearMrJobUdfsDir();
+            staticGatewayYtConfig->ClearMrJobUdfsDir();
             NKikimr::NMiniKQL::TUdfModulePathsMap systemModules;
             for (const auto& m : FuncRegistry_->GetAllModuleNames()) {
                 TMaybe<TString> path = FuncRegistry_->FindUdfPath(m);
@@ -1115,6 +1125,7 @@ private:
     ::TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FuncRegistry_;
     TAtomicIntrusivePtr<TDynamicConfig> DynamicConfig_;
     NYql::TGatewaysConfig GatewaysConfigInitial_;
+    NYql::TStaticGatewaysConfig StaticGatewaysConfig_;
     THashMap<TString, TString> Modules_;
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
@@ -1214,18 +1225,11 @@ private:
 
         auto dynamicConfig = New<TDynamicConfig>();
         dynamicConfig->GatewaysConfig = std::move(gatewaysConfig);
-        auto* gatewayYtConfig = dynamicConfig->GatewaysConfig.MutableYt();
+        const auto& gatewayYtConfig = dynamicConfig->GatewaysConfig.GetYt();
         auto* gatewayPqConfig = dynamicConfig->GatewaysConfig.MutablePq();
         auto* gatewaySolomonConfig = dynamicConfig->GatewaysConfig.MutableSolomon();
 
-        // Ignore MrJobUdfsDir in dynamic config (we won't reload udfs and won't restart DqManager_).
-        gatewayYtConfig->ClearMrJobUdfsDir();
-        YQL_LOG(DEBUG) << __FUNCTION__ << ": TDynamicConfig ready";
-
-        gatewayYtConfig->SetMrJobBinMd5(CalculateMD5Checksum(gatewayYtConfig->GetMrJobBin()));
-        YQL_LOG(DEBUG) << __FUNCTION__ << ": SetMrJobBinMd5 ready";
-
-        for (const auto& mapping : gatewayYtConfig->GetClusterMapping()) {
+        for (const auto& mapping : gatewayYtConfig.GetClusterMapping()) {
             dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::YtProviderName)});
             dynamicConfig->ClusterAddresses.insert({mapping.name(), mapping.cluster()});
             if (mapping.GetDefault()) {
@@ -1288,6 +1292,7 @@ private:
         ytServices.FunctionRegistry = FuncRegistry_.Get();
         ytServices.FileStorage = FileStorage_;
         ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(dynamicConfig.GatewaysConfig.GetYt());
+        ytServices.StaticConfig = std::make_shared<NYql::TYtStaticGatewayConfig>(StaticGatewaysConfig_.GetYt());
         ytServices.SecretMasker = CreateSecretMasker();
         ytServices.TvmClient = TvmClient_;
         ytServices.YtAccessProvider = YtAccessProvider_;

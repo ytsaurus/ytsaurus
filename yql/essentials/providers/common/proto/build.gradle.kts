@@ -38,6 +38,7 @@ protobuf {
 val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
         include("yql/essentials/providers/common/proto/gateways_config.proto")
+        include("yql/essentials/providers/common/proto/static_gateways_config.proto")
         include("yql/essentials/providers/common/proto/udf_resolver.proto")
     }
     into(buildProtoDir)

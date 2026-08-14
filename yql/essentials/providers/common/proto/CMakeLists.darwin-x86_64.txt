@@ -43,11 +43,13 @@ target_link_libraries(providers-common-proto PUBLIC
 
 target_proto_messages(providers-common-proto PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/providers/common/proto/gateways_config.proto
+  ${PROJECT_SOURCE_DIR}/yql/essentials/providers/common/proto/static_gateways_config.proto
   ${PROJECT_SOURCE_DIR}/yql/essentials/providers/common/proto/udf_resolver.proto
 )
 
 target_sources(providers-common-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yql/essentials/providers/common/proto/gateways_config.pb.h
+  ${PROJECT_BINARY_DIR}/yql/essentials/providers/common/proto/static_gateways_config.pb.h
   ${PROJECT_BINARY_DIR}/yql/essentials/providers/common/proto/udf_resolver.pb.h
 )
 
