@@ -2710,7 +2710,7 @@ public:
             }
         }
 
-        VisitAllAncestorsInHunkTree(chunk, [&] (TChunkList* chunkList, bool firstOccurrence) {
+        VisitHunkTreeAncestors(chunk, [&] (TChunkList* chunkList, bool firstOccurrence) {
             if (firstOccurrence) {
                 chunkList->AccumulateHunkStatistics(chunk, /*force*/ true);
             }

@@ -1828,7 +1828,7 @@ i64 ComputeDiskSpaceFromDataSize(i64 dataSize, NErasure::ECodec erasureCodec)
 void AccumulateNewlyReferencedHunkStatistics(TChunk* hunkChunk, i64 dataWeightDelta, i64 dataSizeDelta)
 {
     hunkChunk->AccumulateNewlyReferencedHunkStatistics(dataWeightDelta, dataSizeDelta);
-    VisitAllAncestorsInHunkTree(hunkChunk, [&] (TChunkList* chunkList, bool firstOccurrence) {
+    VisitHunkTreeAncestors(hunkChunk, [&] (TChunkList* chunkList, bool firstOccurrence) {
         if (firstOccurrence) {
             chunkList->AccumulateNewlyReferencedHunkDataSize(hunkChunk, dataSizeDelta);
         }
