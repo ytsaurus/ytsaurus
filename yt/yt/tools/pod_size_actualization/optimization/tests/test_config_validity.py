@@ -14,6 +14,43 @@ from yt.yt.tools.pod_size_actualization.optimization import (
     annotate_assignments_with_validity as _annotate_assignments_with_validity,
 )
 from yt.yt.tools.pod_size_actualization.optimization.data import load_bundle_validity
+from yt.yt.tools.pod_size_actualization.optimization.results import (
+    rename_columns_to_snake_case,
+)
+
+
+ADMINISTRATIVE_VALUES = {
+    "abc_service_slug": "yt",
+    "abc_service_path": "yandex/infra/yt",
+    "value_stream_slug": "data-platform",
+    "value_stream_name_ru": "Платформа данных",
+    "business_unit_slug": "infrastructure",
+    "business_unit_name_ru": "Инфраструктура",
+    "business_group_slug": "yandex-infrastructure",
+    "business_group_name_ru": "Инфраструктурные сервисы",
+}
+
+
+def test_final_table_columns_are_converted_to_snake_case():
+    source = pd.DataFrame(
+        columns=[
+            "ClusterGroup",
+            "ClusterGroupCatalogLoadedAt",
+            "AssignedContainerTypeID",
+            "BaseCPU",
+            "abc_service_slug",
+        ]
+    )
+
+    result = rename_columns_to_snake_case(source)
+
+    assert result.columns.tolist() == [
+        "cluster_group",
+        "cluster_group_catalog_loaded_at",
+        "assigned_container_type_id",
+        "base_cpu",
+        "abc_service_slug",
+    ]
 
 
 def assignments(*rows):
@@ -86,6 +123,7 @@ def validity(*rows, periods_total=3):
                 "rpc_count": 0,
                 "node_type": "medium",
                 "rpc_type": "medium",
+                **ADMINISTRATIVE_VALUES,
             }
             for cluster, bundle, node_periods, proxy_periods, node_change, proxy_change in rows
         ]
@@ -239,6 +277,18 @@ def test_recommendation_gets_average_coverages_and_spec_date():
     assert row["BundleSpecLoadedAt"] == "2026-07-28"
     assert row["RecommendationStatus"] == "recommended"
     assert row["ConfidenceReason"] == ""
+    assert {name: row[name] for name in ADMINISTRATIVE_VALUES} == ADMINISTRATIVE_VALUES
+
+
+def test_administrative_fields_are_retained_without_recommendation():
+    data = validity(("seneca-sas", "ads", 0, 3, None, None))
+    data.loc[0, "rpc_count"] = 0
+
+    out = annotate_assignments_with_validity(assignments(), data, periods_total=3)
+
+    row = out.iloc[0]
+    assert row["RecommendationStatus"] == "not_recommended"
+    assert {name: row[name] for name in ADMINISTRATIVE_VALUES} == ADMINISTRATIVE_VALUES
 
 
 def test_load_bundle_validity_accepts_consistent_yql_diagnostics(tmp_path):

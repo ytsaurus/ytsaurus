@@ -123,6 +123,14 @@ $confidence_reason = ($spec_bad, $usage_bad, $config_bad) -> {
 $spec_by_day = (
     SELECT
         TableName() AS day, cluster AS cluster, bundle_name AS bundle,
+        abc_service_slug,
+        abc_service_path,
+        value_stream_slug,
+        value_stream_name_ru,
+        business_unit_slug,
+        business_unit_name_ru,
+        business_group_slug,
+        business_group_name_ru,
         tablet_node_count AS node_count,
         tablet_node_type_guarantee AS node_type,
         tablet_node_vcpu_guarantee AS node_vcpu,
@@ -336,6 +344,10 @@ $current_ranked = (
 $current = (
     SELECT
         cluster, bundle,
+        abc_service_slug, abc_service_path,
+        value_stream_slug, value_stream_name_ru,
+        business_unit_slug, business_unit_name_ru,
+        business_group_slug, business_group_name_ru,
         node_count, node_type, node_vcpu, node_memory, node_net,
         rpc_count, rpc_type, proxy_vcpu AS rpc_vcpu, proxy_memory AS rpc_memory,
         proxy_net AS rpc_net,
@@ -515,6 +527,14 @@ SELECT
     c.rpc_type AS rpc_type,
     c.rpc_count AS rpc_count,
     c.bundle_spec_loaded_at AS bundle_spec_loaded_at,
+    c.abc_service_slug AS abc_service_slug,
+    c.abc_service_path AS abc_service_path,
+    c.value_stream_slug AS value_stream_slug,
+    c.value_stream_name_ru AS value_stream_name_ru,
+    c.business_unit_slug AS business_unit_slug,
+    c.business_unit_name_ru AS business_unit_name_ru,
+    c.business_group_slug AS business_group_slug,
+    c.business_group_name_ru AS business_group_name_ru,
     $n_periods AS periods_total,
 
     IF(q.period < d.node_valid_periods, q.node_cpu_total_p75)    AS node_cpu_total_p75,

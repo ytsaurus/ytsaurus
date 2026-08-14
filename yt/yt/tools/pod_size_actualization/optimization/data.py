@@ -181,12 +181,24 @@ VALIDITY_COLUMNS = (
     'rpc_type',
 )
 
+BUNDLE_ADMINISTRATIVE_COLUMNS = (
+    'abc_service_slug',
+    'abc_service_path',
+    'value_stream_slug',
+    'value_stream_name_ru',
+    'business_unit_slug',
+    'business_unit_name_ru',
+    'business_group_slug',
+    'business_group_name_ru',
+)
+
 _VALIDITY_INPUT_COLUMNS = (
     'cluster',
     'bundle',
     'method_name',
     'periods_total',
     *VALIDITY_COLUMNS,
+    *BUNDLE_ADMINISTRATIVE_COLUMNS,
 )
 
 
@@ -205,12 +217,16 @@ def load_bundle_validity(bundle_file_paths: list) -> tuple:
             continue
         frames.append(df)
     if not frames:
-        return pd.DataFrame(columns=['cluster', 'bundle', *VALIDITY_COLUMNS]), 0
+        return pd.DataFrame(
+            columns=['cluster', 'bundle', *VALIDITY_COLUMNS, *BUNDLE_ADMINISTRATIVE_COLUMNS]
+        ), 0
 
     data = pd.concat(frames, ignore_index=True)
     periods_total = int(data['periods_total'].max())
     validity = data.drop_duplicates(['cluster', 'bundle'], keep='first')
-    return validity[['cluster', 'bundle', *VALIDITY_COLUMNS]], periods_total
+    return validity[
+        ['cluster', 'bundle', *VALIDITY_COLUMNS, *BUNDLE_ADMINISTRATIVE_COLUMNS]
+    ], periods_total
 
 
 def _rows_per_cluster(df) -> str:
