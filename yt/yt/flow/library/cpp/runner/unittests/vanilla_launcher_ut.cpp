@@ -4,6 +4,8 @@
 
 #include <yt/yt/flow/library/cpp/companion/config.h>
 
+#include <yt/yt/flow/library/cpp/vanilla/spec.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/client/api/client.h>
@@ -15,11 +17,15 @@
 #include <yt/yt/client/cache/cache.h>
 #include <yt/yt/client/cache/config.h>
 
+#include <yt/yt/core/logging/config.h>
+
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
 #include <util/system/env.h>
+
+#include <set>
 
 namespace NYT::NFlow {
 namespace {
@@ -144,6 +150,49 @@ TEST(TVanillaNodeConfigTest, OmitsCompanionPortForYtAllocatedPorts)
         /*workerPortCount*/ 2);
 
     EXPECT_FALSE(nodeConfig->Companion);
+}
+
+// The sandbox is discarded with the operation, so the job stderr — the one artifact YT retains
+// for finished jobs — must carry the info-level pipeline history, not just crash traces.
+TEST(TVanillaNodeConfigTest, MirrorsInfoLogToStderr)
+{
+    auto nodeConfig = BuildDefaultVanillaNodeConfig(
+        MakePipelinePath(),
+        /*proxyRole*/ std::nullopt,
+        /*workerPortCount*/ std::nullopt);
+    auto loggingConfig = nodeConfig->GetSingletonConfig<NLogging::TLogManagerConfig>();
+
+    auto writersFor = [&] (TStringBuf category, NLogging::ELogLevel level) {
+        std::set<std::string> writers;
+        for (const auto& rule : loggingConfig->Rules) {
+            if (rule->IsApplicable(category, level, NLogging::ELogFamily::PlainText)) {
+                writers.insert(rule->Writers.begin(), rule->Writers.end());
+            }
+        }
+        return writers;
+    };
+
+    EXPECT_EQ(writersFor("Worker", NLogging::ELogLevel::Info), (std::set<std::string>{"file", "stderr"}));
+    // Chatty infrastructure categories: the info-level stream is dropped, errors still reach stderr.
+    EXPECT_EQ(writersFor("Bus", NLogging::ELogLevel::Info), std::set<std::string>{});
+    EXPECT_EQ(writersFor("Bus", NLogging::ELogLevel::Error), std::set<std::string>{"stderr"});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Ten, the scheduler default, would drop most jobs' stderrs; the runner defaults to the scheduler
+// cap so every job's stderr survives the operation.
+TEST(TVanillaConfigTest, RetainsStderrOfEveryJobByDefault)
+{
+    EXPECT_EQ(MakeVanillaConfig()->MaxStderrCount, DefaultMaxStderrCount);
+    EXPECT_EQ(MakeVanillaConfig("max_stderr_count=7")->MaxStderrCount, 7);
+}
+
+TEST(TVanillaSpecTest, CarriesMaxStderrCount)
+{
+    auto spec = BuildVanillaOperationSpec(TVanillaSpec{.MaxStderrCount = 7});
+
+    EXPECT_EQ(ConvertTo<int>(spec->GetChildOrThrow("max_stderr_count")), 7);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
