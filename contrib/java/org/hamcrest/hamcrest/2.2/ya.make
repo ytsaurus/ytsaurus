@@ -5,6 +5,9 @@ VERSION(2.2)
 LICENSE(BSD-3-Clause)
 
 JAR_RESOURCE(1265713921)
+
 SRC_RESOURCE(1265713895)
+
+ORIGINAL_SOURCE(https://github.com/hamcrest/JavaHamcrest)
 
 END()

@@ -12,6 +12,9 @@ PEERDIR(
 )
 
 JAR_RESOURCE(1167242090)
+
 SRC_RESOURCE(1167242970)
+
+ORIGINAL_SOURCE(https://github.com/netty/netty)
 
 END()
