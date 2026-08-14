@@ -267,22 +267,59 @@ class Ssh:
     def run_pipeline(self, head_argv, stages, capture=False):
         """Runs head_argv piped through stages on the remote host. Re-validates the
         whitelist immediately before invocation and shlex-quotes every token, so
-        nothing can break out into shell syntax. Returns stdout when capture is set,
-        otherwise the exit code."""
+        nothing can break out into shell syntax. The remote bash wrapper reports
+        every stage's status and exits with the head (logslice) status; therefore a
+        grep with no matches is not misreported as a logslice failure. Returns
+        stdout when capture is set, otherwise the effective pipeline exit code."""
         self.validate_pipeline(stages)
-        remote_command = self._remote_command(head_argv)
+        pipeline = self._remote_command(head_argv)
         for stage in stages:
-            remote_command += " | " + self._remote_command(stage)
+            pipeline += " | " + self._remote_command(stage)
+        script = (
+            pipeline
+            + "; statuses=(\"${PIPESTATUS[@]}\"); "
+            + "printf '__LOGSLICE_PIPESTATUS__:%s\\n' \"${statuses[*]}\" >&2; "
+            + "exit \"${statuses[0]}\""
+        )
+        remote_command = "bash -c " + shlex.quote(script)
         cmd = ["ssh"] + self._base_opts + [self.host, remote_command]
         if self.verbose:
             eprint("Executing: {}".format(" ".join(shlex.quote(c) for c in cmd)))
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE if capture else None,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        statuses = []
+        stderr = []
+        marker = "__LOGSLICE_PIPESTATUS__:"
+        for line in result.stderr.splitlines():
+            if line.startswith(marker):
+                try:
+                    statuses = [int(value) for value in line[len(marker):].split()]
+                except ValueError:
+                    stderr.append(line)
+            else:
+                stderr.append(line)
+        if stderr:
+            eprint("\n".join(stderr))
+
+        effective_returncode = result.returncode
+        if statuses:
+            effective_returncode = statuses[0]
+            for stage, status in zip(stages, statuses[1:]):
+                if status != 0 and not (stage[0] == "grep" and status == 1):
+                    effective_returncode = status
+                    break
+
         if capture:
-            result = subprocess.run(cmd, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, text=True)
-            if result.returncode != 0:
-                sys.exit("ssh command failed: {}".format(result.stderr.strip()))
+            if effective_returncode != 0:
+                detail = "\n".join(stderr) or "exit code {}".format(
+                    effective_returncode)
+                sys.exit("ssh command failed: {}".format(detail))
             return result.stdout
-        return subprocess.run(cmd).returncode
+        return effective_returncode
 
     def remote_md5(self, remote_path):
         """Returns the md5 hex of an executable remote file, or None otherwise.
@@ -391,6 +428,7 @@ CHANNEL_BY_TYPE = {"debug": "debug", "error": "error", "info": ""}
 # so win the "most files" heuristic, yet are never the component wanted.
 # timbertruck's JSON-lines are unparseable here regardless.
 BLACKLISTED_BASES = frozenset(["timbertruck"])
+LOW_PRIORITY_BASES = frozenset(["push-client"])
 
 
 class LogFile:
@@ -451,11 +489,13 @@ def parse_log_name(name, directory=REMOTE_LOGS_DIR):
     return LogFile(name, base, channel, rotation, directory)
 
 
-def order_series(parsed_files, log_type):
+def order_series(parsed_files, log_type, component=None):
     """From already-parsed log files (all from the same logical source), returns
     the ordered (oldest -> newest) list for the requested type. Groups by base
     component and, if several components are present, picks the one with the most
-    files."""
+    files. When ``component`` is supplied, only that exact base is eligible;
+    this prevents a sidecar with more rotations from crossing the requested
+    service boundary."""
     wanted_channel = CHANNEL_BY_TYPE[log_type]
 
     by_base = {}
@@ -469,8 +509,17 @@ def order_series(parsed_files, log_type):
     if not by_base:
         return None, []
 
-    # Prefer the component with the most log files (the primary YT server).
-    base = max(by_base, key=lambda b: len(by_base[b]))
+    if component is not None:
+        if component not in by_base:
+            return None, []
+        base = component
+    else:
+        # Retained for library compatibility. The CLI always resolves an exact
+        # component from the hostname or --component before reaching here.
+        base = max(
+            by_base,
+            key=lambda b: (b not in LOW_PRIORITY_BASES, len(by_base[b]), b),
+        )
     files = by_base[base]
 
     current = [f for f in files if f.is_current]
@@ -495,11 +544,11 @@ def list_remote_dir(ssh, directory):
     return [line for line in out.splitlines() if line]
 
 
-def discover_live(ssh, log_type):
+def discover_live(ssh, log_type, component=None):
     """The live ``logs`` directory: returns (base, ordered_files)."""
     parsed = [parse_log_name(name, REMOTE_LOGS_DIR)
               for name in list_remote_dir(ssh, REMOTE_LOGS_DIR)]
-    return order_series(parsed, log_type)
+    return order_series(parsed, log_type, component)
 
 
 def archive_day_dirs(names, start_time, end_time):
@@ -520,7 +569,8 @@ def archive_day_dirs(names, start_time, end_time):
     return sorted(days)
 
 
-def discover_archive(ssh, log_type, start_time, end_time, archive_dir):
+def discover_archive(ssh, log_type, start_time, end_time, archive_dir,
+                     component=None):
     """The master log archive: returns (base, ordered_files). Only the day
     subdirectories overlapping the window are scanned. Consulted only when a
     window bound is given (an unbounded scan of the whole archive is never what
@@ -533,7 +583,7 @@ def discover_archive(ssh, log_type, start_time, end_time, archive_dir):
         directory = "{}/{}".format(archive_dir, day)
         for name in list_remote_dir(ssh, directory):
             parsed.append(parse_log_name(name, directory))
-    return order_series(parsed, log_type)
+    return order_series(parsed, log_type, component)
 
 
 ########################################################################
@@ -789,17 +839,168 @@ class FileSelector:
         return self.files[start_index:end_index + 1]
 
 
-def discover_series(ssh, log_type, start_time, end_time, archive_dir):
+def _candidate_bases(names, log_type, directory=REMOTE_LOGS_DIR):
+    wanted_channel = CHANNEL_BY_TYPE[log_type]
+    return {
+        parsed.base
+        for parsed in (parse_log_name(name, directory) for name in names)
+        if parsed is not None and parsed.channel == wanted_channel
+        and parsed.base not in BLACKLISTED_BASES
+    }
+
+
+def discover_component_candidates(ssh, log_type, start_time, end_time,
+                                  archive_dir):
+    """Return discovered component bases and every directory inspected.
+
+    Only directory entries are read here. Log contents are untouched until the
+    caller resolves an exact component and starts ``FileSelector``.
+    """
+    roots = [REMOTE_LOGS_DIR]
+    candidates = _candidate_bases(
+        list_remote_dir(ssh, REMOTE_LOGS_DIR), log_type
+    )
+    if archive_dir is not None and (start_time is not None or end_time is not None):
+        days = archive_day_dirs(
+            list_remote_dir(ssh, archive_dir), start_time, end_time
+        )
+        roots.append(archive_dir)
+        for day in days:
+            directory = "{}/{}".format(archive_dir, day)
+            roots.append(directory)
+            candidates.update(_candidate_bases(
+                list_remote_dir(ssh, directory), log_type, directory
+            ))
+    return sorted(candidates), roots
+
+
+def infer_host_component(host):
+    """Infer ``(role, component)`` from known YP pod hostname markers."""
+    short = host.split(".", 1)[0].lower()
+    node = re.match(
+        r"^(?P<prefix>[a-z]{3}\d+-\d+)-(?P<role>tab|dat|exec)-node(?:-|$)",
+        short,
+    )
+    if node:
+        role = {
+            "tab": "tablet-node",
+            "dat": "data-node",
+            "exec": "exec-node",
+        }[node.group("role")]
+        return role, "node"
+    if re.search(r"(?:^|-)master-cache(?:-|$)", short):
+        return "master-cache", "master-cache"
+    if re.search(r"(?:^|-)rpc(?:-proxy)?(?:-|$)", short):
+        location = re.match(r"^(?P<location>[a-z]{3}\d+-\d+)(?:-|$)", short)
+        return "rpc-proxy", (
+            "proxy-" + location.group("location") if location else "proxy"
+        )
+    if re.search(r"(?:^|-)http-proxy(?:-|$)", short) or \
+            re.search(r"(?:^|-)proxy(?:-|$)", short):
+        location = re.match(r"^(?P<location>[a-z]{3}\d+-\d+)(?:-|$)", short)
+        return "http-proxy", (
+            "proxy-" + location.group("location") if location else "proxy"
+        )
+    if re.search(r"(?:^|-)clock\d*(?:-|$)", short):
+        return "clock", "clock"
+    if re.search(r"(?:^|-)master(?:-|$)", short) or \
+            re.match(r"^m\d+(?:-|$)", short):
+        return "master", "master"
+    return None, None
+
+
+def _master_base(component, available):
+    if component in available:
+        return component
+    matches = [
+        candidate for candidate in available
+        if candidate.startswith("master-")
+        and not candidate.startswith("master-cache")
+    ]
+    if not matches:
+        return None
+    return sorted(
+        matches,
+        key=lambda candidate: (candidate in LOW_PRIORITY_BASES, candidate),
+    )[0]
+
+
+def resolve_component_route(host, override, candidates):
+    """Resolve one exact component or raise with the discovered candidates."""
+    available = sorted(set(candidates))
+    shown = ", ".join(available) if available else "(none)"
+    if override:
+        if override not in available:
+            raise ValueError(
+                "--component {!r} was not found; discovered: {}".format(
+                    override, shown
+                )
+            )
+        return {
+            "role": "explicit",
+            "component": override,
+            "base": override,
+            "source": "--component",
+            "confidence": "override",
+        }
+
+    role, component = infer_host_component(host)
+    if component is None:
+        raise ValueError(
+            "cannot infer the YT component from host {!r}; discovered: {}; "
+            "pass --component NAME".format(host, shown)
+        )
+    base = _master_base(component, available) if role == "master" else component
+    if base not in available:
+        raise ValueError(
+            "host {!r} maps to role={} component={!r}, but that base was not "
+            "found; discovered: {}; pass --component NAME only after verifying "
+            "the service boundary".format(host, role, component, shown)
+        )
+    return {
+        "role": role,
+        "component": component,
+        "base": base,
+        "source": "hostname",
+        "confidence": "high",
+    }
+
+
+def routing_metadata(route, roots):
+    base_suffix = ""
+    if route["base"] != route["component"]:
+        base_suffix = " base={}".format(route["base"])
+    return [
+        "Log routing: role={role} component={component}{base_suffix} "
+        "source={source} confidence={confidence}".format(
+            base_suffix=base_suffix, **route),
+        "Resolved log roots: " + ", ".join(roots),
+    ]
+
+
+def should_use_master_archive(host, override):
+    if override:
+        return (
+            override == "master"
+            or (override.startswith("master-")
+                and not override.startswith("master-cache"))
+        )
+    role, _ = infer_host_component(host)
+    return role == "master"
+
+
+def discover_series(ssh, log_type, start_time, end_time, archive_dir,
+                    component=None):
     """The log series to search, ordered oldest -> newest: the archive (when a
     window is given and day subdirectories are in range) followed by the live
     ``logs`` directory. Each entry is an ``(origin, base, ordered_files)`` tuple;
     a series with no files is dropped."""
     series = []
     archive_base, archive_files = discover_archive(
-        ssh, log_type, start_time, end_time, archive_dir)
+        ssh, log_type, start_time, end_time, archive_dir, component)
     if archive_files:
         series.append(("archive", archive_base, archive_files))
-    live_base, live_files = discover_live(ssh, log_type)
+    live_base, live_files = discover_live(ssh, log_type, component)
     if live_files:
         series.append(("live", live_base, live_files))
     return series
@@ -874,6 +1075,11 @@ def main():
     parser.add_argument("--type", default="debug",
                         choices=["debug", "error", "info"],
                         help="log type: debug, error or info (default: debug)")
+    parser.add_argument(
+        "--component",
+        default=None,
+        help="exact log base to select; overrides hostname-derived routing",
+    )
     parser.add_argument("-l", dest="logslice", default=None,
                         help="path to a logslice binary")
     parser.add_argument("-t", dest="start", default=None,
@@ -961,8 +1167,23 @@ def main():
     # discover_series returns them oldest -> newest and select_log_files selects
     # each independently, so a window straddling the archive/live boundary picks
     # up files from both.
+    archive_dir = args.archive_dir or None
+    if archive_dir is not None and not should_use_master_archive(
+            args.host, args.component):
+        archive_dir = None
+    candidates, roots = discover_component_candidates(
+        ssh, args.type, start_time, end_time, archive_dir
+    )
+    try:
+        route = resolve_component_route(args.host, args.component, candidates)
+    except ValueError as error:
+        sys.exit(str(error))
+    for line in routing_metadata(route, roots):
+        eprint(line)
+
     series = discover_series(
-        ssh, args.type, start_time, end_time, args.archive_dir or None)
+        ssh, args.type, start_time, end_time, archive_dir,
+        component=route["base"])
     if not series:
         sys.exit("No {} log files found on {}.".format(args.type, args.host))
 
