@@ -3,11 +3,17 @@
 import json
 from pathlib import Path
 
+from inflection import underscore
 import numpy as np
 import pandas as pd
 
-from .data import VALIDITY_COLUMNS
+from .data import BUNDLE_ADMINISTRATIVE_COLUMNS, VALIDITY_COLUMNS
 from .scripts import shared as cfg
+
+
+def rename_columns_to_snake_case(dataframe):
+    """Return a copy with CamelCase column names converted to snake_case."""
+    return dataframe.rename(columns=underscore)
 
 
 def save_progress(
@@ -164,6 +170,7 @@ def annotate_assignments_with_validity(
                     'Confidence': row[f'{prefix}_confidence'],
                     'RecommendationStatus': 'not_recommended',
                     'ConfidenceReason': _reason(row, prefix),
+                    **{name: row[name] for name in BUNDLE_ADMINISTRATIVE_COLUMNS},
                 }
             )
 

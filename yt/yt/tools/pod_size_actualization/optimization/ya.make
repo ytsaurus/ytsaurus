@@ -1,6 +1,7 @@
 PY3_LIBRARY()
 
 PEERDIR(
+    contrib/python/inflection
     contrib/python/pandas
     contrib/python/numpy
     contrib/python/tqdm
