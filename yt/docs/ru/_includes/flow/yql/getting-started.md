@@ -34,6 +34,7 @@ YQL over Flow позволяет описать [пайплайн](../../../flow
 | `PRAGMA Ytflow.PipelineDirectory = "...";` | Путь к директории с пайплайнами в {{product-name}} |
 | `PRAGMA Ytflow.PipelineName = "...";` | Имя пайплайна. Полный путь: `{pipeline_directory}/{pipeline_name}` |
 | `PRAGMA Ytflow.WorkerCount = "...";` | Количество воркер-джобов ванилла операции |
+| `PRAGMA Ytflow.EnableComputationPatternResources = "true";` | Включает переиспользование шаблонов вычислений между графами одного воркера. По умолчанию `false` |
 {% if audience == "internal" %}| `PRAGMA Ytflow.LogbrokerConsumerPath = "...";` | Путь к [Logbroker](../../../flow/extensions/logbroker.md) консьюмеру (только при чтении из Logbroker) |
 {% endif %}
 
