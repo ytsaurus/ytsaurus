@@ -496,7 +496,7 @@ private:
 
     void RunLsmCallback()
     {
-        YT_LOG_INFO("Running LSM");
+        YT_TLOG_INFO("Running LSM");
         auto backend = NLsm::CreateLsmBackend();
 
         static auto LsmTabletNodeConfig = New<NLsm::TLsmTabletNodeConfig>();

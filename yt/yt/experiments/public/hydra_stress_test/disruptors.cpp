@@ -98,14 +98,17 @@ void TSnapshotBuilder::DoRun()
             req->set_set_read_only(readOnly);
             req->set_wait_for_snapshot_completion(true);
 
-            YT_LOG_INFO("Building snapshot (ReadOnly: %v)", readOnly);
+            YT_TLOG_INFO("Building snapshot")
+                .With("ReadOnly", readOnly);
 
             auto rsp = WaitFor(req->Invoke());
             if (rsp.IsOK()) {
-                YT_LOG_INFO("Snapshot built (SnapshotId: %v)", rsp.Value()->snapshot_id());
+                YT_TLOG_INFO("Snapshot built")
+                    .With("SnapshotId", rsp.Value()->snapshot_id());
                 break;
             }
-            YT_LOG_INFO(rsp, "Failed building snapshot");
+            YT_TLOG_INFO("Failed building snapshot")
+                .With(rsp);
             TDelayedExecutor::WaitForDuration(TDuration::Seconds(3));
         }
 
@@ -146,13 +149,14 @@ void TPersistenceDestroyer::ClearPeer(int peerIndex)
     ClearingPeer_ = true;
     auto& peer = Peers_[peerIndex];
     auto peerId = peer->GetPeerId();
-    YT_LOG_INFO("Killing peer (PeerId: %v)", peerId);
+    YT_TLOG_INFO("Killing peer")
+        .With("PeerId", peerId);
 
     YT_VERIFY(WaitFor(peer->Finalize()).IsOK());
 
     if (peer->IsVoting()) {
         while (true) {
-            YT_LOG_DEBUG("Waiting for quorum to become alive");
+            YT_TLOG_DEBUG("Waiting for quorum to become alive");
 
             TPeerServiceProxy proxy(PeerChannel_);
             proxy.SetDefaultTimeout(Config_->DefaultProxyTimeout);
@@ -166,18 +170,21 @@ void TPersistenceDestroyer::ClearPeer(int peerIndex)
             TDelayedExecutor::WaitForDuration(TDuration::Seconds(3));
         }
     }
-    YT_LOG_DEBUG("Quorum is alive");
+    YT_TLOG_DEBUG("Quorum is alive");
 
     if (rand() % 2) {
-        YT_LOG_INFO("Removing snapshots and changelogs (PeerId: %v)", peerId);
+        YT_TLOG_INFO("Removing snapshots and changelogs")
+            .With("PeerId", peerId);
 
         NFS::RemoveRecursive(Config_->Snapshots->Path + "/" + ToString(peerId));
         NFS::RemoveRecursive(Config_->Changelogs->Path + "/" + ToString(peerId));
     }
 
-    YT_LOG_INFO("Started resurrecting peer (PeerId: %v)", peerId);
+    YT_TLOG_INFO("Started resurrecting peer")
+        .With("PeerId", peerId);
     peer->Initialize();
-    YT_LOG_INFO("Peer resurrected (PeerId: %v)", peerId);
+    YT_TLOG_INFO("Peer resurrected")
+        .With("PeerId", peerId);
     ClearingPeer_ = false;
 }
 
@@ -186,7 +193,7 @@ void TPersistenceDestroyer::DoRun()
     while (true) {
         TDelayedExecutor::WaitForDuration(Config_->ClearStatePeriod);
         if (ClearingPeer_) {
-            YT_LOG_INFO("Waiting for peer to be resurrected");
+            YT_TLOG_INFO("Waiting for peer to be resurrected");
             continue;
         }
         auto peerIdx = rand() % Config_->PeerCount;
@@ -240,9 +247,9 @@ void TNetworkDisruptor::SplitIntoGroups(int groupCount, bool keepQuorum)
                     votingPeerIndices.push_back(i);
                 } else {
                     ++deadVotingPeers;
-                    YT_LOG_WARNING("Peer is not alive (PeerId: %v, State: %v)",
-                        peer->GetPeerId(),
-                        peer->GetAutomatonState());
+                    YT_TLOG_WARNING("Peer is not alive")
+                        .With("PeerId", peer->GetPeerId())
+                        .With("State", peer->GetAutomatonState());
                 }
             }
         }
@@ -255,9 +262,9 @@ void TNetworkDisruptor::SplitIntoGroups(int groupCount, bool keepQuorum)
 
     for (int i = 0; i < peerCount; ++i) {
         const auto& peer = Peers_[i];
-        YT_LOG_INFO("Split into groups (PeerId: %v, GroupId: %v)",
-            peer->GetPeerId(),
-            groupIndex[i]);
+        YT_TLOG_INFO("Split into groups")
+            .With("PeerId", peer->GetPeerId())
+            .With("GroupId", groupIndex[i]);
     }
 
     for (int from = 0; from < peerCount; ++from) {
@@ -298,18 +305,18 @@ void TNetworkDisruptor::SplitIntoTwoGroups()
 
 void TNetworkDisruptor::DoRun()
 {
-    YT_LOG_INFO("Starting breaking connections");
+    YT_TLOG_INFO("Starting breaking connections");
 
     while (true) {
         LivenessChecker_->IncrementErrorCount(+1);
         int randomPartitionIterations = rand() % Config_->MaxRandomPartitionIterations;
         for (int i = 0; i < randomPartitionIterations; ++i) {
-            YT_LOG_INFO("Breaking connections randomly");
+            YT_TLOG_INFO("Breaking connections randomly");
             SplitRandomly();
             TDelayedExecutor::WaitForDuration(Config_->RandomPartitionDelay);
         }
 
-        YT_LOG_INFO("Splitting multiple times into two groups");
+        YT_TLOG_INFO("Splitting multiple times into two groups");
         int splitIntoTwoGroupsIterations = rand() % Config_->MaxSplitIntoTwoGroupsIterations;
         for (int i = 0; i < splitIntoTwoGroupsIterations; i++) {
             SplitIntoTwoGroups();
@@ -318,10 +325,11 @@ void TNetworkDisruptor::DoRun()
         }
 
         int partsCount = rand() % (Config_->PeerCount / 2 + 1) + 1;
-        YT_LOG_INFO("Splitting into groups (PartsCount: %v)", partsCount);
+        YT_TLOG_INFO("Splitting into groups")
+            .With("PartsCount", partsCount);
         SplitIntoGroups(partsCount, true);
         LivenessChecker_->IncrementErrorCount(-1);
-        YT_LOG_INFO("Quorum must be alive");
+        YT_TLOG_INFO("Quorum must be alive");
         TDelayedExecutor::WaitForDuration(Config_->QuorumPartitionDelay);
     }
 }
