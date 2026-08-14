@@ -22,7 +22,7 @@ using namespace NYTree;
 TSignatureValidator::TSignatureValidator(IKeyStoreReaderPtr keyReader)
     : KeyReader_(std::move(keyReader))
 {
-    YT_LOG_INFO("Signature validator initialized");
+    YT_TLOG_INFO("Signature validator initialized");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,17 +48,16 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature) cons
 {
     TSignatureHeader header;
     if (!signature->Header_) {
-        YT_LOG_WARNING("Signature is missing header");
+        YT_TLOG_WARNING("Signature is missing header");
         return MakeFuture(false);
     }
 
     try {
         header = ConvertTo<TSignatureHeader>(signature->Header_);
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(
-            ex,
-            "Received invalid signature header (Header: %v)",
-            signature->Header_.ToString());
+        YT_TLOG_WARNING("Received invalid signature header")
+            .With("Header", signature->Header_.ToString())
+            .With(TError(ex));
         return MakeFuture(false);
     }
 
@@ -67,7 +66,8 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature) cons
         [] (auto&& header_) { return std::pair{TOwnerId(header_.Issuer), TKeyId(header_.KeypairId)}; },
         header);
 
-    YT_LOG_DEBUG("Validating signature (SignatureId: %v)", signatureId);
+    YT_TLOG_DEBUG("Validating signature")
+        .With("SignatureId", signatureId);
 
     return KeyReader_->FindKey(keyIssuer, keyId).Apply(
         BIND([
@@ -78,36 +78,37 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature) cons
                 signature = std::move(signature)
             ] (const TKeyInfoPtr& keyInfo) {
                 if (!keyInfo) {
-                    YT_LOG_WARNING(
-                        "Key not found (SignatureId: %v, Issuer: %v, KeyPair: %v)",
-                        signatureId,
-                        keyIssuer,
-                        keyId);
+                    YT_TLOG_WARNING("Key not found")
+                        .With("SignatureId", signatureId)
+                        .With("Issuer", keyIssuer)
+                        .With("KeyPair", keyId);
                     return false;
                 }
 
                 auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
 
                 if (signature->Signature_.size() != SignatureSize) {
-                    YT_LOG_WARNING(
-                        "Signature size mismatch (SignatureId: %v, ReceivedSize: %v, ExpectedSize: %v)",
-                        signatureId,
-                        signature->Signature_.size(),
-                        SignatureSize);
+                    YT_TLOG_WARNING("Signature size mismatch")
+                        .With("SignatureId", signatureId)
+                        .With("ReceivedSize", signature->Signature_.size())
+                        .With("ExpectedSize", SignatureSize);
                     return false;
                 }
 
                 if (!keyInfo->Verify(toSign, std::span<const char, SignatureSize>(signature->Signature_))) {
-                    YT_LOG_WARNING("Cryptographic verification failed (SignatureId: %v)", signatureId);
+                    YT_TLOG_WARNING("Cryptographic verification failed")
+                        .With("SignatureId", signatureId);
                     return false;
                 }
 
                 if (!std::visit(TMetadataCheckVisitor{}, header)) {
-                    YT_LOG_WARNING("Metadata check failed (SignatureId: %v)", signatureId);
+                    YT_TLOG_WARNING("Metadata check failed")
+                        .With("SignatureId", signatureId);
                     return false;
                 }
 
-                YT_LOG_DEBUG("Successfully validated (SignatureId: %v)", signatureId);
+                YT_TLOG_DEBUG("Successfully validated")
+                    .With("SignatureId", signatureId);
                 return true;
             })
             .AsyncVia(GetCurrentInvoker()));

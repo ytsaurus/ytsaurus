@@ -228,7 +228,8 @@ private:
         try {
             writerReady = EventLogWriter_->Write(rows);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Could not write to event log");
+            YT_TLOG_WARNING("Could not write to event log")
+                .With(TError(ex));
         }
 
         if (!writerReady) {

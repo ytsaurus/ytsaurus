@@ -77,12 +77,12 @@ public:
 
         auto Logger = MakeQueryLogger(query);
 
-        YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, ExecutionBackend: %v, OptimizationLevel: %v)",
-            queryFingerprint,
-            *query->GetReadSchema(),
-            *query->GetTableSchema(),
-            options.ExecutionBackend,
-            options.OptimizationLevel);
+        YT_TLOG_DEBUG("Executing query")
+            .With("Fingerprint", queryFingerprint)
+            .With("ReadSchema", *query->GetReadSchema())
+            .With("ResultSchema", *query->GetTableSchema())
+            .With("ExecutionBackend", options.ExecutionBackend)
+            .With("OptimizationLevel", options.OptimizationLevel);
 
         TQueryStatistics queryStatistics;
 
@@ -132,7 +132,8 @@ private:
             *queryStatistics = TQueryStatistics::FromExecutionStatistics(
                 statistics,
                 options.StatisticsAggregation);
-            YT_LOG_DEBUG("Finalizing evaluation (QueryStatistics: %v)", *queryStatistics);
+            YT_TLOG_DEBUG("Finalizing evaluation")
+                .With("QueryStatistics", *queryStatistics);
 
             NTracing::AnnotateTraceContext([&] (const auto& traceContext) {
                 if (auto* tracked = dynamic_cast<NTableClient::TTrackedMemoryChunkProvider*>(memoryChunkProvider.Get())) {
@@ -185,7 +186,7 @@ private:
                 .ResponseFeatureFlags = responseFeatureFlags,
             };
 
-            YT_LOG_DEBUG("Evaluating query");
+            YT_TLOG_DEBUG("Evaluating query");
 
             queryInstance.SetDeadline(options.Deadline);
 
@@ -195,7 +196,8 @@ private:
                 fragmentParams.GetOpaqueDataSizes(),
                 &executionContext);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Query evaluation failed");
+            YT_TLOG_DEBUG("Query evaluation failed")
+                .With(TError(ex));
             THROW_ERROR_EXCEPTION("Query evaluation failed").With(ex);
         }
     }

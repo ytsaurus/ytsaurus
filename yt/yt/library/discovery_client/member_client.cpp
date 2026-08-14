@@ -127,14 +127,14 @@ public:
 
     TFuture<void> Start() override
     {
-        YT_LOG_INFO("Starting member client");
+        YT_TLOG_INFO("Starting member client");
         PeriodicExecutor_->Start();
         return FirstSuccessPromise_;
     }
 
     TFuture<void> Stop() override
     {
-        YT_LOG_INFO("Stopping member client");
+        YT_TLOG_INFO("Stopping member client");
         return PeriodicExecutor_->Stop();
     }
 
@@ -172,7 +172,8 @@ private:
 
     void OnHeartbeat()
     {
-        YT_LOG_DEBUG("Started sending heartbeat (Revision: %v)", Revision_);
+        YT_TLOG_DEBUG("Started sending heartbeat")
+            .With("Revision", Revision_);
 
         ++Revision_;
 
@@ -201,7 +202,9 @@ private:
         }
         auto rspOrError = WaitFor(session->Run());
         if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG(rspOrError, "Error reporting heartbeat (Revision: %v)", Revision_);
+            YT_TLOG_DEBUG("Error reporting heartbeat")
+                .With("Revision", Revision_)
+                .With(rspOrError);
 
             if (IsRetriableDiscoveryServerError(rspOrError)) {
                 FirstSuccessPromise_.TrySet(rspOrError);
@@ -211,7 +214,8 @@ private:
                         .With(rspOrError));
             }
         } else {
-            YT_LOG_DEBUG("Successfully reported heartbeat (Revision: %v)", Revision_);
+            YT_TLOG_DEBUG("Successfully reported heartbeat")
+                .With("Revision", Revision_);
             if (attributesUpdated) {
                 LastAttributesUpdateTime_ = now;
             }

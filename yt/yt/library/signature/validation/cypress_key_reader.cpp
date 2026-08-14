@@ -57,11 +57,10 @@ TFuture<TKeyInfoPtr> TCypressKeyReader::TKeyCache::FindKey(const TOwnerId& owner
     if (cookie.IsActive()) {
         auto keyNodePath = MakeCypressKeyPath(Config_->Path, ownerId, keyId);
 
-        YT_LOG_DEBUG(
-            "Looking for public key in Cypress (OwnerId: %v, KeyId: %v, Path: %v)",
-            ownerId,
-            keyId,
-            keyNodePath);
+        YT_TLOG_DEBUG("Looking for public key in Cypress")
+            .With("OwnerId", ownerId)
+            .With("KeyId", keyId)
+            .With("Path", keyNodePath);
 
         TGetNodeOptions options;
         static_cast<TMasterReadOptions&>(options) = *Config_->CypressReadOptions;
@@ -72,10 +71,9 @@ TFuture<TKeyInfoPtr> TCypressKeyReader::TKeyCache::FindKey(const TOwnerId& owner
                 auto [ownerId, keyId] = std::visit([] (const auto& meta) {
                     return std::pair(meta.OwnerId, meta.KeyId);
                 }, keyInfo->Meta());
-                YT_LOG_DEBUG(
-                    "Found public key in Cypress (OwnerId: %v, KeyId: %v)",
-                    ownerId,
-                    keyId);
+                YT_TLOG_DEBUG("Found public key in Cypress")
+                    .With("OwnerId", ownerId)
+                    .With("KeyId", keyId);
                 return New<TCachedKeyInfo>(key, std::move(keyInfo));
             }))
             .Subscribe(BIND([cookie = std::move(cookie)] (const TErrorOr<TCachedKeyInfoPtr>& result) mutable {
@@ -110,7 +108,7 @@ void TCypressKeyReader::Reconfigure(TCypressKeyReaderConfigPtr config)
     YT_VERIFY(config);
     // TODO(pogorelov): Recreate the cache only if its config has changed.
     KeyCache_.Store(New<TKeyCache>(std::move(config), Client_));
-    YT_LOG_INFO("Cypress key reader reconfigured");
+    YT_TLOG_INFO("Cypress key reader reconfigured");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

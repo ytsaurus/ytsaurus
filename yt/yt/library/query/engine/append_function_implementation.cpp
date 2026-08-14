@@ -147,9 +147,10 @@ void AppendFunctionImplementation(
                     return MakeUdfNativeObjectCode(implementationFiles, functionName, {functionSymbolName});
                 });
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to build native object code for UDF; falling back to IR bitcode (UDF: %Qv, Symbol: %v)",
-                    functionName,
-                    functionSymbolName);
+                YT_TLOG_WARNING("Failed to build native object code for UDF; falling back to IR bitcode")
+                    .WithFormat("UDF", "%Qv", functionName)
+                    .With("Symbol", functionSymbolName)
+                    .With(TError(ex));
             }
         }
 

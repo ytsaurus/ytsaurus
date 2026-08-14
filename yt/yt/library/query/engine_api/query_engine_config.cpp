@@ -84,7 +84,8 @@ void SetupSingletonConfigParameter(TYsonStructParameter<TQueryEngineDynamicConfi
 void ConfigureSingleton(const TQueryEngineConfigPtr& config)
 {
 #ifdef YT_VERBOSE_CHANGING_QUERY_ENGINE_CONFIG
-    YT_LOG_INFO("Configure QueryEngine (Config: %v)", ConvertToYsonString(config, EYsonFormat::Text));
+    YT_TLOG_INFO("Configure QueryEngine")
+        .With("Config", ConvertToYsonString(config, EYsonFormat::Text));
 #else
     Y_UNUSED(config);
 #endif

@@ -51,17 +51,18 @@ TSubprocessResult TSubprocess::Execute(const TSharedRef& input, TDuration timeou
 #ifdef _unix_
     auto killCookie = TDelayedExecutor::Submit(
         BIND([=, path = Path_, process = GetProcess()] {
-            YT_LOG_WARNING("Killing process due to timeout (Path: %v, ProcessId: %v, Timeout: %v)",
-                path,
-                process->GetProcessId(),
-                timeout);
+            YT_TLOG_WARNING("Killing process due to timeout")
+                .With("Path", path)
+                .With("ProcessId", process->GetProcessId())
+                .With("Timeout", timeout);
 
             try {
                 process->Kill(SIGKILL);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to kill process (Path: %v, ProcessId: %v)",
-                    path,
-                    process->GetProcessId());
+                YT_TLOG_ERROR("Failed to kill process")
+                    .With("Path", path)
+                    .With("ProcessId", process->GetProcessId())
+                    .With(TError(ex));
             }
         }),
         timeout);

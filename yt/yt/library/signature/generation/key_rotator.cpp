@@ -34,19 +34,20 @@ TKeyRotator::TKeyRotator(
         }),
         Config_.Acquire()->KeyRotationOptions))
 {
-    YT_LOG_INFO("Key rotator initialized (KeyRotationInterval: %v)", Config_.Acquire()->KeyRotationOptions.Period);
+    YT_TLOG_INFO("Key rotator initialized")
+        .With("KeyRotationInterval", Config_.Acquire()->KeyRotationOptions.Period);
 }
 
 
 TFuture<void> TKeyRotator::Start()
 {
-    YT_LOG_DEBUG("Starting key rotation");
+    YT_TLOG_DEBUG("Starting key rotation");
     return Executor_->StartAndGetFirstExecutedEvent();
 }
 
 TFuture<void> TKeyRotator::Stop()
 {
-    YT_LOG_DEBUG("Stopping key rotation");
+    YT_TLOG_DEBUG("Stopping key rotation");
     return Executor_->Stop();
 }
 
@@ -66,10 +67,10 @@ void TKeyRotator::Reconfigure(TKeyRotatorConfigPtr config)
         Config_.Store(std::move(config));
         Executor_->SetOptions(keyRotationOptions);
     }
-    YT_LOG_INFO("Key rotator reconfigured (KeyRotationInterval: %v, Splay: %v, Jitter: %v)",
-        keyRotationOptions.Period,
-        keyRotationOptions.Splay,
-        keyRotationOptions.Jitter);
+    YT_TLOG_INFO("Key rotator reconfigured")
+        .With("KeyRotationInterval", keyRotationOptions.Period)
+        .With("Splay", keyRotationOptions.Splay)
+        .With("Jitter", keyRotationOptions.Jitter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,9 +78,8 @@ void TKeyRotator::Reconfigure(TKeyRotatorConfigPtr config)
 TError TKeyRotator::DoRotate()
 {
     auto currentKeyInfo = Generator_->KeyInfo();
-    YT_LOG_INFO(
-        "Rotating keypair (CurrentKeyPair: %v)",
-        (currentKeyInfo ? std::optional(GetKeyId(currentKeyInfo->Meta())) : std::nullopt));
+    YT_TLOG_INFO("Rotating keypair")
+        .With("CurrentKeyPair", (currentKeyInfo ? std::optional(GetKeyId(currentKeyInfo->Meta())) : std::nullopt));
 
     auto now = Now();
     auto newKeyId = TGuid::Create();
@@ -96,13 +96,16 @@ TError TKeyRotator::DoRotate()
 
     auto error = WaitFor(KeyWriter_->RegisterKey(keyInfo));
     if (!error.IsOK()) {
-       YT_LOG_ERROR(error, "Failed to register new keypair during rotation (NewKeyPair: %v)", GetKeyId(keyInfo->Meta()));
+       YT_TLOG_ERROR("Failed to register new keypair during rotation")
+           .With("NewKeyPair", GetKeyId(keyInfo->Meta()))
+           .With(error);
        return error;
     }
 
     Generator_->SetKeyPair(std::move(newKeyPair));
 
-    YT_LOG_INFO("Rotated keypair (NewKeyPair: %v)", GetKeyId(keyInfo->Meta()));
+    YT_TLOG_INFO("Rotated keypair")
+        .With("NewKeyPair", GetKeyId(keyInfo->Meta()));
     return {};
 }
 

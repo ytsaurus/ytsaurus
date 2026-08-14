@@ -849,7 +849,8 @@ public:
             }
 
             if (evaluatedColumnViolatesConstraints) {
-                YT_LOG_DEBUG_IF(VerboseLogging_, "Skipping range (BoundRow: %kv)", boundRow);
+                YT_TLOG_DEBUG_IF(VerboseLogging_, "Skipping range")
+                    .WithFormat("BoundRow", "%kv", boundRow);
                 continue;
             }
 
@@ -863,7 +864,8 @@ public:
                 }
 
                 if (moduloColumnViolatesConstraints) {
-                    YT_LOG_DEBUG_IF(VerboseLogging_, "Skipping range (BoundRow: %kv)", boundRow);
+                    YT_TLOG_DEBUG_IF(VerboseLogging_, "Skipping range")
+                        .WithFormat("BoundRow", "%kv", boundRow);
                     continue;
                 }
 
@@ -885,7 +887,8 @@ public:
 
                 VerifyIdsInRange(rowRange);
 
-                YT_LOG_DEBUG_IF(VerboseLogging_, "Producing range [%kv .. %kv]", rowRange.first, rowRange.second);
+                YT_TLOG_DEBUG_IF(VerboseLogging_, "Producing range")
+                    .WithFormat("Range", "[%kv .. %kv]", rowRange.first, rowRange.second);
 
                 resultRanges.push_back(rowRange);
             } while (rowModuloGenerator.Next());
@@ -988,11 +991,9 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
     auto constraints = TConstraintsHolder(keyColumns.size(), GetRefCountedTypeCookie<TRangeInferrerBufferTag>(), memoryChunkProvider);
     auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer, constraintExtractors);
 
-    YT_LOG_DEBUG_IF(
-        options.VerboseLogging,
-        "Predicate %Qv defines key constraints %Qv",
-        InferName(predicate),
-        ToString(constraints, constraintRef));
+    YT_TLOG_DEBUG_IF(options.VerboseLogging, "Predicate defines key constraints")
+        .WithFormat("Predicate", "%Qv", InferName(predicate))
+        .WithFormat("Constraints", "%Qv", ToString(constraints, constraintRef));
 
     using TAlloc = TAllocatorOverChunkProvider<TRowRange>;
     std::set<TRowRange, std::less<TRowRange>, TAlloc> nonOverlappingEnrichedRanges(TAlloc(
@@ -1002,20 +1003,17 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
     TReadRangesGenerator rangesGenerator(constraints);
 
     auto [keyWidth, expansion] = rangesGenerator.GetExpansionDepthAndEstimation(constraintRef, rangeCountLimit);
-    YT_LOG_DEBUG(
-        "Estimate range expansion depth (KeyWidth: %v, Expansion: %v, LimitPerModulo: %v, InitialLimit: %v)",
-        keyWidth,
-        expansion,
-        rangeCountLimit,
-        options.RangeExpansionLimit);
+    YT_TLOG_DEBUG("Estimate range expansion depth")
+        .With("KeyWidth", keyWidth)
+        .With("Expansion", expansion)
+        .With("LimitPerModulo", rangeCountLimit)
+        .With("InitialLimit", options.RangeExpansionLimit);
 
     rangesGenerator.GenerateReadRanges(
         constraintRef,
         [&] (TRange<TColumnConstraint> constraintRow) {
-            YT_LOG_DEBUG_IF(
-                options.VerboseLogging,
-                "ConstraintRow: %v",
-                MakeFormattableView(
+            YT_TLOG_DEBUG_IF(options.VerboseLogging, "Inferring ranges from constraint row")
+                .With("ConstraintRow", MakeFormattableView(
                     constraintRow,
                     [] (TStringBuilderBase* builder, const TColumnConstraint& constraint) {
                         builder->AppendString("[");
@@ -1090,30 +1088,25 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
     auto constraints = TConstraintsHolder(keyColumns.size(), GetRefCountedTypeCookie<TRangeInferrerBufferTag>(), memoryChunkProvider);
     auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer, constraintExtractors);
 
-    YT_LOG_DEBUG_IF(
-        options.VerboseLogging,
-        "Predicate %Qv defines key constraints %Qv",
-        InferName(predicate),
-        ToString(constraints, constraintRef));
+    YT_TLOG_DEBUG_IF(options.VerboseLogging, "Predicate defines key constraints")
+        .WithFormat("Predicate", "%Qv", InferName(predicate))
+        .WithFormat("Constraints", "%Qv", ToString(constraints, constraintRef));
 
     TRowRanges resultRanges;
 
     TReadRangesGenerator rangesGenerator(constraints);
 
     auto [keyWidth, expansion] = rangesGenerator.GetExpansionDepthAndEstimation(constraintRef, options.RangeExpansionLimit);
-    YT_LOG_DEBUG(
-        "Estimate range expansion depth (KeyWidth: %v, Expansion: %v, Limit: %v)",
-        keyWidth,
-        expansion,
-        options.RangeExpansionLimit);
+    YT_TLOG_DEBUG("Estimate range expansion depth")
+        .With("KeyWidth", keyWidth)
+        .With("Expansion", expansion)
+        .With("Limit", options.RangeExpansionLimit);
 
     rangesGenerator.GenerateReadRanges(
         constraintRef,
         [&] (TRange<TColumnConstraint> constraintRow) {
-            YT_LOG_DEBUG_IF(
-                options.VerboseLogging,
-                "ConstraintRow: %v",
-                MakeFormattableView(
+            YT_TLOG_DEBUG_IF(options.VerboseLogging, "Inferring ranges from constraint row")
+                .With("ConstraintRow", MakeFormattableView(
                     constraintRow,
                     [] (TStringBuilderBase* builder, const TColumnConstraint& constraint) {
                         builder->AppendString("[");

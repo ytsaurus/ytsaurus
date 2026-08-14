@@ -60,7 +60,8 @@ std::vector<std::string> THuggingfaceClient::GetParquetFileUrls(const std::strin
     }
 
     auto url = Format("%v/api/datasets/%v/parquet/%v/%v", Url_, dataset, subset, split);
-    YT_LOG_INFO("Getting parquet file list (Url: %v)", url);
+    YT_TLOG_INFO("Getting parquet file list")
+        .With("Url", url);
     auto response = WaitFor(Client_->Get(url, headers))
         .ValueOrThrow();
 
@@ -71,9 +72,11 @@ std::vector<std::string> THuggingfaceClient::GetParquetFileUrls(const std::strin
 
     auto data = response->ReadAll();
     auto result = ParseParquetFileUrls(data.ToStringBuf());
-    YT_LOG_INFO("Parquet file list received (Count: %v)", result.size());
+    YT_TLOG_INFO("Parquet file list received")
+        .With("Count", result.size());
     for (const auto& url : result) {
-        YT_LOG_DEBUG("Parquet file (Url: %v)", url);
+        YT_TLOG_DEBUG("Parquet file")
+            .With("Url", url);
     }
 
     return result;

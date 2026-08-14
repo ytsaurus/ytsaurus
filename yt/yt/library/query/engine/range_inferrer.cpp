@@ -718,11 +718,9 @@ TSharedRange<TRowRange> CreateHeavyRangeInferrer(
         buffer,
         rangeExtractors);
 
-    YT_LOG_DEBUG_IF(
-        options.VerboseLogging,
-        "Predicate %Qv defines key constraints %Qv",
-        InferName(predicate),
-        keyTrie);
+    YT_TLOG_DEBUG_IF(options.VerboseLogging, "Predicate defines key constraints")
+        .WithFormat("Predicate", "%Qv", InferName(predicate))
+        .WithFormat("Constraints", "%Qv", keyTrie);
 
     // TODO(savrus): this is a hotfix for YT-2836. Further discussion in YT-2842.
     ui64 moduloExpansion = 1;
@@ -741,10 +739,8 @@ TSharedRange<TRowRange> CreateHeavyRangeInferrer(
         true,
         rangeCountLimit);
 
-    YT_LOG_DEBUG_IF(
-        options.VerboseLogging,
-        "Got %v ranges from key trie",
-        ranges.size());
+    YT_TLOG_DEBUG_IF(options.VerboseLogging, "Got ranges from key trie")
+        .With("RangeCount", ranges.size());
 
     auto rangeExpansionLeft = options.RangeExpansionLimit > ranges.size()
         ? options.RangeExpansionLimit - ranges.size()
@@ -782,11 +778,9 @@ TSharedRange<TRowRange> CreateLightRangeInferrer(
         rowBuffer,
         rangeExtractors);
 
-    YT_LOG_DEBUG_IF(
-        options.VerboseLogging,
-        "Predicate %Qv defines key constraints %Qv",
-        InferName(predicate),
-        keyTrie);
+    YT_TLOG_DEBUG_IF(options.VerboseLogging, "Predicate defines key constraints")
+        .WithFormat("Predicate", "%Qv", InferName(predicate))
+        .WithFormat("Constraints", "%Qv", keyTrie);
 
     auto mutableRanges = GetRangesFromTrieWithinRange(
         TRowRange(MinKey(), MaxKey()),

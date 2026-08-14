@@ -23,14 +23,14 @@ using namespace std::chrono_literals;
 TSignatureGenerator::TSignatureGenerator(TSignatureGeneratorConfigPtr config)
     : Config_(std::move(config))
 {
-    YT_LOG_INFO("Signature generator initialized");
+    YT_TLOG_INFO("Signature generator initialized");
 }
 
 void TSignatureGenerator::Reconfigure(TSignatureGeneratorConfigPtr config)
 {
     YT_VERIFY(config);
     Config_.Store(std::move(config));
-    YT_LOG_INFO("Signature generator reconfigured");
+    YT_TLOG_INFO("Signature generator reconfigured");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +40,8 @@ void TSignatureGenerator::SetKeyPair(TKeyPairPtr keyPair)
     bool isSane = keyPair->CheckSanity();
     auto keyId = GetKeyId(keyPair->KeyInfo()->Meta());
 
-    YT_LOG_DEBUG("Setting new key pair (KeyId: %v)", keyId);
+    YT_TLOG_DEBUG("Setting new key pair")
+        .With("KeyId", keyId);
     YT_VERIFY(isSane);
     KeyPair_.Store(std::move(keyPair));
 }
@@ -79,24 +80,21 @@ void TSignatureGenerator::Resign(const TSignaturePtr& signature) const
     auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
 
     if (!IsKeyPairMetadataValid(keyInfo->Meta())) {
-        YT_LOG_ALERT(
-            "Signing with an invalid keypair (SignatureId: %v, KeyPair: %v)",
-            signatureId,
-            GetKeyId(keyInfo->Meta()));
+        YT_TLOG_ALERT("Signing with an invalid keypair")
+            .With("SignatureId", signatureId)
+            .With("KeyPair", GetKeyId(keyInfo->Meta()));
     }
 
     signature->Signature_.resize(SignatureSize);
     signingKeyPair->Sign(toSign, std::span<char, SignatureSize>(signature->Signature_));
 
-    YT_LOG_TRACE(
-        "Created signature (SignatureId: %v, Header: %v, Payload: %v)",
-        signatureId,
-        header,
-        signature->Payload());
+    YT_TLOG_TRACE("Created signature")
+        .With("SignatureId", signatureId)
+        .With("Header", header)
+        .With("Payload", signature->Payload());
 
-    YT_LOG_DEBUG(
-        "Created signature (SignatureId: %v)",
-        signatureId);
+    YT_TLOG_DEBUG("Created signature")
+        .With("SignatureId", signatureId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

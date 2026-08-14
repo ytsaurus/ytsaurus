@@ -71,25 +71,27 @@ void TPortoProcess::DoSpawn()
             // This could happen if Porto container has already died or pid namespace of
             // parent container is not a parent of pid namespace of child container.
             // It's not a problem, since for Porto process pid is used for logging purposes only.
-            YT_LOG_DEBUG(ex, "Failed to get pid of root process (Container: %v)",
-                instance->GetName());
+            YT_TLOG_DEBUG("Failed to get pid of root process")
+                .With("Container", instance->GetName())
+                .With(TError(ex));
         }
 
-        YT_LOG_DEBUG("Process inside Porto spawned successfully (Path: %v, ExternalPid: %v, Container: %v)",
-            ResolvedPath_,
-            ProcessId_,
-            instance->GetName());
+        YT_TLOG_DEBUG("Process inside Porto spawned successfully")
+            .With("Path", ResolvedPath_)
+            .With("ExternalPid", ProcessId_)
+            .With("Container", instance->GetName());
 
         FinishedPromise_.ToFuture().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& exitStatus) {
             Finished_ = true;
             if (exitStatus.IsOK()) {
-                YT_LOG_DEBUG("Process inside Porto exited gracefully (ExternalPid: %v, Container: %v)",
-                    ProcessId_,
-                    instance->GetName());
+                YT_TLOG_DEBUG("Process inside Porto exited gracefully")
+                    .With("ExternalPid", ProcessId_)
+                    .With("Container", instance->GetName());
             } else {
-                YT_LOG_DEBUG(exitStatus, "Process inside Porto exited with an error (ExternalPid: %v, Container: %v)",
-                    ProcessId_,
-                    instance->GetName());
+                YT_TLOG_DEBUG("Process inside Porto exited with an error")
+                    .With("ExternalPid", ProcessId_)
+                    .With("Container", instance->GetName())
+                    .With(exitStatus);
             }
         }));
     } catch (const std::exception& ex) {

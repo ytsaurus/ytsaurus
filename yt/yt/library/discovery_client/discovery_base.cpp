@@ -67,7 +67,9 @@ void TDiscoveryBase::Ban(const std::vector<std::string>& names)
     for (const auto& name : names) {
         BannedUntil_[name] = banDeadline;
     }
-    YT_LOG_INFO("Participants banned (Names: %v, Until: %v)", names, banDeadline);
+    YT_TLOG_INFO("Participants banned")
+        .With("Names", names)
+        .With("Until", banDeadline);
 }
 
 void TDiscoveryBase::Unban(const std::string& name)
@@ -84,7 +86,8 @@ void TDiscoveryBase::Unban(const std::vector<std::string>& names)
     for (const auto& name : names) {
         if (auto it = BannedUntil_.find(name); it != BannedUntil_.end()) {
             BannedUntil_.erase(it);
-            YT_LOG_INFO("Participant unbanned (Name: %v)", name);
+            YT_TLOG_INFO("Participant unbanned")
+                .With("Name", name);
         }
     }
 }
@@ -99,7 +102,7 @@ TFuture<void> TDiscoveryBase::UpdateList(TDuration maxDivergency)
         ScheduledForceUpdate_ = BIND(&TDiscoveryBase::DoUpdateList, MakeStrong(this))
             .AsyncVia(Invoker_)
             .Run();
-        YT_LOG_DEBUG("Force update scheduled");
+        YT_TLOG_DEBUG("Force update scheduled");
     }
     return ScheduledForceUpdate_;
 }
@@ -120,7 +123,8 @@ void TDiscoveryBase::DoUpdateListNonThrowing()
     try {
         DoUpdateList();
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to update discovery");
+        YT_TLOG_WARNING("Failed to update discovery")
+            .With(TError(ex));
     }
 }
 

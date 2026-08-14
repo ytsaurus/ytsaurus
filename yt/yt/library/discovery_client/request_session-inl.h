@@ -37,9 +37,9 @@ TFuture<TResponse> TRequestSession<TResponse>::Run()
     UpAddresses_ = AddressPool_->GetUpAddresses();
     ProbationAddresses_ = AddressPool_->GetProbationAddresses();
 
-    YT_LOG_DEBUG("Request session started (UpAddresses: %v, ProbationAddresses: %v)",
-        UpAddresses_,
-        ProbationAddresses_);
+    YT_TLOG_DEBUG("Request session started")
+        .With("UpAddresses", UpAddresses_)
+        .With("ProbationAddresses", ProbationAddresses_);
 
     Shuffle(UpAddresses_.begin(), UpAddresses_.end());
     Shuffle(ProbationAddresses_.begin(), ProbationAddresses_.end());
@@ -79,10 +79,12 @@ void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
         TGuard addressesGuard(AddressesLock_);
         if (CurrentUpAddressIndex_ < std::ssize(UpAddresses_) && !forceProbation) {
             address = UpAddresses_[CurrentUpAddressIndex_++];
-            YT_LOG_DEBUG("Sending request to up address (Address: %v)", address);
+            YT_TLOG_DEBUG("Sending request to up address")
+                .With("Address", address);
         } else if (CurrentProbationAddressIndex_ < std::ssize(ProbationAddresses_)) {
             address = ProbationAddresses_[CurrentProbationAddressIndex_++];
-            YT_LOG_DEBUG("Sending request to probation address (Address: %v)", address);
+            YT_TLOG_DEBUG("Sending request to probation address")
+                .With("Address", address);
         } else if (HasExtraProbationRequest_) {
             HasExtraProbationRequest_ = false;
             return;

@@ -66,17 +66,17 @@ protected:
     //! Called under write lock.
     void OnAdded(const ISecretVaultService::TSecretSubrequest& subrequest) noexcept override
     {
-        YT_LOG_DEBUG("Secret added to cache (SecretId: %v, SecretVersion: %v)",
-            subrequest.SecretId,
-            subrequest.SecretVersion);
+        YT_TLOG_DEBUG("Secret added to cache")
+            .With("SecretId", subrequest.SecretId)
+            .With("SecretVersion", subrequest.SecretVersion);
     }
 
     //! Called under write lock.
     void OnRemoved(const ISecretVaultService::TSecretSubrequest& subrequest) noexcept override
     {
-        YT_LOG_DEBUG("Secret removed from cache (SecretId: %v, SecretVersion: %v)",
-            subrequest.SecretId,
-            subrequest.SecretVersion);
+        YT_TLOG_DEBUG("Secret removed from cache")
+            .With("SecretId", subrequest.SecretId)
+            .With("SecretVersion", subrequest.SecretVersion);
     }
 
 private:

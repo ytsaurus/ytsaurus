@@ -22,11 +22,9 @@ struct TValidateVisitor
     bool operator()(const TKeyPairMetadataImpl<version>& meta) const
     {
         if (meta.IsDeprecated) {
-            YT_LOG_WARNING(
-                "Received deprecated key info (Id: %v, Version: %v.%v)",
-                meta.KeyId,
-                version.Major,
-                version.Minor);
+            YT_TLOG_WARNING("Received deprecated key info")
+                .With("Id", meta.KeyId)
+                .WithFormat("Version", "%v.%v", version.Major, version.Minor);
         }
 
         // TODO(pavook): separate timestamp provider into interface.

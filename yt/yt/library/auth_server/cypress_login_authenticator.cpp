@@ -41,7 +41,8 @@ public:
         const auto& user = credentials.User;
         const auto& password = credentials.Password;
 
-        YT_LOG_DEBUG("Trying Cypress password authentication (User: %v)", user);
+        YT_TLOG_DEBUG("Trying Cypress password authentication")
+            .With("User", user);
 
         auto path = Format("//sys/users/%v", ToYPathLiteral(user));
 

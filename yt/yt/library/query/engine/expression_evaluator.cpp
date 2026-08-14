@@ -94,9 +94,9 @@ public:
 
         auto cookie = TAsyncSlruCacheBase::BeginInsert(key);
         if (cookie.IsActive()) {
-            YT_LOG_DEBUG("Codegen cache miss: generating expression evaluator (Expression: %v, Schema: %v)",
-                parsedSource.Source,
-                *schema);
+            YT_TLOG_DEBUG("Codegen cache miss: generating expression evaluator")
+                .With("Expression", parsedSource.Source)
+                .With("Schema", *schema);
 
             try {
                 auto evaluator = TExpressionEvaluator::Create(
@@ -106,7 +106,8 @@ public:
                     Profilers_);
                 cookie.EndInsert(New<TCachedExpressionEvaluator>(std::move(key), std::move(evaluator)));
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Failed to compile an expression");
+                YT_TLOG_DEBUG("Failed to compile an expression")
+                    .With(TError(ex));
                 cookie.Cancel(TError(ex).Wrap("Failed to compile an expression"));
             }
         }

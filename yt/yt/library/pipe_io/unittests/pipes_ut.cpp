@@ -401,7 +401,9 @@ protected:
         auto version = ParseLinuxKernelVersion();
         YT_VERIFY(!version.empty());
 
-        YT_LOG_DEBUG("Parsed kernel version: (Release: %v, versionTuple: %v)", version[0], version);
+        YT_TLOG_DEBUG("Parsed kernel version:")
+            .With("Release", version[0])
+            .With("versionTuple", version);
 
         if (version < std::vector{5, 15}) {
             GTEST_SKIP()

@@ -44,7 +44,7 @@ void TInstanceLimitsTracker::Start()
     if (!Running_) {
         Executor_->Start();
         Running_ = true;
-        YT_LOG_INFO("Instance limits tracker started");
+        YT_TLOG_INFO("Instance limits tracker started");
     }
 }
 
@@ -53,7 +53,7 @@ void TInstanceLimitsTracker::Stop()
     if (Running_) {
         YT_UNUSED_FUTURE(Executor_->Stop());
         Running_ = false;
-        YT_LOG_INFO("Instance limits tracker stopped");
+        YT_TLOG_INFO("Instance limits tracker stopped");
     }
 }
 
@@ -62,17 +62,19 @@ void TInstanceLimitsTracker::DoUpdateLimits()
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
 #ifdef _linux_
-    YT_LOG_DEBUG("Checking for instance limits update");
+    YT_TLOG_DEBUG("Checking for instance limits update");
 
     auto setIfOk = [] (auto* destination, const auto& valueOrError, const std::string& fieldName, bool alert = true) {
         if (valueOrError.IsOK()) {
             *destination = valueOrError.Value();
         } else {
-            YT_LOG_ALERT_IF(alert, valueOrError, "Failed to get container property (Field: %v)",
-                fieldName);
+            YT_TLOG_ALERT_IF(alert, "Failed to get container property")
+                .With("Field", fieldName)
+                .With(valueOrError);
 
-            YT_LOG_DEBUG(valueOrError, "Failed to get container property (Field: %v)",
-                fieldName);
+            YT_TLOG_DEBUG("Failed to get container property")
+                .With("Field", fieldName)
+                .With(valueOrError);
         }
     };
 
@@ -95,9 +97,9 @@ void TInstanceLimitsTracker::DoUpdateLimits()
         setIfOk(&cpuLimit, cpuStatistics.LimitTime, "CpuLimit");
 
         if (CpuGuarantee_ != cpuGuarantee) {
-            YT_LOG_INFO("Instance CPU guarantee updated (OldCpuGuarantee: %v, NewCpuGuarantee: %v)",
-                CpuGuarantee_,
-                cpuGuarantee);
+            YT_TLOG_INFO("Instance CPU guarantee updated")
+                .With("OldCpuGuarantee", CpuGuarantee_)
+                .With("NewCpuGuarantee", cpuGuarantee);
             CpuGuarantee_ = cpuGuarantee;
             // NB: We do not fire LimitsUpdated since this value used only for diagnostics.
         }
@@ -125,14 +127,15 @@ void TInstanceLimitsTracker::DoUpdateLimits()
         setIfOk(&limits.NetRx, netStatistics.RxLimit, "NetRxLimit", DontFireAlertOnError);
 
         if (InstanceLimits_ != limits) {
-            YT_LOG_INFO("Instance limits updated (OldLimits: %v, NewLimits: %v)",
-                InstanceLimits_,
-                limits);
+            YT_TLOG_INFO("Instance limits updated")
+                .With("OldLimits", InstanceLimits_)
+                .With("NewLimits", limits);
             InstanceLimits_ = limits;
             LimitsUpdated_.Fire(limits);
         }
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to get instance limits");
+        YT_TLOG_WARNING("Failed to get instance limits")
+            .With(TError(ex));
     }
 #endif
 }

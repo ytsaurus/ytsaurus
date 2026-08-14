@@ -223,19 +223,19 @@ public:
                 // NB: There are no helpers for distinguishing between <= 32 bit CPUs, let's just pray that nobody
                 // is running YT on 16 bit CPUs :)
                 if (!isCpuX86 || (llvmTriple.isArch64Bit() != isCpuX86And64Bit)) {
-                    YT_LOG_INFO(
-                        "Automatically detected CPU is incompatible with specified target triple, "
-                        "using generic CPU for llvm module configuration (DetectedCpu: %v, TargetTriple: %v)",
-                        std::string_view(cpu),
-                        triple);
+                    YT_TLOG_INFO(
+                        "Automatically detected CPU is incompatible with specified target triple; "
+                        "using generic CPU for llvm module configuration")
+                        .With("DetectedCpu", std::string_view(cpu))
+                        .With("TargetTriple", triple);
                     cpu = "generic";
                 }
             }
         }
 
-        YT_LOG_INFO("Initializing codegen module (Cpu: %v, TargetTriple: %v)",
-            std::string_view(cpu),
-            triple);
+        YT_TLOG_INFO("Initializing codegen module")
+            .With("Cpu", std::string_view(cpu))
+            .With("TargetTriple", triple);
 
         // Create module.
         auto cgModule = std::make_unique<llvm::Module>(moduleName.c_str(), Context_);
@@ -255,7 +255,8 @@ public:
             .setErrorStr(&what)
             .setTargetOptions(targetOptions);
 
-        YT_LOG_DEBUG("Compiling with codegen optimization (Level: %v)", OptimizationLevel_);
+        YT_TLOG_DEBUG("Compiling with codegen optimization")
+            .With("Level", OptimizationLevel_);
 
         builder.setOptLevel(OptimizationLevel_ == EOptimizationLevel::None
             ? llvm::CodeGenOptLevel::None
@@ -516,7 +517,7 @@ private:
         }
 #endif
 
-        YT_LOG_DEBUG("Started compiling module");
+        YT_TLOG_DEBUG("Started compiling module");
 
         ClearComdatSection();
 
@@ -530,13 +531,13 @@ private:
             llvm::errs() << "\n****************************************************************\n";
         }
 
-        YT_LOG_DEBUG("Verifying IR");
+        YT_TLOG_DEBUG("Verifying IR");
         YT_VERIFY(!llvm::verifyModule(*Module_, &llvm::errs()));
 
         RunInternalizePass();
 
         // Now, setup optimization pipeline and run actual optimizations.
-        YT_LOG_DEBUG("Optimizing IR");
+        YT_TLOG_DEBUG("Optimizing IR");
 
         OptimizeIR();
 
@@ -550,7 +551,7 @@ private:
             llvm::errs() << "\n****************************************************************\n";
         }
 
-        YT_LOG_DEBUG("Finalizing module");
+        YT_TLOG_DEBUG("Finalizing module");
 
         if (ExecutionBackend_ == EExecutionBackend::WebAssembly) {
             BuildWebAssemblyImpl();
@@ -565,7 +566,7 @@ private:
         }
 #endif
 
-        YT_LOG_DEBUG("Finished compiling module");
+        YT_TLOG_DEBUG("Finished compiling module");
         // TODO(sandello): Clean module here.
     }
 
@@ -605,10 +606,10 @@ private:
 
         info.print(printer);
 
-        YT_LOG_INFO("LLVM has triggered a message: %v/%v: %v",
-            DiagnosticSeverityToString(info.getSeverity()),
-            DiagnosticKindToString((llvm::DiagnosticKind)info.getKind()),
-            os.str().c_str());
+        YT_TLOG_INFO("LLVM has triggered a message")
+            .With("Severity", DiagnosticSeverityToString(info.getSeverity()))
+            .With("Kind", DiagnosticKindToString((llvm::DiagnosticKind)info.getKind()))
+            .With("Message", os.str().c_str());
     }
 
     static const char* DiagnosticKindToString(llvm::DiagnosticKind kind)

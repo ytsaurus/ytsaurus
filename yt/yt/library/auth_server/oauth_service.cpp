@@ -102,9 +102,9 @@ private:
             Config_->Port,
             Config_->UserInfoEndpoint);
 
-        YT_LOG_DEBUG("Calling OAuth get user info (Url: %v, CallId: %v)",
-            NHttp::SanitizeUrl(url),
-            callId);
+        YT_TLOG_DEBUG("Calling OAuth get user info")
+            .With("Url", NHttp::SanitizeUrl(url))
+            .With("CallId", callId);
 
         auto result = [&] {
             NProfiling::TWallTimer timer;
@@ -118,7 +118,8 @@ private:
             auto error = TError(NRpc::EErrorCode::InvalidCredentials, "OAuth call failed")
                 .With(result)
                 .With("call_id", callId);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("OAuth call failed")
+                .With(error);
             THROW_ERROR(error);
         }
 
@@ -135,7 +136,9 @@ private:
             userInfo.Subject = formattedResponse->GetChildValueOrThrow<std::string>(*Config_->UserInfoSubjectField);
         }
 
-        YT_LOG_DEBUG("OAuth user info obtained (Login: %v, Subject: %v)", userInfo.Login, userInfo.Subject);
+        YT_TLOG_DEBUG("OAuth user info obtained")
+            .With("Login", userInfo.Login)
+            .With("Subject", userInfo.Subject);
 
         return userInfo;
     }

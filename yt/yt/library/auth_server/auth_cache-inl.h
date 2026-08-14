@@ -73,7 +73,8 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
 
                     if (transientError) {
                         const auto& Logger = AuthLogger;
-                        YT_LOG_DEBUG(value, "Skipping transient error while updating authentication cache entry");
+                        YT_TLOG_DEBUG("Skipping transient error while updating authentication cache entry")
+                            .With(value);
                         return;
                     }
 

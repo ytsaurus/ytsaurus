@@ -47,9 +47,9 @@ public:
         auto tokenHash = credentials.Token
             ? GetSha256HexDigestLowerCase(*credentials.Token)
             : std::move(*credentials.TokenSha256);
-        YT_LOG_DEBUG("Authenticating user with Cypress token (TokenHash: %v, UserIP: %v)",
-            tokenHash,
-            userIP);
+        YT_TLOG_DEBUG("Authenticating user with Cypress token")
+            .With("TokenHash", tokenHash)
+            .With("UserIP", userIP);
 
         // Try to retrieve both old (@user) and new (@user_id) token attributes
         // at the same time to speed up the process.
@@ -87,15 +87,16 @@ private:
     {
         try {
             auto& result = rspOrError.ValueOrThrow();
-            YT_LOG_DEBUG("Cypress authentication succeeded (TokenHash: %v, Login: %v)",
-                tokenHash,
-                result.Login);
+            YT_TLOG_DEBUG("Cypress authentication succeeded")
+                .With("TokenHash", tokenHash)
+                .With("Login", result.Login);
             return std::move(result);
         } catch (const std::exception& ex) {
             auto error = TError("Cypress authentication failed")
                 .With("token_hash", tokenHash)
                 .With(ex);
-            YT_LOG_DEBUG(error, "Cypress authentication failed");
+            YT_TLOG_DEBUG("Cypress authentication failed")
+                .With(error);
             THROW_ERROR(error);
         }
     }

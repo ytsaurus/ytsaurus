@@ -157,10 +157,10 @@ TNestedColumnsSchema GetNestedColumnsSchema(const TTableSchema& tableSchema)
         if (nestedTableName.empty()) {
             nestedTableName = nestedColumn->NestedTableName;
         } else if (nestedTableName != nestedColumn->NestedTableName) {
-            YT_LOG_ALERT("Multiple nested tables are not supported yet (FirstName: %v, SecondName: %v, ColumnName: %v)",
-                nestedTableName,
-                nestedColumn->NestedTableName,
-                column.Name());
+            YT_TLOG_ALERT("Multiple nested tables are not supported yet")
+                .With("FirstName", nestedTableName)
+                .With("SecondName", nestedColumn->NestedTableName)
+                .With("ColumnName", column.Name());
 
             THROW_ERROR_EXCEPTION("Multiple nested tables are not supported yet")
                 .With("first_name", nestedTableName)
@@ -601,10 +601,10 @@ void TNestedTableMerger::UnpackKeyColumn(
 {
     // Expect each nested column has equal stream count.
     if (std::ssize(keyColumn) != mergeStreamCount) {
-        YT_LOG_ALERT("Merge stream count mismatch (ColumnId: %v, Expected: %v, Actual: %v)",
-            keyColumnId,
-            mergeStreamCount,
-            std::ssize(keyColumn));
+        YT_TLOG_ALERT("Merge stream count mismatch")
+            .With("ColumnId", keyColumnId)
+            .With("Expected", mergeStreamCount)
+            .With("Actual", std::ssize(keyColumn));
 
         THROW_ERROR_EXCEPTION("Merge stream count mismatch")
             .With("column_id", keyColumnId)
