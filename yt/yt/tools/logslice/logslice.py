@@ -47,6 +47,8 @@ ARCHIVE_DIR_DEFAULT = "/yt/master-logs-archive"
 RELEASE_SIZE_LIMIT = 3 * 1024 * 1024
 CONTROL_PERSIST_DEFAULT = 3600
 CONNECT_TIMEOUT_DEFAULT = 30
+CONTROL_PATH_ENV = "LOGSLICE_SSH_CONTROL_PATH"
+CONTROL_PERSIST_ENV = "LOGSLICE_SSH_CONTROL_PERSIST"
 
 # Path of this script inside Arcadia, used both to locate the binary and to
 # recover the Arcadia root when the script is run from an arbitrary directory.
@@ -152,13 +154,17 @@ class Ssh:
             host,
             verbose=False,
             control_socket=None,
-            control_persist=CONTROL_PERSIST_DEFAULT,
+            control_persist=None,
             connect_timeout=CONNECT_TIMEOUT_DEFAULT):
         self.host = host
         self.verbose = verbose
+        if control_persist is None:
+            control_persist = int(os.environ.get(
+                CONTROL_PERSIST_ENV, CONTROL_PERSIST_DEFAULT))
         self._control_persist = control_persist
-        self._control_path = control_socket or os.path.join(
-            tempfile.gettempdir(), "logslice_ssh_%r@%h:%p")
+        self._control_path = control_socket \
+            or os.environ.get(CONTROL_PATH_ENV) \
+            or os.path.join(tempfile.gettempdir(), "logslice_ssh_%r@%h:%p")
         self._base_opts = [
             "-o", "ControlMaster=auto",
             "-o", "ControlPath=" + self._control_path,
@@ -896,7 +902,7 @@ def main():
     parser.add_argument(
         "--control-persist",
         type=int,
-        default=CONTROL_PERSIST_DEFAULT,
+        default=None,
         help="seconds to keep the ssh master alive after use (default: {})"
              .format(CONTROL_PERSIST_DEFAULT))
     parser.add_argument(

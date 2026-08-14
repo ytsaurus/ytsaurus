@@ -659,6 +659,14 @@ class SshRunTest(unittest.TestCase):
 class SshOptionsTest(unittest.TestCase):
     """SSH socket and timeout settings are configurable with stable defaults."""
 
+    def test_skill_mcp_environment_supplies_shared_long_lived_socket(self):
+        with mock.patch.dict(os.environ, {
+                logslice.CONTROL_PATH_ENV: "/tmp/shared/%C",
+                logslice.CONTROL_PERSIST_ENV: "86400"}):
+            ssh = logslice.Ssh("h")
+        self.assertEqual(ssh._control_path, "/tmp/shared/%C")
+        self.assertIn("ControlPersist=86400", ssh._base_opts)
+
     def test_uses_supplied_control_socket(self):
         ssh = logslice.Ssh("h", control_socket="/tmp/socket")
         self.assertIn("ControlPath=/tmp/socket", ssh._base_opts)
