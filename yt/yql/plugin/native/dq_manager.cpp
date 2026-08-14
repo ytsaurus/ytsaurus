@@ -41,7 +41,7 @@ void TDqManagerConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("yt_backends", &TThis::YtBackends)
-        .NonEmpty();
+        .Default();
 
     registrar.Parameter("yt_coordinator", &TThis::YtCoordinator)
         .Default();
@@ -57,6 +57,7 @@ TDqManager::TDqManager(const TDqManagerConfigPtr& config)
     : Config_(config)
 {
     YT_VERIFY(Config_->FileStorage);
+    YT_VERIFY(!Config_->YtBackends.empty());
 
     NYson::TProtobufWriterOptions protobufWriterOptions;
     protobufWriterOptions.ConvertSnakeToCamelCase = true;

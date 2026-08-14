@@ -803,9 +803,16 @@ TIntrusivePtr<IDqGateway> CreateDqGateway(const TString& host, int port, const T
 }
 
 TIntrusivePtr<IDqGateway> CreateDqGateway(const NProto::TDqConfig& config) {
+    TString vanillaJobPath;
+    TString vanillaJobMd5;
+    if (!config.GetYtBackends().empty()) {
+        const auto& ytBackend = config.GetYtBackends()[0];
+        vanillaJobPath = ytBackend.GetVanillaJobLite();
+        vanillaJobMd5 = ytBackend.GetVanillaJobLiteMd5();
+    }
     return new TDqGateway("localhost", config.GetPort(),
-        config.GetYtBackends()[0].GetVanillaJobLite(),
-        config.GetYtBackends()[0].GetVanillaJobLiteMd5(),
+        vanillaJobPath,
+        vanillaJobMd5,
         TDuration::MilliSeconds(config.GetOpenSessionTimeoutMs()),
         TDuration::MilliSeconds(config.GetRequestTimeoutMs()));
 }

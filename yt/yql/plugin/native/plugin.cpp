@@ -368,6 +368,15 @@ public:
         , StartDqManager_(options.StartDqManager)
     {
         try {
+            if (StartDqManager_) {
+                if (!DqManagerConfig_) {
+                    ythrow yexception() << "DQ manager cannot be started without DQ manager config";
+                }
+                if (DqManagerConfig_->YtBackends.empty()) {
+                    ythrow yexception() << "DQ manager cannot be started without YT backends";
+                }
+            }
+
             NYql::NLog::InitLogger(std::move(options.LogBackend));
 
             auto& logger = NYql::NLog::YqlLogger();
@@ -484,7 +493,7 @@ public:
             }
             FuncRegistry_->SetSystemModulePaths(systemModules);
 
-            if (DqManagerConfig_) {
+            if (DqManagerConfig_ && !DqManagerConfig_->YtBackends.empty()) {
                 DqManagerConfig_->FileStorage = FileStorage_;
                 DqManager_ = New<TDqManager>(DqManagerConfig_);
             }
@@ -546,7 +555,7 @@ public:
         if (DqManager_ && StartDqManager_) {
             DqManager_->Start();
         }
-        if (DqManager_) {
+        if (DqGatewayOffloadThreadPool_) {
             // This pool is required for all DQ queries
             DqGatewayOffloadThreadPool_->Start(1);
         }
@@ -1299,15 +1308,17 @@ private:
 
         TVector<NYql::TDataProviderInitializer> dataProvidersInit;
         if (DqManagerConfig_) {
-            const auto vanillaJobLite = DqManager_->GetVanillaJobLite();
             NYql::NProto::TDqConfig dqConfig;
             dqConfig.SetPort(DqManagerConfig_->GrpcPort);
             dqConfig.SetOpenSessionTimeoutMs(TDuration::Minutes(60).MilliSeconds());
             dqConfig.SetRequestTimeoutMs(TDuration::Max().MilliSeconds());
 
-            auto* ytBackend = dqConfig.AddYtBackends();
-            ytBackend->SetVanillaJobLite(vanillaJobLite->GetPath());
-            ytBackend->SetVanillaJobLiteMd5(vanillaJobLite->GetMd5());
+            if (DqManager_) {
+                const auto vanillaJobLite = DqManager_->GetVanillaJobLite();
+                auto* ytBackend = dqConfig.AddYtBackends();
+                ytBackend->SetVanillaJobLite(vanillaJobLite->GetPath());
+                ytBackend->SetVanillaJobLiteMd5(vanillaJobLite->GetMd5());
+            }
 
             auto dqGateway = NYql::CreateDqGateway(dqConfig);
             // NOTE: prevent deadlock upon thread joining

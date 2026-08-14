@@ -347,7 +347,7 @@ public:
             pluginInitialDynamicConfig,
             singletonsConfigString,
             CreateArcadiaLogBackend(TLogger("YqlPlugin")),
-            Config_->EnableDQ);
+            Config_->EnableDQ && !Config_->UseQtWorkerYqlPlugin);
 
         if (Config_->UseQtWorkerYqlPlugin) {
             auto qtOptions = ConvertToQtWorkerPluginOptions(
