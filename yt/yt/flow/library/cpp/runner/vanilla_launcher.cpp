@@ -63,6 +63,11 @@ constexpr int DefaultRpcPort = 10080;
 constexpr int DefaultMonitoringPort = 10081;
 constexpr int DefaultCompanionPort = 10082;
 
+// Default `port_count` for tasks without a network project: rpc + monitoring for the
+// controller, plus the companion port for the worker.
+constexpr int DefaultControllerPortCount = 2;
+constexpr int DefaultWorkerPortCount = 3;
+
 // In-job file names for the binary and the node config; also the keys under vanilla/files.
 constexpr TStringBuf BinaryFileName = "flow_server";
 constexpr TStringBuf NodeConfigFileName = "node_config";
@@ -303,7 +308,7 @@ void TVanillaTaskConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default();
     registrar.Parameter("port_count", &TThis::PortCount)
-        .GreaterThan(0)
+        .GreaterThanOrEqual(0)
         .Default();
     registrar.Parameter("local_files", &TThis::LocalFiles)
         .Default();
@@ -369,6 +374,20 @@ void TVanillaConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("node_config", &TThis::NodeConfigPatch)
         .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        // Without a network project the jobs share the exec node's network, where the fixed
+        // ports of co-located flow jobs collide — so default to YT-allocated ports there.
+        // An explicit `port_count = 0` keeps the fixed ports.
+        if (!config->NetworkProject) {
+            if (!config->Controller->PortCount) {
+                config->Controller->PortCount = DefaultControllerPortCount;
+            }
+            if (!config->Worker->PortCount) {
+                config->Worker->PortCount = DefaultWorkerPortCount;
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

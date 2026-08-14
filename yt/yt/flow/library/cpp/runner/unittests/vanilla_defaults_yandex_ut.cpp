@@ -23,6 +23,10 @@ TEST(TVanillaConfigTest, InternalBuildUsesFlowNetworkProject)
 
     auto config = ConvertTo<TVanillaConfigPtr>(TYsonStringBuf(R"({pool=test;worker={count=1}})"));
     EXPECT_EQ(config->NetworkProject, expected);
+
+    // Under the internal network project the fixed ports stay, keeping internal launches unchanged.
+    EXPECT_FALSE(config->Controller->PortCount.has_value());
+    EXPECT_FALSE(config->Worker->PortCount.has_value());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

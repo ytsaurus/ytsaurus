@@ -61,6 +61,35 @@ TEST(TVanillaConfigTest, AllowsPerTaskDockerImage)
     EXPECT_FALSE(config->Controller->DockerImage.has_value());
 }
 
+// Without a network project the jobs share the exec node's network, where the fixed ports of
+// co-located flow jobs collide — the out-of-the-box launch must ask YT for ports instead.
+TEST(TVanillaConfigTest, DefaultsPortCountsWithoutNetworkProject)
+{
+    auto config = ConvertTo<TVanillaConfigPtr>(
+        TYsonStringBuf(R"({pool=test;worker={count=1};network_project=#})"));
+
+    EXPECT_EQ(config->Controller->PortCount, std::optional<int>(2));
+    EXPECT_EQ(config->Worker->PortCount, std::optional<int>(3));
+}
+
+TEST(TVanillaConfigTest, KeepsFixedPortsUnderNetworkProject)
+{
+    auto config = ConvertTo<TVanillaConfigPtr>(
+        TYsonStringBuf(R"({pool=test;worker={count=1};network_project=custom})"));
+
+    EXPECT_FALSE(config->Controller->PortCount.has_value());
+    EXPECT_FALSE(config->Worker->PortCount.has_value());
+}
+
+TEST(TVanillaConfigTest, ExplicitZeroPortCountKeepsFixedPorts)
+{
+    auto config = ConvertTo<TVanillaConfigPtr>(TYsonStringBuf(
+        R"({pool=test;controller={count=1;port_count=0};worker={count=1;port_count=0};network_project=#})"));
+
+    EXPECT_EQ(config->Controller->PortCount, std::optional<int>(0));
+    EXPECT_EQ(config->Worker->PortCount, std::optional<int>(0));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr TStringBuf PipelineCluster = "pipeline-cluster";
