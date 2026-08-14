@@ -440,7 +440,9 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
                     },
                 };
                 if (!record.IsIndexed) {
-                    newRecord.Ttl = Config_->NotIndexedQueriesTtl->MilliSeconds();
+                    if (auto ttl = Config_->NotIndexedQueriesTtl) {
+                        newRecord.Ttl = ttl->MilliSeconds();
+                    }
                 }
                 if (wireRowsetOrError.IsOK()) {
                     NDetail::ProcessRowset(newRecord, wireRowsetOrError.Value(), Config_->ResultingRowsetValueLengthLimit);

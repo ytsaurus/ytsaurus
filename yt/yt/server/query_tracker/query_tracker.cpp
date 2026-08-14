@@ -660,8 +660,9 @@ private:
                     .IsTutorial = activeQueryRecord->IsTutorial,
                 };
                 if (!activeQueryRecord->IsIndexed) {
-                    if (auto ttl = GetConfigByEngine(Config_, activeQueryRecord->Engine)->NotIndexedQueriesTtl)
-                    newRecord.Ttl = ttl->MilliSeconds();
+                    if (auto ttl = GetConfigByEngine(Config_, activeQueryRecord->Engine)->NotIndexedQueriesTtl) {
+                        newRecord.Ttl = ttl->MilliSeconds();
+                    }
                 }
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),

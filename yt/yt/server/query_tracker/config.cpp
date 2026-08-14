@@ -149,7 +149,7 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("proxy_config", &TThis::ProxyConfig)
         .DefaultNew();
 
-    registrar.Postprocessor([&] (TThis* config) {
+    registrar.Postprocessor([] (TThis* config) {
         auto engines = std::vector<TEngineConfigBasePtr>{
             config->MockEngine,
             config->QLEngine,
@@ -157,7 +157,7 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
             config->ChytEngine,
             config->SpytEngine,
         };
-        for (auto& engine : engines) {
+        for (const auto& engine : engines) {
             if (!engine->NotIndexedQueriesTtl) {
                 engine->NotIndexedQueriesTtl = config->NotIndexedQueriesTtl;
             }
