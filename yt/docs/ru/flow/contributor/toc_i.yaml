@@ -1,0 +1,9 @@
+items:
+  - name: Style guide
+    href: style-guide.md
+  - name: Внутренняя аутентификация
+    href: internal-authentication.md
+  - name: Фреймворк для тестирования пайплайнов
+    href: testing-framework.md
+  - name: Генератор документации по YSON-структурам
+    href: generate-yson-struct-doc.md

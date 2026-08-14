@@ -1,0 +1,9 @@
+items:
+  - name: Примеры задач
+    href: tasks.md
+  - name: FAQ
+    href: faq.md
+  - name: Справочник конфигураций
+    href: generated_docs/all_yson_structs.md
+  - name: CLI {{product-name}} Flow
+    href: tools/cli.md

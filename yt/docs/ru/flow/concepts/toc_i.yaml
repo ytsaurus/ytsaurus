@@ -1,0 +1,33 @@
+items:
+  - name: Глоссарий
+    href: glossary.md
+  - name: Объект Pipeline
+    href: pipeline-object.md
+  - name: Вычисления (Computation)
+    href: computation.md
+  - name: Swift
+    href: swift.md
+  - name: Stateful-обработка
+    href: stateful.md
+  - name: Вотермарки (Watermarks)
+    href: watermarks.md
+  - name: Таймеры (Timers)
+    href: timers.md
+  - name: Key Visitor Streams
+    href: key_visitor.md
+  - name: Гарантии обработки
+    href: guarantees.md
+  - name: Порядок обработки сообщений
+    href: ordering.md
+  - name: Lineage
+    href: lineage.md
+  - name: Компаньон (Companion)
+    href: companion.md
+  - name: Ресурсы компаньона
+    href: companion-resources.md
+  - name: Worker groups
+    href: worker_groups.md
+  - name: Distributed Throttler
+    href: distributed_throttler.md
+  - name: Spec, DynamicSpec и Config
+    href: spec.md
