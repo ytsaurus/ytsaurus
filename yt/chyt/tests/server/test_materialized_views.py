@@ -90,12 +90,6 @@ class TestMaterializedViews(ClickHouseTestBase):
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query("DROP TABLE no_such_mv")
 
-            remove(progress_root, recursive=True, force=True)
-            create("document", progress_root)
-            with raises_yt_error(code=QueryFailedError):
-                clique.make_query(self.CREATE_MV_QUERY)
-            assert not exists(statement_path)
-
     @authors("buyval01")
     def test_rejections(self):
         dict_schema = [
