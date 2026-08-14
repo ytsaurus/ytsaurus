@@ -238,8 +238,8 @@ void TCommitterBase::CloseChangelog(const IChangelogPtr& changelog)
     changelog->Close()
         .Subscribe(BIND([this, this_ = MakeStrong(this), changelog = changelog] (const TError& error) {
             if (error.IsOK()) {
-                YT_LOG_DEBUG("Changelog closed successfully (ChangelogId: %v)",
-                    changelog->GetId());
+                YT_TLOG_DEBUG("Changelog closed successfully")
+                    .With("ChangelogId", changelog->GetId());
             } else {
                 YT_LOG_WARNING(error, "Failed to close changelog (ChangelogId: %v)",
                     changelog->GetId());
@@ -315,7 +315,7 @@ void TLeaderCommitter::SerializeMutations(TMutationDraftQueue* mutationDraftQueu
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (RotatingChangelog_) {
-        YT_LOG_DEBUG("Skip serializing mutations as changelog is being rotated");
+        YT_TLOG_DEBUG("Skip serializing mutations as changelog is being rotated");
         return;
     }
 
@@ -332,7 +332,7 @@ void TLeaderCommitter::SerializeMutations(TMutationDraftQueue* mutationDraftQueu
 
     if (EpochContext_->LeaderSwitchStarted) {
         // This check is also monotonic (see above).
-        YT_LOG_INFO("Cannot serialize mutation while leader switch is in progress");
+        YT_TLOG_INFO("Cannot serialize mutation while leader switch is in progress");
         return;
     }
 
@@ -508,9 +508,9 @@ void TLeaderCommitter::FlushMutations()
 
         auto& followerState = PeerStates_[followerId];
         if (followerState.Mode == EAcceptMutationsMode::Slow && followerState.InFlightRequestCount > 0) {
-            YT_LOG_DEBUG("Skipping sending mutations to follower since there are in-flight requests (FollowerId: %v, InFlightRequestCount: %v)",
-                followerId,
-                followerState.InFlightRequestCount);
+            YT_TLOG_DEBUG("Skipping sending mutations to follower since there are in-flight requests")
+                .With("FollowerId", followerId)
+                .With("InFlightRequestCount", followerState.InFlightRequestCount);
             continue;
         }
 
@@ -520,12 +520,11 @@ void TLeaderCommitter::FlushMutations()
             followerState.InFlightMutationCount > config->MaxInFlightMutationCount ||
             followerState.InFlightMutationDataSize > config->MaxInFlightMutationDataSize))
         {
-            YT_LOG_DEBUG("Skipping sending mutations to follower since in-flight limits are violated (FollowerId: %v, "
-                "InFlightRequestCount: %v, InFlightMutationCount: %v, InFlightMutationDataSize: %v)",
-                followerId,
-                followerState.InFlightRequestCount,
-                followerState.InFlightMutationCount,
-                followerState.InFlightMutationDataSize);
+            YT_TLOG_DEBUG("Skipping sending mutations to follower since in-flight limits are violated")
+                .With("FollowerId", followerId)
+                .With("InFlightRequestCount", followerState.InFlightRequestCount)
+                .With("InFlightMutationCount", followerState.InFlightMutationCount)
+                .With("InFlightMutationDataSize", followerState.InFlightMutationDataSize);
             continue;
         }
 
@@ -596,11 +595,11 @@ void TLeaderCommitter::FlushMutations()
             snapshotRequest->set_read_only(LastSnapshotInfo_->ReadOnly);
         }
 
-        YT_LOG_DEBUG("Sending mutations to follower (PeerId: %v, NextExpectedSequenceNumber: %v, MutationCount: %v, CommittedState: %v)",
-            followerId,
-            followerState.NextExpectedSequenceNumber,
-            mutationCount,
-            CommittedState_);
+        YT_TLOG_DEBUG("Sending mutations to follower")
+            .With("PeerId", followerId)
+            .With("NextExpectedSequenceNumber", followerState.NextExpectedSequenceNumber)
+            .With("MutationCount", mutationCount)
+            .With("CommittedState", CommittedState_);
 
         BatchSizeSummary_.Record(mutationCount);
 
@@ -765,9 +764,9 @@ void TLeaderCommitter::MaybePromoteCommittedSequenceNumber()
 
     auto committedSequenceNumber = loggedNumbers[CellManager_->GetQuorumPeerCount() - 1];
 
-    YT_LOG_DEBUG("Trying to promote committed sequence number (NewCommittedSequenceNumber: %v, OldCommittedSequenceNumber: %v)",
-        committedSequenceNumber,
-        CommittedState_.SequenceNumber);
+    YT_TLOG_DEBUG("Trying to promote committed sequence number")
+        .With("NewCommittedSequenceNumber", committedSequenceNumber)
+        .With("OldCommittedSequenceNumber", CommittedState_.SequenceNumber);
     if (committedSequenceNumber == -1 || CommittedState_.SequenceNumber >= committedSequenceNumber) {
         return;
     }
@@ -782,9 +781,9 @@ void TLeaderCommitter::MaybePromoteCommittedSequenceNumber()
     YT_VERIFY(committedSequenceNumber >= CommittedState_.SequenceNumber);
 
     TReachableState committedState(segmentId, committedSequenceNumber);
-    YT_LOG_DEBUG("Committed sequence number promoted (Previous: %v, Current: %v)",
-        CommittedState_,
-        committedState);
+    YT_TLOG_DEBUG("Committed sequence number promoted")
+        .With("Previous", CommittedState_)
+        .With("Current", committedState);
     CommittedState_ = committedState;
 
     OnCommittedSequenceNumberUpdated();
@@ -1159,12 +1158,12 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
         NextLoggedVersion_ = NextLoggedVersion_.Advance();
         ++NextLoggedSequenceNumber_;
 
-        YT_LOG_DEBUG("Logging mutation at leader (SequenceNumber: %v, Version: %v, RandomSeed: %x, MutationType: %v, MutationId: %v)",
-            mutation->SequenceNumber,
-            mutation->Version,
-            mutation->RandomSeed,
-            mutation->Request.Type,
-            mutation->Request.MutationId);
+        YT_TLOG_DEBUG("Logging mutation at leader")
+            .With("SequenceNumber", mutation->SequenceNumber)
+            .With("Version", mutation->Version)
+            .WithFormat("RandomSeed", "%x", mutation->RandomSeed)
+            .With("MutationType", mutation->Request.Type)
+            .With("MutationId", mutation->Request.MutationId);
 
         if (!MutationQueue_.empty()) {
             YT_VERIFY(MutationQueue_.back()->SequenceNumber + 1 == mutation->SequenceNumber);
@@ -1203,9 +1202,8 @@ void TLeaderCommitter::OnMutationsLogged(
         return;
     }
 
-    YT_LOG_DEBUG("Mutations logged at leader (SequenceNumbers: %v-%v)",
-        firstSequenceNumber,
-        lastSequenceNumber);
+    YT_TLOG_DEBUG("Mutations logged at leader")
+        .WithFormat("SequenceNumbers", "%v-%v", firstSequenceNumber, lastSequenceNumber);
 
     auto& selfState = PeerStates_[CellManager_->GetSelfPeerId()];
     selfState.LastLoggedSequenceNumber = std::max(selfState.LastLoggedSequenceNumber, lastSequenceNumber);

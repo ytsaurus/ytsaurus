@@ -226,7 +226,7 @@ public:
         RpcServer_->RegisterService(HydraService_);
         RpcServer_->RegisterService(InternalHydraService_);
 
-        YT_LOG_INFO("Hydra instance initialized");
+        YT_TLOG_INFO("Hydra instance initialized");
 
         ControlState_ = EPeerState::Elections;
 
@@ -243,7 +243,7 @@ public:
             return OKFuture;
         }
 
-        YT_LOG_INFO("Hydra instance is finalizing");
+        YT_TLOG_INFO("Hydra instance is finalizing");
 
         auto error = TError("Hydra instance is finalizing");
         return ElectionManager_->Abandon(error)
@@ -1435,8 +1435,8 @@ private:
 
             if (controlState == EPeerState::Following) {
                 if (snapshotId == SnapshotId_) {
-                    YT_LOG_DEBUG("Received a redundant snapshot request, ignoring (SnapshotId: %v)",
-                        SnapshotId_);
+                    YT_TLOG_DEBUG("Received a redundant snapshot request, ignoring")
+                        .With("SnapshotId", SnapshotId_);
                 } else {
                     auto readOnly = snapshotRequest.read_only();
                     auto snapshotSequenceNumber = snapshotRequest.sequence_number();
@@ -1538,12 +1538,12 @@ private:
         }
 
         auto randomSeed = RandomNumber<ui64>();
-        YT_LOG_DEBUG("Enqueue mutation (RandomSeed: %x, MutationType: %v, MutationId: %v, MutationSize: %v, EpochId: %v)",
-            randomSeed,
-            request.Type,
-            request.MutationId,
-            request.Data.Size(),
-            request.EpochId);
+        YT_TLOG_DEBUG("Enqueue mutation")
+            .WithFormat("RandomSeed", "%x", randomSeed)
+            .With("MutationType", request.Type)
+            .With("MutationId", request.MutationId)
+            .With("MutationSize", request.Data.Size())
+            .With("EpochId", request.EpochId);
 
         MutationDraftQueue_.Enqueue({
             .Request = request,
@@ -1822,7 +1822,7 @@ private:
         ScheduleRestart(epochContext, reason);
 
         if (armPriorityBoost) {
-            YT_LOG_DEBUG("Waiting for participation");
+            YT_TLOG_DEBUG("Waiting for participation");
             WaitFor(ParticipationPromise_.ToFuture())
                 .ThrowOnError();
         }
@@ -1837,9 +1837,9 @@ private:
         }
 
         if (value) {
-            YT_LOG_INFO("Priority boost armed");
+            YT_TLOG_INFO("Priority boost armed");
         } else {
-            YT_LOG_INFO("Priority boost disarmed");
+            YT_TLOG_INFO("Priority boost disarmed");
         }
 
         EnablePriorityBoost_ = value;
@@ -1985,7 +1985,7 @@ private:
             .ValueOrThrow();
 
         if (maxSnapshotId == InvalidSegmentId) {
-            YT_LOG_INFO("No snapshots found");
+            YT_TLOG_INFO("No snapshots found");
             // Let's pretend we have snapshot 0.
             return {0, 0, 0};
         }
@@ -1997,17 +1997,16 @@ private:
         auto meta = reader->GetParams().Meta;
         if (!meta.has_last_mutation_term()) {
             // COMPAT(aleksandra-zh): Looks safe.
-            YT_LOG_INFO("No term in snapshot meta (SnapshotId: %v, SequenceNumber: %v)",
-                maxSnapshotId,
-                meta.sequence_number());
+            YT_TLOG_INFO("No term in snapshot meta")
+                .With("SnapshotId", maxSnapshotId)
+                .With("SequenceNumber", meta.sequence_number());
             return {0, maxSnapshotId, meta.sequence_number()};
         }
 
         TElectionPriority electionPriority(meta.last_mutation_term(), meta.last_segment_id(), meta.sequence_number());
-        YT_LOG_INFO(
-            "The latest snapshot election priority is available (SnapshotId: %v, ElectionPriority: %v)",
-            maxSnapshotId,
-            electionPriority);
+        YT_TLOG_INFO("The latest snapshot election priority is available")
+            .With("SnapshotId", maxSnapshotId)
+            .With("ElectionPriority", electionPriority);
         return electionPriority;
     }
 
@@ -2030,15 +2029,15 @@ private:
 
         auto optionalElectionPriority = ChangelogStore_->GetElectionPriority();
         if (optionalElectionPriority) {
-            YT_LOG_INFO("Changelog election priority is available (ElectionPriority: %v)",
-                *optionalElectionPriority);
+            YT_TLOG_INFO("Changelog election priority is available")
+                .With("ElectionPriority", *optionalElectionPriority);
             return *optionalElectionPriority;
         } else {
             // TODO(aleksandra-zh): our priority is logged state.
             auto state = DecoratedAutomaton_->GetReachableState();
             TElectionPriority priority(DecoratedAutomaton_->GetLastMutationTerm(), state);
-            YT_LOG_INFO("Election priority is not available, using automaton state instead (AutomatonElectionPriority: %v)",
-                priority);
+            YT_TLOG_INFO("Election priority is not available, using automaton state instead")
+                .With("AutomatonElectionPriority", priority);
             return priority;
         }
     }
@@ -2047,7 +2046,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Initializing persistent stores");
+        YT_TLOG_INFO("Initializing persistent stores");
 
         auto backoffTime = Config_->Get()->MinPersistentStoreInitializationBackoffTime;
 
@@ -2109,7 +2108,7 @@ private:
             AutomatonEpochContext_.Reset();
         }
 
-        YT_LOG_INFO("Hydra instance finalized");
+        YT_TLOG_INFO("Hydra instance finalized");
     }
 
     void ReconfigureControl(TDynamicDistributedHydraManagerConfigPtr dynamicConfig)
@@ -2267,10 +2266,10 @@ private:
             epochContext->LeaseTracker->SubscribeLeaseLost(
                 BIND(&TDistributedHydraManager::OnLeaderLeaseLost, MakeWeak(this), MakeWeak(epochContext)));
 
-            YT_LOG_INFO("Waiting for followers to enter recovery state");
+            YT_TLOG_INFO("Waiting for followers to enter recovery state");
             WaitFor(epochContext->LeaseTracker->GetNextQuorumFuture())
                 .ThrowOnError();
-            YT_LOG_INFO("Followers are in recovery");
+            YT_TLOG_INFO("Followers are in recovery");
 
             // TODO(aleksandra-zh): fix this when there are no changelogs.
             auto newChangelog = AcquireChangelog();
@@ -2310,7 +2309,7 @@ private:
                 YT_LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
                 GraceDelayStatus_ = EGraceDelayStatus::GraceDelayDisabled;
             } else if (TryAbandonExistingLease(epochContext)) {
-                YT_LOG_INFO("Previous leader lease was abandoned; ignoring leader lease grace delay");
+                YT_TLOG_INFO("Previous leader lease was abandoned; ignoring leader lease grace delay");
                 GraceDelayStatus_ = EGraceDelayStatus::PreviousLeaseAbandoned;
             } else {
                 YT_LOG_INFO("Waiting for previous leader lease to expire (Delay: %v)",
@@ -2319,16 +2318,16 @@ private:
                 GraceDelayStatus_ = EGraceDelayStatus::GraceDelayExecuted;
             }
 
-            YT_LOG_INFO("Waiting for followers to recover");
+            YT_TLOG_INFO("Waiting for followers to recover");
             epochContext->LeaseTracker->EnableSendingTerm();
             WaitFor(epochContext->LeaseTracker->GetNextQuorumFuture())
                 .ThrowOnError();
-            YT_LOG_INFO("Followers recovered");
-            YT_LOG_INFO("Acquiring leader lease");
+            YT_TLOG_INFO("Followers recovered");
+            YT_TLOG_INFO("Acquiring leader lease");
             epochContext->LeaseTracker->EnableTracking();
             WaitFor(epochContext->LeaseTracker->GetNextQuorumFuture())
                 .ThrowOnError();
-            YT_LOG_INFO("Leader lease acquired");
+            YT_TLOG_INFO("Leader lease acquired");
 
             const auto& leaderCommitter = epochContext->LeaderCommitter;
             leaderCommitter->Start();
@@ -2338,10 +2337,10 @@ private:
                 .Run())
                 .ThrowOnError();
 
-            YT_LOG_INFO("Committing initial heartbeat mutation");
+            YT_TLOG_INFO("Committing initial heartbeat mutation");
             WaitFor(ForceCommitMutation(MakeSystemMutationRequest(HeartbeatMutationType)))
                 .ThrowOnError();
-            YT_LOG_INFO("Initial heartbeat mutation committed");
+            YT_TLOG_INFO("Initial heartbeat mutation committed");
 
             ExecuteFinalRecoveryAction();
 
@@ -2414,7 +2413,7 @@ private:
             }
         } catch (const TErrorException& ex) {
             if (ex.Error().FindMatching(NHydra::EErrorCode::RestartAfterRecovery)) {
-                YT_LOG_INFO("Leader restart after recovery requested");
+                YT_TLOG_INFO("Leader restart after recovery requested");
             } else {
                 YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
                 TDelayedExecutor::WaitForDuration(Config_->Get()->RestartBackoffTime);
@@ -2428,7 +2427,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        YT_LOG_INFO("Leader recovery completed");
+        YT_TLOG_INFO("Leader recovery completed");
 
         DecoratedAutomaton_->OnLeaderRecoveryComplete();
 
@@ -2439,7 +2438,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        YT_LOG_INFO("Leader active");
+        YT_TLOG_INFO("Leader active");
 
         LeaderRecovered_ = true;
 
@@ -2456,7 +2455,7 @@ private:
             return false;
         }
 
-        YT_LOG_INFO("Trying to abandon existing leader lease");
+        YT_TLOG_INFO("Trying to abandon existing leader lease");
 
         std::vector<TFuture<TInternalHydraServiceProxy::TRspAbandonLeaderLeasePtr>> futures;
         const auto& cellManager = epochContext->CellManager;
@@ -2614,7 +2613,7 @@ private:
             WaitFor(epochContext->Recovery->Run())
                 .ThrowOnError();
 
-            YT_LOG_INFO("Follower is catching up");
+            YT_TLOG_INFO("Follower is catching up");
 
             epochContext->CatchingUp = true;
 
@@ -2625,7 +2624,7 @@ private:
 
             // NB: Do not discard CatchingUp.
 
-            YT_LOG_INFO("Follower caught up");
+            YT_TLOG_INFO("Follower caught up");
 
             MaybeSetReadOnlyOnRecovery();
 
@@ -2634,7 +2633,7 @@ private:
 
             ControlFollowerRecoveryComplete_.Fire();
 
-            YT_LOG_INFO("Follower recovery completed");
+            YT_TLOG_INFO("Follower recovery completed");
 
             SystemLockGuard_.Release();
 
@@ -2751,7 +2750,7 @@ private:
         ElectionManager_->Discombobulate();
         ControlEpochContext_->Discombobulated = true;
 
-        YT_LOG_INFO("Peer is discombobulated");
+        YT_TLOG_INFO("Peer is discombobulated");
     }
 
     bool CheckForInitialPing(TReachableState committedState, int term)
@@ -2951,7 +2950,7 @@ private:
             return OKFuture;
         }
 
-        YT_LOG_DEBUG("Synchronizing with leader");
+        YT_TLOG_DEBUG("Synchronizing with leader");
 
         auto epochContext = ControlEpochContext_;
 
@@ -2991,8 +2990,8 @@ private:
         auto sequenceNumber = rsp->sync_sequence_number();
 
 
-        YT_LOG_DEBUG("Received synchronization response from leader (SyncSequenceNumber: %v)",
-            sequenceNumber);
+        YT_TLOG_DEBUG("Received synchronization response from leader")
+            .With("SyncSequenceNumber", sequenceNumber);
 
         YT_VERIFY(!epochContext->LeaderSyncSequenceNumber);
         epochContext->LeaderSyncSequenceNumber = sequenceNumber;
@@ -3016,9 +3015,9 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Leader synchronization complete (NeededCommittedSequenceNumber: %v, AutomatonSequenceNumber: %v)",
-            neededCommittedSequenceNumber,
-            automatonSequenceNumber);
+        YT_TLOG_DEBUG("Leader synchronization complete")
+            .With("NeededCommittedSequenceNumber", neededCommittedSequenceNumber)
+            .With("AutomatonSequenceNumber", automatonSequenceNumber);
 
         TrySetLeaderSyncPromise(epochContext);
         epochContext->LeaderSyncSequenceNumber.reset();
@@ -3108,9 +3107,9 @@ private:
         request->SetTimeout(Config_->Get()->ControlRpcTimeout);
         request->Invoke().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TInternalHydraServiceProxy::TErrorOrRspReportMutationsStateHashesPtr& rspOrError) {
             if (rspOrError.IsOK()) {
-                YT_LOG_DEBUG("Mutations state hashes reported (StartSequenceNumber: %v, EndSequenceNumber: %v)",
-                    startSequenceNumber,
-                    endSequenceNumber);
+                YT_TLOG_DEBUG("Mutations state hashes reported")
+                    .With("StartSequenceNumber", startSequenceNumber)
+                    .With("EndSequenceNumber", endSequenceNumber);
             } else {
                 YT_LOG_DEBUG(rspOrError, "Error reporting mutations state hashes (StartSequenceNumber: %v, EndSequenceNumber: %v)",
                     startSequenceNumber,
@@ -3127,13 +3126,13 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Committing heartbeat mutation");
+        YT_TLOG_DEBUG("Committing heartbeat mutation");
 
         CommitMutation(MakeSystemMutationRequest(HeartbeatMutationType))
             .WithTimeout(Config_->Get()->HeartbeatMutationTimeout)
             .Subscribe(BIND([=, this, this_ = MakeStrong(this), weakEpochContext = MakeWeak(ControlEpochContext_)] (const TErrorOr<TMutationResponse>& result) {
                 if (result.IsOK()) {
-                    YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
+                    YT_TLOG_DEBUG("Heartbeat mutation commit succeeded");
                     return;
                 }
 
@@ -3213,7 +3212,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Discombobulating nonvoting peers");
+        YT_TLOG_INFO("Discombobulating nonvoting peers");
 
         auto epochContext = ControlEpochContext_;
         if (!IsActiveLeader() || !epochContext || !epochContext->LeaderCommitter) {

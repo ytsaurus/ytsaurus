@@ -297,16 +297,14 @@ public:
                 }
             }
 
-            YT_LOG_DEBUG_IF(context.RowCount > 0, "Rows written "
-                "(TransactionId: %v, TabletId: %v, RowCount: %v, Lockless: %v, "
-                "Generation: %x, PrepareSignature: %x, CommitSignature: %x)",
-                params.TransactionId,
-                tabletId,
-                context.RowCount,
-                lockless,
-                params.Generation,
-                mutationPrepareSignature,
-                mutationCommitSignature);
+            YT_TLOG_DEBUG_IF(context.RowCount > 0, "Rows written")
+                .With("TransactionId", params.TransactionId)
+                .With("TabletId", tabletId)
+                .With("RowCount", context.RowCount)
+                .With("Lockless", lockless)
+                .WithFormat("Generation", "%x", params.Generation)
+                .WithFormat("PrepareSignature", "%x", mutationPrepareSignature)
+                .WithFormat("CommitSignature", "%x", mutationCommitSignature);
 
             if (atomicity == EAtomicity::Full) {
                 transaction->TransientPrepareSignature() += mutationPrepareSignature;
@@ -522,15 +520,13 @@ private:
 
                 AddPersistentLeases(transaction, prerequisiteTransactionIds);
 
-                YT_LOG_DEBUG(
-                    "Performing atomic write as leader (TabletId: %v, TransactionId: %v, BatchGeneration: %x, "
-                    "TransientGeneration: %x, PersistentGeneration: %x, PrerequisiteTransactionIds: %v)",
-                    writeRecord.TabletId,
-                    transactionId,
-                    generation,
-                    transaction->GetTransientGeneration(),
-                    transaction->GetPersistentGeneration(),
-                    prerequisiteTransactionIds);
+                YT_TLOG_DEBUG("Performing atomic write as leader")
+                    .With("TabletId", writeRecord.TabletId)
+                    .With("TransactionId", transactionId)
+                    .WithFormat("BatchGeneration", "%x", generation)
+                    .WithFormat("TransientGeneration", "%x", transaction->GetTransientGeneration())
+                    .WithFormat("PersistentGeneration", "%x", transaction->GetPersistentGeneration())
+                    .With("PrerequisiteTransactionIds", prerequisiteTransactionIds);
 
                 // Monotonicity of persistent generations is ensured by the early finish in #Write whenever the
                 // current batch is obsolete.
@@ -1288,11 +1284,10 @@ private:
         auto tabletId = tablet->GetId();
         if (transaction->TransientAffectedTabletIds().emplace(tabletId).second) {
             auto lockCount = LockTablet(tablet, ETabletLockType::TransientTransaction);
-            YT_LOG_DEBUG(
-                "Transaction transiently affects tablet (TransactionId: %v, TabletId: %v, LockCount: %v)",
-                transaction->GetId(),
-                tablet->GetId(),
-                lockCount);
+            YT_TLOG_DEBUG("Transaction transiently affects tablet")
+                .With("TransactionId", transaction->GetId())
+                .With("TabletId", tablet->GetId())
+                .With("LockCount", lockCount);
         }
     }
 
