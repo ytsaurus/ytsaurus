@@ -733,7 +733,7 @@ Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs)
     }
 
     if (!AreArgumentsEmpty(args, kwargs)) {
-        YT_LOG_WARNING("The AsyncDumpParquet function received unrecognized arguments");
+        YT_TLOG_WARNING("AsyncDumpParquet function received unrecognized arguments");
     }
 
     std::optional<i64> fileCompressionLevel;
@@ -787,7 +787,7 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
     };
 
     if (!AreArgumentsEmpty(args, kwargs)) {
-        YT_LOG_WARNING("The DumpParquet function received unrecognized arguments");
+        YT_TLOG_WARNING("DumpParquet function received unrecognized arguments");
     }
 
     auto pipe = std::make_shared<TArrowInputStreamAdapter>(stream.get());
@@ -812,7 +812,7 @@ Py::Object AsyncDumpOrc(Py::Tuple& args, Py::Dict& kwargs)
         fileCompression = GetOrcFileCompression(Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "file_compression_codec")));
     }
     if (!AreArgumentsEmpty(args, kwargs)) {
-        YT_LOG_WARNING("The AsyncDumpOrc function received unrecognized arguments");
+        YT_TLOG_WARNING("AsyncDumpOrc function received unrecognized arguments");
     }
     auto config = TFormatConfig{
         .OrcConfig = TOrcConfig{
@@ -843,7 +843,7 @@ Py::Object DumpOrc(Py::Tuple& args, Py::Dict& kwargs)
     }
 
     if (!AreArgumentsEmpty(args, kwargs)) {
-        YT_LOG_WARNING("The DumpOrc function received unrecognized arguments");
+        YT_TLOG_WARNING("DumpOrc function received unrecognized arguments");
     }
 
     auto config = TFormatConfig{
@@ -876,7 +876,7 @@ Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs)
     }
 
     if (!AreArgumentsEmpty(args, kwargs)) {
-        YT_LOG_WARNING("The UploadParquet function received unrecognized arguments");
+        YT_TLOG_WARNING("UploadParquet function received unrecognized arguments");
     }
 
     Py::Callable classType(TArrowRawIterator::type());
@@ -897,7 +897,7 @@ Py::Object UploadOrc(Py::Tuple& args, Py::Dict& kwargs)
     }
 
     if (!AreArgumentsEmpty(args, kwargs)) {
-        YT_LOG_WARNING("The UploadOrc function received unrecognized arguments");
+        YT_TLOG_WARNING("UploadOrc function received unrecognized arguments");
     }
 
     Py::Callable classType(TArrowRawIterator::type());
