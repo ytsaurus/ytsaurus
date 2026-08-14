@@ -314,7 +314,7 @@ TEST_F(TChunkListCumulativeStatisticsTest, HunkTreeStatisticsJournals)
         hunkChunk1->Seal(sealInfo);
 
         // NB: Same as in OnHunkJournalChunkSealed.
-        VisitAllAncestorsInHunkTree(hunkChunk1, [&] (TChunkList* chunkList, bool firstOccurrence) {
+        VisitHunkTreeAncestors(hunkChunk1, [&] (TChunkList* chunkList, bool firstOccurrence) {
             if (firstOccurrence) {
                 chunkList->AccumulateHunkStatistics(hunkChunk1, /*force*/ true);
             }

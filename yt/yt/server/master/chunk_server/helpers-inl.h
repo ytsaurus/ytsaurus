@@ -69,7 +69,7 @@ void VisitAncestors(TChunkList* chunkList, F functor)
 }
 
 template <class F>
-void VisitAllAncestorsInHunkTree(TChunk* hunkChunk, F&& functor)
+void VisitHunkTreeAncestors(TChunk* hunkChunk, F&& functor)
 {
     const auto& Logger = ChunkServerLogger;
 
@@ -88,10 +88,15 @@ void VisitAllAncestorsInHunkTree(TChunk* hunkChunk, F&& functor)
     for (const auto& [chunkParent, _] : hunkChunk->Parents()) {
         const auto& chunkList = chunkParent->AsChunkList();
 
+        if (chunkList->GetKind() == EChunkListKind::Scratch) {
+            // Scratch chunk list holds chunks without maintaining statistics; just skip it.
+            continue;
+        }
+
         if (chunkList->GetKind() != EChunkListKind::Hunk &&
             chunkList->GetKind() != EChunkListKind::HunkTablet)
         {
-            YT_LOG_ALERT("Parent chunk list of unexpected kind was encountered upon visiting ancestors in hunk tree "
+            YT_LOG_ALERT("Parent chunk list of unexpected kind was encountered upon visiting hunk tree ancestors "
                 "(HunkChunkId: %v, ParentId: %v, ParentChunkListKind: %v)",
                 hunkChunk->GetId(),
                 chunkParent->GetId(),
@@ -100,7 +105,7 @@ void VisitAllAncestorsInHunkTree(TChunk* hunkChunk, F&& functor)
         }
 
         if (!tabletChunkListIds.emplace(chunkList->GetId()).second) {
-            YT_LOG_ALERT("Tablet chunk list encountered multiple times upon visiting ancestors in hunk tree "
+            YT_LOG_ALERT("Tablet chunk list encountered multiple times upon visiting hunk tree ancestors "
                 "(HunkChunkId: %v, ParentId: %v)",
                 hunkChunk->GetId(),
                 chunkParent->GetId());
@@ -113,7 +118,7 @@ void VisitAllAncestorsInHunkTree(TChunk* hunkChunk, F&& functor)
             const auto& rootChunkList = chunkListParent->AsChunkList();
 
             if (!rootChunkList->IsHunkRoot()) {
-                YT_LOG_ALERT("Root chunk list of unexpected kind was encountered upon visiting ancestors in hunk tree "
+                YT_LOG_ALERT("Root chunk list of unexpected kind was encountered upon visiting hunk tree ancestors "
                     "(ChunkId: %v, ParentId: %v, ParentChunkListKind: %v)",
                     hunkChunk->GetId(),
                     chunkListParent->GetId(),
@@ -123,7 +128,7 @@ void VisitAllAncestorsInHunkTree(TChunk* hunkChunk, F&& functor)
 
             if (rootChunkList->GetKind() == EChunkListKind::HunkStorageRoot) {
                 YT_LOG_ALERT_IF(hunkStorageRootChunkListId,
-                    "Multiple ancestor hunk storage roots were encountered upon visiting ancestors in hunk tree "
+                    "Multiple ancestor hunk storage roots were encountered upon visiting hunk tree ancestors "
                     "(ChunkId: %v, FirstParentId: %v, SecondParentId: %v)",
                     hunkChunk->GetId(),
                     hunkStorageRootChunkListId,

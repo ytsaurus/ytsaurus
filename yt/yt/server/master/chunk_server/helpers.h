@@ -101,12 +101,13 @@ bool IsHunkChunkUniquelyPresentInChunkList(
     TChunkList* chunkList,
     TChunkTree* chunkTree);
 
-//! Iterates over all ancestors of |hunkChunk|, calling |functor(parent, firstOccurrence)| for all of them.
-//! All parents are expected to be of hunk-related chunk list kind. Maximum two generations are expected.
+//! Iterates over the hunk tree ancestors of |hunkChunk|, calling |functor(parent, firstOccurrence)| for each.
+//! Scratch parents are skipped; any other one is expected to be of hunk-related chunk list kind.
+//! Maximum two generations are expected.
 //! First-generation parents are assumed to be encountered only once during iteration.
 //! Second-generation parents can be encountered multiple times during iteration, thus #firstOccurrence argument.
 template <class F>
-void VisitAllAncestorsInHunkTree(TChunk* hunkChunk, F&& functor);
+void VisitHunkTreeAncestors(TChunk* hunkChunk, F&& functor);
 
 void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
