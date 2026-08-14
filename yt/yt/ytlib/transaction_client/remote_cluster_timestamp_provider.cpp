@@ -1,7 +1,5 @@
 #include "remote_cluster_timestamp_provider.h"
 
-#include "public.h"
-
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -9,8 +7,6 @@
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
-
-#include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -20,7 +16,6 @@ namespace NYT::NTransactionClient {
 
 using namespace NApi::NNative;
 using namespace NObjectClient;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,10 +77,10 @@ public:
 
                 if (underlying) {
                     return GenerateTimestampsWithFallback(
-                    count,
-                    std::move(underlying),
-                    std::move(remoteUnderlying),
-                    clockClusterTag);
+                        count,
+                        std::move(underlying),
+                        std::move(remoteUnderlying),
+                        clockClusterTag);
                 }
 
                 return MakeFuture<TTimestamp>(TError(
@@ -116,6 +111,13 @@ private:
 
     TAtomicIntrusivePtr<ITimestampProvider> Underlying_;
     TAtomicIntrusivePtr<ITimestampProvider> UnderlyingRemoteCluster_;
+
+    static bool IsClockFallbackErrorCode(TErrorCode code)
+    {
+        return code == EErrorCode::UnknownClockClusterTag ||
+            code == EErrorCode::ClockClusterTagMismatch ||
+            code == NRpc::EErrorCode::UnsupportedServerFeature;
+    }
 
     void OnClusterDirectorySync(const TError& /*error*/)
     {
@@ -152,11 +154,7 @@ private:
                     Logger = Logger,
                     clockClusterTag,
                     remoteUnderlying] (TErrorOr<TTimestamp>&& providerResult) {
-                if (providerResult.IsOK() ||
-                    !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
-                        providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch) ||
-                        providerResult.FindMatching(NRpc::EErrorCode::UnsupportedServerFeature)))
-                {
+                if (providerResult.IsOK() || !providerResult.FindMatching(IsClockFallbackErrorCode)) {
                     return MakeFuture(std::move(providerResult));
                 }
 
@@ -164,7 +162,7 @@ private:
                     YT_TLOG_WARNING("Wrong clock cluster, trying to generate timestamps via direct call")
                         .With("ClockClusterTag", clockClusterTag)
                         .With(providerResult);
-                        return remoteUnderlying->GenerateTimestamps(count);
+                    return remoteUnderlying->GenerateTimestamps(count);
                 } else {
                     YT_TLOG_WARNING("Cannot generate timestamps via direct call")
                         .With("ClockClusterTag", clockClusterTag);
