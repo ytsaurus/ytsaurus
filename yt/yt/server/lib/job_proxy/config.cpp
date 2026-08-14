@@ -494,6 +494,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(-1000)
         .LessThanOrEqual(1000);
 
+    registrar.Parameter("read_oom_score_adj_before_update", &TThis::ReadOomScoreAdjBeforeUpdate)
+        .Default(false);
+
     registrar.Parameter("use_new_delivery_fenced_connection", &TThis::UseNewDeliveryFencedConnection)
         .Default(true);
 
@@ -591,6 +594,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThanOrEqual(-1000)
         .LessThanOrEqual(1000);
+
+    registrar.Parameter("read_oom_score_adj_before_update", &TThis::ReadOomScoreAdjBeforeUpdate)
+        .Default(false);
 
     registrar.Parameter("use_new_delivery_fenced_connection", &TThis::UseNewDeliveryFencedConnection)
         .Default(true);

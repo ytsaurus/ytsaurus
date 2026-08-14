@@ -2209,31 +2209,75 @@ void TJobProxy::OnProgressSaved(TInstant when)
     HeartbeatExecutor_->ScheduleOutOfBand();
 }
 
-void TJobProxy::SetOomScoreAdj(int score)
+bool TJobProxy::UpdateOomScoreAdj(pid_t pid, int* mutableExpectedScoreAdj, int desiredScoreAdj)
 {
-    if (OomScoreAdj_.has_value() && *OomScoreAdj_ == score) {
-        return;
+    if (Config_->ReadOomScoreAdjBeforeUpdate && mutableExpectedScoreAdj) {
+        try {
+            auto adjFile = TFile(Format("/proc/%v/oom_score_adj", pid), RdOnly);
+            int actualScoreAdj = FromString<int>(Strip(TUnbufferedFileInput(adjFile).ReadAll()));
+            if (*mutableExpectedScoreAdj != actualScoreAdj) {
+                YT_LOG_WARNING(
+                    "Mismatch of oom_score_adj of a process (Pid: %v, ExpectedScoreAdj: %v, ActualScoreAdj: %v)",
+                    pid,
+                    *mutableExpectedScoreAdj,
+                    actualScoreAdj);
+                *mutableExpectedScoreAdj = actualScoreAdj;
+            }
+
+            if (actualScoreAdj == desiredScoreAdj) {
+                return true;
+            }
+        } catch (const std::exception& ex) {
+            if (TError(ex).FindMatching({ELinuxErrorCode::NOENT, ELinuxErrorCode::SRCH})) {
+                // The process is dead.
+                return false;
+            }
+
+            YT_LOG_WARNING(
+                ex,
+                "Failed to read oom_score_adj of a process (Pid: %v)",
+                pid);
+        }
+    } else if (mutableExpectedScoreAdj && *mutableExpectedScoreAdj == desiredScoreAdj) {
+        return true;
     }
 
-    pid_t pid = GetPID();
-
     YT_LOG_DEBUG(
-        "Changing oom_score_adj of a job proxy process (Pid: %v, OomScoreAdj: %v)",
+        "Changing oom_score_adj of a process (Pid: %v, OomScoreAdj: %v)",
         pid,
-        score);
+        desiredScoreAdj);
 
     auto config = New<NTools::TChangeOomScoreAdjAsRootConfig>();
     config->Pid = pid;
-    config->Score = score;
+    config->Score = desiredScoreAdj;
 
     try {
         RunTool<NTools::TChangeOomScoreAdjAsRootTool>(config);
-        OomScoreAdj_ = score;
+        if (mutableExpectedScoreAdj) {
+            *mutableExpectedScoreAdj = desiredScoreAdj;
+        }
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(
             ex,
-            "Failed to set oom_score_adj of a job proxy process (Pid: %v)",
+            "Failed to set oom_score_adj of a process (Pid: %v)",
             pid);
+        return false;
+    }
+
+    return true;
+}
+
+void TJobProxy::SetOomScoreAdj(int score)
+{
+    bool success = UpdateOomScoreAdj(
+        GetPID(),
+        OomScoreAdj_.has_value() ? &*OomScoreAdj_ : nullptr,
+        score);
+
+    if (success) {
+        OomScoreAdj_.emplace(score);
+    } else {
+        OomScoreAdj_.reset();
     }
 }
 
