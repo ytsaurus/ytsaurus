@@ -92,7 +92,7 @@ public:
 
     std::vector<TGpuInfo> GetGpuInfos(TDuration timeout) const override
     {
-        YT_LOG_INFO("List GPU devices with GpuAgent");
+        YT_TLOG_INFO("List GPU devices with GpuAgent");
 
         TGpuAgentServiceProxy proxy(Channel_, BaseGrpcConfig_->ServiceName);
         auto req = proxy.ListGpuDevices();
@@ -102,7 +102,8 @@ public:
         auto rsp = WaitFor(rspFuture)
             .ValueOrThrow();
 
-        YT_LOG_INFO("GPU devices listed with GpuAgent (Count: %v)", rsp->devices_size());
+        YT_TLOG_INFO("GPU devices listed with GpuAgent")
+            .With("Count", rsp->devices_size());
 
         std::vector<TGpuInfo> gpuInfos;
         gpuInfos.reserve(rsp->devices_size());

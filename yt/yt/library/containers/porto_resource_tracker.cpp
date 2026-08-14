@@ -339,7 +339,9 @@ T TPortoResourceTracker::GetStatistics(
             THROW_ERROR_EXCEPTION("Unable to get %v statistics", statisticsKind)
                 .With(ex);
         }
-        YT_LOG_WARNING(ex, "Unable to get %v statistics; using the last one", statisticsKind);
+        YT_TLOG_WARNING("Unable to get statistics; using the last one")
+            .With("StatisticsKind", statisticsKind)
+            .With(TError(ex));
         return *cachedStatistics;
     }
 }
@@ -502,9 +504,8 @@ void TPortoResourceTracker::DoUpdateResourceUsage() const
     try {
         ReCalculateResourceUsage(Instance_->GetResourceUsage());
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(
-            ex,
-            "Couldn't get metrics from Porto");
+        YT_TLOG_ERROR("Couldn't get metrics from Porto")
+            .With(TError(ex));
     }
 }
 
@@ -919,7 +920,8 @@ void EnablePortoResourceTracker(const TPodSpecConfigPtr& podSpec)
         auto executor = CreatePortoExecutor(New<TPortoExecutorDynamicConfig>(), "porto-tracker");
 
         executor->SubscribeFailed(BIND([=] (const TError& error) {
-            YT_LOG_ERROR(error, "Fatal error during Porto polling");
+            YT_TLOG_ERROR("Fatal error during Porto polling")
+                .With(error);
         }));
 
         LeakyRefCountedSingleton<TPortoProfilers>(
@@ -928,13 +930,14 @@ void EnablePortoResourceTracker(const TPodSpecConfigPtr& podSpec)
     }).AsyncVia(GetCurrentInvoker())
     .Run()
     .Subscribe(BIND([] (const TError& error) {
-        YT_LOG_ERROR_IF(!error.IsOK(), error, "Failed to enable Porto profiler");
+        YT_TLOG_ERROR_IF(!error.IsOK(), "Failed to enable Porto profiler")
+            .With(error);
     }));
 }
 #else
 void EnablePortoResourceTracker(const TPodSpecConfigPtr& /*podSpec*/)
 {
-    YT_LOG_WARNING("Porto resource tracker not supported");
+    YT_TLOG_WARNING("Porto resource tracker not supported");
 }
 #endif
 

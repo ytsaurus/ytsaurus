@@ -166,13 +166,11 @@ void TElement::CheckFairShareFeasibility(EFairShareType fairShareType) const
         }
 
         const auto& Logger = GetLogger();
-        YT_LOG_WARNING(
-            "Fair share is significantly greater than demand share "
-            "(FairShareType: %v, FairShare: %v, DemandShare: %v, SignificantlyGreaterResources: %v)",
-            fairShareType,
-            fairShare,
-            demandShare,
-            significantlyGreaterResources);
+        YT_TLOG_WARNING("Fair share is significantly greater than demand share")
+            .With("FairShareType", fairShareType)
+            .With("FairShare", fairShare)
+            .With("DemandShare", demandShare)
+            .With("SignificantlyGreaterResources", significantlyGreaterResources);
     }
 }
 
@@ -321,11 +319,9 @@ void TCompositeElement::DetermineInferredStrongGuaranteeResources(TFairShareUpda
     if (!IsRoot() && !Dominates(inferredStrongGuaranteeResources, totalExplicitChildrenGuaranteeResources)) {
         const auto& Logger = GetLogger();
         // NB: This should never happen because we validate the guarantees at master.
-        YT_LOG_WARNING(
-            "Total children's explicit strong guarantees exceeds the effective strong guarantee at pool "
-            "(InferredStrongGuarantees: %v, TotalExplicitChildrenGuarantees: %v)",
-            inferredStrongGuaranteeResources,
-            totalExplicitChildrenGuaranteeResources);
+        YT_TLOG_WARNING("Total children's explicit strong guarantees exceeds the effective strong guarantee at pool")
+            .With("InferredStrongGuarantees", inferredStrongGuaranteeResources)
+            .With("TotalExplicitChildrenGuarantees", totalExplicitChildrenGuaranteeResources);
     }
 
     DetermineImplicitInferredStrongGuaranteeResources(totalExplicitChildrenGuaranteeResources, context);
@@ -516,14 +512,11 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
         maxAvailableStrongGuaranteeShare = TResourceVector::Max(maxAvailableStrongGuaranteeShare, TResourceVector::Zero());
 
         if (!Dominates(maxAvailableStrongGuaranteeShare, currentTierTotalChildrenStrongGuaranteeShare)) {
-            YT_LOG_DEBUG(
-                "Adjusting strong guarantee shares "
-                "(StrongGuaranteeShare: %v, TotalFixedChildrenStrongGuaranteeShare: %v, "
-                "CurrentTierTotalChildrenStrongGuaranteeShare: %v, StrongGuaranteeTier: %v)",
-                Attributes().StrongGuaranteeShare,
-                totalFixedChildrenStrongGuaranteeShare,
-                currentTierTotalChildrenStrongGuaranteeShare,
-                tier);
+            YT_TLOG_DEBUG("Adjusting strong guarantee shares")
+                .With("StrongGuaranteeShare", Attributes().StrongGuaranteeShare)
+                .With("TotalFixedChildrenStrongGuaranteeShare", totalFixedChildrenStrongGuaranteeShare)
+                .With("CurrentTierTotalChildrenStrongGuaranteeShare", currentTierTotalChildrenStrongGuaranteeShare)
+                .With("StrongGuaranteeTier", tier);
 
             // Use binary search instead of division to avoid problems with precision.
             ComputeByFitting(
@@ -531,11 +524,11 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
                     return child->Attributes().StrongGuaranteeShareByTier[tier] * fitFactor;
                 },
                 /*setter*/ [&] (TElement* child, const TResourceVector& value) {
-                    YT_LOG_DEBUG("Adjusting child strong guarantee share (ChildId: %v, OldStrongGuaranteeShare: %v, NewStrongGuaranteeShare: %v, StrongGuaranteeTier: %v)",
-                        child->GetId(),
-                        child->Attributes().StrongGuaranteeShareByTier[tier],
-                        value,
-                        tier);
+                    YT_TLOG_DEBUG("Adjusting child strong guarantee share")
+                        .With("ChildId", child->GetId())
+                        .With("OldStrongGuaranteeShare", child->Attributes().StrongGuaranteeShareByTier[tier])
+                        .With("NewStrongGuaranteeShare", value)
+                        .With("StrongGuaranteeTier", tier);
                     child->Attributes().StrongGuaranteeShareByTier[tier] = value;
                 },
                 /*maxSum*/ maxAvailableStrongGuaranteeShare);
@@ -1018,30 +1011,20 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, EFairShareType
     bool usedShareNearSuggestedShare =
         TResourceVector::Near(childrenUsedFairShare, suggestedFairShare, 1e-4 * MaxComponent(childrenUsedFairShare));
 
-    YT_LOG_WARNING_UNLESS(usedShareNearSuggestedShare && suggestedShareNearlyDominatesChildrenUsedShare,
-        "Fair share significantly differs from predicted in pool ("
-        "FairShareType: %v, "
-        "Mode: %v, "
-        "Suggestion: %.20v, "
-        "VectorSuggestion: %.20v, "
-        "SuggestedFairShare: %.20v, "
-        "ChildrenUsedFairShare: %.20v, "
-        "Difference: %.20v, "
-        "FitFactor: %.20v, "
-        "FSBFFPredicted: %.20v, "
-        "ChildrenSuggestedFairShare: %.20v, "
-        "ChildrenCount: %v)",
-        fairShareType,
-        GetMode(),
-        suggestion,
-        GetVectorSuggestion(suggestion),
-        suggestedFairShare,
-        childrenUsedFairShare,
-        suggestedFairShare - childrenUsedFairShare,
-        fitFactor,
-        FairShareByFitFactor_->ValueAt(fitFactor),
-        getChildrenSuggestedFairShare(fitFactor),
-        GetChildCount());
+    YT_TLOG_WARNING_UNLESS(
+        usedShareNearSuggestedShare && suggestedShareNearlyDominatesChildrenUsedShare,
+        "Fair share significantly differs from predicted in pool")
+        .With("FairShareType", fairShareType)
+        .With("Mode", GetMode())
+        .WithFormat("Suggestion", "%.20v", suggestion)
+        .WithFormat("VectorSuggestion", "%.20v", GetVectorSuggestion(suggestion))
+        .WithFormat("SuggestedFairShare", "%.20v", suggestedFairShare)
+        .WithFormat("ChildrenUsedFairShare", "%.20v", childrenUsedFairShare)
+        .WithFormat("Difference", "%.20v", suggestedFairShare - childrenUsedFairShare)
+        .WithFormat("FitFactor", "%.20v", fitFactor)
+        .WithFormat("FSBFFPredicted", "%.20v", FairShareByFitFactor_->ValueAt(fitFactor))
+        .WithFormat("ChildrenSuggestedFairShare", "%.20v", getChildrenSuggestedFairShare(fitFactor))
+        .With("ChildrenCount", GetChildCount());
 
     YT_VERIFY(suggestedShareNearlyDominatesChildrenUsedShare);
 
@@ -1100,13 +1083,12 @@ void TCompositeElement::ComputeAndSetFairShare(TResourceVector suggestedFairShar
         /*predicate*/ checkFitFactor);
 
     if (!Dominates(TResourceVector::Epsilon(), suggestedFairShare - getChildrenSuggestedFairShare(fitFactor))) {
-        YT_LOG_INFO(
-            "Children suggested fair share significantly differs from suggested fair share in pool, "
-            "trying to distribute it with gap (SuggestedFairShare: %v, ChildrenSuggestedFairShare: %v, "
-            "EnableImprovedFairShareByFitFactorComputationDistributionGap: %v)",
-            suggestedFairShare,
-            getChildrenSuggestedFairShare(fitFactor),
-            context->Options.EnableImprovedFairShareByFitFactorComputationDistributionGap);
+        YT_TLOG_INFO("Children suggested fair share significantly differs from suggested fair share in pool, trying to distribute it with gap")
+            .With("SuggestedFairShare", suggestedFairShare)
+            .With("ChildrenSuggestedFairShare", getChildrenSuggestedFairShare(fitFactor))
+            .With(
+                "EnableImprovedFairShareByFitFactorComputationDistributionGap",
+                context->Options.EnableImprovedFairShareByFitFactorComputationDistributionGap);
 
         if (context->Options.EnableImprovedFairShareByFitFactorComputationDistributionGap) {
             auto checkFitFactorWithGap = [&] (double fitFactor) {
@@ -1143,26 +1125,18 @@ void TCompositeElement::ComputeAndSetFairShare(TResourceVector suggestedFairShar
     bool usedShareNearSuggestedShare =
         TResourceVector::Near(childrenUsedFairShare, suggestedFairShare, 1e-4 * MaxComponent(childrenUsedFairShare));
 
-    YT_LOG_WARNING_UNLESS(usedShareNearSuggestedShare && suggestedShareNearlyDominatesChildrenUsedShare,
-        "Fair share significantly differs from predicted in pool ("
-        "FairShareType: %v, "
-        "Mode: %v, "
-        "SuggestedFairShare: %.20v, "
-        "ChildrenUsedFairShare: %.20v, "
-        "Difference: %.20v, "
-        "FitFactor: %.20v, "
-        "FSBFFPredicted: %.20v, "
-        "ChildrenSuggestedFairShare: %.20v, "
-        "ChildrenCount: %v)",
-        fairShareType,
-        GetMode(),
-        suggestedFairShare,
-        childrenUsedFairShare,
-        suggestedFairShare - childrenUsedFairShare,
-        fitFactor,
-        FairShareByFitFactor_->ValueAt(fitFactor),
-        getEnabledChildSuggestedFairShares(fitFactor),
-        GetChildCount());
+    YT_TLOG_WARNING_UNLESS(
+        usedShareNearSuggestedShare && suggestedShareNearlyDominatesChildrenUsedShare,
+        "Fair share significantly differs from predicted in pool")
+        .With("FairShareType", fairShareType)
+        .With("Mode", GetMode())
+        .WithFormat("SuggestedFairShare", "%.20v", suggestedFairShare)
+        .WithFormat("ChildrenUsedFairShare", "%.20v", childrenUsedFairShare)
+        .WithFormat("Difference", "%.20v", suggestedFairShare - childrenUsedFairShare)
+        .WithFormat("FitFactor", "%.20v", fitFactor)
+        .WithFormat("FSBFFPredicted", "%.20v", FairShareByFitFactor_->ValueAt(fitFactor))
+        .WithFormat("ChildrenSuggestedFairShare", "%.20v", getEnabledChildSuggestedFairShares(fitFactor))
+        .With("ChildrenCount", GetChildCount());
 
     YT_VERIFY(suggestedShareNearlyDominatesChildrenUsedShare);
 
@@ -1254,7 +1228,8 @@ void TCompositeElement::UpdateOverflowAndAcceptableVolumesRecursively()
     });
 
     if (!attributes.VolumeOverflow.IsZero()) {
-        YT_LOG_DEBUG("Pool has volume overflow (Volume: %v)", attributes.VolumeOverflow);
+        YT_TLOG_DEBUG("Pool has volume overflow")
+            .With("Volume", attributes.VolumeOverflow);
     }
 }
 
@@ -1269,16 +1244,16 @@ void TCompositeElement::DistributeFreeVolume()
     if (thisPool && thisPool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
         if (!freeVolume.IsZero()) {
             thisPool->IntegralResourcesState().AccumulatedVolume += freeVolume;
-            YT_LOG_DEBUG("Pool has accepted free volume (FreeVolume: %v)", freeVolume);
+            YT_TLOG_DEBUG("Pool has accepted free volume")
+                .With("FreeVolume", freeVolume);
         }
         return;
     }
 
     if (ShouldDistributeFreeVolumeAmongChildren() && !(freeVolume.IsZero() && attributes.ChildrenVolumeOverflow.IsZero())) {
-        YT_LOG_DEBUG(
-            "Distributing free volume among children (FreeVolumeFromParent: %v, ChildrenVolumeOverflow: %v)",
-            freeVolume,
-            attributes.ChildrenVolumeOverflow);
+        YT_TLOG_DEBUG("Distributing free volume among children")
+            .With("FreeVolumeFromParent", freeVolume)
+            .With("ChildrenVolumeOverflow", attributes.ChildrenVolumeOverflow);
 
         freeVolume += attributes.ChildrenVolumeOverflow;
 
@@ -1399,19 +1374,16 @@ void TPool::UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context)
 
     integralResourcesState.AccumulatedVolume = Min(integralResourcesState.AccumulatedVolume, upperLimit);
 
-    YT_LOG_DEBUG(
-        "Accumulated resource volume updated "
-        "(ResourceFlowRatio: %v, PeriodSinceLastUpdateInSeconds: %v, TotalResourceLimits: %v, LastIntegralShareRatio: %v, "
-        "PoolCapacity: %v, OldVolume: %v, UpdatedVolume: %v, VolumeOverflow: %v, AcceptableVolume: %v)",
-        attributes.ResourceFlowRatio,
-        periodSinceLastUpdate.SecondsFloat(),
-        context->TotalResourceLimits,
-        integralResourcesState.LastShareRatio,
-        poolCapacity,
-        oldVolume,
-        integralResourcesState.AccumulatedVolume,
-        attributes.VolumeOverflow,
-        attributes.AcceptableVolume);
+    YT_TLOG_DEBUG("Accumulated resource volume updated")
+        .With("ResourceFlowRatio", attributes.ResourceFlowRatio)
+        .With("PeriodSinceLastUpdateInSeconds", periodSinceLastUpdate.SecondsFloat())
+        .With("TotalResourceLimits", context->TotalResourceLimits)
+        .With("LastIntegralShareRatio", integralResourcesState.LastShareRatio)
+        .With("PoolCapacity", poolCapacity)
+        .With("OldVolume", oldVolume)
+        .With("UpdatedVolume", integralResourcesState.AccumulatedVolume)
+        .With("VolumeOverflow", attributes.VolumeOverflow)
+        .With("AcceptableVolume", attributes.AcceptableVolume);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1591,24 +1563,15 @@ void TOperationElement::ComputeAndSetFairShare(double suggestion, EFairShareType
         const auto fitFactor = MaxFitFactorBySuggestion_->ValueAt(suggestion);
         const auto fsbffSegment = FairShareByFitFactor_->SegmentAt(fitFactor);
 
-        YT_LOG_DEBUG(
-            "Updated operation fair share ("
-            "FairShareType: %v, "
-            "Suggestion: %.10g, "
-            "UsedFairShare: %.10g, "
-            "FSBSSegmentArguments: {%.10g, %.10g}, "
-            "FSBSSegmentValues: {%.10g, %.10g}, "
-            "FitFactor: %.10g, "
-            "FSBFFSegmentArguments: {%.10g, %.10g}, "
-            "FSBFFSegmentValues: {%.10g, %.10g})",
-            fairShareType,
-            suggestion,
-            fairShare,
-            fsbsSegment.LeftBound(), fsbsSegment.RightBound(),
-            fsbsSegment.LeftValue(), fsbsSegment.RightValue(),
-            fitFactor,
-            fsbffSegment.LeftBound(), fsbffSegment.RightBound(),
-            fsbffSegment.LeftValue(), fsbffSegment.RightValue());
+        YT_TLOG_DEBUG("Updated operation fair share")
+            .With("FairShareType", fairShareType)
+            .WithFormat("Suggestion", "%.10g", suggestion)
+            .WithFormat("UsedFairShare", "%.10g", fairShare)
+            .WithFormat("FSBSSegmentArguments", "{%.10g, %.10g}", fsbsSegment.LeftBound(), fsbsSegment.RightBound())
+            .WithFormat("FSBSSegmentValues", "{%.10g, %.10g}", fsbsSegment.LeftValue(), fsbsSegment.RightValue())
+            .WithFormat("FitFactor", "%.10g", fitFactor)
+            .WithFormat("FSBFFSegmentArguments", "{%.10g, %.10g}", fsbffSegment.LeftBound(), fsbffSegment.RightBound())
+            .WithFormat("FSBFFSegmentValues", "{%.10g, %.10g}", fsbffSegment.LeftValue(), fsbffSegment.RightValue());
     }
 }
 
@@ -1620,15 +1583,12 @@ void TOperationElement::ComputeAndSetFairShare(TResourceVector suggestedFairShar
     if (AreDetailedLogsEnabled()) {
         const auto& Logger = GetLogger();
 
-        YT_LOG_DEBUG(
-            "Updated operation fair share "
-            "(FairShareType: %v, SuggestedFairShare: %v, FairShareBySuggestion: %v, "
-            "MaxFitFactorBySuggestion: %v, FairShareByFitFactor: %v)",
-            fairShareType,
-            suggestedFairShare,
-            FairShareBySuggestion_,
-            MaxFitFactorBySuggestion_,
-            FairShareByFitFactor_);
+        YT_TLOG_DEBUG("Updated operation fair share")
+            .With("FairShareType", fairShareType)
+            .With("SuggestedFairShare", suggestedFairShare)
+            .With("FairShareBySuggestion", FairShareBySuggestion_)
+            .With("MaxFitFactorBySuggestion", MaxFitFactorBySuggestion_)
+            .With("FairShareByFitFactor", FairShareByFitFactor_);
     }
 }
 
@@ -1730,28 +1690,21 @@ void TFairShareUpdateExecutor::Run()
 
     auto totalDuration = timer.GetElapsedCpuTime();
 
-    YT_LOG_DEBUG(
-        "Finished updating fair share ("
-        "TotalTime: %v, "
-        "PrepareFairShareByFitFactor/TotalTime: %v, "
-        "PrepareFairShareByFitFactor/Operations/TotalTime: %v, "
-        "PrepareFairShareByFitFactor/Fifo/TotalTime: %v, "
-        "PrepareFairShareByFitFactor/Normal/TotalTime: %v, "
-        "PrepareMaxFitFactorBySuggestion/TotalTime: %v, "
-        "PrepareMaxFitFactorBySuggestion/PointwiseMin/TotalTime: %v, "
-        "Compose/TotalTime: %v., "
-        "CompressFunction/TotalTime: %v, "
-        "ComputeAndSetFairShare/TotalTime: %v)",
-        CpuDurationToDuration(totalDuration).MicroSeconds(),
-        CpuDurationToDuration(Context_->PrepareFairShareByFitFactorTotalTime).MicroSeconds(),
-        CpuDurationToDuration(Context_->PrepareFairShareByFitFactorOperationsTotalTime).MicroSeconds(),
-        CpuDurationToDuration(Context_->PrepareFairShareByFitFactorFifoTotalTime).MicroSeconds(),
-        CpuDurationToDuration(Context_->PrepareFairShareByFitFactorNormalTotalTime).MicroSeconds(),
-        CpuDurationToDuration(Context_->PrepareMaxFitFactorBySuggestionTotalTime).MicroSeconds(),
-        CpuDurationToDuration(Context_->PointwiseMinTotalTime).MicroSeconds(),
-        CpuDurationToDuration(Context_->ComposeTotalTime).MicroSeconds(),
-        CpuDurationToDuration(Context_->CompressFunctionTotalTime).MicroSeconds(),
-        CpuDurationToDuration(Context_->ComputeAndSetFairShareTotalTime).MicroSeconds());
+    YT_TLOG_DEBUG("Finished updating fair share")
+        .With("TotalTime", CpuDurationToDuration(totalDuration).MicroSeconds())
+        .With("PrepareFairShareByFitFactorTotalTime", CpuDurationToDuration(Context_->PrepareFairShareByFitFactorTotalTime).MicroSeconds())
+        .With(
+            "PrepareFairShareByFitFactorOperationsTotalTime",
+            CpuDurationToDuration(Context_->PrepareFairShareByFitFactorOperationsTotalTime).MicroSeconds())
+        .With("PrepareFairShareByFitFactorFifoTotalTime", CpuDurationToDuration(Context_->PrepareFairShareByFitFactorFifoTotalTime).MicroSeconds())
+        .With(
+            "PrepareFairShareByFitFactorNormalTotalTime",
+            CpuDurationToDuration(Context_->PrepareFairShareByFitFactorNormalTotalTime).MicroSeconds())
+        .With("PrepareMaxFitFactorBySuggestionTotalTime", CpuDurationToDuration(Context_->PrepareMaxFitFactorBySuggestionTotalTime).MicroSeconds())
+        .With("PointwiseMinTotalTime", CpuDurationToDuration(Context_->PointwiseMinTotalTime).MicroSeconds())
+        .With("ComposeTotalTime", CpuDurationToDuration(Context_->ComposeTotalTime).MicroSeconds())
+        .With("CompressFunctionTotalTime", CpuDurationToDuration(Context_->CompressFunctionTotalTime).MicroSeconds())
+        .With("ComputeAndSetFairShareTotalTime", CpuDurationToDuration(Context_->ComputeAndSetFairShareTotalTime).MicroSeconds());
 }
 
 void TFairShareUpdateExecutor::UpdateBurstPoolIntegralShares()
@@ -1778,14 +1731,12 @@ void TFairShareUpdateExecutor::UpdateBurstPoolIntegralShares()
         burstPool->ResetFairShareFunctions();
         burstPool->IntegralResourcesState().LastShareRatio = MaxComponent(integralShare);
 
-        YT_LOG_DEBUG(
-            "Provided integral share for burst pool "
-            "(Pool: %v, ShareRatioByVolume: %v, ProposedIntegralShare: %v, FSWithinGuarantees: %v, IntegralShare: %v)",
-            burstPool->GetId(),
-            GetIntegralShareRatioByVolume(burstPool),
-            proposedIntegralShare,
-            fairShareWithinGuarantees,
-            integralShare);
+        YT_TLOG_DEBUG("Provided integral share for burst pool")
+            .With("Pool", burstPool->GetId())
+            .With("ShareRatioByVolume", GetIntegralShareRatioByVolume(burstPool))
+            .With("ProposedIntegralShare", proposedIntegralShare)
+            .With("FSWithinGuarantees", fairShareWithinGuarantees)
+            .With("IntegralShare", integralShare);
     }
 }
 
@@ -1873,14 +1824,13 @@ void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
         relaxedPool->ResetFairShareFunctions();
         relaxedPool->IntegralResourcesState().LastShareRatio = MaxComponent(limitedIntegralShare);
 
-        YT_LOG_DEBUG("Provided integral share for relaxed pool "
-            "(Pool: %v, ShareRatioByVolume: %v, Suggestion: %v, FSWithinGuarantees: %v, IntegralShare: %v, LimitedIntegralShare: %v)",
-            relaxedPool->GetId(),
-            GetIntegralShareRatioByVolume(relaxedPool),
-            suggestion,
-            fairShareWithinGuarantees,
-            integralShare,
-            limitedIntegralShare);
+        YT_TLOG_DEBUG("Provided integral share for relaxed pool")
+            .With("Pool", relaxedPool->GetId())
+            .With("ShareRatioByVolume", GetIntegralShareRatioByVolume(relaxedPool))
+            .With("Suggestion", suggestion)
+            .With("FSWithinGuarantees", fairShareWithinGuarantees)
+            .With("IntegralShare", integralShare)
+            .With("LimitedIntegralShare", limitedIntegralShare);
     }
 }
 

@@ -92,7 +92,7 @@ void TSignatureComponents::InitializeCryptographyIfRequired(const TSignatureComp
 
 TFuture<void> TSignatureComponents::Reconfigure(const TSignatureComponentsConfigPtr& config)
 {
-    YT_LOG_INFO("Reconfiguring signature components");
+    YT_TLOG_INFO("Reconfiguring signature components");
 
     auto guard = Guard(ReconfigureSpinLock_);
     TForbidContextSwitchGuard contextSwitchGuard;

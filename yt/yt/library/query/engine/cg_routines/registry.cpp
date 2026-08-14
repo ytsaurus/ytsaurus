@@ -240,9 +240,9 @@ public:
     void Checkpoint(i64 processedRows)
     {
         if (GetElapsedTime() > YieldThreshold) {
-            YT_LOG_DEBUG("Yielding fiber (ProcessedRows: %v, SyncTime: %v)",
-                processedRows,
-                GetElapsedTime());
+            YT_TLOG_DEBUG("Yielding fiber")
+                .With("ProcessedRows", processedRows)
+                .With("SyncTime", GetElapsedTime());
             SaveAndRestoreCurrentCompartment([&] {
                 Yield();
             });
@@ -321,7 +321,7 @@ void ScanOpHelper(
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
     auto finalLogger = Finally([&] {
-        YT_LOG_DEBUG("Finalizing scan helper");
+        YT_TLOG_DEBUG("Finalizing scan helper");
     });
     if (context->Limit == 0) {
         return;
@@ -618,7 +618,7 @@ void MultiJoinOpHelper(
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
     auto finalLogger = Finally([&] {
-        YT_LOG_DEBUG("Finalizing multijoin helper");
+        YT_TLOG_DEBUG("Finalizing multijoin helper");
     });
 
     TMultiJoinClosure closure{
@@ -654,9 +654,9 @@ void MultiJoinOpHelper(
             return true;
         }
 
-        YT_LOG_DEBUG("Joining started");
+        YT_TLOG_DEBUG("Joining started");
         auto finalLogger = Finally([&] {
-            YT_LOG_DEBUG("Joining finished");
+            YT_TLOG_DEBUG("Joining finished");
         });
 
         auto foreignContext = MakeExpressionContext(
@@ -702,8 +702,8 @@ void MultiJoinOpHelper(
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
             auto orderedKeys = std::move(closure.Items[joinId].OrderedKeys);
 
-            YT_LOG_DEBUG("Collected %v join keys",
-                orderedKeys.size());
+            YT_TLOG_DEBUG("Collected join keys")
+                .With("KeyCount", orderedKeys.size());
 
             auto reader = readers[joinId];
 
@@ -829,7 +829,8 @@ void MultiJoinOpHelper(
 
             sortedForeignSequences.push_back(std::move(sortedForeignSequence));
 
-            YT_LOG_DEBUG("Finished precessing foreign rowset (SortingTime: %v)", sortingForeignTime);
+            YT_TLOG_DEBUG("Finished precessing foreign rowset")
+                .With("SortingTime", sortingForeignTime);
         }
 
         auto intermediateContext = MakeExpressionContext(
@@ -868,7 +869,7 @@ void MultiJoinOpHelper(
             resultRowSize += parameters->Items[joinId].ForeignColumns.size();
         }
 
-        YT_LOG_DEBUG("Started producing joined rows");
+        YT_TLOG_DEBUG("Started producing joined rows");
 
         std::vector<size_t> indexes(closure.Items.size(), 0);
 
@@ -1892,7 +1893,8 @@ void GroupOpHelper(
         consumeTotals);
 
     auto finalLogger = Finally([&] {
-        YT_LOG_DEBUG("Finalizing group helper (ProcessedRows: %v)", closure.GetProcessedRowCount());
+        YT_TLOG_DEBUG("Finalizing group helper")
+            .With("ProcessedRows", closure.GetProcessedRowCount());
     });
 
     try {
@@ -1957,7 +1959,7 @@ void OrderOpHelper(
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
     auto finalLogger = Finally([&] {
-        YT_LOG_DEBUG("Finalizing order helper");
+        YT_TLOG_DEBUG("Finalizing order helper");
     });
 
     auto topCollector = TTopCollector(
@@ -2015,7 +2017,7 @@ void WriteOpHelper(
     auto& batch = closure.OutputRowsBatch;
     auto& writer = context->Writer;
 
-    YT_LOG_DEBUG("Flushing writer");
+    YT_TLOG_DEBUG("Flushing writer");
     if (!batch.empty()) {
         bool shouldNotWait;
         {
@@ -2034,7 +2036,7 @@ void WriteOpHelper(
         }
     }
 
-    YT_LOG_DEBUG("Closing writer");
+    YT_TLOG_DEBUG("Closing writer");
     {
         TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
         SaveAndRestoreCurrentCompartment([&] {
@@ -4123,9 +4125,9 @@ bool ProcessHierarchicalJoinBatch(THierarchicalJoinClosure* closure)
     auto* context = closure->ExecutionContext;
     size_t keySize = parameters->KeySize;
 
-    YT_LOG_DEBUG("Processing hierarchical join batch (OuterRowCount: %v, UniqueKeyCount: %v)",
-        closure->SelfSideRowBatch.size(),
-        closure->SelfSideDomainBatch.size());
+    YT_TLOG_DEBUG("Processing hierarchical join batch")
+        .With("OuterRowCount", closure->SelfSideRowBatch.size())
+        .With("UniqueKeyCount", closure->SelfSideDomainBatch.size());
 
     std::vector<TPIValueRange> selfKeys;
     selfKeys.reserve(closure->SelfSideDomainBatch.size());

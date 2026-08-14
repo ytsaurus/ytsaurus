@@ -109,7 +109,7 @@ private:
 
     void Update()
     {
-        YT_LOG_DEBUG("Started updating monitoring state");
+        YT_TLOG_DEBUG("Started updating monitoring state");
 
         YT_PROFILE_TIMING("/monitoring/update_time") {
             auto newRoot = GetEphemeralNodeFactory()->CreateMap();
@@ -132,7 +132,7 @@ private:
                 }
             }
         }
-        YT_LOG_DEBUG("Finished updating monitoring state");
+        YT_TLOG_DEBUG("Finished updating monitoring state");
     }
 
     IMapNodePtr GetRoot()

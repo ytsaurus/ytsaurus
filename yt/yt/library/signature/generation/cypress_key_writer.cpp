@@ -58,7 +58,7 @@ void TCypressKeyWriter::Reconfigure(TCypressKeyWriterConfigPtr config)
 {
     YT_VERIFY(config);
     Config_.Store(std::move(config));
-    YT_LOG_INFO("Cypress key writer reconfigured");
+    YT_TLOG_INFO("Cypress key writer reconfigured");
 }
 
 TOwnerId TCypressKeyWriter::GetOwner() const
@@ -86,7 +86,8 @@ TFuture<void> TCypressKeyWriter::DoCleanUpOnLimitReached(const TCypressKeyWriter
 {
     if (!ownerNode.IsOK()) {
         if (ownerNode.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            YT_LOG_ERROR(ownerNode, "Skipping cleaning up keys: owner node does not exist");
+            YT_TLOG_ERROR("Skipping cleaning up keys: owner node does not exist")
+                .With(ownerNode);
             return OKFuture;
         }
         return MakeFuture(TError(ownerNode));
@@ -95,18 +96,17 @@ TFuture<void> TCypressKeyWriter::DoCleanUpOnLimitReached(const TCypressKeyWriter
     auto currentKeys = ConvertTo<IMapNodePtr>(ownerNode.Value());
     auto currentKeyCount = currentKeys->GetChildCount();
     if (currentKeyCount + 1 <= *config->MaxKeyCount) {
-        YT_LOG_DEBUG("Skipping cleaning up keys (CurrentKeyCount: %v, MaxKeyCount: %v)",
-            currentKeyCount,
-            *config->MaxKeyCount);
+        YT_TLOG_DEBUG("Skipping cleaning up keys")
+            .With("CurrentKeyCount", currentKeyCount)
+            .With("MaxKeyCount", *config->MaxKeyCount);
         return OKFuture;
     }
 
     int keysToDelete = currentKeyCount + 1 - *config->MaxKeyCount;
-    YT_LOG_WARNING(
-        "Current key count exceeds maximum allowed per owner, cleaning up keys with nearest expiration (CurrentKeyCount: %v, MaxKeyCount: %v, ToDelete: %v)",
-        currentKeyCount,
-        config->MaxKeyCount,
-        keysToDelete);
+    YT_TLOG_WARNING("Current key count exceeds maximum allowed per owner, cleaning up keys with nearest expiration")
+        .With("CurrentKeyCount", currentKeyCount)
+        .With("MaxKeyCount", config->MaxKeyCount)
+        .With("ToDelete", keysToDelete);
 
     std::vector<std::pair<TInstant, TKeyId>> sortedKeys;
     sortedKeys.reserve(currentKeyCount);
@@ -129,7 +129,8 @@ TFuture<void> TCypressKeyWriter::DoCleanUpOnLimitReached(const TCypressKeyWriter
     return AllSet(std::move(removeFutures))
         .Apply(BIND([] (const std::vector<TError>& results) {
             for (const auto& error : results) {
-                YT_LOG_WARNING_UNLESS(error.IsOK(), error, "Failed to remove an expired key");
+                YT_TLOG_WARNING_UNLESS(error.IsOK(), "Failed to remove an expired key")
+                    .With(error);
             }
         }));
 }
@@ -140,9 +141,9 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
         return std::pair(meta.OwnerId, meta.KeyId);
     }, keyInfo->Meta());
 
-    YT_LOG_DEBUG("Registering key (OwnerId: %v, KeyId: %v)",
-        ownerId,
-        keyId);
+    YT_TLOG_DEBUG("Registering key")
+        .With("OwnerId", ownerId)
+        .With("KeyId", keyId);
 
     auto config = Config_.Acquire();
 
@@ -159,9 +160,9 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
                 ownerId = std::move(ownerId),
                 keyId = std::move(keyId)
             ] () mutable {
-                YT_LOG_DEBUG("Cleanup finished, registering key (OwnerId: %v, KeyId: %v)",
-                    ownerId,
-                    keyId);
+                YT_TLOG_DEBUG("Cleanup finished, registering key")
+                    .With("OwnerId", ownerId)
+                    .With("KeyId", keyId);
                 return DoRegisterKey(config, std::move(keyInfo), std::move(ownerId), std::move(keyId));
             }));
 }
@@ -190,9 +191,9 @@ TFuture<void> TCypressKeyWriter::DoRegisterKey(const TCypressKeyWriterConfigPtr&
                     .With("owner_id", ownerId)
                     .With("key_id", keyId);
             }
-            YT_LOG_DEBUG("Successfully registered key (OwnerId: %v, KeyId: %v)",
-                ownerId,
-                keyId);
+            YT_TLOG_DEBUG("Successfully registered key")
+                .With("OwnerId", ownerId)
+                .With("KeyId", keyId);
             return TError();
         }));
 }

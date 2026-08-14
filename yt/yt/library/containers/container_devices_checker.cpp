@@ -52,29 +52,29 @@ void TContainerDevicesChecker::Start()
 
 void TContainerDevicesChecker::OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig)
 {
-    YT_LOG_INFO(
-        "Container devices checker dynamic config changed (EnableTestPortoFailures: %v, StubErrorCode: %v)",
-        Config_->EnableTestPortoFailures,
-        Config_->StubErrorCode);
+    YT_TLOG_INFO("Container devices checker dynamic config changed")
+        .With("EnableTestPortoFailures", Config_->EnableTestPortoFailures)
+        .With("StubErrorCode", Config_->StubErrorCode);
 
     Executor_->OnDynamicConfigChanged(newConfig);
 }
 
 void TContainerDevicesChecker::OnCheck()
 {
-    YT_LOG_DEBUG("Run container devices check");
+    YT_TLOG_DEBUG("Run container devices check");
 
     try {
         auto result = CreateTestContainer();
         Check_.Fire(result);
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Container devices check failed");
+        YT_TLOG_ERROR("Container devices check failed")
+            .With(TError(ex));
     }
 }
 
 void TContainerDevicesChecker::PrepareDirectory()
 {
-    YT_LOG_INFO("Container devices checker started");
+    YT_TLOG_INFO("Container devices checker started");
 
     NFS::MakeDirRecursive(TestDirectoryPath_, 0755);
 
@@ -85,7 +85,8 @@ void TContainerDevicesChecker::PrepareDirectory()
     auto volumePathsOrErros = WaitFor(Executor_->ListVolumePaths());
 
     if (!volumePathsOrErros.IsOK()) {
-        YT_LOG_WARNING(volumePathsOrErros, "Container device checker start failed");
+        YT_TLOG_WARNING("Container device checker start failed")
+            .With(volumePathsOrErros);
         return;
     }
 
@@ -103,7 +104,8 @@ void TContainerDevicesChecker::PrepareDirectory()
         if (!unlinkError.IsOK() && unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked &&
             unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound)
         {
-            YT_LOG_ERROR(unlinkError, "Remove existing volume failed");
+            YT_TLOG_ERROR("Remove existing volume failed")
+                .With(unlinkError);
         }
     }
 
@@ -130,7 +132,8 @@ TError TContainerDevicesChecker::CreateTestContainer()
             PrepareDirectory();
             DirectoryPrepared_ = true;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Directory preparation failed");
+            YT_TLOG_ERROR("Directory preparation failed")
+                .With(TError(ex));
             WaitFor(PeriodicExecutor_->Stop()).ThrowOnError();
         }
     }
@@ -163,9 +166,11 @@ TError TContainerDevicesChecker::CreateTestContainer()
             createVolumeResult.FindMatching(EPortoErrorCode::VolumeAlreadyLinked))
         {
             YT_VERIFY(!createVolumeResult.IsOK() || createVolumeResult.Value() == mountPath);
-            YT_LOG_DEBUG("Test volume created (VolumePath: %v)", mountPath);
+            YT_TLOG_DEBUG("Test volume created")
+                .With("VolumePath", mountPath);
         } else {
-            YT_LOG_DEBUG(createVolumeResult, "Test volume creation finished with error");
+            YT_TLOG_DEBUG("Test volume creation finished with error")
+                .With(createVolumeResult);
             return {};
         }
     }
@@ -177,7 +182,8 @@ TError TContainerDevicesChecker::CreateTestContainer()
         auto portoUserOrError = WaitFor(Executor_->GetContainerProperty(RootContainerName_, "user"));
 
         if (!portoUserOrError.IsOK() || !portoUserOrError.Value().has_value()) {
-            YT_LOG_DEBUG(portoUserOrError, "Failed to get Porto user");
+            YT_TLOG_DEBUG("Failed to get Porto user")
+                .With(portoUserOrError);
             return {};
         }
 
@@ -194,7 +200,8 @@ TError TContainerDevicesChecker::CreateTestContainer()
 
     auto result = WaitFor(launcher->LaunchMeta({}));
 
-    YT_LOG_DEBUG_IF(!result.IsOK(), result, "Test container creation failed");
+    YT_TLOG_DEBUG_IF(!result.IsOK(), "Test container creation failed")
+        .With(result);
 
     try {
         // Cleanup leftovers during restart.
@@ -203,7 +210,8 @@ TError TContainerDevicesChecker::CreateTestContainer()
     } catch (const TErrorException& ex) {
         // If container doesn't exist it's OK.
         if (!ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
-            YT_LOG_WARNING(ex, "Test container remove failed");
+            YT_TLOG_WARNING("Test container remove failed")
+                .With(TError(ex));
         }
     }
 
@@ -214,7 +222,8 @@ TError TContainerDevicesChecker::CreateTestContainer()
         if (removeVolumeError.FindMatching(EPortoErrorCode::VolumeNotLinked) ||
             removeVolumeError.FindMatching(EPortoErrorCode::VolumeNotFound))
         {
-            YT_LOG_WARNING(removeVolumeError, "Test volume remove failed");
+            YT_TLOG_WARNING("Test volume remove failed")
+                .With(removeVolumeError);
         }
 
         if (NFS::Exists(mountPath)) {

@@ -51,10 +51,9 @@ public:
         auto tokenHash = GetCryptoHash(token);
         auto userIP = FormatUserIP(credentials.UserIP);
 
-        YT_LOG_DEBUG(
-            "Authenticating user with token via OAuth (TokenHash: %v, UserIP: %v)",
-            tokenHash,
-            userIP);
+        YT_TLOG_DEBUG("Authenticating user with token via OAuth")
+            .With("TokenHash", tokenHash)
+            .With("UserIP", userIP);
 
         return OAuthService_->GetUserInfo(token)
             .Apply(BIND(
@@ -80,7 +79,9 @@ private:
             Config_->DefaultUserTags);
 
         if (!error.IsOK()) {
-            YT_LOG_DEBUG(error, "Authentication via OAuth failed (TokenHash: %v)", tokenHash);
+            YT_TLOG_DEBUG("Authentication via OAuth failed")
+                .With("TokenHash", tokenHash)
+                .With(error);
             error <<= TErrorAttribute("token_hash", tokenHash);
             THROW_ERROR error;
         }
@@ -89,11 +90,10 @@ private:
             .Login = userInfo.Login,
             .Realm = std::string(OAuthTokenRealm),
         };
-        YT_LOG_DEBUG(
-            "Authentication via OAuth successful (TokenHash: %v, Login: %v, Realm: %v)",
-            tokenHash,
-            result.Login,
-            result.Realm);
+        YT_TLOG_DEBUG("Authentication via OAuth successful")
+            .With("TokenHash", tokenHash)
+            .With("Login", result.Login)
+            .With("Realm", result.Realm);
         return result;
     }
 };

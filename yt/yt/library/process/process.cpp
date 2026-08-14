@@ -78,9 +78,7 @@ public:
     ~TPosixSpawnFileActions()
     {
         auto res = ::posix_spawn_file_actions_destroy(&Actions_);
-        YT_LOG_FATAL_IF(
-            res != 0,
-            "Failed to destroy spawn file actions object");
+        YT_TLOG_FATAL_IF(res != 0, "Failed to destroy spawn file actions object");
     }
 
     void AddDup2FileAction(int oldFD, int newFD)
@@ -127,9 +125,7 @@ public:
 
     ~TPosixSpawnAttrs()
     {
-        YT_LOG_FATAL_IF(
-            ::posix_spawnattr_destroy(&Actions_) != 0,
-            "Failed to destroy spawnattrs object");
+        YT_TLOG_FATAL_IF(::posix_spawnattr_destroy(&Actions_) != 0, "Failed to destroy spawnattrs object");
     }
 
     void AddResetAllSignals()
@@ -203,12 +199,13 @@ TErrorOr<std::string> ResolveBinaryPath(const std::string& binary)
     auto Logger = NYT::Logger()
         .WithTag("Binary", binary);
 
-    YT_LOG_DEBUG("Resolving binary path");
+    YT_TLOG_DEBUG("Resolving binary path");
 
     std::vector<TError> accumulatedErrors;
 
     auto test = [&] (const char* path) {
-        YT_LOG_DEBUG("Probing path (Path: %v)", path);
+        YT_TLOG_DEBUG("Probing path")
+            .With("Path", path);
         if (access(path, R_OK | X_OK) == 0) {
             return true;
         } else {
@@ -224,12 +221,14 @@ TErrorOr<std::string> ResolveBinaryPath(const std::string& binary)
             "Cannot resolve binary %Qlv",
             binary);
         error.MutableInnerErrors()->swap(accumulatedErrors);
-        YT_LOG_DEBUG(error, "Error resolving binary path");
+        YT_TLOG_DEBUG("Error resolving binary path")
+            .With(error);
         return error;
     };
 
     auto success = [&] (const std::string& path) {
-        YT_LOG_DEBUG("Binary resolved (Path: %v)", path);
+        YT_TLOG_DEBUG("Binary resolved")
+            .With("Path", path);
         return path;
     };
 
@@ -246,7 +245,8 @@ TErrorOr<std::string> ResolveBinaryPath(const std::string& binary)
     // In this case, try to locate somewhere nearby.
     {
         auto execPathDirName = GetDirName(GetExecPath());
-        YT_LOG_DEBUG("Looking in our exec path directory (ExecPathDir: %v)", execPathDirName);
+        YT_TLOG_DEBUG("Looking in our exec path directory")
+            .With("ExecPathDir", execPathDirName);
         auto probe = JoinSeq("/", {execPathDirName, binary});
         if (test(probe.c_str())) {
             return success(probe);
@@ -259,7 +259,8 @@ TErrorOr<std::string> ResolveBinaryPath(const std::string& binary)
     TStringBuf envPath(envPathStr);
     TStringBuf envPathItem;
 
-    YT_LOG_DEBUG("Looking for binary in PATH (Path: %v)", envPathStr);
+    YT_TLOG_DEBUG("Looking for binary in PATH")
+        .With("Path", envPathStr);
 
     while (envPath.NextTok(':', envPathItem)) {
         if (buffer.size() < 2 + envPathItem.size() + binary.size()) {
@@ -336,7 +337,8 @@ void Wait4OrDie(pid_t id, int* status, int options, rusage* rusage)
 {
     auto res = HandleEintr(::wait4, id, status, options, rusage);
     if (res == -1) {
-        YT_LOG_FATAL(TError::FromSystem(), "Wait4 failed");
+        YT_TLOG_FATAL("Wait4 failed")
+            .With(TError::FromSystem());
     }
 }
 
@@ -805,7 +807,8 @@ void TSimpleProcess::DoSpawn()
 
     AsyncWaitExecutor_->Start();
 
-    YT_LOG_INFO("Process spawned (Pid: %v)", ProcessId_);
+    YT_TLOG_INFO("Process spawned")
+        .With("Pid", ProcessId_);
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
@@ -822,10 +825,10 @@ void TSimpleProcess::CleanUpParent()
 void TSimpleProcess::PrepareErrorPipe()
 {
 #if defined(YT_USE_POSIX_SPAWN_API)
-    YT_LOG_DEBUG("Spawning new process (Path: %v, Arguments: %v, Environment: %v)",
-        ResolvedPath_,
-        Args_,
-        Env_);
+    YT_TLOG_DEBUG("Spawning new process")
+        .With("Path", ResolvedPath_)
+        .With("Arguments", Args_)
+        .With("Environment", Env_);
 #else
     TPipeFactory pipeFactory(MaxSpawnActionFD_ + 1);
     Pipe_ = pipeFactory.Create();
@@ -833,11 +836,11 @@ void TSimpleProcess::PrepareErrorPipe()
 
     pipeFactory.Clear();
 
-    YT_LOG_DEBUG("Spawning new process (Path: %v, ErrorPipe: %v, Arguments: %v, Environment: %v)",
-        ResolvedPath_,
-        Pipe_,
-        Args_,
-        Env_);
+    YT_TLOG_DEBUG("Spawning new process")
+        .With("Path", ResolvedPath_)
+        .With("ErrorPipe", Pipe_)
+        .With("Arguments", Args_)
+        .With("Environment", Env_);
 #endif
 }
 
@@ -852,7 +855,8 @@ void TSimpleProcess::ValidateSpawnResult()
 {
 #if defined (YT_USE_POSIX_SPAWN_API)
 
-    YT_LOG_DEBUG("Child process spawned successfully (Pid: %v)", ProcessId_);
+    YT_TLOG_DEBUG("Child process spawned successfully")
+        .With("Pid", ProcessId_);
     return;
 #else
     auto result = SpawnState_->ValidateSpawnResult();
@@ -863,7 +867,8 @@ void TSimpleProcess::ValidateSpawnResult()
         // * child killed by signal before exec
         // * child killed by signal after exec
         // So we treat kill-before-exec the same way as kill-after-exec.
-        YT_LOG_DEBUG("Child process spawned successfully (Pid: %v)", ProcessId_);
+        YT_TLOG_DEBUG("Child process spawned successfully")
+            .With("Pid", ProcessId_);
         return;
     }
 
@@ -955,9 +960,10 @@ void TSimpleProcess::AsyncPeriodicTryWait()
 
     Finished_ = true;
     auto error = ProcessInfoToError(processInfo);
-    YT_LOG_DEBUG(error, "Process finished (Pid: %v, MajorFaults: %v)",
-        ProcessId_,
-        rusage.ru_majflt);
+    YT_TLOG_DEBUG("Process finished")
+        .With("Pid", ProcessId_)
+        .With("MajorFaults", rusage.ru_majflt)
+        .With(error);
 
     FinishedPromise_.Set(error);
 #else
@@ -976,7 +982,8 @@ void TSimpleProcess::Kill(int signal)
         return;
     }
 
-    YT_LOG_DEBUG("Killing child process (Pid: %v)", ProcessId_);
+    YT_TLOG_DEBUG("Killing child process")
+        .With("Pid", ProcessId_);
 
     bool result = false;
     if (!CreateProcessGroup_) {

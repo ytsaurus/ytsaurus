@@ -59,9 +59,9 @@ public:
                 NRpc::TDispatcher::Get()->GetLightInvoker());
         }
 
-        YT_LOG_DEBUG("Resolve request batched (HostName: %v, Options: %v)",
-            hostName,
-            options);
+        YT_TLOG_DEBUG("Resolve request batched")
+            .With("HostName", hostName)
+            .With("Options", options);
 
         return promise.ToFuture();
     }
@@ -91,8 +91,8 @@ private:
         BatchingTimeoutCookie_ = {};
         guard.Release();
 
-        YT_LOG_DEBUG("Started resolving batched requests (Count: %v)",
-            req->subrequests_size());
+        YT_TLOG_DEBUG("Started resolving batched requests")
+            .With("Count", req->subrequests_size());
 
         req->Invoke()
             .Subscribe(BIND(&TDnsOverRpcResolver::OnBatchResolved, MakeStrong(this), Passed(std::move(promises)))
@@ -104,7 +104,8 @@ private:
         const TDnsOverRpcServiceProxy::TErrorOrRspResolvePtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error resolving batched requests");
+            YT_TLOG_WARNING("Error resolving batched requests")
+                .With(rspOrError);
             auto error = TError("DNS-over-RPC resolve failed")
                 .With(rspOrError);
             for (const auto& promise : promises) {
@@ -113,7 +114,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Finished resolving batched requests");
+        YT_TLOG_DEBUG("Finished resolving batched requests");
 
         const auto& rsp = rspOrError.Value();
         YT_VERIFY(std::ssize(promises) == rsp->subresponses_size());

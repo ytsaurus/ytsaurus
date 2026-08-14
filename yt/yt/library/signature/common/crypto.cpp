@@ -28,7 +28,7 @@ std::atomic<bool> CryptographyInitializationFinished = {false};
 
 TFuture<void> InitializeCryptography(const IInvokerPtr& invoker)
 {
-    YT_LOG_INFO("Initializing cryptography");
+    YT_TLOG_INFO("Initializing cryptography");
 
     // NB(pavook) sodium_init might stall if there's not enough entropy in the system
     // (see https://docs.libsodium.org/usage). We need to set a reasonable timeout on this operation.
@@ -37,7 +37,7 @@ TFuture<void> InitializeCryptography(const IInvokerPtr& invoker)
         .Run()
         .Apply(BIND([] (int initResult) {
             if (initResult < 0) {
-                YT_LOG_ALERT("libsodium initialization failed.");
+                YT_TLOG_ALERT("libsodium initialization failed.");
             } else {
                 CryptographyInitializationFinished.store(true, std::memory_order::release);
             }

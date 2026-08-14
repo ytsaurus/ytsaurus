@@ -85,8 +85,8 @@ TSharedRange<TRowRange> GetPrunedRanges(
 {
     auto Logger = MakeQueryLogger(queryId);
 
-    YT_LOG_DEBUG("Inferring ranges from predicate (ForceLightRangeInference: %v)",
-        forceLightRangeInference);
+    YT_TLOG_DEBUG("Inferring ranges from predicate")
+        .With("ForceLightRangeInference", forceLightRangeInference);
 
     TSharedRange<TRowRange> result;
 
@@ -117,9 +117,9 @@ TSharedRange<TRowRange> GetPrunedRanges(
     };
 
     for (const auto& range : result) {
-        YT_LOG_DEBUG_IF(options.VerboseLogging, "Inferred range (TableId: %v, Range: %v)",
-            tableId,
-            keyRangeFormatter(range));
+        YT_TLOG_DEBUG_IF(options.VerboseLogging, "Inferred range")
+            .With("TableId", tableId)
+            .With("Range", keyRangeFormatter(range));
     }
 
     return result;
@@ -220,9 +220,9 @@ std::pair<TDataSource, TConstQueryPtr> InferRanges(
             options,
             memoryChunkProvider);
 
-        YT_LOG_DEBUG("Ranges are inferred (RangeCount: %v, TableId: %v)",
-            ranges.Size(),
-            tableId);
+        YT_TLOG_DEBUG("Ranges are inferred")
+            .With("RangeCount", ranges.Size())
+            .With("TableId", tableId);
 
         auto newQuery = New<TQuery>(*query);
 
@@ -246,11 +246,13 @@ std::pair<TDataSource, TConstQueryPtr> InferRanges(
             };
 
             if (CanOmitOrderBy(fixedKeyPrefix, orderClause->OrderItems, newQuery->GetKeyColumns())) {
-                YT_LOG_DEBUG("Omitting ORDER BY clause (FixedKeyPrefix: %v)", fixedKeyPrefix);
+                YT_TLOG_DEBUG("Omitting ORDER BY clause")
+                    .With("FixedKeyPrefix", fixedKeyPrefix);
 
                 newQuery->OrderClause.Reset();
             } else if (canEnableReverseScanForOrderBy()) {
-                YT_LOG_DEBUG("Enabling reverse scan for ORDER BY on fixed key prefix (FixedKeyPrefix: %v)", fixedKeyPrefix);
+                YT_TLOG_DEBUG("Enabling reverse scan for ORDER BY on fixed key prefix")
+                    .With("FixedKeyPrefix", fixedKeyPrefix);
 
                 newQuery->IsReverseScan = true;
             }
@@ -331,7 +333,7 @@ ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
         return CreateOrderedSchemafulReader(std::move(getNextReader));
     }
 
-    YT_LOG_DEBUG("Use adaptive ordered schemaful reader");
+    YT_TLOG_DEBUG("Use adaptive ordered schemaful reader");
 
     auto generator = NDetail::TAdaptiveReaderGenerator(getNextReader, subplanHolders);
     auto readerGenerator = [generator = std::move(generator)] () mutable -> ISchemafulUnversionedReaderPtr {
@@ -376,13 +378,13 @@ TQueryStatistics CoordinateAndExecute(
         return evaluateResult.Reader;
     };
 
-    YT_LOG_DEBUG("Creating reader (ScanOrder: %v, Prefetch: %v, SplitCount: %v, Offset: %v, Limit: %v, UseAdaptiveOrderedSchemafulReader: %v)",
-        scanOrder,
-        prefetch,
-        splitCount,
-        offset,
-        limit,
-        useAdaptiveOrderedSchemafulReader);
+    YT_TLOG_DEBUG("Creating reader")
+        .With("ScanOrder", scanOrder)
+        .With("Prefetch", prefetch)
+        .With("SplitCount", splitCount)
+        .With("Offset", offset)
+        .With("Limit", limit)
+        .With("UseAdaptiveOrderedSchemafulReader", useAdaptiveOrderedSchemafulReader);
 
     // TODO: Use separate condition for prefetch after protocol update
     ISchemafulUnversionedReaderPtr topReader;

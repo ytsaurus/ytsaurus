@@ -61,10 +61,9 @@ public:
     {
         const auto& cookieValue = GetOrCrash(credentials.Cookies, CypressCookieName);
 
-        YT_LOG_DEBUG(
-            "Authenticating user via native cookie (CookieMD5: %v, UserIP: %v)",
-            GetMD5HexDigestUpperCase(cookieValue),
-            FormatUserIP(credentials.UserIP));
+        YT_TLOG_DEBUG("Authenticating user via native cookie")
+            .With("CookieMD5", GetMD5HexDigestUpperCase(cookieValue))
+            .With("UserIP", FormatUserIP(credentials.UserIP));
 
         return CookieStore_->GetCookie(cookieValue)
             .Apply(BIND(&TCypressCookieAuthenticator::OnGotCookie, MakeStrong(this)))
@@ -161,24 +160,24 @@ private:
                 newCookie->PasswordRevision = passwordRevision;
                 newCookie->ExpiresAt = TInstant::Now() + expirationTimeout;
 
-                YT_LOG_DEBUG("Issuing new cookie for renewal "
-                    "(User: %v, CookieMD5: %v, PasswordRevision: %v, ExpiresAt: %v)",
-                    user,
-                    GetMD5HexDigestUpperCase(newCookie->Value),
-                    passwordRevision,
-                    newCookie->ExpiresAt);
+                YT_TLOG_DEBUG("Issuing new cookie for renewal")
+                    .With("User", user)
+                    .With("CookieMD5", GetMD5HexDigestUpperCase(newCookie->Value))
+                    .With("PasswordRevision", passwordRevision)
+                    .With("ExpiresAt", newCookie->ExpiresAt);
 
                 auto error = WaitFor(CookieStore_->RegisterCookie(newCookie));
                 if (error.IsOK()) {
-                    YT_LOG_DEBUG("Issued new cookie for renewal (User: %v, CookieMD5: %v)",
-                        user,
-                        GetMD5HexDigestUpperCase(newCookie->Value));
+                    YT_TLOG_DEBUG("Issued new cookie for renewal")
+                        .With("User", user)
+                        .With("CookieMD5", GetMD5HexDigestUpperCase(newCookie->Value));
                     result.SetCookie = newCookie->ToHeader(Config_);
                 } else {
                     // NB: Cookie creation failure should not lead to authentication error.
-                    YT_LOG_DEBUG(error, "Failed to issue new cookie for renewal (User: %v, CookieMD5: %v)",
-                        user,
-                        GetMD5HexDigestUpperCase(newCookie->Value));
+                    YT_TLOG_DEBUG("Failed to issue new cookie for renewal")
+                        .With("User", user)
+                        .With("CookieMD5", GetMD5HexDigestUpperCase(newCookie->Value))
+                        .With(error);
                 }
             }
         }
@@ -188,10 +187,10 @@ private:
             setCookieMD5 = GetMD5HexDigestUpperCase(*setCookie);
         }
 
-        YT_LOG_DEBUG("User authenticated (User: %v, CookieMD5: %v, SetCookieMD5: %v)",
-            user,
-            GetMD5HexDigestUpperCase(cookie->Value),
-            setCookieMD5);
+        YT_TLOG_DEBUG("User authenticated")
+            .With("User", user)
+            .With("CookieMD5", GetMD5HexDigestUpperCase(cookie->Value))
+            .With("SetCookieMD5", setCookieMD5);
 
         return result;
     }

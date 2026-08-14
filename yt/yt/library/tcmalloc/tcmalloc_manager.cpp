@@ -374,9 +374,9 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Changing TCMalloc memory limit (Limit: %v, Hard: %v)",
-            proposed.Limit,
-            proposed.Hard);
+        YT_TLOG_INFO("Changing TCMalloc memory limit")
+            .With("Limit", proposed.Limit)
+            .With("Hard", proposed.Hard);
 
         if (proposed.Hard) {
             tcmalloc::MallocExtension::SetMemoryLimit(proposed.Limit, tcmalloc::MallocExtension::LimitKind::kHard);
@@ -473,9 +473,9 @@ public:
 
                         if (static_cast<i64>(*freeBytes) > TLimitsAdjuster::Get()->GetAggressiveReleaseThreshold()) {
 
-                            YT_LOG_DEBUG("Aggressively releasing memory (FreeBytes: %v, Threshold: %v)",
-                                static_cast<i64>(*freeBytes),
-                                TLimitsAdjuster::Get()->GetAggressiveReleaseThreshold());
+                            YT_TLOG_DEBUG("Aggressively releasing memory")
+                                .With("FreeBytes", static_cast<i64>(*freeBytes))
+                                .With("Threshold", TLimitsAdjuster::Get()->GetAggressiveReleaseThreshold());
 
                             tcmalloc::MallocExtension::ReleaseMemoryToSystem(config->AggressiveReleaseSize);
                         }

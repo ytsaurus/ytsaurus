@@ -2619,7 +2619,8 @@ void TQueryProfiler::Profile(
 
     auto joinGroups = GetJoinGroups(query->JoinClauses, schema);
     if (!joinGroups.empty()) {
-        YT_LOG_DEBUG("Join groups: [%v]", JoinToString(joinGroups));
+        YT_TLOG_DEBUG("Grouping joins")
+            .With("JoinGroups", JoinToString(joinGroups));
     }
 
     size_t joinIndex = 0;

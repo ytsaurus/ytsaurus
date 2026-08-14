@@ -459,9 +459,9 @@ public:
         }
 
         Spec_.Command = commandBuilder.Flush();
-        YT_LOG_DEBUG("Executing Porto container (Name: %v, Command: %v)",
-            Spec_.Name,
-            Spec_.Command);
+        YT_TLOG_DEBUG("Executing Porto container")
+            .With("Name", Spec_.Name)
+            .With("Command", Spec_.Command);
 
         Spec_.Env = env;
 
@@ -897,7 +897,9 @@ public:
             try {
                 processCGroups = GetProcessCGroups(pid);
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Failed to get CGroups for process (Pid: %v)", pid);
+                YT_TLOG_DEBUG("Failed to get CGroups for process")
+                    .With("Pid", pid)
+                    .With(TError(ex));
                 continue;
             }
 

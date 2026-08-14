@@ -902,9 +902,9 @@ TJoinClausePtr BuildJoinClause(
     joinClause->ForeignKeyPrefix = foreignKeyPrefix;
     joinClause->CommonKeyPrefix = *globalCommonKeyPrefix;
 
-    YT_LOG_DEBUG("Creating join (CommonKeyPrefix: %v, ForeignKeyPrefix: %v)",
-        joinClause->CommonKeyPrefix,
-        joinClause->ForeignKeyPrefix);
+    YT_TLOG_DEBUG("Creating join")
+        .With("CommonKeyPrefix", joinClause->CommonKeyPrefix)
+        .With("ForeignKeyPrefix", joinClause->ForeignKeyPrefix);
 
     if (tableJoin.Predicate) {
         joinClause->Predicate = BuildPredicate(
@@ -1315,16 +1315,16 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
     {
         const auto* table = std::get_if<NAst::TTableDescriptor>(&queryAst.FromClause);
 
-        YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v, SubqueryDepth: %v)",
-            table ? table->Path : "inapplicable",
-            MakeFormattableView(
+        YT_TLOG_DEBUG("Getting initial data splits")
+            .With("PrimaryPath", table ? table->Path : "inapplicable")
+            .With("ForeignPaths", MakeFormattableView(
                 queryAst.Joins,
                 [] (TStringBuilderBase* builder, const std::variant<NAst::TJoin, NAst::TArrayJoin>& join) {
                     if (auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
                         FormatValue(builder, tableJoin->Table.Path, TStringBuf());
                     }
-            }),
-            depth);
+            }))
+            .With("SubqueryDepth", depth);
     }
 
     THashMap<NYPath::TYPath, TFuture<TDataSplit>> asyncDataSplits;
@@ -1352,7 +1352,7 @@ THashMap<NYPath::TYPath, TDataSplit> GetDataSplits(
         result.insert(std::move(pair));
     }
 
-    YT_LOG_DEBUG("Initial data splits received");
+    YT_TLOG_DEBUG("Initial data splits received");
     return result;
 }
 
@@ -1518,10 +1518,10 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
     }
 
     auto queryFingerprint = InferName(query, {.OmitValues = true});
-    YT_LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
-        queryFingerprint,
-        *readSchema,
-        *query->GetTableSchema());
+    YT_TLOG_DEBUG("Prepared query")
+        .With("Fingerprint", queryFingerprint)
+        .With("ReadSchema", *readSchema)
+        .With("ResultSchema", *query->GetTableSchema());
 
     auto rowBuffer = New<TRowBuffer>(
         TQueryPreparerBufferTag(),

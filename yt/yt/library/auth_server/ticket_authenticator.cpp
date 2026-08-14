@@ -47,8 +47,8 @@ public:
         auto userTicketHash = GetCryptoHash(userTicket);
         auto userTicketAuthenticationConfig = UserTicketAuthenticationConfig_.Acquire();
 
-        YT_LOG_DEBUG("Validating user ticket (UserTicketHash: %v)",
-            userTicketHash);
+        YT_TLOG_DEBUG("Validating user ticket")
+            .With("UserTicketHash", userTicketHash);
 
         if (userTicketAuthenticationConfig && userTicketAuthenticationConfig->CheckServiceTickets) {
             if (!credentials.ServiceTicket) {
@@ -65,10 +65,10 @@ public:
 
             auto tvmId = errorOrTvmId.Value();
             if (!userTicketAuthenticationConfig->AllowedServiceTvmIds.contains(tvmId)) {
-                YT_LOG_DEBUG("Service is not allowed to authorize using user ticket (UserTicketHash: %v, ServiceTicketHash: %v, TvmId: %v)",
-                    userTicketHash,
-                    serviceTicketHash,
-                    tvmId);
+                YT_TLOG_DEBUG("Service is not allowed to authorize using user ticket")
+                    .With("UserTicketHash", userTicketHash)
+                    .With("ServiceTicketHash", serviceTicketHash)
+                    .With("TvmId", tvmId);
 
                 return MakeFuture<TAuthenticationResult>(TError(NRpc::EErrorCode::InvalidCredentials,
                     "Service is not allowed to authorize using user ticket"));
@@ -82,8 +82,8 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Validating user ticket via Blackbox (UserTicketHash: %v)",
-            userTicketHash);
+        YT_TLOG_DEBUG("Validating user ticket via Blackbox")
+            .With("UserTicketHash", userTicketHash);
 
         return BlackboxService_->Call("user_ticket", {{"user_ticket", userTicket}})
             .Apply(BIND(
@@ -99,8 +99,8 @@ public:
         const auto& ticket = credentials.ServiceTicket;
         auto ticketHash = GetCryptoHash(ticket);
 
-        YT_LOG_DEBUG("Validating service ticket (ServiceTicketHash: %v)",
-            ticketHash);
+        YT_TLOG_DEBUG("Validating service ticket")
+            .With("ServiceTicketHash", ticketHash);
 
         auto errorOrTvmId = ParseServiceTicket(ticket, ticketHash);
         if (!errorOrTvmId.IsOK()) {
@@ -135,28 +135,30 @@ private:
     {
         try {
             auto parsedTicket = TvmService_->ParseServiceTicket(ticket);
-            YT_LOG_DEBUG("Parsing service ticket succeeded (ServiceTicketHash: %v, TvmId: %v)",
-                ticketHash,
-                parsedTicket.TvmId);
+            YT_TLOG_DEBUG("Parsing service ticket succeeded")
+                .With("ServiceTicketHash", ticketHash)
+                .With("TvmId", parsedTicket.TvmId);
 
             return parsedTicket.TvmId;
         } catch (const std::exception& ex) {
             auto error = TError(NRpc::EErrorCode::InvalidCredentials, "Failed to parse service ticket")
                 << ex;
-            YT_LOG_DEBUG(error, "Parsing service ticket failed (ServiceTicketHash: %v)",
-                ticketHash);
+            YT_TLOG_DEBUG("Parsing service ticket failed")
+                .With("ServiceTicketHash", ticketHash)
+                .With(error);
             return error;
         }
     }
 
     TError CheckScope(const std::string& ticket, const std::string& ticketHash)
     {
-        YT_LOG_DEBUG("Validating user ticket scopes (UserTicketHash: %v)",
-            ticketHash);
+        YT_TLOG_DEBUG("Validating user ticket scopes")
+            .With("UserTicketHash", ticketHash);
         try {
             const auto result = TvmService_->ParseUserTicket(ticket);
             const auto& scopes = result.Scopes;
-            YT_LOG_DEBUG("Got user ticket (Scopes: %v)", scopes);
+            YT_TLOG_DEBUG("Got user ticket")
+                .With("Scopes", scopes);
 
             const auto& allowedScopes = Config_->Scopes;
             for (const auto& scope : scopes) {
@@ -171,8 +173,9 @@ private:
                 .With("allowed_scopes", allowedScopes);
         } catch (const std::exception& ex) {
             TError error(ex);
-            YT_LOG_DEBUG(error, "Parsing user ticket failed (UserTicketHash: %v)",
-                ticketHash);
+            YT_TLOG_DEBUG("Parsing user ticket failed")
+                .With("UserTicketHash", ticketHash)
+                .With(error);
             return error.With("user_ticket_hash", ticketHash);
         }
     }
@@ -184,8 +187,9 @@ private:
     {
         auto errorOrResult = OnCallResultImpl(data);
         if (!errorOrResult.IsOK()) {
-            YT_LOG_DEBUG(errorOrResult, "Blackbox authentication failed (UserTicketHash: %v)",
-                ticketHash);
+            YT_TLOG_DEBUG("Blackbox authentication failed")
+                .With("UserTicketHash", ticketHash)
+                .With(errorOrResult);
             THROW_ERROR errorOrResult
                 .With("user_ticket_hash", ticketHash);
         }
@@ -193,10 +197,10 @@ private:
         auto result = errorOrResult.Value();
         result.UserTicket = ticket;
 
-        YT_LOG_DEBUG("Blackbox authentication successful (UserTicketHash: %v, Login: %v, Realm: %v)",
-            ticketHash,
-            result.Login,
-            result.Realm);
+        YT_TLOG_DEBUG("Blackbox authentication successful")
+            .With("UserTicketHash", ticketHash)
+            .With("Login", result.Login)
+            .With("Realm", result.Realm);
         return result;
     }
 

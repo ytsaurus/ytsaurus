@@ -249,7 +249,8 @@ THierarchicalJoinClausePtr BuildHierarchicalJoinFromSubquery(
     hierarchicalJoin->ForeignCellId = joinClause->ForeignCellId;
     hierarchicalJoin->ForeignJoinedColumns = joinClause->ForeignJoinedColumns;
 
-    YT_LOG_DEBUG("Built hierarchical join (ColumnName: %v)", columnName);
+    YT_TLOG_DEBUG("Built hierarchical join")
+        .With("ColumnName", columnName);
 
     return hierarchicalJoin;
 }
@@ -299,7 +300,7 @@ TQueryPtr InsertHierarchicalJoins(
     const TQueryPtr& query,
     const NLogging::TLogger& Logger)
 {
-    YT_LOG_DEBUG("Rewriting hierarchical joins");
+    YT_TLOG_DEBUG("Rewriting hierarchical joins");
 
     auto subqueriesToRewrite = DiscoverSubqueries(query);
 

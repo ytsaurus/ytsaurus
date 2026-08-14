@@ -85,9 +85,10 @@ private:
             ReplyError(rsp, error);
         }
 
-        YT_LOG_DEBUG(error, "Failed to login user (ConnectionId: %v, User: %v)",
-            req->GetConnectionId(),
-            user);
+        YT_TLOG_DEBUG("Failed to login user")
+            .With("ConnectionId", req->GetConnectionId())
+            .With("User", user)
+            .With(error);
     }
 
     void HandleLoginRequest(
@@ -172,10 +173,10 @@ private:
             ? LdapPasswordRevisionAttribute
             : PasswordRevisionAttribute;
 
-        YT_LOG_DEBUG("Login succeeded, fetching password revision (User: %v, Source: %v, RevisionAttribute: %v)",
-            login,
-            loginResult.Source,
-            revisionAttribute);
+        YT_TLOG_DEBUG("Login succeeded, fetching password revision")
+            .With("User", login)
+            .With("Source", loginResult.Source)
+            .With("RevisionAttribute", revisionAttribute);
 
         ui64 passwordRevision = 0;
         try {
@@ -207,9 +208,9 @@ private:
             error.ThrowOnError();
         }
 
-        YT_LOG_DEBUG("Issued new cookie for user (User: %v, CookieMD5: %v)",
-            login,
-            GetMD5HexDigestUpperCase(cookie->Value));
+        YT_TLOG_DEBUG("Issued new cookie for user")
+            .With("User", login)
+            .With("CookieMD5", GetMD5HexDigestUpperCase(cookie->Value));
 
         if (const auto& redirectUrl = Config_->RedirectUrl) {
             rsp->SetStatus(EStatusCode::PermanentRedirect);

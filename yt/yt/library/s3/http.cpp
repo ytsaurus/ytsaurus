@@ -278,14 +278,14 @@ private:
 
         auto Logger = S3Logger();
 
-        YT_LOG_DEBUG("Performing request (Method: %v, Protocol: %v, Host: %v, Port: %v, Path: %v, Region: %v, Service: %v)",
-            request.Method,
-            request.Protocol,
-            request.Host,
-            request.Port,
-            request.Path,
-            request.Region,
-            request.Service);
+        YT_TLOG_DEBUG("Performing request")
+            .With("Method", request.Method)
+            .With("Protocol", request.Protocol)
+            .With("Host", request.Host)
+            .With("Port", request.Port)
+            .With("Path", request.Path)
+            .With("Region", request.Region)
+            .With("Service", request.Service);
 
         auto dialerContext = New<TDialerContext>();
         dialerContext->Host = request.Host;

@@ -94,7 +94,8 @@ private:
             LastUpdate_ = TInstant::Now();
             ParticipantCount_.Update(List_.size());
         }
-        YT_LOG_DEBUG("List of participants updated (Alive: %v)", list.size());
+        YT_TLOG_DEBUG("List of participants updated")
+            .With("Alive", list.size());
     }
 };
 

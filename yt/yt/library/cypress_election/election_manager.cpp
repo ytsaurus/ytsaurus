@@ -56,7 +56,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Starting Cypress election manager");
+        YT_TLOG_DEBUG("Starting Cypress election manager");
 
         IsActive_ = true;
 
@@ -70,7 +70,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Stopping Cypress election manager");
+        YT_TLOG_DEBUG("Stopping Cypress election manager");
 
         return BIND(&TCypressElectionManager::DoStop, MakeWeak(this))
             .AsyncVia(Invoker_)
@@ -88,7 +88,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Stopping leading");
+        YT_TLOG_DEBUG("Stopping leading");
 
         return BIND(&TCypressElectionManager::DoStopLeading, MakeWeak(this))
             .AsyncVia(Invoker_)
@@ -158,7 +158,8 @@ private:
         try {
             GuardedUpdateCachedLeaderTransactionAttributes();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Leader transaction attribute cache update iteration failed");
+            YT_TLOG_DEBUG("Leader transaction attribute cache update iteration failed")
+                .With(TError(ex));
         }
     }
 
@@ -192,47 +193,48 @@ private:
 
         try {
             if (!LockNodeId_) {
-                YT_LOG_DEBUG("Creating lock node");
+                YT_TLOG_DEBUG("Creating lock node");
 
                 CreateLockNode();
 
-                YT_LOG_DEBUG("Lock node created (LockNodeId: %v)",
-                    LockNodeId_);
+                YT_TLOG_DEBUG("Lock node created")
+                    .With("LockNodeId", LockNodeId_);
             }
 
             if (!Transaction_) {
-                YT_LOG_DEBUG("Starting transaction");
+                YT_TLOG_DEBUG("Starting transaction");
 
                 StartTransaction();
 
-                YT_LOG_DEBUG("Transaction started (TransactionId: %v)",
-                    Transaction_->GetId());
+                YT_TLOG_DEBUG("Transaction started")
+                    .With("TransactionId", Transaction_->GetId());
             }
 
             if (!LockId_) {
                 auto transactionId = Transaction_->GetId();
-                YT_LOG_DEBUG("Creating lock (TransactionId: %v)",
-                    transactionId);
+                YT_TLOG_DEBUG("Creating lock")
+                    .With("TransactionId", transactionId);
 
                 CreateLock();
 
-                YT_LOG_DEBUG("Lock created (TransactionId: %v, LockId: %v, TransactionStillAlive: %v)",
-                    transactionId,
-                    LockId_,
-                    Transaction_ != nullptr);
+                YT_TLOG_DEBUG("Lock created")
+                    .With("TransactionId", transactionId)
+                    .With("LockId", LockId_)
+                    .With("TransactionStillAlive", Transaction_ != nullptr);
             }
 
             if (CheckLockAcquired()) {
-                YT_LOG_DEBUG("Lock is acquired, starting leading (LockId: %v)",
-                    LockId_);
+                YT_TLOG_DEBUG("Lock is acquired, starting leading")
+                    .With("LockId", LockId_);
 
                 OnLeadingStarted();
             } else {
-                YT_LOG_DEBUG("Lock is not acquired yet, skipping (LockId: %v)",
-                    LockId_);
+                YT_TLOG_DEBUG("Lock is not acquired yet, skipping")
+                    .With("LockId", LockId_);
             }
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Lock acquisition iteration failed");
+            YT_TLOG_INFO("Lock acquisition iteration failed")
+                .With(TError(ex));
         }
     }
 
@@ -286,8 +288,9 @@ private:
             // NB: If transaction has created lock, but response was lost, creating a new lock
             // will end up with a conflict, so it's safer to create a new transaction in case
             // of any errors.
-            YT_LOG_DEBUG(rspOrError, "Failed to create lock (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Failed to create lock")
+                .With("TransactionId", transactionId)
+                .With(rspOrError);
             LockNodeId_ = NullObjectId;
             Transaction_.Reset();
             rspOrError.ThrowOnError();
@@ -308,8 +311,9 @@ private:
             auto lockState = response->Attributes().Get<ELockState>("state");
             return lockState == ELockState::Acquired;
         } else if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            YT_LOG_DEBUG(rspOrError, "Lock does not exist (LockId: %v)",
-                LockId_);
+            YT_TLOG_DEBUG("Lock does not exist")
+                .With("LockId", LockId_)
+                .With(rspOrError);
             Transaction_.Reset();
             LockId_ = NullObjectId;
             return false;
@@ -324,8 +328,9 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_DEBUG(error, "Transaction aborted (TransactionId: %v)",
-            transactionId);
+        YT_TLOG_DEBUG("Transaction aborted")
+            .With("TransactionId", transactionId)
+            .With(error);
 
         OnTransactionFinished(transactionId);
     }
@@ -334,8 +339,8 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_DEBUG("Transacton committed (TransactionId: %v)",
-            transactionId);
+        YT_TLOG_DEBUG("Transacton committed")
+            .With("TransactionId", transactionId);
 
         OnTransactionFinished(transactionId);
     }
@@ -358,19 +363,20 @@ private:
         YT_VERIFY(!IsLeader());
 
         if (!Transaction_) {
-            YT_LOG_WARNING("Transaction expired just before leading started");
+            YT_TLOG_WARNING("Transaction expired just before leading started");
             return;
         }
 
         PrerequisiteTransactionId_.Store(Transaction_->GetId());
 
-        YT_LOG_DEBUG("Leading started");
+        YT_TLOG_DEBUG("Leading started");
 
         try {
             TForbidContextSwitchGuard guard;
             LeadingStarted_.Fire();
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Unexpected error occurred during leading start");
+            YT_TLOG_ALERT("Unexpected error occurred during leading start")
+                .With(TError(ex));
         }
     }
 
@@ -389,7 +395,7 @@ private:
 
         IsActive_ = false;
 
-        YT_LOG_DEBUG("Election manager stopped");
+        YT_TLOG_DEBUG("Election manager stopped");
     }
 
     void DoStopLeading()
@@ -406,7 +412,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (IsLeader()) {
-            YT_LOG_DEBUG("Leading ended");
+            YT_TLOG_DEBUG("Leading ended");
 
             PrerequisiteTransactionId_.Store(NullTransactionId);
 
@@ -414,7 +420,8 @@ private:
                 TForbidContextSwitchGuard guard;
                 LeadingEnded_.Fire();
             } catch (const std::exception& ex) {
-                YT_LOG_ALERT(ex, "Unexpected error occurred during leading end");
+                YT_TLOG_ALERT("Unexpected error occurred during leading end")
+                    .With(TError(ex));
             }
         }
 

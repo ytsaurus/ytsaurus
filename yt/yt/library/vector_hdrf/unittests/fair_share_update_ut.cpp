@@ -1992,9 +1992,9 @@ TEST_F(TFairShareUpdateTest, TestExampleFromProductionCluster)
             .EnableImprovedFairShareByFitFactorComputationDistributionGap = true,
         });
 
-    YT_LOG_INFO("Root element (FairShare: %v, OriginalFairShare: %v)",
-        rootElement->Attributes().FairShare.Total,
-        originalRootFairShare);
+    YT_TLOG_INFO("Root element")
+        .With("FairShare", rootElement->Attributes().FairShare.Total)
+        .With("OriginalFairShare", originalRootFairShare);
 }
 
 TEST_P(TFairShareUpdateParametrizedTest, TestRelaxedPoolWithGuaranteeOvercommitment)

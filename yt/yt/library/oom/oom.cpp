@@ -64,7 +64,8 @@ void OomWatchdog(TOomWatchdogOptions options)
 
             auto rctDump = TRefCountedTracker::Get()->GetDebugInfo();
             for (const auto& line : StringSplitter(rctDump).Split('\n')) {
-                YT_LOG_DEBUG("RCT %v", line.Token());
+                YT_TLOG_DEBUG("Read memory statistics line")
+                    .With("Line", line.Token());
             }
 
             auto parseMemoryAmount = [] (const TStringBuf strValue) {
@@ -103,11 +104,12 @@ void OomWatchdog(TOomWatchdogOptions options)
                 }
             }
 
-            YT_LOG_DEBUG("Memory statistis (RssTotal: %v, RssAnon: %v, RssFile %v, RssShmem: %v, TCMalloc: %v)",
-                rss,
-                rssAnon,
-                rssFile,
-                rssShmem,
+            YT_TLOG_DEBUG("Memory statistics")
+                .With("RssTotal", rss)
+                .With("RssAnon", rssAnon)
+                .With("RssFile", rssFile)
+                .With("RssShmem", rssShmem)
+                .With("TCMalloc",
                 MakeFormattableView(
                     TRange(TCMallocStats),
                     [&] (auto* builder, auto metric) {
@@ -115,11 +117,11 @@ void OomWatchdog(TOomWatchdogOptions options)
                         builder->AppendFormat("%v: %v", metric, value);
                     }));
 
-            YT_LOG_FATAL("Early OOM triggered (MemoryUsage: %v, MemoryLimit: %v, HeapDump: %v, CurrentWorkingDirectory: %v)",
-                rss,
-                *options.MemoryLimit,
-                options.HeapDumpPath,
-                NFs::CurrentWorkingDirectory());
+            YT_TLOG_FATAL("Early OOM triggered")
+                .With("MemoryUsage", rss)
+                .With("MemoryLimit", *options.MemoryLimit)
+                .With("HeapDump", options.HeapDumpPath)
+                .With("CurrentWorkingDirectory", NFs::CurrentWorkingDirectory());
         }
 
         Sleep(TDuration::MilliSeconds(10));

@@ -83,14 +83,14 @@ public:
             errorAttributes.emplace_back("sessguard_md5", sessguardMD5);
         }
 
-        auto authArgs = Format("SessionIdMD5: %v, SslSessionIdMD5: %v, SessguardMD5: %v, UserIP: %v",
-            sessionIdMD5,
-            sslSessionIdMD5,
-            sessguardMD5,
-            userIP);
+        auto authTags = NLogging::TLoggingTagList()
+            .With("SessionIdMD5", sessionIdMD5)
+            .With("SslSessionIdMD5", sslSessionIdMD5)
+            .With("SessguardMD5", sessguardMD5)
+            .With("UserIP", userIP);
 
-        YT_LOG_DEBUG("Authenticating user via session cookie (%v)",
-            authArgs);
+        YT_TLOG_DEBUG("Authenticating user via session cookie")
+            .With(authTags);
 
         THashMap<std::string, std::string> params{
             {"sessionid", sessionId},
@@ -114,7 +114,7 @@ public:
             .Apply(BIND(
                 &TBlackboxCookieAuthenticator::OnCallResult,
                 MakeStrong(this),
-                std::move(authArgs),
+                std::move(authTags),
                 std::move(errorAttributes)));
     }
 
@@ -124,21 +124,21 @@ private:
 
 private:
     TFuture<TAuthenticationResult> OnCallResult(
-        const std::string& authArgs,
+        const NLogging::TLoggingTagList& authTags,
         const std::vector<TErrorAttribute>& errorAttributes,
         const INodePtr& data)
     {
         auto result = OnCallResultImpl(data);
         if (!result.IsOK()) {
-            YT_LOG_DEBUG(result, "Authentication failed (%v)",
-                authArgs);
+            YT_TLOG_DEBUG("Authentication failed")
+                .With(authTags)
+                .With(result);
             result <<= errorAttributes;
         } else {
-            YT_LOG_DEBUG(
-                "Authentication successful (%v, Login: %v, Realm: %v)",
-                authArgs,
-                result.Value().Login,
-                result.Value().Realm);
+            YT_TLOG_DEBUG("Authentication successful")
+                .With(authTags)
+                .With("Login", result.Value().Login)
+                .With("Realm", result.Value().Realm);
         }
         return MakeFuture(result);
     }

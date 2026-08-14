@@ -306,13 +306,13 @@ void TryPushDownGroupBy(const TQueryPtr& query, const NAst::TQuery& ast, const T
         *joinRenamedSchema);
 
     if (!newJoinClause) {
-        YT_LOG_DEBUG("\"push_down_group_by\" considered ineffective");
+        YT_TLOG_DEBUG("\"push_down_group_by\" considered ineffective");
         return;
     }
 
-    YT_LOG_DEBUG("\"push_down_group_by\" complete (JoinClause: %v, GroupByClause: %v)",
-        MakeDebugString(*newJoinClause),
-        MakeDebugString(*newGroupClause));
+    YT_TLOG_DEBUG("\"push_down_group_by\" complete")
+        .With("JoinClause", MakeDebugString(*newJoinClause))
+        .With("GroupByClause", MakeDebugString(*newGroupClause));
 
     query->JoinClauses[0] = newJoinClause;
 

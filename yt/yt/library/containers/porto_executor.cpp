@@ -210,16 +210,14 @@ public:
 
     void OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig) override
     {
-        YT_LOG_DEBUG(
-            "Enqueue Porto reconfiguration (ApiTimeout: %v, ApiDiskTimeout: %v)",
-            newConfig->ApiTimeout.Seconds(),
-            newConfig->ApiDiskTimeout.Seconds());
+        YT_TLOG_DEBUG("Enqueue Porto reconfiguration")
+            .With("ApiTimeout", newConfig->ApiTimeout.Seconds())
+            .With("ApiDiskTimeout", newConfig->ApiDiskTimeout.Seconds());
 
         Queue_->GetInvoker(EPortoActionKind::Reconfigure)->Invoke(BIND([this, this_ = MakeStrong(this), config = newConfig] () {
-            YT_LOG_DEBUG(
-                "Reconfiguring Porto (ApiTimeout: %v, ApiDiskTimeout: %v)",
-                config->ApiTimeout.Seconds(),
-                config->ApiDiskTimeout.Seconds());
+            YT_TLOG_DEBUG("Reconfiguring Porto")
+                .With("ApiTimeout", config->ApiTimeout.Seconds())
+                .With("ApiDiskTimeout", config->ApiDiskTimeout.Seconds());
             DynamicConfig_.Store(config);
             Api_->SetTimeout(config->ApiTimeout.Seconds());
             Api_->SetDiskTimeout(config->ApiDiskTimeout.Seconds());
@@ -233,7 +231,8 @@ private:
         const std::string& command,
         TArgs2&&... args)
     {
-        YT_LOG_DEBUG("Enqueue Porto API action (Command: %v)", command);
+        YT_TLOG_DEBUG("Enqueue Porto API action")
+            .With("Command", command);
         return BIND(Method, MakeStrong(this), std::forward<TArgs2>(args)...)
             .AsyncVia(Queue_->GetInvoker(EPortoActionKind::Api))
             .Run();
@@ -840,8 +839,8 @@ private:
     {
         auto [it, inserted] = ContainerMap_.emplace(container, NewPromise<int>());
         if (!inserted) {
-            YT_LOG_WARNING("Container already added for polling (Container: %v)",
-                container);
+            YT_TLOG_WARNING("Container already added for polling")
+                .With("Container", container);
         } else {
             Containers_.push_back(container);
         }
@@ -921,7 +920,8 @@ private:
                 // TODO(dcherednik): other states
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Fatal exception occurred while polling Porto");
+            YT_TLOG_ERROR("Fatal exception occurred while polling Porto")
+                .With(TError(ex));
             Failed_.Fire(TError(ex));
         }
     }
@@ -1050,10 +1050,12 @@ private:
         const std::string& command,
         bool idempotent)
     {
-        YT_LOG_DEBUG("Porto API call started (Command: %v)", command);
+        YT_TLOG_DEBUG("Porto API call started")
+            .With("Command", command);
 
         if (IsTestPortoTimeout()) {
-            YT_LOG_DEBUG("Testing Porto timeout (Command: %v)", command);
+            YT_TLOG_DEBUG("Testing Porto timeout")
+                .With("Command", command);
 
             auto config = DynamicConfig_.Acquire();
             TDelayedExecutor::WaitForDuration(config->ApiTimeout);
@@ -1062,7 +1064,8 @@ private:
         }
 
         if (IsTestPortoFailureEnabled()) {
-            YT_LOG_DEBUG("Testing Porto failure (Command: %v)", command);
+            YT_TLOG_DEBUG("Testing Porto failure")
+                .With("Command", command);
             THROW_ERROR CreatePortoError(GetFailedStubError(), "Porto stub error");
         }
 
@@ -1085,13 +1088,15 @@ private:
             entry->FailureCounter.Increment();
             HandleApiError(command, startTime, idempotent);
 
-            YT_LOG_DEBUG("Sleeping and retrying Porto API call (Command: %v)", command);
+            YT_TLOG_DEBUG("Sleeping and retrying Porto API call")
+                .With("Command", command);
             entry->RetryCounter.Increment();
 
             TDelayedExecutor::WaitForDuration(RetryInterval);
         }
 
-        YT_LOG_DEBUG("Porto API call completed (Command: %v)", command);
+        YT_TLOG_DEBUG("Porto API call completed")
+            .With("Command", command);
     }
 
     void HandleApiError(
@@ -1104,12 +1109,13 @@ private:
 
         // These errors are typical during job cleanup: we might try to kill a container that is already stopped.
         bool debug = (error == EPortoErrorCode::ContainerDoesNotExist || error == EPortoErrorCode::InvalidState);
-        YT_LOG_EVENT(
+        YT_TLOG_EVENT(
             Logger,
             debug ? NLogging::ELogLevel::Debug : NLogging::ELogLevel::Error,
-            "Porto API call error (Error: %v, Command: %v, Message: %v)",
-            error,
-            command,
+            "Porto API call error")
+            .With("Error", error)
+            .With("Command", command)
+            .With("Message",
             errorMessage);
 
         if (!IsRetriableErrorCode(error, idempotent) || NProfiling::GetInstant() - startTime > Config_->RetriesTimeout) {
@@ -1122,28 +1128,26 @@ private:
         auto portoErrorCode = ConvertPortoErrorCode(rsp.error());
         auto it = ContainerMap_.find(container);
         if (it == ContainerMap_.end()) {
-            YT_LOG_ERROR("Got an unexpected container "
-                "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
-                container,
-                portoErrorCode,
-                rsp.errormsg(),
-                rsp.value());
+            YT_TLOG_ERROR("Got an unexpected container")
+                .With("Container", container)
+                .With("ResponseError", portoErrorCode)
+                .With("ErrorMessage", rsp.errormsg())
+                .With("Value", rsp.value());
             return;
         } else {
             if (portoErrorCode != EPortoErrorCode::Success) {
-                YT_LOG_ERROR("Container finished with Porto API error "
-                    "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
-                    container,
-                    portoErrorCode,
-                    rsp.errormsg(),
-                    rsp.value());
+                YT_TLOG_ERROR("Container finished with Porto API error")
+                    .With("Container", container)
+                    .With("ResponseError", portoErrorCode)
+                    .With("ErrorMessage", rsp.errormsg())
+                    .With("Value", rsp.value());
                 it->second.Set(CreatePortoError(portoErrorCode, rsp.errormsg()));
             } else {
                 try {
                     int exitStatus = std::stoi(rsp.value());
-                    YT_LOG_DEBUG("Container finished with exit code (Container: %v, ExitCode: %v)",
-                        container,
-                        exitStatus);
+                    YT_TLOG_DEBUG("Container finished with exit code")
+                        .With("Container", container)
+                        .With("ExitCode", exitStatus);
 
                     it->second.Set(exitStatus);
                 } catch (const std::exception& ex) {
