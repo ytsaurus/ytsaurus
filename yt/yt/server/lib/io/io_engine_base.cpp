@@ -12,6 +12,8 @@
 
 #include <library/cpp/yt/misc/tls.h>
 
+#include <cstring>
+
 namespace NYT::NIO {
 
 using namespace NConcurrency;
@@ -488,6 +490,8 @@ TSharedMutableRef TIOEngineBase::AllocateWriteBlob(
     i64 size,
     i64 directIoBlockSize)
 {
+    size = AlignUp(size, directIoBlockSize);
+
     TSharedMutableRef hugePageBlob;
     if (HugePageManager_ && HugePageManager_->IsEnabled() && HugePageManager_->GetHugePageBlobSize() >= size) {
         auto hugePageBlobReservingResult = HugePageManager_->ReserveHugePageBlob();
@@ -501,6 +505,48 @@ TSharedMutableRef TIOEngineBase::AllocateWriteBlob(
         return TSharedMutableRef::AllocateAligned(size, directIoBlockSize, {.InitializeStorage = false}, {});
     }
     return hugePageBlob;
+}
+
+std::vector<TSharedRef> TIOEngineBase::PrepareDirectIOWriteBuffers(
+    const std::vector<TSharedRef>& buffers,
+    i64 directIoBlockSize)
+{
+    auto size = static_cast<i64>(GetByteSize(buffers));
+
+    auto shouldCopy = [&] {
+        if (size % directIoBlockSize != 0) {
+            return true;
+        }
+        for (const auto& buffer : buffers) {
+            if (buffer.Size() == 0) {
+                continue;
+            }
+            if (reinterpret_cast<i64>(buffer.Begin()) % directIoBlockSize != 0 ||
+                buffer.Size() % directIoBlockSize != 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (!shouldCopy()) {
+        return buffers;
+    }
+
+    auto alignedSize = AlignUp(size, directIoBlockSize);
+    auto writeBlob = AllocateWriteBlob(alignedSize, directIoBlockSize).Slice(0, alignedSize);
+    auto* current = writeBlob.Begin();
+    for (const auto& buffer : buffers) {
+        if (buffer.Size() == 0) {
+            continue;
+        }
+        memcpy(current, buffer.Begin(), buffer.Size());
+        current += buffer.Size();
+    }
+    memset(current, 0, alignedSize - size);
+
+    return {std::move(writeBlob)};
 }
 
 TSharedMutableRef TIOEngineBase::AllocateHugeBlob()

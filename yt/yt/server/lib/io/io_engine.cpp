@@ -354,6 +354,15 @@ TWriteResponse DoWrite(
     auto guard = std::move(requestCounterGuard);
     TWriteResponse writeResponse;
     if (hugePageBlob) {
+        THROW_ERROR_EXCEPTION_IF(
+            request.Offset % directIoBlockSize != 0,
+            "File offset %v is not aligned to direct IO block size %v",
+            request.Offset,
+            directIoBlockSize)
+            .With("handle", static_cast<FHANDLE>(*request.Handle))
+            .With("request_size", GetByteSize(request.Buffers))
+            .With("file_size", request.Handle->GetLength());
+
         writeResponse = DoWriteAligned(
             request,
             directIoBlockSize,
@@ -404,19 +413,18 @@ TWriteResponse DoWriteAligned(
     YT_VERIFY(hugePageBlob.Size() % directIoBlockSize == 0);
 
     auto fileOffset = request.Offset;
+    YT_VERIFY(fileOffset % directIoBlockSize == 0);
 
     TWriteResponse response;
 
     NFS::WrapIOErrors([&] {
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
 
-        auto fileSize = request.Handle->GetLength();
         auto totalSize = static_cast<i64>(GetByteSize(request.Buffers));
 
         auto toWriteRemaining = AlignUp<i64>(totalSize, directIoBlockSize);
-        memset(hugePageBlob.Begin() + totalSize, 0, toWriteRemaining - totalSize);
-
         YT_VERIFY(static_cast<i64>(hugePageBlob.Size()) >= toWriteRemaining);
+        memset(hugePageBlob.Begin() + totalSize, 0, toWriteRemaining - totalSize);
 
         i64 hugePageBlobBufferOffset = 0;
         for (const auto& buffer : request.Buffers) {
@@ -450,10 +458,6 @@ TWriteResponse DoWriteAligned(
             toWriteRemaining -= reallyWritten;
 
             ++response.IOWriteRequests;
-        }
-
-        if (ftruncate(*request.Handle, fileSize + totalSize) < 0) {
-            ythrow TFileError();
         }
     });
     response.WrittenBytes = fileOffset - request.Offset;

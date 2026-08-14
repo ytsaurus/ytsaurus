@@ -101,7 +101,7 @@ std::vector<TWriteRequest> TIORequestSlicer::Slice(TWriteRequest request, int di
         slice.Handle = request.Handle;
         slice.Flush = request.Flush;
         slice.Buffers = iterator.Take(sliceSize);
-    });
+    }, /*alignOffset*/ false);
 }
 
 std::vector<TFlushFileRangeRequest> TIORequestSlicer::Slice(TFlushFileRangeRequest request, int directIoBlockSize) const
@@ -118,13 +118,13 @@ std::vector<TFlushFileRangeRequest> TIORequestSlicer::Slice(TFlushFileRangeReque
 }
 
 template <typename TSlicedRequest, typename TInputRequest, typename TSliceHandler>
-std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& request, int directIoBlockSize, TSliceHandler handleSlice) const
+std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& request, int directIoBlockSize, TSliceHandler handleSlice, bool alignOffset) const
 {
     i64 blockSize = request.Handle->IsOpenForDirectIO() ? directIoBlockSize : 1;
     i64 desiredSize = AlignUp(DesiredRequestSize_, blockSize);
     i64 minSize = AlignUp(MinRequestSize_, blockSize);
 
-    i64 offset = AlignDown(request.Offset, blockSize);
+    i64 offset = alignOffset ? AlignDown(request.Offset, blockSize) : request.Offset;
     i64 remainingSize = AlignUp<i64>(request.Offset + NDetail::GetByteCount(request), blockSize) - offset;
     i64 indivisibleBlockSize = desiredSize + minSize;
 
