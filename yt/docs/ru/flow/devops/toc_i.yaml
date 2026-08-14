@@ -1,0 +1,5 @@
+items:
+  - name: Vanilla-операции
+    include:
+      mode: link
+      path: vanilla/toc_i.yaml

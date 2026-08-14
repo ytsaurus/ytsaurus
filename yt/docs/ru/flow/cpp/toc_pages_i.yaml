@@ -1,0 +1,13 @@
+items:
+  - name: Быстрый старт
+    href: getting-started.md
+  - name: Computation
+    href: computation.md
+  - name: Работа со стейтами
+    href: state.md
+  - name: Ресурсы
+    href: resources.md
+  - name: Тестирование
+    href: testing.md
+  - name: Process function
+    href: process-functions.md

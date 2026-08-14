@@ -1,0 +1,12 @@
+items:
+  - name: Первичный деплой
+    href: initial-deploy.md
+  - name: Базовые операции с пайплайном
+    href: pipeline-operations.md
+  - name: Диагностика
+    include:
+      mode: link
+      path: diagnostics/toc_i.yaml
+  - include:
+      mode: merge
+      path: toc_release_security_i.yaml

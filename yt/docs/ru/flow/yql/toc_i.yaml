@@ -1,0 +1,5 @@
+items:
+  - name: Быстрый старт
+    href: getting-started.md
+  - name: Поддержанные конструкции
+    href: features.md
