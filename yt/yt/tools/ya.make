@@ -17,6 +17,7 @@ RECURSE(
     offline_read
     offline_read_fmt_write
     parse_rpc_header
+    pod_size_actualization
     prepare_scheduling_usage
     print_column_statistics
     read_arrow
