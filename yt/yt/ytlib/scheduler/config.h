@@ -1846,10 +1846,9 @@ DEFINE_REFCOUNTED_TYPE(TInputQueryOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInputlyQueryableSpec
+struct TInputlyQueryableSpec
     : public virtual NYTree::TYsonStruct
 {
-public:
     std::optional<std::string> InputQuery;
     std::optional<NTableClient::TTableSchema> InputSchema;
     TInputQueryFilterOptionsPtr InputQueryFilterOptions;
@@ -1864,10 +1863,9 @@ DEFINE_REFCOUNTED_TYPE(TInputlyQueryableSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationWithUserJobSpec
+struct TOperationWithUserJobSpec
     : public virtual NYTree::TYsonStruct
 {
-public:
     std::optional<NYPath::TRichYPath> StderrTablePath;
     NTableClient::TBlobTableWriterConfigPtr StderrTableWriter;
 

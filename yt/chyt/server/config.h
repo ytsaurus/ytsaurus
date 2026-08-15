@@ -45,10 +45,9 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Settings affecting how CHYT behaves around composite values and any columns.
-class TCompositeSettings
+struct TCompositeSettings
     : public NYTree::TYsonStruct
 {
-public:
     EExtendedYsonFormat DefaultYsonFormat;
 
     bool ConvertUnsupportedTypesToString;
@@ -69,10 +68,9 @@ DEFINE_REFCOUNTED_TYPE(TCompositeSettings)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Settings affecting low cardinality type conversion.
-class TLowCardinalitySettings
+struct TLowCardinalitySettings
     : public NYTree::TYsonStruct
 {
-public:
     //! Defines how CHYT works with LC types:
     //! * None - doesn't convert any column to LC;
     //! * StringOnly - converts columns with string-like types (string, utf, json);
@@ -96,10 +94,9 @@ DEFINE_REFCOUNTED_TYPE(TLowCardinalitySettings)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Settings affecting type conversion.
-class TConversionSettings
+struct TConversionSettings
     : public NYTree::TYsonStruct
 {
-public:
     TCompositeSettingsPtr Composite;
 
     TLowCardinalitySettingsPtr LowCardinality;
@@ -126,10 +123,9 @@ DEFINE_REFCOUNTED_TYPE(TConversionSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTableSettings
+struct TDynamicTableSettings
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableDynamicStoreRead;
 
     int WriteRetryCount;
@@ -151,10 +147,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTableSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestingSettings
+struct TTestingSettings
     : public NYTree::TYsonStruct
 {
-public:
     bool ThrowExceptionInDistributor;
     bool ThrowExceptionInSubquery;
     bool ThrowExceptionInWriterFinish;
@@ -182,10 +177,9 @@ DEFINE_REFCOUNTED_TYPE(TTestingSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExecutionSettings
+struct TExecutionSettings
     : public NYTree::TYsonStruct
 {
-public:
     //! Hard limit for query depth. Query will be aborted after reaching this.
     //! If |value| <= 0,  the limit is disabled.
     i64 QueryDepthLimit;
@@ -326,10 +320,9 @@ DEFINE_REFCOUNTED_TYPE(TExecutionSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConcatTablesSettings
+struct TConcatTablesSettings
     : public NYTree::TYsonStruct
 {
-public:
     //! What to do if a column is missing in some tables (Drop / Throw / ReadAsNull).
     EMissingColumnMode MissingColumnMode;
     //! What to do if types of the column in different tables do not match (Drop / Throw / ReadAsAny).
@@ -350,10 +343,9 @@ DEFINE_REFCOUNTED_TYPE(TConcatTablesSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachingSettings
+struct TCachingSettings
     : public NYTree::TYsonStruct
 {
-public:
     //! Specifies how to invalidate cached attributes after table is modified (write/drop).
     EInvalidateCacheMode TableAttributesInvalidateMode;
     //! Timeout for outgoing 'InvalidateCachedObjectAttributes' RPC requests to other instances.
@@ -374,10 +366,9 @@ DEFINE_REFCOUNTED_TYPE(TCachingSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TListDirSettings
+struct TListDirSettings
     : public NYTree::TYsonStruct
 {
-public:
     //! Maximum number of nodes in listed directory. If exceeded, the error is thrown.
     //! Zero means 'default yt limit'.
     int MaxSize;
@@ -391,10 +382,9 @@ DEFINE_REFCOUNTED_TYPE(TListDirSettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPrewhereSettings
+struct TPrewhereSettings
     : public NYTree::TYsonStruct
 {
-public:
     //! If |true|, CHYT would use a separate stage to pre-filter data slices
     //! with a prewhere condition before reading all other columns.
     //! This could significantly reduce the amount of data read from YT if the
@@ -419,10 +409,9 @@ DEFINE_REFCOUNTED_TYPE(TPrewhereSettings)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This class will be accessible either via settings or via default_settings.
-class TQuerySettings
+struct TQuerySettings
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableKeyConditionFiltering;
     bool MakeUpperBoundInclusive;
 

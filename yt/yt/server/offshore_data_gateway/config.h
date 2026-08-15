@@ -21,10 +21,9 @@ namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreDataGatewayBootstrapConfig
+struct TOffshoreDataGatewayBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     bool AbortOnUnrecognizedOptions;
 
     NYTree::IMapNodePtr CypressAnnotations;
@@ -41,11 +40,10 @@ DEFINE_REFCOUNTED_TYPE(TOffshoreDataGatewayBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreDataGatewayProgramConfig
+struct TOffshoreDataGatewayProgramConfig
     : public TOffshoreDataGatewayBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TOffshoreDataGatewayProgramConfig);
 
     static void Register(TRegistrar registrar);
@@ -55,10 +53,9 @@ DEFINE_REFCOUNTED_TYPE(TOffshoreDataGatewayProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreDataGatewayDynamicConfig
+struct TOffshoreDataGatewayDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     //! The number of threads in Storage thread pool (used for extracting chunk meta, handling
     //! chunk slices, columnar statistic etc).
     int StorageThreadCount;

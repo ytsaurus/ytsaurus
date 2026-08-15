@@ -81,10 +81,9 @@ DEFINE_REFCOUNTED_TYPE(TStrategyTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStrategyControllerThrottling
+struct TStrategyControllerThrottling
     : public virtual NYTree::TYsonStruct
 {
-public:
     TDuration ScheduleAllocationStartBackoffTime;
     TDuration ScheduleAllocationMaxBackoffTime;
     double ScheduleAllocationBackoffMultiplier;

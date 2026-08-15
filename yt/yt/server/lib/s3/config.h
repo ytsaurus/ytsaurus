@@ -10,10 +10,9 @@ namespace NYT::NS3 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TS3ReaderConfig
+struct TS3ReaderConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     bool ValidateBlockChecksums;
 
     REGISTER_YSON_STRUCT(TS3ReaderConfig);
@@ -25,10 +24,9 @@ DEFINE_REFCOUNTED_TYPE(TS3ReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TS3WriterConfig
+struct TS3WriterConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Minimum part size to use for multipart upload.
     //! NB: The number of parts can be limited (e.g. 10000 in AWS S3). For large
     //! chunks you might be required to increase this value.

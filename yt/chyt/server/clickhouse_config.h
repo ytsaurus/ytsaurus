@@ -122,10 +122,9 @@ DEFINE_REFCOUNTED_TYPE(TPocoInvalidCertificateHandlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPocoOpenSslConfigEntry
+struct TPocoOpenSslConfigEntry
     : public NYTree::TYsonStruct
 {
-public:
     TPocoInvalidCertificateHandlerConfigPtr InvalidCertificateHandler;
     TString CAConfig;
 

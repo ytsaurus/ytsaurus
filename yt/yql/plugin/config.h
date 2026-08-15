@@ -13,10 +13,9 @@ namespace NYT::NYqlPlugin {
 
 using TQueryId = TGuid;
 
-class TVanillaJobFile
+struct TVanillaJobFile
     : public NYTree::TYsonStruct
 {
-public:
     TString Name;
     TString LocalPath;
 
@@ -29,10 +28,9 @@ DEFINE_REFCOUNTED_TYPE(TVanillaJobFile)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDQYTBackend
+struct TDQYTBackend
     : public NYTree::TYsonStruct
 {
-public:
     TString ClusterName;
     TString ProxyAddress;
     ui32 JobsPerOperation;
@@ -67,10 +65,9 @@ DEFINE_REFCOUNTED_TYPE(TDQYTBackend)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDQYTCoordinator
+struct TDQYTCoordinator
     : public NYTree::TYsonStruct
 {
-public:
     TString ClusterName;
     TString ProxyAddress;
     TString Prefix;
