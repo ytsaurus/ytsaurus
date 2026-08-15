@@ -290,9 +290,9 @@ DB::Pipe CreateRemoteSource(
 
     auto serializedQueryHeader = ConvertToYsonString(queryHeader, EYsonFormat::Text).ToString();
 
-    YT_LOG_INFO("Subquery header for secondary query constructed (RemoteQueryId: %v, SecondaryQueryHeader: %v)",
-        remoteQueryId,
-        serializedQueryHeader);
+    YT_TLOG_INFO("Subquery header for secondary query constructed")
+        .With("RemoteQueryId", remoteQueryId)
+        .With("SecondaryQueryHeader", serializedQueryHeader);
     remoteQueryExecutor->setQueryId(serializedQueryHeader);
 
     // XXX(max42): should we use this?
@@ -367,10 +367,9 @@ void TDistributedQueryExecutor::ModifySecondaryQueries(std::function<void(DB::AS
     for (size_t index = 0; index < DistributeInfo_.SecondaryQueries.size(); ++index) {
         auto& secondaryQuery = DistributeInfo_.SecondaryQueries[index];
         callback(secondaryQuery.Query);
-        YT_LOG_TRACE(
-            "Modified subquery AST (SecondaryQueryIndex: %v, AST: %v)",
-            index,
-            secondaryQuery.Query);
+        YT_TLOG_TRACE("Modified subquery AST")
+            .With("SecondaryQueryIndex", index)
+            .With("AST", secondaryQuery.Query);
     }
 }
 
@@ -380,10 +379,10 @@ void TDistributedQueryExecutor::Fire()
 
     const auto& settings = Context_->getSettingsRef();
 
-    YT_LOG_INFO("Starting distribution (NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
-        DistributeInfo_.CliqueNodes.size(),
-        static_cast<ui64>(settings[DB::Setting::max_threads]),
-        ThreadSubqueryCount_);
+    YT_TLOG_INFO("Starting distribution")
+        .With("NodeCount", DistributeInfo_.CliqueNodes.size())
+        .With("MaxThreads", static_cast<ui64>(settings[DB::Setting::max_threads]))
+        .With("SubqueryCount", ThreadSubqueryCount_);
 
     // Wait for creation of query read transaction (if it's initialized asynchronously)
     // and save its id/timestamp before distribution to be able to read
@@ -415,10 +414,9 @@ void TDistributedQueryExecutor::Fire()
         const auto& cliqueNode = DistributeInfo_.CliqueNodes[index % DistributeInfo_.CliqueNodes.size()];
         const auto& secondaryQuery = DistributeInfo_.SecondaryQueries[index];
 
-        YT_LOG_DEBUG(
-            "Firing subquery (SubqueryIndex: %v, Node: %v)",
-            index,
-            cliqueNode->GetName().ToString());
+        YT_TLOG_DEBUG("Firing subquery")
+            .With("SubqueryIndex", index)
+            .With("Node", cliqueNode->GetName().ToString());
 
         auto remoteQueryId = TQueryId::Create();
 
@@ -491,9 +489,9 @@ DB::QueryPipelineBuilderPtr TDistributedQueryExecutor::ExtractPipeline(std::func
 
         void onFinish() override
         {
-            YT_LOG_DEBUG("All subqueries finished, calling commit callback");
+            YT_TLOG_DEBUG("All subqueries finished, calling commit callback");
             CommitCallback_();
-            YT_LOG_DEBUG("Commit callback succeeded");
+            YT_TLOG_DEBUG("Commit callback succeeded");
         }
 
         std::string getName() const override

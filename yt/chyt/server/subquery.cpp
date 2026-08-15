@@ -326,10 +326,9 @@ private:
 
         const auto& stripeListStatistics = ResultStripeList_->GetAggregateStatistics();
 
-        YT_LOG_INFO(
-            "Input fetched (StripeListStatistics: %v, totalFilteredRowCount: %v)",
-            stripeListStatistics,
-            totalFilteredRowCount);
+        YT_TLOG_INFO("Input fetched")
+            .With("StripeListStatistics", stripeListStatistics)
+            .With("TotalFilteredRowCount", totalFilteredRowCount);
 
         if (totalFilteredRowCount > 0) {
             IndexStats_.push_back(CreateKeyConditionIndexStat(
@@ -419,9 +418,9 @@ private:
             ++operandTableIndexes[operandIndex];
         }
 
-        YT_LOG_DEBUG("Tables were filtered by virtual column index (TotalTableCount: %v, DiscardedByIndex: %v)",
-            InputTables_.size(),
-            discardedByIndex);
+        YT_TLOG_DEBUG("Tables were filtered by virtual column index")
+            .With("TotalTableCount", InputTables_.size())
+            .With("DiscardedByIndex", discardedByIndex);
 
         if (discardedByIndex > 0) {
             return CreateVirtualColumnIndexStat(discardedByIndex, InputTables_.size());
@@ -442,17 +441,16 @@ private:
             }
         }
 
-        YT_LOG_INFO(
-            "Fetching input tables (UnversionedTableCount: %v, VersionedTableCount: %v)",
-            unversionedTableCount,
-            versionedTableCount);
+        YT_TLOG_INFO("Fetching input tables")
+            .With("UnversionedTableCount", unversionedTableCount)
+            .With("VersionedTableCount", versionedTableCount);
 
         // We fetch table read spec for each table separately, put them into TableReadSpecs_ vector,
         // which will later be joined by JoinTableReadSpecs function.
         TableReadSpecs_.resize(InputTables_.size());
         FetchTableReadSpecs();
 
-        YT_LOG_INFO("Input tables fetched, preparing data slices");
+        YT_TLOG_INFO("Input tables fetched, preparing data slices");
 
         auto [dataSourceDirectory, dataSliceDescriptors] = JoinTableReadSpecs(TableReadSpecs_);
         YT_VERIFY(dataSourceDirectory->DataSources().size() == InputTables_.size());
@@ -517,7 +515,7 @@ private:
         }
         InputStreamDirectory_ = TInputStreamDirectory(std::move(inputStreams));
 
-        YT_LOG_INFO("Data slices ready");
+        YT_TLOG_INFO("Data slices ready");
     }
 
     //! Store values for columns $table_index, $table_path, etc.
@@ -589,7 +587,7 @@ private:
     //! This method does such optimization.
     void InferDynamicTableRangesFromPivotKeys()
     {
-        YT_LOG_DEBUG("Inferring dynamic table ranges from tablet pivot keys");
+        YT_TLOG_DEBUG("Inferring dynamic table ranges from tablet pivot keys");
         for (const auto& inputTable : InputTables_) {
             if (!inputTable->IsSortedDynamic()) {
                 // We do not need to infer ranges for static or ordered dynamic tables.
@@ -597,7 +595,8 @@ private:
             }
             if (inputTable->Path.HasNontrivialRanges()) {
                 // We skip tables with non-trivial ranges.
-                YT_LOG_DEBUG("Skipping table as it already has non-trivial ranges (Table: %v)", inputTable->Path);
+                YT_TLOG_DEBUG("Skipping table as it already has non-trivial ranges")
+                    .With("Table", inputTable->Path);
                 continue;
             }
 
@@ -641,7 +640,9 @@ private:
                 flushRange(TOwningKeyBound::MakeUniversal(/*isUpper*/ true));
             }
 
-            YT_LOG_DEBUG("Dynamic table ranges inferred from tablet pivot keys (Table: %v, Ranges: %v)", inputTable->Path, ranges);
+            YT_TLOG_DEBUG("Dynamic table ranges inferred from tablet pivot keys")
+                .With("Table", inputTable->Path)
+                .With("Ranges", ranges);
             inputTable->Path.SetRanges(ranges);
         }
     }
@@ -724,9 +725,9 @@ private:
         for (const auto& inputTable : InputTables_) {
             totalChunkCount += inputTable->ChunkCount;
         }
-        YT_LOG_INFO("Fetching tables (TableCount: %v, TotalChunkCount: %v)",
-            InputTables_.size(),
-            totalChunkCount);
+        YT_TLOG_INFO("Fetching tables")
+            .With("TableCount", InputTables_.size())
+            .With("TotalChunkCount", totalChunkCount);
 
         if (StorageContext_->Settings->InferDynamicTableRangesFromPivotKeys) {
             InferDynamicTableRangesFromPivotKeys();
@@ -775,7 +776,8 @@ private:
 
         if (auto breakpointFilename = QueryContext_->SessionSettings->Testing->ChunkSpecFetcherBreakpoint) {
             HandleBreakpoint(*breakpointFilename, Client_);
-            YT_LOG_DEBUG("Chunk spec fetcher handled breakpoint (Breakpoint: %v)", breakpointFilename);
+            YT_TLOG_DEBUG("Chunk spec fetcher handled breakpoint")
+                .With("Breakpoint", *breakpointFilename);
         }
 
         std::vector<TFuture<void>> asyncResults = {
@@ -799,7 +801,8 @@ private:
             TableReadSpecs_[tableIndex].DataSliceDescriptors.emplace_back(TDataSliceDescriptor(std::move(chunkSpec)));
         }
 
-        YT_LOG_INFO("Chunk specs fetched (ChunkCount: %v)", chunkCount);
+        YT_TLOG_INFO("Chunk specs fetched")
+            .With("ChunkCount", chunkCount);
     }
 
     //! Wrap chunk spec from data slice descriptor into data slice,
@@ -840,19 +843,18 @@ private:
         const auto& keyColumnDataTypes = KeyColumnDataTypes_[operandIndex];
         const auto& schema = OperandSchemas_[operandIndex];
 
-        YT_LOG_TRACE(
-            "Checking range mask (Scale: %v, LowerBound: %v, UpperBound: %v, OperandIndex: %v, KeyCondition: %v)",
-            scale,
-            lowerBound,
-            upperBound,
-            operandIndex,
-            keyCondition ? keyCondition->toString() : "(n/a)");
+        YT_TLOG_TRACE("Checking range mask")
+            .With("Scale", scale)
+            .With("LowerBound", lowerBound)
+            .With("UpperBound", upperBound)
+            .With("OperandIndex", operandIndex)
+            .With("KeyCondition", keyCondition ? keyCondition->toString() : "(n/a)");
 
         if (!keyCondition ||
             !StorageContext_->Settings->EnableKeyConditionFiltering ||
             keyCondition->alwaysUnknownOrTrue())
         {
-            YT_LOG_TRACE("Can not process key condition");
+            YT_TLOG_TRACE("Can not process key condition");
             return BoolMask(true, true);
         }
 
@@ -873,18 +875,17 @@ private:
                 [&] (auto* builder, DB::FieldRef field) { builder->AppendString(TStringBuf(field.dump())); });
         };
 
-        YT_LOG_TRACE("Chunk keys were successfully converted to CH keys (LowerBound: %v, UpperBound: %v, MinKey: %v, MaxKey: %v)",
-            lowerBound,
-            upperBound,
-            toFormattable(chKeys.MinKey.data(), usedKeyColumnCount),
-            toFormattable(chKeys.MaxKey.data(), usedKeyColumnCount));
+        YT_TLOG_TRACE("Chunk keys were successfully converted to CH keys")
+            .With("LowerBound", lowerBound)
+            .With("UpperBound", upperBound)
+            .With("MinKey", toFormattable(chKeys.MinKey.data(), usedKeyColumnCount))
+            .With("MaxKey", toFormattable(chKeys.MaxKey.data(), usedKeyColumnCount));
 
-        YT_LOG_TRACE(
-            "Checking if predicate can be true in range (Scale: %v, KeyColumnCount: %v, MinKey: %v, MaxKey: %v)",
-            scale,
-            usedKeyColumnCount,
-            toFormattable(chKeys.MinKey.data(), usedKeyColumnCount),
-            toFormattable(chKeys.MaxKey.data(), usedKeyColumnCount));
+        YT_TLOG_TRACE("Checking if predicate can be true in range")
+            .With("Scale", scale)
+            .With("KeyColumnCount", usedKeyColumnCount)
+            .With("MinKey", toFormattable(chKeys.MinKey.data(), usedKeyColumnCount))
+            .With("MaxKey", toFormattable(chKeys.MaxKey.data(), usedKeyColumnCount));
 
         BoolMask result = BoolMask(keyCondition->mayBeTrueInRange(
             usedKeyColumnCount,
@@ -892,13 +893,14 @@ private:
             chKeys.MaxKey.data(),
             keyColumnDataTypes), false);
 
-        YT_LOG_EVENT(Logger,
+        YT_TLOG_EVENT(
+            Logger,
             StorageContext_->Settings->LogKeyConditionDetails ? ELogLevel::Debug : ELogLevel::Trace,
-            "Range mask (Scale: %v, LowerBound: %v, UpperBound: %v, CanBeTrue: %v)",
-            scale,
-            lowerBound,
-            upperBound,
-            result.can_be_true);
+            "Range mask")
+            .With("Scale", scale)
+            .With("LowerBound", lowerBound)
+            .With("UpperBound", upperBound)
+            .With("CanBeTrue", result.can_be_true);
         return result;
     }
 };
@@ -984,7 +986,8 @@ void LogSubqueryDebugInfo(const std::vector<TSubquery>& subqueries, TStringBuf p
     int minChunkCount = 1'000'000'000;
 
     if (subqueries.empty()) {
-        YT_LOG_INFO("Subquery debug info: result is empty (Phase: %v)", phase);
+        YT_TLOG_INFO("Subquery result is empty")
+            .With("Phase", phase);
         return;
     }
 
@@ -999,21 +1002,19 @@ void LogSubqueryDebugInfo(const std::vector<TSubquery>& subqueries, TStringBuf p
         minChunkCount = std::min(minChunkCount, stripeListStatistics.ChunkCount);
     }
 
-    YT_LOG_INFO(
-        "Subquery debug info (Phase: %v, SubqueryCount: %v, TotalChunkCount: %v, AvgChunkCount: %v, MinChunkCount: %v, MaxChunkCount: %v,"
-        "TotalDataWeight: %v, AvgDataWeight: %v, MinDataWeight: %v, MaxDataWeight: %v, TotalRowCount: %v, AvgRowCount: %v)",
-        phase,
-        subqueries.size(),
-        totalChunkCount,
-        static_cast<double>(totalChunkCount) / subqueries.size(),
-        minChunkCount,
-        maxChunkCount,
-        totalDataWeight,
-        static_cast<double>(totalDataWeight) / subqueries.size(),
-        minDataWeight,
-        maxDataWeight,
-        totalRowCount,
-        static_cast<double>(totalRowCount) / subqueries.size());
+    YT_TLOG_INFO("Subquery debug info")
+        .With("Phase", phase)
+        .With("SubqueryCount", subqueries.size())
+        .With("TotalChunkCount", totalChunkCount)
+        .With("AvgChunkCount", static_cast<double>(totalChunkCount) / subqueries.size())
+        .With("MinChunkCount", minChunkCount)
+        .With("MaxChunkCount", maxChunkCount)
+        .With("TotalDataWeight", totalDataWeight)
+        .With("AvgDataWeight", static_cast<double>(totalDataWeight) / subqueries.size())
+        .With("MinDataWeight", minDataWeight)
+        .With("MaxDataWeight", maxDataWeight)
+        .With("TotalRowCount", totalRowCount)
+        .With("AvgRowCount", static_cast<double>(totalRowCount) / subqueries.size());
 }
 
 std::vector<TSubquery> BuildThreadSubqueries(
@@ -1029,22 +1030,20 @@ std::vector<TSubquery> BuildThreadSubqueries(
     auto* queryContext = storageContext->QueryContext;
     const auto& Logger = storageContext->Logger;
 
-    YT_LOG_INFO(
-        "Building subqueries (TotalDataWeight: %v, TotalChunkCount: %v, TotalRowCount: %v, "
-        "JobCount: %v, PoolKind: %v, ReadInOrderMode: %v, SamplingRate: %v, KeyColumnCount: %v)",
-        inputStripeListStatistics.DataWeight,
-        inputStripeListStatistics.ChunkCount,
-        inputStripeListStatistics.RowCount,
-        jobCount,
-        queryAnalysisResult.PoolKind,
-        queryAnalysisResult.ReadInOrderMode,
-        samplingRate,
-        queryAnalysisResult.KeyColumnCount);
+    YT_TLOG_INFO("Building subqueries")
+        .With("TotalDataWeight", inputStripeListStatistics.DataWeight)
+        .With("TotalChunkCount", inputStripeListStatistics.ChunkCount)
+        .With("TotalRowCount", inputStripeListStatistics.RowCount)
+        .With("JobCount", jobCount)
+        .With("PoolKind", queryAnalysisResult.PoolKind)
+        .With("ReadInOrderMode", queryAnalysisResult.ReadInOrderMode)
+        .With("SamplingRate", samplingRate)
+        .With("KeyColumnCount", queryAnalysisResult.KeyColumnCount);
 
     std::vector<TSubquery> subqueries;
 
     if (inputStripeListStatistics.RowCount * samplingRate.value_or(1.0) < 1.0) {
-        YT_LOG_INFO("Total row count times sampling rate is less than 1, returning empty subqueries");
+        YT_TLOG_INFO("Total row count times sampling rate is less than 1, returning empty subqueries");
         return subqueries;
     }
 
@@ -1214,14 +1213,15 @@ std::vector<TSubquery> BuildThreadSubqueries(
         subquery.StripeList.Swap(flattenedStripeList);
     }
 
-    YT_LOG_INFO("Pool produced subqueries (SubqueryCount: %v)", subqueries.size());
+    YT_TLOG_INFO("Pool produced subqueries")
+        .With("SubqueryCount", subqueries.size());
     LogSubqueryDebugInfo(subqueries, "AfterPool", Logger);
 
     if (samplingRate && *samplingRate != 1.0) {
         double sampledSubqueryCount = std::round(*samplingRate * subqueries.size());
-        YT_LOG_INFO("Leaving random subqueries to perform sampling (SubqueryCount: %v, SampledSubqueryCount: %v)",
-            subqueries.size(),
-            sampledSubqueryCount);
+        YT_TLOG_INFO("Leaving random subqueries to perform sampling")
+            .With("SubqueryCount", subqueries.size())
+            .With("SampledSubqueryCount", sampledSubqueryCount);
         std::mt19937 gen;
         std::shuffle(subqueries.begin(), subqueries.end(), gen);
         subqueries.resize(std::min<int>(subqueries.size(), sampledSubqueryCount));
@@ -1251,10 +1251,10 @@ std::vector<TSubquery> BuildThreadSubqueries(
             if (leftIndex + 1 == rightIndex) {
                 enlargedSubqueries.emplace_back(std::move(subqueries[leftIndex]));
             } else {
-                YT_LOG_DEBUG("Joining several subqueries together (LeftIndex: %v, RightIndex: %v, DataWeight: %v)",
-                    leftIndex,
-                    rightIndex,
-                    dataWeight);
+                YT_TLOG_DEBUG("Joining several subqueries together")
+                    .With("LeftIndex", leftIndex)
+                    .With("RightIndex", rightIndex)
+                    .With("DataWeight", dataWeight);
                 auto& enlargedSubquery = enlargedSubqueries.emplace_back();
                 enlargedSubquery.StripeList = New<TChunkStripeList>();
                 std::vector<TChunkStripePtr> stripes(subqueries[leftIndex].StripeList->Stripes().size());

@@ -366,7 +366,9 @@ public:
 
     void PrepareSecondaryQueries()
     {
-        YT_LOG_DEBUG("Preparing distribution (QueryAST: %v, This: %v)", *QueryInfo_.query, static_cast<void*>(this));
+        YT_TLOG_DEBUG("Preparing distribution")
+            .With("QueryAST", *QueryInfo_.query)
+            .With("This", static_cast<void*>(this));
 
         QueryContext_->MoveToPhase(EQueryPhase::Preparation);
 
@@ -416,7 +418,7 @@ public:
 
         PrepareSecondaryQueryAsts();
 
-        YT_LOG_INFO("Query distribution prepared");
+        YT_TLOG_INFO("Query distribution prepared");
     }
 
     TDistributedQueryExecutor CreateExecutor()
@@ -568,8 +570,8 @@ private:
 
         auto tableReaderConfig = New<TTableReaderConfig>();
         if (canUseBlockSampling && SamplingRate_) {
-            YT_LOG_DEBUG("Using block sampling (SamplingRate: %v)",
-                SamplingRate_);
+            YT_TLOG_DEBUG("Using block sampling")
+                .With("SamplingRate", SamplingRate_);
             for (const auto& stripe : QueryInput_.StripeList->Stripes()) {
                 for (const auto& dataSlice : stripe->DataSlices()) {
                     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
@@ -624,13 +626,14 @@ private:
 
         CliqueNodes_ = std::move(nodes);
 
-        YT_LOG_DEBUG("Distribution nodes chosen (NodeCount: %v)", CliqueNodes_.size());
+        YT_TLOG_DEBUG("Distribution nodes chosen")
+            .With("NodeCount", CliqueNodes_.size());
 
         for (const auto& cliqueNode : CliqueNodes_) {
-            YT_LOG_DEBUG("Clique node (Host: %v, Port: %v, IsLocal: %v)",
-                cliqueNode->GetName().Host,
-                cliqueNode->GetName().Port,
-                cliqueNode->IsLocal());
+            YT_TLOG_DEBUG("Clique node")
+                .With("Host", cliqueNode->GetName().Host)
+                .With("Port", cliqueNode->GetName().Port)
+                .With("IsLocal", cliqueNode->IsLocal());
         }
     }
 
@@ -645,7 +648,8 @@ private:
             "chyt.virtual_column_names",
             Format("%v", MakeFormattableView(VirtualColumnNames_, TDefaultFormatter())));
 
-        YT_LOG_TRACE("Preparing StorageDistributor for query (Query: %v)", *QueryInfo_.query);
+        YT_TLOG_TRACE("Preparing StorageDistributor for query")
+            .With("Query", *QueryInfo_.query);
 
         InputStreamsPerQuery_ = QueryContext_->SessionSettings->Execution->InputStreamsPerSecondaryQuery;
         if (InputStreamsPerQuery_ <= 0) {
@@ -658,10 +662,9 @@ private:
         auto taskCount = std::max<int>(1, secondaryQueryCount * InputStreamsPerQuery_);
         if (SuitableForPullInputSpecsMode()) {
             taskCount = std::round(taskCount * QueryContext_->SessionSettings->Execution->TaskCountIncreaseFactor);
-            YT_LOG_DEBUG(
-                "Jobs count for secondary queries was increased due to pull distribution mode (NewJobCount: %v, TaskCountIncreaseFactor: %v)",
-                taskCount,
-                QueryContext_->SessionSettings->Execution->TaskCountIncreaseFactor);
+            YT_TLOG_DEBUG("Jobs count for secondary queries was increased due to pull distribution mode")
+                .With("NewJobCount", taskCount)
+                .With("TaskCountIncreaseFactor", QueryContext_->SessionSettings->Execution->TaskCountIncreaseFactor);
         }
         if (SpecTemplate_.SubqueryOptions.UseMinMaxOptimization) {
             taskCount = 1;
@@ -787,9 +790,9 @@ private:
             : BIND(&TDistributedQueryPreparer::CreateSecondaryQueryForPush, Unretained(this), secondaryQueryBuilder, secondaryQueryCount);
 
         for (int index = 0; index < secondaryQueryCount; ++index) {
-            YT_LOG_DEBUG("Preparing secondary query (QueryIndex: %v, SecondaryQueryCount: %v)",
-                index,
-                secondaryQueryCount);
+            YT_TLOG_DEBUG("Preparing secondary query")
+                .With("QueryIndex", index)
+                .With("SecondaryQueryCount", secondaryQueryCount);
             auto secondaryQuery = queryConstructor(index);
             SecondaryQueries_.emplace_back(std::move(secondaryQuery));
         }
@@ -829,14 +832,16 @@ public:
         for (const auto& table : Tables_) {
             DistributionSeed_ = CombineHashes(DistributionSeed_, THash<TString>()(table->Path.GetPath()));
         }
-        YT_LOG_DEBUG("Distribution seed generated (DistributionSeed: %v)", DistributionSeed_);
+        YT_TLOG_DEBUG("Distribution seed generated")
+            .With("DistributionSeed", DistributionSeed_);
     }
 
     void startup() override
     {
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
 
-        YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
+        YT_TLOG_TRACE("StorageDistributor instantiated")
+            .With("Address", static_cast<void*>(this));
         if (Schema_->GetColumnCount() == 0) {
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
                 .With("path", getStorageID().table_name);
@@ -1140,10 +1145,9 @@ public:
         }
 
         auto dataTypes = ToDataTypes(*Schema_, QueryContext_->SessionSettings->Conversion, /*isReadConversions*/ false);
-        YT_LOG_DEBUG(
-            "Inferred ClickHouse data types from YT schema (Schema: %v, DataTypes: %v)",
-            Schema_,
-            dataTypes);
+        YT_TLOG_DEBUG("Inferred ClickHouse data types from YT schema")
+            .With("Schema", Schema_)
+            .With("DataTypes", dataTypes);
 
         // LowCardinality is disabled for write queries to prevent unnecessary transformations.
         std::for_each(Schema_->Columns().begin(), Schema_->Columns().end(), [](const TColumnSchema& columnSchema) {
@@ -1278,7 +1282,8 @@ public:
 
         auto distributedStage = executionSettings->DistributedInsertStage;
 
-        YT_LOG_DEBUG("Distributed insert stage: %v", distributedStage);
+        YT_TLOG_DEBUG("Distributed insert stage determined")
+            .With("DistributedInsertStage", distributedStage);
 
         if (distributedStage == EDistributedInsertStage::None) {
             return std::nullopt;
@@ -1311,7 +1316,9 @@ public:
         int distributedInsertStageRank = GetDistributedInsertStageRank(distributedStage);
         int queryProcessingStageRank = GetQueryProcessingStageRank(queryProcessingStage);
 
-        YT_LOG_DEBUG("Distributed insert stage rank: %v, query processing stage rank: %v", distributedInsertStageRank, queryProcessingStageRank);
+        YT_TLOG_DEBUG("Comparing stage ranks")
+            .With("DistributedInsertStageRank", distributedInsertStageRank)
+            .With("QueryProcessingStageRank", queryProcessingStageRank);
         if (queryProcessingStageRank < distributedInsertStageRank) {
             return std::nullopt;
         }
@@ -1410,7 +1417,7 @@ public:
         }
 
         if (!context->getSettingsRef()[DB::Setting::optimize_move_to_prewhere]) {
-            YT_LOG_DEBUG("optimize_move_to_prewhere is disabled, returning empty columnar statistics");
+            YT_TLOG_DEBUG("optimize_move_to_prewhere is disabled, returning empty columnar statistics");
             return {};
         }
 
@@ -1446,9 +1453,8 @@ public:
 
         for (const auto& table : Tables_) {
             if (table->Dynamic) {
-                YT_LOG_DEBUG(
-                    "Storage contains dynamic tables, returning empty columnar statistics (Table: %v)",
-                    table->Path);
+                YT_TLOG_DEBUG("Storage contains dynamic tables, returning empty columnar statistics")
+                    .With("Table", table->Path);
                 return {};
             }
         }
@@ -1468,13 +1474,16 @@ public:
         auto result = WaitFor(asyncResult);
 
         if (!result.IsOK()) {
-            YT_LOG_WARNING(result, "Error getting table columnar statistics");
+            YT_TLOG_WARNING("Error getting table columnar statistics")
+                .With(result);
             return {};
         }
 
         for (const auto& [table, statisticsOrError] : Zip(Tables_, result.Value())) {
             if (!statisticsOrError.IsOK()) {
-                YT_LOG_WARNING(result, "Error getting table columnar statistics for particular table (Table: %v)", table->Path);
+                YT_TLOG_WARNING("Error getting table columnar statistics for particular table")
+                    .With("Table", table->Path)
+                    .With(statisticsOrError);
                 return {};
             }
         }
@@ -1501,10 +1510,14 @@ public:
 
         constexpr int DefaultShrunkFormattableViewCount = 10;
 
-        YT_LOG_DEBUG(
-            "Column data weights calculated (Tables: %v, ColumnDataWeights: %v)",
-            MakeShrunkFormattableView(Tables_, TDefaultFormatter(), DefaultShrunkFormattableViewCount),
-            MakeShrunkFormattableView(columnDataWeightsForLogging, TDefaultFormatter(), DefaultShrunkFormattableViewCount));
+        auto columnDataWeightsView = MakeShrunkFormattableView(
+            columnDataWeightsForLogging,
+            TDefaultFormatter(),
+            DefaultShrunkFormattableViewCount);
+
+        YT_TLOG_DEBUG("Column data weights calculated")
+            .With("Tables", MakeShrunkFormattableView(Tables_, TDefaultFormatter(), DefaultShrunkFormattableViewCount))
+            .With("ColumnDataWeights", columnDataWeightsView);
 
         return columnSizes;
     }
@@ -1579,12 +1592,14 @@ private:
         const auto& client = queryContext->Client();
         const auto& path = Tables_[0]->Path.GetPath();
 
-        YT_LOG_DEBUG("Erasing table (Path: %v)", path);
+        YT_TLOG_DEBUG("Erasing table")
+            .With("Path", path);
         TConcatenateNodesOptions options;
         options.TransactionId = queryContext->WriteTransactionId;
         WaitFor(client->ConcatenateNodes({}, TRichYPath(path), options))
             .ThrowOnError();
-        YT_LOG_DEBUG("Table erased (Path: %v)", path);
+        YT_TLOG_DEBUG("Table erased")
+            .With("Path", path);
     }
 };
 
@@ -1622,10 +1637,10 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
     TRichYPath path = TRichYPath::Parse(TString(args.relative_data_path));
 
-    YT_LOG_INFO("Creating table from CH engine (Path: %v, Columns: %v, KeyColumns: %v)",
-        path,
-        args.columns.toString(),
-        keyColumns);
+    YT_TLOG_INFO("Creating table from CH engine")
+        .With("Path", path)
+        .With("Columns", args.columns.toString())
+        .With("KeyColumns", keyColumns);
 
     auto attributes = ConvertToAttributes(queryContext->Host->GetConfig()->CreateTableDefaultAttributes);
     if (!args.engine_args.empty()) {
@@ -1644,10 +1659,12 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     // Underscore indicates that the columns should be ignored, and that schema should be taken from the attributes.
     if (args.columns.getNamesOfPhysical() != std::vector<std::string>{"_"}) {
         auto schema = ToTableSchema(args.columns, keyColumns, queryContext->SessionSettings->Conversion);
-        YT_LOG_DEBUG("Inferred table schema from columns (Schema: %v)", schema);
+        YT_TLOG_DEBUG("Inferred table schema from columns")
+            .With("Schema", schema);
         attributes->Set("schema", schema);
     } else if (attributes->Contains("schema")) {
-        YT_LOG_DEBUG("Table schema is taken from attributes (Schema: %v)", attributes->FindYson("schema"));
+        YT_TLOG_DEBUG("Table schema is taken from attributes")
+            .With("Schema", attributes->FindYson("schema"));
     } else {
         THROW_ERROR_EXCEPTION(
             "Table schema should be specified either by column list (possibly with ORDER BY) or by "
@@ -1656,11 +1673,13 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     };
 
     if (queryContext->YqlOperationId) {
-        YT_LOG_DEBUG("Adding YQL operation id to attributes (OperationId: %v)", *queryContext->YqlOperationId);
+        YT_TLOG_DEBUG("Adding YQL operation id to attributes")
+            .With("OperationId", *queryContext->YqlOperationId);
         attributes->Set("_yql_op_id", queryContext->YqlOperationId);
     }
 
-    YT_LOG_DEBUG("Creating table (Attributes: %v)", ConvertToYsonString(attributes->ToMap(), EYsonFormat::Text));
+    YT_TLOG_DEBUG("Creating table")
+        .With("Attributes", ConvertToYsonString(attributes->ToMap(), EYsonFormat::Text));
 
     auto schema = attributes->Get<TTableSchemaPtr>("schema");
 
@@ -1681,7 +1700,8 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         InvalidateCache(queryContext, {{path.GetPath(), refreshRevision}});
     }
 
-    YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
+    YT_TLOG_DEBUG("Table created")
+        .With("ObjectId", id);
 
     // There may be obsolete entry about missing table in ObjectAttributeSnapshot.
     // Delete such entry in order to avoid mistakenly treating newly created table as missing in subsequent queries.
@@ -1716,9 +1736,9 @@ DB::StoragePtr CreateStorageDistributorImpl(
         tables,
         queryContext->SessionSettings->ConcatTables);
 
-    YT_LOG_DEBUG("Common table schema inferred (TableCount: %v, Schema: %v)",
-        tables.size(),
-        commonSchema);
+    YT_TLOG_DEBUG("Common table schema inferred")
+        .With("TableCount", tables.size())
+        .With("Schema", commonSchema);
 
     auto storage = std::make_shared<TStorageDistributor>(
         context,

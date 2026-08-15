@@ -89,7 +89,8 @@ public:
     {
         RevisionTracker_.FixCurrentRevision();
 
-        YT_LOG_INFO("Reloading dictionary (Revision: %llx)", RevisionTracker_.GetRevision());
+        YT_TLOG_INFO("Reloading dictionary")
+            .WithFormat("Revision", "%llx", RevisionTracker_.GetRevision());
 
         auto table = FetchTable();
 
@@ -147,7 +148,8 @@ public:
 
     bool isModified() const override
     {
-        YT_LOG_DEBUG("Checking dictionary revision (OldRevision: %llx)", RevisionTracker_.GetRevision());
+        YT_TLOG_DEBUG("Checking dictionary revision")
+            .WithFormat("OldRevision", "%llx", RevisionTracker_.GetRevision());
         return RevisionTracker_.HasRevisionChanged();
     }
 

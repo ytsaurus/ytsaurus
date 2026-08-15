@@ -23,13 +23,14 @@ void TLoggingTransform::transform(DB::Chunk& chunk)
     auto elapsed = now - LastLogTime;
 
     if (LastLogTime != TInstant::Zero() && (LastLogTime + TDuration::Seconds(1) < now)) {
-        YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
+        YT_TLOG_DEBUG("Reading took significant time")
+            .With("WallTime", elapsed);
     }
 
-    YT_LOG_TRACE("Chunk read (Elapsed: %v, RowCount: %v, ColumnCount: %v)",
-        elapsed,
-        chunk.getNumRows(),
-        chunk.getNumColumns());
+    YT_TLOG_TRACE("Chunk read")
+        .With("Elapsed", elapsed)
+        .With("RowCount", chunk.getNumRows())
+        .With("ColumnCount", chunk.getNumColumns());
 
     LastLogTime = now;
 }

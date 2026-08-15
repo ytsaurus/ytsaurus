@@ -61,7 +61,7 @@ using namespace NLogging;
 using namespace NTableClient;
 using namespace NYson;
 
-// Used only for YT_LOG_FATAL below.
+// Used only for YT_TLOG_FATAL below.
 static const TLogger Logger("CHToYTConverter");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1013,7 +1013,9 @@ public:
                     TYsonInput ysonInput(&input);
                     ParseYson(ysonInput, &consumer);
                 } catch (const std::exception& ex) {
-                    YT_LOG_FATAL(ex, "Error while converting value %v", index);
+                    YT_TLOG_FATAL("Error while converting value")
+                        .With("Index", index)
+                        .With(TError(ex));
                 }
             }
 

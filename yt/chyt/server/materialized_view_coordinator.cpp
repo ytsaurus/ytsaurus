@@ -221,11 +221,10 @@ public:
             Transaction_.Reset();
 
             if (Refreshed_) {
-                YT_LOG_INFO("Materialized view refresh completed "
-                    "(View: %v, InstanceCookie: %v, NewRowIndex: %v)",
-                    View_.ObjectName,
-                    RefreshInstanceCookie_,
-                    Progress_->NextRowIndex);
+                YT_TLOG_INFO("Materialized view refresh completed")
+                    .With("View", View_.ObjectName)
+                    .With("InstanceCookie", RefreshInstanceCookie_)
+                    .With("NewRowIndex", Progress_->NextRowIndex);
             }
             return {};
         } catch (const std::exception& ex) {
@@ -238,8 +237,9 @@ public:
         if (Transaction_) {
             auto abortError = WaitFor(Transaction_->Abort());
             if (!abortError.IsOK()) {
-                YT_LOG_WARNING(abortError, "Failed to abort materialized view refresh transaction "
-                    "(View: %v)", View_.ObjectName);
+                YT_TLOG_WARNING("Failed to abort materialized view refresh transaction")
+                    .With("View", View_.ObjectName)
+                    .With(abortError);
             }
             Transaction_.Reset();
         }
@@ -247,8 +247,9 @@ public:
         try {
             ProgressStore_->SetError(View_.ObjectId, error);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to persist materialized view refresh error "
-                "(View: %v)", View_.ObjectName);
+            YT_TLOG_WARNING("Failed to persist materialized view refresh error")
+                .With("View", View_.ObjectName)
+                .With(TError(ex));
         }
     }
 
@@ -451,12 +452,11 @@ private:
             attributes->Get<TString>("host"),
             attributes->Get<int>("rpc_port"));
 
-        YT_LOG_INFO("Executing materialized view refresh query on clique instance "
-            "(View: %v, InstanceId: %v, InstanceCookie: %v, Endpoint: %v)",
-            View_.ObjectName,
-            instanceId,
-            RefreshInstanceCookie_,
-            endpoint);
+        YT_TLOG_INFO("Executing materialized view refresh query on clique instance")
+            .With("View", View_.ObjectName)
+            .With("InstanceId", instanceId)
+            .With("InstanceCookie", RefreshInstanceCookie_)
+            .With("Endpoint", endpoint);
 
         TQueryServiceProxy proxy(ChannelFactory_->CreateChannel(endpoint));
         proxy.SetDefaultTimeout(Config_->QueryTimeout);
@@ -537,7 +537,8 @@ private:
         try {
             Scan();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Materialized view coordinator scan failed");
+            YT_TLOG_WARNING("Materialized view coordinator scan failed")
+                .With(TError(ex));
         }
     }
 
@@ -553,7 +554,9 @@ private:
             }
             auto error = RefreshView(view);
             if (!error.IsOK()) {
-                YT_LOG_WARNING(error, "Materialized view refresh failed (View: %v)", view.ObjectName);
+                YT_TLOG_WARNING("Materialized view refresh failed")
+                    .With("View", view.ObjectName)
+                    .With(error);
             }
         }
     }
