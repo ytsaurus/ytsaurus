@@ -275,9 +275,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
                 continue;
             }
 
-            // A revived assignment may reside on a node which has not become schedulable
-            // yet, e.g. its first scheduling heartbeat has not been processed since the
-            // scheduler restarted, so the node has no scheduling module.
+            // A revived assignment may sit on a node whose module is not known yet.
             if (!assignment->Node->IsSchedulable()) {
                 assignmentsOnNodeWithoutModule.emplace_back(assignment, assignment->Node->Address());
                 continue;
