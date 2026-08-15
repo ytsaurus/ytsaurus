@@ -58,10 +58,7 @@ void TProcessFunctionComputationBase<TBase>::DoInit(IJobInitContextPtr initConte
 template <class TBase>
 void TProcessFunctionComputationBase<TBase>::DoProcess(IInputContextPtr input, IOutputCollectorPtr output)
 {
-    RuntimeContext_->RefreshEpochState(
-        this->GetWatermarkState(),
-        this->GetDynamicSpec()->ProcessingFunctionParameters,
-        this->GetEpochUniqueSeqNo());
+    RefreshRuntimeContext();
     Batch_->Process(input, output, RuntimeContext_);
 }
 
@@ -69,8 +66,18 @@ template <class TBase>
 void TProcessFunctionComputationBase<TBase>::DoSyncIfPresent(IRetryableTransactionPtr transaction)
 {
     if (SyncFunction_) {
+        RefreshRuntimeContext();
         SyncFunction_->Sync(transaction, RuntimeContext_);
     }
+}
+
+template <class TBase>
+void TProcessFunctionComputationBase<TBase>::RefreshRuntimeContext()
+{
+    RuntimeContext_->RefreshEpochState(
+        this->GetWatermarkState(),
+        this->GetDynamicSpec()->ProcessingFunctionParameters,
+        this->GetEpochUniqueSeqNo());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

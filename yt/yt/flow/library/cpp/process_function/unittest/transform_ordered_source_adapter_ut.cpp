@@ -108,6 +108,17 @@ int TRegisteredSyncCountingProcessFunction::SyncCallCount = 0;
 
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TRegisteredSyncCountingProcessFunction);
 
+// DoSync refreshes the runtime context from the epoch's watermark state before entering user
+// code, so the test must seed one the way a run iteration would; ApplyPendingStates is
+// protected, hence this exposing subclass of the registered adapter.
+class TSeededAdapterComputation
+    : public TProcessFunctionTransformOrderedSourceComputation
+{
+public:
+    using TProcessFunctionTransformOrderedSourceComputation::ApplyPendingStates;
+    using TProcessFunctionTransformOrderedSourceComputation::TProcessFunctionTransformOrderedSourceComputation;
+};
+
 // Unlike InvokesSyncAtEpochBoundary above (which goes through TProcessFunctionTestHarness, a
 // raw IProcessFunction plus a dynamic_cast the harness does itself), this test builds the
 // context a real job would supply and constructs the REGISTERED adapter class via its own
@@ -127,10 +138,12 @@ TEST(TProcessFunctionTransformOrderedSourceComputationAdapterTest, DoSyncGoesThr
     auto context = MakeAdapterTestComputationContext(invoker, std::move(spec));
     auto dynamicContext = MakeAdapterTestDynamicComputationContext();
 
-    TIntrusivePtr<TProcessFunctionTransformOrderedSourceComputation> computation;
+    TIntrusivePtr<TSeededAdapterComputation> computation;
     NConcurrency::WaitFor(
         BIND([&] {
-            computation = New<TProcessFunctionTransformOrderedSourceComputation>(context, dynamicContext);
+            computation = New<TSeededAdapterComputation>(context, dynamicContext);
+            computation->UpdateWatermarkState(New<TWatermarkState>());
+            computation->ApplyPendingStates();
             computation->DoSync(/*transaction*/ nullptr);
         }).AsyncVia(invoker)
             .Run())
