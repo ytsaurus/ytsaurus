@@ -205,11 +205,10 @@ private:
     {
         const auto& Logger = Data_.Logger;
 
-        YT_LOG_TRACE(
-            "Deducing computed column value (ComputedColumn: %v, OriginalStatement: %v, Type: %v)",
-            entry.ComputedColumn,
-            statement,
-            *entry.Expression->LogicalType);
+        YT_TLOG_TRACE("Deducing computed column value")
+            .With("ComputedColumn", entry.ComputedColumn)
+            .With("OriginalStatement", statement)
+            .With("Type", *entry.Expression->LogicalType);
 
         auto rowBuffer = New<TRowBuffer>();
 
@@ -222,10 +221,9 @@ private:
                 auto& referenceValue = referenceValues[fieldIndex];
                 referenceValue.Id = fieldIndex;
                 ToUnversionedValue(field, &referenceValue);
-                YT_LOG_TRACE(
-                    "Converted reference field to YT unversioned value (Value: %v, Field: %v)",
-                    referenceValue,
-                    field);
+                YT_TLOG_TRACE("Converted reference field to YT unversioned value")
+                    .With("Value", referenceValue)
+                    .With("Field", field);
             }
 
             TUnversionedValue resultValue{};
@@ -256,16 +254,19 @@ private:
 
                 resultValue.Id = 0;
             } catch (const TErrorException& ex) {
-                YT_LOG_TRACE(ex, "Caught exception while evaluating expression");
+                YT_TLOG_TRACE("Caught exception while evaluating expression")
+                    .With(ex.Error());
                 // Skip this value. We just deduced that it actually can't take supposed value
                 // (YT would not allow writing value which results in exception in computed
                 // column computation).
                 continue;
             }
-            YT_LOG_TRACE("Calculated expression result (ComputedColumnValue: %v)", resultValue);
+            YT_TLOG_TRACE("Calculated expression result")
+                .With("ComputedColumnValue", resultValue);
 
             auto resultField = ToField(resultValue, entry.LogicalType);
-            YT_LOG_TRACE("Converted to CH field (ComputedColumnValue: %v)", resultField);
+            YT_TLOG_TRACE("Converted to CH field")
+                .With("ComputedColumnValue", resultField);
             possibleTuple.emplace_back(std::move(resultField));
             ResultTuples.emplace_back(std::move(possibleTuple));
         }
@@ -275,9 +276,8 @@ private:
 
         TInclusionStatement resultStatement(std::move(columnNames), std::move(ResultTuples));
 
-        YT_LOG_TRACE(
-            "Deduced computed values (ResultStatement: %v)",
-            resultStatement);
+        YT_TLOG_TRACE("Deduced computed values")
+            .With("ResultStatement", resultStatement);
 
         return resultStatement;
     }
@@ -286,7 +286,8 @@ private:
     {
         const auto& Logger = Data_.Logger;
 
-        YT_LOG_TRACE("Populating prepared set for literal (Literal: %v)", literal);
+        YT_TLOG_TRACE("Populating prepared set for literal")
+            .With("Literal", literal);
 
         // Part below is done similarly to DB::makeExplicitSet.
         const auto& context = Data_.getContext();
@@ -390,7 +391,9 @@ private:
         }
 
         auto conjunctionAst = DB::makeASTForLogicalAnd(std::move(conjunctAsts));
-        YT_LOG_TRACE("Query part rewritten (Ast: %v, NewAst: %v)", originalAst, conjunctionAst);
+        YT_TLOG_TRACE("Query part rewritten")
+            .With("Ast", originalAst)
+            .With("NewAst", conjunctionAst);
 
         return conjunctionAst;
     }
@@ -410,7 +413,8 @@ private:
         const auto& Logger = Data_.Logger;
 
         if (ast.name == "equals") {
-            YT_LOG_TRACE("Processing 'equals' (Ast: %v)", ast);
+            YT_TLOG_TRACE("Processing 'equals'")
+                .With("Ast", ast);
             YT_VERIFY(ast.arguments->children.size() == 2);
 
             auto lhs = ast.arguments->children[0];
@@ -429,21 +433,25 @@ private:
                     continue;
                 }
 
-                YT_LOG_TRACE(
-                    "Left-hand corresponds to column names (Lhs: %v, ColumnNames: %v, SwapAttempt: %v)",
-                    lhs,
-                    columnNames,
-                    swapAttempt);
+                YT_TLOG_TRACE("Left-hand corresponds to column names")
+                    .With("Lhs", lhs)
+                    .With("ColumnNames", columnNames)
+                    .With("SwapAttempt", swapAttempt);
 
                 // Check if expression is constant.
                 DB::Field constField;
                 DB::DataTypePtr constDataType;
 
                 if (!EvaluateConstant(rhs, constField, constDataType, Data_.getContext())) {
-                    YT_LOG_TRACE("Right-hand is non-constant (Rhs: %v, SwapAttempt: %v)", rhs, swapAttempt);
+                    YT_TLOG_TRACE("Right-hand is non-constant")
+                        .With("Rhs", rhs)
+                        .With("SwapAttempt", swapAttempt);
                     continue;
                 }
-                YT_LOG_TRACE("Right-hand is constant (Rhs: %v, Value: %v, SwapAttempt: %v)", rhs, constField, swapAttempt);
+                YT_TLOG_TRACE("Right-hand is constant")
+                    .With("Rhs", rhs)
+                    .With("Value", constField)
+                    .With("SwapAttempt", swapAttempt);
 
                 DB::FieldVector constTuple;
 
@@ -458,10 +466,9 @@ private:
                 }
 
                 if (constTuple.size() != columnNames.size()) {
-                    YT_LOG_TRACE(
-                        "Left-hand and right-hand have different lengths (Lhs: %v, Rhs: %v)",
-                        lhs,
-                        rhs);
+                    YT_TLOG_TRACE("Left-hand and right-hand have different lengths")
+                        .With("Lhs", lhs)
+                        .With("Rhs", rhs);
                     continue;
                 }
 
@@ -472,7 +479,8 @@ private:
 
             return nullptr;
         } else if (ast.name == "in") {
-            YT_LOG_TRACE("Processing 'in' (Ast: %v)", ast);
+            YT_TLOG_TRACE("Processing 'in'")
+                .With("Ast", ast);
             YT_VERIFY(ast.arguments->children.size() == 2);
             auto lhs = ast.arguments->children[0];
             auto rhs = ast.arguments->children[1];
@@ -488,11 +496,10 @@ private:
                 return nullptr;
             }
 
-            YT_LOG_TRACE(
-                "Left-hand corresponds to column names (Lhs: %v, ColumnNames: %v, IsLhsTuple: %v)",
-                lhs,
-                columnNames,
-                isLhsTuple);
+            YT_TLOG_TRACE("Left-hand corresponds to column names")
+                .With("Lhs", lhs)
+                .With("ColumnNames", columnNames)
+                .With("IsLhsTuple", isLhsTuple);
 
             DB::FieldVector constFields;
 
@@ -500,16 +507,19 @@ private:
             DB::Field constField;
             DB::DataTypePtr constDataType;
             if (!EvaluateConstant(rhs, constField, constDataType, Data_.getContext())) {
-                YT_LOG_TRACE("Right-hand is non-constant (Rhs: %v)", rhs);
+                YT_TLOG_TRACE("Right-hand is non-constant")
+                    .With("Rhs", rhs);
                 return nullptr;
             }
-            YT_LOG_TRACE("Right-hand is constant (Rhs: %v, Value: %v)", rhs, constField);
+            YT_TLOG_TRACE("Right-hand is constant")
+                .With("Rhs", rhs)
+                .With("Value", constField);
 
             if (DB::Tuple tuple; constField.tryGet<DB::Tuple>(tuple)) {
                 constFields = tuple;
             } else {
                 // Assume "key in (42)".
-                YT_LOG_TRACE("Right-hand is non-tuple, assuming single-element tuple");
+                YT_TLOG_TRACE("Right-hand is non-tuple, assuming single-element tuple");
                 constFields = {constField};
             }
 
@@ -530,7 +540,9 @@ private:
 
             for (const auto& tuple : possibleTuples) {
                 if (tuple.size() != columnNames.size()) {
-                    YT_LOG_TRACE("Right-hand tuple and column names have different sizes (RhsTuple: %v, Columns: %v)", tuple, columnNames);
+                    YT_TLOG_TRACE("Right-hand tuple and column names have different sizes")
+                        .With("RhsTuple", tuple)
+                        .With("Columns", columnNames);
                     return nullptr;
                 }
             }
@@ -583,16 +595,15 @@ DB::QueryTreeNodePtr PopulatePredicateWithComputedColumns(
             auto expr = PrepareExpression(*columnSchema.Expression(), *schema, GetBuiltinTypeInferrers(), &referenceSet);
             std::vector<std::string> references(referenceSet.begin(), referenceSet.end());
             entries.emplace_back(TComputedColumnEntry{references, expr, columnSchema.Name(), columnSchema.LogicalType()});
-            YT_LOG_DEBUG(
-                "Key computed column found (Column: %v, References: %v, Expression: %v)",
-                columnSchema.Name(),
-                references,
-                columnSchema.Expression());
+            YT_TLOG_DEBUG("Key computed column found")
+                .With("Column", columnSchema.Name())
+                .With("References", references)
+                .With("Expression", columnSchema.Expression());
         }
     }
 
     if (entries.empty()) {
-        YT_LOG_DEBUG("Expression has no key computed columns");
+        YT_TLOG_DEBUG("Expression has no key computed columns");
         return node;
     }
 
@@ -610,7 +621,9 @@ DB::QueryTreeNodePtr PopulatePredicateWithComputedColumns(
     TComputedColumnPopulationQueryTreeVisitor visitor(data);
     visitor.visit(rewrittenNode);
 
-    YT_LOG_DEBUG("Predicate populated with computed column (Ast: %v, NewAst: %v)", node->toAST(), rewrittenNode->toAST());
+    YT_TLOG_DEBUG("Predicate populated with computed column")
+        .With("Ast", node->toAST())
+        .With("NewAst", rewrittenNode->toAST());
 
     return rewrittenNode;
 }

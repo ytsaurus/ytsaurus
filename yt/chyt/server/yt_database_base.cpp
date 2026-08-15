@@ -196,11 +196,11 @@ void TYtDatabaseBase::renameTable(
     bool invalidateCache = queryContext->ParentTransactionId == NObjectClient::NullTransactionId;
 
     const auto& Logger = ClickHouseYtLogger;
-    YT_LOG_DEBUG("Renaming table (SrcPath: %v, DstPath: %v, Exchange: %v, InvalidateCache: %v)",
-        srcPath,
-        dstPath,
-        exchange,
-        invalidateCache);
+    YT_TLOG_DEBUG("Renaming table")
+        .With("SrcPath", srcPath)
+        .With("DstPath", dstPath)
+        .With("Exchange", exchange)
+        .With("InvalidateCache", invalidateCache);
 
     auto srcRefreshRevision = NHydra::NullRevision;
     if (exchange) {

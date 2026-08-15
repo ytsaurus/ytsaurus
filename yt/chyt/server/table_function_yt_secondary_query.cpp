@@ -71,7 +71,8 @@ public:
 
         auto protoSpecString = TString(argValue.safeGet<std::string>());
 
-        YT_LOG_INFO("Deserializing subquery spec (SpecLength: %v)", protoSpecString.size());
+        YT_TLOG_INFO("Deserializing subquery spec")
+            .With("SpecLength", protoSpecString.size());
 
         NProto::TSubquerySpec protoSpec;
         Y_PROTOBUF_SUPPRESS_NODISCARD protoSpec.ParseFromString(protoSpecString);

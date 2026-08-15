@@ -136,9 +136,9 @@ DB::ColumnString::MutablePtr ConvertCHNothingColumnToAnyImpl(const DB::IColumn& 
 template <EExtendedYsonFormat ysonFormat>
 DB::ColumnString::MutablePtr ConvertCHColumnToAnyImpl(const DB::IColumn& column, ESimpleLogicalValueType type)
 {
-    YT_LOG_TRACE("Converting column to any (Count: %v, Type: %v)",
-        column.size(),
-        type);
+    YT_TLOG_TRACE("Converting column to any")
+        .With("Count", column.size())
+        .With("Type", type);
 
     switch (type) {
         #define XX(valueType, cppType, method) \
@@ -254,7 +254,7 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToLowCardinalityCHColumnImpl(
 
     std::function<ui32(i64)> dictionaryIndexFetcher;
     if (dictionaryIndexes) {
-        YT_LOG_TRACE("Converting integer column with prepared dictionary to LowCardinality");
+        YT_TLOG_TRACE("Converting integer column with prepared dictionary to LowCardinality");
 
         size_t specialValueCount = isNullable ? 2 : 1;
         auto dictionaryValues = DB::ColumnVector<T>::create(values.size() + specialValueCount, 0);
@@ -432,10 +432,10 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
 {
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
-    YT_LOG_TRACE("Converting string-like column (Count: %v, Dictionary: %v, Rle: %v)",
-        ytColumn.ValueCount,
-        static_cast<bool>(dictionaryIndexes),
-        static_cast<bool>(rleIndexes));
+    YT_TLOG_TRACE("Converting string-like column")
+        .With("Count", ytColumn.ValueCount)
+        .With("Dictionary", static_cast<bool>(dictionaryIndexes))
+        .With("Rle", static_cast<bool>(rleIndexes));
 
     YT_VERIFY(ytValueColumn->Values);
     YT_VERIFY(ytValueColumn->Values->BitWidth == 32);
@@ -475,8 +475,8 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
     auto resizeCHChars = [&] (i64 size) {
         chChars.resize(size);
         initCHCharsCursor();
-        YT_LOG_TRACE("String buffer resized (Size: %v)",
-            chChars.size());
+        YT_TLOG_TRACE("String buffer resized")
+            .With("Size", chChars.size());
     };
 
     auto uncheckedConsumer = [&] (auto pair) {
@@ -540,10 +540,10 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
         // occurrences of dictionary entries on average.
         constexpr int SmallDictionaryFactor = 3;
         if (static_cast<i64>(ytOffsets.Size()) * SmallDictionaryFactor < ytColumn.ValueCount) {
-            YT_LOG_TRACE("Converting string column with small dictionary (Count: %v, DictionarySize: %v, Rle: %v)",
-                ytColumn.ValueCount,
-                ytOffsets.size(),
-                static_cast<bool>(rleIndexes));
+            YT_TLOG_TRACE("Converting string column with small dictionary")
+                .With("Count", ytColumn.ValueCount)
+                .With("DictionarySize", ytOffsets.size())
+                .With("Rle", static_cast<bool>(rleIndexes));
 
             // Let's decode string offsets and lengths.
             std::vector<const char*> ytStrings(ytOffsets.size());
@@ -592,10 +592,10 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
         } else {
             // Large dictionary (or, more likely, small read range): will decode each
             // dictionary reference separately.
-            YT_LOG_TRACE("Converting string column with large dictionary (Count: %v, DictionarySize: %v, Rle: %v)",
-                ytColumn.ValueCount,
-                ytOffsets.size(),
-                static_cast<bool>(rleIndexes));
+            YT_TLOG_TRACE("Converting string column with large dictionary")
+                .With("Count", ytColumn.ValueCount)
+                .With("DictionarySize", ytOffsets.size())
+                .With("Rle", static_cast<bool>(rleIndexes));
 
             estimateAndResizeCHChars();
 
@@ -611,9 +611,9 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
                 checkedConsumer);
         }
     } else {
-        YT_LOG_TRACE("Converting string column without dictionary (Count: %v, Rle: %v)",
-            ytColumn.ValueCount,
-            static_cast<bool>(rleIndexes));
+        YT_TLOG_TRACE("Converting string column without dictionary")
+            .With("Count", ytColumn.ValueCount)
+            .With("Rle", static_cast<bool>(rleIndexes));
 
         estimateAndResizeCHChars();
 
@@ -655,10 +655,10 @@ DB::MutableColumnPtr ConvertTzYTColumnToCHColumnImpl(
 {
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
-    YT_LOG_TRACE("Converting tz column (Count: %v, Dictionary: %v, Rle: %v)",
-        ytColumn.ValueCount,
-        static_cast<bool>(dictionaryIndexes),
-        static_cast<bool>(rleIndexes));
+    YT_TLOG_TRACE("Converting tz column")
+        .With("Count", ytColumn.ValueCount)
+        .With("Dictionary", static_cast<bool>(dictionaryIndexes))
+        .With("Rle", static_cast<bool>(rleIndexes));
 
     YT_VERIFY(ytValueColumn->Values);
     YT_VERIFY(ytValueColumn->Values->BitWidth == 32);
@@ -779,11 +779,11 @@ DB::MutableColumnPtr ConvertStringLikeYtColumnToLowCardinalityChColumnImpl(
 
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
-    YT_LOG_TRACE("Converting string-like column to LowCardinality (Count: %v, Dictionary: %v, Rle: %v, IsNullable: %v)",
-        ytColumn.ValueCount,
-        static_cast<bool>(dictionaryIndexes),
-        static_cast<bool>(rleIndexes),
-        isNullable);
+    YT_TLOG_TRACE("Converting string-like column to LowCardinality")
+        .With("Count", ytColumn.ValueCount)
+        .With("Dictionary", static_cast<bool>(dictionaryIndexes))
+        .With("Rle", static_cast<bool>(rleIndexes))
+        .With("IsNullable", isNullable);
 
     YT_VERIFY(ytValueColumn->Values);
     YT_VERIFY(ytValueColumn->Values->BitWidth == 32);
@@ -889,8 +889,8 @@ DB::MutableColumnPtr ConvertStringLikeYtColumnToLowCardinalityChColumnImpl(
 DB::MutableColumnPtr ConvertDoubleYTColumnToCHColumn(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
-    YT_LOG_TRACE("Converting double column (Count: %v)",
-        ytColumn.ValueCount);
+    YT_TLOG_TRACE("Converting double column")
+        .With("Count", ytColumn.ValueCount);
 
     return ConvertFloatingPointYTColumnToCHColumn<double>(ytColumn);
 }
@@ -898,8 +898,8 @@ DB::MutableColumnPtr ConvertDoubleYTColumnToCHColumn(
 DB::MutableColumnPtr ConvertFloatYTColumnToCHColumn(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
-    YT_LOG_TRACE("Converting float column (Count: %v)",
-        ytColumn.ValueCount);
+    YT_TLOG_TRACE("Converting float column")
+        .With("Count", ytColumn.ValueCount);
 
     return ConvertFloatingPointYTColumnToCHColumn<float>(ytColumn);
 }
@@ -921,8 +921,8 @@ DB::MutableColumnPtr ConvertStringLikeYTColumnToLowCardinalityCHColumn(
 
 DB::MutableColumnPtr ConvertBooleanYTColumnToCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
-    YT_LOG_TRACE("Converting boolean column (Count: %v)",
-        ytColumn.ValueCount);
+    YT_TLOG_TRACE("Converting boolean column")
+        .With("Count", ytColumn.ValueCount);
 
     auto chColumn = DB::ColumnUInt8::create(ytColumn.ValueCount);
 
@@ -937,8 +937,8 @@ DB::MutableColumnPtr ConvertBooleanYTColumnToCHColumn(const IUnversionedColumnar
 
 DB::MutableColumnPtr ConvertNullYTColumnToCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
-    YT_LOG_TRACE("Converting null column (Count: %v)",
-        ytColumn.ValueCount);
+    YT_TLOG_TRACE("Converting null column")
+        .With("Count", ytColumn.ValueCount);
 
     auto chColumn = DB::ColumnNothing::create(ytColumn.ValueCount);
 
@@ -953,12 +953,12 @@ DB::ColumnUInt8::MutablePtr BuildNullBytemapForCHColumn(const IUnversionedColumn
 
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
-    YT_LOG_TRACE("Building null bytemap (ValueCount: %v, Rle: %v, Dictionary: %v, NullBitmap: %v, Values: %v)",
-        ytColumn.ValueCount,
-        static_cast<bool>(rleIndexes),
-        static_cast<bool>(dictionaryIndexes),
-        static_cast<bool>(ytColumn.NullBitmap),
-        static_cast<bool>(ytColumn.Values));
+    YT_TLOG_TRACE("Building null bytemap")
+        .With("ValueCount", ytColumn.ValueCount)
+        .With("Rle", static_cast<bool>(rleIndexes))
+        .With("Dictionary", static_cast<bool>(dictionaryIndexes))
+        .With("NullBitmap", static_cast<bool>(ytColumn.NullBitmap))
+        .With("Values", static_cast<bool>(ytColumn.Values));
 
     if (rleIndexes && dictionaryIndexes) {
         BuildNullBytemapFromRleDictionaryIndexesWithZeroNull(
@@ -1005,10 +1005,10 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToCHColumn(
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
     TRef nullBitmap = GetNullBitmap(ytColumn);
 
-    YT_LOG_TRACE("Converting integer column (Count: %v, Rle: %v, Dictionary: %v)",
-        ytColumn.ValueCount,
-        static_cast<bool>(rleIndexes),
-        static_cast<bool>(dictionaryIndexes));
+    YT_TLOG_TRACE("Converting integer column")
+        .With("Count", ytColumn.ValueCount)
+        .With("Rle", static_cast<bool>(rleIndexes))
+        .With("Dictionary", static_cast<bool>(dictionaryIndexes));
 
     switch (type) {
         #define XX(ytType, columnType, ...) \
@@ -1088,10 +1088,10 @@ DB::MutableColumnPtr ConvertIntegerYTColumnToLowCardinalityCHColumn(
 {
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
 
-    YT_LOG_TRACE("Converting integer column (Count: %v, Rle: %v, Dictionary: %v)",
-        ytColumn.ValueCount,
-        static_cast<bool>(rleIndexes),
-        static_cast<bool>(dictionaryIndexes));
+    YT_TLOG_TRACE("Converting integer column")
+        .With("Count", ytColumn.ValueCount)
+        .With("Rle", static_cast<bool>(rleIndexes))
+        .With("Dictionary", static_cast<bool>(dictionaryIndexes));
 
     switch (type) {
         #define XX(ytType, chType, ...) \

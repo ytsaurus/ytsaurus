@@ -82,9 +82,10 @@ DBPoco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
             traceContext->AddTag("chyt.instance_cookie", Host_->GetInstanceCookie());
             traceContext->AddTag("chyt.instance_address", Host_->GetConfig()->Address);
 
-            YT_LOG_DEBUG("Preparing new user (UserName: %v)", user);
+            YT_TLOG_DEBUG("Preparing new user")
+                .With("UserName", user);
             Host_->PrepareClickHouseUser(user);
-            YT_LOG_DEBUG("User prepared");
+            YT_TLOG_DEBUG("User prepared");
 
             SetupHostContext(
                 Host_,

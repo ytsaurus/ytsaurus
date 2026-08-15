@@ -217,7 +217,8 @@ std::vector<TTablePtr> FetchTables(
 {
     const auto& Logger = logger;
 
-    YT_LOG_INFO("Fetching tables (PathCount: %v)", richPaths.size());
+    YT_TLOG_INFO("Fetching tables")
+        .With("PathCount", richPaths.size());
 
     std::vector<TYPath> paths;
     paths.reserve(richPaths.size());
@@ -238,7 +239,8 @@ std::vector<TTablePtr> FetchTables(
 
         if (attributesOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             unsuitableErrors.emplace_back(std::move(attributesOrError).Wrap());
-            YT_LOG_DEBUG("Skip unresolved table path (Path: %v)", path);
+            YT_TLOG_DEBUG("Skip unresolved table path")
+                .With("Path", path);
             continue;
         }
 
@@ -257,7 +259,8 @@ std::vector<TTablePtr> FetchTables(
                 path,
                 allowedTypes,
                 type));
-            YT_LOG_DEBUG("Skip path because it's not a table (Path: %v)", path);
+            YT_TLOG_DEBUG("Skip path because it's not a table")
+                .With("Path", path);
             continue;
         }
 
@@ -270,7 +273,8 @@ std::vector<TTablePtr> FetchTables(
                 "if you indeed want to read only static part of dynamic table, "
                 "pass setting chyt.dynamic_table.enable_dynamic_store_read = 0",
                 path.GetPath()));
-            YT_LOG_DEBUG("Skip table because it has disabled dynamic store read when required (Path: %v)", path);
+            YT_TLOG_DEBUG("Skip table because it has disabled dynamic store read when required")
+                .With("Path", path);
             continue;
         }
 
@@ -298,23 +302,26 @@ std::vector<TTablePtr> FetchTables(
             // CH drops the error below, so log it.
             auto error = TError("Table fetching failed")
                 .With(errors);
-            YT_LOG_DEBUG(error, "Table fetching failed");
+            YT_TLOG_DEBUG("Table fetching failed")
+                .With(error);
             THROW_ERROR error;
         }
     };
 
     throwOnErrors();
 
-    YT_LOG_INFO("Tables fetched (SkippedCount: %v)", richPaths.size() - tables.size());
+    YT_TLOG_INFO("Tables fetched")
+        .With("SkippedCount", richPaths.size() - tables.size());
 
     if (queryContext->Host->GetConfig()->EnableSchemaIdFetching) {
         FetchTableSchemas(queryContext, tables);
-        YT_LOG_INFO("Table schemas fetched");
+        YT_TLOG_INFO("Table schemas fetched");
     }
 
     if (dynamicTableCount) {
         // Let's fetch table mount infos.
-        YT_LOG_INFO("Fetching table mount infos (TableCount: %v)", dynamicTableCount);
+        YT_TLOG_INFO("Fetching table mount infos")
+            .With("TableCount", dynamicTableCount);
         const auto& connection = queryContext->Client()->GetNativeConnection();
         const auto& tableMountCache = connection->GetTableMountCache();
         std::vector<TFuture<void>> asyncResults;
@@ -330,7 +337,7 @@ std::vector<TTablePtr> FetchTables(
             .ValueOrThrow();
         auto it = std::remove_if(errors.begin(), errors.end(), [] (TError error) { return error.IsOK(); });
         errors.erase(it, errors.end());
-        YT_LOG_INFO("Table mount infos fetched");
+        YT_TLOG_INFO("Table mount infos fetched");
     }
 
     throwOnErrors();
@@ -340,11 +347,10 @@ std::vector<TTablePtr> FetchTables(
     }
 
     for (const auto& table : tables) {
-        YT_LOG_TRACE(
-            "Fetched table (Path: %v, Revision: %v, Columns: %v)",
-            table->Path,
-            table->Revision,
-            MakeShrunkFormattableView(table->Schema->GetColumnNames(), TDefaultFormatter(), 5));
+        YT_TLOG_TRACE("Fetched table")
+            .With("Path", table->Path)
+            .With("Revision", table->Revision)
+            .With("Columns", MakeShrunkFormattableView(table->Schema->GetColumnNames(), TDefaultFormatter(), 5));
     }
 
     return tables;

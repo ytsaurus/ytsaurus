@@ -61,7 +61,10 @@ public:
 
     void consume(DB::Chunk& chunk) override
     {
-        YT_LOG_TRACE("Writing block (RowCount: %v, ColumnCount: %v, ByteCount: %v)", chunk.getNumRows(), chunk.getNumColumns(), chunk.bytes());
+        YT_TLOG_TRACE("Writing block")
+            .With("RowCount", chunk.getNumRows())
+            .With("ColumnCount", chunk.getNumColumns())
+            .With("ByteCount", chunk.bytes());
         Statistics_.AddSample("/sink_to_storage/chunk_rows"_SP, chunk.getNumRows());
         Statistics_.AddSample("/sink_to_storage/chunk_bytes"_SP, chunk.bytes());
         Statistics_.AddSample("/sink_to_storage/chunk_columns"_SP, chunk.getNumColumns());
@@ -197,15 +200,15 @@ private:
     void CloseWriter()
     {
         if (WriterClosed_) {
-            YT_LOG_DEBUG("Writer already closed, skipping");
+            YT_TLOG_DEBUG("Writer already closed, skipping");
             return;
         }
 
-        YT_LOG_INFO("Closing writer");
+        YT_TLOG_INFO("Closing writer");
         WriterClosed_ = true;
         WaitFor(Writer_->Close())
             .ThrowOnError();
-        YT_LOG_INFO("Writer closed");
+        YT_TLOG_INFO("Writer closed");
     }
 };
 
@@ -271,10 +274,11 @@ private:
                     break;
                 }
 
-                YT_LOG_DEBUG(error, "Error writing row range, backing off (RetryIndex: %v, LowerRowIndex: %v, UpperRowIndex: %v)",
-                    retryIndex,
-                    from,
-                    to);
+                YT_TLOG_DEBUG("Error writing row range, backing off")
+                    .With("RetryIndex", retryIndex)
+                    .With("LowerRowIndex", from)
+                    .With("UpperRowIndex", to)
+                    .With(error);
 
                 errors.emplace_back(std::move(error));
             }
@@ -297,15 +301,16 @@ private:
                 transactionStartOptions));
 
         if (!transactionOrError.IsOK()) {
-            YT_LOG_WARNING(transactionOrError, "Error starting transaction");
+            YT_TLOG_WARNING("Error starting transaction")
+                .With(transactionOrError);
             return transactionOrError;
         }
         const auto& transaction = transactionOrError.Value();
 
-        YT_LOG_DEBUG("Writing rows to table (Path: %v, RowCount: %v, TransactionId: %v)",
-            Path_.GetPath(),
-            rows.size(),
-            transaction->GetId());
+        YT_TLOG_DEBUG("Writing rows to table")
+            .With("Path", Path_.GetPath())
+            .With("RowCount", rows.size())
+            .With("TransactionId", transaction->GetId());
 
         transaction->WriteRows(
             Path_.GetPath(),
@@ -315,13 +320,14 @@ private:
         auto commitResultOrError = WaitFor(transaction->Commit());
 
         if (commitResultOrError.IsOK()) {
-            YT_LOG_DEBUG("Rows committed (RowCount: %v, TransactionId: %v)",
-                rows.size(),
-                transaction->GetId());
+            YT_TLOG_DEBUG("Rows committed")
+                .With("RowCount", rows.size())
+                .With("TransactionId", transaction->GetId());
         } else {
-            YT_LOG_INFO(commitResultOrError, "Error committing rows (RowCount: %v, TransactionId: %v)",
-                rows.size(),
-                transaction->GetId());
+            YT_TLOG_INFO("Error committing rows")
+                .With("RowCount", rows.size())
+                .With("TransactionId", transaction->GetId())
+                .With(commitResultOrError);
         }
 
         return commitResultOrError;

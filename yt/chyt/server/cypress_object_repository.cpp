@@ -219,8 +219,8 @@ TCypressObjectRepository::TObjectSnapshotPtr TCypressObjectRepository::BuildSnap
 
         auto value = attributes.Find<std::string>("value");
         if (!value) {
-            YT_LOG_WARNING("Clique object node is missing \"value\" attribute, skipping (Name: %v)",
-                name);
+            YT_TLOG_WARNING("Clique object node is missing \"value\" attribute, skipping")
+                .With("Name", name);
             continue;
         }
 
@@ -240,9 +240,9 @@ TCypressObjectRepository::TObjectSnapshotPtr TCypressObjectRepository::BuildSnap
         snapshot->Entries.emplace(std::move(name), std::move(entry));
     }
 
-    YT_LOG_DEBUG("Cypress object snapshot built (RootPath: %v, ObjectCount: %v)",
-        RootPath_,
-        snapshot->Entries.size());
+    YT_TLOG_DEBUG("Cypress object snapshot built")
+        .With("RootPath", RootPath_)
+        .With("ObjectCount", snapshot->Entries.size());
 
     return snapshot;
 }
@@ -254,8 +254,9 @@ void TCypressObjectRepository::RefreshSnapshot()
         auto guard = WriterGuard(SnapshotLock_);
         Snapshot_ = std::move(snapshot);
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to refresh Cypress object snapshot (RootPath: %v)",
-            RootPath_);
+        YT_TLOG_WARNING("Failed to refresh Cypress object snapshot")
+            .With("RootPath", RootPath_)
+            .With(TError(ex));
     }
 }
 
@@ -401,8 +402,9 @@ void TCypressObjectRepository::WriteMaterializedView(
     } catch (const std::exception&) {
         auto abortError = WaitFor(transaction->Abort());
         if (!abortError.IsOK()) {
-            YT_LOG_WARNING(abortError, "Failed to abort materialized view creation transaction "
-                "(View: %v)", storageId.getFullTableName());
+            YT_TLOG_WARNING("Failed to abort materialized view creation transaction")
+                .With("View", storageId.getFullTableName())
+                .With(abortError);
         }
         throw;
     }

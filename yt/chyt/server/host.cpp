@@ -314,7 +314,7 @@ public:
             if (ElectionManager_) {
                 MaterializedViewCoordinator_->Start();
             } else {
-                YT_LOG_WARNING("Materialized view background processing is disabled because no election manager is configured");
+                YT_TLOG_WARNING("Materialized view background processing is disabled because no election manager is configured");
             }
         }
 
@@ -479,10 +479,10 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Getting object attributes (HitCount: %v, MissedCount: %v, User: %v)",
-            paths.size() - missedPaths.size(),
-            missedPaths.size(),
-            user);
+        YT_TLOG_DEBUG("Getting object attributes")
+            .With("HitCount", paths.size() - missedPaths.size())
+            .With("MissedCount", missedPaths.size())
+            .With("User", user);
 
         std::reverse(missedPaths.begin(), missedPaths.end());
 
@@ -513,9 +513,9 @@ public:
 
     void InvalidateCachedObjectAttributes(const std::vector<std::pair<TYPath, NHydra::TRevision>>& paths)
     {
-        YT_LOG_DEBUG("Invalidating locally cached table attributes (PathCount: %v, Paths: %v)",
-            paths.size(),
-            MakeShrunkFormattableView(paths, TDefaultFormatter{}, 10));
+        YT_TLOG_DEBUG("Invalidating locally cached table attributes")
+            .With("PathCount", paths.size())
+            .With("Paths", MakeShrunkFormattableView(paths, TDefaultFormatter{}, 10));
 
         for (const auto& [path, refreshRevision] : paths) {
             TableAttributeCache_->InvalidateActiveAndSetRefreshRevision(path, refreshRevision);
@@ -527,10 +527,10 @@ public:
         EInvalidateCacheMode mode,
         TDuration timeout)
     {
-        YT_LOG_DEBUG("Invalidating cached table attributes in clique (PathCount: %v, Mode: %v, Timeout: %v)",
-            paths.size(),
-            mode,
-            timeout);
+        YT_TLOG_DEBUG("Invalidating cached table attributes in clique")
+            .With("PathCount", paths.size())
+            .With("Mode", mode)
+            .With("Timeout", timeout);
 
         if (mode == EInvalidateCacheMode::None) {
             return;
@@ -789,7 +789,8 @@ public:
 
     void SetSqlObjectOnOtherInstances(const TString& objectName, const NClickHouseServer::TSqlObjectInfo& info) const
     {
-        YT_LOG_DEBUG("Setting SQL object on other instances (ObjectName: %v)", objectName);
+        YT_TLOG_DEBUG("Setting SQL object on other instances")
+            .With("ObjectName", objectName);
 
         auto instances = Discovery_->List();
 
@@ -820,7 +821,8 @@ public:
 
     void RemoveSqlObjectOnOtherInstances(const TString& objectName, NHydra::TRevision revision) const
     {
-        YT_LOG_DEBUG("Removing SQL object on other instances (ObjectName: %v)", objectName);
+        YT_TLOG_DEBUG("Removing SQL object on other instances")
+            .With("ObjectName", objectName);
 
         auto instances = Discovery_->List();
 
@@ -851,7 +853,8 @@ public:
 
     void ReloadDictionaryGlobally(const std::string& configPath) const
     {
-        YT_LOG_DEBUG("Reloading dictionary on all instances (ConfigPath: %v)", configPath);
+        YT_TLOG_DEBUG("Reloading dictionary on all instances")
+            .With("ConfigPath", configPath);
 
         const auto& externalDictionariesLoader = GetContext()->getExternalDictionariesLoader();
         externalDictionariesLoader.reloadConfig(TCypressObjectRepository::CypressConfigRepositoryName, configPath);
@@ -899,7 +902,7 @@ public:
 
     void RefreshCypressObjectRepositoryGlobally() const
     {
-        YT_LOG_DEBUG("Refreshing Cypress object repository on all instances");
+        YT_TLOG_DEBUG("Refreshing Cypress object repository on all instances");
 
         auto instances = Discovery_->List();
         using TResponse = NRpc::TTypedClientResponse<TRspRefreshCypressObjectRepository>::TResult;
@@ -1134,7 +1137,7 @@ private:
 
     void MakeGossip()
     {
-        YT_LOG_DEBUG("Gossip started");
+        YT_TLOG_DEBUG("Gossip started");
 
         // Instances can be banned because of transient errors (e.g. network errors).
         // Pinging banned instances can help to restore clique faster after such errors.
@@ -1168,13 +1171,16 @@ private:
             if (!responseIt->IsOK() || responseIt->Value()->instance_id() != name ||
                 FromProto<EInstanceState>(responseIt->Value()->instance_state()) == EInstanceState::Stopped)
             {
-                YT_LOG_WARNING("Banning instance (Address: %v, HttpPort: %v, TcpPort: %v, RpcPort: %v, JobId: %v, State: %v)",
-                    attributes->Get<TString>("host"),
-                    attributes->Get<ui64>("http_port"),
-                    attributes->Get<ui64>("tcp_port"),
-                    attributes->Get<ui64>("rpc_port"),
-                    name,
-                    (responseIt->IsOK() ? Format("%v", FromProto<EInstanceState>(responseIt->Value()->instance_state())) : "Request failed"));
+                auto state = responseIt->IsOK()
+                    ? Format("%v", FromProto<EInstanceState>(responseIt->Value()->instance_state()))
+                    : "Request failed";
+                YT_TLOG_WARNING("Banning instance")
+                    .With("Address", attributes->Get<TString>("host"))
+                    .With("HttpPort", attributes->Get<ui64>("http_port"))
+                    .With("TcpPort", attributes->Get<ui64>("tcp_port"))
+                    .With("RpcPort", attributes->Get<ui64>("rpc_port"))
+                    .With("JobId", name)
+                    .With("State", state);
                 dead.push_back(name);
             } else {
                 alive.push_back(name);
@@ -1187,15 +1193,17 @@ private:
         }
         Discovery_->Ban(dead);
 
-        YT_LOG_DEBUG("Gossip completed (Alive: %v, Dead: %v)", alive.size(), dead.size());
+        YT_TLOG_DEBUG("Gossip completed")
+            .With("Alive", alive.size())
+            .With("Dead", dead.size());
     }
 
     void DoHandleIncomingGossip(const TString& instanceId, EInstanceState state)
     {
         if (state != EInstanceState::Active) {
-            YT_LOG_DEBUG("Received gossip from non-active instance (InstanceId: %v, State: %v)",
-                instanceId,
-                state);
+            YT_TLOG_DEBUG("Received gossip from non-active instance")
+                .With("InstanceId", instanceId)
+                .With("State", state);
             Discovery_->Ban(instanceId);
             return;
         }
@@ -1211,10 +1219,10 @@ private:
         auto& counter = UnknownInstancePingCounter_[instanceId];
         ++counter;
 
-        YT_LOG_DEBUG("Received gossip from unknown instance (InstanceId: %v, State: %v, Counter: %v)",
-            instanceId,
-            state,
-            counter);
+        YT_TLOG_DEBUG("Received gossip from unknown instance")
+            .With("InstanceId", instanceId)
+            .With("State", state)
+            .With("Counter", counter);
 
         if (counter >= Config_->Gossip->UnknownInstancePingLimit) {
             return;
@@ -1248,10 +1256,10 @@ private:
         WaitFor(RootClient_->CreateNode(path, EObjectType::Orchid, options))
             .ThrowOnError();
 
-        YT_LOG_INFO("Initialized orchid node (Host: %v, Port: %v, OrchidNodePath: %v)",
-            host,
-            Ports_.Rpc,
-            path);
+        YT_TLOG_INFO("Initialized orchid node")
+            .With("Host", host)
+            .With("Port", Ports_.Rpc)
+            .With("OrchidNodePath", path);
     }
 
     void RegisterFactories()

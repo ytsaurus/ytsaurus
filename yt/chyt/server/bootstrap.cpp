@@ -102,7 +102,7 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    YT_LOG_INFO("Starting ClickHouse server");
+    YT_TLOG_INFO("Starting ClickHouse server");
 
     // TODO(gepardo): Add authentication here.
 
@@ -177,10 +177,12 @@ void TBootstrap::DoRun()
         "/queries",
         CreateVirtualNode(Host_->GetQueryRegistry()->GetOrchidService()));
 
-    YT_LOG_INFO("Monitoring HTTP server set up (Port: %v)", Config_->MonitoringPort);
+    YT_TLOG_INFO("Monitoring HTTP server set up")
+        .With("Port", Config_->MonitoringPort);
     HttpServer_->Start();
 
-    YT_LOG_INFO("RPC server set up (Port: %v)", Config_->RpcPort);
+    YT_TLOG_INFO("RPC server set up")
+        .With("Port", Config_->RpcPort);
     RpcServer_->Start();
 
     ClickHouseServer_->Start();
@@ -215,7 +217,7 @@ void TBootstrap::HandleSigint()
         _exit(ToUnderlying(EServerExitCode::GracefulInterruption));
     }
     WriteToStderr("*** Gracefully stopping server due to SIGINT ***\n");
-    YT_LOG_INFO("Stopping server due to SIGINT");
+    YT_TLOG_INFO("Stopping server due to SIGINT");
 
     // Set up hard timeout to avoid hanging in interruption.
     TDelayedExecutor::Submit(
@@ -230,7 +232,7 @@ void TBootstrap::HandleSigint()
     if (Host_) {
         discoveryStopFuture = Host_->StopDiscovery();
     } else {
-        YT_LOG_INFO("Host is not set up");
+        YT_TLOG_INFO("Host is not set up");
         discoveryStopFuture = OKFuture;
     }
     YT_UNUSED_FUTURE(discoveryStopFuture.Apply(BIND([this] {

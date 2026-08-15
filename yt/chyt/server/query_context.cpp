@@ -80,7 +80,8 @@ TFuture<std::vector<TErrorOr<TObjectLock>>> DoAcquireSnapshotLocksAsync(
 
     const auto& Logger = logger;
 
-    YT_LOG_INFO("Acquiring snapshot locks (Paths: %v)", paths);
+    YT_TLOG_INFO("Acquiring snapshot locks")
+        .With("Paths", paths);
 
     auto proxy = CreateObjectServiceWriteProxy(client);
     auto batchReq = proxy.ExecuteBatch();
@@ -107,14 +108,16 @@ TFuture<std::vector<TErrorOr<TObjectLock>>> DoAcquireSnapshotLocksAsync(
                         .Revision = FromProto<TRevision>(rsp->revision()),
                         .ExternalTransactionId = FromProto<TTransactionId>(rsp->external_transaction_id()),
                     };
-                    YT_LOG_INFO("Snapshot lock is acquired (LockId: %v, NodeId: %v, Revision: %v, ReadTransactionId: %v)",
-                        rsp->lock_id(),
-                        rsp->node_id(),
-                        rsp->revision(),
-                        readTransactionId);
+                    YT_TLOG_INFO("Snapshot lock is acquired")
+                        .With("LockId", rsp->lock_id())
+                        .With("NodeId", rsp->node_id())
+                        .With("Revision", rsp->revision())
+                        .With("ReadTransactionId", readTransactionId);
                 } else {
                     locks[index] = TError(rspOrError);
-                    YT_LOG_INFO(rspOrError, "Failed to acquire snapshot lock (Index: %v)", index);
+                    YT_TLOG_INFO("Failed to acquire snapshot lock")
+                        .With("Index", index)
+                        .With(rspOrError);
                 }
             }
 
@@ -131,14 +134,14 @@ TStorageContext::TStorageContext(int index, DB::ContextPtr context, TQueryContex
     , QueryContext(queryContext)
     , Logger(queryContext->Logger.WithTag("StorageIndex", Index))
 {
-    YT_LOG_INFO("Storage context created");
+    YT_TLOG_INFO("Storage context created");
 
     Settings = ParseCustomSettings(queryContext->Host->GetConfig()->QuerySettings, context->getSettingsRef().changes(), Logger);
 }
 
 TStorageContext::~TStorageContext()
 {
-    YT_LOG_INFO("Storage context destroyed");
+    YT_TLOG_INFO("Storage context destroyed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,7 +210,9 @@ TQueryContext::TQueryContext(
         Logger.AddTag("DataLensRequestId", DataLensRequestId);
     }
 
-    YT_LOG_INFO("Query context created (User: %v, QueryKind: %v)", User, QueryKind);
+    YT_TLOG_INFO("Query context created")
+        .With("User", User)
+        .With("QueryKind", QueryKind);
     LastPhaseTime_ = StartTime_ = TInstant::Now();
 
     const auto& clientInfo = context->getClientInfo();
@@ -223,7 +228,8 @@ TQueryContext::TQueryContext(
         const auto& queryParams = context->getQueryParameters();
         if (auto it = queryParams.find(ParamTransactionId); it != queryParams.end()) {
             ParentTransactionId = TTransactionId::FromString(it->second);
-            YT_LOG_INFO("Query has parent transaction (ParentTransactionId: %v)", ParentTransactionId);
+            YT_TLOG_INFO("Query has parent transaction")
+                .With("ParentTransactionId", ParentTransactionId);
         }
     }
 
@@ -257,16 +263,14 @@ TQueryContext::TQueryContext(
         SessionSettings->Execution->TableReadLockMode = ETableReadLockMode::Sync;
     }
 
-    YT_LOG_INFO(
-        "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "
-        "Interface: %v, HttpUserAgent: %v, QueryKind: %v)",
-        CurrentUser,
-        CurrentAddress,
-        InitialUser,
-        InitialAddress,
-        Interface,
-        HttpUserAgent,
-        QueryKind);
+    YT_TLOG_INFO("Query client info")
+        .With("CurrentUser", CurrentUser)
+        .With("CurrentAddress", CurrentAddress)
+        .With("InitialUser", InitialUser)
+        .With("InitialAddress", InitialAddress)
+        .With("Interface", Interface)
+        .With("HttpUserAgent", HttpUserAgent)
+        .With("QueryKind", QueryKind);
 
     if (SessionSettings->Testing->HangControlInvoker) {
         auto longAction = BIND([] {
@@ -310,9 +314,13 @@ TQueryContext::~TQueryContext()
         Host->GetQueryRegistry()->AccountTotalDuration(duration);
     }
 
-    YT_LOG_INFO("Query time statistics (StartTime: %v, FinishTime: %v, Duration: %v)", StartTime_, FinishTime_, duration);
-    YT_LOG_INFO("Query phase debug string (DebugString: %v)", PhaseDebugString_);
-    YT_LOG_INFO("Query context destroyed");
+    YT_TLOG_INFO("Query time statistics")
+        .With("StartTime", StartTime_)
+        .With("FinishTime", FinishTime_)
+        .With("Duration", duration);
+    YT_TLOG_INFO("Query phase debug string")
+        .With("DebugString", PhaseDebugString_);
+    YT_TLOG_INFO("Query context destroyed");
 }
 
 const NNative::IClientPtr& TQueryContext::Client() const
@@ -358,7 +366,10 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
 
     auto oldPhase = QueryPhase_.load();
 
-    YT_LOG_INFO("Query phase changed (FromPhase: %v, ToPhase: %v, Duration: %v)", oldPhase, nextPhase, duration);
+    YT_TLOG_INFO("Query phase changed")
+        .With("FromPhase", oldPhase)
+        .With("ToPhase", nextPhase)
+        .With("Duration", duration);
 
     if (QueryKind == EQueryKind::InitialQuery && (oldPhase == EQueryPhase::Preparation || oldPhase == EQueryPhase::Execution)) {
         Host->GetQueryRegistry()->AccountPhaseDuration(oldPhase, duration);
@@ -606,7 +617,9 @@ void TQueryContext::InitializeQueryWriteTransaction()
         .ValueOrThrow();
     WriteTransactionId = InitialQueryWriteTransaction_->GetId();
 
-    YT_LOG_INFO("Write transaction started (WriteTransactionId: %v, ParentTransactionId: %v)", WriteTransactionId, ParentTransactionId);
+    YT_TLOG_INFO("Write transaction started")
+        .With("WriteTransactionId", WriteTransactionId)
+        .With("ParentTransactionId", ParentTransactionId);
 }
 
 void TQueryContext::CommitWriteTransaction()
@@ -635,7 +648,7 @@ void TQueryContext::InitializeQueryReadTransactionFuture()
             return TTransactionWithTimestamp{transactionFuture.GetOrCrash().Value(), timestampFuture.GetOrCrash().Value()};
         }));
 
-    YT_LOG_INFO("Query read transaction future initialized");
+    YT_TLOG_INFO("Query read transaction future initialized");
 }
 
 void TQueryContext::SaveQueryReadTransaction()
@@ -657,9 +670,9 @@ void TQueryContext::SaveQueryReadTransaction()
     DynamicTableReadTimestamp = tx.Timestamp;
     ReadTransactionId = InitialQueryReadTransaction_->GetId();
 
-    YT_LOG_INFO("Read transaction saved (ReadTransactionId: %v, DynamicTableReadTimestamp: %v)",
-        ReadTransactionId,
-        DynamicTableReadTimestamp);
+    YT_TLOG_INFO("Read transaction saved")
+        .With("ReadTransactionId", ReadTransactionId)
+        .With("DynamicTableReadTimestamp", DynamicTableReadTimestamp);
 }
 
 TFuture<std::vector<TErrorOr<TObjectLock>>> TQueryContext::DoAcquireSnapshotLocks(const std::vector<TYPath>& paths)
@@ -837,9 +850,8 @@ void TQueryContext::AddAttributesToSnapshot(
                 // vector is unpopular enough.
                 // TODO(coteeq): We can actually save effective ACL in the lock
                 // object on master and use it to check permissions.
-                YT_LOG_WARNING(
-                    "Table was removed in trunk between locking and checking permissions (Path: %v)",
-                    path);
+                YT_TLOG_WARNING("Table was removed in trunk between locking and checking permissions")
+                    .With("Path", path);
                 [[fallthrough]];
             case EPreliminaryCheckPermissionResult::RowLevelAcePresent: {
                 if (attributes.IsOK()) {

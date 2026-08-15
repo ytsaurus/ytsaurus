@@ -103,7 +103,7 @@ public:
     void loadObjects() override
     {
         if (!ObjectsLoaded_.exchange(true)) {
-            YT_LOG_DEBUG("Loading user-defined objects");
+            YT_TLOG_DEBUG("Loading user-defined objects");
 
             PeriodicExecutor_->Start();
 
@@ -134,9 +134,9 @@ public:
 
     bool TrySetObject(const String& objectName, const TSqlObjectInfo& info) override
     {
-        YT_LOG_DEBUG("Setting SQL object (ObjectName: %v, Revision: %v)",
-            objectName,
-            info.Revision);
+        YT_TLOG_DEBUG("Setting SQL object")
+            .With("ObjectName", objectName)
+            .With("Revision", info.Revision);
 
         auto lock = getLock();
 
@@ -152,9 +152,9 @@ public:
 
     bool TryRemoveObject(const String& objectName, TRevision revision) override
     {
-        YT_LOG_DEBUG("Removing SQL object (ObjectName: %v, Revision: %v)",
-            objectName,
-            revision);
+        YT_TLOG_DEBUG("Removing SQL object")
+            .With("ObjectName", objectName)
+            .With("Revision", revision);
 
         auto lock = getLock();
 
@@ -196,7 +196,8 @@ private:
 
         auto path = GetCypressPath(objectType, objectName);
 
-        YT_LOG_DEBUG("Storing user-defined object (Path: %v)", path);
+        YT_TLOG_DEBUG("Storing user-defined object")
+            .With("Path", path);
 
         auto createStatement = TString(createObjectQuery->formatWithSecretsOneLine());
 
@@ -236,7 +237,8 @@ private:
 
         auto path = GetCypressPath(objectType, objectName);
 
-        YT_LOG_DEBUG("Removing user-defined object (Path: %v)", path);
+        YT_TLOG_DEBUG("Removing user-defined object")
+            .With("Path", path);
 
         TRemoveNodeOptions options;
         options.Force = !throwIfNotExists;
@@ -295,7 +297,8 @@ private:
         try {
             SyncObjects();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to sync objects");
+            YT_TLOG_WARNING("Failed to sync objects")
+                .With(TError(ex));
 
             if (TInstant::Now() - LastSuccessfulSyncTime_ > Config_->ExpireAfterSuccessfulSyncTime) {
                 auto lock = getLock();
@@ -308,7 +311,7 @@ private:
 
     void SyncObjects()
     {
-        YT_LOG_DEBUG("Synchronizing user-defined objects");
+        YT_TLOG_DEBUG("Synchronizing user-defined objects");
 
         auto nodes = GetObjectMapNodeWithAttributes({"value", "revision"});
         auto rootRevision = nodes->Attributes().Get<TRevision>("revision");
@@ -330,7 +333,8 @@ private:
     {
         auto lock = getLock();
 
-        YT_LOG_DEBUG("Updating object information (Revision: %v)", rootRevision);
+        YT_TLOG_DEBUG("Updating object information")
+            .With("Revision", rootRevision);
 
         // Ignore delayed syncs.
         if (rootRevision < LastSeenRootRevision_) {

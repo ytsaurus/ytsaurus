@@ -389,7 +389,9 @@ public:
                 }
                 extraRowBuffer->Clear();
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to convert chunk to unverionsed rows; chunk skipped (RowCount: %v)", chunk.getNumRows());
+                YT_TLOG_ERROR("Failed to convert chunk to unverionsed rows; chunk skipped")
+                    .With("RowCount", chunk.getNumRows())
+                    .With(TError(ex));
             }
         }
     }
@@ -485,9 +487,9 @@ private:
                     return GetVersionedTablePath(currentVersion);
                 }
             } else {
-                YT_LOG_DEBUG("Instance is not a leader; waiting for the leader to create and mount the table (LastSeenVersion: %v, Mounted: %v)",
-                    currentVersion,
-                    mounted);
+                YT_TLOG_DEBUG("Instance is not a leader; waiting for the leader to create and mount the table")
+                    .With("LastSeenVersion", currentVersion)
+                    .With("Mounted", mounted);
             }
 
             NConcurrency::TDelayedExecutor::WaitForDuration(Config_->StartupRetryBackoff);
@@ -514,7 +516,7 @@ private:
 
     TVersionedTableInfo GetLatestTableInfo()
     {
-        YT_LOG_DEBUG("Getting latest Cypress table info");
+        YT_TLOG_DEBUG("Getting latest Cypress table info");
 
         TGetNodeOptions options;
         options.Attributes = {"key", "schema",  "tablet_count", "tablet_state"};
@@ -522,7 +524,8 @@ private:
         auto resultOrError = WaitFor(Client_->GetNode(GetLatestTablePath() + "/@", options));
 
         if (resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            YT_LOG_DEBUG(resultOrError, "Cypress table does not exist");
+            YT_TLOG_DEBUG("Cypress table does not exist")
+                .With(resultOrError);
             return {};
         }
 
@@ -533,10 +536,10 @@ private:
         int tabletCount = result->GetChildValueOrThrow<int>("tablet_count");
         bool mounted = (result->GetChildValueOrThrow<ETabletState>("tablet_state") == ETabletState::Mounted);
 
-        YT_LOG_DEBUG("Got latest Cypress table info (Version: %v, TabletCount: %v, Mounted: %v)",
-            version,
-            tabletCount,
-            mounted);
+        YT_TLOG_DEBUG("Got latest Cypress table info")
+            .With("Version", version)
+            .With("TabletCount", tabletCount)
+            .With("Mounted", mounted);
 
         return {version, std::move(schema), tabletCount, mounted};
     }
@@ -549,7 +552,7 @@ private:
         TCreateNodeOptions options;
         options.IgnoreExisting = true;
 
-        YT_LOG_DEBUG("Creating Cypress table directory");
+        YT_TLOG_DEBUG("Creating Cypress table directory");
 
         WaitFor(Client_->CreateNode(CypressTableDirectory_, EObjectType::MapNode, options))
             .ThrowOnError();
@@ -564,7 +567,8 @@ private:
         options.Attributes = attributes;
         options.IgnoreExisting = true;
 
-        YT_LOG_DEBUG("Creating versioned Cypress table (Version: %v)", version);
+        YT_TLOG_DEBUG("Creating versioned Cypress table")
+            .With("Version", version);
 
         WaitFor(Client_->CreateNode(GetVersionedTablePath(version), EObjectType::Table, options))
             .ThrowOnError();
@@ -576,28 +580,33 @@ private:
         options.Attributes = attributes;
         options.Force = true;
 
-        YT_LOG_DEBUG("Updating latest link node (Version: %v)", version);
+        YT_TLOG_DEBUG("Updating latest link node")
+            .With("Version", version);
 
         WaitFor(Client_->CreateNode(GetLatestTablePath(), EObjectType::Link, options))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Cypress table created and set up (Version: %v)", version);
+        YT_TLOG_DEBUG("Cypress table created and set up")
+            .With("Version", version);
     }
 
     bool MountVersionedTable(int version)
     {
-        YT_LOG_DEBUG("Mounting table (Version: %v)", version);
+        YT_TLOG_DEBUG("Mounting table")
+            .With("Version", version);
 
         auto error = WaitFor(Client_->MountTable(GetVersionedTablePath(version)));
 
         auto innerError = error.FindMatching(NTabletClient::EErrorCode::InvalidTabletState);
         if (innerError && innerError->Attributes().Contains("current_mount_transaction_id")) {
-            YT_LOG_DEBUG("Mounting failed since table is locked by concurrent mount-unmount (Version: %v)", version);
+            YT_TLOG_DEBUG("Mounting failed since table is locked by concurrent mount-unmount")
+                .With("Version", version);
             return false;
         }
         error.ThrowOnError();
 
-        YT_LOG_DEBUG("Table mounted (Version: %v)", version);
+        YT_TLOG_DEBUG("Table mounted")
+            .With("Version", version);
         return true;
     }
 };

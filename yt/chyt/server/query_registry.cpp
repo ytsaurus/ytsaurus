@@ -49,10 +49,9 @@ public:
             const auto& user = queryStatusInfo.client_info.current_user;
             TQueryId queryId;
             if (!TQueryId::FromString(queryIdString, &queryId)) {
-                YT_LOG_DEBUG("Process list contains query without proper YT query id, skipping it in query registry "
-                    "(QueryId: %v, User: %v)",
-                    queryIdString,
-                    user);
+                YT_TLOG_DEBUG("Process list contains query without proper YT query id, skipping it in query registry")
+                    .With("QueryId", queryIdString)
+                    .With("User", user);
             }
             QueryStatusInfos_.emplace_back(std::move(queryStatusInfo));
             QueryIdToQueryStatusInfo_[queryId] = &QueryStatusInfos_.back();
@@ -61,7 +60,9 @@ public:
         auto userToProcessListForUserInfo = processList.getUserInfo(true);
         UserToProcessListForUserInfo_.insert(userToProcessListForUserInfo.begin(), userToProcessListForUserInfo.end());
 
-        YT_LOG_DEBUG("Process list snapshot built (QueryCount: %v, UserCount: %v)", QueryStatusInfos_.size(), UserToProcessListForUserInfo_.size());
+        YT_TLOG_DEBUG("Process list snapshot built")
+            .With("QueryCount", QueryStatusInfos_.size())
+            .With("UserCount", UserToProcessListForUserInfo_.size());
     }
 
     TProcessListSnapshot() = default;
@@ -185,27 +186,30 @@ public:
 
     void SaveState(TString stateString)
     {
-        YT_LOG_DEBUG("Saving query registry state (StatePointer: %v)", StatePointer_);
+        YT_TLOG_DEBUG("Saving query registry state")
+            .With("StatePointer", StatePointer_);
         while (StateBuffer_[StatePointer_] != 0) {
             ++StatePointer_;
         }
         // Skip one more zero to keep previous string readable.
         ++StatePointer_;
-        YT_LOG_DEBUG("Skipped previous string (StatePointer: %v)", StatePointer_);
+        YT_TLOG_DEBUG("Skipped previous string")
+            .With("StatePointer", StatePointer_);
 
         i64 remainingSize = StateAllocationSize_ - StatePointer_ - 1;
-        YT_LOG_DEBUG("Building new query registry state (StateSize: %v, RemainingSize: %v)", stateString.size(), remainingSize);
+        YT_TLOG_DEBUG("Building new query registry state")
+            .With("StateSize", stateString.size())
+            .With("RemainingSize", remainingSize);
         if (remainingSize < static_cast<i64>(stateString.size())) {
-            YT_LOG_DEBUG(
-                "Not enough place for new query registry state, moving pointer to the beginning (StatePointer: %v)",
-                StatePointer_);
+            YT_TLOG_DEBUG("Not enough place for new query registry state, moving pointer to the beginning")
+                .With("StatePointer", StatePointer_);
             StatePointer_ = 0;
         }
         remainingSize = StateAllocationSize_ - StatePointer_ - 1;
         if (remainingSize < static_cast<i64>(stateString.size())) {
-            YT_LOG_ERROR("Query registry state is too large, it is going to be truncated (StateSize: %v, StateAllocationSize: %v)",
-                stateString.size(),
-                StateAllocationSize_);
+            YT_TLOG_ERROR("Query registry state is too large, it is going to be truncated")
+                .With("StateSize", stateString.size())
+                .With("StateAllocationSize", StateAllocationSize_);
             static const char* truncatedMarker = "...TRUNCATED";
             stateString.resize(StateAllocationSize_ - 13 /* sizeof(truncatedMarker)*/);
             stateString += truncatedMarker;
@@ -214,7 +218,9 @@ public:
         YT_VERIFY(StatePointer_ + stateString.size() + 1 <= StateAllocationSize_);
 
         strcpy(&StateBuffer_[StatePointer_], stateString.data());
-        YT_LOG_DEBUG("Query registry state saved (StatePointer: %v, Length: %v)", StatePointer_, stateString.size());
+        YT_TLOG_DEBUG("Query registry state saved")
+            .With("StatePointer", StatePointer_)
+            .With("Length", stateString.size());
     }
 
     void WriteToStderr() const
@@ -304,7 +310,7 @@ public:
                 YT_ABORT();
         }
 
-        YT_LOG_INFO("Query registered");
+        YT_TLOG_INFO("Query registered");
 
         if (QueryContexts_.size() == 1) {
             IdlePromise_ = NewPromise<void>();
@@ -342,7 +348,7 @@ public:
             });
         }
 
-        YT_LOG_INFO("Query unregistered");
+        YT_TLOG_INFO("Query unregistered");
 
         if (QueryContexts_.empty()) {
             IdlePromise_.Set();

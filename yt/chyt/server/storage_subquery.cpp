@@ -144,10 +144,9 @@ public:
                 leakedMemory[index] = (index < 2) ? 1 : leakedMemory[index - 2] + leakedMemory[index - 1];
             }
             // Prevent optimization.
-            YT_LOG_DEBUG(
-                "Testing Fibbonacci number calculated (Index: %v, Value: %v)",
-                StorageContext_->Settings->Testing->SubqueryAllocationSize - 1,
-                leakedMemory[StorageContext_->Settings->Testing->SubqueryAllocationSize - 1]);
+            YT_TLOG_DEBUG("Testing Fibbonacci number calculated")
+                .With("Index", StorageContext_->Settings->Testing->SubqueryAllocationSize - 1)
+                .With("Value", leakedMemory[StorageContext_->Settings->Testing->SubqueryAllocationSize - 1]);
         }
 
         Logger = StorageContext_->Logger;
@@ -169,11 +168,10 @@ public:
                 ++totalDataSliceCount;
             }
         }
-        YT_LOG_DEBUG(
-            "Deserialized subquery spec (RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
-            totalRowCount,
-            totalDataWeight,
-            totalDataSliceCount);
+        YT_TLOG_DEBUG("Deserialized subquery spec")
+            .With("RowCount", totalRowCount)
+            .With("DataWeight", totalDataWeight)
+            .With("DataSliceCount", totalDataSliceCount);
 
 
         auto tableIndexSuffix = Format(".%v", SubquerySpec_.TableIndex);
@@ -184,11 +182,10 @@ public:
             traceContext->AddTag("chyt.subquery_index", SubquerySpec_.SubqueryIndex);
         }
 
-        YT_LOG_DEBUG(
-            "Creating table readers (MaxStreamCount: %v, StripeCount: %v, Columns: %v)",
-            maxStreamCount,
-            SubquerySpec_.InputSpecs.size(),
-            columnNames);
+        YT_TLOG_DEBUG("Creating table readers")
+            .With("MaxStreamCount", maxStreamCount)
+            .With("StripeCount", SubquerySpec_.InputSpecs.size())
+            .With("Columns", columnNames);
 
         DB::Pipes pipes;
 
@@ -296,10 +293,9 @@ public:
                 }
             }
 
-            YT_LOG_DEBUG(
-                "Thread table reader stream created (ThreadIndex: %v, EnablePullInputSpecsMode: %v)",
-                threadIndex,
-                SubquerySpec_.InputSpecsTruncated);
+            YT_TLOG_DEBUG("Thread table reader stream created")
+                .With("ThreadIndex", threadIndex)
+                .With("EnablePullInputSpecsMode", SubquerySpec_.InputSpecsTruncated);
 
             TStringBuilder debugString;
             for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {
@@ -307,10 +303,9 @@ public:
                 debugString.AppendString("\n");
             }
 
-            YT_LOG_DEBUG(
-                "Thread debug string (ThreadIndex: %v, DebugString: %v)",
-                threadIndex,
-                debugString.Flush());
+            YT_TLOG_DEBUG("Thread debug string")
+                .With("ThreadIndex", threadIndex)
+                .With("DebugString", debugString.Flush());
         }
 
         if (StorageContext_->Settings->Testing->ThrowExceptionInSubquery) {
