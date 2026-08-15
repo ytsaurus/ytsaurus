@@ -12,7 +12,7 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NDetail::TPreemptionPenalty GetAssignmentPreemptionPenalty(
+NDetail::TPreemptionPenalty ComputeAssignmentPreemptionPenalty(
     const TAssignmentPtr& assignment,
     const TGpuSchedulingPolicyConfigPtr& config,
     TInstant now)
@@ -33,14 +33,14 @@ NDetail::TPreemptionPenalty GetAssignmentPreemptionPenalty(
 ////////////////////////////////////////////////////////////////////////////////
 
 TAllocationGroupPlannerBase::TAllocationGroupPlannerBase(
-    const TOperationPtr& operation,
-    const std::string& allocationGroupName,
-    const TAllocationGroupResources& allocationGroupResources,
+    TOperationPtr operation,
+    std::string allocationGroupName,
+    TAllocationGroupResources allocationGroupResources,
     IAssignmentPlanUpdateContext* context,
     NLogging::TLogger logger)
-    : Operation_(operation)
-    , AllocationGroupName_(allocationGroupName)
-    , AllocationGroupResources_(allocationGroupResources)
+    : Operation_(std::move(operation))
+    , AllocationGroupName_(std::move(allocationGroupName))
+    , AllocationGroupResources_(std::move(allocationGroupResources))
     , Context_(context)
     , Logger(std::move(logger))
 { }
@@ -157,14 +157,19 @@ bool TAllocationGroupPlannerBase::ShouldConsiderDiskUsage() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TAllocationGroupPlanner::TAllocationGroupPlanner(
-    const TOperationPtr& operation,
-    const std::string& allocationGroupName,
-    const TAllocationGroupResources& allocationGroupResources,
+    TOperationPtr operation,
+    std::string allocationGroupName,
+    TAllocationGroupResources allocationGroupResources,
     std::vector<TNode*>* availableNodes,
     IAssignmentPlanUpdateContext* context,
     NLogging::TLogger logger,
     bool preemptible)
-    : TAllocationGroupPlannerBase(operation, allocationGroupName, allocationGroupResources, context, std::move(logger))
+    : TAllocationGroupPlannerBase(
+        std::move(operation),
+        std::move(allocationGroupName),
+        std::move(allocationGroupResources),
+        context,
+        std::move(logger))
     , AvailableNodes_(availableNodes)
     , Preemptible_(preemptible)
 {
@@ -202,16 +207,21 @@ TNode* TAllocationGroupPlanner::FindBestAvailableNode()
 ////////////////////////////////////////////////////////////////////////////////
 
 TPreemptiveAllocationGroupPlanner::TPreemptiveAllocationGroupPlanner(
-    const TOperationPtr& operation,
-    const std::string& allocationGroupName,
-    const TAllocationGroupResources& allocationGroupResources,
+    TOperationPtr operation,
+    std::string allocationGroupName,
+    TAllocationGroupResources allocationGroupResources,
     std::vector<TNode*>* availableNodes,
     bool useFullHostAggressivePreemption,
     IAssignmentPlanUpdateContext* context,
     TGpuSchedulingPolicyConfigPtr config,
     TInstant now,
     NLogging::TLogger logger)
-    : TAllocationGroupPlannerBase(operation, allocationGroupName, allocationGroupResources, context, std::move(logger))
+    : TAllocationGroupPlannerBase(
+        std::move(operation),
+        std::move(allocationGroupName),
+        std::move(allocationGroupResources),
+        context,
+        std::move(logger))
     , UseFullHostAggressivePreemption_(useFullHostAggressivePreemption)
     , Config_(std::move(config))
     , Now_(now)
@@ -219,8 +229,8 @@ TPreemptiveAllocationGroupPlanner::TPreemptiveAllocationGroupPlanner(
         ? EAllocationPreemptionReason::FullHostAggressivePreemption
         : EAllocationPreemptionReason::Preemption)
     , PreemptionDescription_(UseFullHostAggressivePreemption_
-        ? Format("Aggressively preempted to plan an assignment for full-host operation %v", operation->GetId())
-        : Format("Preempted to plan an assignment for operation %v", operation->GetId()))
+        ? Format("Aggressively preempted to plan an assignment for full-host operation %v", Operation_->GetId())
+        : Format("Preempted to plan an assignment for operation %v", Operation_->GetId()))
 {
     NodeStates_.reserve(availableNodes->size());
     NodeHeap_.reserve(availableNodes->size());
@@ -242,7 +252,7 @@ TPreemptiveAllocationGroupPlanner::TPreemptiveAllocationGroupPlanner(
         std::ranges::sort(
             nodeState.PreemptibleAssignments,
             /*comp*/ std::greater{},
-            /*proj*/ [&] (const auto& assignment) { return GetAssignmentPreemptionPenalty(assignment, Config_, Now_); });
+            /*proj*/ [&] (const auto& assignment) { return ComputeAssignmentPreemptionPenalty(assignment, Config_, Now_); });
 
         if (CanAddAssignmentToNode(node, /*discount*/ nodeState.PreemptibleResourceUsage)) {
             NodeHeap_.push_back(TNodeWithPenalty{
@@ -270,7 +280,7 @@ NDetail::TPreemptionPenalty TPreemptiveAllocationGroupPlanner::GetNextPreemption
 
         const auto& assignment = *it;
         preliminaryPreemptedResources += assignment->ResourceUsage;
-        penalty += GetAssignmentPreemptionPenalty(assignment, Config_, Now_);
+        penalty += ComputeAssignmentPreemptionPenalty(assignment, Config_, Now_);
         ++it;
     }
 
