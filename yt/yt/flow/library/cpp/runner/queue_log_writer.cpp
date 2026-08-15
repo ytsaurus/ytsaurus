@@ -52,10 +52,9 @@ static const auto QueueLogSchema = New<TTableSchema>(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueLogWriterConfig
+struct TQueueLogWriterConfig
     : public NLogging::TLogWriterConfig
 {
-public:
     static constexpr TStringBuf WriterType = "queue";
 
     NYPath::TRichYPath QueuePath;

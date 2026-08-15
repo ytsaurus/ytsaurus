@@ -16,9 +16,9 @@ YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, OffshoreDataGatewayProfiler,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TOffshoreDataGatewayBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TOffshoreDataGatewayProgramConfig)
-DECLARE_REFCOUNTED_CLASS(TOffshoreDataGatewayDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TOffshoreDataGatewayBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TOffshoreDataGatewayProgramConfig)
+DECLARE_REFCOUNTED_STRUCT(TOffshoreDataGatewayDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 

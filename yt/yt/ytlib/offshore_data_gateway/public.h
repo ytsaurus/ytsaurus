@@ -6,8 +6,8 @@ namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TOffshoreDataGatewayChannelTestingConfig)
-DECLARE_REFCOUNTED_CLASS(TOffshoreDataGatewayChannelConfig)
+DECLARE_REFCOUNTED_STRUCT(TOffshoreDataGatewayChannelTestingConfig)
+DECLARE_REFCOUNTED_STRUCT(TOffshoreDataGatewayChannelConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IOffshoreDataGatewayChannelManager)
 

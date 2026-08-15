@@ -38,10 +38,9 @@ T GetColumnValue(const TInputTimerConstPtr& timer, TStringBuf columnName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTimerSerializer
+struct TTimerSerializer
     : public virtual NYTree::TExternalizedYsonStruct
 {
-public:
     REGISTER_EXTERNALIZED_YSON_STRUCT(TTimer, TTimerSerializer);
 
     static void Register(TRegistrar registrar)

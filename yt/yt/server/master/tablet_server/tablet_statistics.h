@@ -135,10 +135,9 @@ private:
     void InitParameters();
 };
 
-class TSerializableTabletCellStatistics
+struct TSerializableTabletCellStatistics
     : public TSerializableTabletCellStatisticsBase
 {
-public:
     TSerializableTabletCellStatistics(
         const TTabletCellStatistics& statistics,
         const NChunkServer::IChunkManagerPtr& chunkManager);
@@ -149,11 +148,10 @@ public:
     { }
 };
 
-class TSerializableTabletStatistics
+struct TSerializableTabletStatistics
     : public TSerializableTabletCellStatisticsBase
     , public TSerializableTabletStatisticsBase
 {
-public:
     TSerializableTabletStatistics(
         const TTabletStatistics& statistics,
         const NChunkServer::IChunkManagerPtr& chunkManager);

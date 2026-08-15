@@ -27,10 +27,9 @@ T GetColumnValue(const TMessage& message, TStringBuf columnName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMessageSerializer
+struct TMessageSerializer
     : public virtual NYTree::TExternalizedYsonStruct
 {
-public:
     REGISTER_EXTERNALIZED_YSON_STRUCT(TMessage, TMessageSerializer);
 
     static void Register(TRegistrar registrar)

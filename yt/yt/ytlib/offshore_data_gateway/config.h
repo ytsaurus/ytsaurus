@@ -14,10 +14,9 @@ namespace NYT::NOffshoreDataGateway {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreDataGatewayChannelTestingConfig
+struct TOffshoreDataGatewayChannelTestingConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool BypassCache;
 
     REGISTER_YSON_STRUCT(TOffshoreDataGatewayChannelTestingConfig);
@@ -29,10 +28,9 @@ DEFINE_REFCOUNTED_TYPE(TOffshoreDataGatewayChannelTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOffshoreDataGatewayChannelConfig
+struct TOffshoreDataGatewayChannelConfig
     : public NRpc::TRetryingChannelConfig
 {
-public:
     TDuration RpcTimeout;
 
     // Nullopt means no periodic update and therefore no available channels.

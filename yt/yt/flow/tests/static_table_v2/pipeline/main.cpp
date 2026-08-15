@@ -10,10 +10,9 @@ using namespace NYT::NFlow;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInnerScope
+struct TInnerScope
     : public NYT::NFlow::TYsonMessage
 {
-public:
     TString Data;
 
     REGISTER_YSON_STRUCT(TInnerScope);
@@ -28,10 +27,9 @@ DEFINE_REFCOUNTED_TYPE(TInnerScope);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCompositeStruct
+struct TCompositeStruct
     : public NYT::NFlow::TYsonMessage
 {
-public:
     NYT::TIntrusivePtr<TInnerScope> Data;
 
     REGISTER_YSON_STRUCT(TCompositeStruct);
