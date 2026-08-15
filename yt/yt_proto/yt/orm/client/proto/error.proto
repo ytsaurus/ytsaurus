@@ -164,6 +164,10 @@ enum EErrorCode
     EC_VALIDATION_FAILED = 100038 [
         (NYT.NYson.NProto.enum_value_name) = "validation_failed"
     ];
+
+    EC_SESSION_ARENA_SPACE_LIMIT_EXCEEDED = 100039 [
+        (NYT.NYson.NProto.enum_value_name) = "session_arena_space_limit_exceeded"
+    ];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
