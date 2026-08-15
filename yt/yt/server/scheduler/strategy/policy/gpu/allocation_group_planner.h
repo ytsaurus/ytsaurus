@@ -18,7 +18,7 @@ using TPreemptionPenalty = i64;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NDetail::TPreemptionPenalty GetAssignmentPreemptionPenalty(
+NDetail::TPreemptionPenalty ComputeAssignmentPreemptionPenalty(
     const TAssignmentPtr& assignment,
     const TGpuSchedulingPolicyConfigPtr& config,
     TInstant now);
@@ -32,9 +32,9 @@ public:
 
 public:
     TAllocationGroupPlannerBase(
-        const TOperationPtr& operation,
-        const std::string& allocationGroupName,
-        const TAllocationGroupResources& allocationGroupResources,
+        TOperationPtr operation,
+        std::string allocationGroupName,
+        TAllocationGroupResources allocationGroupResources,
         IAssignmentPlanUpdateContext* context,
         NLogging::TLogger logger);
 
@@ -46,7 +46,7 @@ public:
 
 protected:
     const TOperationPtr Operation_;
-    const std::string& AllocationGroupName_;
+    const std::string AllocationGroupName_;
     const TAllocationGroupResources AllocationGroupResources_;
     IAssignmentPlanUpdateContext* const Context_;
     const NLogging::TLogger Logger;
@@ -79,16 +79,16 @@ class TAllocationGroupPlanner
 public:
     //! NB: Sorts |*availableNodes| in-place.
     TAllocationGroupPlanner(
-        const TOperationPtr& operation,
-        const std::string& allocationGroupName,
-        const TAllocationGroupResources& allocationGroupResources,
+        TOperationPtr operation,
+        std::string allocationGroupName,
+        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes,
         IAssignmentPlanUpdateContext* context,
         NLogging::TLogger logger,
         bool preemptible = false);
 
 private:
-    std::vector<TNode*>* AvailableNodes_;
+    std::vector<TNode*>* const AvailableNodes_;
     std::vector<TNode*>::iterator NextNodeIt_;
     const bool Preemptible_;
 
@@ -108,9 +108,9 @@ public:
     using TBase = TAllocationGroupPlannerBase;
 
     TPreemptiveAllocationGroupPlanner(
-        const TOperationPtr& operation,
-        const std::string& allocationGroupName,
-        const TAllocationGroupResources& allocationGroupResources,
+        TOperationPtr operation,
+        std::string allocationGroupName,
+        TAllocationGroupResources allocationGroupResources,
         std::vector<TNode*>* availableNodes,
         bool useFullHostAggressivePreemption,
         IAssignmentPlanUpdateContext* context,
