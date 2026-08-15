@@ -9,6 +9,15 @@
 
 #include <functional>
 
+namespace NYT::NFlow {
+
+struct TSimpleExternalState;
+
+template <class T>
+class TJoinedStateKeyClient;
+
+} // namespace NYT::NFlow
+
 namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,6 +35,16 @@ TCompanionResponsePtr ProcessWithCompanionHealing(
     const TCompanionProcessRequestPtr& request,
     const IExternalPerformanceMetricsReporterPtr& reporter,
     const std::function<std::vector<TCompanionResourceInstanceReference>()>& healRequiredCompanionResources);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Packs read-only joined external states into |request|: for every joiner, the loaded states for
+//! its extract-derived keys — the keys its preload loaded, derived from the whole batch rather
+//! than from a single message key.
+void AddJoinedExternalStates(
+    const TCompanionProcessRequestPtr& request,
+    const THashMap<std::string, TJoinedStateKeyClient<TSimpleExternalState>>& joiners,
+    const IInputContextPtr& input);
 
 ////////////////////////////////////////////////////////////////////////////////
 

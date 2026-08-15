@@ -36,6 +36,7 @@ def run_yt_sync(cluster, folder, queue_tablet_count):
                 "$merge_presets": ["builtin:table_preset"],
                 "schema": [
                     {"name": "word", "type": "string"},
+                    {"name": "tag_weight", "type": "int64"},
                     {"name": "$timestamp", "type": "uint64"},
                     {"name": "$cumulative_data_weight", "type": "int64"},
                 ],
@@ -54,6 +55,26 @@ def run_yt_sync(cluster, folder, queue_tablet_count):
                     {"name": "hash", "expression": "farm_hash(word)", "type": "uint64", "sort_order": "ascending"},
                     {"name": "word", "type": "string", "sort_order": "ascending"},
                     {"name": "tag", "type": "string"},
+                ],
+                "clusters": {
+                    "_all_data_clusters": {
+                        "attributes": {
+                            "optimize_for": "scan",
+                            "chunk_format": "table_versioned_columnar",
+                            "in_memory_mode": "uncompressed",
+                            "enable_dynamic_store_read": True,
+                        },
+                    },
+                },
+            },
+        },
+        "tag_metadata": {
+            "default": {
+                "$merge_presets": ["builtin:table_preset"],
+                "schema": [
+                    {"name": "tag_hash", "expression": "farm_hash(tag)", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "tag", "type": "string", "sort_order": "ascending"},
+                    {"name": "weight", "type": "int64"},
                 ],
                 "clusters": {
                     "_all_data_clusters": {

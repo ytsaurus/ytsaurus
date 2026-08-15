@@ -48,7 +48,8 @@ private:
 
 //! Counts words per key: increments the internal "word-state" counter, mirrors
 //! the count into the external state table, and emits the word downstream on
-//! its first occurrence (output uniqueness is asserted by the test).
+//! its first occurrence (output uniqueness is asserted by the test). The emitted
+//! weight comes from a joiner keyed by "tag", not by the computation's key.
 class TWordCountAllStatesFunction
     : public IProcessFunction
 {
@@ -57,6 +58,7 @@ public:
     {
         initContext->InitClient(Counter_, "word-state");
         initContext->InitExternalStateClient(External_, "/word-state-external");
+        initContext->InitExternalStateClient(TagMetadata_, "/tag-metadata");
     }
 
     void ProcessMessage(
@@ -75,13 +77,18 @@ public:
         }
 
         if (*count == 1) {
-            output->AddMessage(context->ConvertToOutputMessage(*message));
+            auto tagMetadata = TagMetadata_.GetState(message);
+            auto builder = context->MakeOutputMessageBuilder();
+            builder.Payload().Set<std::string>(GetColumnValue<std::string>(message, "word"), "word");
+            builder.Payload().Set<i64>(tagMetadata->GetColumnValue<i64>("weight"), "tag_weight");
+            output->AddMessage(builder.Finish());
         }
     }
 
 private:
     TMutableStateKeyClient<i64> Counter_;
     TMutableStateKeyClient<TSimpleExternalState> External_;
+    TJoinedStateKeyClient<TSimpleExternalState> TagMetadata_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

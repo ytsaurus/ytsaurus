@@ -315,15 +315,20 @@ TFuture<void> TJoinedStateKeyClient<T>::PreloadKeyStates(const THashSet<TKey>& k
 }
 
 template <class T>
-TFuture<void> TJoinedStateKeyClient<T>::PreloadKeyStates(const IInputContextPtr& inputContext) const
+THashSet<TKey> TJoinedStateKeyClient<T>::ExtractKeys(const IInputContextPtr& inputContext) const
 {
     EnsureProvider();
-    auto keys = ExtractKeys(
+    return NFlow::ExtractKeys(
         inputContext,
         Provider_->HasKeySchemaOverride() ? Provider_->GetKeySchema() : nullptr,
         Provider_->GetKeyProviderStreams(),
         Provider_->GetConverterCache());
-    return Provider_->PreloadKeyStates(keys);
+}
+
+template <class T>
+TFuture<void> TJoinedStateKeyClient<T>::PreloadKeyStates(const IInputContextPtr& inputContext) const
+{
+    return Provider_->PreloadKeyStates(ExtractKeys(inputContext));
 }
 
 template <class T>

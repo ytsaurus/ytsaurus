@@ -67,6 +67,7 @@ target_sources(yt-flow-library-cpp-common-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/inflight_tracker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/interval_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/job_directory_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/joined_state_key_client_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/key_builder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/key_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/unittests/message_batch_ut.cpp

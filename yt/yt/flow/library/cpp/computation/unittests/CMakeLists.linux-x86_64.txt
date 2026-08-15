@@ -72,6 +72,7 @@ target_sources(yt-flow-library-cpp-computation-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/event_timestamp_assigner_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/idle_partition_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/input_store_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/simple_external_state_joiner_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/static_table_key_visitor_joiner_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/key_visitor_store_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/key_visitor_ut.cpp

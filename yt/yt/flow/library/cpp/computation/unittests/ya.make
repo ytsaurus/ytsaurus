@@ -10,6 +10,7 @@ SRCS(
     event_timestamp_assigner_ut.cpp
     idle_partition_ut.cpp
     input_store_ut.cpp
+    simple_external_state_joiner_ut.cpp
     static_table_key_visitor_joiner_ut.cpp
     key_visitor_store_ut.cpp
     key_visitor_ut.cpp

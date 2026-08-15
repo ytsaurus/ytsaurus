@@ -22,6 +22,7 @@ PEERDIR(
     library/cpp/testing/common
     yt/yt/core/test_framework
     yt/yt/flow/library/cpp/companion
+    yt/yt/library/query/engine
 )
 
 SIZE(SMALL)
