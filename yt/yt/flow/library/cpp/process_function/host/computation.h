@@ -46,6 +46,12 @@ protected:
 
     //! Calls SyncFunction_->Sync if the hosted function opted into a sync phase; a no-op otherwise.
     void DoSyncIfPresent(IRetryableTransactionPtr transaction);
+
+private:
+    //! Reinstalls the current epoch's state into RuntimeContext_. Called before every entry into
+    //! user code — both process and sync — so an epoch that skips processing (an empty batch)
+    //! still exposes fresh state rather than the previous epoch's.
+    void RefreshRuntimeContext();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1705,14 +1705,13 @@ void TUniversalComputationBase::ValidateTimerStoreLimits(const TDynamicComputati
 ITimeProvider::TGlobalUniqueSeqNo TUniversalComputationBase::GenerateGlobalUniqueSeqNo()
 {
     NTracing::TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("GenerateGlobalUniqueSeqNo"));
-    return WaitFor(GetTimeProvider()->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
-}
+    auto result = WaitFor(GetTimeProvider()->GenerateGlobalUniqueSeqNo()).ValueOrThrow();
 
-void TUniversalComputationBase::SetEpochUniqueSeqNo(TUniqueSeqNo seqNo)
-{
+    // Publish right where the number is minted, so no epoch loop can forget to.
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
+    EpochUniqueSeqNo_ = result.UniqueSeqNo;
 
-    EpochUniqueSeqNo_ = seqNo;
+    return result;
 }
 
 std::optional<TUniqueSeqNo> TUniversalComputationBase::GetEpochUniqueSeqNo() const

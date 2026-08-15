@@ -81,7 +81,6 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
     {
         auto iterGuard = StartRunIteration(context);
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
-        SetEpochUniqueSeqNo(uniqueSeqNo);
         DoInit(StateManager_->CreateContext());
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_}));
         FinishRunIteration();
@@ -109,7 +108,6 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
         }
 
         const auto [now, uniqueSeqNo] = GenerateGlobalUniqueSeqNo();
-        SetEpochUniqueSeqNo(uniqueSeqNo);
 
         const THashMap<TStreamId, TSystemTimestamp> inputWatermarks{{*ActiveSourceStreamId_, partitionReadWatermark}};
 

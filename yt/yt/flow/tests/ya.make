@@ -5,6 +5,7 @@ RECURSE(
     companion
     computation_cycles_and_buffers
     diagnostic_tools
+    epoch_seqno_sync
     external_joiner
     flow_execute
     ipv4_support
