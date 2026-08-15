@@ -1077,6 +1077,7 @@ protected:
     const NChunkPools::IPersistentChunkPoolInputPtr& GetSink();
 
     void ValidateAccountPermission(const std::string& account, NYTree::EPermission permission) const;
+    void ValidateMediumPermission(const std::string& medium, NYTree::EPermission permission) const;
 
     int GetYsonNestingLevelLimit() const;
 
