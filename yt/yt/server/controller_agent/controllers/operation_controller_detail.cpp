@@ -923,6 +923,26 @@ void TOperationControllerBase::ValidateAccountPermission(const std::string& acco
     }
 }
 
+void TOperationControllerBase::ValidateMediumPermission(const std::string& medium, EPermission permission) const
+{
+    auto user = AuthenticatedUser_;
+
+    const auto& client = Host_->GetClient();
+    auto asyncResult = client->CheckPermission(
+        user,
+        GetMediumPath(medium),
+        permission);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    if (result.Action == ESecurityAction::Deny) {
+        THROW_ERROR_EXCEPTION("User %Qv has been denied %Qlv access to medium %Qv",
+            user,
+            permission,
+            medium);
+    }
+}
+
 void TOperationControllerBase::InitializeStructures()
 {
     InputManager_->InitializeStructures(InputClient_, InputTransactions_, ClusterResolver_);
@@ -8280,6 +8300,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                         THROW_ERROR_EXCEPTION("Inappropriate medium for NBD")
                             .With("medium_name", mediumName);
                     }
+                    ValidateMediumPermission(mediumName, EPermission::Use);
                 }
             }
         }
