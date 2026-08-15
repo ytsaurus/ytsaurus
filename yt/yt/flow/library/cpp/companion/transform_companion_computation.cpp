@@ -82,8 +82,6 @@ void TTransformCompanionComputation::DoProcess(
     // Map of Map to pointer to simple external states. Updated by companion response.
     // The states themselves are owned by the external state manager for the epoch.
     THashMap<std::string, THashMap<TKey, TSimpleExternalState*>> externalStateMap;
-    // Keys already added per joiner. Joined state is read-only, so no accessors are kept.
-    THashMap<std::string, THashSet<TKey>> joinedStateKeys;
 
     auto addInternalStatesForKey = [&] (const TKey& key) {
         for (const auto& [stateName, stateClient] : InternalStateClients_) {
@@ -132,31 +130,6 @@ void TTransformCompanionComputation::DoProcess(
         }
     };
 
-    auto addJoinedStatesForKey = [&] (const TKey& key) {
-        for (const auto& [stateName, stateClient] : ExternalStateJoiners_) {
-            if (!joinedStateKeys[stateName].insert(key).second) {
-                continue;
-            }
-            auto stateHandle = stateClient.GetState(key);
-            const auto* joinedState = stateHandle.Get();
-            if (joinedState) {
-                GetOrInsert(
-                    request->JoinedExternalStates,
-                    stateName,
-                    [&] {
-                        return TStateHolder<TPayload>{
-                            .StateName = stateName,
-                            .Schema = joinedState->Schema,
-                        };
-                    })
-                    .StateItems.push_back({
-                        .Key = key,
-                        .State = joinedState->Payload,
-                    });
-            }
-        }
-    };
-
     // Process messages.
     for (const auto& message : input->GetMessages()) {
         request->Messages.push_back(message);
@@ -165,8 +138,6 @@ void TTransformCompanionComputation::DoProcess(
         addInternalStatesForKey(message->Key);
         // External states.
         addExternalStatesForKey(message->Key);
-        // Read-only joined external states.
-        addJoinedStatesForKey(message->Key);
     }
 
     // Process timers.
@@ -178,8 +149,6 @@ void TTransformCompanionComputation::DoProcess(
         addInternalStatesForKey(timer->Key);
         // External states.
         addExternalStatesForKey(timer->Key);
-        // Read-only joined external states.
-        addJoinedStatesForKey(timer->Key);
     }
 
     // Process visits.
@@ -189,8 +158,9 @@ void TTransformCompanionComputation::DoProcess(
         request->Visits.push_back(visit);
         addInternalStatesForKey(visit->Key);
         addExternalStatesForKey(visit->Key);
-        addJoinedStatesForKey(visit->Key);
     }
+
+    AddJoinedExternalStates(request, ExternalStateJoiners_, input);
 
     for (const auto& streamId : Concatenate(GetSpec()->InputStreamIds, GetKeys(GetSpec()->TimerStreams))) {
         auto streamWatermark = GetEpochEventWatermark(streamId);

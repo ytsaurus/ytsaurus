@@ -2032,6 +2032,119 @@ TEST(TSpecTest, StateJoinerKeyTypesMatchNamesDiffer)
     ValidatePipelineSpec(spec);
 }
 
+TEST(TSpecTest, KeyVisitorStreamIntoOverrideJoinerRejected)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {};
+                    key_visitor_streams = {visit_iter = {}};
+                    external_state_joiners = {
+                        "/j" = {
+                            external_state_joiner_class_name = "NYT::NFlow::TReadingExternalStateJoiner";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                            join_on = {
+                                key_schema_override = [ { name = key; type = string; required = %true; } ];
+                            };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "would feed it group-by keys");
+}
+
+TEST(TSpecTest, KeyVisitorStreamExcludedFromOverrideJoinerOk)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                producer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ s ];
+                    group_by_schema = [];
+                    source_streams = {
+                        injected_stream = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [ s ];
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {};
+                    key_visitor_streams = {visit_iter = {}};
+                    external_state_joiners = {
+                        "/j" = {
+                            external_state_joiner_class_name = "NYT::NFlow::TReadingExternalStateJoiner";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                            join_on = {
+                                key_schema_override = [ { name = key; type = string; } ];
+                                key_provider_streams = [ s ];
+                            };
+                        };
+                    };
+                };
+            };
+            streams = {
+                s = {
+                    schema = [ {name = key; type = string;} ];
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    ValidatePipelineSpec(spec);
+}
+
+// Sweeping the joiner via external_names does not exempt the stream: visitor-driven joiners
+// reject key_schema_override at construction, so such a spec could never run anyway.
+TEST(TSpecTest, KeyVisitorStreamSweepingOverrideJoinerRejected)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {};
+                    key_visitor_streams = {visit_iter = {external_names = ["/j"]}};
+                    external_state_joiners = {
+                        "/j" = {
+                            external_state_joiner_class_name = "NYT::NFlow::TReadingExternalStateJoiner";
+                            parameters = { path = "<cluster=primary>//tmp/state"; };
+                            join_on = {
+                                key_schema_override = [ { name = key; type = string; required = %true; } ];
+                            };
+                        };
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "would feed it group-by keys");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TSpecYTPathOwnershipTest, TwoExclusiveWritersSamePathConflict)

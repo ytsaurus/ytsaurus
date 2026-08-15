@@ -676,7 +676,12 @@ IStateHolderPtr TSimpleExternalStateJoiner::GetState(const TKey& key)
     auto guard = Guard(Lock_);
     YT_TLOG_DEBUG("GetState")
         .With("Key", key);
-    return GetOrCrash(States_, key);
+    auto it = States_.find(key);
+    // A key the joiner was never asked to preload; failing the job beats aborting the whole worker.
+    THROW_ERROR_EXCEPTION_IF(it == States_.end(),
+        "External state joiner has no preloaded state for key %v",
+        key);
+    return it->second;
 }
 
 TFuture<IExternalStateJoiner::TListResult> TSimpleExternalStateJoiner::List(

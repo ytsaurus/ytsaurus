@@ -1624,6 +1624,21 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
             computationSpec->InputStreamIds.begin(),
             computationSpec->InputStreamIds.end());
         auto validateJoinerStreams = [&] (TStringBuf kind, const std::string& joinerName, const TStateJoinSpecPtr& joinOn) {
+            if (joinOn->KeySchemaOverride) {
+                for (const auto& streamId : GetKeys(computationSpec->KeyVisitorStreams)) {
+                    if (joinOn->KeyProviderStreams && !joinOn->KeyProviderStreams->contains(streamId)) {
+                        continue;
+                    }
+                    THROW_ERROR_EXCEPTION(
+                        "%v %Qv of computation %Qv sets \"key_schema_override\", but key visitor "
+                        "stream %Qv would feed it group-by keys; exclude the stream via "
+                        "\"key_provider_streams\"",
+                        kind,
+                        joinerName,
+                        computationId,
+                        streamId);
+                }
+            }
             if (!joinOn->KeyProviderStreams) {
                 return;
             }

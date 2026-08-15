@@ -2,7 +2,8 @@
 
 The companion-hosted source enriches rows from internal state and a joined
 external table. The downstream transform counts words in internal state, mirrors
-the counts into a mutable external table, and emits every word once.
+the counts into a mutable external table, joins a table keyed by "tag" (not by
+the computation's key) and emits every word once.
 """
 
 import logging
@@ -50,10 +51,15 @@ def parse_state_payload(payload):
     return yson.loads(yson.get_bytes(payload))
 
 
+def tag_weight(tag):
+    # Position-weighted, so a word and its reversed tag get different weights.
+    return sum(index * ord(letter) for index, letter in enumerate(tag, start=1))
+
+
 class Test(FlowTestCppCompanionBase):
     CPP_COMPANION_BINARY = yatest.common.binary_path("yt/yt/flow/tests/companion/all_states_cpp/companion/companion")
 
-    def _prepare_environment(self, input_queue, word_metadata):
+    def _prepare_environment(self, input_queue, word_metadata, tag_metadata):
         tablet_count = 2
         run_yt_sync(self.primary_cluster_name, self.work_yt_path, tablet_count)
         logs, expected_counts = generate_log(tablet_count)
@@ -61,6 +67,10 @@ class Test(FlowTestCppCompanionBase):
         self.client.insert_rows(
             word_metadata,
             [{"word": word, "tag": word[::-1]} for word in expected_counts],
+        )
+        self.client.insert_rows(
+            tag_metadata,
+            [{"tag": word[::-1], "weight": tag_weight(word[::-1])} for word in expected_counts],
         )
         self._expected_counts = expected_counts
         self._tablet_count = tablet_count
@@ -73,6 +83,7 @@ class Test(FlowTestCppCompanionBase):
         output_queue,
         word_metadata,
         word_state,
+        tag_metadata,
     ):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
@@ -88,10 +99,10 @@ class Test(FlowTestCppCompanionBase):
         reader["sinks"]["source-output"]["parameters"]["queue_path"] = source_output_queue
         reader["external_state_joiners"]["/word-metadata"]["parameters"]["path"] = word_metadata
 
-        pipeline_config["spec"]["computations"]["counter"]["sinks"]["queue"]["parameters"]["queue_path"] = output_queue
-        pipeline_config["spec"]["computations"]["counter"]["external_state_managers"]["/word-state-external"][
-            "parameters"
-        ]["path"] = word_state
+        counter = pipeline_config["spec"]["computations"]["counter"]
+        counter["sinks"]["queue"]["parameters"]["queue_path"] = output_queue
+        counter["external_state_managers"]["/word-state-external"]["parameters"]["path"] = word_state
+        counter["external_state_joiners"]["/tag-metadata"]["parameters"]["path"] = tag_metadata
 
         self.patch_config(pipeline_config)
 
@@ -105,8 +116,9 @@ class Test(FlowTestCppCompanionBase):
         unique_words_queue = f"{self.work_yt_path}/unique_words_queue"
         word_metadata = f"{self.work_yt_path}/word_metadata"
         word_state = f"{self.work_yt_path}/word_state"
+        tag_metadata = f"{self.work_yt_path}/tag_metadata"
 
-        self._prepare_environment(input_queue, word_metadata)
+        self._prepare_environment(input_queue, word_metadata, tag_metadata)
         pipeline_config_path = self._prepare_pipeline_config(
             input_queue,
             input_consumer,
@@ -114,6 +126,7 @@ class Test(FlowTestCppCompanionBase):
             unique_words_queue,
             word_metadata,
             word_state,
+            tag_metadata,
         )
 
         with self.start_flow_process_federation(
@@ -156,9 +169,10 @@ class Test(FlowTestCppCompanionBase):
             logging.info("Got external counts: %s", got_external_counts)
             assert self._expected_counts == got_external_counts
 
-            # Output: every word emitted exactly once.
+            # Output: every word emitted exactly once, carrying the tag-keyed joined weight.
             output_rows = list(self.client.select_rows(f"* from [{unique_words_queue}]"))
             output_words = [row["word"] for row in output_rows]
             assert len(output_words) == len(set(output_words))
             assert self._expected_counts.keys() == set(output_words)
+            assert all(row["tag_weight"] == tag_weight(row["word"][::-1]) for row in output_rows)
             logging.info("check completed")

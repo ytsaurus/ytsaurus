@@ -1,5 +1,11 @@
 #include "companion_computation_base.h"
 
+#include <yt/yt/flow/library/cpp/common/state_client.h>
+
+#include <yt/yt/flow/library/cpp/computation/simple_external_state_manager.h>
+
+#include <yt/yt/core/misc/collection_helpers.h>
+
 namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +36,37 @@ TCompanionResponsePtr ProcessWithCompanionHealing(
         response = client->DoProcessWithCompanionSync(request, reporter);
     }
     return response;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void AddJoinedExternalStates(
+    const TCompanionProcessRequestPtr& request,
+    const THashMap<std::string, TJoinedStateKeyClient<TSimpleExternalState>>& joiners,
+    const IInputContextPtr& input)
+{
+    for (const auto& [stateName, stateClient] : joiners) {
+        for (const auto& key : stateClient.ExtractKeys(input)) {
+            auto stateHandle = stateClient.GetState(key);
+            const auto* joinedState = stateHandle.Get();
+            if (!joinedState) {
+                continue;
+            }
+            GetOrInsert(
+                request->JoinedExternalStates,
+                stateName,
+                [&] {
+                    return TStateHolder<TPayload>{
+                        .StateName = stateName,
+                        .Schema = joinedState->Schema,
+                    };
+                })
+                .StateItems.push_back({
+                    .Key = key,
+                    .State = joinedState->Payload,
+                });
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

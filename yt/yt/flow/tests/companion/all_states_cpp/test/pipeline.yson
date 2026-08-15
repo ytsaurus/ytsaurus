@@ -80,6 +80,20 @@
                         };
                     };
                 };
+                "external_state_joiners" = {
+                    "/tag-metadata" = {
+                        "external_state_joiner_class_name" = "NYT::NFlow::TSimpleExternalStateJoiner";
+                        "join_on" = {
+                            "key_schema_override" = [
+                                {"name" = "tag_hash"; "expression" = "farm_hash(tag)"; "type" = "uint64"; required = %true;};
+                                {"name" = "tag"; "type" = "string";};
+                            ];
+                        };
+                        "parameters" = {
+                            "path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
                 "required_resource_ids" = {
                     "CompanionManager" = {
                         "worker" = %true;
@@ -102,6 +116,7 @@
             "unique-words" = {
                 "schema" = [
                     {"name" = "word"; "type" = "string";};
+                    {"name" = "tag_weight"; "type" = "int64";};
                 ];
             };
         };

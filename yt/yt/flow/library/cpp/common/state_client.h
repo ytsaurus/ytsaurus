@@ -145,6 +145,10 @@ public:
     TKey ResolveKey(const TInputMessageConstPtr& message) const;
     TKey ResolveKey(const TInputTimerConstPtr& timer) const;
 
+    //! The lookup keys |inputContext| implies for this joiner; #PreloadKeyStates() loads exactly
+    //! these. For visitor-driven joiners the framework preloads visit keys only.
+    THashSet<TKey> ExtractKeys(const IInputContextPtr& inputContext) const;
+
     TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) const;
     TFuture<void> PreloadKeyStates(const IInputContextPtr& inputContext) const;
     NTableClient::TTableSchemaPtr GetKeySchema() const;
