@@ -4501,7 +4501,8 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
         THROW_ERROR_EXCEPTION("Test exception");
     }
 
-    // NB: Errors ignored since we cannot do anything with it.
+    // Flush pending live preview requests before aborting the transactions they use below.
+    // NB: Errors are ignored since we cannot do anything with them.
     Y_UNUSED(WaitFor(Host_->FlushOperationNode()));
 
     bool debugTransactionCommitted = false;
@@ -4592,6 +4593,10 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 
     YT_VERIFY(finalState == EControllerState::Aborted || finalState == EControllerState::Failed);
     State_ = finalState;
+
+    // Flush once more to write final brief progress in Cypress.
+    // TODO(bystrovserg): Build final progress.
+    FlushOperationNode(/*checkFlushResult*/ false);
 
     LogProgress(/*force*/ true);
 
