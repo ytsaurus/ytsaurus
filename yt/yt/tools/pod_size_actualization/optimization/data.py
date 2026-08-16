@@ -161,18 +161,17 @@ def prepare_numa_host_data(hosts_df: pd.DataFrame) -> list:
     return hosts
 
 
+# Диагностика, одинаковая во всех периодных выходах.
 VALIDITY_COLUMNS = (
     'node_valid_periods',
     'proxy_valid_periods',
     'node_last_config_change',
     'proxy_last_config_change',
     'bundle_spec_loaded_at',
-    'node_spec_coverage',
-    'proxy_spec_coverage',
-    'node_usage_coverage',
-    'proxy_usage_coverage',
     'node_confidence',
     'proxy_confidence',
+    'node_period_invalidation_reason',
+    'proxy_period_invalidation_reason',
     'node_confidence_reason',
     'proxy_confidence_reason',
     'node_count',
@@ -192,22 +191,39 @@ BUNDLE_ADMINISTRATIVE_COLUMNS = (
     'business_group_name_ru',
 )
 
+# Coverage — единственное, что различается между периодными выходами: в каждом
+# из них он относится к своему периоду.
+PERIOD_COVERAGE_COLUMNS = (
+    'node_spec_coverage',
+    'proxy_spec_coverage',
+    'node_usage_coverage',
+    'proxy_usage_coverage',
+)
+
 _VALIDITY_INPUT_COLUMNS = (
     'cluster',
     'bundle',
     'method_name',
     'periods_total',
     *VALIDITY_COLUMNS,
+    *PERIOD_COVERAGE_COLUMNS,
     *BUNDLE_ADMINISTRATIVE_COLUMNS,
 )
+
+
+def period_coverage_column(column: str, period: int) -> str:
+    """Имя колонки coverage конкретного периода: node_usage_coverage -> node_usage_coverage_period_0."""
+    return f"{column}_period_{period}"
 
 
 def load_bundle_validity(bundle_file_paths: list) -> tuple:
     """Load the bundle diagnostics calculated by YQL.
 
     YQL repeats the final diagnostics in every period output, so one row per
-    bundle is enough here. Missing columns are intentionally not defaulted:
-    pandas will fail while reading an incompatible input schema.
+    bundle is enough here; coverage самого периода, наоборот, разное, поэтому
+    раскладывается по колонкам с номером периода. Missing columns are
+    intentionally not defaulted: pandas will fail while reading an incompatible
+    input schema.
     """
     frames = []
     for path in bundle_file_paths:
@@ -217,16 +233,21 @@ def load_bundle_validity(bundle_file_paths: list) -> tuple:
             continue
         frames.append(df)
     if not frames:
-        return pd.DataFrame(
-            columns=['cluster', 'bundle', *VALIDITY_COLUMNS, *BUNDLE_ADMINISTRATIVE_COLUMNS]
-        ), 0
+        return pd.DataFrame(columns=['cluster', 'bundle', *VALIDITY_COLUMNS, *BUNDLE_ADMINISTRATIVE_COLUMNS]), 0
 
     data = pd.concat(frames, ignore_index=True)
     periods_total = int(data['periods_total'].max())
-    validity = data.drop_duplicates(['cluster', 'bundle'], keep='first')
-    return validity[
+    data['_period'] = data['method_name'].str.extract(r'(\d+)$')[0].astype(int)
+
+    validity = data.drop_duplicates(['cluster', 'bundle'], keep='first')[
         ['cluster', 'bundle', *VALIDITY_COLUMNS, *BUNDLE_ADMINISTRATIVE_COLUMNS]
-    ], periods_total
+    ]
+    for period, group in data.groupby('_period', sort=True):
+        renamed = group[['cluster', 'bundle', *PERIOD_COVERAGE_COLUMNS]].rename(
+            columns={name: period_coverage_column(name, period) for name in PERIOD_COVERAGE_COLUMNS}
+        )
+        validity = validity.merge(renamed, how='left', on=['cluster', 'bundle'])
+    return validity, periods_total
 
 
 def _rows_per_cluster(df) -> str:

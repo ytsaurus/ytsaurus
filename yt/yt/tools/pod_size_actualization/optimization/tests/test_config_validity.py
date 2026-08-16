@@ -18,7 +18,6 @@ from yt.yt.tools.pod_size_actualization.optimization.results import (
     rename_columns_to_snake_case,
 )
 
-
 ADMINISTRATIVE_VALUES = {
     "abc_service_slug": "yt",
     "abc_service_path": "yandex/infra/yt",
@@ -99,25 +98,45 @@ def validity(*rows, periods_total=3):
                 "node_last_config_change": node_change,
                 "proxy_last_config_change": proxy_change,
                 "bundle_spec_loaded_at": "2026-07-28",
-                "node_spec_coverage": 1.0,
-                "proxy_spec_coverage": 1.0,
-                "node_usage_coverage": 1.0,
-                "proxy_usage_coverage": 1.0,
+                **{
+                    f"{instance}_{kind}_coverage_period_{period}": 1.0
+                    for instance in ("node", "proxy")
+                    for kind in ("spec", "usage")
+                    for period in range(periods_total)
+                },
                 "node_confidence": (
                     "none" if node_periods == 0 else "full" if node_periods >= periods_total else "low"
                 ),
                 "proxy_confidence": (
                     "none" if proxy_periods == 0 else "full" if proxy_periods >= periods_total else "low"
                 ),
+                "node_period_invalidation_reason": (
+                    ""
+                    if node_periods >= periods_total
+                    else (
+                        f"period_{node_periods}:recent_configuration_change"
+                        if node_change
+                        else f"period_{node_periods}:insufficient_usage_coverage"
+                    )
+                ),
+                "proxy_period_invalidation_reason": (
+                    ""
+                    if proxy_periods >= periods_total
+                    else (
+                        f"period_{proxy_periods}:recent_configuration_change"
+                        if proxy_change
+                        else f"period_{proxy_periods}:insufficient_usage_coverage"
+                    )
+                ),
                 "node_confidence_reason": (
                     ""
                     if node_periods >= periods_total
-                    else "recent_configuration_change" if node_change else "insufficient_usage_coverage"
+                    else "no_valid_period" if node_periods == 0 else "dropped_periods"
                 ),
                 "proxy_confidence_reason": (
                     ""
                     if proxy_periods >= periods_total
-                    else "recent_configuration_change" if proxy_change else "insufficient_usage_coverage"
+                    else "no_valid_period" if proxy_periods == 0 else "dropped_periods"
                 ),
                 "node_count": 3,
                 "rpc_count": 0,
@@ -233,10 +252,10 @@ def test_empty_assignments_stay_empty():
 
 def test_no_valid_period_is_retained_with_coverage_reasons():
     data = validity(("seneca-sas", "ads", 0, 3, None, None))
-    data.loc[0, "node_spec_coverage"] = 0.4
-    data.loc[0, "node_usage_coverage"] = 0.3
     data.loc[0, "rpc_count"] = 0
-    data.loc[0, "node_confidence_reason"] = "insufficient_spec_coverage,insufficient_usage_coverage"
+    data.loc[0, "node_period_invalidation_reason"] = (
+        "period_0:insufficient_spec_coverage,period_0:insufficient_usage_coverage"
+    )
 
     out = annotate_assignments_with_validity(assignments(), data, periods_total=3)
 
@@ -244,26 +263,26 @@ def test_no_valid_period_is_retained_with_coverage_reasons():
     row = out.iloc[0]
     assert row["InstanceType"] == "node"
     assert row["RecommendationStatus"] == "not_recommended"
-    assert row["ConfidenceReason"] == ("insufficient_spec_coverage,insufficient_usage_coverage")
+    assert row["PeriodInvalidationReason"] == (
+        "period_0:insufficient_spec_coverage,period_0:insufficient_usage_coverage"
+    )
+    assert row["ConfidenceReason"] == "no_valid_period"
     assert row["BundleSpecLoadedAt"] == "2026-07-28"
 
 
 def test_no_valid_period_reports_recent_configuration_change():
     data = validity(("seneca-sas", "ads", 0, 3, "2026-07-27", None))
     data.loc[0, "rpc_count"] = 0
-    data.loc[0, "node_confidence_reason"] = "recent_configuration_change"
 
     out = annotate_assignments_with_validity(assignments(), data, periods_total=3)
 
     row = out.iloc[0]
-    assert row["ConfidenceReason"] == "recent_configuration_change"
+    assert row["PeriodInvalidationReason"] == "period_0:recent_configuration_change"
     assert row["LastConfigChange"] == "2026-07-27"
 
 
-def test_recommendation_gets_average_coverages_and_spec_date():
+def test_recommendation_without_dropped_periods_has_empty_reasons():
     data = validity(("seneca-sas", "ads", 3, 3, None, None))
-    data.loc[0, "node_spec_coverage"] = 0.75
-    data.loc[0, "node_usage_coverage"] = 0.8
 
     out = annotate_assignments_with_validity(
         assignments(("seneca-sas", "ads", "node")),
@@ -272,10 +291,9 @@ def test_recommendation_gets_average_coverages_and_spec_date():
     )
 
     row = out.iloc[0]
-    assert row["SpecCoverage"] == pytest.approx(0.75)
-    assert row["UsageCoverage"] == pytest.approx(0.8)
     assert row["BundleSpecLoadedAt"] == "2026-07-28"
     assert row["RecommendationStatus"] == "recommended"
+    assert row["PeriodInvalidationReason"] == ""
     assert row["ConfidenceReason"] == ""
     assert {name: row[name] for name in ADMINISTRATIVE_VALUES} == ADMINISTRATIVE_VALUES
 
@@ -291,29 +309,35 @@ def test_administrative_fields_are_retained_without_recommendation():
     assert {name: row[name] for name in ADMINISTRATIVE_VALUES} == ADMINISTRATIVE_VALUES
 
 
-def test_load_bundle_validity_accepts_consistent_yql_diagnostics(tmp_path):
-    rows = []
-    for method in ("period_0", "period_1", "period_2"):
+def yql_period_files(tmp_path, period_usage_coverage):
+    """Периодные выходы YQL: диагностика в них общая, coverage периода — своё."""
+    paths = []
+    for period, usage_coverage in enumerate(period_usage_coverage):
         row = validity(("seneca-sas", "ads", 2, 2, None, None)).iloc[0].to_dict()
         row.update(
             {
-                "method_name": method,
-                "periods_total": 3,
-                "node_spec_coverage": 0.7,
-                "node_usage_coverage": 0.7,
-                "node_confidence_reason": "insufficient_usage_coverage",
+                "method_name": f"period_{period}",
+                "periods_total": len(period_usage_coverage),
+                "node_period_invalidation_reason": "period_2:insufficient_usage_coverage",
+                "node_confidence_reason": "dropped_periods",
+                "node_spec_coverage": 1.0,
+                "proxy_spec_coverage": 1.0,
+                "node_usage_coverage": usage_coverage,
+                "proxy_usage_coverage": usage_coverage,
             }
         )
-        path = tmp_path / f"{method}.csv"
+        path = tmp_path / f"period_{period}.csv"
         pd.DataFrame([row]).to_csv(path, index=False)
-        rows.append(str(path))
+        paths.append(str(path))
+    return paths
 
-    loaded, periods_total = load_bundle_validity(rows)
+
+def test_load_bundle_validity_accepts_consistent_yql_diagnostics(tmp_path):
+    loaded, periods_total = load_bundle_validity(yql_period_files(tmp_path, [0.7] * 3))
 
     assert periods_total == 3
-    assert loaded.loc[0, "node_spec_coverage"] == pytest.approx(0.7)
-    assert loaded.loc[0, "node_usage_coverage"] == pytest.approx(0.7)
-    assert loaded.loc[0, "node_confidence_reason"] == "insufficient_usage_coverage"
+    assert loaded.loc[0, "node_usage_coverage_period_0"] == pytest.approx(0.7)
+    assert loaded.loc[0, "node_period_invalidation_reason"] == "period_2:insufficient_usage_coverage"
 
     out = annotate_assignments_with_validity(
         assignments(("seneca-sas", "ads", "node")),
@@ -321,12 +345,34 @@ def test_load_bundle_validity_accepts_consistent_yql_diagnostics(tmp_path):
         periods_total,
     )
     assert out.loc[0, "Confidence"] == "low"
-    assert out.loc[0, "ConfidenceReason"] == "insufficient_usage_coverage"
+    assert out.loc[0, "PeriodInvalidationReason"] == "period_2:insufficient_usage_coverage"
+    assert out.loc[0, "ConfidenceReason"] == "dropped_periods"
+
+
+def test_coverage_of_every_period_reaches_the_final_table(tmp_path):
+    loaded, periods_total = load_bundle_validity(yql_period_files(tmp_path, [1.0, 0.9, 0.3]))
+
+    assert loaded.loc[0, "node_usage_coverage_period_2"] == pytest.approx(0.3)
+
+    out = annotate_assignments_with_validity(
+        assignments(("seneca-sas", "ads", "node")),
+        loaded,
+        periods_total,
+    )
+    row = out.iloc[0]
+    assert row["UsageCoveragePeriod_0"] == pytest.approx(1.0)
+    assert row["UsageCoveragePeriod_1"] == pytest.approx(0.9)
+    assert row["UsageCoveragePeriod_2"] == pytest.approx(0.3)
+    assert row["SpecCoveragePeriod_2"] == pytest.approx(1.0)
+    # Усреднённых столбцов в итоговой таблице нет: их заменяют периодные.
+    assert "UsageCoverage" not in out.columns
+
+    renamed = rename_columns_to_snake_case(out)
+    assert "usage_coverage_period_2" in renamed.columns
 
 
 def test_full_periods_with_coverage_below_point_seven_have_low_confidence():
     data = validity(("seneca-sas", "ads", 3, 3, None, None))
-    data.loc[0, "node_spec_coverage"] = 0.65
     data.loc[0, "node_confidence"] = "low"
     data.loc[0, "node_confidence_reason"] = "insufficient_spec_coverage"
 
