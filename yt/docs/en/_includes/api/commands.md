@@ -5925,7 +5925,7 @@ Command properties: **Non-mutating**, **Light**.
 
 Semantics:
 
-- Get the current authenticated user.
+- Get the current user for the request. If the request uses HTTP proxy user impersonation via the `X-YT-User-Name` header, the command returns the impersonated user.
 
 Parameters:
 
@@ -5938,7 +5938,7 @@ Input data:
 Output data:
 
 - Type: `structured`.
-- Value: Current user name.
+- Value: A map with the `user` field containing the current user name.
 
 ### discover_proxies
 
