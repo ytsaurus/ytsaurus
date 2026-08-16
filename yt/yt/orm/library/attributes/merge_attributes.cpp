@@ -654,20 +654,6 @@ bool HasPrefixes(const std::vector<TAttributeValue>& attributeValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsOnePrefixOfAnother(NYPath::TYPathBuf lhs, NYPath::TYPathBuf rhs)
-{
-    auto [lit, rit] = std::ranges::mismatch(lhs, rhs);
-    if (lit == lhs.end() && (rit == rhs.end() || *rit == '/')) {
-        return true;
-    }
-    if (rit == rhs.end() && (*lit == '/')) {
-        return true;
-    }
-    return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TMergeAttributesPlan::TWriter::TWriter(
     NYson::IYsonConsumer* consumer,
     const TMergeAttributesPlan& plan)
