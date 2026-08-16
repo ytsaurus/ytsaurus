@@ -96,10 +96,12 @@ TError TKeyRotator::DoRotate()
 
     auto error = WaitFor(KeyWriter_->RegisterKey(keyInfo));
     if (!error.IsOK()) {
-       YT_TLOG_ERROR("Failed to register new keypair during rotation")
-           .With("NewKeyPair", GetKeyId(keyInfo->Meta()))
-           .With(error);
-       return error;
+        auto [minBackoff, maxBackoff] = Executor_->GetBackoffInterval();
+        YT_TLOG_ERROR("Failed to register new keypair during rotation")
+            .With("NewKeyPair", GetKeyId(keyInfo->Meta()))
+            .WithFormat("BackoffTime", "[%v, %v]", minBackoff, maxBackoff)
+            .With(error);
+        return error;
     }
 
     Generator_->SetKeyPair(std::move(newKeyPair));

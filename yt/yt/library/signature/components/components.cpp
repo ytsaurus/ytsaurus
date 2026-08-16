@@ -215,8 +215,6 @@ TFuture<void> TSignatureComponents::RotateOutOfBand()
     return DoRotateOutOfBand();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 ISignatureGeneratorPtr TSignatureComponents::GetSignatureGenerator()
 {
     return DynamicSignatureGenerator_;
