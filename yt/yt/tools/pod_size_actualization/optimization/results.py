@@ -87,8 +87,24 @@ def annotate_assignments_with_validity(
     validity_df = validity_df.copy()
     validity_df = validity_df[validity_df['cluster'].isin(configured_clusters)].copy()
 
-    def _reason(row, prefix):
-        value = row[f'{prefix}_confidence_reason']
+    # Число периодов задаётся опцией графа, поэтому берём их из самих данных.
+    periods = sorted(
+        int(column.rsplit('_', 1)[1])
+        for column in validity_df.columns
+        if column.startswith('node_spec_coverage_period_')
+    )
+    period_outputs = [
+        (
+            f'{name}CoveragePeriod_{period}',
+            f'node_{kind}_coverage_period_{period}',
+            f'proxy_{kind}_coverage_period_{period}',
+        )
+        for name, kind in (('Spec', 'spec'), ('Usage', 'usage'))
+        for period in periods
+    ]
+
+    def _reason(row, prefix, column):
+        value = row[f'{prefix}_{column}']
         return '' if pd.isna(value) else str(value)
 
     if assign_df.empty:
@@ -115,15 +131,23 @@ def annotate_assignments_with_validity(
             np.where(is_node, merged['node_last_config_change'], merged['proxy_last_config_change']), index=merged.index
         ).fillna('')
         merged['BundleSpecLoadedAt'] = merged['bundle_spec_loaded_at']
-        merged['SpecCoverage'] = np.where(is_node, merged['node_spec_coverage'], merged['proxy_spec_coverage'])
-        merged['UsageCoverage'] = np.where(is_node, merged['node_usage_coverage'], merged['proxy_usage_coverage'])
+        for output, node_column, proxy_column in period_outputs:
+            merged[output] = np.where(is_node, merged[node_column], merged[proxy_column])
         merged['Confidence'] = np.where(is_node, merged['node_confidence'], merged['proxy_confidence'])
         merged['RecommendationStatus'] = 'recommended'
-        merged['ConfidenceReason'] = [
-            _reason(row, 'node' if row['InstanceType'] == 'node' else 'proxy') for _, row in merged.iterrows()
+        for output, column in (
+            ('PeriodInvalidationReason', 'period_invalidation_reason'),
+            ('ConfidenceReason', 'confidence_reason'),
+        ):
+            merged[output] = [
+                _reason(row, 'node' if row['InstanceType'] == 'node' else 'proxy', column)
+                for _, row in merged.iterrows()
+            ]
+        service_columns = [
+            column for _, node_column, proxy_column in period_outputs for column in (node_column, proxy_column)
         ]
         recommended = merged.drop(
-            columns=['cluster', 'bundle', '_merge', *VALIDITY_COLUMNS],
+            columns=['cluster', 'bundle', '_merge', *VALIDITY_COLUMNS, *service_columns],
             errors='ignore',
         )
 
@@ -151,8 +175,6 @@ def annotate_assignments_with_validity(
             if count <= 0 or int(row[f'{prefix}_valid_periods']) > 0 or key in existing:
                 continue
 
-            spec_coverage = float(row[f'{prefix}_spec_coverage'])
-            usage_coverage = float(row[f'{prefix}_usage_coverage'])
             last_change = row[f'{prefix}_last_config_change']
             not_recommended.append(
                 {
@@ -165,11 +187,14 @@ def annotate_assignments_with_validity(
                     'ValidPeriods': 0,
                     'LastConfigChange': '' if pd.isna(last_change) else last_change,
                     'BundleSpecLoadedAt': row['bundle_spec_loaded_at'],
-                    'SpecCoverage': spec_coverage,
-                    'UsageCoverage': usage_coverage,
+                    **{
+                        output: row[node_column if prefix == 'node' else proxy_column]
+                        for output, node_column, proxy_column in period_outputs
+                    },
                     'Confidence': row[f'{prefix}_confidence'],
                     'RecommendationStatus': 'not_recommended',
-                    'ConfidenceReason': _reason(row, prefix),
+                    'PeriodInvalidationReason': _reason(row, prefix, 'period_invalidation_reason'),
+                    'ConfidenceReason': _reason(row, prefix, 'confidence_reason'),
                     **{name: row[name] for name in BUNDLE_ADMINISTRATIVE_COLUMNS},
                 }
             )

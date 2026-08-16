@@ -108,15 +108,31 @@ $fingerprint = ($count, $type, $vcpu, $memory, $net) -> {
         || "|" || CAST(COALESCE($net, 0) AS String);
 };
 
--- Причина формируется здесь, рядом с порогами, определяющими валидность и
--- confidence. Python только переносит готовую строку в итоговую таблицу.
-$confidence_reason = ($spec_bad, $usage_bad, $config_bad) -> {
-    RETURN IF($spec_bad, "insufficient_spec_coverage", "")
-        || IF($usage_bad,
-              IF($spec_bad, ",", "") || "insufficient_usage_coverage", "")
-        || IF($config_bad,
-              IF($spec_bad OR $usage_bad, ",", "")
-                  || "recent_configuration_change", "");
+-- Причины формируются здесь, рядом с порогами, которые их и порождают. Python
+-- только переносит готовые строки в итоговую таблицу.
+--
+-- Отбрасывание периода и понижение confidence — разные события с разными
+-- порогами, поэтому и причины разные. Первая объясняет, почему оборвался хвост
+-- валидных периодов: она относится к граничному периоду, его номер и стоит в
+-- префиксе.
+$period_invalidation_reason = ($boundary_period, $spec_bad, $usage_bad, $config_bad) -> {
+    $prefix = "period_" || CAST($boundary_period AS String) || ":";
+    RETURN COALESCE(ListConcat(ListNotNull(AsList(
+        IF($spec_bad, $prefix || "insufficient_spec_coverage"),
+        IF($usage_bad, $prefix || "insufficient_usage_coverage"),
+        IF($config_bad, $prefix || "recent_configuration_change")
+    )), ","), "");
+};
+
+-- Вторая объясняет, почему confidence не full: часть периодов отброшена и/или
+-- среднее coverage по вошедшим ниже порога full.
+$confidence_reason = ($valid_periods, $spec_bad, $usage_bad) -> {
+    RETURN COALESCE(ListConcat(ListNotNull(AsList(
+        IF($valid_periods == 0, "no_valid_period"),
+        IF($valid_periods > 0 AND $valid_periods < $n_periods, "dropped_periods"),
+        IF($spec_bad, "insufficient_spec_coverage"),
+        IF($usage_bad, "insufficient_usage_coverage")
+    )), ","), "");
 };
 
 -- Гарантии и отпечатки конфигурации по дням: нужны и шагу 1, и шагу 3.
@@ -500,18 +516,24 @@ $bundle_diagnostics = (
                   AND d.proxy_spec_coverage >= $min_full_confidence_coverage
                   AND d.proxy_usage_coverage >= $min_full_confidence_coverage,
               "full", "low")) AS proxy_confidence,
+        $period_invalidation_reason(
+            d.node_valid_periods,
+            d.node_boundary_spec_bad > 0,
+            d.node_boundary_usage_bad > 0,
+            d.node_boundary_config_bad > 0) AS node_period_invalidation_reason,
+        $period_invalidation_reason(
+            d.proxy_valid_periods,
+            d.proxy_boundary_spec_bad > 0,
+            d.proxy_boundary_usage_bad > 0,
+            d.proxy_boundary_config_bad > 0) AS proxy_period_invalidation_reason,
         $confidence_reason(
-            d.node_boundary_spec_bad > 0
-                OR d.node_spec_coverage < $min_full_confidence_coverage,
-            d.node_boundary_usage_bad > 0
-                OR d.node_usage_coverage < $min_full_confidence_coverage,
-            d.node_boundary_config_bad > 0) AS node_confidence_reason,
+            d.node_valid_periods,
+            d.node_spec_coverage < $min_full_confidence_coverage,
+            d.node_usage_coverage < $min_full_confidence_coverage) AS node_confidence_reason,
         $confidence_reason(
-            d.proxy_boundary_spec_bad > 0
-                OR d.proxy_spec_coverage < $min_full_confidence_coverage,
-            d.proxy_boundary_usage_bad > 0
-                OR d.proxy_usage_coverage < $min_full_confidence_coverage,
-            d.proxy_boundary_config_bad > 0) AS proxy_confidence_reason
+            d.proxy_valid_periods,
+            d.proxy_spec_coverage < $min_full_confidence_coverage,
+            d.proxy_usage_coverage < $min_full_confidence_coverage) AS proxy_confidence_reason
     FROM $bundle_diagnostics_raw AS d
 );
 
@@ -554,12 +576,17 @@ SELECT
     d.proxy_last_config_change AS proxy_last_config_change,
     q.node_n_points AS node_n_points,
     q.proxy_n_points AS proxy_n_points,
-    d.node_spec_coverage AS node_spec_coverage,
-    d.proxy_spec_coverage AS proxy_spec_coverage,
-    d.node_usage_coverage AS node_usage_coverage,
-    d.proxy_usage_coverage AS proxy_usage_coverage,
+    -- Coverage периода этой строки. Усреднённое по вошедшим периодам наружу не
+    -- отдаём: оно нужно только порогу confidence и восстанавливается по
+    -- периодным значениям и valid_periods.
+    q.node_spec_coverage AS node_spec_coverage,
+    q.proxy_spec_coverage AS proxy_spec_coverage,
+    q.node_usage_coverage AS node_usage_coverage,
+    q.proxy_usage_coverage AS proxy_usage_coverage,
     d.node_confidence AS node_confidence,
     d.proxy_confidence AS proxy_confidence,
+    d.node_period_invalidation_reason AS node_period_invalidation_reason,
+    d.proxy_period_invalidation_reason AS proxy_period_invalidation_reason,
     d.node_confidence_reason AS node_confidence_reason,
     d.proxy_confidence_reason AS proxy_confidence_reason,
     COALESCE(z.availability_zones, 1) AS availability_zones
