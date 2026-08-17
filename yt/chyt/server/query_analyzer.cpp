@@ -1081,6 +1081,12 @@ void TQueryAnalyzer::ParseQuery()
         TableExpressions_.emplace_back(tableExpression);
     }
 
+    // An n-ary CROSS_JOIN emits all operands before its single join marker.
+    // Keep only the first pair since this analyzer handles the first join.
+    if (CrossJoin_ && TableExpressions_.size() > 2) {
+        TableExpressions_.resize(2);
+    }
+
     YT_VERIFY(TableExpressions_.size() >= 1 && TableExpressions_.size() <= 2);
     auto context = getContext();
     for (size_t tableExpressionIndex = 0; tableExpressionIndex < TableExpressions_.size(); ++tableExpressionIndex) {
