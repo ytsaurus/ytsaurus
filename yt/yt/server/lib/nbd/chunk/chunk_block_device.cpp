@@ -445,14 +445,16 @@ private:
     class TInflightRequestGuard
     {
     public:
-        TInflightRequestGuard(TInflightList* list, TSpinLock* lock, TInflightList::iterator it)
-            : List_(list)
+        TInflightRequestGuard(IBlockDevicePtr owner, TInflightList* list, TSpinLock* lock, TInflightList::iterator it)
+            : Owner_(std::move(owner))
+            , List_(list)
             , Lock_(lock)
             , It_(it)
         { }
 
         TInflightRequestGuard(TInflightRequestGuard&& other) noexcept
-            : List_(other.List_)
+            : Owner_(std::move(other.Owner_))
+            , List_(other.List_)
             , Lock_(other.Lock_)
             , It_(other.It_)
             , Error_(std::move(other.Error_))
@@ -492,6 +494,9 @@ private:
         TInflightRequestGuard& operator=(TInflightRequestGuard&&) = delete;
 
     private:
+        //! The list, the lock and the iterator point into the device; a dropped request
+        //! callback may hold its last reference, so the guard keeps the device alive.
+        IBlockDevicePtr Owner_;
         TInflightList* const List_;
         TSpinLock* const Lock_;
         const TInflightList::iterator It_;
@@ -572,7 +577,7 @@ private:
         });
         auto it = std::prev(InflightRequests_.end());
 
-        return {TInflightRequestGuard(&InflightRequests_, &InflightLock_, it), std::move(conflicts)};
+        return {TInflightRequestGuard(MakeStrong(this), &InflightRequests_, &InflightLock_, it), std::move(conflicts)};
     }
 
 };
