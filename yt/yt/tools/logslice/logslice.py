@@ -49,6 +49,9 @@ CONTROL_PERSIST_DEFAULT = 3600
 CONNECT_TIMEOUT_DEFAULT = 30
 CONTROL_PATH_ENV = "LOGSLICE_SSH_CONTROL_PATH"
 CONTROL_PERSIST_ENV = "LOGSLICE_SSH_CONTROL_PERSIST"
+GLOBAL_NO_MATCH_EXIT = 3
+OPERATIONAL_FAILURE_EXIT = 2
+LOG_TYPES = ("debug", "info", "error")
 
 # Path of this script inside Arcadia, used both to locate the binary and to
 # recover the Arcadia root when the script is run from an arbitrary directory.
@@ -68,6 +71,111 @@ def describe_exit_code(returncode):
         return "killed by signal {}{}, exit code {}".format(
             signal, hint, returncode)
     return "exit code {}".format(returncode)
+
+
+def parse_log_types(value):
+    """Parse one severity, a comma-separated set, or ``all``."""
+    raw = list(LOG_TYPES) if value == "all" else value.split(",")
+    result = []
+    for item in raw:
+        item = item.strip()
+        if item not in LOG_TYPES:
+            raise ValueError(
+                "unknown log type {!r}; expected debug, info, error, a "
+                "comma-separated combination, or all".format(item))
+        if item not in result:
+            result.append(item)
+    if not result:
+        raise ValueError("at least one log type is required")
+    return result
+
+
+LOG_RECORD_TIME_RE = re.compile(
+    r"^(?P<stamp>\d{4}-\d{2}-\d{2}[ T]"
+    r"\d{2}:\d{2}:\d{2}[,.]\d+)")
+
+
+def _timestamped_records(text, source_index):
+    records = []
+    current = None
+    ordinal = 0
+    for line in text.splitlines(True):
+        match = LOG_RECORD_TIME_RE.match(line)
+        if match:
+            if current is not None:
+                records.append(current)
+            stamp = match.group("stamp").replace(",", ".").replace(" ", "T")
+            current = [stamp, source_index, ordinal, line]
+            ordinal += 1
+        elif current is None:
+            current = ["", source_index, ordinal, line]
+            ordinal += 1
+        else:
+            current[3] += line
+    if current is not None:
+        records.append(current)
+    return records
+
+
+def merge_timestamped_outputs(outputs):
+    """Merge severity/file outputs by record timestamp, preserving continuations."""
+    records = []
+    for source_index, text in enumerate(outputs):
+        records.extend(_timestamped_records(text, source_index))
+    records.sort(key=lambda record: (record[0], record[1], record[2]))
+    return "".join(record[3] for record in records)
+
+
+def classify_slice_result(returncode, stdout, stderr):
+    """Distinguish grep no-match from decompression/SSH/tool failure."""
+    if returncode >= 2 or (returncode != 0 and stderr.strip()):
+        return "failed"
+    if returncode == 1:
+        return "no_match"
+    if stdout:
+        return "matched"
+    if returncode in (0, 1):
+        return "no_match"
+    return "failed"
+
+
+def slice_exit_code(results):
+    if any(item["status"] == "failed" for item in results):
+        return OPERATIONAL_FAILURE_EXIT
+    if not any(item["status"] == "matched" for item in results):
+        return GLOBAL_NO_MATCH_EXIT
+    return 0
+
+
+def slice_failure_class(returncode, stderr):
+    text = (stderr or "").lower()
+    if "permission denied" in text and "publickey" in text:
+        return "authentication"
+    if ("connection timed out" in text or "connection reset" in text
+            or "broken pipe" in text or "could not resolve hostname" in text):
+        return "transport"
+    if "decompress" in text or "zstd" in text or "gzip" in text:
+        return "decompression"
+    if returncode > 128:
+        return "signal"
+    return "command"
+
+
+def validate_debug_window(log_types, start_time, end_time, allow_broad=False):
+    """Reject unbounded or >60 s debug scans unless explicitly overridden."""
+    if "debug" not in log_types or allow_broad:
+        return
+    if start_time is None or end_time is None:
+        raise ValueError(
+            "debug logs require a bounded -t/-e window; find an exact error "
+            "or Monium timestamp first, or pass --allow-broad-debug")
+    seconds = (end_time - start_time).total_seconds()
+    if seconds < 0:
+        raise ValueError("the end of the log window precedes its start")
+    if seconds > 60:
+        raise ValueError(
+            "debug window is {:.3f}s; narrow it to at most 60s around an "
+            "observed transition, or pass --allow-broad-debug".format(seconds))
 
 
 ########################################################################
@@ -141,6 +249,14 @@ def resolve_logslice(explicit_path):
 ########################################################################
 # SSH helpers (connection multiplexed so we authenticate once).
 ########################################################################
+
+class PipelineResult:
+    def __init__(self, returncode, operational_returncode, stdout, stderr):
+        self.returncode = returncode
+        self.operational_returncode = operational_returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
 
 class Ssh:
     # Only these programs may start a remote pipeline stage. Validation lives here,
@@ -271,6 +387,22 @@ class Ssh:
         every stage's status and exits with the head (logslice) status; therefore a
         grep with no matches is not misreported as a logslice failure. Returns
         stdout when capture is set, otherwise the effective pipeline exit code."""
+        result = self.run_pipeline_result(head_argv, stages, capture=capture)
+        if capture:
+            if result.operational_returncode != 0:
+                detail = result.stderr or "exit code {}".format(
+                    result.operational_returncode)
+                sys.exit("ssh command failed: {}".format(detail))
+            return result.stdout
+        return result.operational_returncode
+
+    def run_pipeline_result(self, head_argv, stages, capture=True):
+        """Run a validated pipeline and retain its output classification.
+
+        ``returncode`` is 1 when any grep stage has no matches, even if a later
+        presentation stage such as ``wc`` succeeds. ``operational_returncode``
+        preserves the legacy behavior where grep no-match is not a tool failure.
+        """
         self.validate_pipeline(stages)
         pipeline = self._remote_command(head_argv)
         for stage in stages:
@@ -305,21 +437,26 @@ class Ssh:
         if stderr:
             eprint("\n".join(stderr))
 
-        effective_returncode = result.returncode
+        operational_returncode = result.returncode
+        grep_no_match = False
         if statuses:
-            effective_returncode = statuses[0]
+            operational_returncode = statuses[0]
             for stage, status in zip(stages, statuses[1:]):
-                if status != 0 and not (stage[0] == "grep" and status == 1):
-                    effective_returncode = status
+                if stage[0] == "grep" and status == 1:
+                    grep_no_match = True
+                elif status != 0:
+                    operational_returncode = status
                     break
 
-        if capture:
-            if effective_returncode != 0:
-                detail = "\n".join(stderr) or "exit code {}".format(
-                    effective_returncode)
-                sys.exit("ssh command failed: {}".format(detail))
-            return result.stdout
-        return effective_returncode
+        returncode = operational_returncode
+        if returncode == 0 and grep_no_match:
+            returncode = 1
+        return PipelineResult(
+            returncode=returncode,
+            operational_returncode=operational_returncode,
+            stdout=result.stdout or "",
+            stderr="\n".join(stderr),
+        )
 
     def remote_md5(self, remote_path):
         """Returns the md5 hex of an executable remote file, or None otherwise.
@@ -1073,8 +1210,8 @@ def main():
               "[-t start_time] [-e end_time] [-x pipeline] -- grep_args...")
     parser.add_argument("host", help="remote machine name")
     parser.add_argument("--type", default="debug",
-                        choices=["debug", "error", "info"],
-                        help="log type: debug, error or info (default: debug)")
+                        help="log type: debug, error, info, comma-separated "
+                             "types, or all (default: debug)")
     parser.add_argument(
         "--component",
         default=None,
@@ -1117,6 +1254,10 @@ def main():
         default=CONNECT_TIMEOUT_DEFAULT,
         help="ssh connection timeout in seconds (default: {})"
              .format(CONNECT_TIMEOUT_DEFAULT))
+    parser.add_argument(
+        "--allow-broad-debug", action="store_true",
+        help="explicitly allow an unbounded or >60-second debug scan; first "
+             "locate exact transitions in error logs or Monium")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="print ssh commands to stderr")
     args = parser.parse_args(left)
@@ -1126,6 +1267,11 @@ def main():
     # Legacy "-- grep_args" is just a leading grep stage; -x appends arbitrary
     # whitelisted stages after it. All filtering is done by real remote tools, not
     # by logslice's own -g option.
+    try:
+        log_types = parse_log_types(args.type)
+    except ValueError as ex:
+        parser.error(str(ex))
+
     stages = []
     if grep_args:
         stages.append(["grep"] + grep_args)
@@ -1153,6 +1299,11 @@ def main():
     if args.end and end_time is None:
         eprint("Warning: could not parse end time {!r}; "
                "scanning all files.".format(args.end))
+    try:
+        validate_debug_window(
+            log_types, start_time, end_time, args.allow_broad_debug)
+    except ValueError as ex:
+        parser.error(str(ex))
 
     ssh = Ssh(
         args.host,
@@ -1162,6 +1313,8 @@ def main():
         connect_timeout=args.connect_timeout)
     ssh.connect()
     ssh.copy_binary(local_bin, REMOTE_BIN)
+    server_timezone = ssh.run(
+        ["date", "+%z"], check=False, warn_on_error=True).strip() or "unknown"
 
     # The archive (older, time-named files) is searched alongside the live logs;
     # discover_series returns them oldest -> newest and select_log_files selects
@@ -1171,9 +1324,15 @@ def main():
     if archive_dir is not None and not should_use_master_archive(
             args.host, args.component):
         archive_dir = None
-    candidates, roots = discover_component_candidates(
-        ssh, args.type, start_time, end_time, archive_dir
-    )
+    candidates = set()
+    roots = []
+    for log_type in log_types:
+        type_candidates, type_roots = discover_component_candidates(
+            ssh, log_type, start_time, end_time, archive_dir)
+        candidates.update(type_candidates)
+        for root in type_roots:
+            if root not in roots:
+                roots.append(root)
     try:
         route = resolve_component_route(args.host, args.component, candidates)
     except ValueError as error:
@@ -1181,27 +1340,30 @@ def main():
     for line in routing_metadata(route, roots):
         eprint(line)
 
-    series = discover_series(
-        ssh, args.type, start_time, end_time, archive_dir,
-        component=route["base"])
-    if not series:
-        sys.exit("No {} log files found on {}.".format(args.type, args.host))
+    selected = []
+    selected_paths = []
+    for log_type in log_types:
+        series = discover_series(
+            ssh, log_type, start_time, end_time, archive_dir,
+            component=route["base"])
+        if not series:
+            eprint("Found 0 {} log files on {}.".format(log_type, args.host))
+            continue
+        type_selected, summary = select_log_files(
+            ssh, REMOTE_BIN, series, start_time, end_time)
+        for origin, base, total, sel in summary:
+            eprint("Found {} {} log file(s) for component '{}' ({})."
+                   .format(total, log_type, base, origin))
+            if sel:
+                eprint("Selected {} {} file(s): {} .. {}".format(
+                    len(sel), origin, sel[0].name, sel[-1].name))
+        for log_file in type_selected:
+            selected.append((log_type, log_file))
+            selected_paths.append(log_file.path)
 
-    selected, summary = select_log_files(
-        ssh, REMOTE_BIN, series, start_time, end_time)
-    for origin, base, total, sel in summary:
-        eprint("Found {} {} log file(s) for component '{}' ({})."
-               .format(total, args.type, base, origin))
-        if sel:
-            eprint("Selected {} {} file(s): {} .. {}".format(
-                len(sel), origin, sel[0].name, sel[-1].name))
-
-    if not selected:
-        eprint("No log files overlap the requested time window.")
-        return
-
-    failures = []
-    for log_file in selected:
+    results = []
+    outputs = []
+    for log_type, log_file in selected:
         path = log_file.path
         head = [REMOTE_BIN]
         # Pass the window bounds to every selected file: the boundary files need
@@ -1213,16 +1375,52 @@ def main():
         if args.end:
             head += ["-e", args.end]
         head.append(path)
-        returncode = ssh.run_pipeline(head, stages, capture=False)
-        if returncode != 0:
-            failures.append((log_file.name, returncode))
-            eprint("logslice failed on {} ({}).".format(
-                log_file.name, describe_exit_code(returncode)))
+        completed = ssh.run_pipeline_result(head, stages, capture=True)
+        status = classify_slice_result(
+            completed.returncode, completed.stdout, completed.stderr)
+        result = {
+            "type": log_type,
+            "file": path,
+            "status": status,
+            "returncode": completed.returncode,
+            "match_count": len(completed.stdout.splitlines()),
+        }
+        if status == "failed":
+            result["failure_class"] = slice_failure_class(
+                completed.returncode, completed.stderr)
+            result["error"] = completed.stderr.strip() or describe_exit_code(
+                completed.returncode)
+        results.append(result)
+        if status == "matched":
+            outputs.append(completed.stdout)
+        detail = ""
+        if status == "failed":
+            detail = " failure_class={}".format(result["failure_class"])
+        eprint("file_status type={} status={} matches={} file={}{}".format(
+            log_type, status, result["match_count"], path, detail))
 
-    if failures:
-        sys.exit("logslice failed on {} of {} file(s).".format(
-            len(failures), len(selected)))
+    if outputs:
+        sys.stdout.write(merge_timestamped_outputs(outputs))
+
+    exit_code = slice_exit_code(results)
+    matched = sum(item["match_count"] for item in results
+                  if item["status"] == "matched")
+    failure_class = "none"
+    failed_classes = sorted({
+        item["failure_class"] for item in results
+        if item["status"] == "failed"
+    })
+    if failed_classes:
+        failure_class = ",".join(failed_classes)
+    elif exit_code == GLOBAL_NO_MATCH_EXIT:
+        failure_class = "global_no_match"
+    eprint(
+        "summary timezone={} window_start={} window_end={} files={} "
+        "matches={} failure_class={} exit_code={}".format(
+            server_timezone, args.start or "open", args.end or "open",
+            len(selected_paths), matched, failure_class, exit_code))
+    return exit_code
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

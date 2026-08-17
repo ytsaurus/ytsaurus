@@ -9,6 +9,7 @@ import contextlib
 import hashlib
 import importlib.util
 import io
+import json
 import os
 import shlex
 import subprocess
@@ -49,6 +50,21 @@ def _load_logslice():
 
 
 logslice = _load_logslice()
+
+
+def _find_fixture_dir():
+    relative_path = "yt/yt/tools/logslice/unittests/py/fixtures/ytadmin_13061"
+    try:
+        import yatest.common
+        return yatest.common.source_path(relative_path)
+    except ImportError:
+        return os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "fixtures",
+            "ytadmin_13061")
+
+
+FIXTURE_DIR = _find_fixture_dir()
 
 
 def _ssh_localhost_works():
@@ -311,6 +327,90 @@ class PipelineStatusTest(unittest.TestCase):
                 self.ssh.run_pipeline(["logslice", "file"], [["wc", "-x"]]),
                 1,
             )
+
+    def test_result_retains_grep_no_match_after_presentation_stage(self):
+        result = self._result(
+            0, "__LOGSLICE_PIPESTATUS__:0 1 0\n", stdout="0\n")
+        with mock.patch.object(logslice.subprocess, "run", return_value=result):
+            completed = self.ssh.run_pipeline_result(
+                ["logslice", "file"], [["grep", "x"], ["wc", "-l"]])
+        self.assertEqual(completed.returncode, 1)
+        self.assertEqual(completed.operational_returncode, 0)
+        self.assertEqual(completed.stdout, "0\n")
+
+
+class MultiTypeAndOutcomeTest(unittest.TestCase):
+    def test_parse_log_types_accepts_all_and_comma_list(self):
+        self.assertEqual(
+            logslice.parse_log_types("debug,error,info"),
+            ["debug", "error", "info"])
+        self.assertEqual(
+            logslice.parse_log_types("all"),
+            ["debug", "info", "error"])
+        with self.assertRaisesRegex(ValueError, "unknown log type"):
+            logslice.parse_log_types("debug,warning")
+
+    def test_fixture_merges_severities_by_timestamp(self):
+        outputs = []
+        for name in ("debug.log", "info.log", "error.log"):
+            with open(os.path.join(FIXTURE_DIR, name)) as stream:
+                outputs.append(stream.read())
+        merged = logslice.merge_timestamped_outputs(outputs)
+        stamps = [
+            line.split()[1].replace(",", ".")
+            for line in merged.splitlines()
+        ]
+        self.assertEqual(stamps, sorted(stamps))
+        self.assertEqual(merged.count(
+            "1a6f70ac-1cbee4dc-5d4cc759-2ee628e1"), 5)
+
+    def test_merge_keeps_multiline_record_with_its_timestamp(self):
+        merged = logslice.merge_timestamped_outputs([
+            "2026-08-11 06:16:54,000001 first\n  first continuation\n",
+            "2026-08-11 06:16:53,000001 second\n  second continuation\n",
+        ])
+        self.assertEqual(merged, (
+            "2026-08-11 06:16:53,000001 second\n"
+            "  second continuation\n"
+            "2026-08-11 06:16:54,000001 first\n"
+            "  first continuation\n"))
+
+    def test_fixture_distinguishes_match_no_match_and_failure(self):
+        with open(os.path.join(FIXTURE_DIR, "rotation_outcomes.json")) as stream:
+            fixture = json.load(stream)
+        results = []
+        for item in fixture:
+            status = logslice.classify_slice_result(
+                item["returncode"], item["stdout"], item["stderr"])
+            self.assertEqual(status, item["expected"], item["file"])
+            results.append({
+                "status": status,
+                "failure_class": logslice.slice_failure_class(
+                    item["returncode"], item["stderr"]),
+            })
+        self.assertEqual(logslice.slice_exit_code(results[:2]), 0)
+        self.assertEqual(
+            logslice.slice_exit_code([results[1]]),
+            logslice.GLOBAL_NO_MATCH_EXIT)
+        self.assertEqual(
+            logslice.slice_exit_code(results),
+            logslice.OPERATIONAL_FAILURE_EXIT)
+        self.assertEqual(results[2]["failure_class"], "decompression")
+
+    def test_grep_no_match_stays_no_match_after_wc_output(self):
+        self.assertEqual(
+            logslice.classify_slice_result(1, "0\n", ""),
+            "no_match")
+
+    def test_broad_debug_window_requires_explicit_override(self):
+        start = datetime(2026, 8, 11, 5, 0, 0)
+        end = datetime(2026, 8, 11, 6, 30, 0)
+        with self.assertRaisesRegex(ValueError, "narrow it"):
+            logslice.validate_debug_window(["debug"], start, end)
+        logslice.validate_debug_window(
+            ["debug"], start, end, allow_broad=True)
+        logslice.validate_debug_window(
+            ["error"], None, None, allow_broad=False)
 
 
 class ParseUserTimeTest(unittest.TestCase):
