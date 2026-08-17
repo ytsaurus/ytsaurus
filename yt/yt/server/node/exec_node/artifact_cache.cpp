@@ -387,7 +387,7 @@ public:
             auto location = New<TCacheLocation>(
                 "cache" + ToString(index),
                 std::move(locationConfig),
-                Bootstrap_->GetClusterNodeBootstrap(),
+                Bootstrap_,
                 // All this stuff is leaky.
                 Bootstrap_->GetArtifactCache());
 

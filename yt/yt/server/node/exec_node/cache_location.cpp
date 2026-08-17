@@ -95,7 +95,7 @@ const NChunkClient::TRefCountedChunkMetaPtr& TArtifact::GetMeta() const
 TCacheLocation::TCacheLocation(
     TString id,
     NDataNode::TCacheLocationConfigPtr config,
-    const NClusterNode::IBootstrap* bootstrap,
+    NClusterNode::IBootstrapBase* bootstrap,
     TArtifactCachePtr artifactCache)
     : TChunkLocationBase(
         ELocationType::Cache,
@@ -119,6 +119,9 @@ TCacheLocation::TCacheLocation(
     , EnospcRate_(Profiler_.Counter("/enospc_events"))
 {
     TChunkLocationBase::UpdateMediumTag(GetMediumName());
+
+    Bootstrap_->SubscribePopulateAlerts(
+        BIND_NO_PROPAGATE(&TCacheLocation::PopulateAlerts, MakeWeak(this)));
 }
 
 const NDataNode::TCacheLocationConfigPtr& TCacheLocation::GetStaticConfig() const
